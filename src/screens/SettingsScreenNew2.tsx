@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, ChevronRight, LogOut, Settings,
+  ArrowLeft, LogOut, Settings,
   Palette, Mail, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive, Wrench,
   BookUser, KeyRound, PanelLeftClose, Bell, Puzzle,
@@ -104,22 +104,15 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
               {group.items.map((tab) => {
                 const Icon = tab.icon;
                 return (
-                  <Pressable
-                    key={tab.id}
-                    onPress={() => onTabSelect?.(tab.id)}
-                    style={({ pressed }) => [styles.tabItem, pressed && styles.tabItemPressed]}
-                  >
+                  <View key={tab.id} style={[styles.tabItem, styles.tabItemDisabled]}>
                     <View style={styles.tabItemLeft}>
                       <Icon size={16} color={colors.mutedForeground} />
-                      <Text style={styles.tabItemLabel}>{tab.label}</Text>
-                      {tab.experimental && (
-                        <View style={styles.experimentalBadge}>
-                          <Text style={styles.experimentalText}>Experimental</Text>
-                        </View>
-                      )}
+                      <Text style={[styles.tabItemLabel, styles.tabItemLabelDisabled]}>{tab.label}</Text>
                     </View>
-                    <ChevronRight size={16} color={colors.mutedForeground} />
-                  </Pressable>
+                    <View style={styles.notWorkingBadge}>
+                      <Text style={styles.notWorkingText}>Not working yet</Text>
+                    </View>
+                  </View>
                 );
               })}
             </View>
@@ -238,6 +231,24 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: colors.warning,
+  },
+
+  tabItemDisabled: {
+    opacity: 0.55,
+  },
+  tabItemLabelDisabled: {
+    color: colors.mutedForeground,
+  },
+  notWorkingBadge: {
+    backgroundColor: colors.muted,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  notWorkingText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.mutedForeground,
   },
 
   // Logout — webmail: border-t border-border, px-5 py-3, destructive text

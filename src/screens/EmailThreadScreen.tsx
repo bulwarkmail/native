@@ -1,334 +1,490 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, Star, Archive, Trash2, MoreVertical, Reply, ReplyAll, Forward,
-  Paperclip, Download, Shield, ChevronDown, ChevronUp, Tag
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
+  ChevronLeft, ChevronRight, Paperclip,
 } from 'lucide-react-native';
-  import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
-import { Button } from '../components';
+import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import EmailBodyView from '../components/EmailBodyView';
+import SenderAvatar from '../components/SenderAvatar';
+import { useEmailStore } from '../stores/email-store';
+import type { Email } from '../api/types';
+import type { RootStackParamList } from '../navigation/types';
 
-interface ThreadMessage {
-  id: string;
-  from: { name: string; email: string };
-  to: { name: string; email: string }[];
-  cc?: { name: string; email: string }[];
-  date: Date;
-  bodyText: string;
-  attachments?: { name: string; size: string; type: string }[];
-  isCollapsed?: boolean;
-}
+type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
 
-const MOCK_THREAD: ThreadMessage[] = [
-  {
-    id: 'm1',
-    from: { name: 'Alice Johnson', email: 'alice@example.com' },
-    to: [{ name: 'You', email: 'user@bulwark.mail' }],
-    date: new Date(2026, 2, 28, 14, 0),
-    bodyText: 'Hi team,\n\nI wanted to share the latest progress on our Q2 deliverables.\n\nThe frontend refactor is 80% complete and we\'re on track for the April deadline. The new component library is looking great and performance benchmarks are promising.\n\nKey highlights:\n• Email client performance improved by 40%\n• Calendar rendering optimized for large event sets\n• Mobile responsive layout overhaul complete\n\nPlease review the attached timeline and let me know if you have any concerns.',
-    attachments: [
-      { name: 'Q2-Timeline.pdf', size: '2.4 MB', type: 'pdf' },
-      { name: 'Benchmarks.xlsx', size: '845 KB', type: 'xlsx' },
-    ],
-    isCollapsed: true,
-  },
-  {
-    id: 'm2',
-    from: { name: 'Bob Smith', email: 'bob@company.org' },
-    to: [{ name: 'Alice Johnson', email: 'alice@example.com' }, { name: 'You', email: 'user@bulwark.mail' }],
-    date: new Date(2026, 2, 29, 9, 15),
-    bodyText: 'Great progress, Alice!\n\nThe benchmarks look impressive. I have a couple questions:\n\n1. Have we tested the calendar on mobile devices with 500+ events?\n2. What\'s the plan for S/MIME integration in the new architecture?\n\nI\'ll circle back after reviewing the full timeline.',
-    isCollapsed: true,
-  },
-  {
-    id: 'm3',
-    from: { name: 'Alice Johnson', email: 'alice@example.com' },
-    to: [
-      { name: 'Bob Smith', email: 'bob@company.org' },
-      { name: 'You', email: 'user@bulwark.mail' },
-    ],
-    cc: [{ name: 'Carol Davis', email: 'carol@billing.co' }],
-    date: new Date(2026, 2, 29, 10, 30),
-    bodyText: 'Hi Bob,\n\nGreat questions!\n\n1. Yes — we tested with up to 2,000 events on Pixel 7 and iPhone 14. Scrolling stays at 60fps after the virtualization rewrite. See the attached benchmark for details.\n\n2. S/MIME is Phase 2 (May timeline). We\'re reusing the existing cert management from the web client. The crypto layer is protocol-agnostic so it ports cleanly.\n\nI\'ve CC\'d Carol to keep finance in the loop on the timeline.\n\nBest,\nAlice',
-    attachments: [
-      { name: 'Mobile-Benchmarks.pdf', size: '1.1 MB', type: 'pdf' },
-    ],
-  },
-];
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+function formatHeaderDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   });
 }
 
-function getFileTypeColor(type: string): string {
-  switch (type) {
-    case 'pdf': return colors.error;
-    case 'xlsx': return colors.calendar.green;
-    case 'doc': return colors.primary;
-    default: return colors.textMuted;
+function formatSize(bytes?: number): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function plainTextBody(email: Email): string {
+  const textPart = email.textBody?.[0];
+  if (textPart?.partId && email.bodyValues?.[textPart.partId]?.value) {
+    return email.bodyValues[textPart.partId].value;
   }
+  return email.preview ?? '';
 }
 
-function MessageCard({ message, isLast }: { message: ThreadMessage; isLast: boolean }) {
-  const [collapsed, setCollapsed] = React.useState(message.isCollapsed ?? false);
+export default function EmailThreadScreen({ route, navigation }: Props) {
+  const { emailId, subject: subjectParam } = route.params;
+  const insets = useSafeAreaInsets();
+  const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
+  const markRead = useEmailStore((s) => s.markRead);
+  const toggleStar = useEmailStore((s) => s.toggleStar);
+  const deleteEmail = useEmailStore((s) => s.deleteEmail);
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
 
-  return (
-    <View style={[styles.messageCard, isLast && styles.messageCardLast]}>
-      {/* Message header */}
-      <Pressable style={styles.messageHeader} onPress={() => setCollapsed(!collapsed)}>
-        <View style={[styles.messageAvatar, { backgroundColor: isLast ? colors.primary : colors.surfaceActive }]}>
-          <Text style={[styles.messageAvatarText, { color: isLast ? colors.textInverse : colors.textSecondary }]}>
-            {message.from.name.charAt(0)}
-          </Text>
-        </View>
-        <View style={styles.messageHeaderContent}>
-          <View style={styles.messageHeaderRow}>
-            <Text style={styles.messageFromName} numberOfLines={1}>{message.from.name}</Text>
-            <Text style={styles.messageDate}>{formatDate(message.date)}</Text>
-          </View>
-          <Text style={styles.messageToLine} numberOfLines={1}>
-            to {message.to.map(t => t.name === 'You' ? 'me' : t.name.split(' ')[0]).join(', ')}
-            {message.cc ? `, cc: ${message.cc.map(c => c.name.split(' ')[0]).join(', ')}` : ''}
-          </Text>
-        </View>
-        {collapsed ? (
-          <ChevronDown size={18} color={colors.textMuted} />
-        ) : (
-          <ChevronUp size={18} color={colors.textMuted} />
-        )}
-      </Pressable>
+  const [email, setEmail] = React.useState<Email | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-      {/* Message body (collapsible) */}
-      {!collapsed && (
-        <View style={styles.messageBody}>
-          <Text style={styles.messageBodyText}>{message.bodyText}</Text>
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const fetched = await getEmailDetail(emailId);
+        if (cancelled) return;
+        setEmail(fetched);
+        if (fetched && !fetched.keywords?.$seen) {
+          void markRead(emailId);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Failed to load email');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [emailId, getEmailDetail, markRead]);
 
-          {/* Attachments */}
-          {message.attachments && message.attachments.length > 0 && (
-            <View style={styles.attachmentSection}>
-              <View style={styles.attachmentHeader}>
-                <Paperclip size={14} color={colors.textMuted} />
-                <Text style={styles.attachmentHeaderText}>
-                  {message.attachments.length} attachment{message.attachments.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-              {message.attachments.map((att, idx) => (
-                <Pressable key={idx} style={styles.attachmentRow}>
-                  <View style={[styles.attachmentIcon, { backgroundColor: getFileTypeColor(att.type) + '20' }]}>
-                    <Text style={[styles.attachmentIconText, { color: getFileTypeColor(att.type) }]}>
-                      {att.type.toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.attachmentInfo}>
-                    <Text style={styles.attachmentName} numberOfLines={1}>{att.name}</Text>
-                    <Text style={styles.attachmentSize}>{att.size}</Text>
-                  </View>
-                  <Download size={16} color={colors.textMuted} />
-                </Pressable>
-              ))}
-            </View>
-          )}
+  const starred = !!email?.keywords?.$flagged;
+  const onToggleStar = () => {
+    if (!email) return;
+    void toggleStar(email.id, !starred);
+    setEmail({
+      ...email,
+      keywords: {
+        ...email.keywords,
+        ...(starred ? {} : { $flagged: true }),
+      },
+    });
+  };
 
-          {/* Quick reply actions (only on last message) */}
-          {isLast && (
-            <View style={styles.quickActions}>
-              <Button variant="outline" size="sm" icon={<Reply size={14} color={colors.primary} />}>
-                Reply
-              </Button>
-              <Button variant="outline" size="sm" icon={<ReplyAll size={14} color={colors.primary} />}>
-                Reply All
-              </Button>
-              <Button variant="outline" size="sm" icon={<Forward size={14} color={colors.primary} />}>
-                Forward
-              </Button>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
+  const onDelete = () => {
+    if (!email || !currentMailboxId) return;
+    const trash = mailboxes.find((m) => m.role === 'trash');
+    if (!trash) return;
+    void deleteEmail(email.id, trash.id, currentMailboxId);
+    navigation.goBack();
+  };
 
-interface EmailThreadScreenProps {
-  subject?: string;
-  onBack?: () => void;
-}
+  const navigateCompose = (mode: 'reply' | 'replyAll' | 'forward') => {
+    if (!email) return;
+    const from = email.from?.[0];
+    if (!from && mode !== 'forward') return;
+    navigation.navigate('Compose', {
+      mode,
+      replyTo: {
+        from: from ?? { email: '' },
+        to: email.to,
+        cc: email.cc,
+        subject: email.subject ?? '',
+        body: plainTextBody(email),
+        inReplyTo: email.id,
+      },
+    });
+  };
 
-export default function EmailThreadScreen({ subject, onBack }: EmailThreadScreenProps) {
+  const subject = email?.subject ?? subjectParam ?? '(no subject)';
+  const from = email?.from?.[0];
+  const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Toolbar */}
       <View style={styles.toolbar}>
-        <Pressable onPress={onBack} style={styles.toolbarBtn}>
-          <ArrowLeft size={20} color={colors.text} />
+        <Pressable onPress={() => navigation.goBack()} style={styles.toolbarBack} hitSlop={8}>
+          <ArrowLeft size={22} color={colors.text} />
         </Pressable>
         <View style={styles.toolbarActions}>
-          <Pressable style={styles.toolbarBtn}>
-            <Archive size={20} color={colors.text} />
-          </Pressable>
-          <Pressable style={styles.toolbarBtn}>
-            <Trash2 size={20} color={colors.text} />
-          </Pressable>
-          <Pressable style={styles.toolbarBtn}>
-            <Star size={20} color={colors.starred} fill={colors.starred} />
-          </Pressable>
-          <Pressable style={styles.toolbarBtn}>
-            <MoreVertical size={20} color={colors.text} />
-          </Pressable>
+          <ToolbarButton
+            icon={<Trash2 size={18} color={colors.textSecondary} />}
+            label="Delete"
+            onPress={onDelete}
+          />
+          <ToolbarButton
+            icon={
+              <Star
+                size={18}
+                color={starred ? colors.starred : colors.textSecondary}
+                fill={starred ? colors.starred : 'transparent'}
+              />
+            }
+            label="Star"
+            onPress={onToggleStar}
+          />
+          <ToolbarButton
+            icon={<MoreVertical size={18} color={colors.textSecondary} />}
+            label="More"
+          />
         </View>
       </View>
 
-      <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollContainer}>
-        {/* Subject */}
-        <View style={styles.subjectArea}>
-          <Text style={styles.subjectText}>
-            {subject || 'Project update for Q2 — milestones and timeline'}
-          </Text>
-          <View style={styles.subjectMeta}>
-            <View style={styles.labelBadge}>
-              <Tag size={10} color={colors.tags.blue.dot} />
-              <Text style={[styles.labelText, { color: colors.tags.blue.dot }]}>Work</Text>
-            </View>
-            <Text style={styles.messageCount}>{MOCK_THREAD.length} messages</Text>
-          </View>
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.primary} />
         </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : email ? (
+        <>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
+          >
+            {/* Subject block */}
+            <View style={styles.subjectBlock}>
+              <View style={styles.subjectRow}>
+                <View style={styles.subjectMain}>
+                  <Pressable onPress={onToggleStar} hitSlop={8} style={styles.subjectStar}>
+                    <Star
+                      size={18}
+                      color={starred ? colors.starred : colors.textMuted}
+                      fill={starred ? colors.starred : 'transparent'}
+                    />
+                  </Pressable>
+                  <Text style={styles.subjectText}>{subject}</Text>
+                </View>
+                <View style={styles.subjectMeta}>
+                  <Text style={styles.subjectDate}>{formatHeaderDate(email.receivedAt)}</Text>
+                  {email.size > 0 && (
+                    <Text style={styles.subjectSize}>{formatSize(email.size)}</Text>
+                  )}
+                </View>
+              </View>
+            </View>
 
-        {/* Messages */}
-        {MOCK_THREAD.map((msg, index) => (
-          <MessageCard
-            key={msg.id}
-            message={msg}
-            isLast={index === MOCK_THREAD.length - 1}
-          />
-        ))}
-      </ScrollView>
+            {/* Sender info */}
+            <View style={styles.senderBlock}>
+              <View style={styles.senderRow}>
+                <SenderAvatar
+                  name={from?.name}
+                  email={from?.email}
+                  size={componentSizes.avatarMd}
+                />
+                <View style={styles.senderInfo}>
+                  <Text style={styles.senderName} numberOfLines={1}>
+                    {from?.name || from?.email || 'Unknown sender'}
+                  </Text>
+                  {from?.name && from?.email ? (
+                    <Text style={styles.senderEmail} numberOfLines={1}>{from.email}</Text>
+                  ) : null}
+                  <Text style={styles.senderRecipients} numberOfLines={1}>
+                    <Text style={styles.senderRecipientsLabel}>to </Text>
+                    {email.to?.map((t) => t.name || t.email).join(', ') || '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Attachments chips */}
+            {email.attachments && email.attachments.length > 0 && (
+              <View style={styles.attachmentsBlock}>
+                <View style={styles.attachmentsRow}>
+                  {email.attachments.map((att, idx) => (
+                    <View key={att.blobId ?? idx} style={styles.attachmentChip}>
+                      <Paperclip size={14} color={colors.textMuted} />
+                      <Text style={styles.attachmentName} numberOfLines={1}>
+                        {att.name || 'attachment'}
+                      </Text>
+                      <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Body */}
+            <View style={styles.bodyBlock}>
+              <EmailBodyView email={email} senderEmail={from?.email} />
+            </View>
+          </ScrollView>
+
+          {/* Bottom action bar */}
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
+            <BottomBarButton
+              icon={<ChevronLeft size={20} color={colors.textMuted} />}
+              label="Prev"
+              disabled
+            />
+            <BottomBarButton
+              icon={<Reply size={20} color={colors.textSecondary} />}
+              label="Reply"
+              onPress={() => navigateCompose('reply')}
+            />
+            <BottomBarButton
+              icon={<ReplyAll size={20} color={colors.textSecondary} />}
+              label="Reply All"
+              onPress={() => navigateCompose('replyAll')}
+            />
+            <BottomBarButton
+              icon={<Forward size={20} color={colors.textSecondary} />}
+              label="Forward"
+              onPress={() => navigateCompose('forward')}
+            />
+            <BottomBarButton
+              icon={<ChevronRight size={20} color={colors.textMuted} />}
+              label="Next"
+              disabled
+            />
+          </View>
+        </>
+      ) : null}
     </SafeAreaView>
+  );
+}
+
+function ToolbarButton({
+  icon, label, onPress,
+}: { icon: React.ReactNode; label: string; onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={styles.toolbarAction} hitSlop={6}>
+      {icon}
+      <Text style={styles.toolbarActionLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function BottomBarButton({
+  icon, label, onPress, disabled,
+}: { icon: React.ReactNode; label: string; onPress?: () => void; disabled?: boolean }) {
+  return (
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      style={[styles.bottomBarBtn, disabled && styles.bottomBarBtnDisabled]}
+      hitSlop={4}
+    >
+      {icon}
+      <Text style={[styles.bottomBarLabel, disabled && styles.bottomBarLabelDisabled]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  // Toolbar
+  // Top toolbar
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  toolbarBack: {
+    width: componentSizes.avatarSm,
+    height: componentSizes.avatarSm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+  },
+  toolbarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  toolbarAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    minHeight: 44,
+  },
+  toolbarActionLabel: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+
+  // Content
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  errorText: { ...typography.body, color: colors.error, textAlign: 'center' },
+  scroll: { flex: 1, backgroundColor: colors.background },
+
+  // Subject block
+  subjectBlock: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  toolbarBtn: {
-    width: componentSizes.avatarSm, height: componentSizes.avatarSm,
-    alignItems: 'center', justifyContent: 'center',
-    borderRadius: radius.full,
-  },
-  toolbarActions: { flexDirection: 'row', gap: spacing.xs },
-
-  scrollContent: { flex: 1 },
-  scrollContainer: { paddingBottom: 40 },
-
-  // Subject
-  subjectArea: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.md,
-  },
-  subjectText: { ...typography.h2, color: colors.text, lineHeight: 28 },
-  subjectMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm },
-  labelBadge: {
+  subjectRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-    backgroundColor: colors.tags.blue.bg,
-  },
-  labelText: { ...typography.small },
-  messageCount: { ...typography.caption, color: colors.textMuted },
-
-  // Message card — matches webmail card component
-  messageCard: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  messageCardLast: {
-    borderColor: colors.primaryBorder,
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
+    alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  messageAvatar: {
-    width: 36, height: 36,
-    borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
+  subjectMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
   },
-  messageAvatarText: { fontSize: typography.body.fontSize, fontWeight: '600' },
-  messageHeaderContent: { flex: 1 },
-  messageHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  messageFromName: { ...typography.bodyMedium, color: colors.text, flex: 1 },
-  messageDate: { ...typography.small, color: colors.textMuted },
-  messageToLine: { ...typography.small, color: colors.textMuted },
-
-  // Message body
-  messageBody: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
+  subjectStar: {
+    paddingTop: 4,
   },
-  messageBodyText: {
-    ...typography.base,
+  subjectText: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 28,
     color: colors.text,
-    lineHeight: 24,
+    letterSpacing: -0.2,
+  },
+  subjectMeta: {
+    alignItems: 'flex-end',
+  },
+  subjectDate: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  subjectSize: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+
+  // Sender block
+  senderBlock: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  senderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  senderInfo: { flex: 1, minWidth: 0 },
+  senderName: {
+    ...typography.bodySemibold,
+    color: colors.text,
+  },
+  senderEmail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  senderRecipients: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  senderRecipientsLabel: {
+    color: colors.textMuted,
   },
 
   // Attachments
-  attachmentSection: {
-    marginTop: spacing.lg,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceHover,
-    overflow: 'hidden',
-  },
-  attachmentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  attachmentsBlock: {
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  attachmentHeaderText: { ...typography.small, color: colors.textMuted },
-  attachmentRow: {
+  attachmentsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  attachmentChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-  },
-  attachmentIcon: {
-    width: 36, height: 36,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.sm,
-    alignItems: 'center', justifyContent: 'center',
   },
-  attachmentIconText: { fontSize: 10, fontWeight: '700' },
-  attachmentInfo: { flex: 1 },
-  attachmentName: { ...typography.caption, color: colors.text },
-  attachmentSize: { ...typography.small, color: colors.textMuted },
+  attachmentName: {
+    ...typography.caption,
+    color: colors.text,
+    maxWidth: 180,
+  },
+  attachmentSize: {
+    ...typography.small,
+    color: colors.textMuted,
+  },
 
-  // Quick actions — using outline buttons from webmail
-  quickActions: {
+  // Body
+  bodyBlock: {
+    backgroundColor: colors.background,
+  },
+
+  // Bottom bar
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
-    marginTop: spacing.lg,
-    gap: spacing.sm,
+    alignItems: 'stretch',
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  bottomBarBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    gap: 4,
+    minHeight: 44,
+  },
+  bottomBarBtnDisabled: {
+    opacity: 0.4,
+  },
+  bottomBarLabel: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  bottomBarLabelDisabled: {
+    color: colors.textMuted,
   },
 });

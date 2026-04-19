@@ -1,37 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  Search, SquarePen, Menu, Filter, Square,
-  Star, Paperclip, MessageSquare, XCircle, Circle, Reply, Forward,
+  Search, SquarePen, Menu, Filter, Square, X, Check,
+  Star, Paperclip, Mail as MailIcon,
 } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
-import { Button } from '../components';
-import { useEmailStore } from '../stores/email-store';
+import SidebarDrawer from '../components/SidebarDrawer';
+import SenderAvatar from '../components/SenderAvatar';
+import { useEmailStore, type EmailFilters } from '../stores/email-store';
 import type { Email } from '../api/types';
-
-// Avatar color palette — deterministic based on initials hash
-const AVATAR_PALETTE = [
-  '#14b8a6', '#a855f7', '#f97316', '#22c55e', '#3b82f6',
-  '#ef4444', '#eab308', '#ec4899', '#6366f1', '#06b6d4',
-];
-
-function getInitials(name: string): string {
-  // Handle multi-person names like "Sophie Müller, Lars Johansson"
-  const first = name.split(',')[0].trim();
-  const parts = first.split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return first.substring(0, 2).toUpperCase();
-}
-
-function getAvatarColor(initials: string): string {
-  let hash = 0;
-  for (let i = 0; i < initials.length; i++) hash = initials.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-}
 
 function getSenderName(email: Email): string {
   return email.from?.[0]?.name || email.from?.[0]?.email || 'Unknown';
+}
+
+function getSenderEmail(email: Email): string | undefined {
+  return email.from?.[0]?.email;
 }
 
 function isUnread(email: Email): boolean {
@@ -59,8 +44,7 @@ function formatRelativeTime(date: Date): string {
 
 function EmailRow({ item, onPress }: { item: Email; onPress: () => void }) {
   const senderName = getSenderName(item);
-  const initials = getInitials(senderName);
-  const avatarColor = getAvatarColor(initials);
+  const senderEmail = getSenderEmail(item);
   const unread = isUnread(item);
   const starred = isStarred(item);
 
@@ -69,10 +53,7 @@ function EmailRow({ item, onPress }: { item: Email; onPress: () => void }) {
       style={({ pressed }) => [styles.emailRow, pressed && styles.emailRowPressed]}
       onPress={onPress}
     >
-      {/* Avatar */}
-      <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-        <Text style={styles.avatarText}>{initials}</Text>
-      </View>
+      <SenderAvatar name={senderName} email={senderEmail} size={componentSizes.avatarMd} />
 
       {/* Content */}
       <View style={styles.emailContent}>
@@ -113,19 +94,54 @@ function EmailRow({ item, onPress }: { item: Email; onPress: () => void }) {
 interface EmailListScreenProps {
   onEmailPress?: (email: Email) => void;
   onComposePress?: () => void;
-  onDrawerOpen?: () => void;
 }
 
-export default function EmailListScreen({ onEmailPress, onComposePress, onDrawerOpen }: EmailListScreenProps) {
-  const [searchQuery, setSearchQuery] = React.useState('');
+export default function EmailListScreen({ onEmailPress, onComposePress }: EmailListScreenProps) {
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const emails = useEmailStore((s) => s.emails);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const loading = useEmailStore((s) => s.loading);
+  const error = useEmailStore((s) => s.error);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
+  const storeSearchQuery = useEmailStore((s) => s.searchQuery);
+  const filters = useEmailStore((s) => s.filters);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
   const loadMoreEmails = useEmailStore((s) => s.loadMoreEmails);
   const refreshEmails = useEmailStore((s) => s.refreshEmails);
+  const setSearchQuery = useEmailStore((s) => s.setSearchQuery);
+  const setFilters = useEmailStore((s) => s.setFilters);
+  const clearSearchAndFilters = useEmailStore((s) => s.clearSearchAndFilters);
+
+  // Local input state for uninterrupted typing; debounce into the store.
+  const [searchInput, setSearchInput] = React.useState(storeSearchQuery);
+  React.useEffect(() => {
+    // Keep local input in sync when the store is cleared externally
+    // (e.g. mailbox switch resets searchQuery to '').
+    if (storeSearchQuery !== searchInput && storeSearchQuery === '') {
+      setSearchInput('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeSearchQuery]);
+  React.useEffect(() => {
+    if (searchInput === storeSearchQuery) return;
+    const id = setTimeout(() => setSearchQuery(searchInput), 300);
+    return () => clearTimeout(id);
+  }, [searchInput, storeSearchQuery, setSearchQuery]);
+
+  const activeFilterCount =
+    (filters.unread ? 1 : 0) + (filters.starred ? 1 : 0) + (filters.hasAttachment ? 1 : 0);
+  const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
+
+  const toggleFilter = (key: keyof EmailFilters) => {
+    setFilters({ ...filters, [key]: !filters[key] });
+  };
+
+  const currentMailbox = React.useMemo(
+    () => mailboxes.find((m) => m.id === currentMailboxId),
+    [mailboxes, currentMailboxId],
+  );
 
   // Load mailboxes and select inbox on mount
   React.useEffect(() => {
@@ -145,10 +161,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress, onDrawer
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={onDrawerOpen} style={styles.headerButton}>
+        <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerButton}>
           <Menu size={20} color={colors.textMuted} />
         </Pressable>
-        <Text style={styles.headerTitle}>Inbox</Text>
+        <Text style={styles.headerTitle}>{currentMailbox?.name ?? 'Inbox'}</Text>
         <View style={{ flex: 1 }} />
         <Image
           source={require('../../assets/logos/Bulwark Logo White.png')}
@@ -166,16 +182,77 @@ export default function EmailListScreen({ onEmailPress, onComposePress, onDrawer
           <Search size={16} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search mail... (press /)"
+            placeholder="Search mail..."
             placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={searchInput}
+            onChangeText={setSearchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
           />
+          {searchInput.length > 0 && (
+            <Pressable
+              onPress={() => setSearchInput('')}
+              hitSlop={8}
+              style={styles.searchClearButton}
+            >
+              <X size={14} color={colors.textMuted} />
+            </Pressable>
+          )}
         </View>
-        <Pressable style={styles.filterButton}>
-          <Filter size={18} color={colors.textMuted} />
+        <Pressable
+          style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+          onPress={() => setFilterMenuOpen(true)}
+        >
+          <Filter size={18} color={activeFilterCount > 0 ? colors.primary : colors.textMuted} />
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
         </Pressable>
       </View>
+
+      {hasActiveSearchOrFilter && (
+        <View style={styles.filterChipsRow}>
+          {storeSearchQuery ? (
+            <View style={styles.chip}>
+              <Search size={12} color={colors.textSecondary} />
+              <Text style={styles.chipText} numberOfLines={1}>
+                {storeSearchQuery}
+              </Text>
+            </View>
+          ) : null}
+          {filters.unread && (
+            <View style={styles.chip}>
+              <MailIcon size={12} color={colors.textSecondary} />
+              <Text style={styles.chipText}>Unread</Text>
+            </View>
+          )}
+          {filters.starred && (
+            <View style={styles.chip}>
+              <Star size={12} color={colors.starred} fill={colors.starred} />
+              <Text style={styles.chipText}>Starred</Text>
+            </View>
+          )}
+          {filters.hasAttachment && (
+            <View style={styles.chip}>
+              <Paperclip size={12} color={colors.textSecondary} />
+              <Text style={styles.chipText}>Has attachment</Text>
+            </View>
+          )}
+          <Pressable
+            onPress={() => {
+              setSearchInput('');
+              clearSearchAndFilters();
+            }}
+            style={styles.clearAllButton}
+            hitSlop={6}
+          >
+            <Text style={styles.clearAllText}>Clear</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Email list */}
       {loading && emails.length === 0 ? (
@@ -183,9 +260,30 @@ export default function EmailListScreen({ onEmailPress, onComposePress, onDrawer
           <ActivityIndicator color={colors.primary} />
           <Text style={styles.loadingText}>Loading emails...</Text>
         </View>
+      ) : error ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable onPress={() => { void refreshEmails(); }}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : mailboxes.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>No mailboxes found</Text>
+          <Text style={styles.hintText}>
+            Check that your JMAP account has mail capability.
+          </Text>
+        </View>
       ) : emails.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>No emails</Text>
+          <Text style={styles.loadingText}>
+            No emails in {currentMailbox?.name ?? 'this folder'}
+          </Text>
+          {currentMailbox ? (
+            <Text style={styles.hintText}>
+              {currentMailbox.totalEmails} total · {currentMailbox.unreadEmails} unread
+            </Text>
+          ) : null}
         </View>
       ) : (
         <FlatList
@@ -208,9 +306,73 @@ export default function EmailListScreen({ onEmailPress, onComposePress, onDrawer
         onPress={onComposePress}
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
       >
-        <SquarePen size={24} color={colors.primaryForeground} />
+        <SquarePen size={24} color={colors.background} />
       </Pressable>
+
+      <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      <Modal
+        visible={filterMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterMenuOpen(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setFilterMenuOpen(false)}>
+          <View style={styles.filterBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.filterMenu}>
+                <Text style={styles.filterMenuTitle}>Filter emails</Text>
+                <FilterToggle
+                  label="Unread"
+                  icon={<MailIcon size={16} color={colors.textSecondary} />}
+                  active={!!filters.unread}
+                  onPress={() => toggleFilter('unread')}
+                />
+                <FilterToggle
+                  label="Starred"
+                  icon={<Star size={16} color={colors.starred} fill={filters.starred ? colors.starred : 'transparent'} />}
+                  active={!!filters.starred}
+                  onPress={() => toggleFilter('starred')}
+                />
+                <FilterToggle
+                  label="Has attachment"
+                  icon={<Paperclip size={16} color={colors.textSecondary} />}
+                  active={!!filters.hasAttachment}
+                  onPress={() => toggleFilter('hasAttachment')}
+                />
+                {activeFilterCount > 0 && (
+                  <TouchableOpacity
+                    style={styles.filterClearRow}
+                    onPress={() => setFilters({})}
+                  >
+                    <Text style={styles.filterClearText}>Clear filters</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+function FilterToggle({
+  label, icon, active, onPress,
+}: { label: string; icon: React.ReactNode; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.filterToggle, pressed && styles.filterTogglePressed]}
+      onPress={onPress}
+    >
+      <View style={styles.filterToggleLeft}>
+        {icon}
+        <Text style={styles.filterToggleLabel}>{label}</Text>
+      </View>
+      <View style={[styles.filterCheck, active && styles.filterCheckActive]}>
+        {active && <Check size={14} color={colors.background} />}
+      </View>
+    </Pressable>
   );
 }
 
@@ -268,6 +430,134 @@ const styles = StyleSheet.create({
     width: componentSizes.buttonMd, height: componentSizes.buttonMd,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.xs,
+    position: 'relative',
+  },
+  filterButtonActive: {
+    backgroundColor: colors.accent,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primaryForeground,
+    lineHeight: 14,
+  },
+  searchClearButton: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+  },
+  filterChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    maxWidth: 200,
+  },
+  chipText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  clearAllButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  clearAllText: {
+    ...typography.captionMedium,
+    color: colors.primary,
+  },
+  filterBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  filterMenu: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.popover,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+  },
+  filterMenuTitle: {
+    ...typography.bodySemibold,
+    color: colors.text,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  filterTogglePressed: {
+    backgroundColor: colors.surfaceHover,
+  },
+  filterToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  filterToggleLabel: {
+    ...typography.body,
+    color: colors.text,
+  },
+  filterCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: radius.xs,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCheckActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterClearRow: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: spacing.xs,
+  },
+  filterClearText: {
+    ...typography.bodyMedium,
+    color: colors.error,
   },
 
   // Email list — matches web email-list-item
@@ -281,20 +571,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,   // border-b border-border
   },
   emailRowPressed: { backgroundColor: colors.surface },
-  // Avatar: md = 40px (w-10 h-10), shadow-sm
-  avatar: {
-    width: componentSizes.avatarMd,
-    height: componentSizes.avatarMd,
-    borderRadius: componentSizes.avatarMd / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1,
-    elevation: 1,
-  },
-  avatarText: { fontSize: 16, fontWeight: '700', color: '#ffffff' }, // font-bold text-white
   emailContent: { flex: 1, minWidth: 0 },
   emailHeaderRow: {
     flexDirection: 'row',
@@ -361,7 +637,7 @@ const styles = StyleSheet.create({
     width: componentSizes.fab,       // 56px (h-14)
     height: componentSizes.fab,      // 56px (w-14)
     borderRadius: radius.full,       // rounded-full (circle)
-    backgroundColor: colors.primary, // bg-primary (#3b82f6)
+    backgroundColor: colors.text,    // white — matches webmail mobile FAB
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
@@ -383,6 +659,24 @@ const styles = StyleSheet.create({
   loadingText: {
     ...typography.body,
     color: colors.textMuted,
+  },
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  retryText: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+    marginTop: spacing.sm,
+  },
+  hintText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
   },
 });
 

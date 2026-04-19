@@ -1,120 +1,266 @@
 import React from 'react';
-import { View, Text, StyleSheet, SectionList, Pressable, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  Search, Plus, Phone, Mail, ChevronRight, UserCircle, X
+  View,
+  Text,
+  StyleSheet,
+  SectionList,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput,
 } from 'lucide-react-native';
+import type { RootStackParamList } from '../navigation/types';
+import type { ContactCard } from '../api/types';
+import {
+  useContactsStore,
+  sortContactsByDisplayName,
+  selectGroupMembers,
+  type ContactCategory,
+} from '../stores/contacts-store';
+import { getContactDisplayName, isGroup, matchesContactSearch } from '../lib/contact-utils';
+import { ContactListRow } from '../components/contacts';
+import Dialog from '../components/Dialog';
+import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
-import { Button } from '../components';
 
-interface Contact {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  company?: string;
-  avatar?: string;
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+interface Section {
+  title: string;
+  data: ContactCard[];
 }
 
-const MOCK_CONTACTS: Contact[] = [
-  { id: '1', name: 'Alice Johnson', email: 'alice@example.com', phone: '+1 555-0101', company: 'Acme Inc' },
-  { id: '2', name: 'Bob Smith', email: 'bob@company.org', phone: '+1 555-0102', company: 'TechCorp' },
-  { id: '3', name: 'Carol Davis', email: 'carol@billing.co', company: 'Billing Co' },
-  { id: '4', name: 'David Wilson', email: 'david@startup.io', phone: '+1 555-0104' },
-  { id: '5', name: 'Emma Brown', email: 'emma@hr.org', phone: '+1 555-0105', company: 'HR Solutions' },
-  { id: '6', name: 'Frank Miller', email: 'frank@dev.team', company: 'DevTeam' },
-  { id: '7', name: 'Grace Lee', email: 'grace@newsletter.com', phone: '+1 555-0107' },
-  { id: '8', name: 'Henry Taylor', email: 'henry@dev.team', phone: '+1 555-0108', company: 'DevTeam' },
-  { id: '9', name: 'Iris Chen', email: 'iris@design.co', company: 'Design Studio' },
-  { id: '10', name: 'Jack Brown', email: 'jack@sales.io', phone: '+1 555-0110' },
-  { id: '11', name: 'Karen White', email: 'karen@ops.co', phone: '+1 555-0111', company: 'OpsCo' },
-  { id: '12', name: 'Leo Garcia', email: 'leo@eng.dev', company: 'Engineering' },
-];
-
-function groupContacts(contacts: Contact[]) {
-  const groups: Record<string, Contact[]> = {};
-  contacts.forEach(c => {
-    const letter = c.name.charAt(0).toUpperCase();
-    if (!groups[letter]) groups[letter] = [];
-    groups[letter].push(c);
-  });
-  return Object.keys(groups).sort().map(letter => ({
-    title: letter,
-    data: groups[letter].sort((a, b) => a.name.localeCompare(b.name)),
-  }));
+function groupContacts(contacts: ContactCard[]): Section[] {
+  const sorted = sortContactsByDisplayName(contacts);
+  const groups: Record<string, ContactCard[]> = {};
+  for (const c of sorted) {
+    const name = getContactDisplayName(c).trim();
+    const letter = (name[0] || '#').toUpperCase();
+    const key = /[A-Z]/.test(letter) ? letter : '#';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(c);
+  }
+  return Object.keys(groups)
+    .sort((a, b) => {
+      if (a === '#') return 1;
+      if (b === '#') return -1;
+      return a.localeCompare(b);
+    })
+    .map((title) => ({ title, data: groups[title] }));
 }
 
-function ContactRow({ contact, onPress }: { contact: Contact; onPress: () => void }) {
-  const initials = contact.name.split(' ').map(n => n[0]).join('').slice(0, 2);
-
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.contactRow, pressed && styles.contactRowPressed]}
-      onPress={onPress}
-    >
-      <View style={styles.contactAvatar}>
-        <Text style={styles.contactAvatarText}>{initials}</Text>
-      </View>
-      <View style={styles.contactInfo}>
-        <Text style={styles.contactName}>{contact.name}</Text>
-        <Text style={styles.contactEmail} numberOfLines={1}>{contact.email}</Text>
-        {contact.company && (
-          <Text style={styles.contactCompany}>{contact.company}</Text>
-        )}
-      </View>
-      <View style={styles.contactActions}>
-        {contact.phone && (
-          <Pressable style={styles.contactActionBtn} hitSlop={8}>
-            <Phone size={16} color={colors.primary} />
-          </Pressable>
-        )}
-        <Pressable style={styles.contactActionBtn} hitSlop={8}>
-          <Mail size={16} color={colors.primary} />
-        </Pressable>
-      </View>
-    </Pressable>
-  );
+function categoryTitle(category: ContactCategory, books: Array<{ id: string; name: string }>, groups: ContactCard[]): string {
+  switch (category.type) {
+    case 'all':
+      return 'All Contacts';
+    case 'addressBook':
+      return books.find((b) => b.id === category.addressBookId)?.name || 'Address Book';
+    case 'group': {
+      const g = groups.find((c) => c.id === category.groupId);
+      return g ? getContactDisplayName(g) || 'Group' : 'Group';
+    }
+    case 'keyword':
+      return `#${category.keyword}`;
+    case 'uncategorized':
+      return 'Uncategorized';
+    default:
+      return 'Contacts';
+  }
 }
 
-interface ContactsScreenProps {
-  onContactPress?: (contact: Contact) => void;
-  onCreateContact?: () => void;
-}
+export default function ContactsScreen() {
+  const navigation = useNavigation<Nav>();
+  const contacts = useContactsStore((s) => s.contacts);
+  const addressBooks = useContactsStore((s) => s.addressBooks);
+  const loading = useContactsStore((s) => s.loading);
+  const error = useContactsStore((s) => s.error);
+  const selectedCategory = useContactsStore((s) => s.selectedCategory);
+  const hydrated = useContactsStore((s) => s.hydrated);
+  const fetchAddressBooks = useContactsStore((s) => s.fetchAddressBooks);
+  const fetchContacts = useContactsStore((s) => s.fetchContacts);
+  const hydrate = useContactsStore((s) => s.hydrate);
+  const bulkDelete = useContactsStore((s) => s.bulkDelete);
+  const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
 
-export default function ContactsScreen({ onContactPress, onCreateContact }: ContactsScreenProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [searchActive, setSearchActive] = React.useState(false);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [selection, setSelection] = React.useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = React.useState(false);
 
-  const filtered = searchQuery
-    ? MOCK_CONTACTS.filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : MOCK_CONTACTS;
+  React.useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
 
-  const sections = groupContacts(filtered);
+  React.useEffect(() => {
+    void fetchAddressBooks();
+    void fetchContacts();
+  }, [fetchAddressBooks, fetchContacts]);
+
+  const groups = React.useMemo(() => contacts.filter(isGroup), [contacts]);
+  const individuals = React.useMemo(() => contacts.filter((c) => !isGroup(c)), [contacts]);
+
+  const visible = React.useMemo(() => {
+    let filtered: ContactCard[];
+    switch (selectedCategory.type) {
+      case 'all':
+        filtered = individuals;
+        break;
+      case 'addressBook':
+        filtered = individuals.filter((c) => c.addressBookIds?.[selectedCategory.addressBookId]);
+        break;
+      case 'group':
+        filtered = selectGroupMembers(
+          { contacts } as Parameters<typeof selectGroupMembers>[0],
+          selectedCategory.groupId,
+        ).filter((c) => !isGroup(c));
+        break;
+      case 'keyword':
+        filtered = individuals.filter((c) => c.keywords?.[selectedCategory.keyword]);
+        break;
+      case 'uncategorized':
+        filtered = individuals.filter(
+          (c) => !c.addressBookIds || Object.keys(c.addressBookIds).length === 0,
+        );
+        break;
+      default:
+        filtered = individuals;
+    }
+    if (!searchQuery) return filtered;
+    return filtered.filter((c) => matchesContactSearch(c, searchQuery));
+  }, [contacts, individuals, selectedCategory, searchQuery]);
+
+  const sections = React.useMemo(() => groupContacts(visible), [visible]);
+
+  const selectionMode = selection.size > 0;
+  const toggleSelect = (id: string) => {
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleRowPress = (c: ContactCard) => {
+    if (selectionMode) {
+      toggleSelect(c.id);
+      return;
+    }
+    if (isGroup(c)) {
+      navigation.navigate('GroupDetail', { groupId: c.id });
+    } else {
+      navigation.navigate('ContactDetail', { contactId: c.id });
+    }
+  };
+
+  const handleLongPress = (c: ContactCard) => {
+    toggleSelect(c.id);
+  };
+
+  const clearSelection = () => setSelection(new Set());
+
+  const doBulkDelete = async () => {
+    const ids = Array.from(selection);
+    setConfirmBulkDelete(false);
+    clearSelection();
+    await bulkDelete(ids);
+  };
+
+  const title = categoryTitle(selectedCategory, addressBooks, groups);
+
+  // Top chip row: All / per-address-book / Groups
+  const chips = React.useMemo(() => {
+    const items: Array<{ key: string; label: string; category: ContactCategory; active: boolean }> = [
+      {
+        key: 'all',
+        label: 'All',
+        category: { type: 'all' },
+        active: selectedCategory.type === 'all',
+      },
+    ];
+    for (const book of addressBooks) {
+      items.push({
+        key: `book:${book.id}`,
+        label: book.name,
+        category: { type: 'addressBook', addressBookId: book.id },
+        active: selectedCategory.type === 'addressBook' && selectedCategory.addressBookId === book.id,
+      });
+    }
+    if (groups.length > 0) {
+      items.push({
+        key: 'groups-divider',
+        label: 'Groups',
+        category: { type: 'all' },
+        active: false,
+      });
+      for (const g of groups) {
+        items.push({
+          key: `group:${g.id}`,
+          label: getContactDisplayName(g) || 'Group',
+          category: { type: 'group', groupId: g.id },
+          active: selectedCategory.type === 'group' && selectedCategory.groupId === g.id,
+        });
+      }
+    }
+    return items;
+  }, [addressBooks, groups, selectedCategory]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+      <ContactsSidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Contacts</Text>
-        <Text style={styles.headerCount}>{MOCK_CONTACTS.length}</Text>
-        <View style={styles.headerActions}>
-          <Pressable
-            onPress={() => setSearchActive(!searchActive)}
-            style={styles.headerBtn}
-          >
-            <Search size={20} color={colors.text} />
-          </Pressable>
-          <Button variant="default" size="icon" onPress={onCreateContact} style={styles.addButton}>
-            <Plus size={18} color={colors.primaryForeground} />
-          </Button>
-        </View>
+        {selectionMode ? (
+          <>
+            <Pressable onPress={clearSelection} style={styles.headerIconBtn} hitSlop={8}>
+              <X size={22} color={colors.text} />
+            </Pressable>
+            <Text style={styles.headerTitle}>{selection.size} selected</Text>
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => setConfirmBulkDelete(true)}
+                style={styles.headerIconBtn}
+                hitSlop={8}
+              >
+                <Trash2 size={20} color={colors.error} />
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerIconBtn} hitSlop={8}>
+              <Menu size={22} color={colors.text} />
+            </Pressable>
+            <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.headerCount}>{visible.length}</Text>
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => setSearchActive((v) => !v)}
+                style={styles.headerIconBtn}
+                hitSlop={8}
+              >
+                <Search size={20} color={colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.navigate('ContactForm', {})}
+                style={styles.addBtn}
+                hitSlop={8}
+              >
+                <Plus size={18} color={colors.primaryForeground} />
+              </Pressable>
+            </View>
+          </>
+        )}
       </View>
 
-      {/* Search */}
       {searchActive && (
         <View style={styles.searchBar}>
           <Search size={16} color={colors.textMuted} />
@@ -127,19 +273,55 @@ export default function ContactsScreen({ onContactPress, onCreateContact }: Cont
             autoFocus
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
               <X size={16} color={colors.textMuted} />
             </Pressable>
           )}
         </View>
       )}
 
-      {/* Contact list */}
+      {!selectionMode && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipBar}
+          contentContainerStyle={styles.chipBarContent}
+        >
+          {chips.map((chip) =>
+            chip.key === 'groups-divider' ? (
+              <View key={chip.key} style={styles.chipDivider} />
+            ) : (
+              <Pressable
+                key={chip.key}
+                onPress={() => setSelectedCategory(chip.category)}
+                style={[styles.chip, chip.active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, chip.active && styles.chipTextActive]} numberOfLines={1}>
+                  {chip.label}
+                </Text>
+              </Pressable>
+            ),
+          )}
+        </ScrollView>
+      )}
+
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
       <SectionList
         sections={sections}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ContactRow contact={item} onPress={() => onContactPress?.(item)} />
+          <ContactListRow
+            contact={item}
+            onPress={() => handleRowPress(item)}
+            onLongPress={() => handleLongPress(item)}
+            selected={selection.has(item.id)}
+            selectionMode={selectionMode}
+          />
         )}
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
@@ -149,21 +331,44 @@ export default function ContactsScreen({ onContactPress, onCreateContact }: Cont
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         stickySectionHeadersEnabled
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading && hydrated}
+            onRefresh={() => {
+              void fetchContacts();
+              void fetchAddressBooks();
+            }}
+            tintColor={colors.primary}
+          />
+        }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <UserCircle size={48} color={colors.surfaceActive} />
-            <Text style={styles.emptyTitle}>No contacts found</Text>
-            <Text style={styles.emptySubtitle}>Try a different search</Text>
-          </View>
+          loading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <UserCircle size={48} color={colors.surfaceActive} />
+              <Text style={styles.emptyTitle}>
+                {searchQuery ? 'No contacts found' : 'No contacts yet'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery ? 'Try a different search' : 'Tap + to add one'}
+              </Text>
+            </View>
+          )
         }
       />
 
-      {/* Alphabet index */}
-      <View style={styles.alphabetIndex}>
-        {sections.map(s => (
-          <Text key={s.title} style={styles.alphabetLetter}>{s.title}</Text>
-        ))}
-      </View>
+      <Dialog
+        visible={confirmBulkDelete}
+        title="Delete contacts"
+        message={`Delete ${selection.size} contact${selection.size === 1 ? '' : 's'}? This cannot be undone.`}
+        variant="destructive"
+        confirmText="Delete"
+        onConfirm={doBulkDelete}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -172,7 +377,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   listContent: { paddingBottom: 80 },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,7 +384,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     gap: spacing.sm,
   },
-  headerTitle: { ...typography.h3, color: colors.text },
+  headerTitle: { ...typography.h3, color: colors.text, flexShrink: 1 },
   headerCount: {
     ...typography.small,
     color: colors.textMuted,
@@ -190,17 +394,29 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  headerActions: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm },
-  headerBtn: {
-    width: 40, height: 40,
-    alignItems: 'center', justifyContent: 'center',
+  headerActions: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.full,
   },
-  addButton: {
+  addBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
     borderRadius: radius.full,
   },
 
-  // Search — matches webmail input styling
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -214,9 +430,35 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, ...typography.body, color: colors.text },
+  searchInput: { flex: 1, ...typography.body, color: colors.text, paddingVertical: 0 },
 
-  // Section header
+  chipBar: { flexGrow: 0, marginBottom: spacing.sm },
+  chipBarContent: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: { ...typography.captionMedium, color: colors.textSecondary },
+  chipTextActive: { color: colors.primaryForeground },
+  chipDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.xs,
+  },
+
   sectionHeader: {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
@@ -226,51 +468,20 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: { ...typography.small, color: colors.primary },
 
-  // Contact row
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  contactRowPressed: { backgroundColor: colors.surfaceHover },
-  contactAvatar: {
-    width: componentSizes.avatarMd, height: componentSizes.avatarMd,
-    borderRadius: componentSizes.avatarMd / 2,
-    backgroundColor: colors.primaryBg,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  contactAvatarText: { ...typography.bodyMedium, color: colors.primary },
-  contactInfo: { flex: 1 },
-  contactName: { ...typography.bodyMedium, color: colors.text },
-  contactEmail: { ...typography.caption, color: colors.textMuted, marginTop: 1 },
-  contactCompany: { ...typography.small, color: colors.textSecondary, marginTop: 1 },
-  contactActions: { flexDirection: 'row', gap: spacing.sm },
-  contactActionBtn: {
-    width: 32, height: 32,
-    alignItems: 'center', justifyContent: 'center',
-    borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
-  },
   separator: { height: 1, backgroundColor: colors.borderLight, marginLeft: 68 },
 
-  // Alphabet index
-  alphabetIndex: {
-    position: 'absolute',
-    right: 2,
-    top: '20%',
-    alignItems: 'center',
+  errorBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.errorBg,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
   },
-  alphabetLetter: {
-    ...typography.small,
-    color: colors.primary,
-    paddingVertical: 1,
-    paddingHorizontal: 4,
-  },
+  errorText: { ...typography.caption, color: colors.errorForeground },
 
-  // Empty state
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.xxxl * 2,

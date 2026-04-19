@@ -1,182 +1,279 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, FlatList } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ChevronLeft, ChevronRight, Plus, Clock, MapPin,
-  CalendarDays, LayoutGrid, List as ListIcon, Users
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  CalendarDays,
+  LayoutGrid,
+  List as ListIcon,
+  Menu,
 } from 'lucide-react-native';
 import {
-  format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  addDays, isSameMonth, isToday, isSameDay, addMonths, subMonths
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isToday,
+  addMonths,
+  subMonths,
+  addWeeks,
+  subWeeks,
 } from 'date-fns';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
-import { Button, Card, Badge } from '../components';
+import { colors, spacing, radius, typography } from '../theme/tokens';
+import { Button } from '../components';
+import { useCalendarStore } from '../stores/calendar-store';
+import { MonthView } from '../components/calendar/MonthView';
+import { WeekView } from '../components/calendar/WeekView';
+import { AgendaView } from '../components/calendar/AgendaView';
+import { EventCard } from '../components/calendar/EventCard';
+import { EventDetailSheet } from '../components/calendar/EventDetailSheet';
+import { EventModal } from '../components/calendar/EventModal';
+import {
+  RecurrenceScopeDialog,
+  type RecurrenceEditScope,
+} from '../components/calendar/RecurrenceScopeDialog';
+import { CalendarSidebarDrawer } from '../components/calendar/CalendarSidebarDrawer';
+import {
+  buildEventDayIndex,
+  eventsOnDayFromIndex,
+  type EventDayIndex,
+} from '../lib/calendar-utils';
+import type { Calendar, CalendarEvent } from '../api/types';
 
 type ViewMode = 'month' | 'week' | 'agenda';
+type PendingAction =
+  | { kind: 'edit'; event: CalendarEvent }
+  | { kind: 'delete'; event: CalendarEvent }
+  | null;
 
-const MOCK_EVENTS = [
-  {
-    id: '1', title: 'Team Standup', time: '09:00 – 09:30',
-    color: colors.calendar.blue, location: 'Zoom',
-    date: new Date(), allDay: false, participants: 5,
-  },
-  {
-    id: '2', title: 'Design Review', time: '11:00 – 12:00',
-    color: colors.calendar.purple, location: 'Conference Room A',
-    date: new Date(), allDay: false, participants: 3,
-  },
-  {
-    id: '3', title: 'Lunch with Sarah', time: '12:30 – 13:30',
-    color: colors.calendar.green, location: 'Café Nero',
-    date: new Date(), allDay: false, participants: 2,
-  },
-  {
-    id: '4', title: 'Sprint Planning', time: '14:00 – 15:30',
-    color: colors.calendar.orange, location: 'Main Office',
-    date: new Date(), allDay: false, participants: 8,
-  },
-  {
-    id: '5', title: 'Company Holiday', time: '',
-    color: colors.calendar.teal, location: '',
-    date: addDays(new Date(), 2), allDay: true, participants: 0,
-  },
-  {
-    id: '6', title: 'Release v2.5', time: '10:00 – 11:00',
-    color: colors.calendar.red, location: '',
-    date: addDays(new Date(), 1), allDay: false, participants: 4,
-  },
-];
+const AGENDA_DAYS = 30;
+const RANGE_BUFFER_DAYS = 14;
 
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-function MonthGrid({ currentDate, selectedDate, onSelectDate }: {
-  currentDate: Date;
-  selectedDate: Date;
-  onSelectDate: (d: Date) => void;
-}) {
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calStart = startOfWeek(monthStart);
-  const calEnd = endOfWeek(monthEnd);
-
-  const days: Date[] = [];
-  let day = calStart;
-  while (day <= calEnd) {
-    days.push(day);
-    day = addDays(day, 1);
+function rangeForView(viewMode: ViewMode, currentDate: Date): { after: Date; before: Date } {
+  if (viewMode === 'month') {
+    const start = startOfWeek(startOfMonth(currentDate));
+    const end = endOfWeek(endOfMonth(currentDate));
+    return { after: addDays(start, -RANGE_BUFFER_DAYS), before: addDays(end, RANGE_BUFFER_DAYS) };
   }
-
-  // Count events per day
-  const eventDots = (d: Date) => MOCK_EVENTS.filter(e => isSameDay(e.date, d));
-
-  return (
-    <View style={styles.calendarGrid}>
-      <View style={styles.weekdayRow}>
-        {WEEKDAYS.map((wd, i) => (
-          <Text key={i} style={styles.weekdayLabel}>{wd}</Text>
-        ))}
-      </View>
-      <View style={styles.daysGrid}>
-        {days.map((d, i) => {
-          const sameMonth = isSameMonth(d, currentDate);
-          const today = isToday(d);
-          const selected = isSameDay(d, selectedDate);
-          const dayEvents = eventDots(d);
-
-          return (
-            <Pressable key={i} style={styles.dayCell} onPress={() => onSelectDate(d)}>
-              <View style={[
-                styles.dayNumber,
-                today && styles.todayCircle,
-                selected && !today && styles.selectedCircle,
-              ]}>
-                <Text style={[
-                  styles.dayText,
-                  !sameMonth && styles.dayTextMuted,
-                  today && styles.todayText,
-                  selected && !today && styles.selectedText,
-                ]}>
-                  {format(d, 'd')}
-                </Text>
-              </View>
-              {dayEvents.length > 0 && (
-                <View style={styles.eventDotsRow}>
-                  {dayEvents.slice(0, 3).map((e, idx) => (
-                    <View key={idx} style={[styles.eventDotSmall, { backgroundColor: e.color }]} />
-                  ))}
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
+  if (viewMode === 'week') {
+    const start = startOfWeek(currentDate);
+    const end = endOfWeek(currentDate);
+    return { after: addDays(start, -RANGE_BUFFER_DAYS), before: addDays(end, RANGE_BUFFER_DAYS) };
+  }
+  return {
+    after: addDays(currentDate, -1),
+    before: addDays(currentDate, AGENDA_DAYS + RANGE_BUFFER_DAYS),
+  };
 }
 
-function EventCard({ event }: { event: typeof MOCK_EVENTS[0] }) {
-  return (
-    <Pressable style={styles.eventCard}>
-      <View style={[styles.eventColorBar, { backgroundColor: event.color }]} />
-      <View style={styles.eventBody}>
-        <View style={styles.eventHeaderRow}>
-          <Text style={styles.eventTitle}>{event.title}</Text>
-          {event.allDay && (
-            <View style={styles.allDayBadge}>
-              <Text style={styles.allDayText}>All day</Text>
-            </View>
-          )}
-        </View>
-        {event.time ? (
-          <View style={styles.eventDetail}>
-            <Clock size={12} color={colors.textMuted} />
-            <Text style={styles.eventDetailText}>{event.time}</Text>
-          </View>
-        ) : null}
-        {event.location ? (
-          <View style={styles.eventDetail}>
-            <MapPin size={12} color={colors.textMuted} />
-            <Text style={styles.eventDetailText}>{event.location}</Text>
-          </View>
-        ) : null}
-        {event.participants > 0 && (
-          <View style={styles.eventDetail}>
-            <Users size={12} color={colors.textMuted} />
-            <Text style={styles.eventDetailText}>{event.participants} participants</Text>
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
+function headerTitle(viewMode: ViewMode, currentDate: Date): string {
+  if (viewMode === 'month') return format(currentDate, 'MMMM yyyy');
+  if (viewMode === 'week') {
+    const start = startOfWeek(currentDate);
+    const end = endOfWeek(currentDate);
+    if (start.getMonth() === end.getMonth()) {
+      return `${format(start, 'MMM d')} – ${format(end, 'd, yyyy')}`;
+    }
+    return `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`;
+  }
+  return format(currentDate, 'MMMM yyyy');
 }
 
-interface CalendarScreenProps {
-  onCreateEvent?: () => void;
-}
-
-export default function CalendarScreen({ onCreateEvent }: CalendarScreenProps) {
+export default function CalendarScreen() {
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [viewMode, setViewMode] = React.useState<ViewMode>('month');
 
-  const selectedEvents = MOCK_EVENTS.filter(e => isSameDay(e.date, selectedDate));
+  const [detailEvent, setDetailEvent] = React.useState<CalendarEvent | null>(null);
+  const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
+  const [modalDate, setModalDate] = React.useState<Date | undefined>(undefined);
+  const [modalVisible, setModalVisible] = React.useState(false);
+  const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
+  const [sidebarVisible, setSidebarVisible] = React.useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const hydrate = useCalendarStore((s) => s.hydrate);
+  const fetchCalendarsAction = useCalendarStore((s) => s.fetchCalendars);
+  const ensureRange = useCalendarStore((s) => s.ensureRange);
+  const refresh = useCalendarStore((s) => s.refresh);
+  const createEvent = useCalendarStore((s) => s.createEvent);
+  const updateEvent = useCalendarStore((s) => s.updateEvent);
+  const deleteEvent = useCalendarStore((s) => s.deleteEvent);
+  const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
+  const allCalendars = useCalendarStore((s) => s.calendars);
+  const hiddenCalendarIds = useCalendarStore((s) => s.hiddenCalendarIds);
+  const loading = useCalendarStore((s) => s.loading);
+  const error = useCalendarStore((s) => s.error);
+  const allEvents = useCalendarStore((s) => s.events);
+
+  const calendars = React.useMemo(
+    () => allCalendars.filter((c) => !hiddenCalendarIds.includes(c.id)),
+    [allCalendars, hiddenCalendarIds],
+  );
+  const events = React.useMemo(() => {
+    if (hiddenCalendarIds.length === 0) return allEvents;
+    const hidden = new Set(hiddenCalendarIds);
+    return allEvents.filter((e) => {
+      const ids = Object.keys(e.calendarIds || {});
+      if (ids.length === 0) return true;
+      return ids.some((id) => !hidden.has(id));
+    });
+  }, [allEvents, hiddenCalendarIds]);
+  // Pre-index events by day once. Child views do O(1) map lookups per cell
+  // instead of re-filtering the full event list with parseISO per day.
+  const eventsByDay = React.useMemo(() => buildEventDayIndex(events), [events]);
+
+  React.useEffect(() => {
+    void hydrate();
+    void fetchCalendarsAction();
+  }, [hydrate, fetchCalendarsAction]);
+
+  React.useEffect(() => {
+    const { after, before } = rangeForView(viewMode, currentDate);
+    void ensureRange(after.toISOString(), before.toISOString());
+  }, [viewMode, currentDate, ensureRange]);
+
+  const goPrev = React.useCallback(() => {
+    setCurrentDate((d) => {
+      if (viewMode === 'month') return subMonths(d, 1);
+      if (viewMode === 'week') return subWeeks(d, 1);
+      return addDays(d, -AGENDA_DAYS);
+    });
+  }, [viewMode]);
+
+  const goNext = React.useCallback(() => {
+    setCurrentDate((d) => {
+      if (viewMode === 'month') return addMonths(d, 1);
+      if (viewMode === 'week') return addWeeks(d, 1);
+      return addDays(d, AGENDA_DAYS);
+    });
+  }, [viewMode]);
+
+  const goToday = React.useCallback(() => {
+    const today = new Date();
+    setCurrentDate(today);
+    setSelectedDate(today);
+  }, []);
+
+  const handleSelectDate = React.useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      if (viewMode === 'week') setCurrentDate(date);
+    },
+    [viewMode],
+  );
+
+  const openCreate = React.useCallback((date?: Date) => {
+    setModalEvent(null);
+    setModalDate(date);
+    setModalVisible(true);
+  }, []);
+
+  const openEditDirect = React.useCallback((event: CalendarEvent) => {
+    setModalEvent(event);
+    setModalDate(undefined);
+    setModalVisible(true);
+  }, []);
+
+  const handleEditFromDetail = React.useCallback((event: CalendarEvent) => {
+    setDetailEvent(null);
+    if (event.recurrenceRules?.length || event.originalId) {
+      setPendingAction({ kind: 'edit', event });
+    } else {
+      openEditDirect(event);
+    }
+  }, [openEditDirect]);
+
+  const handleDeleteFromDetail = React.useCallback((event: CalendarEvent) => {
+    setDetailEvent(null);
+    if (event.recurrenceRules?.length || event.originalId) {
+      setPendingAction({ kind: 'delete', event });
+    } else {
+      void deleteEvent(event.id);
+    }
+  }, [deleteEvent]);
+
+  const handleScopeSelect = React.useCallback(
+    async (scope: RecurrenceEditScope) => {
+      const action = pendingAction;
+      setPendingAction(null);
+      if (!action) return;
+      // For the first pass, treat all scopes as "all" — proper override
+      // handling lives in the store's update/delete path against originalId.
+      // TODO: implement "this only" via recurrenceOverrides write, and
+      // "this and following" via excludedRecurrenceRules + new master.
+      if (action.kind === 'edit') {
+        openEditDirect(action.event);
+      } else {
+        await deleteEvent(action.event.id);
+      }
+    },
+    [pendingAction, openEditDirect, deleteEvent],
+  );
+
+  const handleSave = React.useCallback(
+    async (data: Partial<CalendarEvent>, calendarId: string) => {
+      if (modalEvent) {
+        await updateEvent(modalEvent.id, data);
+      } else {
+        await createEvent(data, calendarId);
+      }
+    },
+    [modalEvent, createEvent, updateEvent],
+  );
+
+  const handleDeleteFromModal = React.useCallback(
+    async (event: CalendarEvent) => {
+      setModalVisible(false);
+      await deleteEvent(event.id);
+    },
+    [deleteEvent],
+  );
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
+
   const isSelectedToday = isToday(selectedDate);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>{format(currentDate, 'MMMM yyyy')}</Text>
+        <Pressable
+          onPress={() => setSidebarVisible(true)}
+          hitSlop={8}
+          style={styles.headerBtn}
+        >
+          <Menu size={20} color={colors.text} />
+        </Pressable>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>{headerTitle(viewMode, currentDate)}</Text>
           <Text style={styles.headerSubtitle}>
             {isSelectedToday ? 'Today' : format(selectedDate, 'EEE, MMM d')}
           </Text>
         </View>
         <View style={styles.headerActions}>
-          {/* View mode toggle */}
           <View style={styles.viewToggle}>
             {(['month', 'week', 'agenda'] as ViewMode[]).map((mode) => {
-              const Icon = mode === 'month' ? LayoutGrid : mode === 'week' ? CalendarDays : ListIcon;
+              const Icon =
+                mode === 'month' ? LayoutGrid : mode === 'week' ? CalendarDays : ListIcon;
               const active = viewMode === mode;
               return (
                 <Pressable
@@ -189,74 +286,190 @@ export default function CalendarScreen({ onCreateEvent }: CalendarScreenProps) {
               );
             })}
           </View>
-          <Button variant="default" size="icon" onPress={onCreateEvent} style={styles.addButton}>
+          <Pressable style={styles.fab} onPress={() => openCreate(selectedDate)}>
             <Plus size={18} color={colors.primaryForeground} />
-          </Button>
+          </Pressable>
         </View>
       </View>
 
-      {/* Month navigation */}
-      <View style={styles.monthNav}>
-        <Pressable onPress={() => setCurrentDate(subMonths(currentDate, 1))} style={styles.navBtn}>
+      <View style={styles.nav}>
+        <Pressable onPress={goPrev} style={styles.navBtn} hitSlop={8}>
           <ChevronLeft size={20} color={colors.text} />
         </Pressable>
-      <Pressable
-          onPress={() => { setCurrentDate(new Date()); setSelectedDate(new Date()); }}
-        >
-          <Button variant="outline" size="sm" onPress={() => { setCurrentDate(new Date()); setSelectedDate(new Date()); }}>
-            Today
-          </Button>
-        </Pressable>
-        <Pressable onPress={() => setCurrentDate(addMonths(currentDate, 1))} style={styles.navBtn}>
+        <Button variant="outline" size="sm" onPress={goToday}>
+          Today
+        </Button>
+        <Pressable onPress={goNext} style={styles.navBtn} hitSlop={8}>
           <ChevronRight size={20} color={colors.text} />
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Calendar grid */}
-        <MonthGrid
-          currentDate={currentDate}
-          selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
-        />
-
-        {/* Events for selected day */}
-        <View style={styles.eventsSection}>
-          <View style={styles.eventsSectionHeader}>
-            <Text style={styles.eventsSectionTitle}>
-              {isSelectedToday ? "Today's Events" : format(selectedDate, 'EEEE, MMMM d')}
-            </Text>
-            <Text style={styles.eventsSectionCount}>
-              {selectedEvents.length} event{selectedEvents.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
-          {selectedEvents.length > 0 ? (
-            selectedEvents.map(event => <EventCard key={event.id} event={event} />)
-          ) : (
-            <View style={styles.emptyState}>
-              <CalendarDays size={40} color={colors.surfaceActive} />
-              <Text style={styles.emptyTitle}>No events</Text>
-              <Text style={styles.emptySubtitle}>Tap + to create one</Text>
-            </View>
-          )}
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
-      </ScrollView>
+      )}
+
+      <View style={styles.content}>
+        {viewMode === 'month' && (
+          <MonthView
+            currentDate={currentDate}
+            selectedDate={selectedDate}
+            events={events}
+            eventsByDay={eventsByDay}
+            calendars={calendars}
+            onSelectDate={handleSelectDate}
+            onLongPressDate={(date) => openCreate(date)}
+          />
+        )}
+        {viewMode === 'week' && (
+          <WeekView
+            selectedDate={selectedDate}
+            events={events}
+            eventsByDay={eventsByDay}
+            calendars={calendars}
+            onSelectDate={handleSelectDate}
+            onSelectEvent={setDetailEvent}
+            onCreateAtTime={(date) => openCreate(date)}
+          />
+        )}
+        {viewMode === 'agenda' && (
+          <AgendaView
+            fromDate={currentDate}
+            daysAhead={AGENDA_DAYS}
+            events={events}
+            eventsByDay={eventsByDay}
+            calendars={calendars}
+            onSelectEvent={setDetailEvent}
+          />
+        )}
+
+        {viewMode === 'month' && (
+          <View style={styles.dayDetail}>
+            <View style={styles.dayDetailHeader}>
+              <Text style={styles.dayDetailTitle}>
+                {isSelectedToday ? "Today's Events" : format(selectedDate, 'EEEE, MMMM d')}
+              </Text>
+              {loading && <ActivityIndicator size="small" color={colors.textMuted} />}
+            </View>
+            <DayEventList
+              date={selectedDate}
+              eventsByDay={eventsByDay}
+              calendars={calendars}
+              onSelectEvent={setDetailEvent}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          </View>
+        )}
+      </View>
+
+      <EventDetailSheet
+        event={detailEvent}
+        calendars={calendars}
+        onClose={() => setDetailEvent(null)}
+        onEdit={handleEditFromDetail}
+        onDelete={handleDeleteFromDetail}
+      />
+
+      <EventModal
+        visible={modalVisible}
+        event={modalEvent}
+        calendars={allCalendars}
+        defaultDate={modalDate}
+        onSave={handleSave}
+        onDelete={handleDeleteFromModal}
+        onClose={() => setModalVisible(false)}
+      />
+
+      <RecurrenceScopeDialog
+        visible={!!pendingAction}
+        actionType={pendingAction?.kind === 'delete' ? 'delete' : 'edit'}
+        onSelect={handleScopeSelect}
+        onClose={() => setPendingAction(null)}
+      />
+
+      <CalendarSidebarDrawer
+        visible={sidebarVisible}
+        calendars={allCalendars}
+        hiddenCalendarIds={hiddenCalendarIds}
+        onToggle={toggleCalendarVisibility}
+        onClose={() => setSidebarVisible(false)}
+      />
     </SafeAreaView>
+  );
+}
+
+function DayEventList({
+  date,
+  eventsByDay,
+  calendars,
+  onSelectEvent,
+  refreshing,
+  onRefresh,
+}: {
+  date: Date;
+  eventsByDay: EventDayIndex;
+  calendars: Calendar[];
+  onSelectEvent?: (event: CalendarEvent) => void;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const dayEvents = React.useMemo(
+    () => eventsOnDayFromIndex(eventsByDay, date),
+    [eventsByDay, date],
+  );
+  if (dayEvents.length === 0) {
+    return (
+      <ScrollView
+        contentContainerStyle={styles.emptyState}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
+        }
+      >
+        <CalendarDays size={32} color={colors.surfaceActive} />
+        <Text style={styles.emptyTitle}>No events</Text>
+        <Text style={styles.emptySubtitle}>Tap + to create one</Text>
+      </ScrollView>
+    );
+  }
+  return (
+    <ScrollView
+      contentContainerStyle={styles.dayList}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
+      }
+    >
+      {dayEvents.map((event) => (
+        <EventCard
+          key={event.id}
+          event={event}
+          calendars={calendars}
+          onPress={onSelectEvent}
+        />
+      ))}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { paddingBottom: 80 },
 
-  // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
   },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+  },
+  headerLeft: { flex: 1 },
   headerTitle: { ...typography.h3, color: colors.text },
   headerSubtitle: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -267,115 +480,66 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   viewToggleBtn: {
-    width: 32, height: 32,
-    alignItems: 'center', justifyContent: 'center',
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.sm,
   },
   viewToggleBtnActive: { backgroundColor: colors.background },
-  addButton: {
+  fab: {
+    width: 36,
+    height: 36,
     borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  // Month nav
-  monthNav: {
+  nav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.xs,
     gap: spacing.lg,
   },
-  navBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
-
-  // Calendar grid
-  calendarGrid: { paddingHorizontal: spacing.sm },
-  weekdayRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.xs,
-    marginBottom: 4,
-  },
-  weekdayLabel: {
-    flex: 1,
-    textAlign: 'center',
-    ...typography.small,
-    color: colors.textMuted,
-  },
-  daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: {
-    width: '14.28%',
+  navBtn: {
+    width: 36,
+    height: 36,
     alignItems: 'center',
-    paddingVertical: 4,
-  },
-  dayNumber: {
-    width: 36, height: 36,
-    borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  dayText: { ...typography.body, color: colors.text },
-  dayTextMuted: { color: colors.textMuted },
-  todayCircle: { borderWidth: 2, borderColor: colors.primary, backgroundColor: 'transparent' },
-  todayText: { color: colors.textInverse, fontWeight: '700' },
-  selectedCircle: { backgroundColor: colors.primaryBg, borderWidth: 1.5, borderColor: colors.primary },
-  selectedText: { color: colors.primary, fontWeight: '600' },
-  eventDotsRow: {
-    flexDirection: 'row',
-    gap: 2,
-    marginTop: 2,
-    height: componentSizes.eventDot,
-  },
-  eventDotSmall: { width: componentSizes.eventDot, height: componentSizes.eventDot, borderRadius: 3 },
-
-  // Events section
-  eventsSection: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  eventsSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  eventsSectionTitle: { ...typography.bodyMedium, color: colors.text },
-  eventsSectionCount: { ...typography.caption, color: colors.textMuted },
-
-  // Event card — matches webmail card styling
-  eventCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  eventColorBar: { width: 3 },
-
-  eventBody: {
-    flex: 1,
-    padding: spacing.md,
-    gap: 4,
-  },
-  eventHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eventTitle: { ...typography.bodyMedium, color: colors.text, flex: 1 },
-  allDayBadge: {
-    backgroundColor: colors.primaryBg,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    justifyContent: 'center',
     borderRadius: radius.full,
   },
-  allDayText: { ...typography.small, color: colors.primary },
-  eventDetail: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eventDetailText: { ...typography.caption, color: colors.textMuted },
 
-  // Empty state
+  errorBanner: {
+    backgroundColor: colors.errorBg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  errorText: { ...typography.caption, color: colors.errorForeground },
+
+  content: { flex: 1 },
+
+  dayDetail: {
+    flex: 1,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  dayDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  dayDetailTitle: { ...typography.bodyMedium, color: colors.text },
+  dayList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+
   emptyState: {
     alignItems: 'center',
-    paddingVertical: spacing.xxxl,
-    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+    gap: spacing.xs,
+    flexGrow: 1,
   },
   emptyTitle: { ...typography.bodyMedium, color: colors.textSecondary },
   emptySubtitle: { ...typography.caption, color: colors.textMuted },

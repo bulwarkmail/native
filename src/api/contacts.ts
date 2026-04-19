@@ -4,39 +4,56 @@ import type { ContactCard, AddressBook } from './types';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
+function methodResult<T = any>(res: any, index = 0): T {
+  const entry = res?.methodResponses?.[index];
+  if (!entry) throw new Error('JMAP: empty method response');
+  if (entry[0] === 'error') {
+    const err = entry[1] || {};
+    throw new Error(err.description || err.type || 'JMAP method error');
+  }
+  return entry[1] as T;
+}
+
 export async function getAddressBooks(): Promise<AddressBook[]> {
   const accountId = jmapClient.accountId;
   const res = await jmapClient.request(
     [['AddressBook/get', { accountId }, '0']],
     USING,
   );
-  return res.methodResponses[0][1].list;
+  return methodResult<{ list: AddressBook[] }>(res).list ?? [];
 }
 
 export async function queryContacts(
   filter?: { text?: string; inAddressBook?: string },
-  limit = 100,
+  limit = 1000,
 ): Promise<string[]> {
+  // Match webmail: no `sort` (unsupported by Stalwart for ContactCard/query).
+  // Client sorts by display name after fetch.
   const accountId = jmapClient.accountId;
+  const args: Record<string, unknown> = { accountId, limit };
+  if (filter && Object.keys(filter).length > 0) args.filter = filter;
   const res = await jmapClient.request(
-    [['ContactCard/query', {
-      accountId,
-      filter: filter ?? {},
-      sort: [{ property: 'name', isAscending: true }],
-      limit,
-    }, '0']],
+    [['ContactCard/query', args, '0']],
     USING,
   );
-  return res.methodResponses[0][1].ids;
+  return methodResult<{ ids: string[] }>(res).ids ?? [];
 }
 
 export async function getContacts(ids: string[]): Promise<ContactCard[]> {
+  if (ids.length === 0) return [];
   const accountId = jmapClient.accountId;
-  const res = await jmapClient.request(
-    [['ContactCard/get', { accountId, ids }, '0']],
-    USING,
-  );
-  return res.methodResponses[0][1].list;
+  const batchSize = jmapClient.getMaxObjectsInGet();
+  const all: ContactCard[] = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const res = await jmapClient.request(
+      [['ContactCard/get', { accountId, ids: batch }, '0']],
+      USING,
+    );
+    const list = methodResult<{ list: ContactCard[] }>(res).list ?? [];
+    all.push(...list);
+  }
+  return all;
 }
 
 export async function createContact(

@@ -15,11 +15,15 @@ import EmailListScreen from './src/screens/EmailListScreen';
 import FilesScreen from './src/screens/FilesScreen';
 import CalendarScreen from './src/screens/CalendarScreenNew';
 import ContactsScreen from './src/screens/ContactsScreenNew';
+import ContactDetailScreen from './src/screens/ContactDetailScreen';
+import ContactFormScreen from './src/screens/ContactFormScreen';
+import GroupDetailScreen from './src/screens/GroupDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreenNew2';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore } from './src/stores/email-store';
+import { useSettingsStore } from './src/stores/settings-store';
 import { colors, spacing, typography } from './src/theme/tokens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -43,16 +47,21 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        // Matches webmail horizontal NavigationRail: bg-background, border-t border-border,
+        // active uses foreground (white), inactive uses muted-foreground.
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
           borderTopWidth: 1,
+          elevation: 0,
+          shadowOpacity: 0,
+          shadowColor: 'transparent',
         },
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: '600',
+          fontWeight: '500',
         },
       }}
     >
@@ -134,6 +143,10 @@ export default function App() {
   }, [hasRestoredSession, restoreSession]);
 
   React.useEffect(() => {
+    void useSettingsStore.getState().hydrate();
+  }, []);
+
+  React.useEffect(() => {
     if (!isAuthenticated || !client) {
       return;
     }
@@ -205,6 +218,31 @@ export default function App() {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
+        <Stack.Screen
+          name="ContactForm"
+          component={ContactFormScreen}
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
+        <Stack.Screen
+          name="AddAccount"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
+        >
+          {({ navigation }) => (
+            <LoginScreen
+              isAddMode
+              onCancel={() => navigation.goBack()}
+              onLogin={() => navigation.goBack()}
+            />
+          )}
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );

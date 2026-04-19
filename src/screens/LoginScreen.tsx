@@ -1,16 +1,18 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, X } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
 import { Button, Input } from '../components';
 import { useAuthStore } from '../stores/auth-store';
 
 interface LoginScreenProps {
   onLogin?: () => void;
+  isAddMode?: boolean;
+  onCancel?: () => void;
 }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScreenProps) {
   const login = useAuthStore((state) => state.login);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
@@ -29,7 +31,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
 
     try {
-      await login(serverUrl.trim(), email.trim(), password);
+      await login(serverUrl.trim(), email.trim(), password, { addAccount: isAddMode });
       onLogin?.();
     } catch {
       // Store state already contains the user-facing error.
@@ -52,6 +54,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {isAddMode && onCancel ? (
+        <Pressable onPress={onCancel} style={styles.cancelButton} hitSlop={10}>
+          <X size={24} color={colors.text} />
+        </Pressable>
+      ) : null}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -66,8 +73,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.appName}>Bulwark Mail</Text>
-            <Text style={styles.tagline}>Secure. Private. Yours.</Text>
+            <Text style={styles.appName}>{isAddMode ? 'Add account' : 'Bulwark Mail'}</Text>
+            <Text style={styles.tagline}>
+              {isAddMode ? 'Sign in to a second account' : 'Secure. Private. Yours.'}
+            </Text>
           </View>
 
           {/* Login Form */}
@@ -155,6 +164,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  cancelButton: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    zIndex: 10,
+    padding: 8,
+  },
   keyboardView: { flex: 1 },
   content: {
     flex: 1,

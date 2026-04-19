@@ -9,6 +9,20 @@ vi.mock('../../api/contacts', () => ({
   deleteContacts: vi.fn(),
 }));
 
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getItem: vi.fn().mockResolvedValue(null),
+    setItem: vi.fn().mockResolvedValue(undefined),
+    removeItem: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('../../api/jmap-client', () => ({
+  jmapClient: {
+    accountId: 'acc-1',
+  },
+}));
+
 import * as contactsApi from '../../api/contacts';
 import { useContactsStore } from '../contacts-store';
 

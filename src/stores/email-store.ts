@@ -11,6 +11,12 @@ import {
   searchEmails as apiSearchEmails,
 } from '../api/email';
 
+export interface EmailFilters {
+  unread?: boolean;
+  starred?: boolean;
+  hasAttachment?: boolean;
+}
+
 export interface EmailState {
   mailboxes: Mailbox[];
   currentMailboxId: string | null;
@@ -18,6 +24,8 @@ export interface EmailState {
   totalEmails: number;
   loading: boolean;
   error: string | null;
+  searchQuery: string;
+  filters: EmailFilters;
 
   fetchMailboxes: () => Promise<void>;
   selectMailbox: (mailboxId: string) => Promise<void>;
@@ -30,7 +38,24 @@ export interface EmailState {
   moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string) => Promise<void>;
   deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string) => Promise<void>;
   searchEmails: (query: string) => Promise<Email[]>;
+  setSearchQuery: (query: string) => void;
+  setFilters: (filters: EmailFilters) => void;
+  clearSearchAndFilters: () => void;
   reset: () => void;
+}
+
+function buildJmapFilter(
+  mailboxId: string,
+  searchQuery: string,
+  filters: EmailFilters,
+): Record<string, unknown> {
+  const f: Record<string, unknown> = { inMailbox: mailboxId };
+  const trimmed = searchQuery.trim();
+  if (trimmed) f.text = trimmed;
+  if (filters.unread) f.notKeyword = '$seen';
+  if (filters.starred) f.hasKeyword = '$flagged';
+  if (filters.hasAttachment) f.hasAttachment = true;
+  return f;
 }
 
 export const useEmailStore = create<EmailState>((set, get) => ({
@@ -40,36 +65,52 @@ export const useEmailStore = create<EmailState>((set, get) => ({
   totalEmails: 0,
   loading: false,
   error: null,
+  searchQuery: '',
+  filters: {},
 
   fetchMailboxes: async () => {
     try {
       const mailboxes = await fetchMailboxes();
       set({ mailboxes });
     } catch (err) {
+      console.warn('[email-store] fetchMailboxes failed:', err);
       set({ error: err instanceof Error ? err.message : 'Failed to load mailboxes' });
     }
   },
 
   selectMailbox: async (mailboxId) => {
-    set({ currentMailboxId: mailboxId, loading: true, error: null, emails: [], totalEmails: 0 });
+    // Reset search/filters when switching mailbox — matches webmail behavior.
+    set({
+      currentMailboxId: mailboxId,
+      loading: true,
+      error: null,
+      emails: [],
+      totalEmails: 0,
+      searchQuery: '',
+      filters: {},
+    });
     try {
-      const { ids, total } = await queryEmails(mailboxId, { limit: 50 });
+      const filter = buildJmapFilter(mailboxId, '', {});
+      const { ids, total } = await queryEmails(mailboxId, { limit: 50, filter });
       const emails = ids.length > 0 ? await fetchEmails(ids) : [];
       set({ emails, totalEmails: total, loading: false });
     } catch (err) {
+      console.warn('[email-store] selectMailbox failed:', err);
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load emails' });
     }
   },
 
   loadMoreEmails: async () => {
-    const { currentMailboxId, emails, totalEmails, loading } = get();
+    const { currentMailboxId, emails, totalEmails, loading, searchQuery, filters } = get();
     if (!currentMailboxId || loading || emails.length >= totalEmails) return;
 
     set({ loading: true });
     try {
+      const filter = buildJmapFilter(currentMailboxId, searchQuery, filters);
       const { ids } = await queryEmails(currentMailboxId, {
         position: emails.length,
         limit: 50,
+        filter,
       });
       const newEmails = ids.length > 0 ? await fetchEmails(ids) : [];
       set({ emails: [...emails, ...newEmails], loading: false });
@@ -79,10 +120,35 @@ export const useEmailStore = create<EmailState>((set, get) => ({
   },
 
   refreshEmails: async () => {
-    const { currentMailboxId } = get();
-    if (currentMailboxId) {
-      await get().selectMailbox(currentMailboxId);
+    const { currentMailboxId, searchQuery, filters } = get();
+    if (!currentMailboxId) return;
+    set({ loading: true, error: null, emails: [], totalEmails: 0 });
+    try {
+      const filter = buildJmapFilter(currentMailboxId, searchQuery, filters);
+      const { ids, total } = await queryEmails(currentMailboxId, { limit: 50, filter });
+      const emails = ids.length > 0 ? await fetchEmails(ids) : [];
+      set({ emails, totalEmails: total, loading: false });
+    } catch (err) {
+      console.warn('[email-store] refreshEmails failed:', err);
+      set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load emails' });
     }
+  },
+
+  setSearchQuery: (query) => {
+    set({ searchQuery: query });
+    void get().refreshEmails();
+  },
+
+  setFilters: (filters) => {
+    set({ filters });
+    void get().refreshEmails();
+  },
+
+  clearSearchAndFilters: () => {
+    const { searchQuery, filters } = get();
+    if (!searchQuery && Object.keys(filters).length === 0) return;
+    set({ searchQuery: '', filters: {} });
+    void get().refreshEmails();
   },
 
   getEmailDetail: async (id) => {
@@ -90,10 +156,12 @@ export const useEmailStore = create<EmailState>((set, get) => ({
   },
 
   markRead: async (emailId) => {
-    await setEmailKeywords(emailId, { $seen: true });
+    const email = get().emails.find((e) => e.id === emailId);
+    const nextKeywords = { ...(email?.keywords ?? {}), $seen: true };
+    await setEmailKeywords(emailId, nextKeywords);
     set({
       emails: get().emails.map((e) =>
-        e.id === emailId ? { ...e, keywords: { ...e.keywords, $seen: true } } : e,
+        e.id === emailId ? { ...e, keywords: nextKeywords } : e,
       ),
     });
   },
@@ -150,5 +218,7 @@ export const useEmailStore = create<EmailState>((set, get) => ({
     totalEmails: 0,
     loading: false,
     error: null,
+    searchQuery: '',
+    filters: {},
   }),
 }));

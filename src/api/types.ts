@@ -52,6 +52,7 @@ export interface Attachment {
   name?: string;
   size?: number;
   disposition?: string;
+  cid?: string;
 }
 
 export interface Email {
@@ -132,45 +133,196 @@ export interface EmailSubmission {
 
 // ─── Contacts (RFC 9553 JSContact) ──────────────────────
 
+export type ContactKind = 'individual' | 'group' | 'org' | 'location' | 'device' | 'application';
+
+export type NameComponentKind =
+  | 'given' | 'surname' | 'middle' | 'prefix' | 'suffix'
+  | 'additional' | 'separator' | 'credential' | 'title'
+  | 'given2' | 'surname2' | 'generation';
+
+export interface NameComponent {
+  kind: NameComponentKind | string;
+  value: string;
+}
+
+export interface ContactName {
+  components?: NameComponent[];
+  isOrdered?: boolean;
+  full?: string;
+  defaultSeparator?: string;
+}
+
+export interface ContactNickname {
+  name: string;
+  contexts?: Record<string, boolean>;
+}
+
+export interface ContactEmail {
+  address: string;
+  contexts?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
+export interface ContactPhone {
+  number: string;
+  contexts?: Record<string, boolean>;
+  features?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
+export interface AddressComponent {
+  kind: string;
+  value: string;
+  phonetic?: string;
+}
+
+export interface ContactAddress {
+  components?: AddressComponent[];
+  full?: string;
+  isOrdered?: boolean;
+  defaultSeparator?: string;
+  // Legacy flat fields
+  street?: string;
+  locality?: string;
+  region?: string;
+  postcode?: string;
+  country?: string;
+  countryCode?: string;
+  fullAddress?: string;
+  contexts?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
+export interface ContactOrganization {
+  name?: string;
+  units?: Array<{ name: string }>;
+  sortAs?: string;
+}
+
+export interface ContactTitle {
+  name: string;
+  kind?: 'title' | 'role';
+  organizationId?: string;
+}
+
+export interface ContactOnlineService {
+  service?: string;
+  uri: string;
+  user?: string;
+  contexts?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
+export interface ContactLanguagePref {
+  language: string;
+  contexts?: Record<string, boolean>;
+  pref?: number;
+}
+
+export interface PartialDate {
+  '@type'?: 'PartialDate';
+  year?: number;
+  month?: number;
+  day?: number;
+  calendarScale?: string;
+}
+
+export interface Timestamp {
+  '@type': 'Timestamp';
+  utc: string;
+}
+
+export type AnniversaryDate = string | PartialDate | Timestamp;
+
+export interface ContactAnniversary {
+  '@type'?: 'Anniversary';
+  kind: 'birth' | 'death' | 'wedding' | 'other' | string;
+  date: AnniversaryDate;
+  place?: ContactAddress;
+}
+
+export interface ContactPersonalInfo {
+  kind: 'expertise' | 'hobby' | 'interest' | 'other' | string;
+  value: string;
+  level?: 'high' | 'medium' | 'low';
+}
+
+export interface ContactNote {
+  note: string;
+  created?: string;
+  author?: { name?: string; uri?: string };
+}
+
+export interface ContactMedia {
+  kind: 'photo' | 'sound' | 'logo' | string;
+  uri: string;
+  mediaType?: string;
+}
+
+export interface ContactRelation {
+  relation?: Record<string, boolean>;
+}
+
+export interface ContactLink {
+  uri: string;
+  kind?: 'contact' | 'generic' | string;
+  mediaType?: string;
+  contexts?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
 export interface ContactCard {
   id: string;
+  originalId?: string;
   uid?: string;
   addressBookIds: Record<string, boolean>;
-  kind?: string;
-  name?: { components: Array<{ kind: string; value: string }> };
-  emails?: Record<string, {
-    address: string;
-    contexts?: Record<string, boolean>;
-    label?: string;
-    pref?: number;
-  }>;
-  phones?: Record<string, {
-    number: string;
-    features?: Record<string, boolean>;
-    label?: string;
-    pref?: number;
-  }>;
-  addresses?: Record<string, {
-    components?: any[];
-    full?: string;
-    countryCode?: string;
-  }>;
-  organizations?: Record<string, {
-    name: string;
-    units?: Array<{ name: string }>;
-  }>;
-  titles?: Record<string, { name: string }>;
-  notes?: Record<string, { note: string }>;
-  media?: Record<string, { kind: string; uri?: string; mediaType?: string }>;
+  kind?: ContactKind | string;
+  language?: string;
+  name?: ContactName;
+  nicknames?: Record<string, ContactNickname>;
+  emails?: Record<string, ContactEmail>;
+  phones?: Record<string, ContactPhone>;
+  onlineServices?: Record<string, ContactOnlineService>;
+  preferredLanguages?: Record<string, ContactLanguagePref>;
+  organizations?: Record<string, ContactOrganization>;
+  titles?: Record<string, ContactTitle>;
+  addresses?: Record<string, ContactAddress>;
+  anniversaries?: Record<string, ContactAnniversary>;
+  personalInfo?: Record<string, ContactPersonalInfo>;
+  notes?: Record<string, ContactNote>;
+  media?: Record<string, ContactMedia>;
+  relatedTo?: Record<string, ContactRelation>;
+  links?: Record<string, ContactLink>;
   keywords?: Record<string, boolean>;
+  members?: Record<string, boolean>;
+  created?: string;
+  updated?: string;
+}
+
+export interface AddressBookRights {
+  mayRead?: boolean;
+  mayWrite?: boolean;
+  mayShare?: boolean;
+  mayDelete?: boolean;
 }
 
 export interface AddressBook {
   id: string;
   name: string;
+  description?: string | null;
   isDefault?: boolean;
+  isSubscribed?: boolean;
   sortOrder?: number;
-  myRights?: Record<string, boolean>;
+  myRights?: AddressBookRights;
+}
+
+export interface AddressBookWithCount extends AddressBook {
+  count: number;
 }
 
 // ─── Calendar (RFC 8984 JSCalendar) ─────────────────────
@@ -193,6 +345,13 @@ export interface RecurrenceRule {
   byDay?: Array<{ day: string; nthOfPeriod?: number }>;
   byMonth?: string[];
   byMonthDay?: number[];
+  byYearDay?: number[];
+  byWeekNo?: number[];
+  byHour?: number[];
+  byMinute?: number[];
+  bySecond?: number[];
+  bySetPosition?: number[];
+  firstDayOfWeek?: string;
 }
 
 export interface Alert {
@@ -219,12 +378,15 @@ export interface CalendarEvent {
   recurrenceRules?: RecurrenceRule[];
   recurrenceOverrides?: Record<string, Partial<CalendarEvent>>;
   excludedRecurrenceRules?: RecurrenceRule[];
+  recurrenceId?: string;
+  originalId?: string;
   alerts?: Record<string, Alert>;
   links?: Record<string, { href: string; rel?: string }>;
   created?: string;
   updated?: string;
   progress?: string;
   due?: string;
+  color?: string;
 }
 
 export interface Calendar {

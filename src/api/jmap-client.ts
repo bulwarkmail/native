@@ -6,8 +6,15 @@ import type {
   JMAPResponseBody,
 } from './types';
 import { CAPABILITIES } from './types';
+import { generateAccountId } from '../lib/account-utils';
 
-const CREDENTIALS_KEY = 'jmap_credentials';
+const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
+const CREDENTIALS_PREFIX = 'jmap_credentials__';
+
+// SecureStore keys: letters, digits, ".", "-", "_" only — no "@" or "/".
+function credentialsKey(accountId: string): string {
+  return CREDENTIALS_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
 
 export interface StoredCredentials {
   serverUrl: string;
@@ -32,6 +39,14 @@ export class JMAPClient {
     return this.session;
   }
 
+  get username(): string | null {
+    return this.credentials?.username ?? null;
+  }
+
+  get serverUrl(): string | null {
+    return this.credentials?.serverUrl ?? null;
+  }
+
   get isConnected(): boolean {
     return this.session !== null && this._accountId !== null;
   }
@@ -52,12 +67,12 @@ export class JMAPClient {
     const baseUrl = serverUrl.replace(/\/+$/, '');
     this.credentials = { serverUrl: baseUrl, username, password };
 
-    this.session = await this.fetchSession(baseUrl);
+    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
     this._accountId = this.resolveAccountId(this.session);
 
-    // Persist credentials
+    const accountId = generateAccountId(username, baseUrl);
     await SecureStore.setItemAsync(
-      CREDENTIALS_KEY,
+      credentialsKey(accountId),
       JSON.stringify(this.credentials),
     );
 
@@ -68,25 +83,25 @@ export class JMAPClient {
     const baseUrl = serverUrl.replace(/\/+$/, '');
     this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
 
-    this.session = await this.fetchSession(baseUrl);
+    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
     this._accountId = this.resolveAccountId(this.session);
-
-    await SecureStore.setItemAsync(
-      CREDENTIALS_KEY,
-      JSON.stringify(this.credentials),
-    );
 
     return this.session;
   }
 
+  // Legacy single-slot restore — kept for backward-compat tests. New code
+  // should use loadAccount(accountId) driven by the account registry.
   async restoreSession(): Promise<boolean> {
-    const stored = await SecureStore.getItemAsync(CREDENTIALS_KEY);
+    const stored = await SecureStore.getItemAsync(LEGACY_CREDENTIALS_KEY);
     if (!stored) return false;
 
     try {
       const creds: StoredCredentials = JSON.parse(stored);
       this.credentials = creds;
-      this.session = await this.fetchSession(creds.serverUrl);
+      this.session = this.rewriteSessionUrls(
+        await this.fetchSession(creds.serverUrl),
+        creds.serverUrl,
+      );
       this._accountId = this.resolveAccountId(this.session);
       return true;
     } catch {
@@ -95,11 +110,95 @@ export class JMAPClient {
     }
   }
 
-  async logout(): Promise<void> {
+  async loadAccount(accountId: string): Promise<boolean> {
+    const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
+    if (!stored) return false;
+
+    try {
+      const creds: StoredCredentials = JSON.parse(stored);
+      this.credentials = creds;
+      this.session = this.rewriteSessionUrls(
+        await this.fetchSession(creds.serverUrl),
+        creds.serverUrl,
+      );
+      this._accountId = this.resolveAccountId(this.session);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async clearAccountCredentials(accountId: string): Promise<void> {
+    await SecureStore.deleteItemAsync(credentialsKey(accountId));
+  }
+
+  async clearAllCredentials(accountIds: string[]): Promise<void> {
+    await Promise.all([
+      SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
+      ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
+    ]);
+  }
+
+  // One-time migration: if an old single-slot credential exists, return its
+  // contents so the caller can register it in the account registry.
+  async consumeLegacyCredentials(): Promise<StoredCredentials | null> {
+    const stored = await SecureStore.getItemAsync(LEGACY_CREDENTIALS_KEY);
+    if (!stored) return null;
+    try {
+      const creds: StoredCredentials = JSON.parse(stored);
+      // Re-save under the per-account key before dropping the legacy entry
+      const accountId = generateAccountId(creds.username, creds.serverUrl);
+      await SecureStore.setItemAsync(credentialsKey(accountId), stored);
+      await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
+      return creds;
+    } catch {
+      await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
+      return null;
+    }
+  }
+
+  // Rewrite session URLs to share the origin the client connected with.
+  // JMAP servers often self-report localhost/container-internal hostnames in
+  // apiUrl/downloadUrl/etc. that are unreachable from mobile clients (e.g.
+  // the Android emulator can't resolve the host's "localhost").
+  private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
+    const rewrite = (url: string | undefined): string | undefined => {
+      if (!url) return url;
+      try {
+        const parsed = new URL(url);
+        const server = new URL(serverUrl);
+        if (parsed.origin === server.origin) return url;
+        return server.origin + parsed.pathname + parsed.search + parsed.hash;
+      } catch {
+        return url;
+      }
+    };
+    return {
+      ...session,
+      apiUrl: rewrite(session.apiUrl) ?? session.apiUrl,
+      downloadUrl: rewrite(session.downloadUrl) ?? session.downloadUrl,
+      uploadUrl: rewrite(session.uploadUrl) ?? session.uploadUrl,
+      eventSourceUrl: rewrite(session.eventSourceUrl) ?? session.eventSourceUrl,
+    };
+  }
+
+  // Reset in-memory state without touching persisted credentials (used on
+  // account switch so the active account's stored creds remain available).
+  reset(): void {
     this.session = null;
     this.credentials = null;
     this._accountId = null;
-    await SecureStore.deleteItemAsync(CREDENTIALS_KEY);
+  }
+
+  async logout(): Promise<void> {
+    const currentAccountId = this.credentials
+      ? generateAccountId(this.credentials.username, this.credentials.serverUrl)
+      : null;
+    this.reset();
+    await SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY);
+    if (currentAccountId) {
+      await SecureStore.deleteItemAsync(credentialsKey(currentAccountId));
+    }
   }
 
   // ── Session Discovery ─────────────────────────────────
@@ -181,6 +280,37 @@ export class JMAPClient {
 
   hasCapability(urn: string): boolean {
     return Boolean(this.session?.capabilities?.[urn]);
+  }
+
+  getMaxObjectsInGet(): number {
+    const core = this.session?.capabilities?.[CAPABILITIES.CORE] as
+      | { maxObjectsInGet?: number }
+      | undefined;
+    return core?.maxObjectsInGet || 500;
+  }
+
+  // ── Blob Download ─────────────────────────────────────
+
+  // Expand the RFC 6570 level-1 template the JMAP server advertises.
+  getBlobDownloadUrl(blobId: string, name?: string, type?: string): string {
+    if (!this.session?.downloadUrl) {
+      throw new Error('Download URL not available — not connected');
+    }
+    return this.session.downloadUrl
+      .replace('{accountId}', encodeURIComponent(this.accountId))
+      .replace('{blobId}', encodeURIComponent(blobId))
+      .replace('{name}', encodeURIComponent(name || 'download'))
+      .replace('{type}', encodeURIComponent(type || 'application/octet-stream'));
+  }
+
+  async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string): Promise<ArrayBuffer> {
+    const url = this.getBlobDownloadUrl(blobId, name, type);
+    const response = await fetch(url, {
+      headers: { Authorization: this.authHeader },
+    });
+    if (response.status === 401) throw new AuthenticationError('Session expired');
+    if (!response.ok) throw new Error(`Failed to fetch blob: ${response.status}`);
+    return response.arrayBuffer();
   }
 }
 

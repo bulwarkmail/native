@@ -9,8 +9,8 @@ const EMAIL_LIST_PROPERTIES = [
 
 const EMAIL_FULL_PROPERTIES = [
   ...EMAIL_LIST_PROPERTIES,
-  'bodyStructure', 'textBody', 'htmlBody', 'attachments', 'blobId',
-  'bcc', 'replyTo', 'sentAt',
+  'bodyStructure', 'textBody', 'htmlBody', 'bodyValues',
+  'attachments', 'blobId', 'bcc', 'replyTo', 'sentAt',
 ];
 
 export async function getMailboxes(): Promise<Mailbox[]> {
@@ -64,10 +64,13 @@ export async function getFullEmail(id: string): Promise<Email> {
       properties: EMAIL_FULL_PROPERTIES,
       fetchHTMLBodyValues: true,
       fetchTextBodyValues: true,
+      fetchAllBodyValues: true,
       maxBodyValueBytes: 512000,
     }, '0'],
   ]);
-  return res.methodResponses[0][1].list[0];
+  const email = res.methodResponses[0][1].list[0];
+  if (!email) throw new Error(`Email ${id} not found`);
+  return email;
 }
 
 export async function getThread(threadId: string): Promise<Thread> {
