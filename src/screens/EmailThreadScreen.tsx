@@ -1,19 +1,36 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
+  Modal, useWindowDimensions, Animated, Easing,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
-  ChevronLeft, ChevronRight, Paperclip,
+  ChevronLeft, ChevronRight, Paperclip, Archive, Mail, MailOpen,
+  FolderInput, ShieldAlert, ShieldCheck, X, Check,
+  Inbox, Send, File as FileIcon, Ban, Folder,
 } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
 import EmailBodyView from '../components/EmailBodyView';
 import SenderAvatar from '../components/SenderAvatar';
 import { useEmailStore } from '../stores/email-store';
-import type { Email } from '../api/types';
+import { setEmailKeywords } from '../api/email';
+import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
+import type { Email, Mailbox } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
+
+function moveTargetIcon(role: string | null | undefined, name: string): LucideIcon {
+  const lower = name.toLowerCase();
+  if (role === 'inbox' || lower.includes('inbox')) return Inbox;
+  if (role === 'sent' || lower.includes('sent')) return Send;
+  if (role === 'drafts' || lower.includes('draft')) return FileIcon;
+  if (role === 'trash' || lower.includes('trash') || lower.includes('deleted')) return Trash2;
+  if (role === 'junk' || role === 'spam' || lower.includes('junk') || lower.includes('spam')) return Ban;
+  if (role === 'archive' || lower.includes('archive')) return Archive;
+  return Folder;
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
 
@@ -43,16 +60,19 @@ function plainTextBody(email: Email): string {
 export default function EmailThreadScreen({ route, navigation }: Props) {
   const { emailId, subject: subjectParam } = route.params;
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
   const markRead = useEmailStore((s) => s.markRead);
-  const toggleStar = useEmailStore((s) => s.toggleStar);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
+  const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
 
   const [email, setEmail] = React.useState<Email | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
+  const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -78,16 +98,46 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   }, [emailId, getEmailDetail, markRead]);
 
   const starred = !!email?.keywords?.$flagged;
+  const unread = !!email && !email.keywords?.$seen;
+
+  const archiveMailbox = React.useMemo(
+    () => mailboxes.find((m) => m.role === 'archive'),
+    [mailboxes],
+  );
+  const junkMailbox = React.useMemo(
+    () => mailboxes.find((m) => m.role === 'junk' || m.role === 'spam'),
+    [mailboxes],
+  );
+  const inboxMailbox = React.useMemo(
+    () => mailboxes.find((m) => m.role === 'inbox'),
+    [mailboxes],
+  );
+  const isInJunk = !!(junkMailbox && email?.mailboxIds?.[junkMailbox.id]);
+
+  const updateLocalKeywords = (next: Record<string, boolean>) => {
+    setEmail((prev) => (prev ? { ...prev, keywords: next } : prev));
+  };
+
   const onToggleStar = () => {
     if (!email) return;
-    void toggleStar(email.id, !starred);
-    setEmail({
-      ...email,
-      keywords: {
-        ...email.keywords,
-        ...(starred ? {} : { $flagged: true }),
-      },
-    });
+    const next = { ...email.keywords };
+    if (starred) delete next.$flagged;
+    else next.$flagged = true;
+    updateLocalKeywords(next);
+    void setEmailKeywords(email.id, next);
+  };
+
+  const onToggleUnread = () => {
+    if (!email) return;
+    if (unread) {
+      void markRead(email.id);
+      updateLocalKeywords({ ...email.keywords, $seen: true });
+    } else {
+      const next = { ...email.keywords };
+      delete next.$seen;
+      updateLocalKeywords(next);
+      void setEmailKeywords(email.id, next);
+    }
   };
 
   const onDelete = () => {
@@ -95,6 +145,35 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     const trash = mailboxes.find((m) => m.role === 'trash');
     if (!trash) return;
     void deleteEmail(email.id, trash.id, currentMailboxId);
+    navigation.goBack();
+  };
+
+  const onArchive = () => {
+    if (!email || !currentMailboxId || !archiveMailbox) return;
+    if (currentMailboxId === archiveMailbox.id) return;
+    void moveToMailbox(email.id, currentMailboxId, archiveMailbox.id);
+    navigation.goBack();
+  };
+
+  const onToggleSpam = () => {
+    if (!email || !currentMailboxId) return;
+    setMoreMenuOpen(false);
+    if (isInJunk) {
+      const target = inboxMailbox ?? mailboxes.find((m) => m.id !== currentMailboxId);
+      if (!target) return;
+      void moveToMailbox(email.id, currentMailboxId, target.id);
+    } else {
+      if (!junkMailbox) return;
+      void moveToMailbox(email.id, currentMailboxId, junkMailbox.id);
+    }
+    navigation.goBack();
+  };
+
+  const onMoveToMailbox = (toId: string) => {
+    if (!email || !currentMailboxId || toId === currentMailboxId) return;
+    setMoveMenuOpen(false);
+    setMoreMenuOpen(false);
+    void moveToMailbox(email.id, currentMailboxId, toId);
     navigation.goBack();
   };
 
@@ -119,6 +198,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const from = email?.from?.[0];
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
 
+  // Show extras in priority order. Each toolbar button is ~64px wide (icon+label+padding);
+  // back arrow + side padding reserves ~64px. Drop optional buttons on narrow screens.
+  const showMarkUnread = windowWidth >= 340;
+  const showArchive = windowWidth >= 400 && !!archiveMailbox;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Toolbar */}
@@ -132,6 +216,26 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             label="Delete"
             onPress={onDelete}
           />
+          {showArchive && (
+            <ToolbarButton
+              icon={<Archive size={18} color={colors.textSecondary} />}
+              label="Archive"
+              onPress={onArchive}
+            />
+          )}
+          {showMarkUnread && (
+            <ToolbarButton
+              icon={
+                unread ? (
+                  <MailOpen size={18} color={colors.textSecondary} />
+                ) : (
+                  <Mail size={18} color={colors.textSecondary} />
+                )
+              }
+              label={unread ? 'Read' : 'Unread'}
+              onPress={onToggleUnread}
+            />
+          )}
           <ToolbarButton
             icon={
               <Star
@@ -146,6 +250,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
           <ToolbarButton
             icon={<MoreVertical size={18} color={colors.textSecondary} />}
             label="More"
+            onPress={() => setMoreMenuOpen(true)}
           />
         </View>
       </View>
@@ -262,7 +367,240 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
           </View>
         </>
       ) : null}
+
+      <MoreMenuSheet
+        visible={moreMenuOpen}
+        onClose={() => setMoreMenuOpen(false)}
+        unread={unread}
+        canArchive={!!archiveMailbox && !showArchive && currentMailboxId !== archiveMailbox?.id}
+        canMarkUnread={!showMarkUnread}
+        canMove={mailboxes.length > 0}
+        showSpam={!!junkMailbox || isInJunk}
+        isInJunk={isInJunk}
+        onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
+        onToggleUnread={() => { setMoreMenuOpen(false); onToggleUnread(); }}
+        onMove={() => { setMoreMenuOpen(false); setMoveMenuOpen(true); }}
+        onToggleSpam={onToggleSpam}
+      />
+
+      <MoveMenuSheet
+        visible={moveMenuOpen}
+        onClose={() => setMoveMenuOpen(false)}
+        mailboxes={mailboxes}
+        currentMailboxId={currentMailboxId}
+        onPick={onMoveToMailbox}
+      />
     </SafeAreaView>
+  );
+}
+
+interface MoreMenuSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  unread: boolean;
+  canArchive: boolean;
+  canMarkUnread: boolean;
+  canMove: boolean;
+  showSpam: boolean;
+  isInJunk: boolean;
+  onArchive: () => void;
+  onToggleUnread: () => void;
+  onMove: () => void;
+  onToggleSpam: () => void;
+}
+
+function MoreMenuSheet({
+  visible, onClose, unread, canArchive, canMarkUnread, canMove,
+  showSpam, isInJunk, onArchive, onToggleUnread, onMove, onToggleSpam,
+}: MoreMenuSheetProps) {
+  const insets = useSafeAreaInsets();
+  const slideY = React.useRef(new Animated.Value(400)).current;
+  const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(slideY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideY, { toValue: 400, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, slideY, overlayOpacity]);
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
+        <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.sheet,
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+        ]}
+      >
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>More actions</Text>
+          <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <X size={18} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        {canArchive && (
+          <MoreMenuItem
+            icon={<Archive size={18} color={colors.textSecondary} />}
+            label="Archive"
+            onPress={onArchive}
+          />
+        )}
+        {canMarkUnread && (
+          <MoreMenuItem
+            icon={
+              unread ? (
+                <MailOpen size={18} color={colors.textSecondary} />
+              ) : (
+                <Mail size={18} color={colors.textSecondary} />
+              )
+            }
+            label={unread ? 'Mark as read' : 'Mark as unread'}
+            onPress={onToggleUnread}
+          />
+        )}
+        {canMove && (
+          <MoreMenuItem
+            icon={<FolderInput size={18} color={colors.textSecondary} />}
+            label="Move to folder…"
+            onPress={onMove}
+            trailing={<ChevronRight size={16} color={colors.textMuted} />}
+          />
+        )}
+        {showSpam && (
+          <MoreMenuItem
+            icon={
+              isInJunk ? (
+                <ShieldCheck size={18} color={colors.success} />
+              ) : (
+                <ShieldAlert size={18} color={colors.error} />
+              )
+            }
+            label={isInJunk ? 'Not spam' : 'Mark as spam'}
+            onPress={onToggleSpam}
+          />
+        )}
+      </Animated.View>
+    </Modal>
+  );
+}
+
+interface MoveMenuSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  mailboxes: Mailbox[];
+  currentMailboxId: string | null;
+  onPick: (id: string) => void;
+}
+
+function MoveMenuSheet({ visible, onClose, mailboxes, currentMailboxId, onPick }: MoveMenuSheetProps) {
+  const insets = useSafeAreaInsets();
+  const slideY = React.useRef(new Animated.Value(500)).current;
+  const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(slideY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideY, { toValue: 500, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, slideY, overlayOpacity]);
+
+  const visibleNodes = React.useMemo(() => {
+    const tree = buildMailboxTree(mailboxes);
+    const expanded = new Set<string>();
+    const collect = (nodes: MailboxNode[]) => {
+      for (const n of nodes) {
+        if (n.children.length > 0) {
+          expanded.add(n.id);
+          collect(n.children);
+        }
+      }
+    };
+    collect(tree);
+    return flattenVisible(tree, expanded);
+  }, [mailboxes]);
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
+        <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.sheet,
+          styles.sheetTall,
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+        ]}
+      >
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Move to folder</Text>
+          <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <X size={18} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        <ScrollView>
+          {visibleNodes.map((node) => {
+            const Icon = moveTargetIcon(node.role, node.name);
+            const isCurrent = node.id === currentMailboxId;
+            const canTarget = node.myRights?.mayAddItems !== false && !isCurrent;
+            return (
+              <Pressable
+                key={node.id}
+                onPress={canTarget ? () => onPick(node.id) : undefined}
+                disabled={!canTarget}
+                style={({ pressed }) => [
+                  styles.moveRow,
+                  pressed && canTarget && styles.moveRowPressed,
+                  { paddingLeft: spacing.lg + node.depth * 16 },
+                ]}
+              >
+                <Icon size={16} color={canTarget ? colors.textSecondary : colors.textMuted} />
+                <Text
+                  style={[styles.moveRowLabel, !canTarget && styles.moveRowLabelDisabled]}
+                  numberOfLines={1}
+                >
+                  {node.name}
+                </Text>
+                {isCurrent && <Check size={14} color={colors.textMuted} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+function MoreMenuItem({
+  icon, label, onPress, trailing,
+}: { icon: React.ReactNode; label: string; onPress?: () => void; trailing?: React.ReactNode }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.moreItem, pressed && styles.moreItemPressed]}
+    >
+      <View style={styles.moreItemIcon}>{icon}</View>
+      <Text style={styles.moreItemLabel}>{label}</Text>
+      {trailing}
+    </Pressable>
   );
 }
 
@@ -324,7 +662,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     minHeight: 44,
   },
@@ -485,6 +823,96 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   bottomBarLabelDisabled: {
+    color: colors.textMuted,
+  },
+
+  // Bottom sheet (More menu / Move folder picker)
+  sheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheetOverlayPress: { flex: 1 },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.popover,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingTop: spacing.sm,
+  },
+  sheetTall: {
+    maxHeight: '75%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: spacing.sm,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  sheetTitle: {
+    ...typography.bodySemibold,
+    color: colors.text,
+  },
+  sheetClose: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.xs,
+  },
+
+  // More menu item
+  moreItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    minHeight: 48,
+  },
+  moreItemPressed: { backgroundColor: colors.surfaceHover },
+  moreItemIcon: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreItemLabel: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+  },
+
+  // Move folder row
+  moveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingRight: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    minHeight: 44,
+  },
+  moveRowPressed: { backgroundColor: colors.surfaceHover },
+  moveRowLabel: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+  },
+  moveRowLabelDisabled: {
     color: colors.textMuted,
   },
 });
