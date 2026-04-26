@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Linking, Alert } from 'react-native';
+import Constants from 'expo-constants';
 import { ExternalLink } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { colors, spacing, radius, typography } from '../../theme/tokens';
 import { useSettingsStore } from '../../stores/settings-store';
 
-const APP_VERSION = '0.0.0';
-const GIT_COMMIT = 'unknown';
+const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
+const GIT_COMMIT = (Constants.expoConfig?.extra as { commit?: string } | undefined)?.commit ?? 'dev';
 
 const DEBUG_CATEGORIES = [
   { id: 'jmap',       label: 'JMAP',       description: 'JMAP request and response logs.' },

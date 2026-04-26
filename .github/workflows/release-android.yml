@@ -59,7 +59,7 @@ jobs:
       - name: Rename APK with version
         id: artifact
         run: |
-          VERSION=$(node -p "require('./app.json').expo.version")
+          VERSION=$(cat VERSION | tr -d '[:space:]')
           SRC=android/app/build/outputs/apk/release/app-release.apk
           DEST="bulwark-mobile-${VERSION}-${GITHUB_SHA::7}.apk"
           cp "$SRC" "$DEST"
