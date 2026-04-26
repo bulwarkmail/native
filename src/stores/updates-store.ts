@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { fetchLatestRelease, type LatestRelease } from '../api/updates';
 import { isNewer } from '../lib/version-compare';
-import { downloadAndInstallApk } from '../lib/install-update';
+import { downloadAndInstallApk, type InstallProgress } from '../lib/install-update';
 
 const STORAGE_KEY = 'webmail:updates:v1';
 const MIN_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -26,6 +26,7 @@ export interface UpdatesState extends PersistedUpdates {
   hydrated: boolean;
   checking: boolean;
   installing: boolean;
+  installProgress: InstallProgress | null;
   error: string | null;
 
   hydrate: () => Promise<void>;
@@ -48,6 +49,7 @@ export const useUpdatesStore = create<UpdatesState>((set, get) => ({
   hydrated: false,
   checking: false,
   installing: false,
+  installProgress: null,
   error: null,
 
   hydrate: async () => {
@@ -100,12 +102,18 @@ export const useUpdatesStore = create<UpdatesState>((set, get) => ({
   installLatest: async () => {
     const s = get();
     if (s.installing || !s.cachedLatest?.apkAsset) return;
-    set({ installing: true, error: null });
+    set({ installing: true, error: null, installProgress: { phase: 'downloading', progress: 0 } });
     try {
-      await downloadAndInstallApk(s.cachedLatest.apkAsset);
-      set({ installing: false });
+      await downloadAndInstallApk(s.cachedLatest.apkAsset, (p) => {
+        set({ installProgress: p });
+      });
+      set({ installing: false, installProgress: null });
     } catch (err) {
-      set({ installing: false, error: err instanceof Error ? err.message : String(err) });
+      set({
+        installing: false,
+        installProgress: null,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   },
 

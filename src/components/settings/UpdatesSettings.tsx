@@ -4,6 +4,7 @@ import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { colors, spacing, radius, typography } from '../../theme/tokens';
 import { useUpdatesStore } from '../../stores/updates-store';
+import type { InstallProgress } from '../../lib/install-update';
 
 function formatTime(ts: number): string {
   if (!ts) return 'never';
@@ -11,11 +12,37 @@ function formatTime(ts: number): string {
   return date.toLocaleString();
 }
 
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatProgressLabel(p: InstallProgress): string {
+  const pct = p.progress != null ? `${Math.round(p.progress * 100)}%` : null;
+  const written = p.bytesWritten ? formatBytes(p.bytesWritten) : null;
+  const total = p.totalBytes ? formatBytes(p.totalBytes) : null;
+  const sizes = written && total ? `${written} of ${total}` : written ?? '';
+  return [pct, sizes].filter(Boolean).join(' · ') || 'Downloading…';
+}
+
+function installButtonLabel(
+  installing: boolean,
+  progress: InstallProgress | null,
+  apkAsset: unknown,
+): string {
+  if (!installing) return apkAsset ? 'Install' : 'Open release';
+  if (progress?.phase === 'installing') return 'Installing…';
+  if (progress?.progress != null) return `Downloading ${Math.round(progress.progress * 100)}%`;
+  return 'Downloading…';
+}
+
 export function UpdatesSettings() {
   const hydrated = useUpdatesStore((s) => s.hydrated);
   const hydrate = useUpdatesStore((s) => s.hydrate);
   const checking = useUpdatesStore((s) => s.checking);
   const installing = useUpdatesStore((s) => s.installing);
+  const installProgress = useUpdatesStore((s) => s.installProgress);
   const error = useUpdatesStore((s) => s.error);
   const lastCheckedAt = useUpdatesStore((s) => s.lastCheckedAt);
   const cachedLatest = useUpdatesStore((s) => s.cachedLatest);
@@ -81,7 +108,7 @@ export function UpdatesSettings() {
               onPress={onInstall}
               disabled={installing}
             >
-              {installing ? 'Downloading…' : apkAsset ? 'Install' : 'Open release'}
+              {installButtonLabel(installing, installProgress, apkAsset)}
             </Button>
           ) : (
             <Button
@@ -94,6 +121,29 @@ export function UpdatesSettings() {
             </Button>
           )}
         </SettingItem>
+
+        {installing && installProgress ? (
+          <View style={styles.progressBox}>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width:
+                      installProgress.phase === 'installing'
+                        ? '100%'
+                        : `${Math.round((installProgress.progress ?? 0) * 100)}%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressLabel}>
+              {installProgress.phase === 'installing'
+                ? 'Opening installer…'
+                : formatProgressLabel(installProgress)}
+            </Text>
+          </View>
+        ) : null}
 
         {cachedLatest?.body ? (
           <View style={styles.notesBox}>
@@ -121,4 +171,20 @@ const styles = StyleSheet.create({
   },
   notesTitle: { ...typography.caption, color: colors.mutedForeground, textTransform: 'uppercase' },
   notesBody: { ...typography.body, color: colors.text, lineHeight: 20 },
+  progressBox: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 6,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.muted,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+  },
+  progressLabel: { ...typography.caption, color: colors.mutedForeground },
 });
