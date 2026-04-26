@@ -42,6 +42,16 @@ jobs:
           key: android-sdk-${{ runner.os }}-${{ hashFiles('android/build.gradle', 'android/gradle.properties', 'android/app/build.gradle') }}
           restore-keys: android-sdk-${{ runner.os }}-
 
+      - name: Compute native cache key input
+        run: |
+          node -e "
+            const fs = require('fs');
+            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+            if (lock.packages && lock.packages['']) delete lock.packages[''].version;
+            delete lock.version;
+            fs.writeFileSync('.cxx-cache-input.json', JSON.stringify(lock.packages || {}));
+          "
+
       - name: Cache native CMake build outputs
         uses: actions/cache@v4
         with:
@@ -50,7 +60,7 @@ jobs:
             android/app/build/intermediates/cxx
             android/app/build/intermediates/merged_native_libs
             android/app/build/intermediates/stripped_native_libs
-          key: cxx-${{ runner.os }}-${{ hashFiles('package-lock.json', 'android/build.gradle', 'android/app/build.gradle') }}
+          key: cxx-${{ runner.os }}-${{ hashFiles('.cxx-cache-input.json', 'android/build.gradle', 'android/app/build.gradle') }}
           restore-keys: cxx-${{ runner.os }}-
 
       - name: Install JS dependencies
