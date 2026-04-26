@@ -9,7 +9,9 @@ import {
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
+import { SwipeableRow } from '../components/SwipeableRow';
 import { useEmailStore, type EmailFilters } from '../stores/email-store';
+import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import type { Email } from '../api/types';
 
 function getSenderName(email: Email): string {
@@ -152,6 +154,23 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const markUnread = useEmailStore((s) => s.markUnread);
   const toggleStar = useEmailStore((s) => s.toggleStar);
   const deleteEmailAction = useEmailStore((s) => s.deleteEmail);
+  const moveToMailboxAction = useEmailStore((s) => s.moveToMailbox);
+
+  const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
+  const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
+
+  const archiveMailboxId = React.useMemo(
+    () => mailboxes.find((m) => m.role === 'archive')?.id ?? null,
+    [mailboxes],
+  );
+  const trashMailboxId = React.useMemo(
+    () => mailboxes.find((m) => m.role === 'trash')?.id ?? null,
+    [mailboxes],
+  );
+  const junkMailboxId = React.useMemo(
+    () => mailboxes.find((m) => m.role === 'junk' || m.role === 'spam')?.id ?? null,
+    [mailboxes],
+  );
 
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -187,17 +206,57 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     }
   }, [toggleSelect]);
 
+  const handleSwipeAction = React.useCallback((id: string, action: SwipeAction) => {
+    if (action === 'none') return;
+    const email = emailsRef.current.find((e) => e.id === id);
+    if (!email || !currentMailboxId) return;
+    switch (action) {
+      case 'archive':
+        if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
+          void moveToMailboxAction(id, currentMailboxId, archiveMailboxId);
+        }
+        break;
+      case 'delete':
+        if (trashMailboxId) {
+          void deleteEmailAction(id, trashMailboxId, currentMailboxId);
+        }
+        break;
+      case 'spam':
+        if (junkMailboxId && currentMailboxId !== junkMailboxId) {
+          void moveToMailboxAction(id, currentMailboxId, junkMailboxId);
+        }
+        break;
+      case 'read':
+        if (isUnread(email)) void markRead(id);
+        else void markUnread(id);
+        break;
+      case 'star':
+        void toggleStar(id);
+        break;
+    }
+  }, [
+    currentMailboxId, archiveMailboxId, trashMailboxId, junkMailboxId,
+    moveToMailboxAction, deleteEmailAction, markRead, markUnread, toggleStar,
+  ]);
+
   const renderEmailRow = React.useCallback(
     ({ item }: { item: Email }) => (
-      <EmailRow
-        item={item}
-        selected={selectedIds.has(item.id)}
-        selectionMode={selectionMode}
-        onPress={handleRowPress}
-        onLongPress={toggleSelect}
-      />
+      <SwipeableRow
+        leftAction={selectionMode ? 'none' : swipeLeftAction}
+        rightAction={selectionMode ? 'none' : swipeRightAction}
+        context={{ unread: isUnread(item), starred: isStarred(item) }}
+        onAction={(action) => handleSwipeAction(item.id, action)}
+      >
+        <EmailRow
+          item={item}
+          selected={selectedIds.has(item.id)}
+          selectionMode={selectionMode}
+          onPress={handleRowPress}
+          onLongPress={toggleSelect}
+        />
+      </SwipeableRow>
     ),
-    [selectedIds, selectionMode, handleRowPress, toggleSelect],
+    [selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction, handleSwipeAction],
   );
 
   const clearSelection = React.useCallback(() => {

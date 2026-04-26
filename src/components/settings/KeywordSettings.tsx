@@ -1,45 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Plus, Pencil, Trash2, Check, X, RotateCcw } from 'lucide-react-native';
 import { SettingsSection } from './settings-section';
 import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { useKeywordsStore, type KeywordDef } from '../../stores/keywords-store';
 
-interface Keyword {
-  id: string;
-  label: string;
-  color: keyof typeof colors.tags;
-}
+type Keyword = KeywordDef;
 
 const PALETTE_KEYS = Object.keys(colors.tags) as (keyof typeof colors.tags)[];
 
-const DEFAULT_KEYWORDS: Keyword[] = [
-  { id: 'important', label: 'Important', color: 'red' },
-  { id: 'work',      label: 'Work',      color: 'blue' },
-  { id: 'personal',  label: 'Personal',  color: 'green' },
-  { id: 'todo',      label: 'Todo',      color: 'amber' },
-];
-
 export function KeywordSettings() {
-  const [keywords, setKeywords] = useState<Keyword[]>(DEFAULT_KEYWORDS);
+  const keywords = useKeywordsStore((s) => s.keywords);
+  const addKeyword = useKeywordsStore((s) => s.add);
+  const updateKeyword = useKeywordsStore((s) => s.update);
+  const removeKeyword = useKeywordsStore((s) => s.remove);
+  const resetDefaults = useKeywordsStore((s) => s.resetDefaults);
+  const hydrated = useKeywordsStore((s) => s.hydrated);
+  const hydrate = useKeywordsStore((s) => s.hydrate);
+
+  useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   const saveKeyword = (kw: Keyword, editing: boolean) => {
-    if (editing) {
-      setKeywords((ks) => ks.map((k) => k.id === editingId ? kw : k));
+    if (editing && editingId) {
+      const { id, ...patch } = kw;
+      updateKeyword(editingId, patch);
       setEditingId(null);
     } else {
-      setKeywords((ks) => [...ks, kw]);
+      addKeyword(kw);
       setIsAdding(false);
     }
   };
 
   const deleteKeyword = (id: string) => {
-    setKeywords((ks) => ks.filter((k) => k.id !== id));
-  };
-
-  const resetDefaults = () => {
-    setKeywords(DEFAULT_KEYWORDS);
+    removeKeyword(id);
   };
 
   return (

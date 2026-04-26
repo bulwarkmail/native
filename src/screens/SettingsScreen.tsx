@@ -32,6 +32,8 @@ import { ThemesSettings } from '../components/settings/ThemesSettings';
 import { PluginsSettings } from '../components/settings/PluginsSettings';
 import { ContentSendersSettings } from '../components/settings/ContentSendersSettings';
 import { LanguageSettings } from '../components/settings/LanguageSettings';
+import { ComposingSettings } from '../components/settings/ComposingSettings';
+import { LayoutSettings } from '../components/settings/LayoutSettings';
 
 type Tab =
   | 'account' | 'language' | 'notifications'
@@ -72,11 +74,11 @@ const TABS: TabDef[] = [
 
   // Appearance
   { id: 'appearance',      label: 'Appearance',         icon: Palette,        group: 'appearance', implemented: true  },
-  { id: 'layout',          label: 'Layout',             icon: LayoutGrid,     group: 'appearance', implemented: false },
+  { id: 'layout',          label: 'Layout',             icon: LayoutGrid,     group: 'appearance', implemented: true  },
 
   // Mail
   { id: 'reading',         label: 'Reading',            icon: BookOpen,       group: 'mail',       implemented: true  },
-  { id: 'composing',       label: 'Composing',          icon: PenLine,        group: 'mail',       implemented: false },
+  { id: 'composing',       label: 'Composing',          icon: PenLine,        group: 'mail',       implemented: true  },
   { id: 'identities',      label: 'Identities',         icon: UserPen,        group: 'mail',       implemented: true  },
   { id: 'vacation',        label: 'Vacation Responder', icon: Palmtree,       group: 'mail',       implemented: true  },
   { id: 'filters',         label: 'Filters & Rules',    icon: Filter,         group: 'mail',       implemented: true  },
@@ -108,7 +110,9 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   language: LanguageSettings,
   notifications: NotificationSettings,
   appearance: AppearanceSettings,
+  layout: LayoutSettings,
   reading: ReadingSettings,
+  composing: ComposingSettings,
   identities: IdentitySettings,
   vacation: VacationSettings,
   filters: FilterSettings,

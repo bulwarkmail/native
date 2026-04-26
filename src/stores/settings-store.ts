@@ -10,6 +10,8 @@ export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
 
 const STORAGE_KEY = 'webmail:settings:v1';
 
+export type SwipeAction = 'none' | 'archive' | 'delete' | 'spam' | 'read' | 'star';
+
 interface PersistedSettings {
   externalContentPolicy: ExternalContentPolicy;
   trustedSenders: string[];
@@ -22,6 +24,13 @@ interface PersistedSettings {
   showToolbarLabels: boolean;
   animationsEnabled: boolean;
   emailAlwaysLightMode: boolean;
+  // Composing
+  autoSelectReplyIdentity: boolean;
+  attachmentReminderEnabled: boolean;
+  attachmentReminderKeywords: string[];
+  // Layout / list interactions
+  swipeLeftAction: SwipeAction;
+  swipeRightAction: SwipeAction;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -35,6 +44,11 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   showToolbarLabels: true,
   animationsEnabled: true,
   emailAlwaysLightMode: false,
+  autoSelectReplyIdentity: true,
+  attachmentReminderEnabled: true,
+  attachmentReminderKeywords: ['attached', 'attachment', 'attaching', 'enclosed'],
+  swipeLeftAction: 'archive',
+  swipeRightAction: 'read',
 };
 
 export interface SettingsState extends PersistedSettings {
@@ -54,6 +68,11 @@ export interface SettingsState extends PersistedSettings {
   setShowToolbarLabels: (enabled: boolean) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
   setEmailAlwaysLightMode: (enabled: boolean) => void;
+  setAutoSelectReplyIdentity: (enabled: boolean) => void;
+  setAttachmentReminderEnabled: (enabled: boolean) => void;
+  setAttachmentReminderKeywords: (keywords: string[]) => void;
+  setSwipeLeftAction: (action: SwipeAction) => void;
+  setSwipeRightAction: (action: SwipeAction) => void;
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
@@ -72,6 +91,11 @@ function snapshot(state: SettingsState): PersistedSettings {
     showToolbarLabels: state.showToolbarLabels,
     animationsEnabled: state.animationsEnabled,
     emailAlwaysLightMode: state.emailAlwaysLightMode,
+    autoSelectReplyIdentity: state.autoSelectReplyIdentity,
+    attachmentReminderEnabled: state.attachmentReminderEnabled,
+    attachmentReminderKeywords: state.attachmentReminderKeywords,
+    swipeLeftAction: state.swipeLeftAction,
+    swipeRightAction: state.swipeRightAction,
   };
 }
 
@@ -115,6 +139,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           showToolbarLabels: typeof parsed.showToolbarLabels === 'boolean' ? parsed.showToolbarLabels : DEFAULT_PERSISTED.showToolbarLabels,
           animationsEnabled: typeof parsed.animationsEnabled === 'boolean' ? parsed.animationsEnabled : DEFAULT_PERSISTED.animationsEnabled,
           emailAlwaysLightMode: typeof parsed.emailAlwaysLightMode === 'boolean' ? parsed.emailAlwaysLightMode : DEFAULT_PERSISTED.emailAlwaysLightMode,
+          autoSelectReplyIdentity: typeof parsed.autoSelectReplyIdentity === 'boolean' ? parsed.autoSelectReplyIdentity : DEFAULT_PERSISTED.autoSelectReplyIdentity,
+          attachmentReminderEnabled: typeof parsed.attachmentReminderEnabled === 'boolean' ? parsed.attachmentReminderEnabled : DEFAULT_PERSISTED.attachmentReminderEnabled,
+          attachmentReminderKeywords: Array.isArray(parsed.attachmentReminderKeywords) ? parsed.attachmentReminderKeywords : DEFAULT_PERSISTED.attachmentReminderKeywords,
+          swipeLeftAction: parsed.swipeLeftAction ?? DEFAULT_PERSISTED.swipeLeftAction,
+          swipeRightAction: parsed.swipeRightAction ?? DEFAULT_PERSISTED.swipeRightAction,
           hydrated: true,
         });
         return;
@@ -134,6 +163,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setShowToolbarLabels: (enabled) => { set({ showToolbarLabels: enabled }); persist(snapshot(get())); },
   setAnimationsEnabled: (enabled) => { set({ animationsEnabled: enabled }); persist(snapshot(get())); },
   setEmailAlwaysLightMode: (enabled) => { set({ emailAlwaysLightMode: enabled }); persist(snapshot(get())); },
+  setAutoSelectReplyIdentity: (enabled) => { set({ autoSelectReplyIdentity: enabled }); persist(snapshot(get())); },
+  setAttachmentReminderEnabled: (enabled) => { set({ attachmentReminderEnabled: enabled }); persist(snapshot(get())); },
+  setAttachmentReminderKeywords: (keywords) => { set({ attachmentReminderKeywords: keywords }); persist(snapshot(get())); },
+  setSwipeLeftAction: (action) => { set({ swipeLeftAction: action }); persist(snapshot(get())); },
+  setSwipeRightAction: (action) => { set({ swipeRightAction: action }); persist(snapshot(get())); },
 
   addTrustedSender: (email) => {
     const normalized = email.toLowerCase().trim();

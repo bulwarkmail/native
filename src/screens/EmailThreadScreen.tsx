@@ -9,7 +9,7 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Paperclip, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Inbox, Send, File as FileIcon, Ban, Folder, Code, Download,
+  Inbox, Send, File as FileIcon, Ban, Folder, Code, Download, Tag,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
@@ -18,6 +18,7 @@ import SenderAvatar from '../components/SenderAvatar';
 import { useEmailStore } from '../stores/email-store';
 import { setEmailKeywords } from '../api/email';
 import { shareEmailEml } from '../lib/email-export';
+import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
 import type { Email, Mailbox } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -86,6 +87,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const [error, setError] = React.useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
+  const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
+  const keywordDefs = useKeywordsStore((s) => s.keywords);
+  const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
+  const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
+  React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -129,6 +135,15 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   const updateLocalKeywords = (next: Record<string, boolean>) => {
     setEmail((prev) => (prev ? { ...prev, keywords: next } : prev));
+  };
+
+  const onToggleKeyword = (token: string) => {
+    if (!email) return;
+    const next = { ...email.keywords };
+    if (next[token]) delete next[token];
+    else next[token] = true;
+    updateLocalKeywords(next);
+    void setEmailKeywords(email.id, next);
   };
 
   const onToggleStar = () => {
@@ -394,9 +409,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         isInJunk={isInJunk}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
+        canTag={keywordDefs.length > 0}
         onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
         onToggleUnread={() => { setMoreMenuOpen(false); onToggleUnread(); }}
         onMove={() => { setMoreMenuOpen(false); setMoveMenuOpen(true); }}
+        onTag={() => { setMoreMenuOpen(false); setTagMenuOpen(true); }}
         onToggleSpam={onToggleSpam}
         onViewSource={() => {
           setMoreMenuOpen(false);
@@ -426,6 +443,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         currentMailboxId={currentMailboxId}
         onPick={onMoveToMailbox}
       />
+
+      <TagMenuSheet
+        visible={tagMenuOpen}
+        onClose={() => setTagMenuOpen(false)}
+        keywords={keywordDefs}
+        activeKeywords={email?.keywords ?? {}}
+        onToggle={onToggleKeyword}
+      />
     </SafeAreaView>
   );
 }
@@ -437,6 +462,7 @@ interface MoreMenuSheetProps {
   canArchive: boolean;
   canMarkUnread: boolean;
   canMove: boolean;
+  canTag: boolean;
   showSpam: boolean;
   isInJunk: boolean;
   canViewSource: boolean;
@@ -444,15 +470,16 @@ interface MoreMenuSheetProps {
   onArchive: () => void;
   onToggleUnread: () => void;
   onMove: () => void;
+  onTag: () => void;
   onToggleSpam: () => void;
   onViewSource: () => void;
   onExport: () => void;
 }
 
 function MoreMenuSheet({
-  visible, onClose, unread, canArchive, canMarkUnread, canMove,
+  visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
   showSpam, isInJunk, canViewSource, canExport,
-  onArchive, onToggleUnread, onMove, onToggleSpam, onViewSource, onExport,
+  onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(400)).current;
@@ -518,6 +545,14 @@ function MoreMenuSheet({
             trailing={<ChevronRight size={16} color={colors.textMuted} />}
           />
         )}
+        {canTag && (
+          <MoreMenuItem
+            icon={<Tag size={18} color={colors.textSecondary} />}
+            label="Tag…"
+            onPress={onTag}
+            trailing={<ChevronRight size={16} color={colors.textMuted} />}
+          />
+        )}
         {showSpam && (
           <MoreMenuItem
             icon={
@@ -544,6 +579,76 @@ function MoreMenuSheet({
             label="Export email (.eml)"
             onPress={onExport}
           />
+        )}
+      </Animated.View>
+    </Modal>
+  );
+}
+
+interface TagMenuSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  keywords: KeywordDef[];
+  activeKeywords: Record<string, boolean>;
+  onToggle: (token: string) => void;
+}
+
+function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: TagMenuSheetProps) {
+  const insets = useSafeAreaInsets();
+  const slideY = React.useRef(new Animated.Value(500)).current;
+  const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(slideY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideY, { toValue: 500, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, slideY, overlayOpacity]);
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
+        <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.sheet,
+          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
+        ]}
+      >
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Tags</Text>
+          <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <X size={18} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        {keywords.length === 0 ? (
+          <Text style={{ ...typography.body, color: colors.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
+            No tags yet. Add some in Settings → Keywords & Labels.
+          </Text>
+        ) : (
+          keywords.map((kw) => {
+            const token = keywordToken(kw.id);
+            const active = !!activeKeywords[token];
+            const palette = colors.tags[kw.color];
+            return (
+              <MoreMenuItem
+                key={kw.id}
+                icon={<View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: palette.dot }} />}
+                label={kw.label}
+                onPress={() => onToggle(token)}
+                trailing={active ? <Check size={16} color={colors.primary} /> : null}
+              />
+            );
+          })
         )}
       </Animated.View>
     </Modal>
