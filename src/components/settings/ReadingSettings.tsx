@@ -65,7 +65,7 @@ function MailLayoutPreview({ value }: { value: MailLayout }) {
   );
 }
 
-export function EmailSettings() {
+export function ReadingSettings() {
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const setExternalContentPolicyStore = useSettingsStore((s) => s.setExternalContentPolicy);
   const trustedSenders = useSettingsStore((s) => s.trustedSenders);

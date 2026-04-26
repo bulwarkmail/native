@@ -17,7 +17,7 @@ const DEBUG_CATEGORIES = [
   { id: 'render',     label: 'Render',     description: 'React render counts and timings.' },
 ];
 
-export function AdvancedSettings() {
+export function AboutDataSettings() {
   const senderFavicons = useSettingsStore((s) => s.senderFavicons);
   const setSenderFaviconsStore = useSettingsStore((s) => s.setSenderFavicons);
   const hydrated = useSettingsStore((s) => s.hydrated);
