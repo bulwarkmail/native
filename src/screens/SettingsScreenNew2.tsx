@@ -5,7 +5,7 @@ import {
   ArrowLeft, LogOut, Settings, ChevronRight,
   Palette, Mail, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive, Wrench,
-  BookUser, KeyRound, PanelLeftClose, Bell, Puzzle,
+  BookUser, KeyRound, PanelLeftClose, Bell, Puzzle, RefreshCw,
   type LucideIcon,
 } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
@@ -16,13 +16,14 @@ import { IdentitySettings } from '../components/settings/IdentitySettings';
 import { VacationSettings } from '../components/settings/VacationSettings';
 import { FolderSettings } from '../components/settings/FolderSettings';
 import { AdvancedSettings } from '../components/settings/AdvancedSettings';
+import { UpdatesSettings } from '../components/settings/UpdatesSettings';
 
 type Tab =
   | 'appearance' | 'email' | 'notifications'
   | 'account' | 'security' | 'identities' | 'encryption' | 'vacation'
   | 'filters' | 'templates' | 'folders' | 'keywords'
   | 'calendar' | 'contacts' | 'files' | 'sidebar_apps'
-  | 'themes' | 'plugins' | 'advanced';
+  | 'themes' | 'plugins' | 'updates' | 'advanced';
 
 type TabGroup = 'general' | 'account' | 'organization' | 'apps' | 'system';
 
@@ -64,6 +65,7 @@ const TABS: TabDef[] = [
   { id: 'sidebar_apps', label: 'Sidebar Apps',          icon: PanelLeftClose, group: 'apps',         implemented: false },
   { id: 'themes',       label: 'Themes',                icon: Palette,        group: 'system',       experimental: true, implemented: false },
   { id: 'plugins',      label: 'Plugins',               icon: Puzzle,         group: 'system',       experimental: true, implemented: false },
+  { id: 'updates',      label: 'Updates',               icon: RefreshCw,      group: 'system',       implemented: true },
   { id: 'advanced',     label: 'Advanced',              icon: Wrench,         group: 'system',       implemented: true },
 ];
 
@@ -74,6 +76,7 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   identities: IdentitySettings,
   vacation: VacationSettings,
   folders: FolderSettings,
+  updates: UpdatesSettings,
   advanced: AdvancedSettings,
 };
 

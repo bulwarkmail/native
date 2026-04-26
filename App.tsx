@@ -34,6 +34,8 @@ import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore } from './src/stores/email-store';
 import { useSettingsStore } from './src/stores/settings-store';
+import { useUpdatesStore } from './src/stores/updates-store';
+import { UpdateBanner } from './src/components/UpdateBanner';
 import { colors, spacing, typography } from './src/theme/tokens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,6 +66,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const inboxUnreadCount = mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <UpdateBanner />
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -147,6 +151,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         {() => <SettingsScreen onLogout={logout} />}
       </Tab.Screen>
     </Tab.Navigator>
+    </View>
   );
 }
 
@@ -169,6 +174,19 @@ export default function App() {
 
   React.useEffect(() => {
     void useSettingsStore.getState().hydrate();
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const store = useUpdatesStore.getState();
+      await store.hydrate();
+      if (cancelled) return;
+      if (useUpdatesStore.getState().autoCheck) {
+        await useUpdatesStore.getState().checkNow();
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Listen for FCM messages so the app can refresh state even when woken
