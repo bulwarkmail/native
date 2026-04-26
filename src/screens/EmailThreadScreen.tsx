@@ -67,6 +67,18 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
+  const emails = useEmailStore((s) => s.emails);
+
+  const currentIndex = emails.findIndex((e) => e.id === emailId);
+  const prevEmail = currentIndex > 0 ? emails[currentIndex - 1] : null;
+  const nextEmail = currentIndex >= 0 && currentIndex < emails.length - 1 ? emails[currentIndex + 1] : null;
+  const goToEmail = (target: { id: string; threadId: string; subject: string }) => {
+    navigation.replace('EmailThread', {
+      emailId: target.id,
+      threadId: target.threadId,
+      subject: target.subject,
+    });
+  };
 
   const [email, setEmail] = React.useState<Email | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -342,7 +354,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             <BottomBarButton
               icon={<ChevronLeft size={20} color={colors.textMuted} />}
               label="Prev"
-              disabled
+              onPress={prevEmail ? () => goToEmail(prevEmail) : undefined}
+              disabled={!prevEmail}
             />
             <BottomBarButton
               icon={<Reply size={20} color={colors.textSecondary} />}
@@ -362,7 +375,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             <BottomBarButton
               icon={<ChevronRight size={20} color={colors.textMuted} />}
               label="Next"
-              disabled
+              onPress={nextEmail ? () => goToEmail(nextEmail) : undefined}
+              disabled={!nextEmail}
             />
           </View>
         </>
