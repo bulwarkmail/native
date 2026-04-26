@@ -3,6 +3,7 @@ import type { EmailAddress } from '../api/types';
 export type RootStackParamList = {
   MainTabs: undefined;
   EmailThread: { emailId: string; threadId: string; subject?: string };
+  EmailSource: { emailId: string; blobId: string; subject?: string };
   Compose:
     | {
         mode?: 'reply' | 'replyAll' | 'forward';

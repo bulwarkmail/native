@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
-  Modal, useWindowDimensions, Animated, Easing,
+  Modal, useWindowDimensions, Animated, Easing, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,7 +9,7 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Paperclip, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Inbox, Send, File as FileIcon, Ban, Folder,
+  Inbox, Send, File as FileIcon, Ban, Folder, Code, Download,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
@@ -17,6 +17,7 @@ import EmailBodyView from '../components/EmailBodyView';
 import SenderAvatar from '../components/SenderAvatar';
 import { useEmailStore } from '../stores/email-store';
 import { setEmailKeywords } from '../api/email';
+import { shareEmailEml } from '../lib/email-export';
 import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
 import type { Email, Mailbox } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -386,15 +387,36 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         visible={moreMenuOpen}
         onClose={() => setMoreMenuOpen(false)}
         unread={unread}
-        canArchive={!!archiveMailbox && !showArchive && currentMailboxId !== archiveMailbox?.id}
-        canMarkUnread={!showMarkUnread}
+        canArchive={!!archiveMailbox && currentMailboxId !== archiveMailbox?.id}
+        canMarkUnread={true}
         canMove={mailboxes.length > 0}
         showSpam={!!junkMailbox || isInJunk}
         isInJunk={isInJunk}
+        canViewSource={!!email?.blobId}
+        canExport={!!email?.blobId}
         onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
         onToggleUnread={() => { setMoreMenuOpen(false); onToggleUnread(); }}
         onMove={() => { setMoreMenuOpen(false); setMoveMenuOpen(true); }}
         onToggleSpam={onToggleSpam}
+        onViewSource={() => {
+          setMoreMenuOpen(false);
+          if (email?.blobId) {
+            navigation.navigate('EmailSource', {
+              emailId: email.id,
+              blobId: email.blobId,
+              subject: email.subject,
+            });
+          }
+        }}
+        onExport={async () => {
+          setMoreMenuOpen(false);
+          if (!email?.blobId) return;
+          try {
+            await shareEmailEml(email.blobId, email.subject);
+          } catch (e) {
+            Alert.alert('Export failed', e instanceof Error ? e.message : String(e));
+          }
+        }}
       />
 
       <MoveMenuSheet
@@ -417,15 +439,20 @@ interface MoreMenuSheetProps {
   canMove: boolean;
   showSpam: boolean;
   isInJunk: boolean;
+  canViewSource: boolean;
+  canExport: boolean;
   onArchive: () => void;
   onToggleUnread: () => void;
   onMove: () => void;
   onToggleSpam: () => void;
+  onViewSource: () => void;
+  onExport: () => void;
 }
 
 function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove,
-  showSpam, isInJunk, onArchive, onToggleUnread, onMove, onToggleSpam,
+  showSpam, isInJunk, canViewSource, canExport,
+  onArchive, onToggleUnread, onMove, onToggleSpam, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(400)).current;
@@ -502,6 +529,20 @@ function MoreMenuSheet({
             }
             label={isInJunk ? 'Not spam' : 'Mark as spam'}
             onPress={onToggleSpam}
+          />
+        )}
+        {canViewSource && (
+          <MoreMenuItem
+            icon={<Code size={18} color={colors.textSecondary} />}
+            label="View source"
+            onPress={onViewSource}
+          />
+        )}
+        {canExport && (
+          <MoreMenuItem
+            icon={<Download size={18} color={colors.textSecondary} />}
+            label="Export email (.eml)"
+            onPress={onExport}
           />
         )}
       </Animated.View>

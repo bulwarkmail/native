@@ -19,6 +19,7 @@ import {
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
 import EmailThreadScreen from './src/screens/EmailThreadScreen';
+import EmailSourceScreen from './src/screens/EmailSourceScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import EmailListScreen from './src/screens/EmailListScreen';
 import FilesScreen from './src/screens/FilesScreen';
@@ -325,6 +326,7 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
         <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
+        <Stack.Screen name="EmailSource" component={EmailSourceScreen} />
         <Stack.Screen
           name="Compose"
           component={ComposeScreen}
