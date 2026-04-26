@@ -9,7 +9,7 @@ import { useVacationStore } from '../../stores/vacation-store';
 function toJmapDate(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
-  // Accept "YYYY-MM-DD" or "YYYY-MM-DD HH:MM" — normalize to "YYYY-MM-DDTHH:MM:SS".
+  // Accept "YYYY-MM-DD" or "YYYY-MM-DD HH:MM" - normalize to "YYYY-MM-DDTHH:MM:SS".
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
   const dateTime = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(trimmed);
   if (dateOnly) return `${trimmed}T00:00:00`;

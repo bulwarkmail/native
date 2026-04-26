@@ -84,7 +84,7 @@ export function WeekView({
       ? allDayRowCount * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs
       : 0;
 
-  // Timed grid excludes events that fill the full day on that day — they're
+  // Timed grid excludes events that fill the full day on that day - they're
   // already promoted to the all-day strip above.
   const layoutsByDay = React.useMemo(() => {
     return weekDays.map((day) => {
@@ -170,7 +170,7 @@ export function WeekView({
             {weekDays.map((day) => (
               <View key={day.toISOString()} style={styles.allDayCol} />
             ))}
-            {/* Segments overlay — multi-day events span their date range */}
+            {/* Segments overlay - multi-day events span their date range */}
             <View style={styles.allDayOverlay} pointerEvents="box-none">
               {allDaySegments.map((segment) => {
                 const color = getEventColor(segment.event, calendars);

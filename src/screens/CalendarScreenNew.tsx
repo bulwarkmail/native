@@ -210,7 +210,7 @@ export default function CalendarScreen() {
       const action = pendingAction;
       setPendingAction(null);
       if (!action) return;
-      // For the first pass, treat all scopes as "all" — proper override
+      // For the first pass, treat all scopes as "all" - proper override
       // handling lives in the store's update/delete path against originalId.
       // TODO: implement "this only" via recurrenceOverrides write, and
       // "this and following" via excludedRecurrenceRules + new master.

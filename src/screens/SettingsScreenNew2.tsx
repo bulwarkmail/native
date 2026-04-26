@@ -131,7 +131,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header — matches webmail mobile: h-14, border-b, back button + icon + title */}
+      {/* Header - matches webmail mobile: h-14, border-b, back button + icon + title */}
       <View style={styles.header}>
         <Pressable
           onPress={onBack}
@@ -143,7 +143,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         <Text style={styles.headerTitle}>Settings</Text>
       </View>
 
-      {/* Tab list — matches webmail mobile: flat grouped list, no cards */}
+      {/* Tab list - matches webmail mobile: flat grouped list, no cards */}
       <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
         <View style={styles.tabList}>
           {groupedTabs.map((group, groupIndex) => (
@@ -198,7 +198,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
           ))}
         </View>
 
-        {/* Logout — matches webmail: border-t, destructive text, icon + label */}
+        {/* Logout - matches webmail: border-t, destructive text, icon + label */}
         <View style={styles.logoutSection}>
           <Pressable
             onPress={onLogout}
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  // Header — webmail: h-14, px-4, border-b, flex items-center gap-2
+  // Header - webmail: h-14, px-4, border-b, flex items-center gap-2
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
 
-  // Group divider — webmail: mx-5 my-2 border-t border-border
+  // Group divider - webmail: mx-5 my-2 border-t border-border
   groupDivider: {
     height: 1,
     backgroundColor: colors.border,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     marginVertical: spacing.sm,
   },
 
-  // Group header — webmail: px-5 pt-3 pb-1.5
+  // Group header - webmail: px-5 pt-3 pb-1.5
   groupHeader: {
     paddingHorizontal: 20,
     paddingTop: spacing.md,
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
 
-  // Tab item — webmail: px-5 py-3.5, icon w-4 h-4 text-muted-foreground, gap-3, ChevronRight
+  // Tab item - webmail: px-5 py-3.5, icon w-4 h-4 text-muted-foreground, gap-3, ChevronRight
   tabItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 
-  // Experimental badge — webmail: text-[10px] rounded-full bg-warning/15 text-warning
+  // Experimental badge - webmail: text-[10px] rounded-full bg-warning/15 text-warning
   experimentalBadge: {
     backgroundColor: 'rgba(202, 138, 4, 0.15)',
     borderRadius: radius.full,
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
 
-  // Logout — webmail: border-t border-border, px-5 py-3, destructive text
+  // Logout - webmail: border-t border-border, px-5 py-3, destructive text
   logoutSection: {
     borderTopWidth: 1,
     borderTopColor: colors.border,

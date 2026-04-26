@@ -166,7 +166,7 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // Firebase Cloud Messaging — delivers pushes via Google Play services.
+    // Firebase Cloud Messaging - delivers pushes via Google Play services.
     // Requires android/app/google-services.json at build time.
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")

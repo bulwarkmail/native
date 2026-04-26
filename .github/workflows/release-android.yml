@@ -112,7 +112,7 @@ jobs:
           if [ -n "$TAG" ]; then
             echo "Will attach APK to release: $TAG"
           else
-            echo "No release tag resolved — APK is in workflow artifacts only."
+            echo "No release tag resolved - APK is in workflow artifacts only."
           fi
 
       - name: Attach APK to release

@@ -11,7 +11,7 @@ import { generateAccountId } from '../lib/account-utils';
 const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
 const CREDENTIALS_PREFIX = 'jmap_credentials__';
 
-// SecureStore keys: letters, digits, ".", "-", "_" only — no "@" or "/".
+// SecureStore keys: letters, digits, ".", "-", "_" only - no "@" or "/".
 function credentialsKey(accountId: string): string {
   return CREDENTIALS_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
@@ -30,7 +30,7 @@ export class JMAPClient {
 
   get accountId(): string {
     if (!this._accountId) {
-      throw new Error('Not authenticated — call connect() first');
+      throw new Error('Not authenticated - call connect() first');
     }
     return this._accountId;
   }
@@ -89,7 +89,7 @@ export class JMAPClient {
     return this.session;
   }
 
-  // Legacy single-slot restore — kept for backward-compat tests. New code
+  // Legacy single-slot restore - kept for backward-compat tests. New code
   // should use loadAccount(accountId) driven by the account registry.
   async restoreSession(): Promise<boolean> {
     const stored = await SecureStore.getItemAsync(LEGACY_CREDENTIALS_KEY);
@@ -294,7 +294,7 @@ export class JMAPClient {
   // Expand the RFC 6570 level-1 template the JMAP server advertises.
   getBlobDownloadUrl(blobId: string, name?: string, type?: string): string {
     if (!this.session?.downloadUrl) {
-      throw new Error('Download URL not available — not connected');
+      throw new Error('Download URL not available - not connected');
     }
     return this.session.downloadUrl
       .replace('{accountId}', encodeURIComponent(this.accountId))

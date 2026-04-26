@@ -87,7 +87,7 @@ export function eventsOnDay(events: CalendarEvent[], day: Date): CalendarEvent[]
 // O(days × events) with two parseISO calls per event per day. For ~200 events
 // that's ~16k parseISO calls per month render, redone on every swipe.
 // `buildEventDayIndex` parses each event's start/end once, then walks only the
-// days that event actually touches — typically 1 day. Result is a map from
+// days that event actually touches - typically 1 day. Result is a map from
 // local-date key (yyyy-MM-dd) to the events on that day.
 export type EventDayIndex = Map<string, CalendarEvent[]>;
 
@@ -104,7 +104,7 @@ export function buildEventDayIndex(events: CalendarEvent[]): EventDayIndex {
     const start = getEventStartDate(event);
     const end = getEventDisplayEndDate(event);
     let day = startOfDay(start);
-    // Cap at 366 days: matches the original semantics (end > dayStart) — we
+    // Cap at 366 days: matches the original semantics (end > dayStart) - we
     // include day while day < end. Safety bound guards against malformed
     // multi-year events that would otherwise blow up the loop.
     let safety = 0;
@@ -193,7 +193,7 @@ export function getTimedEventBoundsForDay(
 // ─── Timed events that fill the day ──────────────────────
 // Events shown in the timed grid that effectively span 00:00–24:00 on the
 // given day get promoted to the all-day strip in the week/day views (matches
-// webmail behavior — keeps the timed grid usable when an event covers the day).
+// webmail behavior - keeps the timed grid usable when an event covers the day).
 export function isTimedEventFullDayOnDate(event: CalendarEvent, day: Date): boolean {
   const bounds = getTimedEventBoundsForDay(event, day);
   return bounds?.startMinutes === 0 && bounds?.endMinutes === 1440;
@@ -315,7 +315,7 @@ export function buildTimedFullDayWeekSegments(
 // begins after every prior event has ended. Within a cluster every event gets
 // the same `totalColumns`; across clusters, events get to use the full width
 // they actually need. The previous global packing forced an event with no
-// neighbors at 17:00 to share columns with a 9am cluster — visible squish.
+// neighbors at 17:00 to share columns with a 9am cluster - visible squish.
 export interface TimedEventLayout {
   event: CalendarEvent;
   column: number;

@@ -55,7 +55,7 @@ export async function createPushSubscription(params: {
 }
 
 /**
- * Send the verification code back to the server — the call that flips the
+ * Send the verification code back to the server - the call that flips the
  * subscription from pending to active (RFC 8620 §7.2.2).
  */
 export async function verifyPushSubscription(

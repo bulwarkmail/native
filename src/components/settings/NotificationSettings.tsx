@@ -112,7 +112,7 @@ export function NotificationSettings() {
     <View style={styles.container}>
       <SettingsSection
         title="Push Notifications"
-        description="Delivered via the Bulwark push relay. The relay only sees an opaque token and new-mail timing — never mail content."
+        description="Delivered via the Bulwark push relay. The relay only sees an opaque token and new-mail timing - never mail content."
       >
         <View style={styles.pushCard}>
           <View style={styles.pushHeader}>

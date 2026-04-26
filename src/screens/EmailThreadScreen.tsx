@@ -203,7 +203,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   ) : null}
                   <Text style={styles.senderRecipients} numberOfLines={1}>
                     <Text style={styles.senderRecipientsLabel}>to </Text>
-                    {email.to?.map((t) => t.name || t.email).join(', ') || '—'}
+                    {email.to?.map((t) => t.name || t.email).join(', ') || '-'}
                   </Text>
                 </View>
               </View>

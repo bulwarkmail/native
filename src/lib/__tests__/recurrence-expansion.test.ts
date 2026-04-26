@@ -14,7 +14,7 @@ function ev(partial: Partial<CalendarEvent>): CalendarEvent {
   } as CalendarEvent;
 }
 
-describe('expandRecurringEvents — daily', () => {
+describe('expandRecurringEvents - daily', () => {
   it('expands a daily rule with count', () => {
     const rule: RecurrenceRule = { frequency: 'daily', count: 3 };
     const result = expandRecurringEvents(
@@ -52,9 +52,9 @@ describe('expandRecurringEvents — daily', () => {
   });
 });
 
-describe('expandRecurringEvents — weekly', () => {
+describe('expandRecurringEvents - weekly', () => {
   it('expands a weekly rule on specific byDay values', () => {
-    // April 6, 2026 is a Monday — expand Mon/Wed for two weeks.
+    // April 6, 2026 is a Monday - expand Mon/Wed for two weeks.
     const rule: RecurrenceRule = {
       frequency: 'weekly',
       byDay: [{ day: 'mo' }, { day: 'we' }],
@@ -74,7 +74,7 @@ describe('expandRecurringEvents — weekly', () => {
   });
 });
 
-describe('expandRecurringEvents — monthly', () => {
+describe('expandRecurringEvents - monthly', () => {
   it('expands monthly on the 6th', () => {
     const rule: RecurrenceRule = { frequency: 'monthly', count: 3 };
     const result = expandRecurringEvents(
@@ -108,7 +108,7 @@ describe('expandRecurringEvents — monthly', () => {
   });
 });
 
-describe('expandRecurringEvents — overrides', () => {
+describe('expandRecurringEvents - overrides', () => {
   it('skips occurrences marked excluded', () => {
     const rule: RecurrenceRule = { frequency: 'daily', count: 3 };
     const event = ev({
@@ -146,7 +146,7 @@ describe('expandRecurringEvents — overrides', () => {
   });
 });
 
-describe('expandRecurringEvents — non-recurring passthrough', () => {
+describe('expandRecurringEvents - non-recurring passthrough', () => {
   it('returns non-recurring events unchanged', () => {
     const single = ev({ id: 'one', recurrenceRules: undefined });
     const result = expandRecurringEvents(
@@ -159,7 +159,7 @@ describe('expandRecurringEvents — non-recurring passthrough', () => {
   });
 });
 
-describe('expandRecurringEvents — range filtering', () => {
+describe('expandRecurringEvents - range filtering', () => {
   it('returns occurrences only within the requested window', () => {
     const rule: RecurrenceRule = { frequency: 'daily', count: 30 };
     const result = expandRecurringEvents(

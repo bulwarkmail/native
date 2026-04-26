@@ -29,7 +29,7 @@ interface BulwarkFcmNative {
 }
 
 // Fired by BulwarkPushTaskService when a data FCM message arrives. Runs in a
-// short-lived headless JS runtime — keep it fast, catch all errors, and always
+// short-lived headless JS runtime - keep it fast, catch all errors, and always
 // resolve so the native service can release its wake lock.
 export async function pushBackgroundTask(_data: unknown): Promise<void> {
   try {

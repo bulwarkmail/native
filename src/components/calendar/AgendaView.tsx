@@ -56,7 +56,7 @@ export function AgendaView({
       day.setDate(start.getDate() + i);
       const dayEvents = eventsOnDayFromIndex(index, day).slice().sort((a, b) => {
         // All-day events first within a day, then by start time, then title
-        // (stable tie-break) — mirrors the comparator the webmail uses for
+        // (stable tie-break) - mirrors the comparator the webmail uses for
         // packing week segments and keeps multi-event days predictable.
         if (a.showWithoutTime !== b.showWithoutTime) {
           return a.showWithoutTime ? -1 : 1;

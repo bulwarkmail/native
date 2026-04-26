@@ -14,7 +14,7 @@ interface Session {
 }
 
 const MOCK_SESSIONS: Session[] = [
-  { id: '1', device: 'iPhone 15 Pro — Bulwark Mobile', location: 'Berlin, DE', current: true },
+  { id: '1', device: 'iPhone 15 Pro - Bulwark Mobile', location: 'Berlin, DE', current: true },
   { id: '2', device: 'Chrome on macOS', location: 'Berlin, DE', current: false },
 ];
 

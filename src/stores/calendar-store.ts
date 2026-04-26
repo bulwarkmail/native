@@ -122,7 +122,7 @@ export const useCalendarStore = create<CalendarState>()(
     const target = loadedRange ? unionRange(loadedRange, after, before) : { after, before };
     const ids = calendars.map((c) => c.id);
     if (ids.length === 0) {
-      // Calendars haven't loaded yet — fetch them, then events.
+      // Calendars haven't loaded yet - fetch them, then events.
       await get().fetchCalendars();
     }
     const calendarIdsAfter = get().calendars.map((c) => c.id);

@@ -1,10 +1,10 @@
 // Two avatar schemes, ported verbatim from the webmail:
 //
-//   1. Account avatar (account-utils.ts) — 12-color fixed palette, hashed from
+//   1. Account avatar (account-utils.ts) - 12-color fixed palette, hashed from
 //      the account's email. Used for the sidebar account block and account
 //      switcher.
 //
-//   2. Email-row avatar (components/ui/avatar.tsx) — HSL hue from a hash of
+//   2. Email-row avatar (components/ui/avatar.tsx) - HSL hue from a hash of
 //      name or email. Used for per-message avatars in the email list.
 //
 // Both variants also define `getInitials` with slightly different rules, so we
@@ -68,7 +68,7 @@ export function getEmailInitials(name: string, email?: string): string {
 // logo from DuckDuckGo. The webmail goes through `/api/favicon?domain=...` as
 // a caching proxy; native has no CORS constraint, so we hit DuckDuckGo direct.
 
-// Multi-part TLDs (trimmed to the webmail client-side list — not the giant
+// Multi-part TLDs (trimmed to the webmail client-side list - not the giant
 // server PSL). Covers the common cases so subdomains resolve to the right
 // registrable domain (e.g. newsletter.example.co.uk → example.co.uk).
 const MULTI_PART_TLDS = new Set([
@@ -100,7 +100,7 @@ const MULTI_PART_TLDS = new Set([
   'co.ke', 'or.ke', 'ac.ke', 'go.ke', 'ne.ke',
 ]);
 
-// Personal mail providers — the favicon here is the mail provider's logo, not
+// Personal mail providers - the favicon here is the mail provider's logo, not
 // anything specific to the sender, so we skip it.
 const PERSONAL_DOMAINS = new Set([
   'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',

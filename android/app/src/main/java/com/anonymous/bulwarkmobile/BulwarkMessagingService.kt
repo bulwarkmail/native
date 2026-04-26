@@ -26,7 +26,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         val data = message.data
 
         // Hand off to JS via a headless task only when the app isn't already
-        // running in the foreground — HeadlessJsTaskContext throws if started
+        // running in the foreground - HeadlessJsTaskContext throws if started
         // while foreground. When the app is open, the main JS instance already
         // receives JMAP push directly, so the fcm:message event below is
         // sufficient for it to refresh state.

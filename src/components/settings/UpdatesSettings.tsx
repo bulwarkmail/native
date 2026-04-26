@@ -54,7 +54,7 @@ export function UpdatesSettings() {
           label="Latest version"
           description={cachedLatest?.publishedAt ? `Published ${new Date(cachedLatest.publishedAt).toLocaleDateString()}` : undefined}
         >
-          <Text style={styles.value}>{cachedLatest ? cachedLatest.tag : '—'}</Text>
+          <Text style={styles.value}>{cachedLatest ? cachedLatest.tag : '-'}</Text>
         </SettingItem>
 
         <SettingItem

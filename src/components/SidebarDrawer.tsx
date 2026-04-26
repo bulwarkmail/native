@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   accountName: { ...typography.bodyMedium, color: colors.text },
   accountEmail: { ...typography.caption, color: colors.textMuted, marginTop: 1 },
 
-  // Account menu — floating popover card under the header
+  // Account menu - floating popover card under the header
   accountMenu: {
     marginHorizontal: spacing.sm,
     marginTop: spacing.xs,

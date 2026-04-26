@@ -1,4 +1,4 @@
-// Qui Dark Theme — exact values from Bulwark Webmail's builtin-themes.ts
+// Qui Dark Theme - exact values from Bulwark Webmail's builtin-themes.ts
 export const colors = {
   // Primary brand (Qui theme)
   primary: '#3b82f6',
@@ -69,7 +69,7 @@ export const colors = {
      orangeBg: 'rgba(251, 191, 36, 0.08)',   // orange-950/30 dark
   },
 
-  // Tag colors — from KEYWORD_PALETTE in stores/settings-store.ts
+  // Tag colors - from KEYWORD_PALETTE in stores/settings-store.ts
   // dark mode: bg-{color}-950/30, dot: bg-{color}-500, text: {color}-400
   tags: {
     red:    { dot: '#ef4444', bg: 'rgba(69,10,10,0.30)',  text: '#f87171' },
@@ -87,7 +87,7 @@ export const colors = {
     gray:   { dot: '#6b7280', bg: 'rgba(3,7,18,0.30)',    text: '#9ca3af' },
   },
 
-  // Navigation — matches web nav-rail
+  // Navigation - matches web nav-rail
   navActive: '#3b82f6',
   navInactive: '#71717a',     // --color-muted-foreground
   navBadge: '#ef4444',        // red-500
@@ -145,18 +145,18 @@ export const typography = {
   h1: { fontSize: 24, fontWeight: '700' as const, lineHeight: 32 },     // text-2xl
   h2: { fontSize: 20, fontWeight: '700' as const, lineHeight: 28 },     // text-xl
   h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 28 },     // text-lg
-  // Body = text-sm (14px) — the web uses text-sm for almost all content
+  // Body = text-sm (14px) - the web uses text-sm for almost all content
   body: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
   bodyMedium: { fontSize: 14, fontWeight: '500' as const, lineHeight: 20 },
   bodySemibold: { fontSize: 14, fontWeight: '600' as const, lineHeight: 20 },
   bodyBold: { fontSize: 14, fontWeight: '700' as const, lineHeight: 20 },
-  // Base = text-base (16px) — used for email content body
+  // Base = text-base (16px) - used for email content body
   base: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
   baseMedium: { fontSize: 16, fontWeight: '500' as const, lineHeight: 24 },
   // Caption = text-xs (12px)
   caption: { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
   captionMedium: { fontSize: 12, fontWeight: '500' as const, lineHeight: 16 },
-  // Small = 10px — for tags, badges, tab labels
+  // Small = 10px - for tags, badges, tab labels
   small: { fontSize: 10, fontWeight: '500' as const, lineHeight: 14 },
   tabLabel: { fontSize: 10, fontWeight: '500' as const, lineHeight: 14 },
 } as const;

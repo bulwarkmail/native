@@ -6,7 +6,7 @@
 //      so inline <script>, inline event handlers, and external resources are
 //      blocked by the engine itself. This is the primary boundary.
 //   2. `onShouldStartLoadWithRequest` refuses any navigation except the
-//      initial about:blank doc — links are opened in the OS browser.
+//      initial about:blank doc - links are opened in the OS browser.
 //   3. This module pre-strips known-dangerous tags and on* attributes so the
 //      rendered DOM is also clean. Regex stripping is imperfect; it is here
 //      as belt-and-suspenders, not the primary defense.
@@ -82,7 +82,7 @@ export function plainTextToSafeHtml(text: string): string {
   );
 }
 
-// Base styles for HTML emails — mirrors the webmail iframe body 1:1.
+// Base styles for HTML emails - mirrors the webmail iframe body 1:1.
 // Emails are authored for light mode; we render them true-to-life and apply a
 // filter inversion trick for dark mode (unless the email has native dark
 // support via @media (prefers-color-scheme: dark)).
@@ -171,7 +171,7 @@ export function wrapEmailHtml(innerHtml: string, options: WrapOptions = {}): str
 
   // Strict CSP. Inline <script> and handlers from the email are stripped by
   // `stripDangerousTags`, so script-src only needs to allow our own injected
-  // measurement bridge — 'unsafe-inline' is the minimum that lets RN WebView's
+  // measurement bridge - 'unsafe-inline' is the minimum that lets RN WebView's
   // injected script run on Android (where page CSP can apply to evaluateJs).
   const imgSrc = blockRemoteImages ? "img-src data: cid:" : "img-src data: cid: https: http:";
   const csp = [
@@ -286,7 +286,7 @@ function blockRemoteImageSrcs(html: string): string {
 
 // Mirrors the webmail's `hasMeaningfulHtmlBody` (lib/signature-utils.ts).
 // Returns false when the HTML is an auto-generated minimal wrapper around plain
-// text (no <br>, no links, no rich tags) — the caller should fall back to the
+// text (no <br>, no links, no rich tags) - the caller should fall back to the
 // textBody in that case, since the server-side HTML often collapses newlines.
 const MEANINGFUL_HTML_RE =
   /<(?:table|img|style|b|strong|i|em|u|font|h[1-6]|ul|ol|blockquote|br)\b|<a\b[^>]*\bhref=|<(?:div|span|p)\b[^>]*\bstyle=/i;

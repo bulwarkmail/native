@@ -141,7 +141,7 @@ export default function ContactsScreen() {
 
   const sections = React.useMemo<Section[]>(() => {
     if (groupByLetter) return groupContacts(visible);
-    // Flat list — single unnamed section keeps SectionList rendering simple.
+    // Flat list - single unnamed section keeps SectionList rendering simple.
     return [{ title: '', data: sortContactsByDisplayName(visible) }];
   }, [visible, groupByLetter]);
 

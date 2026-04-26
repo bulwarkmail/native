@@ -114,7 +114,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   selectMailbox: async (mailboxId) => {
-    // Reset search/filters when switching mailbox — matches webmail behavior.
+    // Reset search/filters when switching mailbox - matches webmail behavior.
     set({
       currentMailboxId: mailboxId,
       loading: true,
@@ -157,7 +157,7 @@ export const useEmailStore = create<EmailState>()(
   refreshEmails: async () => {
     const { currentMailboxId, searchQuery, filters } = get();
     if (!currentMailboxId) return;
-    // Keep existing emails visible while refreshing — swap atomically once
+    // Keep existing emails visible while refreshing - swap atomically once
     // the new list is ready so pull-to-refresh doesn't flash an empty list.
     set({ loading: true, error: null });
     try {

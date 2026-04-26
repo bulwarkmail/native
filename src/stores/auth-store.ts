@@ -104,7 +104,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (serverUrl, username, password, opts) => {
     set({ isLoading: true, error: null });
     try {
-      // Adding an additional account — snapshot/reset feature stores so the
+      // Adding an additional account - snapshot/reset feature stores so the
       // new account starts with a clean slate.
       if (opts?.addAccount && get().isAuthenticated) {
         jmapClient.reset();
@@ -221,7 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const ok = await jmapClient.loadAccount(accountId);
     if (!ok) {
-      // Credentials missing — evict stale entry and surface error
+      // Credentials missing - evict stale entry and surface error
       accountStore.removeAccount(accountId);
       set({ isLoading: false, error: 'Session expired for this account' });
       return;
@@ -250,7 +250,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // Wait for persisted caches to finish hydrating from AsyncStorage.
       // Otherwise we read empty defaults and bounce the user back to the
-      // login screen — and the feature stores don't have their cached data
+      // login screen - and the feature stores don't have their cached data
       // yet when refetchFeatureStores() checks currentMailboxId / loadedRange
       // at the end of this function.
       await Promise.all([

@@ -18,11 +18,11 @@ const PUSH_ACCOUNT_ID_KEY = 'push:accountId:v1';
 const LAST_NOTIFIED_EMAIL_ID_KEY = 'push:lastNotifiedEmailId:v1';
 
 // Hosted relay so users don't need to run their own Firebase project. The
-// relay only ever sees FCM tokens + JMAP state-id hashes — no mail content.
+// relay only ever sees FCM tokens + JMAP state-id hashes - no mail content.
 // Power users can override this from the settings screen.
 export const DEFAULT_RELAY_BASE_URL = 'https://notifications.relay.bulwarkmail.org';
 
-// Types the mobile app wants StateChange pings for. Submission is excluded —
+// Types the mobile app wants StateChange pings for. Submission is excluded -
 // outgoing mail state changes don't belong in a user-visible push.
 const PUSH_TYPES = ['Email', 'EmailDelivery', 'Mailbox'] as const;
 
@@ -37,7 +37,7 @@ function getNative(): BulwarkFcmNative | null {
 }
 
 export interface PushSetupParams {
-  // Optional — falls back to the hosted relay if omitted.
+  // Optional - falls back to the hosted relay if omitted.
   relayBaseUrl?: string;
   accountLabel?: string;
 }
@@ -213,7 +213,7 @@ export async function setupPushNotifications(
 /**
  * Tear down push on logout / disable. Removes the server-side JMAP
  * subscription, tells the relay to drop the mapping, and clears the local
- * FCM token. Never throws — callers treat teardown as best effort.
+ * FCM token. Never throws - callers treat teardown as best effort.
  */
 export async function teardownPushNotifications(): Promise<void> {
   const storedId = await AsyncStorage.getItem(SUBSCRIPTION_ID_KEY);
@@ -266,7 +266,7 @@ export interface NotificationTapPayload {
   subject?: string;
 }
 
-// Returns — and clears — any pending "notification tap" that launched the app
+// Returns - and clears - any pending "notification tap" that launched the app
 // before JS was ready to handle it. Subsequent taps while running are delivered
 // via addNotificationTapListener.
 export async function getInitialNotificationTap(): Promise<NotificationTapPayload | null> {

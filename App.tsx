@@ -190,7 +190,7 @@ export default function App() {
   }, []);
 
   // Listen for FCM messages so the app can refresh state even when woken
-  // from the background — the FirebaseMessagingService also posts the system
+  // from the background - the FirebaseMessagingService also posts the system
   // notification so the user sees it regardless of RN runtime state.
   React.useEffect(() => {
     const unsubscribe = addMessageListener((payload) => {

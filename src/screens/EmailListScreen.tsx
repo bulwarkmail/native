@@ -510,7 +510,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         />
       )}
 
-      {/* Compose FAB — matches webmail mobile: PenSquare, h-14 w-14, rounded-full, shadow-lg */}
+      {/* Compose FAB - matches webmail mobile: PenSquare, h-14 w-14, rounded-full, shadow-lg */}
       <Pressable
         onPress={onComposePress}
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
@@ -749,7 +749,7 @@ function TriToggle({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  // Header — matches web mobile-header: h-14 (56px), px-4, border-b
+  // Header - matches web mobile-header: h-14 (56px), px-4, border-b
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     height: 28,
   },
 
-  // Search — matches web search bar styling
+  // Search - matches web search bar styling
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  // Email list — matches web email-list-item
+  // Email list - matches web email-list-item
   listContent: { paddingBottom: 100 },
   emailRow: {
     flexDirection: 'row',
@@ -1111,7 +1111,7 @@ const styles = StyleSheet.create({
   tagText: { ...typography.small, fontWeight: '500' },
   separator: { height: 0 }, // borders are on rows now
 
-  // Compose FAB — matches webmail: absolute bottom-4 right-4, h-14 w-14, rounded-full, bg-primary, shadow-lg
+  // Compose FAB - matches webmail: absolute bottom-4 right-4, h-14 w-14, rounded-full, bg-primary, shadow-lg
   fab: {
     position: 'absolute',
     right: spacing.lg,               // right-4
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
     width: componentSizes.fab,       // 56px (h-14)
     height: componentSizes.fab,      // 56px (w-14)
     borderRadius: radius.full,       // rounded-full (circle)
-    backgroundColor: colors.text,    // white — matches webmail mobile FAB
+    backgroundColor: colors.text,    // white - matches webmail mobile FAB
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
