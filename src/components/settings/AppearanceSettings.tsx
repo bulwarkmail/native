@@ -1,14 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { PlayCircle } from 'lucide-react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
-import Button from '../Button';
 import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { useSettingsStore, type ThemeMode, type FontSize, type Density } from '../../stores/settings-store';
 
-type Theme = 'light' | 'dark' | 'system';
-type FontSize = 'small' | 'medium' | 'large';
-type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
-type ToolbarPosition = 'top' | 'below-subject';
+type Theme = ThemeMode;
 
 const DENSITY_PREVIEW: Record<Density, { py: number; gap: number; showAvatar: boolean; showPreview: boolean }> = {
   'extra-compact': { py: 2, gap: 6, showAvatar: false, showPreview: false },
@@ -80,16 +76,22 @@ function DensityPreview({ density }: { density: Density }) {
 }
 
 export function AppearanceSettings() {
-  const [theme, setTheme] = useState<Theme>('dark');
-  const [fontSize, setFontSize] = useState<FontSize>('medium');
-  const [density, setDensity] = useState<Density>('regular');
-  const [toolbarPosition, setToolbarPosition] = useState<ToolbarPosition>('top');
-  const [showToolbarLabels, setShowToolbarLabels] = useState(true);
-  const [hideAccountSwitcher, setHideAccountSwitcher] = useState(false);
-  const [showRailAccountList, setShowRailAccountList] = useState(false);
-  const [colorfulSidebarIcons, setColorfulSidebarIcons] = useState(true);
-  const [animationsEnabled, setAnimationsEnabled] = useState(true);
-  const [language, setLanguage] = useState('en');
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
+  const fontSize = useSettingsStore((s) => s.fontSize);
+  const setFontSize = useSettingsStore((s) => s.setFontSize);
+  const density = useSettingsStore((s) => s.density);
+  const setDensity = useSettingsStore((s) => s.setDensity);
+  const showToolbarLabels = useSettingsStore((s) => s.showToolbarLabels);
+  const setShowToolbarLabels = useSettingsStore((s) => s.setShowToolbarLabels);
+  const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
+  const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+
+  React.useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
 
   return (
     <SettingsSection title="Appearance" description="Customize how the interface looks and feels.">
@@ -101,18 +103,6 @@ export function AppearanceSettings() {
             { value: 'light', label: 'Light' },
             { value: 'dark', label: 'Dark' },
             { value: 'system', label: 'System' },
-          ]}
-        />
-      </SettingItem>
-
-      <SettingItem label="Language" description="Interface language.">
-        <RadioGroup
-          value={language}
-          onChange={setLanguage}
-          options={[
-            { value: 'en', label: 'EN' },
-            { value: 'de', label: 'DE' },
-            { value: 'fr', label: 'FR' },
           ]}
         />
       </SettingItem>
@@ -145,41 +135,12 @@ export function AppearanceSettings() {
         <View style={styles.divider} />
       </View>
 
-      <SettingItem label="Toolbar Position" description="Where to place the message toolbar.">
-        <RadioGroup
-          value={toolbarPosition}
-          onChange={(v) => setToolbarPosition(v as ToolbarPosition)}
-          options={[
-            { value: 'top', label: 'Top' },
-            { value: 'below-subject', label: 'Below' },
-          ]}
-        />
-      </SettingItem>
-
       <SettingItem label="Toolbar Labels" description="Show text labels on toolbar buttons.">
         <ToggleSwitch checked={showToolbarLabels} onChange={setShowToolbarLabels} />
       </SettingItem>
 
-      <SettingItem label="Hide Account Switcher" description="Hide the account switcher from the navigation rail.">
-        <ToggleSwitch checked={hideAccountSwitcher} onChange={setHideAccountSwitcher} />
-      </SettingItem>
-
-      <SettingItem label="Rail Account List" description="Show all accounts inside the navigation rail.">
-        <ToggleSwitch checked={showRailAccountList} onChange={setShowRailAccountList} />
-      </SettingItem>
-
-      <SettingItem label="Colorful Sidebar Icons" description="Display sidebar icons with their brand colors.">
-        <ToggleSwitch checked={colorfulSidebarIcons} onChange={setColorfulSidebarIcons} />
-      </SettingItem>
-
       <SettingItem label="Animations" description="Enable or disable interface animations.">
         <ToggleSwitch checked={animationsEnabled} onChange={setAnimationsEnabled} />
-      </SettingItem>
-
-      <SettingItem label="Restart Tour" description="Replay the onboarding walkthrough.">
-        <Button variant="outline" size="sm" icon={<PlayCircle size={14} color={colors.text} />}>
-          Restart
-        </Button>
       </SettingItem>
     </SettingsSection>
   );

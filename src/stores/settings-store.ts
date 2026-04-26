@@ -4,6 +4,9 @@ import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type FontSize = 'small' | 'medium' | 'large';
+export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
 
 const STORAGE_KEY = 'webmail:settings:v1';
 
@@ -12,6 +15,13 @@ interface PersistedSettings {
   trustedSenders: string[];
   senderFavicons: boolean;
   groupContactsByLetter: boolean;
+  // Appearance
+  theme: ThemeMode;
+  fontSize: FontSize;
+  density: Density;
+  showToolbarLabels: boolean;
+  animationsEnabled: boolean;
+  emailAlwaysLightMode: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -19,17 +29,18 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   trustedSenders: [],
   senderFavicons: true,
   groupContactsByLetter: true,
+  theme: 'system',
+  fontSize: 'medium',
+  density: 'regular',
+  showToolbarLabels: true,
+  animationsEnabled: true,
+  emailAlwaysLightMode: false,
 };
 
-export interface SettingsState {
+export interface SettingsState extends PersistedSettings {
   identities: Identity[];
   loading: boolean;
   error: string | null;
-
-  externalContentPolicy: ExternalContentPolicy;
-  trustedSenders: string[];
-  senderFavicons: boolean;
-  groupContactsByLetter: boolean;
   hydrated: boolean;
 
   fetchIdentities: () => Promise<void>;
@@ -37,10 +48,31 @@ export interface SettingsState {
   setExternalContentPolicy: (policy: ExternalContentPolicy) => void;
   setSenderFavicons: (enabled: boolean) => void;
   setGroupContactsByLetter: (enabled: boolean) => void;
+  setTheme: (theme: ThemeMode) => void;
+  setFontSize: (size: FontSize) => void;
+  setDensity: (density: Density) => void;
+  setShowToolbarLabels: (enabled: boolean) => void;
+  setAnimationsEnabled: (enabled: boolean) => void;
+  setEmailAlwaysLightMode: (enabled: boolean) => void;
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
   reset: () => void;
+}
+
+function snapshot(state: SettingsState): PersistedSettings {
+  return {
+    externalContentPolicy: state.externalContentPolicy,
+    trustedSenders: state.trustedSenders,
+    senderFavicons: state.senderFavicons,
+    groupContactsByLetter: state.groupContactsByLetter,
+    theme: state.theme,
+    fontSize: state.fontSize,
+    density: state.density,
+    showToolbarLabels: state.showToolbarLabels,
+    animationsEnabled: state.animationsEnabled,
+    emailAlwaysLightMode: state.emailAlwaysLightMode,
+  };
 }
 
 function persist(state: PersistedSettings): void {
@@ -50,14 +82,10 @@ function persist(state: PersistedSettings): void {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
+  ...DEFAULT_PERSISTED,
   identities: [],
   loading: false,
   error: null,
-
-  externalContentPolicy: DEFAULT_PERSISTED.externalContentPolicy,
-  trustedSenders: DEFAULT_PERSISTED.trustedSenders,
-  senderFavicons: DEFAULT_PERSISTED.senderFavicons,
-  groupContactsByLetter: DEFAULT_PERSISTED.groupContactsByLetter,
   hydrated: false,
 
   fetchIdentities: async () => {
@@ -81,6 +109,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           trustedSenders: Array.isArray(parsed.trustedSenders) ? parsed.trustedSenders : [],
           senderFavicons: typeof parsed.senderFavicons === 'boolean' ? parsed.senderFavicons : DEFAULT_PERSISTED.senderFavicons,
           groupContactsByLetter: typeof parsed.groupContactsByLetter === 'boolean' ? parsed.groupContactsByLetter : DEFAULT_PERSISTED.groupContactsByLetter,
+          theme: parsed.theme ?? DEFAULT_PERSISTED.theme,
+          fontSize: parsed.fontSize ?? DEFAULT_PERSISTED.fontSize,
+          density: parsed.density ?? DEFAULT_PERSISTED.density,
+          showToolbarLabels: typeof parsed.showToolbarLabels === 'boolean' ? parsed.showToolbarLabels : DEFAULT_PERSISTED.showToolbarLabels,
+          animationsEnabled: typeof parsed.animationsEnabled === 'boolean' ? parsed.animationsEnabled : DEFAULT_PERSISTED.animationsEnabled,
+          emailAlwaysLightMode: typeof parsed.emailAlwaysLightMode === 'boolean' ? parsed.emailAlwaysLightMode : DEFAULT_PERSISTED.emailAlwaysLightMode,
           hydrated: true,
         });
         return;
@@ -91,61 +125,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ hydrated: true });
   },
 
-  setExternalContentPolicy: (policy) => {
-    set({ externalContentPolicy: policy });
-    persist({
-      externalContentPolicy: policy,
-      trustedSenders: get().trustedSenders,
-      senderFavicons: get().senderFavicons,
-      groupContactsByLetter: get().groupContactsByLetter,
-    });
-  },
-
-  setSenderFavicons: (enabled) => {
-    set({ senderFavicons: enabled });
-    persist({
-      externalContentPolicy: get().externalContentPolicy,
-      trustedSenders: get().trustedSenders,
-      senderFavicons: enabled,
-      groupContactsByLetter: get().groupContactsByLetter,
-    });
-  },
-
-  setGroupContactsByLetter: (enabled) => {
-    set({ groupContactsByLetter: enabled });
-    persist({
-      externalContentPolicy: get().externalContentPolicy,
-      trustedSenders: get().trustedSenders,
-      senderFavicons: get().senderFavicons,
-      groupContactsByLetter: enabled,
-    });
-  },
+  setExternalContentPolicy: (policy) => { set({ externalContentPolicy: policy }); persist(snapshot(get())); },
+  setSenderFavicons: (enabled) => { set({ senderFavicons: enabled }); persist(snapshot(get())); },
+  setGroupContactsByLetter: (enabled) => { set({ groupContactsByLetter: enabled }); persist(snapshot(get())); },
+  setTheme: (theme) => { set({ theme }); persist(snapshot(get())); },
+  setFontSize: (fontSize) => { set({ fontSize }); persist(snapshot(get())); },
+  setDensity: (density) => { set({ density }); persist(snapshot(get())); },
+  setShowToolbarLabels: (enabled) => { set({ showToolbarLabels: enabled }); persist(snapshot(get())); },
+  setAnimationsEnabled: (enabled) => { set({ animationsEnabled: enabled }); persist(snapshot(get())); },
+  setEmailAlwaysLightMode: (enabled) => { set({ emailAlwaysLightMode: enabled }); persist(snapshot(get())); },
 
   addTrustedSender: (email) => {
     const normalized = email.toLowerCase().trim();
     if (!normalized) return;
     const current = get().trustedSenders;
     if (current.includes(normalized)) return;
-    const next = [...current, normalized];
-    set({ trustedSenders: next });
-    persist({
-      externalContentPolicy: get().externalContentPolicy,
-      trustedSenders: next,
-      senderFavicons: get().senderFavicons,
-      groupContactsByLetter: get().groupContactsByLetter,
-    });
+    set({ trustedSenders: [...current, normalized] });
+    persist(snapshot(get()));
   },
 
   removeTrustedSender: (email) => {
     const normalized = email.toLowerCase().trim();
-    const next = get().trustedSenders.filter((e) => e !== normalized);
-    set({ trustedSenders: next });
-    persist({
-      externalContentPolicy: get().externalContentPolicy,
-      trustedSenders: next,
-      senderFavicons: get().senderFavicons,
-      groupContactsByLetter: get().groupContactsByLetter,
-    });
+    set({ trustedSenders: get().trustedSenders.filter((e) => e !== normalized) });
+    persist(snapshot(get()));
   },
 
   isSenderTrusted: (email) => {

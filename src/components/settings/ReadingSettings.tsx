@@ -282,57 +282,6 @@ export function ReadingSettings() {
         />
       </SettingItem>
 
-      <SettingItem label="Always Light Mode for Emails" description="Render email content on a white background.">
-        <ToggleSwitch checked={emailAlwaysLightMode} onChange={setEmailAlwaysLightMode} />
-      </SettingItem>
-
-      <SettingItem label="External Content" description="How to handle images and remote resources in incoming email.">
-        <Select
-          value={externalContentPolicy}
-          onChange={(v) => setExternalContentPolicyStore(v as ExternalContentPolicy)}
-          options={[
-            { value: 'ask', label: 'Ask' },
-            { value: 'block', label: 'Block' },
-            { value: 'allow', label: 'Allow' },
-          ]}
-        />
-      </SettingItem>
-
-      <View style={styles.group}>
-        <SettingItem
-          label="Trusted Senders"
-          description="Senders whose external content loads without asking."
-          noBorder
-        >
-          <Pressable style={styles.inlineBtn} onPress={() => setShowTrustedList((v) => !v)}>
-            <Text style={styles.inlineBtnText}>
-              {trustedSenders.length === 0
-                ? 'No trusted senders'
-                : `${trustedSenders.length} sender${trustedSenders.length === 1 ? '' : 's'}`}
-            </Text>
-          </Pressable>
-        </SettingItem>
-        {showTrustedList && trustedSenders.length > 0 && (
-          <View style={styles.trustedList}>
-            {trustedSenders.map((email) => (
-              <View key={email} style={styles.trustedRow}>
-                <Text style={styles.trustedEmail} numberOfLines={1}>{email}</Text>
-                <Pressable onPress={() => removeTrustedSender(email)} hitSlop={8}>
-                  <X size={14} color={colors.mutedForeground} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        )}
-        <View style={styles.divider} />
-      </View>
-
-      <SettingItem label="Sync Trusted Senders" description="Store trusted senders in the address book.">
-        <ToggleSwitch
-          checked={trustedSendersAddressBook}
-          onChange={setTrustedSendersAddressBook}
-        />
-      </SettingItem>
     </SettingsSection>
   );
 }

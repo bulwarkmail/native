@@ -18,6 +18,20 @@ import { VacationSettings } from '../components/settings/VacationSettings';
 import { FolderSettings } from '../components/settings/FolderSettings';
 import { AboutDataSettings } from '../components/settings/AboutDataSettings';
 import { UpdatesSettings } from '../components/settings/UpdatesSettings';
+import { AppearanceSettings } from '../components/settings/AppearanceSettings';
+import { CalendarSettings } from '../components/settings/CalendarSettings';
+import { ContactsSettings } from '../components/settings/ContactsSettings';
+import { FilesSettings } from '../components/settings/FilesSettings';
+import { FilterSettings } from '../components/settings/FilterSettings';
+import { TemplateSettings } from '../components/settings/TemplateSettings';
+import { KeywordSettings } from '../components/settings/KeywordSettings';
+import { AccountSecuritySettings } from '../components/settings/AccountSecuritySettings';
+import { SmimeSettings } from '../components/settings/SmimeSettings';
+import { SidebarAppsSettings } from '../components/settings/SidebarAppsSettings';
+import { ThemesSettings } from '../components/settings/ThemesSettings';
+import { PluginsSettings } from '../components/settings/PluginsSettings';
+import { ContentSendersSettings } from '../components/settings/ContentSendersSettings';
+import { LanguageSettings } from '../components/settings/LanguageSettings';
 
 type Tab =
   | 'account' | 'language' | 'notifications'
@@ -53,11 +67,11 @@ const GROUP_ORDER: TabGroup[] = ['general', 'appearance', 'mail', 'privacy', 'ap
 const TABS: TabDef[] = [
   // General
   { id: 'account',         label: 'Account',            icon: User,           group: 'general',    implemented: true  },
-  { id: 'language',        label: 'Language',           icon: Languages,      group: 'general',    implemented: false },
+  { id: 'language',        label: 'Language',           icon: Languages,      group: 'general',    implemented: true  },
   { id: 'notifications',   label: 'Notifications',      icon: Bell,           group: 'general',    implemented: true  },
 
   // Appearance
-  { id: 'appearance',      label: 'Appearance',         icon: Palette,        group: 'appearance', implemented: false },
+  { id: 'appearance',      label: 'Appearance',         icon: Palette,        group: 'appearance', implemented: true  },
   { id: 'layout',          label: 'Layout',             icon: LayoutGrid,     group: 'appearance', implemented: false },
 
   // Mail
@@ -65,38 +79,52 @@ const TABS: TabDef[] = [
   { id: 'composing',       label: 'Composing',          icon: PenLine,        group: 'mail',       implemented: false },
   { id: 'identities',      label: 'Identities',         icon: UserPen,        group: 'mail',       implemented: true  },
   { id: 'vacation',        label: 'Vacation Responder', icon: Palmtree,       group: 'mail',       implemented: true  },
-  { id: 'filters',         label: 'Filters & Rules',    icon: Filter,         group: 'mail',       implemented: false },
-  { id: 'templates',       label: 'Templates',          icon: FileText,       group: 'mail',       implemented: false },
+  { id: 'filters',         label: 'Filters & Rules',    icon: Filter,         group: 'mail',       implemented: true  },
+  { id: 'templates',       label: 'Templates',          icon: FileText,       group: 'mail',       implemented: true  },
   { id: 'folders',         label: 'Folders',            icon: FolderOpen,     group: 'mail',       implemented: true  },
-  { id: 'keywords',        label: 'Keywords & Labels',  icon: Tags,           group: 'mail',       implemented: false },
+  { id: 'keywords',        label: 'Keywords & Labels',  icon: Tags,           group: 'mail',       implemented: true  },
 
   // Privacy & Security
-  { id: 'security',        label: 'Security',           icon: Shield,         group: 'privacy',    implemented: false },
-  { id: 'encryption',      label: 'S/MIME Encryption',  icon: KeyRound,       group: 'privacy',    implemented: false },
-  { id: 'content_senders', label: 'Content & Senders',  icon: EyeOff,         group: 'privacy',    implemented: false },
+  { id: 'security',        label: 'Security',           icon: Shield,         group: 'privacy',    implemented: true  },
+  { id: 'encryption',      label: 'S/MIME Encryption',  icon: KeyRound,       group: 'privacy',    implemented: true  },
+  { id: 'content_senders', label: 'Content & Senders',  icon: EyeOff,         group: 'privacy',    implemented: true  },
 
   // Apps
-  { id: 'calendar',        label: 'Calendar',           icon: Calendar,       group: 'apps',       implemented: false },
-  { id: 'contacts',        label: 'Contacts',           icon: BookUser,       group: 'apps',       implemented: false },
-  { id: 'files',           label: 'Files',              icon: HardDrive,      group: 'apps',       implemented: false },
-  { id: 'sidebar_apps',    label: 'Sidebar Apps',       icon: PanelLeftClose, group: 'apps',       implemented: false },
+  { id: 'calendar',        label: 'Calendar',           icon: Calendar,       group: 'apps',       implemented: true  },
+  { id: 'contacts',        label: 'Contacts',           icon: BookUser,       group: 'apps',       implemented: true  },
+  { id: 'files',           label: 'Files',              icon: HardDrive,      group: 'apps',       implemented: true  },
+  { id: 'sidebar_apps',    label: 'Sidebar Apps',       icon: PanelLeftClose, group: 'apps',       implemented: true  },
 
   // Advanced
   { id: 'about_data',      label: 'About & Data',       icon: Info,           group: 'advanced',   implemented: true  },
-  { id: 'themes',          label: 'Themes',             icon: Palette,        group: 'advanced',   experimental: true, implemented: false },
-  { id: 'plugins',         label: 'Plugins',            icon: Puzzle,         group: 'advanced',   experimental: true, implemented: false },
+  { id: 'themes',          label: 'Themes',             icon: Palette,        group: 'advanced',   experimental: true, implemented: true  },
+  { id: 'plugins',         label: 'Plugins',            icon: Puzzle,         group: 'advanced',   experimental: true, implemented: true  },
   { id: 'updates',         label: 'Updates',            icon: RefreshCw,      group: 'advanced',   implemented: true  },
   { id: 'debug',           label: 'Debug',              icon: Bug,            group: 'advanced',   implemented: false },
 ];
 
 const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   account: AccountSettings,
+  language: LanguageSettings,
   notifications: NotificationSettings,
+  appearance: AppearanceSettings,
   reading: ReadingSettings,
   identities: IdentitySettings,
   vacation: VacationSettings,
+  filters: FilterSettings,
+  templates: TemplateSettings,
   folders: FolderSettings,
+  keywords: KeywordSettings,
+  security: AccountSecuritySettings,
+  encryption: SmimeSettings,
+  content_senders: ContentSendersSettings,
+  calendar: CalendarSettings,
+  contacts: ContactsSettings,
+  files: FilesSettings,
+  sidebar_apps: SidebarAppsSettings,
   about_data: AboutDataSettings,
+  themes: ThemesSettings,
+  plugins: PluginsSettings,
   updates: UpdatesSettings,
 };
 

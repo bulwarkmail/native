@@ -45,7 +45,7 @@ module.exports = {
     web: {
       favicon: './assets/favicon.png',
     },
-    plugins: ['expo-secure-store', '@react-native-community/datetimepicker'],
+    plugins: ['expo-secure-store', '@react-native-community/datetimepicker', 'expo-localization'],
     extra: {
       commit: COMMIT,
     },
