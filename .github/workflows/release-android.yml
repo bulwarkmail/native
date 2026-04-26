@@ -28,8 +28,30 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
       - uses: android-actions/setup-android@v3
+
+      - name: Cache Android NDK / CMake
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/build-cache
+            /usr/local/lib/android/sdk/ndk
+            /usr/local/lib/android/sdk/cmake
+          key: android-sdk-${{ runner.os }}-${{ hashFiles('android/build.gradle', 'android/gradle.properties', 'android/app/build.gradle') }}
+          restore-keys: android-sdk-${{ runner.os }}-
+
+      - name: Cache native CMake build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            android/app/.cxx
+            android/app/build/intermediates/cxx
+            android/app/build/intermediates/merged_native_libs
+            android/app/build/intermediates/stripped_native_libs
+          key: cxx-${{ runner.os }}-${{ hashFiles('package-lock.json', 'android/build.gradle', 'android/app/build.gradle') }}
+          restore-keys: cxx-${{ runner.os }}-
 
       - name: Install JS dependencies
         run: npm ci
@@ -74,9 +96,28 @@ jobs:
           path: ${{ steps.artifact.outputs.path }}
           if-no-files-found: error
 
+      - name: Resolve target release tag
+        id: target_tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ github.event.inputs.attach_to_release_tag }}" ]; then
+            TAG="${{ github.event.inputs.attach_to_release_tag }}"
+          else
+            TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || true)
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ]; then
+            echo "Will attach APK to release: $TAG"
+          else
+            echo "No release tag resolved — APK is in workflow artifacts only."
+          fi
+
       - name: Attach APK to release
-        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.attach_to_release_tag != '')
+        if: steps.target_tag.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name || github.event.inputs.attach_to_release_tag }}
+          tag_name: ${{ steps.target_tag.outputs.tag }}
           files: ${{ steps.artifact.outputs.path }}
