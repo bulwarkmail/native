@@ -39,7 +39,7 @@ interface WeekViewProps {
   weekStartsOn?: 0 | 1;
 }
 
-export function WeekView({
+function WeekViewInner({
   selectedDate,
   events,
   calendars,
@@ -302,6 +302,8 @@ export function WeekView({
     </View>
   );
 }
+
+export const WeekView = React.memo(WeekViewInner);
 
 function minutesToTimeLabel(minutes: number): string {
   const h = Math.floor(minutes / 60);

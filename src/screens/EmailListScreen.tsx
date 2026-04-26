@@ -43,7 +43,7 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function EmailRow({
+const EmailRow = React.memo(function EmailRow({
   item,
   onPress,
   onLongPress,
@@ -51,8 +51,8 @@ function EmailRow({
   selectionMode,
 }: {
   item: Email;
-  onPress: () => void;
-  onLongPress: () => void;
+  onPress: (id: string) => void;
+  onLongPress: (id: string) => void;
   selected: boolean;
   selectionMode: boolean;
 }) {
@@ -61,6 +61,9 @@ function EmailRow({
   const unread = isUnread(item);
   const starred = isStarred(item);
 
+  const handlePress = React.useCallback(() => onPress(item.id), [onPress, item.id]);
+  const handleLongPress = React.useCallback(() => onLongPress(item.id), [onLongPress, item.id]);
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -68,8 +71,8 @@ function EmailRow({
         pressed && styles.emailRowPressed,
         selected && styles.emailRowSelected,
       ]}
-      onPress={onPress}
-      onLongPress={onLongPress}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
       delayLongPress={300}
     >
       {selectionMode && (
@@ -117,7 +120,11 @@ function EmailRow({
       </View>
     </Pressable>
   );
-}
+});
+
+const EmailRowSeparator = () => <View style={styles.separator} />;
+
+const emailKeyExtractor = (item: Email) => item.id;
 
 interface EmailListScreenProps {
   onEmailPress?: (email: Email) => void;
@@ -152,6 +159,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const allSelected =
     emails.length > 0 && emails.every((e) => selectedIds.has(e.id));
 
+  // Refs so row press handlers stay referentially stable across renders.
+  // FlatList rows then skip re-render when the parent re-renders for unrelated
+  // reasons (e.g. opening the filter modal).
+  const onEmailPressRef = React.useRef(onEmailPress);
+  React.useEffect(() => { onEmailPressRef.current = onEmailPress; }, [onEmailPress]);
+  const selectionModeRef = React.useRef(selectionMode);
+  React.useEffect(() => { selectionModeRef.current = selectionMode; }, [selectionMode]);
+  const emailsRef = React.useRef(emails);
+  React.useEffect(() => { emailsRef.current = emails; }, [emails]);
+
   const toggleSelect = React.useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -160,6 +177,28 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       return next;
     });
   }, []);
+
+  const handleRowPress = React.useCallback((id: string) => {
+    if (selectionModeRef.current) {
+      toggleSelect(id);
+    } else {
+      const email = emailsRef.current.find((e) => e.id === id);
+      if (email) onEmailPressRef.current?.(email);
+    }
+  }, [toggleSelect]);
+
+  const renderEmailRow = React.useCallback(
+    ({ item }: { item: Email }) => (
+      <EmailRow
+        item={item}
+        selected={selectedIds.has(item.id)}
+        selectionMode={selectionMode}
+        onPress={handleRowPress}
+        onLongPress={toggleSelect}
+      />
+    ),
+    [selectedIds, selectionMode, handleRowPress, toggleSelect],
+  );
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
@@ -488,20 +527,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       ) : (
         <FlatList
           data={emails}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <EmailRow
-              item={item}
-              selected={selectedIds.has(item.id)}
-              selectionMode={selectionMode}
-              onPress={() => {
-                if (selectionMode) toggleSelect(item.id);
-                else onEmailPress?.(item);
-              }}
-              onLongPress={() => toggleSelect(item.id)}
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          keyExtractor={emailKeyExtractor}
+          renderItem={renderEmailRow}
+          ItemSeparatorComponent={EmailRowSeparator}
           contentContainerStyle={styles.listContent}
           onEndReached={() => { void loadMoreEmails(); }}
           onEndReachedThreshold={0.3}

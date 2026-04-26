@@ -319,7 +319,7 @@ export default function CalendarScreen() {
             eventsByDay={eventsByDay}
             calendars={calendars}
             onSelectDate={handleSelectDate}
-            onLongPressDate={(date) => openCreate(date)}
+            onLongPressDate={openCreate}
           />
         )}
         {viewMode === 'week' && (
@@ -330,7 +330,7 @@ export default function CalendarScreen() {
             calendars={calendars}
             onSelectDate={handleSelectDate}
             onSelectEvent={setDetailEvent}
-            onCreateAtTime={(date) => openCreate(date)}
+            onCreateAtTime={openCreate}
           />
         )}
         {viewMode === 'agenda' && (

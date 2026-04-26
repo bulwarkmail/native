@@ -32,7 +32,7 @@ interface MonthViewProps {
   onLongPressDate?: (date: Date) => void;
 }
 
-export function MonthView({
+function MonthViewInner({
   currentDate,
   selectedDate,
   events,
@@ -117,6 +117,8 @@ export function MonthView({
     </View>
   );
 }
+
+export const MonthView = React.memo(MonthViewInner);
 
 const styles = StyleSheet.create({
   grid: { paddingHorizontal: spacing.sm },
