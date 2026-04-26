@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, LogOut, Settings, ChevronRight,
@@ -97,6 +97,15 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ onLogout, onBack, onTabSelect }: SettingsScreenProps) {
   const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
   const groupedTabs = groupTabs();
+
+  useEffect(() => {
+    if (!selectedTab) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelectedTab(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [selectedTab]);
 
   const handleTabPress = (tab: TabDef) => {
     if (!tab.implemented) return;
