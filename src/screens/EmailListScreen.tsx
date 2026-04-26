@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
-  Search, SquarePen, Menu, Filter, Square, X, Check,
-  Star, Paperclip, Mail as MailIcon,
+  Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
+  Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
 } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
 import SidebarDrawer from '../components/SidebarDrawer';
@@ -42,7 +43,19 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function EmailRow({ item, onPress }: { item: Email; onPress: () => void }) {
+function EmailRow({
+  item,
+  onPress,
+  onLongPress,
+  selected,
+  selectionMode,
+}: {
+  item: Email;
+  onPress: () => void;
+  onLongPress: () => void;
+  selected: boolean;
+  selectionMode: boolean;
+}) {
   const senderName = getSenderName(item);
   const senderEmail = getSenderEmail(item);
   const unread = isUnread(item);
@@ -50,9 +63,24 @@ function EmailRow({ item, onPress }: { item: Email; onPress: () => void }) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.emailRow, pressed && styles.emailRowPressed]}
+      style={({ pressed }) => [
+        styles.emailRow,
+        pressed && styles.emailRowPressed,
+        selected && styles.emailRowSelected,
+      ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
     >
+      {selectionMode && (
+        <View style={styles.rowCheckboxWrap}>
+          {selected ? (
+            <SquareCheck size={16} color={colors.primary} />
+          ) : (
+            <Square size={16} color={colors.textMuted} />
+          )}
+        </View>
+      )}
       <SenderAvatar name={senderName} email={senderEmail} size={componentSizes.avatarMd} />
 
       {/* Content */}
@@ -113,6 +141,77 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const setSearchQuery = useEmailStore((s) => s.setSearchQuery);
   const setFilters = useEmailStore((s) => s.setFilters);
   const clearSearchAndFilters = useEmailStore((s) => s.clearSearchAndFilters);
+  const markRead = useEmailStore((s) => s.markRead);
+  const markUnread = useEmailStore((s) => s.markUnread);
+  const toggleStar = useEmailStore((s) => s.toggleStar);
+  const deleteEmailAction = useEmailStore((s) => s.deleteEmail);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const selectionMode = selectedIds.size > 0;
+  const allSelected =
+    emails.length > 0 && emails.every((e) => selectedIds.has(e.id));
+
+  const toggleSelect = React.useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = React.useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelectAllVisible = React.useCallback(() => {
+    setSelectedIds((prev) => {
+      const allCurrent = emails.length > 0 && emails.every((e) => prev.has(e.id));
+      if (allCurrent) return new Set();
+      return new Set(emails.map((e) => e.id));
+    });
+  }, [emails]);
+
+  // Clear selection when mailbox changes
+  React.useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentMailboxId]);
+
+  const selectedEmails = React.useMemo(
+    () => emails.filter((e) => selectedIds.has(e.id)),
+    [emails, selectedIds],
+  );
+  const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
+  const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));
+
+  const handleBulkMarkReadToggle = async () => {
+    const ids = Array.from(selectedIds);
+    if (allSelectedAreRead) {
+      await Promise.all(ids.map((id) => markUnread(id)));
+    } else {
+      await Promise.all(ids.map((id) => markRead(id)));
+    }
+    clearSelection();
+  };
+
+  const handleBulkStar = async () => {
+    const ids = Array.from(selectedIds);
+    const next = !allSelectedAreStarred;
+    await Promise.all(ids.map((id) => toggleStar(id, next)));
+    clearSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    const trash = mailboxes.find((m) => m.role === 'trash');
+    if (!trash || !currentMailboxId) {
+      clearSelection();
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    await Promise.all(ids.map((id) => deleteEmailAction(id, trash.id, currentMailboxId)));
+    clearSelection();
+  };
 
   // Local input state for uninterrupted typing; debounce into the store.
   const [searchInput, setSearchInput] = React.useState(storeSearchQuery);
@@ -131,12 +230,34 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   }, [searchInput, storeSearchQuery, setSearchQuery]);
 
   const activeFilterCount =
-    (filters.unread ? 1 : 0) + (filters.starred ? 1 : 0) + (filters.hasAttachment ? 1 : 0);
+    (filters.from ? 1 : 0) +
+    (filters.to ? 1 : 0) +
+    (filters.subject ? 1 : 0) +
+    (filters.dateAfter ? 1 : 0) +
+    (filters.dateBefore ? 1 : 0) +
+    (filters.hasAttachment !== undefined ? 1 : 0) +
+    (filters.isStarred !== undefined ? 1 : 0) +
+    (filters.isUnread !== undefined ? 1 : 0);
   const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
 
-  const toggleFilter = (key: keyof EmailFilters) => {
-    setFilters({ ...filters, [key]: !filters[key] });
+  const cycleTriState = (key: 'hasAttachment' | 'isStarred' | 'isUnread') => {
+    const current = filters[key];
+    // unset → true → false → unset
+    const next = current === undefined ? true : current === true ? false : undefined;
+    const updated: EmailFilters = { ...filters };
+    if (next === undefined) delete updated[key];
+    else updated[key] = next;
+    setFilters(updated);
   };
+
+  const setFilterField = (key: keyof EmailFilters, value: string | undefined) => {
+    const updated: EmailFilters = { ...filters };
+    if (!value) delete updated[key];
+    else (updated as Record<string, unknown>)[key] = value;
+    setFilters(updated);
+  };
+
+  const [datePickerField, setDatePickerField] = React.useState<'dateAfter' | 'dateBefore' | null>(null);
 
   const currentMailbox = React.useMemo(
     () => mailboxes.find((m) => m.id === currentMailboxId),
@@ -160,23 +281,69 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerButton}>
-          <Menu size={20} color={colors.textMuted} />
-        </Pressable>
-        <Text style={styles.headerTitle}>{currentMailbox?.name ?? 'Inbox'}</Text>
-        <View style={{ flex: 1 }} />
-        <Image
-          source={require('../../assets/logos/Bulwark Logo White.png')}
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
-      </View>
+      {selectionMode ? (
+        <View style={styles.header}>
+          <Pressable onPress={clearSelection} style={styles.headerButton}>
+            <X size={20} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{selectedIds.size} selected</Text>
+          <Pressable
+            onPress={() => { void handleBulkStar(); }}
+            style={styles.headerButton}
+            hitSlop={6}
+          >
+            <Star
+              size={20}
+              color={allSelectedAreStarred ? colors.starred : colors.text}
+              fill={allSelectedAreStarred ? colors.starred : 'transparent'}
+            />
+          </Pressable>
+          <Pressable
+            onPress={() => { void handleBulkMarkReadToggle(); }}
+            style={styles.headerButton}
+            hitSlop={6}
+          >
+            {allSelectedAreRead ? (
+              <MailIcon size={20} color={colors.text} />
+            ) : (
+              <MailOpen size={20} color={colors.text} />
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => { void handleBulkDelete(); }}
+            style={styles.headerButton}
+            hitSlop={6}
+          >
+            <Trash2 size={20} color={colors.text} />
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.header}>
+          <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerButton}>
+            <Menu size={20} color={colors.textMuted} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{currentMailbox?.name ?? 'Inbox'}</Text>
+          <View style={{ flex: 1 }} />
+          <Image
+            source={require('../../assets/logos/Bulwark Logo White.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+        </View>
+      )}
 
       {/* Search bar (always visible) */}
       <View style={styles.searchBar}>
-        <Pressable style={styles.checkboxButton}>
-          <Square size={18} color={colors.textMuted} />
+        <Pressable style={styles.checkboxButton} onPress={toggleSelectAllVisible} hitSlop={6}>
+          {allSelected ? (
+            <SquareCheck size={18} color={colors.primary} />
+          ) : selectionMode ? (
+            <View style={styles.checkboxIndeterminate}>
+              <Minus size={14} color={colors.background} />
+            </View>
+          ) : (
+            <Square size={18} color={colors.textMuted} />
+          )}
         </Pressable>
         <View style={styles.searchInputArea}>
           <Search size={16} color={colors.textMuted} />
@@ -223,22 +390,55 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               </Text>
             </View>
           ) : null}
-          {filters.unread && (
+          {filters.from ? (
             <View style={styles.chip}>
-              <MailIcon size={12} color={colors.textSecondary} />
-              <Text style={styles.chipText}>Unread</Text>
+              <Text style={styles.chipText} numberOfLines={1}>From: {filters.from}</Text>
+            </View>
+          ) : null}
+          {filters.to ? (
+            <View style={styles.chip}>
+              <Text style={styles.chipText} numberOfLines={1}>To: {filters.to}</Text>
+            </View>
+          ) : null}
+          {filters.subject ? (
+            <View style={styles.chip}>
+              <Text style={styles.chipText} numberOfLines={1}>Subject: {filters.subject}</Text>
+            </View>
+          ) : null}
+          {filters.dateAfter ? (
+            <View style={styles.chip}>
+              <CalendarDays size={12} color={colors.textSecondary} />
+              <Text style={styles.chipText}>After {filters.dateAfter}</Text>
+            </View>
+          ) : null}
+          {filters.dateBefore ? (
+            <View style={styles.chip}>
+              <CalendarDays size={12} color={colors.textSecondary} />
+              <Text style={styles.chipText}>Before {filters.dateBefore}</Text>
+            </View>
+          ) : null}
+          {filters.isUnread !== undefined && (
+            <View style={styles.chip}>
+              {filters.isUnread ? (
+                <MailIcon size={12} color={colors.textSecondary} />
+              ) : (
+                <MailOpen size={12} color={colors.textSecondary} />
+              )}
+              <Text style={styles.chipText}>{filters.isUnread ? 'Unread' : 'Read'}</Text>
             </View>
           )}
-          {filters.starred && (
+          {filters.isStarred !== undefined && (
             <View style={styles.chip}>
-              <Star size={12} color={colors.starred} fill={colors.starred} />
-              <Text style={styles.chipText}>Starred</Text>
+              <Star size={12} color={colors.starred} fill={filters.isStarred ? colors.starred : 'transparent'} />
+              <Text style={styles.chipText}>{filters.isStarred ? 'Starred' : 'Not starred'}</Text>
             </View>
           )}
-          {filters.hasAttachment && (
+          {filters.hasAttachment !== undefined && (
             <View style={styles.chip}>
               <Paperclip size={12} color={colors.textSecondary} />
-              <Text style={styles.chipText}>Has attachment</Text>
+              <Text style={styles.chipText}>
+                {filters.hasAttachment ? 'Has attachment' : 'No attachment'}
+              </Text>
             </View>
           )}
           <Pressable
@@ -290,7 +490,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           data={emails}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <EmailRow item={item} onPress={() => onEmailPress?.(item)} />
+            <EmailRow
+              item={item}
+              selected={selectedIds.has(item.id)}
+              selectionMode={selectionMode}
+              onPress={() => {
+                if (selectionMode) toggleSelect(item.id);
+                else onEmailPress?.(item);
+              }}
+              onLongPress={() => toggleSelect(item.id)}
+            />
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.listContent}
@@ -321,57 +530,218 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <View style={styles.filterBackdrop}>
             <TouchableWithoutFeedback>
               <View style={styles.filterMenu}>
-                <Text style={styles.filterMenuTitle}>Filter emails</Text>
-                <FilterToggle
-                  label="Unread"
-                  icon={<MailIcon size={16} color={colors.textSecondary} />}
-                  active={!!filters.unread}
-                  onPress={() => toggleFilter('unread')}
-                />
-                <FilterToggle
-                  label="Starred"
-                  icon={<Star size={16} color={colors.starred} fill={filters.starred ? colors.starred : 'transparent'} />}
-                  active={!!filters.starred}
-                  onPress={() => toggleFilter('starred')}
-                />
-                <FilterToggle
-                  label="Has attachment"
-                  icon={<Paperclip size={16} color={colors.textSecondary} />}
-                  active={!!filters.hasAttachment}
-                  onPress={() => toggleFilter('hasAttachment')}
-                />
-                {activeFilterCount > 0 && (
-                  <TouchableOpacity
-                    style={styles.filterClearRow}
-                    onPress={() => setFilters({})}
-                  >
-                    <Text style={styles.filterClearText}>Clear filters</Text>
-                  </TouchableOpacity>
-                )}
+                <View style={styles.filterMenuHeader}>
+                  <Text style={styles.filterMenuTitle}>Filter emails</Text>
+                  <View style={styles.filterMenuHeaderActions}>
+                    <Pressable
+                      onPress={() => setFilters({})}
+                      style={styles.filterMenuHeaderBtn}
+                      hitSlop={6}
+                    >
+                      <RotateCcw size={12} color={colors.textSecondary} />
+                      <Text style={styles.filterMenuHeaderBtnText}>Clear</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setFilterMenuOpen(false)}
+                      style={styles.filterMenuClose}
+                      hitSlop={6}
+                    >
+                      <X size={16} color={colors.textSecondary} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <ScrollView contentContainerStyle={styles.filterMenuBody} keyboardShouldPersistTaps="handled">
+                  <View style={styles.filterFieldRow}>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>From</Text>
+                      <TextInput
+                        value={filters.from ?? ''}
+                        onChangeText={(v) => setFilterField('from', v)}
+                        placeholder="sender@example.com"
+                        placeholderTextColor={colors.textMuted}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        style={styles.filterFieldInput}
+                      />
+                    </View>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>To</Text>
+                      <TextInput
+                        value={filters.to ?? ''}
+                        onChangeText={(v) => setFilterField('to', v)}
+                        placeholder="recipient@example.com"
+                        placeholderTextColor={colors.textMuted}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        style={styles.filterFieldInput}
+                      />
+                    </View>
+                  </View>
+
+                  <View>
+                    <Text style={styles.filterFieldLabel}>Subject</Text>
+                    <TextInput
+                      value={filters.subject ?? ''}
+                      onChangeText={(v) => setFilterField('subject', v)}
+                      placeholder="Subject contains..."
+                      placeholderTextColor={colors.textMuted}
+                      style={styles.filterFieldInput}
+                    />
+                  </View>
+
+                  <View style={styles.filterFieldRow}>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>After</Text>
+                      <Pressable
+                        style={styles.filterDateButton}
+                        onPress={() => setDatePickerField('dateAfter')}
+                      >
+                        <CalendarDays size={14} color={colors.textMuted} />
+                        <Text style={[styles.filterDateText, !filters.dateAfter && styles.filterDateTextEmpty]}>
+                          {filters.dateAfter || 'YYYY-MM-DD'}
+                        </Text>
+                        {filters.dateAfter ? (
+                          <Pressable
+                            onPress={() => setFilterField('dateAfter', undefined)}
+                            hitSlop={6}
+                          >
+                            <X size={14} color={colors.textMuted} />
+                          </Pressable>
+                        ) : null}
+                      </Pressable>
+                    </View>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>Before</Text>
+                      <Pressable
+                        style={styles.filterDateButton}
+                        onPress={() => setDatePickerField('dateBefore')}
+                      >
+                        <CalendarDays size={14} color={colors.textMuted} />
+                        <Text style={[styles.filterDateText, !filters.dateBefore && styles.filterDateTextEmpty]}>
+                          {filters.dateBefore || 'YYYY-MM-DD'}
+                        </Text>
+                        {filters.dateBefore ? (
+                          <Pressable
+                            onPress={() => setFilterField('dateBefore', undefined)}
+                            hitSlop={6}
+                          >
+                            <X size={14} color={colors.textMuted} />
+                          </Pressable>
+                        ) : null}
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterToggleGroup}>
+                    <TriToggle
+                      icon={<Paperclip size={14} color={colors.textSecondary} />}
+                      label="Has attachment"
+                      value={filters.hasAttachment}
+                      onPress={() => cycleTriState('hasAttachment')}
+                    />
+                    <TriToggle
+                      icon={<Star size={14} color={colors.starred} fill={filters.isStarred ? colors.starred : 'transparent'} />}
+                      label="Starred"
+                      value={filters.isStarred}
+                      onPress={() => cycleTriState('isStarred')}
+                    />
+                    <TriToggle
+                      icon={
+                        filters.isUnread === false ? (
+                          <MailOpen size={14} color={colors.textSecondary} />
+                        ) : (
+                          <MailIcon size={14} color={colors.textSecondary} />
+                        )
+                      }
+                      label={filters.isUnread === false ? 'Read' : 'Unread'}
+                      value={filters.isUnread}
+                      onPress={() => cycleTriState('isUnread')}
+                    />
+                  </View>
+                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {datePickerField !== null && (() => {
+        const current = filters[datePickerField];
+        const initial = current ? new Date(current) : new Date();
+        const onChange = (event: DateTimePickerEvent, selected?: Date) => {
+          if (Platform.OS === 'android') {
+            setDatePickerField(null);
+          }
+          if (event.type === 'dismissed' || !selected) return;
+          const iso = selected.toISOString().slice(0, 10);
+          setFilterField(datePickerField, iso);
+        };
+        if (Platform.OS === 'ios') {
+          return (
+            <Modal transparent animationType="fade" onRequestClose={() => setDatePickerField(null)}>
+              <Pressable style={styles.pickerOverlay} onPress={() => setDatePickerField(null)} />
+              <View style={styles.pickerSheet}>
+                <View style={styles.pickerHeader}>
+                  <Pressable onPress={() => setDatePickerField(null)} hitSlop={8}>
+                    <Text style={styles.pickerDone}>Done</Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={initial}
+                  mode="date"
+                  display="spinner"
+                  onChange={onChange}
+                />
+              </View>
+            </Modal>
+          );
+        }
+        return (
+          <DateTimePicker
+            value={initial}
+            mode="date"
+            display="default"
+            onChange={onChange}
+          />
+        );
+      })()}
     </SafeAreaView>
   );
 }
 
-function FilterToggle({
-  label, icon, active, onPress,
-}: { label: string; icon: React.ReactNode; active: boolean; onPress: () => void }) {
+function TriToggle({
+  icon,
+  label,
+  value,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: boolean | undefined;
+  onPress: () => void;
+}) {
+  const state =
+    value === true ? 'on' : value === false ? 'off' : 'unset';
   return (
     <Pressable
-      style={({ pressed }) => [styles.filterToggle, pressed && styles.filterTogglePressed]}
       onPress={onPress}
+      style={[
+        styles.triToggle,
+        state === 'on' && styles.triToggleOn,
+        state === 'off' && styles.triToggleOff,
+      ]}
     >
-      <View style={styles.filterToggleLeft}>
-        {icon}
-        <Text style={styles.filterToggleLabel}>{label}</Text>
-      </View>
-      <View style={[styles.filterCheck, active && styles.filterCheckActive]}>
-        {active && <Check size={14} color={colors.background} />}
-      </View>
+      {icon}
+      <Text
+        style={[
+          styles.triToggleText,
+          state === 'on' && styles.triToggleTextOn,
+          state === 'off' && styles.triToggleTextOff,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -501,63 +871,159 @@ const styles = StyleSheet.create({
   },
   filterMenu: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 380,
+    maxHeight: '85%',
     backgroundColor: colors.popover,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.sm,
   },
-  filterMenuTitle: {
-    ...typography.bodySemibold,
-    color: colors.text,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  filterToggle: {
+  filterMenuHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  filterTogglePressed: {
-    backgroundColor: colors.surfaceHover,
-  },
-  filterToggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  filterToggleLabel: {
-    ...typography.body,
+  filterMenuTitle: {
+    ...typography.bodySemibold,
     color: colors.text,
   },
-  filterCheck: {
-    width: 20,
-    height: 20,
+  filterMenuHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  filterMenuHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     borderRadius: radius.xs,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  },
+  filterMenuHeaderBtnText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  filterMenuClose: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: radius.xs,
   },
-  filterCheckActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  filterMenuBody: {
+    padding: spacing.lg,
+    gap: spacing.md,
   },
-  filterClearRow: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+  filterFieldRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  filterFieldHalf: { flex: 1 },
+  filterFieldLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginBottom: 4,
+  },
+  filterFieldInput: {
+    ...typography.body,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    height: 32,
+  },
+  filterDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    height: 32,
+  },
+  filterDateText: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+  },
+  filterDateTextEmpty: {
+    color: colors.textMuted,
+  },
+  filterToggleGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: 4,
+  },
+  triToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  triToggleOn: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  triToggleOff: {
+    backgroundColor: colors.muted,
+    borderColor: colors.border,
+  },
+  triToggleText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  triToggleTextOn: {
+    color: colors.primary,
+  },
+  triToggleTextOff: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  pickerSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.popover,
+    paddingBottom: spacing.xl,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginTop: spacing.xs,
+    borderColor: colors.border,
   },
-  filterClearText: {
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  pickerDone: {
     ...typography.bodyMedium,
-    color: colors.error,
+    color: colors.primary,
   },
 
   // Email list — matches web email-list-item
@@ -571,6 +1037,22 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,   // border-b border-border
   },
   emailRowPressed: { backgroundColor: colors.surface },
+  emailRowSelected: { backgroundColor: colors.selection },
+  rowCheckboxWrap: {
+    width: 16,
+    height: componentSizes.avatarMd,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxIndeterminate: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.xs,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emailContent: { flex: 1, minWidth: 0 },
   emailHeaderRow: {
     flexDirection: 'row',

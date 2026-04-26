@@ -418,6 +418,18 @@ export interface StateChange {
   changed: Record<string, Record<string, string>>;
 }
 
+// RFC 8620 §7.2. A PushSubscription is session-scoped (not per-account) and
+// tells the server where to deliver StateChange events for the listed types.
+export interface PushSubscription {
+  id: string;
+  deviceClientId: string;
+  url: string;
+  keys?: { p256dh: string; auth: string } | null;
+  verificationCode?: string | null;
+  expires?: string | null;
+  types?: string[] | null;
+}
+
 // ─── Capability URNs ────────────────────────────────────
 
 export const CAPABILITIES = {

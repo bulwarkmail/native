@@ -54,9 +54,17 @@ export function AgendaView({
     for (let i = 0; i < daysAhead; i++) {
       const day = new Date(start);
       day.setDate(start.getDate() + i);
-      const dayEvents = eventsOnDayFromIndex(index, day).slice().sort(
-        (a, b) => getEventStartDate(a).getTime() - getEventStartDate(b).getTime(),
-      );
+      const dayEvents = eventsOnDayFromIndex(index, day).slice().sort((a, b) => {
+        // All-day events first within a day, then by start time, then title
+        // (stable tie-break) — mirrors the comparator the webmail uses for
+        // packing week segments and keeps multi-event days predictable.
+        if (a.showWithoutTime !== b.showWithoutTime) {
+          return a.showWithoutTime ? -1 : 1;
+        }
+        const diff = getEventStartDate(a).getTime() - getEventStartDate(b).getTime();
+        if (diff !== 0) return diff;
+        return (a.title || '').localeCompare(b.title || '');
+      });
       if (dayEvents.length === 0 && !isToday(day)) continue;
       result.push({
         title: formatDayHeader(day),

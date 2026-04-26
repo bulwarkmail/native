@@ -18,8 +18,15 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
-# Metro
+# Metro / Expo dev-server logs
 .metro-health-check*
+metro.log
+expo.log
+expo-run.log
+scripts/*.log
+
+# Scratch
+tmp-*
 
 # debug
 npm-debug.*
@@ -38,4 +45,18 @@ yarn-error.*
 
 # generated native folders
 /ios
-/android
+
+# Android build outputs (track the project itself, not its build artifacts)
+/android/.gradle/
+/android/.idea/
+/android/.kotlin/
+/android/build/
+/android/app/build/
+/android/app/.cxx/
+/android/local.properties
+/android/captures/
+/android/*.iml
+/android/app/*.iml
+/android/build-release.log
+/android/expo*.log
+/android/metro.log

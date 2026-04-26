@@ -1,6 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { Email, EmailAddress, Mailbox, Thread } from './types';
+import { toWildcardQuery } from '../lib/search-utils';
 
 const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -131,9 +132,27 @@ export async function searchEmails(
   limit = 30,
 ): Promise<string[]> {
   const accountId = jmapClient.accountId;
-  const filter: Record<string, unknown> = { text: query };
+  const filter: Record<string, unknown> = { text: toWildcardQuery(query) };
   if (mailboxId) filter.inMailbox = mailboxId;
 
+  const res = await jmapClient.request([
+    ['Email/query', {
+      accountId,
+      filter,
+      sort: [{ property: 'receivedAt', isAscending: false }],
+      limit,
+    }, '0'],
+  ]);
+  return res.methodResponses[0][1].ids;
+}
+
+// Cross-mailbox query with an arbitrary JMAP filter (used by contact activity
+// to search "from OR to <addresses>" without picking a specific mailbox).
+export async function queryEmailsByFilter(
+  filter: Record<string, unknown>,
+  limit = 5,
+): Promise<string[]> {
+  const accountId = jmapClient.accountId;
   const res = await jmapClient.request([
     ['Email/query', {
       accountId,

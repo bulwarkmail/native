@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ContactCard, AddressBook, StateChange } from '../api/types';
 import {
@@ -59,7 +60,9 @@ function persistCategory(category: ContactCategory): void {
   );
 }
 
-export const useContactsStore = create<ContactsState>((set, get) => ({
+export const useContactsStore = create<ContactsState>()(
+  persist(
+    (set, get) => ({
   addressBooks: [],
   contacts: [],
   selectedCategory: { type: 'all' },
@@ -185,7 +188,20 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
     loading: false,
     error: null,
   }),
-}));
+    }),
+    {
+      // Persist address books and contact cards so the list renders instantly
+      // on re-open. A refresh runs in the background once the JMAP session is
+      // ready and replaces the cached data.
+      name: 'contacts-cache',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        addressBooks: state.addressBooks,
+        contacts: state.contacts,
+      }),
+    },
+  ),
+);
 
 // ─── Selectors ───────────────────────────────────────────
 

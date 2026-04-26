@@ -1,8 +1,91 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { StateChange } from './types';
+import type { PushSubscription, StateChange } from './types';
 
 export type StateChangeHandler = (change: StateChange) => void;
+
+// ─── PushSubscription (RFC 8620 §7.2) ───────────────────
+
+export async function listPushSubscriptions(): Promise<PushSubscription[]> {
+  const res = await jmapClient.request(
+    [['PushSubscription/get', { ids: null }, '0']],
+    [CAPABILITIES.CORE],
+  );
+  const [, body] = res.methodResponses[0] ?? [];
+  return (body?.list as PushSubscription[]) ?? [];
+}
+
+/**
+ * Create a PushSubscription pointing the JMAP server at the given relay URL.
+ * Returns the server-assigned id (which the client also registers with the
+ * relay so the relay can route incoming pushes to an Expo token).
+ */
+export async function createPushSubscription(params: {
+  deviceClientId: string;
+  url: string;
+  types: string[];
+}): Promise<string> {
+  const res = await jmapClient.request(
+    [
+      [
+        'PushSubscription/set',
+        {
+          create: {
+            new: {
+              deviceClientId: params.deviceClientId,
+              url: params.url,
+              types: params.types,
+            },
+          },
+        },
+        '0',
+      ],
+    ],
+    [CAPABILITIES.CORE],
+  );
+  const [, body] = res.methodResponses[0] ?? [];
+  const created = body?.created?.new as { id?: string } | undefined;
+  if (!created?.id) {
+    const notCreated = body?.notCreated?.new;
+    throw new Error(
+      `PushSubscription/set create failed: ${JSON.stringify(notCreated ?? body)}`,
+    );
+  }
+  return created.id;
+}
+
+/**
+ * Send the verification code back to the server — the call that flips the
+ * subscription from pending to active (RFC 8620 §7.2.2).
+ */
+export async function verifyPushSubscription(
+  id: string,
+  verificationCode: string,
+): Promise<void> {
+  const res = await jmapClient.request(
+    [
+      [
+        'PushSubscription/set',
+        { update: { [id]: { verificationCode } } },
+        '0',
+      ],
+    ],
+    [CAPABILITIES.CORE],
+  );
+  const [, body] = res.methodResponses[0] ?? [];
+  if (body?.notUpdated?.[id]) {
+    throw new Error(
+      `PushSubscription verification failed: ${JSON.stringify(body.notUpdated[id])}`,
+    );
+  }
+}
+
+export async function destroyPushSubscription(id: string): Promise<void> {
+  await jmapClient.request(
+    [['PushSubscription/set', { destroy: [id] }, '0']],
+    [CAPABILITIES.CORE],
+  );
+}
 
 /**
  * Connect to the JMAP EventSource (SSE) endpoint for real-time push updates.

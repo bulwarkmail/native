@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Calendar, CalendarEvent, StateChange } from '../api/types';
 import {
@@ -60,7 +61,9 @@ function unionRange(loaded: LoadedRange, after: string, before: string): LoadedR
   };
 }
 
-export const useCalendarStore = create<CalendarState>((set, get) => ({
+export const useCalendarStore = create<CalendarState>()(
+  persist(
+    (set, get) => ({
   calendars: [],
   events: [],
   hiddenCalendarIds: [],
@@ -205,7 +208,21 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     loading: false,
     error: null,
   }),
-}));
+    }),
+    {
+      // Persist calendars + expanded events + the range they cover so the
+      // calendar renders instantly on re-open. A refresh happens in the
+      // background and replaces the cached data with fresh copies.
+      name: 'calendar-cache',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        calendars: state.calendars,
+        events: state.events,
+        loadedRange: state.loadedRange,
+      }),
+    },
+  ),
+);
 
 // ─── Selectors ───────────────────────────────────────────
 export function selectVisibleCalendars(state: CalendarState): Calendar[] {

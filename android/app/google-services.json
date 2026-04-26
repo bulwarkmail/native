@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "504486613721",
+    "project_id": "bulwark-mobile",
+    "storage_bucket": "bulwark-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:504486613721:android:69a5d7ba9148fb14cb24c8",
+        "android_client_info": {
+          "package_name": "com.anonymous.bulwarkmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4Zyu1BU4YNYy4SOK5te3EhSRHRGoMZno"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:504486613721:android:14c6a69aa49cac3ecb24c8",
+        "android_client_info": {
+          "package_name": "com.bulwark.bulwarkmobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4Zyu1BU4YNYy4SOK5te3EhSRHRGoMZno"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

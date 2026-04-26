@@ -1,14 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, LogOut, Settings,
+  ArrowLeft, LogOut, Settings, ChevronRight,
   Palette, Mail, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive, Wrench,
   BookUser, KeyRound, PanelLeftClose, Bell, Puzzle,
   type LucideIcon,
 } from 'lucide-react-native';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { EmailSettings } from '../components/settings/EmailSettings';
+import { NotificationSettings } from '../components/settings/NotificationSettings';
+import { AccountSettings } from '../components/settings/AccountSettings';
+import { IdentitySettings } from '../components/settings/IdentitySettings';
+import { VacationSettings } from '../components/settings/VacationSettings';
+import { FolderSettings } from '../components/settings/FolderSettings';
+import { AdvancedSettings } from '../components/settings/AdvancedSettings';
 
 type Tab =
   | 'appearance' | 'email' | 'notifications'
@@ -25,6 +32,7 @@ interface TabDef {
   icon: LucideIcon;
   group: TabGroup;
   experimental?: boolean;
+  implemented: boolean;
 }
 
 const GROUP_LABELS: Record<TabGroup, string> = {
@@ -38,26 +46,36 @@ const GROUP_LABELS: Record<TabGroup, string> = {
 const GROUP_ORDER: TabGroup[] = ['general', 'account', 'organization', 'apps', 'system'];
 
 const TABS: TabDef[] = [
-  { id: 'appearance',   label: 'Appearance',            icon: Palette,        group: 'general' },
-  { id: 'email',        label: 'Email',                 icon: Mail,           group: 'general' },
-  { id: 'notifications',label: 'Notifications',         icon: Bell,           group: 'general' },
-  { id: 'account',      label: 'Account',               icon: User,           group: 'account' },
-  { id: 'security',     label: 'Security',              icon: Shield,         group: 'account' },
-  { id: 'identities',   label: 'Identities',            icon: UserPen,        group: 'account' },
-  { id: 'encryption',   label: 'S/MIME Encryption',     icon: KeyRound,       group: 'account' },
-  { id: 'vacation',     label: 'Vacation Responder',    icon: Palmtree,       group: 'account' },
-  { id: 'filters',      label: 'Filters & Rules',       icon: Filter,         group: 'organization' },
-  { id: 'templates',    label: 'Templates',             icon: FileText,       group: 'organization' },
-  { id: 'folders',      label: 'Folders',               icon: FolderOpen,     group: 'organization' },
-  { id: 'keywords',     label: 'Keywords & Labels',     icon: Tags,           group: 'organization' },
-  { id: 'calendar',     label: 'Calendar',              icon: Calendar,       group: 'apps' },
-  { id: 'contacts',     label: 'Contacts',              icon: BookUser,       group: 'apps' },
-  { id: 'files',        label: 'Files',                 icon: HardDrive,      group: 'apps' },
-  { id: 'sidebar_apps', label: 'Sidebar Apps',          icon: PanelLeftClose, group: 'apps' },
-  { id: 'themes',       label: 'Themes',                icon: Palette,        group: 'system', experimental: true },
-  { id: 'plugins',      label: 'Plugins',               icon: Puzzle,         group: 'system', experimental: true },
-  { id: 'advanced',     label: 'Advanced',              icon: Wrench,         group: 'system' },
+  { id: 'appearance',   label: 'Appearance',            icon: Palette,        group: 'general',      implemented: false },
+  { id: 'email',        label: 'Email',                 icon: Mail,           group: 'general',      implemented: true },
+  { id: 'notifications',label: 'Notifications',         icon: Bell,           group: 'general',      implemented: true },
+  { id: 'account',      label: 'Account',               icon: User,           group: 'account',      implemented: true },
+  { id: 'security',     label: 'Security',              icon: Shield,         group: 'account',      implemented: false },
+  { id: 'identities',   label: 'Identities',            icon: UserPen,        group: 'account',      implemented: true },
+  { id: 'encryption',   label: 'S/MIME Encryption',     icon: KeyRound,       group: 'account',      implemented: false },
+  { id: 'vacation',     label: 'Vacation Responder',    icon: Palmtree,       group: 'account',      implemented: true },
+  { id: 'filters',      label: 'Filters & Rules',       icon: Filter,         group: 'organization', implemented: false },
+  { id: 'templates',    label: 'Templates',             icon: FileText,       group: 'organization', implemented: false },
+  { id: 'folders',      label: 'Folders',               icon: FolderOpen,     group: 'organization', implemented: true },
+  { id: 'keywords',     label: 'Keywords & Labels',     icon: Tags,           group: 'organization', implemented: false },
+  { id: 'calendar',     label: 'Calendar',              icon: Calendar,       group: 'apps',         implemented: false },
+  { id: 'contacts',     label: 'Contacts',              icon: BookUser,       group: 'apps',         implemented: false },
+  { id: 'files',        label: 'Files',                 icon: HardDrive,      group: 'apps',         implemented: false },
+  { id: 'sidebar_apps', label: 'Sidebar Apps',          icon: PanelLeftClose, group: 'apps',         implemented: false },
+  { id: 'themes',       label: 'Themes',                icon: Palette,        group: 'system',       experimental: true, implemented: false },
+  { id: 'plugins',      label: 'Plugins',               icon: Puzzle,         group: 'system',       experimental: true, implemented: false },
+  { id: 'advanced',     label: 'Advanced',              icon: Wrench,         group: 'system',       implemented: true },
 ];
+
+const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
+  email: EmailSettings,
+  notifications: NotificationSettings,
+  account: AccountSettings,
+  identities: IdentitySettings,
+  vacation: VacationSettings,
+  folders: FolderSettings,
+  advanced: AdvancedSettings,
+};
 
 function groupTabs() {
   return GROUP_ORDER.map(group => ({
@@ -74,7 +92,39 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ onLogout, onBack, onTabSelect }: SettingsScreenProps) {
+  const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
   const groupedTabs = groupTabs();
+
+  const handleTabPress = (tab: TabDef) => {
+    if (!tab.implemented) return;
+    setSelectedTab(tab.id);
+    onTabSelect?.(tab.id);
+  };
+
+  if (selectedTab) {
+    const tabDef = TABS.find(t => t.id === selectedTab)!;
+    const Component = TAB_COMPONENTS[selectedTab];
+    const TabIcon = tabDef.icon;
+
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable
+            onPress={() => setSelectedTab(null)}
+            style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
+          >
+            <ArrowLeft size={20} color={colors.text} />
+          </Pressable>
+          <TabIcon size={20} color={colors.mutedForeground} />
+          <Text style={styles.headerTitle}>{tabDef.label}</Text>
+        </View>
+
+        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
+          {Component ? <Component /> : null}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -103,16 +153,42 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
               {group.items.map((tab) => {
                 const Icon = tab.icon;
+                const disabled = !tab.implemented;
                 return (
-                  <View key={tab.id} style={[styles.tabItem, styles.tabItemDisabled]}>
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => handleTabPress(tab)}
+                    disabled={disabled}
+                    style={({ pressed }) => [
+                      styles.tabItem,
+                      disabled && styles.tabItemDisabled,
+                      !disabled && pressed && styles.tabItemPressed,
+                    ]}
+                  >
                     <View style={styles.tabItemLeft}>
                       <Icon size={16} color={colors.mutedForeground} />
-                      <Text style={[styles.tabItemLabel, styles.tabItemLabelDisabled]}>{tab.label}</Text>
+                      <Text
+                        style={[
+                          styles.tabItemLabel,
+                          disabled && styles.tabItemLabelDisabled,
+                        ]}
+                      >
+                        {tab.label}
+                      </Text>
+                      {tab.experimental && !disabled && (
+                        <View style={styles.experimentalBadge}>
+                          <Text style={styles.experimentalText}>Experimental</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={styles.notWorkingBadge}>
-                      <Text style={styles.notWorkingText}>Not working yet</Text>
-                    </View>
-                  </View>
+                    {disabled ? (
+                      <View style={styles.notWorkingBadge}>
+                        <Text style={styles.notWorkingText}>Not implemented</Text>
+                      </View>
+                    ) : (
+                      <ChevronRight size={16} color={colors.mutedForeground} />
+                    )}
+                  </Pressable>
                 );
               })}
             </View>
@@ -169,6 +245,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    paddingBottom: 40,
+  },
+  detailContent: {
+    padding: spacing.lg,
     paddingBottom: 40,
   },
 

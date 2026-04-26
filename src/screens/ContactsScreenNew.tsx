@@ -28,6 +28,7 @@ import { getContactDisplayName, isGroup, matchesContactSearch } from '../lib/con
 import { ContactListRow } from '../components/contacts';
 import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
+import { useSettingsStore } from '../stores/settings-store';
 import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -88,6 +89,7 @@ export default function ContactsScreen() {
   const hydrate = useContactsStore((s) => s.hydrate);
   const bulkDelete = useContactsStore((s) => s.bulkDelete);
   const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
+  const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [searchActive, setSearchActive] = React.useState(false);
@@ -137,7 +139,11 @@ export default function ContactsScreen() {
     return filtered.filter((c) => matchesContactSearch(c, searchQuery));
   }, [contacts, individuals, selectedCategory, searchQuery]);
 
-  const sections = React.useMemo(() => groupContacts(visible), [visible]);
+  const sections = React.useMemo<Section[]>(() => {
+    if (groupByLetter) return groupContacts(visible);
+    // Flat list — single unnamed section keeps SectionList rendering simple.
+    return [{ title: '', data: sortContactsByDisplayName(visible) }];
+  }, [visible, groupByLetter]);
 
   const selectionMode = selection.size > 0;
   const toggleSelect = (id: string) => {
@@ -323,11 +329,13 @@ export default function ContactsScreen() {
             selectionMode={selectionMode}
           />
         )}
-        renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderText}>{section.title}</Text>
-          </View>
-        )}
+        renderSectionHeader={({ section }) =>
+          section.title ? (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeaderText}>{section.title}</Text>
+            </View>
+          ) : null
+        }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         stickySectionHeadersEnabled
         contentContainerStyle={styles.listContent}

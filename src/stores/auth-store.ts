@@ -6,6 +6,21 @@ import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { generateAccountId } from '../lib/account-utils';
+import { teardownPushNotifications } from '../lib/push-notifications';
+
+// Persist middleware hydrates asynchronously on cold start. Without this
+// guard, restoreSession() can read the account-store before AsyncStorage has
+// loaded the previous active account, then short-circuit to LoginScreen even
+// though the user is actually signed in.
+async function waitForHydration(store: { persist: { hasHydrated: () => boolean; onFinishHydration: (cb: () => void) => () => void } }): Promise<void> {
+  if (store.persist.hasHydrated()) return;
+  await new Promise<void>((resolve) => {
+    const unsubscribe = store.persist.onFinishHydration(() => {
+      unsubscribe();
+      resolve();
+    });
+  });
+}
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -35,9 +50,22 @@ function resetFeatureStores(): void {
 
 function refetchFeatureStores(): void {
   // Fire-and-forget: each store handles its own errors.
-  void useEmailStore.getState().fetchMailboxes();
+  const emailStore = useEmailStore.getState();
+  void emailStore.fetchMailboxes();
+  // If a mailbox was selected before this restore (cached from last session),
+  // refresh its contents so the user sees up-to-date mail without manually
+  // pulling to refresh.
+  if (emailStore.currentMailboxId) {
+    void emailStore.refreshEmails();
+  }
   void useContactsStore.getState().fetchContacts();
-  void useCalendarStore.getState().fetchCalendars();
+  const calendarStore = useCalendarStore.getState();
+  void calendarStore.fetchCalendars();
+  // Refresh the event range cached from last session (if any) so recurring
+  // events reflect new invitations / cancellations without the user swiping.
+  if (calendarStore.loadedRange) {
+    void calendarStore.refresh();
+  }
 }
 
 function applyConnectedState(
@@ -114,6 +142,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const accountStore = useAccountStore.getState();
     const currentId = get().activeAccountId;
 
+    // Best-effort: revoke the JMAP PushSubscription and drop the relay
+    // mapping before we lose credentials. Do not abort logout on failure.
+    await teardownPushNotifications().catch(() => undefined);
+
     // Clear credentials for this account first
     if (currentId) {
       await jmapClient.clearAccountCredentials(currentId);
@@ -154,6 +186,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logoutAll: async () => {
     const accountStore = useAccountStore.getState();
     const ids = accountStore.accounts.map((a) => a.id);
+    await teardownPushNotifications().catch(() => undefined);
     await jmapClient.clearAllCredentials(ids);
     jmapClient.reset();
     resetFeatureStores();
@@ -215,6 +248,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   restoreSession: async () => {
     set({ isLoading: true });
     try {
+      // Wait for persisted caches to finish hydrating from AsyncStorage.
+      // Otherwise we read empty defaults and bounce the user back to the
+      // login screen — and the feature stores don't have their cached data
+      // yet when refetchFeatureStores() checks currentMailboxId / loadedRange
+      // at the end of this function.
+      await Promise.all([
+        waitForHydration(useAccountStore),
+        waitForHydration(useEmailStore),
+        waitForHydration(useCalendarStore),
+        waitForHydration(useContactsStore),
+      ]);
       const accountStore = useAccountStore.getState();
 
       // Legacy migration: if there are no registered accounts but the old
@@ -254,6 +298,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const session = jmapClient.currentSession!;
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
+      // Refresh the cached mailbox list + current folder now that the session
+      // is live. Feature stores show persisted data immediately; this swaps
+      // in fresh data once the network round-trip completes.
+      refetchFeatureStores();
       return true;
     } catch {
       set({ isLoading: false, hasRestoredSession: true });

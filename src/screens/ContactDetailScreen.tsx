@@ -10,6 +10,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, MessageSquare, Share2, MapPin,
   Building, Briefcase, Cake, Heart, Globe, Tag, Users, FileText, BookUser,
+  Copy,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
@@ -22,6 +23,7 @@ import {
 import { contactToVCard } from '../lib/vcard';
 import SenderAvatar from '../components/SenderAvatar';
 import Dialog from '../components/Dialog';
+import { ContactActivity } from '../components/contacts/ContactActivity';
 import { colors, spacing, radius, typography } from '../theme/tokens';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactDetail'>;
@@ -79,6 +81,7 @@ export default function ContactDetailScreen() {
   const contact = useContactsStore((s) => s.contacts.find((c) => c.id === contactId));
   const addressBooks = useContactsStore((s) => s.addressBooks);
   const deleteContact = useContactsStore((s) => s.deleteContact);
+  const createContact = useContactsStore((s) => s.createContact);
 
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
@@ -147,6 +150,35 @@ export default function ContactDetailScreen() {
     }
   };
 
+  const doDuplicate = async () => {
+    const targetBookId = bookIds[0] || addressBooks[0]?.id;
+    if (!targetBookId) {
+      Alert.alert('No address book', 'Cannot duplicate without an address book.');
+      return;
+    }
+    // Strip server-managed identity fields and re-create as a new card.
+    const {
+      id: _id,
+      addressBookIds: _abIds,
+      created: _created,
+      updated: _updated,
+      ...rest
+    } = contact;
+    const baseName =
+      (rest.name?.full ? `${rest.name.full} (Copy)` : null) ??
+      `${name} (Copy)`;
+    const draft: Partial<ContactCard> = {
+      ...rest,
+      name: rest.name ? { ...rest.name, full: baseName } : { full: baseName },
+    };
+    try {
+      const created = await createContact(draft, targetBookId);
+      navigation.replace('ContactDetail', { contactId: created.id });
+    } catch (err) {
+      Alert.alert('Duplicate failed', err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -155,6 +187,15 @@ export default function ContactDetailScreen() {
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{name}</Text>
         <View style={styles.headerActions}>
+          {!isGroup(contact) && (
+            <Pressable
+              onPress={() => { void doDuplicate(); }}
+              style={styles.headerBtn}
+              hitSlop={8}
+            >
+              <Copy size={18} color={colors.text} />
+            </Pressable>
+          )}
           <Pressable
             onPress={() => navigation.navigate('ContactForm', { contactId: contact.id })}
             style={styles.headerBtn}
@@ -362,6 +403,8 @@ export default function ContactDetailScreen() {
             ))}
           </Section>
         )}
+
+        {!isGroup(contact) && <ContactActivity contact={contact} />}
       </ScrollView>
 
       <Dialog

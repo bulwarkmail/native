@@ -11,9 +11,14 @@ import type { Calendar, CalendarEvent } from '../../api/types';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import {
   buildEventDayIndex,
+  buildTimedFullDayWeekSegments,
+  buildWeekSegmentsRaw,
   eventsOnDayFromIndex,
   getEventColor,
+  isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
+  packWeekSegments,
+  type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
 
@@ -56,25 +61,38 @@ export function WeekView({
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }, [selectedDate, weekStartsOn]);
 
-  const allDayByDay = React.useMemo(() => {
-    return weekDays.map((day) =>
-      eventsOnDayFromIndex(index, day).filter((e) => e.showWithoutTime),
+  // Multi-day all-day events render as one bar across the days they span.
+  // Timed events that consume the entire day get promoted to this strip too.
+  const allDaySegments = React.useMemo<CalendarWeekSegment[]>(() => {
+    const explicit = buildWeekSegmentsRaw(
+      events.filter((e) => e.showWithoutTime),
+      weekDays,
     );
-  }, [weekDays, index]);
+    const timedFull = buildTimedFullDayWeekSegments(
+      events.filter((e) => !e.showWithoutTime),
+      weekDays,
+    );
+    return packWeekSegments([...explicit, ...timedFull]);
+  }, [events, weekDays]);
 
   const allDayRowCount = React.useMemo(() => {
-    return allDayByDay.reduce((max, list) => Math.max(max, list.length), 0);
-  }, [allDayByDay]);
+    return allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0);
+  }, [allDaySegments]);
 
   const allDayStripHeight =
     allDayRowCount > 0
       ? allDayRowCount * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs
       : 0;
 
+  // Timed grid excludes events that fill the full day on that day — they're
+  // already promoted to the all-day strip above.
   const layoutsByDay = React.useMemo(() => {
-    return weekDays.map((day) =>
-      layoutOverlappingEvents(eventsOnDayFromIndex(index, day), day),
-    );
+    return weekDays.map((day) => {
+      const dayEvents = eventsOnDayFromIndex(index, day).filter(
+        (e) => !e.showWithoutTime && !isTimedEventFullDayOnDate(e, day),
+      );
+      return layoutOverlappingEvents(dayEvents, day);
+    });
   }, [weekDays, index]);
 
   const [nowMinutes, setNowMinutes] = React.useState(() => {
@@ -148,25 +166,45 @@ export function WeekView({
             <Text style={styles.allDayLabel}>all-day</Text>
           </View>
           <View style={styles.allDayGrid}>
-            {allDayByDay.map((dayEvents, idx) => (
-              <View key={idx} style={styles.allDayCol}>
-                {dayEvents.map((event) => (
+            {/* Empty per-day columns to draw vertical separators */}
+            {weekDays.map((day) => (
+              <View key={day.toISOString()} style={styles.allDayCol} />
+            ))}
+            {/* Segments overlay — multi-day events span their date range */}
+            <View style={styles.allDayOverlay} pointerEvents="box-none">
+              {allDaySegments.map((segment) => {
+                const color = getEventColor(segment.event, calendars);
+                const leftPct = (segment.startIndex / weekDays.length) * 100;
+                const widthPct = (segment.span / weekDays.length) * 100;
+                return (
                   <Pressable
-                    key={event.id}
+                    key={`${segment.event.id}:${segment.startIndex}:${segment.row}`}
+                    onPress={() => onSelectEvent?.(segment.event)}
                     style={[
                       styles.allDayChip,
-                      { backgroundColor: getEventColor(event, calendars) + '33' },
-                      { borderLeftColor: getEventColor(event, calendars) },
+                      {
+                        position: 'absolute',
+                        left: `${leftPct}%`,
+                        width: `${widthPct}%`,
+                        top: segment.row * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP),
+                        backgroundColor: color + '33',
+                        borderLeftColor: color,
+                        borderTopLeftRadius: segment.continuesBefore ? 0 : radius.xs,
+                        borderBottomLeftRadius: segment.continuesBefore ? 0 : radius.xs,
+                        borderTopRightRadius: segment.continuesAfter ? 0 : radius.xs,
+                        borderBottomRightRadius: segment.continuesAfter ? 0 : radius.xs,
+                        marginHorizontal: 1,
+                      },
                     ]}
-                    onPress={() => onSelectEvent?.(event)}
                   >
                     <Text style={styles.allDayChipText} numberOfLines={1}>
-                      {event.title || 'Untitled'}
+                      {segment.continuesBefore ? '… ' : ''}
+                      {segment.event.title || 'Untitled'}
                     </Text>
                   </Pressable>
-                ))}
-              </View>
-            ))}
+                );
+              })}
+            </View>
           </View>
         </View>
       )}
@@ -316,11 +354,18 @@ const styles = StyleSheet.create({
   },
   allDayLabelWrap: { alignItems: 'flex-end', justifyContent: 'flex-start', paddingRight: 4 },
   allDayLabel: { ...typography.small, color: colors.textMuted },
-  allDayGrid: { flex: 1, flexDirection: 'row' },
+  allDayGrid: { flex: 1, flexDirection: 'row', position: 'relative' },
   allDayCol: {
     flex: 1,
-    paddingHorizontal: 1,
-    gap: ALL_DAY_GAP,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.borderLight,
+  },
+  allDayOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   allDayChip: {
     height: ALL_DAY_CHIP_HEIGHT,

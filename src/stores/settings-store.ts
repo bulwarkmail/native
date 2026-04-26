@@ -11,12 +11,14 @@ interface PersistedSettings {
   externalContentPolicy: ExternalContentPolicy;
   trustedSenders: string[];
   senderFavicons: boolean;
+  groupContactsByLetter: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
   externalContentPolicy: 'ask',
   trustedSenders: [],
   senderFavicons: true,
+  groupContactsByLetter: true,
 };
 
 export interface SettingsState {
@@ -27,12 +29,14 @@ export interface SettingsState {
   externalContentPolicy: ExternalContentPolicy;
   trustedSenders: string[];
   senderFavicons: boolean;
+  groupContactsByLetter: boolean;
   hydrated: boolean;
 
   fetchIdentities: () => Promise<void>;
   hydrate: () => Promise<void>;
   setExternalContentPolicy: (policy: ExternalContentPolicy) => void;
   setSenderFavicons: (enabled: boolean) => void;
+  setGroupContactsByLetter: (enabled: boolean) => void;
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
@@ -53,6 +57,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   externalContentPolicy: DEFAULT_PERSISTED.externalContentPolicy,
   trustedSenders: DEFAULT_PERSISTED.trustedSenders,
   senderFavicons: DEFAULT_PERSISTED.senderFavicons,
+  groupContactsByLetter: DEFAULT_PERSISTED.groupContactsByLetter,
   hydrated: false,
 
   fetchIdentities: async () => {
@@ -75,6 +80,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           externalContentPolicy: parsed.externalContentPolicy ?? DEFAULT_PERSISTED.externalContentPolicy,
           trustedSenders: Array.isArray(parsed.trustedSenders) ? parsed.trustedSenders : [],
           senderFavicons: typeof parsed.senderFavicons === 'boolean' ? parsed.senderFavicons : DEFAULT_PERSISTED.senderFavicons,
+          groupContactsByLetter: typeof parsed.groupContactsByLetter === 'boolean' ? parsed.groupContactsByLetter : DEFAULT_PERSISTED.groupContactsByLetter,
           hydrated: true,
         });
         return;
@@ -91,6 +97,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       externalContentPolicy: policy,
       trustedSenders: get().trustedSenders,
       senderFavicons: get().senderFavicons,
+      groupContactsByLetter: get().groupContactsByLetter,
     });
   },
 
@@ -100,6 +107,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       externalContentPolicy: get().externalContentPolicy,
       trustedSenders: get().trustedSenders,
       senderFavicons: enabled,
+      groupContactsByLetter: get().groupContactsByLetter,
+    });
+  },
+
+  setGroupContactsByLetter: (enabled) => {
+    set({ groupContactsByLetter: enabled });
+    persist({
+      externalContentPolicy: get().externalContentPolicy,
+      trustedSenders: get().trustedSenders,
+      senderFavicons: get().senderFavicons,
+      groupContactsByLetter: enabled,
     });
   },
 
@@ -114,6 +132,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       externalContentPolicy: get().externalContentPolicy,
       trustedSenders: next,
       senderFavicons: get().senderFavicons,
+      groupContactsByLetter: get().groupContactsByLetter,
     });
   },
 
@@ -125,6 +144,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       externalContentPolicy: get().externalContentPolicy,
       trustedSenders: next,
       senderFavicons: get().senderFavicons,
+      groupContactsByLetter: get().groupContactsByLetter,
     });
   },
 
