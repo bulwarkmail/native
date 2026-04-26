@@ -54,4 +54,10 @@ gitInherit('commit', '-m', `chore: update version number to ${next}`);
 gitInherit('tag', '-a', next, '-m', next);
 gitInherit('push', '--follow-tags');
 
+execFileSync(
+  'gh',
+  ['release', 'create', next, '--title', next, '--generate-notes'],
+  { cwd: root, stdio: 'inherit' },
+);
+
 console.log(`Released ${next}`);
