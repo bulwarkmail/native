@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Download, X } from 'lucide-react-native';
 import { useUpdatesStore } from '../stores/updates-store';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -8,6 +9,7 @@ import { useColors } from '../theme/colors';
 export function UpdateBanner(): React.ReactElement | null {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const insets = useSafeAreaInsets();
   const cachedLatest = useUpdatesStore((s) => s.cachedLatest);
   const dismissedTag = useUpdatesStore((s) => s.dismissedTag);
   const installing = useUpdatesStore((s) => s.installing);
@@ -20,7 +22,7 @@ export function UpdateBanner(): React.ReactElement | null {
   if (!cachedLatest?.apkAsset) return null;
 
   return (
-    <View style={styles.banner}>
+    <View style={[styles.banner, { paddingTop: spacing.md + insets.top }]}>
       <Download size={16} color={c.primaryForeground} />
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Update available</Text>

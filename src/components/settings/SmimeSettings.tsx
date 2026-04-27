@@ -119,18 +119,18 @@ export function SmimeSettings() {
         description="Public certificates used to encrypt outgoing mail."
       >
         <View style={{ gap: spacing.sm }}>
-          {certs.map((c) => {
-            const expired = isExpired(c.notAfter);
+          {certs.map((cert) => {
+            const expired = isExpired(cert.notAfter);
             return (
-              <View key={c.id} style={styles.certRow}>
+              <View key={cert.id} style={styles.certRow}>
                 <View style={styles.certLeft}>
                   <View style={[styles.certIcon, styles.certIconMuted]}>
                     <Users size={16} color={c.mutedForeground} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.certName} numberOfLines={1}>{c.email || c.subject}</Text>
+                    <Text style={styles.certName} numberOfLines={1}>{cert.email || cert.subject}</Text>
                     <Text style={styles.certMeta}>
-                      {c.issuer} · {c.source}
+                      {cert.issuer} · {cert.source}
                       {expired && <Text style={styles.expiredText}> (Expired)</Text>}
                     </Text>
                   </View>
@@ -139,7 +139,7 @@ export function SmimeSettings() {
                   <Pressable style={styles.iconBtn}>
                     <Eye size={16} color={c.text} />
                   </Pressable>
-                  <Pressable style={styles.iconBtn} onPress={() => deleteCert(c.id)}>
+                  <Pressable style={styles.iconBtn} onPress={() => deleteCert(cert.id)}>
                     <Trash2 size={16} color={c.error} />
                   </Pressable>
                 </View>

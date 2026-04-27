@@ -174,6 +174,6 @@ function makeStyles(c: ThemePalette) {
     paddingHorizontal: 16,
   },
   bandInner: { alignItems: 'center', gap: 4 },
-  bandLabel: { color: '#fff', fontWeight: '600', ...typography.caption },
+  bandLabel: { ...typography.caption, color: '#fff', fontWeight: '600' },
   });
 }

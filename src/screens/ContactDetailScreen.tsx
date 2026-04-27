@@ -30,26 +30,30 @@ import { useColors } from '../theme/colors';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactDetail'>;
 type Route = RouteProp<RootStackParamList, 'ContactDetail'>;
 
-const CATEGORY_COLORS: Record<string, string> = {
-  contact: c.primary,
-  work: c.calendar.orange,
-  location: c.calendar.green,
-  personal: c.calendar.pink,
-  digital: c.calendar.teal,
-  notes: c.calendar.purple,
-};
+type Category = 'contact' | 'work' | 'location' | 'personal' | 'digital' | 'notes';
+
+function categoryColor(c: ThemePalette, category: Category): string {
+  switch (category) {
+    case 'contact': return c.primary;
+    case 'work': return c.calendar.orange;
+    case 'location': return c.calendar.green;
+    case 'personal': return c.calendar.pink;
+    case 'digital': return c.calendar.teal;
+    case 'notes': return c.calendar.purple;
+  }
+}
 
 function Section({
   icon, title, category = 'contact', children,
 }: {
   icon: React.ReactNode;
   title: string;
-  category?: keyof typeof CATEGORY_COLORS;
+  category?: Category;
   children: React.ReactNode;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const accent = CATEGORY_COLORS[category] || c.primary;
+  const accent = categoryColor(c, category);
   return (
     <View style={[styles.section, { borderLeftColor: accent }]}>
       <View style={styles.sectionHeader}>

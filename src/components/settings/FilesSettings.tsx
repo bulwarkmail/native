@@ -58,7 +58,7 @@ function formatSize(b: number) {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getIcon(file: SampleFile, colored: boolean, sz: number) {
+function getIcon(c: ThemePalette, file: SampleFile, colored: boolean, sz: number) {
   if (file.isFolder) return <Folder size={sz} color={colored ? '#60a5fa' : c.mutedForeground} />;
   const ext = file.name.split('.').pop()?.toLowerCase();
   switch (ext) {
@@ -96,7 +96,7 @@ function FilesPreview({ prefs }: { prefs: FilesPrefs }) {
         <View style={styles.gridWrap}>
           {files.map((f) => (
             <View key={f.name} style={[styles.gridItem, f.hidden && { opacity: 0.5 }]}>
-              {prefs.showIcons ? getIcon(f, prefs.coloredIcons, 24) : <View style={{ width: 24, height: 24 }} />}
+              {prefs.showIcons ? getIcon(c, f, prefs.coloredIcons, 24) : <View style={{ width: 24, height: 24 }} />}
               <Text style={styles.gridName} numberOfLines={1}>{f.name}</Text>
             </View>
           ))}
@@ -114,7 +114,7 @@ function FilesPreview({ prefs }: { prefs: FilesPrefs }) {
       </View>
       {files.map((f) => (
         <View key={f.name} style={[styles.listRow, f.hidden && { opacity: 0.5 }]}>
-          {prefs.showIcons && getIcon(f, prefs.coloredIcons, 14)}
+          {prefs.showIcons && getIcon(c, f, prefs.coloredIcons, 14)}
           <Text
             style={[styles.listName, f.isFolder && { fontWeight: '500' }]}
             numberOfLines={1}

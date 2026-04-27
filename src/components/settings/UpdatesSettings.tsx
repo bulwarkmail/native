@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -30,9 +30,8 @@ function formatProgressLabel(p: InstallProgress): string {
 function installButtonLabel(
   installing: boolean,
   progress: InstallProgress | null,
-  apkAsset: unknown,
 ): string {
-  if (!installing) return apkAsset ? 'Install' : 'Open release';
+  if (!installing) return 'Install';
   if (progress?.phase === 'installing') return 'Installing…';
   if (progress?.progress != null) return `Downloading ${Math.round(progress.progress * 100)}%`;
   return 'Downloading…';
@@ -62,14 +61,17 @@ export function UpdatesSettings() {
 
   const updateAvailable = hasUpdate();
   const apkAsset = cachedLatest?.apkAsset ?? null;
+  const apkPending = updateAvailable && !apkAsset;
+
+  useEffect(() => {
+    if (!apkPending) return;
+    const id = setInterval(() => {
+      void checkNow({ force: true });
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [apkPending, checkNow]);
 
   const onInstall = () => {
-    if (!apkAsset) {
-      if (cachedLatest?.htmlUrl) {
-        void Linking.openURL(cachedLatest.htmlUrl);
-      }
-      return;
-    }
     void installLatest();
   };
 
@@ -99,19 +101,38 @@ export function UpdatesSettings() {
         </SettingItem>
 
         <SettingItem
-          label={updateAvailable ? 'Update available' : 'Check for updates'}
-          description={updateAvailable
-            ? `Tap install to download v${cachedLatest?.tag} and open it with Android's package installer.`
-            : undefined}
+          label={
+            apkPending
+              ? 'Update building'
+              : updateAvailable
+                ? 'Update available'
+                : 'Check for updates'
+          }
+          description={
+            apkPending
+              ? `v${cachedLatest?.tag} was published, but the APK is still being built. This page will check again every 30 seconds.`
+              : updateAvailable
+                ? `Tap install to download v${cachedLatest?.tag} and open it with Android's package installer.`
+                : undefined
+          }
         >
-          {updateAvailable ? (
+          {apkPending ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => void checkNow({ force: true })}
+              disabled={checking}
+            >
+              {checking ? 'Checking…' : 'Check again'}
+            </Button>
+          ) : updateAvailable ? (
             <Button
               variant="default"
               size="sm"
               onPress={onInstall}
               disabled={installing}
             >
-              {installButtonLabel(installing, installProgress, apkAsset)}
+              {installButtonLabel(installing, installProgress)}
             </Button>
           ) : (
             <Button
@@ -124,6 +145,21 @@ export function UpdatesSettings() {
             </Button>
           )}
         </SettingItem>
+
+        {apkPending && cachedLatest?.htmlUrl ? (
+          <SettingItem
+            label="Release page"
+            description="Watch the build progress or download the APK manually."
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => void Linking.openURL(cachedLatest.htmlUrl)}
+            >
+              Open on GitHub
+            </Button>
+          </SettingItem>
+        ) : null}
 
         {installing && installProgress ? (
           <View style={styles.progressBox}>

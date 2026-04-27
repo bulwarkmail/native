@@ -20,13 +20,15 @@ interface Plugin {
   forceEnabled?: boolean;
 }
 
-const STATUS_STYLE: Record<Plugin['status'], { bg: string; fg: string }> = {
-  installed: { bg: c.muted, fg: c.mutedForeground },
-  enabled:   { bg: 'rgba(59, 130, 246, 0.15)', fg: '#60a5fa' },
-  running:   { bg: 'rgba(34, 197, 94, 0.15)',  fg: '#4ade80' },
-  disabled:  { bg: c.muted, fg: c.mutedForeground },
-  error:     { bg: 'rgba(239, 68, 68, 0.15)',  fg: '#f87171' },
-};
+function statusStyle(c: ThemePalette, status: Plugin['status']): { bg: string; fg: string } {
+  switch (status) {
+    case 'installed': return { bg: c.muted, fg: c.mutedForeground };
+    case 'enabled':   return { bg: 'rgba(59, 130, 246, 0.15)', fg: '#60a5fa' };
+    case 'running':   return { bg: 'rgba(34, 197, 94, 0.15)',  fg: '#4ade80' };
+    case 'disabled':  return { bg: c.muted, fg: c.mutedForeground };
+    case 'error':     return { bg: 'rgba(239, 68, 68, 0.15)',  fg: '#f87171' };
+  }
+}
 
 export function PluginsSettings() {
   const c = useColors();
@@ -63,7 +65,7 @@ export function PluginsSettings() {
         <View style={{ gap: spacing.sm }}>
           {plugins.map((plugin) => {
             const expanded = expandedId === plugin.id;
-            const status = STATUS_STYLE[plugin.status];
+            const status = statusStyle(c, plugin.status);
             return (
               <View
                 key={plugin.id}

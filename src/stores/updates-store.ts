@@ -7,6 +7,7 @@ import { downloadAndInstallApk, type InstallProgress } from '../lib/install-upda
 
 const STORAGE_KEY = 'webmail:updates:v1';
 const MIN_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const PENDING_APK_INTERVAL_MS = 2 * 60 * 1000;
 
 interface PersistedUpdates {
   autoCheck: boolean;
@@ -82,7 +83,10 @@ export const useUpdatesStore = create<UpdatesState>((set, get) => ({
     const s = get();
     if (s.checking) return;
     const now = Date.now();
-    if (!opts?.force && now - s.lastCheckedAt < MIN_CHECK_INTERVAL_MS) return;
+    const waitingForApk =
+      s.cachedLatest != null && !s.cachedLatest.apkAsset && get().hasUpdate();
+    const interval = waitingForApk ? PENDING_APK_INTERVAL_MS : MIN_CHECK_INTERVAL_MS;
+    if (!opts?.force && now - s.lastCheckedAt < interval) return;
     set({ checking: true, error: null });
     try {
       const latest = await fetchLatestRelease();

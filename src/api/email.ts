@@ -164,6 +164,15 @@ export async function queryEmailsByFilter(
   return res.methodResponses[0][1].ids;
 }
 
+export interface OutgoingAttachment {
+  blobId: string;
+  type: string;
+  name: string;
+  size?: number;
+  disposition?: 'attachment' | 'inline';
+  cid?: string;
+}
+
 export async function sendEmail(
   email: {
     from: EmailAddress[];
@@ -173,7 +182,7 @@ export async function sendEmail(
     subject: string;
     htmlBody?: string;
     textBody?: string;
-    attachments?: Array<{ blobId: string; type: string; name: string }>;
+    attachments?: OutgoingAttachment[];
     inReplyTo?: string;
     references?: string;
   },
@@ -191,21 +200,29 @@ export async function sendEmail(
     keywords: { $seen: true },
   };
 
+  const bodyValues: Record<string, { value: string }> = {};
   if (email.htmlBody) {
     emailCreate.htmlBody = [{ partId: 'html', type: 'text/html' }];
-    emailCreate.bodyValues = { html: { value: email.htmlBody } };
-  } else {
-    emailCreate.textBody = [{ partId: 'text', type: 'text/plain' }];
-    emailCreate.bodyValues = { text: { value: email.textBody ?? '' } };
+    bodyValues.html = { value: email.htmlBody };
   }
+  if (email.textBody || !email.htmlBody) {
+    emailCreate.textBody = [{ partId: 'text', type: 'text/plain' }];
+    bodyValues.text = { value: email.textBody ?? '' };
+  }
+  emailCreate.bodyValues = bodyValues;
 
   if (email.attachments?.length) {
-    emailCreate.attachments = email.attachments.map((a) => ({
-      blobId: a.blobId,
-      type: a.type,
-      name: a.name,
-      disposition: 'attachment',
-    }));
+    emailCreate.attachments = email.attachments.map((a) => {
+      const part: Record<string, unknown> = {
+        blobId: a.blobId,
+        type: a.type,
+        name: a.name,
+        disposition: a.disposition ?? 'attachment',
+      };
+      if (a.size != null) part.size = a.size;
+      if (a.cid) part.cid = a.cid;
+      return part;
+    });
   }
 
   if (email.inReplyTo) {

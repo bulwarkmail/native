@@ -121,6 +121,8 @@ interface AppFormProps {
 }
 
 function AppForm({ initial, onSave, onCancel }: AppFormProps) {
+  const c = useColors();
+  const formStyles = React.useMemo(() => makeFormStyles(c), [c]);
   const [name, setName] = useState(initial?.name ?? '');
   const [url, setUrl] = useState(initial?.url ?? '');
   const [openMode, setOpenMode] = useState<'tab' | 'inline'>(initial?.openMode ?? 'tab');
@@ -254,40 +256,42 @@ function makeStyles(c: ThemePalette) {
 });
 }
 
-const formStyles = StyleSheet.create({
-  form: {
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: c.border,
-    backgroundColor: c.muted,
-  },
-  label: { ...typography.captionMedium, color: c.text },
-  input: {
-    marginTop: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.sm,
-    backgroundColor: c.background,
-    borderWidth: 1,
-    borderColor: c.border,
-    color: c.text,
-    ...typography.body,
-  },
-  modeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: c.border,
-  },
-  modeBtnActive: {
-    borderColor: c.primary,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-  },
-  modeBtnText: { ...typography.caption, color: c.text },
-});
+function makeFormStyles(c: ThemePalette) {
+  return StyleSheet.create({
+    form: {
+      gap: spacing.md,
+      padding: spacing.lg,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.muted,
+    },
+    label: { ...typography.captionMedium, color: c.text },
+    input: {
+      marginTop: 4,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 8,
+      borderRadius: radius.sm,
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+      color: c.text,
+      ...typography.body,
+    },
+    modeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 8,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    modeBtnActive: {
+      borderColor: c.primary,
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    },
+    modeBtnText: { ...typography.caption, color: c.text },
+  });
+}

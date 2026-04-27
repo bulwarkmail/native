@@ -238,7 +238,7 @@ export function EventDetailSheet({
                       style={[
                         styles.participantDot,
                         {
-                          backgroundColor: statusColor(p.participationStatus),
+                          backgroundColor: statusColor(c, p.participationStatus),
                         },
                       ]}
                     />
@@ -334,7 +334,7 @@ function ActionButton({
   );
 }
 
-function statusColor(status?: string): string {
+function statusColor(c: ThemePalette, status?: string): string {
   switch (status) {
     case 'accepted':
       return c.success;

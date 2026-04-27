@@ -49,17 +49,17 @@ function iconFor(
   return Folder;
 }
 
-const ROLE_COLOR: Record<string, string> = {
+const ROLE_COLOR_FIXED: Record<string, string> = {
   inbox: '#60a5fa',
   sent: '#4ade80',
   drafts: '#a78bfa',
-  trash: c.textMuted,
   junk: '#f87171',
   archive: '#fbbf24',
 };
 
-function iconColor(role: string | null | undefined, isSelected: boolean): string {
-  if (role && ROLE_COLOR[role]) return ROLE_COLOR[role];
+function iconColor(c: ThemePalette, role: string | null | undefined, isSelected: boolean): string {
+  if (role === 'trash') return c.textMuted;
+  if (role && ROLE_COLOR_FIXED[role]) return ROLE_COLOR_FIXED[role];
   return isSelected ? c.text : c.textSecondary;
 }
 
@@ -450,7 +450,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   return (
                     <SidebarRow
                       key={node.id}
-                      icon={<Icon size={16} color={iconColor(node.role, isSelected)} />}
+                      icon={<Icon size={16} color={iconColor(c, node.role, isSelected)} />}
                       label={node.name}
                       depth={node.depth}
                       isSelected={isSelected}

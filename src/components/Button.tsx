@@ -9,7 +9,7 @@ type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 interface ButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   onPress?: () => void;
   disabled?: boolean;
   loading?: boolean;

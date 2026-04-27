@@ -129,7 +129,11 @@ const EmailRow = React.memo(function EmailRow({
   );
 });
 
-const EmailRowSeparator = () => <View style={styles.separator} />;
+function EmailRowSeparator() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  return <View style={styles.separator} />;
+}
 
 const emailKeyExtractor = (item: Email) => item.id;
 
@@ -239,7 +243,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         else void markUnread(id);
         break;
       case 'star':
-        void toggleStar(id);
+        void toggleStar(id, !isStarred(email));
         break;
     }
   }, [
@@ -820,6 +824,8 @@ function TriToggle({
   value: boolean | undefined;
   onPress: () => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const state =
     value === true ? 'on' : value === false ? 'off' : 'unset';
   return (

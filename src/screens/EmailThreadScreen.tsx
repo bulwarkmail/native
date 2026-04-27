@@ -78,11 +78,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const currentIndex = emails.findIndex((e) => e.id === emailId);
   const prevEmail = currentIndex > 0 ? emails[currentIndex - 1] : null;
   const nextEmail = currentIndex >= 0 && currentIndex < emails.length - 1 ? emails[currentIndex + 1] : null;
-  const goToEmail = (target: { id: string; threadId: string; subject: string }) => {
+  const goToEmail = (target: { id: string; threadId: string; subject?: string }) => {
     navigation.replace('EmailThread', {
       emailId: target.id,
       threadId: target.threadId,
-      subject: target.subject,
+      subject: target.subject ?? '',
     });
   };
 
