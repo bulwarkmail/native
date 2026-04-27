@@ -36,6 +36,7 @@ import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore } from './src/stores/email-store';
 import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
+import { useNetworkStore } from './src/stores/network-store';
 import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
 import { colors, spacing, typography } from './src/theme/tokens';
@@ -177,6 +178,7 @@ export default function App() {
   React.useEffect(() => {
     void useSettingsStore.getState().hydrate();
     void useLocaleStore.getState().hydrate();
+    return useNetworkStore.getState().init();
   }, []);
 
   React.useEffect(() => {

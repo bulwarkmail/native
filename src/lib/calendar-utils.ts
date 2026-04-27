@@ -117,7 +117,27 @@ export function buildEventDayIndex(events: CalendarEvent[]): EventDayIndex {
       safety++;
     }
   }
+  // Sort each day's bucket: all-day events first, then timed events by start.
+  // Without this, events from different calendars come out in arrival order
+  // (roughly grouped by calendar) rather than chronologically.
+  for (const arr of idx.values()) {
+    arr.sort(compareEventsForDay);
+  }
   return idx;
+}
+
+function compareEventsForDay(a: CalendarEvent, b: CalendarEvent): number {
+  const aAllDay = !!a.showWithoutTime;
+  const bAllDay = !!b.showWithoutTime;
+  if (aAllDay !== bAllDay) return aAllDay ? -1 : 1;
+  const aStart = getEventStartDate(a).getTime();
+  const bStart = getEventStartDate(b).getTime();
+  if (aStart !== bStart) return aStart - bStart;
+  // Tie-breaker on end (shorter events first), then title for stability.
+  const aEnd = getEventEndDate(a).getTime();
+  const bEnd = getEventEndDate(b).getTime();
+  if (aEnd !== bEnd) return aEnd - bEnd;
+  return (a.title ?? '').localeCompare(b.title ?? '');
 }
 
 export function eventsOnDayFromIndex(

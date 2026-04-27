@@ -10,6 +10,8 @@ import { colors, spacing, radius, typography, componentSizes } from '../theme/to
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
+import { OfflineBanner } from '../components/OfflineBanner';
+import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, type EmailFilters } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import type { Email } from '../api/types';
@@ -158,6 +160,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
+  const networkOnline = useNetworkStore((s) => s.online);
 
   const archiveMailboxId = React.useMemo(
     () => mailboxes.find((m) => m.role === 'archive')?.id ?? null,
@@ -552,15 +555,19 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         </View>
       )}
 
+      <OfflineBanner hint={emails.length > 0 ? 'Showing cached mail' : undefined} />
+
       {/* Email list */}
       {loading && emails.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} />
           <Text style={styles.loadingText}>Loading emails...</Text>
         </View>
-      ) : error ? (
+      ) : error && emails.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>
+            {networkOnline ? error : 'No connection. Showing nothing because no mail has been cached yet.'}
+          </Text>
           <Pressable onPress={() => { void refreshEmails(); }}>
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
