@@ -18,7 +18,7 @@ import EmailBodyView from '../components/EmailBodyView';
 import SenderAvatar from '../components/SenderAvatar';
 import { useEmailStore } from '../stores/email-store';
 import { setEmailKeywords } from '../api/email';
-import { shareEmailEml } from '../lib/email-export';
+import { shareEmailEml, shareAttachment } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
 import { useSheetDrag } from '../lib/use-sheet-drag';
@@ -92,6 +92,23 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
+  const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
+  const [downloadingBlobId, setDownloadingBlobId] = React.useState<string | null>(null);
+
+  const onPressAttachment = React.useCallback(
+    async (blobId: string, name: string | undefined, type: string | undefined) => {
+      if (downloadingBlobId) return;
+      setDownloadingBlobId(blobId);
+      try {
+        await shareAttachment(blobId, name, type);
+      } catch (e) {
+        Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
+      } finally {
+        setDownloadingBlobId(null);
+      }
+    },
+    [downloadingBlobId],
+  );
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
@@ -350,16 +367,51 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             {email.attachments && email.attachments.length > 0 && (
               <View style={styles.attachmentsBlock}>
                 <View style={styles.attachmentsRow}>
-                  {email.attachments.map((att, idx) => (
-                    <View key={att.blobId ?? idx} style={styles.attachmentChip}>
-                      <Paperclip size={14} color={c.textMuted} />
-                      <Text style={styles.attachmentName} numberOfLines={1}>
-                        {att.name || 'attachment'}
-                      </Text>
-                      <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
-                    </View>
-                  ))}
+                  {(attachmentsExpanded
+                    ? email.attachments
+                    : email.attachments.slice(0, 3)
+                  ).map((att, idx) => {
+                    const isDownloading = downloadingBlobId === att.blobId;
+                    return (
+                      <Pressable
+                        key={att.blobId ?? idx}
+                        style={({ pressed }) => [
+                          styles.attachmentChip,
+                          pressed && styles.attachmentChipPressed,
+                        ]}
+                        onPress={() => onPressAttachment(att.blobId, att.name, att.type)}
+                        disabled={!!downloadingBlobId}
+                      >
+                        {isDownloading ? (
+                          <ActivityIndicator size="small" color={c.textMuted} />
+                        ) : (
+                          <Paperclip size={14} color={c.textMuted} />
+                        )}
+                        <Text style={styles.attachmentName} numberOfLines={1}>
+                          {att.name || 'attachment'}
+                        </Text>
+                        <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
+                        <Download size={14} color={c.textMuted} />
+                      </Pressable>
+                    );
+                  })}
                 </View>
+                {email.attachments.length > 3 && (
+                  <Pressable
+                    onPress={() => setAttachmentsExpanded((v) => !v)}
+                    style={({ pressed }) => [
+                      styles.attachmentsToggle,
+                      pressed && styles.attachmentsTogglePressed,
+                    ]}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.attachmentsToggleText}>
+                      {attachmentsExpanded
+                        ? 'Show less'
+                        : `Show all (${email.attachments.length})`}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -972,6 +1024,10 @@ function makeStyles(c: ThemePalette) {
     borderColor: c.border,
     borderRadius: radius.sm,
   },
+  attachmentChipPressed: {
+    backgroundColor: c.surfaceHover,
+    opacity: 0.85,
+  },
   attachmentName: {
     ...typography.caption,
     color: c.text,
@@ -980,6 +1036,20 @@ function makeStyles(c: ThemePalette) {
   attachmentSize: {
     ...typography.small,
     color: c.textMuted,
+  },
+  attachmentsToggle: {
+    marginTop: spacing.xs,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: spacing.xs,
+  },
+  attachmentsTogglePressed: {
+    opacity: 0.6,
+  },
+  attachmentsToggleText: {
+    ...typography.caption,
+    color: c.primary,
+    fontWeight: '600',
   },
 
   // Body

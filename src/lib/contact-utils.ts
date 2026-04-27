@@ -119,6 +119,60 @@ export function getBirthday(contact: ContactCard): AnniversaryDate | undefined {
   return undefined;
 }
 
+export function getDateParts(dateInput: AnniversaryDate): { year?: number; month?: number; day?: number } {
+  if (typeof dateInput === 'object' && dateInput !== null) {
+    if ((dateInput as Timestamp)['@type'] === 'Timestamp') {
+      const ts = dateInput as Timestamp;
+      const d = new Date(ts.utc);
+      if (!isNaN(d.getTime())) {
+        return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+      }
+      return {};
+    }
+    const pd = dateInput as PartialDate;
+    return { year: pd.year, month: pd.month, day: pd.day };
+  }
+  const s = String(dateInput);
+  if (s.startsWith('--')) {
+    const parts = s.substring(2).split('-');
+    return { month: parseInt(parts[0], 10), day: parts[1] ? parseInt(parts[1], 10) : undefined };
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return {};
+}
+
+export function getCompletedYears(dateInput: AnniversaryDate): number | null {
+  const { year, month, day } = getDateParts(dateInput);
+  if (!year) return null;
+  const now = new Date();
+  let years = now.getFullYear() - year;
+  const m = month ?? 1;
+  const d = day ?? 1;
+  const nowM = now.getMonth() + 1;
+  const nowD = now.getDate();
+  if (nowM < m || (nowM === m && nowD < d)) years -= 1;
+  if (years < 0) return null;
+  return years;
+}
+
+export function getPhoneFeatures(features?: Record<string, boolean>): string[] {
+  if (!features) return [];
+  return Object.keys(features).filter((k) => features[k]);
+}
+
+export function getActiveContexts(contexts?: Record<string, boolean>): string[] {
+  if (!contexts) return [];
+  return Object.keys(contexts).filter((k) => contexts[k]);
+}
+
+export function getPrimaryNickname(contact: ContactCard): string | undefined {
+  if (!contact.nicknames) return undefined;
+  return Object.values(contact.nicknames)[0]?.name;
+}
+
 export function formatAddress(address: {
   components?: Array<{ kind: string; value: string }>;
   full?: string;

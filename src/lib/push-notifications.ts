@@ -4,6 +4,7 @@ import {
   createPushSubscription,
   destroyPushSubscription,
   listPushSubscriptions,
+  updatePushSubscription,
   verifyPushSubscription,
 } from '../api/push';
 import { jmapClient } from '../api/jmap-client';
@@ -25,6 +26,20 @@ export const DEFAULT_RELAY_BASE_URL = 'https://notifications.relay.bulwarkmail.o
 // Types the mobile app wants StateChange pings for. Submission is excluded -
 // outgoing mail state changes don't belong in a user-visible push.
 const PUSH_TYPES = ['Email', 'EmailDelivery', 'Mailbox'] as const;
+
+// Maximum expires we ask the server for. Stalwart (and other JMAP servers)
+// may clamp this down; whatever they return is what we get. Without this,
+// the server picks its own (often short) default and the subscription
+// silently expires between app updates - so push stops arriving until the
+// user re-enables it from settings.
+const SUBSCRIPTION_EXPIRES_DAYS = 90;
+// When an existing subscription has less than this much lifetime left, push
+// expires forward on the next app start.
+const SUBSCRIPTION_REFRESH_THRESHOLD_DAYS = 7;
+
+function expiresFromNow(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 type BulwarkFcmNative = {
   getToken(): Promise<string>;
@@ -186,12 +201,20 @@ export async function setupPushNotifications(
     accountLabel: params.accountLabel,
   });
 
-  // Reuse the previous JMAP subscription when the server still has it.
+  // Reuse the previous JMAP subscription when the server still has it, but
+  // push the expiry forward so it doesn't time out before the next app start.
   const storedServerId = await AsyncStorage.getItem(SUBSCRIPTION_ID_KEY);
   if (storedServerId) {
     const existing = await listPushSubscriptions().catch(() => []);
-    if (existing.some((s) => s.id === storedServerId)) {
-      return { subscriptionId: storedServerId, verified: true };
+    const match = existing.find((s) => s.id === storedServerId);
+    if (match) {
+      const refreshed = await refreshSubscriptionExpires(match);
+      if (refreshed) {
+        return { subscriptionId: storedServerId, verified: true };
+      }
+      // Server rejected the refresh (likely the subscription was already
+      // deleted server-side) - drop the stale id and recreate below.
+      await destroyPushSubscription(storedServerId).catch(() => undefined);
     }
     await AsyncStorage.removeItem(SUBSCRIPTION_ID_KEY);
   }
@@ -200,6 +223,7 @@ export async function setupPushNotifications(
     deviceClientId,
     url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
     types: [...PUSH_TYPES],
+    expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
   });
 
   const verificationCode = await pollVerificationCode(relayBaseUrl, deviceClientId);
@@ -208,6 +232,29 @@ export async function setupPushNotifications(
   await AsyncStorage.setItem(SUBSCRIPTION_ID_KEY, serverAssignedId);
 
   return { subscriptionId: serverAssignedId, verified: true };
+}
+
+// Push the subscription's expires forward when it's getting close to the
+// server's ceiling. Returns false if the server rejects the update, which the
+// caller treats as "recreate".
+async function refreshSubscriptionExpires(
+  sub: { id: string; expires?: string | null },
+): Promise<boolean> {
+  if (sub.expires) {
+    const remainingMs = new Date(sub.expires).getTime() - Date.now();
+    const thresholdMs = SUBSCRIPTION_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
+    if (Number.isFinite(remainingMs) && remainingMs > thresholdMs) {
+      // Plenty of life left - skip the update round-trip.
+      return true;
+    }
+  }
+  try {
+    return await updatePushSubscription(sub.id, {
+      expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
+    });
+  } catch {
+    return false;
+  }
 }
 
 /**

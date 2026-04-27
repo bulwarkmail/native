@@ -191,6 +191,8 @@ export interface ContactAddress {
   country?: string;
   countryCode?: string;
   fullAddress?: string;
+  coordinates?: string;
+  timeZone?: string;
   contexts?: Record<string, boolean>;
   label?: string;
   pref?: number;
@@ -276,6 +278,23 @@ export interface ContactLink {
   pref?: number;
 }
 
+export interface ContactCryptoKey {
+  uri: string;
+  mediaType?: string;
+  contexts?: Record<string, boolean>;
+}
+
+export interface ContactPronouns {
+  pronouns: string;
+  pref?: number;
+  contexts?: Record<string, boolean>;
+}
+
+export interface ContactSpeakToAs {
+  grammaticalGender?: string;
+  pronouns?: Record<string, ContactPronouns>;
+}
+
 export interface ContactCard {
   id: string;
   originalId?: string;
@@ -298,8 +317,13 @@ export interface ContactCard {
   media?: Record<string, ContactMedia>;
   relatedTo?: Record<string, ContactRelation>;
   links?: Record<string, ContactLink>;
+  cryptoKeys?: Record<string, ContactCryptoKey>;
   keywords?: Record<string, boolean>;
   members?: Record<string, boolean>;
+  speakToAs?: ContactSpeakToAs;
+  calendarUri?: string;
+  schedulingUri?: string;
+  freeBusyUri?: string;
   created?: string;
   updated?: string;
 }

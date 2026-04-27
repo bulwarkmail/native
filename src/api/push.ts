@@ -24,34 +24,60 @@ export async function createPushSubscription(params: {
   deviceClientId: string;
   url: string;
   types: string[];
+  // ISO date. Servers may clamp to their own ceiling - we send the maximum we
+  // want and accept whatever Stalwart returns.
+  expires?: string;
 }): Promise<string> {
+  const created: Record<string, unknown> = {
+    deviceClientId: params.deviceClientId,
+    url: params.url,
+    types: params.types,
+  };
+  if (params.expires) created.expires = params.expires;
+
   const res = await jmapClient.request(
     [
       [
         'PushSubscription/set',
-        {
-          create: {
-            new: {
-              deviceClientId: params.deviceClientId,
-              url: params.url,
-              types: params.types,
-            },
-          },
-        },
+        { create: { new: created } },
         '0',
       ],
     ],
     [CAPABILITIES.CORE],
   );
   const [, body] = res.methodResponses[0] ?? [];
-  const created = body?.created?.new as { id?: string } | undefined;
-  if (!created?.id) {
+  const result = body?.created?.new as { id?: string } | undefined;
+  if (!result?.id) {
     const notCreated = body?.notCreated?.new;
     throw new Error(
       `PushSubscription/set create failed: ${JSON.stringify(notCreated ?? body)}`,
     );
   }
-  return created.id;
+  return result.id;
+}
+
+/**
+ * Push the subscription's expiry forward (RFC 8620 §7.2.1). Returns false if
+ * the server rejected the update (e.g. the subscription no longer exists),
+ * which the caller treats as a signal to recreate.
+ */
+export async function updatePushSubscription(
+  id: string,
+  patch: { expires?: string; types?: string[] },
+): Promise<boolean> {
+  const res = await jmapClient.request(
+    [
+      [
+        'PushSubscription/set',
+        { update: { [id]: patch } },
+        '0',
+      ],
+    ],
+    [CAPABILITIES.CORE],
+  );
+  const [, body] = res.methodResponses[0] ?? [];
+  if (body?.notUpdated?.[id]) return false;
+  return body?.updated?.[id] !== undefined;
 }
 
 /**

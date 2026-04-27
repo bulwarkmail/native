@@ -11,6 +11,35 @@ function authHeader(): string {
   return h;
 }
 
+function safeAttachmentName(name: string | undefined, type: string | undefined): string {
+  const fallbackExt = type?.split('/')[1]?.replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
+  const cleaned = (name ?? '').replace(/[\\/:*?"<>|]/g, '_').trim();
+  if (cleaned) return cleaned.slice(0, 120);
+  return `attachment.${fallbackExt}`;
+}
+
+export async function shareAttachment(
+  blobId: string,
+  name: string | undefined,
+  type: string | undefined,
+): Promise<void> {
+  const filename = safeAttachmentName(name, type);
+  const mimeType = type || 'application/octet-stream';
+  const dest = new File(Paths.cache, filename);
+  if (dest.exists) dest.delete();
+  const url = getDownloadUrl(blobId, filename, mimeType);
+  const downloaded = await File.downloadFileAsync(url, dest, {
+    headers: { Authorization: authHeader() },
+  });
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error('Sharing is not available on this device');
+  }
+  await Sharing.shareAsync(downloaded.uri, {
+    mimeType,
+    dialogTitle: filename,
+  });
+}
+
 export async function fetchRawEmail(blobId: string): Promise<string> {
   const url = getDownloadUrl(blobId, 'email.eml', RFC822);
   const r = await fetch(url, { headers: { Authorization: authHeader() } });

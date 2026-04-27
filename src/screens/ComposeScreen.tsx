@@ -1,19 +1,25 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
-  type NativeSyntheticEvent, type TextInputSelectionChangeEventData,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
-  X, Send, Paperclip, ChevronDown, Bold, Italic, List, ListOrdered,
-  Link2, Image as ImageIcon, Quote, FileText,
+  X, Send, Paperclip, ChevronDown, Bold, Italic, Underline, Strikethrough,
+  List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
+  Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
+  Undo2, Redo2, FileText,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { Button } from '../components';
+import RichTextEditor, {
+  type RichTextEditorHandle,
+  type RichTextSelectionState,
+} from '../components/RichTextEditor';
 import { useEmailStore } from '../stores/email-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -26,12 +32,8 @@ import {
 import { getIdentities } from '../api/identity';
 import { sendEmail, type OutgoingAttachment } from '../api/email';
 import { uploadBlob } from '../api/blob';
-import {
-  markdownToHtml,
-  wrapSelection,
-  toggleLinePrefix,
-  formatReplyQuote,
-} from '../lib/compose-format';
+import { buildInitialHtml, htmlToPlainText, rewriteInlineImages } from '../lib/compose-html';
+import { stripDangerousTags } from '../lib/email-html';
 import type { EmailAddress, Identity, ContactCard } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -78,6 +80,17 @@ function genCid(): string {
 
 function genLocalId(): string {
   return `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function readUriAsDataUrl(uri: string, mime: string): Promise<string | null> {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return `data:${mime};base64,${base64}`;
+  } catch {
+    return null;
+  }
 }
 
 function RecipientChip({ recipient, onRemove }: { recipient: Recipient; onRemove: () => void }) {
@@ -169,12 +182,34 @@ function AttachmentChip({
   );
 }
 
+function ToolbarButton({
+  active, onPress, icon, disabled,
+}: {
+  active?: boolean;
+  onPress: () => void;
+  icon: React.ReactNode;
+  disabled?: boolean;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={4}
+      disabled={disabled}
+      style={[styles.formatBtn, active && styles.formatBtnActive, disabled && styles.formatBtnDisabled]}
+    >
+      {icon}
+    </Pressable>
+  );
+}
+
 export default function ComposeScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const replyTo = route.params?.replyTo;
-  const mode = route.params?.mode;
+  const mode = route.params?.mode ?? 'compose';
   const prefillTo = route.params?.prefillTo;
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const sentMailbox = React.useMemo(
@@ -225,22 +260,39 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return /^re:/i.test(s) ? s : `Re: ${s}`;
   }, [replyTo, mode]);
 
+  const initialBodyHtml = React.useMemo(
+    () => buildInitialHtml(mode, replyTo
+      ? {
+          from: { name: replyTo.from.name, email: replyTo.from.email },
+          to: replyTo.to,
+          cc: replyTo.cc,
+          subject: replyTo.subject,
+          body: replyTo.body,
+        }
+      : null,
+    ),
+    [mode, replyTo],
+  );
+
   const [toRecipients, setToRecipients] = React.useState<Recipient[]>(initialTo);
   const [ccRecipients, setCcRecipients] = React.useState<Recipient[]>(initialCc);
   const [ccVisible, setCcVisible] = React.useState(initialCc.length > 0);
   const [toInput, setToInput] = React.useState('');
   const [ccInput, setCcInput] = React.useState('');
   const [subject, setSubject] = React.useState(initialSubject);
-  const [body, setBody] = React.useState('');
-  const [bodySelection, setBodySelection] = React.useState({ start: 0, end: 0 });
-  // Carry the next caret position from a programmatic edit so we can apply it
-  // imperatively after the body text has flushed. We avoid driving the
-  // TextInput's `selection` prop because that would pin the caret on every
-  // render and fight the user when they tap to move the cursor.
-  const pendingSelectionRef = React.useRef<{ start: number; end: number } | null>(null);
+  const [bodyHtml, setBodyHtml] = React.useState(initialBodyHtml);
   const [activeField, setActiveField] = React.useState<'to' | 'cc' | null>(null);
   const [attachments, setAttachments] = React.useState<AttachmentEntry[]>([]);
-  const bodyInputRef = React.useRef<TextInput>(null);
+  const [selState, setSelState] = React.useState<RichTextSelectionState>({
+    bold: false, italic: false, underline: false, strikeThrough: false,
+    ul: false, ol: false, blockquote: false, h1: false, h2: false,
+    alignLeft: false, alignCenter: false, alignRight: false, link: false,
+  });
+
+  const editorRef = React.useRef<RichTextEditorHandle>(null);
+  // Track inline-image placeholders that haven't yet been rewritten to cid:
+  // until send time. Maps cid → blobId/type/name/size.
+  const inlineRegistryRef = React.useRef<Map<string, AttachmentEntry>>(new Map());
 
   const allContacts = useContactsStore((s) => s.contacts);
   const individuals = React.useMemo(() => allContacts.filter((c) => !isGroup(c)), [allContacts]);
@@ -300,9 +352,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const commitTyped = () => {
     const extraTo = parseRecipients(toInput);
     const extraCc = parseRecipients(ccInput);
-    const finalTo = [...toRecipients, ...extraTo];
-    const finalCc = [...ccRecipients, ...extraCc];
-    return { finalTo, finalCc };
+    return {
+      finalTo: [...toRecipients, ...extraTo],
+      finalCc: [...ccRecipients, ...extraCc],
+    };
   };
 
   const addTyped = () => {
@@ -322,39 +375,29 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const hasUploadInFlight = attachments.some((a) => a.uploading);
   const hasUploadError = attachments.some((a) => !!a.error);
   const hasValidRecipients = finalTo.every((r) => EMAIL_RE.test(r.email)) && finalTo.length > 0;
+  const bodyPlain = React.useMemo(() => htmlToPlainText(bodyHtml), [bodyHtml]);
+  const hasBodyContent = bodyPlain.trim().length > 0
+    || attachments.some((a) => a.blobId && !a.error);
   const canSend =
     !sending &&
     !hasUploadInFlight &&
     !hasUploadError &&
     hasValidRecipients &&
     subject.trim().length > 0 &&
+    hasBodyContent &&
     !!primaryIdentity &&
     !!sentMailbox;
 
-  const onBodySelectionChange = (e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
-    setBodySelection(e.nativeEvent.selection);
-  };
-
-  // Apply caret moves imperatively once the body text has flushed - using
-  // setNativeProps means we don't render the TextInput as selection-controlled
-  // and the user keeps free cursor control.
-  React.useLayoutEffect(() => {
-    const target = pendingSelectionRef.current;
-    if (!target || !bodyInputRef.current) return;
-    pendingSelectionRef.current = null;
-    bodyInputRef.current.setNativeProps({ selection: target });
-    setBodySelection(target);
-  });
-
-  const applyEdit = (edit: { text: string; selection: { start: number; end: number } }) => {
-    pendingSelectionRef.current = edit.selection;
-    setBody(edit.text);
-  };
-
   const onClose = () => {
-    if (body.trim() || subject.trim() || attachments.length > 0) {
+    const isDirty =
+      bodyPlain.trim().length > 0
+      || subject.trim().length > 0
+      || toRecipients.length > 0
+      || ccRecipients.length > 0
+      || attachments.length > 0;
+    if (isDirty) {
       Alert.alert(
-        t('email_composer.close_draft_title', 'Discard draft?'),
+        t('email_composer.discard_draft_title', 'Discard draft?'),
         t('email_composer.discard_draft_confirm', 'You have unsaved changes. Do you want to discard this draft?'),
         [
           { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
@@ -370,36 +413,45 @@ export default function ComposeScreen({ route, navigation }: Props) {
     navigation.goBack();
   };
 
-  const addAttachmentEntry = (entry: AttachmentEntry) => {
-    setAttachments((prev) => [...prev, entry]);
-  };
-
+  // ── Attachments ──────────────────────────────────────────────────────
   const updateAttachment = (localId: string, patch: Partial<AttachmentEntry>) => {
     setAttachments((prev) => prev.map((a) => (a.localId === localId ? { ...a, ...patch } : a)));
+    if (patch.blobId !== undefined || patch.error !== undefined) {
+      const cid = inlineRegistryRef.current;
+      const entry = Array.from(cid.values()).find((e) => e.localId === localId);
+      if (entry) cid.set(entry.cid!, { ...entry, ...patch });
+    }
   };
 
   const removeAttachment = (localId: string) => {
     setAttachments((prev) => {
       const removed = prev.find((a) => a.localId === localId);
-      // If an inline image is removed, also drop its markdown reference from
-      // the body so the user doesn't ship a dangling cid: link.
       if (removed?.inline && removed.cid) {
-        const ref = `![${removed.name}](cid:${removed.cid})`;
-        if (body.includes(ref)) setBody((b) => b.replace(ref, '').replace(/\n{3,}/g, '\n\n'));
+        inlineRegistryRef.current.delete(removed.cid);
+        // Strip the editor's <img data-cid="…"> for this cid.
+        const escCid = removed.cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const stripped = bodyHtml.replace(
+          new RegExp(`<img\\b[^>]*\\sdata-cid=("${escCid}"|'${escCid}')[^>]*>`, 'gi'),
+          '',
+        );
+        if (stripped !== bodyHtml) {
+          setBodyHtml(stripped);
+          editorRef.current?.setHtml(stripped);
+        }
       }
       return prev.filter((a) => a.localId !== localId);
     });
   };
 
-  const startUpload = async (asset: {
+  const addUploadEntry = (asset: {
     name: string;
     type: string;
     size: number;
     uri: string;
     inline: boolean;
-  }) => {
+    cid?: string;
+  }): AttachmentEntry => {
     const localId = genLocalId();
-    const cid = asset.inline ? genCid() : undefined;
     const entry: AttachmentEntry = {
       localId,
       name: asset.name,
@@ -407,37 +459,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
       size: asset.size,
       uri: asset.uri,
       inline: asset.inline,
-      cid,
+      cid: asset.cid,
       uploading: true,
     };
-    addAttachmentEntry(entry);
+    setAttachments((prev) => [...prev, entry]);
+    if (asset.inline && asset.cid) inlineRegistryRef.current.set(asset.cid, entry);
+    return entry;
+  };
 
-    if (asset.inline && cid) {
-      // Insert a markdown reference at the caret so the user can move it.
-      const ref = `\n![${asset.name}](cid:${cid})\n`;
-      const next = wrapSelection(body, bodySelection, ref, '', '');
-      applyEdit(next);
-    }
-
+  const startUpload = async (entry: AttachmentEntry) => {
     try {
-      const { blobId, size, type } = await uploadBlob(asset.uri, asset.type);
-      updateAttachment(localId, {
+      const { blobId, size, type } = await uploadBlob(entry.uri, entry.type);
+      updateAttachment(entry.localId, {
         blobId,
-        type: type || asset.type,
-        size: size || asset.size,
+        type: type || entry.type,
+        size: size || entry.size,
         uploading: false,
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Upload failed';
-      updateAttachment(localId, { uploading: false, error: message });
+      updateAttachment(entry.localId, { uploading: false, error: message });
       Alert.alert(
-        t('email_composer.send_failed', 'Failed to send email'),
-        t('email_composer.upload_failed', 'Failed to upload {filename}').replace('{filename}', asset.name),
+        t('email_composer.upload_failed', 'Failed to upload {filename}').replace('{filename}', entry.name),
+        message,
       );
     }
   };
 
-  const pickAttachment = async (inline: boolean) => {
+  const pickAttachment = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -447,116 +496,129 @@ export default function ComposeScreen({ route, navigation }: Props) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: inline ? ['images'] : ['images', 'videos'],
-      allowsMultipleSelection: !inline,
+      mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: true,
       quality: 0.9,
       exif: false,
     });
     if (result.canceled) return;
     for (const asset of result.assets) {
       const fallbackName = asset.fileName
-        || `${inline ? 'image' : 'attachment'}-${Date.now()}.${(asset.mimeType ?? 'image/jpeg').split('/')[1] ?? 'bin'}`;
-      void startUpload({
+        || `attachment-${Date.now()}.${(asset.mimeType ?? 'application/octet-stream').split('/')[1] ?? 'bin'}`;
+      const entry = addUploadEntry({
         name: fallbackName,
         type: asset.mimeType ?? 'application/octet-stream',
         size: asset.fileSize ?? 0,
         uri: asset.uri,
-        inline,
+        inline: false,
       });
+      void startUpload(entry);
     }
   };
 
-  // ── Format toolbar handlers ────────────────────────────────────────────
-  const formatBold = () => {
-    applyEdit(wrapSelection(body, bodySelection, '**', '**', 'bold'));
-    bodyInputRef.current?.focus();
-  };
-  const formatItalic = () => {
-    applyEdit(wrapSelection(body, bodySelection, '_', '_', 'italic'));
-    bodyInputRef.current?.focus();
-  };
-  const formatBullet = () => {
-    applyEdit(toggleLinePrefix(body, bodySelection, '- '));
-    bodyInputRef.current?.focus();
-  };
-  const formatNumbered = () => {
-    applyEdit(toggleLinePrefix(body, bodySelection, '1. '));
-    bodyInputRef.current?.focus();
-  };
-  const formatQuote = () => {
-    applyEdit(toggleLinePrefix(body, bodySelection, '> '));
-    bodyInputRef.current?.focus();
-  };
-  const insertLink = (url: string) => {
-    const target = URL_RE.test(url) ? url : `https://${url}`;
-    const start = Math.min(bodySelection.start, bodySelection.end);
-    const end = Math.max(bodySelection.start, bodySelection.end);
-    const selected = body.slice(start, end);
-    const label = selected || target;
-    const insertion = `[${label}](${target})`;
-    const next = `${body.slice(0, start)}${insertion}${body.slice(end)}`;
-    const cursor = start + insertion.length;
-    applyEdit({ text: next, selection: { start: cursor, end: cursor } });
-    bodyInputRef.current?.focus();
-  };
-
-  const formatLink = () => {
-    if (Platform.OS === 'ios' && typeof Alert.prompt === 'function') {
-      Alert.prompt(
-        t('email_composer.add_link', 'Add link'),
-        t('email_composer.link_url_prompt', 'Enter the URL'),
-        (url) => { if (url) insertLink(url); },
-        'plain-text',
-        '',
-        'url',
+  const insertInlineImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        t('email_composer.attach', 'Attach'),
+        'Photo library permission is required to attach images.',
       );
       return;
     }
-    // Android / web: insert an editable stub with the URL portion selected.
-    const stub = '[link text](https://)';
-    const start = Math.min(bodySelection.start, bodySelection.end);
-    const end = Math.max(bodySelection.start, bodySelection.end);
-    const next = `${body.slice(0, start)}${stub}${body.slice(end)}`;
-    const urlStart = start + '[link text]('.length;
-    const urlEnd = start + stub.length - 1;
-    applyEdit({ text: next, selection: { start: urlStart, end: urlEnd } });
-    bodyInputRef.current?.focus();
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 0.9,
+      exif: false,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const mime = asset.mimeType ?? 'image/jpeg';
+    const fallbackName = asset.fileName || `image-${Date.now()}.${mime.split('/')[1] ?? 'jpg'}`;
+    const cid = genCid();
+
+    // Read the picked image as a data URL so it shows up immediately in the
+    // editor. At send time the data URL is rewritten to `cid:<id>` and the
+    // matching inline part is added via the registry.
+    const dataUrl = await readUriAsDataUrl(asset.uri, mime);
+    if (!dataUrl) {
+      Alert.alert(t('email_composer.attach', 'Attach'), 'Could not load image');
+      return;
+    }
+    editorRef.current?.insertImage(dataUrl, cid, fallbackName);
+    const entry = addUploadEntry({
+      name: fallbackName,
+      type: mime,
+      size: asset.fileSize ?? 0,
+      uri: asset.uri,
+      inline: true,
+      cid,
+    });
+    void startUpload(entry);
   };
 
+  // ── Link prompt (Modal) ──────────────────────────────────────────────
+  const [linkPromptVisible, setLinkPromptVisible] = React.useState(false);
+  const [linkPromptValue, setLinkPromptValue] = React.useState('');
+
+  const openLinkPrompt = () => {
+    setLinkPromptValue('https://');
+    setLinkPromptVisible(true);
+  };
+
+  const submitLinkPrompt = () => {
+    const trimmed = linkPromptValue.trim();
+    setLinkPromptVisible(false);
+    if (!trimmed || trimmed === 'https://' || trimmed === 'http://') return;
+    const url = URL_RE.test(trimmed) ? trimmed : `https://${trimmed}`;
+    editorRef.current?.insertLink(url);
+  };
+
+  const onLinkPress = () => {
+    if (selState.link) {
+      editorRef.current?.unsetLink();
+      return;
+    }
+    openLinkPrompt();
+  };
+
+  // ── Send ─────────────────────────────────────────────────────────────
   const onSend = async () => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
     setSending(true);
     try {
       const from: EmailAddress[] = [{ name: primaryIdentity.name, email: primaryIdentity.email }];
 
-      const quote = replyTo?.body
-        ? formatReplyQuote(replyTo.body, {
-            senderName: replyTo.from.name || replyTo.from.email,
-            date: new Date(),
-          })
-        : '';
+      const { html: rewrittenHtml, usedCids } = rewriteInlineImages(bodyHtml);
+      // Belt-and-suspenders sanitization: the editor uses execCommand which
+      // can preserve pasted <script>/<style>/etc. Strip them before sending.
+      const safeHtml = stripDangerousTags(rewrittenHtml);
+      const finalHtml = `<div>${safeHtml}</div>`;
+      const finalText = htmlToPlainText(safeHtml);
 
-      const sourceText = body + quote;
-      const htmlBody = markdownToHtml(sourceText);
+      const inlineFromBody = usedCids
+        .map((cid) => inlineRegistryRef.current.get(cid))
+        .filter((e): e is AttachmentEntry => !!e && !!e.blobId && !e.error)
+        .map<OutgoingAttachment>((e) => ({
+          blobId: e.blobId!,
+          type: e.type,
+          name: e.name,
+          size: e.size,
+          disposition: 'inline',
+          cid: e.cid,
+        }));
 
-      // Plain text fallback: keep the user's source as-is. Strip our basic
-      // markdown markers so receivers without HTML get clean text.
-      const plainText = sourceText
-        .replace(/!\[([^\]]*)\]\(cid:[^)]+\)/g, '[$1]')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
-        .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-        .replace(/(^|[^*\w])_([^_\n]+)_(?=$|[^*\w])/g, '$1$2');
-
-      const outgoing: OutgoingAttachment[] = attachments
-        .filter((a) => a.blobId && !a.error)
-        .map((a) => ({
+      const fileAttachments = attachments
+        .filter((a) => !a.inline && a.blobId && !a.error)
+        .map<OutgoingAttachment>((a) => ({
           blobId: a.blobId!,
           type: a.type,
           name: a.name,
           size: a.size,
-          disposition: a.inline ? 'inline' : 'attachment',
-          cid: a.cid,
+          disposition: 'attachment',
         }));
+
+      const outgoing = [...inlineFromBody, ...fileAttachments];
 
       await sendEmail(
         {
@@ -566,8 +628,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
             ? finalCc.map((r) => ({ name: r.name || undefined, email: r.email }))
             : undefined,
           subject,
-          htmlBody,
-          textBody: plainText,
+          htmlBody: finalHtml,
+          textBody: finalText,
           attachments: outgoing.length ? outgoing : undefined,
           inReplyTo: replyTo?.inReplyTo,
           references: replyTo?.references,
@@ -603,7 +665,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         </Text>
         <View style={styles.headerRight}>
           <Pressable
-            onPress={() => { void pickAttachment(false); }}
+            onPress={() => { void pickAttachment(); }}
             style={styles.headerBtn}
             hitSlop={8}
           >
@@ -635,7 +697,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={styles.flex}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+        >
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>{t('email_composer.from', 'From')}</Text>
             <View style={styles.fieldContent}>
@@ -740,34 +806,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          <TextInput
-            ref={bodyInputRef}
-            style={styles.bodyInput}
+          <RichTextEditor
+            ref={editorRef}
+            initialHtml={initialBodyHtml}
             placeholder={t('email_composer.body_placeholder', 'Write your message...')}
-            placeholderTextColor={c.textMuted}
-            value={body}
-            onChangeText={setBody}
-            onSelectionChange={onBodySelectionChange}
-            multiline
-            textAlignVertical="top"
-            autoCapitalize="sentences"
+            onChange={setBodyHtml}
+            onSelectionChange={setSelState}
           />
-
-          {replyTo?.body && (
-            <View style={styles.quoteBlock}>
-              <View style={styles.quoteBorder} />
-              <View style={styles.quoteContent}>
-                <Text style={styles.quoteMeta}>
-                  {t('email_composer.quote.reply_header', 'On {date}, {sender} wrote:')
-                    .replace('{date}', new Date().toLocaleDateString())
-                    .replace('{sender}', replyTo.from.name || replyTo.from.email)}
-                </Text>
-                <Text style={styles.quoteText} numberOfLines={6}>
-                  {replyTo.body}
-                </Text>
-              </View>
-            </View>
-          )}
         </ScrollView>
 
         <ScrollView
@@ -775,44 +820,111 @@ export default function ComposeScreen({ route, navigation }: Props) {
           showsHorizontalScrollIndicator={false}
           style={styles.formatBar}
           contentContainerStyle={styles.formatActions}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
         >
-          <Pressable style={styles.formatBtn} onPress={formatBold} hitSlop={4}>
-            <Bold size={18} color={c.textSecondary} />
-          </Pressable>
-          <Pressable style={styles.formatBtn} onPress={formatItalic} hitSlop={4}>
-            <Italic size={18} color={c.textSecondary} />
-          </Pressable>
+          <ToolbarButton active={selState.bold} onPress={() => editorRef.current?.exec('bold')}
+            icon={<Bold size={18} color={selState.bold ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.italic} onPress={() => editorRef.current?.exec('italic')}
+            icon={<Italic size={18} color={selState.italic ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.underline} onPress={() => editorRef.current?.exec('underline')}
+            icon={<Underline size={18} color={selState.underline ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.strikeThrough} onPress={() => editorRef.current?.exec('strikeThrough')}
+            icon={<Strikethrough size={18} color={selState.strikeThrough ? c.primary : c.textSecondary} />} />
+
           <View style={styles.formatSep} />
-          <Pressable style={styles.formatBtn} onPress={formatBullet} hitSlop={4}>
-            <List size={18} color={c.textSecondary} />
-          </Pressable>
-          <Pressable style={styles.formatBtn} onPress={formatNumbered} hitSlop={4}>
-            <ListOrdered size={18} color={c.textSecondary} />
-          </Pressable>
-          <Pressable style={styles.formatBtn} onPress={formatQuote} hitSlop={4}>
-            <Quote size={18} color={c.textSecondary} />
-          </Pressable>
+
+          <ToolbarButton active={selState.h1} onPress={() => editorRef.current?.exec('formatBlock:H1')}
+            icon={<Heading1 size={18} color={selState.h1 ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.h2} onPress={() => editorRef.current?.exec('formatBlock:H2')}
+            icon={<Heading2 size={18} color={selState.h2 ? c.primary : c.textSecondary} />} />
+
           <View style={styles.formatSep} />
-          <Pressable style={styles.formatBtn} onPress={formatLink} hitSlop={4}>
-            <Link2 size={18} color={c.textSecondary} />
-          </Pressable>
-          <Pressable
-            style={styles.formatBtn}
-            onPress={() => { void pickAttachment(true); }}
-            hitSlop={4}
-          >
-            <ImageIcon size={18} color={c.textSecondary} />
-          </Pressable>
-          <Pressable
-            style={styles.formatBtn}
-            onPress={() => { void pickAttachment(false); }}
-            hitSlop={4}
-          >
-            <Paperclip size={18} color={c.textSecondary} />
-          </Pressable>
+
+          <ToolbarButton active={selState.ul} onPress={() => editorRef.current?.exec('insertUnorderedList')}
+            icon={<List size={18} color={selState.ul ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.ol} onPress={() => editorRef.current?.exec('insertOrderedList')}
+            icon={<ListOrdered size={18} color={selState.ol ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.blockquote} onPress={() => editorRef.current?.exec('formatBlock:BLOCKQUOTE')}
+            icon={<Quote size={18} color={selState.blockquote ? c.primary : c.textSecondary} />} />
+
+          <View style={styles.formatSep} />
+
+          <ToolbarButton active={selState.alignLeft} onPress={() => editorRef.current?.exec('justifyLeft')}
+            icon={<AlignLeft size={18} color={selState.alignLeft ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.alignCenter} onPress={() => editorRef.current?.exec('justifyCenter')}
+            icon={<AlignCenter size={18} color={selState.alignCenter ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={selState.alignRight} onPress={() => editorRef.current?.exec('justifyRight')}
+            icon={<AlignRight size={18} color={selState.alignRight ? c.primary : c.textSecondary} />} />
+
+          <View style={styles.formatSep} />
+
+          <ToolbarButton active={selState.link} onPress={onLinkPress}
+            icon={selState.link
+              ? <Link2Off size={18} color={c.primary} />
+              : <Link2 size={18} color={c.textSecondary} />} />
+          <ToolbarButton onPress={() => { void insertInlineImage(); }}
+            icon={<ImageIcon size={18} color={c.textSecondary} />} />
+          <ToolbarButton onPress={() => editorRef.current?.exec('removeFormat')}
+            icon={<RemoveFormatting size={18} color={c.textSecondary} />} />
+
+          <View style={styles.formatSep} />
+
+          <ToolbarButton onPress={() => editorRef.current?.exec('undo')}
+            icon={<Undo2 size={18} color={c.textSecondary} />} />
+          <ToolbarButton onPress={() => editorRef.current?.exec('redo')}
+            icon={<Redo2 size={18} color={c.textSecondary} />} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={linkPromptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLinkPromptVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {t('email_composer.add_link', 'Add link')}
+            </Text>
+            <Text style={styles.modalLabel}>
+              {t('email_composer.link_url_prompt', 'Enter the URL')}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={linkPromptValue}
+              onChangeText={setLinkPromptValue}
+              placeholder="https://example.com"
+              placeholderTextColor={c.textMuted}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+              onSubmitEditing={submitLinkPrompt}
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalCancel}
+                onPress={() => setLinkPromptVisible(false)}
+                hitSlop={4}
+              >
+                <Text style={styles.modalCancelText}>
+                  {t('email_composer.cancel', 'Cancel')}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalConfirm}
+                onPress={submitLinkPrompt}
+                hitSlop={4}
+              >
+                <Text style={styles.modalConfirmText}>
+                  {t('confirm_dialog.confirm', 'Confirm')}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -821,6 +933,7 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   flex: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
 
   header: {
     flexDirection: 'row',
@@ -953,26 +1066,6 @@ function makeStyles(c: ThemePalette) {
   attachmentSize: { ...typography.caption, color: c.textMuted },
   attachmentRemove: { padding: 4 },
 
-  bodyInput: {
-    ...typography.body,
-    color: c.text,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    minHeight: 200,
-    lineHeight: 22,
-  },
-
-  quoteBlock: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  quoteBorder: { width: 3, backgroundColor: c.border, borderRadius: radius.xs },
-  quoteContent: { flex: 1 },
-  quoteMeta: { ...typography.caption, color: c.textMuted, marginBottom: spacing.xs },
-  quoteText: { ...typography.caption, color: c.textSecondary, lineHeight: 18 },
-
   formatBar: {
     borderTopWidth: 1,
     borderTopColor: c.border,
@@ -993,11 +1086,63 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
     borderRadius: radius.sm,
   },
+  formatBtnActive: {
+    backgroundColor: c.primaryBg,
+  },
+  formatBtnDisabled: { opacity: 0.4 },
   formatSep: {
     width: 1,
     height: 20,
     backgroundColor: c.borderLight,
     marginHorizontal: 2,
   },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: c.background,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  modalTitle: { ...typography.h3, color: c.text },
+  modalLabel: { ...typography.caption, color: c.textSecondary },
+  modalInput: {
+    ...typography.body,
+    color: c.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.borderLight,
+    backgroundColor: c.surface,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+  },
+  modalCancel: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+  },
+  modalCancelText: { ...typography.bodyMedium, color: c.textSecondary },
+  modalConfirm: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: c.primary,
+  },
+  modalConfirmText: { ...typography.bodyMedium, color: c.primaryForeground },
   });
 }
