@@ -9,7 +9,8 @@ import type { RootStackParamList } from '../../navigation/types';
 import { getEmails, queryEmailsByFilter } from '../../api/email';
 import { useCalendarStore } from '../../stores/calendar-store';
 import SenderAvatar from '../SenderAvatar';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 const EMAIL_LIMIT = 5;
 const EVENT_LIMIT = 5;
@@ -82,6 +83,8 @@ interface Props {
 }
 
 export function ContactActivity({ contact }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const calendarEvents = useCalendarStore((s) => s.events);
 
@@ -142,12 +145,12 @@ export function ContactActivity({ contact }: Props) {
     <View style={styles.wrap}>
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <MailIcon size={14} color={colors.primary} />
+          <MailIcon size={14} color={c.primary} />
           <Text style={styles.sectionTitle}>Recent emails</Text>
         </View>
         {emailsLoading ? (
           <View style={styles.loading}>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color={c.primary} />
           </View>
         ) : emailsError ? (
           <Text style={styles.emptyText}>Couldn't load emails.</Text>
@@ -190,7 +193,7 @@ export function ContactActivity({ contact }: Props) {
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <CalendarDays size={14} color={colors.primary} />
+          <CalendarDays size={14} color={c.primary} />
           <Text style={styles.sectionTitle}>Upcoming events</Text>
         </View>
         {upcomingEvents.length === 0 ? (
@@ -215,21 +218,22 @@ export function ContactActivity({ contact }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   wrap: { gap: spacing.md, paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
   section: {
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
     borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+    borderLeftColor: c.primary,
   },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  sectionTitle: { ...typography.bodySemibold, color: colors.text },
+  sectionTitle: { ...typography.bodySemibold, color: c.text },
   loading: { paddingVertical: spacing.sm, alignItems: 'flex-start' },
-  emptyText: { ...typography.caption, color: colors.textMuted },
+  emptyText: { ...typography.caption, color: c.textMuted },
 
   row: {
     flexDirection: 'row',
@@ -238,21 +242,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.xs,
   },
-  rowPressed: { backgroundColor: colors.surface },
+  rowPressed: { backgroundColor: c.surface },
   rowContent: { flex: 1, minWidth: 0 },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
-  rowSender: { ...typography.bodyMedium, color: colors.text, flex: 1 },
-  rowDate: { ...typography.caption, color: colors.textMuted },
-  rowSubject: { ...typography.body, color: colors.text },
-  rowPreview: { ...typography.caption, color: colors.textMuted },
+  rowSender: { ...typography.bodyMedium, color: c.text, flex: 1 },
+  rowDate: { ...typography.caption, color: c.textMuted },
+  rowSubject: { ...typography.body, color: c.text },
+  rowPreview: { ...typography.caption, color: c.textMuted },
 
   eventRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'baseline', paddingVertical: 4 },
   eventTime: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
     width: 64,
   },
   eventInfo: { flex: 1, minWidth: 0 },
-  eventTitle: { ...typography.body, color: colors.text },
-  eventDate: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
-});
+  eventTitle: { ...typography.body, color: c.text },
+  eventDate: { ...typography.caption, color: c.textMuted, marginTop: 2 },
+  });
+}

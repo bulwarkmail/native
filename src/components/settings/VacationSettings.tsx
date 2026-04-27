@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert 
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useVacationStore } from '../../stores/vacation-store';
 
 function toJmapDate(input: string): string | null {
@@ -23,6 +24,8 @@ function fromJmapDate(value: string | null): string {
 }
 
 export function VacationSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const store = useVacationStore();
 
   const [enabled, setEnabled] = useState(store.isEnabled);
@@ -75,7 +78,7 @@ export function VacationSettings() {
   if (store.isLoading && !store.hasLoaded) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={c.primary} />
       </View>
     );
   }
@@ -84,7 +87,7 @@ export function VacationSettings() {
     return (
       <SettingsSection title="Vacation Responder" description="Automatically reply while you are away.">
         <View style={styles.unsupported}>
-          <AlertTriangle size={16} color={colors.warning} />
+          <AlertTriangle size={16} color={c.warning} />
           <Text style={styles.unsupportedText}>
             Your server does not advertise support for the JMAP vacation responder.
           </Text>
@@ -114,7 +117,7 @@ export function VacationSettings() {
             value={fromDate}
             onChangeText={setFromDate}
             placeholder="YYYY-MM-DD HH:MM"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={c.mutedForeground}
             style={styles.dateInput}
             autoCapitalize="none"
           />
@@ -124,7 +127,7 @@ export function VacationSettings() {
             value={toDate}
             onChangeText={setToDate}
             placeholder="YYYY-MM-DD HH:MM"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={c.mutedForeground}
             style={styles.dateInput}
             autoCapitalize="none"
           />
@@ -137,7 +140,7 @@ export function VacationSettings() {
             value={subject}
             onChangeText={setSubject}
             placeholder="Out of office"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={c.mutedForeground}
             style={styles.subjectInput}
           />
         </SettingItem>
@@ -148,7 +151,7 @@ export function VacationSettings() {
             value={body}
             onChangeText={setBody}
             placeholder="I am away from…"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor={c.mutedForeground}
             style={styles.bodyInput}
             multiline
             numberOfLines={6}
@@ -161,9 +164,9 @@ export function VacationSettings() {
         <SettingsSection title="Preview">
           <Pressable style={styles.previewToggle} onPress={() => setShowPreview((v) => !v)}>
             {showPreview ? (
-              <EyeOff size={14} color={colors.primary} />
+              <EyeOff size={14} color={c.primary} />
             ) : (
-              <Eye size={14} color={colors.primary} />
+              <Eye size={14} color={c.primary} />
             )}
             <Text style={styles.previewToggleText}>
               {showPreview ? 'Hide preview' : 'Show preview'}
@@ -182,7 +185,7 @@ export function VacationSettings() {
         <View style={styles.warnings}>
           {warnings.map((w, i) => (
             <View key={i} style={styles.warnRow}>
-              <AlertTriangle size={14} color={colors.warning} />
+              <AlertTriangle size={14} color={c.warning} />
               <Text style={styles.warnText}>{w}</Text>
             </View>
           ))}
@@ -204,7 +207,8 @@ export function VacationSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xl },
   centered: { paddingVertical: 40, alignItems: 'center' },
   unsupported: {
@@ -215,7 +219,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(202,138,4,0.12)',
     borderRadius: radius.sm,
   },
-  unsupportedText: { ...typography.body, color: colors.warning, flex: 1 },
+  unsupportedText: { ...typography.body, color: c.warning, flex: 1 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   pill: {
     paddingHorizontal: 8,
@@ -223,19 +227,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   pillActive: { backgroundColor: 'rgba(22,163,74,0.2)' },
-  pillInactive: { backgroundColor: colors.muted },
+  pillInactive: { backgroundColor: c.muted },
   pillText: { fontSize: 11, fontWeight: '500' },
   pillTextActive: { color: '#4ade80' },
-  pillTextInactive: { color: colors.mutedForeground },
+  pillTextInactive: { color: c.mutedForeground },
   dateInput: {
     minWidth: 180,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: c.border,
+    color: c.text,
     ...typography.body,
   },
   subjectInput: {
@@ -243,47 +247,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: c.border,
+    color: c.text,
     ...typography.body,
   },
   bodyBlock: { paddingVertical: spacing.md },
-  bodyLabel: { ...typography.bodyMedium, color: colors.text },
-  bodyDesc: { ...typography.caption, color: colors.mutedForeground, marginTop: 2, marginBottom: spacing.sm },
+  bodyLabel: { ...typography.bodyMedium, color: c.text },
+  bodyDesc: { ...typography.caption, color: c.mutedForeground, marginTop: 2, marginBottom: spacing.sm },
   bodyInput: {
     width: '100%',
     minHeight: 96,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: c.border,
+    color: c.text,
     ...typography.body,
   },
   previewToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  previewToggleText: { ...typography.body, color: colors.primary },
+  previewToggleText: { ...typography.body, color: c.primary },
   previewBox: {
     marginTop: spacing.sm,
     padding: spacing.lg,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: c.border,
+    backgroundColor: c.background,
   },
-  previewSubject: { ...typography.bodyMedium, color: colors.text, marginBottom: spacing.sm },
-  previewBody: { ...typography.body, color: colors.mutedForeground },
+  previewSubject: { ...typography.bodyMedium, color: c.text, marginBottom: spacing.sm },
+  previewBody: { ...typography.body, color: c.mutedForeground },
   warnings: { gap: spacing.sm },
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  warnText: { ...typography.body, color: colors.warning, flex: 1 },
+  warnText: { ...typography.body, color: c.warning, flex: 1 },
   errorBox: {
     padding: spacing.md,
     borderRadius: radius.sm,
-    backgroundColor: colors.errorBg,
+    backgroundColor: c.errorBg,
   },
-  errorText: { ...typography.body, color: colors.error },
+  errorText: { ...typography.body, color: c.error },
   saveRow: { alignItems: 'flex-end' },
 });
+}

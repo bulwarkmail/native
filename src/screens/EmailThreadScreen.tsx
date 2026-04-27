@@ -12,7 +12,8 @@ import {
   Inbox, Send, File as FileIcon, Ban, Folder, Code, Download, Tag,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import EmailBodyView from '../components/EmailBodyView';
 import SenderAvatar from '../components/SenderAvatar';
 import { useEmailStore } from '../stores/email-store';
@@ -20,6 +21,7 @@ import { setEmailKeywords } from '../api/email';
 import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
+import { useSheetDrag } from '../lib/use-sheet-drag';
 import type { Email, Mailbox } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -60,6 +62,8 @@ function plainTextBody(email: Email): string {
 }
 
 export default function EmailThreadScreen({ route, navigation }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const { emailId, subject: subjectParam } = route.params;
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -236,17 +240,17 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       {/* Toolbar */}
       <View style={styles.toolbar}>
         <Pressable onPress={() => navigation.goBack()} style={styles.toolbarBack} hitSlop={8}>
-          <ArrowLeft size={22} color={colors.text} />
+          <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <View style={styles.toolbarActions}>
           <ToolbarButton
-            icon={<Trash2 size={18} color={colors.textSecondary} />}
+            icon={<Trash2 size={18} color={c.textSecondary} />}
             label="Delete"
             onPress={onDelete}
           />
           {showArchive && (
             <ToolbarButton
-              icon={<Archive size={18} color={colors.textSecondary} />}
+              icon={<Archive size={18} color={c.textSecondary} />}
               label="Archive"
               onPress={onArchive}
             />
@@ -255,9 +259,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             <ToolbarButton
               icon={
                 unread ? (
-                  <MailOpen size={18} color={colors.textSecondary} />
+                  <MailOpen size={18} color={c.textSecondary} />
                 ) : (
-                  <Mail size={18} color={colors.textSecondary} />
+                  <Mail size={18} color={c.textSecondary} />
                 )
               }
               label={unread ? 'Read' : 'Unread'}
@@ -268,15 +272,15 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             icon={
               <Star
                 size={18}
-                color={starred ? colors.starred : colors.textSecondary}
-                fill={starred ? colors.starred : 'transparent'}
+                color={starred ? c.starred : c.textSecondary}
+                fill={starred ? c.starred : 'transparent'}
               />
             }
             label="Star"
             onPress={onToggleStar}
           />
           <ToolbarButton
-            icon={<MoreVertical size={18} color={colors.textSecondary} />}
+            icon={<MoreVertical size={18} color={c.textSecondary} />}
             label="More"
             onPress={() => setMoreMenuOpen(true)}
           />
@@ -285,7 +289,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={c.primary} />
         </View>
       ) : error ? (
         <View style={styles.centered}>
@@ -304,8 +308,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   <Pressable onPress={onToggleStar} hitSlop={8} style={styles.subjectStar}>
                     <Star
                       size={18}
-                      color={starred ? colors.starred : colors.textMuted}
-                      fill={starred ? colors.starred : 'transparent'}
+                      color={starred ? c.starred : c.textMuted}
+                      fill={starred ? c.starred : 'transparent'}
                     />
                   </Pressable>
                   <Text style={styles.subjectText}>{subject}</Text>
@@ -348,7 +352,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                 <View style={styles.attachmentsRow}>
                   {email.attachments.map((att, idx) => (
                     <View key={att.blobId ?? idx} style={styles.attachmentChip}>
-                      <Paperclip size={14} color={colors.textMuted} />
+                      <Paperclip size={14} color={c.textMuted} />
                       <Text style={styles.attachmentName} numberOfLines={1}>
                         {att.name || 'attachment'}
                       </Text>
@@ -368,28 +372,28 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
           {/* Bottom action bar */}
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
             <BottomBarButton
-              icon={<ChevronLeft size={20} color={colors.textMuted} />}
+              icon={<ChevronLeft size={20} color={c.textMuted} />}
               label="Prev"
               onPress={prevEmail ? () => goToEmail(prevEmail) : undefined}
               disabled={!prevEmail}
             />
             <BottomBarButton
-              icon={<Reply size={20} color={colors.textSecondary} />}
+              icon={<Reply size={20} color={c.textSecondary} />}
               label="Reply"
               onPress={() => navigateCompose('reply')}
             />
             <BottomBarButton
-              icon={<ReplyAll size={20} color={colors.textSecondary} />}
+              icon={<ReplyAll size={20} color={c.textSecondary} />}
               label="Reply All"
               onPress={() => navigateCompose('replyAll')}
             />
             <BottomBarButton
-              icon={<Forward size={20} color={colors.textSecondary} />}
+              icon={<Forward size={20} color={c.textSecondary} />}
               label="Forward"
               onPress={() => navigateCompose('forward')}
             />
             <BottomBarButton
-              icon={<ChevronRight size={20} color={colors.textMuted} />}
+              icon={<ChevronRight size={20} color={c.textMuted} />}
               label="Next"
               onPress={nextEmail ? () => goToEmail(nextEmail) : undefined}
               disabled={!nextEmail}
@@ -481,9 +485,12 @@ function MoreMenuSheet({
   showSpam, isInJunk, canViewSource, canExport,
   onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onViewSource, onExport,
 }: MoreMenuSheetProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(400)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const dragHandlers = useSheetDrag({ slideY, closedY: 400, onClose });
 
   React.useEffect(() => {
     if (visible) {
@@ -510,16 +517,20 @@ function MoreMenuSheet({
           { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
         ]}
       >
-        <View style={styles.sheetHandle} />
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>More actions</Text>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
-            <X size={18} color={colors.textSecondary} />
-          </Pressable>
+        <View {...dragHandlers}>
+          <View style={styles.sheetHandleHit}>
+            <View style={styles.sheetHandle} />
+          </View>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>More actions</Text>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+              <X size={18} color={c.textSecondary} />
+            </Pressable>
+          </View>
         </View>
         {canArchive && (
           <MoreMenuItem
-            icon={<Archive size={18} color={colors.textSecondary} />}
+            icon={<Archive size={18} color={c.textSecondary} />}
             label="Archive"
             onPress={onArchive}
           />
@@ -528,9 +539,9 @@ function MoreMenuSheet({
           <MoreMenuItem
             icon={
               unread ? (
-                <MailOpen size={18} color={colors.textSecondary} />
+                <MailOpen size={18} color={c.textSecondary} />
               ) : (
-                <Mail size={18} color={colors.textSecondary} />
+                <Mail size={18} color={c.textSecondary} />
               )
             }
             label={unread ? 'Mark as read' : 'Mark as unread'}
@@ -539,27 +550,27 @@ function MoreMenuSheet({
         )}
         {canMove && (
           <MoreMenuItem
-            icon={<FolderInput size={18} color={colors.textSecondary} />}
+            icon={<FolderInput size={18} color={c.textSecondary} />}
             label="Move to folder…"
             onPress={onMove}
-            trailing={<ChevronRight size={16} color={colors.textMuted} />}
+            trailing={<ChevronRight size={16} color={c.textMuted} />}
           />
         )}
         {canTag && (
           <MoreMenuItem
-            icon={<Tag size={18} color={colors.textSecondary} />}
+            icon={<Tag size={18} color={c.textSecondary} />}
             label="Tag…"
             onPress={onTag}
-            trailing={<ChevronRight size={16} color={colors.textMuted} />}
+            trailing={<ChevronRight size={16} color={c.textMuted} />}
           />
         )}
         {showSpam && (
           <MoreMenuItem
             icon={
               isInJunk ? (
-                <ShieldCheck size={18} color={colors.success} />
+                <ShieldCheck size={18} color={c.success} />
               ) : (
-                <ShieldAlert size={18} color={colors.error} />
+                <ShieldAlert size={18} color={c.error} />
               )
             }
             label={isInJunk ? 'Not spam' : 'Mark as spam'}
@@ -568,14 +579,14 @@ function MoreMenuSheet({
         )}
         {canViewSource && (
           <MoreMenuItem
-            icon={<Code size={18} color={colors.textSecondary} />}
+            icon={<Code size={18} color={c.textSecondary} />}
             label="View source"
             onPress={onViewSource}
           />
         )}
         {canExport && (
           <MoreMenuItem
-            icon={<Download size={18} color={colors.textSecondary} />}
+            icon={<Download size={18} color={c.textSecondary} />}
             label="Export email (.eml)"
             onPress={onExport}
           />
@@ -594,9 +605,12 @@ interface TagMenuSheetProps {
 }
 
 function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: TagMenuSheetProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
   React.useEffect(() => {
     if (visible) {
@@ -623,29 +637,33 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
           { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
         ]}
       >
-        <View style={styles.sheetHandle} />
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Tags</Text>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
-            <X size={18} color={colors.textSecondary} />
-          </Pressable>
+        <View {...dragHandlers}>
+          <View style={styles.sheetHandleHit}>
+            <View style={styles.sheetHandle} />
+          </View>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Tags</Text>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+              <X size={18} color={c.textSecondary} />
+            </Pressable>
+          </View>
         </View>
         {keywords.length === 0 ? (
-          <Text style={{ ...typography.body, color: colors.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
+          <Text style={{ ...typography.body, color: c.textMuted, paddingVertical: spacing.lg, paddingHorizontal: spacing.lg }}>
             No tags yet. Add some in Settings → Keywords & Labels.
           </Text>
         ) : (
           keywords.map((kw) => {
             const token = keywordToken(kw.id);
             const active = !!activeKeywords[token];
-            const palette = colors.tags[kw.color];
+            const palette = c.tags[kw.color];
             return (
               <MoreMenuItem
                 key={kw.id}
                 icon={<View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: palette.dot }} />}
                 label={kw.label}
                 onPress={() => onToggle(token)}
-                trailing={active ? <Check size={16} color={colors.primary} /> : null}
+                trailing={active ? <Check size={16} color={c.primary} /> : null}
               />
             );
           })
@@ -664,9 +682,12 @@ interface MoveMenuSheetProps {
 }
 
 function MoveMenuSheet({ visible, onClose, mailboxes, currentMailboxId, onPick }: MoveMenuSheetProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const slideY = React.useRef(new Animated.Value(500)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
 
   React.useEffect(() => {
     if (visible) {
@@ -709,12 +730,16 @@ function MoveMenuSheet({ visible, onClose, mailboxes, currentMailboxId, onPick }
           { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
         ]}
       >
-        <View style={styles.sheetHandle} />
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Move to folder</Text>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
-            <X size={18} color={colors.textSecondary} />
-          </Pressable>
+        <View {...dragHandlers}>
+          <View style={styles.sheetHandleHit}>
+            <View style={styles.sheetHandle} />
+          </View>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Move to folder</Text>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+              <X size={18} color={c.textSecondary} />
+            </Pressable>
+          </View>
         </View>
         <ScrollView>
           {visibleNodes.map((node) => {
@@ -732,14 +757,14 @@ function MoveMenuSheet({ visible, onClose, mailboxes, currentMailboxId, onPick }
                   { paddingLeft: spacing.lg + node.depth * 16 },
                 ]}
               >
-                <Icon size={16} color={canTarget ? colors.textSecondary : colors.textMuted} />
+                <Icon size={16} color={canTarget ? c.textSecondary : c.textMuted} />
                 <Text
                   style={[styles.moveRowLabel, !canTarget && styles.moveRowLabelDisabled]}
                   numberOfLines={1}
                 >
                   {node.name}
                 </Text>
-                {isCurrent && <Check size={14} color={colors.textMuted} />}
+                {isCurrent && <Check size={14} color={c.textMuted} />}
               </Pressable>
             );
           })}
@@ -752,6 +777,8 @@ function MoveMenuSheet({ visible, onClose, mailboxes, currentMailboxId, onPick }
 function MoreMenuItem({
   icon, label, onPress, trailing,
 }: { icon: React.ReactNode; label: string; onPress?: () => void; trailing?: React.ReactNode }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       onPress={onPress}
@@ -767,6 +794,8 @@ function MoreMenuItem({
 function ToolbarButton({
   icon, label, onPress,
 }: { icon: React.ReactNode; label: string; onPress?: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} style={styles.toolbarAction} hitSlop={6}>
       {icon}
@@ -778,6 +807,8 @@ function ToolbarButton({
 function BottomBarButton({
   icon, label, onPress, disabled,
 }: { icon: React.ReactNode; label: string; onPress?: () => void; disabled?: boolean }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
@@ -792,8 +823,9 @@ function BottomBarButton({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
 
   // Top toolbar
   toolbar: {
@@ -803,9 +835,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
     paddingBottom: spacing.xs,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   toolbarBack: {
     width: componentSizes.avatarSm,
@@ -828,7 +860,7 @@ const styles = StyleSheet.create({
   },
   toolbarActionLabel: {
     ...typography.small,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
 
   // Content
@@ -838,14 +870,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.lg,
   },
-  errorText: { ...typography.body, color: colors.error, textAlign: 'center' },
-  scroll: { flex: 1, backgroundColor: colors.background },
+  errorText: { ...typography.body, color: c.error, textAlign: 'center' },
+  scroll: { flex: 1, backgroundColor: c.background },
 
   // Subject block
   subjectBlock: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
@@ -868,7 +900,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     lineHeight: 28,
-    color: colors.text,
+    color: c.text,
     letterSpacing: -0.2,
   },
   subjectMeta: {
@@ -876,19 +908,19 @@ const styles = StyleSheet.create({
   },
   subjectDate: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   subjectSize: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
     marginTop: 2,
   },
 
   // Sender block
   senderBlock: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
@@ -900,27 +932,27 @@ const styles = StyleSheet.create({
   senderInfo: { flex: 1, minWidth: 0 },
   senderName: {
     ...typography.bodySemibold,
-    color: colors.text,
+    color: c.text,
   },
   senderEmail: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     marginTop: 2,
   },
   senderRecipients: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     marginTop: 4,
   },
   senderRecipientsLabel: {
-    color: colors.textMuted,
+    color: c.textMuted,
   },
 
   // Attachments
   attachmentsBlock: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
@@ -935,24 +967,24 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
   },
   attachmentName: {
     ...typography.caption,
-    color: colors.text,
+    color: c.text,
     maxWidth: 180,
   },
   attachmentSize: {
     ...typography.small,
-    color: colors.textMuted,
+    color: c.textMuted,
   },
 
   // Body
   bodyBlock: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
   },
 
   // Bottom bar
@@ -963,9 +995,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: 'row',
     alignItems: 'stretch',
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
   },
   bottomBarBtn: {
     flex: 1,
@@ -980,10 +1012,10 @@ const styles = StyleSheet.create({
   },
   bottomBarLabel: {
     ...typography.small,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   bottomBarLabelDisabled: {
-    color: colors.textMuted,
+    color: c.textMuted,
   },
 
   // Bottom sheet (More menu / Move folder picker)
@@ -997,23 +1029,26 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.popover,
+    backgroundColor: c.popover,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingTop: spacing.sm,
   },
   sheetTall: {
     maxHeight: '75%',
   },
+  sheetHandleHit: {
+    alignItems: 'center',
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+  },
   sheetHandle: {
-    alignSelf: 'center',
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
-    marginBottom: spacing.sm,
+    backgroundColor: c.border,
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -1022,11 +1057,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   sheetTitle: {
     ...typography.bodySemibold,
-    color: colors.text,
+    color: c.text,
   },
   sheetClose: {
     width: 28,
@@ -1045,7 +1080,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     minHeight: 48,
   },
-  moreItemPressed: { backgroundColor: colors.surfaceHover },
+  moreItemPressed: { backgroundColor: c.surfaceHover },
   moreItemIcon: {
     width: 20,
     alignItems: 'center',
@@ -1053,7 +1088,7 @@ const styles = StyleSheet.create({
   },
   moreItemLabel: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flex: 1,
   },
 
@@ -1066,13 +1101,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
     minHeight: 44,
   },
-  moveRowPressed: { backgroundColor: colors.surfaceHover },
+  moveRowPressed: { backgroundColor: c.surfaceHover },
   moveRowLabel: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flex: 1,
   },
   moveRowLabelDisabled: {
-    color: colors.textMuted,
+    color: c.textMuted,
   },
-});
+  });
+}

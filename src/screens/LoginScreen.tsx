@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Eye, EyeOff, X } from 'lucide-react-native';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import { Button, Input } from '../components';
 import { useAuthStore } from '../stores/auth-store';
 
@@ -13,6 +14,8 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScreenProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const login = useAuthStore((state) => state.login);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
@@ -56,7 +59,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
     <SafeAreaView style={styles.container}>
       {isAddMode && onCancel ? (
         <Pressable onPress={onCancel} style={styles.cancelButton} hitSlop={10}>
-          <X size={24} color={colors.text} />
+          <X size={24} color={c.text} />
         </Pressable>
       ) : null}
       <KeyboardAvoidingView
@@ -113,9 +116,9 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
               rightIcon={
                 <Pressable onPress={() => setShowPassword(!showPassword)}>
                   {showPassword ? (
-                    <EyeOff size={20} color={colors.textMuted} />
+                    <EyeOff size={20} color={c.textMuted} />
                   ) : (
-                    <Eye size={20} color={colors.textMuted} />
+                    <Eye size={20} color={c.textMuted} />
                   )}
                 </Pressable>
               }
@@ -162,8 +165,9 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   cancelButton: {
     position: 'absolute',
     top: 50,
@@ -189,8 +193,8 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
   },
-  appName: { ...typography.h1, color: colors.text },
-  tagline: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
+  appName: { ...typography.h1, color: c.text },
+  tagline: { ...typography.caption, color: c.textMuted, marginTop: spacing.xs },
 
   form: { gap: spacing.lg },
 
@@ -199,7 +203,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...typography.caption,
-    color: colors.error,
+    color: c.error,
     textAlign: 'center',
   },
 
@@ -209,12 +213,13 @@ const styles = StyleSheet.create({
     marginVertical: spacing.md,
     gap: spacing.md,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { ...typography.caption, color: colors.textMuted },
+  dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+  dividerText: { ...typography.caption, color: c.textMuted },
 
   oauthRow: { gap: spacing.md },
 
   footer: { alignItems: 'center', marginTop: 40, gap: spacing.xs },
-  footerText: { ...typography.caption, color: colors.textMuted },
-  footerLink: { ...typography.caption, color: colors.textLink },
-});
+  footerText: { ...typography.caption, color: c.textMuted },
+  footerLink: { ...typography.caption, color: c.textLink },
+  });
+}

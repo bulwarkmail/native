@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ViewStyle } from 'react-native';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 interface RadioOption {
   label: string;
@@ -22,6 +23,8 @@ interface RadioGroupProps {
  * - unselected: bg-muted text-foreground
  */
 export default function RadioGroup({ options, value, onChange, style }: RadioGroupProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={[styles.container, style]}>
       {options.map((opt) => {
@@ -42,7 +45,8 @@ export default function RadioGroup({ options, value, onChange, style }: RadioGro
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flexDirection: 'row',
     gap: 6,                          // gap-1.5
@@ -53,19 +57,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,         // rounded-md
   },
   optionSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
   optionUnselected: {
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
   optionText: {
     ...typography.caption,           // text-xs
   },
   textSelected: {
-    color: colors.primaryForeground,
+    color: c.primaryForeground,
     fontWeight: '500',
   },
   textUnselected: {
-    color: colors.text,
+    color: c.text,
   },
-});
+  });
+}

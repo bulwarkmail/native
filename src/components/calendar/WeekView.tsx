@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { addDays, format, isSameDay, isToday, startOfWeek } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import {
   buildEventDayIndex,
   buildTimedFullDayWeekSegments,
@@ -49,6 +50,8 @@ function WeekViewInner({
   onCreateAtTime,
   weekStartsOn = 0,
 }: WeekViewProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const scrollRef = React.useRef<ScrollView>(null);
 
   const index = React.useMemo(
@@ -311,12 +314,13 @@ function minutesToTimeLabel(minutes: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   headerRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   gutter: { width: GUTTER_WIDTH },
   dayHeaders: { flex: 1, flexDirection: 'row' },
@@ -328,7 +332,7 @@ const styles = StyleSheet.create({
   },
   dayHeaderWeekday: {
     ...typography.small,
-    color: colors.textMuted,
+    color: c.textMuted,
     textTransform: 'uppercase',
   },
   dayHeaderNumber: {
@@ -338,29 +342,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayHeaderNumberToday: { backgroundColor: colors.primary },
+  dayHeaderNumberToday: { backgroundColor: c.primary },
   dayHeaderNumberSelected: {
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: c.primary,
   },
-  dayHeaderNumberText: { ...typography.bodyMedium, color: colors.text },
-  dayHeaderNumberTextToday: { color: colors.textInverse, fontWeight: '700' },
-  dayHeaderNumberTextSelected: { color: colors.primary, fontWeight: '600' },
+  dayHeaderNumberText: { ...typography.bodyMedium, color: c.text },
+  dayHeaderNumberTextToday: { color: c.textInverse, fontWeight: '700' },
+  dayHeaderNumberTextSelected: { color: c.primary, fontWeight: '600' },
 
   allDayStrip: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     paddingVertical: 2,
   },
   allDayLabelWrap: { alignItems: 'flex-end', justifyContent: 'flex-start', paddingRight: 4 },
-  allDayLabel: { ...typography.small, color: colors.textMuted },
+  allDayLabel: { ...typography.small, color: c.textMuted },
   allDayGrid: { flex: 1, flexDirection: 'row', position: 'relative' },
   allDayCol: {
     flex: 1,
     borderLeftWidth: 1,
-    borderLeftColor: colors.borderLight,
+    borderLeftColor: c.borderLight,
   },
   allDayOverlay: {
     position: 'absolute',
@@ -376,7 +380,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     justifyContent: 'center',
   },
-  allDayChipText: { fontSize: 10, color: colors.text, fontWeight: '500' },
+  allDayChipText: { fontSize: 10, color: c.text, fontWeight: '500' },
 
   scroll: { flex: 1 },
   scrollContent: {},
@@ -385,19 +389,19 @@ const styles = StyleSheet.create({
   hourLabelCell: { paddingRight: 4, alignItems: 'flex-end' },
   hourLabel: {
     ...typography.small,
-    color: colors.textMuted,
+    color: c.textMuted,
     transform: [{ translateY: -6 }],
   },
   dayCols: { flex: 1, flexDirection: 'row' },
   dayCol: {
     flex: 1,
     borderLeftWidth: 1,
-    borderLeftColor: colors.border,
+    borderLeftColor: c.border,
     position: 'relative',
   },
   hourSlot: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
   eventBlock: {
     position: 'absolute',
@@ -407,8 +411,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  eventBlockTitle: { fontSize: 10, color: colors.text, fontWeight: '600' },
-  eventBlockTime: { fontSize: 9, color: colors.textMuted, marginTop: 1 },
+  eventBlockTitle: { fontSize: 10, color: c.text, fontWeight: '600' },
+  eventBlockTime: { fontSize: 9, color: c.textMuted, marginTop: 1 },
 
   nowLine: {
     position: 'absolute',
@@ -421,7 +425,8 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.error,
+    backgroundColor: c.error,
   },
-  nowBar: { flex: 1, height: 1, backgroundColor: colors.error },
-});
+  nowBar: { flex: 1, height: 1, backgroundColor: c.error },
+  });
+}

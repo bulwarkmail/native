@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ThemeMode, type FontSize, type Density } from '../../stores/settings-store';
 
 type Theme = ThemeMode;
@@ -20,6 +21,8 @@ const PREVIEW_ROWS = [
 ];
 
 function DensityPreview({ density }: { density: Density }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const cfg = DENSITY_PREVIEW[density];
   return (
     <View style={styles.densityPreview}>
@@ -46,7 +49,7 @@ function DensityPreview({ density }: { density: Density }) {
               <Text
                 style={[
                   styles.densitySender,
-                  row.unread ? { color: colors.text, fontWeight: '600' } : { color: colors.mutedForeground },
+                  row.unread ? { color: c.text, fontWeight: '600' } : { color: c.mutedForeground },
                 ]}
                 numberOfLines={1}
               >
@@ -57,7 +60,7 @@ function DensityPreview({ density }: { density: Density }) {
             <Text
               style={[
                 styles.densitySubject,
-                row.unread ? { color: colors.text, fontWeight: '500' } : { color: 'rgba(250,250,250,0.8)' },
+                row.unread ? { color: c.text, fontWeight: '500' } : { color: 'rgba(250,250,250,0.8)' },
               ]}
               numberOfLines={1}
             >
@@ -76,6 +79,8 @@ function DensityPreview({ density }: { density: Density }) {
 }
 
 export function AppearanceSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const fontSize = useSettingsStore((s) => s.fontSize);
@@ -146,24 +151,25 @@ export function AppearanceSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   densityPreview: {
     marginTop: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     overflow: 'hidden',
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
   },
   densityRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   densityAvatar: {
     borderRadius: radius.full,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
   densityHeader: {
     flexDirection: 'row',
@@ -177,7 +183,7 @@ const styles = StyleSheet.create({
   },
   densityTime: {
     fontSize: 10,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
   },
   densitySubject: {
     ...typography.caption,
@@ -188,7 +194,8 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: c.border,
     marginTop: spacing.md,
   },
 });
+}

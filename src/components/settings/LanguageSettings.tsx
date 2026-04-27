@@ -2,11 +2,14 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { SettingsSection, SettingItem } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { SUPPORTED_LOCALES, detectDeviceLocale, type LocaleCode } from '../../i18n';
 
 export function LanguageSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const override = useLocaleStore((s) => s.override);
   const setOverride = useLocaleStore((s) => s.setOverride);
   const hydrated = useLocaleStore((s) => s.hydrated);
@@ -30,7 +33,7 @@ export function LanguageSettings() {
           <Text style={styles.label}>{label}</Text>
           {sublabel ? <Text style={styles.sublabel}>{sublabel}</Text> : null}
         </View>
-        {active ? <Check size={16} color={colors.primary} /> : null}
+        {active ? <Check size={16} color={c.primary} /> : null}
       </Pressable>
     );
   };
@@ -57,8 +60,9 @@ export function LanguageSettings() {
   );
 }
 
-const styles = StyleSheet.create({
-  list: { borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  list: { borderRadius: radius.md, overflow: 'hidden', backgroundColor: c.background },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -66,8 +70,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
   },
-  rowPressed: { backgroundColor: colors.muted },
-  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md },
-  label: { ...typography.body, color: colors.text },
-  sublabel: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  rowPressed: { backgroundColor: c.muted },
+  divider: { height: 1, backgroundColor: c.border, marginHorizontal: spacing.md },
+  label: { ...typography.body, color: c.text },
+  sublabel: { ...typography.caption, color: c.textMuted, marginTop: 2 },
 });
+}

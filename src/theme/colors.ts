@@ -1,45 +1,33 @@
-export const colors = {
-  // Primary brand colors (matching Bulwark web)
-  primary: '#3b82f6',
-  primaryDark: '#2563eb',
-  primaryLight: '#60a5fa',
+import { useColorScheme } from 'react-native';
+import { useSettingsStore } from '../stores/settings-store';
+import { LIGHT_COLORS, DARK_COLORS, type ThemePalette } from './tokens';
 
-  // Backgrounds
-  background: '#ffffff',
-  surface: '#f8fafc',
-  surfaceHover: '#f1f5f9',
+export type { ThemePalette };
 
-  // Text
-  text: '#0f172a',
-  textSecondary: '#64748b',
-  textMuted: '#94a3b8',
-  textInverse: '#ffffff',
+/**
+ * Returns the active palette for the current render. Resolves the user's
+ * theme preference ('light' | 'dark' | 'system') against the OS scheme.
+ *
+ * Prefer this hook in new and migrated components. Static `import { colors }`
+ * still works for not-yet-migrated code (it always returns the dark palette).
+ */
+export function useColors(): ThemePalette {
+  const themePref = useSettingsStore((s) => s.theme);
+  const systemScheme = useColorScheme();
+  const resolved =
+    themePref === 'system'
+      ? systemScheme === 'light' ? 'light' : 'dark'
+      : themePref;
+  return resolved === 'light' ? LIGHT_COLORS : DARK_COLORS;
+}
 
-  // Borders
-  border: '#e2e8f0',
-  borderLight: '#f1f5f9',
-
-  // Status
-  success: '#22c55e',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  info: '#3b82f6',
-
-  // Email-specific
-  unread: '#0f172a',
-  read: '#64748b',
-  starred: '#f59e0b',
-  flagged: '#ef4444',
-
-  // Dark mode
-  dark: {
-    background: '#0f172a',
-    surface: '#1e293b',
-    surfaceHover: '#334155',
-    text: '#f8fafc',
-    textSecondary: '#94a3b8',
-    textMuted: '#64748b',
-    border: '#334155',
-    borderLight: '#1e293b',
-  },
-} as const;
+/**
+ * Resolves the user's theme preference to a concrete 'light' | 'dark'.
+ * Useful for components that need to choose icons/imagery rather than colors.
+ */
+export function useResolvedTheme(): 'light' | 'dark' {
+  const themePref = useSettingsStore((s) => s.theme);
+  const systemScheme = useColorScheme();
+  if (themePref === 'system') return systemScheme === 'light' ? 'light' : 'dark';
+  return themePref;
+}

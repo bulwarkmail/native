@@ -29,7 +29,8 @@ import { ContactListRow } from '../components/contacts';
 import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { useSettingsStore } from '../stores/settings-store';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -77,6 +78,8 @@ function categoryTitle(category: ContactCategory, books: Array<{ id: string; nam
 }
 
 export default function ContactsScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const contacts = useContactsStore((s) => s.contacts);
   const addressBooks = useContactsStore((s) => s.addressBooks);
@@ -227,7 +230,7 @@ export default function ContactsScreen() {
         {selectionMode ? (
           <>
             <Pressable onPress={clearSelection} style={styles.headerIconBtn} hitSlop={8}>
-              <X size={22} color={colors.text} />
+              <X size={22} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle}>{selection.size} selected</Text>
             <View style={styles.headerActions}>
@@ -236,14 +239,14 @@ export default function ContactsScreen() {
                 style={styles.headerIconBtn}
                 hitSlop={8}
               >
-                <Trash2 size={20} color={colors.error} />
+                <Trash2 size={20} color={c.error} />
               </Pressable>
             </View>
           </>
         ) : (
           <>
             <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerIconBtn} hitSlop={8}>
-              <Menu size={22} color={colors.text} />
+              <Menu size={22} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.headerCount}>{visible.length}</Text>
@@ -253,14 +256,14 @@ export default function ContactsScreen() {
                 style={styles.headerIconBtn}
                 hitSlop={8}
               >
-                <Search size={20} color={colors.text} />
+                <Search size={20} color={c.text} />
               </Pressable>
               <Pressable
                 onPress={() => navigation.navigate('ContactForm', {})}
                 style={styles.addBtn}
                 hitSlop={8}
               >
-                <Plus size={18} color={colors.primaryForeground} />
+                <Plus size={18} color={c.primaryForeground} />
               </Pressable>
             </View>
           </>
@@ -269,18 +272,18 @@ export default function ContactsScreen() {
 
       {searchActive && (
         <View style={styles.searchBar}>
-          <Search size={16} color={colors.textMuted} />
+          <Search size={16} color={c.textMuted} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search contacts..."
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoFocus
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <X size={16} color={colors.textMuted} />
+              <X size={16} color={c.textMuted} />
             </Pressable>
           )}
         </View>
@@ -346,17 +349,17 @@ export default function ContactsScreen() {
               void fetchContacts();
               void fetchAddressBooks();
             }}
-            tintColor={colors.primary}
+            tintColor={c.primary}
           />
         }
         ListEmptyComponent={
           loading ? (
             <View style={styles.emptyState}>
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={c.primary} />
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <UserCircle size={48} color={colors.surfaceActive} />
+              <UserCircle size={48} color={c.surfaceActive} />
               <Text style={styles.emptyTitle}>
                 {searchQuery ? 'No contacts found' : 'No contacts yet'}
               </Text>
@@ -381,8 +384,9 @@ export default function ContactsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   listContent: { paddingBottom: 80 },
 
   header: {
@@ -392,11 +396,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     gap: spacing.sm,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flexShrink: 1 },
+  headerTitle: { ...typography.h3, color: c.text, flexShrink: 1 },
   headerCount: {
     ...typography.small,
-    color: colors.textMuted,
-    backgroundColor: colors.surface,
+    color: c.textMuted,
+    backgroundColor: c.surface,
     borderRadius: radius.full,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -421,7 +425,7 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderRadius: radius.full,
   },
 
@@ -432,13 +436,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     paddingHorizontal: spacing.md,
     height: componentSizes.inputHeight,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, ...typography.body, color: colors.text, paddingVertical: 0 },
+  searchInput: { flex: 1, ...typography.body, color: c.text, paddingVertical: 0 },
 
   chipBar: { flexGrow: 0, marginBottom: spacing.sm },
   chipBarContent: {
@@ -450,33 +454,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
-  chipText: { ...typography.captionMedium, color: colors.textSecondary },
-  chipTextActive: { color: colors.primaryForeground },
+  chipText: { ...typography.captionMedium, color: c.textSecondary },
+  chipTextActive: { color: c.primaryForeground },
   chipDivider: {
     width: 1,
     height: 16,
-    backgroundColor: colors.border,
+    backgroundColor: c.border,
     marginHorizontal: spacing.xs,
   },
 
   sectionHeader: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
-  sectionHeaderText: { ...typography.small, color: colors.primary },
+  sectionHeaderText: { ...typography.small, color: c.primary },
 
-  separator: { height: 1, backgroundColor: colors.borderLight, marginLeft: 68 },
+  separator: { height: 1, backgroundColor: c.borderLight, marginLeft: 68 },
 
   errorBanner: {
     marginHorizontal: spacing.lg,
@@ -484,17 +488,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
-    backgroundColor: colors.errorBg,
+    backgroundColor: c.errorBg,
     borderWidth: 1,
-    borderColor: colors.errorBorder,
+    borderColor: c.errorBorder,
   },
-  errorText: { ...typography.caption, color: colors.errorForeground },
+  errorText: { ...typography.caption, color: c.errorForeground },
 
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.xxxl * 2,
     gap: spacing.sm,
   },
-  emptyTitle: { ...typography.bodyMedium, color: colors.textSecondary },
-  emptySubtitle: { ...typography.caption, color: colors.textMuted },
-});
+  emptyTitle: { ...typography.bodyMedium, color: c.textSecondary },
+  emptySubtitle: { ...typography.caption, color: c.textMuted },
+  });
+}

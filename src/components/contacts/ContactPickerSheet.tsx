@@ -12,7 +12,9 @@ import {
 } from '../../stores/contacts-store';
 import { matchesContactSearch, isGroup } from '../../lib/contact-utils';
 import ContactListRow from './ContactListRow';
-import { colors, spacing, radius, typography, componentSizes } from '../../theme/tokens';
+import { useSheetDrag } from '../../lib/use-sheet-drag';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface Props {
   visible: boolean;
@@ -26,9 +28,11 @@ interface Props {
 export default function ContactPickerSheet({
   visible, onClose, onSelect, title = 'Add Contact', excludedIds, multi = true,
 }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const allContacts = useContactsStore((s) => s.contacts);
   const sorted = React.useMemo(
-    () => sortContactsByDisplayName(allContacts.filter((c) => !isGroup(c))),
+    () => sortContactsByDisplayName(allContacts.filter((contact) => !isGroup(contact))),
     [allContacts],
   );
   const [query, setQuery] = React.useState('');
@@ -36,6 +40,11 @@ export default function ContactPickerSheet({
 
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const overlay = React.useRef(new Animated.Value(0)).current;
+  const dragHandlers = useSheetDrag({
+    slideY,
+    closedY: Dimensions.get('window').height,
+    onClose,
+  });
 
   React.useEffect(() => {
     if (visible) {
@@ -90,37 +99,41 @@ export default function ContactPickerSheet({
 
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
         <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.headerBtn} hitSlop={8}>
-              <X size={20} color={colors.text} />
-            </Pressable>
-            <Text style={styles.headerTitle}>{title}</Text>
-            {multi && (
-              <Pressable
-                onPress={confirm}
-                disabled={selected.size === 0}
-                style={[styles.doneBtn, selected.size === 0 && styles.doneBtnDisabled]}
-                hitSlop={8}
-              >
-                <Text style={styles.doneLabel}>Add{selected.size > 0 ? ` (${selected.size})` : ''}</Text>
+          <View {...dragHandlers}>
+            <View style={styles.handleHit}>
+              <View style={styles.handle} />
+            </View>
+            <View style={styles.header}>
+              <Pressable onPress={onClose} style={styles.headerBtn} hitSlop={8}>
+                <X size={20} color={c.text} />
               </Pressable>
-            )}
+              <Text style={styles.headerTitle}>{title}</Text>
+              {multi && (
+                <Pressable
+                  onPress={confirm}
+                  disabled={selected.size === 0}
+                  style={[styles.doneBtn, selected.size === 0 && styles.doneBtnDisabled]}
+                  hitSlop={8}
+                >
+                  <Text style={styles.doneLabel}>Add{selected.size > 0 ? ` (${selected.size})` : ''}</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
 
           <View style={styles.searchBar}>
-            <Search size={16} color={colors.textMuted} />
+            <Search size={16} color={c.textMuted} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search contacts..."
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               value={query}
               onChangeText={setQuery}
               autoFocus
             />
             {query.length > 0 && (
               <Pressable onPress={() => setQuery('')} hitSlop={8}>
-                <X size={16} color={colors.textMuted} />
+                <X size={16} color={c.textMuted} />
               </Pressable>
             )}
           </View>
@@ -150,24 +163,28 @@ export default function ContactPickerSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   overlayPress: { flex: 1 },
   sheet: {
     position: 'absolute',
     left: 0, right: 0, bottom: 0,
     top: '15%',
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
   },
+  handleHit: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
   handle: {
-    alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
-    marginTop: spacing.sm,
+    backgroundColor: c.border,
   },
   header: {
     flexDirection: 'row',
@@ -176,23 +193,23 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
   headerBtn: {
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flex: 1, marginLeft: spacing.xs },
+  headerTitle: { ...typography.h3, color: c.text, flex: 1, marginLeft: spacing.xs },
   doneBtn: {
     paddingHorizontal: spacing.md,
     height: 36,
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderRadius: radius.full,
   },
   doneBtnDisabled: { opacity: 0.5 },
-  doneLabel: { ...typography.bodyMedium, color: colors.primaryForeground },
+  doneLabel: { ...typography.bodyMedium, color: c.primaryForeground },
 
   searchBar: {
     flexDirection: 'row',
@@ -202,14 +219,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     height: componentSizes.inputHeight,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, ...typography.body, color: colors.text, paddingVertical: 0 },
+  searchInput: { flex: 1, ...typography.body, color: c.text, paddingVertical: 0 },
 
-  separator: { height: 1, backgroundColor: colors.borderLight, marginLeft: 68 },
+  separator: { height: 1, backgroundColor: c.borderLight, marginLeft: 68 },
 
   empty: { paddingVertical: spacing.xxxl, alignItems: 'center' },
-  emptyText: { ...typography.body, color: colors.textMuted },
-});
+  emptyText: { ...typography.body, color: c.textMuted },
+  });
+}

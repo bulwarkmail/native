@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Upload, Puzzle, AlertTriangle, Lock, Trash2, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface Plugin {
   id: string;
@@ -20,14 +21,16 @@ interface Plugin {
 }
 
 const STATUS_STYLE: Record<Plugin['status'], { bg: string; fg: string }> = {
-  installed: { bg: colors.muted, fg: colors.mutedForeground },
+  installed: { bg: c.muted, fg: c.mutedForeground },
   enabled:   { bg: 'rgba(59, 130, 246, 0.15)', fg: '#60a5fa' },
   running:   { bg: 'rgba(34, 197, 94, 0.15)',  fg: '#4ade80' },
-  disabled:  { bg: colors.muted, fg: colors.mutedForeground },
+  disabled:  { bg: c.muted, fg: c.mutedForeground },
   error:     { bg: 'rgba(239, 68, 68, 0.15)',  fg: '#f87171' },
 };
 
 export function PluginsSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -52,7 +55,7 @@ export function PluginsSettings() {
     >
       {plugins.length === 0 ? (
         <View style={styles.empty}>
-          <Puzzle size={48} color={colors.mutedForeground} style={{ opacity: 0.3 }} />
+          <Puzzle size={48} color={c.mutedForeground} style={{ opacity: 0.3 }} />
           <Text style={styles.emptyTitle}>No plugins installed</Text>
           <Text style={styles.emptyDesc}>Upload a plugin .zip file to get started.</Text>
         </View>
@@ -66,7 +69,7 @@ export function PluginsSettings() {
                 key={plugin.id}
                 style={[
                   styles.card,
-                  plugin.status === 'error' && { borderColor: colors.errorBorder },
+                  plugin.status === 'error' && { borderColor: c.errorBorder },
                 ]}
               >
                 <View style={styles.cardHeader}>
@@ -107,7 +110,7 @@ export function PluginsSettings() {
 
                     {plugin.error && (
                       <View style={styles.errorBox}>
-                        <AlertTriangle size={14} color={colors.error} />
+                        <AlertTriangle size={14} color={c.error} />
                         <Text style={styles.errorText}>{plugin.error}</Text>
                       </View>
                     )}
@@ -145,7 +148,7 @@ export function PluginsSettings() {
       )}
 
       <SettingItem label="Upload Plugin" description="Install a new plugin from a .zip file.">
-        <Button variant="outline" size="sm" icon={<Upload size={14} color={colors.text} />}>
+        <Button variant="outline" size="sm" icon={<Upload size={14} color={c.text} />}>
           Upload .zip
         </Button>
       </SettingItem>
@@ -153,18 +156,19 @@ export function PluginsSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   empty: {
     alignItems: 'center',
     paddingVertical: spacing.xxxl,
     gap: spacing.sm,
   },
-  emptyTitle: { ...typography.body, color: colors.mutedForeground },
-  emptyDesc: { ...typography.caption, color: colors.mutedForeground },
+  emptyTitle: { ...typography.body, color: c.mutedForeground },
+  emptyDesc: { ...typography.caption, color: c.mutedForeground },
   card: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -173,7 +177,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  pluginName: { ...typography.bodyMedium, color: colors.text },
+  pluginName: { ...typography.bodyMedium, color: c.text },
   statusPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.full },
   statusText: { fontSize: 10, fontWeight: '500' },
   forcedPill: {
@@ -187,38 +191,39 @@ const styles = StyleSheet.create({
   },
   forcedText: { fontSize: 10, fontWeight: '500', color: '#fbbf24' },
   metaRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2 },
-  meta: { ...typography.caption, color: colors.mutedForeground },
-  metaDot: { ...typography.caption, color: colors.mutedForeground, opacity: 0.6 },
+  meta: { ...typography.caption, color: c.mutedForeground },
+  metaDot: { ...typography.caption, color: c.mutedForeground, opacity: 0.6 },
   cardBody: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
     padding: spacing.md,
     gap: spacing.md,
   },
-  description: { ...typography.caption, color: colors.mutedForeground },
+  description: { ...typography.caption, color: c.mutedForeground },
   errorBox: {
     flexDirection: 'row',
     gap: spacing.sm,
     padding: spacing.sm,
     borderRadius: radius.sm,
-    backgroundColor: colors.errorBg,
+    backgroundColor: c.errorBg,
     alignItems: 'flex-start',
   },
-  errorText: { ...typography.caption, color: colors.error, flex: 1 },
-  sectionLabel: { ...typography.captionMedium, color: colors.text, marginBottom: 4 },
+  errorText: { ...typography.caption, color: c.error, flex: 1 },
+  sectionLabel: { ...typography.captionMedium, color: c.text, marginBottom: 4 },
   permWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   permPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.xs,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
-  permText: { fontSize: 10, color: colors.mutedForeground },
+  permText: { fontSize: 10, color: c.mutedForeground },
   uninstallRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
   },
 });
+}

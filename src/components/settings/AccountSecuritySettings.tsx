@@ -4,7 +4,8 @@ import { Key, Smartphone, Lock, Eye, EyeOff, Shield, Monitor, Trash2 } from 'luc
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Input from '../Input';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface Session {
   id: string;
@@ -19,6 +20,8 @@ const MOCK_SESSIONS: Session[] = [
 ];
 
 export function AccountSecuritySettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -42,9 +45,9 @@ export function AccountSecuritySettings() {
               />
               <Pressable style={styles.eyeBtn} onPress={() => setShowCurrent((v) => !v)}>
                 {showCurrent ? (
-                  <EyeOff size={16} color={colors.mutedForeground} />
+                  <EyeOff size={16} color={c.mutedForeground} />
                 ) : (
-                  <Eye size={16} color={colors.mutedForeground} />
+                  <Eye size={16} color={c.mutedForeground} />
                 )}
               </Pressable>
             </View>
@@ -61,9 +64,9 @@ export function AccountSecuritySettings() {
               />
               <Pressable style={styles.eyeBtn} onPress={() => setShowNew((v) => !v)}>
                 {showNew ? (
-                  <EyeOff size={16} color={colors.mutedForeground} />
+                  <EyeOff size={16} color={c.mutedForeground} />
                 ) : (
-                  <Eye size={16} color={colors.mutedForeground} />
+                  <Eye size={16} color={c.mutedForeground} />
                 )}
               </Pressable>
             </View>
@@ -79,7 +82,7 @@ export function AccountSecuritySettings() {
           </View>
 
           <View style={{ alignItems: 'flex-end' }}>
-            <Button size="sm" icon={<Key size={14} color={colors.primaryForeground} />}>
+            <Button size="sm" icon={<Key size={14} color={c.primaryForeground} />}>
               Change Password
             </Button>
           </View>
@@ -93,7 +96,7 @@ export function AccountSecuritySettings() {
 
         {twoFactor && (
           <View style={styles.infoBox}>
-            <Smartphone size={16} color={colors.primary} />
+            <Smartphone size={16} color={c.primary} />
             <Text style={styles.infoText}>
               Scan the QR code in your authenticator app to finish setup.
             </Text>
@@ -104,7 +107,7 @@ export function AccountSecuritySettings() {
       <SettingsSection title="App Passwords" description="Generate passwords for other mail clients.">
         {appPwds.length === 0 ? (
           <View style={styles.empty}>
-            <Lock size={24} color={colors.mutedForeground} />
+            <Lock size={24} color={c.mutedForeground} />
             <Text style={styles.emptyText}>No app passwords yet.</Text>
           </View>
         ) : null}
@@ -119,7 +122,7 @@ export function AccountSecuritySettings() {
         {MOCK_SESSIONS.map((s) => (
           <View key={s.id} style={styles.sessionRow}>
             <View style={styles.sessionIcon}>
-              <Monitor size={18} color={colors.text} />
+              <Monitor size={18} color={c.text} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.sessionDevice}>{s.device}</Text>
@@ -129,7 +132,7 @@ export function AccountSecuritySettings() {
             </View>
             {!s.current && (
               <Pressable style={styles.trashBtn}>
-                <Trash2 size={16} color={colors.error} />
+                <Trash2 size={16} color={c.error} />
               </Pressable>
             )}
           </View>
@@ -139,23 +142,24 @@ export function AccountSecuritySettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
   pwField: { gap: 4 },
-  pwLabel: { ...typography.caption, color: colors.mutedForeground },
+  pwLabel: { ...typography.caption, color: c.mutedForeground },
   pwInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   eyeBtn: { padding: spacing.sm },
   infoBox: {
     flexDirection: 'row',
     gap: spacing.sm,
     padding: spacing.md,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
     borderRadius: radius.sm,
     alignItems: 'center',
   },
   infoText: {
     ...typography.caption,
-    color: colors.primary,
+    color: c.primary,
     flex: 1,
   },
   empty: {
@@ -165,7 +169,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...typography.body,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
   },
   sessionRow: {
     flexDirection: 'row',
@@ -173,18 +177,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   sessionIcon: {
     width: 36,
     height: 36,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sessionDevice: { ...typography.bodyMedium, color: colors.text },
-  sessionMeta: { ...typography.caption, color: colors.mutedForeground, marginTop: 2 },
+  sessionDevice: { ...typography.bodyMedium, color: c.text },
+  sessionMeta: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
   trashBtn: {
     width: 32,
     height: 32,
@@ -193,3 +197,4 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
 });
+}

@@ -24,7 +24,8 @@ import {
 } from 'lucide-react-native';
 import { addHours, addMinutes, format } from 'date-fns';
 import type { Calendar, CalendarEvent, Participant } from '../../api/types';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import {
   buildAllDayDuration,
   getCalendarColor,
@@ -150,6 +151,8 @@ export function EventModal({
   onDelete,
   onClose,
 }: EventModalProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const isEdit = !!event;
 
   const [title, setTitle] = React.useState('');
@@ -264,7 +267,7 @@ export function EventModal({
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable onPress={onClose} hitSlop={8} style={styles.headerBtn}>
-            <X size={20} color={colors.text} />
+            <X size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>{isEdit ? 'Edit event' : 'New event'}</Text>
           <Button
@@ -287,12 +290,12 @@ export function EventModal({
             value={title}
             onChangeText={setTitle}
             placeholder="Title"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             style={styles.titleInput}
           />
 
           <Section
-            icon={<CalendarIcon size={16} color={colors.textMuted} />}
+            icon={<CalendarIcon size={16} color={c.textMuted} />}
             label="Calendar"
           >
             <Pressable
@@ -340,14 +343,14 @@ export function EventModal({
             )}
           </Section>
 
-          <Section icon={<Clock size={16} color={colors.textMuted} />} label="Time">
+          <Section icon={<Clock size={16} color={c.textMuted} />} label="Time">
             <View style={styles.allDayRow}>
               <Text style={styles.fieldText}>All-day</Text>
               <Switch
                 value={allDay}
                 onValueChange={setAllDay}
-                thumbColor={allDay ? colors.primary : colors.textMuted}
-                trackColor={{ false: colors.surface, true: colors.primaryBg }}
+                thumbColor={allDay ? c.primary : c.textMuted}
+                trackColor={{ false: c.surface, true: c.primaryBg }}
               />
             </View>
 
@@ -392,7 +395,7 @@ export function EventModal({
             </View>
           </Section>
 
-          <Section icon={<Repeat size={16} color={colors.textMuted} />} label="Repeat">
+          <Section icon={<Repeat size={16} color={c.textMuted} />} label="Repeat">
             <Pressable
               style={styles.fieldButton}
               onPress={() => setRecurrenceOpen((v) => !v)}
@@ -420,7 +423,7 @@ export function EventModal({
             )}
           </Section>
 
-          <Section icon={<Bell size={16} color={colors.textMuted} />} label="Reminder">
+          <Section icon={<Bell size={16} color={c.textMuted} />} label="Reminder">
             <Pressable
               style={styles.fieldButton}
               onPress={() => setAlertOpen((v) => !v)}
@@ -449,21 +452,21 @@ export function EventModal({
           </Section>
 
           <Section
-            icon={<MapPin size={16} color={colors.textMuted} />}
+            icon={<MapPin size={16} color={c.textMuted} />}
             label="Description"
           >
             <TextInput
               value={description}
               onChangeText={setDescription}
               placeholder="Notes, location, link…"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               multiline
               style={styles.descriptionInput}
             />
           </Section>
 
           <Section
-            icon={<Users size={16} color={colors.textMuted} />}
+            icon={<Users size={16} color={c.textMuted} />}
             label="Participants"
           >
             <ParticipantInput
@@ -480,7 +483,7 @@ export function EventModal({
               ]}
               onPress={handleDelete}
             >
-              <Trash2 size={16} color={colors.error} />
+              <Trash2 size={16} color={c.error} />
               <Text style={styles.deleteBtnText}>Delete event</Text>
             </Pressable>
           )}
@@ -560,6 +563,8 @@ function Section({
   label: string;
   children: React.ReactNode;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -571,15 +576,16 @@ function Section({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     gap: spacing.md,
   },
   headerBtn: {
@@ -589,23 +595,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { flex: 1, ...typography.h3, color: colors.text },
+  headerTitle: { flex: 1, ...typography.h3, color: c.text },
 
   body: { flex: 1 },
   bodyContent: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxxl },
 
   titleInput: {
     ...typography.h2,
-    color: colors.text,
+    color: c.text,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     paddingVertical: spacing.sm,
   },
 
   section: { gap: spacing.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sectionIcon: { width: 16 },
-  sectionLabel: { ...typography.bodyMedium, color: colors.textSecondary },
+  sectionLabel: { ...typography.bodyMedium, color: c.textSecondary },
   sectionBody: { gap: spacing.sm },
 
   fieldButton: {
@@ -614,20 +620,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: c.border,
+    backgroundColor: c.surface,
     justifyContent: 'center',
   },
-  fieldText: { ...typography.body, color: colors.text },
+  fieldText: { ...typography.body, color: c.text },
 
   calendarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   calendarSwatch: { width: 12, height: 12, borderRadius: 6 },
 
   popover: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     overflow: 'hidden',
   },
   popoverRow: {
@@ -637,10 +643,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
-  popoverRowActive: { backgroundColor: colors.primaryBg },
-  popoverRowText: { ...typography.body, color: colors.text },
+  popoverRowActive: { backgroundColor: c.primaryBg },
+  popoverRowText: { ...typography.body, color: c.text },
 
   allDayRow: {
     flexDirection: 'row',
@@ -649,9 +655,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   dateRow: {
     flexDirection: 'row',
@@ -660,20 +666,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: c.border,
+    backgroundColor: c.surface,
   },
-  dateLabel: { ...typography.body, color: colors.textSecondary, flex: 1 },
+  dateLabel: { ...typography.body, color: c.textSecondary, flex: 1 },
   datePickers: { flexDirection: 'row', gap: spacing.sm },
   dateBtn: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.xs,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  dateText: { ...typography.body, color: colors.text },
+  dateText: { ...typography.body, color: c.text },
 
   descriptionInput: {
     minHeight: 80,
@@ -681,9 +687,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    color: colors.text,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+    color: c.text,
     ...typography.body,
     textAlignVertical: 'top',
   },
@@ -696,9 +702,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.errorBorder,
+    borderColor: c.errorBorder,
     marginTop: spacing.lg,
   },
-  deleteBtnPressed: { backgroundColor: colors.errorBg },
-  deleteBtnText: { ...typography.bodyMedium, color: colors.error },
-});
+  deleteBtnPressed: { backgroundColor: c.errorBg },
+  deleteBtnText: { ...typography.bodyMedium, color: c.error },
+  });
+}

@@ -24,18 +24,19 @@ import { contactToVCard } from '../lib/vcard';
 import SenderAvatar from '../components/SenderAvatar';
 import Dialog from '../components/Dialog';
 import { ContactActivity } from '../components/contacts/ContactActivity';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactDetail'>;
 type Route = RouteProp<RootStackParamList, 'ContactDetail'>;
 
 const CATEGORY_COLORS: Record<string, string> = {
-  contact: colors.primary,
-  work: colors.calendar.orange,
-  location: colors.calendar.green,
-  personal: colors.calendar.pink,
-  digital: colors.calendar.teal,
-  notes: colors.calendar.purple,
+  contact: c.primary,
+  work: c.calendar.orange,
+  location: c.calendar.green,
+  personal: c.calendar.pink,
+  digital: c.calendar.teal,
+  notes: c.calendar.purple,
 };
 
 function Section({
@@ -46,7 +47,9 @@ function Section({
   category?: keyof typeof CATEGORY_COLORS;
   children: React.ReactNode;
 }) {
-  const accent = CATEGORY_COLORS[category] || colors.primary;
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const accent = CATEGORY_COLORS[category] || c.primary;
   return (
     <View style={[styles.section, { borderLeftColor: accent }]}>
       <View style={styles.sectionHeader}>
@@ -59,6 +62,8 @@ function Section({
 }
 
 function ContextChips({ contexts }: { contexts?: Record<string, boolean> }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   if (!contexts) return null;
   const keys = Object.keys(contexts).filter((k) => contexts[k]);
   if (keys.length === 0) return null;
@@ -74,6 +79,8 @@ function ContextChips({ contexts }: { contexts?: Record<string, boolean> }) {
 }
 
 export default function ContactDetailScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { contactId } = route.params;
@@ -90,7 +97,7 @@ export default function ContactDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
-            <ArrowLeft size={22} color={colors.text} />
+            <ArrowLeft size={22} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Contact</Text>
         </View>
@@ -183,7 +190,7 @@ export default function ContactDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
-          <ArrowLeft size={22} color={colors.text} />
+          <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{name}</Text>
         <View style={styles.headerActions}>
@@ -193,7 +200,7 @@ export default function ContactDetailScreen() {
               style={styles.headerBtn}
               hitSlop={8}
             >
-              <Copy size={18} color={colors.text} />
+              <Copy size={18} color={c.text} />
             </Pressable>
           )}
           <Pressable
@@ -201,14 +208,14 @@ export default function ContactDetailScreen() {
             style={styles.headerBtn}
             hitSlop={8}
           >
-            <Edit2 size={18} color={colors.text} />
+            <Edit2 size={18} color={c.text} />
           </Pressable>
           <Pressable
             onPress={() => setConfirmDelete(true)}
             style={styles.headerBtn}
             hitSlop={8}
           >
-            <Trash2 size={18} color={colors.error} />
+            <Trash2 size={18} color={c.error} />
           </Pressable>
         </View>
       </View>
@@ -227,17 +234,17 @@ export default function ContactDetailScreen() {
 
         <View style={styles.quickActions}>
           {!!email && (
-            <QuickAction icon={<Mail size={18} color={colors.primary} />} label="Email" onPress={() => openMail(email)} />
+            <QuickAction icon={<Mail size={18} color={c.primary} />} label="Email" onPress={() => openMail(email)} />
           )}
           {!!phone && (
-            <QuickAction icon={<Phone size={18} color={colors.primary} />} label="Call" onPress={() => openTel(phone)} />
+            <QuickAction icon={<Phone size={18} color={c.primary} />} label="Call" onPress={() => openTel(phone)} />
           )}
           {!!phone && (
-            <QuickAction icon={<MessageSquare size={18} color={colors.primary} />} label="SMS" onPress={() => openSms(phone)} />
+            <QuickAction icon={<MessageSquare size={18} color={c.primary} />} label="SMS" onPress={() => openSms(phone)} />
           )}
           {!!name && (
             <QuickAction
-              icon={<Share2 size={18} color={colors.primary} />}
+              icon={<Share2 size={18} color={c.primary} />}
               label="Share"
               onPress={async () => {
                 const vcard = contactToVCard(contact);
@@ -263,7 +270,7 @@ export default function ContactDetailScreen() {
         </View>
 
         {emails.length > 0 && (
-          <Section icon={<Mail size={14} color={colors.primary} />} title="Email" category="contact">
+          <Section icon={<Mail size={14} color={c.primary} />} title="Email" category="contact">
             {emails.map((e) => (
               <Pressable key={e.id} onPress={() => openMail(e.address)} style={styles.fieldRow}>
                 <Text style={styles.fieldValue} selectable>{e.address}</Text>
@@ -275,7 +282,7 @@ export default function ContactDetailScreen() {
         )}
 
         {phones.length > 0 && (
-          <Section icon={<Phone size={14} color={colors.primary} />} title="Phone" category="contact">
+          <Section icon={<Phone size={14} color={c.primary} />} title="Phone" category="contact">
             {phones.map((p) => (
               <Pressable key={p.id} onPress={() => openTel(p.number)} style={styles.fieldRow}>
                 <Text style={styles.fieldValue} selectable>{p.number}</Text>
@@ -287,7 +294,7 @@ export default function ContactDetailScreen() {
         )}
 
         {orgs.length > 0 && (
-          <Section icon={<Building size={14} color={colors.calendar.orange} />} title="Organization" category="work">
+          <Section icon={<Building size={14} color={c.calendar.orange} />} title="Organization" category="work">
             {orgs.map((o, i) => (
               <View key={i} style={styles.fieldRow}>
                 <Text style={styles.fieldValue}>{o.name}</Text>
@@ -300,7 +307,7 @@ export default function ContactDetailScreen() {
         )}
 
         {titles.length > 0 && (
-          <Section icon={<Briefcase size={14} color={colors.calendar.orange} />} title="Title" category="work">
+          <Section icon={<Briefcase size={14} color={c.calendar.orange} />} title="Title" category="work">
             {titles.map((tl, i) => (
               <View key={i} style={styles.fieldRow}>
                 <Text style={styles.fieldValue}>{tl.name}</Text>
@@ -311,7 +318,7 @@ export default function ContactDetailScreen() {
         )}
 
         {addresses.length > 0 && (
-          <Section icon={<MapPin size={14} color={colors.calendar.green} />} title="Addresses" category="location">
+          <Section icon={<MapPin size={14} color={c.calendar.green} />} title="Addresses" category="location">
             {addresses.map((a) => {
               const formatted = formatAddress(a);
               return (
@@ -325,7 +332,7 @@ export default function ContactDetailScreen() {
         )}
 
         {anniversaries.length > 0 && (
-          <Section icon={<Cake size={14} color={colors.calendar.pink} />} title="Anniversaries" category="personal">
+          <Section icon={<Cake size={14} color={c.calendar.pink} />} title="Anniversaries" category="personal">
             {anniversaries.map((a, i) => (
               <View key={i} style={styles.fieldRow}>
                 <Text style={styles.fieldValue}>{formatPartialDate(a.date)}</Text>
@@ -336,7 +343,7 @@ export default function ContactDetailScreen() {
         )}
 
         {onlineServices.length > 0 && (
-          <Section icon={<Globe size={14} color={colors.calendar.teal} />} title="Online" category="digital">
+          <Section icon={<Globe size={14} color={c.calendar.teal} />} title="Online" category="digital">
             {onlineServices.map((s, i) => (
               <Pressable
                 key={i}
@@ -352,7 +359,7 @@ export default function ContactDetailScreen() {
         )}
 
         {personalInfo.length > 0 && (
-          <Section icon={<Heart size={14} color={colors.calendar.pink} />} title="Personal" category="personal">
+          <Section icon={<Heart size={14} color={c.calendar.pink} />} title="Personal" category="personal">
             {personalInfo.map((pi, i) => (
               <View key={i} style={styles.fieldRow}>
                 <Text style={styles.fieldValue}>{pi.value}</Text>
@@ -363,7 +370,7 @@ export default function ContactDetailScreen() {
         )}
 
         {relatedTo.length > 0 && (
-          <Section icon={<Users size={14} color={colors.calendar.pink} />} title="Related" category="personal">
+          <Section icon={<Users size={14} color={c.calendar.pink} />} title="Related" category="personal">
             {relatedTo.map(([uri, rel], i) => {
               const relType = rel.relation ? Object.keys(rel.relation).find((k) => rel.relation![k]) : undefined;
               return (
@@ -377,7 +384,7 @@ export default function ContactDetailScreen() {
         )}
 
         {notes.length > 0 && (
-          <Section icon={<FileText size={14} color={colors.calendar.purple} />} title="Notes" category="notes">
+          <Section icon={<FileText size={14} color={c.calendar.purple} />} title="Notes" category="notes">
             {notes.map((n, i) => (
               <Text key={i} style={styles.noteText}>{n.note}</Text>
             ))}
@@ -385,7 +392,7 @@ export default function ContactDetailScreen() {
         )}
 
         {keywords.length > 0 && (
-          <Section icon={<Tag size={14} color={colors.calendar.teal} />} title="Tags" category="digital">
+          <Section icon={<Tag size={14} color={c.calendar.teal} />} title="Tags" category="digital">
             <View style={styles.chipRow}>
               {keywords.map((kw) => (
                 <View key={kw} style={styles.tagChip}>
@@ -397,7 +404,7 @@ export default function ContactDetailScreen() {
         )}
 
         {bookNames.length > 0 && (
-          <Section icon={<BookUser size={14} color={colors.textSecondary} />} title="Address Book" category="contact">
+          <Section icon={<BookUser size={14} color={c.textSecondary} />} title="Address Book" category="contact">
             {bookNames.map((n, i) => (
               <Text key={i} style={styles.fieldValue}>{n}</Text>
             ))}
@@ -427,6 +434,8 @@ function QuickAction({
   label: string;
   onPress: () => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable style={({ pressed }) => [styles.quickBtn, pressed && styles.quickBtnPressed]} onPress={onPress}>
       <View style={styles.quickIcon}>{icon}</View>
@@ -435,8 +444,9 @@ function QuickAction({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   scrollContent: { paddingBottom: spacing.xxxl * 2 },
 
   header: {
@@ -446,14 +456,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
   headerBtn: {
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flex: 1, marginLeft: spacing.xs },
+  headerTitle: { ...typography.h3, color: c.text, flex: 1, marginLeft: spacing.xs },
   headerActions: { flexDirection: 'row', gap: spacing.xs },
 
   hero: {
@@ -466,10 +476,10 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
   },
-  heroName: { ...typography.h2, color: colors.text, textAlign: 'center', marginTop: spacing.sm },
-  heroSubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  heroName: { ...typography.h2, color: c.text, textAlign: 'center', marginTop: spacing.sm },
+  heroSubtitle: { ...typography.body, color: c.textSecondary, textAlign: 'center' },
 
   quickActions: {
     flexDirection: 'row',
@@ -483,17 +493,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     gap: spacing.xs,
   },
-  quickBtnPressed: { backgroundColor: colors.surfaceHover },
+  quickBtnPressed: { backgroundColor: c.surfaceHover },
   quickIcon: {
     width: 32, height: 32,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
   },
-  quickLabel: { ...typography.caption, color: colors.textSecondary },
+  quickLabel: { ...typography.caption, color: c.textSecondary },
 
   section: {
     marginHorizontal: spacing.lg,
@@ -502,33 +512,34 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
   },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-  sectionTitle: { ...typography.bodySemibold, color: colors.text },
+  sectionTitle: { ...typography.bodySemibold, color: c.text },
   sectionBody: { gap: spacing.sm },
 
   fieldRow: { gap: 2 },
-  fieldValue: { ...typography.body, color: colors.text },
-  fieldLabel: { ...typography.caption, color: colors.textMuted },
-  noteText: { ...typography.body, color: colors.text },
+  fieldValue: { ...typography.body, color: c.text },
+  fieldLabel: { ...typography.caption, color: c.textMuted },
+  noteText: { ...typography.body, color: c.text },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: 2 },
   contextChip: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.xs,
   },
-  contextChipText: { ...typography.small, color: colors.textMuted },
+  contextChipText: { ...typography.small, color: c.textMuted },
   tagChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
   },
-  tagChipText: { ...typography.caption, color: colors.primary },
+  tagChipText: { ...typography.caption, color: c.primary },
 
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  missingText: { ...typography.body, color: colors.textMuted },
-});
+  missingText: { ...typography.body, color: c.textMuted },
+  });
+}

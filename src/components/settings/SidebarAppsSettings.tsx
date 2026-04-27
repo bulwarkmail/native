@@ -5,7 +5,8 @@ import {
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface SidebarApp {
   id: string;
@@ -17,6 +18,8 @@ interface SidebarApp {
 }
 
 export function SidebarAppsSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [keepLoaded, setKeepLoaded] = useState(false);
   const [apps, setApps] = useState<SidebarApp[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,9 +66,9 @@ export function SidebarAppsSettings() {
             }
             return (
               <View key={app.id} style={styles.appRow}>
-                <GripVertical size={16} color={colors.mutedForeground} style={{ opacity: 0.5 }} />
+                <GripVertical size={16} color={c.mutedForeground} style={{ opacity: 0.5 }} />
                 <View style={styles.appIcon}>
-                  <Globe size={16} color={colors.text} />
+                  <Globe size={16} color={c.text} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.appName} numberOfLines={1}>{app.name}</Text>
@@ -77,16 +80,16 @@ export function SidebarAppsSettings() {
                 ]}>
                   <Text style={[
                     styles.modeBadgeText,
-                    { color: app.openMode === 'inline' ? '#60a5fa' : colors.mutedForeground },
+                    { color: app.openMode === 'inline' ? '#60a5fa' : c.mutedForeground },
                   ]}>
                     {app.openMode === 'inline' ? 'Inline' : 'Tab'}
                   </Text>
                 </View>
                 <Pressable style={styles.iconBtn} onPress={() => setEditingId(app.id)}>
-                  <Pencil size={14} color={colors.mutedForeground} />
+                  <Pencil size={14} color={c.mutedForeground} />
                 </Pressable>
                 <Pressable style={styles.iconBtn} onPress={() => removeApp(app.id)}>
-                  <Trash2 size={14} color={colors.mutedForeground} />
+                  <Trash2 size={14} color={c.mutedForeground} />
                 </Pressable>
               </View>
             );
@@ -101,7 +104,7 @@ export function SidebarAppsSettings() {
 
           {!isAdding && editingId === null && (
             <Pressable style={styles.addBtn} onPress={() => setIsAdding(true)}>
-              <Plus size={16} color={colors.text} />
+              <Plus size={16} color={c.text} />
               <Text style={styles.addBtnText}>Add app</Text>
             </Pressable>
           )}
@@ -133,7 +136,7 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
           value={name}
           onChangeText={setName}
           placeholder="App name"
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={c.mutedForeground}
           style={formStyles.input}
         />
       </View>
@@ -144,7 +147,7 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
           value={url}
           onChangeText={setUrl}
           placeholder="https://example.com"
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={c.mutedForeground}
           style={formStyles.input}
           autoCapitalize="none"
           keyboardType="url"
@@ -158,8 +161,8 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
             onPress={() => setOpenMode('tab')}
             style={[formStyles.modeBtn, openMode === 'tab' && formStyles.modeBtnActive]}
           >
-            <ExternalLink size={14} color={openMode === 'tab' ? colors.primary : colors.text} />
-            <Text style={[formStyles.modeBtnText, openMode === 'tab' && { color: colors.primary }]}>
+            <ExternalLink size={14} color={openMode === 'tab' ? c.primary : c.text} />
+            <Text style={[formStyles.modeBtnText, openMode === 'tab' && { color: c.primary }]}>
               New tab
             </Text>
           </Pressable>
@@ -167,8 +170,8 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
             onPress={() => setOpenMode('inline')}
             style={[formStyles.modeBtn, openMode === 'inline' && formStyles.modeBtnActive]}
           >
-            <PanelRight size={14} color={openMode === 'inline' ? colors.primary : colors.text} />
-            <Text style={[formStyles.modeBtnText, openMode === 'inline' && { color: colors.primary }]}>
+            <PanelRight size={14} color={openMode === 'inline' ? c.primary : c.text} />
+            <Text style={[formStyles.modeBtnText, openMode === 'inline' && { color: c.primary }]}>
               Inline
             </Text>
           </Pressable>
@@ -194,11 +197,12 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
   emptyText: {
     ...typography.body,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     textAlign: 'center',
     paddingVertical: spacing.lg,
   },
@@ -209,25 +213,25 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   appIcon: {
     width: 32,
     height: 32,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  appName: { ...typography.bodyMedium, color: colors.text },
-  appUrl: { ...typography.caption, color: colors.mutedForeground, marginTop: 2 },
+  appName: { ...typography.bodyMedium, color: c.text },
+  appUrl: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
   modeBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.full,
   },
   modeBadgeInline: { backgroundColor: 'rgba(59, 130, 246, 0.1)' },
-  modeBadgeTab: { backgroundColor: colors.muted },
+  modeBadgeTab: { backgroundColor: c.muted },
   modeBadgeText: { fontSize: 10, fontWeight: '500' },
   iconBtn: {
     width: 28,
@@ -244,10 +248,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  addBtnText: { ...typography.body, color: colors.text },
+  addBtnText: { ...typography.body, color: c.text },
 });
+}
 
 const formStyles = StyleSheet.create({
   form: {
@@ -255,19 +260,19 @@ const formStyles = StyleSheet.create({
     padding: spacing.lg,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.muted,
+    borderColor: c.border,
+    backgroundColor: c.muted,
   },
-  label: { ...typography.captionMedium, color: colors.text },
+  label: { ...typography.captionMedium, color: c.text },
   input: {
     marginTop: 4,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     borderRadius: radius.sm,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: c.border,
+    color: c.text,
     ...typography.body,
   },
   modeBtn: {
@@ -278,11 +283,11 @@ const formStyles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   modeBtnActive: {
-    borderColor: colors.primary,
+    borderColor: c.primary,
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
   },
-  modeBtnText: { ...typography.caption, color: colors.text },
+  modeBtnText: { ...typography.caption, color: c.text },
 });

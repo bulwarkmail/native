@@ -2,10 +2,13 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SettingsSection, SettingItem } from './settings-section';
 import Button from '../Button';
-import { colors, typography, spacing, radius } from '../../theme/tokens';
+import { typography, spacing, radius, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 
 export function IdentitySettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const identities = useSettingsStore((s) => s.identities);
   const loading = useSettingsStore((s) => s.loading);
   const error = useSettingsStore((s) => s.error);
@@ -30,7 +33,7 @@ export function IdentitySettings() {
       >
         <View style={styles.row}>
           {loading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color={c.primary} />
           ) : (
             <Text style={styles.count}>{countLabel}</Text>
           )}
@@ -67,7 +70,8 @@ export function IdentitySettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -75,14 +79,14 @@ const styles = StyleSheet.create({
   },
   count: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
   errorBox: {
     padding: spacing.md,
     borderRadius: radius.sm,
-    backgroundColor: colors.errorBg,
+    backgroundColor: c.errorBg,
   },
-  errorText: { ...typography.caption, color: colors.error },
+  errorText: { ...typography.caption, color: c.error },
   identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -90,15 +94,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
-  identityName: { ...typography.bodyMedium, color: colors.text },
-  identityEmail: { ...typography.caption, color: colors.mutedForeground, marginTop: 2 },
+  identityName: { ...typography.bodyMedium, color: c.text },
+  identityEmail: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
   badge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.full,
     backgroundColor: 'rgba(59,130,246,0.15)',
   },
-  badgeText: { fontSize: 10, fontWeight: '500', color: colors.primary },
+  badgeText: { fontSize: 10, fontWeight: '500', color: c.primary },
 });
+}

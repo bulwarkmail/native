@@ -10,7 +10,8 @@ import {
   isGroup,
 } from '../../lib/contact-utils';
 import SenderAvatar from '../SenderAvatar';
-import { colors, spacing, radius, typography, componentSizes } from '../../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface ContactListRowProps {
   contact: ContactCard;
@@ -29,6 +30,8 @@ export default function ContactListRow({
   selectionMode,
   secondaryText,
 }: ContactListRowProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const name = getContactDisplayName(contact) || 'Unnamed';
   const email = getContactPrimaryEmail(contact);
   const org = getPrimaryOrg(contact);
@@ -50,7 +53,7 @@ export default function ContactListRow({
     >
       {selectionMode && (
         <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-          {selected && <Check size={14} color={colors.primaryForeground} />}
+          {selected && <Check size={14} color={c.primaryForeground} />}
         </View>
       )}
 
@@ -58,7 +61,7 @@ export default function ContactListRow({
         <Image source={{ uri: photoUri }} style={styles.avatarImage} />
       ) : group ? (
         <View style={styles.groupAvatar}>
-          <Users size={18} color={colors.primary} />
+          <Users size={18} color={c.primary} />
         </View>
       ) : (
         <SenderAvatar name={name} email={email} size={componentSizes.avatarMd} />
@@ -77,7 +80,8 @@ export default function ContactListRow({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -85,37 +89,38 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     gap: spacing.md,
   },
-  rowPressed: { backgroundColor: colors.surfaceHover },
-  rowSelected: { backgroundColor: colors.primaryBg },
+  rowPressed: { backgroundColor: c.surfaceHover },
+  rowSelected: { backgroundColor: c.primaryBg },
   checkbox: {
     width: 22,
     height: 22,
     borderRadius: radius.xs,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   avatarImage: {
     width: componentSizes.avatarMd,
     height: componentSizes.avatarMd,
     borderRadius: componentSizes.avatarMd / 2,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
   },
   groupAvatar: {
     width: componentSizes.avatarMd,
     height: componentSizes.avatarMd,
     borderRadius: componentSizes.avatarMd / 2,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   info: { flex: 1, minWidth: 0 },
-  name: { ...typography.bodyMedium, color: colors.text },
-  subtitle: { ...typography.caption, color: colors.textMuted, marginTop: 1 },
-  tertiary: { ...typography.small, color: colors.textSecondary, marginTop: 1 },
-});
+  name: { ...typography.bodyMedium, color: c.text },
+  subtitle: { ...typography.caption, color: c.textMuted, marginTop: 1 },
+  tertiary: { ...typography.small, color: c.textSecondary, marginTop: 1 },
+  });
+}

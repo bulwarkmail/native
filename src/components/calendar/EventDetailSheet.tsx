@@ -26,12 +26,14 @@ import {
 } from 'lucide-react-native';
 import { format } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import {
   eventTimeRange,
   getEventColor,
   getPrimaryCalendarId,
 } from '../../lib/calendar-utils';
+import { useSheetDrag } from '../../lib/use-sheet-drag';
 
 interface EventDetailSheetProps {
   event: CalendarEvent | null;
@@ -106,9 +108,16 @@ export function EventDetailSheet({
   onDelete,
   onDuplicate,
 }: EventDetailSheetProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const visible = !!event;
+  const dragHandlers = useSheetDrag({
+    slideY,
+    closedY: Dimensions.get('window').height,
+    onClose,
+  });
 
   React.useEffect(() => {
     if (visible) {
@@ -166,17 +175,21 @@ export function EventDetailSheet({
 
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
         <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
-          <View style={styles.handle} />
-
-          <View style={styles.header}>
-            <View style={[styles.colorBar, { backgroundColor: color }]} />
-            <View style={styles.headerText}>
-              <Text style={styles.title}>{event.title || 'Untitled'}</Text>
-              {calendar && <Text style={styles.subtitle}>{calendar.name}</Text>}
+          <View {...dragHandlers}>
+            <View style={styles.handleHit}>
+              <View style={styles.handle} />
             </View>
-            <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
-              <X size={20} color={colors.textMuted} />
-            </Pressable>
+
+            <View style={styles.header}>
+              <View style={[styles.colorBar, { backgroundColor: color }]} />
+              <View style={styles.headerText}>
+                <Text style={styles.title}>{event.title || 'Untitled'}</Text>
+                {calendar && <Text style={styles.subtitle}>{calendar.name}</Text>}
+              </View>
+              <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+                <X size={20} color={c.textMuted} />
+              </Pressable>
+            </View>
           </View>
 
           <ScrollView
@@ -184,29 +197,29 @@ export function EventDetailSheet({
             contentContainerStyle={styles.bodyContent}
             showsVerticalScrollIndicator={false}
           >
-            <DetailRow icon={<Clock size={16} color={colors.textMuted} />} text={range} />
+            <DetailRow icon={<Clock size={16} color={c.textMuted} />} text={range} />
             {event.description ? (
               <DetailRow
-                icon={<AlignLeft size={16} color={colors.textMuted} />}
+                icon={<AlignLeft size={16} color={c.textMuted} />}
                 text={event.description}
                 multiline
               />
             ) : null}
             {recurrence && (
               <DetailRow
-                icon={<Repeat size={16} color={colors.textMuted} />}
+                icon={<Repeat size={16} color={c.textMuted} />}
                 text={recurrence}
               />
             )}
             {alert && (
               <DetailRow
-                icon={<Bell size={16} color={colors.textMuted} />}
+                icon={<Bell size={16} color={c.textMuted} />}
                 text={alert}
               />
             )}
             {calendar && (
               <DetailRow
-                icon={<CalendarIcon size={16} color={colors.textMuted} />}
+                icon={<CalendarIcon size={16} color={c.textMuted} />}
                 text={calendar.name}
               />
             )}
@@ -214,7 +227,7 @@ export function EventDetailSheet({
             {participants.length > 0 && (
               <View style={styles.participantsBlock}>
                 <View style={styles.participantsHeader}>
-                  <Users size={16} color={colors.textMuted} />
+                  <Users size={16} color={c.textMuted} />
                   <Text style={styles.participantsHeaderText}>
                     {participants.length} participants
                   </Text>
@@ -244,21 +257,21 @@ export function EventDetailSheet({
           <View style={styles.actions}>
             {onEdit && (
               <ActionButton
-                icon={<Pencil size={18} color={colors.text} />}
+                icon={<Pencil size={18} color={c.text} />}
                 label="Edit"
                 onPress={() => onEdit(event)}
               />
             )}
             {onDuplicate && (
               <ActionButton
-                icon={<Copy size={18} color={colors.text} />}
+                icon={<Copy size={18} color={c.text} />}
                 label="Duplicate"
                 onPress={() => onDuplicate(event)}
               />
             )}
             {onDelete && (
               <ActionButton
-                icon={<Trash2 size={18} color={colors.error} />}
+                icon={<Trash2 size={18} color={c.error} />}
                 label="Delete"
                 onPress={() => onDelete(event)}
                 destructive
@@ -280,6 +293,8 @@ function DetailRow({
   text: string;
   multiline?: boolean;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.detailRow}>
       <View style={styles.detailIcon}>{icon}</View>
@@ -301,6 +316,8 @@ function ActionButton({
   onPress: () => void;
   destructive?: boolean;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       onPress={onPress}
@@ -320,13 +337,13 @@ function ActionButton({
 function statusColor(status?: string): string {
   switch (status) {
     case 'accepted':
-      return colors.success;
+      return c.success;
     case 'declined':
-      return colors.error;
+      return c.error;
     case 'tentative':
-      return colors.warning;
+      return c.warning;
     default:
-      return colors.textMuted;
+      return c.textMuted;
   }
 }
 
@@ -345,7 +362,8 @@ function statusLabel(status?: string): string {
   }
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -357,20 +375,23 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     maxHeight: '85%',
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
   },
   sheetSafe: { paddingTop: spacing.sm },
+  handleHit: {
+    alignItems: 'center',
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+  },
   handle: {
-    alignSelf: 'center',
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surfaceActive,
-    marginBottom: spacing.sm,
+    backgroundColor: c.surfaceActive,
   },
 
   header: {
@@ -382,8 +403,8 @@ const styles = StyleSheet.create({
   },
   colorBar: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
   headerText: { flex: 1 },
-  title: { ...typography.h3, color: colors.text },
-  subtitle: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  title: { ...typography.h3, color: c.text },
+  subtitle: { ...typography.caption, color: c.textMuted, marginTop: 2 },
   closeBtn: { padding: 4 },
 
   body: { maxHeight: 400 },
@@ -394,7 +415,7 @@ const styles = StyleSheet.create({
   },
   detailRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   detailIcon: { width: 16, paddingTop: 2 },
-  detailText: { flex: 1, ...typography.body, color: colors.text },
+  detailText: { flex: 1, ...typography.body, color: c.text },
 
   participantsBlock: {
     marginTop: spacing.sm,
@@ -406,7 +427,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.xs,
   },
-  participantsHeaderText: { ...typography.bodyMedium, color: colors.text },
+  participantsHeaderText: { ...typography.bodyMedium, color: c.text },
   participantRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -414,13 +435,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   participantDot: { width: 8, height: 8, borderRadius: 4 },
-  participantName: { flex: 1, ...typography.body, color: colors.text },
-  participantStatus: { ...typography.caption, color: colors.textMuted },
+  participantName: { flex: 1, ...typography.body, color: c.text },
+  participantStatus: { ...typography.caption, color: c.textMuted },
 
   actions: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
   },
@@ -432,7 +453,8 @@ const styles = StyleSheet.create({
     gap: 4,
     borderRadius: radius.sm,
   },
-  actionBtnPressed: { backgroundColor: colors.surfaceHover },
-  actionLabel: { ...typography.caption, color: colors.text },
-  actionLabelDestructive: { color: colors.error },
-});
+  actionBtnPressed: { backgroundColor: c.surfaceHover },
+  actionLabel: { ...typography.caption, color: c.text },
+  actionLabelDestructive: { color: c.error },
+  });
+}

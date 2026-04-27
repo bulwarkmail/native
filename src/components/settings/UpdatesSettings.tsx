@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Linking, Alert } from 'react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useUpdatesStore } from '../../stores/updates-store';
 import type { InstallProgress } from '../../lib/install-update';
 
@@ -38,6 +39,8 @@ function installButtonLabel(
 }
 
 export function UpdatesSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const hydrated = useUpdatesStore((s) => s.hydrated);
   const hydrate = useUpdatesStore((s) => s.hydrate);
   const checking = useUpdatesStore((s) => s.checking);
@@ -158,19 +161,20 @@ export function UpdatesSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
-  value: { ...typography.bodyMedium, color: colors.text },
+  value: { ...typography.bodyMedium, color: c.text },
   notesBox: {
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.muted,
+    borderColor: c.border,
+    backgroundColor: c.muted,
     gap: spacing.sm,
   },
-  notesTitle: { ...typography.caption, color: colors.mutedForeground, textTransform: 'uppercase' },
-  notesBody: { ...typography.body, color: colors.text, lineHeight: 20 },
+  notesTitle: { ...typography.caption, color: c.mutedForeground, textTransform: 'uppercase' },
+  notesBody: { ...typography.body, color: c.text, lineHeight: 20 },
   progressBox: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -179,12 +183,13 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
-  progressLabel: { ...typography.caption, color: colors.mutedForeground },
+  progressLabel: { ...typography.caption, color: c.mutedForeground },
 });
+}

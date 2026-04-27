@@ -3,7 +3,8 @@ import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { format, isSameDay, isToday, isTomorrow } from 'date-fns';
 import { CalendarDays } from 'lucide-react-native';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { colors, spacing, typography } from '../../theme/tokens';
+import { spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import {
   buildEventDayIndex,
   eventsOnDayFromIndex,
@@ -41,6 +42,8 @@ export function AgendaView({
   eventsByDay,
   onSelectEvent,
 }: AgendaViewProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
     [eventsByDay, events],
@@ -78,7 +81,7 @@ export function AgendaView({
   if (sections.length === 0) {
     return (
       <View style={styles.empty}>
-        <CalendarDays size={40} color={colors.surfaceActive} />
+        <CalendarDays size={40} color={c.surfaceActive} />
         <Text style={styles.emptyTitle}>No upcoming events</Text>
         <Text style={styles.emptySubtitle}>The next {daysAhead} days are clear.</Text>
       </View>
@@ -118,7 +121,8 @@ export function AgendaView({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   listContent: { paddingBottom: 80 },
   sectionHeader: {
     flexDirection: 'row',
@@ -126,16 +130,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
-  sectionTitle: { ...typography.bodyMedium, color: colors.text },
-  sectionTitleToday: { color: colors.primary },
-  sectionSub: { ...typography.caption, color: colors.textMuted },
+  sectionTitle: { ...typography.bodyMedium, color: c.text },
+  sectionTitleToday: { color: c.primary },
+  sectionSub: { ...typography.caption, color: c.textMuted },
   itemWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   emptyDayWrap: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  emptyDayText: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
+  emptyDayText: { ...typography.caption, color: c.textMuted, textAlign: 'center' },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -143,6 +147,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xxxl,
   },
-  emptyTitle: { ...typography.bodyMedium, color: colors.textSecondary },
-  emptySubtitle: { ...typography.caption, color: colors.textMuted },
-});
+  emptyTitle: { ...typography.bodyMedium, color: c.textSecondary },
+  emptySubtitle: { ...typography.caption, color: c.textMuted },
+  });
+}

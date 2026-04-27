@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useColorScheme } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -39,7 +40,8 @@ import { useLocaleStore } from './src/stores/locale-store';
 import { useNetworkStore } from './src/stores/network-store';
 import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
-import { colors, spacing, typography } from './src/theme/tokens';
+import { spacing, typography, type ThemePalette } from './src/theme/tokens';
+import { useColors } from './src/theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabsParamList>();
@@ -55,32 +57,32 @@ function navigateToNotificationTap(payload: NotificationTapPayload): void {
 }
 
 function LoadingScreen({ message }: { message: string }) {
+  const c = useColors();
   return (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator color={colors.primary} />
-      <Text style={styles.loadingText}>{message}</Text>
+    <View style={[styles.loadingContainer, { backgroundColor: c.background }]}>
+      <ActivityIndicator color={c.primary} />
+      <Text style={[styles.loadingText, { color: c.textSecondary }]}>{message}</Text>
     </View>
   );
 }
 
 function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParamList, 'MainTabs'>) {
+  const c = useColors();
   const mailboxes = useEmailStore((state) => state.mailboxes);
   const logout = useAuthStore((state) => state.logout);
   const inboxUnreadCount = mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: c.background }}>
       <UpdateBanner />
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        // Matches webmail horizontal NavigationRail: bg-background, border-t border-border,
-        // active uses foreground (white), inactive uses muted-foreground.
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: c.text,
+        tabBarInactiveTintColor: c.textSecondary,
         tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
+          backgroundColor: c.background,
+          borderTopColor: c.border,
           borderTopWidth: 1,
           elevation: 0,
           shadowOpacity: 0,
@@ -98,8 +100,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
           tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: colors.error,
-            color: colors.primaryForeground,
+            backgroundColor: c.error,
+            color: c.primaryForeground,
             fontSize: 10,
             fontWeight: '700',
             minWidth: 16,
@@ -163,6 +165,15 @@ export default function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const client = useAuthStore((state) => state.client);
   const restoreSession = useAuthStore((state) => state.restoreSession);
+
+  // Resolve the user's theme preference to a concrete light/dark style for the
+  // system status bar. The rest of the app's colors are still hard-coded dark
+  // until the StyleSheet migration to a theme-aware `useColors` hook lands.
+  const themePref = useSettingsStore((state) => state.theme);
+  const systemScheme = useColorScheme();
+  const resolvedScheme: 'light' | 'dark' =
+    themePref === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : themePref;
+  const statusBarStyle: 'light' | 'dark' = resolvedScheme === 'light' ? 'dark' : 'light';
   // Persisted active account is the signal that the user was already signed
   // in on the previous launch. When present we render the main UI with the
   // cached mail list instead of the "Restoring session" spinner; the real
@@ -309,7 +320,7 @@ export default function App() {
   if (!hasRestoredSession && !hasPersistedAccount) {
     return (
       <>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <LoadingScreen message="Loading..." />
       </>
     );
@@ -318,7 +329,7 @@ export default function App() {
   if (hasRestoredSession && !isAuthenticated) {
     return (
       <>
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <LoginScreen />
       </>
     );
@@ -326,7 +337,7 @@ export default function App() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
         <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
@@ -374,12 +385,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
     gap: spacing.md,
   },
   loadingText: {
     ...typography.body,
-    color: colors.textSecondary,
   },
 });
 

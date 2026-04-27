@@ -2,14 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Plus, Pencil, Trash2, Check, X, RotateCcw } from 'lucide-react-native';
 import { SettingsSection } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useKeywordsStore, type KeywordDef } from '../../stores/keywords-store';
+import { DARK_COLORS } from '../../theme/tokens';
 
 type Keyword = KeywordDef;
 
-const PALETTE_KEYS = Object.keys(colors.tags) as (keyof typeof colors.tags)[];
+// Palette keys are theme-agnostic (same names in both palettes), so use DARK_COLORS
+// at module load. The actual rendered swatch colors come from the active theme via `c.tags[key]`.
+const PALETTE_KEYS = Object.keys(DARK_COLORS.tags) as (keyof typeof DARK_COLORS.tags)[];
 
 export function KeywordSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const keywords = useKeywordsStore((s) => s.keywords);
   const addKeyword = useKeywordsStore((s) => s.add);
   const updateKeyword = useKeywordsStore((s) => s.update);
@@ -53,7 +59,7 @@ export function KeywordSettings() {
               />
             );
           }
-          const palette = colors.tags[kw.color];
+          const palette = c.tags[kw.color];
           return (
             <View key={kw.id} style={styles.kwRow}>
               <View style={[styles.kwDot, { backgroundColor: palette.dot }]} />
@@ -61,10 +67,10 @@ export function KeywordSettings() {
               <Text style={styles.kwId}>$label:{kw.id}</Text>
               <View style={{ flexDirection: 'row', gap: 2 }}>
                 <Pressable style={styles.iconBtn} onPress={() => setEditingId(kw.id)}>
-                  <Pencil size={14} color={colors.mutedForeground} />
+                  <Pencil size={14} color={c.mutedForeground} />
                 </Pressable>
                 <Pressable style={styles.iconBtn} onPress={() => deleteKeyword(kw.id)}>
-                  <Trash2 size={14} color={colors.mutedForeground} />
+                  <Trash2 size={14} color={c.mutedForeground} />
                 </Pressable>
               </View>
             </View>
@@ -82,11 +88,11 @@ export function KeywordSettings() {
         {!isAdding && editingId === null && (
           <View style={styles.bottomActions}>
             <Pressable style={styles.outlineBtn} onPress={() => setIsAdding(true)}>
-              <Plus size={14} color={colors.mutedForeground} />
+              <Plus size={14} color={c.mutedForeground} />
               <Text style={styles.outlineBtnText}>Add keyword</Text>
             </Pressable>
             <Pressable style={styles.outlineBtn} onPress={resetDefaults}>
-              <RotateCcw size={14} color={colors.mutedForeground} />
+              <RotateCcw size={14} color={c.mutedForeground} />
               <Text style={styles.outlineBtnText}>Reset defaults</Text>
             </Pressable>
           </View>
@@ -104,8 +110,10 @@ interface KeywordFormProps {
 }
 
 function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [label, setLabel] = useState(initial?.label ?? '');
-  const [color, setColor] = useState<keyof typeof colors.tags>(initial?.color ?? 'blue');
+  const [color, setColor] = useState<keyof typeof DARK_COLORS.tags>(initial?.color ?? 'blue');
 
   const normalizedId = label
     .trim()
@@ -130,7 +138,7 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
           value={label}
           onChangeText={setLabel}
           placeholder="e.g. Important"
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={c.mutedForeground}
           style={styles.input}
           maxLength={30}
           autoFocus
@@ -142,7 +150,7 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
         <Text style={styles.formLabel}>Color</Text>
         <View style={styles.palette}>
           {PALETTE_KEYS.map((key) => {
-            const p = colors.tags[key];
+            const p = c.tags[key];
             return (
               <Pressable
                 key={key}
@@ -160,7 +168,7 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
 
       <View style={styles.formActions}>
         <Pressable style={styles.cancelFormBtn} onPress={onCancel}>
-          <X size={14} color={colors.text} />
+          <X size={14} color={c.text} />
           <Text style={styles.cancelFormText}>Cancel</Text>
         </Pressable>
         <Pressable
@@ -168,7 +176,7 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
           onPress={handleSave}
           disabled={!isValid}
         >
-          <Check size={14} color={colors.primaryForeground} />
+          <Check size={14} color={c.primaryForeground} />
           <Text style={styles.saveBtnText}>{initial ? 'Save' : 'Add'}</Text>
         </Pressable>
       </View>
@@ -176,7 +184,8 @@ function KeywordForm({ initial, existingIds, onSave, onCancel }: KeywordFormProp
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   kwRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -184,12 +193,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: c.border,
+    backgroundColor: c.background,
   },
   kwDot: { width: 20, height: 20, borderRadius: 10 },
-  kwLabel: { ...typography.bodyMedium, color: colors.text, flex: 1 },
-  kwId: { fontSize: 10, color: colors.mutedForeground, fontFamily: 'monospace' },
+  kwLabel: { ...typography.bodyMedium, color: c.text, flex: 1 },
+  kwId: { fontSize: 10, color: c.mutedForeground, fontFamily: 'monospace' },
   iconBtn: {
     width: 28,
     height: 28,
@@ -211,34 +220,34 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  outlineBtnText: { ...typography.caption, color: colors.mutedForeground },
+  outlineBtnText: { ...typography.caption, color: c.mutedForeground },
   form: {
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.accent,
+    borderColor: c.primaryBorder,
+    backgroundColor: c.accent,
   },
-  formLabel: { ...typography.caption, color: colors.mutedForeground, marginBottom: 4 },
+  formLabel: { ...typography.caption, color: c.mutedForeground, marginBottom: 4 },
   input: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
+    borderColor: c.border,
+    color: c.text,
     ...typography.body,
   },
-  errorText: { ...typography.caption, color: colors.error, marginTop: 4 },
+  errorText: { ...typography.caption, color: c.error, marginTop: 4 },
   palette: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   colorSwatch: { width: 24, height: 24, borderRadius: 12 },
   colorSwatchSelected: {
     borderWidth: 2,
-    borderColor: colors.text,
+    borderColor: c.text,
   },
   formActions: {
     flexDirection: 'row',
@@ -253,9 +262,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  cancelFormText: { ...typography.caption, color: colors.text },
+  cancelFormText: { ...typography.caption, color: c.text },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -263,7 +272,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
-  saveBtnText: { ...typography.caption, color: colors.primaryForeground, fontWeight: '500' },
+  saveBtnText: { ...typography.caption, color: c.primaryForeground, fontWeight: '500' },
 });
+}

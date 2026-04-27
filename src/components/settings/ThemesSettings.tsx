@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Upload, Check, Palette, Trash2 } from 'lucide-react-native';
 import { SettingsSection, SettingItem } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface Theme {
   id: string | null;
@@ -20,6 +21,8 @@ const BUILT_IN: Theme[] = [
 ];
 
 export function ThemesSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [themes] = useState<Theme[]>(BUILT_IN);
   const [active, setActive] = useState<string | null>(null);
 
@@ -40,12 +43,12 @@ export function ThemesSettings() {
               style={[styles.card, isActive && styles.cardActive]}
             >
               <View style={styles.preview}>
-                <Palette size={32} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
+                <Palette size={32} color={c.mutedForeground} style={{ opacity: 0.4 }} />
               </View>
               <View style={{ width: '100%' }}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardName} numberOfLines={1}>{theme.name}</Text>
-                  {isActive && <Check size={16} color={colors.primary} />}
+                  {isActive && <Check size={16} color={c.primary} />}
                 </View>
                 <Text style={styles.cardAuthor} numberOfLines={1}>{theme.author}</Text>
                 {theme.variants && (
@@ -67,7 +70,7 @@ export function ThemesSettings() {
         label="Upload Theme"
         description="Install a custom theme from a .zip file."
       >
-        <Button variant="outline" size="sm" icon={<Upload size={14} color={colors.text} />}>
+        <Button variant="outline" size="sm" icon={<Upload size={14} color={c.text} />}>
           Upload .zip
         </Button>
       </SettingItem>
@@ -75,7 +78,8 @@ export function ThemesSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -87,19 +91,19 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.lg,
     borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
     gap: spacing.sm,
   },
   cardActive: {
-    borderColor: colors.primary,
+    borderColor: c.primary,
     backgroundColor: 'rgba(59, 130, 246, 0.05)',
   },
   preview: {
     width: '100%',
     aspectRatio: 16 / 10,
     borderRadius: radius.md,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -108,14 +112,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardName: { ...typography.bodyMedium, color: colors.text, flex: 1 },
-  cardAuthor: { ...typography.caption, color: colors.mutedForeground },
+  cardName: { ...typography.bodyMedium, color: c.text, flex: 1 },
+  cardAuthor: { ...typography.caption, color: c.mutedForeground },
   variants: { flexDirection: 'row', gap: 4, marginTop: 4 },
   variantPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.xs,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
-  variantText: { fontSize: 10, color: colors.mutedForeground },
+  variantText: { fontSize: 10, color: c.mutedForeground },
 });
+}

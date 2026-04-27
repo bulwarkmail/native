@@ -6,7 +6,8 @@ import type { Email } from '../api/types';
 import { wrapEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml, extractCidRefs, hasRemoteContent, hasMeaningfulHtmlBody } from '../lib/email-html';
 import { jmapClient } from '../api/jmap-client';
 import { useSettingsStore } from '../stores/settings-store';
-import { colors, spacing, typography } from '../theme/tokens';
+import { spacing, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 // Largest inline image we'll pull inline as a data: URI. Anything bigger gets
 // skipped so we don't freeze the JS thread base64-encoding megabytes.
@@ -129,6 +130,8 @@ const HEIGHT_REPORTER = `
 `;
 
 export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const isSenderTrusted = useSettingsStore((s) => s.isSenderTrusted);
   const addTrustedSender = useSettingsStore((s) => s.addTrustedSender);
@@ -247,13 +250,13 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
         <View style={styles.banner}>
           {externalContentPolicy === 'ask' && (
             <Pressable style={styles.bannerButton} onPress={onLoadImages} hitSlop={8}>
-              <ImageIcon size={14} color={colors.textSecondary} />
+              <ImageIcon size={14} color={c.textSecondary} />
               <Text style={styles.bannerButtonText}>Load external content</Text>
             </Pressable>
           )}
           {senderEmail ? (
             <Pressable style={styles.bannerButton} onPress={onTrustSender} hitSlop={8}>
-              <ShieldCheck size={14} color={colors.textSecondary} />
+              <ShieldCheck size={14} color={c.textSecondary} />
               <Text style={styles.bannerButtonText}>Trust sender</Text>
             </Pressable>
           ) : null}
@@ -308,7 +311,8 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   wrapper: { width: '100%' },
   banner: {
     flexDirection: 'row',
@@ -317,9 +321,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.surfaceHover,
+    backgroundColor: c.surfaceHover,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   bannerButton: {
     flexDirection: 'row',
@@ -329,7 +333,7 @@ const styles = StyleSheet.create({
   },
   bannerButtonText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   webContainer: {
     width: '100%',
@@ -343,4 +347,5 @@ const styles = StyleSheet.create({
   webviewContainer: {
     backgroundColor: 'transparent',
   },
-});
+  });
+}

@@ -9,7 +9,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { FlaskConical, Lock, ChevronDown, Check } from 'lucide-react-native';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import ToggleSwitchComponent from '../ToggleSwitch';
 
 /**
@@ -36,6 +37,8 @@ export function SettingsSection({
   experimental,
   experimentalDescription,
 }: SettingsSectionProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.section}>
       {experimental && (
@@ -73,12 +76,14 @@ export function SettingItem({
   locked,
   noBorder,
 }: SettingItemProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={[styles.settingItem, !noBorder && styles.settingItemBorder, locked && styles.locked]}>
       <View style={styles.settingContent}>
         <View style={styles.settingLabelRow}>
           <Text style={styles.settingLabel}>{label}</Text>
-          {locked && <Lock size={12} color={colors.mutedForeground} />}
+          {locked && <Lock size={12} color={c.mutedForeground} />}
         </View>
         {description && <Text style={styles.settingDescription}>{description}</Text>}
       </View>
@@ -111,6 +116,8 @@ interface RadioGroupProps {
 }
 
 export function RadioGroup({ value, onChange, options, style }: RadioGroupProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={[styles.radioGroup, style]}>
       {options.map((opt) => {
@@ -145,6 +152,8 @@ interface SelectProps {
 }
 
 export function Select({ value, onChange, options, style }: SelectProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [open, setOpen] = useState(false);
   const current = options.find((o) => o.value === value);
 
@@ -152,7 +161,7 @@ export function Select({ value, onChange, options, style }: SelectProps) {
     <>
       <Pressable style={[styles.select, style]} onPress={() => setOpen(true)}>
         <Text style={styles.selectText}>{current?.label ?? ''}</Text>
-        <ChevronDown size={14} color={colors.mutedForeground} />
+        <ChevronDown size={14} color={c.mutedForeground} />
       </Pressable>
       <Modal
         visible={open}
@@ -178,7 +187,7 @@ export function Select({ value, onChange, options, style }: SelectProps) {
                     }}
                   >
                     <Text style={styles.selectItemText}>{opt.label}</Text>
-                    {selected && <Check size={16} color={colors.primary} />}
+                    {selected && <Check size={16} color={c.primary} />}
                   </Pressable>
                 );
               })}
@@ -190,7 +199,8 @@ export function Select({ value, onChange, options, style }: SelectProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   section: {
     gap: spacing.lg,
   },
@@ -199,11 +209,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.h3,
-    color: colors.text,
+    color: c.text,
   },
   sectionDescription: {
     ...typography.body,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     marginTop: 4,
   },
   experimentalBanner: {
@@ -233,7 +243,7 @@ const styles = StyleSheet.create({
   },
   settingItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   locked: {
     opacity: 0.6,
@@ -249,11 +259,11 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: c.text,
   },
   settingDescription: {
     ...typography.caption,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     marginTop: 2,
   },
   settingRight: {
@@ -270,20 +280,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   radioSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
   radioUnselected: {
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
   radioText: {
     ...typography.caption,
   },
   radioTextSelected: {
-    color: colors.primaryForeground,
+    color: c.primaryForeground,
     fontWeight: '500',
   },
   radioTextUnselected: {
-    color: colors.text,
+    color: c.text,
   },
   select: {
     flexDirection: 'row',
@@ -292,14 +302,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     minWidth: 120,
   },
   selectText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flex: 1,
   },
   modalBackdrop: {
@@ -313,10 +323,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,
     maxHeight: '70%',
-    backgroundColor: colors.popover,
+    backgroundColor: c.popover,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingVertical: spacing.sm,
   },
   selectItem: {
@@ -327,10 +337,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   selectItemPressed: {
-    backgroundColor: colors.accent,
+    backgroundColor: c.accent,
   },
   selectItemText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
-});
+  });
+}

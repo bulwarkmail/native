@@ -31,7 +31,8 @@ import {
   addWeeks,
   subWeeks,
 } from 'date-fns';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import { Button } from '../components';
 import { useCalendarStore } from '../stores/calendar-store';
 import { MonthView } from '../components/calendar/MonthView';
@@ -92,6 +93,8 @@ function headerTitle(viewMode: ViewMode, currentDate: Date): string {
 }
 
 export default function CalendarScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [viewMode, setViewMode] = React.useState<ViewMode>('month');
@@ -261,7 +264,7 @@ export default function CalendarScreen() {
           hitSlop={8}
           style={styles.headerBtn}
         >
-          <Menu size={20} color={colors.text} />
+          <Menu size={20} color={c.text} />
         </Pressable>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>{headerTitle(viewMode, currentDate)}</Text>
@@ -281,26 +284,26 @@ export default function CalendarScreen() {
                   style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
                   onPress={() => setViewMode(mode)}
                 >
-                  <Icon size={16} color={active ? colors.primary : colors.textMuted} />
+                  <Icon size={16} color={active ? c.primary : c.textMuted} />
                 </Pressable>
               );
             })}
           </View>
           <Pressable style={styles.fab} onPress={() => openCreate(selectedDate)}>
-            <Plus size={18} color={colors.primaryForeground} />
+            <Plus size={18} color={c.primaryForeground} />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.nav}>
         <Pressable onPress={goPrev} style={styles.navBtn} hitSlop={8}>
-          <ChevronLeft size={20} color={colors.text} />
+          <ChevronLeft size={20} color={c.text} />
         </Pressable>
         <Button variant="outline" size="sm" onPress={goToday}>
           Today
         </Button>
         <Pressable onPress={goNext} style={styles.navBtn} hitSlop={8}>
-          <ChevronRight size={20} color={colors.text} />
+          <ChevronRight size={20} color={c.text} />
         </Pressable>
       </View>
 
@@ -350,7 +353,7 @@ export default function CalendarScreen() {
               <Text style={styles.dayDetailTitle}>
                 {isSelectedToday ? "Today's Events" : format(selectedDate, 'EEEE, MMMM d')}
               </Text>
-              {loading && <ActivityIndicator size="small" color={colors.textMuted} />}
+              {loading && <ActivityIndicator size="small" color={c.textMuted} />}
             </View>
             <DayEventList
               date={selectedDate}
@@ -415,6 +418,8 @@ function DayEventList({
   refreshing: boolean;
   onRefresh: () => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const dayEvents = React.useMemo(
     () => eventsOnDayFromIndex(eventsByDay, date),
     [eventsByDay, date],
@@ -424,10 +429,10 @@ function DayEventList({
       <ScrollView
         contentContainerStyle={styles.emptyState}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.textMuted} />
         }
       >
-        <CalendarDays size={32} color={colors.surfaceActive} />
+        <CalendarDays size={32} color={c.surfaceActive} />
         <Text style={styles.emptyTitle}>No events</Text>
         <Text style={styles.emptySubtitle}>Tap + to create one</Text>
       </ScrollView>
@@ -437,7 +442,7 @@ function DayEventList({
     <ScrollView
       contentContainerStyle={styles.dayList}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textMuted} />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.textMuted} />
       }
     >
       {dayEvents.map((event) => (
@@ -452,8 +457,9 @@ function DayEventList({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
 
   header: {
     flexDirection: 'row',
@@ -470,12 +476,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   headerLeft: { flex: 1 },
-  headerTitle: { ...typography.h3, color: colors.text },
-  headerSubtitle: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  headerTitle: { ...typography.h3, color: c.text },
+  headerSubtitle: { ...typography.caption, color: c.textMuted, marginTop: 2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   viewToggle: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.md,
     padding: 2,
   },
@@ -486,12 +492,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.sm,
   },
-  viewToggleBtnActive: { backgroundColor: colors.background },
+  viewToggleBtnActive: { backgroundColor: c.background },
   fab: {
     width: 36,
     height: 36,
     borderRadius: radius.full,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -512,18 +518,18 @@ const styles = StyleSheet.create({
   },
 
   errorBanner: {
-    backgroundColor: colors.errorBg,
+    backgroundColor: c.errorBg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
-  errorText: { ...typography.caption, color: colors.errorForeground },
+  errorText: { ...typography.caption, color: c.errorForeground },
 
   content: { flex: 1 },
 
   dayDetail: {
     flex: 1,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
   },
   dayDetailHeader: {
     flexDirection: 'row',
@@ -532,7 +538,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
-  dayDetailTitle: { ...typography.bodyMedium, color: colors.text },
+  dayDetailTitle: { ...typography.bodyMedium, color: c.text },
   dayList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
 
   emptyState: {
@@ -541,6 +547,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     flexGrow: 1,
   },
-  emptyTitle: { ...typography.bodyMedium, color: colors.textSecondary },
-  emptySubtitle: { ...typography.caption, color: colors.textMuted },
-});
+  emptyTitle: { ...typography.bodyMedium, color: c.textSecondary },
+  emptySubtitle: { ...typography.caption, color: c.textMuted },
+  });
+}

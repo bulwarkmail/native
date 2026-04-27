@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SettingsSection, SettingItem } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
 import { useAccountStore } from '../../stores/account-store';
 
@@ -29,6 +30,8 @@ function formatFileSize(bytes: number): string {
 }
 
 export function AccountSettings(props: AccountSettingsProps = {}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const authUsername = useAuthStore((s) => s.username);
   const authServerUrl = useAuthStore((s) => s.serverUrl);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
@@ -99,10 +102,11 @@ export function AccountSettings(props: AccountSettingsProps = {}) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   value: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     maxWidth: 240,
   },
   storage: {
@@ -112,13 +116,13 @@ const styles = StyleSheet.create({
   bar: {
     width: 128,
     height: 8,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderRadius: radius.full,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderRadius: radius.full,
   },
   demoRow: {
@@ -137,3 +141,4 @@ const styles = StyleSheet.create({
     color: '#fbbf24',
   },
 });
+}

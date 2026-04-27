@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Check, X } from 'lucide-react-native';
 import type { Calendar } from '../../api/types';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { getCalendarColor } from '../../lib/calendar-utils';
 
 interface CalendarSidebarDrawerProps {
@@ -31,6 +32,8 @@ export function CalendarSidebarDrawer({
   onToggle,
   onClose,
 }: CalendarSidebarDrawerProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
 
@@ -89,7 +92,7 @@ export function CalendarSidebarDrawer({
         <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
           <View style={styles.header}>
             <Pressable onPress={onClose} style={styles.headerClose} hitSlop={8}>
-              <X size={20} color={colors.text} />
+              <X size={20} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle}>Calendars</Text>
           </View>
@@ -134,15 +137,17 @@ function Section({
   hiddenSet: Set<string>;
   onToggle: (id: string) => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {calendars.map((c) => {
-        const visible = !hiddenSet.has(c.id);
+      {calendars.map((cal) => {
+        const visible = !hiddenSet.has(cal.id);
         return (
           <Pressable
-            key={c.id}
-            onPress={() => onToggle(c.id)}
+            key={cal.id}
+            onPress={() => onToggle(cal.id)}
             style={({ pressed }) => [
               styles.row,
               pressed && styles.rowPressed,
@@ -152,15 +157,15 @@ function Section({
               style={[
                 styles.swatch,
                 {
-                  backgroundColor: visible ? getCalendarColor(c) : 'transparent',
-                  borderColor: getCalendarColor(c),
+                  backgroundColor: visible ? getCalendarColor(cal) : 'transparent',
+                  borderColor: getCalendarColor(cal),
                 },
               ]}
             >
-              {visible && <Check size={12} color={colors.textInverse} />}
+              {visible && <Check size={12} color={c.textInverse} />}
             </View>
             <Text style={[styles.rowName, !visible && styles.rowNameMuted]}>
-              {c.name}
+              {cal.name}
             </Text>
           </Pressable>
         );
@@ -169,7 +174,8 @@ function Section({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -184,7 +190,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     backgroundColor: '#262626',
     borderRightWidth: 1,
-    borderRightColor: colors.border,
+    borderRightColor: c.border,
   },
   drawerSafe: { flex: 1 },
 
@@ -195,7 +201,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   headerClose: {
     width: 36,
@@ -204,14 +210,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.sm,
   },
-  headerTitle: { ...typography.h3, color: colors.text },
+  headerTitle: { ...typography.h3, color: c.text },
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: spacing.lg },
 
   empty: {
     ...typography.body,
-    color: colors.textMuted,
+    color: c.textMuted,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
   },
@@ -219,7 +225,7 @@ const styles = StyleSheet.create({
   section: { paddingTop: spacing.md },
   sectionTitle: {
     ...typography.bodySemibold,
-    color: colors.text,
+    color: c.text,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xs,
   },
@@ -231,7 +237,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     minHeight: 44,
   },
-  rowPressed: { backgroundColor: colors.surfaceHover },
+  rowPressed: { backgroundColor: c.surfaceHover },
   swatch: {
     width: 18,
     height: 18,
@@ -240,6 +246,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowName: { flex: 1, ...typography.body, color: colors.text },
-  rowNameMuted: { color: colors.textMuted },
-});
+  rowName: { flex: 1, ...typography.body, color: c.text },
+  rowNameMuted: { color: c.textMuted },
+  });
+}

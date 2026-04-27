@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { AlertTriangle, FolderSync, Mail, X } from 'lucide-react-native';
 import { SettingsSection, SettingItem, Select, RadioGroup, ToggleSwitch } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ExternalContentPolicy } from '../../stores/settings-store';
 
 type MailLayout = 'split' | 'focus';
@@ -14,6 +15,8 @@ type AttachmentPosition = 'beside-sender' | 'below-header';
 const DEFAULT_KEYWORDS = ['attached', 'attachment', 'enclosed', 'attaching'];
 
 function MailLayoutPreview({ value }: { value: MailLayout }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const isSplit = value === 'split';
   return (
     <View style={styles.layoutPreview}>
@@ -66,6 +69,8 @@ function MailLayoutPreview({ value }: { value: MailLayout }) {
 }
 
 export function ReadingSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const setExternalContentPolicyStore = useSettingsStore((s) => s.setExternalContentPolicy);
   const trustedSenders = useSettingsStore((s) => s.trustedSenders);
@@ -124,7 +129,7 @@ export function ReadingSettings() {
         />
         {deleteAction === 'permanent' && (
           <View style={styles.warning}>
-            <AlertTriangle size={14} color={colors.error} />
+            <AlertTriangle size={14} color={c.error} />
             <Text style={styles.warningText}>Permanent deletion cannot be undone.</Text>
           </View>
         )}
@@ -144,7 +149,7 @@ export function ReadingSettings() {
         />
         {archiveMode !== 'single' && (
           <Pressable style={styles.inlineBtn}>
-            <FolderSync size={14} color={colors.text} />
+            <FolderSync size={14} color={c.text} />
             <Text style={styles.inlineBtnText}>Reorganize existing archive</Text>
           </Pressable>
         )}
@@ -206,7 +211,7 @@ export function ReadingSettings() {
                   }
                   hitSlop={6}
                 >
-                  <X size={12} color={colors.mutedForeground} />
+                  <X size={12} color={c.mutedForeground} />
                 </Pressable>
               </View>
             ))}
@@ -216,7 +221,7 @@ export function ReadingSettings() {
               value={newKeyword}
               onChangeText={setNewKeyword}
               placeholder="Add a keyword"
-              placeholderTextColor={colors.mutedForeground}
+              placeholderTextColor={c.mutedForeground}
               style={styles.keywordInput}
               onSubmitEditing={() => {
                 const t = newKeyword.trim().toLowerCase();
@@ -286,7 +291,8 @@ export function ReadingSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   group: {},
   warning: {
     flexDirection: 'row',
@@ -298,12 +304,12 @@ const styles = StyleSheet.create({
   },
   warningText: {
     ...typography.caption,
-    color: colors.error,
+    color: c.error,
     flex: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: c.border,
     marginTop: spacing.md,
   },
   inlineBtn: {
@@ -312,23 +318,23 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderRadius: radius.sm,
     alignSelf: 'flex-start',
     marginTop: spacing.sm,
   },
   inlineBtnText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
   subLabel: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: c.text,
     marginTop: spacing.sm,
   },
   subDesc: {
     ...typography.caption,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     marginTop: 2,
     marginBottom: spacing.sm,
   },
@@ -344,11 +350,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.full,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
   chipText: {
     ...typography.caption,
-    color: colors.text,
+    color: c.text,
   },
   addKeywordRow: {
     flexDirection: 'row',
@@ -360,37 +366,37 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
-    backgroundColor: colors.background,
-    color: colors.text,
+    backgroundColor: c.background,
+    color: c.text,
     ...typography.body,
   },
   addKeywordBtn: {
     paddingHorizontal: spacing.md,
     justifyContent: 'center',
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderRadius: radius.sm,
   },
   addKeywordText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
   layoutPreview: {
     marginTop: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: c.border,
+    backgroundColor: c.background,
     padding: spacing.md,
   },
   layoutTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: c.text,
   },
   layoutDesc: {
     ...typography.caption,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     marginTop: 2,
   },
   layoutFrame: {
@@ -399,27 +405,27 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     overflow: 'hidden',
     backgroundColor: 'rgba(24,24,27,0.4)',
   },
   layoutRail: {
     width: 32,
     borderRightWidth: 1,
-    borderRightColor: colors.border,
+    borderRightColor: c.border,
     backgroundColor: 'rgba(24,24,27,0.6)',
   },
   layoutList: {
     width: 96,
     borderRightWidth: 1,
-    borderRightColor: colors.border,
-    backgroundColor: colors.background,
+    borderRightColor: c.border,
+    backgroundColor: c.background,
   },
   layoutRow: {
     paddingHorizontal: 6,
     paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   layoutRowSel: {
     backgroundColor: 'rgba(59,130,246,0.1)',
@@ -427,16 +433,16 @@ const styles = StyleSheet.create({
   layoutRowName: {
     fontSize: 9,
     fontWeight: '500',
-    color: colors.text,
+    color: c.text,
   },
   layoutRowSub: {
     fontSize: 9,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
   },
   layoutReader: {
     flex: 1,
     padding: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
   },
   layoutBar: {
     height: 6,
@@ -455,14 +461,14 @@ const styles = StyleSheet.create({
   },
   layoutFocusText: {
     fontSize: 9,
-    color: colors.text,
+    color: c.text,
   },
   trustedList: {
     marginTop: spacing.sm,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.muted,
+    borderColor: c.border,
+    backgroundColor: c.muted,
   },
   trustedRow: {
     flexDirection: 'row',
@@ -472,7 +478,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
-  trustedEmail: { ...typography.caption, color: colors.text, flex: 1 },
+  trustedEmail: { ...typography.caption, color: c.text, flex: 1 },
 });
+}

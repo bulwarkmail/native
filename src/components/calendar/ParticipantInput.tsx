@@ -8,7 +8,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { X } from 'lucide-react-native';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useContactsStore } from '../../stores/contacts-store';
 import type { Participant } from '../../api/types';
 
@@ -44,6 +45,8 @@ function flattenContactEmails(): Suggestion[] {
 }
 
 export function ParticipantInput({ participants, onChange }: ParticipantInputProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [draft, setDraft] = React.useState('');
   const [allSuggestions] = React.useState(() => flattenContactEmails());
 
@@ -110,7 +113,7 @@ export function ParticipantInput({ participants, onChange }: ParticipantInputPro
                 {p.name || p.email || 'Unknown'}
               </Text>
               <Pressable onPress={() => removeParticipant(id)} hitSlop={6}>
-                <X size={12} color={colors.textMuted} />
+                <X size={12} color={c.textMuted} />
               </Pressable>
             </View>
           ))}
@@ -121,7 +124,7 @@ export function ParticipantInput({ participants, onChange }: ParticipantInputPro
         value={draft}
         onChangeText={setDraft}
         placeholder="Add participant by email"
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={c.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="email-address"
@@ -155,45 +158,47 @@ export function ParticipantInput({ participants, onChange }: ParticipantInputPro
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
     maxWidth: '100%',
   },
-  chipText: { ...typography.caption, color: colors.text, maxWidth: 200 },
+  chipText: { ...typography.caption, color: c.text, maxWidth: 200 },
   input: {
     height: 40,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
-    color: colors.text,
+    color: c.text,
     ...typography.body,
   },
   suggestions: {
     maxHeight: 180,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
   },
   suggestionRow: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
-  suggestionRowPressed: { backgroundColor: colors.surfaceHover },
-  suggestionName: { ...typography.bodyMedium, color: colors.text },
-  suggestionEmail: { ...typography.caption, color: colors.textMuted, marginTop: 1 },
-});
+  suggestionRowPressed: { backgroundColor: c.surfaceHover },
+  suggestionName: { ...typography.bodyMedium, color: c.text },
+  suggestionEmail: { ...typography.caption, color: c.textMuted, marginTop: 1 },
+  });
+}

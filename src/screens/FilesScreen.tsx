@@ -10,7 +10,8 @@ import {
 import { FileText, Folder, HardDrive } from 'lucide-react-native';
 import { getFileNodes } from '../api/files';
 import type { FileNode } from '../api/types';
-import { colors, spacing, typography } from '../theme/tokens';
+import { spacing, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 function formatFileSize(bytes?: number): string {
   if (bytes == null) return '';
@@ -20,6 +21,8 @@ function formatFileSize(bytes?: number): string {
 }
 
 export default function FilesScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [files, setFiles] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +47,7 @@ export default function FilesScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={c.primary} />
       </View>
     );
   }
@@ -67,7 +70,7 @@ export default function FilesScreen() {
           <Text style={styles.title}>Files</Text>
         </View>
         <View style={styles.center}>
-          <HardDrive size={48} color={colors.textMuted} />
+          <HardDrive size={48} color={c.textMuted} />
           <Text style={styles.emptyText}>No files yet</Text>
         </View>
       </View>
@@ -85,9 +88,9 @@ export default function FilesScreen() {
         renderItem={({ item }) => (
           <View style={styles.fileRow}>
             {item.type === 'directory' ? (
-              <Folder size={20} color={colors.primary} />
+              <Folder size={20} color={c.primary} />
             ) : (
-              <FileText size={20} color={colors.textMuted} />
+              <FileText size={20} color={c.textMuted} />
             )}
             <View style={styles.fileInfo}>
               <Text style={styles.fileName} numberOfLines={1}>
@@ -104,22 +107,23 @@ export default function FilesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
   },
   header: {
     paddingTop: 60,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   title: {
     fontSize: typography.h2.fontSize,
     fontWeight: '700' as const,
-    color: colors.text,
+    color: c.text,
   },
   center: {
     flex: 1,
@@ -128,12 +132,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyText: {
-    color: colors.textMuted,
+    color: c.textMuted,
     fontSize: typography.body.fontSize,
     marginTop: spacing.sm,
   },
   errorText: {
-    color: colors.error,
+    color: c.error,
     fontSize: typography.body.fontSize,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
@@ -142,11 +146,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderRadius: 8,
   },
   retryText: {
-    color: colors.primaryForeground,
+    color: c.primaryForeground,
     fontWeight: '600' as const,
   },
   fileRow: {
@@ -155,7 +159,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     gap: spacing.sm,
   },
   fileInfo: {
@@ -163,11 +167,12 @@ const styles = StyleSheet.create({
   },
   fileName: {
     fontSize: typography.body.fontSize,
-    color: colors.text,
+    color: c.text,
   },
   fileSize: {
     fontSize: typography.caption.fontSize,
-    color: colors.textMuted,
+    color: c.textMuted,
     marginTop: 2,
   },
-});
+  });
+}

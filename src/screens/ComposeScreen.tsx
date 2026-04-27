@@ -9,7 +9,8 @@ import {
   X, Send, Paperclip, ChevronDown, Bold, Italic, List,
   Link2, Image as ImageIcon, MoreHorizontal,
 } from 'lucide-react-native';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import { Button } from '../components';
 import { useEmailStore } from '../stores/email-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -42,13 +43,15 @@ function parseRecipients(input: string): Recipient[] {
 }
 
 function RecipientChip({ recipient, onRemove }: { recipient: Recipient; onRemove: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.chip}>
       <Text style={styles.chipText} numberOfLines={1}>
         {recipient.name || recipient.email}
       </Text>
       <Pressable onPress={onRemove} hitSlop={8}>
-        <X size={12} color={colors.textMuted} />
+        <X size={12} color={c.textMuted} />
       </Pressable>
     </View>
   );
@@ -60,6 +63,8 @@ function SuggestionList({
   suggestions: Array<{ contact: ContactCard; name: string; email: string }>;
   onPick: (s: { name: string; email: string }) => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.suggestionBox}>
       {suggestions.map((s, i) => {
@@ -89,6 +94,8 @@ function SuggestionList({
 }
 
 export default function ComposeScreen({ route, navigation }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const replyTo = route.params?.replyTo;
   const mode = route.params?.mode;
   const prefillTo = route.params?.prefillTo;
@@ -274,14 +281,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={onClose} style={styles.headerBtn}>
-          <X size={22} color={colors.text} />
+          <X size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle}>
           {mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : replyTo ? 'Reply' : 'New Message'}
         </Text>
         <View style={styles.headerRight}>
           <Pressable style={styles.headerBtn}>
-            <Paperclip size={20} color={colors.text} />
+            <Paperclip size={20} color={c.text} />
           </Pressable>
           <Button
             variant="default"
@@ -290,11 +297,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             disabled={!canSend}
             icon={
               sending ? (
-                <ActivityIndicator color={colors.primaryForeground} size="small" />
+                <ActivityIndicator color={c.primaryForeground} size="small" />
               ) : (
                 <Send
                   size={14}
-                  color={canSend ? colors.primaryForeground : colors.textMuted}
+                  color={canSend ? c.primaryForeground : c.textMuted}
                 />
               )
             }
@@ -316,7 +323,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               <Text style={styles.fromText} numberOfLines={1}>
                 {primaryIdentity?.email ?? (identityError ? 'identity unavailable' : 'Loading...')}
               </Text>
-              <ChevronDown size={14} color={colors.textMuted} />
+              <ChevronDown size={14} color={c.textMuted} />
             </View>
           </View>
 
@@ -333,7 +340,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               <TextInput
                 style={styles.recipientInput}
                 placeholder="Add recipient..."
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={c.textMuted}
                 value={toInput}
                 onChangeText={setToInput}
                 onFocus={() => setActiveField('to')}
@@ -371,7 +378,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 <TextInput
                   style={styles.recipientInput}
                   placeholder="Add Cc..."
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   value={ccInput}
                   onChangeText={setCcInput}
                   onFocus={() => setActiveField('cc')}
@@ -396,7 +403,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <TextInput
               style={styles.subjectInput}
               placeholder="Email subject"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               value={subject}
               onChangeText={setSubject}
             />
@@ -405,7 +412,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           <TextInput
             style={styles.bodyInput}
             placeholder="Write your message..."
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             value={body}
             onChangeText={setBody}
             multiline
@@ -430,22 +437,22 @@ export default function ComposeScreen({ route, navigation }: Props) {
         <View style={styles.formatBar}>
           <View style={styles.formatActions}>
             <Pressable style={styles.formatBtn}>
-              <Bold size={18} color={colors.textSecondary} />
+              <Bold size={18} color={c.textSecondary} />
             </Pressable>
             <Pressable style={styles.formatBtn}>
-              <Italic size={18} color={colors.textSecondary} />
+              <Italic size={18} color={c.textSecondary} />
             </Pressable>
             <Pressable style={styles.formatBtn}>
-              <List size={18} color={colors.textSecondary} />
+              <List size={18} color={c.textSecondary} />
             </Pressable>
             <Pressable style={styles.formatBtn}>
-              <Link2 size={18} color={colors.textSecondary} />
+              <Link2 size={18} color={c.textSecondary} />
             </Pressable>
             <Pressable style={styles.formatBtn}>
-              <ImageIcon size={18} color={colors.textSecondary} />
+              <ImageIcon size={18} color={c.textSecondary} />
             </Pressable>
             <Pressable style={styles.formatBtn}>
-              <MoreHorizontal size={18} color={colors.textSecondary} />
+              <MoreHorizontal size={18} color={c.textSecondary} />
             </Pressable>
           </View>
         </View>
@@ -454,8 +461,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   flex: { flex: 1 },
 
   header: {
@@ -465,7 +473,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     gap: spacing.sm,
   },
   headerBtn: {
@@ -475,7 +483,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flex: 1 },
+  headerTitle: { ...typography.h3, color: c.text, flex: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sendButtonDisabled: { opacity: 0.5 },
 
@@ -485,12 +493,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
     gap: spacing.md,
   },
   fieldLabel: {
     ...typography.body,
-    color: colors.textMuted,
+    color: c.textMuted,
     width: 56,
     paddingTop: 10,
   },
@@ -501,7 +509,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: spacing.sm,
   },
-  fromText: { ...typography.body, color: colors.text },
+  fromText: { ...typography.body, color: c.text },
   recipientField: {
     flex: 1,
     flexDirection: 'row',
@@ -517,24 +525,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceActive,
+    backgroundColor: c.surfaceActive,
     maxWidth: 220,
   },
-  chipText: { ...typography.caption, color: colors.text, flexShrink: 1 },
+  chipText: { ...typography.caption, color: c.text, flexShrink: 1 },
   recipientInput: {
     flexGrow: 1,
     minWidth: 100,
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     paddingVertical: 6,
   },
   suggestionBox: {
     marginTop: spacing.xs,
     marginLeft: 60,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: c.borderLight,
     borderRadius: radius.sm,
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
     overflow: 'hidden',
   },
   suggestionRow: {
@@ -544,33 +552,33 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.sm,
   },
-  suggestionRowPressed: { backgroundColor: colors.surfaceHover },
+  suggestionRowPressed: { backgroundColor: c.surfaceHover },
   suggestionAvatar: {
     width: 32, height: 32,
     borderRadius: 16,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  suggestionAvatarText: { ...typography.captionMedium, color: colors.primary },
+  suggestionAvatarText: { ...typography.captionMedium, color: c.primary },
   suggestionText: { flex: 1 },
-  suggestionName: { ...typography.bodyMedium, color: colors.text },
-  suggestionEmail: { ...typography.caption, color: colors.textSecondary },
+  suggestionName: { ...typography.bodyMedium, color: c.text },
+  suggestionEmail: { ...typography.caption, color: c.textSecondary },
   ccToggle: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
   },
-  ccToggleText: { ...typography.caption, color: colors.primary },
+  ccToggleText: { ...typography.caption, color: c.primary },
   subjectInput: {
     flex: 1,
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     paddingVertical: 10,
   },
 
   bodyInput: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     minHeight: 200,
@@ -583,15 +591,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     gap: spacing.sm,
   },
-  quoteBorder: { width: 3, backgroundColor: colors.border, borderRadius: radius.xs },
+  quoteBorder: { width: 3, backgroundColor: c.border, borderRadius: radius.xs },
   quoteContent: { flex: 1 },
-  quoteMeta: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.xs },
-  quoteText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
+  quoteMeta: { ...typography.caption, color: c.textMuted, marginBottom: spacing.xs },
+  quoteText: { ...typography.caption, color: c.textSecondary, lineHeight: 18 },
 
   formatBar: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+    borderTopColor: c.border,
+    backgroundColor: c.surface,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
@@ -606,4 +614,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.sm,
   },
-});
+  });
+}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { TextInput as RNTextInput, View, Text, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -28,6 +29,8 @@ export default function Input({
   style,
   ...props
 }: InputProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [focused, setFocused] = React.useState(false);
 
   return (
@@ -43,7 +46,7 @@ export default function Input({
         <RNTextInput
           {...props}
           style={[styles.input, style]}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={c.textMuted}
           onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
           onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
         />
@@ -54,10 +57,11 @@ export default function Input({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   label: {
     ...typography.bodyMedium,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     marginBottom: spacing.sm,
   },
   inputWrapper: {
@@ -65,17 +69,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: componentSizes.inputHeight,    // h-10 = 40px
     borderWidth: 1,
-    borderColor: colors.border,            // border-input
+    borderColor: c.border,            // border-input
     borderRadius: radius.sm,               // rounded-md = 6px
-    backgroundColor: colors.background,    // bg-background
+    backgroundColor: c.background,    // bg-background
     paddingHorizontal: spacing.md,         // px-3 = 12px
   },
   inputFocused: {
-    borderColor: colors.borderFocus,       // border-ring (blue-500)
+    borderColor: c.borderFocus,       // border-ring (blue-500)
     borderWidth: 2,
   },
   inputError: {
-    borderColor: colors.error,
+    borderColor: c.error,
   },
   inputDisabled: {
     opacity: 0.5,
@@ -83,7 +87,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     ...typography.body,                   // text-sm = 14px
-    color: colors.text,                   // text-foreground
+    color: c.text,                   // text-foreground
     paddingVertical: 0,
   },
   iconLeft: {
@@ -94,7 +98,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...typography.caption,
-    color: colors.error,
+    color: c.error,
     marginTop: spacing.xs,
   },
-});
+  });
+}

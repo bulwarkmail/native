@@ -22,12 +22,15 @@ import type { EmailAddress } from '../api/types';
 import ContactListRow from '../components/contacts/ContactListRow';
 import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
 import Dialog from '../components/Dialog';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'GroupDetail'>;
 type Route = RouteProp<RootStackParamList, 'GroupDetail'>;
 
 export default function GroupDetailScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { groupId } = route.params;
@@ -53,7 +56,7 @@ export default function GroupDetailScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
-            <ArrowLeft size={22} color={colors.text} />
+            <ArrowLeft size={22} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Group</Text>
         </View>
@@ -127,7 +130,7 @@ export default function GroupDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
-          <ArrowLeft size={22} color={colors.text} />
+          <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{name}</Text>
         <View style={styles.headerActions}>
@@ -136,17 +139,17 @@ export default function GroupDetailScreen() {
             style={styles.headerBtn}
             hitSlop={8}
           >
-            <Edit2 size={18} color={colors.text} />
+            <Edit2 size={18} color={c.text} />
           </Pressable>
           <Pressable onPress={() => setConfirmDelete(true)} style={styles.headerBtn} hitSlop={8}>
-            <Trash2 size={18} color={colors.error} />
+            <Trash2 size={18} color={c.error} />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
-          <Users size={32} color={colors.primary} />
+          <Users size={32} color={c.primary} />
         </View>
         <Text style={styles.heroName}>{name}</Text>
         <Text style={styles.heroSubtitle}>
@@ -156,11 +159,11 @@ export default function GroupDetailScreen() {
 
       <View style={styles.actionsRow}>
         <Pressable onPress={emailAll} style={styles.actionBtn}>
-          <Mail size={16} color={colors.primary} />
+          <Mail size={16} color={c.primary} />
           <Text style={styles.actionLabel}>Email all</Text>
         </Pressable>
         <Pressable onPress={() => setPickerOpen(true)} style={[styles.actionBtn, styles.actionBtnPrimary]}>
-          <Plus size={16} color={colors.primaryForeground} />
+          <Plus size={16} color={c.primaryForeground} />
           <Text style={[styles.actionLabel, styles.actionLabelPrimary]}>Add member</Text>
         </Pressable>
       </View>
@@ -181,14 +184,14 @@ export default function GroupDetailScreen() {
               style={styles.removeMemberBtn}
               hitSlop={8}
             >
-              <UserMinus size={16} color={colors.error} />
+              <UserMinus size={16} color={c.error} />
             </Pressable>
           </View>
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Users size={40} color={colors.surfaceActive} />
+            <Users size={40} color={c.surfaceActive} />
             <Text style={styles.emptyTitle}>No members yet</Text>
             <Text style={styles.emptySubtitle}>Tap "Add member" to get started</Text>
           </View>
@@ -231,8 +234,9 @@ export default function GroupDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -240,14 +244,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
   headerBtn: {
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flex: 1, marginLeft: spacing.xs },
+  headerTitle: { ...typography.h3, color: c.text, flex: 1, marginLeft: spacing.xs },
   headerActions: { flexDirection: 'row', gap: spacing.xs },
 
   hero: {
@@ -258,12 +262,12 @@ const styles = StyleSheet.create({
   heroIcon: {
     width: 80, height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroName: { ...typography.h2, color: colors.text, marginTop: spacing.sm },
-  heroSubtitle: { ...typography.body, color: colors.textSecondary },
+  heroName: { ...typography.h2, color: c.text, marginTop: spacing.sm },
+  heroSubtitle: { ...typography.body, color: c.textSecondary },
 
   actionsRow: {
     flexDirection: 'row',
@@ -280,11 +284,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
   },
-  actionBtnPrimary: { backgroundColor: colors.primary },
-  actionLabel: { ...typography.bodyMedium, color: colors.text },
-  actionLabelPrimary: { color: colors.primaryForeground },
+  actionBtnPrimary: { backgroundColor: c.primary },
+  actionLabel: { ...typography.bodyMedium, color: c.text },
+  actionLabelPrimary: { color: c.primaryForeground },
 
   memberRow: {
     flexDirection: 'row',
@@ -296,12 +300,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     marginRight: spacing.md,
   },
-  separator: { height: 1, backgroundColor: colors.borderLight, marginLeft: 68 },
+  separator: { height: 1, backgroundColor: c.borderLight, marginLeft: 68 },
 
   empty: { alignItems: 'center', paddingVertical: spacing.xxxl, gap: spacing.sm },
-  emptyTitle: { ...typography.bodyMedium, color: colors.textSecondary },
-  emptySubtitle: { ...typography.caption, color: colors.textMuted },
+  emptyTitle: { ...typography.bodyMedium, color: c.textSecondary },
+  emptySubtitle: { ...typography.caption, color: c.textMuted },
 
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  missingText: { ...typography.body, color: colors.textMuted },
-});
+  missingText: { ...typography.body, color: c.textMuted },
+  });
+}

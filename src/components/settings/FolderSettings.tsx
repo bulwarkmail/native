@@ -4,7 +4,8 @@ import {
   Folder, Inbox, Send, FileText, Trash, ShieldAlert, Archive,
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useEmailStore } from '../../stores/email-store';
 import type { Mailbox } from '../../api/types';
 
@@ -23,6 +24,8 @@ function getIcon(mb: Mailbox) {
 }
 
 export function FolderSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
 
@@ -47,7 +50,7 @@ export function FolderSettings() {
       >
         {mailboxes.length === 0 ? (
           <View style={styles.loading}>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color={c.primary} />
           </View>
         ) : (
           <View>
@@ -58,7 +61,7 @@ export function FolderSettings() {
                   <View style={styles.folderLeft}>
                     <Icon
                       size={16}
-                      color={mb.role ? colors.primary : colors.mutedForeground}
+                      color={mb.role ? c.primary : c.mutedForeground}
                     />
                     <Text style={styles.folderName} numberOfLines={1}>{mb.name}</Text>
                     {mb.role && ROLE_LABEL[mb.role] && (
@@ -94,7 +97,8 @@ export function FolderSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
   loading: { paddingVertical: 40, alignItems: 'center' },
   folderRow: {
@@ -106,22 +110,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   folderLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
-  folderName: { ...typography.body, color: colors.text, flexShrink: 1 },
+  folderName: { ...typography.body, color: c.text, flexShrink: 1 },
   rolePill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
   },
-  rolePillText: { fontSize: 10, fontWeight: '500', color: colors.primary },
+  rolePillText: { fontSize: 10, fontWeight: '500', color: c.primary },
   folderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   unreadBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.full,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
-  unreadText: { fontSize: 10, fontWeight: '500', color: colors.primaryForeground },
-  total: { ...typography.caption, color: colors.mutedForeground, minWidth: 32, textAlign: 'right' },
-  caption: { ...typography.caption, color: colors.mutedForeground },
+  unreadText: { fontSize: 10, fontWeight: '500', color: c.primaryForeground },
+  total: { ...typography.caption, color: c.mutedForeground, minWidth: 32, textAlign: 'right' },
+  caption: { ...typography.caption, color: c.mutedForeground },
 });
+}

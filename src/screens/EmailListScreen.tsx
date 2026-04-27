@@ -6,7 +6,8 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
 } from 'lucide-react-native';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
@@ -60,6 +61,8 @@ const EmailRow = React.memo(function EmailRow({
   selected: boolean;
   selectionMode: boolean;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const senderName = getSenderName(item);
   const senderEmail = getSenderEmail(item);
   const unread = isUnread(item);
@@ -82,9 +85,9 @@ const EmailRow = React.memo(function EmailRow({
       {selectionMode && (
         <View style={styles.rowCheckboxWrap}>
           {selected ? (
-            <SquareCheck size={16} color={colors.primary} />
+            <SquareCheck size={16} color={c.primary} />
           ) : (
-            <Square size={16} color={colors.textMuted} />
+            <Square size={16} color={c.textMuted} />
           )}
         </View>
       )}
@@ -99,10 +102,10 @@ const EmailRow = React.memo(function EmailRow({
               {senderName}
             </Text>
             {starred && (
-              <Star size={componentSizes.statusIcon} color={colors.starred} fill={colors.starred} />
+              <Star size={componentSizes.statusIcon} color={c.starred} fill={c.starred} />
             )}
             {item.hasAttachment && (
-              <Paperclip size={componentSizes.statusIcon} color={colors.textMuted} />
+              <Paperclip size={componentSizes.statusIcon} color={c.textMuted} />
             )}
           </View>
           <View style={styles.timeAndTag}>
@@ -136,6 +139,8 @@ interface EmailListScreenProps {
 }
 
 export default function EmailListScreen({ onEmailPress, onComposePress }: EmailListScreenProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const emails = useEmailStore((s) => s.emails);
@@ -385,7 +390,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       {selectionMode ? (
         <View style={styles.header}>
           <Pressable onPress={clearSelection} style={styles.headerButton}>
-            <X size={20} color={colors.text} />
+            <X size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>{selectedIds.size} selected</Text>
           <Pressable
@@ -395,8 +400,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           >
             <Star
               size={20}
-              color={allSelectedAreStarred ? colors.starred : colors.text}
-              fill={allSelectedAreStarred ? colors.starred : 'transparent'}
+              color={allSelectedAreStarred ? c.starred : c.text}
+              fill={allSelectedAreStarred ? c.starred : 'transparent'}
             />
           </Pressable>
           <Pressable
@@ -405,9 +410,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             hitSlop={6}
           >
             {allSelectedAreRead ? (
-              <MailIcon size={20} color={colors.text} />
+              <MailIcon size={20} color={c.text} />
             ) : (
-              <MailOpen size={20} color={colors.text} />
+              <MailOpen size={20} color={c.text} />
             )}
           </Pressable>
           <Pressable
@@ -415,13 +420,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             style={styles.headerButton}
             hitSlop={6}
           >
-            <Trash2 size={20} color={colors.text} />
+            <Trash2 size={20} color={c.text} />
           </Pressable>
         </View>
       ) : (
         <View style={styles.header}>
           <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerButton}>
-            <Menu size={20} color={colors.textMuted} />
+            <Menu size={20} color={c.textMuted} />
           </Pressable>
           <Text style={styles.headerTitle}>{currentMailbox?.name ?? 'Inbox'}</Text>
           <View style={{ flex: 1 }} />
@@ -437,21 +442,21 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       <View style={styles.searchBar}>
         <Pressable style={styles.checkboxButton} onPress={toggleSelectAllVisible} hitSlop={6}>
           {allSelected ? (
-            <SquareCheck size={18} color={colors.primary} />
+            <SquareCheck size={18} color={c.primary} />
           ) : selectionMode ? (
             <View style={styles.checkboxIndeterminate}>
-              <Minus size={14} color={colors.background} />
+              <Minus size={14} color={c.background} />
             </View>
           ) : (
-            <Square size={18} color={colors.textMuted} />
+            <Square size={18} color={c.textMuted} />
           )}
         </Pressable>
         <View style={styles.searchInputArea}>
-          <Search size={16} color={colors.textMuted} />
+          <Search size={16} color={c.textMuted} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search mail..."
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             value={searchInput}
             onChangeText={setSearchInput}
             autoCapitalize="none"
@@ -464,7 +469,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               hitSlop={8}
               style={styles.searchClearButton}
             >
-              <X size={14} color={colors.textMuted} />
+              <X size={14} color={c.textMuted} />
             </Pressable>
           )}
         </View>
@@ -472,7 +477,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
           onPress={() => setFilterMenuOpen(true)}
         >
-          <Filter size={18} color={activeFilterCount > 0 ? colors.primary : colors.textMuted} />
+          <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -485,7 +490,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         <View style={styles.filterChipsRow}>
           {storeSearchQuery ? (
             <View style={styles.chip}>
-              <Search size={12} color={colors.textSecondary} />
+              <Search size={12} color={c.textSecondary} />
               <Text style={styles.chipText} numberOfLines={1}>
                 {storeSearchQuery}
               </Text>
@@ -508,35 +513,35 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           ) : null}
           {filters.dateAfter ? (
             <View style={styles.chip}>
-              <CalendarDays size={12} color={colors.textSecondary} />
+              <CalendarDays size={12} color={c.textSecondary} />
               <Text style={styles.chipText}>After {filters.dateAfter}</Text>
             </View>
           ) : null}
           {filters.dateBefore ? (
             <View style={styles.chip}>
-              <CalendarDays size={12} color={colors.textSecondary} />
+              <CalendarDays size={12} color={c.textSecondary} />
               <Text style={styles.chipText}>Before {filters.dateBefore}</Text>
             </View>
           ) : null}
           {filters.isUnread !== undefined && (
             <View style={styles.chip}>
               {filters.isUnread ? (
-                <MailIcon size={12} color={colors.textSecondary} />
+                <MailIcon size={12} color={c.textSecondary} />
               ) : (
-                <MailOpen size={12} color={colors.textSecondary} />
+                <MailOpen size={12} color={c.textSecondary} />
               )}
               <Text style={styles.chipText}>{filters.isUnread ? 'Unread' : 'Read'}</Text>
             </View>
           )}
           {filters.isStarred !== undefined && (
             <View style={styles.chip}>
-              <Star size={12} color={colors.starred} fill={filters.isStarred ? colors.starred : 'transparent'} />
+              <Star size={12} color={c.starred} fill={filters.isStarred ? c.starred : 'transparent'} />
               <Text style={styles.chipText}>{filters.isStarred ? 'Starred' : 'Not starred'}</Text>
             </View>
           )}
           {filters.hasAttachment !== undefined && (
             <View style={styles.chip}>
-              <Paperclip size={12} color={colors.textSecondary} />
+              <Paperclip size={12} color={c.textSecondary} />
               <Text style={styles.chipText}>
                 {filters.hasAttachment ? 'Has attachment' : 'No attachment'}
               </Text>
@@ -560,7 +565,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       {/* Email list */}
       {loading && emails.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={c.primary} />
           <Text style={styles.loadingText}>Loading emails...</Text>
         </View>
       ) : error && emails.length === 0 ? (
@@ -609,7 +614,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         onPress={onComposePress}
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
       >
-        <SquarePen size={24} color={colors.background} />
+        <SquarePen size={24} color={c.background} />
       </Pressable>
 
       <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
@@ -632,7 +637,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                       style={styles.filterMenuHeaderBtn}
                       hitSlop={6}
                     >
-                      <RotateCcw size={12} color={colors.textSecondary} />
+                      <RotateCcw size={12} color={c.textSecondary} />
                       <Text style={styles.filterMenuHeaderBtnText}>Clear</Text>
                     </Pressable>
                     <Pressable
@@ -640,7 +645,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                       style={styles.filterMenuClose}
                       hitSlop={6}
                     >
-                      <X size={16} color={colors.textSecondary} />
+                      <X size={16} color={c.textSecondary} />
                     </Pressable>
                   </View>
                 </View>
@@ -653,7 +658,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         value={filters.from ?? ''}
                         onChangeText={(v) => setFilterField('from', v)}
                         placeholder="sender@example.com"
-                        placeholderTextColor={colors.textMuted}
+                        placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
                         autoCorrect={false}
                         style={styles.filterFieldInput}
@@ -665,7 +670,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         value={filters.to ?? ''}
                         onChangeText={(v) => setFilterField('to', v)}
                         placeholder="recipient@example.com"
-                        placeholderTextColor={colors.textMuted}
+                        placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
                         autoCorrect={false}
                         style={styles.filterFieldInput}
@@ -679,7 +684,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                       value={filters.subject ?? ''}
                       onChangeText={(v) => setFilterField('subject', v)}
                       placeholder="Subject contains..."
-                      placeholderTextColor={colors.textMuted}
+                      placeholderTextColor={c.textMuted}
                       style={styles.filterFieldInput}
                     />
                   </View>
@@ -691,7 +696,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         style={styles.filterDateButton}
                         onPress={() => setDatePickerField('dateAfter')}
                       >
-                        <CalendarDays size={14} color={colors.textMuted} />
+                        <CalendarDays size={14} color={c.textMuted} />
                         <Text style={[styles.filterDateText, !filters.dateAfter && styles.filterDateTextEmpty]}>
                           {filters.dateAfter || 'YYYY-MM-DD'}
                         </Text>
@@ -700,7 +705,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                             onPress={() => setFilterField('dateAfter', undefined)}
                             hitSlop={6}
                           >
-                            <X size={14} color={colors.textMuted} />
+                            <X size={14} color={c.textMuted} />
                           </Pressable>
                         ) : null}
                       </Pressable>
@@ -711,7 +716,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         style={styles.filterDateButton}
                         onPress={() => setDatePickerField('dateBefore')}
                       >
-                        <CalendarDays size={14} color={colors.textMuted} />
+                        <CalendarDays size={14} color={c.textMuted} />
                         <Text style={[styles.filterDateText, !filters.dateBefore && styles.filterDateTextEmpty]}>
                           {filters.dateBefore || 'YYYY-MM-DD'}
                         </Text>
@@ -720,7 +725,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                             onPress={() => setFilterField('dateBefore', undefined)}
                             hitSlop={6}
                           >
-                            <X size={14} color={colors.textMuted} />
+                            <X size={14} color={c.textMuted} />
                           </Pressable>
                         ) : null}
                       </Pressable>
@@ -729,13 +734,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
                   <View style={styles.filterToggleGroup}>
                     <TriToggle
-                      icon={<Paperclip size={14} color={colors.textSecondary} />}
+                      icon={<Paperclip size={14} color={c.textSecondary} />}
                       label="Has attachment"
                       value={filters.hasAttachment}
                       onPress={() => cycleTriState('hasAttachment')}
                     />
                     <TriToggle
-                      icon={<Star size={14} color={colors.starred} fill={filters.isStarred ? colors.starred : 'transparent'} />}
+                      icon={<Star size={14} color={c.starred} fill={filters.isStarred ? c.starred : 'transparent'} />}
                       label="Starred"
                       value={filters.isStarred}
                       onPress={() => cycleTriState('isStarred')}
@@ -743,9 +748,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                     <TriToggle
                       icon={
                         filters.isUnread === false ? (
-                          <MailOpen size={14} color={colors.textSecondary} />
+                          <MailOpen size={14} color={c.textSecondary} />
                         ) : (
-                          <MailIcon size={14} color={colors.textSecondary} />
+                          <MailIcon size={14} color={c.textSecondary} />
                         )
                       }
                       label={filters.isUnread === false ? 'Read' : 'Unread'}
@@ -840,8 +845,9 @@ function TriToggle({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
 
   // Header - matches web mobile-header: h-14 (56px), px-4, border-b
   header: {
@@ -850,7 +856,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     height: componentSizes.headerHeight,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
     gap: spacing.md,
   },
   headerButton: {
@@ -858,7 +864,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flex: 1 }, // text-lg font-semibold
+  headerTitle: { ...typography.h3, color: c.text, flex: 1 }, // text-lg font-semibold
   headerLogo: {
     width: 28,
     height: 28,
@@ -883,13 +889,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.md,
     height: componentSizes.inputHeight, // h-10 = 40px
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     gap: spacing.sm,
   },
-  searchInput: { flex: 1, ...typography.body, color: colors.text },
+  searchInput: { flex: 1, ...typography.body, color: c.text },
   filterButton: {
     width: componentSizes.buttonMd, height: componentSizes.buttonMd,
     alignItems: 'center', justifyContent: 'center',
@@ -897,7 +903,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   filterButtonActive: {
-    backgroundColor: colors.accent,
+    backgroundColor: c.accent,
   },
   filterBadge: {
     position: 'absolute',
@@ -906,7 +912,7 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
@@ -914,7 +920,7 @@ const styles = StyleSheet.create({
   filterBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.primaryForeground,
+    color: c.primaryForeground,
     lineHeight: 14,
   },
   searchClearButton: {
@@ -936,9 +942,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
@@ -946,7 +952,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   clearAllButton: {
     paddingHorizontal: spacing.sm,
@@ -954,7 +960,7 @@ const styles = StyleSheet.create({
   },
   clearAllText: {
     ...typography.captionMedium,
-    color: colors.primary,
+    color: c.primary,
   },
   filterBackdrop: {
     flex: 1,
@@ -967,10 +973,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     maxHeight: '85%',
-    backgroundColor: colors.popover,
+    backgroundColor: c.popover,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   filterMenuHeader: {
     flexDirection: 'row',
@@ -980,11 +986,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   filterMenuTitle: {
     ...typography.bodySemibold,
-    color: colors.text,
+    color: c.text,
   },
   filterMenuHeaderActions: {
     flexDirection: 'row',
@@ -1001,7 +1007,7 @@ const styles = StyleSheet.create({
   },
   filterMenuHeaderBtnText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   filterMenuClose: {
     width: 28,
@@ -1021,15 +1027,15 @@ const styles = StyleSheet.create({
   filterFieldHalf: { flex: 1 },
   filterFieldLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
     marginBottom: 4,
   },
   filterFieldInput: {
     ...typography.body,
-    color: colors.text,
-    backgroundColor: colors.surface,
+    color: c.text,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
@@ -1039,20 +1045,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     height: 32,
   },
   filterDateText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flex: 1,
   },
   filterDateTextEmpty: {
-    color: colors.textMuted,
+    color: c.textMuted,
   },
   filterToggleGroup: {
     flexDirection: 'row',
@@ -1069,26 +1075,26 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: c.border,
+    backgroundColor: c.background,
   },
   triToggleOn: {
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
     borderColor: 'rgba(59, 130, 246, 0.3)',
   },
   triToggleOff: {
-    backgroundColor: colors.muted,
-    borderColor: colors.border,
+    backgroundColor: c.muted,
+    borderColor: c.border,
   },
   triToggleText: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
   },
   triToggleTextOn: {
-    color: colors.primary,
+    color: c.primary,
   },
   triToggleTextOff: {
-    color: colors.textMuted,
+    color: c.textMuted,
     textDecorationLine: 'line-through',
   },
   pickerOverlay: {
@@ -1100,12 +1106,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.popover,
+    backgroundColor: c.popover,
     paddingBottom: spacing.xl,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   pickerHeader: {
     flexDirection: 'row',
@@ -1113,11 +1119,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   pickerDone: {
     ...typography.bodyMedium,
-    color: colors.primary,
+    color: c.primary,
   },
 
   // Email list - matches web email-list-item
@@ -1128,10 +1134,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,        // py-3 = 12px (density-item-py)
     gap: spacing.md,                    // gap-3 = 12px (density-item-gap)
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,   // border-b border-border
+    borderBottomColor: c.border,   // border-b border-border
   },
-  emailRowPressed: { backgroundColor: colors.surface },
-  emailRowSelected: { backgroundColor: colors.selection },
+  emailRowPressed: { backgroundColor: c.surface },
+  emailRowSelected: { backgroundColor: c.selection },
   rowCheckboxWrap: {
     width: 16,
     height: componentSizes.avatarMd,
@@ -1143,7 +1149,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: radius.xs,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1162,7 +1168,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   // Sender: text-sm, font-medium (read) / font-bold (unread)
-  emailFrom: { ...typography.bodyMedium, color: colors.textSecondary, flexShrink: 1 },
+  emailFrom: { ...typography.bodyMedium, color: c.textSecondary, flexShrink: 1 },
   timeAndTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1173,20 +1179,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
   },
-  threadBadgeText: { ...typography.caption, color: colors.textMuted },
+  threadBadgeText: { ...typography.caption, color: c.textMuted },
   // Date: text-xs (12px), tabular-nums
-  emailDate: { ...typography.caption, color: colors.textMuted },
+  emailDate: { ...typography.caption, color: c.textMuted },
   subjectRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 2,
   },
   // Subject: text-sm (14px), font-semibold (unread) / font-normal (read)
-  emailSubject: { ...typography.body, color: colors.text, flex: 1 },
+  emailSubject: { ...typography.body, color: c.text, flex: 1 },
   // Preview: text-sm, leading-relaxed, line-clamp-2
-  emailPreview: { ...typography.body, color: colors.textSecondary, lineHeight: 20, opacity: 0.8 },
+  emailPreview: { ...typography.body, color: c.textSecondary, lineHeight: 20, opacity: 0.8 },
   // Unread state: text foreground + font-bold
-  textUnread: { fontWeight: '600', color: colors.text },
+  textUnread: { fontWeight: '600', color: c.text },
   textBold: { fontWeight: '700' },
   // Tag pill: text-[10px], rounded-full, px-1.5 py-0.5, gap-1
   tagPill: {
@@ -1213,7 +1219,7 @@ const styles = StyleSheet.create({
     width: componentSizes.fab,       // 56px (h-14)
     height: componentSizes.fab,      // 56px (w-14)
     borderRadius: radius.full,       // rounded-full (circle)
-    backgroundColor: colors.text,    // white - matches webmail mobile FAB
+    backgroundColor: c.text,    // white - matches webmail mobile FAB
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
@@ -1234,26 +1240,27 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...typography.body,
-    color: colors.textMuted,
+    color: c.textMuted,
   },
   errorText: {
     ...typography.body,
-    color: colors.error,
+    color: c.error,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
   },
   retryText: {
     ...typography.bodyMedium,
-    color: colors.primary,
+    color: c.primary,
     marginTop: spacing.sm,
   },
   hintText: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
     marginTop: spacing.xs,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
   },
-});
+  });
+}
 
 export type { EmailListScreenProps };

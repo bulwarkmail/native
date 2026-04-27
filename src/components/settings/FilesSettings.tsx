@@ -4,7 +4,8 @@ import {
   Folder, FileText, FileCode, FileAudio, File, Image as ImageIcon,
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 type FolderLayout = 'inline' | 'sidebar';
 type ViewMode = 'list' | 'grid';
@@ -58,23 +59,25 @@ function formatSize(b: number) {
 }
 
 function getIcon(file: SampleFile, colored: boolean, sz: number) {
-  if (file.isFolder) return <Folder size={sz} color={colored ? '#60a5fa' : colors.mutedForeground} />;
+  if (file.isFolder) return <Folder size={sz} color={colored ? '#60a5fa' : c.mutedForeground} />;
   const ext = file.name.split('.').pop()?.toLowerCase();
   switch (ext) {
     case 'jpg': case 'png': case 'gif':
-      return <ImageIcon size={sz} color={colored ? '#4ade80' : colors.mutedForeground} />;
+      return <ImageIcon size={sz} color={colored ? '#4ade80' : c.mutedForeground} />;
     case 'mp3': case 'wav':
-      return <FileAudio size={sz} color={colored ? '#a78bfa' : colors.mutedForeground} />;
+      return <FileAudio size={sz} color={colored ? '#a78bfa' : c.mutedForeground} />;
     case 'pdf':
-      return <FileText size={sz} color={colored ? '#f87171' : colors.mutedForeground} />;
+      return <FileText size={sz} color={colored ? '#f87171' : c.mutedForeground} />;
     case 'md': case 'json': case 'js': case 'ts':
-      return <FileCode size={sz} color={colored ? '#fbbf24' : colors.mutedForeground} />;
+      return <FileCode size={sz} color={colored ? '#fbbf24' : c.mutedForeground} />;
     default:
-      return <File size={sz} color={colors.mutedForeground} />;
+      return <File size={sz} color={c.mutedForeground} />;
   }
 }
 
 function FilesPreview({ prefs }: { prefs: FilesPrefs }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const files = SAMPLE.filter((f) => {
     if (!prefs.showHiddenFiles && f.hidden) return false;
     return true;
@@ -127,6 +130,8 @@ function FilesPreview({ prefs }: { prefs: FilesPrefs }) {
 }
 
 export function FilesSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [prefs, setPrefs] = useState<FilesPrefs>(DEFAULTS);
   const update = (patch: Partial<FilesPrefs>) => setPrefs((p) => ({ ...p, ...patch }));
 
@@ -188,7 +193,7 @@ export function FilesSettings() {
         <SettingItem label="Show icons" description="Display icons for files and folders.">
           <ToggleSwitch checked={prefs.showIcons} onChange={(v) => update({ showIcons: v })} />
         </SettingItem>
-        <SettingItem label="Colored icons" description="Use file-type-specific colors.">
+        <SettingItem label="Colored icons" description="Use file-type-specific c.">
           <ToggleSwitch
             checked={prefs.coloredIcons}
             onChange={(v) => update({ coloredIcons: v })}
@@ -212,14 +217,15 @@ export function FilesSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
-  previewLabel: { ...typography.bodyMedium, color: colors.text, marginBottom: spacing.sm },
+  previewLabel: { ...typography.bodyMedium, color: c.text, marginBottom: spacing.sm },
   previewBox: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: c.border,
+    backgroundColor: c.background,
     overflow: 'hidden',
     minHeight: 160,
   },
@@ -230,10 +236,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.muted,
+    borderBottomColor: c.border,
+    backgroundColor: c.muted,
   },
-  listHeaderText: { fontSize: 10, fontWeight: '500', color: colors.mutedForeground },
+  listHeaderText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -241,10 +247,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
-  listName: { fontSize: 11, color: colors.text, flex: 1 },
-  listMeta: { fontSize: 10, color: colors.mutedForeground, width: 60, textAlign: 'right' },
+  listName: { fontSize: 11, color: c.text, flex: 1 },
+  listMeta: { fontSize: 10, color: c.mutedForeground, width: 60, textAlign: 'right' },
   gridWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -258,5 +264,6 @@ const styles = StyleSheet.create({
     width: 72,
     borderRadius: radius.sm,
   },
-  gridName: { fontSize: 9, color: colors.text, textAlign: 'center' },
+  gridName: { fontSize: 9, color: c.text, textAlign: 'center' },
 });
+}

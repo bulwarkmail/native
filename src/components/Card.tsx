@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 interface CardProps {
   children: React.ReactNode;
@@ -13,6 +14,8 @@ interface CardProps {
  * - card-foreground for text
  */
 export function Card({ children, style }: CardProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
@@ -27,6 +30,8 @@ interface SectionHeaderProps {
  * - text-sm text-muted-foreground for description
  */
 export function SectionHeader({ title, description }: SectionHeaderProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -51,6 +56,8 @@ interface SettingItemRowProps {
  * - description: text-xs text-muted-foreground mt-1
  */
 export function SettingItemRow({ label, description, right, icon, iconBg, bottomBorder = true }: SettingItemRowProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={[styles.settingRow, bottomBorder && styles.settingRowBorder]}>
       {icon && (
@@ -67,12 +74,13 @@ export function SettingItemRow({ label, description, right, icon, iconBg, bottom
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
     borderRadius: radius.lg,          // rounded-lg
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     overflow: 'hidden',
   },
   sectionHeader: {
@@ -81,11 +89,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.h3,                 // text-lg font-medium
-    color: colors.text,
+    color: c.text,
   },
   sectionDescription: {
     ...typography.body,
-    color: colors.mutedForeground,    // text-muted-foreground
+    color: c.mutedForeground,    // text-muted-foreground
     marginTop: 4,
   },
   settingRow: {
@@ -97,7 +105,7 @@ const styles = StyleSheet.create({
   },
   settingRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.border, // border-b border-border
+    borderBottomColor: c.border, // border-b border-border
   },
   settingIcon: {
     width: 32,
@@ -112,14 +120,15 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     ...typography.bodyMedium,        // text-sm font-medium text-foreground
-    color: colors.text,
+    color: c.text,
   },
   settingDescription: {
     ...typography.caption,           // text-xs text-muted-foreground
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     marginTop: 2,
   },
   settingRight: {
     flexShrink: 0,
   },
-});
+  });
+}

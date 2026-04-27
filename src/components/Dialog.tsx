@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';
 import Button from './Button';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 interface DialogProps {
   visible: boolean;
@@ -34,6 +35,8 @@ export default function Dialog({
   onConfirm,
   onCancel,
 }: DialogProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop}>
@@ -41,7 +44,7 @@ export default function Dialog({
           <View style={styles.content}>
             {variant === 'destructive' && (
               <View style={styles.iconBadge}>
-                <AlertTriangle size={20} color={colors.error} />
+                <AlertTriangle size={20} color={c.error} />
               </View>
             )}
             <Text style={styles.title}>{title}</Text>
@@ -61,7 +64,8 @@ export default function Dialog({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -72,9 +76,9 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -89,18 +93,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.full,
-    backgroundColor: colors.errorBg,
+    backgroundColor: c.errorBg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
   title: {
     ...typography.h3,               // text-lg font-semibold
-    color: colors.text,
+    color: c.text,
   },
   message: {
     ...typography.body,             // text-sm
-    color: colors.mutedForeground,  // text-muted-foreground
+    color: c.mutedForeground,  // text-muted-foreground
     marginTop: spacing.sm,
   },
   footer: {
@@ -110,4 +114,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl, // px-6
     paddingBottom: spacing.xxl,     // pb-6
   },
-});
+  });
+}

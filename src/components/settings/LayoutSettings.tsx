@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { SettingsSection, SettingItem, RadioGroup } from './settings-section';
-import { colors, spacing, typography } from '../../theme/tokens';
+import { spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore, type SwipeAction } from '../../stores/settings-store';
 
 const SWIPE_OPTIONS: { value: SwipeAction; label: string }[] = [
@@ -15,6 +16,8 @@ const SWIPE_OPTIONS: { value: SwipeAction; label: string }[] = [
 ];
 
 export function LayoutSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
   const setSwipeLeftAction = useSettingsStore((s) => s.setSwipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
@@ -28,7 +31,7 @@ export function LayoutSettings() {
     <SettingsSection title="Layout" description="Tune the email list interactions for mobile.">
       <View style={{ gap: spacing.sm }}>
         <View style={styles.row}>
-          <ArrowRight size={14} color={colors.mutedForeground} />
+          <ArrowRight size={14} color={c.mutedForeground} />
           <Text style={styles.rowLabel}>Swipe right (left → right)</Text>
         </View>
         <Text style={styles.rowDescription}>
@@ -43,7 +46,7 @@ export function LayoutSettings() {
 
       <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
         <View style={styles.row}>
-          <ArrowLeft size={14} color={colors.mutedForeground} />
+          <ArrowLeft size={14} color={c.mutedForeground} />
           <Text style={styles.rowLabel}>Swipe left (right → left)</Text>
         </View>
         <Text style={styles.rowDescription}>
@@ -64,8 +67,10 @@ export function LayoutSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rowLabel: { ...typography.bodyMedium, color: colors.text },
-  rowDescription: { ...typography.caption, color: colors.mutedForeground },
+  rowLabel: { ...typography.bodyMedium, color: c.text },
+  rowDescription: { ...typography.caption, color: c.mutedForeground },
 });
+}

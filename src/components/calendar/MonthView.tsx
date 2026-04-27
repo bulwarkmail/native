@@ -12,7 +12,8 @@ import {
   startOfWeek,
 } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { colors, componentSizes, radius, spacing, typography } from '../../theme/tokens';
+import { componentSizes, radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import {
   buildEventDayIndex,
   eventsOnDayFromIndex,
@@ -41,6 +42,8 @@ function MonthViewInner({
   onSelectDate,
   onLongPressDate,
 }: MonthViewProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
     [eventsByDay, events],
@@ -120,14 +123,15 @@ function MonthViewInner({
 
 export const MonthView = React.memo(MonthViewInner);
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   grid: { paddingHorizontal: spacing.sm },
   weekdayRow: { flexDirection: 'row', paddingHorizontal: spacing.xs, marginBottom: 4 },
   weekdayLabel: {
     flex: 1,
     textAlign: 'center',
     ...typography.small,
-    color: colors.textMuted,
+    color: c.textMuted,
   },
   daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayCell: { width: '14.28%', alignItems: 'center', paddingVertical: 4 },
@@ -138,12 +142,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayText: { ...typography.body, color: colors.text },
-  dayTextMuted: { color: colors.textMuted },
-  todayCircle: { backgroundColor: colors.primary },
-  todayText: { color: colors.textInverse, fontWeight: '700' },
-  selectedCircle: { backgroundColor: colors.primaryBg, borderWidth: 1.5, borderColor: colors.primary },
-  selectedText: { color: colors.primary, fontWeight: '600' },
+  dayText: { ...typography.body, color: c.text },
+  dayTextMuted: { color: c.textMuted },
+  todayCircle: { backgroundColor: c.primary },
+  todayText: { color: c.textInverse, fontWeight: '700' },
+  selectedCircle: { backgroundColor: c.primaryBg, borderWidth: 1.5, borderColor: c.primary },
+  selectedText: { color: c.primary, fontWeight: '600' },
   dotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -160,9 +164,10 @@ const styles = StyleSheet.create({
     borderRadius: componentSizes.eventDot / 2,
   },
   overflowText: {
-    color: colors.textMuted,
+    color: c.textMuted,
     fontSize: 9,
     lineHeight: 10,
     marginLeft: 1,
   },
-});
+  });
+}

@@ -10,7 +10,8 @@ import {
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import { useEmailStore } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
@@ -52,17 +53,19 @@ const ROLE_COLOR: Record<string, string> = {
   inbox: '#60a5fa',
   sent: '#4ade80',
   drafts: '#a78bfa',
-  trash: colors.textMuted,
+  trash: c.textMuted,
   junk: '#f87171',
   archive: '#fbbf24',
 };
 
 function iconColor(role: string | null | undefined, isSelected: boolean): string {
   if (role && ROLE_COLOR[role]) return ROLE_COLOR[role];
-  return isSelected ? colors.text : colors.textSecondary;
+  return isSelected ? c.text : c.textSecondary;
 }
 
 function RowCounts({ unread, total }: { unread: number; total: number }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   if (unread === 0 && total === 0) return null;
   return (
     <View style={styles.counts}>
@@ -90,6 +93,8 @@ function SidebarRow({
   icon, label, depth, isSelected, unread, total,
   hasChildren, isExpanded, onPress, onToggleExpand,
 }: SidebarRowProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
   return (
     <Pressable
@@ -108,9 +113,9 @@ function SidebarRow({
             style={styles.chevron}
           >
             {isExpanded ? (
-              <ChevronDown size={12} color={colors.textMuted} />
+              <ChevronDown size={12} color={c.textMuted} />
             ) : (
-              <ChevronRight size={12} color={colors.textMuted} />
+              <ChevronRight size={12} color={c.textMuted} />
             )}
           </Pressable>
         ) : (
@@ -135,6 +140,8 @@ interface SidebarDrawerProps {
 }
 
 export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
@@ -237,7 +244,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     [accountEmail],
   );
   const avatarBg = React.useMemo(
-    () => (accountEmail ? generateAvatarColor(accountEmail) : colors.primary),
+    () => (accountEmail ? generateAvatarColor(accountEmail) : c.primary),
     [accountEmail],
   );
   const hostname = React.useMemo(() => {
@@ -267,7 +274,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
           {/* Header: close + account switcher */}
           <View style={styles.header}>
             <Pressable onPress={onClose} style={styles.headerClose} hitSlop={8}>
-              <X size={20} color={colors.text} />
+              <X size={20} color={c.text} />
             </Pressable>
             <Pressable
               onPress={() => setAccountMenuOpen((v) => !v)}
@@ -284,7 +291,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               </View>
               <ChevronDown
                 size={16}
-                color={colors.textMuted}
+                color={c.textMuted}
                 style={accountMenuOpen ? styles.accountChevronOpen : undefined}
               />
             </Pressable>
@@ -323,7 +330,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                         </View>
                         {isActive && (
                           <View style={styles.accountMenuCheckBadge}>
-                            <Check size={10} color={colors.primaryForeground} strokeWidth={3} />
+                            <Check size={10} color={c.primaryForeground} strokeWidth={3} />
                           </View>
                         )}
                       </View>
@@ -364,7 +371,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                       navigation.navigate('AddAccount');
                     }}
                   >
-                    <Plus size={16} color={colors.textSecondary} />
+                    <Plus size={16} color={c.textSecondary} />
                     <Text style={styles.accountMenuActionText}>Add account</Text>
                   </Pressable>
                 </>
@@ -382,7 +389,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     ]}
                     onPress={() => setDefaultAccount(active.id)}
                   >
-                    <Star size={16} color={colors.textSecondary} />
+                    <Star size={16} color={c.textSecondary} />
                     <Text style={styles.accountMenuActionText}>Set as default</Text>
                   </Pressable>
                 );
@@ -394,7 +401,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 ]}
                 onPress={() => { setAccountMenuOpen(false); onClose(); void logout(); }}
               >
-                <LogOut size={16} color={colors.textSecondary} />
+                <LogOut size={16} color={c.textSecondary} />
                 <Text style={styles.accountMenuActionText} numberOfLines={1}>
                   Sign out of {accountEmailFull || 'account'}
                 </Text>
@@ -407,8 +414,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   ]}
                   onPress={() => { setAccountMenuOpen(false); onClose(); void logoutAll(); }}
                 >
-                  <LogOut size={16} color={colors.error} />
-                  <Text style={[styles.accountMenuActionText, { color: colors.error }]}>
+                  <LogOut size={16} color={c.error} />
+                  <Text style={[styles.accountMenuActionText, { color: c.error }]}>
                     Sign out all
                   </Text>
                 </Pressable>
@@ -420,14 +427,14 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
             {/* Folders section */}
             <Pressable style={styles.sectionHeader} onPress={toggleFoldersSection}>
               {foldersExpanded ? (
-                <ChevronDown size={14} color={colors.textMuted} />
+                <ChevronDown size={14} color={c.textMuted} />
               ) : (
-                <ChevronRight size={14} color={colors.textMuted} />
+                <ChevronRight size={14} color={c.textMuted} />
               )}
               <Text style={styles.sectionHeaderText}>Folders</Text>
               <View style={{ flex: 1 }} />
               <View style={styles.sectionSettings}>
-                <Settings size={14} color={colors.textMuted} />
+                <Settings size={14} color={c.textMuted} />
               </View>
             </Pressable>
 
@@ -465,7 +472,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -478,7 +486,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     backgroundColor: '#262626', // matches webmail bg-secondary (dark mode)
     borderRightWidth: 1,
-    borderRightColor: colors.border,
+    borderRightColor: c.border,
   },
   drawerSafe: { flex: 1 },
 
@@ -490,7 +498,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   headerClose: {
     width: 36, height: 36,
@@ -506,7 +514,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.sm,
   },
-  accountPressed: { backgroundColor: colors.surfaceHover },
+  accountPressed: { backgroundColor: c.surfaceHover },
   accountChevronOpen: { transform: [{ rotate: '180deg' }] },
   accountAvatar: {
     width: 36, height: 36,
@@ -515,11 +523,11 @@ const styles = StyleSheet.create({
   },
   accountAvatarText: {
     ...typography.bodySemibold,
-    color: colors.primaryForeground,
+    color: c.primaryForeground,
   },
   accountInfo: { flex: 1, minWidth: 0 },
-  accountName: { ...typography.bodyMedium, color: colors.text },
-  accountEmail: { ...typography.caption, color: colors.textMuted, marginTop: 1 },
+  accountName: { ...typography.bodyMedium, color: c.text },
+  accountEmail: { ...typography.caption, color: c.textMuted, marginTop: 1 },
 
   // Account menu - floating popover card under the header
   accountMenu: {
@@ -529,7 +537,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f1f1f',
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     overflow: 'hidden',
     // Elevation / shadow
     shadowColor: '#000',
@@ -566,14 +574,14 @@ const styles = StyleSheet.create({
   accountMenuAvatarText: {
     ...typography.caption,
     fontWeight: '600',
-    color: colors.primaryForeground,
+    color: c.primaryForeground,
   },
   accountMenuCheckBadge: {
     position: 'absolute',
     right: -3, bottom: -3,
     width: 16, height: 16,
     borderRadius: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#1f1f1f',
@@ -586,13 +594,13 @@ const styles = StyleSheet.create({
   },
   accountMenuName: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: c.text,
     flexShrink: 1,
     fontWeight: '600',
   },
   accountMenuHost: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
     marginTop: 2,
   },
   accountMenuStatusRow: {
@@ -607,17 +615,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#22c55e',
   },
   accountMenuStatusDotOffline: {
-    backgroundColor: colors.textMuted,
+    backgroundColor: c.textMuted,
   },
   accountMenuStatusText: {
     fontSize: 10,
     lineHeight: 12,
-    color: colors.textMuted,
+    color: c.textMuted,
     flexShrink: 1,
   },
   accountMenuDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+    backgroundColor: c.border,
   },
   accountMenuAction: {
     flexDirection: 'row',
@@ -627,10 +635,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     minHeight: 40,
   },
-  accountMenuActionPressed: { backgroundColor: colors.surfaceHover },
+  accountMenuActionPressed: { backgroundColor: c.surfaceHover },
   accountMenuActionText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flexShrink: 1,
     fontSize: 13,
   },
@@ -650,13 +658,13 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: {
     ...typography.bodySemibold,
-    color: colors.text,
+    color: c.text,
   },
   sectionSettings: { padding: 4 },
 
   empty: {
     ...typography.body,
-    color: colors.textMuted,
+    color: c.textMuted,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
@@ -670,10 +678,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: 'transparent',
   },
-  rowPressed: { backgroundColor: colors.surfaceHover },
+  rowPressed: { backgroundColor: c.surfaceHover },
   rowSelected: {
-    backgroundColor: colors.accent,
-    borderLeftColor: colors.primary,
+    backgroundColor: c.accent,
+    borderLeftColor: c.primary,
   },
   rowIndent: {
     flexDirection: 'row',
@@ -692,11 +700,11 @@ const styles = StyleSheet.create({
   rowLabel: {
     flex: 1,
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
   rowLabelSelected: {
     ...typography.bodySemibold,
-    color: colors.text,
+    color: c.text,
   },
   counts: {
     flexDirection: 'row',
@@ -707,16 +715,17 @@ const styles = StyleSheet.create({
   countUnread: {
     ...typography.caption,
     fontWeight: '600',
-    color: colors.text,
+    color: c.text,
   },
   countSep: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
     opacity: 0.6,
   },
   countTotal: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: c.textMuted,
   },
 
-});
+  });
+}

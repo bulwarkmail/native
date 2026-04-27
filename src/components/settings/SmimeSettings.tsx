@@ -6,7 +6,8 @@ import {
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface KeyRecord {
   id: string;
@@ -31,6 +32,8 @@ const MOCK_KEYS: KeyRecord[] = [];
 const MOCK_CERTS: PublicCert[] = [];
 
 export function SmimeSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [keys, setKeys] = useState<KeyRecord[]>(MOCK_KEYS);
   const [certs, setCerts] = useState<PublicCert[]>(MOCK_CERTS);
   const [bindings, setBindings] = useState<Record<string, string>>({});
@@ -64,9 +67,9 @@ export function SmimeSettings() {
                 <View style={styles.certLeft}>
                   <View style={[styles.certIcon, expired ? styles.certIconError : styles.certIconOk]}>
                     {expired ? (
-                      <ShieldAlert size={16} color={colors.error} />
+                      <ShieldAlert size={16} color={c.error} />
                     ) : (
-                      <ShieldCheck size={16} color={colors.primary} />
+                      <ShieldCheck size={16} color={c.primary} />
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
@@ -80,19 +83,19 @@ export function SmimeSettings() {
                 <View style={styles.certActions}>
                   <Pressable style={styles.iconBtn} onPress={() => toggleUnlock(k.id)}>
                     {k.unlocked ? (
-                      <Unlock size={16} color={colors.success} />
+                      <Unlock size={16} color={c.success} />
                     ) : (
-                      <Lock size={16} color={colors.text} />
+                      <Lock size={16} color={c.text} />
                     )}
                   </Pressable>
                   <Pressable style={styles.iconBtn}>
-                    <Eye size={16} color={colors.text} />
+                    <Eye size={16} color={c.text} />
                   </Pressable>
                   <Pressable style={styles.iconBtn}>
-                    <Download size={16} color={colors.text} />
+                    <Download size={16} color={c.text} />
                   </Pressable>
                   <Pressable style={styles.iconBtn} onPress={() => deleteKey(k.id)}>
-                    <Trash2 size={16} color={colors.error} />
+                    <Trash2 size={16} color={c.error} />
                   </Pressable>
                 </View>
               </View>
@@ -105,7 +108,7 @@ export function SmimeSettings() {
         </View>
 
         <View style={{ alignItems: 'flex-start', marginTop: spacing.sm }}>
-          <Button variant="outline" size="sm" icon={<Upload size={14} color={colors.text} />}>
+          <Button variant="outline" size="sm" icon={<Upload size={14} color={c.text} />}>
             Import PKCS#12
           </Button>
         </View>
@@ -122,7 +125,7 @@ export function SmimeSettings() {
               <View key={c.id} style={styles.certRow}>
                 <View style={styles.certLeft}>
                   <View style={[styles.certIcon, styles.certIconMuted]}>
-                    <Users size={16} color={colors.mutedForeground} />
+                    <Users size={16} color={c.mutedForeground} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.certName} numberOfLines={1}>{c.email || c.subject}</Text>
@@ -134,10 +137,10 @@ export function SmimeSettings() {
                 </View>
                 <View style={styles.certActions}>
                   <Pressable style={styles.iconBtn}>
-                    <Eye size={16} color={colors.text} />
+                    <Eye size={16} color={c.text} />
                   </Pressable>
                   <Pressable style={styles.iconBtn} onPress={() => deleteCert(c.id)}>
-                    <Trash2 size={16} color={colors.error} />
+                    <Trash2 size={16} color={c.error} />
                   </Pressable>
                 </View>
               </View>
@@ -150,7 +153,7 @@ export function SmimeSettings() {
         </View>
 
         <View style={{ alignItems: 'flex-start', marginTop: spacing.sm }}>
-          <Button variant="outline" size="sm" icon={<Upload size={14} color={colors.text} />}>
+          <Button variant="outline" size="sm" icon={<Upload size={14} color={c.text} />}>
             Import Certificate
           </Button>
         </View>
@@ -185,7 +188,8 @@ export function SmimeSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
   certRow: {
     flexDirection: 'row',
@@ -195,7 +199,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   certLeft: {
     flexDirection: 'row',
@@ -211,12 +215,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  certIconOk: { backgroundColor: colors.primaryBg },
-  certIconError: { backgroundColor: colors.errorBg },
-  certIconMuted: { backgroundColor: colors.muted },
-  certName: { ...typography.bodyMedium, color: colors.text },
-  certMeta: { ...typography.caption, color: colors.mutedForeground, marginTop: 2 },
-  expiredText: { color: colors.error },
+  certIconOk: { backgroundColor: c.primaryBg },
+  certIconError: { backgroundColor: c.errorBg },
+  certIconMuted: { backgroundColor: c.muted },
+  certName: { ...typography.bodyMedium, color: c.text },
+  certMeta: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
+  expiredText: { color: c.error },
   certActions: { flexDirection: 'row', gap: 2 },
   iconBtn: {
     width: 32,
@@ -227,8 +231,9 @@ const styles = StyleSheet.create({
   },
   empty: {
     ...typography.body,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     textAlign: 'center',
     paddingVertical: spacing.lg,
   },
 });
+}

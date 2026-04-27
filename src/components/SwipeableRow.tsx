@@ -6,7 +6,8 @@ import {
   Archive, Trash2, ShieldAlert, MailOpen, Mail, Star,
   type LucideIcon,
 } from 'lucide-react-native';
-import { colors, typography } from '../theme/tokens';
+import { typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import type { SwipeAction } from '../stores/settings-store';
 
 interface SwipeableRowProps {
@@ -44,6 +45,8 @@ function actionLabel(action: SwipeAction, context: { unread: boolean; starred: b
 export function SwipeableRow({
   children, leftAction, rightAction, context, onAction,
 }: SwipeableRowProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const dx = useRef(new Animated.Value(0)).current;
   const claimed = useRef(false);
   const widthRef = useRef(Dimensions.get('window').width);
@@ -159,9 +162,10 @@ export function SwipeableRow({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { position: 'relative', backgroundColor: colors.background },
-  content: { backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  wrap: { position: 'relative', backgroundColor: c.background },
+  content: { backgroundColor: c.background },
   band: {
     position: 'absolute',
     top: 0,
@@ -171,4 +175,5 @@ const styles = StyleSheet.create({
   },
   bandInner: { alignItems: 'center', gap: 4 },
   bandLabel: { color: '#fff', fontWeight: '600', ...typography.caption },
-});
+  });
+}

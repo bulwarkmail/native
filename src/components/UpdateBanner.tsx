@@ -2,9 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Download, X } from 'lucide-react-native';
 import { useUpdatesStore } from '../stores/updates-store';
-import { colors, spacing, radius, typography } from '../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 export function UpdateBanner(): React.ReactElement | null {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const cachedLatest = useUpdatesStore((s) => s.cachedLatest);
   const dismissedTag = useUpdatesStore((s) => s.dismissedTag);
   const installing = useUpdatesStore((s) => s.installing);
@@ -18,7 +21,7 @@ export function UpdateBanner(): React.ReactElement | null {
 
   return (
     <View style={styles.banner}>
-      <Download size={16} color={colors.primaryForeground} />
+      <Download size={16} color={c.primaryForeground} />
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Update available</Text>
         <Text style={styles.subtitle}>
@@ -33,29 +36,31 @@ export function UpdateBanner(): React.ReactElement | null {
         <Text style={styles.installText}>{installing ? '…' : 'Install'}</Text>
       </Pressable>
       <Pressable style={styles.dismiss} onPress={dismissCurrent} hitSlop={8}>
-        <X size={14} color={colors.primaryForeground} />
+        <X size={14} color={c.primaryForeground} />
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
-  title: { ...typography.bodyMedium, color: colors.primaryForeground },
-  subtitle: { ...typography.caption, color: colors.primaryForeground, opacity: 0.85 },
+  title: { ...typography.bodyMedium, color: c.primaryForeground },
+  subtitle: { ...typography.caption, color: c.primaryForeground, opacity: 0.85 },
   installButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  installText: { ...typography.captionMedium, color: colors.primaryForeground },
+  installText: { ...typography.captionMedium, color: c.primaryForeground },
   dismiss: { padding: 4 },
-});
+  });
+}

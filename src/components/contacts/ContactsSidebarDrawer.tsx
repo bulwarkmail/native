@@ -9,7 +9,8 @@ import {
 import type { ContactCategory } from '../../stores/contacts-store';
 import { useContactsStore } from '../../stores/contacts-store';
 import { getContactDisplayName, getContactKeywords, isGroup } from '../../lib/contact-utils';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface Props {
   visible: boolean;
@@ -25,6 +26,8 @@ function isSameCategory(a: ContactCategory, b: ContactCategory): boolean {
 }
 
 export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const selectedCategory = useContactsStore((s) => s.selectedCategory);
   const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
   const contacts = useContactsStore((s) => s.contacts);
@@ -93,14 +96,14 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
         <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
           <View style={styles.header}>
             <Pressable onPress={onClose} style={styles.headerClose} hitSlop={8}>
-              <X size={20} color={colors.text} />
+              <X size={20} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle}>Contacts</Text>
           </View>
 
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
             <CategoryRow
-              icon={<Inbox size={16} color={colors.primary} />}
+              icon={<Inbox size={16} color={c.primary} />}
               label="All Contacts"
               count={totalCount}
               active={selectedCategory.type === 'all'}
@@ -115,7 +118,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             {expanded.books && books.map((book) => (
               <CategoryRow
                 key={book.id}
-                icon={<BookUser size={16} color={colors.textSecondary} />}
+                icon={<BookUser size={16} color={c.textSecondary} />}
                 label={book.name}
                 count={book.count}
                 active={isSameCategory(selectedCategory, { type: 'addressBook', addressBookId: book.id })}
@@ -124,7 +127,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             ))}
             {expanded.books && (
               <CategoryRow
-                icon={<BookUser size={16} color={colors.textMuted} />}
+                icon={<BookUser size={16} color={c.textMuted} />}
                 label="Uncategorized"
                 count={0}
                 active={selectedCategory.type === 'uncategorized'}
@@ -142,7 +145,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             {expanded.groups && groups.map((g) => (
               <CategoryRow
                 key={g.id}
-                icon={<Users size={16} color={colors.textSecondary} />}
+                icon={<Users size={16} color={c.textSecondary} />}
                 label={getContactDisplayName(g) || 'Group'}
                 count={g.members ? Object.keys(g.members).length : 0}
                 active={isSameCategory(selectedCategory, { type: 'group', groupId: g.id })}
@@ -160,7 +163,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             {expanded.tags && keywords.map((kw) => (
               <CategoryRow
                 key={kw.keyword}
-                icon={<Tag size={16} color={colors.textSecondary} />}
+                icon={<Tag size={16} color={c.textSecondary} />}
                 label={kw.keyword}
                 count={kw.count}
                 active={isSameCategory(selectedCategory, { type: 'keyword', keyword: kw.keyword })}
@@ -175,12 +178,14 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
 }
 
 function SectionHeader({ label, expanded, onPress }: { label: string; expanded: boolean; onPress: () => void }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable style={styles.sectionHeader} onPress={onPress}>
       {expanded ? (
-        <ChevronDown size={14} color={colors.textMuted} />
+        <ChevronDown size={14} color={c.textMuted} />
       ) : (
-        <ChevronRight size={14} color={colors.textMuted} />
+        <ChevronRight size={14} color={c.textMuted} />
       )}
       <Text style={styles.sectionHeaderText}>{label}</Text>
     </Pressable>
@@ -196,6 +201,8 @@ function CategoryRow({
   active: boolean;
   onPress: () => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       onPress={onPress}
@@ -212,7 +219,8 @@ function CategoryRow({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   overlayPress: { flex: 1 },
   drawer: {
@@ -222,7 +230,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     backgroundColor: '#262626',
     borderRightWidth: 1,
-    borderRightColor: colors.border,
+    borderRightColor: c.border,
   },
   drawerSafe: { flex: 1 },
 
@@ -233,14 +241,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   headerClose: {
     width: 36, height: 36,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.sm,
   },
-  headerTitle: { ...typography.h3, color: colors.text },
+  headerTitle: { ...typography.h3, color: c.text },
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: spacing.md },
@@ -253,7 +261,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: 4,
   },
-  sectionHeaderText: { ...typography.bodySemibold, color: colors.text },
+  sectionHeaderText: { ...typography.bodySemibold, color: c.text },
 
   row: {
     flexDirection: 'row',
@@ -263,14 +271,15 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     borderLeftColor: 'transparent',
   },
-  rowPressed: { backgroundColor: colors.surfaceHover },
-  rowActive: { backgroundColor: colors.accent, borderLeftColor: colors.primary },
+  rowPressed: { backgroundColor: c.surfaceHover },
+  rowActive: { backgroundColor: c.accent, borderLeftColor: c.primary },
   rowIcon: {
     width: 20, height: 20,
     alignItems: 'center', justifyContent: 'center',
     marginRight: spacing.sm,
   },
-  rowLabel: { flex: 1, ...typography.body, color: colors.text },
-  rowLabelActive: { ...typography.bodySemibold, color: colors.text },
-  rowCount: { ...typography.caption, color: colors.textMuted, marginLeft: spacing.sm },
-});
+  rowLabel: { flex: 1, ...typography.body, color: c.text },
+  rowLabelActive: { ...typography.bodySemibold, color: c.text },
+  rowCount: { ...typography.caption, color: c.textMuted, marginLeft: spacing.sm },
+  });
+}

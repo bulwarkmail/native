@@ -10,7 +10,8 @@ import { CheckCircle2, Volume2, XCircle } from 'lucide-react-native';
 import Button from '../Button';
 import Dialog from '../Dialog';
 import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-section';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
 import {
   DEFAULT_RELAY_BASE_URL,
@@ -35,6 +36,8 @@ type PushStatus =
   | { kind: 'error'; message: string };
 
 export function NotificationSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const username = useAuthStore((s) => s.username);
 
   const [sound, setSound] = useState('default');
@@ -120,26 +123,26 @@ export function NotificationSettings() {
             <View style={styles.statusRow}>
               {pushStatus.kind === 'busy' && (
                 <>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <ActivityIndicator size="small" color={c.primary} />
                   <Text style={styles.statusText}>{pushStatus.message}</Text>
                 </>
               )}
               {pushStatus.kind === 'enabled' && (
                 <>
-                  <CheckCircle2 size={14} color={colors.success} />
-                  <Text style={[styles.statusText, { color: colors.success }]}>Active</Text>
+                  <CheckCircle2 size={14} color={c.success} />
+                  <Text style={[styles.statusText, { color: c.success }]}>Active</Text>
                 </>
               )}
               {pushStatus.kind === 'error' && (
                 <>
-                  <XCircle size={14} color={colors.error} />
-                  <Text style={[styles.statusText, { color: colors.error }]}>
+                  <XCircle size={14} color={c.error} />
+                  <Text style={[styles.statusText, { color: c.error }]}>
                     {pushStatus.message}
                   </Text>
                 </>
               )}
               {pushStatus.kind === 'idle' && (
-                <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
+                <Text style={[styles.statusText, { color: c.mutedForeground }]}>
                   Not configured
                 </Text>
               )}
@@ -152,7 +155,7 @@ export function NotificationSettings() {
             value={relayUrl}
             onChangeText={setRelayUrl}
             placeholder={DEFAULT_RELAY_BASE_URL}
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -183,7 +186,7 @@ export function NotificationSettings() {
             <Button
               variant="ghost"
               size="icon"
-              icon={<Volume2 size={16} color={colors.text} />}
+              icon={<Volume2 size={16} color={c.text} />}
             />
             <Select
               value={sound}
@@ -229,12 +232,13 @@ export function NotificationSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   pushCard: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     padding: spacing.lg,
     gap: spacing.sm,
@@ -247,18 +251,18 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: c.text,
   },
   fieldDescription: {
     ...typography.caption,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
   },
   urlInput: {
     ...typography.body,
-    color: colors.text,
-    backgroundColor: colors.surface,
+    color: c.text,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
@@ -266,6 +270,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  statusText: { ...typography.caption, color: colors.text },
+  statusText: { ...typography.caption, color: c.text },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
 });
+}

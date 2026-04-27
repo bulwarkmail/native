@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, View, StyleSheet } from 'react-native';
-import { colors, radius, componentSizes } from '../theme/tokens';
+import { radius, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 interface ToggleSwitchProps {
   value: boolean;
@@ -16,6 +17,8 @@ interface ToggleSwitchProps {
  * - translate-x-6 (checked) / translate-x-1 (unchecked)
  */
 export default function ToggleSwitch({ value, onValueChange, disabled = false }: ToggleSwitchProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       style={[
@@ -37,7 +40,8 @@ export default function ToggleSwitch({ value, onValueChange, disabled = false }:
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   track: {
     width: componentSizes.toggleWidth,    // w-11 = 44
     height: componentSizes.toggleHeight,  // h-6  = 24
@@ -45,18 +49,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trackOn: {
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
   trackOff: {
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
   thumb: {
     width: componentSizes.toggleThumb,    // h-4 w-4 = 16
     height: componentSizes.toggleThumb,
     borderRadius: radius.full,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
   },
   disabled: {
     opacity: 0.5,
   },
-});
+  });
+}

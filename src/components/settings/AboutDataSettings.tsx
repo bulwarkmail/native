@@ -4,7 +4,8 @@ import Constants from 'expo-constants';
 import { ExternalLink } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
@@ -18,6 +19,8 @@ const DEBUG_CATEGORIES = [
 ];
 
 export function AboutDataSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const senderFavicons = useSettingsStore((s) => s.senderFavicons);
   const setSenderFaviconsStore = useSettingsStore((s) => s.setSenderFavicons);
   const hydrated = useSettingsStore((s) => s.hydrated);
@@ -64,7 +67,7 @@ export function AboutDataSettings() {
             onPress={() => Linking.openURL('https://github.com/bulwarkmail/webmail')}
           >
             <Text style={styles.ghText}>GitHub</Text>
-            <ExternalLink size={12} color={colors.mutedForeground} />
+            <ExternalLink size={12} color={c.mutedForeground} />
           </Pressable>
         </View>
       </View>
@@ -122,14 +125,15 @@ export function AboutDataSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xxxl },
   aboutBox: {
     padding: spacing.xl,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
   },
   aboutRow: {
     flexDirection: 'row',
@@ -140,30 +144,31 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: { fontSize: 24, fontWeight: '700', color: colors.primaryForeground },
-  aboutTitle: { ...typography.bodyMedium, color: colors.text },
-  aboutVersion: { ...typography.caption, color: colors.mutedForeground, marginTop: 2 },
-  aboutCommit: { color: colors.mutedForeground, opacity: 0.6 },
+  logoText: { fontSize: 24, fontWeight: '700', color: c.primaryForeground },
+  aboutTitle: { ...typography.bodyMedium, color: c.text },
+  aboutVersion: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
+  aboutCommit: { color: c.mutedForeground, opacity: 0.6 },
   ghLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  ghText: { ...typography.caption, color: colors.mutedForeground },
+  ghText: { ...typography.caption, color: c.mutedForeground },
   debugCategoriesBox: {
     marginLeft: spacing.lg,
     paddingLeft: spacing.lg,
     borderLeftWidth: 2,
-    borderLeftColor: colors.muted,
+    borderLeftColor: c.muted,
     gap: 4,
   },
   debugCategoriesHint: {
     ...typography.caption,
-    color: colors.mutedForeground,
+    color: c.mutedForeground,
     marginBottom: spacing.sm,
   },
 });
+}

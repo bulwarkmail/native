@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Plus, GripVertical, X, Code, Filter, AlertTriangle, RotateCcw } from 'lucide-react-native';
 import { SettingsSection, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 interface Rule {
   id: string;
@@ -16,6 +17,8 @@ interface Rule {
 const SAMPLE_RULES: Rule[] = [];
 
 export function FilterSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [rules, setRules] = useState<Rule[]>(SAMPLE_RULES);
   const [expandedView, setExpandedView] = useState(false);
   const [isOpaque] = useState(false);
@@ -45,7 +48,7 @@ export function FilterSettings() {
                   <Text style={styles.linkText}>Open Sieve Editor</Text>
                 </Pressable>
                 <Pressable style={styles.resetLink}>
-                  <RotateCcw size={12} color={colors.error} />
+                  <RotateCcw size={12} color={c.error} />
                   <Text style={styles.resetText}>Reset to visual</Text>
                 </Pressable>
               </View>
@@ -55,7 +58,7 @@ export function FilterSettings() {
 
         {rules.length === 0 && !isOpaque && (
           <View style={styles.emptyState}>
-            <Filter size={40} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
+            <Filter size={40} color={c.mutedForeground} style={{ opacity: 0.4 }} />
             <Text style={styles.emptyText}>No rules yet.</Text>
           </View>
         )}
@@ -65,7 +68,7 @@ export function FilterSettings() {
             {rules.map((rule) => (
               <View key={rule.id} style={[styles.ruleRow, !rule.enabled && styles.ruleDisabled]}>
                 <View style={styles.grip}>
-                  <GripVertical size={16} color={colors.mutedForeground} />
+                  <GripVertical size={16} color={c.mutedForeground} />
                 </View>
 
                 <ToggleSwitch checked={rule.enabled} onChange={() => toggle(rule.id)} />
@@ -88,7 +91,7 @@ export function FilterSettings() {
                   </View>
                 ) : (
                   <Pressable style={styles.iconBtn} onPress={() => setDeleteId(rule.id)}>
-                    <X size={16} color={colors.mutedForeground} />
+                    <X size={16} color={c.mutedForeground} />
                   </Pressable>
                 )}
               </View>
@@ -100,11 +103,11 @@ export function FilterSettings() {
       <View style={styles.footer}>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {!isOpaque && (
-            <Button variant="outline" size="sm" icon={<Plus size={14} color={colors.text} />}>
+            <Button variant="outline" size="sm" icon={<Plus size={14} color={c.text} />}>
               Add Rule
             </Button>
           )}
-          <Button variant="outline" size="sm" icon={<Code size={14} color={colors.text} />}>
+          <Button variant="outline" size="sm" icon={<Code size={14} color={c.text} />}>
             Raw Editor
           </Button>
         </View>
@@ -120,7 +123,8 @@ export function FilterSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   container: { gap: spacing.xl },
   opaqueWarning: {
     flexDirection: 'row',
@@ -134,11 +138,11 @@ const styles = StyleSheet.create({
   },
   opaqueText: { ...typography.caption, color: '#fde68a' },
   opaqueActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
-  linkText: { ...typography.caption, color: colors.primary, fontWeight: '500' },
+  linkText: { ...typography.caption, color: c.primary, fontWeight: '500' },
   resetLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  resetText: { ...typography.caption, color: colors.error, fontWeight: '500' },
+  resetText: { ...typography.caption, color: c.error, fontWeight: '500' },
   emptyState: { alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md },
-  emptyText: { ...typography.body, color: colors.mutedForeground },
+  emptyText: { ...typography.body, color: c.mutedForeground },
   ruleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -146,12 +150,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   ruleDisabled: { opacity: 0.6 },
   grip: { paddingTop: 2 },
-  ruleName: { ...typography.bodyMedium, color: colors.text },
-  ruleSummary: { ...typography.caption, color: colors.mutedForeground, marginTop: 2 },
+  ruleName: { ...typography.bodyMedium, color: c.text },
+  ruleSummary: { ...typography.caption, color: c.mutedForeground, marginTop: 2 },
   iconBtn: {
     width: 28,
     height: 28,
@@ -167,5 +171,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   expandedToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  expandedLabel: { ...typography.caption, color: colors.mutedForeground },
+  expandedLabel: { ...typography.caption, color: c.mutedForeground },
 });
+}

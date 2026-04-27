@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Clock, MapPin, Users } from 'lucide-react-native';
 import { format } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { eventTimeRange, getEventColor } from '../../lib/calendar-utils';
 
 interface EventCardProps {
@@ -24,6 +25,8 @@ function formatTimeRange(event: CalendarEvent): string {
 }
 
 export function EventCard({ event, calendars, onPress, onLongPress }: EventCardProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const color = getEventColor(event, calendars);
   const time = formatTimeRange(event);
   const count = participantCount(event);
@@ -48,13 +51,13 @@ export function EventCard({ event, calendars, onPress, onLongPress }: EventCardP
         </View>
         {!event.showWithoutTime && (
           <View style={styles.detailRow}>
-            <Clock size={12} color={colors.textMuted} />
+            <Clock size={12} color={c.textMuted} />
             <Text style={styles.detailText}>{time}</Text>
           </View>
         )}
         {event.description ? (
           <View style={styles.detailRow}>
-            <MapPin size={12} color={colors.textMuted} />
+            <MapPin size={12} color={c.textMuted} />
             <Text style={styles.detailText} numberOfLines={1}>
               {event.description}
             </Text>
@@ -62,7 +65,7 @@ export function EventCard({ event, calendars, onPress, onLongPress }: EventCardP
         ) : null}
         {count > 0 && (
           <View style={styles.detailRow}>
-            <Users size={12} color={colors.textMuted} />
+            <Users size={12} color={c.textMuted} />
             <Text style={styles.detailText}>{count} participants</Text>
           </View>
         )}
@@ -71,17 +74,18 @@ export function EventCard({ event, calendars, onPress, onLongPress }: EventCardP
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   card: {
     flexDirection: 'row',
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
     borderRadius: radius.lg,
     marginBottom: spacing.sm,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  cardPressed: { backgroundColor: colors.surfaceHover },
+  cardPressed: { backgroundColor: c.surfaceHover },
   colorBar: { width: 3 },
   body: { flex: 1, padding: spacing.md, gap: 4 },
   headerRow: {
@@ -90,14 +94,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  title: { ...typography.bodyMedium, color: colors.text, flex: 1 },
+  title: { ...typography.bodyMedium, color: c.text, flex: 1 },
   allDayBadge: {
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.full,
   },
-  allDayText: { ...typography.small, color: colors.primary },
+  allDayText: { ...typography.small, color: c.primary },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  detailText: { ...typography.caption, color: colors.textMuted, flexShrink: 1 },
-});
+  detailText: { ...typography.caption, color: c.textMuted, flexShrink: 1 },
+  });
+}

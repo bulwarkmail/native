@@ -9,7 +9,8 @@ import {
   LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Bug,
   type LucideIcon,
 } from 'lucide-react-native';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 import { ReadingSettings } from '../components/settings/ReadingSettings';
 import { NotificationSettings } from '../components/settings/NotificationSettings';
 import { AccountSettings } from '../components/settings/AccountSettings';
@@ -34,6 +35,7 @@ import { ContentSendersSettings } from '../components/settings/ContentSendersSet
 import { LanguageSettings } from '../components/settings/LanguageSettings';
 import { ComposingSettings } from '../components/settings/ComposingSettings';
 import { LayoutSettings } from '../components/settings/LayoutSettings';
+import { useLocaleStore } from '../stores/locale-store';
 
 type Tab =
   | 'account' | 'language' | 'notifications'
@@ -147,8 +149,23 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ onLogout, onBack, onTabSelect }: SettingsScreenProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
-  const groupedTabs = groupTabs();
+  // Subscribe to locale so labels re-render when the user picks a different language.
+  const locale = useLocaleStore((s) => s.locale);
+  const t = useLocaleStore((s) => s.t);
+  const groupedTabs = React.useMemo(() => {
+    void locale; // dependency: re-translate on locale change
+    return groupTabs().map((g) => ({
+      ...g,
+      label: t(`settings.tab_groups.${g.group}`, g.label),
+      items: g.items.map((tab) => ({
+        ...tab,
+        label: t(`settings.tabs.${tab.id}`, tab.label),
+      })),
+    }));
+  }, [locale, t]);
 
   useEffect(() => {
     if (!selectedTab) return;
@@ -166,9 +183,10 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   };
 
   if (selectedTab) {
-    const tabDef = TABS.find(t => t.id === selectedTab)!;
+    const tabDef = TABS.find((tab) => tab.id === selectedTab)!;
     const Component = TAB_COMPONENTS[selectedTab];
     const TabIcon = tabDef.icon;
+    const tabLabel = t(`settings.tabs.${tabDef.id}`, tabDef.label);
 
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -177,10 +195,10 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
             onPress={() => setSelectedTab(null)}
             style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
           >
-            <ArrowLeft size={20} color={colors.text} />
+            <ArrowLeft size={20} color={c.text} />
           </Pressable>
-          <TabIcon size={20} color={colors.mutedForeground} />
-          <Text style={styles.headerTitle}>{tabDef.label}</Text>
+          <TabIcon size={20} color={c.mutedForeground} />
+          <Text style={styles.headerTitle}>{tabLabel}</Text>
         </View>
 
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
@@ -198,10 +216,10 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
           onPress={onBack}
           style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
         >
-          <ArrowLeft size={20} color={colors.text} />
+          <ArrowLeft size={20} color={c.text} />
         </Pressable>
-        <Settings size={20} color={colors.mutedForeground} />
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Settings size={20} color={c.mutedForeground} />
+        <Text style={styles.headerTitle}>{t('settings.title', 'Settings')}</Text>
       </View>
 
       {/* Tab list - matches webmail mobile: flat grouped list, no cards */}
@@ -230,7 +248,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                     ]}
                   >
                     <View style={styles.tabItemLeft}>
-                      <Icon size={16} color={colors.mutedForeground} />
+                      <Icon size={16} color={c.mutedForeground} />
                       <Text
                         style={[
                           styles.tabItemLabel,
@@ -250,7 +268,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                         <Text style={styles.notWorkingText}>Not implemented</Text>
                       </View>
                     ) : (
-                      <ChevronRight size={16} color={colors.mutedForeground} />
+                      <ChevronRight size={16} color={c.mutedForeground} />
                     )}
                   </Pressable>
                 );
@@ -265,8 +283,8 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
             onPress={onLogout}
             style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutBtnPressed]}
           >
-            <LogOut size={16} color={colors.error} />
-            <Text style={styles.logoutText}>Sign Out</Text>
+            <LogOut size={16} color={c.error} />
+            <Text style={styles.logoutText}>{t('sidebar.sign_out', 'Sign Out')}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -274,147 +292,82 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: componentSizes.headerHeight,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      gap: spacing.sm,
+    },
+    headerBackBtn: {
+      width: 40, height: 40,
+      alignItems: 'center', justifyContent: 'center',
+      borderRadius: radius.md,
+    },
+    headerBackBtnPressed: { backgroundColor: c.accent },
+    headerTitle: { ...typography.h3, color: c.text },
 
-  // Header - webmail: h-14, px-4, border-b, flex items-center gap-2
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: componentSizes.headerHeight,
-    paddingHorizontal: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.sm,
-  },
-  headerBackBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-  },
-  headerBackBtnPressed: {
-    backgroundColor: colors.accent,
-  },
-  headerTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
+    scrollArea: { flex: 1 },
+    scrollContent: { paddingBottom: 40 },
+    detailContent: { padding: spacing.lg, paddingBottom: 40 },
 
-  scrollArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  detailContent: {
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
+    tabList: { paddingVertical: spacing.sm },
 
-  tabList: {
-    paddingVertical: spacing.sm,
-  },
+    groupDivider: {
+      height: 1, backgroundColor: c.border,
+      marginHorizontal: 20, marginVertical: spacing.sm,
+    },
+    groupHeader: { paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: 6 },
+    groupLabel: {
+      fontSize: 11, fontWeight: '600',
+      textTransform: 'uppercase', letterSpacing: 0.8,
+      color: c.mutedForeground,
+    },
 
-  // Group divider - webmail: mx-5 my-2 border-t border-border
-  groupDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginHorizontal: 20,
-    marginVertical: spacing.sm,
-  },
+    tabItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20, paddingVertical: 14,
+    },
+    tabItemPressed: { backgroundColor: c.muted },
+    tabItemLeft: {
+      flexDirection: 'row', alignItems: 'center',
+      gap: spacing.md, flex: 1,
+    },
+    tabItemLabel: { ...typography.body, color: c.text },
 
-  // Group header - webmail: px-5 pt-3 pb-1.5
-  groupHeader: {
-    paddingHorizontal: 20,
-    paddingTop: spacing.md,
-    paddingBottom: 6,
-  },
-  groupLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    color: colors.mutedForeground,
-  },
+    experimentalBadge: {
+      backgroundColor: 'rgba(202, 138, 4, 0.15)',
+      borderRadius: radius.full,
+      paddingHorizontal: 6, paddingVertical: 2,
+    },
+    experimentalText: { fontSize: 10, fontWeight: '500', color: c.warning },
 
-  // Tab item - webmail: px-5 py-3.5, icon w-4 h-4 text-muted-foreground, gap-3, ChevronRight
-  tabItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  tabItemPressed: {
-    backgroundColor: colors.muted,
-  },
-  tabItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  tabItemLabel: {
-    ...typography.body,
-    color: colors.text,
-  },
+    tabItemDisabled: { opacity: 0.55 },
+    tabItemLabelDisabled: { color: c.mutedForeground },
+    notWorkingBadge: {
+      backgroundColor: c.muted,
+      borderRadius: radius.full,
+      paddingHorizontal: 8, paddingVertical: 2,
+    },
+    notWorkingText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
 
-  // Experimental badge - webmail: text-[10px] rounded-full bg-warning/15 text-warning
-  experimentalBadge: {
-    backgroundColor: 'rgba(202, 138, 4, 0.15)',
-    borderRadius: radius.full,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  experimentalText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: colors.warning,
-  },
-
-  tabItemDisabled: {
-    opacity: 0.55,
-  },
-  tabItemLabelDisabled: {
-    color: colors.mutedForeground,
-  },
-  notWorkingBadge: {
-    backgroundColor: colors.muted,
-    borderRadius: radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  notWorkingText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: colors.mutedForeground,
-  },
-
-  // Logout - webmail: border-t border-border, px-5 py-3, destructive text
-  logoutSection: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 20,
-    paddingVertical: spacing.md,
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.sm,
-  },
-  logoutBtnPressed: {
-    backgroundColor: colors.muted,
-  },
-  logoutText: {
-    ...typography.body,
-    color: colors.error,
-  },
-});
+    logoutSection: {
+      borderTopWidth: 1, borderTopColor: c.border,
+      paddingHorizontal: 20, paddingVertical: spacing.md,
+    },
+    logoutBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+      paddingVertical: 10, paddingHorizontal: spacing.sm,
+      borderRadius: radius.sm,
+    },
+    logoutBtnPressed: { backgroundColor: c.muted },
+    logoutText: { ...typography.body, color: c.error },
+  });
+}

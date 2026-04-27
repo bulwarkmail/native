@@ -5,10 +5,13 @@ import {
 import { ChevronRight, X, Plus, Trash2 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ExternalContentPolicy } from '../../stores/settings-store';
 
 export function ContentSendersSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const setExternalContentPolicy = useSettingsStore((s) => s.setExternalContentPolicy);
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
@@ -64,7 +67,7 @@ export function ContentSendersSettings() {
             style={({ pressed }) => [styles.trustedButton, pressed && styles.trustedButtonPressed]}
           >
             <Text style={styles.trustedButtonText}>{trustedLabel}</Text>
-            <ChevronRight size={14} color={colors.textMuted} />
+            <ChevronRight size={14} color={c.textMuted} />
           </Pressable>
         </SettingItem>
       </SettingsSection>
@@ -80,7 +83,7 @@ export function ContentSendersSettings() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Trusted senders</Text>
               <Pressable onPress={() => setModalOpen(false)} hitSlop={6}>
-                <X size={18} color={colors.textSecondary} />
+                <X size={18} color={c.textSecondary} />
               </Pressable>
             </View>
 
@@ -89,7 +92,7 @@ export function ContentSendersSettings() {
                 value={newSender}
                 onChangeText={setNewSender}
                 placeholder="sender@example.com"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={c.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
@@ -111,7 +114,7 @@ export function ContentSendersSettings() {
                   }
                 }}
                 disabled={!newSender.trim()}
-                icon={<Plus size={14} color={colors.primaryForeground} />}
+                icon={<Plus size={14} color={c.primaryForeground} />}
               >
                 Add
               </Button>
@@ -133,7 +136,7 @@ export function ContentSendersSettings() {
                       hitSlop={6}
                       style={({ pressed }) => [styles.removeBtn, pressed && styles.removeBtnPressed]}
                     >
-                      <Trash2 size={16} color={colors.error} />
+                      <Trash2 size={16} color={c.error} />
                     </Pressable>
                   </View>
                 )}
@@ -146,18 +149,19 @@ export function ContentSendersSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   trustedButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
     borderRadius: radius.sm,
   },
   trustedButtonPressed: { opacity: 0.7 },
-  trustedButtonText: { ...typography.body, color: colors.text },
+  trustedButtonText: { ...typography.body, color: c.text },
 
   modalBackdrop: {
     flex: 1,
@@ -166,10 +170,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   modalCard: {
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.lg,
     maxHeight: '80%',
   },
@@ -179,34 +183,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.md,
   },
-  modalTitle: { ...typography.h3, color: colors.text },
+  modalTitle: { ...typography.h3, color: c.text },
   addRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   input: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
-    color: colors.text,
+    color: c.text,
     ...typography.body,
   },
   list: { maxHeight: 300 },
-  separator: { height: 1, backgroundColor: colors.border },
+  separator: { height: 1, backgroundColor: c.border },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
   },
-  rowText: { ...typography.body, color: colors.text, flex: 1, marginRight: spacing.sm },
+  rowText: { ...typography.body, color: c.text, flex: 1, marginRight: spacing.sm },
   removeBtn: { padding: 6, borderRadius: radius.sm },
-  removeBtnPressed: { backgroundColor: colors.muted },
+  removeBtnPressed: { backgroundColor: c.muted },
   emptyText: {
     ...typography.body,
-    color: colors.textMuted,
+    color: c.textMuted,
     textAlign: 'center',
     paddingVertical: spacing.xl,
   },
 });
+}

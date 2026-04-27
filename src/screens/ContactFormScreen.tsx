@@ -22,7 +22,8 @@ import { getContactKeywords } from '../lib/contact-utils';
 import { getContactDisplayName } from '../lib/contact-utils';
 import FieldBlock, { FieldRow } from '../components/contacts/FieldBlock';
 import Dialog from '../components/Dialog';
-import { colors, spacing, radius, typography, componentSizes } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactForm'>;
 type Route = RouteProp<RootStackParamList, 'ContactForm'>;
@@ -250,6 +251,8 @@ function ContextPills({
   options: string[];
   onChange: (v: string) => void;
 }) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.pillRow}>
       {options.map((o) => (
@@ -266,6 +269,8 @@ function ContextPills({
 }
 
 export default function ContactFormScreen() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { contactId, addressBookId: initialBook, asGroup } = route.params || {};
@@ -360,7 +365,7 @@ export default function ContactFormScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={handleBack} style={styles.headerBtn} hitSlop={8}>
-          <ArrowLeft size={22} color={colors.text} />
+          <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
         <Pressable onPress={handleSave} disabled={saving} style={styles.saveBtn} hitSlop={8}>
@@ -368,7 +373,7 @@ export default function ContactFormScreen() {
             <Text style={styles.saveLabel}>Saving…</Text>
           ) : (
             <>
-              <Check size={16} color={colors.primaryForeground} />
+              <Check size={16} color={c.primaryForeground} />
               <Text style={styles.saveLabel}>Save</Text>
             </>
           )}
@@ -382,7 +387,7 @@ export default function ContactFormScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Address book picker */}
           {addressBooks.length > 1 && (
-            <FieldBlock title="Address Book" icon={<User size={14} color={colors.primary} />} category="contact">
+            <FieldBlock title="Address Book" icon={<User size={14} color={c.primary} />} category="contact">
               <View style={styles.pillRow}>
                 {addressBooks.map((book) => (
                   <Pressable
@@ -400,7 +405,7 @@ export default function ContactFormScreen() {
           )}
 
           {/* Photo */}
-          <FieldBlock title="Photo" icon={<Camera size={14} color={colors.primary} />} category="contact">
+          <FieldBlock title="Photo" icon={<Camera size={14} color={c.primary} />} category="contact">
             <View style={styles.photoRow}>
               {form.photoUri ? (
                 <View style={styles.photoThumbWrap}>
@@ -413,12 +418,12 @@ export default function ContactFormScreen() {
                     style={styles.photoRemoveBtn}
                     hitSlop={8}
                   >
-                    <XIcon size={14} color={colors.primaryForeground} />
+                    <XIcon size={14} color={c.primaryForeground} />
                   </Pressable>
                 </View>
               ) : (
                 <View style={[styles.photoThumb, styles.photoPlaceholder]}>
-                  <Camera size={28} color={colors.textMuted} />
+                  <Camera size={28} color={c.textMuted} />
                 </View>
               )}
               <Pressable
@@ -455,25 +460,25 @@ export default function ContactFormScreen() {
           </FieldBlock>
 
           {/* Name */}
-          <FieldBlock title="Name" icon={<User size={14} color={colors.primary} />} category="contact">
+          <FieldBlock title="Name" icon={<User size={14} color={c.primary} />} category="contact">
             <TextInput
               style={styles.input}
               placeholder="First name"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               value={form.given}
               onChangeText={(v) => updateForm('given', v)}
             />
             <TextInput
               style={styles.input}
               placeholder="Last name"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               value={form.surname}
               onChangeText={(v) => updateForm('surname', v)}
             />
             <TextInput
               style={styles.input}
               placeholder="Display name (optional)"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               value={form.full}
               onChangeText={(v) => updateForm('full', v)}
             />
@@ -482,7 +487,7 @@ export default function ContactFormScreen() {
           {/* Emails */}
           <FieldBlock
             title="Email"
-            icon={<Mail size={14} color={colors.primary} />}
+            icon={<Mail size={14} color={c.primary} />}
             category="contact"
             onAdd={() => updateForm('emails', [...form.emails, { address: '', label: '', context: 'personal' }])}
             addLabel="Add"
@@ -495,7 +500,7 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="email@example.com"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={e.address}
@@ -521,7 +526,7 @@ export default function ContactFormScreen() {
           {/* Phones */}
           <FieldBlock
             title="Phone"
-            icon={<Phone size={14} color={colors.primary} />}
+            icon={<Phone size={14} color={c.primary} />}
             category="contact"
             onAdd={() => updateForm('phones', [...form.phones, { number: '', label: '', context: 'personal' }])}
             addLabel="Add"
@@ -534,7 +539,7 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="+1 555 0100"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   keyboardType="phone-pad"
                   value={p.number}
                   onChangeText={(v) => {
@@ -559,7 +564,7 @@ export default function ContactFormScreen() {
           {/* Orgs */}
           <FieldBlock
             title="Organization"
-            icon={<Building size={14} color={colors.calendar.orange} />}
+            icon={<Building size={14} color={c.calendar.orange} />}
             category="work"
             onAdd={() => updateForm('orgs', [...form.orgs, { name: '', title: '' }])}
             addLabel="Add"
@@ -572,7 +577,7 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Company"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   value={o.name}
                   onChangeText={(v) => {
                     const next = [...form.orgs];
@@ -583,7 +588,7 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Title"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   value={o.title}
                   onChangeText={(v) => {
                     const next = [...form.orgs];
@@ -598,7 +603,7 @@ export default function ContactFormScreen() {
           {/* Addresses */}
           <FieldBlock
             title="Address"
-            icon={<MapPin size={14} color={colors.calendar.green} />}
+            icon={<MapPin size={14} color={c.calendar.green} />}
             category="location"
             onAdd={() => updateForm('addresses', [...form.addresses, { full: '', context: 'home' }])}
             addLabel="Add"
@@ -611,7 +616,7 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={[styles.input, styles.multiline]}
                   placeholder="Street, city, region, postcode, country"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   multiline
                   value={a.full}
                   onChangeText={(v) => {
@@ -636,7 +641,7 @@ export default function ContactFormScreen() {
           {/* Anniversaries */}
           <FieldBlock
             title="Important Dates"
-            icon={<Cake size={14} color={colors.calendar.pink} />}
+            icon={<Cake size={14} color={c.calendar.pink} />}
             category="personal"
             onAdd={() => updateForm('anniversaries', [...form.anniversaries, { kind: 'birth', date: '' }])}
             addLabel="Add"
@@ -650,7 +655,7 @@ export default function ContactFormScreen() {
                   <TextInput
                     style={[styles.input, styles.dateTextInput]}
                     placeholder="YYYY-MM-DD or --MM-DD"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor={c.textMuted}
                     value={a.date}
                     onChangeText={(v) => {
                       const next = [...form.anniversaries];
@@ -663,7 +668,7 @@ export default function ContactFormScreen() {
                     style={styles.datePickerBtn}
                     hitSlop={8}
                   >
-                    <Calendar size={18} color={colors.primary} />
+                    <Calendar size={18} color={c.primary} />
                   </Pressable>
                 </View>
                 <ContextPills
@@ -680,7 +685,7 @@ export default function ContactFormScreen() {
           </FieldBlock>
 
           {/* Keywords */}
-          <FieldBlock title="Tags" icon={<Tag size={14} color={colors.calendar.teal} />} category="digital">
+          <FieldBlock title="Tags" icon={<Tag size={14} color={c.calendar.teal} />} category="digital">
             <View style={styles.chipRow}>
               {form.keywords.map((kw) => (
                 <Pressable
@@ -696,7 +701,7 @@ export default function ContactFormScreen() {
             <TextInput
               style={styles.input}
               placeholder="Add tag and press Enter"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               value={keywordInput}
               onChangeText={setKeywordInput}
               onSubmitEditing={() => {
@@ -729,7 +734,7 @@ export default function ContactFormScreen() {
           {/* Notes */}
           <FieldBlock
             title="Notes"
-            icon={<FileText size={14} color={colors.calendar.purple} />}
+            icon={<FileText size={14} color={c.calendar.purple} />}
             category="notes"
             onAdd={() => updateForm('notes', [...form.notes, { note: '' }])}
             addLabel="Add"
@@ -750,7 +755,7 @@ export default function ContactFormScreen() {
                 <TextInput
                   style={[styles.input, styles.multiline]}
                   placeholder="Notes"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={c.textMuted}
                   multiline
                   value={n.note}
                   onChangeText={(v) => {
@@ -852,8 +857,9 @@ function formatDateAsISO(d: Date): string {
   return `${y}-${m}-${da}`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   scrollContent: { paddingVertical: spacing.md, paddingBottom: spacing.xxxl * 2 },
 
   dateInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
@@ -862,34 +868,34 @@ const styles = StyleSheet.create({
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
   },
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   photoThumbWrap: { position: 'relative' },
   photoThumb: {
     width: 72, height: 72,
     borderRadius: 36,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
   },
   photoPlaceholder: {
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
+    borderWidth: 1, borderColor: c.border, borderStyle: 'dashed',
   },
   photoRemoveBtn: {
     position: 'absolute',
     top: -4, right: -4,
     width: 24, height: 24,
     borderRadius: 12,
-    backgroundColor: colors.error,
+    backgroundColor: c.error,
     alignItems: 'center', justifyContent: 'center',
   },
   photoPickBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
   },
-  photoPickLabel: { ...typography.bodyMedium, color: colors.primary },
+  photoPickLabel: { ...typography.bodyMedium, color: c.primary },
   pickerOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -897,7 +903,7 @@ const styles = StyleSheet.create({
   pickerSheet: {
     position: 'absolute',
     left: 0, right: 0, bottom: 0,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingBottom: spacing.lg,
@@ -907,9 +913,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
-  pickerDone: { ...typography.bodySemibold, color: colors.primary },
+  pickerDone: { ...typography.bodySemibold, color: c.primary },
 
   header: {
     flexDirection: 'row',
@@ -918,34 +924,34 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: c.borderLight,
   },
   headerBtn: {
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: colors.text, flex: 1 },
+  headerTitle: { ...typography.h3, color: c.text, flex: 1 },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.md,
     height: 36,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderRadius: radius.full,
   },
-  saveLabel: { ...typography.bodyMedium, color: colors.primaryForeground },
+  saveLabel: { ...typography.bodyMedium, color: c.primaryForeground },
 
   input: {
     height: componentSizes.inputHeight,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.sm,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     paddingHorizontal: spacing.md,
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
   multiline: { height: 80, paddingVertical: spacing.sm, textAlignVertical: 'top' },
 
@@ -954,13 +960,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { ...typography.caption, color: colors.textSecondary },
-  pillTextActive: { color: colors.primaryForeground },
+  pillActive: { backgroundColor: c.primary, borderColor: c.primary },
+  pillText: { ...typography.caption, color: c.textSecondary },
+  pillTextActive: { color: c.primaryForeground },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   keywordChip: {
@@ -969,28 +975,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.full,
-    backgroundColor: colors.primaryBg,
+    backgroundColor: c.primaryBg,
   },
-  keywordChipText: { ...typography.caption, color: colors.primary },
-  keywordChipRemove: { ...typography.caption, color: colors.primary },
+  keywordChipText: { ...typography.caption, color: c.primary },
+  keywordChipRemove: { ...typography.caption, color: c.primary },
   suggestedChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
-  suggestedChipText: { ...typography.caption, color: colors.textSecondary },
+  suggestedChipText: { ...typography.caption, color: c.textSecondary },
 
   addNoteBtn: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderStyle: 'dashed',
     alignItems: 'center',
   },
-  addNoteText: { ...typography.caption, color: colors.textMuted },
-});
+  addNoteText: { ...typography.caption, color: c.textMuted },
+  });
+}

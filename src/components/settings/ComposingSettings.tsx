@@ -3,10 +3,13 @@ import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { X, Plus } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
-import { colors, spacing, radius, typography } from '../../theme/tokens';
+import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 
 export function ComposingSettings() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const setAutoSelectReplyIdentity = useSettingsStore((s) => s.setAutoSelectReplyIdentity);
   const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
@@ -68,7 +71,7 @@ export function ComposingSettings() {
               <View key={kw} style={styles.chip}>
                 <Text style={styles.chipText}>{kw}</Text>
                 <Pressable onPress={() => removeKeyword(kw)} hitSlop={6}>
-                  <X size={12} color={colors.textSecondary} />
+                  <X size={12} color={c.textSecondary} />
                 </Pressable>
               </View>
             ))}
@@ -79,7 +82,7 @@ export function ComposingSettings() {
               value={newKeyword}
               onChangeText={setNewKeyword}
               placeholder="e.g. attached"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={c.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               style={styles.input}
@@ -91,7 +94,7 @@ export function ComposingSettings() {
               size="sm"
               onPress={addKeyword}
               disabled={!newKeyword.trim()}
-              icon={<Plus size={14} color={colors.primaryForeground} />}
+              icon={<Plus size={14} color={c.primaryForeground} />}
             >
               Add
             </Button>
@@ -102,10 +105,11 @@ export function ComposingSettings() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   subBlock: { paddingVertical: spacing.md, gap: spacing.sm },
-  subLabel: { ...typography.bodyMedium, color: colors.text },
-  subDescription: { ...typography.caption, color: colors.mutedForeground },
+  subLabel: { ...typography.bodyMedium, color: c.text },
+  subDescription: { ...typography.caption, color: c.mutedForeground },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     flexDirection: 'row',
@@ -114,19 +118,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: radius.full,
-    backgroundColor: colors.muted,
+    backgroundColor: c.muted,
   },
-  chipText: { ...typography.caption, color: colors.text },
+  chipText: { ...typography.caption, color: c.text },
   addRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
   input: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
-    color: colors.text,
+    color: c.text,
     ...typography.body,
   },
 });
+}

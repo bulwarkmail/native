@@ -1,7 +1,8 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 import { Repeat, Trash2 } from 'lucide-react-native';
-import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 import { Button } from '..';
 
 export type RecurrenceEditScope = 'this' | 'this_and_future' | 'all';
@@ -25,6 +26,8 @@ export function RecurrenceScopeDialog({
   onSelect,
   onClose,
 }: RecurrenceScopeDialogProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const [selected, setSelected] = React.useState<RecurrenceEditScope>('this');
   const isDelete = actionType === 'delete';
 
@@ -39,9 +42,9 @@ export function RecurrenceScopeDialog({
           <View style={styles.header}>
             <View style={[styles.iconBadge, isDelete ? styles.iconBadgeDanger : styles.iconBadgePrimary]}>
               {isDelete ? (
-                <Trash2 size={20} color={colors.error} />
+                <Trash2 size={20} color={c.error} />
               ) : (
-                <Repeat size={20} color={colors.primary} />
+                <Repeat size={20} color={c.primary} />
               )}
             </View>
             <View style={styles.headerText}>
@@ -90,7 +93,8 @@ export function RecurrenceScopeDialog({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -101,9 +105,9 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.lg,
     padding: spacing.xxl,
     gap: spacing.lg,
@@ -116,11 +120,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconBadgeDanger: { backgroundColor: colors.errorBg },
-  iconBadgePrimary: { backgroundColor: colors.primaryBg },
+  iconBadgeDanger: { backgroundColor: c.errorBg },
+  iconBadgePrimary: { backgroundColor: c.primaryBg },
   headerText: { flex: 1 },
-  title: { ...typography.h3, color: colors.text },
-  description: { ...typography.body, color: colors.textMuted, marginTop: 4 },
+  title: { ...typography.h3, color: c.text },
+  description: { ...typography.body, color: c.textMuted, marginTop: 4 },
   options: { gap: spacing.xs },
   option: {
     flexDirection: 'row',
@@ -132,27 +136,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  optionActive: { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+  optionActive: { backgroundColor: c.primaryBg, borderColor: c.primary },
   radio: {
     width: 18,
     height: 18,
     borderRadius: 9,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioActive: { borderColor: colors.primary },
+  radioActive: { borderColor: c.primary },
   radioDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
-  optionLabel: { ...typography.body, color: colors.text, flex: 1 },
+  optionLabel: { ...typography.body, color: c.text, flex: 1 },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.md,
   },
-});
+  });
+}

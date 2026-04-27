@@ -9,9 +9,11 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useContactsStore } from '../../stores/contacts-store';
 import { contactsToVCard } from '../../lib/vcard';
 import { isGroup } from '../../lib/contact-utils';
-import { colors, typography } from '../../theme/tokens';
+import { typography, type ThemePalette } from '../../theme/tokens';
+import { useColors } from '../../theme/colors';
 
 export function ContactsSettings() {
+  const c = useColors();
   const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
   const setGroupByLetter = useSettingsStore((s) => s.setGroupContactsByLetter);
   const contacts = useContactsStore((s) => s.contacts);
@@ -67,7 +69,7 @@ export function ContactsSettings() {
         <Button
           variant="outline"
           size="sm"
-          icon={<Download size={14} color={colors.text} />}
+          icon={<Download size={14} color={c.text} />}
           onPress={() => { void handleExport(); }}
           disabled={exportable.length === 0 || exporting}
           loading={exporting}
@@ -80,7 +82,7 @@ export function ContactsSettings() {
         label="Import contacts"
         description="Importing vCard files is currently available on the web client only."
       >
-        <Text style={[typography.caption, { color: colors.textMuted }]}>Web only</Text>
+        <Text style={[typography.caption, { color: c.textMuted }]}>Web only</Text>
       </SettingItem>
     </SettingsSection>
   );
