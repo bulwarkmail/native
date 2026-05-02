@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Platform, ActivityIndicator, Alert, Modal,
+  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -210,27 +210,38 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const insets = useSafeAreaInsets();
-  // Track keyboard height so the format bar stays just above the IME.
-  // KeyboardAvoidingView is unreliable on Android edge-to-edge, so we
-  // listen to the Keyboard module directly on both platforms.
-  const [kbHeight, setKbHeight] = React.useState(0);
+  // Track the visible keyboard obstruction so the format bar stays above it.
+  // On Android edge-to-edge, the IME-inset reported by `keyboardDidShow` is
+  // measured from the top of the gesture-nav bar rather than from the true
+  // screen bottom, so we derive obstruction height from `Dimensions.screen`
+  // instead of trusting `endCoordinates.height` directly. The same trick
+  // works on iOS for the QuickType / autofill / dictation strip.
+  const [kbObstruction, setKbObstruction] = React.useState(0);
   React.useEffect(() => {
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvt, (e) => {
-      setKbHeight(e.endCoordinates?.height ?? 0);
-    });
-    const hideSub = Keyboard.addListener(hideEvt, () => {
-      setKbHeight(0);
-    });
+    const recompute = (endY: number) => {
+      const screenH = Dimensions.get('screen').height;
+      setKbObstruction(Math.max(0, screenH - endY));
+    };
+    const subs =
+      Platform.OS === 'ios'
+        ? [
+            Keyboard.addListener('keyboardWillChangeFrame', (e) => {
+              recompute(e.endCoordinates?.screenY ?? Number.MAX_SAFE_INTEGER);
+            }),
+          ]
+        : [
+            Keyboard.addListener('keyboardDidShow', (e) => {
+              recompute(e.endCoordinates?.screenY ?? Number.MAX_SAFE_INTEGER);
+            }),
+            Keyboard.addListener('keyboardDidHide', () => setKbObstruction(0)),
+          ];
     return () => {
-      showSub.remove();
-      hideSub.remove();
+      for (const s of subs) s.remove();
     };
   }, []);
   // When the keyboard is up it covers the bottom safe area, so we don't
   // need to add it on top — pad by whichever is larger.
-  const bottomPad = Math.max(kbHeight, insets.bottom);
+  const bottomPad = Math.max(kbObstruction, insets.bottom);
   const replyTo = route.params?.replyTo;
   const mode = route.params?.mode ?? 'compose';
   const prefillTo = route.params?.prefillTo;
