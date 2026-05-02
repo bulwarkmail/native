@@ -11,6 +11,7 @@ import {
   moveEmail,
   archiveEmails as apiArchiveEmails,
   deleteEmail as apiDeleteEmail,
+  restoreEmailMailboxes,
   searchEmails as apiSearchEmails,
 } from '../api/email';
 import { toWildcardQuery } from '../lib/search-utils';
@@ -27,6 +28,19 @@ export interface EmailFilters {
   isUnread?: boolean;
 }
 
+// Snapshot of an action that can still be reversed via the undo snackbar.
+// We store the full email object so undo can re-insert it into the visible list
+// optimistically without waiting for a refetch.
+export interface UndoEntry {
+  kind: 'archive' | 'delete' | 'move' | 'spam';
+  /** Human-readable label shown in the snackbar (e.g. "Email archived"). */
+  label: string;
+  /** Time the entry was created - the snackbar uses this to drive its timer. */
+  createdAt: number;
+  /** Each item is one email's pre-action mailboxIds, used to restore it. */
+  items: Array<{ email: Email; originalMailboxIds: Record<string, boolean> }>;
+}
+
 export interface EmailState {
   mailboxes: Mailbox[];
   currentMailboxId: string | null;
@@ -36,6 +50,7 @@ export interface EmailState {
   error: string | null;
   searchQuery: string;
   filters: EmailFilters;
+  pendingUndo: UndoEntry | null;
 
   fetchMailboxes: () => Promise<void>;
   selectMailbox: (mailboxId: string) => Promise<void>;
@@ -49,6 +64,8 @@ export interface EmailState {
   moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string) => Promise<void>;
   archiveEmail: (emailId: string) => Promise<void>;
   deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string) => Promise<void>;
+  undoLast: () => Promise<void>;
+  clearUndo: () => void;
   searchEmails: (query: string) => Promise<Email[]>;
   setSearchQuery: (query: string) => void;
   setFilters: (filters: EmailFilters) => void;
@@ -106,6 +123,7 @@ export const useEmailStore = create<EmailState>()(
   error: null,
   searchQuery: '',
   filters: {},
+  pendingUndo: null,
 
   fetchMailboxes: async () => {
     try {
@@ -119,6 +137,8 @@ export const useEmailStore = create<EmailState>()(
 
   selectMailbox: async (mailboxId) => {
     // Reset search/filters when switching mailbox - matches webmail behavior.
+    // Switching mailboxes invalidates any pending undo: the snackbar would be
+    // stale and the restored email would re-appear in a different view.
     set({
       currentMailboxId: mailboxId,
       loading: true,
@@ -127,6 +147,7 @@ export const useEmailStore = create<EmailState>()(
       totalEmails: 0,
       searchQuery: '',
       filters: {},
+      pendingUndo: null,
     });
     try {
       const filter = buildJmapFilter(mailboxId, '', {});
@@ -254,8 +275,23 @@ export const useEmailStore = create<EmailState>()(
   },
 
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId) => {
+    const email = get().emails.find((e) => e.id === emailId);
+    const original = email ? { ...email.mailboxIds } : null;
+
     await moveEmail(emailId, fromMailboxId, toMailboxId);
     set({ emails: get().emails.filter((e) => e.id !== emailId) });
+
+    if (email && original) {
+      const targetName = get().mailboxes.find((m) => m.id === toMailboxId)?.name;
+      set({
+        pendingUndo: {
+          kind: 'move',
+          label: targetName ? `Email moved to ${targetName}` : 'Email moved',
+          createdAt: Date.now(),
+          items: [{ email, originalMailboxIds: original }],
+        },
+      });
+    }
   },
 
   archiveEmail: async (emailId) => {
@@ -270,6 +306,7 @@ export const useEmailStore = create<EmailState>()(
     if (email.mailboxIds?.[archiveMailbox.id]) return;
 
     const mode = useSettingsStore.getState().archiveMode;
+    const original = { ...email.mailboxIds };
 
     await apiArchiveEmails(
       [{ id: email.id, receivedAt: email.receivedAt }],
@@ -278,7 +315,15 @@ export const useEmailStore = create<EmailState>()(
       mailboxes,
     );
 
-    set({ emails: get().emails.filter((e) => e.id !== emailId) });
+    set({
+      emails: get().emails.filter((e) => e.id !== emailId),
+      pendingUndo: {
+        kind: 'archive',
+        label: 'Email archived',
+        createdAt: Date.now(),
+        items: [{ email, originalMailboxIds: original }],
+      },
+    });
 
     // Auto-sort modes may have created new year/month folders - refresh the
     // mailbox list so the sidebar picks them up on the next render.
@@ -288,9 +333,59 @@ export const useEmailStore = create<EmailState>()(
   },
 
   deleteEmail: async (emailId, trashMailboxId, currentMailboxId) => {
+    const email = get().emails.find((e) => e.id === emailId);
+    const original = email ? { ...email.mailboxIds } : null;
+    const isPermanent = currentMailboxId === trashMailboxId;
+
     await apiDeleteEmail(emailId, trashMailboxId, currentMailboxId);
     set({ emails: get().emails.filter((e) => e.id !== emailId) });
+
+    // Permanent destroy can't be undone - skip the snackbar so we don't
+    // promise an undo we can't deliver.
+    if (email && original && !isPermanent) {
+      set({
+        pendingUndo: {
+          kind: 'delete',
+          label: 'Email moved to Trash',
+          createdAt: Date.now(),
+          items: [{ email, originalMailboxIds: original }],
+        },
+      });
+    }
   },
+
+  undoLast: async () => {
+    const entry = get().pendingUndo;
+    if (!entry) return;
+    set({ pendingUndo: null });
+
+    try {
+      await restoreEmailMailboxes(
+        entry.items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
+      );
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Undo failed' });
+      return;
+    }
+
+    // Re-insert each restored email into the visible list if its original
+    // mailboxIds include the current view. Server is the source of truth for
+    // ordering, but local re-insertion gives the user instant feedback.
+    const { currentMailboxId, emails } = get();
+    if (currentMailboxId) {
+      const restored = entry.items
+        .filter((it) => it.originalMailboxIds[currentMailboxId])
+        .map((it) => ({ ...it.email, mailboxIds: it.originalMailboxIds }));
+      if (restored.length > 0) {
+        const merged = [...restored, ...emails].sort(
+          (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+        );
+        set({ emails: merged });
+      }
+    }
+  },
+
+  clearUndo: () => set({ pendingUndo: null }),
 
   searchEmails: async (query) => {
     const ids = await apiSearchEmails(query);

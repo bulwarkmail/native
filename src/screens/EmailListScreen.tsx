@@ -12,6 +12,7 @@ import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
+import { UndoSnackbar } from '../components/UndoSnackbar';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, type EmailFilters } from '../stores/email-store';
@@ -840,6 +841,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           }
         }}
       />
+
+      <UndoSnackbar />
     </SafeAreaView>
   );
 }

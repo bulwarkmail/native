@@ -111,6 +111,27 @@ export async function moveEmail(
   ]);
 }
 
+// Restore each email's mailboxIds to the snapshot supplied. Used by undo to
+// reverse a move/archive/spam in one round-trip. JMAP "mailboxIds" replaces
+// the entire map, so we don't need to compute a diff against the current state.
+export async function restoreEmailMailboxes(
+  items: Array<{ id: string; mailboxIds: Record<string, boolean> }>,
+): Promise<void> {
+  if (items.length === 0) return;
+  const accountId = jmapClient.accountId;
+  const update: Record<string, { mailboxIds: Record<string, true> }> = {};
+  for (const item of items) {
+    const onlyTrue: Record<string, true> = {};
+    for (const [id, present] of Object.entries(item.mailboxIds)) {
+      if (present) onlyTrue[id] = true;
+    }
+    update[item.id] = { mailboxIds: onlyTrue };
+  }
+  await jmapClient.request([
+    ['Email/set', { accountId, update }, '0'],
+  ]);
+}
+
 // Archive one or more emails into the archive mailbox, optionally auto-sorting
 // into year or year/month subfolders. Mirrors the webmail implementation in
 // lib/jmap/client.ts so behavior stays in sync between platforms.
