@@ -8,6 +8,7 @@ vi.mock('../../api/email', () => ({
   setEmailKeywords: vi.fn(),
   moveEmail: vi.fn(),
   archiveEmails: vi.fn(),
+  restoreEmailMailboxes: vi.fn(),
   deleteEmail: vi.fn(),
   searchEmails: vi.fn(),
 }));
