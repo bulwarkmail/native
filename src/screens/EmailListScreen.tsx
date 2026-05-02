@@ -177,6 +177,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
+  const swipeMode = useSettingsStore((s) => s.swipeMode);
   const networkOnline = useNetworkStore((s) => s.online);
 
   const archiveMailboxId = React.useMemo(
@@ -274,6 +275,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       <SwipeableRow
         leftAction={selectionMode ? 'none' : swipeLeftAction}
         rightAction={selectionMode ? 'none' : swipeRightAction}
+        mode={swipeMode}
         context={{ unread: isUnread(item), starred: isStarred(item), pinned: isPinned(item) }}
         onAction={(action) => handleSwipeAction(item.id, action)}
       >
@@ -286,7 +288,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         />
       </SwipeableRow>
     ),
-    [selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction, handleSwipeAction],
+    [selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction, swipeMode, handleSwipeAction],
   );
 
   const clearSelection = React.useCallback(() => {

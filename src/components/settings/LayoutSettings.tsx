@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ArrowRight, ArrowLeft } from 'lucide-react-native';
-import { SettingsSection, SettingItem, RadioGroup } from './settings-section';
+import { SettingsSection, RadioGroup } from './settings-section';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useSettingsStore, type SwipeAction } from '../../stores/settings-store';
+import { useSettingsStore, type SwipeAction, type SwipeMode } from '../../stores/settings-store';
 
 const SWIPE_OPTIONS: { value: SwipeAction; label: string }[] = [
   { value: 'none',    label: 'None' },
@@ -17,6 +17,11 @@ const SWIPE_OPTIONS: { value: SwipeAction; label: string }[] = [
   { value: 'move',    label: 'Move to folder' },
 ];
 
+const SWIPE_MODE_OPTIONS: { value: SwipeMode; label: string }[] = [
+  { value: 'instant', label: 'Instant (swipe = action)' },
+  { value: 'reveal',  label: 'Reveal (swipe, then tap)' },
+];
+
 export function LayoutSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -24,6 +29,8 @@ export function LayoutSettings() {
   const setSwipeLeftAction = useSettingsStore((s) => s.setSwipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
   const setSwipeRightAction = useSettingsStore((s) => s.setSwipeRightAction);
+  const swipeMode = useSettingsStore((s) => s.swipeMode);
+  const setSwipeMode = useSettingsStore((s) => s.setSwipeMode);
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
 
@@ -32,6 +39,19 @@ export function LayoutSettings() {
   return (
     <SettingsSection title="Layout" description="Tune the email list interactions for mobile.">
       <View style={{ gap: spacing.sm }}>
+        <Text style={styles.rowLabel}>Swipe behavior</Text>
+        <Text style={styles.rowDescription}>
+          Pick instant (swipe past the threshold to fire the action) or reveal
+          (swipe to expose an action band, then tap to confirm).
+        </Text>
+        <RadioGroup
+          value={swipeMode}
+          onChange={(v) => setSwipeMode(v as SwipeMode)}
+          options={SWIPE_MODE_OPTIONS}
+        />
+      </View>
+
+      <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
         <View style={styles.row}>
           <ArrowRight size={14} color={c.mutedForeground} />
           <Text style={styles.rowLabel}>Swipe right (left → right)</Text>
@@ -61,10 +81,6 @@ export function LayoutSettings() {
         />
       </View>
 
-      <SettingItem
-        label=""
-        description="Swipe past the threshold and release to fire the action; release before to cancel."
-      />
     </SettingsSection>
   );
 }

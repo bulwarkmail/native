@@ -1,9 +1,9 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal,
+  Keyboard, Platform, ActivityIndicator, Alert, Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   X, Send, Paperclip, ChevronDown, Bold, Italic, Underline, Strikethrough,
@@ -209,6 +209,28 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const insets = useSafeAreaInsets();
+  // Track keyboard height so the format bar stays just above the IME.
+  // KeyboardAvoidingView is unreliable on Android edge-to-edge, so we
+  // listen to the Keyboard module directly on both platforms.
+  const [kbHeight, setKbHeight] = React.useState(0);
+  React.useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvt, () => {
+      setKbHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+  // When the keyboard is up it covers the bottom safe area, so we don't
+  // need to add it on top — pad by whichever is larger.
+  const bottomPad = Math.max(kbHeight, insets.bottom);
   const replyTo = route.params?.replyTo;
   const mode = route.params?.mode ?? 'compose';
   const prefillTo = route.params?.prefillTo;
@@ -703,7 +725,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     : 'email_composer.new_message';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={onClose} style={styles.headerBtn}>
           <X size={22} color={c.text} />
@@ -741,10 +763,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={[styles.flex, { paddingBottom: bottomPad }]}>
         <ScrollView
           style={styles.flex}
           keyboardShouldPersistTaps="handled"
@@ -922,7 +941,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           <ToolbarButton onPress={() => editorRef.current?.exec('redo')}
             icon={<Redo2 size={18} color={c.textSecondary} />} />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
 
       <Modal
         visible={linkPromptVisible}

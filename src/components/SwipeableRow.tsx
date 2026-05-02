@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Animated, PanResponder, Dimensions,
+  View, Text, StyleSheet, Animated, PanResponder, Pressable, Dimensions,
 } from 'react-native';
 import {
   Archive, Trash2, ShieldAlert, MailOpen, Star, Pin, FolderInput,
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react-native';
 import { typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import type { SwipeAction } from '../stores/settings-store';
+import type { SwipeAction, SwipeMode } from '../stores/settings-store';
 
 interface SwipeableRowProps {
   children: React.ReactNode;
@@ -19,14 +19,24 @@ interface SwipeableRowProps {
   /** Pass the row state used to compute action labels (e.g. unread/starred toggling). */
   context: { unread: boolean; starred: boolean; pinned: boolean };
   onAction: (action: SwipeAction) => void;
+  /**
+   * 'instant' (default): swipe past COMMIT_THRESHOLD and release fires the action.
+   * 'reveal': swipe past ACTIVATION_THRESHOLD reveals an action band that must be tapped.
+   */
+  mode?: SwipeMode;
 }
 
-// Distance (px) of horizontal travel needed to commit the action on release.
-// Drag less than this and the row snaps back without firing.
+// Instant mode: distance the user must drag past on release to fire the action.
 const COMMIT_THRESHOLD = 96;
+// Reveal mode: drag past this on release to snap to the open (revealed) state.
+const ACTIVATION_THRESHOLD = 32;
+// Reveal mode: width of the action band shown when revealed.
+const REVEAL_WIDTH = 88;
+
 const DIRECTION_BIAS = 1.5;       // dx must dominate dy by this factor
 const MIN_DX_TO_CLAIM = 6;
-const MAX_DRAG_OVERSHOOT = 240;
+const MAX_DRAG_OVERSHOOT_INSTANT = 240;
+const MAX_DRAG_OVERSHOOT_REVEAL = REVEAL_WIDTH * 1.4;
 // Distance the row flies off-screen by before the action callback fires.
 const EXIT_DISTANCE = 600;
 
@@ -55,7 +65,7 @@ function exitsRow(action: SwipeAction): boolean {
 }
 
 export function SwipeableRow({
-  children, leftAction, rightAction, context, onAction,
+  children, leftAction, rightAction, context, onAction, mode = 'instant',
 }: SwipeableRowProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -63,8 +73,21 @@ export function SwipeableRow({
   const claimed = useRef(false);
   const widthRef = useRef(Dimensions.get('window').width);
 
-  const snapBack = () => {
+  // Reveal-mode-only state: which side (if any) is currently sitting open.
+  const openSideRef = useRef<'left' | 'right' | null>(null);
+  const [openSide, setOpenSide] = useState<'left' | 'right' | null>(null);
+
+  const close = () => {
     Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
+    openSideRef.current = null;
+    setOpenSide(null);
+  };
+
+  const openTo = (side: 'left' | 'right') => {
+    const target = side === 'right' ? REVEAL_WIDTH : -REVEAL_WIDTH;
+    Animated.spring(dx, { toValue: target, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
+    openSideRef.current = side;
+    setOpenSide(side);
   };
 
   const fly = (toValue: number, action: SwipeAction) => {
@@ -85,7 +108,19 @@ export function SwipeableRow({
       });
     } else {
       onAction(action);
-      snapBack();
+      Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
+    }
+  };
+
+  const fireFromBandTap = (action: SwipeAction) => {
+    close();
+    if (action === 'none') return;
+    if (exitsRow(action)) {
+      // Let the row collapse a frame, then fire so the parent's list update
+      // has a clean starting point.
+      requestAnimationFrame(() => onAction(action));
+    } else {
+      onAction(action);
     }
   };
 
@@ -95,40 +130,121 @@ export function SwipeableRow({
       onMoveShouldSetPanResponder: (_, g) => {
         if (Math.abs(g.dx) < MIN_DX_TO_CLAIM) return false;
         if (Math.abs(g.dx) < Math.abs(g.dy) * DIRECTION_BIAS) return false;
-        if (g.dx > 0 && rightAction === 'none') return false;
-        if (g.dx < 0 && leftAction === 'none') return false;
+        // Reveal mode: if a side is already open, allow the gesture so the
+        // user can drag it closed.
+        if (mode === 'reveal' && openSideRef.current === null) {
+          if (g.dx > 0 && rightAction === 'none') return false;
+          if (g.dx < 0 && leftAction === 'none') return false;
+        } else if (mode !== 'reveal') {
+          if (g.dx > 0 && rightAction === 'none') return false;
+          if (g.dx < 0 && leftAction === 'none') return false;
+        }
         claimed.current = true;
         return true;
       },
       onPanResponderMove: (_, g) => {
-        const clamped = Math.max(-MAX_DRAG_OVERSHOOT, Math.min(MAX_DRAG_OVERSHOOT, g.dx));
+        const overshoot = mode === 'reveal' ? MAX_DRAG_OVERSHOOT_REVEAL : MAX_DRAG_OVERSHOOT_INSTANT;
+        const base =
+          mode === 'reveal'
+            ? openSideRef.current === 'right' ? REVEAL_WIDTH
+              : openSideRef.current === 'left' ? -REVEAL_WIDTH
+              : 0
+            : 0;
+        const next = base + g.dx;
+        const clamped = Math.max(-overshoot, Math.min(overshoot, next));
         dx.setValue(clamped);
       },
       onPanResponderRelease: (_, g) => {
         claimed.current = false;
+        if (mode === 'reveal') {
+          const base =
+            openSideRef.current === 'right' ? REVEAL_WIDTH
+              : openSideRef.current === 'left' ? -REVEAL_WIDTH
+              : 0;
+          const finalDx = base + g.dx;
+          if (finalDx > ACTIVATION_THRESHOLD && rightAction !== 'none') {
+            openTo('right');
+          } else if (finalDx < -ACTIVATION_THRESHOLD && leftAction !== 'none') {
+            openTo('left');
+          } else {
+            close();
+          }
+          return;
+        }
+        // Instant mode: fire on release-past-threshold, no second tap.
         if (g.dx >= COMMIT_THRESHOLD && rightAction !== 'none') {
           fly(widthRef.current || EXIT_DISTANCE, rightAction);
         } else if (g.dx <= -COMMIT_THRESHOLD && leftAction !== 'none') {
           fly(-(widthRef.current || EXIT_DISTANCE), leftAction);
         } else {
-          snapBack();
+          Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
         }
       },
       onPanResponderTerminate: () => {
-        snapBack();
+        if (mode === 'reveal') close();
+        else Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
         claimed.current = false;
       },
       onPanResponderTerminationRequest: () => !claimed.current,
     }),
   ).current;
 
-  const renderBand = (action: SwipeAction, side: 'left' | 'right') => {
+  const onLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
+    widthRef.current = e.nativeEvent.layout.width;
+  };
+
+  if (mode === 'reveal') {
+    // Reveal mode: bands sit at the row edges with a fixed REVEAL_WIDTH and
+    // are tap targets. The row slides over them; releasing past the activation
+    // threshold snaps the row to the open position so the band is fully
+    // visible and tappable.
+    const renderRevealBand = (action: SwipeAction, side: 'left' | 'right') => {
+      if (action === 'none') return null;
+      const meta = ACTION_META[action];
+      const Icon = meta.icon;
+      const label = actionLabel(action, context);
+      return (
+        <Pressable
+          onPress={() => fireFromBandTap(action)}
+          style={[
+            styles.bandReveal,
+            side === 'left' ? { left: 0, alignItems: 'flex-start' } : { right: 0, alignItems: 'flex-end' },
+            { backgroundColor: meta.bg, width: REVEAL_WIDTH },
+          ]}
+        >
+          <View style={styles.bandInner}>
+            <Icon size={20} color="#fff" />
+            <Text style={styles.bandLabel}>{label}</Text>
+          </View>
+        </Pressable>
+      );
+    };
+
+    return (
+      <View style={styles.wrap} onLayout={onLayout} {...responder.panHandlers}>
+        {renderRevealBand(rightAction, 'left')}
+        {renderRevealBand(leftAction, 'right')}
+        <Animated.View style={[styles.content, { transform: [{ translateX: dx }] }]}>
+          {children}
+          {/* When an action is revealed, an overlay absorbs taps on the row so
+              a tap closes the swipe instead of opening the email. */}
+          {openSide ? (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={close}
+            />
+          ) : null}
+        </Animated.View>
+      </View>
+    );
+  }
+
+  // Instant mode: bands fill the gap behind the row as it's dragged.
+  const renderInstantBand = (action: SwipeAction, side: 'left' | 'right') => {
     if (action === 'none') return null;
     const meta = ACTION_META[action];
     const Icon = meta.icon;
     const label = actionLabel(action, context);
-    // Band stretches to fill the gap behind the row as it's dragged. We
-    // animate the icon a touch to signal commit-readiness.
     const inputRange = side === 'left' ? [0, COMMIT_THRESHOLD] : [-COMMIT_THRESHOLD, 0];
     const iconScale = dx.interpolate({
       inputRange,
@@ -138,7 +254,7 @@ export function SwipeableRow({
     return (
       <View
         style={[
-          styles.band,
+          styles.bandInstant,
           { backgroundColor: meta.bg },
           side === 'left' ? { justifyContent: 'flex-start' } : { justifyContent: 'flex-end' },
         ]}
@@ -151,12 +267,6 @@ export function SwipeableRow({
     );
   };
 
-  const onLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
-    widthRef.current = e.nativeEvent.layout.width;
-  };
-
-  // Show the matching band based on current drag direction. Both bands occupy
-  // the full row, so we fade the inactive one out to avoid bleed-through.
   const rightBandOpacity = dx.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: [0, 0, 1],
@@ -171,10 +281,10 @@ export function SwipeableRow({
   return (
     <View style={styles.wrap} onLayout={onLayout} {...responder.panHandlers}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: rightBandOpacity }]} pointerEvents="none">
-        {renderBand(rightAction, 'left')}
+        {renderInstantBand(rightAction, 'left')}
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: leftBandOpacity }]} pointerEvents="none">
-        {renderBand(leftAction, 'right')}
+        {renderInstantBand(leftAction, 'right')}
       </Animated.View>
       <Animated.View style={[styles.content, { transform: [{ translateX: dx }] }]}>
         {children}
@@ -185,15 +295,22 @@ export function SwipeableRow({
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
-  wrap: { position: 'relative', backgroundColor: c.background, overflow: 'hidden' },
-  content: { backgroundColor: c.background },
-  band: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  bandInner: { alignItems: 'center', gap: 4 },
-  bandLabel: { ...typography.caption, color: '#fff', fontWeight: '600' },
+    wrap: { position: 'relative', backgroundColor: c.background, overflow: 'hidden' },
+    content: { backgroundColor: c.background },
+    bandInstant: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+    },
+    bandReveal: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+    },
+    bandInner: { alignItems: 'center', gap: 4 },
+    bandLabel: { ...typography.caption, color: '#fff', fontWeight: '600' },
   });
 }
