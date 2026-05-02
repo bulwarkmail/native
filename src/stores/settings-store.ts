@@ -10,7 +10,16 @@ export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
 
 const STORAGE_KEY = 'webmail:settings:v1';
 
-export type SwipeAction = 'none' | 'archive' | 'delete' | 'spam' | 'read' | 'star';
+export type SwipeAction =
+  | 'none'
+  | 'archive'
+  | 'delete'
+  | 'spam'
+  | 'read'
+  | 'star'
+  | 'pin'
+  | 'move';
+export type ArchiveMode = 'single' | 'year' | 'month';
 
 interface PersistedSettings {
   externalContentPolicy: ExternalContentPolicy;
@@ -31,6 +40,8 @@ interface PersistedSettings {
   // Layout / list interactions
   swipeLeftAction: SwipeAction;
   swipeRightAction: SwipeAction;
+  // Archive
+  archiveMode: ArchiveMode;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -49,6 +60,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   attachmentReminderKeywords: ['attached', 'attachment', 'attaching', 'enclosed'],
   swipeLeftAction: 'archive',
   swipeRightAction: 'read',
+  archiveMode: 'single',
 };
 
 export interface SettingsState extends PersistedSettings {
@@ -73,6 +85,7 @@ export interface SettingsState extends PersistedSettings {
   setAttachmentReminderKeywords: (keywords: string[]) => void;
   setSwipeLeftAction: (action: SwipeAction) => void;
   setSwipeRightAction: (action: SwipeAction) => void;
+  setArchiveMode: (mode: ArchiveMode) => void;
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
@@ -96,6 +109,7 @@ function snapshot(state: SettingsState): PersistedSettings {
     attachmentReminderKeywords: state.attachmentReminderKeywords,
     swipeLeftAction: state.swipeLeftAction,
     swipeRightAction: state.swipeRightAction,
+    archiveMode: state.archiveMode,
   };
 }
 
@@ -144,6 +158,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           attachmentReminderKeywords: Array.isArray(parsed.attachmentReminderKeywords) ? parsed.attachmentReminderKeywords : DEFAULT_PERSISTED.attachmentReminderKeywords,
           swipeLeftAction: parsed.swipeLeftAction ?? DEFAULT_PERSISTED.swipeLeftAction,
           swipeRightAction: parsed.swipeRightAction ?? DEFAULT_PERSISTED.swipeRightAction,
+          archiveMode: parsed.archiveMode ?? DEFAULT_PERSISTED.archiveMode,
           hydrated: true,
         });
         return;
@@ -168,6 +183,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAttachmentReminderKeywords: (keywords) => { set({ attachmentReminderKeywords: keywords }); persist(snapshot(get())); },
   setSwipeLeftAction: (action) => { set({ swipeLeftAction: action }); persist(snapshot(get())); },
   setSwipeRightAction: (action) => { set({ swipeRightAction: action }); persist(snapshot(get())); },
+  setArchiveMode: (mode) => { set({ archiveMode: mode }); persist(snapshot(get())); },
 
   addTrustedSender: (email) => {
     const normalized = email.toLowerCase().trim();

@@ -11,6 +11,7 @@ import { useColors } from '../theme/colors';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
+import { MoveSheet } from '../components/MoveSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, type EmailFilters } from '../stores/email-store';
@@ -31,6 +32,10 @@ function isUnread(email: Email): boolean {
 
 function isStarred(email: Email): boolean {
   return !!email.keywords?.$flagged;
+}
+
+function isPinned(email: Email): boolean {
+  return !!email.keywords?.$important;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -164,8 +169,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const markRead = useEmailStore((s) => s.markRead);
   const markUnread = useEmailStore((s) => s.markUnread);
   const toggleStar = useEmailStore((s) => s.toggleStar);
+  const togglePin = useEmailStore((s) => s.togglePin);
   const deleteEmailAction = useEmailStore((s) => s.deleteEmail);
   const moveToMailboxAction = useEmailStore((s) => s.moveToMailbox);
+  const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
 
   const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
@@ -183,6 +190,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     () => mailboxes.find((m) => m.role === 'junk' || m.role === 'spam')?.id ?? null,
     [mailboxes],
   );
+
+  // Move-to-folder picker triggered by the swipe action.
+  const [pendingMoveId, setPendingMoveId] = React.useState<string | null>(null);
 
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -225,7 +235,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     switch (action) {
       case 'archive':
         if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
-          void moveToMailboxAction(id, currentMailboxId, archiveMailboxId);
+          void archiveEmailAction(id);
         }
         break;
       case 'delete':
@@ -245,10 +255,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       case 'star':
         void toggleStar(id, !isStarred(email));
         break;
+      case 'pin':
+        void togglePin(id, !isPinned(email));
+        break;
+      case 'move':
+        setPendingMoveId(id);
+        break;
     }
   }, [
     currentMailboxId, archiveMailboxId, trashMailboxId, junkMailboxId,
-    moveToMailboxAction, deleteEmailAction, markRead, markUnread, toggleStar,
+    moveToMailboxAction, archiveEmailAction, deleteEmailAction,
+    markRead, markUnread, toggleStar, togglePin,
   ]);
 
   const renderEmailRow = React.useCallback(
@@ -256,7 +273,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       <SwipeableRow
         leftAction={selectionMode ? 'none' : swipeLeftAction}
         rightAction={selectionMode ? 'none' : swipeRightAction}
-        context={{ unread: isUnread(item), starred: isStarred(item) }}
+        context={{ unread: isUnread(item), starred: isStarred(item), pinned: isPinned(item) }}
         onAction={(action) => handleSwipeAction(item.id, action)}
       >
         <EmailRow
@@ -809,6 +826,20 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           />
         );
       })()}
+
+      <MoveSheet
+        visible={pendingMoveId !== null}
+        onClose={() => setPendingMoveId(null)}
+        mailboxes={mailboxes}
+        currentMailboxId={currentMailboxId}
+        onPick={(toId) => {
+          const id = pendingMoveId;
+          setPendingMoveId(null);
+          if (id && currentMailboxId && toId !== currentMailboxId) {
+            void moveToMailboxAction(id, currentMailboxId, toId);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

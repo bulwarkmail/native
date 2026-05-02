@@ -9,10 +9,12 @@ import {
   getFullEmail,
   setEmailKeywords,
   moveEmail,
+  archiveEmails as apiArchiveEmails,
   deleteEmail as apiDeleteEmail,
   searchEmails as apiSearchEmails,
 } from '../api/email';
 import { toWildcardQuery } from '../lib/search-utils';
+import { useSettingsStore } from './settings-store';
 
 export interface EmailFilters {
   from?: string;
@@ -43,7 +45,9 @@ export interface EmailState {
   markRead: (emailId: string) => Promise<void>;
   markUnread: (emailId: string) => Promise<void>;
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
+  togglePin: (emailId: string, pinned: boolean) => Promise<void>;
   moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string) => Promise<void>;
+  archiveEmail: (emailId: string) => Promise<void>;
   deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string) => Promise<void>;
   searchEmails: (query: string) => Promise<Email[]>;
   setSearchQuery: (query: string) => void;
@@ -232,9 +236,55 @@ export const useEmailStore = create<EmailState>()(
     });
   },
 
+  togglePin: async (emailId, pinned) => {
+    const email = get().emails.find((e) => e.id === emailId);
+    if (!email) return;
+    const keywords = { ...email.keywords };
+    if (pinned) {
+      keywords.$important = true;
+    } else {
+      delete keywords.$important;
+    }
+    await setEmailKeywords(emailId, keywords);
+    set({
+      emails: get().emails.map((e) =>
+        e.id === emailId ? { ...e, keywords } : e,
+      ),
+    });
+  },
+
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId) => {
     await moveEmail(emailId, fromMailboxId, toMailboxId);
     set({ emails: get().emails.filter((e) => e.id !== emailId) });
+  },
+
+  archiveEmail: async (emailId) => {
+    const { emails, mailboxes } = get();
+    const email = emails.find((e) => e.id === emailId);
+    if (!email) return;
+
+    const archiveMailbox = mailboxes.find(
+      (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
+    );
+    if (!archiveMailbox) return;
+    if (email.mailboxIds?.[archiveMailbox.id]) return;
+
+    const mode = useSettingsStore.getState().archiveMode;
+
+    await apiArchiveEmails(
+      [{ id: email.id, receivedAt: email.receivedAt }],
+      archiveMailbox.id,
+      mode,
+      mailboxes,
+    );
+
+    set({ emails: get().emails.filter((e) => e.id !== emailId) });
+
+    // Auto-sort modes may have created new year/month folders - refresh the
+    // mailbox list so the sidebar picks them up on the next render.
+    if (mode !== 'single') {
+      void get().fetchMailboxes();
+    }
   },
 
   deleteEmail: async (emailId, trashMailboxId, currentMailboxId) => {

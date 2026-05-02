@@ -7,8 +7,16 @@ vi.mock('../../api/email', () => ({
   getFullEmail: vi.fn(),
   setEmailKeywords: vi.fn(),
   moveEmail: vi.fn(),
+  archiveEmails: vi.fn(),
   deleteEmail: vi.fn(),
   searchEmails: vi.fn(),
+}));
+
+// settings-store transitively pulls in jmap-client / expo-secure-store, which
+// trip on react-native's Flow-typed entrypoint under vitest. The store only
+// reads archiveMode in archiveEmail, so a minimal stub is enough.
+vi.mock('../settings-store', () => ({
+  useSettingsStore: { getState: () => ({ archiveMode: 'single' }) },
 }));
 
 import * as emailApi from '../../api/email';

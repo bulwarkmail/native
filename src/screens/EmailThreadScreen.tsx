@@ -9,32 +9,20 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Paperclip, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Inbox, Send, File as FileIcon, Ban, Folder, Code, Download, Tag,
+  Code, Download, Tag,
 } from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import EmailBodyView from '../components/EmailBodyView';
 import SenderAvatar from '../components/SenderAvatar';
+import { MoveSheet } from '../components/MoveSheet';
 import { useEmailStore } from '../stores/email-store';
 import { setEmailKeywords } from '../api/email';
 import { shareEmailEml, shareAttachment } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
-import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import type { Email, Mailbox } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
-
-function moveTargetIcon(role: string | null | undefined, name: string): LucideIcon {
-  const lower = name.toLowerCase();
-  if (role === 'inbox' || lower.includes('inbox')) return Inbox;
-  if (role === 'sent' || lower.includes('sent')) return Send;
-  if (role === 'drafts' || lower.includes('draft')) return FileIcon;
-  if (role === 'trash' || lower.includes('trash') || lower.includes('deleted')) return Trash2;
-  if (role === 'junk' || role === 'spam' || lower.includes('junk') || lower.includes('spam')) return Ban;
-  if (role === 'archive' || lower.includes('archive')) return Archive;
-  return Folder;
-}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
 
@@ -71,6 +59,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const markRead = useEmailStore((s) => s.markRead);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
   const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
+  const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const emails = useEmailStore((s) => s.emails);
@@ -200,7 +189,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const onArchive = () => {
     if (!email || !currentMailboxId || !archiveMailbox) return;
     if (currentMailboxId === archiveMailbox.id) return;
-    void moveToMailbox(email.id, currentMailboxId, archiveMailbox.id);
+    void archiveEmailAction(email.id);
     navigation.goBack();
   };
 
@@ -492,7 +481,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         }}
       />
 
-      <MoveMenuSheet
+      <MoveSheet
         visible={moveMenuOpen}
         onClose={() => setMoveMenuOpen(false)}
         mailboxes={mailboxes}
@@ -720,107 +709,6 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
             );
           })
         )}
-      </Animated.View>
-    </Modal>
-  );
-}
-
-interface MoveMenuSheetProps {
-  visible: boolean;
-  onClose: () => void;
-  mailboxes: Mailbox[];
-  currentMailboxId: string | null;
-  onPick: (id: string) => void;
-}
-
-function MoveMenuSheet({ visible, onClose, mailboxes, currentMailboxId, onPick }: MoveMenuSheetProps) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const insets = useSafeAreaInsets();
-  const slideY = React.useRef(new Animated.Value(500)).current;
-  const overlayOpacity = React.useRef(new Animated.Value(0)).current;
-  const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(slideY, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(overlayOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideY, { toValue: 500, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [visible, slideY, overlayOpacity]);
-
-  const visibleNodes = React.useMemo(() => {
-    const tree = buildMailboxTree(mailboxes);
-    const expanded = new Set<string>();
-    const collect = (nodes: MailboxNode[]) => {
-      for (const n of nodes) {
-        if (n.children.length > 0) {
-          expanded.add(n.id);
-          collect(n.children);
-        }
-      }
-    };
-    collect(tree);
-    return flattenVisible(tree, expanded);
-  }, [mailboxes]);
-
-  return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View style={[styles.sheetOverlay, { opacity: overlayOpacity }]}>
-        <Pressable style={styles.sheetOverlayPress} onPress={onClose} />
-      </Animated.View>
-      <Animated.View
-        style={[
-          styles.sheet,
-          styles.sheetTall,
-          { paddingBottom: Math.max(insets.bottom, spacing.md), transform: [{ translateY: slideY }] },
-        ]}
-      >
-        <View {...dragHandlers}>
-          <View style={styles.sheetHandleHit}>
-            <View style={styles.sheetHandle} />
-          </View>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Move to folder</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
-              <X size={18} color={c.textSecondary} />
-            </Pressable>
-          </View>
-        </View>
-        <ScrollView>
-          {visibleNodes.map((node) => {
-            const Icon = moveTargetIcon(node.role, node.name);
-            const isCurrent = node.id === currentMailboxId;
-            const canTarget = node.myRights?.mayAddItems !== false && !isCurrent;
-            return (
-              <Pressable
-                key={node.id}
-                onPress={canTarget ? () => onPick(node.id) : undefined}
-                disabled={!canTarget}
-                style={({ pressed }) => [
-                  styles.moveRow,
-                  pressed && canTarget && styles.moveRowPressed,
-                  { paddingLeft: spacing.lg + node.depth * 16 },
-                ]}
-              >
-                <Icon size={16} color={canTarget ? c.textSecondary : c.textMuted} />
-                <Text
-                  style={[styles.moveRowLabel, !canTarget && styles.moveRowLabelDisabled]}
-                  numberOfLines={1}
-                >
-                  {node.name}
-                </Text>
-                {isCurrent && <Check size={14} color={c.textMuted} />}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -1106,9 +994,6 @@ function makeStyles(c: ThemePalette) {
     borderColor: c.border,
     paddingTop: spacing.sm,
   },
-  sheetTall: {
-    maxHeight: '75%',
-  },
   sheetHandleHit: {
     alignItems: 'center',
     paddingTop: spacing.xs,
@@ -1162,23 +1047,5 @@ function makeStyles(c: ThemePalette) {
     flex: 1,
   },
 
-  // Move folder row
-  moveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingRight: spacing.lg,
-    paddingVertical: spacing.sm + 2,
-    minHeight: 44,
-  },
-  moveRowPressed: { backgroundColor: c.surfaceHover },
-  moveRowLabel: {
-    ...typography.body,
-    color: c.text,
-    flex: 1,
-  },
-  moveRowLabelDisabled: {
-    color: c.textMuted,
-  },
   });
 }

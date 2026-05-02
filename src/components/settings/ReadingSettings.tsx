@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { AlertTriangle, FolderSync, Mail, X } from 'lucide-react-native';
 import { SettingsSection, SettingItem, Select, RadioGroup, ToggleSwitch } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useSettingsStore, type ExternalContentPolicy } from '../../stores/settings-store';
+import { useSettingsStore, type ArchiveMode, type ExternalContentPolicy } from '../../stores/settings-store';
+import { useEmailStore } from '../../stores/email-store';
+import { archiveEmails, queryEmails, getEmails } from '../../api/email';
 
 type MailLayout = 'split' | 'focus';
 type DeleteAction = 'trash' | 'permanent';
-type ArchiveMode = 'single' | 'year' | 'month';
 type AttachmentAction = 'preview' | 'download';
 type AttachmentPosition = 'beside-sender' | 'below-header';
 
@@ -77,6 +78,8 @@ export function ReadingSettings() {
   const removeTrustedSender = useSettingsStore((s) => s.removeTrustedSender);
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
+  const archiveMode = useSettingsStore((s) => s.archiveMode);
+  const setArchiveMode = useSettingsStore((s) => s.setArchiveMode);
 
   const [markAsReadDelay, setMarkAsReadDelay] = useState('0');
   const [deleteAction, setDeleteAction] = useState<DeleteAction>('trash');
@@ -90,7 +93,8 @@ export function ReadingSettings() {
   const [mailAttachmentAction, setMailAttachmentAction] = useState<AttachmentAction>('preview');
   const [attachmentPosition, setAttachmentPosition] = useState<AttachmentPosition>('beside-sender');
   const [emailAlwaysLightMode, setEmailAlwaysLightMode] = useState(false);
-  const [archiveMode, setArchiveMode] = useState<ArchiveMode>('single');
+  const [reorganizing, setReorganizing] = useState(false);
+  const [reorganizeResult, setReorganizeResult] = useState<string | null>(null);
   const [attachmentReminderEnabled, setAttachmentReminderEnabled] = useState(true);
   const [attachmentReminderKeywords, setAttachmentReminderKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
   const [newKeyword, setNewKeyword] = useState('');
@@ -101,6 +105,61 @@ export function ReadingSettings() {
   useEffect(() => {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
+
+  const handleReorganizeArchive = async () => {
+    const { mailboxes, fetchMailboxes } = useEmailStore.getState();
+    const archiveMailbox = mailboxes.find(
+      (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
+    );
+    if (!archiveMailbox) {
+      setReorganizeResult('No archive folder found.');
+      return;
+    }
+
+    setReorganizing(true);
+    setReorganizeResult(null);
+
+    try {
+      // Drain the archive in pages so we don't OOM on huge mailboxes.
+      const PAGE = 100;
+      let position = 0;
+      let total = 0;
+      let moved = 0;
+
+      while (true) {
+        const { ids, total: pageTotal } = await queryEmails(archiveMailbox.id, {
+          position,
+          limit: PAGE,
+        });
+        if (position === 0) total = pageTotal;
+        if (ids.length === 0) break;
+
+        const list = await getEmails(ids);
+        const refreshed = useEmailStore.getState().mailboxes;
+        await archiveEmails(
+          list.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
+          archiveMailbox.id,
+          archiveMode,
+          refreshed,
+        );
+        moved += list.length;
+
+        // Newly-created year/month folders need to be visible to the next batch
+        // so we don't try to create the same folder twice.
+        await fetchMailboxes();
+
+        // Items just got moved out of the root archive view; the next page
+        // starts again at position 0 of the now-shorter list.
+        if (ids.length < PAGE) break;
+      }
+
+      setReorganizeResult(`Moved ${moved} of ${total} emails.`);
+    } catch (err) {
+      setReorganizeResult(err instanceof Error ? err.message : 'Reorganize failed.');
+    } finally {
+      setReorganizing(false);
+    }
+  };
 
   return (
     <SettingsSection title="Email Behavior" description="How your inbox behaves day to day.">
@@ -148,10 +207,25 @@ export function ReadingSettings() {
           ]}
         />
         {archiveMode !== 'single' && (
-          <Pressable style={styles.inlineBtn}>
-            <FolderSync size={14} color={c.text} />
-            <Text style={styles.inlineBtnText}>Reorganize existing archive</Text>
-          </Pressable>
+          <>
+            <Pressable
+              style={[styles.inlineBtn, reorganizing && styles.inlineBtnDisabled]}
+              onPress={reorganizing ? undefined : handleReorganizeArchive}
+              disabled={reorganizing}
+            >
+              {reorganizing ? (
+                <ActivityIndicator size="small" color={c.text} />
+              ) : (
+                <FolderSync size={14} color={c.text} />
+              )}
+              <Text style={styles.inlineBtnText}>
+                {reorganizing ? 'Reorganizing…' : 'Reorganize existing archive'}
+              </Text>
+            </Pressable>
+            {reorganizeResult && (
+              <Text style={styles.reorganizeResult}>{reorganizeResult}</Text>
+            )}
+          </>
         )}
         <View style={styles.divider} />
       </View>
@@ -326,6 +400,14 @@ function makeStyles(c: ThemePalette) {
   inlineBtnText: {
     ...typography.body,
     color: c.text,
+  },
+  inlineBtnDisabled: {
+    opacity: 0.6,
+  },
+  reorganizeResult: {
+    ...typography.caption,
+    color: c.mutedForeground,
+    marginTop: spacing.xs,
   },
   subLabel: {
     ...typography.bodyMedium,

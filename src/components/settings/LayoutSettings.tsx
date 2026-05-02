@@ -13,6 +13,8 @@ const SWIPE_OPTIONS: { value: SwipeAction; label: string }[] = [
   { value: 'spam',    label: 'Spam' },
   { value: 'read',    label: 'Read/Unread' },
   { value: 'star',    label: 'Star' },
+  { value: 'pin',     label: 'Pin' },
+  { value: 'move',    label: 'Move to folder' },
 ];
 
 export function LayoutSettings() {
@@ -61,7 +63,7 @@ export function LayoutSettings() {
 
       <SettingItem
         label=""
-        description="Drag past about half a row to commit; lift earlier to cancel."
+        description="Swipe past the threshold and release to fire the action; release before to cancel."
       />
     </SettingsSection>
   );
