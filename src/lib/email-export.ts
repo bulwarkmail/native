@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { jmapClient } from '../api/jmap-client';
@@ -18,6 +19,15 @@ function safeAttachmentName(name: string | undefined, type: string | undefined):
   return `attachment.${fallbackExt}`;
 }
 
+// On Android, sharing a `file://` URI from the cache directory throws a
+// FileUriExposedException on modern OS versions; the system requires a
+// FileProvider-backed `content://` URI instead. expo-file-system exposes that
+// via `file.contentUri`, which is the only field iOS doesn't expose.
+function shareableUri(file: { uri: string; contentUri?: string }): string {
+  if (Platform.OS === 'android' && file.contentUri) return file.contentUri;
+  return file.uri;
+}
+
 export async function shareAttachment(
   blobId: string,
   name: string | undefined,
@@ -26,15 +36,15 @@ export async function shareAttachment(
   const filename = safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.cache, filename);
-  if (dest.exists) dest.delete();
   const url = getDownloadUrl(blobId, filename, mimeType);
   const downloaded = await File.downloadFileAsync(url, dest, {
     headers: { Authorization: authHeader() },
+    idempotent: true,
   });
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
-  await Sharing.shareAsync(downloaded.uri, {
+  await Sharing.shareAsync(shareableUri(downloaded), {
     mimeType,
     dialogTitle: filename,
   });
@@ -54,15 +64,15 @@ function safeFilename(subject: string | undefined): string {
 
 export async function shareEmailEml(blobId: string, subject?: string): Promise<void> {
   const dest = new File(Paths.cache, safeFilename(subject));
-  if (dest.exists) dest.delete();
   const url = getDownloadUrl(blobId, dest.name, RFC822);
   const downloaded = await File.downloadFileAsync(url, dest, {
     headers: { Authorization: authHeader() },
+    idempotent: true,
   });
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
-  await Sharing.shareAsync(downloaded.uri, {
+  await Sharing.shareAsync(shareableUri(downloaded), {
     mimeType: RFC822,
     dialogTitle: 'Share email',
     UTI: 'public.email-message',

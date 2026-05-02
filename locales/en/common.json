@@ -450,6 +450,8 @@
     "send": "Send",
     "cancel": "Cancel",
     "attach": "Attach",
+    "attach_photos": "Photos & Videos",
+    "attach_files": "Files",
     "discard": "Discard",
     "discard_draft_title": "Discard draft?",
     "discard_draft_confirm": "You have unsaved changes. Do you want to discard this draft?",

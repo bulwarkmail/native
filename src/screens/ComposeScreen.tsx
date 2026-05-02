@@ -13,6 +13,7 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { File as FsFile } from 'expo-file-system';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { Button } from '../components';
@@ -486,7 +487,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
-  const pickAttachment = async () => {
+  const pickPhotoAttachments = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -514,6 +515,53 @@ export default function ComposeScreen({ route, navigation }: Props) {
       });
       void startUpload(entry);
     }
+  };
+
+  const pickFileAttachment = async () => {
+    // pickFileAsync's return type is the lower-level FileSystemFile, not the
+    // public `File` wrapper. Both expose the fields we need (uri/name/size/type).
+    type PickedFile = { uri: string; name?: string; size?: number; type?: string };
+    let picked: PickedFile | undefined;
+    try {
+      const result = await FsFile.pickFileAsync();
+      picked = (Array.isArray(result) ? result[0] : result) as PickedFile;
+    } catch (e) {
+      // The picker rejects with PickerCancelledException when the user backs
+      // out — treat that as a no-op rather than surfacing an error.
+      const message = e instanceof Error ? e.message : String(e);
+      if (/cancel/i.test(message)) return;
+      Alert.alert(t('email_composer.attach', 'Attach'), message);
+      return;
+    }
+    if (!picked) return;
+    const type = picked.type || 'application/octet-stream';
+    const name = picked.name || `attachment-${Date.now()}`;
+    const entry = addUploadEntry({
+      name,
+      type,
+      size: picked.size ?? 0,
+      uri: picked.uri,
+      inline: false,
+    });
+    void startUpload(entry);
+  };
+
+  const pickAttachment = () => {
+    Alert.alert(
+      t('email_composer.attach', 'Attach'),
+      undefined,
+      [
+        {
+          text: t('email_composer.attach_photos', 'Photos & Videos'),
+          onPress: () => { void pickPhotoAttachments(); },
+        },
+        {
+          text: t('email_composer.attach_files', 'Files'),
+          onPress: () => { void pickFileAttachment(); },
+        },
+        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+      ],
+    );
   };
 
   const insertInlineImage = async () => {

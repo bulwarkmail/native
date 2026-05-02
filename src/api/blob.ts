@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { jmapClient } from './jmap-client';
 
 export async function uploadBlob(
@@ -7,11 +8,14 @@ export async function uploadBlob(
   const session = jmapClient.currentSession;
   if (!session) throw new Error('Not connected');
 
-  const uploadUrl = session.uploadUrl.replace('{accountId}', jmapClient.accountId);
+  const uploadUrl = session.uploadUrl.replace(
+    '{accountId}',
+    encodeURIComponent(jmapClient.accountId),
+  );
 
-  // Fetch local file as blob
-  const fileResponse = await fetch(uri);
-  const blob = await fileResponse.blob();
+  // Read the source via the file-system API so this works for both `file://`
+  // (image picker, iOS document picker) and `content://` (Android SAF) URIs.
+  const bytes = await new File(uri).bytes();
 
   const response = await fetch(uploadUrl, {
     method: 'POST',
@@ -19,11 +23,12 @@ export async function uploadBlob(
       'Content-Type': type,
       Authorization: (jmapClient as any).authHeader,
     },
-    body: blob,
+    body: bytes as unknown as BodyInit,
   });
 
   if (!response.ok) {
-    throw new Error(`Upload failed: ${response.status}`);
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Upload failed: ${response.status}${detail ? ` ${detail}` : ''}`);
   }
 
   return response.json();

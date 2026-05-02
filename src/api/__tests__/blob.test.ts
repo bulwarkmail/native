@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('expo-file-system', () => ({
+  File: class {
+    constructor(public uri: string) {}
+    async bytes() { return new Uint8Array(); }
+  },
+}));
+
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
