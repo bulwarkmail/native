@@ -53,7 +53,10 @@ export class JMAPClient {
 
   // ── Authentication ────────────────────────────────────
 
-  private get authHeader(): string {
+  // Public so blob upload/download helpers (which can't go through the JMAP
+  // request body) can fetch the same Authorization header the rest of the
+  // client uses. The value is recomputed each access and never cached.
+  get authHeader(): string {
     if (!this.credentials) throw new Error('No credentials');
     if (this.credentials.accessToken) {
       return `Bearer ${this.credentials.accessToken}`;
@@ -161,17 +164,18 @@ export class JMAPClient {
   // JMAP servers often self-report localhost/container-internal hostnames in
   // apiUrl/downloadUrl/etc. that are unreachable from mobile clients (e.g.
   // the Android emulator can't resolve the host's "localhost").
+  //
+  // Splits via plain string indexing rather than `new URL()` because RN's
+  // URL polyfill mutates inputs (appends trailing slashes, normalises
+  // characters) and would corrupt the RFC 6570 templates {accountId}/{blobId}
+  // before the caller has a chance to substitute values into them.
   private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
+    const serverOrigin = this.extractOrigin(serverUrl);
     const rewrite = (url: string | undefined): string | undefined => {
       if (!url) return url;
-      try {
-        const parsed = new URL(url);
-        const server = new URL(serverUrl);
-        if (parsed.origin === server.origin) return url;
-        return server.origin + parsed.pathname + parsed.search + parsed.hash;
-      } catch {
-        return url;
-      }
+      const origin = this.extractOrigin(url);
+      if (!origin || !serverOrigin || origin === serverOrigin) return url;
+      return serverOrigin + url.slice(origin.length);
     };
     return {
       ...session,
@@ -180,6 +184,11 @@ export class JMAPClient {
       uploadUrl: rewrite(session.uploadUrl) ?? session.uploadUrl,
       eventSourceUrl: rewrite(session.eventSourceUrl) ?? session.eventSourceUrl,
     };
+  }
+
+  private extractOrigin(url: string): string | null {
+    const m = url.match(/^(https?:\/\/[^/?#]+)/i);
+    return m ? m[1] : null;
   }
 
   // Reset in-memory state without touching persisted credentials (used on

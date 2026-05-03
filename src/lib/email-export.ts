@@ -7,9 +7,7 @@ import { getDownloadUrl } from '../api/blob';
 const RFC822 = 'message/rfc822';
 
 function authHeader(): string {
-  const h = (jmapClient as unknown as { authHeader?: string }).authHeader;
-  if (!h) throw new Error('Not connected');
-  return h;
+  return jmapClient.authHeader;
 }
 
 function safeAttachmentName(name: string | undefined, type: string | undefined): string {

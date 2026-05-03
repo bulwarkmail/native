@@ -134,7 +134,7 @@ export function connectEventSource(
     : require('react-native-sse').default;
 
   const es = new EventSourceImpl(url, {
-    headers: { Authorization: (jmapClient as any).authHeader },
+    headers: { Authorization: jmapClient.authHeader },
   });
 
   const handler = (event: any) => {

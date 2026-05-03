@@ -13,17 +13,20 @@ export async function uploadBlob(
     encodeURIComponent(jmapClient.accountId),
   );
 
-  // Read the source via the file-system API so this works for both `file://`
-  // (image picker, iOS document picker) and `content://` (Android SAF) URIs.
+  // Read via the file-system API so this works for both `file://` (image
+  // picker, iOS document picker) and `content://` (Android SAF) URIs. We pass
+  // the underlying ArrayBuffer rather than the Uint8Array view because some
+  // RN transports stringify typed-array bodies, which silently produces an
+  // empty/garbage upload.
   const bytes = await new File(uri).bytes();
 
   const response = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
-      'Content-Type': type,
-      Authorization: (jmapClient as any).authHeader,
+      'Content-Type': type || 'application/octet-stream',
+      Authorization: jmapClient.authHeader,
     },
-    body: bytes as unknown as BodyInit,
+    body: bytes.buffer as ArrayBuffer,
   });
 
   if (!response.ok) {
@@ -66,8 +69,8 @@ export function getDownloadUrl(
   if (!session) throw new Error('Not connected');
 
   return session.downloadUrl
-    .replace('{accountId}', jmapClient.accountId)
-    .replace('{blobId}', blobId)
+    .replace('{accountId}', encodeURIComponent(jmapClient.accountId))
+    .replace('{blobId}', encodeURIComponent(blobId))
     .replace('{name}', encodeURIComponent(name ?? 'download'))
     .replace('{type}', encodeURIComponent(type ?? 'application/octet-stream'));
 }
