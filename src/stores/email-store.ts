@@ -151,7 +151,8 @@ export const useEmailStore = create<EmailState>()(
     });
     try {
       const filter = buildJmapFilter(mailboxId, '', {});
-      const { ids, total } = await queryEmails(mailboxId, { limit: 50, filter });
+      const limit = useSettingsStore.getState().emailsPerPage;
+      const { ids, total } = await queryEmails(mailboxId, { limit, filter });
       const emails = ids.length > 0 ? await fetchEmails(ids) : [];
       set({ emails, totalEmails: total, loading: false });
     } catch (err) {
@@ -167,9 +168,10 @@ export const useEmailStore = create<EmailState>()(
     set({ loading: true });
     try {
       const filter = buildJmapFilter(currentMailboxId, searchQuery, filters);
+      const limit = useSettingsStore.getState().emailsPerPage;
       const { ids } = await queryEmails(currentMailboxId, {
         position: emails.length,
-        limit: 50,
+        limit,
         filter,
       });
       const newEmails = ids.length > 0 ? await fetchEmails(ids) : [];
@@ -187,7 +189,8 @@ export const useEmailStore = create<EmailState>()(
     set({ loading: true, error: null });
     try {
       const filter = buildJmapFilter(currentMailboxId, searchQuery, filters);
-      const { ids, total } = await queryEmails(currentMailboxId, { limit: 50, filter });
+      const limit = useSettingsStore.getState().emailsPerPage;
+      const { ids, total } = await queryEmails(currentMailboxId, { limit, filter });
       const emails = ids.length > 0 ? await fetchEmails(ids) : [];
       set({ emails, totalEmails: total, loading: false });
     } catch (err) {

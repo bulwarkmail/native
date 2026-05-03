@@ -11,6 +11,25 @@ import {
 
 const PUSH_ACCOUNT_ID_KEY = 'push:accountId:v1';
 const LAST_NOTIFIED_EMAIL_ID_KEY = 'push:lastNotifiedEmailId:v1';
+// Mirrors STORAGE_KEY in `stores/settings-store.ts`. The headless task can't
+// import the Zustand store (would pull in React) so we read AsyncStorage
+// directly. Keep this in sync if the store key ever changes.
+const SETTINGS_STORAGE_KEY = 'webmail:settings:v1';
+
+interface PushPersistedSettings {
+  emailNotificationsEnabled?: boolean;
+}
+
+async function emailNotificationsAllowed(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return true; // first launch: default to on
+    const parsed = JSON.parse(raw) as PushPersistedSettings;
+    return parsed.emailNotificationsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
 
 interface ShowNotificationOptions {
   notificationId: string;
@@ -33,6 +52,8 @@ interface BulwarkFcmNative {
 // resolve so the native service can release its wake lock.
 export async function pushBackgroundTask(_data: unknown): Promise<void> {
   try {
+    if (!(await emailNotificationsAllowed())) return;
+
     const accountId = await AsyncStorage.getItem(PUSH_ACCOUNT_ID_KEY);
     if (!accountId) return;
 
