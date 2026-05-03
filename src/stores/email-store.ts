@@ -16,6 +16,7 @@ import {
 } from '../api/email';
 import { toWildcardQuery } from '../lib/search-utils';
 import { useSettingsStore } from './settings-store';
+import { useOfflineCacheStore } from './offline-cache-store';
 
 export interface EmailFilters {
   from?: string;
@@ -217,7 +218,27 @@ export const useEmailStore = create<EmailState>()(
   },
 
   getEmailDetail: async (id) => {
-    return getFullEmail(id);
+    // Try the network first so the user sees fresh keywords/flags. If that
+    // fails (offline / server unreachable), fall back to the offline cache
+    // when the message is in it. Without the cache hit, propagate the error
+    // so the caller can surface it.
+    try {
+      const fresh = await getFullEmail(id);
+      // Opportunistically refresh the cached copy so the next offline open
+      // reflects the latest keywords without needing a full sync.
+      const cache = useOfflineCacheStore.getState();
+      if (cache.has(id)) {
+        try {
+          const size = JSON.stringify(fresh).length;
+          await cache.put(fresh, size);
+        } catch { /* ignore — best-effort refresh */ }
+      }
+      return fresh;
+    } catch (err) {
+      const cached = await useOfflineCacheStore.getState().get(id);
+      if (cached) return cached;
+      throw err;
+    }
   },
 
   markRead: async (emailId) => {

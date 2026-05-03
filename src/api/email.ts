@@ -135,6 +135,26 @@ export async function getFullEmail(id: string): Promise<Email> {
   return email;
 }
 
+// Batch variant for offline sync. JMAP servers cap how many objects can be
+// returned in a single Email/get; the caller should chunk to that ceiling
+// (the client exposes maxObjectsInGet via getMaxObjectsInGet()).
+export async function getFullEmails(ids: string[]): Promise<Email[]> {
+  if (ids.length === 0) return [];
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Email/get', {
+      accountId,
+      ids,
+      properties: EMAIL_FULL_PROPERTIES,
+      fetchHTMLBodyValues: true,
+      fetchTextBodyValues: true,
+      fetchAllBodyValues: true,
+      maxBodyValueBytes: 512000,
+    }, '0'],
+  ]);
+  return res.methodResponses[0][1].list as Email[];
+}
+
 export async function getThread(threadId: string): Promise<Thread> {
   const accountId = jmapClient.accountId;
   const res = await jmapClient.request(

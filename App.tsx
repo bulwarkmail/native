@@ -41,6 +41,9 @@ import { useLocaleStore } from './src/stores/locale-store';
 import { useNetworkStore } from './src/stores/network-store';
 import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
+import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
+import { useOfflineCacheStore } from './src/stores/offline-cache-store';
+import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
 
@@ -76,6 +79,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
       <UpdateBanner />
+      <OfflineCacheBanner />
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -217,6 +221,24 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Offline mail cache: hydrate the cache index on launch, and kick off a
+  // background sync once we have a live JMAP session and the user has the
+  // feature enabled. Re-runs whenever the user changes the days window.
+  const offlineCacheEnabled = useSettingsStore((s) => s.offlineCacheEnabled);
+  const offlineCacheDays = useSettingsStore((s) => s.offlineCacheDays);
+  const haveLiveSession = useAuthStore((s) => s.session != null);
+  React.useEffect(() => {
+    void useOfflineCacheStore.getState().hydrate();
+  }, []);
+  React.useEffect(() => {
+    if (!offlineCacheEnabled || !haveLiveSession) return;
+    // Slight delay so cold start doesn't compete with the inbox load.
+    const t = setTimeout(() => {
+      void runOfflineSync({ days: offlineCacheDays });
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [offlineCacheEnabled, offlineCacheDays, haveLiveSession]);
 
   // Listen for FCM messages so the app can refresh state even when woken
   // from the background - the FirebaseMessagingService also posts the system

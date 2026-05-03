@@ -11,16 +11,17 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
 import java.net.Socket
+import java.net.URL
 import java.security.Principal
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
-import java.util.concurrent.TimeUnit
+import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLEngine
+import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509ExtendedKeyManager
@@ -36,10 +37,11 @@ import kotlin.concurrent.thread
  *      pick a cert installed in Android's system credential store. The
  *      selected alias is persisted in SharedPreferences so the choice
  *      survives app restarts.
- *   2. `fetchSecure` — a fetch shim built on OkHttp that injects the picked
- *      cert into the TLS handshake. JS-side `fetch` cannot present client
- *      certs because RN's bundled OkHttpClient doesn't expose its KeyManager
- *      hook to userland; this method is the workaround.
+ *   2. `fetchSecure` — a fetch shim built on `HttpsURLConnection` that
+ *      injects the picked cert into the TLS handshake. JS-side `fetch`
+ *      can't present a client cert because RN's bundled OkHttp client
+ *      doesn't expose its KeyManager hook to userland; this method is
+ *      the workaround.
  */
 class BulwarkClientCertModule(reactContext: ReactApplicationContext)
     : ReactContextBaseJavaModule(reactContext) {
@@ -48,8 +50,8 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
         reactContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     @Volatile private var cachedAlias: String? = prefs.getString(PREF_ALIAS, null)
-    @Volatile private var cachedClient: OkHttpClient? = null
-    @Volatile private var cachedClientForAlias: String? = null
+    @Volatile private var cachedFactory: SSLSocketFactory? = null
+    @Volatile private var cachedFactoryForAlias: String? = null
 
     override fun getName(): String = MODULE_NAME
 
@@ -64,32 +66,34 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
     fun clearAlias(promise: Promise) {
         prefs.edit().remove(PREF_ALIAS).apply()
         cachedAlias = null
-        invalidateClient()
+        invalidateFactory()
         promise.resolve(null)
     }
 
     /**
      * Show the system "Choose a certificate" picker. Resolves with the
      * selected alias, or `null` when the user dismisses the picker.
-     *
-     * @param host  optional host hint shown by the picker
      */
     @ReactMethod
     fun pickAlias(host: String?, promise: Promise) {
-        val activity = currentActivity
+        // ReactContextBaseJavaModule no longer exposes a Kotlin synthetic
+        // `currentActivity` property in RN 0.80+ (compiles as an unresolved
+        // reference). The explicit Java-style getter on the application
+        // context is the supported call site.
+        val activity: android.app.Activity? = reactApplicationContext.getCurrentActivity()
         if (activity == null) {
             promise.reject("no_activity", "No current activity to host the cert picker")
             return
         }
         val callback = KeyChainAliasCallback { alias ->
-            // Callback runs off the main thread. We persist + resolve directly.
+            // Callback runs off the main thread; persist + resolve directly.
             if (alias.isNullOrBlank()) {
                 promise.resolve(null)
                 return@KeyChainAliasCallback
             }
             prefs.edit().putString(PREF_ALIAS, alias).apply()
             cachedAlias = alias
-            invalidateClient()
+            invalidateFactory()
             promise.resolve(alias)
         }
         try {
@@ -125,65 +129,70 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
             promise.reject("bad_args", "url is required")
             return
         }
-        val method = request.getString("method") ?: "GET"
-        val timeoutMs = if (request.hasKey("timeoutMs")) request.getInt("timeoutMs").toLong() else 30_000L
+        val method = (request.getString("method") ?: "GET").uppercase()
+        val timeoutMs = if (request.hasKey("timeoutMs")) request.getInt("timeoutMs") else 30_000
         val headersMap = request.getMap("headers")
         val bodyBase64 = request.getString("bodyBase64")
-        val contentType = headersMap
-            ?.let { h ->
-                val it = h.keySetIterator()
-                var ct: String? = null
-                while (it.hasNextKey()) {
-                    val k = it.nextKey()
-                    if (k.equals("Content-Type", ignoreCase = true)) {
-                        ct = h.getString(k)
-                        break
-                    }
-                }
-                ct
-            }
+        val bodyBytes = bodyBase64?.let { Base64.decode(it, Base64.NO_WRAP) }
 
-        // Run on a worker thread so we don't block the JS thread on socket IO.
         thread(name = "BulwarkClientCert.fetch") {
             try {
-                val client = buildOrReuseClient(timeoutMs)
-                val builder = Request.Builder().url(url)
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = timeoutMs
+                    readTimeout = timeoutMs
+                    requestMethod = method
+                    instanceFollowRedirects = true
+                    if (bodyBytes != null) {
+                        doOutput = true
+                        setFixedLengthStreamingMode(bodyBytes.size)
+                    }
+                }
+                if (conn is HttpsURLConnection && cachedAlias != null) {
+                    conn.sslSocketFactory = buildOrReuseSocketFactory()
+                }
                 headersMap?.let { h ->
                     val it = h.keySetIterator()
                     while (it.hasNextKey()) {
                         val k = it.nextKey()
                         val v = h.getString(k)
-                        if (v != null) builder.addHeader(k, v)
+                        if (v != null) conn.setRequestProperty(k, v)
                     }
                 }
-                val bodyBytes = bodyBase64?.let { Base64.decode(it, Base64.NO_WRAP) }
-                val body = when {
-                    bodyBytes != null -> bodyBytes.toRequestBody(contentType?.toMediaTypeOrNull())
-                    methodRequiresBody(method) -> ByteArray(0).toRequestBody(contentType?.toMediaTypeOrNull())
-                    else -> null
+                conn.connect()
+                if (bodyBytes != null) {
+                    conn.outputStream.use { out -> out.write(bodyBytes) }
                 }
-                builder.method(method.uppercase(), body)
-                client.newCall(builder.build()).execute().use { response ->
-                    val out = Arguments.createMap()
-                    out.putInt("status", response.code)
-                    out.putString("statusText", response.message)
-                    val headers = Arguments.createMap()
-                    response.headers.forEach { (name, value) ->
-                        // OkHttp can return multiple values per header; we
-                        // join with ", " which is the standard wire format
-                        // for repeated header values.
-                        if (headers.hasKey(name)) {
-                            val existing = headers.getString(name)
-                            headers.putString(name, "$existing, $value")
-                        } else {
-                            headers.putString(name, value)
-                        }
-                    }
-                    out.putMap("headers", headers)
-                    val responseBytes = response.body?.bytes() ?: ByteArray(0)
-                    out.putString("bodyBase64", Base64.encodeToString(responseBytes, Base64.NO_WRAP))
-                    promise.resolve(out)
+
+                val status = conn.responseCode
+                val statusText = conn.responseMessage ?: ""
+                val responseStream = try {
+                    conn.inputStream
+                } catch (_: Exception) {
+                    conn.errorStream
                 }
+                val responseBytes = if (responseStream != null) {
+                    val buf = ByteArrayOutputStream()
+                    responseStream.copyTo(buf)
+                    responseStream.close()
+                    buf.toByteArray()
+                } else {
+                    ByteArray(0)
+                }
+
+                val out = Arguments.createMap()
+                out.putInt("status", status)
+                out.putString("statusText", statusText)
+                val headers = Arguments.createMap()
+                // headerFields is a `Map<String?, List<String>>`; the null
+                // key is the HTTP status line, which we don't need to copy.
+                for ((name, values) in conn.headerFields) {
+                    if (name == null || values == null) continue
+                    headers.putString(name, values.joinToString(", "))
+                }
+                out.putMap("headers", headers)
+                out.putString("bodyBase64", Base64.encodeToString(responseBytes, Base64.NO_WRAP))
+                conn.disconnect()
+                promise.resolve(out)
             } catch (e: Exception) {
                 promise.reject("fetch_failed", e.message ?: e.javaClass.simpleName, e)
             }
@@ -192,49 +201,35 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
 
     // ── internals ───────────────────────────────────────────────
 
-    private fun invalidateClient() {
-        cachedClient = null
-        cachedClientForAlias = null
+    private fun invalidateFactory() {
+        cachedFactory = null
+        cachedFactoryForAlias = null
     }
 
-    private fun buildOrReuseClient(timeoutMs: Long): OkHttpClient {
-        val alias = cachedAlias
-        val existing = cachedClient
-        if (existing != null && cachedClientForAlias == alias) return existing
+    private fun buildOrReuseSocketFactory(): SSLSocketFactory {
+        val alias = cachedAlias ?: throw IllegalStateException("No client-cert alias selected")
+        val existing = cachedFactory
+        if (existing != null && cachedFactoryForAlias == alias) return existing
 
-        val builder = OkHttpClient.Builder()
-            .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-            .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-            .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-
-        if (alias != null) {
-            val ctx = reactApplicationContext
-            val km = KeyChainKeyManager(ctx, alias)
-            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-            tmf.init(null as java.security.KeyStore?)
-            val trustManagers = tmf.trustManagers
-            val tm = trustManagers.firstOrNull { it is X509TrustManager } as X509TrustManager?
-                ?: throw IllegalStateException("No X509TrustManager available")
-            val sslContext = SSLContext.getInstance("TLS")
-            sslContext.init(arrayOf(km), arrayOf<TrustManager>(tm), null)
-            builder.sslSocketFactory(sslContext.socketFactory, tm)
-        }
-
-        val client = builder.build()
-        cachedClient = client
-        cachedClientForAlias = alias
-        return client
-    }
-
-    private fun methodRequiresBody(method: String): Boolean = when (method.uppercase()) {
-        "POST", "PUT", "PATCH", "DELETE" -> true
-        else -> false
+        val ctx = reactApplicationContext
+        val km = KeyChainKeyManager(ctx, alias)
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        tmf.init(null as java.security.KeyStore?)
+        val trustManagers = tmf.trustManagers
+        val tm = trustManagers.firstOrNull { it is X509TrustManager } as X509TrustManager?
+            ?: throw IllegalStateException("No X509TrustManager available")
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(arrayOf(km), arrayOf<TrustManager>(tm), null)
+        val factory = sslContext.socketFactory
+        cachedFactory = factory
+        cachedFactoryForAlias = alias
+        return factory
     }
 
     /**
      * X509ExtendedKeyManager that always returns the same KeyChain alias.
      * KeyChain.getPrivateKey / getCertificateChain are blocking; we call
-     * them lazily on the OkHttp dispatcher thread, which is fine since the
+     * them lazily during the TLS handshake, which is fine since the
      * fetch already runs off-main-thread.
      */
     private class KeyChainKeyManager(
@@ -251,13 +246,13 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
         override fun chooseEngineClientAlias(
             keyType: Array<out String>?,
             issuers: Array<out Principal>?,
-            engine: javax.net.ssl.SSLEngine?,
+            engine: SSLEngine?,
         ): String = alias
 
         override fun getCertificateChain(alias: String?): Array<X509Certificate>? {
             return try {
                 KeyChain.getCertificateChain(context, this.alias)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }
@@ -265,7 +260,7 @@ class BulwarkClientCertModule(reactContext: ReactApplicationContext)
         override fun getPrivateKey(alias: String?): PrivateKey? {
             return try {
                 KeyChain.getPrivateKey(context, this.alias)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }
