@@ -228,7 +228,7 @@ function makeStyles(c: ThemePalette) {
     top: 0, bottom: 0, left: 0,
     width: '85%',
     maxWidth: 340,
-    backgroundColor: '#262626',
+    backgroundColor: c.secondary,
     borderRightWidth: 1,
     borderRightColor: c.border,
   },

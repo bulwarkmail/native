@@ -193,6 +193,18 @@ export default function App() {
     return useNetworkStore.getState().init();
   }, []);
 
+  // When the network flips back on while we're authenticated-but-offline
+  // (no live JMAP session), retry the session so the user lands back on
+  // live data without needing to relaunch.
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    return useNetworkStore.subscribe((state, prev) => {
+      if (state.online && !prev.online && !useAuthStore.getState().session) {
+        void useAuthStore.getState().retrySession();
+      }
+    });
+  }, [isAuthenticated]);
+
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {

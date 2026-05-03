@@ -117,18 +117,38 @@ export class JMAPClient {
     const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
     if (!stored) return false;
 
+    let creds: StoredCredentials;
     try {
-      const creds: StoredCredentials = JSON.parse(stored);
-      this.credentials = creds;
+      creds = JSON.parse(stored);
+    } catch {
+      // Corrupt entry — credentials can't be used. Caller should evict.
+      return false;
+    }
+
+    // Errors past this point propagate so callers can distinguish
+    // unrecoverable (AuthenticationError) from transient (NetworkError) and
+    // avoid clearing credentials when the server is just unreachable.
+    this.credentials = creds;
+    try {
       this.session = this.rewriteSessionUrls(
         await this.fetchSession(creds.serverUrl),
         creds.serverUrl,
       );
-      this._accountId = this.resolveAccountId(this.session);
-      return true;
-    } catch {
-      return false;
+    } catch (err) {
+      // Don't leave a half-populated client behind; the caller needs to know
+      // the session is unavailable. Credentials stay in memory so a retry
+      // after the network comes back doesn't need a re-login.
+      this.session = null;
+      this._accountId = null;
+      if (err instanceof AuthenticationError) throw err;
+      // Anything else is treated as transport-level. Wrapping rather than
+      // rethrowing the raw fetch error gives callers a single check.
+      throw new NetworkError(
+        err instanceof Error ? err.message : 'Server unreachable',
+      );
     }
+    this._accountId = this.resolveAccountId(this.session);
+    return true;
   }
 
   async clearAccountCredentials(accountId: string): Promise<void> {
@@ -329,6 +349,15 @@ export class AuthenticationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AuthenticationError';
+  }
+}
+
+// Server unreachable / transient transport failure. Callers should keep
+// stored credentials and surface an offline state rather than logging out.
+export class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NetworkError';
   }
 }
 

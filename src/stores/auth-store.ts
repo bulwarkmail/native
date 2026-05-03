@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { jmapClient, AuthenticationError } from '../api/jmap-client';
+import { jmapClient, AuthenticationError, NetworkError } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
 import { useAccountStore } from './account-store';
 import { useEmailStore } from './email-store';
@@ -39,6 +39,7 @@ export interface AuthState {
   logoutAll: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
   restoreSession: () => Promise<boolean>;
+  retrySession: () => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -286,15 +287,56 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
 
-      const ok = await jmapClient.loadAccount(target.id);
-      if (!ok) {
-        accountStore.removeAccount(target.id);
-        set({ isLoading: false, hasRestoredSession: true });
-        return false;
+      try {
+        const ok = await jmapClient.loadAccount(target.id);
+        if (!ok) {
+          // No stored credentials (or corrupt) — genuine logout.
+          accountStore.removeAccount(target.id);
+          set({ isLoading: false, hasRestoredSession: true });
+          return false;
+        }
+      } catch (err) {
+        if (err instanceof NetworkError) {
+          // Server unreachable. Keep credentials, mark account offline, and
+          // surface the cached UI so the user can still browse persisted
+          // mail / contacts / calendar. The login screen would lose their
+          // settings without recourse, which is the bug we're fixing here.
+          accountStore.setActiveAccount(target.id);
+          accountStore.updateAccount(target.id, {
+            isConnected: false,
+            hasError: true,
+            errorMessage: err.message,
+          });
+          set({
+            isAuthenticated: true,
+            isLoading: false,
+            hasRestoredSession: true,
+            error: null,
+            serverUrl: target.serverUrl,
+            username: target.username,
+            session: null,
+            accountId: null,
+            activeAccountId: target.id,
+            client: jmapClient,
+          });
+          return true;
+        }
+        if (err instanceof AuthenticationError) {
+          // Server reachable but credentials rejected — drop them.
+          await jmapClient.clearAccountCredentials(target.id).catch(() => undefined);
+          accountStore.removeAccount(target.id);
+          set({ isLoading: false, hasRestoredSession: true, error: 'Session expired' });
+          return false;
+        }
+        throw err;
       }
 
       accountStore.setActiveAccount(target.id);
-      accountStore.updateAccount(target.id, { isConnected: true, hasError: false });
+      accountStore.updateAccount(target.id, {
+        isConnected: true,
+        hasError: false,
+        errorMessage: undefined,
+      });
 
       const session = jmapClient.currentSession!;
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
@@ -305,6 +347,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return true;
     } catch {
       set({ isLoading: false, hasRestoredSession: true });
+      return false;
+    }
+  },
+
+  // Re-attempt session establishment for the currently active account
+  // without disturbing UI state on failure. Used by the network-recovery
+  // watcher and any explicit "retry" button. Idempotent: returns true if
+  // a session is already live.
+  retrySession: async () => {
+    const { activeAccountId, session } = get();
+    if (!activeAccountId) return false;
+    if (session) return true;
+    const accountStore = useAccountStore.getState();
+    const target = accountStore.getAccountById(activeAccountId);
+    if (!target) return false;
+    try {
+      const ok = await jmapClient.loadAccount(activeAccountId);
+      if (!ok) return false;
+      accountStore.updateAccount(activeAccountId, {
+        isConnected: true,
+        hasError: false,
+        errorMessage: undefined,
+      });
+      const fresh = jmapClient.currentSession!;
+      applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
+      refetchFeatureStores();
+      return true;
+    } catch (err) {
+      if (err instanceof AuthenticationError) {
+        // Now we know the credentials are bad — fall back to logout flow.
+        await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
+        accountStore.removeAccount(activeAccountId);
+        set({
+          isAuthenticated: false,
+          isLoading: false,
+          hasRestoredSession: true,
+          error: 'Session expired',
+          serverUrl: null,
+          username: null,
+          session: null,
+          accountId: null,
+          activeAccountId: null,
+          client: null,
+        });
+      }
+      // NetworkError or anything else: stay where we are.
       return false;
     }
   },

@@ -487,7 +487,9 @@ function makeStyles(c: ThemePalette) {
     top: 0, bottom: 0, left: 0,
     width: '85%',
     maxWidth: 340,
-    backgroundColor: '#262626', // matches webmail bg-secondary (dark mode)
+    // Mirror webmail's bg-secondary in both palettes - was hardcoded to the
+    // dark-mode value, which left light mode unreadable (dark bg + dark text).
+    backgroundColor: c.secondary,
     borderRightWidth: 1,
     borderRightColor: c.border,
   },
@@ -537,7 +539,7 @@ function makeStyles(c: ThemePalette) {
     marginHorizontal: spacing.sm,
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
-    backgroundColor: '#1f1f1f',
+    backgroundColor: c.popover,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: c.border,
