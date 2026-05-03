@@ -1,5 +1,6 @@
 import { File } from 'expo-file-system';
 import { jmapClient } from './jmap-client';
+import { secureFetch } from '../lib/client-cert';
 
 export async function uploadBlob(
   uri: string,
@@ -20,7 +21,7 @@ export async function uploadBlob(
   // empty/garbage upload.
   const bytes = await new File(uri).bytes();
 
-  const response = await fetch(uploadUrl, {
+  const response = await secureFetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Content-Type': type || 'application/octet-stream',

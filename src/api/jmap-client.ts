@@ -7,6 +7,7 @@ import type {
 } from './types';
 import { CAPABILITIES } from './types';
 import { generateAccountId } from '../lib/account-utils';
+import { secureFetch } from '../lib/client-cert';
 
 const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
 const CREDENTIALS_PREFIX = 'jmap_credentials__';
@@ -234,7 +235,7 @@ export class JMAPClient {
 
   private async fetchSession(baseUrl: string): Promise<JMAPSession> {
     const url = `${baseUrl}/.well-known/jmap`;
-    const response = await fetch(url, {
+    const response = await secureFetch(url, {
       headers: {
         Authorization: this.authHeader,
         Accept: 'application/json',
@@ -279,7 +280,7 @@ export class JMAPClient {
       methodCalls,
     };
 
-    const response = await fetch(this.session.apiUrl, {
+    const response = await secureFetch(this.session.apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -334,7 +335,7 @@ export class JMAPClient {
 
   async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string): Promise<ArrayBuffer> {
     const url = this.getBlobDownloadUrl(blobId, name, type);
-    const response = await fetch(url, {
+    const response = await secureFetch(url, {
       headers: { Authorization: this.authHeader },
     });
     if (response.status === 401) throw new AuthenticationError('Session expired');

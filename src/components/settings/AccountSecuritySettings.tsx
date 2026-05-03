@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Key, Smartphone, Lock, Eye, EyeOff, Shield, Monitor, Trash2 } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, View, Text, StyleSheet, Pressable } from 'react-native';
+import { Key, Smartphone, Lock, Eye, EyeOff, ShieldCheck, Monitor, Trash2 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Input from '../Input';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { jmapClient } from '../../api/jmap-client';
+import {
+  clearClientCertAlias,
+  getClientCertAlias,
+  isClientCertSupported,
+  pickClientCertAlias,
+} from '../../lib/client-cert';
 
 interface Session {
   id: string;
@@ -30,8 +37,96 @@ export function AccountSecuritySettings() {
   const [twoFactor, setTwoFactor] = useState(false);
   const [appPwds] = useState<{ id: string; label: string; created: string }[]>([]);
 
+  const certSupported = isClientCertSupported();
+  const [certAlias, setCertAlias] = useState<string | null>(null);
+  const [certBusy, setCertBusy] = useState(false);
+
+  useEffect(() => {
+    if (!certSupported) return;
+    void getClientCertAlias().then(setCertAlias);
+  }, [certSupported]);
+
+  const onPickCert = async () => {
+    if (certBusy) return;
+    setCertBusy(true);
+    try {
+      // Hint the picker with the JMAP server host so it can pre-filter to certs
+      // issued for it when the OEM picker honours that.
+      const host = jmapClient.serverUrl ? new URL(jmapClient.serverUrl).hostname : null;
+      const alias = await pickClientCertAlias(host);
+      setCertAlias(alias);
+    } catch (err) {
+      Alert.alert('Pick failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setCertBusy(false);
+    }
+  };
+
+  const onClearCert = async () => {
+    if (certBusy) return;
+    Alert.alert(
+      'Stop using client certificate?',
+      'New requests will no longer present a certificate. The certificate stays installed in Android.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            setCertBusy(true);
+            try {
+              await clearClientCertAlias();
+              setCertAlias(null);
+            } finally {
+              setCertBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <View style={styles.container}>
+      {certSupported && (
+        <SettingsSection
+          title="TLS client certificate"
+          description="Picks an installed Android certificate to authenticate to the server during the TLS handshake. Useful when the reverse proxy enforces mTLS."
+        >
+          <View style={styles.certRow}>
+            <ShieldCheck size={18} color={certAlias ? c.success : c.mutedForeground} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.certStatus}>
+                {certAlias ? `Active: ${certAlias}` : 'Not set'}
+              </Text>
+              <Text style={styles.certHint}>
+                Install the certificate via Android Settings → Security → Encryption &amp; credentials, then pick it here.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.certActions}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={certBusy}
+              onPress={() => { void onPickCert(); }}
+            >
+              {certAlias ? 'Choose another' : 'Pick certificate'}
+            </Button>
+            {certAlias && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={certBusy}
+                onPress={() => { void onClearCert(); }}
+              >
+                Clear
+              </Button>
+            )}
+          </View>
+        </SettingsSection>
+      )}
+
       <SettingsSection title="Password" description="Change the password for this account.">
         <View style={{ gap: spacing.md }}>
           <View style={styles.pwField}>
@@ -196,5 +291,14 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
     borderRadius: radius.sm,
   },
+  certRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  certStatus: { ...typography.bodyMedium, color: c.text },
+  certHint: { ...typography.caption, color: c.mutedForeground, marginTop: 4 },
+  certActions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
 });
 }
