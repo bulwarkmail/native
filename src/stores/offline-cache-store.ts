@@ -59,6 +59,12 @@ interface OfflineCacheState {
   remove: (ids: string[]) => Promise<void>;
   clearAll: () => Promise<void>;
 
+  // Returns cached emails whose `mailboxIds` include the given mailbox,
+  // sorted by `receivedAt` descending. Used by selectMailbox to seed the
+  // list when the network is unavailable. Loads each entry from
+  // AsyncStorage; the index doesn't carry the mailbox set.
+  getEmailsInMailbox: (mailboxId: string, limit?: number) => Promise<Email[]>;
+
   totalSize: () => number;
   totalCount: () => number;
 
@@ -152,6 +158,31 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     const index = { entries: {} };
     set({ index, sync: { ...IDLE } });
     persistIndex(index);
+  },
+
+  getEmailsInMailbox: async (mailboxId, limit = 200) => {
+    // Sort the index by receivedAt descending first so we don't have to read
+    // entries we won't return — the index already carries receivedAt.
+    const sorted = Object.values(get().index.entries).sort((a, b) => {
+      const at = a.receivedAt ? new Date(a.receivedAt).getTime() : 0;
+      const bt = b.receivedAt ? new Date(b.receivedAt).getTime() : 0;
+      return bt - at;
+    });
+    const matches: Email[] = [];
+    for (const entry of sorted) {
+      if (matches.length >= limit) break;
+      try {
+        const raw = await AsyncStorage.getItem(entryKey(entry.id));
+        if (!raw) continue;
+        const email = JSON.parse(raw) as Email;
+        if (email.mailboxIds?.[mailboxId]) {
+          matches.push(email);
+        }
+      } catch {
+        // skip corrupt entries — they'll be replaced on next sync
+      }
+    }
+    return matches;
   },
 
   totalSize: () => {

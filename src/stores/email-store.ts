@@ -150,15 +150,43 @@ export const useEmailStore = create<EmailState>()(
       filters: {},
       pendingUndo: null,
     });
+
+    // Seed from the offline cache immediately so changing folders shows
+    // something even before the network responds — and is the fallback
+    // when offline. The network result will replace this once it arrives.
+    const cacheStore = useOfflineCacheStore.getState();
+    if (!cacheStore.hydrated) await cacheStore.hydrate();
+    const limit = useSettingsStore.getState().emailsPerPage;
+    let cached: Email[] = [];
+    if (cacheStore.totalCount() > 0) {
+      try {
+        cached = await cacheStore.getEmailsInMailbox(mailboxId, Math.max(limit, 50));
+        if (cached.length > 0 && get().currentMailboxId === mailboxId) {
+          set({ emails: cached, totalEmails: cached.length });
+        }
+      } catch (err) {
+        console.warn('[email-store] cache seed failed:', err);
+      }
+    }
+
     try {
       const filter = buildJmapFilter(mailboxId, '', {});
-      const limit = useSettingsStore.getState().emailsPerPage;
       const { ids, total } = await queryEmails(mailboxId, { limit, filter });
       const emails = ids.length > 0 ? await fetchEmails(ids) : [];
+      // Race guard: don't overwrite if the user already moved to a different
+      // mailbox while this request was in flight.
+      if (get().currentMailboxId !== mailboxId) return;
       set({ emails, totalEmails: total, loading: false });
     } catch (err) {
       console.warn('[email-store] selectMailbox failed:', err);
-      set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load emails' });
+      if (get().currentMailboxId !== mailboxId) return;
+      // Keep whatever the cache seeded with; only surface the error when the
+      // cache is empty. With cached emails visible the OfflineBanner already
+      // tells the user the data is stale.
+      set({
+        loading: false,
+        error: cached.length > 0 ? null : (err instanceof Error ? err.message : 'Failed to load emails'),
+      });
     }
   },
 
@@ -183,7 +211,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   refreshEmails: async () => {
-    const { currentMailboxId, searchQuery, filters } = get();
+    const { currentMailboxId, searchQuery, filters, emails: existing } = get();
     if (!currentMailboxId) return;
     // Keep existing emails visible while refreshing - swap atomically once
     // the new list is ready so pull-to-refresh doesn't flash an empty list.
@@ -196,6 +224,28 @@ export const useEmailStore = create<EmailState>()(
       set({ emails, totalEmails: total, loading: false });
     } catch (err) {
       console.warn('[email-store] refreshEmails failed:', err);
+      // If the list was empty before the refresh attempt, fall back to the
+      // offline cache so the user still sees something. Otherwise keep what
+      // they had visible and let the OfflineBanner explain.
+      if (existing.length === 0) {
+        try {
+          const cacheStore = useOfflineCacheStore.getState();
+          if (!cacheStore.hydrated) await cacheStore.hydrate();
+          if (cacheStore.totalCount() > 0) {
+            const limit = useSettingsStore.getState().emailsPerPage;
+            const cached = await cacheStore.getEmailsInMailbox(
+              currentMailboxId,
+              Math.max(limit, 50),
+            );
+            if (get().currentMailboxId === currentMailboxId && cached.length > 0) {
+              set({ emails: cached, totalEmails: cached.length, loading: false, error: null });
+              return;
+            }
+          }
+        } catch (cacheErr) {
+          console.warn('[email-store] refresh cache fallback failed:', cacheErr);
+        }
+      }
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load emails' });
     }
   },

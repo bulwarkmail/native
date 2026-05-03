@@ -210,14 +210,20 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header - matches webmail mobile: h-14, border-b, back button + icon + title */}
+      {/* Header - matches webmail mobile: h-14, border-b, back button + icon + title.
+          Settings is a tab root, so the back button is only rendered when a
+          parent passes onBack (it'd otherwise lead nowhere). */}
       <View style={styles.header}>
-        <Pressable
-          onPress={onBack}
-          style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
-        >
-          <ArrowLeft size={20} color={c.text} />
-        </Pressable>
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
+          >
+            <ArrowLeft size={20} color={c.text} />
+          </Pressable>
+        ) : (
+          <View style={styles.headerLeftSpacer} />
+        )}
         <Settings size={20} color={c.mutedForeground} />
         <Text style={styles.headerTitle}>{t('settings.title', 'Settings')}</Text>
       </View>
@@ -310,6 +316,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.md,
     },
     headerBackBtnPressed: { backgroundColor: c.accent },
+    headerLeftSpacer: { width: spacing.sm },
     headerTitle: { ...typography.h3, color: c.text },
 
     scrollArea: { flex: 1 },
