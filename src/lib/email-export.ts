@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { jmapClient } from '../api/jmap-client';
@@ -17,14 +16,10 @@ function safeAttachmentName(name: string | undefined, type: string | undefined):
   return `attachment.${fallbackExt}`;
 }
 
-// On Android, sharing a `file://` URI from the cache directory throws a
-// FileUriExposedException on modern OS versions; the system requires a
-// FileProvider-backed `content://` URI instead. expo-file-system exposes that
-// via `file.contentUri`, which is the only field iOS doesn't expose.
-function shareableUri(file: { uri: string; contentUri?: string }): string {
-  if (Platform.OS === 'android' && file.contentUri) return file.contentUri;
-  return file.uri;
-}
+// expo-sharing only accepts `file://` URLs and rejects `content://` with
+// "Only local file URLs are supported". On Android it then wraps the file
+// itself with its bundled SharingFileProvider before launching the share
+// intent, so we must NOT pre-translate to `file.contentUri`.
 
 export async function shareAttachment(
   blobId: string,
@@ -42,7 +37,7 @@ export async function shareAttachment(
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
-  await Sharing.shareAsync(shareableUri(downloaded), {
+  await Sharing.shareAsync(downloaded.uri, {
     mimeType,
     dialogTitle: filename,
   });
@@ -69,7 +64,7 @@ export async function downloadAttachment(
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
-  await Sharing.shareAsync(shareableUri(downloaded), {
+  await Sharing.shareAsync(downloaded.uri, {
     mimeType,
     dialogTitle: filename,
   });
@@ -97,7 +92,7 @@ export async function shareEmailEml(blobId: string, subject?: string): Promise<v
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
-  await Sharing.shareAsync(shareableUri(downloaded), {
+  await Sharing.shareAsync(downloaded.uri, {
     mimeType: RFC822,
     dialogTitle: 'Share email',
     UTI: 'public.email-message',
