@@ -24,6 +24,7 @@ import RichTextEditor, {
 import { useEmailStore } from '../stores/email-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
+import { useSettingsStore } from '../stores/settings-store';
 import { isGroup } from '../lib/contact-utils';
 import {
   getContactDisplayName,
@@ -254,6 +255,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identities, setIdentities] = React.useState<Identity[]>([]);
   const [identityError, setIdentityError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
+  const [selectedIdentityId, setSelectedIdentityId] = React.useState<string | null>(null);
+
+  const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
+  const attachmentReminderKeywords = useSettingsStore((s) => s.attachmentReminderKeywords);
 
   const initialTo = React.useMemo<Recipient[]>(() => {
     if (!replyTo) {
@@ -381,7 +388,40 @@ export default function ComposeScreen({ route, navigation }: Props) {
     return () => { cancelled = true; };
   }, []);
 
-  const primaryIdentity = identities[0];
+  // Choose the identity once we know both the loaded identities and the reply
+  // context. With auto-select on, prefer the identity that received the
+  // original message (matches webmail's reply-identity behaviour).
+  React.useEffect(() => {
+    if (selectedIdentityId || identities.length === 0) return;
+    if (autoSelectReplyIdentity && replyTo) {
+      const candidates = [...(replyTo.to ?? []), ...(replyTo.cc ?? [])];
+      const candidateAddrs = new Set(
+        candidates.map((r) => r.email?.toLowerCase()).filter(Boolean) as string[],
+      );
+      const matched = identities.find((i) => candidateAddrs.has(i.email.toLowerCase()));
+      setSelectedIdentityId((matched ?? identities[0]).id);
+    } else {
+      setSelectedIdentityId(identities[0].id);
+    }
+  }, [identities, autoSelectReplyIdentity, replyTo, selectedIdentityId]);
+
+  const primaryIdentity =
+    identities.find((i) => i.id === selectedIdentityId) ?? identities[0];
+
+  const openIdentityPicker = () => {
+    if (identities.length <= 1) return;
+    Alert.alert(
+      t('email_composer.from', 'From'),
+      undefined,
+      [
+        ...identities.map((i) => ({
+          text: i.name ? `${i.name} <${i.email}>` : i.email,
+          onPress: () => setSelectedIdentityId(i.id),
+        })),
+        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' as const },
+      ],
+    );
+  };
 
   const commitTyped = () => {
     const extraTo = parseRecipients(toInput);
@@ -664,8 +704,42 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // ── Send ─────────────────────────────────────────────────────────────
+
+  // Catch the classic "I forgot the attachment" footgun. Only file attachments
+  // count - inline images don't satisfy the user's intent of attaching a file.
+  // Returns true if it's safe to proceed, false if the user cancelled.
+  const passesAttachmentReminder = async (): Promise<boolean> => {
+    if (!attachmentReminderEnabled) return true;
+    const hasFileAttachment = attachments.some(
+      (a) => !a.inline && a.blobId && !a.error,
+    );
+    if (hasFileAttachment) return true;
+    const haystack = `${subject}\n${htmlToPlainText(bodyHtml)}`.toLowerCase();
+    const matchedKeyword = attachmentReminderKeywords.find((kw) => {
+      const k = kw.trim().toLowerCase();
+      if (!k) return false;
+      // Word-boundary match so 'attach' doesn't fire on 'detached'.
+      return new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(haystack);
+    });
+    if (!matchedKeyword) return true;
+    return new Promise<boolean>((resolve) => {
+      Alert.alert(
+        t('email_composer.attachment_reminder_title', 'Forgot an attachment?'),
+        t(
+          'email_composer.attachment_reminder_body',
+          'Your message mentions "{keyword}" but no file is attached. Send anyway?',
+        ).replace('{keyword}', matchedKeyword),
+        [
+          { text: t('email_composer.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
+          { text: t('email_composer.send', 'Send'), onPress: () => resolve(true) },
+        ],
+      );
+    });
+  };
+
   const onSend = async () => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
+    if (!(await passesAttachmentReminder())) return;
     setSending(true);
     try {
       const from: EmailAddress[] = [{ name: primaryIdentity.name, email: primaryIdentity.email }];
@@ -709,7 +783,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
             ? finalCc.map((r) => ({ name: r.name || undefined, email: r.email }))
             : undefined,
           subject,
-          htmlBody: finalHtml,
+          // Plain-text mode: skip the HTML part entirely so receiving clients
+          // render the text/plain alternative without any formatting.
+          htmlBody: plainTextMode ? undefined : finalHtml,
           textBody: finalText,
           attachments: outgoing.length ? outgoing : undefined,
           inReplyTo: replyTo?.inReplyTo,
@@ -782,12 +858,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         >
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>{t('email_composer.from', 'From')}</Text>
-            <View style={styles.fieldContent}>
+            <Pressable
+              onPress={openIdentityPicker}
+              disabled={identities.length <= 1}
+              style={styles.fieldContent}
+            >
               <Text style={styles.fromText} numberOfLines={1}>
                 {primaryIdentity?.email ?? (identityError ? 'identity unavailable' : 'Loading...')}
               </Text>
               <ChevronDown size={14} color={c.textMuted} />
-            </View>
+            </Pressable>
           </View>
 
           <View style={styles.fieldRow}>

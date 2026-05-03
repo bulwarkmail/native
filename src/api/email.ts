@@ -22,6 +22,67 @@ export async function getMailboxes(): Promise<Mailbox[]> {
   return res.methodResponses[0][1].list;
 }
 
+export async function createMailbox(
+  data: { name: string; parentId?: string | null },
+): Promise<string> {
+  const accountId = jmapClient.accountId;
+  const cid = 'new-mailbox';
+  const res = await jmapClient.request([
+    ['Mailbox/set', {
+      accountId,
+      create: {
+        [cid]: {
+          name: data.name,
+          parentId: data.parentId ?? null,
+        },
+      },
+    }, '0'],
+  ]);
+  const result = res.methodResponses[0][1];
+  if (result.created?.[cid]?.id) return result.created[cid].id as string;
+  const failure = result.notCreated?.[cid] as
+    | { type?: string; description?: string; properties?: string[] }
+    | undefined;
+  throw new Error(
+    failure
+      ? `${failure.type ?? 'create failed'}${failure.description ? `: ${failure.description}` : ''}`
+      : 'Mailbox create returned no id',
+  );
+}
+
+export async function updateMailbox(
+  id: string,
+  changes: { name?: string; parentId?: string | null },
+): Promise<void> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Mailbox/set', { accountId, update: { [id]: changes } }, '0'],
+  ]);
+  const failure = res.methodResponses[0][1].notUpdated?.[id] as
+    | { type?: string; description?: string }
+    | undefined;
+  if (failure) {
+    throw new Error(
+      `${failure.type ?? 'update failed'}${failure.description ? `: ${failure.description}` : ''}`,
+    );
+  }
+}
+
+export async function deleteMailbox(id: string): Promise<void> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Mailbox/set', { accountId, destroy: [id] }, '0'],
+  ]);
+  const failure = res.methodResponses[0][1].notDestroyed?.[id] as
+    | { type?: string; description?: string }
+    | undefined;
+  if (failure) {
+    throw new Error(
+      `${failure.type ?? 'delete failed'}${failure.description ? `: ${failure.description}` : ''}`,
+    );
+  }
+}
+
 export async function queryEmails(
   mailboxId: string,
   options?: {

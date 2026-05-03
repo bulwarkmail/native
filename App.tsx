@@ -15,6 +15,7 @@ import {
   getInitialNotificationTap,
   getStoredRelayBaseUrl,
   setupPushNotifications,
+  teardownPushNotifications,
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
@@ -240,12 +241,21 @@ export default function App() {
   }, [isAuthenticated]);
 
   // Re-register the device with the configured relay once authenticated,
-  // and whenever the FCM token rotates.
+  // and whenever the FCM token rotates. Honours the user's notification
+  // preference - flipping it off tears down the active subscription so the
+  // FirebaseMessagingService stops receiving pings for this device.
+  const emailNotificationsEnabled = useSettingsStore(
+    (s) => s.emailNotificationsEnabled,
+  );
   React.useEffect(() => {
     if (!isAuthenticated || !client) return;
 
     let cancelled = false;
     const doSetup = async () => {
+      if (!emailNotificationsEnabled) {
+        await teardownPushNotifications().catch(() => undefined);
+        return;
+      }
       const relayBaseUrl = await getStoredRelayBaseUrl();
       if (!relayBaseUrl) return;
       try {
@@ -271,7 +281,7 @@ export default function App() {
       cancelled = true;
       unsubscribe();
     };
-  }, [client, isAuthenticated]);
+  }, [client, isAuthenticated, emailNotificationsEnabled]);
 
   React.useEffect(() => {
     if (!isAuthenticated || !client) {

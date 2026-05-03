@@ -6,8 +6,9 @@ import type { Email } from '../api/types';
 import { wrapEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml, extractCidRefs, hasRemoteContent, hasMeaningfulHtmlBody } from '../lib/email-html';
 import { jmapClient } from '../api/jmap-client';
 import { useSettingsStore } from '../stores/settings-store';
+import { useContactsStore } from '../stores/contacts-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
-import { useColors } from '../theme/colors';
+import { useColors, useResolvedTheme } from '../theme/colors';
 
 // Largest inline image we'll pull inline as a data: URI. Anything bigger gets
 // skipped so we don't freeze the JS thread base64-encoding megabytes.
@@ -135,6 +136,28 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const isSenderTrusted = useSettingsStore((s) => s.isSenderTrusted);
   const addTrustedSender = useSettingsStore((s) => s.addTrustedSender);
+  const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
+  const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
+  const hideInlineImageAttachments = useSettingsStore((s) => s.hideInlineImageAttachments);
+  const contacts = useContactsStore((s) => s.contacts);
+  const resolvedTheme = useResolvedTheme();
+  // Index the address book once per render so the trusted-sender check below
+  // is O(1) per email. Only used when the matching setting is on.
+  const addressBookEmails = React.useMemo(() => {
+    if (!trustedSendersAddressBook) return null;
+    const out = new Set<string>();
+    for (const c of contacts) {
+      if (!c.emails) continue;
+      for (const e of Object.values(c.emails)) {
+        if (e?.address) out.add(e.address.toLowerCase());
+      }
+    }
+    return out;
+  }, [contacts, trustedSendersAddressBook]);
+  // Most marketing email is authored against a white background, so dark-mode
+  // inversion can wreck logos/banners. With this flag the user opts to render
+  // emails on a light surface even while the rest of the app is dark.
+  const renderAsDark = !emailAlwaysLightMode && resolvedTheme === 'dark';
 
   const html = React.useMemo(() => extractHtmlBody(email), [email]);
   const text = React.useMemo(() => extractTextBody(email), [email]);
@@ -145,7 +168,10 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
     [html, text],
   );
   const hasRemote = rawHtml ? hasRemoteContent(rawHtml) : false;
-  const trusted = senderEmail ? isSenderTrusted(senderEmail) : false;
+  const trusted = senderEmail
+    ? isSenderTrusted(senderEmail)
+      || (addressBookEmails?.has(senderEmail.toLowerCase()) ?? false)
+    : false;
 
   // One-time override: user tapped "Load images" for this email only.
   const [allowOnce, setAllowOnce] = React.useState(false);
@@ -218,17 +244,22 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
         html: wrapEmailHtml(rawHtml, {
           blockRemoteImages: shouldBlock,
           cidMap,
+          isDark: renderAsDark,
         }),
       };
     }
     const fallbackText = text ?? email.preview ?? '';
     if (!fallbackText) {
       return {
-        html: wrapEmailHtml('<em style="color:#71717a">(empty message)</em>'),
+        html: wrapEmailHtml('<em style="color:#71717a">(empty message)</em>', {
+          isDark: renderAsDark,
+        }),
       };
     }
-    return { html: wrapPlainTextEmail(plainTextToSafeHtml(fallbackText)) };
-  }, [rawHtml, text, email.preview, shouldBlock, cidMap]);
+    return {
+      html: wrapPlainTextEmail(plainTextToSafeHtml(fallbackText), { isDark: renderAsDark }),
+    };
+  }, [rawHtml, text, email.preview, shouldBlock, cidMap, renderAsDark]);
 
   const onMessage = (e: WebViewMessageEvent) => {
     const parsed = parseInt(e.nativeEvent.data, 10);

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
@@ -56,12 +57,16 @@ function formatRelativeTime(date: Date): string {
 
 const EmailRow = React.memo(function EmailRow({
   item,
+  threadCount,
+  showPreview,
   onPress,
   onLongPress,
   selected,
   selectionMode,
 }: {
   item: Email;
+  threadCount: number;
+  showPreview: boolean;
   onPress: (id: string) => void;
   onLongPress: (id: string) => void;
   selected: boolean;
@@ -69,6 +74,8 @@ const EmailRow = React.memo(function EmailRow({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const dyn = useTypography();
+  const density = useDensity();
   const senderName = getSenderName(item);
   const senderEmail = getSenderEmail(item);
   const unread = isUnread(item);
@@ -81,6 +88,7 @@ const EmailRow = React.memo(function EmailRow({
     <Pressable
       style={({ pressed }) => [
         styles.emailRow,
+        { paddingVertical: density.rowPaddingVertical },
         pressed && styles.emailRowPressed,
         selected && styles.emailRowSelected,
       ]}
@@ -97,14 +105,16 @@ const EmailRow = React.memo(function EmailRow({
           )}
         </View>
       )}
-      <SenderAvatar name={senderName} email={senderEmail} size={componentSizes.avatarMd} />
+      {density.showAvatar && (
+        <SenderAvatar name={senderName} email={senderEmail} size={componentSizes.avatarMd} />
+      )}
 
       {/* Content */}
       <View style={styles.emailContent}>
         {/* Row 1: Sender + indicators + time */}
         <View style={styles.emailHeaderRow}>
           <View style={styles.senderRow}>
-            <Text style={[styles.emailFrom, unread && styles.textUnread]} numberOfLines={1}>
+            <Text style={[styles.emailFrom, dyn.bodyMedium, unread && styles.textUnread]} numberOfLines={1}>
               {senderName}
             </Text>
             {starred && (
@@ -115,21 +125,28 @@ const EmailRow = React.memo(function EmailRow({
             )}
           </View>
           <View style={styles.timeAndTag}>
-            <Text style={styles.emailDate}>{formatRelativeTime(new Date(item.receivedAt))}</Text>
+            {threadCount > 1 && (
+              <View style={styles.threadBadge}>
+                <Text style={styles.threadBadgeText}>{threadCount}</Text>
+              </View>
+            )}
+            <Text style={[styles.emailDate, dyn.caption]}>{formatRelativeTime(new Date(item.receivedAt))}</Text>
           </View>
         </View>
 
         {/* Row 2: Subject */}
         <View style={styles.subjectRow}>
-          <Text style={[styles.emailSubject, unread && styles.textBold]} numberOfLines={1}>
+          <Text style={[styles.emailSubject, dyn.body, unread && styles.textBold]} numberOfLines={1}>
             {item.subject || '(no subject)'}
           </Text>
         </View>
 
-        {/* Row 3: Preview */}
-        <Text style={styles.emailPreview} numberOfLines={2}>
-          {item.preview}
-        </Text>
+        {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
+        {showPreview && density.showPreview && (
+          <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
+            {item.preview}
+          </Text>
+        )}
       </View>
     </Pressable>
   );
@@ -178,7 +195,35 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
+  const showPreview = useSettingsStore((s) => s.showPreview);
+  const disableThreading = useSettingsStore((s) => s.disableThreading);
   const networkOnline = useNetworkStore((s) => s.online);
+
+  // When threading is on, collapse same-thread emails so the list shows the
+  // most recent message per thread with a count badge. Disabling threading
+  // falls back to the flat list (every message is its own row).
+  const visibleEmails = React.useMemo(() => {
+    if (disableThreading) return emails;
+    const seen = new Set<string>();
+    const out: Email[] = [];
+    for (const e of emails) {
+      const key = e.threadId || e.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(e);
+    }
+    return out;
+  }, [emails, disableThreading]);
+
+  const threadCounts = React.useMemo(() => {
+    if (disableThreading) return new Map<string, number>();
+    const counts = new Map<string, number>();
+    for (const e of emails) {
+      const key = e.threadId || e.id;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [emails, disableThreading]);
 
   const archiveMailboxId = React.useMemo(
     () => mailboxes.find((m) => m.role === 'archive')?.id ?? null,
@@ -200,7 +245,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const selectionMode = selectedIds.size > 0;
   const allSelected =
-    emails.length > 0 && emails.every((e) => selectedIds.has(e.id));
+    visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(e.id));
 
   // Refs so row press handlers stay referentially stable across renders.
   // FlatList rows then skip re-render when the parent re-renders for unrelated
@@ -281,6 +326,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       >
         <EmailRow
           item={item}
+          threadCount={threadCounts.get(item.threadId || item.id) ?? 1}
+          showPreview={showPreview}
           selected={selectedIds.has(item.id)}
           selectionMode={selectionMode}
           onPress={handleRowPress}
@@ -297,11 +344,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   const toggleSelectAllVisible = React.useCallback(() => {
     setSelectedIds((prev) => {
-      const allCurrent = emails.length > 0 && emails.every((e) => prev.has(e.id));
+      const allCurrent = visibleEmails.length > 0 && visibleEmails.every((e) => prev.has(e.id));
       if (allCurrent) return new Set();
-      return new Set(emails.map((e) => e.id));
+      return new Set(visibleEmails.map((e) => e.id));
     });
-  }, [emails]);
+  }, [visibleEmails]);
 
   // Clear selection when mailbox changes
   React.useEffect(() => {
@@ -309,8 +356,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   }, [currentMailboxId]);
 
   const selectedEmails = React.useMemo(
-    () => emails.filter((e) => selectedIds.has(e.id)),
-    [emails, selectedIds],
+    () => visibleEmails.filter((e) => selectedIds.has(e.id)),
+    [visibleEmails, selectedIds],
   );
   const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
   const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));
@@ -621,7 +668,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         </View>
       ) : (
         <FlatList
-          data={emails}
+          data={visibleEmails}
           keyExtractor={emailKeyExtractor}
           renderItem={renderEmailRow}
           ItemSeparatorComponent={EmailRowSeparator}

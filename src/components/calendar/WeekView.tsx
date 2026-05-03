@@ -38,6 +38,7 @@ interface WeekViewProps {
   onSelectEvent?: (event: CalendarEvent) => void;
   onCreateAtTime?: (date: Date) => void;
   weekStartsOn?: 0 | 1;
+  timeFormat?: '12h' | '24h';
 }
 
 function WeekViewInner({
@@ -49,6 +50,7 @@ function WeekViewInner({
   onSelectEvent,
   onCreateAtTime,
   weekStartsOn = 0,
+  timeFormat = '24h',
 }: WeekViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -224,7 +226,9 @@ function WeekViewInner({
               <View key={h} style={[styles.hourLabelCell, { height: HOUR_HEIGHT }]}>
                 {h > 0 && (
                   <Text style={styles.hourLabel}>
-                    {h.toString().padStart(2, '0')}:00
+                    {timeFormat === '12h'
+                      ? `${((h % 12) || 12)} ${h < 12 ? 'AM' : 'PM'}`
+                      : `${h.toString().padStart(2, '0')}:00`}
                   </Text>
                 )}
               </View>

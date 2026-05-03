@@ -50,6 +50,33 @@ export async function shareAttachment(
   });
 }
 
+// Save-to-disk variant. iOS doesn't expose a user-visible "Downloads" folder,
+// so on both platforms we land the file in the document directory and hand it
+// to the share sheet — which on iOS surfaces "Save to Files" and on Android
+// surfaces the system save dialog. The 'preview' counterpart (shareAttachment)
+// uses cache + share, which on most viewers opens directly without prompting.
+export async function downloadAttachment(
+  blobId: string,
+  name: string | undefined,
+  type: string | undefined,
+): Promise<void> {
+  const filename = safeAttachmentName(name, type);
+  const mimeType = type || 'application/octet-stream';
+  const dest = new File(Paths.document, filename);
+  const url = getDownloadUrl(blobId, filename, mimeType);
+  const downloaded = await File.downloadFileAsync(url, dest, {
+    headers: { Authorization: authHeader() },
+    idempotent: true,
+  });
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error('Sharing is not available on this device');
+  }
+  await Sharing.shareAsync(shareableUri(downloaded), {
+    mimeType,
+    dialogTitle: filename,
+  });
+}
+
 export async function fetchRawEmail(blobId: string): Promise<string> {
   const url = getDownloadUrl(blobId, 'email.eml', RFC822);
   const r = await fetch(url, { headers: { Authorization: authHeader() } });

@@ -335,14 +335,34 @@ export const useEmailStore = create<EmailState>()(
   deleteEmail: async (emailId, trashMailboxId, currentMailboxId) => {
     const email = get().emails.find((e) => e.id === emailId);
     const original = email ? { ...email.mailboxIds } : null;
-    const isPermanent = currentMailboxId === trashMailboxId;
+    const settings = useSettingsStore.getState();
+    const { mailboxes } = get();
+    const junkMailbox = mailboxes.find((m) => m.role === 'junk' || m.role === 'spam');
+    const inJunk = !!(junkMailbox && email?.mailboxIds?.[junkMailbox.id]);
+    const inTrash = currentMailboxId === trashMailboxId;
 
-    await apiDeleteEmail(emailId, trashMailboxId, currentMailboxId);
+    // Resolve effective destination:
+    // - already in trash → must destroy (no further folder to move to)
+    // - in junk and the user opted to skip the trash for junk → destroy
+    // - the user set 'permanent' as the global default → destroy
+    // - otherwise → move to trash and offer undo
+    const destroy =
+      inTrash ||
+      settings.deleteAction === 'permanent' ||
+      (settings.permanentlyDeleteJunk && inJunk);
+
+    if (destroy) {
+      // Use the trash mailbox as the "current" so apiDeleteEmail takes the
+      // destroy branch even when the source folder isn't trash.
+      await apiDeleteEmail(emailId, trashMailboxId, trashMailboxId);
+    } else {
+      await apiDeleteEmail(emailId, trashMailboxId, currentMailboxId);
+    }
     set({ emails: get().emails.filter((e) => e.id !== emailId) });
 
     // Permanent destroy can't be undone - skip the snackbar so we don't
     // promise an undo we can't deliver.
-    if (email && original && !isPermanent) {
+    if (email && original && !destroy) {
       set({
         pendingUndo: {
           kind: 'delete',

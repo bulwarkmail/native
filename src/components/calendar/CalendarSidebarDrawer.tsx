@@ -15,6 +15,7 @@ import { Check, X } from 'lucide-react-native';
 import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useAnimDuration } from '../../theme/dynamic';
 import { getCalendarColor } from '../../lib/calendar-utils';
 
 interface CalendarSidebarDrawerProps {
@@ -36,19 +37,21 @@ export function CalendarSidebarDrawer({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const openDuration = useAnimDuration(240);
+  const closeDuration = useAnimDuration(200);
 
   React.useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(slideX, {
           toValue: 0,
-          duration: 240,
+          duration: openDuration,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(overlayOpacity, {
           toValue: 1,
-          duration: 240,
+          duration: openDuration,
           useNativeDriver: true,
         }),
       ]).start();
@@ -56,18 +59,18 @@ export function CalendarSidebarDrawer({
       Animated.parallel([
         Animated.timing(slideX, {
           toValue: -Dimensions.get('window').width,
-          duration: 200,
+          duration: closeDuration,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(overlayOpacity, {
           toValue: 0,
-          duration: 200,
+          duration: closeDuration,
           useNativeDriver: true,
         }),
       ]).start();
     }
-  }, [visible, slideX, overlayOpacity]);
+  }, [visible, slideX, overlayOpacity, openDuration, closeDuration]);
 
   const hiddenSet = React.useMemo(() => new Set(hiddenCalendarIds), [hiddenCalendarIds]);
 

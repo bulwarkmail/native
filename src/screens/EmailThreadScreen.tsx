@@ -17,8 +17,9 @@ import EmailBodyView from '../components/EmailBodyView';
 import SenderAvatar from '../components/SenderAvatar';
 import { MoveSheet } from '../components/MoveSheet';
 import { useEmailStore } from '../stores/email-store';
+import { useSettingsStore } from '../stores/settings-store';
 import { setEmailKeywords } from '../api/email';
-import { shareEmailEml, shareAttachment } from '../lib/email-export';
+import { shareEmailEml, shareAttachment, downloadAttachment } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import type { Email, Mailbox } from '../api/types';
@@ -84,20 +85,87 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
   const [downloadingBlobId, setDownloadingBlobId] = React.useState<string | null>(null);
 
+  const mailAttachmentAction = useSettingsStore((s) => s.mailAttachmentAction);
+  const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
+  const markAsReadDelay = useSettingsStore((s) => s.markAsReadDelay);
+  const hideInlineImageAttachments = useSettingsStore((s) => s.hideInlineImageAttachments);
+
   const onPressAttachment = React.useCallback(
     async (blobId: string, name: string | undefined, type: string | undefined) => {
       if (downloadingBlobId) return;
       setDownloadingBlobId(blobId);
       try {
-        await shareAttachment(blobId, name, type);
+        if (mailAttachmentAction === 'download') {
+          await downloadAttachment(blobId, name, type);
+        } else {
+          await shareAttachment(blobId, name, type);
+        }
       } catch (e) {
         Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
       } finally {
         setDownloadingBlobId(null);
       }
     },
-    [downloadingBlobId],
+    [downloadingBlobId, mailAttachmentAction],
   );
+
+  const renderAttachments = () => {
+    const all = email?.attachments;
+    if (!all || all.length === 0) return null;
+    // hideInlineImageAttachments: drop chips for images already shown inline
+    // in the body (any image attachment with a cid:). Non-image inline
+    // attachments stay visible because the user wouldn't see them otherwise.
+    const atts = hideInlineImageAttachments
+      ? all.filter((att) => !(att.cid && (att.type ?? '').startsWith('image/')))
+      : all;
+    if (atts.length === 0) return null;
+    const visible = attachmentsExpanded ? atts : atts.slice(0, 3);
+    return (
+      <View style={styles.attachmentsBlock}>
+        <View style={styles.attachmentsRow}>
+          {visible.map((att, idx) => {
+            const isDownloading = downloadingBlobId === att.blobId;
+            return (
+              <Pressable
+                key={att.blobId ?? idx}
+                style={({ pressed }) => [
+                  styles.attachmentChip,
+                  pressed && styles.attachmentChipPressed,
+                ]}
+                onPress={() => onPressAttachment(att.blobId, att.name, att.type)}
+                disabled={!!downloadingBlobId}
+              >
+                {isDownloading ? (
+                  <ActivityIndicator size="small" color={c.textMuted} />
+                ) : (
+                  <Paperclip size={14} color={c.textMuted} />
+                )}
+                <Text style={styles.attachmentName} numberOfLines={1}>
+                  {att.name || 'attachment'}
+                </Text>
+                <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
+                <Download size={14} color={c.textMuted} />
+              </Pressable>
+            );
+          })}
+        </View>
+        {atts.length > 3 && (
+          <Pressable
+            onPress={() => setAttachmentsExpanded((v) => !v)}
+            style={({ pressed }) => [
+              styles.attachmentsToggle,
+              pressed && styles.attachmentsTogglePressed,
+            ]}
+            hitSlop={6}
+          >
+            <Text style={styles.attachmentsToggleText}>
+              {attachmentsExpanded ? 'Show less' : `Show all (${atts.length})`}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  };
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
@@ -105,6 +173,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   React.useEffect(() => {
     let cancelled = false;
+    let readTimer: ReturnType<typeof setTimeout> | null = null;
     setLoading(true);
     setError(null);
     void (async () => {
@@ -113,7 +182,13 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         if (cancelled) return;
         setEmail(fetched);
         if (fetched && !fetched.keywords?.$seen) {
-          void markRead(emailId);
+          if (markAsReadDelay > 0) {
+            readTimer = setTimeout(() => {
+              if (!cancelled) void markRead(emailId);
+            }, markAsReadDelay);
+          } else {
+            void markRead(emailId);
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -123,8 +198,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [emailId, getEmailDetail, markRead]);
+    return () => {
+      cancelled = true;
+      if (readTimer) clearTimeout(readTimer);
+    };
+  }, [emailId, getEmailDetail, markRead, markAsReadDelay]);
 
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
@@ -350,59 +428,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   </Text>
                 </View>
               </View>
+              {attachmentPosition === 'beside-sender' && renderAttachments()}
             </View>
 
-            {/* Attachments chips */}
-            {email.attachments && email.attachments.length > 0 && (
-              <View style={styles.attachmentsBlock}>
-                <View style={styles.attachmentsRow}>
-                  {(attachmentsExpanded
-                    ? email.attachments
-                    : email.attachments.slice(0, 3)
-                  ).map((att, idx) => {
-                    const isDownloading = downloadingBlobId === att.blobId;
-                    return (
-                      <Pressable
-                        key={att.blobId ?? idx}
-                        style={({ pressed }) => [
-                          styles.attachmentChip,
-                          pressed && styles.attachmentChipPressed,
-                        ]}
-                        onPress={() => onPressAttachment(att.blobId, att.name, att.type)}
-                        disabled={!!downloadingBlobId}
-                      >
-                        {isDownloading ? (
-                          <ActivityIndicator size="small" color={c.textMuted} />
-                        ) : (
-                          <Paperclip size={14} color={c.textMuted} />
-                        )}
-                        <Text style={styles.attachmentName} numberOfLines={1}>
-                          {att.name || 'attachment'}
-                        </Text>
-                        <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
-                        <Download size={14} color={c.textMuted} />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {email.attachments.length > 3 && (
-                  <Pressable
-                    onPress={() => setAttachmentsExpanded((v) => !v)}
-                    style={({ pressed }) => [
-                      styles.attachmentsToggle,
-                      pressed && styles.attachmentsTogglePressed,
-                    ]}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.attachmentsToggleText}>
-                      {attachmentsExpanded
-                        ? 'Show less'
-                        : `Show all (${email.attachments.length})`}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
+            {/* Attachments chips (full-width below header) */}
+            {attachmentPosition === 'below-header' && renderAttachments()}
 
             {/* Body */}
             <View style={styles.bodyBlock}>
@@ -736,10 +766,16 @@ function ToolbarButton({
 }: { icon: React.ReactNode; label: string; onPress?: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const showLabels = useSettingsStore((s) => s.showToolbarLabels);
   return (
-    <Pressable onPress={onPress} style={styles.toolbarAction} hitSlop={6}>
+    <Pressable
+      onPress={onPress}
+      style={styles.toolbarAction}
+      hitSlop={6}
+      accessibilityLabel={label}
+    >
       {icon}
-      <Text style={styles.toolbarActionLabel}>{label}</Text>
+      {showLabels && <Text style={styles.toolbarActionLabel}>{label}</Text>}
     </Pressable>
   );
 }
@@ -749,16 +785,20 @@ function BottomBarButton({
 }: { icon: React.ReactNode; label: string; onPress?: () => void; disabled?: boolean }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const showLabels = useSettingsStore((s) => s.showToolbarLabels);
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
       style={[styles.bottomBarBtn, disabled && styles.bottomBarBtnDisabled]}
       hitSlop={4}
+      accessibilityLabel={label}
     >
       {icon}
-      <Text style={[styles.bottomBarLabel, disabled && styles.bottomBarLabelDisabled]}>
-        {label}
-      </Text>
+      {showLabels && (
+        <Text style={[styles.bottomBarLabel, disabled && styles.bottomBarLabelDisabled]}>
+          {label}
+        </Text>
+      )}
     </Pressable>
   );
 }

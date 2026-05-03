@@ -35,6 +35,7 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { Button } from '../components';
 import { useCalendarStore } from '../stores/calendar-store';
+import { useSettingsStore } from '../stores/settings-store';
 import { MonthView } from '../components/calendar/MonthView';
 import { WeekView } from '../components/calendar/WeekView';
 import { AgendaView } from '../components/calendar/AgendaView';
@@ -62,15 +63,19 @@ type PendingAction =
 const AGENDA_DAYS = 30;
 const RANGE_BUFFER_DAYS = 14;
 
-function rangeForView(viewMode: ViewMode, currentDate: Date): { after: Date; before: Date } {
+function rangeForView(
+  viewMode: ViewMode,
+  currentDate: Date,
+  weekStartsOn: 0 | 1,
+): { after: Date; before: Date } {
   if (viewMode === 'month') {
-    const start = startOfWeek(startOfMonth(currentDate));
-    const end = endOfWeek(endOfMonth(currentDate));
+    const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn });
+    const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn });
     return { after: addDays(start, -RANGE_BUFFER_DAYS), before: addDays(end, RANGE_BUFFER_DAYS) };
   }
   if (viewMode === 'week') {
-    const start = startOfWeek(currentDate);
-    const end = endOfWeek(currentDate);
+    const start = startOfWeek(currentDate, { weekStartsOn });
+    const end = endOfWeek(currentDate, { weekStartsOn });
     return { after: addDays(start, -RANGE_BUFFER_DAYS), before: addDays(end, RANGE_BUFFER_DAYS) };
   }
   return {
@@ -79,11 +84,15 @@ function rangeForView(viewMode: ViewMode, currentDate: Date): { after: Date; bef
   };
 }
 
-function headerTitle(viewMode: ViewMode, currentDate: Date): string {
+function headerTitle(
+  viewMode: ViewMode,
+  currentDate: Date,
+  weekStartsOn: 0 | 1,
+): string {
   if (viewMode === 'month') return format(currentDate, 'MMMM yyyy');
   if (viewMode === 'week') {
-    const start = startOfWeek(currentDate);
-    const end = endOfWeek(currentDate);
+    const start = startOfWeek(currentDate, { weekStartsOn });
+    const end = endOfWeek(currentDate, { weekStartsOn });
     if (start.getMonth() === end.getMonth()) {
       return `${format(start, 'MMM d')} – ${format(end, 'd, yyyy')}`;
     }
@@ -95,9 +104,20 @@ function headerTitle(viewMode: ViewMode, currentDate: Date): string {
 export default function CalendarScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const calendarDefaultView = useSettingsStore((s) => s.calendarDefaultView);
+  const calendarFirstDayOfWeek = useSettingsStore((s) => s.calendarFirstDayOfWeek);
+  const calendarShowWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
+  const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
+
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [selectedDate, setSelectedDate] = React.useState(new Date());
-  const [viewMode, setViewMode] = React.useState<ViewMode>('month');
+  // Day view falls back to Agenda on mobile (we don't have a dedicated day
+  // grid yet, but the agenda's 30-day view already serves the same purpose).
+  const initialViewMode: ViewMode =
+    calendarDefaultView === 'week' ? 'week'
+    : calendarDefaultView === 'day' || calendarDefaultView === 'agenda' ? 'agenda'
+    : 'month';
+  const [viewMode, setViewMode] = React.useState<ViewMode>(initialViewMode);
 
   const [detailEvent, setDetailEvent] = React.useState<CalendarEvent | null>(null);
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
@@ -144,9 +164,9 @@ export default function CalendarScreen() {
   }, [hydrate, fetchCalendarsAction]);
 
   React.useEffect(() => {
-    const { after, before } = rangeForView(viewMode, currentDate);
+    const { after, before } = rangeForView(viewMode, currentDate, calendarFirstDayOfWeek);
     void ensureRange(after.toISOString(), before.toISOString());
-  }, [viewMode, currentDate, ensureRange]);
+  }, [viewMode, currentDate, ensureRange, calendarFirstDayOfWeek]);
 
   const goPrev = React.useCallback(() => {
     setCurrentDate((d) => {
@@ -267,7 +287,7 @@ export default function CalendarScreen() {
           <Menu size={20} color={c.text} />
         </Pressable>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>{headerTitle(viewMode, currentDate)}</Text>
+          <Text style={styles.headerTitle}>{headerTitle(viewMode, currentDate, calendarFirstDayOfWeek)}</Text>
           <Text style={styles.headerSubtitle}>
             {isSelectedToday ? 'Today' : format(selectedDate, 'EEE, MMM d')}
           </Text>
@@ -321,6 +341,8 @@ export default function CalendarScreen() {
             events={events}
             eventsByDay={eventsByDay}
             calendars={calendars}
+            weekStartsOn={calendarFirstDayOfWeek}
+            showWeekNumbers={calendarShowWeekNumbers}
             onSelectDate={handleSelectDate}
             onLongPressDate={openCreate}
           />
@@ -331,6 +353,8 @@ export default function CalendarScreen() {
             events={events}
             eventsByDay={eventsByDay}
             calendars={calendars}
+            weekStartsOn={calendarFirstDayOfWeek}
+            timeFormat={calendarTimeFormat}
             onSelectDate={handleSelectDate}
             onSelectEvent={setDetailEvent}
             onCreateAtTime={openCreate}

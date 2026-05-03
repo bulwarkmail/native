@@ -12,6 +12,7 @@ import {
 import type { LucideIcon } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useAnimDuration } from '../theme/dynamic';
 import { useEmailStore } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
@@ -223,20 +224,22 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const openDuration = useAnimDuration(240);
+  const closeDuration = useAnimDuration(200);
 
   React.useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(slideX, { toValue: 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(overlayOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+        Animated.timing(slideX, { toValue: 0, duration: openDuration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 1, duration: openDuration, useNativeDriver: true }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: closeDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: closeDuration, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible, slideX, overlayOpacity]);
+  }, [visible, slideX, overlayOpacity, openDuration, closeDuration]);
 
   const accountEmail = username || '';
   const initials = React.useMemo(

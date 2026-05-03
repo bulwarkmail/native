@@ -31,7 +31,30 @@ export async function uploadBlob(
     throw new Error(`Upload failed: ${response.status}${detail ? ` ${detail}` : ''}`);
   }
 
-  return response.json();
+  // JMAP servers return either the direct shape `{blobId, type, size}` or
+  // the per-account nested shape `{[accountId]: {blobId, type, size}}`.
+  // Stalwart has shipped both depending on version; mirror the webmail's
+  // tolerant parsing so uploads don't silently lose the blobId.
+  const raw = (await response.json()) as Record<string, unknown>;
+  const direct = raw as { blobId?: string; type?: string; size?: number };
+  if (typeof direct.blobId === 'string') {
+    return {
+      blobId: direct.blobId,
+      size: typeof direct.size === 'number' ? direct.size : bytes.byteLength,
+      type: typeof direct.type === 'string' && direct.type ? direct.type : type,
+    };
+  }
+  const nested = raw[jmapClient.accountId] as
+    | { blobId?: string; type?: string; size?: number }
+    | undefined;
+  if (nested?.blobId) {
+    return {
+      blobId: nested.blobId,
+      size: typeof nested.size === 'number' ? nested.size : bytes.byteLength,
+      type: typeof nested.type === 'string' && nested.type ? nested.type : type,
+    };
+  }
+  throw new Error('Upload succeeded but response did not include a blobId');
 }
 
 export function getDownloadUrl(
