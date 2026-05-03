@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Plus, GripVertical, X, Code, Filter, AlertTriangle, RotateCcw } from 'lucide-react-native';
 import { SettingsSection, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface Rule {
   id: string;
@@ -19,10 +20,17 @@ const SAMPLE_RULES: Rule[] = [];
 export function FilterSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const expandedView = useSettingsStore((s) => s.filtersExpandedView);
+  const update = useSettingsStore((s) => s.updateSetting);
   const [rules, setRules] = useState<Rule[]>(SAMPLE_RULES);
-  const [expandedView, setExpandedView] = useState(false);
   const [isOpaque] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
 
   const toggle = (id: string) => {
     setRules((rs) => rs.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r));
@@ -115,7 +123,7 @@ export function FilterSettings() {
         {!isOpaque && rules.length > 0 && (
           <View style={styles.expandedToggle}>
             <Text style={styles.expandedLabel}>Expanded view</Text>
-            <ToggleSwitch checked={expandedView} onChange={setExpandedView} />
+            <ToggleSwitch checked={expandedView} onChange={(v) => update('filtersExpandedView', v)} />
           </View>
         )}
       </View>

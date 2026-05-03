@@ -13,6 +13,7 @@ import { SettingsSection, SettingItem, Select, ToggleSwitch } from './settings-s
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
+import { useSettingsStore, type NotificationSound } from '../../stores/settings-store';
 import {
   DEFAULT_RELAY_BASE_URL,
   getStoredRelayBaseUrl,
@@ -21,7 +22,7 @@ import {
   teardownPushNotifications,
 } from '../../lib/push-notifications';
 
-const SOUNDS = [
+const SOUNDS: { value: NotificationSound; label: string }[] = [
   { value: 'default', label: 'Default' },
   { value: 'chime', label: 'Chime' },
   { value: 'ping', label: 'Ping' },
@@ -40,17 +41,24 @@ export function NotificationSettings() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const username = useAuthStore((s) => s.username);
 
-  const [sound, setSound] = useState('default');
-  const [emailEnabled, setEmailEnabled] = useState(true);
-  const [emailSound, setEmailSound] = useState(true);
-  const [calEnabled, setCalEnabled] = useState(true);
-  const [calSound, setCalSound] = useState(true);
-  const [invitationParsing, setInvitationParsing] = useState(true);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const update = useSettingsStore((s) => s.updateSetting);
+  const sound = useSettingsStore((s) => s.notificationSoundChoice);
+  const emailEnabled = useSettingsStore((s) => s.emailNotificationsEnabled);
+  const emailSound = useSettingsStore((s) => s.emailNotificationSound);
+  const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
+  const calSound = useSettingsStore((s) => s.calendarNotificationSound);
+  const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
 
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_BASE_URL);
   const [hasSaved, setHasSaved] = useState(false);
   const [pushStatus, setPushStatus] = useState<PushStatus>({ kind: 'idle' });
   const [confirmDisable, setConfirmDisable] = useState(false);
+
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
 
   useEffect(() => {
     void (async () => {
@@ -190,7 +198,7 @@ export function NotificationSettings() {
             />
             <Select
               value={sound}
-              onChange={setSound}
+              onChange={(v) => update('notificationSoundChoice', v as NotificationSound)}
               options={SOUNDS}
             />
           </View>
@@ -199,22 +207,33 @@ export function NotificationSettings() {
 
       <SettingsSection title="Email" description="Notifications for incoming email.">
         <SettingItem label="Email Notifications" description="Show desktop alerts for new email.">
-          <ToggleSwitch checked={emailEnabled} onChange={setEmailEnabled} />
+          <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
         </SettingItem>
         <SettingItem label="Email Sound" description="Play a sound when new email arrives.">
-          <ToggleSwitch checked={emailSound} onChange={setEmailSound} disabled={!emailEnabled} />
+          <ToggleSwitch
+            checked={emailSound}
+            onChange={(v) => update('emailNotificationSound', v)}
+            disabled={!emailEnabled}
+          />
         </SettingItem>
       </SettingsSection>
 
       <SettingsSection title="Calendar" description="Notifications for events and invitations.">
         <SettingItem label="Calendar Notifications" description="Show alerts for upcoming events.">
-          <ToggleSwitch checked={calEnabled} onChange={setCalEnabled} />
+          <ToggleSwitch checked={calEnabled} onChange={(v) => update('calendarNotificationsEnabled', v)} />
         </SettingItem>
         <SettingItem label="Calendar Sound" description="Play a sound for calendar alerts.">
-          <ToggleSwitch checked={calSound} onChange={setCalSound} disabled={!calEnabled} />
+          <ToggleSwitch
+            checked={calSound}
+            onChange={(v) => update('calendarNotificationSound', v)}
+            disabled={!calEnabled}
+          />
         </SettingItem>
         <SettingItem label="Invitation Parsing" description="Automatically detect and parse event invitations.">
-          <ToggleSwitch checked={invitationParsing} onChange={setInvitationParsing} />
+          <ToggleSwitch
+            checked={invitationParsing}
+            onChange={(v) => update('calendarInvitationParsingEnabled', v)}
+          />
         </SettingItem>
       </SettingsSection>
 

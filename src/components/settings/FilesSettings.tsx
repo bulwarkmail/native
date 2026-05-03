@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   Folder, FileText, FileCode, FileAudio, File, Image as ImageIcon,
@@ -6,33 +6,24 @@ import {
 import { SettingsSection, SettingItem, RadioGroup, ToggleSwitch } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-
-type FolderLayout = 'inline' | 'sidebar';
-type ViewMode = 'list' | 'grid';
-type SortKey = 'name' | 'size' | 'modified';
-type SortDir = 'asc' | 'desc';
+import {
+  useSettingsStore,
+  type FilesFolderLayout,
+  type FilesViewMode,
+  type FilesSortKey,
+  type FilesSortDir,
+} from '../../stores/settings-store';
 
 interface FilesPrefs {
-  folderLayout: FolderLayout;
-  defaultViewMode: ViewMode;
-  defaultSortKey: SortKey;
-  defaultSortDir: SortDir;
+  folderLayout: FilesFolderLayout;
+  defaultViewMode: FilesViewMode;
+  defaultSortKey: FilesSortKey;
+  defaultSortDir: FilesSortDir;
   showIcons: boolean;
   coloredIcons: boolean;
   showThumbnails: boolean;
   showHiddenFiles: boolean;
 }
-
-const DEFAULTS: FilesPrefs = {
-  folderLayout: 'inline',
-  defaultViewMode: 'list',
-  defaultSortKey: 'name',
-  defaultSortDir: 'asc',
-  showIcons: true,
-  coloredIcons: true,
-  showThumbnails: true,
-  showHiddenFiles: false,
-};
 
 interface SampleFile {
   name: string;
@@ -132,8 +123,33 @@ function FilesPreview({ prefs }: { prefs: FilesPrefs }) {
 export function FilesSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const [prefs, setPrefs] = useState<FilesPrefs>(DEFAULTS);
-  const update = (patch: Partial<FilesPrefs>) => setPrefs((p) => ({ ...p, ...patch }));
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const set = useSettingsStore((s) => s.updateSetting);
+
+  const folderLayout = useSettingsStore((s) => s.filesFolderLayout);
+  const defaultViewMode = useSettingsStore((s) => s.filesDefaultViewMode);
+  const defaultSortKey = useSettingsStore((s) => s.filesDefaultSortKey);
+  const defaultSortDir = useSettingsStore((s) => s.filesDefaultSortDir);
+  const showIcons = useSettingsStore((s) => s.filesShowIcons);
+  const coloredIcons = useSettingsStore((s) => s.filesColoredIcons);
+  const showThumbnails = useSettingsStore((s) => s.filesShowThumbnails);
+  const showHiddenFiles = useSettingsStore((s) => s.filesShowHiddenFiles);
+
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
+
+  const prefs: FilesPrefs = {
+    folderLayout,
+    defaultViewMode,
+    defaultSortKey,
+    defaultSortDir,
+    showIcons,
+    coloredIcons,
+    showThumbnails,
+    showHiddenFiles,
+  };
 
   return (
     <View style={styles.container}>
@@ -145,8 +161,8 @@ export function FilesSettings() {
       <SettingsSection title="Display" description="How files and folders are presented.">
         <SettingItem label="Folder layout" description="Choose how folders appear in the browser.">
           <RadioGroup
-            value={prefs.folderLayout}
-            onChange={(v) => update({ folderLayout: v as FolderLayout })}
+            value={folderLayout}
+            onChange={(v) => set('filesFolderLayout', v as FilesFolderLayout)}
             options={[
               { value: 'inline', label: 'Inline' },
               { value: 'sidebar', label: 'Sidebar' },
@@ -156,8 +172,8 @@ export function FilesSettings() {
 
         <SettingItem label="Default view" description="List or grid view.">
           <RadioGroup
-            value={prefs.defaultViewMode}
-            onChange={(v) => update({ defaultViewMode: v as ViewMode })}
+            value={defaultViewMode}
+            onChange={(v) => set('filesDefaultViewMode', v as FilesViewMode)}
             options={[
               { value: 'list', label: 'List' },
               { value: 'grid', label: 'Grid' },
@@ -167,8 +183,8 @@ export function FilesSettings() {
 
         <SettingItem label="Default sort" description="Primary sort key.">
           <RadioGroup
-            value={prefs.defaultSortKey}
-            onChange={(v) => update({ defaultSortKey: v as SortKey })}
+            value={defaultSortKey}
+            onChange={(v) => set('filesDefaultSortKey', v as FilesSortKey)}
             options={[
               { value: 'name', label: 'Name' },
               { value: 'size', label: 'Size' },
@@ -179,8 +195,8 @@ export function FilesSettings() {
 
         <SettingItem label="Sort direction">
           <RadioGroup
-            value={prefs.defaultSortDir}
-            onChange={(v) => update({ defaultSortDir: v as SortDir })}
+            value={defaultSortDir}
+            onChange={(v) => set('filesDefaultSortDir', v as FilesSortDir)}
             options={[
               { value: 'asc', label: 'Ascending' },
               { value: 'desc', label: 'Descending' },
@@ -191,25 +207,28 @@ export function FilesSettings() {
 
       <SettingsSection title="Icons" description="Appearance of file and folder icons.">
         <SettingItem label="Show icons" description="Display icons for files and folders.">
-          <ToggleSwitch checked={prefs.showIcons} onChange={(v) => update({ showIcons: v })} />
+          <ToggleSwitch checked={showIcons} onChange={(v) => set('filesShowIcons', v)} />
         </SettingItem>
-        <SettingItem label="Colored icons" description="Use file-type-specific c.">
+        <SettingItem label="Colored icons" description="Use file-type-specific colors.">
           <ToggleSwitch
-            checked={prefs.coloredIcons}
-            onChange={(v) => update({ coloredIcons: v })}
-            disabled={!prefs.showIcons}
+            checked={coloredIcons}
+            onChange={(v) => set('filesColoredIcons', v)}
+            disabled={!showIcons}
           />
         </SettingItem>
         <SettingItem label="Show thumbnails" description="Generate previews for images.">
-          <ToggleSwitch checked={prefs.showThumbnails} onChange={(v) => update({ showThumbnails: v })} />
+          <ToggleSwitch
+            checked={showThumbnails}
+            onChange={(v) => set('filesShowThumbnails', v)}
+          />
         </SettingItem>
       </SettingsSection>
 
       <SettingsSection title="Behavior">
         <SettingItem label="Show hidden files" description="Include dotfiles (.name) in listings.">
           <ToggleSwitch
-            checked={prefs.showHiddenFiles}
-            onChange={(v) => update({ showHiddenFiles: v })}
+            checked={showHiddenFiles}
+            onChange={(v) => set('filesShowHiddenFiles', v)}
           />
         </SettingItem>
       </SettingsSection>

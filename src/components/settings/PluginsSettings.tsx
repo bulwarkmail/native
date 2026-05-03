@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Upload, Puzzle, AlertTriangle, Lock, Trash2, ChevronDown, ChevronRight } from 'lucide-react-native';
+import { Upload, Puzzle, AlertTriangle, Lock, Trash2 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface Plugin {
   id: string;
@@ -33,20 +34,42 @@ function statusStyle(c: ThemePalette, status: Plugin['status']): { bg: string; f
 export function PluginsSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const enabledMap = useSettingsStore((s) => s.pluginEnabled);
+  const setPluginEnabled = useSettingsStore((s) => s.setPluginEnabled);
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
+
   const togglePlugin = (id: string) => {
-    setPlugins((ps) => ps.map((p) => {
-      if (p.id !== id) return p;
-      const enabled = !p.enabled;
-      return { ...p, enabled, status: enabled ? 'enabled' : 'disabled' };
-    }));
+    const current = plugins.find((p) => p.id === id);
+    if (!current) return;
+    const next = !current.enabled;
+    setPluginEnabled(id, next);
+    setPlugins((ps) => ps.map((p) =>
+      p.id === id ? { ...p, enabled: next, status: next ? 'enabled' : 'disabled' } : p,
+    ));
   };
 
   const uninstall = (id: string) => {
     setPlugins((ps) => ps.filter((p) => p.id !== id));
   };
+
+  // When plugins are populated from a real source later, hydrate their enable
+  // state from the persisted map.
+  useEffect(() => {
+    if (plugins.length === 0) return;
+    setPlugins((ps) => ps.map((p) => {
+      const stored = enabledMap[p.id];
+      if (stored === undefined || stored === p.enabled) return p;
+      return { ...p, enabled: stored, status: stored ? 'enabled' : 'disabled' };
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabledMap, plugins.length]);
 
   return (
     <SettingsSection

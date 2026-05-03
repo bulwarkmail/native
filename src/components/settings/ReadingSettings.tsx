@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { AlertTriangle, FolderSync, Mail, X } from 'lucide-react-native';
+import { AlertTriangle, FolderSync, X } from 'lucide-react-native';
 import { SettingsSection, SettingItem, Select, RadioGroup, ToggleSwitch } from './settings-section';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useSettingsStore, type ArchiveMode, type ExternalContentPolicy } from '../../stores/settings-store';
+import {
+  useSettingsStore,
+  type ArchiveMode,
+  type DeleteAction,
+  type MailLayout,
+  type MailAttachmentAction,
+  type AttachmentPosition,
+} from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
 import { archiveEmails, queryEmails, getEmails } from '../../api/email';
-
-type MailLayout = 'split' | 'focus';
-type DeleteAction = 'trash' | 'permanent';
-type AttachmentAction = 'preview' | 'download';
-type AttachmentPosition = 'beside-sender' | 'below-header';
-
-const DEFAULT_KEYWORDS = ['attached', 'attachment', 'enclosed', 'attaching'];
 
 function MailLayoutPreview({ value }: { value: MailLayout }) {
   const c = useColors();
@@ -72,35 +72,29 @@ function MailLayoutPreview({ value }: { value: MailLayout }) {
 export function ReadingSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
-  const setExternalContentPolicyStore = useSettingsStore((s) => s.setExternalContentPolicy);
-  const trustedSenders = useSettingsStore((s) => s.trustedSenders);
-  const removeTrustedSender = useSettingsStore((s) => s.removeTrustedSender);
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
-  const archiveMode = useSettingsStore((s) => s.archiveMode);
-  const setArchiveMode = useSettingsStore((s) => s.setArchiveMode);
+  const update = useSettingsStore((s) => s.updateSetting);
 
-  const [markAsReadDelay, setMarkAsReadDelay] = useState('0');
-  const [deleteAction, setDeleteAction] = useState<DeleteAction>('trash');
-  const [permanentlyDeleteJunk, setPermanentlyDeleteJunk] = useState(false);
-  const [showPreview, setShowPreview] = useState(true);
-  const [mailLayout, setMailLayout] = useState<MailLayout>('split');
-  const [disableThreading, setDisableThreading] = useState(false);
-  const [autoSelectReplyIdentity, setAutoSelectReplyIdentity] = useState(true);
-  const [plainTextMode, setPlainTextMode] = useState(false);
-  const [emailsPerPage, setEmailsPerPage] = useState('25');
-  const [mailAttachmentAction, setMailAttachmentAction] = useState<AttachmentAction>('preview');
-  const [attachmentPosition, setAttachmentPosition] = useState<AttachmentPosition>('beside-sender');
-  const [emailAlwaysLightMode, setEmailAlwaysLightMode] = useState(false);
+  const archiveMode = useSettingsStore((s) => s.archiveMode);
+  const markAsReadDelay = useSettingsStore((s) => s.markAsReadDelay);
+  const deleteAction = useSettingsStore((s) => s.deleteAction);
+  const permanentlyDeleteJunk = useSettingsStore((s) => s.permanentlyDeleteJunk);
+  const showPreview = useSettingsStore((s) => s.showPreview);
+  const mailLayout = useSettingsStore((s) => s.mailLayout);
+  const disableThreading = useSettingsStore((s) => s.disableThreading);
+  const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  const emailsPerPage = useSettingsStore((s) => s.emailsPerPage);
+  const mailAttachmentAction = useSettingsStore((s) => s.mailAttachmentAction);
+  const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
+  const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
+  const attachmentReminderKeywords = useSettingsStore((s) => s.attachmentReminderKeywords);
+  const hideInlineImageAttachments = useSettingsStore((s) => s.hideInlineImageAttachments);
+
+  const [newKeyword, setNewKeyword] = useState('');
   const [reorganizing, setReorganizing] = useState(false);
   const [reorganizeResult, setReorganizeResult] = useState<string | null>(null);
-  const [attachmentReminderEnabled, setAttachmentReminderEnabled] = useState(true);
-  const [attachmentReminderKeywords, setAttachmentReminderKeywords] = useState<string[]>(DEFAULT_KEYWORDS);
-  const [newKeyword, setNewKeyword] = useState('');
-  const [hideInlineImageAttachments, setHideInlineImageAttachments] = useState(true);
-  const [trustedSendersAddressBook, setTrustedSendersAddressBook] = useState(false);
-  const [showTrustedList, setShowTrustedList] = useState(false);
 
   useEffect(() => {
     if (!hydrated) void hydrate();
@@ -165,8 +159,8 @@ export function ReadingSettings() {
     <SettingsSection title="Email Behavior" description="How your inbox behaves day to day.">
       <SettingItem label="Mark as Read" description="When to flag an email as read.">
         <Select
-          value={markAsReadDelay}
-          onChange={setMarkAsReadDelay}
+          value={String(markAsReadDelay)}
+          onChange={(v) => update('markAsReadDelay', Number(v))}
           options={[
             { value: '0', label: 'Instant' },
             { value: '3000', label: 'After 3s' },
@@ -180,7 +174,7 @@ export function ReadingSettings() {
         <SettingItem label="Delete Action" description="Where deleted emails go." noBorder />
         <Select
           value={deleteAction}
-          onChange={(v) => setDeleteAction(v as DeleteAction)}
+          onChange={(v) => update('deleteAction', v as DeleteAction)}
           options={[
             { value: 'trash', label: 'Move to Trash' },
             { value: 'permanent', label: 'Permanently delete' },
@@ -199,7 +193,7 @@ export function ReadingSettings() {
         <SettingItem label="Archive Mode" description="Organize archive into subfolders." noBorder />
         <Select
           value={archiveMode}
-          onChange={(v) => setArchiveMode(v as ArchiveMode)}
+          onChange={(v) => update('archiveMode', v as ArchiveMode)}
           options={[
             { value: 'single', label: 'Single folder' },
             { value: 'year', label: 'By year' },
@@ -231,14 +225,14 @@ export function ReadingSettings() {
       </View>
 
       <SettingItem label="Permanently Delete Junk" description="Skip the trash when deleting spam.">
-        <ToggleSwitch checked={permanentlyDeleteJunk} onChange={setPermanentlyDeleteJunk} />
+        <ToggleSwitch checked={permanentlyDeleteJunk} onChange={(v) => update('permanentlyDeleteJunk', v)} />
       </SettingItem>
 
       <View style={styles.group}>
         <SettingItem label="Mail Layout" description="Choose between split view and focus view." noBorder />
         <RadioGroup
           value={mailLayout}
-          onChange={(v) => setMailLayout(v as MailLayout)}
+          onChange={(v) => update('mailLayout', v as MailLayout)}
           options={[
             { value: 'split', label: 'Split' },
             { value: 'focus', label: 'Focus' },
@@ -249,25 +243,25 @@ export function ReadingSettings() {
       </View>
 
       <SettingItem label="Show Preview" description="Preview text under each subject.">
-        <ToggleSwitch checked={showPreview} onChange={setShowPreview} />
+        <ToggleSwitch checked={showPreview} onChange={(v) => update('showPreview', v)} />
       </SettingItem>
 
       <SettingItem label="Disable Thread Grouping" description="Show emails individually instead of threaded.">
-        <ToggleSwitch checked={disableThreading} onChange={setDisableThreading} />
+        <ToggleSwitch checked={disableThreading} onChange={(v) => update('disableThreading', v)} />
       </SettingItem>
 
       <SettingItem label="Plain Text Mode" description="Compose and read in plain text only.">
-        <ToggleSwitch checked={plainTextMode} onChange={setPlainTextMode} />
+        <ToggleSwitch checked={plainTextMode} onChange={(v) => update('plainTextMode', v)} />
       </SettingItem>
 
       <SettingItem label="Auto-select Reply Identity" description="Pick the best identity when replying.">
-        <ToggleSwitch checked={autoSelectReplyIdentity} onChange={setAutoSelectReplyIdentity} />
+        <ToggleSwitch checked={autoSelectReplyIdentity} onChange={(v) => update('autoSelectReplyIdentity', v)} />
       </SettingItem>
 
       <SettingItem label="Attachment Reminder" description="Warn when the word 'attached' is present but no file is attached.">
         <ToggleSwitch
           checked={attachmentReminderEnabled}
-          onChange={setAttachmentReminderEnabled}
+          onChange={(v) => update('attachmentReminderEnabled', v)}
         />
       </SettingItem>
 
@@ -281,7 +275,10 @@ export function ReadingSettings() {
                 <Text style={styles.chipText}>{kw}</Text>
                 <Pressable
                   onPress={() =>
-                    setAttachmentReminderKeywords((list) => list.filter((k) => k !== kw))
+                    update(
+                      'attachmentReminderKeywords',
+                      attachmentReminderKeywords.filter((k) => k !== kw),
+                    )
                   }
                   hitSlop={6}
                 >
@@ -300,7 +297,7 @@ export function ReadingSettings() {
               onSubmitEditing={() => {
                 const t = newKeyword.trim().toLowerCase();
                 if (t && !attachmentReminderKeywords.includes(t)) {
-                  setAttachmentReminderKeywords([...attachmentReminderKeywords, t]);
+                  update('attachmentReminderKeywords', [...attachmentReminderKeywords, t]);
                 }
                 setNewKeyword('');
               }}
@@ -310,7 +307,7 @@ export function ReadingSettings() {
               onPress={() => {
                 const t = newKeyword.trim().toLowerCase();
                 if (t && !attachmentReminderKeywords.includes(t)) {
-                  setAttachmentReminderKeywords([...attachmentReminderKeywords, t]);
+                  update('attachmentReminderKeywords', [...attachmentReminderKeywords, t]);
                 }
                 setNewKeyword('');
               }}
@@ -323,13 +320,13 @@ export function ReadingSettings() {
       )}
 
       <SettingItem label="Hide Inline Image Attachments" description="Don't list inline images in the attachment list.">
-        <ToggleSwitch checked={hideInlineImageAttachments} onChange={setHideInlineImageAttachments} />
+        <ToggleSwitch checked={hideInlineImageAttachments} onChange={(v) => update('hideInlineImageAttachments', v)} />
       </SettingItem>
 
       <SettingItem label="Attachment Click Action" description="What happens when you tap an attachment.">
         <Select
           value={mailAttachmentAction}
-          onChange={(v) => setMailAttachmentAction(v as AttachmentAction)}
+          onChange={(v) => update('mailAttachmentAction', v as MailAttachmentAction)}
           options={[
             { value: 'preview', label: 'Preview' },
             { value: 'download', label: 'Download' },
@@ -340,7 +337,7 @@ export function ReadingSettings() {
       <SettingItem label="Attachment Position" description="Where attachments appear in messages.">
         <Select
           value={attachmentPosition}
-          onChange={(v) => setAttachmentPosition(v as AttachmentPosition)}
+          onChange={(v) => update('attachmentPosition', v as AttachmentPosition)}
           options={[
             { value: 'beside-sender', label: 'Beside sender' },
             { value: 'below-header', label: 'Below header' },
@@ -350,8 +347,8 @@ export function ReadingSettings() {
 
       <SettingItem label="Emails Per Page" description="How many emails to load at a time.">
         <Select
-          value={emailsPerPage}
-          onChange={setEmailsPerPage}
+          value={String(emailsPerPage)}
+          onChange={(v) => update('emailsPerPage', Number(v))}
           options={[
             { value: '10', label: '10' },
             { value: '25', label: '25' },

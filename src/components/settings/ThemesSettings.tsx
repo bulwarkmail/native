@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Upload, Check, Palette, Trash2 } from 'lucide-react-native';
+import { Upload, Check, Palette } from 'lucide-react-native';
 import { SettingsSection, SettingItem } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface Theme {
   id: string | null;
@@ -23,8 +24,15 @@ const BUILT_IN: Theme[] = [
 export function ThemesSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const active = useSettingsStore((s) => s.activeThemeId);
+  const update = useSettingsStore((s) => s.updateSetting);
   const [themes] = useState<Theme[]>(BUILT_IN);
-  const [active, setActive] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
 
   return (
     <SettingsSection
@@ -39,7 +47,7 @@ export function ThemesSettings() {
           return (
             <Pressable
               key={theme.id ?? 'default'}
-              onPress={() => setActive(theme.id)}
+              onPress={() => update('activeThemeId', theme.id)}
               style={[styles.card, isActive && styles.cardActive]}
             >
               <View style={styles.preview}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import {
   Plus, Pencil, Trash2, Globe, ExternalLink, PanelRight, GripVertical,
@@ -7,43 +7,46 @@ import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-
-interface SidebarApp {
-  id: string;
-  name: string;
-  url: string;
-  icon: string;
-  openMode: 'tab' | 'inline';
-  showOnMobile: boolean;
-}
+import { useSettingsStore, type SidebarApp } from '../../stores/settings-store';
 
 export function SidebarAppsSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const [keepLoaded, setKeepLoaded] = useState(false);
-  const [apps, setApps] = useState<SidebarApp[]>([]);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const update = useSettingsStore((s) => s.updateSetting);
+  const apps = useSettingsStore((s) => s.sidebarApps);
+  const keepLoaded = useSettingsStore((s) => s.keepAppsLoaded);
+  const addSidebarApp = useSettingsStore((s) => s.addSidebarApp);
+  const updateSidebarApp = useSettingsStore((s) => s.updateSidebarApp);
+  const removeSidebarApp = useSettingsStore((s) => s.removeSidebarApp);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
+
   const addApp = (data: Omit<SidebarApp, 'id'>) => {
-    setApps((list) => [...list, { ...data, id: `app-${Math.random().toString(36).slice(2)}` }]);
+    addSidebarApp(data);
     setIsAdding(false);
   };
 
   const updateApp = (id: string, data: Omit<SidebarApp, 'id'>) => {
-    setApps((list) => list.map((a) => a.id === id ? { ...data, id } : a));
+    updateSidebarApp(id, data);
     setEditingId(null);
   };
 
   const removeApp = (id: string) => {
-    setApps((list) => list.filter((a) => a.id !== id));
+    removeSidebarApp(id);
   };
 
   return (
     <View style={styles.container}>
       <SettingsSection title="Sidebar Apps" description="Embedded web apps accessible from the sidebar.">
         <SettingItem label="Keep apps loaded" description="Maintain app state when switching away.">
-          <ToggleSwitch checked={keepLoaded} onChange={setKeepLoaded} />
+          <ToggleSwitch checked={keepLoaded} onChange={(v) => update('keepAppsLoaded', v)} />
         </SettingItem>
       </SettingsSection>
 

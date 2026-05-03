@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import {
   Upload, Trash2, Eye, Lock, Unlock, Download,
   ShieldCheck, ShieldAlert, Users,
 } from 'lucide-react-native';
-import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-section';
+import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface KeyRecord {
   id: string;
@@ -34,12 +35,18 @@ const MOCK_CERTS: PublicCert[] = [];
 export function SmimeSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const hydrated = useSettingsStore((s) => s.hydrated);
+  const hydrate = useSettingsStore((s) => s.hydrate);
+  const update = useSettingsStore((s) => s.updateSetting);
+  const defaultEncrypt = useSettingsStore((s) => s.smimeDefaultEncrypt);
+  const rememberUnlocked = useSettingsStore((s) => s.smimeRememberUnlocked);
+  const autoImport = useSettingsStore((s) => s.smimeAutoImport);
   const [keys, setKeys] = useState<KeyRecord[]>(MOCK_KEYS);
   const [certs, setCerts] = useState<PublicCert[]>(MOCK_CERTS);
-  const [bindings, setBindings] = useState<Record<string, string>>({});
-  const [defaultEncrypt, setDefaultEncrypt] = useState(false);
-  const [rememberUnlocked, setRememberUnlocked] = useState(false);
-  const [autoImport, setAutoImport] = useState(true);
+
+  useEffect(() => {
+    if (!hydrated) void hydrate();
+  }, [hydrated, hydrate]);
 
   const isExpired = (d: string) => new Date(d) < new Date();
   const formatDate = (d: string) => {
@@ -167,21 +174,21 @@ export function SmimeSettings() {
           label="Encrypt by default"
           description="Encrypt new messages when recipient certificates are available."
         >
-          <ToggleSwitch checked={defaultEncrypt} onChange={setDefaultEncrypt} />
+          <ToggleSwitch checked={defaultEncrypt} onChange={(v) => update('smimeDefaultEncrypt', v)} />
         </SettingItem>
 
         <SettingItem
           label="Remember unlocked keys"
           description="Keep private keys unlocked across the session."
         >
-          <ToggleSwitch checked={rememberUnlocked} onChange={setRememberUnlocked} />
+          <ToggleSwitch checked={rememberUnlocked} onChange={(v) => update('smimeRememberUnlocked', v)} />
         </SettingItem>
 
         <SettingItem
           label="Auto-import signer certs"
           description="Save public certificates from signed messages."
         >
-          <ToggleSwitch checked={autoImport} onChange={setAutoImport} />
+          <ToggleSwitch checked={autoImport} onChange={(v) => update('smimeAutoImport', v)} />
         </SettingItem>
       </SettingsSection>
     </View>
