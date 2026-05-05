@@ -108,9 +108,15 @@ export const useUpdatesStore = create<UpdatesState>((set, get) => ({
     if (s.installing || !s.cachedLatest?.apkAsset) return;
     set({ installing: true, error: null, installProgress: { phase: 'downloading', progress: 0 } });
     try {
-      await downloadAndInstallApk(s.cachedLatest.apkAsset, (p) => {
-        set({ installProgress: p });
-      });
+      await downloadAndInstallApk(
+        {
+          asset: s.cachedLatest.apkAsset,
+          expectedSha256: s.cachedLatest.apkSha256,
+        },
+        (p) => {
+          set({ installProgress: p });
+        },
+      );
       set({ installing: false, installProgress: null });
     } catch (err) {
       set({

@@ -4,6 +4,7 @@ vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     request: vi.fn(),
+    getMaxObjectsInGet: () => 500,
   },
 }));
 
@@ -41,7 +42,10 @@ describe('calendar operations', () => {
   });
 
   describe('queryEvents', () => {
-    it('should query events within date range', async () => {
+    it('should send a CalendarEvent/query without server-side filter', async () => {
+      // Stalwart rejects inCalendars/after/before, so we fetch unfiltered and
+      // filter client-side. Asserting on the absence of `filter` keeps that
+      // contract pinned.
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/query', { ids: ['ev1', 'ev2'] }, '0']],
       });
@@ -50,12 +54,9 @@ describe('calendar operations', () => {
       expect(result).toEqual(['ev1', 'ev2']);
 
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({
-        inCalendars: ['cal-1'],
-        after: '2026-03-01T00:00:00Z',
-        before: '2026-03-31T23:59:59Z',
-        types: ['Event'],
-      });
+      expect(call[0]).toBe('CalendarEvent/query');
+      expect(call[1].filter).toBeUndefined();
+      expect(call[1].accountId).toBe('acc-1');
     });
   });
 

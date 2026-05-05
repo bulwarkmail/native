@@ -17,11 +17,23 @@ object NotificationTapStore {
         return value
     }
 
+    // The activity is exported (required by the LAUNCHER intent filter), so
+    // any third-party app on the device can craft a starting intent that
+    // includes these extras. Reject anything that doesn't look like the IDs
+    // our notification builder writes — preventing other apps from
+    // navigating us to a forged email/thread.
+    private val ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,128}$")
+
     fun captureFromIntent(intent: Intent?): TapPayload? {
         val extras = intent?.extras ?: return null
-        val emailId = extras.getString(EXTRA_EMAIL_ID) ?: return null
-        val threadId = extras.getString(EXTRA_THREAD_ID) ?: return null
-        val subject = extras.getString(EXTRA_SUBJECT)
+        val emailId = extras.getString(EXTRA_EMAIL_ID)?.takeIf { ID_PATTERN.matches(it) }
+            ?: return null
+        val threadId = extras.getString(EXTRA_THREAD_ID)?.takeIf { ID_PATTERN.matches(it) }
+            ?: return null
+        // Subject is human-readable text and may legitimately contain anything;
+        // cap its length so a hostile launcher can't ship a 1MB string into
+        // the navigation payload.
+        val subject = extras.getString(EXTRA_SUBJECT)?.take(512)
         val payload = TapPayload(emailId, threadId, subject)
         pending = payload
         // Clear so a subsequent activity lifecycle event doesn't replay this.

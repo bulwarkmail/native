@@ -1,42 +1,62 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('expo-secure-store', () => ({
-  setItemAsync: vi.fn(),
-  getItemAsync: vi.fn(),
-  deleteItemAsync: vi.fn(),
-}));
-
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     connect: vi.fn(),
     logout: vi.fn(),
     restoreSession: vi.fn(),
+    loadAccount: vi.fn(),
+    consumeLegacyCredentials: vi.fn(async () => null),
+    clearAccountCredentials: vi.fn(async () => undefined),
+    clearAllCredentials: vi.fn(async () => undefined),
+    reset: vi.fn(),
     accountId: 'acc-1',
     currentSession: { apiUrl: 'https://mail.example.com/jmap/' },
+    username: 'user',
+    serverUrl: 'https://mail.example.com',
   },
   AuthenticationError: class AuthenticationError extends Error {
     constructor(msg: string) { super(msg); this.name = 'AuthenticationError'; }
   },
+  NetworkError: class NetworkError extends Error {
+    constructor(msg: string) { super(msg); this.name = 'NetworkError'; }
+  },
+}));
+
+vi.mock('../../lib/push-notifications', () => ({
+  teardownPushNotifications: vi.fn(async () => undefined),
 }));
 
 import { jmapClient } from '../../api/jmap-client';
 import { useAuthStore } from '../auth-store';
+import { useAccountStore } from '../account-store';
 
 const mockConnect = jmapClient.connect as ReturnType<typeof vi.fn>;
 const mockLogout = jmapClient.logout as ReturnType<typeof vi.fn>;
-const mockRestore = jmapClient.restoreSession as ReturnType<typeof vi.fn>;
+const mockLoadAccount = jmapClient.loadAccount as ReturnType<typeof vi.fn>;
+
+function resetAccountStore(): void {
+  useAccountStore.setState({
+    accounts: [],
+    activeAccountId: null,
+    defaultAccountId: null,
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Reset store state
+  resetAccountStore();
   useAuthStore.setState({
     isAuthenticated: false,
     isLoading: false,
+    hasRestoredSession: false,
     error: null,
     serverUrl: null,
     username: null,
     session: null,
     accountId: null,
+    activeAccountId: null,
+    client: null,
   });
 });
 
@@ -83,7 +103,7 @@ describe('auth-store', () => {
   });
 
   describe('logout', () => {
-    it('should reset all state', async () => {
+    it('should reset all state when no other accounts remain', async () => {
       useAuthStore.setState({ isAuthenticated: true, serverUrl: 'x', username: 'y' });
       mockLogout.mockResolvedValue(undefined);
 
@@ -97,22 +117,39 @@ describe('auth-store', () => {
   });
 
   describe('restoreSession', () => {
-    it('should restore on success', async () => {
-      mockRestore.mockResolvedValue(true);
+    it('should return false when there is no registered account', async () => {
+      const restored = await useAuthStore.getState().restoreSession();
+
+      expect(restored).toBe(false);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().hasRestoredSession).toBe(true);
+    });
+
+    it('should restore when loadAccount succeeds for the active account', async () => {
+      useAccountStore.setState({
+        accounts: [
+          {
+            id: 'acc-1',
+            serverUrl: 'https://mail.example.com',
+            username: 'user',
+            displayName: 'user',
+            email: 'user',
+            avatarColor: '#000',
+            lastLoginAt: 0,
+            isConnected: false,
+            hasError: false,
+            isDefault: true,
+          },
+        ],
+        activeAccountId: 'acc-1',
+        defaultAccountId: 'acc-1',
+      });
+      mockLoadAccount.mockResolvedValue(true);
 
       const restored = await useAuthStore.getState().restoreSession();
 
       expect(restored).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
-    });
-
-    it('should return false when no session to restore', async () => {
-      mockRestore.mockResolvedValue(false);
-
-      const restored = await useAuthStore.getState().restoreSession();
-
-      expect(restored).toBe(false);
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
   });
 

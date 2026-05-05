@@ -4,6 +4,7 @@ vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     request: vi.fn(),
+    getMaxObjectsInGet: () => 500,
   },
 }));
 
@@ -50,14 +51,14 @@ describe('contacts operations', () => {
       expect(result).toEqual(['c1', 'c2']);
     });
 
-    it('should use default empty filter', async () => {
+    it('should omit filter when none provided', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [['ContactCard/query', { ids: [] }, '0']],
       });
 
       await queryContacts();
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({});
+      expect(call[1].filter).toBeUndefined();
     });
   });
 

@@ -133,12 +133,11 @@ interface PersistedSettings {
   pluginEnabled: Record<string, boolean>;
 
   // Offline mail cache: download recent message bodies in the background so
-  // they can be opened without network. Days windows the lookback; the
-  // attachments toggle controls whether file blobs are cached too (off by
-  // default — bodies-only is much smaller).
+  // they can be opened without network. Days windows the lookback. Attachment
+  // caching is intentionally not implemented yet — bodies-only is much
+  // smaller and covers the "open recent mail offline" UX on its own.
   offlineCacheEnabled: boolean;
   offlineCacheDays: number;
-  offlineCacheIncludeAttachments: boolean;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
@@ -218,7 +217,6 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
   offlineCacheEnabled: false,
   offlineCacheDays: 7,
-  offlineCacheIncludeAttachments: false,
 };
 
 export interface SettingsState extends PersistedSettings {

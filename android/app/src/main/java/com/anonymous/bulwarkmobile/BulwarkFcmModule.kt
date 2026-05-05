@@ -148,7 +148,36 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         conn.readTimeout = 3000
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("User-Agent", "bulwark-mobile")
-        conn.inputStream.use { BitmapFactory.decodeStream(it) }
+        // Cap the response to MAX_FAVICON_BYTES so a hostile / misconfigured
+        // server can't OOM the headless task with a multi-megabyte image.
+        // We also sample down to ~256x256 since it'll only render at 192px.
+        val stream = conn.inputStream
+        val bytes = stream.use { input ->
+            val limit = MAX_FAVICON_BYTES
+            val buf = ByteArrayOutputStream()
+            val chunk = ByteArray(8 * 1024)
+            var total = 0
+            while (true) {
+                val n = input.read(chunk)
+                if (n <= 0) break
+                total += n
+                if (total > limit) return@use null
+                buf.write(chunk, 0, n)
+            }
+            buf.toByteArray()
+        } ?: return null
+        val opts = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        var sample = 1
+        while ((opts.outWidth / sample) > 384 || (opts.outHeight / sample) > 384) {
+            sample *= 2
+        }
+        val decodeOpts = BitmapFactory.Options().apply {
+            inSampleSize = sample
+        }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOpts)
     } catch (_: Exception) {
         null
     }
@@ -167,6 +196,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
     fun removeListeners(count: Int) {}
 
     companion object {
+        // 1 MiB is plenty for a favicon; anything bigger is a sign of trouble.
+        private const val MAX_FAVICON_BYTES = 1 * 1024 * 1024
+
         @Volatile private var currentInstance: BulwarkFcmModule? = null
 
         fun emit(eventName: String, params: WritableMap?) {

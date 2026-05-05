@@ -201,13 +201,35 @@ export function startPolling(
   return () => clearInterval(timer);
 }
 
+export interface StartPushOptions {
+  onStateChange: StateChangeHandler;
+  onError?: (error: Error) => void;
+}
+
 /**
- * Start real-time updates, preferring SSE with polling fallback.
+ * Start real-time updates, preferring SSE with polling fallback. The `_client`
+ * argument is unused today (the underlying event source uses the singleton
+ * `jmapClient`) but is part of the call signature so the host App can pass
+ * the active client reference and trigger React re-runs on account switch.
  */
 export function startPushUpdates(
-  onStateChange: StateChangeHandler,
+  _client: unknown,
+  opts: StartPushOptions,
 ): () => void {
-  const cleanup = connectEventSource(onStateChange);
-  if (cleanup) return cleanup;
-  return startPolling(onStateChange);
+  const onError = opts.onError;
+  const safeOnStateChange: StateChangeHandler = (change) => {
+    try {
+      opts.onStateChange(change);
+    } catch (err) {
+      if (onError) onError(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+  try {
+    const cleanup = connectEventSource(safeOnStateChange);
+    if (cleanup) return cleanup;
+    return startPolling(safeOnStateChange);
+  } catch (err) {
+    if (onError) onError(err instanceof Error ? err : new Error(String(err)));
+    return () => undefined;
+  }
 }

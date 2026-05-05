@@ -263,20 +263,30 @@ function buildEditorHtml(opts: {
     },
     insertLink: function (url, label) {
       editor.focus();
+      // Reject anything that isn't a safe scheme or an absolute path, so the
+      // user can't accidentally (or via a malicious paste) ship a
+      // javascript:/data: link to their recipient.
+      var safeSchemeRe = /^(https?:|mailto:|tel:|sms:|\/|\?|#)/i;
+      var trimmed = (url || '').trim();
+      if (!trimmed || !safeSchemeRe.test(trimmed)) return;
       var sel = window.getSelection();
       var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed;
       if (hasSelection) {
-        try { document.execCommand('createLink', false, url); } catch (e) {}
+        try { document.execCommand('createLink', false, trimmed); } catch (e) {}
         // execCommand doesn't set rel; tag every anchor that points at this URL.
         Array.prototype.forEach.call(editor.getElementsByTagName('a'), function (a) {
-          if (a.getAttribute('href') === url) {
+          if (a.getAttribute('href') === trimmed) {
             a.setAttribute('rel', 'noopener noreferrer nofollow');
           }
         });
       } else {
-        var text = label && label.trim() ? label : url;
+        var text = label && label.trim() ? label : trimmed;
         var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        var safeUrl = url.replace(/"/g, '&quot;');
+        var safeUrl = trimmed
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
         var html = '<a href="' + safeUrl + '" rel="noopener noreferrer nofollow">' + safe + '</a>';
         try { document.execCommand('insertHTML', false, html); } catch (e) {}
       }
@@ -409,7 +419,7 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     <View style={[styles.container, { height }]}>
       <WebView
         ref={webViewRef}
-        originWhitelist={['about:*']}
+        originWhitelist={['about:blank']}
         source={{ html }}
         onMessage={onMessage}
         javaScriptEnabled
@@ -433,9 +443,11 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         style={styles.webview}
         containerStyle={styles.webviewContainer}
         onShouldStartLoadWithRequest={(request) => {
-          // Allow only the initial about:blank doc + data URIs we emit ourselves.
+          // Allow only the initial about:blank doc + data URIs we emit
+          // ourselves. Reject `about:*` (e.g. about:srcdoc) and every other
+          // scheme so a paste-injected anchor can't navigate the editor.
           const url = request.url;
-          return !url || url === 'about:blank' || url.startsWith('data:') || url.startsWith('about:');
+          return !url || url === 'about:blank' || url.startsWith('data:');
         }}
       />
     </View>

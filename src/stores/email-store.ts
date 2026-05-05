@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Email, Mailbox } from '../api/types';
+import type { Email, Mailbox, StateChange } from '../api/types';
+import { jmapClient } from '../api/jmap-client';
 import {
   getMailboxes as fetchMailboxes,
   queryEmails,
@@ -57,6 +58,7 @@ export interface EmailState {
   selectMailbox: (mailboxId: string) => Promise<void>;
   loadMoreEmails: () => Promise<void>;
   refreshEmails: () => Promise<void>;
+  handleStateChange: (change: StateChange) => Promise<void>;
   getEmailDetail: (id: string) => Promise<Email>;
   markRead: (emailId: string) => Promise<void>;
   markUnread: (emailId: string) => Promise<void>;
@@ -247,6 +249,24 @@ export const useEmailStore = create<EmailState>()(
         }
       }
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load emails' });
+    }
+  },
+
+  handleStateChange: async (change) => {
+    if (!jmapClient.currentSession) return;
+    const accountId = jmapClient.accountId;
+    const accountChanges = change.changed?.[accountId];
+    if (!accountChanges) return;
+
+    const mailboxChanged = 'Mailbox' in accountChanges;
+    const emailChanged = 'Email' in accountChanges || 'EmailDelivery' in accountChanges;
+    if (!mailboxChanged && !emailChanged) return;
+
+    if (mailboxChanged) {
+      await get().fetchMailboxes();
+    }
+    if (emailChanged && get().currentMailboxId) {
+      await get().refreshEmails();
     }
   },
 

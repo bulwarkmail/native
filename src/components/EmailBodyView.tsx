@@ -297,7 +297,7 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
       <View style={[styles.webContainer, { height }]}>
         <WebView
           ref={webviewRef}
-          originWhitelist={['about:*']}
+          originWhitelist={['about:blank']}
           source={source}
           javaScriptEnabled
           injectedJavaScript={HEIGHT_REPORTER}

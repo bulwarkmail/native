@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { Eye, EyeOff, X } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { Button, Input } from '../components';
 import { useAuthStore } from '../stores/auth-store';
+
+const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 
 interface LoginScreenProps {
   onLogin?: () => void;
@@ -156,7 +159,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Bulwark Mobile v0.0.1</Text>
+            <Text style={styles.footerText}>Bulwark Mobile v{APP_VERSION}</Text>
             <Text style={styles.footerLink}>Privacy Policy</Text>
           </View>
         </View>
