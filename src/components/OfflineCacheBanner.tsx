@@ -3,8 +3,10 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CloudDownload, X } from 'lucide-react-native';
 import { useOfflineCacheStore } from '../stores/offline-cache-store';
+import { useUpdatesStore } from '../stores/updates-store';
 import { formatBytes } from '../lib/offline-sync';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -12,9 +14,18 @@ import { useColors } from '../theme/colors';
 export function OfflineCacheBanner(): React.ReactElement | null {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const insets = useSafeAreaInsets();
   const sync = useOfflineCacheStore((s) => s.sync);
   const requestAbort = useOfflineCacheStore((s) => s.requestAbort);
   const resetSync = useOfflineCacheStore((s) => s.resetSync);
+  // When UpdateBanner is stacked above us it already absorbs the status-bar
+  // inset, so we only add it when we're the topmost banner.
+  const cachedLatest = useUpdatesStore((s) => s.cachedLatest);
+  const dismissedTag = useUpdatesStore((s) => s.dismissedTag);
+  const hasUpdate = useUpdatesStore((s) => s.hasUpdate);
+  const updateBannerVisible =
+    hasUpdate() && cachedLatest?.apkAsset != null && dismissedTag !== cachedLatest.tag;
+  const topInset = updateBannerVisible ? 0 : insets.top;
   const [hideTimer, setHideTimer] = React.useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-dismiss the "done" state after a few seconds so the bar isn't a
@@ -71,7 +82,7 @@ export function OfflineCacheBanner(): React.ReactElement | null {
   const isError = sync.phase === 'error';
 
   return (
-    <View style={[styles.banner, isError && styles.bannerError]}>
+    <View style={[styles.banner, isError && styles.bannerError, { paddingTop: spacing.sm + topInset }]}>
       <CloudDownload size={16} color={c.primaryForeground} />
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>{title}</Text>
