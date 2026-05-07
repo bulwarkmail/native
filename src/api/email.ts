@@ -93,10 +93,22 @@ export async function queryEmails(
   },
 ): Promise<{ ids: string[]; total: number }> {
   const accountId = jmapClient.accountId;
+  const inMailbox = { inMailbox: mailboxId };
+  const userFilter = options?.filter;
+  // JMAP filters are either a FilterCondition or a FilterOperator (operator +
+  // conditions) — never both. Spreading a FilterOperator next to `inMailbox`
+  // produces a hybrid object that servers reduce to the FilterCondition,
+  // silently dropping the operator's conditions (e.g. the "unread" toggle).
+  const filter =
+    !userFilter || Object.keys(userFilter).length === 0
+      ? inMailbox
+      : 'operator' in userFilter
+        ? { operator: 'AND', conditions: [inMailbox, userFilter] }
+        : { ...inMailbox, ...userFilter };
   const res = await jmapClient.request([
     ['Email/query', {
       accountId,
-      filter: { inMailbox: mailboxId, ...options?.filter },
+      filter,
       sort: options?.sort ?? [{ property: 'receivedAt', isAscending: false }],
       position: options?.position ?? 0,
       limit: options?.limit ?? 50,

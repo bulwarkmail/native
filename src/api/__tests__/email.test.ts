@@ -90,6 +90,24 @@ describe('email operations', () => {
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].filter).toEqual({ inMailbox: 'mb-1', hasKeyword: '$flagged' });
     });
+
+    it('should AND-wrap a FilterOperator instead of spreading it', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['Email/query', { ids: [], total: 0 }, '0']],
+      });
+
+      const userFilter = {
+        operator: 'AND',
+        conditions: [{ inMailbox: 'mb-1' }, { notKeyword: '$seen' }],
+      };
+      await queryEmails('mb-1', { filter: userFilter });
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].filter).toEqual({
+        operator: 'AND',
+        conditions: [{ inMailbox: 'mb-1' }, userFilter],
+      });
+    });
   });
 
   describe('getEmails', () => {
