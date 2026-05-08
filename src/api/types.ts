@@ -429,7 +429,7 @@ export interface FileNode {
   name: string;
   parentId?: string | null;
   type: string;
-  blobId?: string;
+  blobId?: string | null;
   size?: number;
   created?: string;
   updated?: string;
@@ -465,4 +465,5 @@ export const CAPABILITIES = {
   CALENDARS: 'urn:ietf:params:jmap:calendars',
   SIEVE: 'urn:ietf:params:jmap:sieve',
   QUOTA: 'urn:ietf:params:jmap:quota',
+  FILES: 'urn:ietf:params:jmap:filenode',
 } as const;

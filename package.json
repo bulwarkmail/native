@@ -23,6 +23,7 @@
     "@react-navigation/native-stack": "^7.14.10",
     "date-fns": "^4.1.0",
     "expo": "~54.0.33",
+    "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
     "expo-intent-launcher": "~13.0.8",

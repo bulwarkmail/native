@@ -1,23 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import {
-  ChevronLeft, FileText, Folder, HardDrive, FileImage, FileVideo, FileAudio,
-  FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
+  ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
+  FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
+  MoreVertical, Pencil, Share2, Trash2, Upload, X, Download,
 } from 'lucide-react-native';
-import { getFileNodes } from '../api/files';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  createFolder, deleteFileNodes, getAllFileNodes, isDirectory, updateFileNode,
+  uploadFileNode,
+} from '../api/files';
+import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import type { FileNode } from '../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSettingsStore, type FilesViewMode } from '../stores/settings-store';
+import Dialog from '../components/Dialog';
 
 interface FolderFrame {
   id: string | null;
@@ -82,11 +93,23 @@ function formatModified(iso?: string): string {
 export default function FilesScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+
   const [stack, setStack] = useState<FolderFrame[]>([ROOT_FRAME]);
-  const [files, setFiles] = useState<FileNode[]>([]);
+  const [allNodes, setAllNodes] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[] } | null>(null);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [renameTarget, setRenameTarget] = useState<FileNode | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [actionsTarget, setActionsTarget] = useState<FileNode | null>(null);
 
   const showIcons = useSettingsStore((s) => s.filesShowIcons);
   const coloredIcons = useSettingsStore((s) => s.filesColoredIcons);
@@ -96,21 +119,20 @@ export default function FilesScreen() {
   const defaultViewMode = useSettingsStore((s) => s.filesDefaultViewMode);
   const setSetting = useSettingsStore((s) => s.updateSetting);
 
-  // Local override so the user can flip view from the toolbar without
-  // changing their persisted default. Falls back to the setting.
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
 
   const current = stack[stack.length - 1];
+  const selectionMode = selection.size > 0;
 
   const loadFiles = useCallback(
-    async (parentId: string | null, mode: 'initial' | 'refresh' = 'initial') => {
+    async (mode: 'initial' | 'refresh' = 'initial') => {
       if (mode === 'refresh') setRefreshing(true);
       else setLoading(true);
       setError(null);
       try {
-        const nodes = await getFileNodes(parentId);
-        setFiles(nodes);
+        const nodes = await getAllFileNodes();
+        setAllNodes(nodes);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load files');
       } finally {
@@ -122,18 +144,31 @@ export default function FilesScreen() {
   );
 
   useEffect(() => {
-    void loadFiles(current.id);
-  }, [loadFiles, current.id]);
+    void loadFiles();
+  }, [loadFiles]);
+
+  // If we navigated into a folder that has since been deleted, walk back up
+  // until we land on a still-existing one (or root).
+  useEffect(() => {
+    if (allNodes.length === 0) return;
+    setStack((prev) => {
+      const ids = new Set(allNodes.map((n) => n.id));
+      let cut = prev.length;
+      for (let i = prev.length - 1; i > 0; i--) {
+        const id = prev[i].id;
+        if (id != null && !ids.has(id)) cut = i;
+      }
+      return cut === prev.length ? prev : prev.slice(0, cut);
+    });
+  }, [allNodes]);
 
   const visibleFiles = useMemo(() => {
-    let out = files;
+    let out = allNodes.filter((n) => (n.parentId ?? null) === current.id);
     if (!showHiddenFiles) out = out.filter((f) => !isHidden(f));
-    // Directories always sort to the top regardless of sort key, then secondary
-    // sort by the requested column. This matches macOS Finder / web file pickers.
     const dir = sortDir === 'desc' ? -1 : 1;
     return [...out].sort((a, b) => {
-      const aDir = a.type === 'directory' ? 0 : 1;
-      const bDir = b.type === 'directory' ? 0 : 1;
+      const aDir = isDirectory(a) ? 0 : 1;
+      const bDir = isDirectory(b) ? 0 : 1;
       if (aDir !== bDir) return aDir - bDir;
       switch (sortKey) {
         case 'size':
@@ -148,19 +183,66 @@ export default function FilesScreen() {
           return a.name.localeCompare(b.name) * dir;
       }
     });
-  }, [files, showHiddenFiles, sortKey, sortDir]);
+  }, [allNodes, current.id, showHiddenFiles, sortKey, sortDir]);
 
-  const openNode = useCallback((node: FileNode) => {
-    if (node.type === 'directory') {
-      setStack((s) => [...s, { id: node.id, name: node.name }]);
-    }
-    // Files are no-ops for now — opening a blob would need a download flow
-    // wired to the JMAP download endpoint.
+  const clearSelection = useCallback(() => setSelection(new Set()), []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
+
+  const previewFile = useCallback(async (node: FileNode) => {
+    if (!node.blobId) return;
+    setBusyId(node.id);
+    try {
+      await shareAttachment(node.blobId, node.name, node.type);
+    } catch (e) {
+      Alert.alert('Preview failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const downloadFile = useCallback(async (node: FileNode) => {
+    if (!node.blobId) return;
+    setBusyId(node.id);
+    try {
+      await downloadAttachment(node.blobId, node.name, node.type);
+    } catch (e) {
+      Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const handleRowPress = useCallback(
+    (node: FileNode) => {
+      if (selectionMode) {
+        toggleSelect(node.id);
+        return;
+      }
+      if (isDirectory(node)) {
+        setStack((s) => [...s, { id: node.id, name: node.name }]);
+        return;
+      }
+      void previewFile(node);
+    },
+    [selectionMode, toggleSelect, previewFile],
+  );
+
+  const handleRowLongPress = useCallback((node: FileNode) => {
+    toggleSelect(node.id);
+  }, [toggleSelect]);
 
   const goBack = useCallback(() => {
     setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
-  }, []);
+    clearSelection();
+  }, [clearSelection]);
 
   const toggleView = useCallback(() => {
     const next: FilesViewMode = viewMode === 'list' ? 'grid' : 'list';
@@ -169,12 +251,126 @@ export default function FilesScreen() {
   }, [viewMode, setSetting]);
 
   const onRefresh = useCallback(() => {
-    void loadFiles(current.id, 'refresh');
-  }, [loadFiles, current.id]);
+    void loadFiles('refresh');
+  }, [loadFiles]);
+
+  const submitNewFolder = useCallback(async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    setNewFolderOpen(false);
+    setNewFolderName('');
+    try {
+      await createFolder(name, current.id);
+      await loadFiles('refresh');
+    } catch (e) {
+      Alert.alert('Create folder failed', e instanceof Error ? e.message : String(e));
+    }
+  }, [newFolderName, current.id, loadFiles]);
+
+  const submitRename = useCallback(async () => {
+    if (!renameTarget) return;
+    const name = renameValue.trim();
+    if (!name || name === renameTarget.name) {
+      setRenameTarget(null);
+      return;
+    }
+    const target = renameTarget;
+    setRenameTarget(null);
+    setRenameValue('');
+    try {
+      await updateFileNode(target.id, { name });
+      await loadFiles('refresh');
+    } catch (e) {
+      Alert.alert('Rename failed', e instanceof Error ? e.message : String(e));
+    }
+  }, [renameTarget, renameValue, loadFiles]);
+
+  const startUpload = useCallback(async () => {
+    if (uploading) return;
+    let result;
+    try {
+      result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+    } catch (e) {
+      Alert.alert('Pick failed', e instanceof Error ? e.message : String(e));
+      return;
+    }
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+    setUploading(true);
+    try {
+      await uploadFileNode(
+        asset.uri,
+        asset.name,
+        asset.mimeType || 'application/octet-stream',
+        current.id,
+      );
+      await loadFiles('refresh');
+    } catch (e) {
+      Alert.alert('Upload failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  }, [uploading, current.id, loadFiles]);
+
+  const requestDelete = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setConfirmDelete({ ids });
+  }, []);
+
+  const performDelete = useCallback(async () => {
+    if (!confirmDelete) return;
+    // Cascade: if the user deletes a folder, also delete every descendant
+    // we know about. Stalwart deletes folders with content silently otherwise.
+    const targetIds = new Set(confirmDelete.ids);
+    let frontier = [...confirmDelete.ids];
+    while (frontier.length > 0) {
+      const next: string[] = [];
+      for (const node of allNodes) {
+        if (node.parentId && frontier.includes(node.parentId) && !targetIds.has(node.id)) {
+          targetIds.add(node.id);
+          next.push(node.id);
+        }
+      }
+      frontier = next;
+    }
+    setConfirmDelete(null);
+    clearSelection();
+    try {
+      await deleteFileNodes(Array.from(targetIds));
+      await loadFiles('refresh');
+    } catch (e) {
+      Alert.alert('Delete failed', e instanceof Error ? e.message : String(e));
+    }
+  }, [confirmDelete, allNodes, clearSelection, loadFiles]);
 
   const renderHeader = () => {
     const canBack = stack.length > 1;
     const ToggleIcon = viewMode === 'list' ? LayoutGrid : ListIcon;
+    if (selectionMode) {
+      return (
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={clearSelection} hitSlop={8} style={styles.headerBtn}>
+              <X size={22} color={c.text} />
+            </Pressable>
+            <Text style={styles.title}>{selection.size} selected</Text>
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => requestDelete(Array.from(selection))}
+                hitSlop={8}
+                style={styles.headerBtn}
+                accessibilityLabel="Delete selected"
+              >
+                <Trash2 size={20} color={c.error} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      );
+    }
     return (
       <View style={styles.header}>
         <View style={styles.headerRow}>
@@ -188,14 +384,37 @@ export default function FilesScreen() {
               {current.name}
             </Text>
           </View>
-          <Pressable
-            onPress={toggleView}
-            hitSlop={8}
-            style={styles.headerBtn}
-            accessibilityLabel={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
-          >
-            <ToggleIcon size={20} color={c.text} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => setNewFolderOpen(true)}
+              hitSlop={8}
+              style={styles.headerBtn}
+              accessibilityLabel="New folder"
+            >
+              <FolderPlus size={20} color={c.text} />
+            </Pressable>
+            <Pressable
+              onPress={() => void startUpload()}
+              hitSlop={8}
+              style={styles.headerBtn}
+              accessibilityLabel="Upload file"
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color={c.text} />
+              ) : (
+                <Upload size={20} color={c.text} />
+              )}
+            </Pressable>
+            <Pressable
+              onPress={toggleView}
+              hitSlop={8}
+              style={styles.headerBtn}
+              accessibilityLabel={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
+            >
+              <ToggleIcon size={20} color={c.text} />
+            </Pressable>
+          </View>
         </View>
         {canBack ? (
           <Text style={styles.breadcrumb} numberOfLines={1}>
@@ -207,18 +426,22 @@ export default function FilesScreen() {
   };
 
   const renderRow = (item: FileNode) => {
-    const Icon = item.type === 'directory' ? Folder : pickFileIcon(item.name);
-    const tint = item.type === 'directory'
+    const isDir = isDirectory(item);
+    const Icon = isDir ? Folder : pickFileIcon(item.name);
+    const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
       : (coloredIcons ? fileIconColor(item.name, c) : c.textMuted);
-    const tappable = item.type === 'directory';
+    const selected = selection.has(item.id);
+    const busy = busyId === item.id;
     return (
       <Pressable
-        onPress={() => openNode(item)}
-        disabled={!tappable}
+        onPress={() => handleRowPress(item)}
+        onLongPress={() => handleRowLongPress(item)}
+        delayLongPress={300}
         style={({ pressed }) => [
           styles.fileRow,
-          pressed && tappable && { backgroundColor: c.surfaceHover },
+          selected && { backgroundColor: c.primaryBg },
+          pressed && !selected && { backgroundColor: c.surfaceHover },
         ]}
       >
         {showIcons && <Icon size={20} color={tint} />}
@@ -227,7 +450,7 @@ export default function FilesScreen() {
             {item.name}
           </Text>
           <View style={styles.fileMetaRow}>
-            {item.size != null && item.type !== 'directory' ? (
+            {item.size != null && !isDir ? (
               <Text style={styles.fileMeta}>{formatFileSize(item.size)}</Text>
             ) : null}
             {item.updated ? (
@@ -235,23 +458,40 @@ export default function FilesScreen() {
             ) : null}
           </View>
         </View>
+        {busy ? (
+          <ActivityIndicator size="small" color={c.textMuted} />
+        ) : !selectionMode ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              setActionsTarget(item);
+            }}
+            hitSlop={8}
+            style={styles.rowMore}
+          >
+            <MoreVertical size={18} color={c.textMuted} />
+          </Pressable>
+        ) : null}
       </Pressable>
     );
   };
 
   const renderGridCell = (item: FileNode) => {
-    const Icon = item.type === 'directory' ? Folder : pickFileIcon(item.name);
-    const tint = item.type === 'directory'
+    const isDir = isDirectory(item);
+    const Icon = isDir ? Folder : pickFileIcon(item.name);
+    const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
       : (coloredIcons ? fileIconColor(item.name, c) : c.textMuted);
-    const tappable = item.type === 'directory';
+    const selected = selection.has(item.id);
     return (
       <Pressable
-        onPress={() => openNode(item)}
-        disabled={!tappable}
+        onPress={() => handleRowPress(item)}
+        onLongPress={() => handleRowLongPress(item)}
+        delayLongPress={300}
         style={({ pressed }) => [
           styles.gridItem,
-          pressed && tappable && { backgroundColor: c.surfaceHover },
+          selected && { backgroundColor: c.primaryBg },
+          pressed && !selected && { backgroundColor: c.surfaceHover },
         ]}
       >
         {showIcons ? (
@@ -262,7 +502,7 @@ export default function FilesScreen() {
         <Text style={styles.gridName} numberOfLines={2}>
           {item.name}
         </Text>
-        {item.size != null && item.type !== 'directory' ? (
+        {item.size != null && !isDir ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
             {formatFileSize(item.size)}
           </Text>
@@ -284,7 +524,7 @@ export default function FilesScreen() {
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity
           style={styles.retryButton}
-          onPress={() => void loadFiles(current.id)}
+          onPress={() => void loadFiles()}
         >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
@@ -310,11 +550,7 @@ export default function FilesScreen() {
         contentContainerStyle={styles.gridContent}
         renderItem={({ item }) => renderGridCell(item)}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={c.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
         }
       />
     );
@@ -326,11 +562,7 @@ export default function FilesScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => renderRow(item)}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={c.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
         }
       />
     );
@@ -340,7 +572,178 @@ export default function FilesScreen() {
     <View style={styles.container}>
       {renderHeader()}
       {body}
+
+      <PromptModal
+        visible={newFolderOpen}
+        title="New folder"
+        placeholder="Folder name"
+        confirmText="Create"
+        value={newFolderName}
+        onChange={setNewFolderName}
+        onCancel={() => {
+          setNewFolderOpen(false);
+          setNewFolderName('');
+        }}
+        onSubmit={submitNewFolder}
+      />
+
+      <PromptModal
+        visible={renameTarget != null}
+        title="Rename"
+        placeholder="Name"
+        confirmText="Rename"
+        value={renameValue}
+        onChange={setRenameValue}
+        onCancel={() => {
+          setRenameTarget(null);
+          setRenameValue('');
+        }}
+        onSubmit={submitRename}
+      />
+
+      <ActionsSheet
+        target={actionsTarget}
+        onClose={() => setActionsTarget(null)}
+        onPreview={(n) => {
+          setActionsTarget(null);
+          void previewFile(n);
+        }}
+        onDownload={(n) => {
+          setActionsTarget(null);
+          void downloadFile(n);
+        }}
+        onRename={(n) => {
+          setActionsTarget(null);
+          setRenameTarget(n);
+          setRenameValue(n.name);
+        }}
+        onDelete={(n) => {
+          setActionsTarget(null);
+          requestDelete([n.id]);
+        }}
+      />
+
+      <Dialog
+        visible={confirmDelete != null}
+        title={
+          confirmDelete && confirmDelete.ids.length > 1
+            ? `Delete ${confirmDelete.ids.length} items?`
+            : 'Delete this item?'
+        }
+        message="Folders are deleted along with everything inside them. This can't be undone."
+        variant="destructive"
+        confirmText="Delete"
+        onConfirm={() => void performDelete()}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </View>
+  );
+}
+
+interface PromptModalProps {
+  visible: boolean;
+  title: string;
+  placeholder: string;
+  confirmText: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}
+
+function PromptModal(props: PromptModalProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makePromptStyles(c), [c]);
+  return (
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="fade"
+      onRequestClose={props.onCancel}
+    >
+      <TouchableWithoutFeedback onPress={props.onCancel}>
+        <View style={styles.backdrop}>
+          <TouchableWithoutFeedback>
+            <View style={styles.dialog}>
+              <Text style={styles.title}>{props.title}</Text>
+              <TextInput
+                value={props.value}
+                onChangeText={props.onChange}
+                placeholder={props.placeholder}
+                placeholderTextColor={c.textMuted}
+                style={styles.input}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={props.onSubmit}
+              />
+              <View style={styles.row}>
+                <Pressable onPress={props.onCancel} style={styles.btnGhost}>
+                  <Text style={styles.btnGhostText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={props.onSubmit}
+                  style={[styles.btnPrimary, !props.value.trim() && { opacity: 0.5 }]}
+                  disabled={!props.value.trim()}
+                >
+                  <Text style={styles.btnPrimaryText}>{props.confirmText}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+}
+
+interface ActionsSheetProps {
+  target: FileNode | null;
+  onClose: () => void;
+  onPreview: (n: FileNode) => void;
+  onDownload: (n: FileNode) => void;
+  onRename: (n: FileNode) => void;
+  onDelete: (n: FileNode) => void;
+}
+
+function ActionsSheet({ target, onClose, onPreview, onDownload, onRename, onDelete }: ActionsSheetProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeSheetStyles(c), [c]);
+  if (!target) return null;
+  const isDir = isDirectory(target);
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.backdrop}>
+          <TouchableWithoutFeedback>
+            <View style={styles.sheet}>
+              <Text style={styles.sheetTitle} numberOfLines={1}>
+                {target.name}
+              </Text>
+              {!isDir ? (
+                <Pressable style={styles.action} onPress={() => onPreview(target)}>
+                  <Share2 size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>Preview / Share</Text>
+                </Pressable>
+              ) : null}
+              {!isDir ? (
+                <Pressable style={styles.action} onPress={() => onDownload(target)}>
+                  <Download size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>Save to device</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.action} onPress={() => onRename(target)}>
+                <Pencil size={18} color={c.text} />
+                <Text style={styles.actionLabel}>Rename</Text>
+              </Pressable>
+              <Pressable style={styles.action} onPress={() => onDelete(target)}>
+                <Trash2 size={18} color={c.error} />
+                <Text style={[styles.actionLabel, { color: c.error }]}>Delete</Text>
+              </Pressable>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 }
 
@@ -365,6 +768,11 @@ function makeStyles(c: ThemePalette) {
     },
     headerLeft: {
       flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
@@ -437,6 +845,9 @@ function makeStyles(c: ThemePalette) {
       fontSize: typography.caption.fontSize,
       color: c.textMuted,
     },
+    rowMore: {
+      padding: spacing.xs,
+    },
     gridContent: {
       padding: spacing.sm,
     },
@@ -460,6 +871,103 @@ function makeStyles(c: ThemePalette) {
       fontSize: typography.small.fontSize,
       color: c.textMuted,
       textAlign: 'center',
+    },
+  });
+}
+
+function makePromptStyles(c: ThemePalette) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.lg,
+    },
+    dialog: {
+      width: '100%',
+      maxWidth: 400,
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    title: {
+      ...typography.h3,
+      color: c.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      color: c.text,
+      fontSize: typography.body.fontSize,
+      backgroundColor: c.surface,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: spacing.sm,
+    },
+    btnGhost: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.md,
+    },
+    btnGhostText: {
+      color: c.text,
+      fontWeight: '600' as const,
+    },
+    btnPrimary: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.md,
+      backgroundColor: c.primary,
+    },
+    btnPrimaryText: {
+      color: c.primaryForeground,
+      fontWeight: '600' as const,
+    },
+  });
+}
+
+function makeSheetStyles(c: ThemePalette) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: c.background,
+      borderTopLeftRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xxl,
+      paddingHorizontal: spacing.md,
+      gap: spacing.xs,
+    },
+    sheetTitle: {
+      ...typography.bodyMedium,
+      color: c.textMuted,
+      paddingHorizontal: spacing.sm,
+      paddingBottom: spacing.sm,
+    },
+    action: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
+    },
+    actionLabel: {
+      ...typography.body,
+      color: c.text,
     },
   });
 }
