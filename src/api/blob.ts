@@ -61,6 +61,57 @@ export async function uploadBlob(
   throw new Error('Upload succeeded but response did not include a blobId');
 }
 
+// Direct in-memory upload. The on-disk variant goes through expo-file-system's
+// `new File(uri).bytes()`, which is overkill when we already have the bytes
+// (e.g. the empty-blob trick used to create directories on Stalwart).
+export async function uploadBytes(
+  bytes: Uint8Array,
+  type: string,
+): Promise<{ blobId: string; size: number; type: string }> {
+  const session = jmapClient.currentSession;
+  if (!session) throw new Error('Not connected');
+
+  const uploadUrl = session.uploadUrl.replace(
+    '{accountId}',
+    encodeURIComponent(jmapClient.accountId),
+  );
+
+  const response = await secureFetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': type || 'application/octet-stream',
+      Authorization: jmapClient.authHeader,
+    },
+    body: bytes.buffer as ArrayBuffer,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Upload failed: ${response.status}${detail ? ` ${detail}` : ''}`);
+  }
+
+  const raw = (await response.json()) as Record<string, unknown>;
+  const direct = raw as { blobId?: string; type?: string; size?: number };
+  if (typeof direct.blobId === 'string') {
+    return {
+      blobId: direct.blobId,
+      size: typeof direct.size === 'number' ? direct.size : bytes.byteLength,
+      type: typeof direct.type === 'string' && direct.type ? direct.type : type,
+    };
+  }
+  const nested = raw[jmapClient.accountId] as
+    | { blobId?: string; type?: string; size?: number }
+    | undefined;
+  if (nested?.blobId) {
+    return {
+      blobId: nested.blobId,
+      size: typeof nested.size === 'number' ? nested.size : bytes.byteLength,
+      type: typeof nested.type === 'string' && nested.type ? nested.type : type,
+    };
+  }
+  throw new Error('Upload succeeded but response did not include a blobId');
+}
+
 export function getDownloadUrl(
   blobId: string,
   name?: string,

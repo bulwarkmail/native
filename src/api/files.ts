@@ -1,7 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { FileNode } from './types';
-import { getDownloadUrl, uploadBlob } from './blob';
+import { getDownloadUrl, uploadBlob, uploadBytes } from './blob';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.FILES];
 
@@ -16,17 +16,24 @@ const DIRECTORY_TYPES = new Set([
 ]);
 
 export function isDirectory(node: Pick<FileNode, 'type'>): boolean {
-  return DIRECTORY_TYPES.has(node.type) || node.type.includes('directory');
+  const t = node.type;
+  if (!t) return false;
+  return DIRECTORY_TYPES.has(t) || t.includes('directory');
 }
 
 // Stalwart's FileNode/get does not support a parentId filter — fetching with
 // `ids: null` returns the whole tree, which the caller filters client-side.
 // Mirrors the webmail file-store; keeping the API uniform avoids a divergence
 // later when we add other JMAP servers.
+//
+// Properties are listed explicitly: some Stalwart builds omit `type` from the
+// default property set, which makes `isDirectory()` impossible to compute.
+const FILE_NODE_PROPERTIES = ['id', 'parentId', 'name', 'type', 'blobId', 'size', 'created', 'updated'];
+
 export async function getAllFileNodes(): Promise<FileNode[]> {
   const accountId = jmapClient.accountId;
   const res = await jmapClient.request(
-    [['FileNode/get', { accountId, ids: null }, '0']],
+    [['FileNode/get', { accountId, ids: null, properties: FILE_NODE_PROPERTIES }, '0']],
     USING,
   );
   return (res.methodResponses[0][1].list ?? []) as FileNode[];
@@ -55,7 +62,13 @@ export async function createFolder(
   name: string,
   parentId: string | null,
 ): Promise<FileNode> {
-  return createFileNode({ name, parentId, type: 'd', blobId: null, size: 0 });
+  // Stalwart's FileNode/set rejects directory creates without a blobId
+  // ("Missing blob id"), so we upload an empty blob first and reference it.
+  // Mirrors the webmail's createFileDirectory.
+  const blob = await uploadBytes(new Uint8Array(0), 'application/x-directory');
+  const props: Partial<FileNode> = { name, type: 'd', blobId: blob.blobId, size: 0 };
+  if (parentId !== null) props.parentId = parentId;
+  return createFileNode(props);
 }
 
 export async function updateFileNode(
