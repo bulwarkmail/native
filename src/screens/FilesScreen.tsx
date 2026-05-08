@@ -18,7 +18,24 @@ import {
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, X, Download,
 } from 'lucide-react-native';
-import * as DocumentPicker from 'expo-document-picker';
+// expo-document-picker is loaded lazily on first upload. Its native module
+// is registered at app launch via Expo autolinking; on builds that predate
+// the dep being added, requiring it at import time crashes the whole bundle
+// with "Cannot find native module 'ExpoDocumentPicker'". Deferring the
+// require keeps every other Files tab feature working until the user
+// rebuilds the native shell.
+type DocumentPickerModule = typeof import('expo-document-picker');
+let documentPickerModule: DocumentPickerModule | null = null;
+function loadDocumentPicker(): DocumentPickerModule | null {
+  if (documentPickerModule) return documentPickerModule;
+  try {
+    documentPickerModule = require('expo-document-picker') as DocumentPickerModule;
+    return documentPickerModule;
+  } catch {
+    return null;
+  }
+}
+
 import {
   createFolder, deleteFileNodes, getAllFileNodes, isDirectory, updateFileNode,
   uploadFileNode,
@@ -287,9 +304,17 @@ export default function FilesScreen() {
 
   const startUpload = useCallback(async () => {
     if (uploading) return;
+    const picker = loadDocumentPicker();
+    if (!picker) {
+      Alert.alert(
+        'Upload unavailable',
+        'The file picker is not installed in this build. Rebuild the app (expo run:android) to enable uploads.',
+      );
+      return;
+    }
     let result;
     try {
-      result = await DocumentPicker.getDocumentAsync({
+      result = await picker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
       });
