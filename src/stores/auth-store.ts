@@ -225,16 +225,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ isLoading: true, error: null });
 
-    jmapClient.reset();
-    resetFeatureStores();
-
-    const ok = await jmapClient.loadAccount(accountId);
-    if (!ok) {
-      // Credentials missing - evict stale entry and surface error
-      accountStore.removeAccount(accountId);
-      set({ isLoading: false, error: 'Session expired for this account' });
+    // Load the new account's session BEFORE clearing jmapClient or feature
+    // stores. The previous order (reset → resetFeatureStores → loadAccount)
+    // left jmapClient with no accountId during the loadAccount await, and
+    // any fetch fired by a screen effect reacting to the emptied stores
+    // (e.g. EmailListScreen retrying fetchMailboxes when mailboxes goes to
+    // []) threw "Not authenticated - call connect() first". loadAccount
+    // overwrites credentials/session/_accountId itself, so the pre-reset
+    // is unnecessary.
+    try {
+      const ok = await jmapClient.loadAccount(accountId);
+      if (!ok) {
+        // Credentials missing - evict stale entry and surface error
+        accountStore.removeAccount(accountId);
+        set({ isLoading: false, error: 'Session expired for this account' });
+        return;
+      }
+    } catch (err) {
+      if (err instanceof AuthenticationError) {
+        await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
+        accountStore.removeAccount(accountId);
+        set({ isLoading: false, error: 'Session expired for this account' });
+        return;
+      }
+      // NetworkError or anything else - keep the previous active account
+      // intact instead of stranding the user on a half-switched state.
+      set({
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to switch account',
+      });
       return;
     }
+
+    // Session is in place under the new account. Safe now to wipe the
+    // previous account's cached feature data; the refetch below repopulates.
+    resetFeatureStores();
 
     accountStore.setActiveAccount(accountId);
     accountStore.updateAccount(accountId, {

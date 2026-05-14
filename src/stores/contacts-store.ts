@@ -87,6 +87,10 @@ export const useContactsStore = create<ContactsState>()(
   },
 
   fetchAddressBooks: async () => {
+    // No-op until a JMAP session exists. ContactsScreen fires this from a
+    // mount-time useEffect, which on cold start runs before restoreSession
+    // has set up the client.
+    if (!jmapClient.isConnected) return;
     try {
       const addressBooks = (await fetchAddressBooks()) ?? [];
       set({ addressBooks });
@@ -96,6 +100,7 @@ export const useContactsStore = create<ContactsState>()(
   },
 
   fetchContacts: async (filter) => {
+    if (!jmapClient.isConnected) return;
     set({ loading: true, error: null });
     try {
       const ids = (await queryContacts(filter)) ?? [];
@@ -111,6 +116,7 @@ export const useContactsStore = create<ContactsState>()(
   },
 
   handleStateChange: async (change) => {
+    if (!jmapClient.isConnected) return;
     const accountId = jmapClient.accountId;
     const accountChanges = change.changed?.[accountId];
     if (!accountChanges) return;

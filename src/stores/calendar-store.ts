@@ -89,6 +89,11 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   fetchCalendars: async () => {
+    // CalendarScreen fires this on mount; on cold start that happens before
+    // restoreSession has connected jmapClient. Bail rather than surfacing
+    // a "Not authenticated" error - the refetch driven by the auth-store
+    // will run this again once the session is live.
+    if (!jmapClient.isConnected) return;
     try {
       const calendars = (await fetchCalendars()) ?? [];
       set({ calendars });
@@ -98,6 +103,7 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   fetchEvents: async (calendarIds, after, before) => {
+    if (!jmapClient.isConnected) return;
     set({ loading: true, error: null });
     try {
       const ids = (await queryEvents(calendarIds, after, before)) ?? [];
@@ -142,6 +148,7 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   handleStateChange: async (change) => {
+    if (!jmapClient.isConnected) return;
     const accountId = jmapClient.accountId;
     const accountChanges = change.changed?.[accountId];
     if (!accountChanges) return;

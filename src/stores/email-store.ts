@@ -129,6 +129,13 @@ export const useEmailStore = create<EmailState>()(
   pendingUndo: null,
 
   fetchMailboxes: async () => {
+    // Skip silently when there's no live session. Screens fire this from
+    // mount-time useEffects, and on cold start App.tsx renders MainTabs
+    // before restoreSession() finishes; without this guard the underlying
+    // API call would throw "Not authenticated - call connect() first" and
+    // surface as a user-visible error before the real fetch (kicked off by
+    // refetchFeatureStores() once the session is live) replaces it.
+    if (!jmapClient.isConnected) return;
     try {
       const mailboxes = await fetchMailboxes();
       set({ mailboxes });
@@ -171,6 +178,15 @@ export const useEmailStore = create<EmailState>()(
       }
     }
 
+    // Stop here if there's no live session yet — the cached seed already
+    // gave the user something to look at, and the refetch driven by
+    // restoreSession() / switchAccount will run the network half once the
+    // client is connected.
+    if (!jmapClient.isConnected) {
+      set({ loading: false });
+      return;
+    }
+
     try {
       const filter = buildJmapFilter(mailboxId, '', {});
       const { ids, total } = await queryEmails(mailboxId, { limit, filter });
@@ -195,6 +211,7 @@ export const useEmailStore = create<EmailState>()(
   loadMoreEmails: async () => {
     const { currentMailboxId, emails, totalEmails, loading, searchQuery, filters } = get();
     if (!currentMailboxId || loading || emails.length >= totalEmails) return;
+    if (!jmapClient.isConnected) return;
 
     set({ loading: true });
     try {
@@ -215,6 +232,7 @@ export const useEmailStore = create<EmailState>()(
   refreshEmails: async () => {
     const { currentMailboxId, searchQuery, filters, emails: existing } = get();
     if (!currentMailboxId) return;
+    if (!jmapClient.isConnected) return;
     // Keep existing emails visible while refreshing - swap atomically once
     // the new list is ready so pull-to-refresh doesn't flash an empty list.
     set({ loading: true, error: null });

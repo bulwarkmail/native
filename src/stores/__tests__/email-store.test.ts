@@ -17,7 +17,18 @@ vi.mock('../../api/email', () => ({
 // trip on react-native's Flow-typed entrypoint under vitest. The store only
 // reads archiveMode in archiveEmail, so a minimal stub is enough.
 vi.mock('../settings-store', () => ({
-  useSettingsStore: { getState: () => ({ archiveMode: 'single' }) },
+  useSettingsStore: { getState: () => ({ archiveMode: 'single', emailsPerPage: 25 }) },
+}));
+
+// email-store now early-returns from fetch actions when jmapClient.isConnected
+// is false (cold-start guard). The tests exercise those actions, so present
+// a connected stub.
+vi.mock('../../api/jmap-client', () => ({
+  jmapClient: {
+    isConnected: true,
+    accountId: 'acc-1',
+    currentSession: { apiUrl: 'https://mail.example.com/jmap/' },
+  },
 }));
 
 import * as emailApi from '../../api/email';

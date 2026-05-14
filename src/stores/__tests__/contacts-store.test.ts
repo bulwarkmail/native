@@ -20,6 +20,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
+    isConnected: true,
   },
 }));
 
