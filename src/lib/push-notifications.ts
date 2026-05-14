@@ -11,12 +11,88 @@ import { jmapClient } from '../api/jmap-client';
 import { generateAccountId } from './account-utils';
 
 // Persist identifiers across launches so we reuse the same JMAP subscription
-// after app restarts. deviceClientId also routes to the relay slot.
-const DEVICE_CLIENT_ID_KEY = 'push:deviceClientId:v1';
-const SUBSCRIPTION_ID_KEY = 'push:subscriptionId:v1';
+// after app restarts. Each account gets its own deviceClientId so the hosted
+// relay can distinguish per-account pushes via the URL slot it forwards.
 const RELAY_BASE_URL_KEY = 'push:relayBaseUrl:v1';
-const PUSH_ACCOUNT_ID_KEY = 'push:accountId:v1';
-const LAST_NOTIFIED_EMAIL_ID_KEY = 'push:lastNotifiedEmailId:v1';
+const PUSH_ACCOUNT_IDS_KEY = 'push:accountIds:v1';
+const DEVICE_CLIENT_ID_PREFIX = 'push:deviceClientId:v2:';
+const SUBSCRIPTION_ID_PREFIX = 'push:subscriptionId:v2:';
+export const LAST_NOTIFIED_EMAIL_ID_PREFIX = 'push:lastNotifiedEmailId:v2:';
+
+// Legacy single-account keys (pre-multi-account). Migrated lazily on the next
+// setupPushNotifications / pushBackgroundTask call, then deleted.
+const LEGACY_DEVICE_CLIENT_ID_KEY = 'push:deviceClientId:v1';
+const LEGACY_SUBSCRIPTION_ID_KEY = 'push:subscriptionId:v1';
+const LEGACY_PUSH_ACCOUNT_ID_KEY = 'push:accountId:v1';
+const LEGACY_LAST_NOTIFIED_EMAIL_ID_KEY = 'push:lastNotifiedEmailId:v1';
+
+export function deviceClientIdKey(accountId: string): string {
+  return DEVICE_CLIENT_ID_PREFIX + accountId;
+}
+
+function subscriptionIdKey(accountId: string): string {
+  return SUBSCRIPTION_ID_PREFIX + accountId;
+}
+
+export function lastNotifiedKey(accountId: string): string {
+  return LAST_NOTIFIED_EMAIL_ID_PREFIX + accountId;
+}
+
+export async function readPushAccountIds(): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(PUSH_ACCOUNT_IDS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((s): s is string => typeof s === 'string');
+  } catch {
+    return [];
+  }
+}
+
+async function writePushAccountIds(ids: string[]): Promise<void> {
+  const deduped = Array.from(new Set(ids));
+  if (deduped.length === 0) {
+    await AsyncStorage.removeItem(PUSH_ACCOUNT_IDS_KEY);
+  } else {
+    await AsyncStorage.setItem(PUSH_ACCOUNT_IDS_KEY, JSON.stringify(deduped));
+  }
+}
+
+// One-shot migration from the pre-multi-account schema. If the legacy
+// PUSH_ACCOUNT_ID_KEY exists, treat that account as the only pre-existing
+// setup: reuse the legacy deviceClientId and JMAP subscription id under
+// the new per-account keys so the user doesn't lose push on upgrade.
+export async function migrateLegacyPushKeys(): Promise<void> {
+  const legacyAccountId = await AsyncStorage.getItem(LEGACY_PUSH_ACCOUNT_ID_KEY);
+  if (!legacyAccountId) return;
+
+  const legacyDcid = await AsyncStorage.getItem(LEGACY_DEVICE_CLIENT_ID_KEY);
+  const legacySubId = await AsyncStorage.getItem(LEGACY_SUBSCRIPTION_ID_KEY);
+  const legacyLastId = await AsyncStorage.getItem(LEGACY_LAST_NOTIFIED_EMAIL_ID_KEY);
+
+  if (legacyDcid) {
+    await AsyncStorage.setItem(deviceClientIdKey(legacyAccountId), legacyDcid);
+  }
+  if (legacySubId) {
+    await AsyncStorage.setItem(subscriptionIdKey(legacyAccountId), legacySubId);
+  }
+  if (legacyLastId) {
+    await AsyncStorage.setItem(lastNotifiedKey(legacyAccountId), legacyLastId);
+  }
+
+  const ids = await readPushAccountIds();
+  if (!ids.includes(legacyAccountId)) {
+    await writePushAccountIds([...ids, legacyAccountId]);
+  }
+
+  await AsyncStorage.multiRemove([
+    LEGACY_PUSH_ACCOUNT_ID_KEY,
+    LEGACY_DEVICE_CLIENT_ID_KEY,
+    LEGACY_SUBSCRIPTION_ID_KEY,
+    LEGACY_LAST_NOTIFIED_EMAIL_ID_KEY,
+  ]);
+}
 
 // Hosted relay so users don't need to run their own Firebase project. The
 // relay only ever sees FCM tokens + JMAP state-id hashes - no mail content.
@@ -72,11 +148,12 @@ function randomClientId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function getOrCreateDeviceClientId(): Promise<string> {
-  const existing = await AsyncStorage.getItem(DEVICE_CLIENT_ID_KEY);
+async function getOrCreateDeviceClientId(accountId: string): Promise<string> {
+  const key = deviceClientIdKey(accountId);
+  const existing = await AsyncStorage.getItem(key);
   if (existing) return existing;
   const next = randomClientId();
-  await AsyncStorage.setItem(DEVICE_CLIENT_ID_KEY, next);
+  await AsyncStorage.setItem(key, next);
   return next;
 }
 
@@ -184,20 +261,24 @@ export async function setupPushNotifications(
   const fcmToken = await native.getToken();
   if (!fcmToken) throw new Error('FCM token unavailable');
 
-  const deviceClientId = await getOrCreateDeviceClientId();
-  await setStoredRelayBaseUrl(relayBaseUrl);
-
-  // Persist the account id so the background push task can reload credentials
-  // from SecureStore without the main app being running.
+  // setupPushNotifications operates on the currently-loaded jmapClient. We
+  // need its username/serverUrl up-front so we can key per-account state.
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
-  if (username && serverUrl) {
-    await AsyncStorage.setItem(
-      PUSH_ACCOUNT_ID_KEY,
-      generateAccountId(username, serverUrl),
-    );
+  if (!username || !serverUrl) {
+    throw new Error('No account loaded - cannot set up push');
   }
+  const accountId = generateAccountId(username, serverUrl);
 
+  await migrateLegacyPushKeys();
+
+  const deviceClientId = await getOrCreateDeviceClientId(accountId);
+  await setStoredRelayBaseUrl(relayBaseUrl);
+
+  // Register this account's device-client-id with the relay. Multiple
+  // accounts on the same device end up as separate registrations sharing
+  // one fcmToken - the relay forwards each push individually so the headless
+  // task can identify the source account via the FCM data payload.
   await registerWithRelay({
     relayBaseUrl,
     subscriptionId: deviceClientId,
@@ -208,26 +289,31 @@ export async function setupPushNotifications(
   // Reuse the previous JMAP subscription when the server still has it, but
   // push the expiry forward so it doesn't time out before the next app start.
   const existingSubs = await listPushSubscriptions().catch(() => []);
-  const storedServerId = await AsyncStorage.getItem(SUBSCRIPTION_ID_KEY);
+  const subKey = subscriptionIdKey(accountId);
+  const storedServerId = await AsyncStorage.getItem(subKey);
   if (storedServerId) {
     const match = existingSubs.find((s) => s.id === storedServerId);
     if (match) {
       const refreshed = await refreshSubscriptionExpires(match);
       if (refreshed) {
+        await addPushAccountId(accountId);
         return { subscriptionId: storedServerId, verified: true };
       }
       // Server rejected the refresh (likely the subscription was already
       // deleted server-side) - drop the stale id and recreate below.
       await destroyPushSubscription(storedServerId).catch(() => undefined);
     }
-    await AsyncStorage.removeItem(SUBSCRIPTION_ID_KEY);
+    await AsyncStorage.removeItem(subKey);
   }
 
-  // Reap any leftover Stalwart subscriptions still bound to this device.
-  // These pile up when a previous enable attempt failed mid-flow (verify
-  // race, network blip, app killed). Stalwart per-account rate-limits
-  // PushVerification posts, so leaving stragglers around blocks the new
-  // one's verification - the symptom is a confusing "code does not match".
+  // Reap any leftover Stalwart subscriptions still bound to this account's
+  // deviceClientId. These pile up when a previous enable attempt failed
+  // mid-flow (verify race, network blip, app killed). Stalwart per-account
+  // rate-limits PushVerification posts, so leaving stragglers around blocks
+  // the new one's verification - the symptom is a confusing "code does not
+  // match". Only reap matches for THIS account's deviceClientId; other
+  // accounts' subscriptions on this server (rare but possible if the same
+  // JMAP server backs multiple accounts) must be left alone.
   const stragglers = existingSubs.filter(
     (s) => s.deviceClientId === deviceClientId && s.id !== storedServerId,
   );
@@ -245,9 +331,17 @@ export async function setupPushNotifications(
   const verificationCode = await pollVerificationCode(relayBaseUrl, deviceClientId);
   await verifyPushSubscription(serverAssignedId, verificationCode);
 
-  await AsyncStorage.setItem(SUBSCRIPTION_ID_KEY, serverAssignedId);
+  await AsyncStorage.setItem(subKey, serverAssignedId);
+  await addPushAccountId(accountId);
 
   return { subscriptionId: serverAssignedId, verified: true };
+}
+
+async function addPushAccountId(accountId: string): Promise<void> {
+  const ids = await readPushAccountIds();
+  if (!ids.includes(accountId)) {
+    await writePushAccountIds([...ids, accountId]);
+  }
 }
 
 // Push the subscription's expires forward when it's getting close to the
@@ -273,28 +367,92 @@ async function refreshSubscriptionExpires(
   }
 }
 
+async function deregisterFromRelay(
+  relayBaseUrl: string,
+  deviceClientId: string,
+): Promise<void> {
+  await fetch(
+    buildRelayUrl(relayBaseUrl, `/api/push/register/${encodeURIComponent(deviceClientId)}`),
+    { method: 'DELETE' },
+  ).catch(() => undefined);
+}
+
 /**
- * Tear down push on logout / disable. Removes the server-side JMAP
- * subscription, tells the relay to drop the mapping, and clears the local
- * FCM token. Never throws - callers treat teardown as best effort.
+ * Tear down push for a single account. Destroys that account's JMAP
+ * subscription (assumes the jmapClient is currently authenticated to that
+ * account; the active-account logout flow guarantees this) and tells the
+ * relay to drop its mapping. Other accounts' push setups are untouched.
+ *
+ * If no accounts have push left after removal, also deletes the FCM token
+ * so the device stops receiving FCM messages entirely. Never throws -
+ * callers treat teardown as best effort.
+ */
+export async function teardownPushNotificationsForAccount(
+  accountId: string,
+): Promise<void> {
+  await migrateLegacyPushKeys();
+
+  const subKey = subscriptionIdKey(accountId);
+  const storedSubId = await AsyncStorage.getItem(subKey);
+  const dcidKey = deviceClientIdKey(accountId);
+  const storedDcid = await AsyncStorage.getItem(dcidKey);
+  const relayBaseUrl = await getStoredRelayBaseUrl();
+
+  if (storedSubId) {
+    await destroyPushSubscription(storedSubId).catch(() => undefined);
+  }
+  if (relayBaseUrl && storedDcid) {
+    await deregisterFromRelay(relayBaseUrl, storedDcid);
+  }
+
+  await AsyncStorage.multiRemove([subKey, dcidKey, lastNotifiedKey(accountId)]);
+
+  const remaining = (await readPushAccountIds()).filter((id) => id !== accountId);
+  await writePushAccountIds(remaining);
+
+  // If this was the last account with push, kill the FCM token so the device
+  // truly goes silent. Otherwise the token stays alive so the remaining
+  // accounts keep receiving pushes.
+  if (remaining.length === 0) {
+    const native = getNative();
+    if (native) {
+      await native.deleteToken().catch(() => undefined);
+    }
+  }
+}
+
+/**
+ * Tear down push for ALL accounts on this device. Used by the logout-all
+ * flow; best-effort because we typically aren't authenticated to every
+ * account's JMAP server at the moment we need to call destroy on it. The
+ * FCM token is always deleted so no push gets through regardless.
  */
 export async function teardownPushNotifications(): Promise<void> {
-  const storedId = await AsyncStorage.getItem(SUBSCRIPTION_ID_KEY);
-  const relayBaseUrl = await getStoredRelayBaseUrl();
-  const deviceClientId = await AsyncStorage.getItem(DEVICE_CLIENT_ID_KEY);
+  await migrateLegacyPushKeys();
 
-  if (storedId) {
-    await destroyPushSubscription(storedId).catch(() => undefined);
-    await AsyncStorage.removeItem(SUBSCRIPTION_ID_KEY);
+  const accountIds = await readPushAccountIds();
+  const relayBaseUrl = await getStoredRelayBaseUrl();
+
+  for (const accountId of accountIds) {
+    const subKey = subscriptionIdKey(accountId);
+    const dcidKey = deviceClientIdKey(accountId);
+    const storedSubId = await AsyncStorage.getItem(subKey);
+    const storedDcid = await AsyncStorage.getItem(dcidKey);
+
+    if (storedSubId) {
+      // Will only succeed if the jmapClient happens to be authenticated to
+      // this account right now. We don't switch the client to attempt each
+      // one; the subscription will expire server-side instead (90-day TTL).
+      await destroyPushSubscription(storedSubId).catch(() => undefined);
+    }
+    if (relayBaseUrl && storedDcid) {
+      await deregisterFromRelay(relayBaseUrl, storedDcid);
+    }
+    await AsyncStorage.multiRemove([subKey, dcidKey, lastNotifiedKey(accountId)]);
   }
-  if (relayBaseUrl && deviceClientId) {
-    await fetch(
-      buildRelayUrl(relayBaseUrl, `/api/push/register/${encodeURIComponent(deviceClientId)}`),
-      { method: 'DELETE' },
-    ).catch(() => undefined);
-  }
-  await AsyncStorage.removeItem(PUSH_ACCOUNT_ID_KEY);
-  await AsyncStorage.removeItem(LAST_NOTIFIED_EMAIL_ID_KEY);
+
+  await AsyncStorage.removeItem(PUSH_ACCOUNT_IDS_KEY);
+
   const native = getNative();
   if (native) {
     await native.deleteToken().catch(() => undefined);

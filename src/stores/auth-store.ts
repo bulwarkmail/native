@@ -6,7 +6,10 @@ import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { generateAccountId } from '../lib/account-utils';
-import { teardownPushNotifications } from '../lib/push-notifications';
+import {
+  teardownPushNotifications,
+  teardownPushNotificationsForAccount,
+} from '../lib/push-notifications';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -143,9 +146,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const accountStore = useAccountStore.getState();
     const currentId = get().activeAccountId;
 
-    // Best-effort: revoke the JMAP PushSubscription and drop the relay
-    // mapping before we lose credentials. Do not abort logout on failure.
-    await teardownPushNotifications().catch(() => undefined);
+    // Best-effort: revoke this account's JMAP PushSubscription and drop its
+    // relay mapping before we lose credentials. Other logged-in accounts'
+    // push setups remain untouched. Do not abort logout on failure.
+    if (currentId) {
+      await teardownPushNotificationsForAccount(currentId).catch(() => undefined);
+    } else {
+      await teardownPushNotifications().catch(() => undefined);
+    }
 
     // Clear credentials for this account first
     if (currentId) {

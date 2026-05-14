@@ -17,9 +17,10 @@ import { useSettingsStore, type NotificationSound } from '../../stores/settings-
 import {
   DEFAULT_RELAY_BASE_URL,
   getStoredRelayBaseUrl,
+  readPushAccountIds,
   setStoredRelayBaseUrl,
   setupPushNotifications,
-  teardownPushNotifications,
+  teardownPushNotificationsForAccount,
 } from '../../lib/push-notifications';
 
 const SOUNDS: { value: NotificationSound; label: string }[] = [
@@ -40,6 +41,7 @@ export function NotificationSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const username = useAuthStore((s) => s.username);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
 
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
@@ -106,10 +108,20 @@ export function NotificationSettings() {
     setConfirmDisable(false);
     setPushStatus({ kind: 'busy', message: 'Disabling…' });
     try {
-      await teardownPushNotifications();
-      await setStoredRelayBaseUrl(null);
-      setRelayUrl(DEFAULT_RELAY_BASE_URL);
-      setHasSaved(false);
+      if (activeAccountId) {
+        await teardownPushNotificationsForAccount(activeAccountId);
+      }
+      // The relay base URL is a device-wide setting shared with any other
+      // accounts that are still using push. Only clear it (and reset the UI
+      // to "not configured") when no accounts are using push any more —
+      // otherwise the remaining accounts would lose their relay URL and
+      // their next setup attempt would no-op.
+      const remaining = await readPushAccountIds();
+      if (remaining.length === 0) {
+        await setStoredRelayBaseUrl(null);
+        setRelayUrl(DEFAULT_RELAY_BASE_URL);
+        setHasSaved(false);
+      }
       setPushStatus({ kind: 'idle' });
     } catch (error) {
       setPushStatus({
