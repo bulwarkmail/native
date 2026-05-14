@@ -41,6 +41,7 @@ interface ShowNotificationOptions {
   emailId: string;
   threadId: string;
   subject?: string;
+  accountId: string;
 }
 
 interface BulwarkFcmNative {
@@ -100,6 +101,7 @@ export async function pushBackgroundTask(_data: unknown): Promise<void> {
       emailId,
       threadId: email.threadId,
       subject: email.subject ?? undefined,
+      accountId,
     });
 
     await AsyncStorage.setItem(LAST_NOTIFIED_EMAIL_ID_KEY, emailId);

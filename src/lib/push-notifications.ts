@@ -327,6 +327,10 @@ export interface NotificationTapPayload {
   emailId: string;
   threadId: string;
   subject?: string;
+  // Identifies which logged-in account the notification was generated for.
+  // Optional for back-compat: older notifications already on the system tray
+  // won't carry this and will fall back to the active account on tap.
+  accountId?: string;
 }
 
 // Returns - and clears - any pending "notification tap" that launched the app

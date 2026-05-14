@@ -51,8 +51,21 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-function navigateToNotificationTap(payload: NotificationTapPayload): void {
+async function navigateToNotificationTap(payload: NotificationTapPayload): Promise<void> {
   if (!navigationRef.isReady()) return;
+
+  // The notification carries the account it was generated for. If the user
+  // has since switched to a different account (or had a different one active
+  // when the notification arrived), opening EmailThread under the active
+  // account would fetch the email from the wrong server and fail.
+  const auth = useAuthStore.getState();
+  if (payload.accountId && payload.accountId !== auth.activeAccountId) {
+    const account = useAccountStore.getState().getAccountById(payload.accountId);
+    if (!account) return; // account was logged out — nothing safe to open.
+    await auth.switchAccount(payload.accountId);
+    if (useAuthStore.getState().activeAccountId !== payload.accountId) return;
+  }
+
   navigationRef.navigate('EmailThread', {
     emailId: payload.emailId,
     threadId: payload.threadId,
@@ -261,11 +274,11 @@ export default function App() {
     void (async () => {
       const initial = await getInitialNotificationTap();
       if (cancelled || !initial) return;
-      navigateToNotificationTap(initial);
+      await navigateToNotificationTap(initial);
     })();
 
     const unsubscribe = addNotificationTapListener((payload) => {
-      navigateToNotificationTap(payload);
+      void navigateToNotificationTap(payload);
     });
 
     return () => {

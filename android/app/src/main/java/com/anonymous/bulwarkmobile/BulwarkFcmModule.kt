@@ -65,6 +65,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val emailId = options.getString("emailId")
         val threadId = options.getString("threadId")
         val subject = options.takeIf { it.hasKey("subject") }?.getString("subject")
+        val accountId = options.takeIf { it.hasKey("accountId") }?.getString("accountId")
 
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
         // block waiting for the favicon request.
@@ -73,7 +74,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 ?: makeLetterAvatar(initials, bgColorHex)
             postNotification(
                 notificationId, title, body, largeIcon, bgColorHex,
-                emailId, threadId, subject,
+                emailId, threadId, subject, accountId,
             )
             promise.resolve(null)
         }
@@ -94,6 +95,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         emailId: String?,
         threadId: String?,
         subject: String?,
+        accountId: String?,
     ) {
         val ctx = reactApplicationContext
         val intent = Intent(ctx, MainActivity::class.java).apply {
@@ -101,6 +103,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             if (emailId != null) putExtra(NotificationTapStore.EXTRA_EMAIL_ID, emailId)
             if (threadId != null) putExtra(NotificationTapStore.EXTRA_THREAD_ID, threadId)
             if (subject != null) putExtra(NotificationTapStore.EXTRA_SUBJECT, subject)
+            if (accountId != null) putExtra(NotificationTapStore.EXTRA_ACCOUNT_ID, accountId)
         }
         val pending = PendingIntent.getActivity(
             ctx,

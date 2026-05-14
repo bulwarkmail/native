@@ -18,6 +18,7 @@ import {
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, X, Download,
 } from 'lucide-react-native';
+
 // expo-document-picker is loaded lazily on first upload. Its native module
 // is registered at app launch via Expo autolinking; on builds that predate
 // the dep being added, requiring it at import time crashes the whole bundle
@@ -37,7 +38,8 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 }
 
 import {
-  createFolder, deleteFileNodes, getAllFileNodes, isDirectory, updateFileNode,
+  createFolder, deleteWithDescendants, getAllFileNodes, isDirectChildOfPrefix,
+  isDirectory, nodeDisplayName, pathToPrefix, PATH_SEP, renameFileNode,
   uploadFileNode,
 } from '../api/files';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
@@ -47,12 +49,11 @@ import { useColors } from '../theme/colors';
 import { useSettingsStore, type FilesViewMode } from '../stores/settings-store';
 import Dialog from '../components/Dialog';
 
-interface FolderFrame {
-  id: string | null;
-  name: string;
+// A file row carries the resolved display name alongside the original
+// server-side name (the path-encoded `node.name` field).
+interface FileRow extends FileNode {
+  displayName: string;
 }
-
-const ROOT_FRAME: FolderFrame = { id: null, name: 'Files' };
 
 function pickFileIcon(name: string) {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
@@ -75,10 +76,6 @@ function fileIconColor(name: string, c: ThemePalette): string {
   if (['pdf'].includes(ext)) return c.error;
   if (['ts', 'tsx', 'js', 'jsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'json', 'xml', 'yaml', 'yml', 'sh'].includes(ext)) return c.calendar.indigo;
   return c.textMuted;
-}
-
-function isHidden(node: FileNode): boolean {
-  return node.name.startsWith('.');
 }
 
 function formatFileSize(bytes?: number): string {
@@ -111,7 +108,7 @@ export default function FilesScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
 
-  const [stack, setStack] = useState<FolderFrame[]>([ROOT_FRAME]);
+  const [path, setPath] = useState<string[]>([]);
   const [allNodes, setAllNodes] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,12 +118,12 @@ export default function FilesScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[] } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ rows: FileRow[] } | null>(null);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [renameTarget, setRenameTarget] = useState<FileNode | null>(null);
+  const [renameTarget, setRenameTarget] = useState<FileRow | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [actionsTarget, setActionsTarget] = useState<FileNode | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<FileRow | null>(null);
 
   const showIcons = useSettingsStore((s) => s.filesShowIcons);
   const coloredIcons = useSettingsStore((s) => s.filesColoredIcons);
@@ -139,8 +136,9 @@ export default function FilesScreen() {
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
 
-  const current = stack[stack.length - 1];
   const selectionMode = selection.size > 0;
+  const prefix = useMemo(() => pathToPrefix(path), [path]);
+  const headerName = path.length === 0 ? 'Files' : path[path.length - 1];
 
   const loadFiles = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -164,26 +162,31 @@ export default function FilesScreen() {
     void loadFiles();
   }, [loadFiles]);
 
-  // If we navigated into a folder that has since been deleted, walk back up
-  // until we land on a still-existing one (or root).
+  // If we navigated into a folder that no longer exists (it was deleted, or
+  // we never had it), walk back up until we land on one that does. The check
+  // looks for a directory node whose serverName matches the encoded path.
   useEffect(() => {
     if (allNodes.length === 0) return;
-    setStack((prev) => {
-      const ids = new Set(allNodes.map((n) => n.id));
-      let cut = prev.length;
-      for (let i = prev.length - 1; i > 0; i--) {
-        const id = prev[i].id;
-        if (id != null && !ids.has(id)) cut = i;
+    setPath((prev) => {
+      let next = prev;
+      while (next.length > 0) {
+        const parentPrefix = pathToPrefix(next.slice(0, -1));
+        const expectedName = parentPrefix + next[next.length - 1];
+        const exists = allNodes.some((n) => n.name === expectedName && isDirectory(n));
+        if (exists) break;
+        next = next.slice(0, -1);
       }
-      return cut === prev.length ? prev : prev.slice(0, cut);
+      return next.length === prev.length ? prev : next;
     });
   }, [allNodes]);
 
-  const visibleFiles = useMemo(() => {
-    let out = allNodes.filter((n) => (n.parentId ?? null) === current.id);
-    if (!showHiddenFiles) out = out.filter((f) => !isHidden(f));
+  const visibleFiles = useMemo<FileRow[]>(() => {
+    const rows = allNodes
+      .filter((n) => isDirectChildOfPrefix(n, prefix))
+      .map<FileRow>((n) => ({ ...n, displayName: nodeDisplayName(n, prefix) }))
+      .filter((r) => showHiddenFiles || !r.displayName.startsWith('.'));
     const dir = sortDir === 'desc' ? -1 : 1;
-    return [...out].sort((a, b) => {
+    return rows.sort((a, b) => {
       const aDir = isDirectory(a) ? 0 : 1;
       const bDir = isDirectory(b) ? 0 : 1;
       if (aDir !== bDir) return aDir - bDir;
@@ -197,10 +200,10 @@ export default function FilesScreen() {
         }
         case 'name':
         default:
-          return a.name.localeCompare(b.name) * dir;
+          return a.displayName.localeCompare(b.displayName) * dir;
       }
     });
-  }, [allNodes, current.id, showHiddenFiles, sortKey, sortDir]);
+  }, [allNodes, prefix, showHiddenFiles, sortKey, sortDir]);
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
 
@@ -213,11 +216,11 @@ export default function FilesScreen() {
     });
   }, []);
 
-  const previewFile = useCallback(async (node: FileNode) => {
-    if (!node.blobId) return;
-    setBusyId(node.id);
+  const previewFile = useCallback(async (row: FileRow) => {
+    if (!row.blobId) return;
+    setBusyId(row.id);
     try {
-      await shareAttachment(node.blobId, node.name, node.type);
+      await shareAttachment(row.blobId, row.displayName, row.type);
     } catch (e) {
       Alert.alert('Preview failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -225,11 +228,11 @@ export default function FilesScreen() {
     }
   }, []);
 
-  const downloadFile = useCallback(async (node: FileNode) => {
-    if (!node.blobId) return;
-    setBusyId(node.id);
+  const downloadFile = useCallback(async (row: FileRow) => {
+    if (!row.blobId) return;
+    setBusyId(row.id);
     try {
-      await downloadAttachment(node.blobId, node.name, node.type);
+      await downloadAttachment(row.blobId, row.displayName, row.type);
     } catch (e) {
       Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -238,26 +241,26 @@ export default function FilesScreen() {
   }, []);
 
   const handleRowPress = useCallback(
-    (node: FileNode) => {
+    (row: FileRow) => {
       if (selectionMode) {
-        toggleSelect(node.id);
+        toggleSelect(row.id);
         return;
       }
-      if (isDirectory(node)) {
-        setStack((s) => [...s, { id: node.id, name: node.name }]);
+      if (isDirectory(row)) {
+        setPath((p) => [...p, row.displayName]);
         return;
       }
-      void previewFile(node);
+      void previewFile(row);
     },
     [selectionMode, toggleSelect, previewFile],
   );
 
-  const handleRowLongPress = useCallback((node: FileNode) => {
-    toggleSelect(node.id);
+  const handleRowLongPress = useCallback((row: FileRow) => {
+    toggleSelect(row.id);
   }, [toggleSelect]);
 
   const goBack = useCallback(() => {
-    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+    setPath((p) => (p.length > 0 ? p.slice(0, -1) : p));
     clearSelection();
   }, [clearSelection]);
 
@@ -274,33 +277,41 @@ export default function FilesScreen() {
   const submitNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) return;
+    if (name.includes(PATH_SEP) || name.includes('/')) {
+      Alert.alert('Invalid name', 'Folder names cannot contain "/".');
+      return;
+    }
     setNewFolderOpen(false);
     setNewFolderName('');
     try {
-      await createFolder(name, current.id);
+      await createFolder(name, path);
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert('Create folder failed', e instanceof Error ? e.message : String(e));
     }
-  }, [newFolderName, current.id, loadFiles]);
+  }, [newFolderName, path, loadFiles]);
 
   const submitRename = useCallback(async () => {
     if (!renameTarget) return;
     const name = renameValue.trim();
-    if (!name || name === renameTarget.name) {
+    if (!name || name === renameTarget.displayName) {
       setRenameTarget(null);
+      return;
+    }
+    if (name.includes(PATH_SEP) || name.includes('/')) {
+      Alert.alert('Invalid name', 'Names cannot contain "/".');
       return;
     }
     const target = renameTarget;
     setRenameTarget(null);
     setRenameValue('');
     try {
-      await updateFileNode(target.id, { name });
+      await renameFileNode(target, name, path, allNodes);
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert('Rename failed', e instanceof Error ? e.message : String(e));
     }
-  }, [renameTarget, renameValue, loadFiles]);
+  }, [renameTarget, renameValue, path, allNodes, loadFiles]);
 
   const startUpload = useCallback(async () => {
     if (uploading) return;
@@ -330,7 +341,7 @@ export default function FilesScreen() {
         asset.uri,
         asset.name,
         asset.mimeType || 'application/octet-stream',
-        current.id,
+        path,
       );
       await loadFiles('refresh');
     } catch (e) {
@@ -338,33 +349,20 @@ export default function FilesScreen() {
     } finally {
       setUploading(false);
     }
-  }, [uploading, current.id, loadFiles]);
+  }, [uploading, path, loadFiles]);
 
-  const requestDelete = useCallback((ids: string[]) => {
-    if (ids.length === 0) return;
-    setConfirmDelete({ ids });
+  const requestDelete = useCallback((rows: FileRow[]) => {
+    if (rows.length === 0) return;
+    setConfirmDelete({ rows });
   }, []);
 
   const performDelete = useCallback(async () => {
     if (!confirmDelete) return;
-    // Cascade: if the user deletes a folder, also delete every descendant
-    // we know about. Stalwart deletes folders with content silently otherwise.
-    const targetIds = new Set(confirmDelete.ids);
-    let frontier = [...confirmDelete.ids];
-    while (frontier.length > 0) {
-      const next: string[] = [];
-      for (const node of allNodes) {
-        if (node.parentId && frontier.includes(node.parentId) && !targetIds.has(node.id)) {
-          targetIds.add(node.id);
-          next.push(node.id);
-        }
-      }
-      frontier = next;
-    }
+    const targets = confirmDelete.rows;
     setConfirmDelete(null);
     clearSelection();
     try {
-      await deleteFileNodes(Array.from(targetIds));
+      await deleteWithDescendants(targets, allNodes);
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert('Delete failed', e instanceof Error ? e.message : String(e));
@@ -372,9 +370,10 @@ export default function FilesScreen() {
   }, [confirmDelete, allNodes, clearSelection, loadFiles]);
 
   const renderHeader = () => {
-    const canBack = stack.length > 1;
+    const canBack = path.length > 0;
     const ToggleIcon = viewMode === 'list' ? LayoutGrid : ListIcon;
     if (selectionMode) {
+      const selectedRows = visibleFiles.filter((r) => selection.has(r.id));
       return (
         <View style={styles.header}>
           <View style={styles.headerRow}>
@@ -384,7 +383,7 @@ export default function FilesScreen() {
             <Text style={styles.title}>{selection.size} selected</Text>
             <View style={styles.headerActions}>
               <Pressable
-                onPress={() => requestDelete(Array.from(selection))}
+                onPress={() => requestDelete(selectedRows)}
                 hitSlop={8}
                 style={styles.headerBtn}
                 accessibilityLabel="Delete selected"
@@ -406,7 +405,7 @@ export default function FilesScreen() {
               </Pressable>
             ) : null}
             <Text style={styles.title} numberOfLines={1}>
-              {current.name}
+              {headerName}
             </Text>
           </View>
           <View style={styles.headerActions}>
@@ -443,19 +442,19 @@ export default function FilesScreen() {
         </View>
         {canBack ? (
           <Text style={styles.breadcrumb} numberOfLines={1}>
-            {stack.map((f) => f.name).join(' / ')}
+            {['Files', ...path].join(' / ')}
           </Text>
         ) : null}
       </View>
     );
   };
 
-  const renderRow = (item: FileNode) => {
+  const renderRow = (item: FileRow) => {
     const isDir = isDirectory(item);
-    const Icon = isDir ? Folder : pickFileIcon(item.name);
+    const Icon = isDir ? Folder : pickFileIcon(item.displayName);
     const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
-      : (coloredIcons ? fileIconColor(item.name, c) : c.textMuted);
+      : (coloredIcons ? fileIconColor(item.displayName, c) : c.textMuted);
     const selected = selection.has(item.id);
     const busy = busyId === item.id;
     return (
@@ -472,7 +471,7 @@ export default function FilesScreen() {
         {showIcons && <Icon size={20} color={tint} />}
         <View style={styles.fileInfo}>
           <Text style={styles.fileName} numberOfLines={1}>
-            {item.name}
+            {item.displayName}
           </Text>
           <View style={styles.fileMetaRow}>
             {item.size != null && !isDir ? (
@@ -501,12 +500,12 @@ export default function FilesScreen() {
     );
   };
 
-  const renderGridCell = (item: FileNode) => {
+  const renderGridCell = (item: FileRow) => {
     const isDir = isDirectory(item);
-    const Icon = isDir ? Folder : pickFileIcon(item.name);
+    const Icon = isDir ? Folder : pickFileIcon(item.displayName);
     const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
-      : (coloredIcons ? fileIconColor(item.name, c) : c.textMuted);
+      : (coloredIcons ? fileIconColor(item.displayName, c) : c.textMuted);
     const selected = selection.has(item.id);
     return (
       <Pressable
@@ -525,7 +524,7 @@ export default function FilesScreen() {
           <View style={{ width: 36, height: 36 }} />
         )}
         <Text style={styles.gridName} numberOfLines={2}>
-          {item.name}
+          {item.displayName}
         </Text>
         {item.size != null && !isDir ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
@@ -560,7 +559,7 @@ export default function FilesScreen() {
       <View style={styles.center}>
         <HardDrive size={48} color={c.textMuted} />
         <Text style={styles.emptyText}>
-          {stack.length > 1 ? 'This folder is empty' : 'No files yet'}
+          {path.length > 0 ? 'This folder is empty' : 'No files yet'}
         </Text>
       </View>
     );
@@ -629,30 +628,30 @@ export default function FilesScreen() {
       <ActionsSheet
         target={actionsTarget}
         onClose={() => setActionsTarget(null)}
-        onPreview={(n) => {
+        onPreview={(r) => {
           setActionsTarget(null);
-          void previewFile(n);
+          void previewFile(r);
         }}
-        onDownload={(n) => {
+        onDownload={(r) => {
           setActionsTarget(null);
-          void downloadFile(n);
+          void downloadFile(r);
         }}
-        onRename={(n) => {
+        onRename={(r) => {
           setActionsTarget(null);
-          setRenameTarget(n);
-          setRenameValue(n.name);
+          setRenameTarget(r);
+          setRenameValue(r.displayName);
         }}
-        onDelete={(n) => {
+        onDelete={(r) => {
           setActionsTarget(null);
-          requestDelete([n.id]);
+          requestDelete([r]);
         }}
       />
 
       <Dialog
         visible={confirmDelete != null}
         title={
-          confirmDelete && confirmDelete.ids.length > 1
-            ? `Delete ${confirmDelete.ids.length} items?`
+          confirmDelete && confirmDelete.rows.length > 1
+            ? `Delete ${confirmDelete.rows.length} items?`
             : 'Delete this item?'
         }
         message="Folders are deleted along with everything inside them. This can't be undone."
@@ -722,12 +721,12 @@ function PromptModal(props: PromptModalProps) {
 }
 
 interface ActionsSheetProps {
-  target: FileNode | null;
+  target: FileRow | null;
   onClose: () => void;
-  onPreview: (n: FileNode) => void;
-  onDownload: (n: FileNode) => void;
-  onRename: (n: FileNode) => void;
-  onDelete: (n: FileNode) => void;
+  onPreview: (r: FileRow) => void;
+  onDownload: (r: FileRow) => void;
+  onRename: (r: FileRow) => void;
+  onDelete: (r: FileRow) => void;
 }
 
 function ActionsSheet({ target, onClose, onPreview, onDownload, onRename, onDelete }: ActionsSheetProps) {
@@ -742,7 +741,7 @@ function ActionsSheet({ target, onClose, onPreview, onDownload, onRename, onDele
           <TouchableWithoutFeedback>
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
-                {target.name}
+                {target.displayName}
               </Text>
               {!isDir ? (
                 <Pressable style={styles.action} onPress={() => onPreview(target)}>
