@@ -36,6 +36,7 @@ import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore } from './src/stores/email-store';
+import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
 import { useNetworkStore } from './src/stores/network-store';
@@ -88,6 +89,10 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const mailboxes = useEmailStore((state) => state.mailboxes);
   const logout = useAuthStore((state) => state.logout);
   const inboxUnreadCount = mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0;
+  const hasCalendar = useHasCalendar();
+  const hasContacts = useHasContacts();
+  const hasFiles = useHasFiles();
+  const disabledTabStyle = { opacity: 0.4 } as const;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
@@ -149,6 +154,13 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={CalendarScreen}
         options={{
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+          tabBarItemStyle: hasCalendar ? undefined : disabledTabStyle,
+          tabBarAccessibilityLabel: hasCalendar ? 'Calendar' : 'Calendar (unavailable)',
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (!hasCalendar) e.preventDefault();
+          },
         }}
       />
       <Tab.Screen
@@ -156,6 +168,13 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={ContactsScreen}
         options={{
           tabBarIcon: ({ color, size }) => <BookUser size={size} color={color} />,
+          tabBarItemStyle: hasContacts ? undefined : disabledTabStyle,
+          tabBarAccessibilityLabel: hasContacts ? 'Contacts' : 'Contacts (unavailable)',
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (!hasContacts) e.preventDefault();
+          },
         }}
       />
       <Tab.Screen
@@ -163,6 +182,13 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         component={FilesScreen}
         options={{
           tabBarIcon: ({ color, size }) => <HardDrive size={size} color={color} />,
+          tabBarItemStyle: hasFiles ? undefined : disabledTabStyle,
+          tabBarAccessibilityLabel: hasFiles ? 'Files' : 'Files (unavailable)',
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (!hasFiles) e.preventDefault();
+          },
         }}
       />
       <Tab.Screen

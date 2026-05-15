@@ -36,6 +36,7 @@ import { LanguageSettings } from '../components/settings/LanguageSettings';
 import { ComposingSettings } from '../components/settings/ComposingSettings';
 import { LayoutSettings } from '../components/settings/LayoutSettings';
 import { useLocaleStore } from '../stores/locale-store';
+import { useHasCalendar, useHasContacts, useHasFiles } from '../lib/capabilities';
 
 type Tab =
   | 'account' | 'language' | 'notifications'
@@ -155,6 +156,16 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   // Subscribe to locale so labels re-render when the user picks a different language.
   const locale = useLocaleStore((s) => s.locale);
   const t = useLocaleStore((s) => s.t);
+  const hasCalendar = useHasCalendar();
+  const hasContacts = useHasContacts();
+  const hasFiles = useHasFiles();
+  const unavailableTabs = React.useMemo(() => {
+    const set = new Set<Tab>();
+    if (!hasCalendar) set.add('calendar');
+    if (!hasContacts) set.add('contacts');
+    if (!hasFiles) set.add('files');
+    return set;
+  }, [hasCalendar, hasContacts, hasFiles]);
   const groupedTabs = React.useMemo(() => {
     void locale; // dependency: re-translate on locale change
     return groupTabs().map((g) => ({
@@ -178,6 +189,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
   const handleTabPress = (tab: TabDef) => {
     if (!tab.implemented) return;
+    if (unavailableTabs.has(tab.id)) return;
     setSelectedTab(tab.id);
     onTabSelect?.(tab.id);
   };
@@ -241,7 +253,13 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
               {group.items.map((tab) => {
                 const Icon = tab.icon;
-                const disabled = !tab.implemented;
+                const unavailable = unavailableTabs.has(tab.id);
+                const disabled = !tab.implemented || unavailable;
+                const badgeLabel = !tab.implemented
+                  ? 'Not implemented'
+                  : unavailable
+                    ? 'Unavailable'
+                    : null;
                 return (
                   <Pressable
                     key={tab.id}
@@ -269,9 +287,9 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                         </View>
                       )}
                     </View>
-                    {disabled ? (
+                    {badgeLabel ? (
                       <View style={styles.notWorkingBadge}>
-                        <Text style={styles.notWorkingText}>Not implemented</Text>
+                        <Text style={styles.notWorkingText}>{badgeLabel}</Text>
                       </View>
                     ) : (
                       <ChevronRight size={16} color={c.mutedForeground} />
