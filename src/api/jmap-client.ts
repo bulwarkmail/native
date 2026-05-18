@@ -8,6 +8,11 @@ import type {
 import { CAPABILITIES } from './types';
 import { generateAccountId } from '../lib/account-utils';
 import { secureFetch } from '../lib/client-cert';
+import { refreshOAuthAccessToken, type OAuthTokens } from '../lib/oauth';
+
+// Refresh OAuth access tokens this many ms before they actually expire so
+// in-flight requests don't race the expiry window.
+const TOKEN_REFRESH_LEEWAY_MS = 60_000;
 
 const LEGACY_CREDENTIALS_KEY = 'jmap_credentials';
 const CREDENTIALS_PREFIX = 'jmap_credentials__';
@@ -22,6 +27,13 @@ export interface StoredCredentials {
   username: string;
   password: string;
   accessToken?: string;
+  // OAuth-only — present when credentials came in via the webmail handoff
+  // OAuth path rather than password auth. The token endpoint and client id
+  // are needed for refresh; without them the access token would just expire.
+  refreshToken?: string;
+  expiresAt?: number;
+  tokenEndpoint?: string;
+  clientId?: string;
 }
 
 export class JMAPClient {
@@ -91,6 +103,113 @@ export class JMAPClient {
     this._accountId = this.resolveAccountId(this.session);
 
     return this.session;
+  }
+
+  // OAuth login via webmail handoff. The webmail did the OAuth dance against
+  // Stalwart and handed us a complete token bundle. We persist the bundle
+  // so subsequent launches can refresh without prompting the user again.
+  async connectWithOAuth(
+    serverUrl: string,
+    tokens: OAuthTokens,
+  ): Promise<{ session: JMAPSession; username: string; accountId: string }> {
+    const baseUrl = serverUrl.replace(/\/+$/, '');
+    this.credentials = {
+      serverUrl: baseUrl,
+      username: '',
+      password: '',
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresAt: tokens.expiresAt,
+      tokenEndpoint: tokens.tokenEndpoint,
+      clientId: tokens.clientId,
+    };
+
+    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
+    this._accountId = this.resolveAccountId(this.session);
+
+    // The JMAP session document carries the authenticated user's identifier
+    // — use it as the username so per-account storage keys are stable across
+    // restarts and OAuth re-logins.
+    const username = this.session.username || tokens.accessToken.slice(0, 8);
+    this.credentials.username = username;
+
+    const accountId = generateAccountId(username, baseUrl);
+    await SecureStore.setItemAsync(
+      credentialsKey(accountId),
+      JSON.stringify(this.credentials),
+    );
+
+    return { session: this.session, username, accountId };
+  }
+
+  private async persistRefreshedTokens(next: OAuthTokens): Promise<void> {
+    if (!this.credentials) return;
+    this.credentials = {
+      ...this.credentials,
+      accessToken: next.accessToken,
+      // Some IdPs rotate refresh tokens; others reuse. Fall back to the
+      // existing one when the response omits it.
+      refreshToken: next.refreshToken ?? this.credentials.refreshToken,
+      expiresAt: next.expiresAt,
+      tokenEndpoint: next.tokenEndpoint,
+      clientId: next.clientId,
+    };
+    const accountId = generateAccountId(
+      this.credentials.username,
+      this.credentials.serverUrl,
+    );
+    await SecureStore.setItemAsync(
+      credentialsKey(accountId),
+      JSON.stringify(this.credentials),
+    );
+  }
+
+  private currentOAuthTokens(): OAuthTokens | null {
+    if (
+      !this.credentials?.accessToken ||
+      !this.credentials.refreshToken ||
+      !this.credentials.tokenEndpoint ||
+      !this.credentials.clientId
+    ) {
+      return null;
+    }
+    return {
+      accessToken: this.credentials.accessToken,
+      refreshToken: this.credentials.refreshToken,
+      expiresAt: this.credentials.expiresAt,
+      tokenEndpoint: this.credentials.tokenEndpoint,
+      clientId: this.credentials.clientId,
+    };
+  }
+
+  // Proactive refresh: when the access token is about to expire, swap it for
+  // a fresh one. Quiet no-op for password credentials.
+  private async ensureFreshToken(): Promise<void> {
+    const tokens = this.currentOAuthTokens();
+    if (!tokens) return;
+    if (tokens.expiresAt == null) return;
+    if (tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
+    try {
+      const next = await refreshOAuthAccessToken(tokens);
+      await this.persistRefreshedTokens(next);
+    } catch {
+      // Surface as AuthenticationError on the next 401; refresh may be
+      // temporarily failing (network) and the reactive retry path catches it.
+    }
+  }
+
+  // Reactive refresh after a 401. Returns true if a fresh token was obtained
+  // so the caller can retry the original request.
+  private async forceRefreshToken(): Promise<boolean> {
+    const tokens = this.currentOAuthTokens();
+    if (!tokens) return false;
+    try {
+      const next = await refreshOAuthAccessToken(tokens);
+      await this.persistRefreshedTokens(next);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // Legacy single-slot restore - kept for backward-compat tests. New code
@@ -235,12 +354,18 @@ export class JMAPClient {
 
   private async fetchSession(baseUrl: string): Promise<JMAPSession> {
     const url = `${baseUrl}/.well-known/jmap`;
-    const response = await secureFetch(url, {
-      headers: {
-        Authorization: this.authHeader,
-        Accept: 'application/json',
-      },
-    });
+    await this.ensureFreshToken();
+    const doFetch = () =>
+      secureFetch(url, {
+        headers: {
+          Authorization: this.authHeader,
+          Accept: 'application/json',
+        },
+      });
+    let response = await doFetch();
+    if (response.status === 401 && (await this.forceRefreshToken())) {
+      response = await doFetch();
+    }
 
     if (response.status === 401) {
       throw new AuthenticationError('Invalid credentials');
@@ -280,14 +405,21 @@ export class JMAPClient {
       methodCalls,
     };
 
-    const response = await secureFetch(this.session.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: this.authHeader,
-      },
-      body: JSON.stringify(body),
-    });
+    await this.ensureFreshToken();
+    const doFetch = () =>
+      secureFetch(this.session!.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: this.authHeader,
+        },
+        body: JSON.stringify(body),
+      });
+
+    let response = await doFetch();
+    if (response.status === 401 && (await this.forceRefreshToken())) {
+      response = await doFetch();
+    }
 
     if (response.status === 401) {
       throw new AuthenticationError('Session expired');
@@ -335,9 +467,12 @@ export class JMAPClient {
 
   async fetchBlobArrayBuffer(blobId: string, name?: string, type?: string): Promise<ArrayBuffer> {
     const url = this.getBlobDownloadUrl(blobId, name, type);
-    const response = await secureFetch(url, {
-      headers: { Authorization: this.authHeader },
-    });
+    await this.ensureFreshToken();
+    const doFetch = () => secureFetch(url, { headers: { Authorization: this.authHeader } });
+    let response = await doFetch();
+    if (response.status === 401 && (await this.forceRefreshToken())) {
+      response = await doFetch();
+    }
     if (response.status === 401) throw new AuthenticationError('Session expired');
     if (!response.ok) throw new Error(`Failed to fetch blob: ${response.status}`);
     return response.arrayBuffer();

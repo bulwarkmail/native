@@ -9,6 +9,10 @@ export interface JMAPSession {
   accounts: Record<string, JMAPAccountInfo>;
   capabilities: Record<string, unknown>;
   state: string;
+  // RFC 8620 §2 — authenticated user identifier. Optional because not all
+  // servers populate it; OAuth login uses it as the account label when
+  // there's no password username to fall back on.
+  username?: string;
 }
 
 export interface JMAPAccountInfo {

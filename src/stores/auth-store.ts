@@ -171,9 +171,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loginViaWebmail: async (webmailUrl, opts) => {
     set({ isLoading: true, error: null });
-    let creds;
+    let result;
     try {
-      creds = await runWebmailHandoff(webmailUrl);
+      result = await runWebmailHandoff(webmailUrl);
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         // User closed the browser tab — quiet exit, no error banner.
@@ -184,10 +184,54 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: message });
       throw err;
     }
-    // Hand the verified credentials to the existing password login path so
-    // session establishment, account registration, and feature-store wiring
-    // all behave identically to a manual sign-in.
-    await get().login(creds.serverUrl, creds.username, creds.password, opts);
+
+    if (result.flow === 'password') {
+      // Hand the credentials to the existing password login path so account
+      // registration + feature-store wiring all behave identically to a
+      // manual sign-in.
+      await get().login(result.serverUrl, result.username, result.password, opts);
+      return;
+    }
+
+    // OAuth — the webmail did the dance against Stalwart and handed us a
+    // token bundle. Bootstrap the JMAP session with Bearer auth and let
+    // ensure/forceRefreshToken keep it alive going forward.
+    try {
+      if (opts?.addAccount && get().isAuthenticated) {
+        jmapClient.reset();
+        useContactsStore.getState().reset();
+        useCalendarStore.getState().reset();
+      }
+
+      const { session, username, accountId } = await jmapClient.connectWithOAuth(
+        result.serverUrl,
+        result.tokens,
+      );
+
+      const accountStore = useAccountStore.getState();
+      accountStore.addAccount({
+        serverUrl: result.serverUrl.replace(/\/+$/, ''),
+        username,
+        displayName: username,
+        email: username,
+        lastLoginAt: Date.now(),
+        isConnected: true,
+        hasError: false,
+      });
+      accountStore.setActiveAccount(accountId);
+      useEmailStore.getState().setActiveAccount(accountId);
+
+      applyConnectedState(set, session, result.serverUrl.replace(/\/+$/, ''), username, accountId);
+    } catch (err) {
+      const message =
+        err instanceof AuthenticationError
+          ? 'Authentication rejected by server'
+          : err instanceof Error
+            ? err.message
+            : 'OAuth sign-in failed';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
   },
 
   logout: async () => {
