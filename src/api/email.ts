@@ -22,6 +22,55 @@ export async function getMailboxes(): Promise<Mailbox[]> {
   return res.methodResponses[0][1].list;
 }
 
+// Variant that also returns the JMAP `state` token so callers can later issue
+// Mailbox/changes(sinceState=…) to fetch only what changed.
+export async function getMailboxesWithState(): Promise<{ list: Mailbox[]; state: string }> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['Mailbox/get', { accountId }, '0']],
+  );
+  const body = res.methodResponses[0][1];
+  return { list: body.list as Mailbox[], state: body.state as string };
+}
+
+export async function getMailboxesByIds(ids: string[]): Promise<{ list: Mailbox[]; state: string }> {
+  if (ids.length === 0) return { list: [], state: '' };
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['Mailbox/get', { accountId, ids }, '0']],
+  );
+  const body = res.methodResponses[0][1];
+  return { list: body.list as Mailbox[], state: body.state as string };
+}
+
+export interface MailboxChangesResult {
+  oldState: string;
+  newState: string;
+  hasMoreChanges: boolean;
+  created: string[];
+  updated: string[];
+  destroyed: string[];
+}
+
+// Returns null when the server can't compute the diff (typically
+// `cannotCalculateChanges`); callers should fall back to a full Mailbox/get.
+export async function getMailboxChanges(sinceState: string): Promise<MailboxChangesResult | null> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['Mailbox/changes', { accountId, sinceState }, '0']],
+  );
+  const [name, body] = res.methodResponses[0];
+  if (name === 'error') return null;
+  return {
+    oldState: body.oldState as string,
+    newState: body.newState as string,
+    hasMoreChanges: Boolean(body.hasMoreChanges),
+    created: (body.created as string[]) ?? [],
+    updated: (body.updated as string[]) ?? [],
+    destroyed: (body.destroyed as string[]) ?? [],
+  };
+}
+
 export async function createMailbox(
   data: { name: string; parentId?: string | null },
 ): Promise<string> {
@@ -83,6 +132,22 @@ export async function deleteMailbox(id: string): Promise<void> {
   }
 }
 
+function buildMailboxQueryFilter(
+  mailboxId: string,
+  userFilter: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const inMailbox = { inMailbox: mailboxId };
+  // JMAP filters are either a FilterCondition or a FilterOperator (operator +
+  // conditions) — never both. Spreading a FilterOperator next to `inMailbox`
+  // produces a hybrid object that servers reduce to the FilterCondition,
+  // silently dropping the operator's conditions (e.g. the "unread" toggle).
+  if (!userFilter || Object.keys(userFilter).length === 0) return inMailbox;
+  if ('operator' in userFilter) {
+    return { operator: 'AND', conditions: [inMailbox, userFilter] };
+  }
+  return { ...inMailbox, ...userFilter };
+}
+
 export async function queryEmails(
   mailboxId: string,
   options?: {
@@ -91,20 +156,9 @@ export async function queryEmails(
     sort?: Array<{ property: string; isAscending: boolean }>;
     filter?: Record<string, unknown>;
   },
-): Promise<{ ids: string[]; total: number }> {
+): Promise<{ ids: string[]; total: number; queryState?: string }> {
   const accountId = jmapClient.accountId;
-  const inMailbox = { inMailbox: mailboxId };
-  const userFilter = options?.filter;
-  // JMAP filters are either a FilterCondition or a FilterOperator (operator +
-  // conditions) — never both. Spreading a FilterOperator next to `inMailbox`
-  // produces a hybrid object that servers reduce to the FilterCondition,
-  // silently dropping the operator's conditions (e.g. the "unread" toggle).
-  const filter =
-    !userFilter || Object.keys(userFilter).length === 0
-      ? inMailbox
-      : 'operator' in userFilter
-        ? { operator: 'AND', conditions: [inMailbox, userFilter] }
-        : { ...inMailbox, ...userFilter };
+  const filter = buildMailboxQueryFilter(mailboxId, options?.filter);
   const res = await jmapClient.request([
     ['Email/query', {
       accountId,
@@ -115,9 +169,56 @@ export async function queryEmails(
       calculateTotal: true,
     }, '0'],
   ]);
+  const body = res.methodResponses[0][1];
   return {
-    ids: res.methodResponses[0][1].ids,
-    total: res.methodResponses[0][1].total,
+    ids: body.ids,
+    total: body.total,
+    queryState: body.queryState as string | undefined,
+  };
+}
+
+export interface EmailQueryChangesResult {
+  oldQueryState: string;
+  newQueryState: string;
+  total: number;
+  removed: string[];
+  added: Array<{ id: string; index: number }>;
+}
+
+// Run Email/queryChanges for the standard "by receivedAt desc, in this mailbox"
+// query. Returns null when the server replies with `cannotCalculateChanges`
+// (or any other error) — caller should fall back to a fresh Email/query.
+export async function getEmailQueryChanges(
+  mailboxId: string,
+  sinceQueryState: string,
+  options?: {
+    sort?: Array<{ property: string; isAscending: boolean }>;
+    filter?: Record<string, unknown>;
+    upToId?: string;
+    maxChanges?: number;
+  },
+): Promise<EmailQueryChangesResult | null> {
+  const accountId = jmapClient.accountId;
+  const filter = buildMailboxQueryFilter(mailboxId, options?.filter);
+  const args: Record<string, unknown> = {
+    accountId,
+    filter,
+    sort: options?.sort ?? [{ property: 'receivedAt', isAscending: false }],
+    sinceQueryState,
+    calculateTotal: true,
+  };
+  if (options?.upToId) args.upToId = options.upToId;
+  if (options?.maxChanges) args.maxChanges = options.maxChanges;
+
+  const res = await jmapClient.request([['Email/queryChanges', args, '0']]);
+  const [name, body] = res.methodResponses[0];
+  if (name === 'error') return null;
+  return {
+    oldQueryState: body.oldQueryState as string,
+    newQueryState: body.newQueryState as string,
+    total: (body.total as number) ?? 0,
+    removed: (body.removed as string[]) ?? [],
+    added: (body.added as Array<{ id: string; index: number }>) ?? [],
   };
 }
 
@@ -127,6 +228,59 @@ export async function getEmails(ids: string[]): Promise<Email[]> {
     ['Email/get', { accountId, ids, properties: EMAIL_LIST_PROPERTIES }, '0'],
   ]);
   return res.methodResponses[0][1].list;
+}
+
+// Returns the Email/get response with the JMAP `state` token. Used by the
+// store so we can later issue Email/changes(sinceState=…) for incremental
+// updates instead of re-fetching the full list.
+export async function getEmailsWithState(ids: string[]): Promise<{ list: Email[]; state: string }> {
+  if (ids.length === 0) {
+    // Email/get with an empty id list still returns a state token; useful for
+    // priming the store after an empty mailbox query.
+    const accountId = jmapClient.accountId;
+    const res = await jmapClient.request([
+      ['Email/get', { accountId, ids: [], properties: EMAIL_LIST_PROPERTIES }, '0'],
+    ]);
+    const body = res.methodResponses[0][1];
+    return { list: [], state: body.state as string };
+  }
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Email/get', { accountId, ids, properties: EMAIL_LIST_PROPERTIES }, '0'],
+  ]);
+  const body = res.methodResponses[0][1];
+  return { list: body.list as Email[], state: body.state as string };
+}
+
+export interface EmailChangesResult {
+  oldState: string;
+  newState: string;
+  hasMoreChanges: boolean;
+  created: string[];
+  updated: string[];
+  destroyed: string[];
+}
+
+// Returns null when the server replies with `cannotCalculateChanges` or any
+// other error response; caller should treat that as "rebuild from scratch".
+export async function getEmailChanges(
+  sinceState: string,
+  maxChanges?: number,
+): Promise<EmailChangesResult | null> {
+  const accountId = jmapClient.accountId;
+  const args: Record<string, unknown> = { accountId, sinceState };
+  if (maxChanges) args.maxChanges = maxChanges;
+  const res = await jmapClient.request([['Email/changes', args, '0']]);
+  const [name, body] = res.methodResponses[0];
+  if (name === 'error') return null;
+  return {
+    oldState: body.oldState as string,
+    newState: body.newState as string,
+    hasMoreChanges: Boolean(body.hasMoreChanges),
+    created: (body.created as string[]) ?? [],
+    updated: (body.updated as string[]) ?? [],
+    destroyed: (body.destroyed as string[]) ?? [],
+  };
 }
 
 export async function getFullEmail(id: string): Promise<Email> {

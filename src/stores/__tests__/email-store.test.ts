@@ -2,8 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../api/email', () => ({
   getMailboxes: vi.fn(),
+  // New helpers used by the incremental-sync path. Default behavior: behave
+  // like a first-ever load — no prior state, full re-query expected.
+  getMailboxesWithState: vi.fn(async () => ({ list: [], state: 'mb-state-0' })),
+  getMailboxesByIds: vi.fn(async () => ({ list: [], state: 'mb-state-0' })),
+  getMailboxChanges: vi.fn(async () => null),
   queryEmails: vi.fn(),
+  getEmailQueryChanges: vi.fn(async () => null),
   getEmails: vi.fn(),
+  getEmailsWithState: vi.fn(async () => ({ list: [], state: 'em-state-0' })),
+  getEmailChanges: vi.fn(async () => null),
   getFullEmail: vi.fn(),
   setEmailKeywords: vi.fn(),
   moveEmail: vi.fn(),
@@ -20,6 +28,23 @@ vi.mock('../settings-store', () => ({
   useSettingsStore: { getState: () => ({ archiveMode: 'single', emailsPerPage: 25 }) },
 }));
 
+// offline-cache-store is touched by selectMailbox (cache-seed fallback) and
+// getEmailDetail (best-effort body refresh). Stub it as an empty cache so
+// tests don't need to set up AsyncStorage.
+vi.mock('../offline-cache-store', () => ({
+  useOfflineCacheStore: {
+    getState: () => ({
+      hydrated: true,
+      hydrate: vi.fn(),
+      totalCount: () => 0,
+      getEmailsInMailbox: vi.fn(async () => []),
+      has: () => false,
+      get: vi.fn(async () => null),
+      put: vi.fn(async () => undefined),
+    }),
+  },
+}));
+
 // email-store now early-returns from fetch actions when jmapClient.isConnected
 // is false (cold-start guard). The tests exercise those actions, so present
 // a connected stub.
@@ -28,15 +53,18 @@ vi.mock('../../api/jmap-client', () => ({
     isConnected: true,
     accountId: 'acc-1',
     currentSession: { apiUrl: 'https://mail.example.com/jmap/' },
+    // refreshEmails / loadMoreEmails chunk by this value when fetching ids.
+    getMaxObjectsInGet: () => 500,
   },
 }));
 
 import * as emailApi from '../../api/email';
 import { useEmailStore } from '../email-store';
 
-const mockGetMailboxes = emailApi.getMailboxes as ReturnType<typeof vi.fn>;
+const mockGetMailboxesWithState = emailApi.getMailboxesWithState as ReturnType<typeof vi.fn>;
 const mockQueryEmails = emailApi.queryEmails as ReturnType<typeof vi.fn>;
 const mockGetEmails = emailApi.getEmails as ReturnType<typeof vi.fn>;
+const mockGetEmailsWithState = emailApi.getEmailsWithState as ReturnType<typeof vi.fn>;
 const mockGetFullEmail = emailApi.getFullEmail as ReturnType<typeof vi.fn>;
 const mockSetKeywords = emailApi.setEmailKeywords as ReturnType<typeof vi.fn>;
 const mockMoveEmail = emailApi.moveEmail as ReturnType<typeof vi.fn>;
@@ -55,7 +83,7 @@ describe('email-store', () => {
         { id: 'mb-1', name: 'Inbox', role: 'inbox' },
         { id: 'mb-2', name: 'Sent', role: 'sent' },
       ];
-      mockGetMailboxes.mockResolvedValue(mailboxes);
+      mockGetMailboxesWithState.mockResolvedValue({ list: mailboxes, state: 'mb-state-1' });
 
       await useEmailStore.getState().fetchMailboxes();
 
@@ -63,7 +91,7 @@ describe('email-store', () => {
     });
 
     it('should set error on failure', async () => {
-      mockGetMailboxes.mockRejectedValue(new Error('Network error'));
+      mockGetMailboxesWithState.mockRejectedValue(new Error('Network error'));
 
       await useEmailStore.getState().fetchMailboxes();
 
@@ -73,12 +101,12 @@ describe('email-store', () => {
 
   describe('selectMailbox', () => {
     it('should query and fetch emails for mailbox', async () => {
-      mockQueryEmails.mockResolvedValue({ ids: ['e1', 'e2'], total: 2 });
+      mockQueryEmails.mockResolvedValue({ ids: ['e1', 'e2'], total: 2, queryState: 'q-1' });
       const emails = [
         { id: 'e1', subject: 'Email 1' },
         { id: 'e2', subject: 'Email 2' },
       ];
-      mockGetEmails.mockResolvedValue(emails);
+      mockGetEmailsWithState.mockResolvedValue({ list: emails, state: 'em-state-1' });
 
       await useEmailStore.getState().selectMailbox('mb-1');
 
@@ -90,11 +118,14 @@ describe('email-store', () => {
     });
 
     it('should handle empty mailbox', async () => {
-      mockQueryEmails.mockResolvedValue({ ids: [], total: 0 });
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q-empty' });
 
       await useEmailStore.getState().selectMailbox('mb-empty');
 
       expect(useEmailStore.getState().emails).toEqual([]);
+      // First-time load with no ids hits getEmailsWithState only to prime
+      // emailState (with an empty ids array). It should NOT call legacy
+      // getEmails — that path is reserved for pagination/search.
       expect(mockGetEmails).not.toHaveBeenCalled();
     });
   });

@@ -46,8 +46,28 @@ export interface AuthState {
   clearError: () => void;
 }
 
-function resetFeatureStores(): void {
-  useEmailStore.getState().reset();
+// Wipe ALL cached feature data for ALL accounts. Used for logoutAll where
+// the user is signing out of everything — we don't want stale snapshots
+// lingering on disk for accounts that no longer exist.
+function clearAllFeatureStores(): void {
+  useEmailStore.getState().clearAllAccounts();
+  useContactsStore.getState().reset();
+  useCalendarStore.getState().reset();
+}
+
+// Drop the named account from the email cache, then reset the (per-session,
+// not yet per-account) contacts and calendar stores. Used by logout when
+// signing one account out while others remain.
+function clearAccountFeatureStores(accountId: string | null): void {
+  if (accountId) {
+    useEmailStore.getState().removeAccount(accountId);
+  } else {
+    useEmailStore.getState().clearAllAccounts();
+  }
+  // Contacts and calendar stores aren't yet keyed by account — the safe
+  // thing on logout is still to wipe them so the next account doesn't see
+  // the previous user's data. Per-account caching for those stores is a
+  // follow-up.
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
 }
@@ -108,11 +128,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (serverUrl, username, password, opts) => {
     set({ isLoading: true, error: null });
     try {
-      // Adding an additional account - snapshot/reset feature stores so the
-      // new account starts with a clean slate.
+      // Adding an additional account - snapshot the current account away so
+      // its cache survives, then reset the JMAP client for the new login.
+      // Contacts/calendar are still single-bucket, so wipe those.
       if (opts?.addAccount && get().isAuthenticated) {
         jmapClient.reset();
-        resetFeatureStores();
+        useContactsStore.getState().reset();
+        useCalendarStore.getState().reset();
       }
 
       const session = await jmapClient.connect(serverUrl, username, password);
@@ -129,6 +151,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         hasError: false,
       });
       accountStore.setActiveAccount(accountId);
+      // Swap the email store's active view to the new account so the rest of
+      // this function (and refetchFeatureStores) writes to the right bucket.
+      useEmailStore.getState().setActiveAccount(accountId);
 
       applyConnectedState(set, session, serverUrl.replace(/\/+$/, ''), username, accountId);
     } catch (err) {
@@ -164,7 +189,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     jmapClient.reset();
-    resetFeatureStores();
+    clearAccountFeatureStores(currentId);
 
     // Switch to next remaining account, if any
     const remaining = accountStore.accounts;
@@ -198,7 +223,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await teardownPushNotifications().catch(() => undefined);
     await jmapClient.clearAllCredentials(ids);
     jmapClient.reset();
-    resetFeatureStores();
+    clearAllFeatureStores();
 
     for (const id of ids) accountStore.removeAccount(id);
 
@@ -225,19 +250,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ isLoading: true, error: null });
 
-    // Load the new account's session BEFORE clearing jmapClient or feature
-    // stores. The previous order (reset → resetFeatureStores → loadAccount)
-    // left jmapClient with no accountId during the loadAccount await, and
-    // any fetch fired by a screen effect reacting to the emptied stores
-    // (e.g. EmailListScreen retrying fetchMailboxes when mailboxes goes to
-    // []) threw "Not authenticated - call connect() first". loadAccount
-    // overwrites credentials/session/_accountId itself, so the pre-reset
-    // is unnecessary.
+    // Swap the email-store view to the new account *before* the network
+    // round-trip. The previous account's data is tucked into its snapshot;
+    // the new account's data (if previously cached) is restored to the
+    // top-level fields so the EmailListScreen immediately shows the new
+    // account's last-known mail instead of flashing empty. The network
+    // refresh below applies incremental updates on top.
+    useEmailStore.getState().setActiveAccount(accountId);
+
+    // Contacts and calendar stores aren't yet per-account, so they still
+    // need a reset to avoid showing the previous account's data.
+    useContactsStore.getState().reset();
+    useCalendarStore.getState().reset();
+
+    // Load the new account's session. loadAccount overwrites
+    // credentials/session/_accountId itself, so we don't need to reset
+    // jmapClient first. If it fails, restore the previous active account
+    // so we don't leave the user stranded on a half-switched state.
+    const previousActive = get().activeAccountId;
     try {
       const ok = await jmapClient.loadAccount(accountId);
       if (!ok) {
         // Credentials missing - evict stale entry and surface error
         accountStore.removeAccount(accountId);
+        useEmailStore.getState().removeAccount(accountId);
+        if (previousActive) useEmailStore.getState().setActiveAccount(previousActive);
         set({ isLoading: false, error: 'Session expired for this account' });
         return;
       }
@@ -245,21 +282,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (err instanceof AuthenticationError) {
         await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
         accountStore.removeAccount(accountId);
+        useEmailStore.getState().removeAccount(accountId);
+        if (previousActive) useEmailStore.getState().setActiveAccount(previousActive);
         set({ isLoading: false, error: 'Session expired for this account' });
         return;
       }
       // NetworkError or anything else - keep the previous active account
       // intact instead of stranding the user on a half-switched state.
+      if (previousActive) useEmailStore.getState().setActiveAccount(previousActive);
       set({
         isLoading: false,
         error: err instanceof Error ? err.message : 'Failed to switch account',
       });
       return;
     }
-
-    // Session is in place under the new account. Safe now to wipe the
-    // previous account's cached feature data; the refetch below repopulates.
-    resetFeatureStores();
 
     accountStore.setActiveAccount(accountId);
     accountStore.updateAccount(accountId, {
@@ -320,11 +356,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
 
+      // Point the email store at the target account before any await — so
+      // the EmailListScreen, which re-renders the moment the persisted state
+      // hydrates, sees the right account's cached emails instead of stale
+      // data from a previous session.
+      useEmailStore.getState().setActiveAccount(target.id);
+
       try {
         const ok = await jmapClient.loadAccount(target.id);
         if (!ok) {
           // No stored credentials (or corrupt) — genuine logout.
           accountStore.removeAccount(target.id);
+          useEmailStore.getState().removeAccount(target.id);
           set({ isLoading: false, hasRestoredSession: true });
           return false;
         }
@@ -358,6 +401,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // Server reachable but credentials rejected — drop them.
           await jmapClient.clearAccountCredentials(target.id).catch(() => undefined);
           accountStore.removeAccount(target.id);
+          useEmailStore.getState().removeAccount(target.id);
           set({ isLoading: false, hasRestoredSession: true, error: 'Session expired' });
           return false;
         }
