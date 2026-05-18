@@ -20,6 +20,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const login = useAuthStore((state) => state.login);
+  const loginOAuth = useAuthStore((state) => state.loginOAuth);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
@@ -30,6 +31,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   const [showPassword, setShowPassword] = React.useState(false);
 
   const canSubmit = Boolean(serverUrl.trim() && email.trim() && password);
+  const canOAuth = Boolean(serverUrl.trim());
 
   const handleLogin = async () => {
     if (!canSubmit) {
@@ -39,6 +41,24 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
     try {
       await login(serverUrl.trim(), email.trim(), password, { addAccount: isAddMode });
       onLogin?.();
+    } catch {
+      // Store state already contains the user-facing error.
+    }
+  };
+
+  const handleOAuth = async () => {
+    if (!canOAuth) return;
+    try {
+      const before = useAuthStore.getState().isAuthenticated;
+      await loginOAuth(serverUrl.trim(), { addAccount: isAddMode });
+      // loginOAuth swallows OAuthCancelledError silently — only fire the
+      // navigation hook when authentication actually completed.
+      const after = useAuthStore.getState().isAuthenticated;
+      if (after && !before) {
+        onLogin?.();
+      } else if (isAddMode && after) {
+        onLogin?.();
+      }
     } catch {
       // Store state already contains the user-facing error.
     }
@@ -151,8 +171,15 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
 
             {/* OAuth buttons */}
             <View style={styles.oauthRow}>
-              <Button variant="outline" size="md" disabled>
-                SSO Provider
+              <Button
+                variant="outline"
+                size="md"
+                onPress={() => {
+                  void handleOAuth();
+                }}
+                disabled={!canOAuth || isLoading}
+              >
+                Sign in with OAuth
               </Button>
             </View>
           </View>

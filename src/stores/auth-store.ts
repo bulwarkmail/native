@@ -6,6 +6,7 @@ import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { generateAccountId } from '../lib/account-utils';
+import { runOAuthFlow, OAuthCancelledError } from '../lib/oauth';
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
@@ -38,6 +39,7 @@ export interface AuthState {
   client: typeof jmapClient | null;
 
   login: (serverUrl: string, username: string, password: string, opts?: { addAccount?: boolean }) => Promise<void>;
+  loginOAuth: (serverUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
@@ -162,6 +164,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         : err instanceof Error
           ? err.message
           : 'Connection failed';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  loginOAuth: async (serverUrl, opts) => {
+    set({ isLoading: true, error: null });
+    try {
+      if (opts?.addAccount && get().isAuthenticated) {
+        jmapClient.reset();
+        useContactsStore.getState().reset();
+        useCalendarStore.getState().reset();
+      }
+
+      const baseUrl = serverUrl.replace(/\/+$/, '');
+      const tokens = await runOAuthFlow(baseUrl);
+      const { session, username, accountId } = await jmapClient.connectWithOAuth(baseUrl, tokens);
+
+      const accountStore = useAccountStore.getState();
+      accountStore.addAccount({
+        serverUrl: baseUrl,
+        username,
+        displayName: username,
+        email: username,
+        lastLoginAt: Date.now(),
+        isConnected: true,
+        hasError: false,
+      });
+      accountStore.setActiveAccount(accountId);
+      useEmailStore.getState().setActiveAccount(accountId);
+
+      applyConnectedState(set, session, baseUrl, username, accountId);
+    } catch (err) {
+      if (err instanceof OAuthCancelledError) {
+        // User backed out of the browser tab — no error message, just stop
+        // the spinner. This matches the common "I changed my mind" path.
+        set({ isLoading: false, error: null });
+        return;
+      }
+      const message =
+        err instanceof AuthenticationError
+          ? 'Authentication rejected by server'
+          : err instanceof Error
+            ? err.message
+            : 'OAuth login failed';
       set({ isLoading: false, error: message });
       throw err;
     }

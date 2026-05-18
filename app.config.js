@@ -20,6 +20,7 @@ module.exports = {
   expo: {
     name: 'Bulwark Mobile',
     slug: 'bulwark-mobile',
+    scheme: 'bulwarkmobile',
     version: VERSION,
     orientation: 'portrait',
     icon: './assets/icon.png',
