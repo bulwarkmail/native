@@ -65,32 +65,10 @@ vi.mock('expo-secure-store', () => ({
   deleteItemAsync: vi.fn(async () => undefined),
 }));
 
-// expo-auth-session and expo-web-browser transitively pull in
-// expo-modules-core, which evaluates RN-only globals at module load. The unit
-// tests don't exercise the real OAuth flow, so stubbing the surface is
-// enough — individual tests that need the real shapes can override.
-vi.mock('expo-auth-session', () => ({
-  AuthRequest: class {
-    codeVerifier?: string;
-    async promptAsync() {
-      return { type: 'cancel' as const };
-    }
-  },
-  ResponseType: { Code: 'code' },
-  exchangeCodeAsync: vi.fn(async () => ({
-    accessToken: 'test-access',
-    refreshToken: 'test-refresh',
-    expiresIn: 3600,
-  })),
-  refreshAsync: vi.fn(async () => ({
-    accessToken: 'test-access-refreshed',
-    refreshToken: 'test-refresh-rotated',
-    expiresIn: 3600,
-  })),
-  makeRedirectUri: () => 'bulwarkmobile://auth/callback',
-}));
-
+// expo-web-browser transitively pulls in expo-modules-core, which evaluates
+// RN-only globals at module load. The unit tests don't exercise the real
+// browser handoff flow, so stubbing the surface is enough.
 vi.mock('expo-web-browser', () => ({
-  warmUpAsync: vi.fn(async () => undefined),
+  openAuthSessionAsync: vi.fn(async () => ({ type: 'cancel' as const })),
   maybeCompleteAuthSession: vi.fn(),
 }));

@@ -6,7 +6,7 @@ import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { generateAccountId } from '../lib/account-utils';
-import { runOAuthFlow, OAuthCancelledError } from '../lib/oauth';
+import { runWebmailHandoff, HandoffCancelledError } from '../lib/oauth';
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
@@ -39,7 +39,7 @@ export interface AuthState {
   client: typeof jmapClient | null;
 
   login: (serverUrl: string, username: string, password: string, opts?: { addAccount?: boolean }) => Promise<void>;
-  loginOAuth: (serverUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
+  loginViaWebmail: (webmailUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
@@ -169,49 +169,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  loginOAuth: async (serverUrl, opts) => {
+  loginViaWebmail: async (webmailUrl, opts) => {
     set({ isLoading: true, error: null });
+    let creds;
     try {
-      if (opts?.addAccount && get().isAuthenticated) {
-        jmapClient.reset();
-        useContactsStore.getState().reset();
-        useCalendarStore.getState().reset();
-      }
-
-      const baseUrl = serverUrl.replace(/\/+$/, '');
-      const tokens = await runOAuthFlow(baseUrl);
-      const { session, username, accountId } = await jmapClient.connectWithOAuth(baseUrl, tokens);
-
-      const accountStore = useAccountStore.getState();
-      accountStore.addAccount({
-        serverUrl: baseUrl,
-        username,
-        displayName: username,
-        email: username,
-        lastLoginAt: Date.now(),
-        isConnected: true,
-        hasError: false,
-      });
-      accountStore.setActiveAccount(accountId);
-      useEmailStore.getState().setActiveAccount(accountId);
-
-      applyConnectedState(set, session, baseUrl, username, accountId);
+      creds = await runWebmailHandoff(webmailUrl);
     } catch (err) {
-      if (err instanceof OAuthCancelledError) {
-        // User backed out of the browser tab — no error message, just stop
-        // the spinner. This matches the common "I changed my mind" path.
+      if (err instanceof HandoffCancelledError) {
+        // User closed the browser tab — quiet exit, no error banner.
         set({ isLoading: false, error: null });
         return;
       }
-      const message =
-        err instanceof AuthenticationError
-          ? 'Authentication rejected by server'
-          : err instanceof Error
-            ? err.message
-            : 'OAuth login failed';
+      const message = err instanceof Error ? err.message : 'Sign-in failed';
       set({ isLoading: false, error: message });
       throw err;
     }
+    // Hand the verified credentials to the existing password login path so
+    // session establishment, account registration, and feature-store wiring
+    // all behave identically to a manual sign-in.
+    await get().login(creds.serverUrl, creds.username, creds.password, opts);
   },
 
   logout: async () => {

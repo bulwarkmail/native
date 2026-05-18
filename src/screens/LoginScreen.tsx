@@ -20,7 +20,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const login = useAuthStore((state) => state.login);
-  const loginOAuth = useAuthStore((state) => state.loginOAuth);
+  const loginViaWebmail = useAuthStore((state) => state.loginViaWebmail);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
@@ -31,7 +31,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   const [showPassword, setShowPassword] = React.useState(false);
 
   const canSubmit = Boolean(serverUrl.trim() && email.trim() && password);
-  const canOAuth = Boolean(serverUrl.trim());
+  const canHandoff = Boolean(serverUrl.trim());
 
   const handleLogin = async () => {
     if (!canSubmit) {
@@ -46,13 +46,14 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
     }
   };
 
-  const handleOAuth = async () => {
-    if (!canOAuth) return;
+  const handleWebmailHandoff = async () => {
+    if (!canHandoff) return;
     try {
       const before = useAuthStore.getState().isAuthenticated;
-      await loginOAuth(serverUrl.trim(), { addAccount: isAddMode });
-      // loginOAuth swallows OAuthCancelledError silently — only fire the
-      // navigation hook when authentication actually completed.
+      await loginViaWebmail(serverUrl.trim(), { addAccount: isAddMode });
+      // loginViaWebmail swallows the "user cancelled the browser" case
+      // silently — only fire the navigation hook when authentication
+      // actually completed.
       const after = useAuthStore.getState().isAuthenticated;
       if (after && !before) {
         onLogin?.();
@@ -169,17 +170,17 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
               <View style={styles.dividerLine} />
             </View>
 
-            {/* OAuth buttons */}
+            {/* Webmail-mediated login */}
             <View style={styles.oauthRow}>
               <Button
                 variant="outline"
                 size="md"
                 onPress={() => {
-                  void handleOAuth();
+                  void handleWebmailHandoff();
                 }}
-                disabled={!canOAuth || isLoading}
+                disabled={!canHandoff || isLoading}
               >
-                Sign in with OAuth
+                Sign in via webmail
               </Button>
             </View>
           </View>

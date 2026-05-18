@@ -1,157 +1,83 @@
-import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import { secureFetch } from './client-cert';
 
-// OAuth client ID registered (or accepted unregistered, when the server has
-// requireClientRegistration=false like Stalwart 0.16) for the mobile app.
-export const OAUTH_CLIENT_ID = 'bulwark-mobile';
+// Webmail-mediated login. Instead of doing OAuth directly against the JMAP
+// server (which would need a registered client_id and a mobile redirect URI
+// allow-listed on the IdP), the app opens the webmail's /mobile-handoff page,
+// the user signs in there with their normal credentials, and the webmail
+// redirects back to the app's custom scheme with the verified credentials in
+// the URL fragment. Fragments aren't sent to the server, so the password
+// never appears in HTTP access logs along the way.
 
-// offline_access is required for Stalwart to return a refresh_token; without
-// it the session dies as soon as the access token expires.
-export const OAUTH_SCOPES = ['openid', 'email', 'profile', 'offline_access'];
+export const HANDOFF_REDIRECT_URI = 'bulwarkmobile://auth/callback';
 
-export interface OAuthDiscovery {
-  authorization_endpoint: string;
-  token_endpoint: string;
-  revocation_endpoint?: string;
+export interface HandoffCredentials {
+  serverUrl: string;
+  username: string;
+  password: string;
 }
 
-export interface OAuthTokens {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number; // epoch ms
-  tokenEndpoint: string;
-  clientId: string;
-}
-
-export class OAuthError extends Error {}
-export class OAuthCancelledError extends OAuthError {
+export class HandoffError extends Error {}
+export class HandoffCancelledError extends HandoffError {
   constructor() {
-    super('OAuth cancelled');
+    super('Sign-in cancelled');
   }
 }
 
-export async function discoverOAuth(serverUrl: string): Promise<OAuthDiscovery> {
-  const baseUrl = serverUrl.replace(/\/+$/, '');
-  const urls = [
-    `${baseUrl}/.well-known/oauth-authorization-server`,
-    `${baseUrl}/.well-known/openid-configuration`,
-  ];
-  const errors: string[] = [];
-  for (const url of urls) {
-    try {
-      const res = await secureFetch(url, { headers: { Accept: 'application/json' } });
-      if (!res.ok) {
-        errors.push(`${url} → HTTP ${res.status}`);
-        continue;
-      }
-      const data = await res.json();
-      if (data.authorization_endpoint && data.token_endpoint) {
-        return {
-          authorization_endpoint: data.authorization_endpoint,
-          token_endpoint: data.token_endpoint,
-          revocation_endpoint: data.revocation_endpoint,
-        };
-      }
-      errors.push(`${url} missing endpoints`);
-    } catch (err) {
-      errors.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  throw new OAuthError(`OAuth discovery failed: ${errors.join('; ')}`);
+function randomState(): string {
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  let s = '';
+  for (const b of bytes) s += b.toString(16).padStart(2, '0');
+  return s;
 }
 
-// Returns the redirect URI the browser will land on after the user signs in.
-// For dev (Expo Go) this is the auth.expo.io proxy; for standalone/prebuild
-// builds this is the app's custom scheme (bulwarkmobile://auth/callback).
-function getRedirectUri(): string {
-  return AuthSession.makeRedirectUri({ scheme: 'bulwarkmobile', path: 'auth/callback' });
+function buildHandoffUrl(webmailUrl: string, state: string): string {
+  const base = webmailUrl.replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    redirect_uri: HANDOFF_REDIRECT_URI,
+    state,
+  });
+  return `${base}/mobile-handoff?${params.toString()}`;
 }
 
-export async function runOAuthFlow(serverUrl: string): Promise<OAuthTokens> {
-  const discovery = await discoverOAuth(serverUrl);
-  const redirectUri = getRedirectUri();
+function parseFragment(url: string): URLSearchParams {
+  const hashIdx = url.indexOf('#');
+  if (hashIdx === -1) return new URLSearchParams();
+  return new URLSearchParams(url.slice(hashIdx + 1));
+}
 
-  const request = new AuthSession.AuthRequest({
-    clientId: OAUTH_CLIENT_ID,
-    scopes: OAUTH_SCOPES,
-    redirectUri,
-    responseType: AuthSession.ResponseType.Code,
-    usePKCE: true,
-  });
+export async function runWebmailHandoff(webmailUrl: string): Promise<HandoffCredentials> {
+  const state = randomState();
+  const handoffUrl = buildHandoffUrl(webmailUrl, state);
 
-  // promptAsync() opens the system browser tab and resolves when the OAuth
-  // server redirects back to the app via the custom scheme.
-  const result = await request.promptAsync({
-    authorizationEndpoint: discovery.authorization_endpoint,
-  });
+  const result = await WebBrowser.openAuthSessionAsync(handoffUrl, HANDOFF_REDIRECT_URI);
 
   if (result.type === 'cancel' || result.type === 'dismiss') {
-    throw new OAuthCancelledError();
+    throw new HandoffCancelledError();
   }
-  if (result.type !== 'success') {
-    const msg =
-      result.type === 'error' && result.error
-        ? result.error.description || result.error.message || result.type
-        : result.type;
-    throw new OAuthError(`Authorization failed: ${msg}`);
+  if (result.type !== 'success' || !result.url) {
+    throw new HandoffError(`Sign-in failed: ${result.type}`);
   }
-  const code = result.params.code;
-  if (!code) throw new OAuthError('Authorization response missing code');
 
-  // Exchange the authorization code for tokens. Stalwart returns a JSON body
-  // with access_token, refresh_token, expires_in.
-  const tokenResult = await AuthSession.exchangeCodeAsync(
-    {
-      clientId: OAUTH_CLIENT_ID,
-      code,
-      redirectUri,
-      extraParams: request.codeVerifier ? { code_verifier: request.codeVerifier } : undefined,
-    },
-    { tokenEndpoint: discovery.token_endpoint },
-  );
+  const params = parseFragment(result.url);
+  const err = params.get('error');
+  if (err) throw new HandoffError(err);
 
-  return {
-    accessToken: tokenResult.accessToken,
-    refreshToken: tokenResult.refreshToken,
-    expiresAt:
-      tokenResult.expiresIn != null
-        ? Date.now() + tokenResult.expiresIn * 1000
-        : undefined,
-    tokenEndpoint: discovery.token_endpoint,
-    clientId: OAUTH_CLIENT_ID,
-  };
-}
-
-export async function refreshAccessToken(
-  tokens: OAuthTokens,
-): Promise<OAuthTokens> {
-  if (!tokens.refreshToken) {
-    throw new OAuthError('No refresh token available');
+  // CSRF guard: the state we generated must round-trip through the webmail
+  // unchanged. A mismatch means the redirect didn't come from the flow we
+  // started, and the rest of the fragment shouldn't be trusted.
+  if (params.get('state') !== state) {
+    throw new HandoffError('State mismatch');
   }
-  const refreshed = await AuthSession.refreshAsync(
-    { clientId: tokens.clientId, refreshToken: tokens.refreshToken },
-    { tokenEndpoint: tokens.tokenEndpoint },
-  );
-  return {
-    accessToken: refreshed.accessToken,
-    // Rotated refresh tokens replace the previous one; some IdPs omit it and
-    // expect the client to reuse the original.
-    refreshToken: refreshed.refreshToken ?? tokens.refreshToken,
-    expiresAt:
-      refreshed.expiresIn != null
-        ? Date.now() + refreshed.expiresIn * 1000
-        : undefined,
-    tokenEndpoint: tokens.tokenEndpoint,
-    clientId: tokens.clientId,
-  };
-}
 
-// Required to dismiss the in-app browser tab once the OAuth redirect fires.
-// Safe to call once at module load; expo-web-browser exposes it via a method
-// that no-ops on platforms where it isn't needed.
-export function warmUpAuthBrowser(): void {
-  void WebBrowser.warmUpAsync().catch(() => undefined);
+  const serverUrl = params.get('server_url');
+  const username = params.get('username');
+  const password = params.get('password');
+  if (!serverUrl || !username || !password) {
+    throw new HandoffError('Sign-in response missing credentials');
+  }
+
+  return { serverUrl, username, password };
 }
 
 WebBrowser.maybeCompleteAuthSession();
