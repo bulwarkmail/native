@@ -22,8 +22,26 @@ import {
   searchEmails as apiSearchEmails,
 } from '../api/email';
 import { toWildcardQuery } from '../lib/search-utils';
+import { generateAccountId } from '../lib/account-utils';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
+
+// True only when the JMAP client is actually serving the email-store's active
+// account. During an account switch there's a window between
+// setActiveAccount() (which swaps the email-store view immediately) and
+// jmapClient.loadAccount() resolving, when the client is still on the
+// *previous* account. Without this guard, any fetchMailboxes/refreshEmails
+// fired in that window (e.g. by an EmailListScreen useEffect reacting to
+// the empty new-account view) would return the previous account's data and
+// stamp it into the new account's snapshot.
+function jmapClientServesActiveAccount(activeAccountId: string | null): boolean {
+  if (!activeAccountId) return false;
+  if (!jmapClient.isConnected) return false;
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  if (!username || !serverUrl) return false;
+  return generateAccountId(username, serverUrl) === activeAccountId;
+}
 
 export interface EmailFilters {
   from?: string;
@@ -315,6 +333,12 @@ export const useEmailStore = create<EmailState>()(
       error: null,
       loading: false,
     });
+
+    // Point the offline body cache at the same account so getEmailDetail's
+    // fallback and selectMailbox's seed read from the right bucket. Fire-
+    // and-forget — the cache returns empty until hydration completes,
+    // which is the correct degraded behaviour.
+    void useOfflineCacheStore.getState().setAccount(accountId);
   },
 
   removeAccount: (accountId) => {
@@ -336,6 +360,7 @@ export const useEmailStore = create<EmailState>()(
         filters: {},
         pendingUndo: null,
       });
+      void useOfflineCacheStore.getState().setAccount(null);
     } else {
       set({ accountSnapshots: rest });
     }
@@ -359,16 +384,20 @@ export const useEmailStore = create<EmailState>()(
       error: null,
       loading: false,
     });
+    void useOfflineCacheStore.getState().setAccount(null);
   },
 
   fetchMailboxes: async () => {
-    // Skip silently when there's no live session. Screens fire this from
-    // mount-time useEffects, and on cold start App.tsx renders MainTabs
-    // before restoreSession() finishes; without this guard the underlying
-    // API call would throw "Not authenticated - call connect() first" and
-    // surface as a user-visible error before the real fetch (kicked off by
-    // refetchFeatureStores() once the session is live) replaces it.
-    if (!jmapClient.isConnected) return;
+    // Skip silently when there's no live session, or when jmapClient is
+    // mid-transition to a different account (see jmapClientServesActiveAccount).
+    // Screens fire this from mount-time useEffects, and on cold start
+    // App.tsx renders MainTabs before restoreSession() finishes; without
+    // this guard the underlying API call would either throw "Not
+    // authenticated - call connect() first" or — worse, during an account
+    // switch — return the *previous* account's mailboxes and stamp them
+    // into the new account's snapshot.
+    const activeAccountId = get().activeAccountId;
+    if (!jmapClientServesActiveAccount(activeAccountId)) return;
 
     const prevState = get().mailboxState;
     try {
@@ -377,6 +406,9 @@ export const useEmailStore = create<EmailState>()(
       // we have no previous state to compare against.
       if (prevState) {
         const changes = await getMailboxChanges(prevState);
+        // Bail if the user switched accounts during the await — anything we
+        // set() now would land in the wrong account's bucket.
+        if (get().activeAccountId !== activeAccountId) return;
         if (changes) {
           // No changes at all — keep the cached list, just bump the state.
           if (
@@ -391,6 +423,7 @@ export const useEmailStore = create<EmailState>()(
           const fetched = toFetch.length > 0
             ? (await getMailboxesByIds(toFetch)).list
             : [];
+          if (get().activeAccountId !== activeAccountId) return;
           const destroyed = new Set(changes.destroyed);
           const byId = new Map<string, Mailbox>();
           for (const m of get().mailboxes) byId.set(m.id, m);
@@ -411,9 +444,11 @@ export const useEmailStore = create<EmailState>()(
       }
 
       const { list, state } = await getMailboxesWithState();
+      if (get().activeAccountId !== activeAccountId) return;
       set({ mailboxes: list, mailboxState: state });
     } catch (err) {
       console.warn('[email-store] fetchMailboxes failed:', err);
+      if (get().activeAccountId !== activeAccountId) return;
       // Don't overwrite the cached list on a transient failure — the user
       // can still navigate folders. Only surface the error when we have no
       // mailboxes at all to show.
@@ -481,11 +516,11 @@ export const useEmailStore = create<EmailState>()(
       pendingUndo: null,
     });
 
-    // Stop here if there's no live session yet — the cached seed already
-    // gave the user something to look at, and the refetch driven by
-    // restoreSession() / switchAccount will run the network half once the
-    // client is connected.
-    if (!jmapClient.isConnected) {
+    // Stop here if there's no live session OR jmapClient is mid-transition
+    // to a different account. The cached seed already gave the user
+    // something to look at, and the refetch driven by restoreSession() /
+    // switchAccount will run the network half once the client catches up.
+    if (!jmapClientServesActiveAccount(get().activeAccountId)) {
       set({ loading: false });
       return;
     }
@@ -494,9 +529,9 @@ export const useEmailStore = create<EmailState>()(
   },
 
   loadMoreEmails: async () => {
-    const { currentMailboxId, emails, totalEmails, loading, searchQuery, filters } = get();
+    const { currentMailboxId, emails, totalEmails, loading, searchQuery, filters, activeAccountId } = get();
     if (!currentMailboxId || loading || emails.length >= totalEmails) return;
-    if (!jmapClient.isConnected) return;
+    if (!jmapClientServesActiveAccount(activeAccountId)) return;
 
     set({ loading: true });
     try {
@@ -507,7 +542,9 @@ export const useEmailStore = create<EmailState>()(
         limit,
         filter,
       });
+      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
       const newEmails = ids.length > 0 ? await fetchEmailsChunked(ids) : [];
+      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
       const merged = [...emails, ...newEmails];
       const updates: Partial<EmailState> = { emails: merged, loading: false };
       if (isBaseView(searchQuery, filters)) {
@@ -522,15 +559,16 @@ export const useEmailStore = create<EmailState>()(
       }
       set(updates);
     } catch (err) {
+      if (get().activeAccountId !== activeAccountId) return;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load more' });
     }
   },
 
   refreshEmails: async () => {
     const state = get();
-    const { currentMailboxId, searchQuery, filters, emails: existing, queryState, emailState } = state;
+    const { currentMailboxId, searchQuery, filters, emails: existing, queryState, emailState, activeAccountId } = state;
     if (!currentMailboxId) return;
-    if (!jmapClient.isConnected) return;
+    if (!jmapClientServesActiveAccount(activeAccountId)) return;
     set({ loading: true, error: null });
 
     const filter = buildJmapFilter(currentMailboxId, searchQuery, filters);
@@ -613,7 +651,7 @@ export const useEmailStore = create<EmailState>()(
           const nextQueryState = queryChanges.newQueryState;
           const nextTotal = queryChanges.total;
 
-          if (get().currentMailboxId !== currentMailboxId) return;
+          if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
 
           set({
             emails: trimmed,
@@ -666,7 +704,7 @@ export const useEmailStore = create<EmailState>()(
       set(updates);
     } catch (err) {
       console.warn('[email-store] refreshEmails failed:', err);
-      if (get().currentMailboxId !== currentMailboxId) return;
+      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
       // Keep whatever's visible; only surface the error when the list is
       // empty. With cached emails on screen the OfflineBanner already
       // tells the user the data is stale.
@@ -679,7 +717,11 @@ export const useEmailStore = create<EmailState>()(
               currentMailboxId,
               Math.max(limit, 50),
             );
-            if (get().currentMailboxId === currentMailboxId && cached.length > 0) {
+            if (
+              get().activeAccountId === activeAccountId &&
+              get().currentMailboxId === currentMailboxId &&
+              cached.length > 0
+            ) {
               set({ emails: cached, totalEmails: cached.length, loading: false, error: null });
               return;
             }
@@ -697,6 +739,10 @@ export const useEmailStore = create<EmailState>()(
 
   handleStateChange: async (change) => {
     if (!jmapClient.currentSession) return;
+    // Drop changes that arrived for a different account than the one we're
+    // currently showing (e.g. push notifications received during/just after
+    // an account switch).
+    if (!jmapClientServesActiveAccount(get().activeAccountId)) return;
     const accountId = jmapClient.accountId;
     const accountChanges = change.changed?.[accountId];
     if (!accountChanges) return;

@@ -28,14 +28,17 @@ vi.mock('../settings-store', () => ({
   useSettingsStore: { getState: () => ({ archiveMode: 'single', emailsPerPage: 25 }) },
 }));
 
-// offline-cache-store is touched by selectMailbox (cache-seed fallback) and
-// getEmailDetail (best-effort body refresh). Stub it as an empty cache so
-// tests don't need to set up AsyncStorage.
+// offline-cache-store is touched by selectMailbox (cache-seed fallback),
+// getEmailDetail (best-effort body refresh), and setActiveAccount (account
+// switch). Stub it as an empty cache so tests don't need to set up
+// AsyncStorage.
 vi.mock('../offline-cache-store', () => ({
   useOfflineCacheStore: {
     getState: () => ({
+      activeAccountId: null,
       hydrated: true,
       hydrate: vi.fn(),
+      setAccount: vi.fn(async () => undefined),
       totalCount: () => 0,
       getEmailsInMailbox: vi.fn(async () => []),
       has: () => false,
@@ -45,18 +48,26 @@ vi.mock('../offline-cache-store', () => ({
   },
 }));
 
-// email-store now early-returns from fetch actions when jmapClient.isConnected
-// is false (cold-start guard). The tests exercise those actions, so present
-// a connected stub.
+// email-store now early-returns from fetch actions unless jmapClient is
+// connected AND serving the same logical account the store has active
+// (`generateAccountId(username, serverUrl) === activeAccountId`). The
+// tests exercise those actions, so present a fully connected stub plus
+// the matching username/serverUrl pair. beforeEach() syncs the store's
+// activeAccountId to the id these credentials produce.
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     isConnected: true,
     accountId: 'acc-1',
+    username: 'test@example.com',
+    serverUrl: 'https://mail.example.com',
     currentSession: { apiUrl: 'https://mail.example.com/jmap/' },
     // refreshEmails / loadMoreEmails chunk by this value when fetching ids.
     getMaxObjectsInGet: () => 500,
   },
 }));
+
+import { generateAccountId } from '../../lib/account-utils';
+const TEST_ACCOUNT_ID = generateAccountId('test@example.com', 'https://mail.example.com');
 
 import * as emailApi from '../../api/email';
 import { useEmailStore } from '../email-store';
@@ -74,6 +85,10 @@ const mockSearchEmails = emailApi.searchEmails as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   useEmailStore.getState().reset();
+  // Wire the store's active account to the one the mocked jmapClient is
+  // serving, so the guard inside fetchMailboxes / refreshEmails / etc.
+  // doesn't short-circuit the tests.
+  useEmailStore.setState({ activeAccountId: TEST_ACCOUNT_ID });
 });
 
 describe('email-store', () => {
