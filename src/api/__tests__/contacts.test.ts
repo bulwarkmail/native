@@ -16,6 +16,9 @@ import {
   createContact,
   updateContact,
   deleteContacts,
+  createAddressBook,
+  updateAddressBook,
+  deleteAddressBook,
 } from '../contacts';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -115,6 +118,60 @@ describe('contacts operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].destroy).toEqual(['c1', 'c2']);
+    });
+  });
+
+  describe('createAddressBook', () => {
+    it('creates a book and returns the created entity', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { created: { 'new-book': { id: 'ab-9' } } }, '0']],
+      });
+
+      const book = await createAddressBook('Work');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].create).toEqual({ 'new-book': { name: 'Work' } });
+      expect(book).toEqual({ id: 'ab-9', name: 'Work' });
+    });
+
+    it('throws when the server refuses to create', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { notCreated: { 'new-book': { description: 'nope' } } }, '0']],
+      });
+      await expect(createAddressBook('X')).rejects.toThrow('nope');
+    });
+  });
+
+  describe('updateAddressBook', () => {
+    it('forwards only settable properties', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { updated: { 'ab-1': null } }, '0']],
+      });
+
+      await updateAddressBook('ab-1', { name: 'Renamed', id: 'should-be-ignored' } as never);
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].update).toEqual({ 'ab-1': { name: 'Renamed' } });
+    });
+  });
+
+  describe('deleteAddressBook', () => {
+    it('destroys the book by id', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { destroyed: ['ab-1'] }, '0']],
+      });
+
+      await deleteAddressBook('ab-1');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].destroy).toEqual(['ab-1']);
+    });
+
+    it('throws when destroy fails', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { notDestroyed: { 'ab-1': { description: 'in use' } } }, '0']],
+      });
+      await expect(deleteAddressBook('ab-1')).rejects.toThrow('in use');
     });
   });
 });

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Check, X } from 'lucide-react-native';
+import { Check, X, Upload, Rss } from 'lucide-react-native';
 import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -24,6 +24,8 @@ interface CalendarSidebarDrawerProps {
   hiddenCalendarIds: string[];
   onToggle: (id: string) => void;
   onClose: () => void;
+  onImport?: () => void;
+  onManageSubscriptions?: () => void;
 }
 
 export function CalendarSidebarDrawer({
@@ -32,6 +34,8 @@ export function CalendarSidebarDrawer({
   hiddenCalendarIds,
   onToggle,
   onClose,
+  onImport,
+  onManageSubscriptions,
 }: CalendarSidebarDrawerProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -121,6 +125,29 @@ export function CalendarSidebarDrawer({
                 hiddenSet={hiddenSet}
                 onToggle={onToggle}
               />
+            )}
+
+            {(onImport || onManageSubscriptions) && (
+              <View style={styles.actionsSection}>
+                {onManageSubscriptions && (
+                  <Pressable
+                    onPress={onManageSubscriptions}
+                    style={({ pressed }) => [styles.actionRow, pressed && styles.rowPressed]}
+                  >
+                    <Rss size={18} color={c.textSecondary} />
+                    <Text style={styles.actionText}>Subscriptions</Text>
+                  </Pressable>
+                )}
+                {onImport && (
+                  <Pressable
+                    onPress={onImport}
+                    style={({ pressed }) => [styles.actionRow, pressed && styles.rowPressed]}
+                  >
+                    <Upload size={18} color={c.textSecondary} />
+                    <Text style={styles.actionText}>Import from file</Text>
+                  </Pressable>
+                )}
+              </View>
             )}
           </ScrollView>
         </SafeAreaView>
@@ -251,5 +278,21 @@ function makeStyles(c: ThemePalette) {
   },
   rowName: { flex: 1, ...typography.body, color: c.text },
   rowNameMuted: { color: c.textMuted },
+
+  actionsSection: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    minHeight: 44,
+  },
+  actionText: { ...typography.body, color: c.text },
   });
 }

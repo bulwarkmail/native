@@ -9,8 +9,9 @@ import {
   X, Send, Paperclip, ChevronDown, Bold, Italic, Underline, Strikethrough,
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
-  Undo2, Redo2, FileText,
+  Undo2, Redo2, FileText, Clock, Check,
 } from 'lucide-react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { File as FsFile } from 'expo-file-system';
@@ -33,6 +34,7 @@ import {
 } from '../lib/contact-utils';
 import { getIdentities } from '../api/identity';
 import { sendEmail, type OutgoingAttachment } from '../api/email';
+import { jmapClient } from '../api/jmap-client';
 import { uploadBlob } from '../api/blob';
 import { buildInitialHtml, htmlToPlainText, rewriteInlineImages } from '../lib/compose-html';
 import { stripDangerousTags } from '../lib/email-html';
@@ -256,11 +258,17 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identityError, setIdentityError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
   const [selectedIdentityId, setSelectedIdentityId] = React.useState<string | null>(null);
+  const [scheduleSheetOpen, setScheduleSheetOpen] = React.useState(false);
+  // Custom date/time picker stage. iOS shows one 'datetime' spinner; Android
+  // can only show one field at a time, so we walk date → time.
+  const [customStage, setCustomStage] = React.useState<'datetime' | 'date' | 'time' | null>(null);
+  const customDraftRef = React.useRef<Date>(new Date());
 
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
   const attachmentReminderKeywords = useSettingsStore((s) => s.attachmentReminderKeywords);
+  const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
 
   const initialTo = React.useMemo<Recipient[]>(() => {
     if (!replyTo) {
@@ -737,7 +745,96 @@ export default function ComposeScreen({ route, navigation }: Props) {
     });
   };
 
-  const onSend = async () => {
+  // Translate an absolute "send at" time into the HOLDFOR seconds the server
+  // expects, clamping to what it actually supports. Returns null (and alerts)
+  // when scheduling isn't possible so the caller can abort.
+  const resolveHoldForScheduledAt = (date: Date): number | null => {
+    const seconds = Math.ceil((date.getTime() - Date.now()) / 1000);
+    if (seconds <= 0) {
+      Alert.alert(
+        t('email_composer.schedule_past_title', 'Pick a future time'),
+        t('email_composer.schedule_past_body', 'The scheduled time must be in the future.'),
+      );
+      return null;
+    }
+    if (!jmapClient.hasDelayedSend()) {
+      Alert.alert(
+        t('email_composer.schedule_unsupported_title', 'Scheduling unavailable'),
+        t('email_composer.schedule_unsupported_body', 'This mail server does not support scheduled send.'),
+      );
+      return null;
+    }
+    const max = jmapClient.getMaxDelayedSend();
+    if (max > 0 && seconds > max) {
+      Alert.alert(
+        t('email_composer.schedule_too_late_title', 'Too far ahead'),
+        t('email_composer.schedule_too_late_body', 'That is later than this server allows. Pick an earlier time.'),
+      );
+      return null;
+    }
+    return seconds;
+  };
+
+  // The Send button: applies the global undo-send delay when the server
+  // supports it, otherwise sends immediately.
+  const onSend = () => {
+    const holdFor = sendDelaySeconds > 0 && jmapClient.hasDelayedSend() ? sendDelaySeconds : undefined;
+    void performSend(holdFor);
+  };
+
+  const onScheduleConfirm = (date: Date) => {
+    const holdFor = resolveHoldForScheduledAt(date);
+    if (holdFor == null) return;
+    setScheduleSheetOpen(false);
+    void performSend(holdFor, date);
+  };
+
+  const schedulePresets = React.useMemo(() => {
+    const now = new Date();
+    const inHours = (h: number) => new Date(now.getTime() + h * 3600 * 1000);
+    const tomorrowMorning = new Date(now);
+    tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+    tomorrowMorning.setHours(8, 0, 0, 0);
+    return [
+      { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
+      { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
+      { label: t('email_composer.schedule_tomorrow', 'Tomorrow, 8:00 AM'), date: tomorrowMorning },
+    ];
+  }, [t, scheduleSheetOpen]);
+
+  const startCustomPicker = () => {
+    customDraftRef.current = new Date(Date.now() + 3600 * 1000);
+    setScheduleSheetOpen(false);
+    setCustomStage(Platform.OS === 'ios' ? 'datetime' : 'date');
+  };
+
+  const onCustomPickerChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (event.type === 'dismissed' || !selected) {
+      setCustomStage(null);
+      return;
+    }
+    if (Platform.OS === 'ios') {
+      // Single spinner — keep it open, just remember the latest value.
+      customDraftRef.current = selected;
+      return;
+    }
+    // Android: combine the date step with the existing time, then ask for time.
+    if (customStage === 'date') {
+      const d = new Date(customDraftRef.current);
+      d.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+      customDraftRef.current = d;
+      setCustomStage('time');
+      return;
+    }
+    if (customStage === 'time') {
+      const d = new Date(customDraftRef.current);
+      d.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      setCustomStage(null);
+      onScheduleConfirm(d);
+    }
+  };
+
+  const performSend = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
     if (!(await passesAttachmentReminder())) return;
     setSending(true);
@@ -775,7 +872,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
       const outgoing = [...inlineFromBody, ...fileAttachments];
 
-      await sendEmail(
+      const result = await sendEmail(
         {
           from,
           to: finalTo.map((r) => ({ name: r.name || undefined, email: r.email })),
@@ -793,7 +890,21 @@ export default function ComposeScreen({ route, navigation }: Props) {
         },
         primaryIdentity.id,
         sentMailbox.id,
+        holdForSeconds,
       );
+      // Confirm an explicit "send later" so the user knows it didn't go out
+      // now. The brief undo-send delay stays silent — it's meant to be
+      // invisible unless the user cancels from the Scheduled view.
+      if (scheduledAt && result.scheduled) {
+        const when = result.sendAt ? new Date(result.sendAt) : scheduledAt;
+        Alert.alert(
+          t('email_composer.scheduled_title', 'Scheduled'),
+          t('email_composer.scheduled_body', 'Your message will be sent at {time}.').replace(
+            '{time}',
+            when.toLocaleString(),
+          ),
+        );
+      }
       navigation.goBack();
     } catch (e) {
       Alert.alert(
@@ -828,10 +939,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
           >
             <Paperclip size={20} color={c.text} />
           </Pressable>
+          <Pressable
+            onPress={() => setScheduleSheetOpen(true)}
+            style={styles.headerBtn}
+            hitSlop={8}
+            disabled={!canSend}
+          >
+            <Clock size={20} color={canSend ? c.text : c.textMuted} />
+          </Pressable>
           <Button
             variant="default"
             size="sm"
-            onPress={() => { void onSend(); }}
+            onPress={onSend}
             disabled={!canSend}
             icon={
               sending ? (
@@ -1083,6 +1202,93 @@ export default function ComposeScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Schedule send sheet */}
+      <Modal
+        visible={scheduleSheetOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setScheduleSheetOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setScheduleSheetOpen(false)}>
+          <Pressable style={styles.scheduleCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>
+              {t('email_composer.schedule_send', 'Schedule send')}
+            </Text>
+            {!jmapClient.hasDelayedSend() && (
+              <Text style={styles.scheduleWarning}>
+                {t('email_composer.schedule_unsupported_body', 'This mail server does not support scheduled send.')}
+              </Text>
+            )}
+            {schedulePresets.map((preset) => (
+              <Pressable
+                key={preset.label}
+                style={styles.scheduleRow}
+                onPress={() => onScheduleConfirm(preset.date)}
+              >
+                <Clock size={16} color={c.textSecondary} />
+                <Text style={styles.scheduleRowLabel}>{preset.label}</Text>
+                <Text style={styles.scheduleRowTime}>
+                  {preset.date.toLocaleString(undefined, {
+                    weekday: 'short', hour: 'numeric', minute: '2-digit',
+                  })}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable style={styles.scheduleRow} onPress={startCustomPicker}>
+              <Check size={16} color={c.textSecondary} />
+              <Text style={styles.scheduleRowLabel}>
+                {t('email_composer.schedule_custom', 'Pick date & time…')}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.scheduleCancel}
+              onPress={() => setScheduleSheetOpen(false)}
+            >
+              <Text style={styles.modalCancelText}>{t('email_composer.cancel', 'Cancel')}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {customStage !== null && Platform.OS === 'ios' && (
+        <Modal transparent animationType="fade" onRequestClose={() => setCustomStage(null)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setCustomStage(null)}>
+            <Pressable style={styles.scheduleCard} onPress={() => {}}>
+              <DateTimePicker
+                value={customDraftRef.current}
+                mode="datetime"
+                display="spinner"
+                minimumDate={new Date()}
+                onChange={onCustomPickerChange}
+              />
+              <View style={styles.modalActions}>
+                <Pressable style={styles.modalCancel} onPress={() => setCustomStage(null)}>
+                  <Text style={styles.modalCancelText}>{t('email_composer.cancel', 'Cancel')}</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.modalConfirm}
+                  onPress={() => { setCustomStage(null); onScheduleConfirm(customDraftRef.current); }}
+                >
+                  <Text style={styles.modalConfirmText}>
+                    {t('email_composer.schedule_send', 'Schedule send')}
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {customStage !== null && Platform.OS !== 'ios' && (
+        <DateTimePicker
+          value={customDraftRef.current}
+          mode={customStage === 'time' ? 'time' : 'date'}
+          display="default"
+          minimumDate={customStage === 'date' ? new Date() : undefined}
+          onChange={onCustomPickerChange}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -1302,5 +1508,34 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.primary,
   },
   modalConfirmText: { ...typography.bodyMedium, color: c.primaryForeground },
+  scheduleCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: c.background,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  scheduleWarning: {
+    ...typography.caption,
+    color: c.error,
+    marginBottom: spacing.xs,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    minHeight: 44,
+  },
+  scheduleRowLabel: { ...typography.body, color: c.text, flex: 1 },
+  scheduleRowTime: { ...typography.caption, color: c.textMuted },
+  scheduleCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
   });
 }

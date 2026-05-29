@@ -140,7 +140,18 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const hideInlineImageAttachments = useSettingsStore((s) => s.hideInlineImageAttachments);
   const contacts = useContactsStore((s) => s.contacts);
+  const trustedSenderEmails = useContactsStore((s) => s.trustedSenderEmails);
+  const trustedSendersLoaded = useContactsStore((s) => s.trustedSendersLoaded);
+  const loadTrustedSendersBook = useContactsStore((s) => s.loadTrustedSendersBook);
+  const addToTrustedSendersBook = useContactsStore((s) => s.addToTrustedSendersBook);
   const resolvedTheme = useResolvedTheme();
+
+  // Passively load the dedicated "Trusted Senders" address book once so its
+  // entries (synced across devices) feed the external-content trust check. We
+  // do not create the book here — it is created lazily when a sender is trusted.
+  React.useEffect(() => {
+    if (!trustedSendersLoaded) void loadTrustedSendersBook(false);
+  }, [trustedSendersLoaded, loadTrustedSendersBook]);
   // Index the address book once per render so the trusted-sender check below
   // is O(1) per email. Only used when the matching setting is on.
   const addressBookEmails = React.useMemo(() => {
@@ -170,6 +181,7 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
   const hasRemote = rawHtml ? hasRemoteContent(rawHtml) : false;
   const trusted = senderEmail
     ? isSenderTrusted(senderEmail)
+      || trustedSenderEmails.includes(senderEmail.toLowerCase())
       || (addressBookEmails?.has(senderEmail.toLowerCase()) ?? false)
     : false;
 
@@ -270,7 +282,11 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
   const onLoadImages = () => setAllowOnce(true);
   const onTrustSender = () => {
     if (senderEmail) {
+      // Keep the local allow-list for instant effect, and persist to the
+      // dedicated "Trusted Senders" address book so the trust syncs across
+      // devices (matches the webmail behavior).
       addTrustedSender(senderEmail);
+      void addToTrustedSendersBook(senderEmail).catch(() => {});
       setAllowOnce(true);
     }
   };

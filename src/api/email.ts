@@ -358,6 +358,50 @@ export async function moveEmail(
   ]);
 }
 
+// Move several emails from one mailbox to another in a single Email/set.
+export async function moveEmails(
+  ids: string[],
+  fromMailboxId: string,
+  toMailboxId: string,
+): Promise<void> {
+  if (ids.length === 0) return;
+  const accountId = jmapClient.accountId;
+  const update: Record<string, Record<string, unknown>> = {};
+  for (const id of ids) {
+    update[id] = {
+      [`mailboxIds/${fromMailboxId}`]: null,
+      [`mailboxIds/${toMailboxId}`]: true,
+    };
+  }
+  await jmapClient.request([['Email/set', { accountId, update }, '0']]);
+}
+
+// Batch delete: destroy outright when already in trash, otherwise move to trash.
+export async function deleteEmails(
+  ids: string[],
+  trashMailboxId: string,
+  currentMailboxId: string,
+): Promise<void> {
+  if (ids.length === 0) return;
+  if (currentMailboxId === trashMailboxId) {
+    const accountId = jmapClient.accountId;
+    await jmapClient.request([['Email/set', { accountId, destroy: ids }, '0']]);
+  } else {
+    await moveEmails(ids, currentMailboxId, trashMailboxId);
+  }
+}
+
+// Apply keyword maps to several emails in one round-trip.
+export async function setKeywordsForEmails(
+  updates: Array<{ id: string; keywords: Record<string, boolean> }>,
+): Promise<void> {
+  if (updates.length === 0) return;
+  const accountId = jmapClient.accountId;
+  const update: Record<string, { keywords: Record<string, boolean> }> = {};
+  for (const u of updates) update[u.id] = { keywords: u.keywords };
+  await jmapClient.request([['Email/set', { accountId, update }, '0']]);
+}
+
 // Restore each email's mailboxIds to the snapshot supplied. Used by undo to
 // reverse a move/archive/spam in one round-trip. JMAP "mailboxIds" replaces
 // the entire map, so we don't need to compute a diff against the current state.
@@ -558,6 +602,15 @@ export interface OutgoingAttachment {
   cid?: string;
 }
 
+export interface SendEmailResult {
+  /** True when the message was deferred (HOLDFOR / FUTURERELEASE). */
+  scheduled: boolean;
+  /** ISO timestamp the server resolved for a deferred send, when known. */
+  sendAt?: string;
+  emailId?: string;
+  emailSubmissionId?: string;
+}
+
 export async function sendEmail(
   email: {
     from: EmailAddress[];
@@ -573,7 +626,11 @@ export async function sendEmail(
   },
   identityId: string,
   sentMailboxId: string,
-): Promise<void> {
+  // When > 0 the message is held for this many seconds before delivery via the
+  // SMTP HOLDFOR parameter (FUTURERELEASE). Used for both explicit "send later"
+  // scheduling and the global send-delay (undo-send) window.
+  holdForSeconds?: number,
+): Promise<SendEmailResult> {
   const accountId = jmapClient.accountId;
   const emailCreate: Record<string, unknown> = {
     from: email.from,
@@ -615,14 +672,164 @@ export async function sendEmail(
     emailCreate['header:References:asText'] = email.references ?? email.inReplyTo;
   }
 
-  await jmapClient.request(
+  const submissionCreate: Record<string, unknown> = { emailId: '#draft', identityId };
+  // For a deferred send the envelope must be set explicitly so the HOLDFOR
+  // mail-from parameter rides along (JMAP §7.3: an omitted envelope makes the
+  // server derive mailFrom from the Identity, dropping our parameter).
+  if (holdForSeconds && holdForSeconds > 0) {
+    const rcptTo = [...email.to, ...(email.cc ?? []), ...(email.bcc ?? [])]
+      .map((r) => r.email.trim())
+      .filter(Boolean)
+      .map((address) => ({ email: address }));
+    submissionCreate.envelope = {
+      mailFrom: {
+        email: email.from[0]?.email,
+        parameters: { HOLDFOR: String(Math.ceil(holdForSeconds)) },
+      },
+      rcptTo,
+    };
+  }
+
+  const res = await jmapClient.request(
     [
       ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
       ['EmailSubmission/set', {
         accountId,
-        create: { 'sub-1': { emailId: '#draft', identityId } },
+        create: { 'sub-1': submissionCreate },
       }, '1'],
     ],
     [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
   );
+
+  let emailId: string | undefined;
+  let emailSubmissionId: string | undefined;
+  let sendAt: string | undefined;
+  for (const [methodName, result] of res.methodResponses) {
+    if (methodName.endsWith('/error')) {
+      throw new Error((result as { description?: string }).description ?? 'Send failed');
+    }
+    if (methodName === 'Email/set') {
+      const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.draft;
+      if (notCreated) throw new Error(notCreated.description ?? notCreated.type ?? 'Failed to create message');
+      emailId = (result as { created?: Record<string, { id?: string }> }).created?.draft?.id;
+    }
+    if (methodName === 'EmailSubmission/set') {
+      const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
+      if (notCreated) throw new Error(notCreated.description ?? notCreated.type ?? 'Failed to submit message');
+      const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
+      emailSubmissionId = created?.id;
+      sendAt = created?.sendAt;
+    }
+  }
+
+  return {
+    scheduled: !!(holdForSeconds && holdForSeconds > 0),
+    sendAt,
+    emailId,
+    emailSubmissionId,
+  };
+}
+
+export interface ScheduledEmail {
+  emailSubmissionId: string;
+  emailId: string;
+  identityId: string;
+  threadId?: string;
+  sendAt: string;
+  undoStatus?: string;
+  subject?: string;
+  to?: EmailAddress[];
+  from?: EmailAddress[];
+  preview?: string;
+}
+
+// List pending (not-yet-delivered, not cancelled) scheduled submissions whose
+// send time is still in the future, joined with a light Email/get so the UI
+// can show subject/recipients. Empty when the server lacks FUTURERELEASE.
+export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
+  if (!jmapClient.hasDelayedSend()) return [];
+  const accountId = jmapClient.accountId;
+  const now = Date.now();
+
+  const queryRes = await jmapClient.request(
+    [['EmailSubmission/query', { accountId, limit: 200 }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
+  );
+  const [queryName, queryBody] = queryRes.methodResponses[0];
+  if (queryName.endsWith('/error')) return [];
+  const ids = (queryBody.ids as string[]) ?? [];
+  if (ids.length === 0) return [];
+
+  const subRes = await jmapClient.request(
+    [['EmailSubmission/get', {
+      accountId,
+      ids,
+      properties: ['id', 'emailId', 'identityId', 'threadId', 'sendAt', 'undoStatus'],
+    }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
+  );
+  const submissions = ((subRes.methodResponses[0][1].list as Array<{
+    id: string;
+    emailId: string;
+    identityId: string;
+    threadId?: string;
+    sendAt?: string;
+    undoStatus?: string;
+  }>) ?? []).filter((s) => {
+    if (s.undoStatus !== 'pending' || !s.sendAt) return false;
+    const t = new Date(s.sendAt).getTime();
+    return Number.isFinite(t) && t > now;
+  });
+  if (submissions.length === 0) return [];
+
+  const emailIds = Array.from(new Set(submissions.map((s) => s.emailId)));
+  const emailRes = await jmapClient.request([
+    ['Email/get', {
+      accountId,
+      ids: emailIds,
+      properties: ['id', 'subject', 'to', 'from', 'preview', 'threadId'],
+    }, '0'],
+  ]);
+  const emailById = new Map(
+    ((emailRes.methodResponses[0][1].list as Email[]) ?? []).map((e) => [e.id, e]),
+  );
+
+  return submissions
+    .map((s): ScheduledEmail | null => {
+      const e = emailById.get(s.emailId);
+      if (!s.sendAt) return null;
+      return {
+        emailSubmissionId: s.id,
+        emailId: s.emailId,
+        identityId: s.identityId,
+        threadId: s.threadId ?? e?.threadId,
+        sendAt: s.sendAt,
+        undoStatus: s.undoStatus,
+        subject: e?.subject,
+        to: e?.to,
+        from: e?.from,
+        preview: e?.preview,
+      };
+    })
+    .filter((s): s is ScheduledEmail => s !== null)
+    .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime());
+}
+
+// Cancel a pending scheduled send. The held message copy stays in Sent; only
+// delivery is stopped (matches the webmail behaviour).
+export async function cancelScheduledSend(emailSubmissionId: string): Promise<void> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['EmailSubmission/set', {
+      accountId,
+      update: { [emailSubmissionId]: { undoStatus: 'canceled' } },
+    }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
+  );
+  const failure = res.methodResponses[0][1].notUpdated?.[emailSubmissionId] as
+    | { type?: string; description?: string }
+    | undefined;
+  if (failure) {
+    throw new Error(failure.description ?? failure.type ?? 'Failed to cancel scheduled send');
+  }
 }

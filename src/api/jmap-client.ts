@@ -451,6 +451,59 @@ export class JMAPClient {
     return core?.maxObjectsInGet || 500;
   }
 
+  // ── Scheduled send (FUTURERELEASE) ────────────────────
+  // The JMAP submission capability advertises `maxDelayedSend` (max hold in
+  // seconds) and a `submissionExtensions` map; FUTURERELEASE support is what
+  // lets us defer delivery via the SMTP HOLDFOR parameter. Mirrors the webmail
+  // implementation so behaviour stays in sync across platforms.
+
+  private get submissionCapability():
+    | { maxDelayedSend?: number; submissionExtensions?: unknown }
+    | undefined {
+    return this.session?.capabilities?.[CAPABILITIES.SUBMISSION] as
+      | { maxDelayedSend?: number; submissionExtensions?: unknown }
+      | undefined;
+  }
+
+  getMaxDelayedSend(): number {
+    const max = this.submissionCapability?.maxDelayedSend;
+    return typeof max === 'number' ? max : 0;
+  }
+
+  hasDelayedSend(): boolean {
+    const cap = this.submissionCapability;
+    if (!cap) return false;
+    const ext = cap.submissionExtensions;
+    // submissionExtensions is a map of extension name → params. FUTURERELEASE
+    // (RFC 4865) is the SMTP extension that backs deferred delivery.
+    const hasFutureRelease =
+      !!ext &&
+      typeof ext === 'object' &&
+      Object.keys(ext as Record<string, unknown>).some(
+        (k) => k.toUpperCase() === 'FUTURERELEASE',
+      );
+    return hasFutureRelease && this.getMaxDelayedSend() > 0;
+  }
+
+  // ── Stored credentials (per-account) ──────────────────
+  // Exposed so the unified-inbox aggregator can read another account's
+  // credentials without disturbing this client's live session, and persist a
+  // refreshed OAuth token back to secure storage.
+
+  async getStoredCredentials(accountId: string): Promise<StoredCredentials | null> {
+    const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored) as StoredCredentials;
+    } catch {
+      return null;
+    }
+  }
+
+  async setStoredCredentials(accountId: string, creds: StoredCredentials): Promise<void> {
+    await SecureStore.setItemAsync(credentialsKey(accountId), JSON.stringify(creds));
+  }
+
   // ── Blob Download ─────────────────────────────────────
 
   // Expand the RFC 6570 level-1 template the JMAP server advertises.

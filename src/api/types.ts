@@ -288,6 +288,13 @@ export interface ContactCryptoKey {
   contexts?: Record<string, boolean>;
 }
 
+export interface ContactDirectory {
+  uri: string;
+  kind?: 'directory' | 'entry' | string;
+  mediaType?: string;
+  pref?: number;
+}
+
 export interface ContactPronouns {
   pronouns: string;
   pref?: number;
@@ -322,12 +329,15 @@ export interface ContactCard {
   relatedTo?: Record<string, ContactRelation>;
   links?: Record<string, ContactLink>;
   cryptoKeys?: Record<string, ContactCryptoKey>;
+  directories?: Record<string, ContactDirectory>;
   keywords?: Record<string, boolean>;
   members?: Record<string, boolean>;
   speakToAs?: ContactSpeakToAs;
   calendarUri?: string;
   schedulingUri?: string;
   freeBusyUri?: string;
+  source?: string;
+  prodId?: string;
   created?: string;
   updated?: string;
 }
@@ -356,13 +366,39 @@ export interface AddressBookWithCount extends AddressBook {
 // ─── Calendar (RFC 8984 JSCalendar) ─────────────────────
 
 export interface Participant {
+  '@type'?: 'Participant';
   name?: string;
   email?: string;
   sendTo?: Record<string, string>;
+  // Stalwart uses calendarAddress (a `mailto:` URI) instead of email/sendTo.
+  calendarAddress?: string;
   kind?: string;
   roles?: Record<string, boolean>;
-  participationStatus?: string;
+  participationStatus?: 'needs-action' | 'accepted' | 'declined' | 'tentative' | 'delegated' | string;
+  participationComment?: string;
+  scheduleStatus?: string[];
   expectReply?: boolean;
+  description?: string;
+}
+
+// JSCalendar Location (RFC 8984 §4.2.5) — a physical place.
+export interface EventLocation {
+  '@type'?: 'Location';
+  name?: string;
+  description?: string;
+  locationTypes?: Record<string, boolean>;
+  relativeTo?: string;
+  timeZone?: string;
+  coordinates?: string;
+}
+
+// JSCalendar VirtualLocation (RFC 8984 §4.2.6) — a video/online place.
+export interface VirtualLocation {
+  '@type'?: 'VirtualLocation';
+  name?: string;
+  description?: string;
+  uri: string;
+  features?: Record<string, boolean>;
 }
 
 export interface RecurrenceRule {
@@ -403,27 +439,56 @@ export interface CalendarEvent {
   status?: string;
   freeBusyStatus?: string;
   participants?: Record<string, Participant>;
+  // Scheduling (iTIP/iMIP). `replyTo` tells the server where RSVP replies go;
+  // Stalwart additionally exposes the organizer as `organizerCalendarAddress`.
+  replyTo?: Record<string, string>;
+  organizerCalendarAddress?: string;
+  sequence?: number;
   recurrenceRules?: RecurrenceRule[];
   recurrenceOverrides?: Record<string, Partial<CalendarEvent>>;
   excludedRecurrenceRules?: RecurrenceRule[];
   recurrenceId?: string;
   originalId?: string;
+  useDefaultAlerts?: boolean;
   alerts?: Record<string, Alert>;
+  locations?: Record<string, EventLocation>;
+  virtualLocations?: Record<string, VirtualLocation>;
   links?: Record<string, { href: string; rel?: string }>;
   created?: string;
   updated?: string;
-  progress?: string;
+  // Task-only (RFC 8984 JSTask) fields.
+  progress?: 'needs-action' | 'in-process' | 'completed' | 'failed' | 'cancelled' | string;
   due?: string;
+  priority?: number;
+  percentComplete?: number;
   color?: string;
+  // Client-only: account the event/occurrence belongs to (for shared/virtual).
+  localAccountId?: string;
+}
+
+export interface CalendarRights {
+  mayReadFreeBusy?: boolean;
+  mayReadItems?: boolean;
+  mayWriteAll?: boolean;
+  mayWriteOwn?: boolean;
+  mayUpdatePrivate?: boolean;
+  mayRSVP?: boolean;
+  mayShare?: boolean;
+  mayDelete?: boolean;
+  // Legacy short flag still read by the sidebar drawer.
+  mayWrite?: boolean;
 }
 
 export interface Calendar {
   id: string;
   name: string;
+  description?: string | null;
   color?: string;
   isVisible?: boolean;
+  isSubscribed?: boolean;
+  isDefault?: boolean;
   sortOrder?: number;
-  myRights?: Record<string, boolean>;
+  myRights?: CalendarRights;
 }
 
 // ─── Files (FileNode) ───────────────────────────────────

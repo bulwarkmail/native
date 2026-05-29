@@ -68,6 +68,9 @@ interface PersistedSettings {
   attachmentReminderEnabled: boolean;
   attachmentReminderKeywords: string[];
   plainTextMode: boolean;
+  // Undo-send window: every send is deferred by this many seconds (via the
+  // server's FUTURERELEASE support) so it can be cancelled. 0 = send instantly.
+  sendDelaySeconds: number;
 
   // Reading
   markAsReadDelay: number;
@@ -161,6 +164,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   attachmentReminderEnabled: true,
   attachmentReminderKeywords: ['attached', 'attachment', 'attaching', 'enclosed'],
   plainTextMode: false,
+  sendDelaySeconds: 0,
 
   markAsReadDelay: 0,
   deleteAction: 'trash',

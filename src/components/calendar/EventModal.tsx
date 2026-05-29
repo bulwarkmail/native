@@ -17,13 +17,22 @@ import {
   Calendar as CalendarIcon,
   Clock,
   MapPin,
+  Video,
   Repeat,
   Bell,
+  Plus,
   Users,
   Trash2,
+  AlignLeft,
 } from 'lucide-react-native';
 import { addHours, addMinutes, format } from 'date-fns';
-import type { Calendar, CalendarEvent, Participant } from '../../api/types';
+import type {
+  Calendar,
+  CalendarEvent,
+  Participant,
+  EventLocation,
+  VirtualLocation,
+} from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import {
@@ -33,11 +42,17 @@ import {
   getEventStartDate,
   getPrimaryCalendarId,
 } from '../../lib/calendar-utils';
+import {
+  alertsToReminders,
+  remindersToAlerts,
+  formatReminder,
+  REMINDER_PRESETS,
+  type Reminder,
+} from '../../lib/calendar-alerts';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-type AlertOption = 'none' | 'at_time' | '5' | '15' | '30' | '60' | '1440';
 
 const RECURRENCE_OPTIONS: { value: RecurrenceOption; label: string }[] = [
   { value: 'none', label: 'Does not repeat' },
@@ -45,16 +60,6 @@ const RECURRENCE_OPTIONS: { value: RecurrenceOption; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'yearly', label: 'Yearly' },
-];
-
-const ALERT_OPTIONS: { value: AlertOption; label: string }[] = [
-  { value: 'none', label: 'No reminder' },
-  { value: 'at_time', label: 'At time of event' },
-  { value: '5', label: '5 minutes before' },
-  { value: '15', label: '15 minutes before' },
-  { value: '30', label: '30 minutes before' },
-  { value: '60', label: '1 hour before' },
-  { value: '1440', label: '1 day before' },
 ];
 
 interface EventModalProps {
@@ -101,39 +106,30 @@ function detectRecurrence(event: CalendarEvent | null | undefined): RecurrenceOp
   return 'none';
 }
 
-function detectAlert(event: CalendarEvent | null | undefined): AlertOption {
-  const alerts = event?.alerts;
-  if (!alerts) return 'none';
-  const first = Object.values(alerts)[0];
-  if (!first) return 'none';
-  const offset = first.trigger?.offset;
-  if (!offset) return 'none';
-  if (offset === 'PT0S' || offset === '-PT0S') return 'at_time';
-  const min = offset.match(/-?PT(\d+)M$/);
-  if (min) {
-    const v = min[1];
-    if (v === '5' || v === '15' || v === '30') return v as AlertOption;
-  }
-  const hr = offset.match(/-?PT(\d+)H$/);
-  if (hr && hr[1] === '1') return '60';
-  const day = offset.match(/-?P(\d+)D/);
-  if (day && day[1] === '1') return '1440';
-  return 'none';
+function detectLocation(event: CalendarEvent | null | undefined): string {
+  const locations = event?.locations;
+  if (!locations) return '';
+  const first = Object.values(locations)[0];
+  return first?.name || '';
 }
 
-function alertFromOption(opt: AlertOption): CalendarEvent['alerts'] | undefined {
-  if (opt === 'none') return undefined;
-  let offset = '-PT0M';
-  if (opt === 'at_time') offset = 'PT0S';
-  else if (opt === '60') offset = '-PT1H';
-  else if (opt === '1440') offset = '-P1D';
-  else offset = `-PT${opt}M`;
-  return {
-    'a-1': {
-      trigger: { '@type': 'OffsetTrigger', offset },
-      action: 'display',
-    },
-  };
+function detectVideoUrl(event: CalendarEvent | null | undefined): string {
+  const v = event?.virtualLocations;
+  if (!v) return '';
+  const first = Object.values(v)[0];
+  return first?.uri || '';
+}
+
+function buildLocations(name: string): Record<string, EventLocation> | undefined {
+  const trimmed = name.trim();
+  if (!trimmed) return undefined;
+  return { 'loc-1': { '@type': 'Location', name: trimmed } };
+}
+
+function buildVirtualLocations(uri: string): Record<string, VirtualLocation> | undefined {
+  const trimmed = uri.trim();
+  if (!trimmed) return undefined;
+  return { 'vloc-1': { '@type': 'VirtualLocation', name: 'Video call', uri: trimmed } };
 }
 
 function recurrenceFromOption(opt: RecurrenceOption): CalendarEvent['recurrenceRules'] | undefined {
@@ -163,9 +159,11 @@ export function EventModal({
   const [calendarId, setCalendarId] = React.useState<string>(defaultCalendarId || calendars[0]?.id || '');
   const [participants, setParticipants] = React.useState<Record<string, Participant>>({});
   const [recurrence, setRecurrence] = React.useState<RecurrenceOption>('none');
-  const [alert, setAlert] = React.useState<AlertOption>('none');
+  const [reminders, setReminders] = React.useState<Reminder[]>([]);
+  const [location, setLocation] = React.useState('');
+  const [videoUrl, setVideoUrl] = React.useState('');
   const [recurrenceOpen, setRecurrenceOpen] = React.useState(false);
-  const [alertOpen, setAlertOpen] = React.useState(false);
+  const [reminderPickerOpen, setReminderPickerOpen] = React.useState(false);
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [showStartDate, setShowStartDate] = React.useState(false);
   const [showStartTime, setShowStartTime] = React.useState(false);
@@ -184,7 +182,9 @@ export function EventModal({
       setCalendarId(getPrimaryCalendarId(event) || calendars[0]?.id || '');
       setParticipants(event.participants || {});
       setRecurrence(detectRecurrence(event));
-      setAlert(detectAlert(event));
+      setReminders(alertsToReminders(event.alerts));
+      setLocation(detectLocation(event));
+      setVideoUrl(detectVideoUrl(event));
     } else {
       const d = defaultDate ? nextHalfHour(defaultDate) : nextHalfHour(new Date());
       setTitle('');
@@ -195,7 +195,9 @@ export function EventModal({
       setCalendarId(defaultCalendarId || calendars[0]?.id || '');
       setParticipants({});
       setRecurrence('none');
-      setAlert('none');
+      setReminders([]);
+      setLocation('');
+      setVideoUrl('');
     }
   }, [visible, event, defaultDate, defaultCalendarId, calendars]);
 
@@ -240,7 +242,10 @@ export function EventModal({
         duration: allDay ? buildAllDayDuration(start, end) : buildDuration(start, end),
         participants: Object.keys(participants).length > 0 ? participants : undefined,
         recurrenceRules: recurrenceFromOption(recurrence),
-        alerts: alertFromOption(alert),
+        alerts: remindersToAlerts(reminders),
+        useDefaultAlerts: reminders.length > 0 ? false : undefined,
+        locations: buildLocations(location),
+        virtualLocations: buildVirtualLocations(videoUrl),
       };
       await onSave(data, calendarId);
       onClose();
@@ -255,7 +260,21 @@ export function EventModal({
 
   const selectedCalendar = calendars.find((c) => c.id === calendarId);
   const recurrenceLabel = RECURRENCE_OPTIONS.find((o) => o.value === recurrence)?.label || 'None';
-  const alertLabel = ALERT_OPTIONS.find((o) => o.value === alert)?.label || 'None';
+
+  const addReminder = (minutesBefore: number) => {
+    setReminderPickerOpen(false);
+    setReminders((prev) =>
+      prev.some((r) => r.minutesBefore === minutesBefore)
+        ? prev
+        : [...prev, { minutesBefore }].sort((a, b) => b.minutesBefore - a.minutesBefore),
+    );
+  };
+  const removeReminder = (minutesBefore: number) => {
+    setReminders((prev) => prev.filter((r) => r.minutesBefore !== minutesBefore));
+  };
+  const availablePresets = REMINDER_PRESETS.filter(
+    (p) => !reminders.some((r) => r.minutesBefore === p),
+  );
 
   return (
     <Modal
@@ -423,42 +442,80 @@ export function EventModal({
             )}
           </Section>
 
-          <Section icon={<Bell size={16} color={c.textMuted} />} label="Reminder">
-            <Pressable
-              style={styles.fieldButton}
-              onPress={() => setAlertOpen((v) => !v)}
-            >
-              <Text style={styles.fieldText}>{alertLabel}</Text>
-            </Pressable>
-            {alertOpen && (
+          <Section icon={<Bell size={16} color={c.textMuted} />} label="Reminders">
+            {reminders.length > 0 && (
+              <View style={{ gap: spacing.xs }}>
+                {reminders.map((r) => (
+                  <View key={r.minutesBefore} style={styles.reminderRow}>
+                    <Text style={styles.fieldText}>{formatReminder(r.minutesBefore)}</Text>
+                    <Pressable
+                      onPress={() => removeReminder(r.minutesBefore)}
+                      hitSlop={8}
+                      style={styles.reminderRemove}
+                    >
+                      <X size={16} color={c.textMuted} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            {availablePresets.length > 0 && (
+              <Pressable
+                style={styles.addRow}
+                onPress={() => setReminderPickerOpen((v) => !v)}
+              >
+                <Plus size={16} color={c.primary} />
+                <Text style={styles.addRowText}>
+                  {reminders.length === 0 ? 'Add reminder' : 'Add another reminder'}
+                </Text>
+              </Pressable>
+            )}
+            {reminderPickerOpen && (
               <View style={styles.popover}>
-                {ALERT_OPTIONS.map((opt) => (
+                {availablePresets.map((preset) => (
                   <Pressable
-                    key={opt.value}
-                    style={[
-                      styles.popoverRow,
-                      opt.value === alert && styles.popoverRowActive,
-                    ]}
-                    onPress={() => {
-                      setAlert(opt.value);
-                      setAlertOpen(false);
-                    }}
+                    key={preset}
+                    style={styles.popoverRow}
+                    onPress={() => addReminder(preset)}
                   >
-                    <Text style={styles.popoverRowText}>{opt.label}</Text>
+                    <Text style={styles.popoverRowText}>{formatReminder(preset)}</Text>
                   </Pressable>
                 ))}
               </View>
             )}
           </Section>
 
+          <Section icon={<MapPin size={16} color={c.textMuted} />} label="Location">
+            <TextInput
+              value={location}
+              onChangeText={setLocation}
+              placeholder="Place or address"
+              placeholderTextColor={c.textMuted}
+              style={styles.fieldButton}
+            />
+          </Section>
+
+          <Section icon={<Video size={16} color={c.textMuted} />} label="Video call">
+            <TextInput
+              value={videoUrl}
+              onChangeText={setVideoUrl}
+              placeholder="https://meet.example.com/…"
+              placeholderTextColor={c.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.fieldButton}
+            />
+          </Section>
+
           <Section
-            icon={<MapPin size={16} color={c.textMuted} />}
+            icon={<AlignLeft size={16} color={c.textMuted} />}
             label="Description"
           >
             <TextInput
               value={description}
               onChangeText={setDescription}
-              placeholder="Notes, location, link…"
+              placeholder="Notes, agenda…"
               placeholderTextColor={c.textMuted}
               multiline
               style={styles.descriptionInput}
@@ -628,6 +685,26 @@ function makeStyles(c: ThemePalette) {
 
   calendarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   calendarSwatch: { width: 12, height: 12, borderRadius: 6 },
+
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+  reminderRemove: { padding: 2 },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  addRowText: { ...typography.body, color: c.primary },
 
   popover: {
     borderWidth: 1,

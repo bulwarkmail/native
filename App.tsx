@@ -31,6 +31,8 @@ import ContactDetailScreen from './src/screens/ContactDetailScreen';
 import ContactFormScreen from './src/screens/ContactFormScreen';
 import GroupDetailScreen from './src/screens/GroupDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import ScheduledScreen from './src/screens/ScheduledScreen';
+import UnifiedInboxScreen from './src/screens/UnifiedInboxScreen';
 import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
@@ -449,6 +451,8 @@ export default function App() {
           }}
         />
         <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
+        <Stack.Screen name="Scheduled" component={ScheduledScreen} />
+        <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
         <Stack.Screen
           name="AddAccount"
           options={{

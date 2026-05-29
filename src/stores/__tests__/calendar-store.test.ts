@@ -272,7 +272,9 @@ describe('calendar-store', () => {
         { title: 'New' } as any,
       );
 
-      expect(mockUpdateEvent).toHaveBeenCalledWith('master', { title: 'New' });
+      // The third arg is the iMIP scheduling flag — undefined here since the
+      // event has no participants to notify.
+      expect(mockUpdateEvent).toHaveBeenCalledWith('master', { title: 'New' }, undefined);
     });
   });
 

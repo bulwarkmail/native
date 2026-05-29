@@ -91,3 +91,58 @@ export async function deleteContacts(ids: string[]): Promise<void> {
     USING,
   );
 }
+
+export async function createAddressBook(name: string): Promise<AddressBook> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['AddressBook/set', { accountId, create: { 'new-book': { name } } }, '0']],
+    USING,
+  );
+  const result = methodResult<{
+    created?: Record<string, AddressBook>;
+    notCreated?: Record<string, { description?: string; type?: string }>;
+  }>(res);
+  const created = result.created?.['new-book'];
+  if (created) return { ...created, name };
+  const err = result.notCreated?.['new-book'];
+  throw new Error(err?.description || err?.type || 'Failed to create address book');
+}
+
+export async function updateAddressBook(
+  id: string,
+  updates: Partial<AddressBook>,
+): Promise<void> {
+  const accountId = jmapClient.accountId;
+  // Only forward server-settable properties.
+  const { name, description, sortOrder, isDefault } = updates as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  if (name !== undefined) patch.name = name;
+  if (description !== undefined) patch.description = description;
+  if (sortOrder !== undefined) patch.sortOrder = sortOrder;
+  if (isDefault !== undefined) patch.isDefault = isDefault;
+
+  const res = await jmapClient.request(
+    [['AddressBook/set', { accountId, update: { [id]: patch } }, '0']],
+    USING,
+  );
+  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
+  const err = result.notUpdated?.[id];
+  if (err) throw new Error(err.description || err.type || 'Failed to update address book');
+}
+
+export async function deleteAddressBook(id: string): Promise<void> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['AddressBook/set', { accountId, destroy: [id] }, '0']],
+    USING,
+  );
+  const result = methodResult<{ notDestroyed?: Record<string, { description?: string; type?: string }> }>(res);
+  const err = result.notDestroyed?.[id];
+  if (err) throw new Error(err.description || err.type || 'Failed to delete address book');
+}
+
+/** Fetch all contact cards that live in a specific address book. */
+export async function getContactsInBook(addressBookId: string): Promise<ContactCard[]> {
+  const ids = await queryContacts({ inAddressBook: addressBookId });
+  return getContacts(ids);
+}

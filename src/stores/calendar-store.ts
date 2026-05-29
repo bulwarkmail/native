@@ -9,9 +9,18 @@ import {
   createEvent as apiCreateEvent,
   updateEvent as apiUpdateEvent,
   deleteEvents as apiDeleteEvents,
+  batchCreateEvents as apiBatchCreateEvents,
+  rsvpEvent as apiRsvpEvent,
+  createCalendar as apiCreateCalendar,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
+
+// Does the event carry attendees the server should notify over iMIP? Used to
+// decide whether to set sendSchedulingMessages on create/update/delete.
+function hasSchedulingParticipants(event?: Partial<CalendarEvent> | null): boolean {
+  return !!event?.participants && Object.keys(event.participants).length > 0;
+}
 
 const HIDDEN_CALENDARS_STORAGE_KEY = 'webmail:calendar:hidden:v1';
 
@@ -23,6 +32,7 @@ export interface LoadedRange {
 export interface CalendarState {
   calendars: Calendar[];
   events: CalendarEvent[];
+  tasks: CalendarEvent[];
   hiddenCalendarIds: string[];
   loadedRange: LoadedRange | null;
   loading: boolean;
@@ -38,6 +48,20 @@ export interface CalendarState {
   createEvent: (event: Partial<CalendarEvent>, calendarId: string) => Promise<CalendarEvent>;
   updateEvent: (id: string, changes: Partial<CalendarEvent>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
+  // Invitations / scheduling
+  rsvpEvent: (
+    eventId: string,
+    participantId: string,
+    status: 'accepted' | 'declined' | 'tentative',
+    replyTo?: Record<string, string> | null,
+  ) => Promise<void>;
+  importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<number>;
+  createCalendar: (name: string, color?: string) => Promise<Calendar>;
+  // Tasks
+  createTask: (task: Partial<CalendarEvent>, calendarId: string) => Promise<void>;
+  updateTask: (id: string, changes: Partial<CalendarEvent>) => Promise<void>;
+  toggleTaskComplete: (id: string) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
   toggleCalendarVisibility: (id: string) => void;
   setCalendarHidden: (id: string, hidden: boolean) => void;
   reset: () => void;
@@ -66,6 +90,7 @@ export const useCalendarStore = create<CalendarState>()(
     (set, get) => ({
   calendars: [],
   events: [],
+  tasks: [],
   hiddenCalendarIds: [],
   loadedRange: null,
   loading: false,
@@ -108,14 +133,16 @@ export const useCalendarStore = create<CalendarState>()(
     try {
       const ids = (await queryEvents(calendarIds, after, before)) ?? [];
       const raw = ids.length > 0 ? ((await fetchEvents(ids)) ?? []) : [];
-      // Stalwart returns both Events and Tasks from CalendarEvent/query; tasks
-      // lack `start` and must be filtered out client-side.
+      // Stalwart returns both Events and Tasks from CalendarEvent/query. Events
+      // have a `start`; tasks are surfaced separately so they don't pollute the
+      // grid (they're shown in the task list with their due date instead).
       const onlyEvents = raw.filter((e) => {
         const t = (e as { '@type'?: string })['@type'];
         return (t === 'Event' || t === undefined) && !!e.start;
       });
+      const tasks = raw.filter((e) => (e as { '@type'?: string })['@type'] === 'Task');
       const events = expandRecurringEvents(onlyEvents, after, before);
-      set({ events, loadedRange: { after, before }, loading: false });
+      set({ events, tasks, loadedRange: { after, before }, loading: false });
     } catch (err) {
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
     }
@@ -166,7 +193,11 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   createEvent: async (event, calendarId) => {
-    const created = await apiCreateEvent(event, calendarId);
+    const created = await apiCreateEvent(
+      event,
+      calendarId,
+      hasSchedulingParticipants(event) ? true : undefined,
+    );
     set({ events: [...get().events, created] });
     return created;
   },
@@ -175,7 +206,11 @@ export const useCalendarStore = create<CalendarState>()(
     // Resolve client-side expanded occurrence IDs back to the master event ID.
     const storeEvent = get().events.find((e) => e.id === id);
     const realId = storeEvent?.originalId || id;
-    await apiUpdateEvent(realId, changes);
+    // Notify attendees if either the stored event or the incoming changes
+    // carry participants.
+    const schedule =
+      hasSchedulingParticipants(changes) || hasSchedulingParticipants(storeEvent);
+    await apiUpdateEvent(realId, changes, schedule ? true : undefined);
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...changes } : e)),
     });
@@ -184,8 +219,87 @@ export const useCalendarStore = create<CalendarState>()(
   deleteEvent: async (id) => {
     const storeEvent = get().events.find((e) => e.id === id);
     const realId = storeEvent?.originalId || id;
-    await apiDeleteEvents([realId]);
+    await apiDeleteEvents(
+      [realId],
+      hasSchedulingParticipants(storeEvent) ? true : undefined,
+    );
     set({ events: get().events.filter((e) => e.id !== id) });
+  },
+
+  rsvpEvent: async (eventId, participantId, status, replyTo) => {
+    if (!participantId || participantId.includes('..')) {
+      throw new Error('Invalid participant ID');
+    }
+    const storeEvent = get().events.find((e) => e.id === eventId);
+    const realId = storeEvent?.originalId || eventId;
+    await apiRsvpEvent(realId, participantId, status, replyTo);
+    set({
+      events: get().events.map((e) => {
+        if (e.id !== eventId || !e.participants?.[participantId]) return e;
+        return {
+          ...e,
+          participants: {
+            ...e.participants,
+            [participantId]: { ...e.participants[participantId], participationStatus: status },
+          },
+        };
+      }),
+    });
+  },
+
+  importEvents: async (events, calendarId) => {
+    if (events.length === 0) return 0;
+    // Stalwart enforces UID uniqueness across calendars. Skip events whose UID
+    // already exists; create the rest. (We don't attempt cross-calendar linking
+    // on mobile — a duplicate is simply skipped.)
+    let toCreate = events;
+    try {
+      const existingIds = await queryEvents([], '', '');
+      const existing = existingIds.length > 0 ? await fetchEvents(existingIds) : [];
+      const seenUids = new Set(existing.map((e) => e.uid).filter(Boolean) as string[]);
+      toCreate = events.filter((e) => !e.uid || !seenUids.has(e.uid));
+    } catch {
+      // Couldn't dedupe — proceed and let the server reject genuine dupes.
+    }
+    if (toCreate.length === 0) return 0;
+    const count = await apiBatchCreateEvents(toCreate, calendarId);
+    await get().refresh();
+    return count;
+  },
+
+  createCalendar: async (name, color) => {
+    const created = await apiCreateCalendar(name, color);
+    set({ calendars: [...get().calendars, created] });
+    return created;
+  },
+
+  createTask: async (task, calendarId) => {
+    await apiCreateEvent({ ...task, '@type': 'Task' }, calendarId);
+    await get().refresh();
+  },
+
+  updateTask: async (id, changes) => {
+    const task = get().tasks.find((t) => t.id === id);
+    const realId = task?.originalId || id;
+    await apiUpdateEvent(realId, changes);
+    set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+  },
+
+  toggleTaskComplete: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task) return;
+    const completed = task.progress === 'completed';
+    const next: Partial<CalendarEvent> = completed
+      ? { progress: 'in-process', percentComplete: 0 }
+      : { progress: 'completed', percentComplete: 100 };
+    await get().updateTask(id, next);
+  },
+
+  deleteTask: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    const realId = task?.originalId || id;
+    await apiDeleteEvents([realId]);
+    set({ tasks: get().tasks.filter((t) => t.id !== id) });
   },
 
   toggleCalendarVisibility: (id) => {
@@ -211,6 +325,7 @@ export const useCalendarStore = create<CalendarState>()(
   reset: () => set({
     calendars: [],
     events: [],
+    tasks: [],
     loadedRange: null,
     loading: false,
     error: null,
@@ -225,6 +340,7 @@ export const useCalendarStore = create<CalendarState>()(
       partialize: (state) => ({
         calendars: state.calendars,
         events: state.events,
+        tasks: state.tasks,
         loadedRange: state.loadedRange,
       }),
     },

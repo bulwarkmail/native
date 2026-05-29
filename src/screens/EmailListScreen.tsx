@@ -5,6 +5,7 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
+  Archive, FolderInput, Tag,
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -13,11 +14,13 @@ import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
+import { TagSheet } from '../components/TagSheet';
 import { UndoSnackbar } from '../components/UndoSnackbar';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, type EmailFilters } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
+import { useKeywordsStore } from '../stores/keywords-store';
 import type { Email } from '../api/types';
 
 function getSenderName(email: Email): string {
@@ -191,6 +194,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const deleteEmailAction = useEmailStore((s) => s.deleteEmail);
   const moveToMailboxAction = useEmailStore((s) => s.moveToMailbox);
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
+  const archiveEmailsBatch = useEmailStore((s) => s.archiveEmailsBatch);
+  const moveEmailsToMailbox = useEmailStore((s) => s.moveEmailsToMailbox);
+  const deleteEmailsBatch = useEmailStore((s) => s.deleteEmailsBatch);
+  const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
+
+  const keywordDefs = useKeywordsStore((s) => s.keywords);
+  const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
+  const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
+  React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
 
   const swipeLeftAction = useSettingsStore((s) => s.swipeLeftAction);
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
@@ -240,6 +252,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   // Move-to-folder picker triggered by the swipe action.
   const [pendingMoveId, setPendingMoveId] = React.useState<string | null>(null);
+  // Batch (multi-select) sheets.
+  const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
+  const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
 
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -385,9 +400,27 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       clearSelection();
       return;
     }
-    const ids = Array.from(selectedIds);
-    await Promise.all(ids.map((id) => deleteEmailAction(id, trash.id, currentMailboxId)));
+    await deleteEmailsBatch(Array.from(selectedIds), trash.id, currentMailboxId);
     clearSelection();
+  };
+
+  const handleBulkArchive = async () => {
+    await archiveEmailsBatch(Array.from(selectedIds));
+    clearSelection();
+  };
+
+  const canArchiveSelection =
+    archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
+
+  const handleBatchMovePick = (toId: string) => {
+    const ids = Array.from(selectedIds);
+    setBatchMoveOpen(false);
+    clearSelection();
+    void moveEmailsToMailbox(ids, toId);
+  };
+
+  const handleBatchTagToggle = (token: string, on: boolean) => {
+    void setKeywordForEmails(Array.from(selectedIds), token, on);
   };
 
   // Local input state for uninterrupted typing; debounce into the store.
@@ -486,6 +519,29 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               <MailOpen size={20} color={c.text} />
             )}
           </Pressable>
+          <Pressable
+            onPress={() => setTagSheetOpen(true)}
+            style={styles.headerButton}
+            hitSlop={6}
+          >
+            <Tag size={20} color={c.text} />
+          </Pressable>
+          <Pressable
+            onPress={() => setBatchMoveOpen(true)}
+            style={styles.headerButton}
+            hitSlop={6}
+          >
+            <FolderInput size={20} color={c.text} />
+          </Pressable>
+          {canArchiveSelection && (
+            <Pressable
+              onPress={() => { void handleBulkArchive(); }}
+              style={styles.headerButton}
+              hitSlop={6}
+            >
+              <Archive size={20} color={c.text} />
+            </Pressable>
+          )}
           <Pressable
             onPress={() => { void handleBulkDelete(); }}
             style={styles.headerButton}
@@ -889,6 +945,22 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             void moveToMailboxAction(id, currentMailboxId, toId);
           }
         }}
+      />
+
+      <MoveSheet
+        visible={batchMoveOpen}
+        onClose={() => setBatchMoveOpen(false)}
+        mailboxes={mailboxes}
+        currentMailboxId={currentMailboxId}
+        onPick={handleBatchMovePick}
+      />
+
+      <TagSheet
+        visible={tagSheetOpen}
+        onClose={() => setTagSheetOpen(false)}
+        keywords={keywordDefs}
+        selectedEmails={selectedEmails}
+        onToggle={handleBatchTagToggle}
       />
 
       <UndoSnackbar />

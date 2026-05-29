@@ -9,12 +9,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput,
+  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
@@ -25,7 +26,12 @@ import {
   type ContactCategory,
 } from '../stores/contacts-store';
 import { getContactDisplayName, isGroup, matchesContactSearch } from '../lib/contact-utils';
-import { ContactListRow } from '../components/contacts';
+import {
+  ContactListRow,
+  AddressBookPickerSheet,
+  ContactImportSheet,
+  TagAssignSheet,
+} from '../components/contacts';
 import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { useSettingsStore } from '../stores/settings-store';
@@ -91,6 +97,8 @@ export default function ContactsScreen() {
   const fetchContacts = useContactsStore((s) => s.fetchContacts);
   const hydrate = useContactsStore((s) => s.hydrate);
   const bulkDelete = useContactsStore((s) => s.bulkDelete);
+  const moveContactsToAddressBook = useContactsStore((s) => s.moveContactsToAddressBook);
+  const addKeywordToContacts = useContactsStore((s) => s.addKeywordToContacts);
   const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
   const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
 
@@ -99,6 +107,11 @@ export default function ContactsScreen() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [selection, setSelection] = React.useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = React.useState(false);
+  const [moveSheetOpen, setMoveSheetOpen] = React.useState(false);
+  const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [importTargetOpen, setImportTargetOpen] = React.useState(false);
+  const [importTargetBookId, setImportTargetBookId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     void hydrate();
@@ -183,6 +196,45 @@ export default function ContactsScreen() {
     await bulkDelete(ids);
   };
 
+  // Default target for moves/imports: the currently-viewed address book, else
+  // the first available book.
+  const defaultBookId = React.useMemo(() => {
+    if (selectedCategory.type === 'addressBook') return selectedCategory.addressBookId;
+    return addressBooks[0]?.id ?? null;
+  }, [selectedCategory, addressBooks]);
+
+  const handleBulkMove = async (bookId: string) => {
+    const ids = Array.from(selection);
+    setMoveSheetOpen(false);
+    clearSelection();
+    try {
+      await moveContactsToAddressBook(ids, bookId);
+    } catch (err) {
+      Alert.alert('Move failed', err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
+  const handleBulkTag = async (keyword: string) => {
+    const ids = Array.from(selection);
+    setTagSheetOpen(false);
+    clearSelection();
+    try {
+      await addKeywordToContacts(ids, keyword);
+    } catch (err) {
+      Alert.alert('Tagging failed', err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
+  const openImport = () => {
+    setImportTargetBookId(defaultBookId);
+    setImportOpen(true);
+  };
+
+  const importTargetName = React.useMemo(
+    () => addressBooks.find((b) => b.id === importTargetBookId)?.name,
+    [addressBooks, importTargetBookId],
+  );
+
   const title = categoryTitle(selectedCategory, addressBooks, groups);
 
   // Top chip row: All / per-address-book / Groups
@@ -234,6 +286,22 @@ export default function ContactsScreen() {
             </Pressable>
             <Text style={styles.headerTitle}>{selection.size} selected</Text>
             <View style={styles.headerActions}>
+              {addressBooks.length > 0 && (
+                <Pressable
+                  onPress={() => setMoveSheetOpen(true)}
+                  style={styles.headerIconBtn}
+                  hitSlop={8}
+                >
+                  <FolderInput size={20} color={c.text} />
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => setTagSheetOpen(true)}
+                style={styles.headerIconBtn}
+                hitSlop={8}
+              >
+                <Tag size={20} color={c.text} />
+              </Pressable>
               <Pressable
                 onPress={() => setConfirmBulkDelete(true)}
                 style={styles.headerIconBtn}
@@ -257,6 +325,13 @@ export default function ContactsScreen() {
                 hitSlop={8}
               >
                 <Search size={20} color={c.text} />
+              </Pressable>
+              <Pressable
+                onPress={openImport}
+                style={styles.headerIconBtn}
+                hitSlop={8}
+              >
+                <Upload size={20} color={c.text} />
               </Pressable>
               <Pressable
                 onPress={() => navigation.navigate('ContactForm', {})}
@@ -379,6 +454,35 @@ export default function ContactsScreen() {
         confirmText="Delete"
         onConfirm={doBulkDelete}
         onCancel={() => setConfirmBulkDelete(false)}
+      />
+
+      <AddressBookPickerSheet
+        visible={moveSheetOpen}
+        onClose={() => setMoveSheetOpen(false)}
+        onPick={(id) => { void handleBulkMove(id); }}
+      />
+
+      <TagAssignSheet
+        visible={tagSheetOpen}
+        onClose={() => setTagSheetOpen(false)}
+        onPick={(kw) => { void handleBulkTag(kw); }}
+      />
+
+      <ContactImportSheet
+        visible={importOpen}
+        onClose={() => setImportOpen(false)}
+        targetBookId={importTargetBookId}
+        targetBookName={importTargetName}
+        onChangeTarget={addressBooks.length > 1 ? () => setImportTargetOpen(true) : undefined}
+        onImported={() => { void fetchContacts(); }}
+      />
+
+      <AddressBookPickerSheet
+        visible={importTargetOpen}
+        onClose={() => setImportTargetOpen(false)}
+        currentBookId={importTargetBookId}
+        title="Import into address book"
+        onPick={(id) => { setImportTargetBookId(id); setImportTargetOpen(false); }}
       />
     </SafeAreaView>
   );

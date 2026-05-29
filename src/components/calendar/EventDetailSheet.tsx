@@ -3,6 +3,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -15,13 +16,16 @@ import {
   AlignLeft,
   Bell,
   Calendar as CalendarIcon,
+  Check,
   Clock,
   Copy,
+  HelpCircle,
   MapPin,
   Pencil,
   Repeat,
   Trash2,
   Users,
+  Video,
   X,
 } from 'lucide-react-native';
 import { format } from 'date-fns';
@@ -33,7 +37,15 @@ import {
   getEventColor,
   getPrimaryCalendarId,
 } from '../../lib/calendar-utils';
+import { alertsToReminders, formatReminder } from '../../lib/calendar-alerts';
+import {
+  findParticipantByEmail,
+  isOrganizerParticipant,
+} from '../../lib/calendar-invitation';
+import { useAccountStore } from '../../stores/account-store';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
+
+type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 
 interface EventDetailSheetProps {
   event: CalendarEvent | null;
@@ -42,6 +54,7 @@ interface EventDetailSheetProps {
   onEdit?: (event: CalendarEvent) => void;
   onDelete?: (event: CalendarEvent) => void;
   onDuplicate?: (event: CalendarEvent) => void;
+  onRsvp?: (event: CalendarEvent, participantId: string, status: RsvpStatus) => void | Promise<void>;
 }
 
 function formatRange(event: CalendarEvent): string {
@@ -84,22 +97,6 @@ function recurrenceLabel(event: CalendarEvent): string | null {
   return label;
 }
 
-function alertLabel(event: CalendarEvent): string | null {
-  if (!event.alerts) return null;
-  const first = Object.values(event.alerts)[0];
-  if (!first) return null;
-  const offset = first.trigger?.offset;
-  if (!offset) return null;
-  if (offset === 'PT0S' || offset === '-PT0S') return 'At time of event';
-  const min = offset.match(/-?PT(\d+)M$/);
-  if (min) return `${min[1]} minutes before`;
-  const hr = offset.match(/-?PT(\d+)H$/);
-  if (hr) return `${hr[1]} hours before`;
-  const day = offset.match(/-?P(\d+)D/);
-  if (day) return `${day[1]} days before`;
-  return null;
-}
-
 export function EventDetailSheet({
   event,
   calendars,
@@ -107,8 +104,11 @@ export function EventDetailSheet({
   onEdit,
   onDelete,
   onDuplicate,
+  onRsvp,
 }: EventDetailSheetProps) {
   const c = useColors();
+  const activeEmail = useAccountStore((s) => s.getActiveAccount()?.email ?? null);
+  const [rsvpBusy, setRsvpBusy] = React.useState(false);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -158,8 +158,26 @@ export function EventDetailSheet({
   const calendar = calendars.find((c) => c.id === calendarId);
   const range = formatRange(event);
   const recurrence = recurrenceLabel(event);
-  const alert = alertLabel(event);
+  const reminders = alertsToReminders(event.alerts);
   const participants = event.participants ? Object.values(event.participants) : [];
+  const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
+  const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
+
+  // Can the signed-in user RSVP? Only when they appear as a non-organizer
+  // participant and the caller wired an onRsvp handler.
+  const me = activeEmail ? findParticipantByEmail(event, [activeEmail]) : null;
+  const canRsvp = Boolean(onRsvp && me && !isOrganizerParticipant(me.participant));
+  const myStatus = me?.participant.participationStatus;
+
+  const doRsvp = async (status: RsvpStatus) => {
+    if (!onRsvp || !me || rsvpBusy) return;
+    setRsvpBusy(true);
+    try {
+      await onRsvp(event, me.id, status);
+    } finally {
+      setRsvpBusy(false);
+    }
+  };
 
   return (
     <Modal
@@ -198,6 +216,22 @@ export function EventDetailSheet({
             showsVerticalScrollIndicator={false}
           >
             <DetailRow icon={<Clock size={16} color={c.textMuted} />} text={range} />
+            {location ? (
+              <DetailRow icon={<MapPin size={16} color={c.textMuted} />} text={location} />
+            ) : null}
+            {videoUri ? (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Video size={16} color={c.textMuted} />
+                </View>
+                <Pressable
+                  style={styles.joinBtn}
+                  onPress={() => { void Linking.openURL(videoUri); }}
+                >
+                  <Text style={styles.joinBtnText}>Join video call</Text>
+                </Pressable>
+              </View>
+            ) : null}
             {event.description ? (
               <DetailRow
                 icon={<AlignLeft size={16} color={c.textMuted} />}
@@ -211,10 +245,10 @@ export function EventDetailSheet({
                 text={recurrence}
               />
             )}
-            {alert && (
+            {reminders.length > 0 && (
               <DetailRow
                 icon={<Bell size={16} color={c.textMuted} />}
-                text={alert}
+                text={reminders.map((r) => formatReminder(r.minutesBefore)).join(', ')}
               />
             )}
             {calendar && (
@@ -222,6 +256,38 @@ export function EventDetailSheet({
                 icon={<CalendarIcon size={16} color={c.textMuted} />}
                 text={calendar.name}
               />
+            )}
+
+            {canRsvp && (
+              <View style={styles.rsvpBlock}>
+                <Text style={styles.rsvpPrompt}>Going?</Text>
+                <View style={styles.rsvpButtons}>
+                  <RsvpButton
+                    label="Yes"
+                    icon={<Check size={16} color={myStatus === 'accepted' ? c.textInverse : c.success} />}
+                    active={myStatus === 'accepted'}
+                    activeColor={c.success}
+                    disabled={rsvpBusy}
+                    onPress={() => doRsvp('accepted')}
+                  />
+                  <RsvpButton
+                    label="Maybe"
+                    icon={<HelpCircle size={16} color={myStatus === 'tentative' ? c.textInverse : c.warning} />}
+                    active={myStatus === 'tentative'}
+                    activeColor={c.warning}
+                    disabled={rsvpBusy}
+                    onPress={() => doRsvp('tentative')}
+                  />
+                  <RsvpButton
+                    label="No"
+                    icon={<X size={16} color={myStatus === 'declined' ? c.textInverse : c.error} />}
+                    active={myStatus === 'declined'}
+                    activeColor={c.error}
+                    disabled={rsvpBusy}
+                    onPress={() => doRsvp('declined')}
+                  />
+                </View>
+              </View>
             )}
 
             {participants.length > 0 && (
@@ -334,6 +400,39 @@ function ActionButton({
   );
 }
 
+function RsvpButton({
+  label,
+  icon,
+  active,
+  activeColor,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  activeColor: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.rsvpBtn,
+        active && { backgroundColor: activeColor, borderColor: activeColor },
+        disabled && { opacity: 0.5 },
+      ]}
+    >
+      {icon}
+      <Text style={[styles.rsvpBtnText, active && { color: c.textInverse }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function statusColor(c: ThemePalette, status?: string): string {
   switch (status) {
     case 'accepted':
@@ -416,6 +515,33 @@ function makeStyles(c: ThemePalette) {
   detailRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   detailIcon: { width: 16, paddingTop: 2 },
   detailText: { flex: 1, ...typography.body, color: c.text },
+
+  joinBtn: {
+    flex: 1,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+    backgroundColor: c.primaryBg,
+  },
+  joinBtnText: { ...typography.bodyMedium, color: c.primary },
+
+  rsvpBlock: { gap: spacing.sm, marginTop: spacing.xs },
+  rsvpPrompt: { ...typography.bodyMedium, color: c.text },
+  rsvpButtons: { flexDirection: 'row', gap: spacing.sm },
+  rsvpBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+  rsvpBtnText: { ...typography.caption, color: c.text },
 
   participantsBlock: {
     marginTop: spacing.sm,

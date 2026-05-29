@@ -12,7 +12,7 @@ import {
   ArrowLeft, Pencil, Trash2, Mail, Phone, MessageSquare, Share2, MapPin,
   Building, Cake, Heart, Globe, Tag, Users, FileText, BookUser,
   Copy, MoreHorizontal, Calendar as CalendarIcon, UserCircle, Languages,
-  Clock, KeyRound,
+  Clock, KeyRound, FolderInput,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
@@ -27,6 +27,7 @@ import { contactToVCard } from '../lib/vcard';
 import SenderAvatar from '../components/SenderAvatar';
 import Dialog from '../components/Dialog';
 import { ContactActivity } from '../components/contacts/ContactActivity';
+import AddressBookPickerSheet from '../components/contacts/AddressBookPickerSheet';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -84,9 +85,11 @@ export default function ContactDetailScreen() {
   const allContacts = useContactsStore((s) => s.contacts);
   const deleteContact = useContactsStore((s) => s.deleteContact);
   const createContact = useContactsStore((s) => s.createContact);
+  const moveContactsToAddressBook = useContactsStore((s) => s.moveContactsToAddressBook);
 
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [moreOpen, setMoreOpen] = React.useState(false);
+  const [moveOpen, setMoveOpen] = React.useState(false);
 
   if (!contact) {
     return (
@@ -232,11 +235,25 @@ export default function ContactDetailScreen() {
     }
   };
 
+  const doMove = async (bookId: string) => {
+    setMoveOpen(false);
+    try {
+      await moveContactsToAddressBook([contact.id], bookId);
+    } catch (err) {
+      Alert.alert('Move failed', err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
   const moreItems = [
     !isGroup(contact) && {
       icon: <Copy size={16} color={c.text} />,
       label: 'Duplicate',
       onPress: () => { void doDuplicate(); },
+    },
+    addressBooks.length > 0 && {
+      icon: <FolderInput size={16} color={c.text} />,
+      label: 'Move to address book',
+      onPress: () => setMoveOpen(true),
     },
     {
       icon: <Share2 size={16} color={c.text} />,
@@ -613,6 +630,13 @@ export default function ContactDetailScreen() {
         visible={moreOpen}
         items={moreItems}
         onClose={() => setMoreOpen(false)}
+      />
+
+      <AddressBookPickerSheet
+        visible={moveOpen}
+        onClose={() => setMoveOpen(false)}
+        currentBookId={bookIds[0] ?? null}
+        onPick={(id) => { void doMove(id); }}
       />
     </SafeAreaView>
   );

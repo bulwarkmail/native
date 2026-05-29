@@ -16,6 +16,8 @@ export function ComposingSettings() {
   const setAttachmentReminderEnabled = useSettingsStore((s) => s.setAttachmentReminderEnabled);
   const attachmentReminderKeywords = useSettingsStore((s) => s.attachmentReminderKeywords);
   const setAttachmentReminderKeywords = useSettingsStore((s) => s.setAttachmentReminderKeywords);
+  const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const hydrated = useSettingsStore((s) => s.hydrated);
   const hydrate = useSettingsStore((s) => s.hydrate);
 
@@ -37,6 +39,14 @@ export function ComposingSettings() {
     setAttachmentReminderKeywords(attachmentReminderKeywords.filter((k) => k !== kw));
   };
 
+  const SEND_DELAY_OPTIONS: { label: string; value: number }[] = [
+    { label: 'Off', value: 0 },
+    { label: '5s', value: 5 },
+    { label: '10s', value: 10 },
+    { label: '20s', value: 20 },
+    { label: '30s', value: 30 },
+  ];
+
   return (
     <SettingsSection
       title="Composing"
@@ -48,6 +58,29 @@ export function ComposingSettings() {
       >
         <ToggleSwitch checked={autoSelectReplyIdentity} onChange={setAutoSelectReplyIdentity} />
       </SettingItem>
+
+      <View style={styles.subBlock}>
+        <Text style={styles.subLabel}>Undo send delay</Text>
+        <Text style={styles.subDescription}>
+          Hold outgoing mail for a few seconds so you can cancel it. Requires server support.
+        </Text>
+        <View style={styles.segmentRow}>
+          {SEND_DELAY_OPTIONS.map((opt) => {
+            const active = sendDelaySeconds === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                onPress={() => updateSetting('sendDelaySeconds', opt.value)}
+                style={[styles.segment, active && styles.segmentActive]}
+              >
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
       <SettingItem
         label="Attachment reminder"
@@ -110,6 +143,19 @@ function makeStyles(c: ThemePalette) {
   subBlock: { paddingVertical: spacing.md, gap: spacing.sm },
   subLabel: { ...typography.bodyMedium, color: c.text },
   subDescription: { ...typography.caption, color: c.mutedForeground },
+  segmentRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  segment: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.background,
+  },
+  segmentActive: { backgroundColor: c.primary, borderColor: c.primary },
+  segmentText: { ...typography.caption, color: c.text },
+  segmentTextActive: { color: c.primaryForeground, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     flexDirection: 'row',

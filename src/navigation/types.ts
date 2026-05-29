@@ -23,6 +23,8 @@ export type RootStackParamList = {
   ContactForm: { contactId?: string; addressBookId?: string; asGroup?: boolean };
   GroupDetail: { groupId: string };
   AddAccount: undefined;
+  Scheduled: undefined;
+  UnifiedInbox: undefined;
 };
 
 export type MainTabsParamList = {

@@ -15,9 +15,12 @@ import {
   getEmailChanges,
   getFullEmail,
   setEmailKeywords,
+  setKeywordsForEmails,
   moveEmail,
+  moveEmails as apiMoveEmails,
   archiveEmails as apiArchiveEmails,
   deleteEmail as apiDeleteEmail,
+  deleteEmails as apiDeleteEmails,
   restoreEmailMailboxes,
   searchEmails as apiSearchEmails,
 } from '../api/email';
@@ -130,6 +133,11 @@ export interface EmailState {
   moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string) => Promise<void>;
   archiveEmail: (emailId: string) => Promise<void>;
   deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string) => Promise<void>;
+  // ── Batch (multi-select) actions ──────────────────────────────
+  archiveEmailsBatch: (emailIds: string[]) => Promise<void>;
+  moveEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
+  deleteEmailsBatch: (emailIds: string[], trashMailboxId: string, currentMailboxId: string) => Promise<void>;
+  setKeywordForEmails: (emailIds: string[], token: string, on: boolean) => Promise<void>;
   undoLast: () => Promise<void>;
   clearUndo: () => void;
   searchEmails: (query: string) => Promise<Email[]>;
@@ -955,6 +963,133 @@ export const useEmailStore = create<EmailState>()(
         },
       });
     }
+  },
+
+  // ── Batch actions ─────────────────────────────────────────────
+  // Each produces a single combined UndoEntry (UndoEntry.items is an array),
+  // so a multi-select archive/move/delete is reversed with one snackbar tap.
+
+  archiveEmailsBatch: async (emailIds) => {
+    const { emails, mailboxes } = get();
+    const archiveMailbox = mailboxes.find(
+      (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
+    );
+    if (!archiveMailbox) return;
+    const targets = emails.filter(
+      (e) => emailIds.includes(e.id) && !e.mailboxIds?.[archiveMailbox.id],
+    );
+    if (targets.length === 0) return;
+
+    const mode = useSettingsStore.getState().archiveMode;
+    const items = targets.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } }));
+
+    await apiArchiveEmails(
+      targets.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
+      archiveMailbox.id,
+      mode,
+      mailboxes,
+    );
+
+    const removed = new Set(targets.map((e) => e.id));
+    set({
+      emails: get().emails.filter((e) => !removed.has(e.id)),
+      pendingUndo: {
+        kind: 'archive',
+        label: targets.length === 1 ? 'Email archived' : `${targets.length} emails archived`,
+        createdAt: Date.now(),
+        items,
+      },
+    });
+
+    if (mode !== 'single') void get().fetchMailboxes();
+  },
+
+  moveEmailsToMailbox: async (emailIds, toMailboxId) => {
+    const { emails, currentMailboxId, mailboxes } = get();
+    if (!currentMailboxId || toMailboxId === currentMailboxId) return;
+    const targets = emails.filter((e) => emailIds.includes(e.id));
+    if (targets.length === 0) return;
+
+    const items = targets.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } }));
+
+    await apiMoveEmails(targets.map((e) => e.id), currentMailboxId, toMailboxId);
+
+    const removed = new Set(targets.map((e) => e.id));
+    const targetName = mailboxes.find((m) => m.id === toMailboxId)?.name;
+    set({
+      emails: get().emails.filter((e) => !removed.has(e.id)),
+      pendingUndo: {
+        kind: 'move',
+        label: targetName
+          ? `${targets.length === 1 ? 'Email' : `${targets.length} emails`} moved to ${targetName}`
+          : 'Emails moved',
+        createdAt: Date.now(),
+        items,
+      },
+    });
+  },
+
+  deleteEmailsBatch: async (emailIds, trashMailboxId, currentMailboxId) => {
+    const { emails, mailboxes } = get();
+    const settings = useSettingsStore.getState();
+    const junkMailbox = mailboxes.find((m) => m.role === 'junk' || m.role === 'spam');
+    const inTrash = currentMailboxId === trashMailboxId;
+    const targets = emails.filter((e) => emailIds.includes(e.id));
+    if (targets.length === 0) return;
+
+    // Split into permanent-destroy vs move-to-trash following the same policy
+    // as the single delete: trash folder, global "permanent" default, or the
+    // skip-trash-for-junk option each force a destroy.
+    const toDestroy: Email[] = [];
+    const toTrash: Email[] = [];
+    for (const e of targets) {
+      const inJunk = !!(junkMailbox && e.mailboxIds?.[junkMailbox.id]);
+      const destroy =
+        inTrash ||
+        settings.deleteAction === 'permanent' ||
+        (settings.permanentlyDeleteJunk && inJunk);
+      (destroy ? toDestroy : toTrash).push(e);
+    }
+
+    if (toDestroy.length > 0) {
+      await apiDeleteEmails(toDestroy.map((e) => e.id), trashMailboxId, trashMailboxId);
+    }
+    if (toTrash.length > 0) {
+      await apiMoveEmails(toTrash.map((e) => e.id), currentMailboxId, trashMailboxId);
+    }
+
+    const removed = new Set(targets.map((e) => e.id));
+    set({ emails: get().emails.filter((e) => !removed.has(e.id)) });
+
+    // Only the moved-to-trash items are recoverable; destroyed ones are gone.
+    if (toTrash.length > 0) {
+      set({
+        pendingUndo: {
+          kind: 'delete',
+          label: toTrash.length === 1 ? 'Email moved to Trash' : `${toTrash.length} emails moved to Trash`,
+          createdAt: Date.now(),
+          items: toTrash.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } })),
+        },
+      });
+    }
+  },
+
+  setKeywordForEmails: async (emailIds, token, on) => {
+    const targets = get().emails.filter((e) => emailIds.includes(e.id));
+    if (targets.length === 0) return;
+    const updates = targets.map((e) => {
+      const keywords = { ...e.keywords };
+      if (on) keywords[token] = true;
+      else delete keywords[token];
+      return { id: e.id, keywords };
+    });
+    await setKeywordsForEmails(updates);
+    const byId = new Map(updates.map((u) => [u.id, u.keywords]));
+    set({
+      emails: get().emails.map((e) =>
+        byId.has(e.id) ? { ...e, keywords: byId.get(e.id)! } : e,
+      ),
+    });
   },
 
   undoLast: async () => {

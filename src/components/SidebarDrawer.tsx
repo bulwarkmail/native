@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
+  Clock, Layers,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -427,6 +428,24 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
           )}
 
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            {/* Quick views */}
+            {accounts.length > 1 && (
+              <Pressable
+                style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
+                onPress={() => { onClose(); navigation.navigate('UnifiedInbox'); }}
+              >
+                <Layers size={16} color={c.textSecondary} />
+                <Text style={styles.quickRowLabel}>All inboxes</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
+              onPress={() => { onClose(); navigation.navigate('Scheduled'); }}
+            >
+              <Clock size={16} color={c.textSecondary} />
+              <Text style={styles.quickRowLabel}>Scheduled</Text>
+            </Pressable>
+
             {/* Folders section */}
             <Pressable style={styles.sectionHeader} onPress={toggleFoldersSection}>
               {foldersExpanded ? (
@@ -666,6 +685,17 @@ function makeStyles(c: ThemePalette) {
     color: c.text,
   },
   sectionSettings: { padding: 4 },
+
+  quickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: 'transparent',
+  },
+  quickRowLabel: { ...typography.body, color: c.text },
 
   empty: {
     ...typography.body,

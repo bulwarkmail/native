@@ -14,6 +14,7 @@ import {
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import EmailBodyView from '../components/EmailBodyView';
+import { CalendarInvitationBanner } from '../components/email/CalendarInvitationBanner';
 import SenderAvatar from '../components/SenderAvatar';
 import { MoveSheet } from '../components/MoveSheet';
 import { useEmailStore } from '../stores/email-store';
@@ -433,6 +434,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
             {/* Attachments chips (full-width below header) */}
             {attachmentPosition === 'below-header' && renderAttachments()}
+
+            {/* Calendar invitation (auto-detected .ics) */}
+            <CalendarInvitationBanner email={email} />
 
             {/* Body */}
             <View style={styles.bodyBlock}>

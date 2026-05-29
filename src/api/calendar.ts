@@ -8,8 +8,11 @@ const CALENDAR_EVENT_PROPERTIES = [
   'id', '@type', 'uid', 'calendarIds', 'title', 'description',
   'start', 'duration', 'timeZone', 'showWithoutTime',
   'utcStart', 'utcEnd', 'status', 'freeBusyStatus',
-  'participants', 'alerts', 'recurrenceRules',
+  'participants', 'alerts', 'useDefaultAlerts', 'recurrenceRules',
   'recurrenceOverrides', 'excludedRecurrenceRules',
+  'replyTo', 'organizerCalendarAddress', 'sequence',
+  'locations', 'virtualLocations',
+  'progress', 'due', 'priority', 'percentComplete',
   'links', 'created', 'updated',
 ];
 
@@ -69,38 +72,165 @@ export async function getEvents(ids: string[]): Promise<CalendarEvent[]> {
   return all;
 }
 
+// `sendSchedulingMessages` asks Stalwart to deliver iMIP (RFC 6047) invitation
+// / reply / cancellation emails to participants. We pass it whenever an event
+// has participants so creating/updating/deleting a meeting notifies attendees.
+function setArgs(
+  accountId: string,
+  payload: Record<string, unknown>,
+  sendSchedulingMessages?: boolean,
+): Record<string, unknown> {
+  const args: Record<string, unknown> = { accountId, ...payload };
+  if (sendSchedulingMessages !== undefined) {
+    args.sendSchedulingMessages = sendSchedulingMessages;
+  }
+  return args;
+}
+
 export async function createEvent(
   event: Partial<CalendarEvent>,
   calendarId: string,
+  sendSchedulingMessages?: boolean,
 ): Promise<CalendarEvent> {
   const accountId = jmapClient.accountId;
   const res = await jmapClient.request(
-    [['CalendarEvent/set', {
-      accountId,
+    [['CalendarEvent/set', setArgs(accountId, {
       create: {
         'new-event': { ...event, calendarIds: { [calendarId]: true } },
       },
-    }, '0']],
+    }, sendSchedulingMessages), '0']],
     USING,
   );
-  return res.methodResponses[0][1].created['new-event'];
+  const result = methodResult<{
+    created?: Record<string, CalendarEvent>;
+    notCreated?: Record<string, { description?: string; type?: string }>;
+  }>(res);
+  const created = result.created?.['new-event'];
+  if (!created) {
+    const err = result.notCreated?.['new-event'];
+    throw new Error(err?.description || err?.type || 'Failed to create event');
+  }
+  return created;
+}
+
+// Batch-create many events in one CalendarEvent/set. Returns the number created.
+export async function batchCreateEvents(
+  events: Partial<CalendarEvent>[],
+  calendarId: string,
+): Promise<number> {
+  if (events.length === 0) return 0;
+  const accountId = jmapClient.accountId;
+  const create: Record<string, Partial<CalendarEvent>> = {};
+  events.forEach((e, i) => {
+    create[`evt-${i}`] = { ...e, calendarIds: { [calendarId]: true } };
+  });
+  const res = await jmapClient.request(
+    [['CalendarEvent/set', { accountId, create }, '0']],
+    USING,
+  );
+  const result = methodResult<{ created?: Record<string, unknown> }>(res);
+  return result.created ? Object.keys(result.created).length : 0;
 }
 
 export async function updateEvent(
   id: string,
-  changes: Partial<CalendarEvent>,
+  changes: Partial<CalendarEvent> | Record<string, unknown>,
+  sendSchedulingMessages?: boolean,
+): Promise<void> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['CalendarEvent/set', setArgs(accountId, { update: { [id]: changes } }, sendSchedulingMessages), '0']],
+    USING,
+  );
+  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
+  const err = result.notUpdated?.[id];
+  if (err) throw new Error(err.description || err.type || 'Failed to update event');
+}
+
+export async function deleteEvents(
+  ids: string[],
+  sendSchedulingMessages?: boolean,
 ): Promise<void> {
   const accountId = jmapClient.accountId;
   await jmapClient.request(
-    [['CalendarEvent/set', { accountId, update: { [id]: changes } }, '0']],
+    [['CalendarEvent/set', setArgs(accountId, { destroy: ids }, sendSchedulingMessages), '0']],
     USING,
   );
 }
 
-export async function deleteEvents(ids: string[]): Promise<void> {
+// RSVP to an invitation: patch the participant's participationStatus via a JSON
+// Pointer (RFC 6901) and let Stalwart send the iTIP REPLY (sendSchedulingMessages).
+export async function rsvpEvent(
+  eventId: string,
+  participantId: string,
+  status: 'accepted' | 'declined' | 'tentative',
+  replyTo?: Record<string, string> | null,
+): Promise<void> {
+  const accountId = jmapClient.accountId;
+  // Escape per RFC 6901: ~ → ~0, / → ~1.
+  const escaped = participantId.replace(/~/g, '~0').replace(/\//g, '~1');
+  const patch: Record<string, unknown> = {
+    [`participants/${escaped}/participationStatus`]: status,
+  };
+  if (replyTo) patch.replyTo = replyTo;
+  const res = await jmapClient.request(
+    [['CalendarEvent/set', { accountId, update: { [eventId]: patch }, sendSchedulingMessages: true }, '0']],
+    USING,
+  );
+  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
+  const err = result.notUpdated?.[eventId];
+  if (err) throw new Error(err.description || err.type || 'Failed to send RSVP');
+}
+
+// Parse an uploaded .ics blob into one or more JSCalendar events (server-side).
+export async function parseCalendarBlob(blobId: string): Promise<Partial<CalendarEvent>[]> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['CalendarEvent/parse', { accountId, blobIds: [blobId] }, '0']],
+    USING,
+  );
+  const result = methodResult<{
+    parsed?: Record<string, CalendarEvent | CalendarEvent[]>;
+    notParsable?: string[];
+    notFound?: string[];
+  }>(res);
+  if (result.notParsable?.includes(blobId)) throw new Error('Invalid calendar file format');
+  if (result.notFound?.includes(blobId)) throw new Error('Uploaded file not found');
+  const parsed = result.parsed?.[blobId];
+  if (!parsed) return [];
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+export async function createCalendar(
+  name: string,
+  color?: string,
+): Promise<Calendar> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['Calendar/set', {
+      accountId,
+      create: { 'new-cal': { name, color, isVisible: true, isSubscribed: true } },
+    }, '0']],
+    USING,
+  );
+  const result = methodResult<{
+    created?: Record<string, Calendar>;
+    notCreated?: Record<string, { description?: string; type?: string }>;
+  }>(res);
+  const created = result.created?.['new-cal'];
+  if (!created) {
+    const err = result.notCreated?.['new-cal'];
+    throw new Error(err?.description || err?.type || 'Failed to create calendar');
+  }
+  return created;
+}
+
+// Destroy a calendar. `onDestroyEvents: 'destroy'` removes its events too —
+// Stalwart otherwise refuses to delete a non-empty calendar.
+export async function deleteCalendar(id: string): Promise<void> {
   const accountId = jmapClient.accountId;
   await jmapClient.request(
-    [['CalendarEvent/set', { accountId, destroy: ids }, '0']],
+    [['Calendar/set', { accountId, destroy: [id], onDestroyRemoveEvents: true }, '0']],
     USING,
   );
 }

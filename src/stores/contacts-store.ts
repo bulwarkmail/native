@@ -9,6 +9,10 @@ import {
   createContact as apiCreateContact,
   updateContact as apiUpdateContact,
   deleteContacts as apiDeleteContacts,
+  createAddressBook as apiCreateAddressBook,
+  updateAddressBook as apiUpdateAddressBook,
+  deleteAddressBook as apiDeleteAddressBook,
+  getContactsInBook,
 } from '../api/contacts';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -19,6 +23,10 @@ import {
 } from '../lib/contact-utils';
 
 const SELECTED_CATEGORY_STORAGE_KEY = 'webmail:contacts:category:v1';
+
+// Dedicated JMAP address book that backs the "trusted senders" allow-list.
+// Mirrors the webmail so the same book is shared across clients.
+export const TRUSTED_SENDERS_BOOK_NAME = 'Trusted Senders';
 
 export type ContactCategory =
   | { type: 'all' }
@@ -35,6 +43,13 @@ export interface ContactsState {
   error: string | null;
   hydrated: boolean;
 
+  // Trusted senders are stored as contacts in a dedicated JMAP address book so
+  // the allow-list syncs across devices (matches the webmail behavior).
+  trustedSendersBookId: string | null;
+  trustedSenderEmails: string[];
+  trustedSendersLoaded: boolean;
+  trustedSendersLoading: boolean;
+
   hydrate: () => Promise<void>;
   fetchAddressBooks: () => Promise<void>;
   fetchContacts: (filter?: { text?: string; inAddressBook?: string }) => Promise<void>;
@@ -45,10 +60,24 @@ export interface ContactsState {
   updateContact: (id: string, changes: Partial<ContactCard>) => Promise<void>;
   deleteContact: (id: string) => Promise<void>;
   bulkDelete: (ids: string[]) => Promise<void>;
+  importContacts: (contacts: Partial<ContactCard>[], addressBookId: string) => Promise<number>;
 
   addContactKeyword: (id: string, keyword: string) => Promise<void>;
   removeContactKeyword: (id: string, keyword: string) => Promise<void>;
+  addKeywordToContacts: (ids: string[], keyword: string) => Promise<void>;
   moveContactsToAddressBook: (ids: string[], addressBookId: string) => Promise<void>;
+
+  // Address book management
+  createAddressBook: (name: string) => Promise<AddressBook>;
+  renameAddressBook: (id: string, name: string) => Promise<void>;
+  deleteAddressBook: (id: string) => Promise<void>;
+
+  // Trusted senders address book. Passive loads (createIfMissing=false) only
+  // read an existing book; the book is created lazily on the first add.
+  loadTrustedSendersBook: (createIfMissing?: boolean) => Promise<void>;
+  addToTrustedSendersBook: (email: string) => Promise<void>;
+  removeFromTrustedSendersBook: (email: string) => Promise<void>;
+  isTrustedAddressBookSender: (email: string) => boolean;
 
   setSelectedCategory: (category: ContactCategory) => void;
   reset: () => void;
@@ -69,6 +98,11 @@ export const useContactsStore = create<ContactsState>()(
   loading: false,
   error: null,
   hydrated: false,
+
+  trustedSendersBookId: null,
+  trustedSenderEmails: [],
+  trustedSendersLoaded: false,
+  trustedSendersLoading: false,
 
   hydrate: async () => {
     if (get().hydrated) return;
@@ -160,6 +194,22 @@ export const useContactsStore = create<ContactsState>()(
     set({ contacts: get().contacts.filter((c) => !idSet.has(c.id)) });
   },
 
+  importContacts: async (incoming, addressBookId) => {
+    let imported = 0;
+    for (const contact of incoming) {
+      try {
+        // Strip the temporary client-side id; the server assigns a real one.
+        const { id: _id, addressBookIds: _abIds, ...data } = contact;
+        const created = await apiCreateContact(data, addressBookId);
+        set({ contacts: [...get().contacts, created] });
+        imported++;
+      } catch (err) {
+        console.warn('[contacts-store] import failed for one contact', err);
+      }
+    }
+    return imported;
+  },
+
   addContactKeyword: async (id, keyword) => {
     const kw = keyword.trim();
     if (!kw) return;
@@ -176,11 +226,114 @@ export const useContactsStore = create<ContactsState>()(
     await get().updateContact(id, { keywords: rest });
   },
 
+  addKeywordToContacts: async (ids, keyword) => {
+    const kw = keyword.trim();
+    if (!kw) return;
+    for (const id of ids) {
+      await get().addContactKeyword(id, kw);
+    }
+  },
+
   moveContactsToAddressBook: async (ids, addressBookId) => {
     for (const id of ids) {
       await get().updateContact(id, { addressBookIds: { [addressBookId]: true } });
     }
   },
+
+  createAddressBook: async (name) => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Address book name is required');
+    const book = await apiCreateAddressBook(trimmed);
+    set({ addressBooks: [...get().addressBooks, book] });
+    return book;
+  },
+
+  renameAddressBook: async (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    await apiUpdateAddressBook(id, { name: trimmed });
+    set({
+      addressBooks: get().addressBooks.map((b) => (b.id === id ? { ...b, name: trimmed } : b)),
+    });
+  },
+
+  deleteAddressBook: async (id) => {
+    await apiDeleteAddressBook(id);
+    set({
+      addressBooks: get().addressBooks.filter((b) => b.id !== id),
+      // Drop the deleted book id from any cached contact so the UI doesn't
+      // keep filtering against a book that no longer exists.
+      contacts: get().contacts.map((c) => {
+        if (!c.addressBookIds?.[id]) return c;
+        const { [id]: _gone, ...rest } = c.addressBookIds;
+        return { ...c, addressBookIds: rest };
+      }),
+    });
+    const category = get().selectedCategory;
+    if (category.type === 'addressBook' && category.addressBookId === id) {
+      get().setSelectedCategory({ type: 'all' });
+    }
+  },
+
+  loadTrustedSendersBook: async (createIfMissing = false) => {
+    if (!jmapClient.isConnected || get().trustedSendersLoading) return;
+    set({ trustedSendersLoading: true });
+    try {
+      const books = (await fetchAddressBooks()) ?? [];
+      let book = books.find((b) => b.name === TRUSTED_SENDERS_BOOK_NAME);
+      if (!book) {
+        if (!createIfMissing) {
+          set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+          return;
+        }
+        book = await apiCreateAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+      }
+      const bookId = book.id;
+      const cards = await getContactsInBook(bookId);
+      const emails = cards.flatMap((c) =>
+        c.emails ? Object.values(c.emails).map((e) => e.address.toLowerCase().trim()) : [],
+      ).filter(Boolean);
+      set({
+        trustedSendersBookId: bookId,
+        trustedSenderEmails: emails,
+        trustedSendersLoaded: true,
+        trustedSendersLoading: false,
+      });
+    } catch (err) {
+      console.warn('[contacts-store] load trusted senders failed', err);
+      set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+    }
+  },
+
+  addToTrustedSendersBook: async (email) => {
+    const normalized = email.toLowerCase().trim();
+    if (!normalized || get().trustedSenderEmails.includes(normalized)) return;
+
+    let bookId = get().trustedSendersBookId;
+    if (!bookId) {
+      await get().loadTrustedSendersBook(true);
+      bookId = get().trustedSendersBookId;
+    }
+    if (!bookId) throw new Error('Could not find or create the trusted senders address book');
+
+    await apiCreateContact({ emails: { email: { address: normalized } } }, bookId);
+    set({ trustedSenderEmails: [...get().trustedSenderEmails, normalized] });
+  },
+
+  removeFromTrustedSendersBook: async (email) => {
+    const normalized = email.toLowerCase().trim();
+    const bookId = get().trustedSendersBookId;
+    if (!bookId) return;
+    const cards = await getContactsInBook(bookId);
+    const match = cards.find((c) =>
+      c.emails && Object.values(c.emails).some((e) => e.address.toLowerCase().trim() === normalized),
+    );
+    if (match) await apiDeleteContacts([match.id]);
+    set({ trustedSenderEmails: get().trustedSenderEmails.filter((e) => e !== normalized) });
+  },
+
+  isTrustedAddressBookSender: (email) =>
+    get().trustedSenderEmails.includes(email.toLowerCase().trim()),
 
   setSelectedCategory: (category) => {
     set({ selectedCategory: category });
@@ -193,6 +346,10 @@ export const useContactsStore = create<ContactsState>()(
     selectedCategory: { type: 'all' },
     loading: false,
     error: null,
+    trustedSendersBookId: null,
+    trustedSenderEmails: [],
+    trustedSendersLoaded: false,
+    trustedSendersLoading: false,
   }),
     }),
     {

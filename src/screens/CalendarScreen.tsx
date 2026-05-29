@@ -16,6 +16,7 @@ import {
   CalendarDays,
   LayoutGrid,
   List as ListIcon,
+  ListChecks,
   Menu,
 } from 'lucide-react-native';
 import {
@@ -47,11 +48,17 @@ import {
   type RecurrenceEditScope,
 } from '../components/calendar/RecurrenceScopeDialog';
 import { CalendarSidebarDrawer } from '../components/calendar/CalendarSidebarDrawer';
+import { TasksSheet } from '../components/calendar/TasksSheet';
+import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
+import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
 import {
   buildEventDayIndex,
   eventsOnDayFromIndex,
   type EventDayIndex,
 } from '../lib/calendar-utils';
+import { buildReplyTo } from '../lib/calendar-invitation';
+import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from '../lib/birthday-calendar';
+import { useContactsStore } from '../stores/contacts-store';
 import type { Calendar, CalendarEvent } from '../api/types';
 
 type ViewMode = 'month' | 'week' | 'agenda';
@@ -108,6 +115,9 @@ export default function CalendarScreen() {
   const calendarFirstDayOfWeek = useSettingsStore((s) => s.calendarFirstDayOfWeek);
   const calendarShowWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
   const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
+  const showBirthdayCalendar = useSettingsStore((s) => s.showBirthdayCalendar);
+  const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
+  const contacts = useContactsStore((s) => s.contacts);
 
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [selectedDate, setSelectedDate] = React.useState(new Date());
@@ -125,6 +135,9 @@ export default function CalendarScreen() {
   const [modalVisible, setModalVisible] = React.useState(false);
   const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
   const [sidebarVisible, setSidebarVisible] = React.useState(false);
+  const [tasksVisible, setTasksVisible] = React.useState(false);
+  const [importVisible, setImportVisible] = React.useState(false);
+  const [subscriptionsVisible, setSubscriptionsVisible] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
 
   const hydrate = useCalendarStore((s) => s.hydrate);
@@ -134,12 +147,36 @@ export default function CalendarScreen() {
   const createEvent = useCalendarStore((s) => s.createEvent);
   const updateEvent = useCalendarStore((s) => s.updateEvent);
   const deleteEvent = useCalendarStore((s) => s.deleteEvent);
+  const rsvpEvent = useCalendarStore((s) => s.rsvpEvent);
+  const importEvents = useCalendarStore((s) => s.importEvents);
+  const tasks = useCalendarStore((s) => s.tasks);
+  const createTask = useCalendarStore((s) => s.createTask);
+  const toggleTaskComplete = useCalendarStore((s) => s.toggleTaskComplete);
+  const deleteTask = useCalendarStore((s) => s.deleteTask);
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
-  const allCalendars = useCalendarStore((s) => s.calendars);
+  const storeCalendars = useCalendarStore((s) => s.calendars);
   const hiddenCalendarIds = useCalendarStore((s) => s.hiddenCalendarIds);
   const loading = useCalendarStore((s) => s.loading);
   const error = useCalendarStore((s) => s.error);
-  const allEvents = useCalendarStore((s) => s.events);
+  const storeEvents = useCalendarStore((s) => s.events);
+
+  // The birthday calendar is a client-side virtual calendar: its events are
+  // generated from contacts for the visible range and merged in alongside the
+  // server calendars. Toggling it on/off is instant (no refetch).
+  const birthdayEvents = React.useMemo(() => {
+    if (!showBirthdayCalendar) return [];
+    const { after, before } = rangeForView(viewMode, currentDate, calendarFirstDayOfWeek);
+    return generateBirthdayEvents(contacts, after.toISOString(), before.toISOString());
+  }, [showBirthdayCalendar, contacts, viewMode, currentDate, calendarFirstDayOfWeek]);
+
+  const allCalendars = React.useMemo(
+    () => (showBirthdayCalendar ? [...storeCalendars, createBirthdayCalendar()] : storeCalendars),
+    [storeCalendars, showBirthdayCalendar],
+  );
+  const allEvents = React.useMemo(
+    () => (birthdayEvents.length > 0 ? [...storeEvents, ...birthdayEvents] : storeEvents),
+    [storeEvents, birthdayEvents],
+  );
 
   const calendars = React.useMemo(
     () => allCalendars.filter((c) => !hiddenCalendarIds.includes(c.id)),
@@ -210,23 +247,30 @@ export default function CalendarScreen() {
     setModalVisible(true);
   }, []);
 
+  const isReadOnlyEvent = React.useCallback(
+    (event: CalendarEvent) => !!event.calendarIds?.[BIRTHDAY_CALENDAR_ID],
+    [],
+  );
+
   const handleEditFromDetail = React.useCallback((event: CalendarEvent) => {
+    if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
     setDetailEvent(null);
     if (event.recurrenceRules?.length || event.originalId) {
       setPendingAction({ kind: 'edit', event });
     } else {
       openEditDirect(event);
     }
-  }, [openEditDirect]);
+  }, [openEditDirect, isReadOnlyEvent]);
 
   const handleDeleteFromDetail = React.useCallback((event: CalendarEvent) => {
+    if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
     setDetailEvent(null);
     if (event.recurrenceRules?.length || event.originalId) {
       setPendingAction({ kind: 'delete', event });
     } else {
       void deleteEvent(event.id);
     }
-  }, [deleteEvent]);
+  }, [deleteEvent, isReadOnlyEvent]);
 
   const handleScopeSelect = React.useCallback(
     async (scope: RecurrenceEditScope) => {
@@ -293,6 +337,15 @@ export default function CalendarScreen() {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          {enableCalendarTasks && (
+            <Pressable
+              style={styles.headerBtn}
+              onPress={() => setTasksVisible(true)}
+              hitSlop={6}
+            >
+              <ListChecks size={20} color={c.text} />
+            </Pressable>
+          )}
           <View style={styles.viewToggle}>
             {(['month', 'week', 'agenda'] as ViewMode[]).map((mode) => {
               const Icon =
@@ -397,6 +450,20 @@ export default function CalendarScreen() {
         onClose={() => setDetailEvent(null)}
         onEdit={handleEditFromDetail}
         onDelete={handleDeleteFromDetail}
+        onRsvp={async (ev, participantId, status) => {
+          await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev));
+          setDetailEvent((cur) =>
+            cur && cur.id === ev.id && cur.participants?.[participantId]
+              ? {
+                  ...cur,
+                  participants: {
+                    ...cur.participants,
+                    [participantId]: { ...cur.participants[participantId], participationStatus: status },
+                  },
+                }
+              : cur,
+          );
+        }}
       />
 
       <EventModal
@@ -422,6 +489,30 @@ export default function CalendarScreen() {
         hiddenCalendarIds={hiddenCalendarIds}
         onToggle={toggleCalendarVisibility}
         onClose={() => setSidebarVisible(false)}
+        onImport={() => { setSidebarVisible(false); setImportVisible(true); }}
+        onManageSubscriptions={() => { setSidebarVisible(false); setSubscriptionsVisible(true); }}
+      />
+
+      <TasksSheet
+        visible={tasksVisible}
+        tasks={tasks}
+        calendars={allCalendars}
+        onClose={() => setTasksVisible(false)}
+        onCreate={createTask}
+        onToggle={toggleTaskComplete}
+        onDelete={deleteTask}
+      />
+
+      <ICalImportSheet
+        visible={importVisible}
+        calendars={storeCalendars}
+        onClose={() => setImportVisible(false)}
+        onImport={importEvents}
+      />
+
+      <ICalSubscriptionSheet
+        visible={subscriptionsVisible}
+        onClose={() => setSubscriptionsVisible(false)}
       />
     </SafeAreaView>
   );
