@@ -8,8 +8,9 @@ import type { ContactCard, Email, CalendarEvent } from '../../api/types';
 import type { RootStackParamList } from '../../navigation/types';
 import { getEmails, queryEmailsByFilter } from '../../api/email';
 import { useCalendarStore } from '../../stores/calendar-store';
+import { getEventColor } from '../../lib/calendar-utils';
 import SenderAvatar from '../SenderAvatar';
-import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { radius, spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 
 const EMAIL_LIMIT = 5;
@@ -87,6 +88,7 @@ export function ContactActivity({ contact }: Props) {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const calendarEvents = useCalendarStore((s) => s.events);
+  const calendars = useCalendarStore((s) => s.calendars);
 
   const addresses = React.useMemo(() => getContactEmails(contact), [contact]);
   const addressKey = addresses.join(',');
@@ -145,74 +147,85 @@ export function ContactActivity({ contact }: Props) {
     <View style={styles.wrap}>
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <MailIcon size={14} color={c.primary} />
-          <Text style={styles.sectionTitle}>Recent emails</Text>
-        </View>
-        {emailsLoading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator size="small" color={c.primary} />
+          <View style={styles.sectionIcon}>
+            <MailIcon size={16} color={c.textMuted} />
           </View>
-        ) : emailsError ? (
-          <Text style={styles.emptyText}>Couldn't load emails.</Text>
-        ) : !emails || emails.length === 0 ? (
-          <Text style={styles.emptyText}>No emails with this contact.</Text>
-        ) : (
-          emails.map((email) => {
-            const sender = email.from?.[0];
-            const senderName = sender?.name || sender?.email || 'Unknown';
-            return (
-              <Pressable
-                key={email.id}
-                onPress={() =>
-                  navigation.navigate('EmailThread', {
-                    emailId: email.id,
-                    threadId: email.threadId,
-                    subject: email.subject ?? undefined,
-                  })
-                }
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              >
-                <SenderAvatar name={senderName} email={sender?.email} size={32} />
-                <View style={styles.rowContent}>
-                  <View style={styles.rowTop}>
-                    <Text style={styles.rowSender} numberOfLines={1}>{senderName}</Text>
-                    <Text style={styles.rowDate}>{formatRelativeDate(email.receivedAt)}</Text>
+          <Text style={styles.sectionLabel}>Recent emails</Text>
+        </View>
+        <View style={styles.sectionBody}>
+          {emailsLoading ? (
+            <View style={styles.loading}>
+              <ActivityIndicator size="small" color={c.primary} />
+            </View>
+          ) : emailsError ? (
+            <Text style={styles.emptyText}>Couldn't load emails.</Text>
+          ) : !emails || emails.length === 0 ? (
+            <Text style={styles.emptyText}>No emails with this contact.</Text>
+          ) : (
+            emails.map((email) => {
+              const sender = email.from?.[0];
+              const senderName = sender?.name || sender?.email || 'Unknown';
+              return (
+                <Pressable
+                  key={email.id}
+                  onPress={() =>
+                    navigation.navigate('EmailThread', {
+                      emailId: email.id,
+                      threadId: email.threadId,
+                      subject: email.subject ?? undefined,
+                    })
+                  }
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                >
+                  <SenderAvatar name={senderName} email={sender?.email} size={32} />
+                  <View style={styles.rowContent}>
+                    <View style={styles.rowTop}>
+                      <Text style={styles.rowSender} numberOfLines={1}>{senderName}</Text>
+                      <Text style={styles.rowDate}>{formatRelativeDate(email.receivedAt)}</Text>
+                    </View>
+                    <Text style={styles.rowSubject} numberOfLines={1}>
+                      {email.subject || '(no subject)'}
+                    </Text>
+                    {email.preview ? (
+                      <Text style={styles.rowPreview} numberOfLines={1}>{email.preview}</Text>
+                    ) : null}
                   </View>
-                  <Text style={styles.rowSubject} numberOfLines={1}>
-                    {email.subject || '(no subject)'}
-                  </Text>
-                  {email.preview ? (
-                    <Text style={styles.rowPreview} numberOfLines={1}>{email.preview}</Text>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })
-        )}
+                </Pressable>
+              );
+            })
+          )}
+        </View>
       </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <CalendarDays size={14} color={c.primary} />
-          <Text style={styles.sectionTitle}>Upcoming events</Text>
+          <View style={styles.sectionIcon}>
+            <CalendarDays size={16} color={c.textMuted} />
+          </View>
+          <Text style={styles.sectionLabel}>Upcoming events</Text>
         </View>
-        {upcomingEvents.length === 0 ? (
-          <Text style={styles.emptyText}>No upcoming events.</Text>
-        ) : (
-          upcomingEvents.map((event) => (
-            <View key={event.id} style={styles.eventRow}>
-              <Text style={styles.eventTime}>{formatEventTime(event)}</Text>
-              <View style={styles.eventInfo}>
-                <Text style={styles.eventTitle} numberOfLines={1}>
-                  {event.title || '(no title)'}
-                </Text>
-                <Text style={styles.eventDate}>
-                  {formatRelativeDate(event.utcStart || event.start)}
-                </Text>
+        <View style={styles.sectionBody}>
+          {upcomingEvents.length === 0 ? (
+            <Text style={styles.emptyText}>No upcoming events.</Text>
+          ) : (
+            upcomingEvents.map((event) => (
+              <View key={event.id} style={styles.eventRow}>
+                <View
+                  style={[styles.eventDot, { backgroundColor: getEventColor(event, calendars) }]}
+                />
+                <Text style={styles.eventTime}>{formatEventTime(event)}</Text>
+                <View style={styles.eventInfo}>
+                  <Text style={styles.eventTitle} numberOfLines={1}>
+                    {event.title || '(no title)'}
+                  </Text>
+                  <Text style={styles.eventDate}>
+                    {formatRelativeDate(event.utcStart || event.start)}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))
-        )}
+            ))
+          )}
+        </View>
       </View>
     </View>
   );
@@ -220,18 +233,18 @@ export function ContactActivity({ contact }: Props) {
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
-  wrap: { gap: spacing.md, paddingHorizontal: spacing.lg, marginBottom: spacing.lg },
-  section: {
-    backgroundColor: c.card,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: c.primary,
+  wrap: { gap: spacing.lg },
+  section: { gap: spacing.sm },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  sectionIcon: { width: 16 },
+  sectionLabel: {
+    ...typography.bodyMedium,
+    color: c.textSecondary,
+    textTransform: 'uppercase',
+    fontSize: 11,
+    letterSpacing: 0.6,
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  sectionTitle: { ...typography.bodySemibold, color: c.text },
+  sectionBody: { paddingLeft: spacing.lg + spacing.xs, gap: spacing.xs },
   loading: { paddingVertical: spacing.sm, alignItems: 'flex-start' },
   emptyText: { ...typography.caption, color: c.textMuted },
 
@@ -251,10 +264,16 @@ function makeStyles(c: ThemePalette) {
   rowPreview: { ...typography.caption, color: c.textMuted },
 
   eventRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'baseline', paddingVertical: 4 },
+  eventDot: {
+    width: componentSizes.eventDot,
+    height: componentSizes.eventDot,
+    borderRadius: componentSizes.eventDot / 2,
+    alignSelf: 'center',
+  },
   eventTime: {
     ...typography.caption,
     color: c.textMuted,
-    width: 64,
+    width: 52,
   },
   eventInfo: { flex: 1, minWidth: 0 },
   eventTitle: { ...typography.body, color: c.text },

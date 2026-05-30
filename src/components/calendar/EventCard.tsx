@@ -79,7 +79,8 @@ function makeStyles(c: ThemePalette) {
   card: {
     flexDirection: 'row',
     backgroundColor: c.card,
-    borderRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
     marginBottom: spacing.sm,
     overflow: 'hidden',
     borderWidth: 1,

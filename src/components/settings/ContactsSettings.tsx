@@ -22,7 +22,14 @@ export function ContactsSettings() {
   const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
   const setGroupByLetter = useSettingsStore((s) => s.setGroupContactsByLetter);
   const contacts = useContactsStore((s) => s.contacts);
-  const books = useContactsStore(selectAddressBooksWithCount);
+  const addressBooks = useContactsStore((s) => s.addressBooks);
+  // Derive in a memo from stable store fields. Subscribing with
+  // `selectAddressBooksWithCount` directly returns a new array each call and
+  // sends useSyncExternalStore into an infinite render loop.
+  const books = React.useMemo(
+    () => selectAddressBooksWithCount(addressBooks, contacts),
+    [addressBooks, contacts],
+  );
   const fetchAddressBooks = useContactsStore((s) => s.fetchAddressBooks);
   const fetchContacts = useContactsStore((s) => s.fetchContacts);
   const createAddressBook = useContactsStore((s) => s.createAddressBook);

@@ -23,7 +23,12 @@ export default function TagAssignSheet({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
-  const keywords = useContactsStore(selectKeywordsUsed);
+  // Subscribe to the stable `contacts` array and derive the keyword list in a
+  // memo. Passing `selectKeywordsUsed` straight to the store would return a
+  // fresh array on every call, which trips useSyncExternalStore's snapshot
+  // check and spins into an infinite render loop.
+  const contacts = useContactsStore((s) => s.contacts);
+  const keywords = React.useMemo(() => selectKeywordsUsed(contacts), [contacts]);
 
   const [input, setInput] = React.useState('');
 

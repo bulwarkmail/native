@@ -376,9 +376,9 @@ export function selectGroups(state: ContactsState): ContactCard[] {
   return state.contacts.filter(isGroup);
 }
 
-export function selectKeywordsUsed(state: ContactsState): Array<{ keyword: string; count: number }> {
+export function selectKeywordsUsed(contacts: ContactCard[]): Array<{ keyword: string; count: number }> {
   const counts = new Map<string, number>();
-  for (const contact of state.contacts) {
+  for (const contact of contacts) {
     for (const kw of getContactKeywords(contact)) {
       counts.set(kw, (counts.get(kw) || 0) + 1);
     }
@@ -388,10 +388,13 @@ export function selectKeywordsUsed(state: ContactsState): Array<{ keyword: strin
     .sort((a, b) => a.keyword.localeCompare(b.keyword));
 }
 
-export function selectAddressBooksWithCount(state: ContactsState): Array<AddressBook & { count: number }> {
-  return state.addressBooks.map((book) => ({
+export function selectAddressBooksWithCount(
+  addressBooks: AddressBook[],
+  contacts: ContactCard[],
+): Array<AddressBook & { count: number }> {
+  return addressBooks.map((book) => ({
     ...book,
-    count: state.contacts.filter((c) => !isGroup(c) && c.addressBookIds?.[book.id]).length,
+    count: contacts.filter((c) => !isGroup(c) && c.addressBookIds?.[book.id]).length,
   }));
 }
 
