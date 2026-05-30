@@ -283,8 +283,10 @@ export async function getEmailChanges(
   };
 }
 
-export async function getFullEmail(id: string): Promise<Email> {
-  const accountId = jmapClient.accountId;
+export async function getFullEmail(id: string, accountIdOverride?: string): Promise<Email> {
+  // `accountIdOverride` lets the unified inbox open a message that lives under
+  // a group/shared account in the same session instead of the user's own.
+  const accountId = accountIdOverride ?? jmapClient.accountId;
   const res = await jmapClient.request([
     ['Email/get', {
       accountId,
@@ -321,6 +323,35 @@ export async function getFullEmails(ids: string[]): Promise<Email[]> {
   return res.methodResponses[0][1].list as Email[];
 }
 
+/**
+ * Import an already-uploaded raw MIME message (a `.eml` blob) into a mailbox
+ * via JMAP `Email/import`. Returns the new email id. Mirrors the webmail's
+ * `importRawEmail` import step.
+ */
+export async function importEmailBlob(
+  blobId: string,
+  mailboxId: string,
+  keywords: Record<string, boolean> = { $seen: true },
+): Promise<string> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Email/import', {
+      accountId,
+      emails: {
+        'import-0': { blobId, mailboxIds: { [mailboxId]: true }, keywords },
+      },
+    }, '0'],
+  ]);
+  const result = res.methodResponses[0][1];
+  const notCreated = result?.notCreated?.['import-0'];
+  if (notCreated) {
+    throw new Error(notCreated.description || notCreated.type || 'Failed to import email');
+  }
+  const id = result?.created?.['import-0']?.id;
+  if (!id) throw new Error('Email import succeeded but no id was returned');
+  return id;
+}
+
 export async function getThread(threadId: string): Promise<Thread> {
   const accountId = jmapClient.accountId;
   const res = await jmapClient.request(
@@ -332,8 +363,9 @@ export async function getThread(threadId: string): Promise<Thread> {
 export async function setEmailKeywords(
   emailId: string,
   keywords: Record<string, boolean>,
+  accountIdOverride?: string,
 ): Promise<void> {
-  const accountId = jmapClient.accountId;
+  const accountId = accountIdOverride ?? jmapClient.accountId;
   await jmapClient.request([
     ['Email/set', { accountId, update: { [emailId]: { keywords } } }, '0'],
   ]);
@@ -421,6 +453,25 @@ export async function restoreEmailMailboxes(
   await jmapClient.request([
     ['Email/set', { accountId, update }, '0'],
   ]);
+}
+
+// Replace one email's full mailboxIds map. JMAP "mailboxIds" assigns the whole
+// set, so this is idempotent — replaying it produces the same result no matter
+// the current server state. The offline outbox relies on that to coalesce and
+// safely retry move/archive/trash operations.
+export async function setEmailMailboxes(
+  emailId: string,
+  mailboxIds: Record<string, boolean>,
+): Promise<void> {
+  await restoreEmailMailboxes([{ id: emailId, mailboxIds }]);
+}
+
+// Permanently destroy emails (no move-to-trash). Idempotent: destroying an
+// already-gone id is a no-op on replay.
+export async function destroyEmails(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const accountId = jmapClient.accountId;
+  await jmapClient.request([['Email/set', { accountId, destroy: ids }, '0']]);
 }
 
 // Archive one or more emails into the archive mailbox, optionally auto-sorting

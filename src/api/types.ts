@@ -19,6 +19,9 @@ export interface JMAPAccountInfo {
   name: string;
   isPersonal: boolean;
   isReadOnly: boolean;
+  // Per-account capability objects (RFC 8620 §2). Optional because not every
+  // server populates it; the Sieve panel reads its limits/extensions from here.
+  accountCapabilities?: Record<string, unknown>;
 }
 
 export type JMAPMethodCall = [string, Record<string, unknown>, string];

@@ -212,6 +212,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const locale = useLocaleStore((s) => s.locale);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const insets = useSafeAreaInsets();
   // Track the visible keyboard obstruction so the format bar stays above it.
   // On Android edge-to-edge, the IME-inset reported by `keyboardDidShow` is
@@ -317,10 +319,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
           cc: replyTo.cc,
           subject: replyTo.subject,
           body: replyTo.body,
+          receivedAt: replyTo.receivedAt,
         }
       : null,
+      { timeFormat, locale, unknownLabel: t('common.unknown', 'Unknown') },
     ),
-    [mode, replyTo],
+    [mode, replyTo, timeFormat, locale, t],
   );
 
   const [toRecipients, setToRecipients] = React.useState<Recipient[]>(initialTo);

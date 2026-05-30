@@ -34,7 +34,7 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
 
   const onShare = async () => {
     try {
-      await shareEmailEml(blobId, subject);
+      await shareEmailEml(blobId, undefined, subject);
     } catch (e) {
       Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
     }

@@ -18,9 +18,20 @@ describe('buildInitialHtml', () => {
       receivedAt: '2026-04-27T10:00:00Z',
     });
     expect(html).toContain('<p><br></p>');
-    expect(html).toContain('Alice &lt;a@b.com&gt; wrote:');
+    // Default header labels the sender by name only (matches webmail #295).
+    expect(html).toMatch(/On .+, Alice wrote:/);
+    expect(html).not.toContain('a@b.com');
     expect(html).toContain('<blockquote');
     expect(html).toContain('line one<br>line two');
+  });
+
+  it('falls back to the email address when the sender has no name', () => {
+    const html = buildInitialHtml('reply', {
+      from: { email: 'a@b.com' },
+      body: 'hi',
+      receivedAt: '2026-04-27T10:00:00Z',
+    });
+    expect(html).toContain('a@b.com wrote:');
   });
 
   it('uses HTML body when present, stripping dangerous tags', () => {
@@ -41,7 +52,7 @@ describe('buildInitialHtml', () => {
       receivedAt: '2026-04-27T10:00:00Z',
     });
     expect(html).toContain('Forwarded message');
-    expect(html).toContain('From: Bob &lt;b@c.com&gt;');
+    expect(html).toContain('From: Bob');
     expect(html).toContain('Subject: Original Subject');
     expect(html).toContain('forwarded body');
   });

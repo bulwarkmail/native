@@ -60,6 +60,13 @@ export class JMAPClient {
     return this.credentials?.serverUrl ?? null;
   }
 
+  // True when the session authenticates with a Bearer token (OAuth handoff or
+  // token login) rather than a username/password. Used by the security screen
+  // to hide password/TOTP management, which only applies to password accounts.
+  get usesBearerAuth(): boolean {
+    return !!this.credentials?.accessToken;
+  }
+
   get isConnected(): boolean {
     return this.session !== null && this._accountId !== null;
   }

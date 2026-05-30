@@ -10,6 +10,9 @@ import SenderAvatar from '../components/SenderAvatar';
 import { fetchUnifiedInbox, type UnifiedEmail } from '../api/unified-inbox';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
+import { useSettingsStore } from '../stores/settings-store';
+import { useLocaleStore } from '../stores/locale-store';
+import { formatListDate } from '../lib/date-format';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -19,22 +22,15 @@ function senderName(email: UnifiedEmail): string {
   return email.from?.[0]?.name || email.from?.[0]?.email || 'Unknown';
 }
 
-function formatRelativeTime(date: Date): string {
-  const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
-  if (diffMin < 1) return 'now';
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d`;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
 export default function UnifiedInboxScreen({ navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const accounts = useAccountStore((s) => s.accounts);
   const switchAccount = useAuthStore((s) => s.switchAccount);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const includeGroup = useSettingsStore((s) => s.includeGroupInUnified);
+  const locale = useLocaleStore((s) => s.locale);
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -50,13 +46,13 @@ export default function UnifiedInboxScreen({ navigation }: Props) {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const result = await fetchUnifiedInbox(accountIds);
+      const result = await fetchUnifiedInbox(accountIds, 25, { includeGroup });
       setEmails(result.emails);
       setErrors(result.errors);
     } finally {
       setLoading(false);
     }
-  }, [accountIds]);
+  }, [accountIds, includeGroup]);
 
   React.useEffect(() => {
     void load();
@@ -77,6 +73,9 @@ export default function UnifiedInboxScreen({ navigation }: Props) {
             emailId: email.id,
             threadId: email.threadId,
             subject: email.subject,
+            // Group/shared messages live under another JMAP account in the
+            // same session; pass it so the thread opens against the right one.
+            jmapAccountId: email.isShared ? email.jmapAccountId : undefined,
           });
         } finally {
           setOpening(false);
@@ -112,7 +111,7 @@ export default function UnifiedInboxScreen({ navigation }: Props) {
             </Text>
             {starred && <Star size={12} color={c.starred} fill={c.starred} />}
             {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
-            <Text style={styles.time}>{formatRelativeTime(new Date(item.receivedAt))}</Text>
+            <Text style={styles.time}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale })}</Text>
           </View>
           <Text style={[styles.subject, unread && styles.bold]} numberOfLines={1}>
             {item.subject || '(no subject)'}
@@ -122,6 +121,13 @@ export default function UnifiedInboxScreen({ navigation }: Props) {
               <Text style={styles.account} numberOfLines={1}>
                 {acc.email || acc.username}
               </Text>
+            )}
+            {item.isShared && (
+              <View style={styles.sharedBadge}>
+                <Text style={styles.sharedBadgeText} numberOfLines={1}>
+                  {item.sharedLabel || 'Shared'}
+                </Text>
+              </View>
             )}
           </View>
           {item.preview ? (
@@ -229,6 +235,14 @@ function makeStyles(c: ThemePalette) {
     time: { ...typography.caption, color: c.textMuted },
     subject: { ...typography.body, color: c.text },
     account: { ...typography.caption, color: c.textMuted },
+    sharedBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: radius.full,
+      backgroundColor: c.muted,
+      maxWidth: 120,
+    },
+    sharedBadgeText: { fontSize: 10, fontWeight: '500', color: c.mutedForeground },
     preview: { ...typography.caption, color: c.textMuted },
   });
 }

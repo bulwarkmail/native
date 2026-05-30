@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
-  Archive, FolderInput, Tag,
+  Archive, FolderInput, Tag, Import,
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -21,6 +22,8 @@ import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, type EmailFilters } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useKeywordsStore } from '../stores/keywords-store';
+import { useLocaleStore } from '../stores/locale-store';
+import { formatListDate } from '../lib/date-format';
 import type { Email } from '../api/types';
 
 function getSenderName(email: Email): string {
@@ -43,20 +46,6 @@ function isPinned(email: Email): boolean {
   return !!email.keywords?.$important;
 }
 
-function formatRelativeTime(date: Date): string {
-  const now = Date.now();
-  const diffMs = now - date.getTime();
-  const diffMin = Math.floor(diffMs / (1000 * 60));
-  const diffHr = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffMin < 1) return 'now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDay === 1) return 'Yesterday';
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 const EmailRow = React.memo(function EmailRow({
   item,
@@ -79,6 +68,10 @@ const EmailRow = React.memo(function EmailRow({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const dyn = useTypography();
   const density = useDensity();
+  // Read the date-rendering prefs here so each row re-renders when they change.
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const locale = useLocaleStore((s) => s.locale);
   const senderName = getSenderName(item);
   const senderEmail = getSenderEmail(item);
   const unread = isUnread(item);
@@ -133,7 +126,7 @@ const EmailRow = React.memo(function EmailRow({
                 <Text style={styles.threadBadgeText}>{threadCount}</Text>
               </View>
             )}
-            <Text style={[styles.emailDate, dyn.caption]}>{formatRelativeTime(new Date(item.receivedAt))}</Text>
+            <Text style={[styles.emailDate, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale })}</Text>
           </View>
         </View>
 
@@ -184,6 +177,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
   const loadMoreEmails = useEmailStore((s) => s.loadMoreEmails);
   const refreshEmails = useEmailStore((s) => s.refreshEmails);
+  const importEmails = useEmailStore((s) => s.importEmails);
   const setSearchQuery = useEmailStore((s) => s.setSearchQuery);
   const setFilters = useEmailStore((s) => s.setFilters);
   const clearSearchAndFilters = useEmailStore((s) => s.clearSearchAndFilters);
@@ -249,6 +243,50 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     () => mailboxes.find((m) => m.role === 'junk' || m.role === 'spam')?.id ?? null,
     [mailboxes],
   );
+
+  // Import .eml / .zip files into the current mailbox (falls back to Inbox).
+  const [importing, setImporting] = React.useState(false);
+  const handleImport = React.useCallback(async () => {
+    const targetMailboxId =
+      currentMailboxId ?? mailboxes.find((m) => m.role === 'inbox')?.id ?? null;
+    if (!targetMailboxId || importing) return;
+    let result: DocumentPicker.DocumentPickerResult;
+    try {
+      result = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        copyToCacheDirectory: true,
+        type: [
+          'message/rfc822',
+          'application/zip',
+          'application/x-zip-compressed',
+          'application/octet-stream',
+        ],
+      });
+    } catch {
+      return; // picker dismissed / unavailable
+    }
+    if (result.canceled) return;
+    if (result.assets.length === 0) return;
+    setImporting(true);
+    try {
+      const files = result.assets.map((a) => ({
+        uri: a.uri,
+        name: a.name,
+        mimeType: a.mimeType,
+      }));
+      const { imported, failed } = await importEmails(files, targetMailboxId);
+      Alert.alert(
+        'Import',
+        failed > 0
+          ? `${imported} imported, ${failed} failed.`
+          : imported === 0
+            ? 'No messages were imported.'
+            : `${imported} message${imported === 1 ? '' : 's'} imported.`,
+      );
+    } finally {
+      setImporting(false);
+    }
+  }, [currentMailboxId, mailboxes, importEmails, importing]);
 
   // Move-to-folder picker triggered by the swipe action.
   const [pendingMoveId, setPendingMoveId] = React.useState<string | null>(null);
@@ -557,6 +595,18 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           </Pressable>
           <Text style={styles.headerTitle}>{currentMailbox?.name ?? 'Inbox'}</Text>
           <View style={{ flex: 1 }} />
+          <Pressable
+            onPress={() => { void handleImport(); }}
+            style={styles.headerButton}
+            disabled={importing}
+            hitSlop={6}
+          >
+            {importing ? (
+              <ActivityIndicator size="small" color={c.textMuted} />
+            ) : (
+              <Import size={20} color={c.textMuted} />
+            )}
+          </Pressable>
           <Image
             source={require('../../assets/logos/Bulwark Logo White.png')}
             style={styles.headerLogo}

@@ -14,6 +14,7 @@ import {
   getEmailsWithState,
   getEmailChanges,
   getFullEmail,
+  importEmailBlob,
   setEmailKeywords,
   setKeywordsForEmails,
   moveEmail,
@@ -28,6 +29,30 @@ import { toWildcardQuery } from '../lib/search-utils';
 import { generateAccountId } from '../lib/account-utils';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
+import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from './outbox-store';
+
+// Keep the offline body cache consistent with an optimistic/queued mutation so
+// re-opening a message while offline shows the change. Fire-and-forget.
+function patchCache(id: string, changes: { keywords?: Record<string, boolean>; mailboxIds?: Record<string, boolean> }): void {
+  void useOfflineCacheStore.getState().patch(id, changes);
+}
+function dropFromCache(ids: string[]): void {
+  void useOfflineCacheStore.getState().remove(ids);
+}
+// Compute an email's full mailboxIds map after removing one mailbox and adding
+// another — the idempotent target the outbox replays for a move/trash.
+function mailboxesAfterMove(
+  current: Record<string, boolean> | undefined,
+  fromMailboxId: string | null,
+  toMailboxId: string,
+): Record<string, boolean> {
+  const next: Record<string, boolean> = {};
+  for (const [id, present] of Object.entries(current ?? {})) {
+    if (present && id !== fromMailboxId) next[id] = true;
+  }
+  next[toMailboxId] = true;
+  return next;
+}
 
 // True only when the JMAP client is actually serving the email-store's active
 // account. During an account switch there's a window between
@@ -124,9 +149,13 @@ export interface EmailState {
   selectMailbox: (mailboxId: string) => Promise<void>;
   loadMoreEmails: () => Promise<void>;
   refreshEmails: () => Promise<void>;
+  importEmails: (
+    files: { uri: string; name: string; mimeType?: string }[],
+    mailboxId: string,
+  ) => Promise<{ imported: number; failed: number }>;
   handleStateChange: (change: StateChange) => Promise<void>;
-  getEmailDetail: (id: string) => Promise<Email>;
-  markRead: (emailId: string) => Promise<void>;
+  getEmailDetail: (id: string, accountId?: string) => Promise<Email>;
+  markRead: (emailId: string, accountId?: string) => Promise<void>;
   markUnread: (emailId: string) => Promise<void>;
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
   togglePin: (emailId: string, pinned: boolean) => Promise<void>;
@@ -347,6 +376,11 @@ export const useEmailStore = create<EmailState>()(
     // and-forget — the cache returns empty until hydration completes,
     // which is the correct degraded behaviour.
     void useOfflineCacheStore.getState().setAccount(accountId);
+    // Load the new account's outbox and try to drain it (no-op when offline or
+    // the JMAP client isn't serving this account yet).
+    void useOutboxStore.getState().setAccount(accountId).then(() => {
+      void useOutboxStore.getState().flush();
+    });
   },
 
   removeAccount: (accountId) => {
@@ -369,6 +403,7 @@ export const useEmailStore = create<EmailState>()(
         pendingUndo: null,
       });
       void useOfflineCacheStore.getState().setAccount(null);
+      void useOutboxStore.getState().setAccount(null);
     } else {
       set({ accountSnapshots: rest });
     }
@@ -393,6 +428,7 @@ export const useEmailStore = create<EmailState>()(
       loading: false,
     });
     void useOfflineCacheStore.getState().setAccount(null);
+    void useOutboxStore.getState().setAccount(null);
   },
 
   fetchMailboxes: async () => {
@@ -570,6 +606,38 @@ export const useEmailStore = create<EmailState>()(
       if (get().activeAccountId !== activeAccountId) return;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load more' });
     }
+  },
+
+  importEmails: async (files, mailboxId) => {
+    // Loaded lazily so the store module stays free of expo-file-system at
+    // import time (that native dep can't load in the test/SSR environment).
+    const { uploadBytes } = await import('../api/blob');
+    const { expandImportableEml } = await import('../lib/eml-import');
+    let imported = 0;
+    let failed = 0;
+    for (const file of files) {
+      try {
+        // A .eml expands to one message; a .zip to one per .eml it contains.
+        const emls = await expandImportableEml(file.uri, file.name, file.mimeType);
+        if (emls.length === 0) failed += 1;
+        for (const eml of emls) {
+          try {
+            const { blobId } = await uploadBytes(eml.bytes, 'message/rfc822');
+            await importEmailBlob(blobId, mailboxId);
+            imported += 1;
+          } catch {
+            failed += 1;
+          }
+        }
+      } catch {
+        failed += 1;
+      }
+    }
+    // Surface freshly imported messages if we imported into the open mailbox.
+    if (imported > 0 && get().currentMailboxId === mailboxId) {
+      await get().refreshEmails();
+    }
+    return { imported, failed };
   },
 
   refreshEmails: async () => {
@@ -784,13 +852,14 @@ export const useEmailStore = create<EmailState>()(
     void get().refreshEmails();
   },
 
-  getEmailDetail: async (id) => {
+  getEmailDetail: async (id, accountId) => {
     // Try the network first so the user sees fresh keywords/flags. If that
     // fails (offline / server unreachable), fall back to the offline cache
     // when the message is in it. Without the cache hit, propagate the error
-    // so the caller can surface it.
+    // so the caller can surface it. `accountId` targets a group/shared inbox
+    // message opened from the unified view.
     try {
-      const fresh = await getFullEmail(id);
+      const fresh = await getFullEmail(id, accountId);
       // Opportunistically refresh the cached copy so the next offline open
       // reflects the latest keywords without needing a full sync.
       const cache = useOfflineCacheStore.getState();
@@ -808,27 +877,36 @@ export const useEmailStore = create<EmailState>()(
     }
   },
 
-  markRead: async (emailId) => {
+  markRead: async (emailId, accountId) => {
     const email = get().emails.find((e) => e.id === emailId);
     const nextKeywords = { ...(email?.keywords ?? {}), $seen: true };
-    await setEmailKeywords(emailId, nextKeywords);
+    // A group/shared message opened from the unified inbox lives under another
+    // JMAP account and isn't in the active list/cache or the (account-scoped)
+    // offline queue — mark it read directly against its owning account.
+    if (accountId && !email) {
+      await setEmailKeywords(emailId, nextKeywords, accountId);
+      return;
+    }
+    await applyOrQueue({ kind: 'keywords', emailId, keywords: nextKeywords });
     set({
       emails: get().emails.map((e) =>
         e.id === emailId ? { ...e, keywords: nextKeywords } : e,
       ),
     });
+    patchCache(emailId, { keywords: nextKeywords });
   },
 
   markUnread: async (emailId) => {
     const email = get().emails.find((e) => e.id === emailId);
     if (!email) return;
     const { $seen, ...rest } = email.keywords;
-    await setEmailKeywords(emailId, rest);
+    await applyOrQueue({ kind: 'keywords', emailId, keywords: rest });
     set({
       emails: get().emails.map((e) =>
         e.id === emailId ? { ...e, keywords: rest } : e,
       ),
     });
+    patchCache(emailId, { keywords: rest });
   },
 
   toggleStar: async (emailId, starred) => {
@@ -840,12 +918,13 @@ export const useEmailStore = create<EmailState>()(
     } else {
       delete keywords.$flagged;
     }
-    await setEmailKeywords(emailId, keywords);
+    await applyOrQueue({ kind: 'keywords', emailId, keywords });
     set({
       emails: get().emails.map((e) =>
         e.id === emailId ? { ...e, keywords } : e,
       ),
     });
+    patchCache(emailId, { keywords });
   },
 
   togglePin: async (emailId, pinned) => {
@@ -857,20 +936,26 @@ export const useEmailStore = create<EmailState>()(
     } else {
       delete keywords.$important;
     }
-    await setEmailKeywords(emailId, keywords);
+    await applyOrQueue({ kind: 'keywords', emailId, keywords });
     set({
       emails: get().emails.map((e) =>
         e.id === emailId ? { ...e, keywords } : e,
       ),
     });
+    patchCache(emailId, { keywords });
   },
 
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId) => {
     const email = get().emails.find((e) => e.id === emailId);
     const original = email ? { ...email.mailboxIds } : null;
+    const target = mailboxesAfterMove(email?.mailboxIds, fromMailboxId, toMailboxId);
 
-    await moveEmail(emailId, fromMailboxId, toMailboxId);
+    await applyOrQueue(
+      { kind: 'mailboxes', emailId, mailboxIds: target },
+      () => moveEmail(emailId, fromMailboxId, toMailboxId),
+    );
     set({ emails: get().emails.filter((e) => e.id !== emailId) });
+    patchCache(emailId, { mailboxIds: target });
 
     if (email && original) {
       const targetName = get().mailboxes.find((m) => m.id === toMailboxId)?.name;
@@ -899,11 +984,17 @@ export const useEmailStore = create<EmailState>()(
     const mode = useSettingsStore.getState().archiveMode;
     const original = { ...email.mailboxIds };
 
-    await apiArchiveEmails(
-      [{ id: email.id, receivedAt: email.receivedAt }],
-      archiveMailbox.id,
-      mode,
-      mailboxes,
+    // Online keeps the rich year/month auto-foldering. Offline degrades to the
+    // archive root (we can't create folders without a connection); the queued
+    // op replays as a plain move into Archive.
+    const { queued } = await applyOrQueue(
+      { kind: 'mailboxes', emailId, mailboxIds: { [archiveMailbox.id]: true } },
+      () => apiArchiveEmails(
+        [{ id: email.id, receivedAt: email.receivedAt }],
+        archiveMailbox.id,
+        mode,
+        mailboxes,
+      ),
     );
 
     set({
@@ -915,10 +1006,12 @@ export const useEmailStore = create<EmailState>()(
         items: [{ email, originalMailboxIds: original }],
       },
     });
+    patchCache(emailId, { mailboxIds: { [archiveMailbox.id]: true } });
 
     // Auto-sort modes may have created new year/month folders - refresh the
-    // mailbox list so the sidebar picks them up on the next render.
-    if (mode !== 'single') {
+    // mailbox list so the sidebar picks them up on the next render. Skip when
+    // the action was only queued (no folders were created offline).
+    if (mode !== 'single' && !queued) {
       void get().fetchMailboxes();
     }
   },
@@ -945,9 +1038,26 @@ export const useEmailStore = create<EmailState>()(
     if (destroy) {
       // Use the trash mailbox as the "current" so apiDeleteEmail takes the
       // destroy branch even when the source folder isn't trash.
-      await apiDeleteEmail(emailId, trashMailboxId, trashMailboxId);
+      await applyOrQueue(
+        { kind: 'destroy', emailId },
+        () => apiDeleteEmail(emailId, trashMailboxId, trashMailboxId),
+      );
+      dropFromCache([emailId]);
     } else {
-      await apiDeleteEmail(emailId, trashMailboxId, currentMailboxId);
+      const target = mailboxesAfterMove(email?.mailboxIds, currentMailboxId, trashMailboxId);
+      await applyOrQueue(
+        { kind: 'mailboxes', emailId, mailboxIds: target },
+        () => apiDeleteEmail(emailId, trashMailboxId, currentMailboxId),
+      );
+      // "Move to Trash and mark as read" (#323): when the user picked that
+      // delete action, also clear unread state for messages moved to trash.
+      if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
+        const nextKeywords = { ...email.keywords, $seen: true };
+        await applyOrQueue({ kind: 'keywords', emailId, keywords: nextKeywords });
+        patchCache(emailId, { mailboxIds: target, keywords: nextKeywords });
+      } else {
+        patchCache(emailId, { mailboxIds: target });
+      }
     }
     set({ emails: get().emails.filter((e) => e.id !== emailId) });
 
@@ -982,12 +1092,16 @@ export const useEmailStore = create<EmailState>()(
 
     const mode = useSettingsStore.getState().archiveMode;
     const items = targets.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } }));
+    const archiveTarget = { [archiveMailbox.id]: true };
 
-    await apiArchiveEmails(
-      targets.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
-      archiveMailbox.id,
-      mode,
-      mailboxes,
+    const { queued } = await applyOrQueueBatch(
+      targets.map((e): OutboxOp => ({ kind: 'mailboxes', emailId: e.id, mailboxIds: archiveTarget })),
+      () => apiArchiveEmails(
+        targets.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
+        archiveMailbox.id,
+        mode,
+        mailboxes,
+      ),
     );
 
     const removed = new Set(targets.map((e) => e.id));
@@ -1000,8 +1114,9 @@ export const useEmailStore = create<EmailState>()(
         items,
       },
     });
+    for (const e of targets) patchCache(e.id, { mailboxIds: archiveTarget });
 
-    if (mode !== 'single') void get().fetchMailboxes();
+    if (mode !== 'single' && !queued) void get().fetchMailboxes();
   },
 
   moveEmailsToMailbox: async (emailIds, toMailboxId) => {
@@ -1012,9 +1127,19 @@ export const useEmailStore = create<EmailState>()(
 
     const items = targets.map((e) => ({ email: e, originalMailboxIds: { ...e.mailboxIds } }));
 
-    await apiMoveEmails(targets.map((e) => e.id), currentMailboxId, toMailboxId);
+    await applyOrQueueBatch(
+      targets.map((e): OutboxOp => ({
+        kind: 'mailboxes',
+        emailId: e.id,
+        mailboxIds: mailboxesAfterMove(e.mailboxIds, currentMailboxId, toMailboxId),
+      })),
+      () => apiMoveEmails(targets.map((e) => e.id), currentMailboxId, toMailboxId),
+    );
 
     const removed = new Set(targets.map((e) => e.id));
+    for (const e of targets) {
+      patchCache(e.id, { mailboxIds: mailboxesAfterMove(e.mailboxIds, currentMailboxId, toMailboxId) });
+    }
     const targetName = mailboxes.find((m) => m.id === toMailboxId)?.name;
     set({
       emails: get().emails.filter((e) => !removed.has(e.id)),
@@ -1051,11 +1176,49 @@ export const useEmailStore = create<EmailState>()(
       (destroy ? toDestroy : toTrash).push(e);
     }
 
-    if (toDestroy.length > 0) {
-      await apiDeleteEmails(toDestroy.map((e) => e.id), trashMailboxId, trashMailboxId);
-    }
-    if (toTrash.length > 0) {
-      await apiMoveEmails(toTrash.map((e) => e.id), currentMailboxId, trashMailboxId);
+    // "Move to Trash and mark as read" (#323): also clear unread state for the
+    // moved-to-trash messages when that delete action is selected.
+    const toMarkRead =
+      settings.deleteAction === 'trash-and-read'
+        ? toTrash.filter((e) => !e.keywords?.$seen)
+        : [];
+    const markReadKeywords = new Map(
+      toMarkRead.map((e) => [e.id, { ...e.keywords, $seen: true }]),
+    );
+
+    const ops: OutboxOp[] = [
+      ...toDestroy.map((e): OutboxOp => ({ kind: 'destroy', emailId: e.id })),
+      ...toTrash.map((e): OutboxOp => ({
+        kind: 'mailboxes',
+        emailId: e.id,
+        mailboxIds: mailboxesAfterMove(e.mailboxIds, currentMailboxId, trashMailboxId),
+      })),
+      ...toMarkRead.map((e): OutboxOp => ({
+        kind: 'keywords',
+        emailId: e.id,
+        keywords: markReadKeywords.get(e.id)!,
+      })),
+    ];
+    await applyOrQueueBatch(ops, async () => {
+      if (toDestroy.length > 0) {
+        await apiDeleteEmails(toDestroy.map((e) => e.id), trashMailboxId, trashMailboxId);
+      }
+      if (toTrash.length > 0) {
+        await apiMoveEmails(toTrash.map((e) => e.id), currentMailboxId, trashMailboxId);
+      }
+      if (toMarkRead.length > 0) {
+        await setKeywordsForEmails(
+          toMarkRead.map((e) => ({ id: e.id, keywords: markReadKeywords.get(e.id)! })),
+        );
+      }
+    });
+
+    if (toDestroy.length > 0) dropFromCache(toDestroy.map((e) => e.id));
+    for (const e of toTrash) {
+      patchCache(e.id, {
+        mailboxIds: mailboxesAfterMove(e.mailboxIds, currentMailboxId, trashMailboxId),
+        ...(markReadKeywords.has(e.id) ? { keywords: markReadKeywords.get(e.id) } : {}),
+      });
     }
 
     const removed = new Set(targets.map((e) => e.id));
@@ -1083,13 +1246,17 @@ export const useEmailStore = create<EmailState>()(
       else delete keywords[token];
       return { id: e.id, keywords };
     });
-    await setKeywordsForEmails(updates);
+    await applyOrQueueBatch(
+      updates.map((u): OutboxOp => ({ kind: 'keywords', emailId: u.id, keywords: u.keywords })),
+      () => setKeywordsForEmails(updates),
+    );
     const byId = new Map(updates.map((u) => [u.id, u.keywords]));
     set({
       emails: get().emails.map((e) =>
         byId.has(e.id) ? { ...e, keywords: byId.get(e.id)! } : e,
       ),
     });
+    for (const u of updates) patchCache(u.id, { keywords: u.keywords });
   },
 
   undoLast: async () => {
@@ -1098,9 +1265,19 @@ export const useEmailStore = create<EmailState>()(
     set({ pendingUndo: null });
 
     try {
-      await restoreEmailMailboxes(
-        entry.items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
+      await applyOrQueueBatch(
+        entry.items.map((it): OutboxOp => ({
+          kind: 'mailboxes',
+          emailId: it.email.id,
+          mailboxIds: it.originalMailboxIds,
+        })),
+        () => restoreEmailMailboxes(
+          entry.items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
+        ),
       );
+      for (const it of entry.items) {
+        patchCache(it.email.id, { mailboxIds: it.originalMailboxIds });
+      }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Undo failed' });
       return;

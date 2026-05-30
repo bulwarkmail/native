@@ -30,6 +30,8 @@ const FETCH_CHUNK_FALLBACK = 25;
 
 export interface RunOptions {
   days: number;
+  /** Hard cap on the cache in megabytes; oldest mail is evicted to fit. */
+  maxMB?: number;
 }
 
 export async function runOfflineSync(opts: RunOptions): Promise<void> {
@@ -77,6 +79,7 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
   cache.setSyncState({ completed: skipped });
 
   if (toFetch.length === 0) {
+    if (opts.maxMB) await cache.evictToFit(opts.maxMB * 1024 * 1024);
     cache.setSyncState({
       phase: 'done',
       finishedAt: Date.now(),
@@ -130,6 +133,10 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
 
     cache.setSyncState({ completed, fetched, bytes });
   }
+
+  // Trim the cache back under its size cap, shedding the oldest mail. Done
+  // after fetching so we never evict something we're about to keep.
+  if (opts.maxMB) await cache.evictToFit(opts.maxMB * 1024 * 1024);
 
   cache.setSyncState({
     phase: 'done',

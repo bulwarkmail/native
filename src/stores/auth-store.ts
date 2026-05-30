@@ -5,6 +5,7 @@ import { useAccountStore } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
+import { useFilterStore } from './filter-store';
 import { generateAccountId } from '../lib/account-utils';
 import { runWebmailHandoff, HandoffCancelledError } from '../lib/oauth';
 import {
@@ -55,6 +56,7 @@ function clearAllFeatureStores(): void {
   useEmailStore.getState().clearAllAccounts();
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
+  useFilterStore.getState().clearState();
 }
 
 // Drop the named account from the email cache, then reset the (per-session,
@@ -72,6 +74,7 @@ function clearAccountFeatureStores(accountId: string | null): void {
   // follow-up.
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
+  useFilterStore.getState().clearState();
 }
 
 function refetchFeatureStores(): void {

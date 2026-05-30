@@ -7,7 +7,7 @@ export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type FontSize = 'small' | 'medium' | 'large';
 export type Density = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
-export type DeleteAction = 'trash' | 'permanent';
+export type DeleteAction = 'trash' | 'trash-and-read' | 'permanent';
 export type MailLayout = 'split' | 'focus';
 export type MailAttachmentAction = 'preview' | 'download';
 export type AttachmentPosition = 'beside-sender' | 'below-header';
@@ -25,12 +25,19 @@ export type ArchiveMode = 'single' | 'year' | 'month';
 export type CalendarView = 'month' | 'week' | 'day' | 'agenda';
 export type FirstDayOfWeek = 0 | 1;
 export type TimeFormat = '12h' | '24h';
+// Email-list date rendering style. Mirrors the webmail `dateFormat` setting:
+//   smart    — locale-aware, age-bucketed (today→time, this week→weekday+time, older→date)
+//   relative — "1h ago", "2d ago"
+//   full     — always the full locale date + time
+export type DateFormat = 'smart' | 'relative' | 'full';
 export type CalendarHoverPreview = 'instant' | 'delay-500ms' | 'delay-1s' | 'delay-2s' | 'off';
 export type FilesFolderLayout = 'inline' | 'sidebar';
 export type FilesViewMode = 'list' | 'grid';
 export type FilesSortKey = 'name' | 'size' | 'modified';
 export type FilesSortDir = 'asc' | 'desc';
 export type NotificationSound = 'default' | 'chime' | 'ping' | 'pop' | 'none';
+// Filename transform for downloads/exports (mirrors webmail SpaceReplacement).
+export type SpaceReplacement = 'keep' | 'underscore' | 'dash';
 
 const STORAGE_KEY = 'webmail:settings:v1';
 
@@ -50,6 +57,14 @@ interface PersistedSettings {
   trustedSendersAddressBook: boolean;
   senderFavicons: boolean;
   hideInlineImageAttachments: boolean;
+
+  // Language, region & time
+  dateFormat: DateFormat;
+  timeFormat: TimeFormat;
+
+  // Unified inbox: also pull in group/shared inboxes reachable through each
+  // logged-in account (parity with the webmail `includeGroupInUnified` setting).
+  includeGroupInUnified: boolean;
 
   // Contacts
   groupContactsByLetter: boolean;
@@ -135,15 +150,30 @@ interface PersistedSettings {
   // Plugins (UI-level enable map)
   pluginEnabled: Record<string, boolean>;
 
+  // Downloads / export filenames: templates and a filename transform applied
+  // when exporting a message as .eml or saving an attachment.
+  emailExportTemplate: string;
+  attachmentExportTemplate: string;
+  exportSpaceReplacement: SpaceReplacement;
+  exportLowercase: boolean;
+  exportStripDiacritics: boolean;
+
   // Offline mail cache: download recent message bodies in the background so
   // they can be opened without network. Days windows the lookback. Attachment
   // caching is intentionally not implemented yet — bodies-only is much
   // smaller and covers the "open recent mail offline" UX on its own.
   offlineCacheEnabled: boolean;
   offlineCacheDays: number;
+  // Hard cap on the on-disk body cache, in megabytes. When a sync pushes the
+  // cache past this, the oldest messages are evicted to fit.
+  offlineCacheMaxMB: number;
 }
 
 const DEFAULT_PERSISTED: PersistedSettings = {
+  dateFormat: 'smart',
+  timeFormat: '24h',
+  includeGroupInUnified: false,
+
   externalContentPolicy: 'ask',
   trustedSenders: [],
   trustedSendersAddressBook: false,
@@ -219,8 +249,15 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
   pluginEnabled: {},
 
+  emailExportTemplate: '{date} ({from}-{to}) {subject}',
+  attachmentExportTemplate: '{filename}',
+  exportSpaceReplacement: 'keep',
+  exportLowercase: false,
+  exportStripDiacritics: false,
+
   offlineCacheEnabled: false,
   offlineCacheDays: 7,
+  offlineCacheMaxMB: 50,
 };
 
 export interface SettingsState extends PersistedSettings {

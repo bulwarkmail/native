@@ -54,7 +54,7 @@ function plainTextBody(email: Email): string {
 export default function EmailThreadScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { emailId, subject: subjectParam } = route.params;
+  const { emailId, subject: subjectParam, jmapAccountId } = route.params;
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
@@ -97,9 +97,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       setDownloadingBlobId(blobId);
       try {
         if (mailAttachmentAction === 'download') {
-          await downloadAttachment(blobId, name, type);
+          await downloadAttachment(blobId, name, type, email);
         } else {
-          await shareAttachment(blobId, name, type);
+          await shareAttachment(blobId, name, type, email);
         }
       } catch (e) {
         Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
@@ -107,7 +107,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         setDownloadingBlobId(null);
       }
     },
-    [downloadingBlobId, mailAttachmentAction],
+    [downloadingBlobId, mailAttachmentAction, email],
   );
 
   const renderAttachments = () => {
@@ -179,16 +179,16 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     setError(null);
     void (async () => {
       try {
-        const fetched = await getEmailDetail(emailId);
+        const fetched = await getEmailDetail(emailId, jmapAccountId);
         if (cancelled) return;
         setEmail(fetched);
         if (fetched && !fetched.keywords?.$seen) {
           if (markAsReadDelay > 0) {
             readTimer = setTimeout(() => {
-              if (!cancelled) void markRead(emailId);
+              if (!cancelled) void markRead(emailId, jmapAccountId);
             }, markAsReadDelay);
           } else {
-            void markRead(emailId);
+            void markRead(emailId, jmapAccountId);
           }
         }
       } catch (e) {
@@ -203,7 +203,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       cancelled = true;
       if (readTimer) clearTimeout(readTimer);
     };
-  }, [emailId, getEmailDetail, markRead, markAsReadDelay]);
+  }, [emailId, jmapAccountId, getEmailDetail, markRead, markAsReadDelay]);
 
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
@@ -306,6 +306,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         cc: email.cc,
         subject: email.subject ?? '',
         body: plainTextBody(email),
+        receivedAt: email.receivedAt,
         inReplyTo: email.id,
       },
     });
@@ -508,7 +509,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
           setMoreMenuOpen(false);
           if (!email?.blobId) return;
           try {
-            await shareEmailEml(email.blobId, email.subject);
+            await shareEmailEml(email.blobId, email);
           } catch (e) {
             Alert.alert('Export failed', e instanceof Error ? e.message : String(e));
           }

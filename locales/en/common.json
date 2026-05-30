@@ -821,10 +821,13 @@
       },
       "date_format": {
         "label": "Date Format",
-        "description": "How dates should be displayed",
-        "regional": "Regional",
-        "iso": "ISO 8601",
-        "custom": "Custom"
+        "description": "How dates are shown in the email list",
+        "smart": "Smart (locale-aware)",
+        "relative": "Relative (1h ago, 2d ago)",
+        "full": "Always full date",
+        "preview_today": "Today:",
+        "preview_this_week": "This week:",
+        "preview_older": "Older:"
       },
       "time_format": {
         "label": "Time Format",
@@ -1424,6 +1427,7 @@
       "size_bytes": "Size in bytes",
       "size_placeholder": "e.g., 1000000",
       "system_managed": "System-managed rule",
+      "origin_external": "External",
       "opaque_warning": "This script was edited outside the visual builder. Only raw Sieve editing is available.",
       "open_sieve_editor": "Open raw Sieve editor",
       "fetch_error": "Failed to load filters",

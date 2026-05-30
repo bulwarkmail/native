@@ -8,6 +8,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
+import { useOutboxStore } from '../../stores/outbox-store';
 import { runOfflineSync, formatBytes } from '../../lib/offline-sync';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
@@ -20,6 +21,14 @@ const DAY_OPTIONS = [
   { value: '14', label: 'Last 14 days' },
   { value: '30', label: 'Last 30 days' },
   { value: '90', label: 'Last 90 days' },
+];
+
+const MAX_MB_OPTIONS = [
+  { value: '25',  label: '25 MB' },
+  { value: '50',  label: '50 MB' },
+  { value: '100', label: '100 MB' },
+  { value: '250', label: '250 MB' },
+  { value: '500', label: '500 MB' },
 ];
 
 function formatRelativeTime(ms: number | undefined): string {
@@ -58,7 +67,10 @@ export function AboutDataSettings() {
 
   const offlineEnabled = useSettingsStore((s) => s.offlineCacheEnabled);
   const offlineDays = useSettingsStore((s) => s.offlineCacheDays);
+  const offlineMaxMB = useSettingsStore((s) => s.offlineCacheMaxMB);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const queuedChanges = useOutboxStore((s) => s.entries.length);
+  const flushOutbox = useOutboxStore((s) => s.flush);
   const cacheCount = useOfflineCacheStore((s) => s.totalCount());
   const cacheBytes = useOfflineCacheStore((s) => s.totalSize());
   const cacheHydrated = useOfflineCacheStore((s) => s.hydrated);
@@ -73,7 +85,9 @@ export function AboutDataSettings() {
   }, [hydrated, hydrate, cacheHydrated, cacheHydrate]);
 
   const handleSyncNow = () => {
-    void runOfflineSync({ days: offlineDays });
+    void runOfflineSync({ days: offlineDays, maxMB: offlineMaxMB });
+    // Also drain any queued offline changes while we're at it.
+    void flushOutbox();
   };
 
   const handleClearCache = () => {
@@ -142,6 +156,16 @@ export function AboutDataSettings() {
             options={DAY_OPTIONS}
           />
         </SettingItem>
+        <SettingItem
+          label="Maximum size"
+          description="Oldest messages are removed when the cache grows past this."
+        >
+          <Select
+            value={String(offlineMaxMB)}
+            onChange={(v) => updateSetting('offlineCacheMaxMB', Number(v))}
+            options={MAX_MB_OPTIONS}
+          />
+        </SettingItem>
 
         <View style={styles.cacheStatsBox}>
           <View style={styles.cacheStatsHeader}>
@@ -161,6 +185,11 @@ export function AboutDataSettings() {
                   ? `Last sync failed: ${sync.message ?? 'unknown error'}`
                   : `Last sync ${formatRelativeTime(sync.finishedAt)}`}
           </Text>
+          {queuedChanges > 0 && (
+            <Text style={styles.cacheStatsSub}>
+              {`${queuedChanges} change${queuedChanges === 1 ? '' : 's'} waiting to sync`}
+            </Text>
+          )}
           {syncBusy && sync.total > 0 && (
             <View style={styles.progressTrack}>
               <View

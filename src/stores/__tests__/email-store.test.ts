@@ -14,12 +14,47 @@ vi.mock('../../api/email', () => ({
   getEmailChanges: vi.fn(async () => null),
   getFullEmail: vi.fn(),
   setEmailKeywords: vi.fn(),
+  setKeywordsForEmails: vi.fn(),
   moveEmail: vi.fn(),
+  moveEmails: vi.fn(),
   archiveEmails: vi.fn(),
   restoreEmailMailboxes: vi.fn(),
+  setEmailMailboxes: vi.fn(),
+  destroyEmails: vi.fn(),
   deleteEmail: vi.fn(),
+  deleteEmails: vi.fn(),
   searchEmails: vi.fn(),
 }));
+
+// The mutations now route through the offline outbox. In tests we want the
+// "online, nothing queued" fast path: run the supplied online runner (or the
+// op's primitive) immediately so the existing api-call assertions still hold,
+// without pulling in network-store / NetInfo.
+vi.mock('../outbox-store', async () => {
+  const api = await import('../../api/email') as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  const runOp = async (op: { kind: string; emailId: string; keywords?: unknown; mailboxIds?: unknown }) => {
+    if (op.kind === 'keywords') return api.setEmailKeywords(op.emailId, op.keywords);
+    if (op.kind === 'mailboxes') return api.setEmailMailboxes(op.emailId, op.mailboxIds);
+    if (op.kind === 'destroy') return api.destroyEmails([op.emailId]);
+  };
+  const applyOrQueueBatch = async (ops: any[], onlineRun?: () => Promise<void>) => {
+    if (onlineRun) await onlineRun();
+    else await Promise.all(ops.map(runOp));
+    return { queued: false };
+  };
+  return {
+    applyOrQueueBatch,
+    applyOrQueue: async (op: any, onlineRun?: () => Promise<void>) => applyOrQueueBatch([op], onlineRun),
+    useOutboxStore: {
+      getState: () => ({
+        entries: [],
+        count: () => 0,
+        setAccount: vi.fn(async () => undefined),
+        flush: vi.fn(async () => undefined),
+      }),
+    },
+  };
+});
 
 // settings-store transitively pulls in jmap-client / expo-secure-store, which
 // trip on react-native's Flow-typed entrypoint under vitest. The store only
@@ -44,6 +79,8 @@ vi.mock('../offline-cache-store', () => ({
       has: () => false,
       get: vi.fn(async () => null),
       put: vi.fn(async () => undefined),
+      patch: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
     }),
   },
 }));

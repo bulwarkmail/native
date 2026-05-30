@@ -69,7 +69,14 @@ interface OfflineCacheState {
   has: (id: string) => boolean;
   get: (id: string) => Promise<Email | null>;
   put: (email: Email, approxBytes: number) => Promise<void>;
+  // Shallow-merge a change into a cached email (no-op when not cached). Used to
+  // keep the cached body consistent with an optimistic/queued mutation so a
+  // re-open while offline reflects the new keywords / mailboxIds.
+  patch: (id: string, changes: Partial<Pick<Email, 'keywords' | 'mailboxIds'>>) => Promise<void>;
   remove: (ids: string[]) => Promise<void>;
+  // Evict oldest-received entries until the cache fits within maxBytes. Keeps
+  // the persisted cache from growing without bound on a noisy account.
+  evictToFit: (maxBytes: number) => Promise<void>;
   clearAll: () => Promise<void>;
 
   // Returns cached emails whose `mailboxIds` include the given mailbox,
@@ -200,6 +207,21 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     persistIndex(accountId, index);
   },
 
+  patch: async (id, changes) => {
+    const accountId = get().activeAccountId;
+    if (!accountId || !get().index.entries[id]) return;
+    try {
+      const raw = await AsyncStorage.getItem(entryKey(accountId, id));
+      if (!raw) return;
+      const email = JSON.parse(raw) as Email;
+      const updated: Email = { ...email, ...changes };
+      if (get().activeAccountId !== accountId) return;
+      await AsyncStorage.setItem(entryKey(accountId, id), JSON.stringify(updated));
+    } catch (err) {
+      console.warn('[offline-cache] patch failed', id, err);
+    }
+  },
+
   remove: async (ids) => {
     if (ids.length === 0) return;
     const accountId = get().activeAccountId;
@@ -213,6 +235,28 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     const index = { entries: next };
     set({ index });
     persistIndex(accountId, index);
+  },
+
+  evictToFit: async (maxBytes) => {
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0) return;
+    const accountId = get().activeAccountId;
+    if (!accountId) return;
+    let total = get().totalSize();
+    if (total <= maxBytes) return;
+    // Drop the oldest mail first (by receivedAt) — that's what users expect a
+    // bounded "recent mail" cache to shed when it overflows.
+    const sorted = Object.values(get().index.entries).sort((a, b) => {
+      const at = a.receivedAt ? new Date(a.receivedAt).getTime() : 0;
+      const bt = b.receivedAt ? new Date(b.receivedAt).getTime() : 0;
+      return at - bt;
+    });
+    const toRemove: string[] = [];
+    for (const entry of sorted) {
+      if (total <= maxBytes) break;
+      toRemove.push(entry.id);
+      total -= entry.size;
+    }
+    if (toRemove.length > 0) await get().remove(toRemove);
   },
 
   clearAll: async () => {

@@ -83,6 +83,7 @@ export function ReadingSettings() {
   const showPreview = useSettingsStore((s) => s.showPreview);
   const mailLayout = useSettingsStore((s) => s.mailLayout);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
+  const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   const emailsPerPage = useSettingsStore((s) => s.emailsPerPage);
@@ -177,6 +178,7 @@ export function ReadingSettings() {
           onChange={(v) => update('deleteAction', v as DeleteAction)}
           options={[
             { value: 'trash', label: 'Move to Trash' },
+            { value: 'trash-and-read', label: 'Move to Trash and mark as read' },
             { value: 'permanent', label: 'Permanently delete' },
           ]}
         />
@@ -248,6 +250,10 @@ export function ReadingSettings() {
 
       <SettingItem label="Disable Thread Grouping" description="Show emails individually instead of threaded.">
         <ToggleSwitch checked={disableThreading} onChange={(v) => update('disableThreading', v)} />
+      </SettingItem>
+
+      <SettingItem label="Include Group Inboxes" description="Also show group and shared inboxes in the unified All Inboxes view.">
+        <ToggleSwitch checked={includeGroupInUnified} onChange={(v) => update('includeGroupInUnified', v)} />
       </SettingItem>
 
       <SettingItem label="Plain Text Mode" description="Compose and read in plain text only.">

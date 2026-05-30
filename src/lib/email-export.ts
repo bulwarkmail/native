@@ -2,9 +2,37 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { jmapClient } from '../api/jmap-client';
 import { getDownloadUrl } from '../api/blob';
+import type { Email } from '../api/types';
+import { useSettingsStore } from '../stores/settings-store';
+import {
+  attachmentDownloadFilename,
+  emailExportFilename,
+  type EmailFilenameOptions,
+} from './download-filename';
 import { getClientCertAlias, secureFetch } from './client-cert';
 
 const RFC822 = 'message/rfc822';
+
+// Read the user's filename template + transform preferences for exports.
+function emailFileOptions(): EmailFilenameOptions {
+  const s = useSettingsStore.getState();
+  return {
+    template: s.emailExportTemplate,
+    spaceReplacement: s.exportSpaceReplacement,
+    lowercase: s.exportLowercase,
+    stripDiacritics: s.exportStripDiacritics,
+  };
+}
+
+function attachmentFileOptions(): EmailFilenameOptions {
+  const s = useSettingsStore.getState();
+  return {
+    template: s.attachmentExportTemplate,
+    spaceReplacement: s.exportSpaceReplacement,
+    lowercase: s.exportLowercase,
+    stripDiacritics: s.exportStripDiacritics,
+  };
+}
 
 function authHeader(): string {
   return jmapClient.authHeader;
@@ -60,8 +88,11 @@ export async function shareAttachment(
   blobId: string,
   name: string | undefined,
   type: string | undefined,
+  email?: Email | null,
 ): Promise<void> {
-  const filename = safeAttachmentName(name, type);
+  const filename = email
+    ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
+    : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.cache, filename);
   const url = getDownloadUrl(blobId, filename, mimeType);
@@ -84,8 +115,11 @@ export async function downloadAttachment(
   blobId: string,
   name: string | undefined,
   type: string | undefined,
+  email?: Email | null,
 ): Promise<void> {
-  const filename = safeAttachmentName(name, type);
+  const filename = email
+    ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
+    : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType);
@@ -111,8 +145,15 @@ function safeFilename(subject: string | undefined): string {
   return `${base}.eml`;
 }
 
-export async function shareEmailEml(blobId: string, subject?: string): Promise<void> {
-  const dest = new File(Paths.cache, safeFilename(subject));
+export async function shareEmailEml(
+  blobId: string,
+  email?: Email | null,
+  subjectFallback?: string,
+): Promise<void> {
+  const filename = email
+    ? emailExportFilename(email, emailFileOptions())
+    : safeFilename(subjectFallback);
+  const dest = new File(Paths.cache, filename);
   const url = getDownloadUrl(blobId, dest.name, RFC822);
   const downloaded = await downloadInto(url, dest, Paths.cache);
   if (!(await Sharing.isAvailableAsync())) {

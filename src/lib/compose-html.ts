@@ -3,6 +3,7 @@
 // All values are HTML-escaped before insertion into the document.
 
 import { escapeHtml, stripDangerousTags } from './email-html';
+import type { TimeFormat } from '../stores/settings-store';
 
 export interface ReplyMeta {
   from?: { email?: string; name?: string };
@@ -14,35 +15,62 @@ export interface ReplyMeta {
   receivedAt?: string;
 }
 
+export interface QuoteHeaderOptions {
+  timeFormat?: TimeFormat;
+  locale?: string;
+  unknownLabel?: string;
+}
+
 function escapeForHtmlBody(text: string): string {
   return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
-function senderLabel(from?: { email?: string; name?: string }): string {
-  if (!from) return '';
-  if (from.name && from.email) return `${from.name} <${from.email}>`;
-  return from.name || from.email || '';
+// Webmail's default quote header labels the sender by display name when there
+// is one, falling back to the bare address — not "Name <addr>".
+function senderName(from?: { email?: string; name?: string }, unknownLabel = 'Unknown'): string {
+  if (!from) return unknownLabel;
+  return from.name || from.email || unknownLabel;
 }
 
-function formatDate(iso?: string): string {
+// Mirror the webmail quote-header date: locale- and 12/24h-aware, with a short
+// weekday (lib/quote-header.ts → formatDateTime with weekday/year/month/day).
+function formatQuoteDate(iso: string | undefined, timeFormat: TimeFormat, locale?: string): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString();
+  const intlLocale = !locale || locale === 'en' ? 'en-US' : locale;
+  return d.toLocaleString(intlLocale, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: timeFormat === '12h',
+  });
 }
+
+const BLOCKQUOTE_STYLE = 'margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex';
 
 /**
  * Build the seed HTML for a new compose / reply / forward. Returns an empty
  * paragraph for plain compose (so the contenteditable has a caret target).
+ *
+ * The reply/forward quote header mirrors the webmail default header
+ * (`lib/quote-header.ts`): a reply gets "On <date>, <sender> wrote:" above a
+ * blockquoted body; a forward gets a From/Date/Subject block followed by the
+ * original body (not blockquoted).
  */
 export function buildInitialHtml(
   mode: 'compose' | 'reply' | 'replyAll' | 'forward',
   reply?: ReplyMeta | null,
+  opts: QuoteHeaderOptions = {},
 ): string {
   if (!reply || mode === 'compose') return '<p><br></p>';
 
-  const date = formatDate(reply.receivedAt);
-  const fromStr = senderLabel(reply.from) || 'Unknown';
+  const { timeFormat = '24h', locale, unknownLabel = 'Unknown' } = opts;
+  const date = formatQuoteDate(reply.receivedAt, timeFormat, locale);
+  const fromStr = senderName(reply.from, unknownLabel);
   const subject = reply.subject ?? '';
 
   const quotedBody = reply.htmlBody
@@ -54,27 +82,26 @@ export function buildInitialHtml(
   if (!quotedBody) return '<p><br></p>';
 
   if (mode === 'forward') {
+    // Forwarded message block (From/Date/Subject), body appended unquoted.
     return [
       '<p><br></p>',
       '<div>---------- Forwarded message ----------<br>',
       `From: ${escapeHtml(fromStr)}<br>`,
-      date ? `Date: ${escapeHtml(date)}<br>` : '',
-      subject ? `Subject: ${escapeHtml(subject)}<br>` : '',
-      reply.to && reply.to.length
-        ? `To: ${escapeHtml(reply.to.map(senderLabel).filter(Boolean).join(', '))}<br>`
-        : '',
+      `Date: ${escapeHtml(date)}<br>`,
+      `Subject: ${escapeHtml(subject)}<br><br>`,
       '</div>',
-      `<blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${quotedBody}</blockquote>`,
+      quotedBody,
     ].join('');
   }
 
   // reply / replyAll
+  const headerLine = date
+    ? `On ${escapeHtml(date)}, ${escapeHtml(fromStr)} wrote:`
+    : `${escapeHtml(fromStr)} wrote:`;
   return [
     '<p><br></p>',
-    '<div>',
-    `On ${escapeHtml(date || 'a previous date')}, ${escapeHtml(fromStr)} wrote:`,
-    '</div>',
-    `<blockquote style="margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex">${quotedBody}</blockquote>`,
+    `<div>${headerLine}<br></div>`,
+    `<blockquote style="${BLOCKQUOTE_STYLE}">${quotedBody}</blockquote>`,
   ].join('');
 }
 

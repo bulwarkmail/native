@@ -2,7 +2,7 @@ import type { EmailAddress } from '../api/types';
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  EmailThread: { emailId: string; threadId: string; subject?: string };
+  EmailThread: { emailId: string; threadId: string; subject?: string; jmapAccountId?: string };
   EmailSource: { emailId: string; blobId: string; subject?: string };
   Compose:
     | {
@@ -13,6 +13,7 @@ export type RootStackParamList = {
           cc?: EmailAddress[];
           subject: string;
           body?: string;
+          receivedAt?: string;
           inReplyTo?: string;
           references?: string;
         };

@@ -46,6 +46,7 @@ import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
+import { useOutboxStore } from './src/stores/outbox-store';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
@@ -268,6 +269,7 @@ export default function App() {
   // feature enabled. Re-runs whenever the user changes the days window.
   const offlineCacheEnabled = useSettingsStore((s) => s.offlineCacheEnabled);
   const offlineCacheDays = useSettingsStore((s) => s.offlineCacheDays);
+  const offlineCacheMaxMB = useSettingsStore((s) => s.offlineCacheMaxMB);
   const haveLiveSession = useAuthStore((s) => s.session != null);
   React.useEffect(() => {
     void useOfflineCacheStore.getState().hydrate();
@@ -276,10 +278,21 @@ export default function App() {
     if (!offlineCacheEnabled || !haveLiveSession) return;
     // Slight delay so cold start doesn't compete with the inbox load.
     const t = setTimeout(() => {
-      void runOfflineSync({ days: offlineCacheDays });
+      void runOfflineSync({ days: offlineCacheDays, maxMB: offlineCacheMaxMB });
     }, 2000);
     return () => clearTimeout(t);
-  }, [offlineCacheEnabled, offlineCacheDays, haveLiveSession]);
+  }, [offlineCacheEnabled, offlineCacheDays, offlineCacheMaxMB, haveLiveSession]);
+
+  // Drain the offline action queue (outbox) as soon as we have a live session,
+  // and again whenever the network comes back. The flush itself no-ops when
+  // there's nothing queued or the client isn't ready.
+  React.useEffect(() => {
+    if (!haveLiveSession) return;
+    void useOutboxStore.getState().flush();
+    return useNetworkStore.subscribe((state, prev) => {
+      if (state.online && !prev.online) void useOutboxStore.getState().flush();
+    });
+  }, [haveLiveSession]);
 
   // Listen for FCM messages so the app can refresh state even when woken
   // from the background - the FirebaseMessagingService also posts the system

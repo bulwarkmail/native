@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CloudOff } from 'lucide-react-native';
 import { useNetworkStore } from '../stores/network-store';
+import { useOutboxStore } from '../stores/outbox-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -14,12 +15,18 @@ export function OfflineBanner({ hint }: OfflineBannerProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const online = useNetworkStore((s) => s.online);
+  // Pending offline mutations that will replay once we're back online.
+  const queued = useOutboxStore((s) => s.entries.length);
   if (online) return null;
+  const queuedHint = queued > 0
+    ? `${queued} change${queued === 1 ? '' : 's'} will sync when you reconnect`
+    : null;
+  const suffix = [hint, queuedHint].filter(Boolean).join(' · ');
   return (
     <View style={styles.bar}>
       <CloudOff size={14} color={c.primaryForeground} />
       <Text style={styles.text} numberOfLines={1}>
-        You are offline{hint ? ` — ${hint}` : ''}
+        You are offline{suffix ? ` — ${suffix}` : ''}
       </Text>
     </View>
   );

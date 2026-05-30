@@ -6,7 +6,7 @@ import {
   Palette, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive,
   BookUser, KeyRound, PanelLeftClose, Bell, Puzzle, RefreshCw,
-  LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Bug,
+  LayoutGrid, BookOpen, PenLine, EyeOff, Languages, Info, Bug, Download,
   type LucideIcon,
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -35,6 +35,7 @@ import { ContentSendersSettings } from '../components/settings/ContentSendersSet
 import { LanguageSettings } from '../components/settings/LanguageSettings';
 import { ComposingSettings } from '../components/settings/ComposingSettings';
 import { LayoutSettings } from '../components/settings/LayoutSettings';
+import { DownloadsSettings } from '../components/settings/DownloadsSettings';
 import { useLocaleStore } from '../stores/locale-store';
 import { useHasCalendar, useHasContacts, useHasFiles } from '../lib/capabilities';
 
@@ -42,7 +43,7 @@ type Tab =
   | 'account' | 'language' | 'notifications'
   | 'appearance' | 'layout'
   | 'reading' | 'composing' | 'identities' | 'vacation'
-  | 'filters' | 'templates' | 'folders' | 'keywords'
+  | 'filters' | 'templates' | 'folders' | 'keywords' | 'downloads'
   | 'security' | 'encryption' | 'content_senders'
   | 'calendar' | 'contacts' | 'files' | 'sidebar_apps'
   | 'about_data' | 'themes' | 'plugins' | 'updates' | 'debug';
@@ -88,6 +89,7 @@ const TABS: TabDef[] = [
   { id: 'templates',       label: 'Templates',          icon: FileText,       group: 'mail',       implemented: true  },
   { id: 'folders',         label: 'Folders',            icon: FolderOpen,     group: 'mail',       implemented: true  },
   { id: 'keywords',        label: 'Keywords & Labels',  icon: Tags,           group: 'mail',       implemented: true  },
+  { id: 'downloads',       label: 'Downloads',          icon: Download,       group: 'mail',       implemented: true  },
 
   // Privacy & Security
   { id: 'security',        label: 'Security',           icon: Shield,         group: 'privacy',    implemented: true  },
@@ -122,6 +124,7 @@ const TAB_COMPONENTS: Partial<Record<Tab, React.ComponentType<any>>> = {
   templates: TemplateSettings,
   folders: FolderSettings,
   keywords: KeywordSettings,
+  downloads: DownloadsSettings,
   security: AccountSecuritySettings,
   encryption: SmimeSettings,
   content_senders: ContentSendersSettings,
