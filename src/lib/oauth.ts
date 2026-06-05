@@ -123,6 +123,90 @@ export async function runWebmailHandoff(webmailUrl: string): Promise<HandoffResu
   throw new HandoffError(`Unknown sign-in flow: ${flow ?? 'missing'}`);
 }
 
+// QR login payloads. A QR scanned on the login screen either bootstraps the
+// server URL for the normal webmail handoff (`connect`), or carries a one-time
+// cross-device pairing code minted by an already-signed-in webmail (`pair`).
+// The payload never contains credentials — the `pair` code is redeemed for
+// tokens over the network, once.
+export type QrLoginPayload =
+  | { kind: 'connect'; webmailUrl: string }
+  | { kind: 'pair'; webmailUrl: string; code: string };
+
+export function parseQrLoginPayload(raw: string): QrLoginPayload | null {
+  const trimmed = raw.trim();
+
+  // Custom scheme: bulwarkmail://connect?server=... | bulwarkmail://pair?server=...&code=...
+  const match = /^bulwarkmail:\/\/(connect|pair)\?(.*)$/i.exec(trimmed);
+  if (match) {
+    const kind = match[1].toLowerCase();
+    const params = new URLSearchParams(match[2]);
+    const server = params.get('server');
+    if (!server || !/^https?:\/\//i.test(server)) return null;
+    if (kind === 'pair') {
+      const code = params.get('code');
+      if (!code) return null;
+      return { kind: 'pair', webmailUrl: server, code };
+    }
+    return { kind: 'connect', webmailUrl: server };
+  }
+
+  // A bare https URL is treated as a server-bootstrap target so admins can
+  // hand out a plain webmail URL QR without the custom-scheme wrapper.
+  if (/^https?:\/\//i.test(trimmed)) {
+    return { kind: 'connect', webmailUrl: trimmed };
+  }
+
+  return null;
+}
+
+// Cross-device pairing redemption. Posts the scanned code to the webmail that
+// minted it and maps the token bundle into the same shape the in-browser OAuth
+// handoff produces, so the caller can reuse the existing connectWithOAuth path.
+export async function redeemPairingCode(webmailUrl: string, code: string): Promise<HandoffResult> {
+  const base = webmailUrl.replace(/\/+$/, '');
+  let response: Response;
+  try {
+    response = await secureFetch(`${base}/api/auth/pair/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ pairing_code: code }),
+    });
+  } catch {
+    throw new HandoffError('Could not reach the server to complete pairing');
+  }
+
+  if (!response.ok) {
+    // The code was unknown, already used, or expired (server returns 400) —
+    // or something else went wrong. Either way the user needs a fresh QR.
+    throw new HandoffError('Pairing code is invalid or has expired');
+  }
+
+  const data = (await response.json()) as {
+    server_url?: string;
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    token_endpoint?: string;
+    client_id?: string;
+  };
+
+  if (!data.server_url || !data.access_token || !data.token_endpoint || !data.client_id) {
+    throw new HandoffError('Pairing response missing token material');
+  }
+
+  return {
+    flow: 'oauth',
+    serverUrl: data.server_url,
+    tokens: {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? undefined,
+      expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
+      tokenEndpoint: data.token_endpoint,
+      clientId: data.client_id,
+    },
+  };
+}
+
 // OAuth refresh — exchanges the refresh token at the original token endpoint
 // for a new access token. Returns the updated bundle so the caller can
 // persist it.

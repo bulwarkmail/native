@@ -82,6 +82,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   const [email, setEmail] = React.useState<Email | null>(null);
   const [loading, setLoading] = React.useState(true);
+  // True only while a Prev/Next/swipe transition is waiting on an
+  // not-yet-prefetched neighbour. Drives a lightweight overlay spinner so the
+  // brief gap shows feedback instead of a blank pane — without unmounting the
+  // (still-animating) slide pane the way the full-screen `loading` state would.
+  const [switching, setSwitching] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
@@ -114,11 +119,21 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     animatingRef.current = true;
     const w = windowWidthRef.current;
     const out = direction === 'next' ? -w : w;
-    // Slide the current message the rest of the way out, swap content, then
-    // slide the new message in from the opposite edge.
-    Animated.timing(translateX, {
-      toValue: out, duration: 170, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-    }).start(() => {
+
+    // Make sure the target's detail is in the cache *before* we swap it into
+    // view. That way the load effect takes its no-spinner cached path and the
+    // full-screen `loading` state never fires — which is what unmounted the
+    // slide pane mid-animation and produced the blank-then-jump flash.
+    // Neighbours are usually prefetched, so this resolves immediately.
+    const ready: Promise<unknown> = detailCache.has(target.id)
+      ? Promise.resolve()
+      : getEmailDetail(target.id, jmapAccountId)
+          .then((e) => { detailCache.set(target.id, e); })
+          .catch(() => { /* fall back to the load effect's own fetch */ });
+
+    // Swap content + slide the new message in from the opposite edge.
+    const swapAndSlideIn = () => {
+      setSwitching(false);
       setActiveEmailId(target.id);
       setActiveSubject(target.subject ?? '');
       scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -126,8 +141,22 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       Animated.timing(translateX, {
         toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true,
       }).start(() => { animatingRef.current = false; });
+    };
+
+    // Slide the current message the rest of the way out, then swap once the
+    // target is ready. If it isn't cached yet, show the overlay spinner during
+    // the (usually brief) wait rather than leaving an empty pane on screen.
+    Animated.timing(translateX, {
+      toValue: out, duration: 170, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start(() => {
+      if (detailCache.has(target.id)) {
+        swapAndSlideIn();
+      } else {
+        setSwitching(true);
+        void ready.then(swapAndSlideIn);
+      }
     });
-  }, [translateX]);
+  }, [translateX, detailCache, getEmailDetail, jmapAccountId]);
   const switchEmailRef = React.useRef(switchEmail);
   switchEmailRef.current = switchEmail;
 
@@ -579,11 +608,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {loading ? (
+      {loading && !email ? (
         <View style={styles.centered}>
           <ActivityIndicator color={c.primary} />
         </View>
-      ) : error ? (
+      ) : error && !email ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
@@ -656,6 +685,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             </View>
           </ScrollView>
           </Animated.View>
+
+          {/* Transient spinner while a switch waits on an un-prefetched
+              neighbour — sits above the (slid-out) pane, not in place of it. */}
+          {switching && (
+            <View style={styles.switchOverlay} pointerEvents="none">
+              <ActivityIndicator color={c.primary} />
+            </View>
+          )}
 
           {/* Bottom action bar */}
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
@@ -1065,6 +1102,12 @@ function makeStyles(c: ThemePalette) {
     padding: spacing.lg,
   },
   errorText: { ...typography.body, color: c.error, textAlign: 'center' },
+  switchOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.background,
+  },
   slidePane: { flex: 1, backgroundColor: c.background },
   scroll: { flex: 1, backgroundColor: c.background },
 

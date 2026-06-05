@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { Eye, EyeOff, X } from 'lucide-react-native';
+import { Eye, EyeOff, X, QrCode } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { Button, Input } from '../components';
+import { QrScanModal } from '../components/QrScanModal';
+import { parseQrLoginPayload } from '../lib/oauth';
 import { useAuthStore } from '../stores/auth-store';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
@@ -21,6 +23,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const login = useAuthStore((state) => state.login);
   const loginViaWebmail = useAuthStore((state) => state.loginViaWebmail);
+  const loginViaPairing = useAuthStore((state) => state.loginViaPairing);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
@@ -29,6 +32,7 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
+  const [scannerVisible, setScannerVisible] = React.useState(false);
 
   const canSubmit = Boolean(serverUrl.trim() && email.trim() && password);
   const canHandoff = Boolean(serverUrl.trim());
@@ -58,6 +62,34 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
       if (after && !before) {
         onLogin?.();
       } else if (isAddMode && after) {
+        onLogin?.();
+      }
+    } catch {
+      // Store state already contains the user-facing error.
+    }
+  };
+
+  const handleScanned = async (data: string) => {
+    setScannerVisible(false);
+    const payload = parseQrLoginPayload(data);
+    if (!payload) {
+      Alert.alert('Unrecognized QR code', "That QR code isn't a Bulwark Mail sign-in code.");
+      return;
+    }
+    try {
+      const before = useAuthStore.getState().isAuthenticated;
+      if (payload.kind === 'connect') {
+        // Server-bootstrap QR: fill the field and run the normal browser
+        // handoff so the user still authenticates in the webmail.
+        setServerUrl(payload.webmailUrl);
+        await loginViaWebmail(payload.webmailUrl, { addAccount: isAddMode });
+      } else {
+        // Cross-device pairing QR: redeem the one-time code for tokens, no
+        // browser round-trip needed.
+        await loginViaPairing(payload.webmailUrl, payload.code, { addAccount: isAddMode });
+      }
+      const after = useAuthStore.getState().isAuthenticated;
+      if ((after && !before) || (isAddMode && after)) {
         onLogin?.();
       }
     } catch {
@@ -182,6 +214,15 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
               >
                 Sign in via webmail
               </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                onPress={() => setScannerVisible(true)}
+                disabled={isLoading}
+                icon={<QrCode size={18} color={c.text} />}
+              >
+                Scan QR code
+              </Button>
             </View>
           </View>
 
@@ -192,6 +233,14 @@ export default function LoginScreen({ onLogin, isAddMode, onCancel }: LoginScree
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <QrScanModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onScanned={(data) => {
+          void handleScanned(data);
+        }}
+      />
     </SafeAreaView>
   );
 }

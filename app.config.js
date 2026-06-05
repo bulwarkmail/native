@@ -46,7 +46,18 @@ module.exports = {
     web: {
       favicon: './assets/favicon.png',
     },
-    plugins: ['expo-secure-store', '@react-native-community/datetimepicker', 'expo-localization'],
+    plugins: [
+      'expo-secure-store',
+      '@react-native-community/datetimepicker',
+      'expo-localization',
+      [
+        'expo-camera',
+        {
+          cameraPermission:
+            'Bulwark Mail uses the camera to scan sign-in QR codes shown in webmail.',
+        },
+      ],
+    ],
     extra: {
       commit: COMMIT,
     },

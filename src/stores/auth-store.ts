@@ -7,7 +7,7 @@ import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { useFilterStore } from './filter-store';
 import { generateAccountId } from '../lib/account-utils';
-import { runWebmailHandoff, HandoffCancelledError } from '../lib/oauth';
+import { runWebmailHandoff, redeemPairingCode, HandoffCancelledError, type HandoffResult } from '../lib/oauth';
 import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
@@ -41,6 +41,7 @@ export interface AuthState {
 
   login: (serverUrl: string, username: string, password: string, opts?: { addAccount?: boolean }) => Promise<void>;
   loginViaWebmail: (webmailUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
+  loginViaPairing: (webmailUrl: string, code: string, opts?: { addAccount?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
@@ -95,6 +96,43 @@ function refetchFeatureStores(): void {
   if (calendarStore.loadedRange) {
     void calendarStore.refresh();
   }
+}
+
+// Shared tail of the OAuth sign-in flows (browser handoff and cross-device QR
+// pairing both end here). Bootstraps a JMAP session from the token bundle,
+// registers the account, and flips the store to connected. Throws on failure
+// so the caller can surface a flow-specific error.
+async function completeOAuthHandoff(
+  set: (partial: Partial<AuthState>) => void,
+  get: () => AuthState,
+  result: Extract<HandoffResult, { flow: 'oauth' }>,
+  opts?: { addAccount?: boolean },
+): Promise<void> {
+  if (opts?.addAccount && get().isAuthenticated) {
+    jmapClient.reset();
+    useContactsStore.getState().reset();
+    useCalendarStore.getState().reset();
+  }
+
+  const { session, username, accountId } = await jmapClient.connectWithOAuth(
+    result.serverUrl,
+    result.tokens,
+  );
+
+  const accountStore = useAccountStore.getState();
+  accountStore.addAccount({
+    serverUrl: result.serverUrl.replace(/\/+$/, ''),
+    username,
+    displayName: username,
+    email: username,
+    lastLoginAt: Date.now(),
+    isConnected: true,
+    hasError: false,
+  });
+  accountStore.setActiveAccount(accountId);
+  useEmailStore.getState().setActiveAccount(accountId);
+
+  applyConnectedState(set, session, result.serverUrl.replace(/\/+$/, ''), username, accountId);
 }
 
 function applyConnectedState(
@@ -200,31 +238,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // token bundle. Bootstrap the JMAP session with Bearer auth and let
     // ensure/forceRefreshToken keep it alive going forward.
     try {
-      if (opts?.addAccount && get().isAuthenticated) {
-        jmapClient.reset();
-        useContactsStore.getState().reset();
-        useCalendarStore.getState().reset();
-      }
-
-      const { session, username, accountId } = await jmapClient.connectWithOAuth(
-        result.serverUrl,
-        result.tokens,
-      );
-
-      const accountStore = useAccountStore.getState();
-      accountStore.addAccount({
-        serverUrl: result.serverUrl.replace(/\/+$/, ''),
-        username,
-        displayName: username,
-        email: username,
-        lastLoginAt: Date.now(),
-        isConnected: true,
-        hasError: false,
-      });
-      accountStore.setActiveAccount(accountId);
-      useEmailStore.getState().setActiveAccount(accountId);
-
-      applyConnectedState(set, session, result.serverUrl.replace(/\/+$/, ''), username, accountId);
+      await completeOAuthHandoff(set, get, result, opts);
     } catch (err) {
       const message =
         err instanceof AuthenticationError
@@ -232,6 +246,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           : err instanceof Error
             ? err.message
             : 'OAuth sign-in failed';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+  },
+
+  loginViaPairing: async (webmailUrl, code, opts) => {
+    set({ isLoading: true, error: null });
+    let result;
+    try {
+      result = await redeemPairingCode(webmailUrl, code);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Pairing failed';
+      set({ isLoading: false, error: message });
+      throw err;
+    }
+
+    // redeemPairingCode only ever yields the OAuth flow, but guard anyway so a
+    // future server change can't silently mis-route credentials here.
+    if (result.flow !== 'oauth') {
+      set({ isLoading: false, error: 'Unexpected pairing response' });
+      throw new Error('Unexpected pairing response');
+    }
+
+    try {
+      await completeOAuthHandoff(set, get, result, opts);
+    } catch (err) {
+      const message =
+        err instanceof AuthenticationError
+          ? 'Authentication rejected by server'
+          : err instanceof Error
+            ? err.message
+            : 'Pairing sign-in failed';
       set({ isLoading: false, error: message });
       throw err;
     }
