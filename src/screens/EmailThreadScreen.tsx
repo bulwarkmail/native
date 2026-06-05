@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
-  Modal, useWindowDimensions, Animated, Easing, Alert,
+  Modal, useWindowDimensions, Animated, Easing, Alert, PanResponder,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -59,7 +59,12 @@ function plainTextBody(email: Email): string {
 export default function EmailThreadScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { emailId, subject: subjectParam, jmapAccountId } = route.params;
+  const { jmapAccountId } = route.params;
+  // The displayed email is tracked in local state (not a route param) so that
+  // swiping / Prev-Next can switch messages in place without remounting the
+  // screen — which is what produced the loading flash on every change.
+  const [activeEmailId, setActiveEmailId] = React.useState(route.params.emailId);
+  const [activeSubject, setActiveSubject] = React.useState(route.params.subject ?? '');
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
@@ -71,16 +76,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const emails = useEmailStore((s) => s.emails);
 
-  const currentIndex = emails.findIndex((e) => e.id === emailId);
+  const currentIndex = emails.findIndex((e) => e.id === activeEmailId);
   const prevEmail = currentIndex > 0 ? emails[currentIndex - 1] : null;
   const nextEmail = currentIndex >= 0 && currentIndex < emails.length - 1 ? emails[currentIndex + 1] : null;
-  const goToEmail = (target: { id: string; threadId: string; subject?: string }) => {
-    navigation.replace('EmailThread', {
-      emailId: target.id,
-      threadId: target.threadId,
-      subject: target.subject ?? '',
-    });
-  };
 
   const [email, setEmail] = React.useState<Email | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -90,6 +88,84 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
   const [downloadingBlobId, setDownloadingBlobId] = React.useState<string | null>(null);
+
+  // In-memory cache of fetched message details keyed by id. Lets us show a
+  // neighbour instantly (no spinner) when switching, and prefetch adjacent
+  // messages so a swipe lands on ready content.
+  const detailCache = React.useRef(new Map<string, Email>()).current;
+
+  // --- Swipe / slide navigation between adjacent emails -------------------
+  // translateX drives both the finger-follow drag and the slide-out/slide-in
+  // transition. Refs keep the (memoised once) PanResponder reading the latest
+  // neighbours / dimensions without being recreated every render.
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const scrollRef = React.useRef<ScrollView>(null);
+  const animatingRef = React.useRef(false);
+  const prevEmailRef = React.useRef(prevEmail);
+  const nextEmailRef = React.useRef(nextEmail);
+  const windowWidthRef = React.useRef(windowWidth);
+  prevEmailRef.current = prevEmail;
+  nextEmailRef.current = nextEmail;
+  windowWidthRef.current = windowWidth;
+
+  const switchEmail = React.useCallback((direction: 'prev' | 'next') => {
+    const target = direction === 'next' ? nextEmailRef.current : prevEmailRef.current;
+    if (!target || animatingRef.current) return;
+    animatingRef.current = true;
+    const w = windowWidthRef.current;
+    const out = direction === 'next' ? -w : w;
+    // Slide the current message the rest of the way out, swap content, then
+    // slide the new message in from the opposite edge.
+    Animated.timing(translateX, {
+      toValue: out, duration: 170, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start(() => {
+      setActiveEmailId(target.id);
+      setActiveSubject(target.subject ?? '');
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      translateX.setValue(-out);
+      Animated.timing(translateX, {
+        toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }).start(() => { animatingRef.current = false; });
+    });
+  }, [translateX]);
+  const switchEmailRef = React.useRef(switchEmail);
+  switchEmailRef.current = switchEmail;
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => {
+        if (animatingRef.current) return false;
+        if (Math.abs(g.dx) < 10) return false;
+        // Only claim clearly-horizontal drags so the body's vertical scroll
+        // (and link taps) keep working.
+        return Math.abs(g.dx) > Math.abs(g.dy) * 1.5;
+      },
+      onPanResponderMove: (_, g) => {
+        let dx = g.dx;
+        // Rubber-band when there's no neighbour to reach in that direction.
+        if ((dx > 0 && !prevEmailRef.current) || (dx < 0 && !nextEmailRef.current)) {
+          dx *= 0.25;
+        }
+        translateX.setValue(dx);
+      },
+      onPanResponderRelease: (_, g) => {
+        const w = windowWidthRef.current;
+        const threshold = Math.min(w * 0.28, 120);
+        const fast = Math.abs(g.vx) > 0.5;
+        if ((g.dx <= -threshold || (fast && g.vx < 0)) && nextEmailRef.current) {
+          switchEmailRef.current('next');
+        } else if ((g.dx >= threshold || (fast && g.vx > 0)) && prevEmailRef.current) {
+          switchEmailRef.current('prev');
+        } else {
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+      },
+      onPanResponderTerminationRequest: () => true,
+    }),
+  ).current;
 
   const mailAttachmentAction = useSettingsStore((s) => s.mailAttachmentAction);
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
@@ -191,24 +267,37 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   React.useEffect(() => {
     let cancelled = false;
     let readTimer: ReturnType<typeof setTimeout> | null = null;
-    setLoading(true);
-    setError(null);
+    // If we already have this message cached (e.g. it was prefetched as a
+    // neighbour), show it immediately — no spinner — and refresh in the
+    // background. Otherwise fall back to the loading state.
+    const cached = detailCache.get(activeEmailId);
+    if (cached) {
+      setEmail(cached);
+      setLoading(false);
+      setError(null);
+    } else {
+      setLoading(true);
+      setError(null);
+    }
     void (async () => {
       try {
-        const fetched = await getEmailDetail(emailId, jmapAccountId);
+        const fetched = await getEmailDetail(activeEmailId, jmapAccountId);
         if (cancelled) return;
+        detailCache.set(activeEmailId, fetched);
         setEmail(fetched);
         if (fetched && !fetched.keywords?.$seen) {
           if (markAsReadDelay > 0) {
             readTimer = setTimeout(() => {
-              if (!cancelled) void markRead(emailId, jmapAccountId);
+              if (!cancelled) void markRead(activeEmailId, jmapAccountId);
             }, markAsReadDelay);
           } else {
-            void markRead(emailId, jmapAccountId);
+            void markRead(activeEmailId, jmapAccountId);
           }
         }
       } catch (e) {
-        if (!cancelled) {
+        // Only surface the error if we have nothing to show; a cached copy is
+        // better than an error screen when the refresh fails.
+        if (!cancelled && !detailCache.has(activeEmailId)) {
           setError(e instanceof Error ? e.message : 'Failed to load email');
         }
       } finally {
@@ -219,7 +308,19 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       cancelled = true;
       if (readTimer) clearTimeout(readTimer);
     };
-  }, [emailId, jmapAccountId, getEmailDetail, markRead, markAsReadDelay]);
+  }, [activeEmailId, jmapAccountId, getEmailDetail, markRead, markAsReadDelay, detailCache]);
+
+  // Prefetch the adjacent messages so a swipe / Prev-Next lands on ready
+  // content instead of a spinner. Best-effort and silent.
+  React.useEffect(() => {
+    for (const neighbour of [prevEmail, nextEmail]) {
+      if (neighbour && !detailCache.has(neighbour.id)) {
+        getEmailDetail(neighbour.id, jmapAccountId)
+          .then((e) => detailCache.set(neighbour.id, e))
+          .catch(() => { /* ignore — prefetch is best-effort */ });
+      }
+    }
+  }, [prevEmail, nextEmail, getEmailDetail, jmapAccountId, detailCache]);
 
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
@@ -239,7 +340,13 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const isInJunk = !!(junkMailbox && email?.mailboxIds?.[junkMailbox.id]);
 
   const updateLocalKeywords = (next: Record<string, boolean>) => {
-    setEmail((prev) => (prev ? { ...prev, keywords: next } : prev));
+    setEmail((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, keywords: next };
+      // Keep the cached copy in sync so swiping back shows the toggled state.
+      detailCache.set(prev.id, updated);
+      return updated;
+    });
   };
 
   const onToggleKeyword = (token: string) => {
@@ -400,7 +507,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     },
   };
 
-  const subject = email?.subject ?? subjectParam ?? '(no subject)';
+  const subject = email?.subject ?? activeSubject ?? '(no subject)';
   const from = email?.from?.[0];
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
 
@@ -482,7 +589,12 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         </View>
       ) : email ? (
         <>
+          <Animated.View
+            style={[styles.slidePane, { transform: [{ translateX }] }]}
+            {...panResponder.panHandlers}
+          >
           <ScrollView
+            ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
           >
@@ -543,13 +655,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
               <EmailBodyView email={email} senderEmail={from?.email} />
             </View>
           </ScrollView>
+          </Animated.View>
 
           {/* Bottom action bar */}
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
             <BottomBarButton
               icon={<ChevronLeft size={20} color={c.textMuted} />}
               label="Prev"
-              onPress={prevEmail ? () => goToEmail(prevEmail) : undefined}
+              onPress={prevEmail ? () => switchEmail('prev') : undefined}
               disabled={!prevEmail}
             />
             {bottomActions.map((id) => {
@@ -567,7 +680,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             <BottomBarButton
               icon={<ChevronRight size={20} color={c.textMuted} />}
               label="Next"
-              onPress={nextEmail ? () => goToEmail(nextEmail) : undefined}
+              onPress={nextEmail ? () => switchEmail('next') : undefined}
               disabled={!nextEmail}
             />
           </View>
@@ -952,6 +1065,7 @@ function makeStyles(c: ThemePalette) {
     padding: spacing.lg,
   },
   errorText: { ...typography.body, color: c.error, textAlign: 'center' },
+  slidePane: { flex: 1, backgroundColor: c.background },
   scroll: { flex: 1, backgroundColor: c.background },
 
   // Subject block

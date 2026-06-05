@@ -3,7 +3,7 @@ import { View, StyleSheet, Linking, Platform, Text, Pressable } from 'react-nati
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Image as ImageIcon, ShieldCheck } from 'lucide-react-native';
 import type { Email } from '../api/types';
-import { wrapEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml, extractCidRefs, hasRemoteContent, hasMeaningfulHtmlBody } from '../lib/email-html';
+import { wrapEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml, extractCidRefs, hasRemoteContent, hasMeaningfulHtmlBody, hasNativeDarkMode } from '../lib/email-html';
 import { jmapClient } from '../api/jmap-client';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -44,6 +44,106 @@ function extractTextBody(email: Email): string | null {
   }
   return null;
 }
+
+// Dark-mode re-inversion, mirroring the webmail's handleIframeLoad pass. The
+// body's `filter: invert(1)` flips colored emoji (yellow smiley -> blue, red
+// heart -> cyan) and stylesheet-defined background images, which the static CSS
+// attribute selectors can't reach. This walks the DOM once and wraps/re-inverts
+// those so they keep their original colors. Only injected when inversion is on.
+const DARK_REINVERT_SCRIPT = `
+(function () {
+  if (document.__rnDarkInvertDone) return;
+  var doc = document;
+  var win = window;
+  if (!doc.body) return;
+  document.__rnDarkInvertDone = true;
+
+  // Re-invert elements with stylesheet-defined background images (CSS attribute
+  // selectors only catch inline styles, not rules that survive in <style>).
+  doc.body.querySelectorAll('*').forEach(function (el) {
+    // Skip elements already handled by CSS attribute selectors.
+    if (el.style.backgroundImage || el.style.background ||
+        el.hasAttribute('background') || el.hasAttribute('bgcolor')) return;
+    // Skip leaf media elements (already re-inverted by CSS).
+    var tag = el.tagName;
+    if (['IMG','VIDEO','SVG','CANVAS','OBJECT','EMBED'].indexOf(tag) !== -1) return;
+    var computed = win.getComputedStyle(el);
+    if (computed.backgroundImage && computed.backgroundImage !== 'none') {
+      // Only re-invert if this container doesn't have media children.
+      if (!el.querySelector('img, video, svg, canvas, object, embed')) {
+        el.style.filter = 'invert(1) hue-rotate(180deg)';
+      }
+    }
+  });
+
+  // Re-invert emoji glyphs so they keep their original colors. Wrap each emoji
+  // run in a span that re-inverts. Only act when the ancestor invert depth is
+  // odd - emojis inside a double-inverted bgcolor container already render at
+  // their original colors.
+  var emojiRe;
+  try {
+    emojiRe = new RegExp('\\\\p{RGI_Emoji}', 'gv');
+  } catch (e) {
+    emojiRe = /\\p{Extended_Pictographic}(?:\\uFE0F)?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F)?)*/gu;
+  }
+  var emojiTestRe = /\\p{Extended_Pictographic}/u;
+  var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, IFRAME: 1 };
+
+  function isOddInvertDepth(start) {
+    var count = 0;
+    var n = start;
+    while (n) {
+      if (n === doc.body) { count++; break; }
+      var cs = win.getComputedStyle(n);
+      if (cs.filter && cs.filter.indexOf('invert') !== -1) count++;
+      n = n.parentElement;
+    }
+    return count % 2 === 1;
+  }
+
+  var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: function (node) {
+      var p = node.parentElement;
+      while (p) {
+        if (SKIP_TAGS[p.tagName]) return NodeFilter.FILTER_REJECT;
+        p = p.parentElement;
+      }
+      return emojiTestRe.test(node.nodeValue || '')
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    }
+  });
+
+  var emojiTextNodes = [];
+  var cur;
+  while ((cur = walker.nextNode())) emojiTextNodes.push(cur);
+
+  emojiTextNodes.forEach(function (textNode) {
+    var parent = textNode.parentElement;
+    if (!parent || !isOddInvertDepth(parent)) return;
+    var text = textNode.nodeValue || '';
+    emojiRe.lastIndex = 0;
+    var frag = doc.createDocumentFragment();
+    var lastIndex = 0;
+    var m;
+    while ((m = emojiRe.exec(text)) !== null) {
+      if (m.index > lastIndex) {
+        frag.appendChild(doc.createTextNode(text.slice(lastIndex, m.index)));
+      }
+      var span = doc.createElement('span');
+      span.style.cssText = 'filter:invert(1) hue-rotate(180deg)';
+      span.textContent = m[0];
+      frag.appendChild(span);
+      lastIndex = m.index + m[0].length;
+    }
+    if (lastIndex === 0) return;
+    if (lastIndex < text.length) {
+      frag.appendChild(doc.createTextNode(text.slice(lastIndex)));
+    }
+    parent.replaceChild(frag, textNode);
+  });
+})();
+`;
 
 const HEIGHT_REPORTER = `
 (function () {
@@ -317,6 +417,16 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
     };
   }, [rawHtml, text, email.preview, shouldBlock, cidMap, renderAsDark]);
 
+  // Inversion is applied for HTML bodies in dark mode unless the email ships its
+  // own dark-mode CSS. When it's on, prepend the DOM re-inversion pass (emoji +
+  // stylesheet backgrounds) so it runs before the height reporter measures.
+  const applyInversion =
+    !!rawHtml && renderAsDark && !hasNativeDarkMode(rawHtml);
+  const injectedJs = React.useMemo(
+    () => (applyInversion ? DARK_REINVERT_SCRIPT + HEIGHT_REPORTER : HEIGHT_REPORTER),
+    [applyInversion],
+  );
+
   const onMessage = (e: WebViewMessageEvent) => {
     const parsed = parseInt(e.nativeEvent.data, 10);
     if (Number.isNaN(parsed) || parsed <= 0) return;
@@ -360,13 +470,15 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
           originWhitelist={['about:blank']}
           source={source}
           javaScriptEnabled
-          injectedJavaScript={HEIGHT_REPORTER}
+          injectedJavaScript={injectedJs}
           onMessage={onMessage}
           onLoadEnd={() => {
             // Re-inject after load to cover Android cases where
-            // `injectedJavaScript` runs too early to see the final layout.
+            // `injectedJavaScript` runs too early to see the final layout. The
+            // re-inversion pass guards itself (__rnDarkInvertDone) so running it
+            // again here is a no-op once the body has been processed.
             setTimeout(() => {
-              webviewRef.current?.injectJavaScript(HEIGHT_REPORTER);
+              webviewRef.current?.injectJavaScript(injectedJs);
             }, 50);
           }}
           scrollEnabled={false}
