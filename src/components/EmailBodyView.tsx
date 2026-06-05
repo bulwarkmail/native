@@ -51,23 +51,58 @@ const HEIGHT_REPORTER = `
   // body.scrollHeight on Android WebView is pinned to the container viewport
   // height, so we can't trust it. A dedicated wrapper gives a deterministic
   // bounding box.
+  var wrapperEl = null;
   function ensureWrapper() {
     var b = document.body;
     if (!b) return null;
+    if (wrapperEl && wrapperEl.isConnected) return wrapperEl;
     var wrap = document.getElementById('__rn_email_body_wrap__');
     if (!wrap) {
       wrap = document.createElement('div');
       wrap.id = '__rn_email_body_wrap__';
       wrap.style.display = 'block';
       wrap.style.width = '100%';
+      wrap.style.transformOrigin = 'top left';
       while (b.firstChild) wrap.appendChild(b.firstChild);
       b.appendChild(wrap);
     }
+    wrapperEl = wrap;
     return wrap;
+  }
+  // The width available for the email content (body content-box).
+  function availWidth() {
+    var b = document.body;
+    var cs = window.getComputedStyle(b);
+    var padL = parseFloat(cs.paddingLeft) || 0;
+    var padR = parseFloat(cs.paddingRight) || 0;
+    return b.clientWidth - padL - padR;
+  }
+  // Shrink-to-fit: emails authored at a fixed width (e.g. 600px tables) overflow
+  // a phone viewport and force horizontal scrolling. Lay the content out at its
+  // natural width, then scale the whole block down so its widest element fits
+  // the screen — the way native mail clients do. No sideways scrolling.
+  function fitToWidth(w) {
+    if (!w) return;
+    var avail = availWidth();
+    if (avail <= 0) return;
+    // Reset to full width so wrapping content reports its true overflow extent
+    // (the widest unbreakable element) rather than a previously-scaled box.
+    w.style.width = '100%';
+    var content = w.scrollWidth;
+    if (content > avail + 1) {
+      var scale = avail / content;
+      w.style.width = content + 'px';
+      w.style.transform = 'scale(' + scale + ')';
+    } else {
+      w.style.transform = 'none';
+    }
   }
   function measure() {
     var w = ensureWrapper();
     if (!w) return 0;
+    fitToWidth(w);
+    // getBoundingClientRect reflects the applied transform, so r.height is the
+    // already-scaled visual height of the content.
     var r = w.getBoundingClientRect();
     var b = document.body;
     var cs = window.getComputedStyle(b);
@@ -117,7 +152,16 @@ const HEIGHT_REPORTER = `
     if (document.body) ro.observe(document.body);
   } catch (e) {}
   try {
-    var mo = new MutationObserver(report);
+    var mo = new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++) {
+        // Ignore the style mutations fitToWidth() applies to the wrapper itself,
+        // otherwise scaling would re-trigger a measure and loop indefinitely.
+        var rec = records[i];
+        if (rec.target === wrapperEl && rec.type === 'attributes') continue;
+        report();
+        return;
+      }
+    });
     if (document.body) mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
   } catch (e) {}
   try {

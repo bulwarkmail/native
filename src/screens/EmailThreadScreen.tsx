@@ -18,7 +18,12 @@ import { CalendarInvitationBanner } from '../components/email/CalendarInvitation
 import SenderAvatar from '../components/SenderAvatar';
 import { MoveSheet } from '../components/MoveSheet';
 import { useEmailStore } from '../stores/email-store';
-import { useSettingsStore } from '../stores/settings-store';
+import {
+  useSettingsStore,
+  normalizeBottomQuickActions,
+  REPLY_QUICK_ACTIONS,
+  type QuickAction,
+} from '../stores/settings-store';
 import { setEmailKeywords } from '../api/email';
 import { shareEmailEml, shareAttachment, downloadAttachment } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
@@ -90,6 +95,17 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
   const markAsReadDelay = useSettingsStore((s) => s.markAsReadDelay);
   const hideInlineImageAttachments = useSettingsStore((s) => s.hideInlineImageAttachments);
+  const bottomQuickActionsRaw = useSettingsStore((s) => s.bottomQuickActions);
+  const bottomActions = React.useMemo(
+    () => normalizeBottomQuickActions(bottomQuickActionsRaw),
+    [bottomQuickActionsRaw],
+  );
+  // Any reply-family action the user pulled out of the bottom bar is surfaced
+  // in the top toolbar so it stays reachable.
+  const relocatedActions = React.useMemo(
+    () => REPLY_QUICK_ACTIONS.filter((a) => !bottomActions.includes(a)),
+    [bottomActions],
+  );
 
   const onPressAttachment = React.useCallback(
     async (blobId: string, name: string | undefined, type: string | undefined) => {
@@ -312,6 +328,78 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     });
   };
 
+  // Registry of every action that can live in the bottom quick-action bar (or
+  // be relocated to the top toolbar). `icon` is a factory so the same action
+  // can render at the toolbar (18px) and bottom-bar (20px) sizes.
+  const quickActionRegistry: Record<
+    QuickAction,
+    { label: string; icon: (size: number, color: string) => React.ReactNode; onPress: () => void; available: boolean }
+  > = {
+    reply: {
+      label: 'Reply',
+      icon: (s, col) => <Reply size={s} color={col} />,
+      onPress: () => navigateCompose('reply'),
+      available: true,
+    },
+    replyAll: {
+      label: 'Reply All',
+      icon: (s, col) => <ReplyAll size={s} color={col} />,
+      onPress: () => navigateCompose('replyAll'),
+      available: true,
+    },
+    forward: {
+      label: 'Forward',
+      icon: (s, col) => <Forward size={s} color={col} />,
+      onPress: () => navigateCompose('forward'),
+      available: true,
+    },
+    delete: {
+      label: 'Delete',
+      icon: (s, col) => <Trash2 size={s} color={col} />,
+      onPress: onDelete,
+      available: true,
+    },
+    archive: {
+      label: 'Archive',
+      icon: (s, col) => <Archive size={s} color={col} />,
+      onPress: onArchive,
+      available: !!archiveMailbox && currentMailboxId !== archiveMailbox?.id,
+    },
+    markUnread: {
+      label: unread ? 'Read' : 'Unread',
+      icon: (s, col) => (unread ? <MailOpen size={s} color={col} /> : <Mail size={s} color={col} />),
+      onPress: onToggleUnread,
+      available: true,
+    },
+    star: {
+      label: starred ? 'Unstar' : 'Star',
+      icon: (s, col) => (
+        <Star size={s} color={starred ? c.starred : col} fill={starred ? c.starred : 'transparent'} />
+      ),
+      onPress: onToggleStar,
+      available: true,
+    },
+    move: {
+      label: 'Move',
+      icon: (s, col) => <FolderInput size={s} color={col} />,
+      onPress: () => setMoveMenuOpen(true),
+      available: mailboxes.length > 0,
+    },
+    spam: {
+      label: isInJunk ? 'Not spam' : 'Spam',
+      icon: (s, col) =>
+        isInJunk ? <ShieldCheck size={s} color={c.success} /> : <ShieldAlert size={s} color={col} />,
+      onPress: onToggleSpam,
+      available: !!junkMailbox || isInJunk,
+    },
+    tag: {
+      label: 'Tag',
+      icon: (s, col) => <Tag size={s} color={col} />,
+      onPress: () => setTagMenuOpen(true),
+      available: keywordDefs.length > 0,
+    },
+  };
+
   const subject = email?.subject ?? subjectParam ?? '(no subject)';
   const from = email?.from?.[0];
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
@@ -329,6 +417,17 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <View style={styles.toolbarActions}>
+          {relocatedActions.map((id) => {
+            const def = quickActionRegistry[id];
+            return (
+              <ToolbarButton
+                key={id}
+                icon={def.icon(18, c.textSecondary)}
+                label={def.label}
+                onPress={def.onPress}
+              />
+            );
+          })}
           <ToolbarButton
             icon={<Trash2 size={18} color={c.textSecondary} />}
             label="Delete"
@@ -453,21 +552,18 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
               onPress={prevEmail ? () => goToEmail(prevEmail) : undefined}
               disabled={!prevEmail}
             />
-            <BottomBarButton
-              icon={<Reply size={20} color={c.textSecondary} />}
-              label="Reply"
-              onPress={() => navigateCompose('reply')}
-            />
-            <BottomBarButton
-              icon={<ReplyAll size={20} color={c.textSecondary} />}
-              label="Reply All"
-              onPress={() => navigateCompose('replyAll')}
-            />
-            <BottomBarButton
-              icon={<Forward size={20} color={c.textSecondary} />}
-              label="Forward"
-              onPress={() => navigateCompose('forward')}
-            />
+            {bottomActions.map((id) => {
+              const def = quickActionRegistry[id];
+              return (
+                <BottomBarButton
+                  key={id}
+                  icon={def.icon(20, c.textSecondary)}
+                  label={def.label}
+                  onPress={def.available ? def.onPress : undefined}
+                  disabled={!def.available}
+                />
+              );
+            })}
             <BottomBarButton
               icon={<ChevronRight size={20} color={c.textMuted} />}
               label="Next"

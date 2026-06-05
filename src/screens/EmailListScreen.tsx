@@ -593,7 +593,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerButton}>
             <Menu size={20} color={c.textMuted} />
           </Pressable>
-          <Text style={styles.headerTitle}>{currentMailbox?.name ?? 'Inbox'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{currentMailbox?.name ?? 'Inbox'}</Text>
           <View style={{ flex: 1 }} />
           <Pressable
             onPress={() => { void handleImport(); }}
@@ -1075,7 +1075,7 @@ function makeStyles(c: ThemePalette) {
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },
-  headerTitle: { ...typography.h3, color: c.text, flex: 1 }, // text-lg font-semibold
+  headerTitle: { ...typography.h3, color: c.text, flexShrink: 1 }, // text-lg font-semibold
   headerLogo: {
     width: 28,
     height: 28,

@@ -21,6 +21,55 @@ export type SwipeAction =
   | 'pin'
   | 'move';
 export type SwipeMode = 'instant' | 'reveal';
+// Actions that can be placed in the email reader's bottom quick-action bar.
+// The first three are the reply family (the default bar); any reply-family
+// action the user removes from the bar is relocated to the top toolbar so it
+// stays reachable.
+export type QuickAction =
+  | 'reply'
+  | 'replyAll'
+  | 'forward'
+  | 'delete'
+  | 'archive'
+  | 'markUnread'
+  | 'star'
+  | 'move'
+  | 'spam'
+  | 'tag';
+
+export const REPLY_QUICK_ACTIONS: QuickAction[] = ['reply', 'replyAll', 'forward'];
+
+export const ALL_QUICK_ACTIONS: QuickAction[] = [
+  'reply',
+  'replyAll',
+  'forward',
+  'delete',
+  'archive',
+  'markUnread',
+  'star',
+  'move',
+  'spam',
+  'tag',
+];
+
+// The reader bottom bar always shows exactly three quick actions (between the
+// prev/next nav buttons). Coerce any persisted value into three unique, valid
+// ids, backfilling from the reply-family default when entries are missing.
+export function normalizeBottomQuickActions(value: unknown): QuickAction[] {
+  const out: QuickAction[] = [];
+  if (Array.isArray(value)) {
+    for (const a of value) {
+      if (ALL_QUICK_ACTIONS.includes(a as QuickAction) && !out.includes(a as QuickAction)) {
+        out.push(a as QuickAction);
+      }
+    }
+  }
+  for (const d of REPLY_QUICK_ACTIONS) {
+    if (out.length >= 3) break;
+    if (!out.includes(d)) out.push(d);
+  }
+  return out.slice(0, 3);
+}
 export type ArchiveMode = 'single' | 'year' | 'month';
 export type CalendarView = 'month' | 'week' | 'day' | 'agenda';
 export type FirstDayOfWeek = 0 | 1;
@@ -102,6 +151,10 @@ interface PersistedSettings {
   swipeLeftAction: SwipeAction;
   swipeRightAction: SwipeAction;
   swipeMode: SwipeMode;
+
+  // Email reader's bottom quick-action bar (3 slots). Defaults to the reply
+  // family; reply-family actions removed from here move to the top toolbar.
+  bottomQuickActions: QuickAction[];
 
   // Archive
   archiveMode: ArchiveMode;
@@ -209,6 +262,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   swipeLeftAction: 'archive',
   swipeRightAction: 'read',
   swipeMode: 'instant',
+
+  bottomQuickActions: ['reply', 'replyAll', 'forward'],
 
   archiveMode: 'single',
 
