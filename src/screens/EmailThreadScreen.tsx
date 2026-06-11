@@ -64,7 +64,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // swiping / Prev-Next can switch messages in place without remounting the
   // screen — which is what produced the loading flash on every change.
   const [activeEmailId, setActiveEmailId] = React.useState(route.params.emailId);
-  const [activeSubject, setActiveSubject] = React.useState(route.params.subject ?? '');
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
@@ -80,31 +79,38 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const prevEmail = currentIndex > 0 ? emails[currentIndex - 1] : null;
   const nextEmail = currentIndex >= 0 && currentIndex < emails.length - 1 ? emails[currentIndex + 1] : null;
 
-  const [email, setEmail] = React.useState<Email | null>(null);
   const [loading, setLoading] = React.useState(true);
-  // True only while a Prev/Next/swipe transition is waiting on an
-  // not-yet-prefetched neighbour. Drives a lightweight overlay spinner so the
-  // brief gap shows feedback instead of a blank pane — without unmounting the
-  // (still-animating) slide pane the way the full-screen `loading` state would.
-  const [switching, setSwitching] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
-  const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
   const [downloadingBlobId, setDownloadingBlobId] = React.useState<string | null>(null);
 
-  // In-memory cache of fetched message details keyed by id. Lets us show a
-  // neighbour instantly (no spinner) when switching, and prefetch adjacent
-  // messages so a swipe lands on ready content.
+  // In-memory cache of fetched message details keyed by id. This is the single
+  // source of truth for every rendered pane: the active message *and* its
+  // prefetched neighbours all read their detail from here, so a swipe lands on
+  // ready content with no spinner and no late content-swap. `cacheVersion` is
+  // bumped whenever an entry changes so the panes re-render.
   const detailCache = React.useRef(new Map<string, Email>()).current;
+  const [cacheVersion, setCacheVersion] = React.useState(0);
+  const bumpCache = React.useCallback(() => setCacheVersion((v) => v + 1), []);
+  const email = React.useMemo(
+    () => detailCache.get(activeEmailId) ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeEmailId, cacheVersion, detailCache],
+  );
 
   // --- Swipe / slide navigation between adjacent emails -------------------
-  // translateX drives both the finger-follow drag and the slide-out/slide-in
-  // transition. Refs keep the (memoised once) PanResponder reading the latest
+  // A three-pane pager: [prev | current | next] are laid out in a single row of
+  // width 3×screen and kept mounted side by side. `drag` translates the whole
+  // row so the neighbour's real content follows the finger — no blank gap and
+  // no late content-swap. At rest the row is shifted left by one screen so the
+  // middle (current) pane sits on screen. After a settled swipe we re-point
+  // `activeEmailId` at the neighbour and reset `drag` to 0 in the same commit;
+  // because the landed pane already shows that exact message, the recentre is
+  // seamless. Refs keep the (memoised once) PanResponder reading the latest
   // neighbours / dimensions without being recreated every render.
-  const translateX = React.useRef(new Animated.Value(0)).current;
-  const scrollRef = React.useRef<ScrollView>(null);
+  const drag = React.useRef(new Animated.Value(0)).current;
   const animatingRef = React.useRef(false);
   const prevEmailRef = React.useRef(prevEmail);
   const nextEmailRef = React.useRef(nextEmail);
@@ -118,45 +124,30 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (!target || animatingRef.current) return;
     animatingRef.current = true;
     const w = windowWidthRef.current;
+    // Bring the neighbour pane to centre: next sits to the right (slide row
+    // left → -w), prev sits to the left (slide row right → +w).
     const out = direction === 'next' ? -w : w;
 
-    // Make sure the target's detail is in the cache *before* we swap it into
-    // view. That way the load effect takes its no-spinner cached path and the
-    // full-screen `loading` state never fires — which is what unmounted the
-    // slide pane mid-animation and produced the blank-then-jump flash.
-    // Neighbours are usually prefetched, so this resolves immediately.
-    const ready: Promise<unknown> = detailCache.has(target.id)
-      ? Promise.resolve()
-      : getEmailDetail(target.id, jmapAccountId)
-          .then((e) => { detailCache.set(target.id, e); })
-          .catch(() => { /* fall back to the load effect's own fetch */ });
+    // Best-effort: ensure the target detail is cached so the recentred pane has
+    // content. Neighbours are normally prefetched, so this is usually a no-op.
+    if (!detailCache.has(target.id)) {
+      getEmailDetail(target.id, jmapAccountId)
+        .then((e) => { detailCache.set(target.id, e); bumpCache(); })
+        .catch(() => { /* the load effect will retry once it becomes active */ });
+    }
 
-    // Swap content + slide the new message in from the opposite edge.
-    const swapAndSlideIn = () => {
-      setSwitching(false);
+    Animated.timing(drag, {
+      toValue: out, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) { animatingRef.current = false; return; }
+      // Re-point at the neighbour and recentre in one go. The pane that just
+      // slid to centre keeps its mounted WebView (it becomes the new middle
+      // pane, keyed by id), so there is nothing to reload or flash.
       setActiveEmailId(target.id);
-      setActiveSubject(target.subject ?? '');
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
-      translateX.setValue(-out);
-      Animated.timing(translateX, {
-        toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }).start(() => { animatingRef.current = false; });
-    };
-
-    // Slide the current message the rest of the way out, then swap once the
-    // target is ready. If it isn't cached yet, show the overlay spinner during
-    // the (usually brief) wait rather than leaving an empty pane on screen.
-    Animated.timing(translateX, {
-      toValue: out, duration: 170, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-    }).start(() => {
-      if (detailCache.has(target.id)) {
-        swapAndSlideIn();
-      } else {
-        setSwitching(true);
-        void ready.then(swapAndSlideIn);
-      }
+      drag.setValue(0);
+      animatingRef.current = false;
     });
-  }, [translateX, detailCache, getEmailDetail, jmapAccountId]);
+  }, [drag, detailCache, getEmailDetail, jmapAccountId, bumpCache]);
   const switchEmailRef = React.useRef(switchEmail);
   switchEmailRef.current = switchEmail;
 
@@ -175,7 +166,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         if ((dx > 0 && !prevEmailRef.current) || (dx < 0 && !nextEmailRef.current)) {
           dx *= 0.25;
         }
-        translateX.setValue(dx);
+        drag.setValue(dx);
       },
       onPanResponderRelease: (_, g) => {
         const w = windowWidthRef.current;
@@ -186,11 +177,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         } else if ((g.dx >= threshold || (fast && g.vx > 0)) && prevEmailRef.current) {
           switchEmailRef.current('prev');
         } else {
-          Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+          Animated.spring(drag, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
         }
       },
       onPanResponderTerminate: () => {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+        Animated.spring(drag, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
       },
       onPanResponderTerminationRequest: () => true,
     }),
@@ -213,14 +204,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   );
 
   const onPressAttachment = React.useCallback(
-    async (blobId: string, name: string | undefined, type: string | undefined) => {
+    async (target: Email, blobId: string, name: string | undefined, type: string | undefined) => {
       if (downloadingBlobId) return;
       setDownloadingBlobId(blobId);
       try {
         if (mailAttachmentAction === 'download') {
-          await downloadAttachment(blobId, name, type, email);
+          await downloadAttachment(blobId, name, type, target);
         } else {
-          await shareAttachment(blobId, name, type, email);
+          await shareAttachment(blobId, name, type, target);
         }
       } catch (e) {
         Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
@@ -228,66 +219,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         setDownloadingBlobId(null);
       }
     },
-    [downloadingBlobId, mailAttachmentAction, email],
+    [downloadingBlobId, mailAttachmentAction],
   );
-
-  const renderAttachments = () => {
-    const all = email?.attachments;
-    if (!all || all.length === 0) return null;
-    // hideInlineImageAttachments: drop chips for images already shown inline
-    // in the body (any image attachment with a cid:). Non-image inline
-    // attachments stay visible because the user wouldn't see them otherwise.
-    const atts = hideInlineImageAttachments
-      ? all.filter((att) => !(att.cid && (att.type ?? '').startsWith('image/')))
-      : all;
-    if (atts.length === 0) return null;
-    const visible = attachmentsExpanded ? atts : atts.slice(0, 3);
-    return (
-      <View style={styles.attachmentsBlock}>
-        <View style={styles.attachmentsRow}>
-          {visible.map((att, idx) => {
-            const isDownloading = downloadingBlobId === att.blobId;
-            return (
-              <Pressable
-                key={att.blobId ?? idx}
-                style={({ pressed }) => [
-                  styles.attachmentChip,
-                  pressed && styles.attachmentChipPressed,
-                ]}
-                onPress={() => onPressAttachment(att.blobId, att.name, att.type)}
-                disabled={!!downloadingBlobId}
-              >
-                {isDownloading ? (
-                  <ActivityIndicator size="small" color={c.textMuted} />
-                ) : (
-                  <Paperclip size={14} color={c.textMuted} />
-                )}
-                <Text style={styles.attachmentName} numberOfLines={1}>
-                  {att.name || 'attachment'}
-                </Text>
-                <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
-                <Download size={14} color={c.textMuted} />
-              </Pressable>
-            );
-          })}
-        </View>
-        {atts.length > 3 && (
-          <Pressable
-            onPress={() => setAttachmentsExpanded((v) => !v)}
-            style={({ pressed }) => [
-              styles.attachmentsToggle,
-              pressed && styles.attachmentsTogglePressed,
-            ]}
-            hitSlop={6}
-          >
-            <Text style={styles.attachmentsToggleText}>
-              {attachmentsExpanded ? 'Show less' : `Show all (${atts.length})`}
-            </Text>
-          </Pressable>
-        )}
-      </View>
-    );
-  };
   const keywordDefs = useKeywordsStore((s) => s.keywords);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
@@ -301,7 +234,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     // background. Otherwise fall back to the loading state.
     const cached = detailCache.get(activeEmailId);
     if (cached) {
-      setEmail(cached);
       setLoading(false);
       setError(null);
     } else {
@@ -313,7 +245,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         const fetched = await getEmailDetail(activeEmailId, jmapAccountId);
         if (cancelled) return;
         detailCache.set(activeEmailId, fetched);
-        setEmail(fetched);
+        bumpCache();
         if (fetched && !fetched.keywords?.$seen) {
           if (markAsReadDelay > 0) {
             readTimer = setTimeout(() => {
@@ -337,19 +269,20 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       cancelled = true;
       if (readTimer) clearTimeout(readTimer);
     };
-  }, [activeEmailId, jmapAccountId, getEmailDetail, markRead, markAsReadDelay, detailCache]);
+  }, [activeEmailId, jmapAccountId, getEmailDetail, markRead, markAsReadDelay, detailCache, bumpCache]);
 
-  // Prefetch the adjacent messages so a swipe / Prev-Next lands on ready
-  // content instead of a spinner. Best-effort and silent.
+  // Prefetch the adjacent messages so their pane is already populated when the
+  // pager slides it into view. Best-effort and silent; bump the cache version
+  // on arrival so the off-screen neighbour pane renders its content.
   React.useEffect(() => {
     for (const neighbour of [prevEmail, nextEmail]) {
       if (neighbour && !detailCache.has(neighbour.id)) {
         getEmailDetail(neighbour.id, jmapAccountId)
-          .then((e) => detailCache.set(neighbour.id, e))
+          .then((e) => { detailCache.set(neighbour.id, e); bumpCache(); })
           .catch(() => { /* ignore — prefetch is best-effort */ });
       }
     }
-  }, [prevEmail, nextEmail, getEmailDetail, jmapAccountId, detailCache]);
+  }, [prevEmail, nextEmail, getEmailDetail, jmapAccountId, detailCache, bumpCache]);
 
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
@@ -368,14 +301,13 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   );
   const isInJunk = !!(junkMailbox && email?.mailboxIds?.[junkMailbox.id]);
 
-  const updateLocalKeywords = (next: Record<string, boolean>) => {
-    setEmail((prev) => {
-      if (!prev) return prev;
-      const updated = { ...prev, keywords: next };
-      // Keep the cached copy in sync so swiping back shows the toggled state.
-      detailCache.set(prev.id, updated);
-      return updated;
-    });
+  // Optimistically write a message's keywords into the cache (the single source
+  // of truth for every pane) and bump the version so the panes re-render.
+  const updateLocalKeywords = (id: string, next: Record<string, boolean>) => {
+    const prev = detailCache.get(id);
+    if (!prev) return;
+    detailCache.set(id, { ...prev, keywords: next });
+    bumpCache();
   };
 
   const onToggleKeyword = (token: string) => {
@@ -383,28 +315,32 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     const next = { ...email.keywords };
     if (next[token]) delete next[token];
     else next[token] = true;
-    updateLocalKeywords(next);
+    updateLocalKeywords(email.id, next);
     void setEmailKeywords(email.id, next);
   };
 
-  const onToggleStar = () => {
-    if (!email) return;
-    const next = { ...email.keywords };
-    if (starred) delete next.$flagged;
+  // Toggle the star on a specific message — used both by the toolbar (current
+  // message) and by each pane's own subject star.
+  const toggleStarFor = React.useCallback((target: Email) => {
+    const next = { ...target.keywords };
+    if (next.$flagged) delete next.$flagged;
     else next.$flagged = true;
-    updateLocalKeywords(next);
-    void setEmailKeywords(email.id, next);
-  };
+    const prev = detailCache.get(target.id);
+    if (prev) { detailCache.set(target.id, { ...prev, keywords: next }); bumpCache(); }
+    void setEmailKeywords(target.id, next);
+  }, [detailCache, bumpCache]);
+
+  const onToggleStar = () => { if (email) toggleStarFor(email); };
 
   const onToggleUnread = () => {
     if (!email) return;
     if (unread) {
       void markRead(email.id);
-      updateLocalKeywords({ ...email.keywords, $seen: true });
+      updateLocalKeywords(email.id, { ...email.keywords, $seen: true });
     } else {
       const next = { ...email.keywords };
       delete next.$seen;
-      updateLocalKeywords(next);
+      updateLocalKeywords(email.id, next);
       void setEmailKeywords(email.id, next);
     }
   };
@@ -536,8 +472,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     },
   };
 
-  const subject = email?.subject ?? activeSubject ?? '(no subject)';
-  const from = email?.from?.[0];
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
 
   // Show extras in priority order. Each toolbar button is ~64px wide (icon+label+padding);
@@ -618,81 +552,36 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         </View>
       ) : email ? (
         <>
-          <Animated.View
-            style={[styles.slidePane, { transform: [{ translateX }] }]}
-            {...panResponder.panHandlers}
-          >
-          <ScrollView
-            ref={scrollRef}
-            style={styles.scroll}
-            contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
-          >
-            {/* Subject block */}
-            <View style={styles.subjectBlock}>
-              <View style={styles.subjectRow}>
-                <View style={styles.subjectMain}>
-                  <Pressable onPress={onToggleStar} hitSlop={8} style={styles.subjectStar}>
-                    <Star
-                      size={18}
-                      color={starred ? c.starred : c.textMuted}
-                      fill={starred ? c.starred : 'transparent'}
+          {/* Three-pane pager: [prev | current | next] live side by side in a
+              row shifted left by one screen, so a horizontal drag slides the
+              neighbour's already-rendered content into view with no gap. */}
+          <View style={styles.pagerViewport}>
+            <Animated.View
+              style={[
+                styles.pagerRow,
+                { width: windowWidth * 3, left: -windowWidth, transform: [{ translateX: drag }] },
+              ]}
+              {...panResponder.panHandlers}
+            >
+              {[prevEmail?.id ?? null, activeEmailId, nextEmail?.id ?? null].map((id, i) => (
+                <View key={id ?? `empty-${i}`} style={{ width: windowWidth }}>
+                  {id ? (
+                    <EmailPane
+                      email={detailCache.get(id) ?? null}
+                      c={c}
+                      styles={styles}
+                      bottomBarHeight={bottomBarHeight}
+                      attachmentPosition={attachmentPosition}
+                      hideInlineImageAttachments={hideInlineImageAttachments}
+                      downloadingBlobId={downloadingBlobId}
+                      onToggleStar={toggleStarFor}
+                      onPressAttachment={onPressAttachment}
                     />
-                  </Pressable>
-                  <Text style={styles.subjectText}>{subject}</Text>
-                </View>
-                <View style={styles.subjectMeta}>
-                  <Text style={styles.subjectDate}>{formatHeaderDate(email.receivedAt)}</Text>
-                  {email.size > 0 && (
-                    <Text style={styles.subjectSize}>{formatSize(email.size)}</Text>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* Sender info */}
-            <View style={styles.senderBlock}>
-              <View style={styles.senderRow}>
-                <SenderAvatar
-                  name={from?.name}
-                  email={from?.email}
-                  size={componentSizes.avatarMd}
-                />
-                <View style={styles.senderInfo}>
-                  <Text style={styles.senderName} numberOfLines={1}>
-                    {from?.name || from?.email || 'Unknown sender'}
-                  </Text>
-                  {from?.name && from?.email ? (
-                    <Text style={styles.senderEmail} numberOfLines={1}>{from.email}</Text>
                   ) : null}
-                  <Text style={styles.senderRecipients} numberOfLines={1}>
-                    <Text style={styles.senderRecipientsLabel}>to </Text>
-                    {email.to?.map((t) => t.name || t.email).join(', ') || '-'}
-                  </Text>
                 </View>
-              </View>
-              {attachmentPosition === 'beside-sender' && renderAttachments()}
-            </View>
-
-            {/* Attachments chips (full-width below header) */}
-            {attachmentPosition === 'below-header' && renderAttachments()}
-
-            {/* Calendar invitation (auto-detected .ics) */}
-            <CalendarInvitationBanner email={email} />
-
-            {/* Body */}
-            <View style={styles.bodyBlock}>
-              <EmailBodyView email={email} senderEmail={from?.email} />
-            </View>
-          </ScrollView>
-          </Animated.View>
-
-          {/* Transient spinner while a switch waits on an un-prefetched
-              neighbour — sits above the (slid-out) pane, not in place of it. */}
-          {switching && (
-            <View style={styles.switchOverlay} pointerEvents="none">
-              <ActivityIndicator color={c.primary} />
-            </View>
-          )}
+              ))}
+            </Animated.View>
+          </View>
 
           {/* Bottom action bar */}
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
@@ -778,6 +667,166 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         onToggle={onToggleKeyword}
       />
     </SafeAreaView>
+  );
+}
+
+interface EmailPaneProps {
+  email: Email | null;
+  c: ThemePalette;
+  styles: ReturnType<typeof makeStyles>;
+  bottomBarHeight: number;
+  attachmentPosition: 'beside-sender' | 'below-header';
+  hideInlineImageAttachments: boolean;
+  downloadingBlobId: string | null;
+  onToggleStar: (email: Email) => void;
+  onPressAttachment: (email: Email, blobId: string, name: string | undefined, type: string | undefined) => void;
+}
+
+// One swipeable page: the scrollable subject / sender / attachments / body for a
+// single message. The pager keeps three of these mounted (prev, current, next)
+// so a swipe slides ready content into view. Each pane owns its own vertical
+// scroll position and "show all attachments" toggle, and renders directly from
+// the email passed to it — neighbours show real content, not a placeholder.
+function EmailPane({
+  email, c, styles, bottomBarHeight, attachmentPosition,
+  hideInlineImageAttachments, downloadingBlobId, onToggleStar, onPressAttachment,
+}: EmailPaneProps) {
+  const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
+
+  // A neighbour whose detail hasn't been prefetched yet. Brief and uncommon
+  // (the prefetch effect usually beats the swipe), so a spinner is fine.
+  if (!email) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={c.primary} />
+      </View>
+    );
+  }
+
+  const from = email.from?.[0];
+  const starred = !!email.keywords?.$flagged;
+  const subject = email.subject || '(no subject)';
+
+  const renderAttachments = () => {
+    const all = email.attachments;
+    if (!all || all.length === 0) return null;
+    // hideInlineImageAttachments: drop chips for images already shown inline
+    // in the body (any image attachment with a cid:). Non-image inline
+    // attachments stay visible because the user wouldn't see them otherwise.
+    const atts = hideInlineImageAttachments
+      ? all.filter((att) => !(att.cid && (att.type ?? '').startsWith('image/')))
+      : all;
+    if (atts.length === 0) return null;
+    const visible = attachmentsExpanded ? atts : atts.slice(0, 3);
+    return (
+      <View style={styles.attachmentsBlock}>
+        <View style={styles.attachmentsRow}>
+          {visible.map((att, idx) => {
+            const isDownloading = downloadingBlobId === att.blobId;
+            return (
+              <Pressable
+                key={att.blobId ?? idx}
+                style={({ pressed }) => [
+                  styles.attachmentChip,
+                  pressed && styles.attachmentChipPressed,
+                ]}
+                onPress={() => onPressAttachment(email, att.blobId, att.name, att.type)}
+                disabled={!!downloadingBlobId}
+              >
+                {isDownloading ? (
+                  <ActivityIndicator size="small" color={c.textMuted} />
+                ) : (
+                  <Paperclip size={14} color={c.textMuted} />
+                )}
+                <Text style={styles.attachmentName} numberOfLines={1}>
+                  {att.name || 'attachment'}
+                </Text>
+                <Text style={styles.attachmentSize}>{formatSize(att.size)}</Text>
+                <Download size={14} color={c.textMuted} />
+              </Pressable>
+            );
+          })}
+        </View>
+        {atts.length > 3 && (
+          <Pressable
+            onPress={() => setAttachmentsExpanded((v) => !v)}
+            style={({ pressed }) => [
+              styles.attachmentsToggle,
+              pressed && styles.attachmentsTogglePressed,
+            ]}
+            hitSlop={6}
+          >
+            <Text style={styles.attachmentsToggleText}>
+              {attachmentsExpanded ? 'Show less' : `Show all (${atts.length})`}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
+    >
+      {/* Subject block */}
+      <View style={styles.subjectBlock}>
+        <View style={styles.subjectRow}>
+          <View style={styles.subjectMain}>
+            <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.subjectStar}>
+              <Star
+                size={18}
+                color={starred ? c.starred : c.textMuted}
+                fill={starred ? c.starred : 'transparent'}
+              />
+            </Pressable>
+            <Text style={styles.subjectText}>{subject}</Text>
+          </View>
+          <View style={styles.subjectMeta}>
+            <Text style={styles.subjectDate}>{formatHeaderDate(email.receivedAt)}</Text>
+            {email.size > 0 && (
+              <Text style={styles.subjectSize}>{formatSize(email.size)}</Text>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* Sender info */}
+      <View style={styles.senderBlock}>
+        <View style={styles.senderRow}>
+          <SenderAvatar
+            name={from?.name}
+            email={from?.email}
+            size={componentSizes.avatarMd}
+          />
+          <View style={styles.senderInfo}>
+            <Text style={styles.senderName} numberOfLines={1}>
+              {from?.name || from?.email || 'Unknown sender'}
+            </Text>
+            {from?.name && from?.email ? (
+              <Text style={styles.senderEmail} numberOfLines={1}>{from.email}</Text>
+            ) : null}
+            <Text style={styles.senderRecipients} numberOfLines={1}>
+              <Text style={styles.senderRecipientsLabel}>to </Text>
+              {email.to?.map((t) => t.name || t.email).join(', ') || '-'}
+            </Text>
+          </View>
+        </View>
+        {attachmentPosition === 'beside-sender' && renderAttachments()}
+      </View>
+
+      {/* Attachments chips (full-width below header) */}
+      {attachmentPosition === 'below-header' && renderAttachments()}
+
+      {/* Calendar invitation (auto-detected .ics) */}
+      <CalendarInvitationBanner email={email} />
+
+      {/* Body */}
+      <View style={styles.bodyBlock}>
+        <EmailBodyView email={email} senderEmail={from?.email} />
+      </View>
+    </ScrollView>
   );
 }
 
@@ -1102,13 +1151,9 @@ function makeStyles(c: ThemePalette) {
     padding: spacing.lg,
   },
   errorText: { ...typography.body, color: c.error, textAlign: 'center' },
-  switchOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: c.background,
-  },
-  slidePane: { flex: 1, backgroundColor: c.background },
+  // Pager: a clipping viewport with a 3-screen-wide row of panes inside it.
+  pagerViewport: { flex: 1, overflow: 'hidden', backgroundColor: c.background },
+  pagerRow: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
   scroll: { flex: 1, backgroundColor: c.background },
 
   // Subject block
