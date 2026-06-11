@@ -79,7 +79,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const prevEmail = currentIndex > 0 ? emails[currentIndex - 1] : null;
   const nextEmail = currentIndex >= 0 && currentIndex < emails.length - 1 ? emails[currentIndex + 1] : null;
 
-  const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
@@ -112,6 +111,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // neighbours / dimensions without being recreated every render.
   const drag = React.useRef(new Animated.Value(0)).current;
   const animatingRef = React.useRef(false);
+  const pendingRecentreRef = React.useRef(false);
   const prevEmailRef = React.useRef(prevEmail);
   const nextEmailRef = React.useRef(nextEmail);
   const windowWidthRef = React.useRef(windowWidth);
@@ -140,16 +140,26 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       toValue: out, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true,
     }).start(({ finished }) => {
       if (!finished) { animatingRef.current = false; return; }
-      // Re-point at the neighbour and recentre in one go. The pane that just
-      // slid to centre keeps its mounted WebView (it becomes the new middle
-      // pane, keyed by id), so there is nothing to reload or flash.
+      // Re-point at the neighbour; the drag reset happens in the layout effect
+      // below, in the same commit that re-keys the panes. Resetting here would
+      // recentre the row while the *old* arrangement is still on screen,
+      // flashing the previous email for a frame until React catches up.
+      pendingRecentreRef.current = true;
       setActiveEmailId(target.id);
-      drag.setValue(0);
-      animatingRef.current = false;
     });
   }, [drag, detailCache, getEmailDetail, jmapAccountId, bumpCache]);
   const switchEmailRef = React.useRef(switchEmail);
   switchEmailRef.current = switchEmail;
+
+  // Recentre the row in the same commit that re-pointed the panes: the pane
+  // that slid to centre is now the middle pane (same key, same mounted
+  // WebView), so snapping the translation back to 0 is invisible.
+  React.useLayoutEffect(() => {
+    if (!pendingRecentreRef.current) return;
+    pendingRecentreRef.current = false;
+    drag.setValue(0);
+    animatingRef.current = false;
+  }, [activeEmailId, drag]);
 
   const panResponder = React.useRef(
     PanResponder.create({
@@ -230,16 +240,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     let cancelled = false;
     let readTimer: ReturnType<typeof setTimeout> | null = null;
     // If we already have this message cached (e.g. it was prefetched as a
-    // neighbour), show it immediately — no spinner — and refresh in the
-    // background. Otherwise fall back to the loading state.
-    const cached = detailCache.get(activeEmailId);
-    if (cached) {
-      setLoading(false);
-      setError(null);
-    } else {
-      setLoading(true);
-      setError(null);
-    }
+    // neighbour) it renders immediately; otherwise the pane shows a skeleton
+    // until the fetch below lands. Either way, refresh in the background.
+    setError(null);
     void (async () => {
       try {
         const fetched = await getEmailDetail(activeEmailId, jmapAccountId);
@@ -261,8 +264,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         if (!cancelled && !detailCache.has(activeEmailId)) {
           setError(e instanceof Error ? e.message : 'Failed to load email');
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -542,15 +543,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {loading && !email ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={c.primary} />
-        </View>
-      ) : error && !email ? (
+      {error && !email ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
-      ) : email ? (
+      ) : (
         <>
           {/* Three-pane pager: [prev | current | next] live side by side in a
               row shifted left by one screen, so a horizontal drag slides the
@@ -611,7 +608,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             />
           </View>
         </>
-      ) : null}
+      )}
 
       <MoreMenuSheet
         visible={moreMenuOpen}
@@ -693,14 +690,11 @@ function EmailPane({
 }: EmailPaneProps) {
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
 
-  // A neighbour whose detail hasn't been prefetched yet. Brief and uncommon
-  // (the prefetch effect usually beats the swipe), so a spinner is fine.
+  // Detail not fetched yet (initial open, or a neighbour the prefetch hasn't
+  // caught up with). Show a skeleton of the pane layout instead of a spinner
+  // so the transition into real content doesn't jump.
   if (!email) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={c.primary} />
-      </View>
-    );
+    return <EmailPaneSkeleton styles={styles} />;
   }
 
   const from = email.from?.[0];
@@ -827,6 +821,49 @@ function EmailPane({
         <EmailBodyView email={email} senderEmail={from?.email} />
       </View>
     </ScrollView>
+  );
+}
+
+// Placeholder mimicking the pane layout (subject, sender, body lines) shown
+// while a message's detail is loading. One pulsing opacity over static bones
+// keeps it cheap enough to also sit in the off-screen neighbour panes.
+function EmailPaneSkeleton({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+  const pulse = React.useRef(new Animated.Value(0.55)).current;
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.55, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const bodyLineWidths = ['92%', '100%', '85%', '96%', '60%', '88%', '74%', '40%'] as const;
+
+  return (
+    <Animated.View style={[styles.scroll, { opacity: pulse }]}>
+      <View style={styles.subjectBlock}>
+        <View style={[styles.skeletonBone, { height: 20, width: '78%' }]} />
+        <View style={[styles.skeletonBone, { height: 12, width: '36%', marginTop: spacing.sm }]} />
+      </View>
+      <View style={styles.senderBlock}>
+        <View style={styles.senderRow}>
+          <View style={styles.skeletonAvatar} />
+          <View style={styles.senderInfo}>
+            <View style={[styles.skeletonBone, { height: 14, width: '55%' }]} />
+            <View style={[styles.skeletonBone, { height: 11, width: '70%', marginTop: 6 }]} />
+            <View style={[styles.skeletonBone, { height: 11, width: '45%', marginTop: 6 }]} />
+          </View>
+        </View>
+      </View>
+      <View style={styles.skeletonBody}>
+        {bodyLineWidths.map((w, i) => (
+          <View key={i} style={[styles.skeletonBone, { height: 12, width: w }]} />
+        ))}
+      </View>
+    </Animated.View>
   );
 }
 
@@ -1286,6 +1323,23 @@ function makeStyles(c: ThemePalette) {
   // Body
   bodyBlock: {
     backgroundColor: c.background,
+  },
+
+  // Loading skeleton
+  skeletonBone: {
+    backgroundColor: c.surfaceHover,
+    borderRadius: radius.xs,
+  },
+  skeletonAvatar: {
+    width: componentSizes.avatarMd,
+    height: componentSizes.avatarMd,
+    borderRadius: radius.full,
+    backgroundColor: c.surfaceHover,
+  },
+  skeletonBody: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
   },
 
   // Bottom bar
