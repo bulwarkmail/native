@@ -36,8 +36,13 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
 
 function formatHeaderDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return d.toLocaleDateString(undefined, {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+  });
+}
+
+function formatHeaderTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
     hour: '2-digit', minute: '2-digit',
   });
 }
@@ -722,22 +727,14 @@ function EmailPane({
       {/* Subject block */}
       <View style={styles.subjectBlock}>
         <View style={styles.subjectRow}>
-          <View style={styles.subjectMain}>
-            <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.subjectStar}>
-              <Star
-                size={18}
-                color={starred ? c.starred : c.textMuted}
-                fill={starred ? c.starred : 'transparent'}
-              />
-            </Pressable>
-            <Text style={styles.subjectText}>{subject}</Text>
-          </View>
-          <View style={styles.subjectMeta}>
-            <Text style={styles.subjectDate}>{formatHeaderDate(email.receivedAt)}</Text>
-            {email.size > 0 && (
-              <Text style={styles.subjectSize}>{formatSize(email.size)}</Text>
-            )}
-          </View>
+          <Text style={styles.subjectText}>{subject}</Text>
+          <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.subjectStar}>
+            <Star
+              size={18}
+              color={starred ? c.starred : c.textMuted}
+              fill={starred ? c.starred : 'transparent'}
+            />
+          </Pressable>
         </View>
       </View>
 
@@ -759,6 +756,13 @@ function EmailPane({
             <Text style={styles.senderRecipients} numberOfLines={1}>
               <Text style={styles.senderRecipientsLabel}>to </Text>
               {email.to?.map((t) => t.name || t.email).join(', ') || '-'}
+            </Text>
+          </View>
+          <View style={styles.senderMeta}>
+            <Text style={styles.senderDate}>{formatHeaderDate(email.receivedAt)}</Text>
+            <Text style={styles.senderTime}>
+              {formatHeaderTime(email.receivedAt)}
+              {email.size > 0 ? ` · ${formatSize(email.size)}` : ''}
             </Text>
           </View>
         </View>
@@ -800,8 +804,7 @@ function EmailPaneSkeleton({ styles }: { styles: ReturnType<typeof makeStyles> }
   return (
     <Animated.View style={[styles.scroll, { opacity: pulse }]}>
       <View style={styles.subjectBlock}>
-        <View style={[styles.skeletonBone, { height: 20, width: '78%' }]} />
-        <View style={[styles.skeletonBone, { height: 12, width: '36%', marginTop: spacing.sm }]} />
+        <View style={[styles.skeletonBone, { height: 20, width: '88%' }]} />
       </View>
       <View style={styles.senderBlock}>
         <View style={styles.senderRow}>
@@ -810,6 +813,10 @@ function EmailPaneSkeleton({ styles }: { styles: ReturnType<typeof makeStyles> }
             <View style={[styles.skeletonBone, { height: 14, width: '55%' }]} />
             <View style={[styles.skeletonBone, { height: 11, width: '70%', marginTop: 6 }]} />
             <View style={[styles.skeletonBone, { height: 11, width: '45%', marginTop: 6 }]} />
+          </View>
+          <View style={styles.senderMeta}>
+            <View style={[styles.skeletonBone, { height: 11, width: 86 }]} />
+            <View style={[styles.skeletonBone, { height: 11, width: 64, marginTop: 6 }]} />
           </View>
         </View>
       </View>
@@ -1160,12 +1167,6 @@ function makeStyles(c: ThemePalette) {
     alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  subjectMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-  },
   subjectStar: {
     paddingTop: 4,
   },
@@ -1176,18 +1177,6 @@ function makeStyles(c: ThemePalette) {
     lineHeight: 28,
     color: c.text,
     letterSpacing: -0.2,
-  },
-  subjectMeta: {
-    alignItems: 'flex-end',
-  },
-  subjectDate: {
-    ...typography.caption,
-    color: c.textSecondary,
-  },
-  subjectSize: {
-    ...typography.caption,
-    color: c.textMuted,
-    marginTop: 2,
   },
 
   // Sender block
@@ -1220,6 +1209,19 @@ function makeStyles(c: ThemePalette) {
   },
   senderRecipientsLabel: {
     color: c.textMuted,
+  },
+  senderMeta: {
+    alignItems: 'flex-end',
+    paddingTop: 1,
+  },
+  senderDate: {
+    ...typography.caption,
+    color: c.textSecondary,
+  },
+  senderTime: {
+    ...typography.caption,
+    color: c.textMuted,
+    marginTop: 2,
   },
 
   // Attachments
