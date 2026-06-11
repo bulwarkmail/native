@@ -27,6 +27,10 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 interface EmailBodyViewProps {
   email: Email;
   senderEmail?: string;
+  // The body is a native WebView, which on Android swallows horizontal touches
+  // before the surrounding pager can see them. We detect a clear horizontal
+  // swipe inside the page and report it here so the pager can change messages.
+  onSwipe?: (direction: 'prev' | 'next') => void;
 }
 
 function extractHtmlBody(email: Email): string | null {
@@ -274,7 +278,37 @@ const HEIGHT_REPORTER = `
 })();
 `;
 
-export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps) {
+// Detect a clear horizontal flick inside the WebView and report it. Uses
+// capture-phase, passive listeners so it never blocks vertical scrolling, text
+// selection, or link taps — it only reacts to a quick, horizontal-dominant
+// gesture on release. Guarded so re-injection (onLoadEnd) is a no-op.
+const SWIPE_DETECTOR = `
+(function () {
+  if (window.__rnSwipeInit) return;
+  window.__rnSwipeInit = true;
+  var x0 = 0, y0 = 0, t0 = 0, tracking = false;
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) { tracking = false; return; }
+    var t = e.touches[0];
+    x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); tracking = true;
+  }, { passive: true, capture: true });
+  document.addEventListener('touchend', function (e) {
+    if (!tracking) return;
+    tracking = false;
+    var t = e.changedTouches[0];
+    if (!t) return;
+    var dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
+    if (dt < 700 && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'swipe', dir: dx < 0 ? 'next' : 'prev' }));
+      }
+    }
+  }, { passive: true, capture: true });
+  true;
+})();
+`;
+
+export default function EmailBodyView({ email, senderEmail, onSwipe }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
@@ -423,12 +457,25 @@ export default function EmailBodyView({ email, senderEmail }: EmailBodyViewProps
   const applyInversion =
     !!rawHtml && renderAsDark && !hasNativeDarkMode(rawHtml);
   const injectedJs = React.useMemo(
-    () => (applyInversion ? DARK_REINVERT_SCRIPT + HEIGHT_REPORTER : HEIGHT_REPORTER),
+    () =>
+      (applyInversion ? DARK_REINVERT_SCRIPT + HEIGHT_REPORTER : HEIGHT_REPORTER)
+      + SWIPE_DETECTOR,
     [applyInversion],
   );
 
   const onMessage = (e: WebViewMessageEvent) => {
-    const parsed = parseInt(e.nativeEvent.data, 10);
+    const data = e.nativeEvent.data;
+    // Swipe messages arrive as JSON; the height reporter posts a bare number.
+    if (data.charCodeAt(0) === 123 /* '{' */) {
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === 'swipe' && (msg.dir === 'prev' || msg.dir === 'next')) {
+          onSwipe?.(msg.dir);
+        }
+      } catch { /* ignore malformed */ }
+      return;
+    }
+    const parsed = parseInt(data, 10);
     if (Number.isNaN(parsed) || parsed <= 0) return;
     setHeight((prev) => (Math.abs(parsed - prev) < 2 ? prev : parsed));
   };

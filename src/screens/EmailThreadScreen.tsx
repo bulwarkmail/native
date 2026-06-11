@@ -1,8 +1,9 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
-  Modal, useWindowDimensions, Animated, Easing, Alert, PanResponder,
+  Modal, useWindowDimensions, Animated, Easing, Alert, FlatList,
 } from 'react-native';
+import type { NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -99,103 +100,57 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     [activeEmailId, cacheVersion, detailCache],
   );
 
-  // --- Swipe / slide navigation between adjacent emails -------------------
-  // A three-pane pager: [prev | current | next] are laid out in a single row of
-  // width 3×screen and kept mounted side by side. `drag` translates the whole
-  // row so the neighbour's real content follows the finger — no blank gap and
-  // no late content-swap. At rest the row is shifted left by one screen so the
-  // middle (current) pane sits on screen. After a settled swipe we re-point
-  // `activeEmailId` at the neighbour and reset `drag` to 0 in the same commit;
-  // because the landed pane already shows that exact message, the recentre is
-  // seamless. Refs keep the (memoised once) PanResponder reading the latest
-  // neighbours / dimensions without being recreated every render.
-  const drag = React.useRef(new Animated.Value(0)).current;
-  const animatingRef = React.useRef(false);
-  const pendingRecentreRef = React.useRef(false);
-  const prevEmailRef = React.useRef(prevEmail);
-  const nextEmailRef = React.useRef(nextEmail);
-  const windowWidthRef = React.useRef(windowWidth);
-  prevEmailRef.current = prevEmail;
-  nextEmailRef.current = nextEmail;
-  windowWidthRef.current = windowWidth;
+  // --- Pager -------------------------------------------------------------
+  // The pager is a horizontal, page-snapping FlatList over the mailbox's
+  // `emails`. Native scroll provides the swipe + snap (and plays nicely with
+  // each pane's vertical body scroll); Prev/Next scroll programmatically. When
+  // scrolling settles, the centred page's id becomes `activeEmailId`, which is
+  // what the toolbar and action handlers operate on.
+  const listRef = React.useRef<FlatList<Email>>(null);
+  // The page to open on mount — the entry point arrives as a route param, so
+  // capture its index once.
+  const initialIndexRef = React.useRef(
+    Math.max(0, emails.findIndex((e) => e.id === route.params.emailId)),
+  );
 
-  const switchEmail = React.useCallback((direction: 'prev' | 'next') => {
-    const target = direction === 'next' ? nextEmailRef.current : prevEmailRef.current;
-    if (!target || animatingRef.current) return;
-    animatingRef.current = true;
-    const w = windowWidthRef.current;
-    // Bring the neighbour pane to centre: next sits to the right (slide row
-    // left → -w), prev sits to the left (slide row right → +w).
-    const out = direction === 'next' ? -w : w;
+  // Coalesced detail fetch: stores the result in the shared cache and bumps the
+  // version so every mounted pane (and the toolbar) re-reads it. Concurrent
+  // calls for the same id share a single in-flight request.
+  const inFlight = React.useRef(new Map<string, Promise<Email | null>>()).current;
+  const ensureDetail = React.useCallback((id: string): Promise<Email | null> => {
+    const pending = inFlight.get(id);
+    if (pending) return pending;
+    const p = getEmailDetail(id, jmapAccountId)
+      .then((fetched) => { detailCache.set(id, fetched); bumpCache(); return fetched; })
+      .catch(() => detailCache.get(id) ?? null)
+      .finally(() => { inFlight.delete(id); });
+    inFlight.set(id, p);
+    return p;
+  }, [getEmailDetail, jmapAccountId, detailCache, bumpCache, inFlight]);
 
-    // Best-effort: ensure the target detail is cached so the recentred pane has
-    // content. Neighbours are normally prefetched, so this is usually a no-op.
-    if (!detailCache.has(target.id)) {
-      getEmailDetail(target.id, jmapAccountId)
-        .then((e) => { detailCache.set(target.id, e); bumpCache(); })
-        .catch(() => { /* the load effect will retry once it becomes active */ });
-    }
+  // Slide to a page by index and reflect it in the toolbar immediately; a swipe
+  // that settles on the same page confirms the same id via onMomentumEnd.
+  const goToIndex = React.useCallback((index: number) => {
+    if (index < 0 || index >= emails.length) return;
+    listRef.current?.scrollToOffset({ offset: index * windowWidth, animated: true });
+    const target = emails[index];
+    if (target) setActiveEmailId(target.id);
+  }, [emails, windowWidth]);
 
-    Animated.timing(drag, {
-      toValue: out, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) { animatingRef.current = false; return; }
-      // Re-point at the neighbour; the drag reset happens in the layout effect
-      // below, in the same commit that re-keys the panes. Resetting here would
-      // recentre the row while the *old* arrangement is still on screen,
-      // flashing the previous email for a frame until React catches up.
-      pendingRecentreRef.current = true;
-      setActiveEmailId(target.id);
-    });
-  }, [drag, detailCache, getEmailDetail, jmapAccountId, bumpCache]);
-  const switchEmailRef = React.useRef(switchEmail);
-  switchEmailRef.current = switchEmail;
+  // Adopt the centred page as the active message once a swipe settles.
+  const onMomentumEnd = React.useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
+    const target = emails[index];
+    if (target && target.id !== activeEmailId) setActiveEmailId(target.id);
+  }, [emails, windowWidth, activeEmailId]);
 
-  // Recentre the row in the same commit that re-pointed the panes: the pane
-  // that slid to centre is now the middle pane (same key, same mounted
-  // WebView), so snapping the translation back to 0 is invisible.
+  // Page offsets are in window-width units, so a rotation / resize invalidates
+  // the scroll position — re-centre the active page after the width changes.
   React.useLayoutEffect(() => {
-    if (!pendingRecentreRef.current) return;
-    pendingRecentreRef.current = false;
-    drag.setValue(0);
-    animatingRef.current = false;
-  }, [activeEmailId, drag]);
-
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => {
-        if (animatingRef.current) return false;
-        if (Math.abs(g.dx) < 10) return false;
-        // Only claim clearly-horizontal drags so the body's vertical scroll
-        // (and link taps) keep working.
-        return Math.abs(g.dx) > Math.abs(g.dy) * 1.5;
-      },
-      onPanResponderMove: (_, g) => {
-        let dx = g.dx;
-        // Rubber-band when there's no neighbour to reach in that direction.
-        if ((dx > 0 && !prevEmailRef.current) || (dx < 0 && !nextEmailRef.current)) {
-          dx *= 0.25;
-        }
-        drag.setValue(dx);
-      },
-      onPanResponderRelease: (_, g) => {
-        const w = windowWidthRef.current;
-        const threshold = Math.min(w * 0.28, 120);
-        const fast = Math.abs(g.vx) > 0.5;
-        if ((g.dx <= -threshold || (fast && g.vx < 0)) && nextEmailRef.current) {
-          switchEmailRef.current('next');
-        } else if ((g.dx >= threshold || (fast && g.vx > 0)) && prevEmailRef.current) {
-          switchEmailRef.current('prev');
-        } else {
-          Animated.spring(drag, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(drag, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
-      },
-      onPanResponderTerminationRequest: () => true,
-    }),
-  ).current;
+    const index = emails.findIndex((e) => e.id === activeEmailId);
+    if (index >= 0) listRef.current?.scrollToOffset({ offset: index * windowWidth, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowWidth]);
 
   const mailAttachmentAction = useSettingsStore((s) => s.mailAttachmentAction);
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
@@ -239,30 +194,26 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   React.useEffect(() => {
     let cancelled = false;
     let readTimer: ReturnType<typeof setTimeout> | null = null;
-    // If we already have this message cached (e.g. it was prefetched as a
-    // neighbour) it renders immediately; otherwise the pane shows a skeleton
-    // until the fetch below lands. Either way, refresh in the background.
+    // Refresh the active message — a cached copy (the pane may have fetched it,
+    // or it was visited before) renders immediately while this lands. Then mark
+    // it read per the user's delay. The pane itself fetches its own detail, so
+    // ensureDetail here usually rides the same in-flight request.
     setError(null);
     void (async () => {
-      try {
-        const fetched = await getEmailDetail(activeEmailId, jmapAccountId);
-        if (cancelled) return;
-        detailCache.set(activeEmailId, fetched);
-        bumpCache();
-        if (fetched && !fetched.keywords?.$seen) {
-          if (markAsReadDelay > 0) {
-            readTimer = setTimeout(() => {
-              if (!cancelled) void markRead(activeEmailId, jmapAccountId);
-            }, markAsReadDelay);
-          } else {
-            void markRead(activeEmailId, jmapAccountId);
-          }
-        }
-      } catch (e) {
-        // Only surface the error if we have nothing to show; a cached copy is
-        // better than an error screen when the refresh fails.
-        if (!cancelled && !detailCache.has(activeEmailId)) {
-          setError(e instanceof Error ? e.message : 'Failed to load email');
+      const fetched = await ensureDetail(activeEmailId);
+      if (cancelled) return;
+      if (!fetched) {
+        // Only surface an error if there's nothing cached to show.
+        if (!detailCache.has(activeEmailId)) setError('Failed to load email');
+        return;
+      }
+      if (!fetched.keywords?.$seen) {
+        if (markAsReadDelay > 0) {
+          readTimer = setTimeout(() => {
+            if (!cancelled) void markRead(activeEmailId, jmapAccountId);
+          }, markAsReadDelay);
+        } else {
+          void markRead(activeEmailId, jmapAccountId);
         }
       }
     })();
@@ -270,20 +221,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       cancelled = true;
       if (readTimer) clearTimeout(readTimer);
     };
-  }, [activeEmailId, jmapAccountId, getEmailDetail, markRead, markAsReadDelay, detailCache, bumpCache]);
-
-  // Prefetch the adjacent messages so their pane is already populated when the
-  // pager slides it into view. Best-effort and silent; bump the cache version
-  // on arrival so the off-screen neighbour pane renders its content.
-  React.useEffect(() => {
-    for (const neighbour of [prevEmail, nextEmail]) {
-      if (neighbour && !detailCache.has(neighbour.id)) {
-        getEmailDetail(neighbour.id, jmapAccountId)
-          .then((e) => { detailCache.set(neighbour.id, e); bumpCache(); })
-          .catch(() => { /* ignore — prefetch is best-effort */ });
-      }
-    }
-  }, [prevEmail, nextEmail, getEmailDetail, jmapAccountId, detailCache, bumpCache]);
+  }, [activeEmailId, ensureDetail, markRead, markAsReadDelay, jmapAccountId, detailCache]);
 
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
@@ -549,43 +487,51 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         </View>
       ) : (
         <>
-          {/* Three-pane pager: [prev | current | next] live side by side in a
-              row shifted left by one screen, so a horizontal drag slides the
-              neighbour's already-rendered content into view with no gap. */}
-          <View style={styles.pagerViewport}>
-            <Animated.View
-              style={[
-                styles.pagerRow,
-                { width: windowWidth * 3, left: -windowWidth, transform: [{ translateX: drag }] },
-              ]}
-              {...panResponder.panHandlers}
-            >
-              {[prevEmail?.id ?? null, activeEmailId, nextEmail?.id ?? null].map((id, i) => (
-                <View key={id ?? `empty-${i}`} style={{ width: windowWidth }}>
-                  {id ? (
-                    <EmailPane
-                      email={detailCache.get(id) ?? null}
-                      c={c}
-                      styles={styles}
-                      bottomBarHeight={bottomBarHeight}
-                      attachmentPosition={attachmentPosition}
-                      hideInlineImageAttachments={hideInlineImageAttachments}
-                      downloadingBlobId={downloadingBlobId}
-                      onToggleStar={toggleStarFor}
-                      onPressAttachment={onPressAttachment}
-                    />
-                  ) : null}
-                </View>
-              ))}
-            </Animated.View>
-          </View>
+          {/* Pager: a horizontal page-snapping list over the mailbox. Each
+              page is the full-width pane for one message; native scroll slides
+              between them and onMomentumEnd reports the settled page. */}
+          <FlatList
+            ref={listRef}
+            style={styles.pagerViewport}
+            data={emails}
+            extraData={cacheVersion}
+            keyExtractor={(item) => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={initialIndexRef.current}
+            getItemLayout={(_, index) => ({ length: windowWidth, offset: windowWidth * index, index })}
+            windowSize={3}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            removeClippedSubviews
+            onMomentumScrollEnd={onMomentumEnd}
+            renderItem={({ item, index }) => (
+              <View style={{ width: windowWidth }}>
+                <EmailPane
+                  id={item.id}
+                  email={detailCache.get(item.id) ?? null}
+                  ensureDetail={ensureDetail}
+                  c={c}
+                  styles={styles}
+                  bottomBarHeight={bottomBarHeight}
+                  attachmentPosition={attachmentPosition}
+                  hideInlineImageAttachments={hideInlineImageAttachments}
+                  downloadingBlobId={downloadingBlobId}
+                  onToggleStar={toggleStarFor}
+                  onPressAttachment={onPressAttachment}
+                  onSwipe={(dir) => goToIndex(dir === 'next' ? index + 1 : index - 1)}
+                />
+              </View>
+            )}
+          />
 
           {/* Bottom action bar */}
           <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4) }]}>
             <BottomBarButton
               icon={<ChevronLeft size={20} color={c.textMuted} />}
               label="Prev"
-              onPress={prevEmail ? () => switchEmail('prev') : undefined}
+              onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
               disabled={!prevEmail}
             />
             {bottomActions.map((id) => {
@@ -603,7 +549,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             <BottomBarButton
               icon={<ChevronRight size={20} color={c.textMuted} />}
               label="Next"
-              onPress={nextEmail ? () => switchEmail('next') : undefined}
+              onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
               disabled={!nextEmail}
             />
           </View>
@@ -668,7 +614,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 }
 
 interface EmailPaneProps {
+  id: string;
   email: Email | null;
+  ensureDetail: (id: string) => Promise<Email | null>;
   c: ThemePalette;
   styles: ReturnType<typeof makeStyles>;
   bottomBarHeight: number;
@@ -677,6 +625,7 @@ interface EmailPaneProps {
   downloadingBlobId: string | null;
   onToggleStar: (email: Email) => void;
   onPressAttachment: (email: Email, blobId: string, name: string | undefined, type: string | undefined) => void;
+  onSwipe: (direction: 'prev' | 'next') => void;
 }
 
 // One swipeable page: the scrollable subject / sender / attachments / body for a
@@ -685,14 +634,20 @@ interface EmailPaneProps {
 // scroll position and "show all attachments" toggle, and renders directly from
 // the email passed to it — neighbours show real content, not a placeholder.
 function EmailPane({
-  email, c, styles, bottomBarHeight, attachmentPosition,
-  hideInlineImageAttachments, downloadingBlobId, onToggleStar, onPressAttachment,
+  id, email, ensureDetail, c, styles, bottomBarHeight, attachmentPosition,
+  hideInlineImageAttachments, downloadingBlobId, onToggleStar, onPressAttachment, onSwipe,
 }: EmailPaneProps) {
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
 
-  // Detail not fetched yet (initial open, or a neighbour the prefetch hasn't
-  // caught up with). Show a skeleton of the pane layout instead of a spinner
-  // so the transition into real content doesn't jump.
+  // Each pane owns loading its own message: when the list mounts this page and
+  // its detail isn't cached yet, fetch it (coalesced upstream). The shared
+  // cache then re-renders the pane with real content.
+  React.useEffect(() => {
+    if (!email) void ensureDetail(id);
+  }, [id, email, ensureDetail]);
+
+  // Detail not fetched yet. Show a skeleton of the pane layout instead of a
+  // spinner so the transition into real content doesn't jump.
   if (!email) {
     return <EmailPaneSkeleton styles={styles} />;
   }
@@ -818,7 +773,7 @@ function EmailPane({
 
       {/* Body */}
       <View style={styles.bodyBlock}>
-        <EmailBodyView email={email} senderEmail={from?.email} />
+        <EmailBodyView email={email} senderEmail={from?.email} onSwipe={onSwipe} />
       </View>
     </ScrollView>
   );
@@ -1188,9 +1143,8 @@ function makeStyles(c: ThemePalette) {
     padding: spacing.lg,
   },
   errorText: { ...typography.body, color: c.error, textAlign: 'center' },
-  // Pager: a clipping viewport with a 3-screen-wide row of panes inside it.
-  pagerViewport: { flex: 1, overflow: 'hidden', backgroundColor: c.background },
-  pagerRow: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
+  // Pager: the horizontal page-snapping list fills the area between the bars.
+  pagerViewport: { flex: 1, backgroundColor: c.background },
   scroll: { flex: 1, backgroundColor: c.background },
 
   // Subject block
