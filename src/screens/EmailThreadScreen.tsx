@@ -157,6 +157,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowWidth]);
 
+  // While the body is pinch-zoomed (or a pinch is in flight) horizontal
+  // gestures pan the zoomed content, so the pager must not treat them as page
+  // swipes. Prev/Next stay usable: programmatic scrollToOffset ignores
+  // scrollEnabled. Reset when the active message changes — the zoomed pane's
+  // WebView can unmount without reporting back.
+  const [pagerLocked, setPagerLocked] = React.useState(false);
+  React.useEffect(() => { setPagerLocked(false); }, [activeEmailId]);
+
   const mailAttachmentAction = useSettingsStore((s) => s.mailAttachmentAction);
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
   const markAsReadDelay = useSettingsStore((s) => s.markAsReadDelay);
@@ -510,6 +518,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             initialNumToRender={1}
             maxToRenderPerBatch={2}
             removeClippedSubviews
+            scrollEnabled={!pagerLocked}
             onMomentumScrollEnd={onMomentumEnd}
             renderItem={({ item, index }) => (
               <View style={{ width: windowWidth }}>
@@ -526,6 +535,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   onToggleStar={toggleStarFor}
                   onPressAttachment={onPressAttachment}
                   onSwipe={(dir) => goToIndex(dir === 'next' ? index + 1 : index - 1)}
+                  onZoomChange={(z) => setPagerLocked(z.pinching || z.zoomed)}
                 />
               </View>
             )}
@@ -631,6 +641,7 @@ interface EmailPaneProps {
   onToggleStar: (email: Email) => void;
   onPressAttachment: (email: Email, blobId: string, name: string | undefined, type: string | undefined) => void;
   onSwipe: (direction: 'prev' | 'next') => void;
+  onZoomChange: (zoom: { pinching: boolean; zoomed: boolean }) => void;
 }
 
 // One swipeable page: the scrollable subject / sender / attachments / body for a
@@ -641,8 +652,13 @@ interface EmailPaneProps {
 function EmailPane({
   id, email, ensureDetail, c, styles, bottomBarHeight, attachmentPosition,
   hideInlineImageAttachments, downloadingBlobId, onToggleStar, onPressAttachment, onSwipe,
+  onZoomChange,
 }: EmailPaneProps) {
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
+  // Freeze the pane's vertical scroll while a pinch is in flight so a two-
+  // finger zoom can't fling the page; while merely zoomed, vertical scrolling
+  // stays on — it is how the user pans the (taller) zoomed content vertically.
+  const [pinching, setPinching] = React.useState(false);
 
   // Each pane owns loading its own message: when the list mounts this page and
   // its detail isn't cached yet, fetch it (coalesced upstream). The shared
@@ -723,6 +739,7 @@ function EmailPane({
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
+      scrollEnabled={!pinching}
     >
       {/* Subject block */}
       <View style={styles.subjectBlock}>
@@ -777,7 +794,12 @@ function EmailPane({
 
       {/* Body */}
       <View style={styles.bodyBlock}>
-        <EmailBodyView email={email} senderEmail={from?.email} onSwipe={onSwipe} />
+        <EmailBodyView
+          email={email}
+          senderEmail={from?.email}
+          onSwipe={onSwipe}
+          onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
+        />
       </View>
     </ScrollView>
   );

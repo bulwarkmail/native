@@ -31,6 +31,11 @@ interface EmailBodyViewProps {
   // before the surrounding pager can see them. We detect a clear horizontal
   // swipe inside the page and report it here so the pager can change messages.
   onSwipe?: (direction: 'prev' | 'next') => void;
+  // Pinch-zoom state from inside the page: `pinching` while two fingers are
+  // down, `zoomed` while the content is scaled in. The hosts use it to freeze
+  // the surrounding vertical scroll / horizontal pager so a zoom gesture can't
+  // scroll the pane away or switch mails.
+  onZoomChange?: (zoom: { pinching: boolean; zoomed: boolean }) => void;
 }
 
 function extractHtmlBody(email: Email): string | null {
@@ -181,6 +186,30 @@ const HEIGHT_REPORTER = `
     var padR = parseFloat(cs.paddingRight) || 0;
     return b.clientWidth - padL - padR;
   }
+  // Shared zoom state, mutated by the pinch-zoom handler injected after this
+  // script. "fit" is the shrink-to-fit scale, "scale" the user's pinch factor
+  // on top of it, "tx" pans the zoomed overflow into view horizontally.
+  // Vertical panning needs no state here: the height reports below carry the
+  // scaled height, so the surrounding native ScrollView grows and scrolls.
+  var Z = window.__rnZoom = window.__rnZoom || {
+    scale: 1, tx: 0, pinching: false, fit: 1, layoutW: 0, avail: 0,
+  };
+  // Apply the combined fit × pinch transform using the cached layout numbers
+  // (cheap — no reflow), clamping the pan so content edges pin to the viewport.
+  function applyTransform(w) {
+    var s = Z.fit * Z.scale;
+    if (Z.scale > 1.001 || Z.fit < 0.999) {
+      var minTx = Math.min(0, Z.avail - Z.layoutW * s);
+      if (Z.tx < minTx) Z.tx = minTx;
+      if (Z.tx > 0) Z.tx = 0;
+      w.style.width = Z.layoutW + 'px';
+      w.style.transform = 'translateX(' + Z.tx + 'px) scale(' + s + ')';
+    } else {
+      Z.tx = 0;
+      w.style.width = '100%';
+      w.style.transform = 'none';
+    }
+  }
   // Shrink-to-fit: emails authored at a fixed width (e.g. 600px tables) overflow
   // a phone viewport and force horizontal scrolling. Lay the content out at its
   // natural width, then scale the whole block down so its widest element fits
@@ -193,18 +222,18 @@ const HEIGHT_REPORTER = `
     // (the widest unbreakable element) rather than a previously-scaled box.
     w.style.width = '100%';
     var content = w.scrollWidth;
-    if (content > avail + 1) {
-      var scale = avail / content;
-      w.style.width = content + 'px';
-      w.style.transform = 'scale(' + scale + ')';
-    } else {
-      w.style.transform = 'none';
-    }
+    Z.avail = avail;
+    Z.layoutW = content > avail + 1 ? content : avail;
+    Z.fit = avail / Z.layoutW;
+    applyTransform(w);
   }
   function measure() {
     var w = ensureWrapper();
     if (!w) return 0;
-    fitToWidth(w);
+    // While a pinch is in flight only re-apply the transform — a full re-fit
+    // resets the wrapper width and would thrash layout on every frame.
+    if (Z.pinching) applyTransform(w);
+    else fitToWidth(w);
     // getBoundingClientRect reflects the applied transform, so r.height is the
     // already-scaled visual height of the content.
     var r = w.getBoundingClientRect();
@@ -274,6 +303,9 @@ const HEIGHT_REPORTER = `
       img.addEventListener('error', report);
     });
   } catch (e) {}
+  // Hooks for the pinch-zoom handler script.
+  window.__rnApplyZoom = function () { var w = ensureWrapper(); if (w) applyTransform(w); };
+  window.__rnReport = report;
   true;
 })();
 `;
@@ -295,6 +327,9 @@ const SWIPE_DETECTOR = `
   document.addEventListener('touchend', function (e) {
     if (!tracking) return;
     tracking = false;
+    // While the content is pinch-zoomed, horizontal flicks pan the zoomed
+    // content — never switch mails.
+    if (window.__rnZoom && (window.__rnZoom.pinching || window.__rnZoom.scale > 1.001)) return;
     var t = e.changedTouches[0];
     if (!t) return;
     var dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
@@ -308,7 +343,121 @@ const SWIPE_DETECTOR = `
 })();
 `;
 
-export default function EmailBodyView({ email, senderEmail, onSwipe }: EmailBodyViewProps) {
+// Pinch zoom + pan for the email content, driven entirely in the page: native
+// WebView zoom can't work here because the WebView is auto-height inside a
+// native ScrollView (viewport meta pins it to scale 1). A two-finger pinch
+// scales the measured wrapper (on top of the shrink-to-fit scale the height
+// reporter maintains) anchored at the fingers' horizontal midpoint; while
+// zoomed, one-finger horizontal drags pan via translateX and vertical drags
+// still scroll the surrounding ScrollView, which sees the scaled height
+// through the regular height reports. Pinch moves call preventDefault so the
+// engine consumes the gesture and Android parents don't intercept it; `zoom`
+// messages let the RN side freeze the pane scroll / pager as a second guard.
+const PINCH_ZOOM = `
+(function () {
+  if (window.__rnPinchInit) return;
+  window.__rnPinchInit = true;
+  var Z = window.__rnZoom = window.__rnZoom || {
+    scale: 1, tx: 0, pinching: false, fit: 1, layoutW: 0, avail: 0,
+  };
+  var MAX_ZOOM = 4;
+  var pinch = null; // { d0, s0, cx0, tx0 }
+  var pan = null;   // { x0, tx0 }
+  var rafPending = false;
+
+  function post(msg) {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+    }
+  }
+  function apply() {
+    if (window.__rnApplyZoom) window.__rnApplyZoom();
+  }
+  // Height reports are rAF-throttled during the gesture so the RN container
+  // keeps up with the growing content without re-measuring on every move.
+  function scheduleReport() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function () {
+      rafPending = false;
+      if (window.__rnReport) window.__rnReport();
+    });
+  }
+  function dist(t0, t1) {
+    var dx = t1.clientX - t0.clientX, dy = t1.clientY - t0.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 2) {
+      var t0 = e.touches[0], t1 = e.touches[1];
+      pinch = {
+        d0: dist(t0, t1) || 1,
+        s0: Z.scale,
+        cx0: (t0.clientX + t1.clientX) / 2,
+        tx0: Z.tx,
+      };
+      pan = null;
+      if (!Z.pinching) {
+        Z.pinching = true;
+        post({ type: 'zoom', pinching: true, scale: Z.scale });
+      }
+      e.preventDefault();
+    } else if (e.touches.length === 1 && Z.scale > 1.001) {
+      pan = { x0: e.touches[0].clientX, tx0: Z.tx };
+    } else {
+      pan = null;
+    }
+  }, { passive: false, capture: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (pinch && e.touches.length === 2) {
+      e.preventDefault();
+      var t0 = e.touches[0], t1 = e.touches[1];
+      var z = pinch.s0 * (dist(t0, t1) / pinch.d0);
+      if (z < 1) z = 1;
+      if (z > MAX_ZOOM) z = MAX_ZOOM;
+      // Keep the content under the fingers' midpoint stationary horizontally:
+      // the wrapper-local point that started under cx0 must map back to the
+      // current midpoint at the new scale. (applyTransform clamps the result.)
+      var cx = (t0.clientX + t1.clientX) / 2;
+      var local = (pinch.cx0 - pinch.tx0) / (Z.fit * pinch.s0);
+      Z.scale = z;
+      Z.tx = cx - local * (Z.fit * z);
+      apply();
+      scheduleReport();
+    } else if (pan && e.touches.length === 1 && Z.scale > 1.001) {
+      // No preventDefault: vertical-dominant drags must keep scrolling the
+      // native ScrollView around the WebView. Horizontal-dominant drags stay
+      // inside the WebView and pan here.
+      Z.tx = pan.tx0 + (e.touches[0].clientX - pan.x0);
+      apply();
+    }
+  }, { passive: false, capture: true });
+
+  function onTouchEnd(e) {
+    if (pinch && e.touches.length < 2) {
+      pinch = null;
+      // Snap back to the fitted layout when the pinch ends near scale 1.
+      if (Z.scale < 1.02) { Z.scale = 1; Z.tx = 0; }
+      Z.pinching = false;
+      apply();
+      if (window.__rnReport) window.__rnReport();
+      post({ type: 'zoom', pinching: false, scale: Z.scale });
+      // A finger left on screen continues as a pan.
+      if (e.touches.length === 1 && Z.scale > 1.001) {
+        pan = { x0: e.touches[0].clientX, tx0: Z.tx };
+      }
+    }
+    if (e.touches.length === 0) pan = null;
+  }
+  document.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+  document.addEventListener('touchcancel', onTouchEnd, { passive: true, capture: true });
+  true;
+})();
+`;
+
+export default function EmailBodyView({ email, senderEmail, onSwipe, onZoomChange }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
@@ -459,18 +608,23 @@ export default function EmailBodyView({ email, senderEmail, onSwipe }: EmailBody
   const injectedJs = React.useMemo(
     () =>
       (applyInversion ? DARK_REINVERT_SCRIPT + HEIGHT_REPORTER : HEIGHT_REPORTER)
-      + SWIPE_DETECTOR,
+      + SWIPE_DETECTOR + PINCH_ZOOM,
     [applyInversion],
   );
 
   const onMessage = (e: WebViewMessageEvent) => {
     const data = e.nativeEvent.data;
-    // Swipe messages arrive as JSON; the height reporter posts a bare number.
+    // Swipe/zoom messages arrive as JSON; the height reporter posts a bare number.
     if (data.charCodeAt(0) === 123 /* '{' */) {
       try {
         const msg = JSON.parse(data);
         if (msg.type === 'swipe' && (msg.dir === 'prev' || msg.dir === 'next')) {
           onSwipe?.(msg.dir);
+        } else if (msg.type === 'zoom') {
+          onZoomChange?.({
+            pinching: !!msg.pinching,
+            zoomed: typeof msg.scale === 'number' && msg.scale > 1.01,
+          });
         }
       } catch { /* ignore malformed */ }
       return;
@@ -520,6 +674,10 @@ export default function EmailBodyView({ email, senderEmail, onSwipe }: EmailBody
           injectedJavaScript={injectedJs}
           onMessage={onMessage}
           onLoadEnd={() => {
+            // A (re)load resets the page's zoom state to 1 — drop any host-side
+            // scroll locks so they can't go stale (e.g. cid images arriving
+            // reload the source mid-zoom).
+            onZoomChange?.({ pinching: false, zoomed: false });
             // Re-inject after load to cover Android cases where
             // `injectedJavaScript` runs too early to see the final layout. The
             // re-inversion pass guards itself (__rnDarkInvertDone) so running it
@@ -529,6 +687,9 @@ export default function EmailBodyView({ email, senderEmail, onSwipe }: EmailBody
             }, 50);
           }}
           scrollEnabled={false}
+          // Native Android zoom would scale the viewport inside the fixed-size
+          // container; pinch zoom is implemented in the page instead.
+          setBuiltInZoomControls={false}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
           setSupportMultipleWindows={false}
