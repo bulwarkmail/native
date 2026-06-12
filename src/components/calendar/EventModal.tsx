@@ -31,6 +31,7 @@ import type {
   CalendarEvent,
   Participant,
   EventLocation,
+  RecurrenceRule,
   VirtualLocation,
 } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -49,10 +50,12 @@ import {
   REMINDER_PRESETS,
   type Reminder,
 } from '../../lib/calendar-alerts';
+import { buildRecurrenceSummary, isSimpleRecurrenceRule } from '../../lib/recurrence';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
+import { RecurrenceEditor } from './RecurrenceEditor';
 
-type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 const RECURRENCE_OPTIONS: { value: RecurrenceOption; label: string }[] = [
   { value: 'none', label: 'Does not repeat' },
@@ -60,6 +63,7 @@ const RECURRENCE_OPTIONS: { value: RecurrenceOption; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'yearly', label: 'Yearly' },
+  { value: 'custom', label: 'Custom…' },
 ];
 
 interface EventModalProps {
@@ -99,11 +103,15 @@ function buildDuration(start: Date, end: Date): string {
 function detectRecurrence(event: CalendarEvent | null | undefined): RecurrenceOption {
   const rule = event?.recurrenceRules?.[0];
   if (!rule) return 'none';
-  const f = rule.frequency.toLowerCase();
-  if (f === 'daily' || f === 'weekly' || f === 'monthly' || f === 'yearly') {
-    return f as RecurrenceOption;
+  if (isSimpleRecurrenceRule(rule)) {
+    const f = rule.frequency.toLowerCase();
+    if (f === 'daily' || f === 'weekly' || f === 'monthly' || f === 'yearly') {
+      return f as RecurrenceOption;
+    }
   }
-  return 'none';
+  // Anything the simple presets can't represent is edited via the custom
+  // recurrence editor.
+  return 'custom';
 }
 
 function detectLocation(event: CalendarEvent | null | undefined): string {
@@ -156,9 +164,18 @@ export function EventModal({
   const [allDay, setAllDay] = React.useState(false);
   const [start, setStart] = React.useState<Date>(() => nextHalfHour(defaultDate ?? new Date()));
   const [end, setEnd] = React.useState<Date>(() => addHours(nextHalfHour(defaultDate ?? new Date()), 1));
-  const [calendarId, setCalendarId] = React.useState<string>(defaultCalendarId || calendars[0]?.id || '');
+  // New events land in the explicitly requested calendar, else the account's
+  // default calendar, else the first one.
+  const fallbackCalendarId =
+    defaultCalendarId
+    || calendars.find((cal) => cal.isDefault && !cal.isShared)?.id
+    || calendars[0]?.id
+    || '';
+  const [calendarId, setCalendarId] = React.useState<string>(fallbackCalendarId);
   const [participants, setParticipants] = React.useState<Record<string, Participant>>({});
   const [recurrence, setRecurrence] = React.useState<RecurrenceOption>('none');
+  const [customRule, setCustomRule] = React.useState<RecurrenceRule | null>(null);
+  const [recurrenceEditorOpen, setRecurrenceEditorOpen] = React.useState(false);
   const [reminders, setReminders] = React.useState<Reminder[]>([]);
   const [location, setLocation] = React.useState('');
   const [videoUrl, setVideoUrl] = React.useState('');
@@ -181,7 +198,10 @@ export function EventModal({
       setEnd(getEventEndDate(event));
       setCalendarId(getPrimaryCalendarId(event) || calendars[0]?.id || '');
       setParticipants(event.participants || {});
-      setRecurrence(detectRecurrence(event));
+      const detected = detectRecurrence(event);
+      setRecurrence(detected);
+      setCustomRule(detected === 'custom' ? event.recurrenceRules?.[0] ?? null : null);
+      setRecurrenceEditorOpen(false);
       setReminders(alertsToReminders(event.alerts));
       setLocation(detectLocation(event));
       setVideoUrl(detectVideoUrl(event));
@@ -192,9 +212,16 @@ export function EventModal({
       setAllDay(false);
       setStart(d);
       setEnd(addHours(d, 1));
-      setCalendarId(defaultCalendarId || calendars[0]?.id || '');
+      setCalendarId(
+        defaultCalendarId
+        || calendars.find((cal) => cal.isDefault && !cal.isShared)?.id
+        || calendars[0]?.id
+        || '',
+      );
       setParticipants({});
       setRecurrence('none');
+      setCustomRule(null);
+      setRecurrenceEditorOpen(false);
       setReminders([]);
       setLocation('');
       setVideoUrl('');
@@ -241,7 +268,12 @@ export function EventModal({
           : format(start, "yyyy-MM-dd'T'HH:mm:ss"),
         duration: allDay ? buildAllDayDuration(start, end) : buildDuration(start, end),
         participants: Object.keys(participants).length > 0 ? participants : undefined,
-        recurrenceRules: recurrenceFromOption(recurrence),
+        recurrenceRules:
+          recurrence === 'custom'
+            ? customRule
+              ? [customRule]
+              : undefined
+            : recurrenceFromOption(recurrence),
         alerts: remindersToAlerts(reminders),
         useDefaultAlerts: reminders.length > 0 ? false : undefined,
         locations: buildLocations(location),
@@ -259,7 +291,10 @@ export function EventModal({
   };
 
   const selectedCalendar = calendars.find((c) => c.id === calendarId);
-  const recurrenceLabel = RECURRENCE_OPTIONS.find((o) => o.value === recurrence)?.label || 'None';
+  const recurrenceLabel =
+    recurrence === 'custom'
+      ? (customRule && buildRecurrenceSummary(customRule)) || 'Custom'
+      : RECURRENCE_OPTIONS.find((o) => o.value === recurrence)?.label || 'None';
 
   const addReminder = (minutesBefore: number) => {
     setReminderPickerOpen(false);
@@ -431,14 +466,37 @@ export function EventModal({
                       opt.value === recurrence && styles.popoverRowActive,
                     ]}
                     onPress={() => {
-                      setRecurrence(opt.value);
                       setRecurrenceOpen(false);
+                      if (opt.value === 'custom') {
+                        setRecurrenceEditorOpen(true);
+                        return;
+                      }
+                      setRecurrence(opt.value);
+                      setCustomRule(null);
+                      setRecurrenceEditorOpen(false);
                     }}
                   >
                     <Text style={styles.popoverRowText}>{opt.label}</Text>
                   </Pressable>
                 ))}
               </View>
+            )}
+            {recurrenceEditorOpen && (
+              <RecurrenceEditor
+                rule={customRule}
+                eventStart={start}
+                onSave={(rule) => {
+                  setCustomRule(rule);
+                  setRecurrence('custom');
+                  setRecurrenceEditorOpen(false);
+                }}
+                onCancel={() => setRecurrenceEditorOpen(false)}
+              />
+            )}
+            {recurrence === 'custom' && customRule && !recurrenceEditorOpen && (
+              <Pressable style={styles.addRow} onPress={() => setRecurrenceEditorOpen(true)}>
+                <Text style={styles.addRowText}>Edit custom recurrence</Text>
+              </Pressable>
             )}
           </Section>
 

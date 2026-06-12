@@ -435,10 +435,61 @@ export function getEventColor(
   event: Pick<CalendarEvent, 'calendarIds' | 'color'>,
   calendars: Calendar[],
 ): string {
-  if (event.color) return event.color;
   const calendarId = Object.keys(event.calendarIds || {})[0];
   const cal = calendars.find((c) => c.id === calendarId);
+  // A local color override on a shared calendar wins over per-event colors,
+  // so the whole shared calendar paints uniformly in the viewer's chosen hue.
+  if (cal?.colorIsLocalOverride && cal.color) return cal.color;
+  if (event.color) return event.color;
   return getCalendarColor(cal);
+}
+
+// ─── Per-viewer colors for shared calendars (#345) ───────
+// Shared calendars are recolored locally only: the viewer usually can't write
+// the owner's calendar, and doing so would recolor it for everyone. Overrides
+// live in the settings store keyed by sharedCalendarColorKey().
+
+/**
+ * Stable key for a shared calendar's local color override. Built from the
+ * owning JMAP account + the calendar id so it stays unique across accounts.
+ */
+export function sharedCalendarColorKey(
+  cal: Pick<Calendar, 'id' | 'accountId'>,
+): string {
+  return `${cal.accountId ?? ''}|${cal.id}`;
+}
+
+/**
+ * Pick a random palette color not present in `usedColors`. Once every palette
+ * entry is taken, fall back to a random palette color (collisions are
+ * unavoidable past CALENDAR_PALETTE.length calendars).
+ */
+export function pickUnusedCalendarColor(usedColors: Iterable<string>): string {
+  const used = new Set<string>();
+  for (const c of usedColors) {
+    if (c) used.add(c.toLowerCase());
+  }
+  const available = CALENDAR_PALETTE.filter((c) => !used.has(c.toLowerCase()));
+  const pool = available.length > 0 ? available : CALENDAR_PALETTE;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/**
+ * Apply each shared calendar's local color override (per-viewer recolor).
+ * The override replaces the calendar's color and wins over per-event colors
+ * via the `colorIsLocalOverride` flag (see getEventColor). Personal calendars
+ * are passed through untouched.
+ */
+export function applySharedCalendarColors(
+  calendars: Calendar[],
+  overrides: Record<string, string>,
+): Calendar[] {
+  return calendars.map((cal) => {
+    if (!cal.isShared) return cal;
+    const override = overrides[sharedCalendarColorKey(cal)];
+    if (!override) return cal;
+    return { ...cal, color: override, colorIsLocalOverride: true };
+  });
 }
 
 export function getPrimaryCalendarId(

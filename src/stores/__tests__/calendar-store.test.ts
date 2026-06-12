@@ -7,6 +7,7 @@ vi.mock('../../api/calendar', () => ({
   createEvent: vi.fn(),
   updateEvent: vi.fn(),
   deleteEvents: vi.fn(),
+  setDefaultCalendar: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -37,6 +38,7 @@ const mockGetEvents = calendarApi.getEvents as ReturnType<typeof vi.fn>;
 const mockCreateEvent = calendarApi.createEvent as ReturnType<typeof vi.fn>;
 const mockUpdateEvent = calendarApi.updateEvent as ReturnType<typeof vi.fn>;
 const mockDeleteEvents = calendarApi.deleteEvents as ReturnType<typeof vi.fn>;
+const mockSetDefaultCalendar = calendarApi.setDefaultCalendar as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -110,7 +112,8 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
 
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31');
+      // 4th arg is the owning account — undefined for primary-account calendars.
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
     });
 
     it('should skip refetch when loaded range covers requested', async () => {
@@ -134,7 +137,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().ensureRange('2026-04-01', '2026-04-30');
 
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-04-30');
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-04-30', undefined);
     });
 
     it('should fetch calendars first when none are loaded', async () => {
@@ -144,7 +147,7 @@ describe('calendar-store', () => {
       await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
 
       expect(mockGetCalendars).toHaveBeenCalled();
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31');
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
     });
   });
 
@@ -273,8 +276,31 @@ describe('calendar-store', () => {
       );
 
       // The third arg is the iMIP scheduling flag — undefined here since the
-      // event has no participants to notify.
-      expect(mockUpdateEvent).toHaveBeenCalledWith('master', { title: 'New' }, undefined);
+      // event has no participants to notify. The fourth is the owning
+      // account — undefined for primary-account events.
+      expect(mockUpdateEvent).toHaveBeenCalledWith('master', { title: 'New' }, undefined, undefined);
+    });
+  });
+
+  describe('setDefaultCalendar', () => {
+    it('flips isDefault to the chosen calendar within the same account', async () => {
+      useCalendarStore.setState({
+        calendars: [
+          { id: 'cal-1', name: 'A', isDefault: true } as any,
+          { id: 'cal-2', name: 'B' } as any,
+          { id: 'cal-3', name: 'Shared', isShared: true, accountId: 'acc-2', isDefault: true } as any,
+        ],
+      });
+      mockSetDefaultCalendar.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().setDefaultCalendar('cal-2');
+
+      expect(mockSetDefaultCalendar).toHaveBeenCalledWith('cal-2', undefined);
+      const calendars = useCalendarStore.getState().calendars;
+      expect(calendars.find((c) => c.id === 'cal-1')?.isDefault).toBe(false);
+      expect(calendars.find((c) => c.id === 'cal-2')?.isDefault).toBe(true);
+      // Defaults in other accounts are untouched.
+      expect(calendars.find((c) => c.id === 'cal-3')?.isDefault).toBe(true);
     });
   });
 

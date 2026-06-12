@@ -4,6 +4,39 @@ import type { Calendar, CalendarEvent } from './types';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
 
+/**
+ * IANA time zone of the device, sent as the `timeZone` argument on
+ * CalendarEvent/query and CalendarEvent/get. Stalwart interprets LocalDateTime
+ * filter values and computes utcStart/utcEnd for floating events in this zone,
+ * defaulting to UTC when absent — which shifts range boundaries and
+ * floating-event times for any user not in UTC. Stalwart ignores unparseable
+ * values, so sending it is always safe.
+ */
+function getUserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Build a CalendarEvent/query filter restricting results to the given
+ * calendars. Stalwart implements the singular `inCalendar` condition (one
+ * calendar id per condition), not the draft's plural `inCalendars` array —
+ * sending the plural form fails the whole query with `unsupportedFilter`.
+ * Multiple calendars are expressed as an OR of singular conditions.
+ */
+function buildInCalendarFilter(calendarIds: string[]): Record<string, unknown> {
+  if (calendarIds.length === 1) {
+    return { inCalendar: calendarIds[0] };
+  }
+  return {
+    operator: 'OR',
+    conditions: calendarIds.map((id) => ({ inCalendar: id })),
+  };
+}
+
 const CALENDAR_EVENT_PROPERTIES = [
   'id', '@type', 'uid', 'calendarIds', 'title', 'description',
   'start', 'duration', 'timeZone', 'showWithoutTime',
@@ -26,43 +59,81 @@ function methodResult<T = any>(res: any, index = 0): T {
   return entry[1] as T;
 }
 
+// Other session accounts that expose the calendars capability hold calendars
+// shared with the user (JMAP surfaces shared data under the sharer's account).
+function sharedCalendarAccountIds(): string[] {
+  const session = jmapClient.currentSession;
+  const primary = jmapClient.accountId;
+  return Object.entries(session?.accounts ?? {})
+    .filter(([id, info]) =>
+      id !== primary && !!info.accountCapabilities?.[CAPABILITIES.CALENDARS])
+    .map(([id]) => id);
+}
+
 export async function getCalendars(): Promise<Calendar[]> {
   const accountId = jmapClient.accountId;
   const res = await jmapClient.request(
     [['Calendar/get', { accountId }, '0']],
     USING,
   );
-  return methodResult<{ list: Calendar[] }>(res).list ?? [];
+  const own = methodResult<{ list: Calendar[] }>(res).list ?? [];
+
+  // Calendars shared with the user live in other session accounts. Failures
+  // there (revoked share, transient error) must not hide the user's own
+  // calendars, so each shared account is fetched best-effort.
+  const shared = await Promise.all(
+    sharedCalendarAccountIds().map(async (sharedAccountId) => {
+      try {
+        const sharedRes = await jmapClient.request(
+          [['Calendar/get', { accountId: sharedAccountId }, '0']],
+          USING,
+        );
+        const list = methodResult<{ list: Calendar[] }>(sharedRes).list ?? [];
+        return list.map((cal) => ({ ...cal, accountId: sharedAccountId, isShared: true }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+  return [...own, ...shared.flat()];
 }
 
 export async function queryEvents(
-  _calendarIds: string[],
+  calendarIds: string[],
   _after: string,
   _before: string,
+  accountId?: string,
 ): Promise<string[]> {
-  // Stalwart rejects inCalendars/after/before filters on CalendarEvent/query.
-  // Fetch all events in the account; calendar visibility + date filtering is
-  // done client-side.
-  const accountId = jmapClient.accountId;
+  // Stalwart rejects after/before filters on CalendarEvent/query; date
+  // filtering is done client-side. Calendars are restricted via the singular
+  // `inCalendar` condition (the plural `inCalendars` fails the whole query
+  // with unsupportedFilter on Stalwart).
+  const account = accountId || jmapClient.accountId;
+  const args: Record<string, unknown> = { accountId: account, limit: 1000 };
+  const timeZone = getUserTimeZone();
+  if (timeZone) args.timeZone = timeZone;
+  if (calendarIds.length > 0) args.filter = buildInCalendarFilter(calendarIds);
   const res = await jmapClient.request(
-    [['CalendarEvent/query', { accountId, limit: 1000 }, '0']],
+    [['CalendarEvent/query', args, '0']],
     USING,
   );
   return methodResult<{ ids: string[] }>(res).ids ?? [];
 }
 
-export async function getEvents(ids: string[]): Promise<CalendarEvent[]> {
+export async function getEvents(ids: string[], accountId?: string): Promise<CalendarEvent[]> {
   if (ids.length === 0) return [];
-  const accountId = jmapClient.accountId;
+  const account = accountId || jmapClient.accountId;
+  const timeZone = getUserTimeZone();
   const batchSize = jmapClient.getMaxObjectsInGet();
   const all: CalendarEvent[] = [];
   for (let i = 0; i < ids.length; i += batchSize) {
     const batch = ids.slice(i, i + batchSize);
     const res = await jmapClient.request(
       [['CalendarEvent/get', {
-        accountId,
+        accountId: account,
         ids: batch,
         properties: CALENDAR_EVENT_PROPERTIES,
+        ...(timeZone ? { timeZone } : {}),
       }, '0']],
       USING,
     );
@@ -91,8 +162,9 @@ export async function createEvent(
   event: Partial<CalendarEvent>,
   calendarId: string,
   sendSchedulingMessages?: boolean,
+  targetAccountId?: string,
 ): Promise<CalendarEvent> {
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, {
       create: {
@@ -136,8 +208,9 @@ export async function updateEvent(
   id: string,
   changes: Partial<CalendarEvent> | Record<string, unknown>,
   sendSchedulingMessages?: boolean,
+  targetAccountId?: string,
 ): Promise<void> {
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, { update: { [id]: changes } }, sendSchedulingMessages), '0']],
     USING,
@@ -150,8 +223,9 @@ export async function updateEvent(
 export async function deleteEvents(
   ids: string[],
   sendSchedulingMessages?: boolean,
+  targetAccountId?: string,
 ): Promise<void> {
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, { destroy: ids }, sendSchedulingMessages), '0']],
     USING,
@@ -165,8 +239,9 @@ export async function rsvpEvent(
   participantId: string,
   status: 'accepted' | 'declined' | 'tentative',
   replyTo?: Record<string, string> | null,
+  targetAccountId?: string,
 ): Promise<void> {
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   // Escape per RFC 6901: ~ → ~0, / → ~1.
   const escaped = participantId.replace(/~/g, '~0').replace(/\//g, '~1');
   const patch: Record<string, unknown> = {
@@ -223,6 +298,23 @@ export async function createCalendar(
     throw new Error(err?.description || err?.type || 'Failed to create calendar');
   }
   return created;
+}
+
+/**
+ * Mark a calendar as the account default. `isDefault` is read-only in
+ * Stalwart's Calendar/set — the default is changed via the
+ * `onSuccessSetIsDefault` request argument instead.
+ */
+export async function setDefaultCalendar(
+  calendarId: string,
+  targetAccountId?: string,
+): Promise<void> {
+  const accountId = targetAccountId || jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['Calendar/set', { accountId, onSuccessSetIsDefault: calendarId }, '0']],
+    USING,
+  );
+  methodResult(res);
 }
 
 // Destroy a calendar. `onDestroyEvents: 'destroy'` removes its events too —

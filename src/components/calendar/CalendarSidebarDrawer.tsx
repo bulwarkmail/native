@@ -11,12 +11,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Check, X, Upload, Rss } from 'lucide-react-native';
+import { Check, X, Upload, Rss, Shuffle, Star } from 'lucide-react-native';
 import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useAnimDuration } from '../../theme/dynamic';
-import { getCalendarColor } from '../../lib/calendar-utils';
+import { CALENDAR_COLOR_PALETTE, getCalendarColor } from '../../lib/calendar-utils';
+import { BIRTHDAY_CALENDAR_ID } from '../../lib/birthday-calendar';
 
 interface CalendarSidebarDrawerProps {
   visible: boolean;
@@ -26,6 +27,11 @@ interface CalendarSidebarDrawerProps {
   onClose: () => void;
   onImport?: () => void;
   onManageSubscriptions?: () => void;
+  // Long-press actions. Set-default applies to the user's own calendars;
+  // color change/reset applies to shared calendars (per-viewer recolor).
+  onSetDefault?: (calendar: Calendar) => void;
+  onSetColor?: (calendar: Calendar, color: string) => void;
+  onResetColor?: (calendar: Calendar) => void;
 }
 
 export function CalendarSidebarDrawer({
@@ -36,6 +42,9 @@ export function CalendarSidebarDrawer({
   onClose,
   onImport,
   onManageSubscriptions,
+  onSetDefault,
+  onSetColor,
+  onResetColor,
 }: CalendarSidebarDrawerProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -43,6 +52,7 @@ export function CalendarSidebarDrawer({
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const openDuration = useAnimDuration(240);
   const closeDuration = useAnimDuration(200);
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (visible) {
@@ -60,6 +70,7 @@ export function CalendarSidebarDrawer({
         }),
       ]).start();
     } else {
+      setExpandedId(null);
       Animated.parallel([
         Animated.timing(slideX, {
           toValue: -Dimensions.get('window').width,
@@ -78,8 +89,23 @@ export function CalendarSidebarDrawer({
 
   const hiddenSet = React.useMemo(() => new Set(hiddenCalendarIds), [hiddenCalendarIds]);
 
-  const myCalendars = calendars.filter((c) => !c.myRights || c.myRights.mayWrite !== false);
-  const subscribed = calendars.filter((c) => c.myRights && c.myRights.mayWrite === false);
+  const sharedCalendars = calendars.filter((cal) => cal.isShared);
+  const myCalendars = calendars.filter(
+    (cal) => !cal.isShared && (!cal.myRights || cal.myRights.mayWrite !== false),
+  );
+  const subscribed = calendars.filter(
+    (cal) => !cal.isShared && cal.myRights && cal.myRights.mayWrite === false,
+  );
+
+  const sectionProps = {
+    hiddenSet,
+    onToggle,
+    expandedId,
+    onExpand: setExpandedId,
+    onSetDefault,
+    onSetColor,
+    onResetColor,
+  };
 
   return (
     <Modal
@@ -110,21 +136,15 @@ export function CalendarSidebarDrawer({
             )}
 
             {myCalendars.length > 0 && (
-              <Section
-                title="My calendars"
-                calendars={myCalendars}
-                hiddenSet={hiddenSet}
-                onToggle={onToggle}
-              />
+              <Section title="My calendars" calendars={myCalendars} {...sectionProps} />
+            )}
+
+            {sharedCalendars.length > 0 && (
+              <Section title="Shared with me" calendars={sharedCalendars} {...sectionProps} />
             )}
 
             {subscribed.length > 0 && (
-              <Section
-                title="Subscribed"
-                calendars={subscribed}
-                hiddenSet={hiddenSet}
-                onToggle={onToggle}
-              />
+              <Section title="Subscribed" calendars={subscribed} {...sectionProps} />
             )}
 
             {(onImport || onManageSubscriptions) && (
@@ -161,11 +181,21 @@ function Section({
   calendars,
   hiddenSet,
   onToggle,
+  expandedId,
+  onExpand,
+  onSetDefault,
+  onSetColor,
+  onResetColor,
 }: {
   title: string;
   calendars: Calendar[];
   hiddenSet: Set<string>;
   onToggle: (id: string) => void;
+  expandedId: string | null;
+  onExpand: (id: string | null) => void;
+  onSetDefault?: (calendar: Calendar) => void;
+  onSetColor?: (calendar: Calendar, color: string) => void;
+  onResetColor?: (calendar: Calendar) => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -174,30 +204,85 @@ function Section({
       <Text style={styles.sectionTitle}>{title}</Text>
       {calendars.map((cal) => {
         const visible = !hiddenSet.has(cal.id);
+        const isBirthday = cal.id === BIRTHDAY_CALENDAR_ID;
+        const canSetDefault = !!onSetDefault && !cal.isShared && !isBirthday && !cal.isDefault;
+        const canRecolor = !!onSetColor && !!cal.isShared;
+        const hasActions = canSetDefault || canRecolor;
+        const expanded = expandedId === cal.id && hasActions;
         return (
-          <Pressable
-            key={cal.id}
-            onPress={() => onToggle(cal.id)}
-            style={({ pressed }) => [
-              styles.row,
-              pressed && styles.rowPressed,
-            ]}
-          >
-            <View
-              style={[
-                styles.swatch,
-                {
-                  backgroundColor: visible ? getCalendarColor(cal) : 'transparent',
-                  borderColor: getCalendarColor(cal),
-                },
+          <View key={cal.id}>
+            <Pressable
+              onPress={() => onToggle(cal.id)}
+              onLongPress={hasActions ? () => onExpand(expanded ? null : cal.id) : undefined}
+              style={({ pressed }) => [
+                styles.row,
+                pressed && styles.rowPressed,
               ]}
             >
-              {visible && <Check size={12} color={c.textInverse} />}
-            </View>
-            <Text style={[styles.rowName, !visible && styles.rowNameMuted]}>
-              {cal.name}
-            </Text>
-          </Pressable>
+              <View
+                style={[
+                  styles.swatch,
+                  {
+                    backgroundColor: visible ? getCalendarColor(cal) : 'transparent',
+                    borderColor: getCalendarColor(cal),
+                  },
+                ]}
+              >
+                {visible && <Check size={12} color={c.textInverse} />}
+              </View>
+              <Text style={[styles.rowName, !visible && styles.rowNameMuted]} numberOfLines={1}>
+                {cal.name}
+              </Text>
+              {cal.isDefault && !cal.isShared && (
+                <Star size={14} color={c.textMuted} fill={c.textMuted} />
+              )}
+            </Pressable>
+
+            {expanded && (
+              <View style={styles.actionsPanel}>
+                {canSetDefault && (
+                  <Pressable
+                    onPress={() => { onExpand(null); onSetDefault!(cal); }}
+                    style={({ pressed }) => [styles.panelRow, pressed && styles.rowPressed]}
+                  >
+                    <Star size={16} color={c.textSecondary} />
+                    <Text style={styles.panelRowText}>Set as default calendar</Text>
+                  </Pressable>
+                )}
+                {canRecolor && (
+                  <>
+                    <View style={styles.paletteRow}>
+                      {CALENDAR_COLOR_PALETTE.map((color) => {
+                        const active = cal.color?.toLowerCase() === color.toLowerCase();
+                        return (
+                          <Pressable
+                            key={color}
+                            onPress={() => { onExpand(null); onSetColor!(cal, color); }}
+                            style={[
+                              styles.paletteSwatch,
+                              { backgroundColor: color },
+                              active && styles.paletteSwatchActive,
+                            ]}
+                          >
+                            {active && <Check size={12} color={c.textInverse} />}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    {!!onResetColor && cal.colorIsLocalOverride && (
+                      <Pressable
+                        onPress={() => { onExpand(null); onResetColor(cal); }}
+                        style={({ pressed }) => [styles.panelRow, pressed && styles.rowPressed]}
+                      >
+                        <Shuffle size={16} color={c.textSecondary} />
+                        <Text style={styles.panelRowText}>Random color</Text>
+                      </Pressable>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
+          </View>
         );
       })}
     </View>
@@ -278,6 +363,43 @@ function makeStyles(c: ThemePalette) {
   },
   rowName: { flex: 1, ...typography.body, color: c.text },
   rowNameMuted: { color: c.textMuted },
+
+  actionsPanel: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.sm,
+    backgroundColor: c.surface,
+    overflow: 'hidden',
+  },
+  panelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 40,
+  },
+  panelRowText: { ...typography.body, color: c.text },
+  paletteRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  paletteSwatch: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paletteSwatchActive: {
+    borderWidth: 2,
+    borderColor: c.text,
+  },
 
   actionsSection: {
     marginTop: spacing.lg,

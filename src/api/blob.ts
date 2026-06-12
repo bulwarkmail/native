@@ -116,12 +116,15 @@ export function getDownloadUrl(
   blobId: string,
   name?: string,
   type?: string,
+  // Blobs of nodes shared by another principal live in the owner's account;
+  // downloading them with our own accountId 404s.
+  accountId?: string,
 ): string {
   const session = jmapClient.currentSession;
   if (!session) throw new Error('Not connected');
 
   return session.downloadUrl
-    .replace('{accountId}', encodeURIComponent(jmapClient.accountId))
+    .replace('{accountId}', encodeURIComponent(accountId ?? jmapClient.accountId))
     .replace('{blobId}', encodeURIComponent(blobId))
     .replace('{name}', encodeURIComponent(name ?? 'download'))
     .replace('{type}', encodeURIComponent(type ?? 'application/octet-stream'));

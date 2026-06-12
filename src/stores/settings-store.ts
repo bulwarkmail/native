@@ -169,6 +169,10 @@ interface PersistedSettings {
   showBirthdayCalendar: boolean;
   enableCalendarTasks: boolean;
   showTasksOnCalendar: boolean;
+  // Per-viewer color overrides for shared calendars, keyed by
+  // sharedCalendarColorKey(). Lets the user recolor calendars shared with
+  // them without changing the owner's color (parity with webmail #345).
+  sharedCalendarColors: Record<string, string>;
 
   // Files
   filesFolderLayout: FilesFolderLayout;
@@ -276,6 +280,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   showBirthdayCalendar: true,
   enableCalendarTasks: false,
   showTasksOnCalendar: true,
+  sharedCalendarColors: {},
 
   filesFolderLayout: 'inline',
   filesDefaultViewMode: 'list',
@@ -352,6 +357,10 @@ export interface SettingsState extends PersistedSettings {
   addTrustedSender: (email: string) => void;
   removeTrustedSender: (email: string) => void;
   isSenderTrusted: (email: string) => boolean;
+
+  // Shared-calendar color overrides
+  setSharedCalendarColor: (key: string, color: string) => void;
+  removeSharedCalendarColor: (key: string) => void;
 
   // Sidebar apps
   addSidebarApp: (app: Omit<SidebarApp, 'id'>) => void;
@@ -473,6 +482,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   isSenderTrusted: (email) => {
     const normalized = email.toLowerCase().trim();
     return get().trustedSenders.includes(normalized);
+  },
+
+  setSharedCalendarColor: (key, color) => {
+    set({ sharedCalendarColors: { ...get().sharedCalendarColors, [key]: color } });
+    persist(snapshot(get()));
+  },
+
+  removeSharedCalendarColor: (key) => {
+    const { [key]: _removed, ...rest } = get().sharedCalendarColors;
+    set({ sharedCalendarColors: rest });
+    persist(snapshot(get()));
   },
 
   addSidebarApp: (app) => {

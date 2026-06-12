@@ -12,6 +12,7 @@ import {
   batchCreateEvents as apiBatchCreateEvents,
   rsvpEvent as apiRsvpEvent,
   createCalendar as apiCreateCalendar,
+  setDefaultCalendar as apiSetDefaultCalendar,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
@@ -57,6 +58,7 @@ export interface CalendarState {
   ) => Promise<void>;
   importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<number>;
   createCalendar: (name: string, color?: string) => Promise<Calendar>;
+  setDefaultCalendar: (id: string) => Promise<void>;
   // Tasks
   createTask: (task: Partial<CalendarEvent>, calendarId: string) => Promise<void>;
   updateTask: (id: string, changes: Partial<CalendarEvent>) => Promise<void>;
@@ -131,8 +133,31 @@ export const useCalendarStore = create<CalendarState>()(
     if (!jmapClient.isConnected) return;
     set({ loading: true, error: null });
     try {
-      const ids = (await queryEvents(calendarIds, after, before)) ?? [];
-      const raw = ids.length > 0 ? ((await fetchEvents(ids)) ?? []) : [];
+      // Group the requested calendars by owning account: the primary account
+      // (calendars without an accountId tag) plus one group per shared
+      // account, since CalendarEvent/query is scoped to a single account.
+      const calendars = get().calendars;
+      const groups = new Map<string | undefined, string[]>();
+      for (const id of calendarIds) {
+        const accountId = calendars.find((c) => c.id === id)?.accountId;
+        const group = groups.get(accountId);
+        if (group) group.push(id);
+        else groups.set(accountId, [id]);
+      }
+      if (groups.size === 0) groups.set(undefined, []);
+
+      const raw: CalendarEvent[] = [];
+      for (const [accountId, ids] of groups) {
+        try {
+          const eventIds = (await queryEvents(ids, after, before, accountId)) ?? [];
+          if (eventIds.length === 0) continue;
+          const fetched = (await fetchEvents(eventIds, accountId)) ?? [];
+          raw.push(...(accountId ? fetched.map((e) => ({ ...e, accountId })) : fetched));
+        } catch (err) {
+          // A failing shared account must not hide the user's own events.
+          if (!accountId) throw err;
+        }
+      }
       // Stalwart returns both Events and Tasks from CalendarEvent/query. Events
       // have a `start`; tasks are surfaced separately so they don't pollute the
       // grid (they're shown in the task list with their due date instead).
@@ -176,12 +201,19 @@ export const useCalendarStore = create<CalendarState>()(
 
   handleStateChange: async (change) => {
     if (!jmapClient.isConnected) return;
-    const accountId = jmapClient.accountId;
-    const accountChanges = change.changed?.[accountId];
-    if (!accountChanges) return;
-
-    const calendarChanged = 'Calendar' in accountChanges;
-    const eventChanged = 'CalendarEvent' in accountChanges;
+    // Watch the primary account plus every shared account we show calendars
+    // from, so edits the owner makes to a shared calendar refresh the view.
+    const known = new Set<string>([jmapClient.accountId]);
+    for (const cal of get().calendars) {
+      if (cal.accountId) known.add(cal.accountId);
+    }
+    let calendarChanged = false;
+    let eventChanged = false;
+    for (const [accountId, types] of Object.entries(change.changed ?? {})) {
+      if (!known.has(accountId)) continue;
+      if ('Calendar' in types) calendarChanged = true;
+      if ('CalendarEvent' in types) eventChanged = true;
+    }
     if (!calendarChanged && !eventChanged) return;
 
     if (calendarChanged) {
@@ -193,12 +225,15 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   createEvent: async (event, calendarId) => {
+    // Shared calendars live in the owner's account — route the create there.
+    const accountId = get().calendars.find((c) => c.id === calendarId)?.accountId;
     const created = await apiCreateEvent(
       event,
       calendarId,
       hasSchedulingParticipants(event) ? true : undefined,
+      accountId,
     );
-    set({ events: [...get().events, created] });
+    set({ events: [...get().events, accountId ? { ...created, accountId } : created] });
     return created;
   },
 
@@ -210,7 +245,7 @@ export const useCalendarStore = create<CalendarState>()(
     // carry participants.
     const schedule =
       hasSchedulingParticipants(changes) || hasSchedulingParticipants(storeEvent);
-    await apiUpdateEvent(realId, changes, schedule ? true : undefined);
+    await apiUpdateEvent(realId, changes, schedule ? true : undefined, storeEvent?.accountId);
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...changes } : e)),
     });
@@ -222,6 +257,7 @@ export const useCalendarStore = create<CalendarState>()(
     await apiDeleteEvents(
       [realId],
       hasSchedulingParticipants(storeEvent) ? true : undefined,
+      storeEvent?.accountId,
     );
     set({ events: get().events.filter((e) => e.id !== id) });
   },
@@ -232,7 +268,7 @@ export const useCalendarStore = create<CalendarState>()(
     }
     const storeEvent = get().events.find((e) => e.id === eventId);
     const realId = storeEvent?.originalId || eventId;
-    await apiRsvpEvent(realId, participantId, status, replyTo);
+    await apiRsvpEvent(realId, participantId, status, replyTo, storeEvent?.accountId);
     set({
       events: get().events.map((e) => {
         if (e.id !== eventId || !e.participants?.[participantId]) return e;
@@ -273,15 +309,32 @@ export const useCalendarStore = create<CalendarState>()(
     return created;
   },
 
+  setDefaultCalendar: async (id) => {
+    const cal = get().calendars.find((c) => c.id === id);
+    await apiSetDefaultCalendar(id, cal?.accountId);
+    set({
+      calendars: get().calendars.map((c) => {
+        if (c.id === id) return { ...c, isDefault: true };
+        // Only one default per account — clear the flag on siblings within
+        // the same account scope.
+        if (c.isDefault && (c.accountId ?? null) === (cal?.accountId ?? null)) {
+          return { ...c, isDefault: false };
+        }
+        return c;
+      }),
+    });
+  },
+
   createTask: async (task, calendarId) => {
-    await apiCreateEvent({ ...task, '@type': 'Task' }, calendarId);
+    const accountId = get().calendars.find((c) => c.id === calendarId)?.accountId;
+    await apiCreateEvent({ ...task, '@type': 'Task' }, calendarId, undefined, accountId);
     await get().refresh();
   },
 
   updateTask: async (id, changes) => {
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiUpdateEvent(realId, changes);
+    await apiUpdateEvent(realId, changes, undefined, task?.accountId);
     set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
   },
 
@@ -298,7 +351,7 @@ export const useCalendarStore = create<CalendarState>()(
   deleteTask: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiDeleteEvents([realId]);
+    await apiDeleteEvents([realId], undefined, task?.accountId);
     set({ tasks: get().tasks.filter((t) => t.id !== id) });
   },
 

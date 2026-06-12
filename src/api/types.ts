@@ -405,6 +405,7 @@ export interface VirtualLocation {
 }
 
 export interface RecurrenceRule {
+  '@type'?: 'RecurrenceRule';
   frequency: string;
   interval?: number;
   until?: string;
@@ -419,6 +420,8 @@ export interface RecurrenceRule {
   bySecond?: number[];
   bySetPosition?: number[];
   firstDayOfWeek?: string;
+  rscale?: string;
+  skip?: string;
 }
 
 export interface Alert {
@@ -467,6 +470,10 @@ export interface CalendarEvent {
   color?: string;
   // Client-only: account the event/occurrence belongs to (for shared/virtual).
   localAccountId?: string;
+  // Client-only: JMAP account the event was fetched from. Absent for the
+  // primary account; set for events on calendars shared with the user so
+  // mutations can be routed to the owning account.
+  accountId?: string;
 }
 
 export interface CalendarRights {
@@ -492,6 +499,17 @@ export interface Calendar {
   isDefault?: boolean;
   sortOrder?: number;
   myRights?: CalendarRights;
+  // Client-only: JMAP account the calendar was fetched from. Absent for the
+  // primary account; set for calendars shared with the user.
+  accountId?: string;
+  // Client-only: true when the calendar lives in another account (shared
+  // with the user by its owner).
+  isShared?: boolean;
+  // Client-only: set when `color` has been replaced by the viewer's local
+  // override for a shared calendar (see lib/calendar-utils). When true, the
+  // override wins over per-event colors so the whole shared calendar paints
+  // uniformly.
+  colorIsLocalOverride?: boolean;
 }
 
 // ─── Files (FileNode) ───────────────────────────────────
@@ -505,6 +523,40 @@ export interface FileNode {
   size?: number;
   created?: string;
   updated?: string;
+  // JMAP Sharing (RFC 9670). Populated only when the server advertises the
+  // principals capability and the properties are requested explicitly. A node
+  // is shared-out when `shareWith` has entries; `myRights` describes what the
+  // viewer may do (always full rights on owned nodes).
+  myRights?: FileNodeRights;
+  shareWith?: Record<string, FileNodeRights> | null;
+  // True when this node was fetched from another principal's account that was
+  // shared with the logged-in user ("Shared with me").
+  isShared?: boolean;
+  // Owning account's JMAP id and display name, set when aggregating nodes
+  // across accounts so blob downloads route to the right account.
+  accountId?: string;
+  accountName?: string;
+}
+
+// FileNode rights as defined by Stalwart's JmapSharedObject implementation.
+export interface FileNodeRights {
+  mayRead: boolean;
+  mayAddChildren: boolean;
+  mayRename: boolean;
+  mayDelete: boolean;
+  mayModifyContent: boolean;
+  mayShare: boolean;
+}
+
+// RFC 9670 principal — an entity (user, group, resource) that files and
+// calendars can be shared with. On Stalwart the principal id doubles as the
+// account id of that user/group.
+export interface Principal {
+  id: string;
+  type: 'individual' | 'group' | 'resource' | 'location' | 'other';
+  name: string;
+  description?: string | null;
+  email?: string | null;
 }
 
 // ─── Push / SSE ─────────────────────────────────────────
@@ -538,4 +590,6 @@ export const CAPABILITIES = {
   SIEVE: 'urn:ietf:params:jmap:sieve',
   QUOTA: 'urn:ietf:params:jmap:quota',
   FILES: 'urn:ietf:params:jmap:filenode',
+  PRINCIPALS: 'urn:ietf:params:jmap:principals',
+  PRINCIPALS_OWNER: 'urn:ietf:params:jmap:principals:owner',
 } as const;

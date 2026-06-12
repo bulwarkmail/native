@@ -52,8 +52,11 @@ import { TasksSheet } from '../components/calendar/TasksSheet';
 import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
 import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
 import {
+  applySharedCalendarColors,
   buildEventDayIndex,
   eventsOnDayFromIndex,
+  pickUnusedCalendarColor,
+  sharedCalendarColorKey,
   type EventDayIndex,
 } from '../lib/calendar-utils';
 import { buildReplyTo } from '../lib/calendar-invitation';
@@ -117,6 +120,9 @@ export default function CalendarScreen() {
   const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const showBirthdayCalendar = useSettingsStore((s) => s.showBirthdayCalendar);
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
+  const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
+  const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
+  const removeSharedCalendarColor = useSettingsStore((s) => s.removeSharedCalendarColor);
   const contacts = useContactsStore((s) => s.contacts);
 
   const [currentDate, setCurrentDate] = React.useState(new Date());
@@ -154,6 +160,7 @@ export default function CalendarScreen() {
   const toggleTaskComplete = useCalendarStore((s) => s.toggleTaskComplete);
   const deleteTask = useCalendarStore((s) => s.deleteTask);
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
+  const setDefaultCalendar = useCalendarStore((s) => s.setDefaultCalendar);
   const storeCalendars = useCalendarStore((s) => s.calendars);
   const hiddenCalendarIds = useCalendarStore((s) => s.hiddenCalendarIds);
   const loading = useCalendarStore((s) => s.loading);
@@ -169,9 +176,41 @@ export default function CalendarScreen() {
     return generateBirthdayEvents(contacts, after.toISOString(), before.toISOString());
   }, [showBirthdayCalendar, contacts, viewMode, currentDate, calendarFirstDayOfWeek]);
 
+  // Per-viewer recolor (#345): shared calendars get the viewer's local color
+  // override applied before anything renders. Personal calendars pass through.
+  const displayCalendars = React.useMemo(
+    () => applySharedCalendarColors(storeCalendars, sharedCalendarColors),
+    [storeCalendars, sharedCalendarColors],
+  );
+
+  // Auto-assign a random, not-yet-used palette color to any freshly shared
+  // calendar so multiple shared calendars don't collide on one color. Runs
+  // once per calendar (guarded by the presence of an existing key), and the
+  // user can still overwrite it from the sidebar.
+  React.useEffect(() => {
+    const missing = storeCalendars.filter(
+      (cal) => cal.isShared && !sharedCalendarColors[sharedCalendarColorKey(cal)],
+    );
+    if (missing.length === 0) return;
+    // Seed "used" with personal calendar colors plus already-assigned shared
+    // overrides so the picks stay distinct from what's already on screen.
+    const used = new Set<string>();
+    for (const cal of storeCalendars) {
+      if (!cal.isShared && cal.color) used.add(cal.color.toLowerCase());
+    }
+    for (const color of Object.values(sharedCalendarColors)) {
+      if (color) used.add(color.toLowerCase());
+    }
+    for (const cal of missing) {
+      const color = pickUnusedCalendarColor(used);
+      used.add(color.toLowerCase());
+      setSharedCalendarColor(sharedCalendarColorKey(cal), color);
+    }
+  }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor]);
+
   const allCalendars = React.useMemo(
-    () => (showBirthdayCalendar ? [...storeCalendars, createBirthdayCalendar()] : storeCalendars),
-    [storeCalendars, showBirthdayCalendar],
+    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar()] : displayCalendars),
+    [displayCalendars, showBirthdayCalendar],
   );
   const allEvents = React.useMemo(
     () => (birthdayEvents.length > 0 ? [...storeEvents, ...birthdayEvents] : storeEvents),
@@ -491,6 +530,13 @@ export default function CalendarScreen() {
         onClose={() => setSidebarVisible(false)}
         onImport={() => { setSidebarVisible(false); setImportVisible(true); }}
         onManageSubscriptions={() => { setSidebarVisible(false); setSubscriptionsVisible(true); }}
+        onSetDefault={(cal) => { void setDefaultCalendar(cal.id); }}
+        onSetColor={(cal, color) => setSharedCalendarColor(sharedCalendarColorKey(cal), color)}
+        onResetColor={(cal) => {
+          // Drop the local override; the auto-assign effect picks a fresh
+          // unused color (so it never reverts to a collision).
+          removeSharedCalendarColor(sharedCalendarColorKey(cal));
+        }}
       />
 
       <TasksSheet
@@ -505,7 +551,9 @@ export default function CalendarScreen() {
 
       <ICalImportSheet
         visible={importVisible}
-        calendars={storeCalendars}
+        // Import batch-creates against the primary account, so only offer the
+        // user's own calendars as targets.
+        calendars={displayCalendars.filter((cal) => !cal.isShared)}
         onClose={() => setImportVisible(false)}
         onImport={importEvents}
       />

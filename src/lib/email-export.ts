@@ -89,13 +89,15 @@ export async function shareAttachment(
   name: string | undefined,
   type: string | undefined,
   email?: Email | null,
+  // Owning account for blobs shared by another principal (Files app).
+  accountId?: string,
 ): Promise<void> {
   const filename = email
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.cache, filename);
-  const url = getDownloadUrl(blobId, filename, mimeType);
+  const url = getDownloadUrl(blobId, filename, mimeType, accountId);
   const downloaded = await downloadInto(url, dest, Paths.cache);
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
@@ -116,13 +118,15 @@ export async function downloadAttachment(
   name: string | undefined,
   type: string | undefined,
   email?: Email | null,
+  // Owning account for blobs shared by another principal (Files app).
+  accountId?: string,
 ): Promise<void> {
   const filename = email
     ? attachmentDownloadFilename(email, { name, type }, attachmentFileOptions())
     : safeAttachmentName(name, type);
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.document, filename);
-  const url = getDownloadUrl(blobId, filename, mimeType);
+  const url = getDownloadUrl(blobId, filename, mimeType, accountId);
   const downloaded = await downloadInto(url, dest, Paths.document);
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');

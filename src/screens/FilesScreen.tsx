@@ -16,7 +16,7 @@ import {
 import {
   ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
-  MoreVertical, Pencil, Share2, Trash2, Upload, X, Download,
+  MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download,
 } from 'lucide-react-native';
 
 // expo-document-picker is loaded lazily on first upload. Its native module
@@ -38,9 +38,8 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 }
 
 import {
-  createFolder, deleteWithDescendants, getAllFileNodes, isDirectChildOfPrefix,
-  isDirectory, nodeDisplayName, pathToPrefix, PATH_SEP, renameFileNode,
-  uploadFileNode,
+  createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts, isCrossAccountId,
+  isFolder, renameFileNode, supportsSharing, uploadFileNode,
 } from '../api/files';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import type { FileNode } from '../api/types';
@@ -48,9 +47,9 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { useSettingsStore, type FilesViewMode } from '../stores/settings-store';
 import Dialog from '../components/Dialog';
+import ShareSheet from '../components/files/ShareSheet';
 
-// A file row carries the resolved display name alongside the original
-// server-side name (the path-encoded `node.name` field).
+// A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
   displayName: string;
 }
@@ -108,7 +107,10 @@ export default function FilesScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
 
-  const [path, setPath] = useState<string[]>([]);
+  // Folder navigation stack. Hierarchy is real parentId nesting (#379) — each
+  // entry is the folder's node id (namespaced "accountId:nodeId" inside a
+  // shared-with-me subtree) plus its name for the breadcrumb.
+  const [path, setPath] = useState<{ id: string; name: string }[]>([]);
   const [allNodes, setAllNodes] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,6 +126,7 @@ export default function FilesScreen() {
   const [renameTarget, setRenameTarget] = useState<FileRow | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [actionsTarget, setActionsTarget] = useState<FileRow | null>(null);
+  const [shareTarget, setShareTarget] = useState<FileRow | null>(null);
 
   const showIcons = useSettingsStore((s) => s.filesShowIcons);
   const coloredIcons = useSettingsStore((s) => s.filesColoredIcons);
@@ -137,8 +140,13 @@ export default function FilesScreen() {
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
 
   const selectionMode = selection.size > 0;
-  const prefix = useMemo(() => pathToPrefix(path), [path]);
-  const headerName = path.length === 0 ? 'Files' : path[path.length - 1];
+  const currentParentId = path.length === 0 ? null : path[path.length - 1].id;
+  // True while browsing inside a folder another principal shared with us.
+  // Creates/uploads would have to route to the owner's account, which this
+  // screen doesn't do (matches the webmail's Files app); writes are hidden.
+  const inSharedSubtree = isCrossAccountId(currentParentId);
+  const headerName = path.length === 0 ? 'Files' : path[path.length - 1].name;
+  const sharingEnabled = supportsSharing();
 
   const loadFiles = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -146,7 +154,9 @@ export default function FilesScreen() {
       else setLoading(true);
       setError(null);
       try {
-        const nodes = await getAllFileNodes();
+        // One fetch across all accessible accounts: own files plus nodes other
+        // principals shared with us (tagged isShared, ids namespaced).
+        const nodes = await getAllFileNodesAcrossAccounts();
         setAllNodes(nodes);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load files');
@@ -162,33 +172,49 @@ export default function FilesScreen() {
     void loadFiles();
   }, [loadFiles]);
 
-  // If we navigated into a folder that no longer exists (it was deleted, or
-  // we never had it), walk back up until we land on one that does. The check
-  // looks for a directory node whose serverName matches the encoded path.
+  // If we navigated into a folder that no longer exists (deleted, or its
+  // share was revoked), cut the stack back to the deepest ancestor that does.
   useEffect(() => {
     if (allNodes.length === 0) return;
     setPath((prev) => {
-      let next = prev;
-      while (next.length > 0) {
-        const parentPrefix = pathToPrefix(next.slice(0, -1));
-        const expectedName = parentPrefix + next[next.length - 1];
-        const exists = allNodes.some((n) => n.name === expectedName && isDirectory(n));
-        if (exists) break;
-        next = next.slice(0, -1);
+      const byId = new Map(allNodes.map((n) => [n.id, n]));
+      let cut = prev.length;
+      for (let i = 0; i < prev.length; i++) {
+        const node = byId.get(prev[i].id);
+        if (!node || !isFolder(node)) {
+          cut = i;
+          break;
+        }
       }
-      return next.length === prev.length ? prev : next;
+      return cut === prev.length ? prev : prev.slice(0, cut);
     });
   }, [allNodes]);
 
   const visibleFiles = useMemo<FileRow[]>(() => {
-    const rows = allNodes
-      .filter((n) => isDirectChildOfPrefix(n, prefix))
-      .map<FileRow>((n) => ({ ...n, displayName: nodeDisplayName(n, prefix) }))
+    let nodes: FileNode[];
+    if (currentParentId === null) {
+      // Root: our own top-level nodes, plus the roots of every shared-with-me
+      // subtree (a shared node whose parent isn't visible to us).
+      const idSet = new Set(allNodes.map((n) => n.id));
+      nodes = allNodes.filter((n) =>
+        n.isShared
+          ? n.parentId == null || !idSet.has(n.parentId)
+          : (n.parentId ?? null) === null,
+      );
+    } else {
+      nodes = allNodes.filter((n) => (n.parentId ?? null) === currentParentId);
+    }
+    const rows = nodes
+      .map<FileRow>((n) => ({ ...n, displayName: n.name }))
       .filter((r) => showHiddenFiles || !r.displayName.startsWith('.'));
     const dir = sortDir === 'desc' ? -1 : 1;
     return rows.sort((a, b) => {
-      const aDir = isDirectory(a) ? 0 : 1;
-      const bDir = isDirectory(b) ? 0 : 1;
+      // Own content first, shared-with-me entries after (root only).
+      const aShared = a.isShared ? 1 : 0;
+      const bShared = b.isShared ? 1 : 0;
+      if (aShared !== bShared) return aShared - bShared;
+      const aDir = isFolder(a) ? 0 : 1;
+      const bDir = isFolder(b) ? 0 : 1;
       if (aDir !== bDir) return aDir - bDir;
       switch (sortKey) {
         case 'size':
@@ -203,15 +229,18 @@ export default function FilesScreen() {
           return a.displayName.localeCompare(b.displayName) * dir;
       }
     });
-  }, [allNodes, prefix, showHiddenFiles, sortKey, sortDir]);
+  }, [allNodes, currentParentId, showHiddenFiles, sortKey, sortDir]);
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
 
-  const toggleSelect = useCallback((id: string) => {
+  // Shared-with-me rows stay out of multi-select: batch delete routes to our
+  // own account and would fail (or worse, mismatch) on namespaced ids.
+  const toggleSelect = useCallback((row: FileRow) => {
+    if (row.isShared) return;
     setSelection((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.add(row.id);
       return next;
     });
   }, []);
@@ -220,7 +249,7 @@ export default function FilesScreen() {
     if (!row.blobId) return;
     setBusyId(row.id);
     try {
-      await shareAttachment(row.blobId, row.displayName, row.type);
+      await shareAttachment(row.blobId, row.displayName, row.type, undefined, row.accountId);
     } catch (e) {
       Alert.alert('Preview failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -232,7 +261,7 @@ export default function FilesScreen() {
     if (!row.blobId) return;
     setBusyId(row.id);
     try {
-      await downloadAttachment(row.blobId, row.displayName, row.type);
+      await downloadAttachment(row.blobId, row.displayName, row.type, undefined, row.accountId);
     } catch (e) {
       Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
     } finally {
@@ -243,11 +272,11 @@ export default function FilesScreen() {
   const handleRowPress = useCallback(
     (row: FileRow) => {
       if (selectionMode) {
-        toggleSelect(row.id);
+        toggleSelect(row);
         return;
       }
-      if (isDirectory(row)) {
-        setPath((p) => [...p, row.displayName]);
+      if (isFolder(row)) {
+        setPath((p) => [...p, { id: row.id, name: row.displayName }]);
         return;
       }
       void previewFile(row);
@@ -256,7 +285,7 @@ export default function FilesScreen() {
   );
 
   const handleRowLongPress = useCallback((row: FileRow) => {
-    toggleSelect(row.id);
+    toggleSelect(row);
   }, [toggleSelect]);
 
   const goBack = useCallback(() => {
@@ -277,19 +306,19 @@ export default function FilesScreen() {
   const submitNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) return;
-    if (name.includes(PATH_SEP) || name.includes('/')) {
+    if (name.includes('/')) {
       Alert.alert('Invalid name', 'Folder names cannot contain "/".');
       return;
     }
     setNewFolderOpen(false);
     setNewFolderName('');
     try {
-      await createFolder(name, path);
+      await createFolder(name, currentParentId);
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert('Create folder failed', e instanceof Error ? e.message : String(e));
     }
-  }, [newFolderName, path, loadFiles]);
+  }, [newFolderName, currentParentId, loadFiles]);
 
   const submitRename = useCallback(async () => {
     if (!renameTarget) return;
@@ -298,7 +327,7 @@ export default function FilesScreen() {
       setRenameTarget(null);
       return;
     }
-    if (name.includes(PATH_SEP) || name.includes('/')) {
+    if (name.includes('/')) {
       Alert.alert('Invalid name', 'Names cannot contain "/".');
       return;
     }
@@ -306,12 +335,12 @@ export default function FilesScreen() {
     setRenameTarget(null);
     setRenameValue('');
     try {
-      await renameFileNode(target, name, path, allNodes);
+      await renameFileNode(target.id, name);
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert('Rename failed', e instanceof Error ? e.message : String(e));
     }
-  }, [renameTarget, renameValue, path, allNodes, loadFiles]);
+  }, [renameTarget, renameValue, loadFiles]);
 
   const startUpload = useCallback(async () => {
     if (uploading) return;
@@ -341,7 +370,7 @@ export default function FilesScreen() {
         asset.uri,
         asset.name,
         asset.mimeType || 'application/octet-stream',
-        path,
+        currentParentId,
       );
       await loadFiles('refresh');
     } catch (e) {
@@ -349,7 +378,7 @@ export default function FilesScreen() {
     } finally {
       setUploading(false);
     }
-  }, [uploading, path, loadFiles]);
+  }, [uploading, currentParentId, loadFiles]);
 
   const requestDelete = useCallback((rows: FileRow[]) => {
     if (rows.length === 0) return;
@@ -362,12 +391,13 @@ export default function FilesScreen() {
     setConfirmDelete(null);
     clearSelection();
     try {
-      await deleteWithDescendants(targets, allNodes);
+      // The server removes folder descendants (onDestroyRemoveChildren).
+      await deleteFileNodes(targets.map((t) => t.id));
       await loadFiles('refresh');
     } catch (e) {
       Alert.alert('Delete failed', e instanceof Error ? e.message : String(e));
     }
-  }, [confirmDelete, allNodes, clearSelection, loadFiles]);
+  }, [confirmDelete, clearSelection, loadFiles]);
 
   const renderHeader = () => {
     const canBack = path.length > 0;
@@ -409,27 +439,31 @@ export default function FilesScreen() {
             </Text>
           </View>
           <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => setNewFolderOpen(true)}
-              hitSlop={8}
-              style={styles.headerBtn}
-              accessibilityLabel="New folder"
-            >
-              <FolderPlus size={20} color={c.text} />
-            </Pressable>
-            <Pressable
-              onPress={() => void startUpload()}
-              hitSlop={8}
-              style={styles.headerBtn}
-              accessibilityLabel="Upload file"
-              disabled={uploading}
-            >
-              {uploading ? (
-                <ActivityIndicator size="small" color={c.text} />
-              ) : (
-                <Upload size={20} color={c.text} />
-              )}
-            </Pressable>
+            {!inSharedSubtree ? (
+              <Pressable
+                onPress={() => setNewFolderOpen(true)}
+                hitSlop={8}
+                style={styles.headerBtn}
+                accessibilityLabel="New folder"
+              >
+                <FolderPlus size={20} color={c.text} />
+              </Pressable>
+            ) : null}
+            {!inSharedSubtree ? (
+              <Pressable
+                onPress={() => void startUpload()}
+                hitSlop={8}
+                style={styles.headerBtn}
+                accessibilityLabel="Upload file"
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <ActivityIndicator size="small" color={c.text} />
+                ) : (
+                  <Upload size={20} color={c.text} />
+                )}
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={toggleView}
               hitSlop={8}
@@ -442,7 +476,7 @@ export default function FilesScreen() {
         </View>
         {canBack ? (
           <Text style={styles.breadcrumb} numberOfLines={1}>
-            {['Files', ...path].join(' / ')}
+            {['Files', ...path.map((p) => p.name)].join(' / ')}
           </Text>
         ) : null}
       </View>
@@ -450,13 +484,14 @@ export default function FilesScreen() {
   };
 
   const renderRow = (item: FileRow) => {
-    const isDir = isDirectory(item);
+    const isDir = isFolder(item);
     const Icon = isDir ? Folder : pickFileIcon(item.displayName);
     const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
       : (coloredIcons ? fileIconColor(item.displayName, c) : c.textMuted);
     const selected = selection.has(item.id);
     const busy = busyId === item.id;
+    const sharedOut = !!item.shareWith && Object.keys(item.shareWith).length > 0;
     return (
       <Pressable
         onPress={() => handleRowPress(item)}
@@ -470,10 +505,22 @@ export default function FilesScreen() {
       >
         {showIcons && <Icon size={20} color={tint} />}
         <View style={styles.fileInfo}>
-          <Text style={styles.fileName} numberOfLines={1}>
-            {item.displayName}
-          </Text>
+          <View style={styles.fileNameRow}>
+            <Text style={styles.fileName} numberOfLines={1}>
+              {item.displayName}
+            </Text>
+            {item.isShared ? (
+              <Share2 size={13} color={c.primary} />
+            ) : sharedOut ? (
+              <Users size={13} color={c.primary} />
+            ) : null}
+          </View>
           <View style={styles.fileMetaRow}>
+            {item.isShared && item.accountName ? (
+              <Text style={styles.fileMeta} numberOfLines={1}>
+                Shared by {item.accountName}
+              </Text>
+            ) : null}
             {item.size != null && !isDir ? (
               <Text style={styles.fileMeta}>{formatFileSize(item.size)}</Text>
             ) : null}
@@ -501,12 +548,13 @@ export default function FilesScreen() {
   };
 
   const renderGridCell = (item: FileRow) => {
-    const isDir = isDirectory(item);
+    const isDir = isFolder(item);
     const Icon = isDir ? Folder : pickFileIcon(item.displayName);
     const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
       : (coloredIcons ? fileIconColor(item.displayName, c) : c.textMuted);
     const selected = selection.has(item.id);
+    const sharedOut = !!item.shareWith && Object.keys(item.shareWith).length > 0;
     return (
       <Pressable
         onPress={() => handleRowPress(item)}
@@ -523,10 +571,21 @@ export default function FilesScreen() {
         ) : (
           <View style={{ width: 36, height: 36 }} />
         )}
-        <Text style={styles.gridName} numberOfLines={2}>
-          {item.displayName}
-        </Text>
-        {item.size != null && !isDir ? (
+        <View style={styles.gridNameRow}>
+          <Text style={styles.gridName} numberOfLines={2}>
+            {item.displayName}
+          </Text>
+          {item.isShared ? (
+            <Share2 size={12} color={c.primary} />
+          ) : sharedOut ? (
+            <Users size={12} color={c.primary} />
+          ) : null}
+        </View>
+        {item.isShared && item.accountName ? (
+          <Text style={styles.gridMeta} numberOfLines={1}>
+            Shared by {item.accountName}
+          </Text>
+        ) : item.size != null && !isDir ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
             {formatFileSize(item.size)}
           </Text>
@@ -627,6 +686,7 @@ export default function FilesScreen() {
 
       <ActionsSheet
         target={actionsTarget}
+        sharingEnabled={sharingEnabled}
         onClose={() => setActionsTarget(null)}
         onPreview={(r) => {
           setActionsTarget(null);
@@ -635,6 +695,10 @@ export default function FilesScreen() {
         onDownload={(r) => {
           setActionsTarget(null);
           void downloadFile(r);
+        }}
+        onShare={(r) => {
+          setActionsTarget(null);
+          setShareTarget(r);
         }}
         onRename={(r) => {
           setActionsTarget(null);
@@ -645,6 +709,12 @@ export default function FilesScreen() {
           setActionsTarget(null);
           requestDelete([r]);
         }}
+      />
+
+      <ShareSheet
+        node={shareTarget}
+        onClose={() => setShareTarget(null)}
+        onChanged={() => void loadFiles('refresh')}
       />
 
       <Dialog
@@ -722,18 +792,24 @@ function PromptModal(props: PromptModalProps) {
 
 interface ActionsSheetProps {
   target: FileRow | null;
+  sharingEnabled: boolean;
   onClose: () => void;
   onPreview: (r: FileRow) => void;
   onDownload: (r: FileRow) => void;
+  onShare: (r: FileRow) => void;
   onRename: (r: FileRow) => void;
   onDelete: (r: FileRow) => void;
 }
 
-function ActionsSheet({ target, onClose, onPreview, onDownload, onRename, onDelete }: ActionsSheetProps) {
+function ActionsSheet({ target, sharingEnabled, onClose, onPreview, onDownload, onShare, onRename, onDelete }: ActionsSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!target) return null;
-  const isDir = isDirectory(target);
+  const isDir = isFolder(target);
+  // Owned nodes report full rights (or no myRights at all); shared-with-me
+  // nodes are managed by their owner, and write ops would have to route to
+  // the owner's account — so they only get preview/download here.
+  const canShare = sharingEnabled && !target.isShared && (target.myRights?.mayShare ?? true);
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
@@ -755,14 +831,24 @@ function ActionsSheet({ target, onClose, onPreview, onDownload, onRename, onDele
                   <Text style={styles.actionLabel}>Save to device</Text>
                 </Pressable>
               ) : null}
-              <Pressable style={styles.action} onPress={() => onRename(target)}>
-                <Pencil size={18} color={c.text} />
-                <Text style={styles.actionLabel}>Rename</Text>
-              </Pressable>
-              <Pressable style={styles.action} onPress={() => onDelete(target)}>
-                <Trash2 size={18} color={c.error} />
-                <Text style={[styles.actionLabel, { color: c.error }]}>Delete</Text>
-              </Pressable>
+              {canShare ? (
+                <Pressable style={styles.action} onPress={() => onShare(target)}>
+                  <Users size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>Sharing & access</Text>
+                </Pressable>
+              ) : null}
+              {!target.isShared ? (
+                <Pressable style={styles.action} onPress={() => onRename(target)}>
+                  <Pencil size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>Rename</Text>
+                </Pressable>
+              ) : null}
+              {!target.isShared ? (
+                <Pressable style={styles.action} onPress={() => onDelete(target)}>
+                  <Trash2 size={18} color={c.error} />
+                  <Text style={[styles.actionLabel, { color: c.error }]}>Delete</Text>
+                </Pressable>
+              ) : null}
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -856,9 +942,15 @@ function makeStyles(c: ThemePalette) {
     fileInfo: {
       flex: 1,
     },
+    fileNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
     fileName: {
       fontSize: typography.body.fontSize,
       color: c.text,
+      flexShrink: 1,
     },
     fileMetaRow: {
       flexDirection: 'row',
@@ -886,10 +978,18 @@ function makeStyles(c: ThemePalette) {
       paddingHorizontal: spacing.xs,
       borderRadius: radius.md,
     },
+    gridNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      maxWidth: '100%',
+    },
     gridName: {
       fontSize: typography.caption.fontSize,
       color: c.text,
       textAlign: 'center',
+      flexShrink: 1,
     },
     gridMeta: {
       fontSize: typography.small.fontSize,

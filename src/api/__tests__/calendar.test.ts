@@ -42,10 +42,10 @@ describe('calendar operations', () => {
   });
 
   describe('queryEvents', () => {
-    it('should send a CalendarEvent/query without server-side filter', async () => {
-      // Stalwart rejects inCalendars/after/before, so we fetch unfiltered and
-      // filter client-side. Asserting on the absence of `filter` keeps that
-      // contract pinned.
+    it('should filter via singular inCalendar conditions (Stalwart-compatible)', async () => {
+      // Stalwart rejects the draft's plural `inCalendars` filter (and
+      // after/before); calendars are restricted via singular `inCalendar`
+      // conditions and date filtering stays client-side.
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/query', { ids: ['ev1', 'ev2'] }, '0']],
       });
@@ -55,8 +55,34 @@ describe('calendar operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[0]).toBe('CalendarEvent/query');
-      expect(call[1].filter).toBeUndefined();
+      expect(call[1].filter).toEqual({ inCalendar: 'cal-1' });
       expect(call[1].accountId).toBe('acc-1');
+    });
+
+    it('should OR multiple calendars and respect the target account', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/query', { ids: [] }, '0']],
+      });
+
+      await queryEvents(['cal-1', 'cal-2'], '', '', 'acc-shared');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].filter).toEqual({
+        operator: 'OR',
+        conditions: [{ inCalendar: 'cal-1' }, { inCalendar: 'cal-2' }],
+      });
+      expect(call[1].accountId).toBe('acc-shared');
+    });
+
+    it('should omit the filter when no calendars are given', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/query', { ids: [] }, '0']],
+      });
+
+      await queryEvents([], '', '');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].filter).toBeUndefined();
     });
   });
 

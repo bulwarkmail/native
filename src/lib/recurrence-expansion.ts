@@ -11,7 +11,7 @@
  * on the client.
  */
 
-import { addDays, addMonths, addWeeks, addYears, format, parseISO } from 'date-fns';
+import { addDays, addMonths, addWeeks, addYears, differenceInCalendarDays, format, parseISO } from 'date-fns';
 import type { CalendarEvent, RecurrenceRule } from '../api/types';
 
 type NDay = { day: string; nthOfPeriod?: number };
@@ -60,6 +60,10 @@ export function expandRecurringEvents(
   return result;
 }
 
+function occurrenceDateKey(master: CalendarEvent, date: Date): string {
+  return master.showWithoutTime ? format(date, 'yyyy-MM-dd') : date.toISOString();
+}
+
 function expandEvent(
   master: CalendarEvent,
   rangeStart: Date,
@@ -73,13 +77,23 @@ function expandEvent(
   const occurrences: CalendarEvent[] = [];
   const seenDates = new Set<string>();
 
+  // RFC 8984 §4.3.3: occurrences produced by excludedRecurrenceRules
+  // (iCalendar EXRULE) are removed from the recurrence set.
+  const excludedDates = new Set<string>();
+  for (const exRule of master.excludedRecurrenceRules || []) {
+    // includeStartDate=false: "the series start is always an occurrence"
+    // applies to recurrence rules, not to exclusion rules.
+    for (const date of generateDates(eventStart, exRule, rangeStart, rangeEnd, false)) {
+      excludedDates.add(occurrenceDateKey(master, date));
+    }
+  }
+
   for (const rule of rules) {
     const dates = generateDates(eventStart, rule, rangeStart, rangeEnd);
     for (const date of dates) {
-      const dateKey = master.showWithoutTime
-        ? format(date, 'yyyy-MM-dd')
-        : date.toISOString();
+      const dateKey = occurrenceDateKey(master, date);
 
+      if (excludedDates.has(dateKey)) continue;
       if (seenDates.has(dateKey)) continue;
       seenDates.add(dateKey);
 
@@ -104,9 +118,9 @@ function expandEvent(
     if (isNaN(overrideDate.getTime())) continue;
     if (overrideDate < rangeStart || overrideDate >= rangeEnd) continue;
 
-    const dateKey = master.showWithoutTime
-      ? format(overrideDate, 'yyyy-MM-dd')
-      : overrideDate.toISOString();
+    // Overrides take precedence over excludedRecurrenceRules (they re-add
+    // a concrete instance), so only dedupe against already-generated dates.
+    const dateKey = occurrenceDateKey(master, overrideDate);
     if (seenDates.has(dateKey)) continue;
     seenDates.add(dateKey);
 
@@ -114,6 +128,65 @@ function expandEvent(
   }
 
   return occurrences;
+}
+
+// Cache Intl formatters per IANA timezone id — constructing them is expensive
+// and expansion runs over hundreds of occurrences. `null` marks ids the
+// runtime rejected so we don't retry them.
+const tzFormatterCache = new Map<string, Intl.DateTimeFormat | null>();
+
+function getTzFormatter(timeZone: string): Intl.DateTimeFormat | null {
+  let formatter = tzFormatterCache.get(timeZone);
+  if (formatter === undefined) {
+    try {
+      formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+    } catch {
+      formatter = null;
+    }
+    tzFormatterCache.set(timeZone, formatter);
+  }
+  return formatter;
+}
+
+/** The wall-clock reading of `instant` in the formatter's zone, re-encoded as a UTC timestamp. */
+function wallClockAsUtcTimestamp(formatter: Intl.DateTimeFormat, instant: number): number {
+  const map: Record<string, string> = {};
+  for (const part of formatter.formatToParts(new Date(instant))) {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  }
+  const hour = map.hour === '24' ? 0 : Number(map.hour);
+  return Date.UTC(
+    Number(map.year), Number(map.month) - 1, Number(map.day),
+    hour, Number(map.minute), Number(map.second),
+  );
+}
+
+/**
+ * Interpret the wall-clock fields of `wall` as a local time in `timeZone`
+ * and return the corresponding UTC instant. Two fixup iterations converge
+ * for all real offsets, including across DST transitions.
+ */
+function zonedWallTimeToUtc(wall: Date, timeZone: string): Date | null {
+  const formatter = getTzFormatter(timeZone);
+  if (!formatter) return null;
+  const wallAsUtc = Date.UTC(
+    wall.getFullYear(), wall.getMonth(), wall.getDate(),
+    wall.getHours(), wall.getMinutes(), wall.getSeconds(),
+  );
+  let guess = wallAsUtc;
+  for (let i = 0; i < 2; i++) {
+    guess = wallAsUtc - (wallClockAsUtcTimestamp(formatter, guess) - guess);
+  }
+  return new Date(guess);
 }
 
 function createOccurrence(
@@ -130,16 +203,33 @@ function createOccurrence(
   // getEventEndDate return the occurrence times rather than the master's.
   let utcStart: string | undefined;
   let utcEnd: string | undefined;
-  if (!master.showWithoutTime && master.utcStart && master.start) {
-    const masterLocal = parseISO(master.start);
-    const masterUtc = parseISO(master.utcStart);
-    const offsetMs = masterUtc.getTime() - masterLocal.getTime();
-    utcStart = new Date(date.getTime() + offsetMs).toISOString();
+  if (!master.showWithoutTime) {
+    let durationMs: number | null = null;
+    if (master.utcStart && master.utcEnd) {
+      const ms = parseISO(master.utcEnd).getTime() - parseISO(master.utcStart).getTime();
+      if (!isNaN(ms)) durationMs = ms;
+    }
 
-    if (master.utcEnd) {
-      const masterUtcEnd = parseISO(master.utcEnd);
-      const durationMs = masterUtcEnd.getTime() - masterUtc.getTime();
-      utcEnd = new Date(date.getTime() + offsetMs + durationMs).toISOString();
+    // Convert the occurrence's wall time using the event's own timezone, so
+    // occurrences on the other side of a DST transition in that zone keep
+    // their wall time. Reusing the master's fixed UTC offset (the fallback
+    // below) would shift them by the DST delta.
+    const zoned = master.timeZone ? zonedWallTimeToUtc(date, master.timeZone) : null;
+    if (zoned) {
+      utcStart = zoned.toISOString();
+      if (durationMs !== null) {
+        utcEnd = new Date(zoned.getTime() + durationMs).toISOString();
+      }
+    } else if (master.utcStart && master.start) {
+      // Floating events (or an unrecognized timezone id): keep the master's
+      // offset, which by definition doesn't vary.
+      const masterLocal = parseISO(master.start);
+      const masterUtc = parseISO(master.utcStart);
+      const offsetMs = masterUtc.getTime() - masterLocal.getTime();
+      utcStart = new Date(date.getTime() + offsetMs).toISOString();
+      if (durationMs !== null) {
+        utcEnd = new Date(date.getTime() + offsetMs + durationMs).toISOString();
+      }
     }
   }
 
@@ -207,6 +297,7 @@ function generateDates(
   rawRule: RecurrenceRule,
   rangeStart: Date,
   rangeEnd: Date,
+  includeStartDate = true,
 ): Date[] {
   const rule = addImplicitByX(rawRule, eventStart);
   const dates: Date[] = [];
@@ -214,21 +305,34 @@ function generateDates(
   const countLimit = rule.count || Infinity;
   const until = rule.until ? parseISO(rule.until) : null;
   let totalCount = 0;
-  let current = new Date(eventStart);
+  // Without a `count` limit we can jump straight to the period containing
+  // the visible range. With one, every occurrence since the series start
+  // must be generated so it counts against `count`.
+  let current = rule.count
+    ? new Date(eventStart)
+    : fastForwardToRange(eventStart, rule.frequency, interval, rangeStart);
 
   const maxIterations = 2000;
+  // Cap on *emitted* (in-range) dates. This must not count occurrences
+  // before rangeStart, otherwise a series started long ago (e.g. a daily
+  // event from two years back) exhausts the budget before reaching the
+  // visible range and silently renders nothing.
   const maxOccurrences = 500;
   let iterations = 0;
 
   while (iterations++ < maxIterations) {
-    if (totalCount >= countLimit || totalCount >= maxOccurrences) break;
+    if (totalCount >= countLimit || dates.length >= maxOccurrences) break;
     if (until && current > until) break;
-    if (
-      current >= rangeEnd
-      && rule.frequency !== 'yearly'
-      && rule.frequency !== 'monthly'
-      && rule.frequency !== 'weekly'
-    ) break;
+    // Stop once no candidate in this or a later period can fall before
+    // rangeEnd. Monthly/yearly candidates may precede the period anchor
+    // within the same month/year, so floor the anchor before comparing.
+    if (rule.frequency === 'monthly') {
+      if (new Date(current.getFullYear(), current.getMonth(), 1) >= rangeEnd) break;
+    } else if (rule.frequency === 'yearly') {
+      if (new Date(current.getFullYear(), 0, 1) >= rangeEnd) break;
+    } else if (current >= rangeEnd) {
+      break;
+    }
 
     const candidates = generateCandidatesForPeriod(current, rule, eventStart);
 
@@ -238,7 +342,7 @@ function generateDates(
 
     for (const d of filtered) {
       if (until && d > until) break;
-      if (totalCount >= countLimit || totalCount >= maxOccurrences) break;
+      if (totalCount >= countLimit || dates.length >= maxOccurrences) break;
 
       // Spec rule 4: eliminate dates before event start
       if (d < eventStart) continue;
@@ -250,7 +354,7 @@ function generateDates(
       if (d >= rangeEnd) break;
     }
 
-    if (totalCount >= countLimit || totalCount >= maxOccurrences) break;
+    if (totalCount >= countLimit || dates.length >= maxOccurrences) break;
 
     current = advancePeriod(current, rule.frequency, interval);
     if (current <= eventStart && iterations === 1) {
@@ -259,7 +363,7 @@ function generateDates(
   }
 
   // Spec rule 1: the start date-time is ALWAYS the first occurrence.
-  if (dates.length > 0 && dates[0].getTime() !== eventStart.getTime()) {
+  if (includeStartDate && dates.length > 0 && dates[0].getTime() !== eventStart.getTime()) {
     if (eventStart >= rangeStart && eventStart < rangeEnd) {
       if (!dates.some((d) => d.getTime() === eventStart.getTime())) {
         dates.unshift(eventStart);
@@ -502,6 +606,66 @@ function advancePeriod(
     case 'minutely': return new Date(date.getTime() + interval * 60000);
     case 'secondly': return new Date(date.getTime() + interval * 1000);
     default:         return addDays(date, interval);
+  }
+}
+
+// ─── Fast-forward to the visible range ───────────────────
+// Jump to the period just before the visible range in O(1), so long-running
+// series don't burn the iteration budget on years of out-of-range periods.
+// Only valid for rules without `count` (counted rules must enumerate every
+// occurrence from the series start).
+function fastForwardToRange(
+  eventStart: Date,
+  frequency: RecurrenceRule['frequency'],
+  interval: number,
+  rangeStart: Date,
+): Date {
+  if (eventStart >= rangeStart) return new Date(eventStart);
+
+  let periods: number;
+  switch (frequency) {
+    case 'secondly':
+      periods = Math.floor((rangeStart.getTime() - eventStart.getTime()) / (1000 * interval));
+      break;
+    case 'minutely':
+      periods = Math.floor((rangeStart.getTime() - eventStart.getTime()) / (60000 * interval));
+      break;
+    case 'hourly':
+      periods = Math.floor((rangeStart.getTime() - eventStart.getTime()) / (3600000 * interval));
+      break;
+    case 'daily':
+      periods = Math.floor(differenceInCalendarDays(rangeStart, eventStart) / interval);
+      break;
+    case 'weekly':
+      periods = Math.floor(differenceInCalendarDays(rangeStart, eventStart) / (7 * interval));
+      break;
+    case 'monthly': {
+      const months = (rangeStart.getFullYear() - eventStart.getFullYear()) * 12
+        + (rangeStart.getMonth() - eventStart.getMonth());
+      periods = Math.floor(months / interval);
+      break;
+    }
+    case 'yearly':
+      periods = Math.floor((rangeStart.getFullYear() - eventStart.getFullYear()) / interval);
+      break;
+    default:
+      return new Date(eventStart);
+  }
+
+  // Land one full period early so candidates inside the boundary period
+  // (which can precede the period anchor) are still generated.
+  periods = Math.max(0, periods - 1);
+  if (periods === 0) return new Date(eventStart);
+
+  switch (frequency) {
+    case 'secondly': return new Date(eventStart.getTime() + periods * interval * 1000);
+    case 'minutely': return new Date(eventStart.getTime() + periods * interval * 60000);
+    case 'hourly': return new Date(eventStart.getTime() + periods * interval * 3600000);
+    case 'daily': return addDays(eventStart, periods * interval);
+    case 'weekly': return addWeeks(eventStart, periods * interval);
+    case 'monthly': return addMonths(eventStart, periods * interval);
+    case 'yearly': return addYears(eventStart, periods * interval);
+    default: return new Date(eventStart);
   }
 }
 
