@@ -152,7 +152,17 @@ export const useCalendarStore = create<CalendarState>()(
           const eventIds = (await queryEvents(ids, after, before, accountId)) ?? [];
           if (eventIds.length === 0) continue;
           const fetched = (await fetchEvents(eventIds, accountId)) ?? [];
-          raw.push(...(accountId ? fetched.map((e) => ({ ...e, accountId })) : fetched));
+          // Shared/group accounts: JMAP object ids are only unique *within* an
+          // account, so two accounts can return events with the same id.
+          // Namespace shared ids with the owning accountId (stashing the real id
+          // in originalId for mutations) so they don't collide with the user's
+          // own events in the store / React keys. Mirrors webmail's
+          // mapServerEventToStoreEvent.
+          raw.push(
+            ...(accountId
+              ? fetched.map((e) => ({ ...e, accountId, id: `${accountId}:${e.id}`, originalId: e.id }))
+              : fetched),
+          );
         } catch (err) {
           // A failing shared account must not hide the user's own events.
           if (!accountId) throw err;
@@ -233,7 +243,12 @@ export const useCalendarStore = create<CalendarState>()(
       hasSchedulingParticipants(event) ? true : undefined,
       accountId,
     );
-    set({ events: [...get().events, accountId ? { ...created, accountId } : created] });
+    // Namespace shared/group event ids the same way fetchEvents does so the
+    // optimistic insert doesn't collide with the user's own events.
+    const storeCreated = accountId
+      ? { ...created, accountId, id: `${accountId}:${created.id}`, originalId: created.id }
+      : created;
+    set({ events: [...get().events, storeCreated] });
     return created;
   },
 

@@ -101,6 +101,34 @@ describe('calendar-store', () => {
       expect(useCalendarStore.getState().events).toEqual([]);
       expect(mockGetEvents).not.toHaveBeenCalled();
     });
+
+    it('namespaces shared/group event ids by owning account and keeps the real id in originalId', async () => {
+      // A shared calendar lives in another account; its event id ("ev1") can
+      // collide with one of the user's own events, so the store must namespace
+      // it. Mirrors webmail's mapServerEventToStoreEvent.
+      useCalendarStore.setState({
+        calendars: [
+          { id: 'cal-1', name: 'Personal' } as any,
+          { id: 'shared-cal', name: 'Team', accountId: 'acc-2', isShared: true } as any,
+        ],
+      });
+      mockQueryEvents.mockImplementation(async (_ids: string[], _a: string, _b: string, accountId?: string) =>
+        accountId === 'acc-2' ? ['ev1'] : [],
+      );
+      mockGetEvents.mockImplementation(async (_ids: string[], accountId?: string) =>
+        accountId === 'acc-2'
+          ? [{ id: 'ev1', title: 'Standup', start: '2026-03-15T10:00:00', calendarIds: { 'shared-cal': true } }]
+          : [],
+      );
+
+      await useCalendarStore.getState().fetchEvents(['cal-1', 'shared-cal'], '2026-03-01', '2026-03-31');
+
+      const stored = useCalendarStore.getState().events;
+      expect(stored).toHaveLength(1);
+      expect(stored[0].id).toBe('acc-2:ev1');
+      expect(stored[0].originalId).toBe('ev1');
+      expect(stored[0].accountId).toBe('acc-2');
+    });
   });
 
   describe('ensureRange', () => {

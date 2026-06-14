@@ -7,6 +7,9 @@ import {
   normalizeAllDayDuration,
   buildAllDayDuration,
   getCalendarColor,
+  getEventStartDate,
+  getEventEndDate,
+  timePattern,
   layoutOverlappingEvents,
   CALENDAR_COLOR_PALETTE,
 } from '../calendar-utils';
@@ -48,6 +51,32 @@ describe('parseLocalDateTime', () => {
     expect(d.getMonth()).toBe(3);
     expect(d.getDate()).toBe(20);
     expect(d.getHours()).toBe(9);
+  });
+});
+
+describe('getEventStartDate / getEventEndDate malformed utc fallback', () => {
+  // Mirrors webmail (#316): a malformed utcStart/utcEnd must fall back to the
+  // floating `start` + duration instead of producing an Invalid Date, which
+  // would silently drop the event from the day index and every view.
+  it('falls back to start when utcStart is unparseable', () => {
+    const d = getEventStartDate(ev({ utcStart: 'garbage' }));
+    expect(isNaN(d.getTime())).toBe(false);
+    expect(d.getHours()).toBe(9);
+  });
+
+  it('falls back to start + duration when utcEnd is unparseable', () => {
+    const end = getEventEndDate(ev({ utcEnd: 'garbage', duration: 'PT1H' }));
+    expect(isNaN(end.getTime())).toBe(false);
+    const start = getEventStartDate(ev({}));
+    expect(end.getTime() - start.getTime()).toBe(60 * 60 * 1000);
+  });
+});
+
+describe('timePattern', () => {
+  it('maps 12h to an am/pm pattern and 24h (or undefined) to HH:mm', () => {
+    expect(timePattern('12h')).toBe('h:mm a');
+    expect(timePattern('24h')).toBe('HH:mm');
+    expect(timePattern(undefined)).toBe('HH:mm');
   });
 });
 

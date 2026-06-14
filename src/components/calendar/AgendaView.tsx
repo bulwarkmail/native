@@ -1,15 +1,16 @@
 import React from 'react';
 import { SectionList, StyleSheet, Text, View } from 'react-native';
-import { format, isSameDay, isToday, isTomorrow } from 'date-fns';
+import { addDays, format, isSameDay, isToday, isTomorrow, parseISO, startOfDay } from 'date-fns';
 import { CalendarDays } from 'lucide-react-native';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import {
   buildEventDayIndex,
+  dayKey,
   eventsOnDayFromIndex,
-  getEventStartDate,
   type EventDayIndex,
+  type TimeFormat,
 } from '../../lib/calendar-utils';
 import { EventCard } from './EventCard';
 
@@ -19,6 +20,7 @@ interface AgendaViewProps {
   events: CalendarEvent[];
   calendars: Calendar[];
   eventsByDay?: EventDayIndex;
+  timeFormat?: TimeFormat;
   onSelectEvent?: (event: CalendarEvent) => void;
 }
 
@@ -40,6 +42,7 @@ export function AgendaView({
   events,
   calendars,
   eventsByDay,
+  timeFormat,
   onSelectEvent,
 }: AgendaViewProps) {
   const c = useColors();
@@ -50,32 +53,35 @@ export function AgendaView({
   );
 
   const sections = React.useMemo<DaySection[]>(() => {
-    const result: DaySection[] = [];
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
+    // Mirror webmail's agenda (calendar-agenda-view.tsx): build a group for
+    // every day that actually has events, always include a "Today" anchor, and
+    // render them sorted ascending. Driving the list off the events (rather than
+    // a fixed day-counter) guarantees every upcoming loaded event appears - not
+    // just the ones inside a brittle N-day window from the anchor.
+    const anchor = startOfDay(fromDate);
+    const horizonEnd = addDays(anchor, daysAhead); // safety bound (exclusive)
 
-    for (let i = 0; i < daysAhead; i++) {
-      const day = new Date(start);
-      day.setDate(start.getDate() + i);
-      const dayEvents = eventsOnDayFromIndex(index, day).slice().sort((a, b) => {
-        // All-day events first within a day, then by start time, then title
-        // (stable tie-break) - mirrors the comparator the webmail uses for
-        // packing week segments and keeps multi-event days predictable.
-        if (a.showWithoutTime !== b.showWithoutTime) {
-          return a.showWithoutTime ? -1 : 1;
-        }
-        const diff = getEventStartDate(a).getTime() - getEventStartDate(b).getTime();
-        if (diff !== 0) return diff;
-        return (a.title || '').localeCompare(b.title || '');
-      });
-      if (dayEvents.length === 0 && !isToday(day)) continue;
-      result.push({
+    const days = new Map<string, Date>();
+    for (const key of index.keys()) {
+      const day = parseISO(key); // index keys are local yyyy-MM-dd
+      if (isNaN(day.getTime())) continue;
+      if (day < anchor || day >= horizonEnd) continue;
+      days.set(key, day);
+    }
+    // Always anchor "Today" so the view has a stable starting point even when
+    // the current day has no events (webmail injects the same anchor).
+    const today = startOfDay(new Date());
+    if (today >= anchor && today < horizonEnd) days.set(dayKey(today), today);
+
+    return [...days.values()]
+      .sort((a, b) => a.getTime() - b.getTime())
+      .map((day) => ({
         title: formatDayHeader(day),
         date: day,
-        data: dayEvents,
-      });
-    }
-    return result;
+        // Buckets are pre-sorted by buildEventDayIndex (all-day first, then by
+        // start, then title), so no extra sort is needed here.
+        data: eventsOnDayFromIndex(index, day),
+      }));
   }, [fromDate, daysAhead, index]);
 
   if (sections.length === 0) {
@@ -107,7 +113,7 @@ export function AgendaView({
       }}
       renderItem={({ item }) => (
         <View style={styles.itemWrap}>
-          <EventCard event={item} calendars={calendars} onPress={onSelectEvent} />
+          <EventCard event={item} calendars={calendars} timeFormat={timeFormat} onPress={onSelectEvent} />
         </View>
       )}
       renderSectionFooter={({ section }) =>

@@ -36,6 +36,8 @@ import {
   eventTimeRange,
   getEventColor,
   getPrimaryCalendarId,
+  timePattern,
+  type TimeFormat,
 } from '../../lib/calendar-utils';
 import { alertsToReminders, formatReminder } from '../../lib/calendar-alerts';
 import {
@@ -50,6 +52,7 @@ type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 interface EventDetailSheetProps {
   event: CalendarEvent | null;
   calendars: Calendar[];
+  timeFormat?: TimeFormat;
   onClose: () => void;
   onEdit?: (event: CalendarEvent) => void;
   onDelete?: (event: CalendarEvent) => void;
@@ -57,7 +60,7 @@ interface EventDetailSheetProps {
   onRsvp?: (event: CalendarEvent, participantId: string, status: RsvpStatus) => void | Promise<void>;
 }
 
-function formatRange(event: CalendarEvent): string {
+function formatRange(event: CalendarEvent, timeFormat?: TimeFormat): string {
   const { start, end, allDay } = eventTimeRange(event);
   if (allDay) {
     if (
@@ -69,14 +72,15 @@ function formatRange(event: CalendarEvent): string {
     }
     return `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`;
   }
+  const t = timePattern(timeFormat);
   const sameDay =
     start.getFullYear() === end.getFullYear() &&
     start.getMonth() === end.getMonth() &&
     start.getDate() === end.getDate();
   if (sameDay) {
-    return `${format(start, 'EEE, MMM d')} · ${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`;
+    return `${format(start, 'EEE, MMM d')} · ${format(start, t)} – ${format(end, t)}`;
   }
-  return `${format(start, 'MMM d, HH:mm')} – ${format(end, 'MMM d, HH:mm')}`;
+  return `${format(start, `MMM d, ${t}`)} – ${format(end, `MMM d, ${t}`)}`;
 }
 
 function recurrenceLabel(event: CalendarEvent): string | null {
@@ -100,6 +104,7 @@ function recurrenceLabel(event: CalendarEvent): string | null {
 export function EventDetailSheet({
   event,
   calendars,
+  timeFormat,
   onClose,
   onEdit,
   onDelete,
@@ -156,7 +161,7 @@ export function EventDetailSheet({
   const color = getEventColor(event, calendars);
   const calendarId = getPrimaryCalendarId(event);
   const calendar = calendars.find((c) => c.id === calendarId);
-  const range = formatRange(event);
+  const range = formatRange(event, timeFormat);
   const recurrence = recurrenceLabel(event);
   const reminders = alertsToReminders(event.alerts);
   const participants = event.participants ? Object.values(event.participants) : [];

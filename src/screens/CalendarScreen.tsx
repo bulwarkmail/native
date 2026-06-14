@@ -58,6 +58,7 @@ import {
   pickUnusedCalendarColor,
   sharedCalendarColorKey,
   type EventDayIndex,
+  type TimeFormat,
 } from '../lib/calendar-utils';
 import { buildReplyTo } from '../lib/calendar-invitation';
 import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from '../lib/birthday-calendar';
@@ -291,25 +292,34 @@ export default function CalendarScreen() {
     [],
   );
 
+  // A recurring series member is a master (has recurrenceRules) or an expanded
+  // occurrence (has recurrenceId) — those get the this/all scope dialog. Note:
+  // we must NOT key off originalId here, since shared/group events now carry it
+  // for id-namespacing even when they aren't recurring.
+  const isRecurringSeriesMember = React.useCallback(
+    (event: CalendarEvent) => !!event.recurrenceRules?.length || !!event.recurrenceId,
+    [],
+  );
+
   const handleEditFromDetail = React.useCallback((event: CalendarEvent) => {
     if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
     setDetailEvent(null);
-    if (event.recurrenceRules?.length || event.originalId) {
+    if (isRecurringSeriesMember(event)) {
       setPendingAction({ kind: 'edit', event });
     } else {
       openEditDirect(event);
     }
-  }, [openEditDirect, isReadOnlyEvent]);
+  }, [openEditDirect, isReadOnlyEvent, isRecurringSeriesMember]);
 
   const handleDeleteFromDetail = React.useCallback((event: CalendarEvent) => {
     if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
     setDetailEvent(null);
-    if (event.recurrenceRules?.length || event.originalId) {
+    if (isRecurringSeriesMember(event)) {
       setPendingAction({ kind: 'delete', event });
     } else {
       void deleteEvent(event.id);
     }
-  }, [deleteEvent, isReadOnlyEvent]);
+  }, [deleteEvent, isReadOnlyEvent, isRecurringSeriesMember]);
 
   const handleScopeSelect = React.useCallback(
     async (scope: RecurrenceEditScope) => {
@@ -459,6 +469,7 @@ export default function CalendarScreen() {
             events={events}
             eventsByDay={eventsByDay}
             calendars={calendars}
+            timeFormat={calendarTimeFormat}
             onSelectEvent={setDetailEvent}
           />
         )}
@@ -475,6 +486,7 @@ export default function CalendarScreen() {
               date={selectedDate}
               eventsByDay={eventsByDay}
               calendars={calendars}
+              timeFormat={calendarTimeFormat}
               onSelectEvent={setDetailEvent}
               refreshing={refreshing}
               onRefresh={onRefresh}
@@ -486,6 +498,7 @@ export default function CalendarScreen() {
       <EventDetailSheet
         event={detailEvent}
         calendars={calendars}
+        timeFormat={calendarTimeFormat}
         onClose={() => setDetailEvent(null)}
         onEdit={handleEditFromDetail}
         onDelete={handleDeleteFromDetail}
@@ -570,6 +583,7 @@ function DayEventList({
   date,
   eventsByDay,
   calendars,
+  timeFormat,
   onSelectEvent,
   refreshing,
   onRefresh,
@@ -577,6 +591,7 @@ function DayEventList({
   date: Date;
   eventsByDay: EventDayIndex;
   calendars: Calendar[];
+  timeFormat?: TimeFormat;
   onSelectEvent?: (event: CalendarEvent) => void;
   refreshing: boolean;
   onRefresh: () => void;
@@ -613,6 +628,7 @@ function DayEventList({
           key={event.id}
           event={event}
           calendars={calendars}
+          timeFormat={timeFormat}
           onPress={onSelectEvent}
         />
       ))}

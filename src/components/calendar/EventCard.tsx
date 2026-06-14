@@ -5,11 +5,17 @@ import { format } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { eventTimeRange, getEventColor } from '../../lib/calendar-utils';
+import {
+  eventTimeRange,
+  getEventColor,
+  timePattern,
+  type TimeFormat,
+} from '../../lib/calendar-utils';
 
 interface EventCardProps {
   event: CalendarEvent;
   calendars: Calendar[];
+  timeFormat?: TimeFormat;
   onPress?: (event: CalendarEvent) => void;
   onLongPress?: (event: CalendarEvent) => void;
 }
@@ -18,17 +24,18 @@ function participantCount(event: CalendarEvent): number {
   return event.participants ? Object.keys(event.participants).length : 0;
 }
 
-function formatTimeRange(event: CalendarEvent): string {
+function formatTimeRange(event: CalendarEvent, timeFormat?: TimeFormat): string {
   const { start, end, allDay } = eventTimeRange(event);
   if (allDay) return 'All day';
-  return `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`;
+  const fmt = timePattern(timeFormat);
+  return `${format(start, fmt)} – ${format(end, fmt)}`;
 }
 
-export function EventCard({ event, calendars, onPress, onLongPress }: EventCardProps) {
+export function EventCard({ event, calendars, timeFormat, onPress, onLongPress }: EventCardProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const color = getEventColor(event, calendars);
-  const time = formatTimeRange(event);
+  const time = formatTimeRange(event, timeFormat);
   const count = participantCount(event);
 
   return (

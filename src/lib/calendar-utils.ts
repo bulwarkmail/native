@@ -35,13 +35,20 @@ export function parseLocalDateTime(iso: string): Date {
 export function getEventStartDate(
   event: Pick<CalendarEvent, 'start' | 'utcStart' | 'showWithoutTime'>,
 ): Date {
-  const source = !event.showWithoutTime && event.utcStart ? event.utcStart : event.start;
-  return parseISO(source);
+  // Prefer utcStart for timed events but fall back to start if utcStart is
+  // missing or unparseable — a malformed utcStart used to surface as an
+  // Invalid Date that silently dropped the event from every view (#316).
+  if (!event.showWithoutTime && event.utcStart) {
+    const utc = parseISO(event.utcStart);
+    if (!isNaN(utc.getTime())) return utc;
+  }
+  return parseISO(event.start);
 }
 
 export function getEventEndDate(event: CalendarEvent): Date {
   if (!event.showWithoutTime && event.utcEnd) {
-    return parseISO(event.utcEnd);
+    const utc = parseISO(event.utcEnd);
+    if (!isNaN(utc.getTime())) return utc;
   }
   const start = getEventStartDate(event);
   if (!event.duration) return start;
@@ -55,6 +62,17 @@ export function getEventDisplayEndDate(event: CalendarEvent): Date {
     return end;
   }
   return subMilliseconds(end, 1);
+}
+
+// ─── Time-of-day formatting ──────────────────────────────
+// Maps the user's 12h/24h preference to a date-fns pattern, matching webmail
+// (event-card.tsx: `timeFormat === "12h" ? "h:mm a" : "HH:mm"`). Components
+// thread the `calendarTimeFormat` setting through so the calendar renders
+// times in the same format the webmail does.
+export type TimeFormat = '12h' | '24h';
+
+export function timePattern(timeFormat: TimeFormat | undefined): string {
+  return timeFormat === '12h' ? 'h:mm a' : 'HH:mm';
 }
 
 export interface EventTimeRange {
