@@ -25,6 +25,37 @@ function hasSchedulingParticipants(event?: Partial<CalendarEvent> | null): boole
 
 const HIDDEN_CALENDARS_STORAGE_KEY = 'webmail:calendar:hidden:v1';
 
+// Map a server CalendarEvent onto its store representation. For events from a
+// shared/group account the JMAP id is only unique within that account, so we
+// namespace `id` (stashing the real id in originalId) and remap the event's
+// `calendarIds` from raw server ids onto the namespaced store calendar ids so
+// visibility filtering and per-calendar colour lookup line up. Events from the
+// primary account are returned unchanged. Mirrors webmail's
+// mapServerEventToStoreEvent.
+function mapServerEventToStoreEvent(
+  event: CalendarEvent,
+  calendars: Calendar[],
+  accountId?: string,
+): CalendarEvent {
+  if (!accountId) return event;
+  const mapped: Record<string, boolean> = {};
+  for (const [calId, included] of Object.entries(event.calendarIds || {})) {
+    const cal = calendars.find(
+      (c) => (c.originalId || c.id) === calId && c.accountId === accountId,
+    );
+    mapped[cal?.id || calId] = included;
+  }
+  return {
+    ...event,
+    id: `${accountId}:${event.id}`,
+    originalId: event.id,
+    originalCalendarIds: event.calendarIds,
+    calendarIds: Object.keys(mapped).length > 0 ? mapped : event.calendarIds,
+    accountId,
+    isShared: true,
+  };
+}
+
 export interface LoadedRange {
   after: string;
   before: string;
@@ -135,14 +166,20 @@ export const useCalendarStore = create<CalendarState>()(
     try {
       // Group the requested calendars by owning account: the primary account
       // (calendars without an accountId tag) plus one group per shared
-      // account, since CalendarEvent/query is scoped to a single account.
+      // account, since CalendarEvent/query is scoped to a single account. The
+      // incoming ids are store ids (shared calendars are namespaced
+      // `${accountId}:${id}`); map them back to the raw server ids the query
+      // filter expects.
       const calendars = get().calendars;
+      const byId = new Map(calendars.map((c) => [c.id, c]));
       const groups = new Map<string | undefined, string[]>();
       for (const id of calendarIds) {
-        const accountId = calendars.find((c) => c.id === id)?.accountId;
+        const cal = byId.get(id);
+        const accountId = cal?.accountId;
+        const serverId = cal?.originalId || id;
         const group = groups.get(accountId);
-        if (group) group.push(id);
-        else groups.set(accountId, [id]);
+        if (group) group.push(serverId);
+        else groups.set(accountId, [serverId]);
       }
       if (groups.size === 0) groups.set(undefined, []);
 
@@ -152,17 +189,7 @@ export const useCalendarStore = create<CalendarState>()(
           const eventIds = (await queryEvents(ids, after, before, accountId)) ?? [];
           if (eventIds.length === 0) continue;
           const fetched = (await fetchEvents(eventIds, accountId)) ?? [];
-          // Shared/group accounts: JMAP object ids are only unique *within* an
-          // account, so two accounts can return events with the same id.
-          // Namespace shared ids with the owning accountId (stashing the real id
-          // in originalId for mutations) so they don't collide with the user's
-          // own events in the store / React keys. Mirrors webmail's
-          // mapServerEventToStoreEvent.
-          raw.push(
-            ...(accountId
-              ? fetched.map((e) => ({ ...e, accountId, id: `${accountId}:${e.id}`, originalId: e.id }))
-              : fetched),
-          );
+          raw.push(...fetched.map((e) => mapServerEventToStoreEvent(e, calendars, accountId)));
         } catch (err) {
           // A failing shared account must not hide the user's own events.
           if (!accountId) throw err;
@@ -235,20 +262,22 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   createEvent: async (event, calendarId) => {
-    // Shared calendars live in the owner's account — route the create there.
-    const accountId = get().calendars.find((c) => c.id === calendarId)?.accountId;
+    // Shared calendars live in the owner's account — route the create there,
+    // and against the calendar's raw server id (calendarId is the namespaced
+    // store id for shared calendars).
+    const calendars = get().calendars;
+    const cal = calendars.find((c) => c.id === calendarId);
+    const accountId = cal?.accountId;
     const created = await apiCreateEvent(
       event,
-      calendarId,
+      cal?.originalId || calendarId,
       hasSchedulingParticipants(event) ? true : undefined,
       accountId,
     );
-    // Namespace shared/group event ids the same way fetchEvents does so the
-    // optimistic insert doesn't collide with the user's own events.
-    const storeCreated = accountId
-      ? { ...created, accountId, id: `${accountId}:${created.id}`, originalId: created.id }
-      : created;
-    set({ events: [...get().events, storeCreated] });
+    // Map the same way fetchEvents does so the optimistic insert doesn't
+    // collide with the user's own events and stays visible under the right
+    // calendar filter.
+    set({ events: [...get().events, mapServerEventToStoreEvent(created, calendars, accountId)] });
     return created;
   },
 
@@ -300,20 +329,26 @@ export const useCalendarStore = create<CalendarState>()(
 
   importEvents: async (events, calendarId) => {
     if (events.length === 0) return 0;
+    // Shared calendars live in the owner's account and carry a namespaced
+    // store id — resolve the raw server id + owning account so dedup and
+    // create target the right place.
+    const cal = get().calendars.find((c) => c.id === calendarId);
+    const accountId = cal?.accountId;
+    const serverCalendarId = cal?.originalId || calendarId;
     // Stalwart enforces UID uniqueness across calendars. Skip events whose UID
     // already exists; create the rest. (We don't attempt cross-calendar linking
     // on mobile — a duplicate is simply skipped.)
     let toCreate = events;
     try {
-      const existingIds = await queryEvents([], '', '');
-      const existing = existingIds.length > 0 ? await fetchEvents(existingIds) : [];
+      const existingIds = await queryEvents([], '', '', accountId);
+      const existing = existingIds.length > 0 ? await fetchEvents(existingIds, accountId) : [];
       const seenUids = new Set(existing.map((e) => e.uid).filter(Boolean) as string[]);
       toCreate = events.filter((e) => !e.uid || !seenUids.has(e.uid));
     } catch {
       // Couldn't dedupe — proceed and let the server reject genuine dupes.
     }
     if (toCreate.length === 0) return 0;
-    const count = await apiBatchCreateEvents(toCreate, calendarId);
+    const count = await apiBatchCreateEvents(toCreate, serverCalendarId, accountId);
     await get().refresh();
     return count;
   },
@@ -326,7 +361,7 @@ export const useCalendarStore = create<CalendarState>()(
 
   setDefaultCalendar: async (id) => {
     const cal = get().calendars.find((c) => c.id === id);
-    await apiSetDefaultCalendar(id, cal?.accountId);
+    await apiSetDefaultCalendar(cal?.originalId || id, cal?.accountId);
     set({
       calendars: get().calendars.map((c) => {
         if (c.id === id) return { ...c, isDefault: true };
@@ -341,8 +376,13 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   createTask: async (task, calendarId) => {
-    const accountId = get().calendars.find((c) => c.id === calendarId)?.accountId;
-    await apiCreateEvent({ ...task, '@type': 'Task' }, calendarId, undefined, accountId);
+    const cal = get().calendars.find((c) => c.id === calendarId);
+    await apiCreateEvent(
+      { ...task, '@type': 'Task' },
+      cal?.originalId || calendarId,
+      undefined,
+      cal?.accountId,
+    );
     await get().refresh();
   },
 

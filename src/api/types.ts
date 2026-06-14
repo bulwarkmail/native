@@ -455,6 +455,9 @@ export interface CalendarEvent {
   excludedRecurrenceRules?: RecurrenceRule[];
   recurrenceId?: string;
   originalId?: string;
+  // Client-only: the event's server-side calendarIds (raw, unprefixed), kept
+  // when `calendarIds` is remapped to namespaced store ids for shared events.
+  originalCalendarIds?: Record<string, boolean>;
   useDefaultAlerts?: boolean;
   alerts?: Record<string, Alert>;
   locations?: Record<string, EventLocation>;
@@ -474,6 +477,8 @@ export interface CalendarEvent {
   // primary account; set for events on calendars shared with the user so
   // mutations can be routed to the owning account.
   accountId?: string;
+  // Client-only: true when the event lives on a calendar shared with the user.
+  isShared?: boolean;
 }
 
 export interface CalendarRights {
@@ -502,6 +507,10 @@ export interface Calendar {
   // Client-only: JMAP account the calendar was fetched from. Absent for the
   // primary account; set for calendars shared with the user.
   accountId?: string;
+  // Client-only: the real JMAP id of a shared calendar, before its `id` was
+  // namespaced as `${accountId}:${id}` to stay unique in the store. Mutations
+  // and event queries must use this raw id against the owning account.
+  originalId?: string;
   // Client-only: true when the calendar lives in another account (shared
   // with the user by its owner).
   isShared?: boolean;

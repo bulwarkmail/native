@@ -89,7 +89,18 @@ export async function getCalendars(): Promise<Calendar[]> {
           USING,
         );
         const list = methodResult<{ list: Calendar[] }>(sharedRes).list ?? [];
-        return list.map((cal) => ({ ...cal, accountId: sharedAccountId, isShared: true }));
+        // JMAP calendar ids are only unique within an account, so a shared
+        // "default" calendar collides with the user's own "default". Namespace
+        // the id (keeping the real id in originalId) so visibility toggles,
+        // event-query routing, and create/default mutations don't cross wires.
+        // Mirrors webmail's getAllCalendars.
+        return list.map((cal) => ({
+          ...cal,
+          id: `${sharedAccountId}:${cal.id}`,
+          originalId: cal.id,
+          accountId: sharedAccountId,
+          isShared: true,
+        }));
       } catch {
         return [];
       }
@@ -189,9 +200,10 @@ export async function createEvent(
 export async function batchCreateEvents(
   events: Partial<CalendarEvent>[],
   calendarId: string,
+  targetAccountId?: string,
 ): Promise<number> {
   if (events.length === 0) return 0;
-  const accountId = jmapClient.accountId;
+  const accountId = targetAccountId || jmapClient.accountId;
   const create: Record<string, Partial<CalendarEvent>> = {};
   events.forEach((e, i) => {
     create[`evt-${i}`] = { ...e, calendarIds: { [calendarId]: true } };

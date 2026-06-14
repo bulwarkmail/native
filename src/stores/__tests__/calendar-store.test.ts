@@ -129,6 +129,42 @@ describe('calendar-store', () => {
       expect(stored[0].originalId).toBe('ev1');
       expect(stored[0].accountId).toBe('acc-2');
     });
+
+    it('routes queries by account when own and shared calendars share a raw id', async () => {
+      // The user's own "default" calendar and a family group's "default"
+      // calendar collide on the raw JMAP id. The shared one is namespaced
+      // (`acc-2:default`, originalId "default"); the query must use the raw id
+      // against acc-2, and the returned event's calendarIds must be remapped to
+      // the namespaced store id so it isn't hidden with the personal calendar.
+      useCalendarStore.setState({
+        calendars: [
+          { id: 'default', name: 'Personal' } as any,
+          { id: 'acc-2:default', originalId: 'default', name: 'Family', accountId: 'acc-2', isShared: true } as any,
+        ],
+      });
+      const queried: Record<string, string[]> = {};
+      mockQueryEvents.mockImplementation(async (ids: string[], _a: string, _b: string, accountId?: string) => {
+        queried[accountId ?? 'primary'] = ids;
+        return accountId === 'acc-2' ? ['fam1'] : [];
+      });
+      mockGetEvents.mockImplementation(async (_ids: string[], accountId?: string) =>
+        accountId === 'acc-2'
+          ? [{ id: 'fam1', title: 'Soccer', start: '2026-03-20T15:00:00', calendarIds: { default: true } }]
+          : [],
+      );
+
+      await useCalendarStore.getState().fetchEvents(['default', 'acc-2:default'], '2026-03-01', '2026-03-31');
+
+      // The shared account is queried with the raw calendar id, not the prefix.
+      expect(queried['acc-2']).toEqual(['default']);
+      const ev = useCalendarStore.getState().events[0];
+      expect(ev.calendarIds).toEqual({ 'acc-2:default': true });
+
+      // Hiding the personal "default" must not hide the family event.
+      useCalendarStore.setState({ hiddenCalendarIds: ['default'] });
+      const visible = selectVisibleEvents(useCalendarStore.getState());
+      expect(visible.map((e) => e.id)).toContain('acc-2:fam1');
+    });
   });
 
   describe('ensureRange', () => {
