@@ -268,12 +268,36 @@ async function pollVerificationCode(
   throw new Error('Timed out waiting for PushVerification from JMAP server');
 }
 
+// Coalesce concurrent setup attempts per account. App.tsx re-runs its push
+// effect as auth state settles during startup and again on every FCM token
+// refresh; because a failing attempt blocks for up to 75s polling for the
+// verification code, those re-fires overlap. Without this guard each
+// overlapping run mints its OWN deviceClientId and JMAP subscription, and the
+// resulting swarm starves Stalwart's one-PushVerification-per-60s slot so none
+// of them ever verifies (the symptom is a perpetual "Timed out waiting for
+// PushVerification"). Callers share the first in-flight run instead.
+const inFlightSetups = new Map<string, Promise<PushSetupResult>>();
+
 /**
  * Full setup flow: ask permission, fetch the device's FCM token, register
  * with the relay, create a JMAP PushSubscription, poll for the verification
- * code, and finalise the subscription.
+ * code, and finalise the subscription. Concurrent calls for the same account
+ * are coalesced onto a single in-flight run.
  */
-export async function setupPushNotifications(
+export function setupPushNotifications(
+  params: PushSetupParams,
+): Promise<PushSetupResult> {
+  const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
+  const existing = inFlightSetups.get(key);
+  if (existing) return existing;
+  const run = setupPushNotificationsInner(params).finally(() => {
+    inFlightSetups.delete(key);
+  });
+  inFlightSetups.set(key, run);
+  return run;
+}
+
+async function setupPushNotificationsInner(
   params: PushSetupParams,
 ): Promise<PushSetupResult> {
   const native = getNative();

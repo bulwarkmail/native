@@ -39,6 +39,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setupPushNotifications, deviceClientIdKey } from '../push-notifications';
 import {
   listPushSubscriptions,
+  createPushSubscription,
   destroyPushSubscription,
 } from '../../api/push';
 import { generateAccountId } from '../account-utils';
@@ -74,6 +75,7 @@ function installFetch(states: Record<string, RelayState>): void {
 
 const destroyMock = destroyPushSubscription as ReturnType<typeof vi.fn>;
 const listMock = listPushSubscriptions as ReturnType<typeof vi.fn>;
+const createMock = createPushSubscription as ReturnType<typeof vi.fn>;
 
 function sub(id: string, deviceClientId: string) {
   return { id, deviceClientId, expires: new Date(Date.now() + 86400000).toISOString(), types: ['Email'] };
@@ -127,5 +129,21 @@ describe('setupPushNotifications leftover reaping', () => {
     await setupPushNotifications({ relayBaseUrl: RELAY });
 
     expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('foreign-x');
+  });
+
+  it('coalesces concurrent setups into a single flow (no subscription swarm)', async () => {
+    listMock.mockResolvedValue([]);
+    installFetch({});
+
+    // Fire several overlapping setups, as App.tsx does while auth settles and
+    // on FCM token refresh. Only one underlying JMAP subscription must be made.
+    const results = await Promise.all([
+      setupPushNotifications({ relayBaseUrl: RELAY }),
+      setupPushNotifications({ relayBaseUrl: RELAY }),
+      setupPushNotifications({ relayBaseUrl: RELAY }),
+    ]);
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(new Set(results.map((r) => r.subscriptionId)).size).toBe(1);
   });
 });
