@@ -151,6 +151,7 @@ export class JMAPClient {
 
   private async persistRefreshedTokens(next: OAuthTokens): Promise<void> {
     if (!this.credentials) return;
+    if (this.credentials.accessToken === next.accessToken) return;
     this.credentials = {
       ...this.credentials,
       accessToken: next.accessToken,
