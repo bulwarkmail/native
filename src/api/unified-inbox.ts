@@ -101,7 +101,10 @@ async function ensureFreshCredentials(
       tokenEndpoint: next.tokenEndpoint,
       clientId: next.clientId,
     };
-    await jmapClient.setStoredCredentials(accountId, updated);
+    const current = await jmapClient.getStoredCredentials(accountId);
+    if (!current || current.accessToken !== updated.accessToken) {
+      await jmapClient.setStoredCredentials(accountId, updated);
+    }
     return updated;
   } catch {
     // Fall back to the existing (possibly expired) token; the request will

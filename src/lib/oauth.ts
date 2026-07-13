@@ -207,6 +207,8 @@ export async function redeemPairingCode(webmailUrl: string, code: string): Promi
   };
 }
 
+const activeRefreshes = new Map<string, Promise<OAuthTokens>>();
+
 // OAuth refresh — exchanges the refresh token at the original token endpoint
 // for a new access token. Returns the updated bundle so the caller can
 // persist it.
@@ -214,37 +216,52 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
   if (!tokens.refreshToken) {
     throw new HandoffError('No refresh token available');
   }
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: tokens.refreshToken,
-    client_id: tokens.clientId,
-  });
-  const response = await secureFetch(tokens.tokenEndpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    },
-    body: body.toString(),
-  });
-  if (!response.ok) {
-    throw new HandoffError(`Token refresh failed: ${response.status}`);
+
+  const cacheKey = tokens.refreshToken;
+  let promise = activeRefreshes.get(cacheKey);
+
+  if (!promise) {
+    promise = (async () => {
+      try {
+        const body = new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: tokens.refreshToken!,
+          client_id: tokens.clientId,
+        });
+        const response = await secureFetch(tokens.tokenEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+          body: body.toString(),
+        });
+        if (!response.ok) {
+          throw new HandoffError(`Token refresh failed: ${response.status}`);
+        }
+        const data = (await response.json()) as {
+          access_token?: string;
+          refresh_token?: string;
+          expires_in?: number;
+        };
+        if (!data.access_token) {
+          throw new HandoffError('Token refresh response missing access_token');
+        }
+        return {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token ?? tokens.refreshToken!,
+          expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
+          tokenEndpoint: tokens.tokenEndpoint,
+          clientId: tokens.clientId,
+        };
+      } finally {
+        activeRefreshes.delete(cacheKey);
+      }
+    })();
+    activeRefreshes.set(cacheKey, promise);
   }
-  const data = (await response.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-  };
-  if (!data.access_token) {
-    throw new HandoffError('Token refresh response missing access_token');
-  }
-  return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token ?? tokens.refreshToken,
-    expiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
-    tokenEndpoint: tokens.tokenEndpoint,
-    clientId: tokens.clientId,
-  };
+
+  return promise;
 }
 
 WebBrowser.maybeCompleteAuthSession();
