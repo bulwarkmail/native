@@ -83,6 +83,7 @@ function makeStyles(c: ThemePalette) {
       position: 'absolute',
       left: spacing.md,
       right: spacing.md,
+      zIndex: 50,
     },
     bar: {
       flexDirection: 'row',
