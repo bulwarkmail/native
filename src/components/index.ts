@@ -5,3 +5,5 @@ export { default as Badge } from './Badge';
 export { Card, SectionHeader, SettingItemRow } from './Card';
 export { default as RadioGroup } from './RadioGroup';
 export { default as Dialog } from './Dialog';
+export { IdentitySheet } from './IdentitySheet';
+

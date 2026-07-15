@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { File as FsFile } from 'expo-file-system';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { Button } from '../components';
+import { Button, IdentitySheet } from '../components';
 import RichTextEditor, {
   type RichTextEditorHandle,
   type RichTextSelectionState,
@@ -260,6 +260,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identityError, setIdentityError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
   const [selectedIdentityId, setSelectedIdentityId] = React.useState<string | null>(null);
+  const [identitySheetOpen, setIdentitySheetOpen] = React.useState(false);
   const [scheduleSheetOpen, setScheduleSheetOpen] = React.useState(false);
   // Custom date/time picker stage. iOS shows one 'datetime' spinner; Android
   // can only show one field at a time, so we walk date → time.
@@ -422,17 +423,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const openIdentityPicker = () => {
     if (identities.length <= 1) return;
-    Alert.alert(
-      t('email_composer.from', 'From'),
-      undefined,
-      [
-        ...identities.map((i) => ({
-          text: i.name ? `${i.name} <${i.email}>` : i.email,
-          onPress: () => setSelectedIdentityId(i.id),
-        })),
-        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' as const },
-      ],
-    );
+    setIdentitySheetOpen(true);
   };
 
   const commitTyped = () => {
@@ -1293,6 +1284,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
           onChange={onCustomPickerChange}
         />
       )}
+
+      <IdentitySheet
+        visible={identitySheetOpen}
+        onClose={() => setIdentitySheetOpen(false)}
+        identities={identities}
+        selectedIdentityId={selectedIdentityId}
+        onPick={(identity) => setSelectedIdentityId(identity.id)}
+      />
     </SafeAreaView>
   );
 }
