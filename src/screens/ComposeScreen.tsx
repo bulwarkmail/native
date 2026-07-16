@@ -448,11 +448,33 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const extraTo = parseRecipients(toInput);
     const extraCc = parseRecipients(ccInput);
     if (extraTo.length) {
-      setToRecipients((prev) => [...prev, ...extraTo]);
+      setToRecipients((prev) => {
+        const existing = new Set(prev.map((r) => r.email.toLowerCase()));
+        const unique: Recipient[] = [];
+        for (const r of extraTo) {
+          const emailLower = r.email.toLowerCase();
+          if (!existing.has(emailLower)) {
+            existing.add(emailLower);
+            unique.push(r);
+          }
+        }
+        return [...prev, ...unique];
+      });
       setToInput('');
     }
     if (extraCc.length) {
-      setCcRecipients((prev) => [...prev, ...extraCc]);
+      setCcRecipients((prev) => {
+        const existing = new Set(prev.map((r) => r.email.toLowerCase()));
+        const unique: Recipient[] = [];
+        for (const r of extraCc) {
+          const emailLower = r.email.toLowerCase();
+          if (!existing.has(emailLower)) {
+            existing.add(emailLower);
+            unique.push(r);
+          }
+        }
+        return [...prev, ...unique];
+      });
       setCcInput('');
     }
   };
