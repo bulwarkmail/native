@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { File as FsFile } from 'expo-file-system';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { Button } from '../components';
+import { Button, IdentitySheet } from '../components';
 import RichTextEditor, {
   type RichTextEditorHandle,
   type RichTextSelectionState,
@@ -26,6 +26,7 @@ import { useEmailStore } from '../stores/email-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useAccountStore } from '../stores/account-store';
 import { isGroup } from '../lib/contact-utils';
 import {
   getContactDisplayName,
@@ -260,6 +261,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identityError, setIdentityError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
   const [selectedIdentityId, setSelectedIdentityId] = React.useState<string | null>(null);
+  const [identitySheetOpen, setIdentitySheetOpen] = React.useState(false);
   const [scheduleSheetOpen, setScheduleSheetOpen] = React.useState(false);
   // Custom date/time picker stage. iOS shows one 'datetime' spinner; Android
   // can only show one field at a time, so we walk date → time.
@@ -405,34 +407,35 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // original message (matches webmail's reply-identity behaviour).
   React.useEffect(() => {
     if (selectedIdentityId || identities.length === 0) return;
+    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
+    const defaultIdentity = identities.find(
+      (i) => i.email.toLowerCase() === activeEmail?.toLowerCase()
+    ) ?? identities[0];
+
     if (autoSelectReplyIdentity && replyTo) {
       const candidates = [...(replyTo.to ?? []), ...(replyTo.cc ?? [])];
       const candidateAddrs = new Set(
         candidates.map((r) => r.email?.toLowerCase()).filter(Boolean) as string[],
       );
       const matched = identities.find((i) => candidateAddrs.has(i.email.toLowerCase()));
-      setSelectedIdentityId((matched ?? identities[0]).id);
+      setSelectedIdentityId((matched ?? defaultIdentity).id);
     } else {
-      setSelectedIdentityId(identities[0].id);
+      setSelectedIdentityId(defaultIdentity.id);
     }
   }, [identities, autoSelectReplyIdentity, replyTo, selectedIdentityId]);
 
-  const primaryIdentity =
-    identities.find((i) => i.id === selectedIdentityId) ?? identities[0];
+  const primaryIdentity = React.useMemo(() => {
+    if (identities.length === 0) return null;
+    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
+    const defaultIdentity = identities.find(
+      (i) => i.email.toLowerCase() === activeEmail?.toLowerCase()
+    ) ?? identities[0];
+    return identities.find((i) => i.id === selectedIdentityId) ?? defaultIdentity;
+  }, [identities, selectedIdentityId]);
 
   const openIdentityPicker = () => {
     if (identities.length <= 1) return;
-    Alert.alert(
-      t('email_composer.from', 'From'),
-      undefined,
-      [
-        ...identities.map((i) => ({
-          text: i.name ? `${i.name} <${i.email}>` : i.email,
-          onPress: () => setSelectedIdentityId(i.id),
-        })),
-        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' as const },
-      ],
-    );
+    setIdentitySheetOpen(true);
   };
 
   const commitTyped = () => {
@@ -1315,6 +1318,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
           onChange={onCustomPickerChange}
         />
       )}
+
+      <IdentitySheet
+        visible={identitySheetOpen}
+        onClose={() => setIdentitySheetOpen(false)}
+        identities={identities}
+        selectedIdentityId={selectedIdentityId}
+        onPick={(identity) => setSelectedIdentityId(identity.id)}
+      />
     </SafeAreaView>
   );
 }
