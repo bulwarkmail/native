@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    overflow-y: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+  #editor {
+    outline: none;
+    padding: 12px 16px 24px;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+  #editor[data-empty="true"]::before {
+    content: attr(data-placeholder);
+    pointer-events: none;
+    position: absolute;
+  }
+  #editor p { margin: 0 0 12px 0; }
+  #editor p:last-child { margin-bottom: 0; }
+  #editor h1 { font-size: 1.4em; font-weight: 700; margin: 0 0 12px 0; line-height: 1.2; }
+  #editor h2 { font-size: 1.2em; font-weight: 700; margin: 0 0 10px 0; line-height: 1.3; }
+  #editor ul, #editor ol { margin: 0 0 12px 0; padding-left: 24px; }
+  #editor li { margin-bottom: 4px; }
+  #editor blockquote {
+    margin: 0 0 12px 0;
+    padding: 4px 0 4px 12px;
+    border-left: 3px solid #ccc;
+  }
+  #editor img { max-width: 100%; height: auto; border-radius: 4px; }
+  #editor pre, #editor code {
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.92em;
+  }
+  #editor pre { padding: 8px 12px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div id="editor" contenteditable="true" data-placeholder=""></div>
+<script>
+(function () {
+  var editor = document.getElementById('editor');
+  var lastHtml = null;
+  var lastHeight = 0;
+
+  function refreshEmpty() {
+    var html = editor.innerHTML;
+    var isEmpty =
+      html === '' ||
+      html === '<br>' ||
+      html === '<p></p>' ||
+      html === '<p><br></p>' ||
+      editor.textContent.trim() === '' && editor.querySelectorAll('img').length === 0;
+    editor.setAttribute('data-empty', isEmpty ? 'true' : 'false');
+  }
+
+  function post(type, payload) {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, payload: payload }));
+    }
+  }
+
+  function reportHeight() {
+    var h = Math.max(220, editor.scrollHeight + 8);
+    if (Math.abs(h - lastHeight) < 2) return;
+    lastHeight = h;
+    post('height', h);
+  }
+
+  function reportChange() {
+    refreshEmpty();
+    var html = editor.innerHTML;
+    if (html === lastHtml) return;
+    lastHtml = html;
+    post('change', html);
+  }
+
+  function reportSelection() {
+    function active(name) {
+      try { return document.queryCommandState(name); } catch (e) { return false; }
+    }
+    function inBlock(tag) {
+      var sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return false;
+      var node = sel.anchorNode;
+      while (node && node !== editor) {
+        if (node.nodeType === 1 && node.tagName === tag) return true;
+        node = node.parentNode;
+      }
+      return false;
+    }
+    var state = {
+      bold: active('bold'),
+      italic: active('italic'),
+      underline: active('underline'),
+      strikeThrough: active('strikeThrough'),
+      ul: active('insertUnorderedList'),
+      ol: active('insertOrderedList'),
+      blockquote: inBlock('BLOCKQUOTE'),
+      h1: inBlock('H1'),
+      h2: inBlock('H2'),
+      alignLeft: active('justifyLeft'),
+      alignCenter: active('justifyCenter'),
+      alignRight: active('justifyRight'),
+      link: inBlock('A'),
+    };
+    post('selection', state);
+  }
+
+  window.__rne = {
+    init: function (initialHtml, placeholder, c) {
+      try {
+        var style = document.createElement('style');
+        style.innerHTML = 
+          'html, body { background: ' + c.background + '; color: ' + c.text + '; }' +
+          '#editor { min-height: 220px; }' +
+          '#editor[data-empty="true"]::before { color: ' + c.textMuted + '; }' +
+          '#editor blockquote { border-left: 3px solid ' + c.border + '; color: ' + c.textSecondary + '; }' +
+          '#editor a { color: ' + c.primary + '; }' +
+          '#editor pre, #editor code { background: ' + c.surfaceActive + '; }' +
+          '::selection { background: ' + c.primary + '33; }';
+        document.head.appendChild(style);
+
+        editor.setAttribute('data-placeholder', placeholder || '');
+        if (initialHtml && typeof initialHtml === 'string') {
+          editor.innerHTML = initialHtml;
+        }
+        refreshEmpty();
+        lastHtml = editor.innerHTML;
+
+        reportHeight();
+        reportChange();
+      } catch (err) {
+        console.error("Init Error: " + err.message);
+      }
+    },
+    exec: function (command, value) {
+      editor.focus();
+      try {
+        if (command === 'formatBlock' && value) {
+          var sel = window.getSelection();
+          if (sel && sel.rangeCount) {
+            var node = sel.anchorNode;
+            while (node && node !== editor) {
+              if (node.nodeType === 1 && node.tagName === value.toUpperCase()) {
+                document.execCommand('formatBlock', false, '<p>');
+                reportChange();
+                reportHeight();
+                reportSelection();
+                return;
+              }
+              node = node.parentNode;
+            }
+          }
+          document.execCommand('formatBlock', false, '<' + value.toLowerCase() + '>');
+        } else {
+          document.execCommand(command, false, value);
+        }
+      } catch (e) {}
+      reportChange();
+      reportHeight();
+      reportSelection();
+    },
+    setHtml: function (html) {
+      editor.innerHTML = html || '';
+      lastHtml = editor.innerHTML;
+      refreshEmpty();
+      reportChange();
+      reportHeight();
+    },
+    insertHtml: function (html) {
+      editor.focus();
+      try { document.execCommand('insertHTML', false, html); } catch (e) {}
+      reportChange();
+      reportHeight();
+    },
+    insertLink: function (url, label) {
+      editor.focus();
+      var safeSchemeRe = /^(https?:|mailto:|tel:|sms:|\/|\?|#)/i;
+      var trimmed = (url || '').trim();
+      if (!trimmed || !safeSchemeRe.test(trimmed)) return;
+      var sel = window.getSelection();
+      var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed;
+      if (hasSelection) {
+        try { document.execCommand('createLink', false, trimmed); } catch (e) {}
+        Array.prototype.forEach.call(editor.getElementsByTagName('a'), function (a) {
+          if (a.getAttribute('href') === trimmed) {
+            a.setAttribute('rel', 'noopener noreferrer nofollow');
+          }
+        });
+      } else {
+        var text = label && label.trim() ? label : trimmed;
+        var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var safeUrl = trimmed
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        var html = '<a href="' + safeUrl + '" rel="noopener noreferrer nofollow">' + safe + '</a>';
+        try { document.execCommand('insertHTML', false, html); } catch (e) {}
+      }
+      reportChange();
+      reportHeight();
+      reportSelection();
+    },
+    unsetLink: function () {
+      editor.focus();
+      try { document.execCommand('unlink', false, null); } catch (e) {}
+      reportChange();
+      reportSelection();
+    },
+    insertImage: function (src, cid, alt) {
+      editor.focus();
+      var safeSrc = (src || '').replace(/"/g, '&quot;');
+      var safeAlt = (alt || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      var safeCid = cid ? cid.replace(/"/g, '&quot;') : '';
+      var html = '<img src="' + safeSrc + '" alt="' + safeAlt + '"' +
+        (safeCid ? ' data-cid="' + safeCid + '"' : '') + ' />';
+      try { document.execCommand('insertHTML', false, html); } catch (e) {}
+      reportChange();
+      reportHeight();
+    },
+    focus: function () { editor.focus(); },
+  };
+
+  editor.addEventListener('input', function () {
+    reportChange();
+    reportHeight();
+  });
+  editor.addEventListener('blur', function () { post('blur', null); });
+  editor.addEventListener('focus', function () { post('focus', null); });
+  document.addEventListener('selectionchange', function () {
+    if (document.activeElement === editor) reportSelection();
+  });
+
+  window.addEventListener('load', function () {
+    setTimeout(reportHeight, 50);
+    setTimeout(reportHeight, 200);
+    setTimeout(reportHeight, 600);
+  });
+  if (window.ResizeObserver) {
+    new ResizeObserver(reportHeight).observe(editor);
+  }
+
+  function sendReady() {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      post('ready', null);
+    } else {
+      setTimeout(sendReady, 50);
+    }
+  }
+  sendReady();
+})();
+</script>
+</body>
+</html>

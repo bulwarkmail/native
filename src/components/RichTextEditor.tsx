@@ -66,16 +66,251 @@ interface Props {
   onBlur?: () => void;
 }
 
+function buildEditorScript(opts: {
+  initialHtml: string;
+  placeholder: string;
+  minHeight: number;
+  c: ThemePalette;
+}): string {
+  const { initialHtml, placeholder, minHeight, c } = opts;
+  const initialJson = JSON.stringify(initialHtml);
+  const placeholderJson = JSON.stringify(placeholder);
+  return `(function () {
+  var editor = document.getElementById('editor');
+  var lastHtml = null;
+  var lastHeight = 0;
+
+  function refreshEmpty() {
+    var html = editor.innerHTML;
+    var isEmpty =
+      html === '' ||
+      html === '<br>' ||
+      html === '<p></p>' ||
+      html === '<p><br></p>' ||
+      editor.textContent.trim() === '' && editor.querySelectorAll('img').length === 0;
+    editor.setAttribute('data-empty', isEmpty ? 'true' : 'false');
+  }
+
+  function post(type, payload) {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, payload: payload }));
+    }
+  }
+
+  function reportHeight() {
+    var h = Math.max(${minHeight}, editor.scrollHeight + 8);
+    if (Math.abs(h - lastHeight) < 2) return;
+    lastHeight = h;
+    post('height', h);
+  }
+
+  if (!window.__rne) {
+    window.__rne = {
+      exec: function (command, value) {
+        editor.focus();
+        try {
+          if (command === 'formatBlock' && value) {
+            var sel = window.getSelection();
+            if (sel && sel.rangeCount) {
+              var node = sel.anchorNode;
+              while (node && node !== editor) {
+                if (node.nodeType === 1 && node.tagName === value.toUpperCase()) {
+                  document.execCommand('formatBlock', false, '<p>');
+                  reportChange();
+                  reportHeight();
+                  reportSelection();
+                  return;
+                }
+                node = node.parentNode;
+              }
+            }
+            document.execCommand('formatBlock', false, '<' + value.toLowerCase() + '>');
+          } else {
+            document.execCommand(command, false, value);
+          }
+        } catch (e) {}
+        reportChange();
+        reportHeight();
+        reportSelection();
+      },
+      setHtml: function (html) {
+        editor.innerHTML = html || '';
+        lastHtml = editor.innerHTML;
+        refreshEmpty();
+        reportChange();
+        reportHeight();
+      },
+      insertHtml: function (html) {
+        editor.focus();
+        try { document.execCommand('insertHTML', false, html); } catch (e) {}
+        reportChange();
+        reportHeight();
+      },
+      insertLink: function (url, label) {
+        editor.focus();
+        var safeSchemeRe = /^(https?:|mailto:|tel:|sms:|\/|\?|#)/i;
+        var trimmed = (url || '').trim();
+        if (!trimmed || !safeSchemeRe.test(trimmed)) return;
+        var sel = window.getSelection();
+        var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed;
+        if (hasSelection) {
+          try { document.execCommand('createLink', false, trimmed); } catch (e) {}
+          Array.prototype.forEach.call(editor.getElementsByTagName('a'), function (a) {
+            if (a.getAttribute('href') === trimmed) {
+              a.setAttribute('rel', 'noopener noreferrer nofollow');
+            }
+          });
+        } else {
+          var text = label && label.trim() ? label : trimmed;
+          var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var safeUrl = trimmed
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          var html = '<a href="' + safeUrl + '" rel="noopener noreferrer nofollow">' + safe + '</a>';
+          try { document.execCommand('insertHTML', false, html); } catch (e) {}
+        }
+        reportChange();
+        reportHeight();
+        reportSelection();
+      },
+      unsetLink: function () {
+        editor.focus();
+        try { document.execCommand('unlink', false, null); } catch (e) {}
+        reportChange();
+        reportSelection();
+      },
+      insertImage: function (src, cid, alt) {
+        editor.focus();
+        var safeSrc = (src || '').replace(/"/g, '&quot;');
+        var safeAlt = (alt || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        var safeCid = cid ? cid.replace(/"/g, '&quot;') : '';
+        var html = '<img src="' + safeSrc + '" alt="' + safeAlt + '"' +
+          (safeCid ? ' data-cid="' + safeCid + '"' : '') + ' />';
+        try { document.execCommand('insertHTML', false, html); } catch (e) {}
+        reportChange();
+        reportHeight();
+      },
+      focus: function () { editor.focus(); },
+    };
+  }
+
+  function reportChange() {
+    refreshEmpty();
+    var html = editor.innerHTML;
+    if (html === lastHtml) return;
+    lastHtml = html;
+    post('change', html);
+  }
+
+  function reportSelection() {
+    function active(name) {
+      try { return document.queryCommandState(name); } catch (e) { return false; }
+    }
+    function inBlock(tag) {
+      var sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return false;
+      var node = sel.anchorNode;
+      while (node && node !== editor) {
+        if (node.nodeType === 1 && node.tagName === tag) return true;
+        node = node.parentNode;
+      }
+      return false;
+    }
+    var state = {
+      bold: active('bold'),
+      italic: active('italic'),
+      underline: active('underline'),
+      strikeThrough: active('strikeThrough'),
+      ul: active('insertUnorderedList'),
+      ol: active('insertOrderedList'),
+      blockquote: inBlock('BLOCKQUOTE'),
+      h1: inBlock('H1'),
+      h2: inBlock('H2'),
+      alignLeft: active('justifyLeft'),
+      alignCenter: active('justifyCenter'),
+      alignRight: active('justifyRight'),
+      link: inBlock('A'),
+    };
+    post('selection', state);
+  }
+
+  var dbg = document.getElementById('debug-log');
+  try {
+    if (!window.__rneStyleAdded) {
+      window.__rneStyleAdded = true;
+      var style = document.createElement('style');
+      style.innerHTML = 
+        'html, body { background: ' + ${JSON.stringify(c.background)} + '; color: ' + ${JSON.stringify(c.text)} + '; }' +
+        '#editor { min-height: ' + ${minHeight} + 'px; }' +
+        '#editor[data-empty="true"]::before { color: ' + ${JSON.stringify(c.textMuted)} + '; }' +
+        '#editor blockquote { border-left: 3px solid ' + ${JSON.stringify(c.border)} + '; color: ' + ${JSON.stringify(c.textSecondary)} + '; }' +
+        '#editor a { color: ' + ${JSON.stringify(c.primary)} + '; }' +
+        '#editor pre, #editor code { background: ' + ${JSON.stringify(c.surfaceActive)} + '; }' +
+        '::selection { background: ' + ${JSON.stringify(c.primary)} + '33; }';
+      document.head.appendChild(style);
+    }
+
+    if (!window.__rneIntervalSet) {
+      window.__rneIntervalSet = true;
+      setInterval(function () {
+        try {
+          var hasRN = typeof window.ReactNativeWebView !== 'undefined';
+          var hasPost = hasRN && typeof window.ReactNativeWebView.postMessage !== 'undefined';
+          dbg.innerHTML = "Webview - RN: " + hasRN + " | Post: " + hasPost + " | innerHTML len: " + editor.innerHTML.length;
+        } catch (e) {
+          dbg.innerHTML = "Interval Error: " + e.message;
+        }
+      }, 300);
+    }
+
+    editor.setAttribute('data-placeholder', ${placeholderJson});
+
+    var initial = ${initialJson};
+    if (initial && typeof initial === 'string') editor.innerHTML = initial;
+    refreshEmpty();
+    lastHtml = editor.innerHTML;
+
+    if (!window.__rneListenersAdded) {
+      window.__rneListenersAdded = true;
+      editor.addEventListener('input', function () {
+        reportChange();
+        reportHeight();
+      });
+      editor.addEventListener('blur', function () { post('blur', null); });
+      editor.addEventListener('focus', function () { post('focus', null); });
+      document.addEventListener('selectionchange', function () {
+        if (document.activeElement === editor) reportSelection();
+      });
+    }
+
+    reportHeight();
+    reportChange();
+
+    window.addEventListener('load', function () {
+      setTimeout(reportHeight, 50);
+      setTimeout(reportHeight, 200);
+      setTimeout(reportHeight, 600);
+    });
+    if (window.ResizeObserver) {
+      new ResizeObserver(reportHeight).observe(editor);
+    }
+  } catch (err) {
+    if (dbg) dbg.innerHTML = "Init Error: " + err.message;
+  }
+})();
+true;`;
+}
+
 function buildEditorHtml(opts: {
   initialHtml: string;
   placeholder: string;
   c: ThemePalette;
 }): string {
   const { initialHtml, placeholder, c } = opts;
-  // Inject initial content as a JSON-encoded string so any HTML/quotes inside
-  // are safely embedded (no template literal collision with the script body).
-  const initialJson = JSON.stringify(initialHtml);
   const placeholderJson = JSON.stringify(placeholder);
+  const initialJson = JSON.stringify(initialHtml);
 
   return `<!DOCTYPE html>
 <html>
@@ -132,203 +367,6 @@ function buildEditorHtml(opts: {
 </head>
 <body>
 <div id="editor" contenteditable="true" data-placeholder=${placeholderJson}></div>
-<script>
-(function () {
-  var editor = document.getElementById('editor');
-  var lastHtml = null;
-  var lastHeight = 0;
-
-  function refreshEmpty() {
-    var html = editor.innerHTML;
-    var isEmpty =
-      html === '' ||
-      html === '<br>' ||
-      html === '<p></p>' ||
-      html === '<p><br></p>' ||
-      editor.textContent.trim() === '' && editor.querySelectorAll('img').length === 0;
-    editor.setAttribute('data-empty', isEmpty ? 'true' : 'false');
-  }
-
-  function post(type, payload) {
-    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, payload: payload }));
-    }
-  }
-
-  function reportHeight() {
-    var h = Math.max(${MIN_HEIGHT}, editor.scrollHeight + 8);
-    if (Math.abs(h - lastHeight) < 2) return;
-    lastHeight = h;
-    post('height', h);
-  }
-
-  function reportChange() {
-    refreshEmpty();
-    var html = editor.innerHTML;
-    if (html === lastHtml) return;
-    lastHtml = html;
-    post('change', html);
-  }
-
-  function reportSelection() {
-    function active(name) {
-      try { return document.queryCommandState(name); } catch (e) { return false; }
-    }
-    function inBlock(tag) {
-      var sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return false;
-      var node = sel.anchorNode;
-      while (node && node !== editor) {
-        if (node.nodeType === 1 && node.tagName === tag) return true;
-        node = node.parentNode;
-      }
-      return false;
-    }
-    var state = {
-      bold: active('bold'),
-      italic: active('italic'),
-      underline: active('underline'),
-      strikeThrough: active('strikeThrough'),
-      ul: active('insertUnorderedList'),
-      ol: active('insertOrderedList'),
-      blockquote: inBlock('BLOCKQUOTE'),
-      h1: inBlock('H1'),
-      h2: inBlock('H2'),
-      alignLeft: active('justifyLeft'),
-      alignCenter: active('justifyCenter'),
-      alignRight: active('justifyRight'),
-      link: inBlock('A'),
-    };
-    post('selection', state);
-  }
-
-  // ── Initial content ────────────────────────────────────────────────
-  var initial = ${initialJson};
-  if (initial && typeof initial === 'string') editor.innerHTML = initial;
-  refreshEmpty();
-  lastHtml = editor.innerHTML;
-
-  editor.addEventListener('input', function () {
-    reportChange();
-    reportHeight();
-  });
-  editor.addEventListener('blur', function () { post('blur', null); });
-  editor.addEventListener('focus', function () { post('focus', null); });
-  document.addEventListener('selectionchange', function () {
-    if (document.activeElement === editor) reportSelection();
-  });
-
-  // ── Bridge: receive commands from RN ───────────────────────────────
-  window.__rne = {
-    exec: function (command, value) {
-      editor.focus();
-      try {
-        if (command === 'formatBlock' && value) {
-          // Toggle: if we're already in that block, switch to <p>.
-          var sel = window.getSelection();
-          if (sel && sel.rangeCount) {
-            var node = sel.anchorNode;
-            while (node && node !== editor) {
-              if (node.nodeType === 1 && node.tagName === value.toUpperCase()) {
-                document.execCommand('formatBlock', false, '<p>');
-                reportChange();
-                reportHeight();
-                reportSelection();
-                return;
-              }
-              node = node.parentNode;
-            }
-          }
-          document.execCommand('formatBlock', false, '<' + value.toLowerCase() + '>');
-        } else {
-          document.execCommand(command, false, value);
-        }
-      } catch (e) {}
-      reportChange();
-      reportHeight();
-      reportSelection();
-    },
-    setHtml: function (html) {
-      editor.innerHTML = html || '';
-      lastHtml = editor.innerHTML;
-      refreshEmpty();
-      reportChange();
-      reportHeight();
-    },
-    insertHtml: function (html) {
-      editor.focus();
-      try { document.execCommand('insertHTML', false, html); } catch (e) {}
-      reportChange();
-      reportHeight();
-    },
-    insertLink: function (url, label) {
-      editor.focus();
-      // Reject anything that isn't a safe scheme or an absolute path, so the
-      // user can't accidentally (or via a malicious paste) ship a
-      // javascript:/data: link to their recipient.
-      var safeSchemeRe = /^(https?:|mailto:|tel:|sms:|\/|\?|#)/i;
-      var trimmed = (url || '').trim();
-      if (!trimmed || !safeSchemeRe.test(trimmed)) return;
-      var sel = window.getSelection();
-      var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed;
-      if (hasSelection) {
-        try { document.execCommand('createLink', false, trimmed); } catch (e) {}
-        // execCommand doesn't set rel; tag every anchor that points at this URL.
-        Array.prototype.forEach.call(editor.getElementsByTagName('a'), function (a) {
-          if (a.getAttribute('href') === trimmed) {
-            a.setAttribute('rel', 'noopener noreferrer nofollow');
-          }
-        });
-      } else {
-        var text = label && label.trim() ? label : trimmed;
-        var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        var safeUrl = trimmed
-          .replace(/&/g, '&amp;')
-          .replace(/"/g, '&quot;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-        var html = '<a href="' + safeUrl + '" rel="noopener noreferrer nofollow">' + safe + '</a>';
-        try { document.execCommand('insertHTML', false, html); } catch (e) {}
-      }
-      reportChange();
-      reportHeight();
-      reportSelection();
-    },
-    unsetLink: function () {
-      editor.focus();
-      try { document.execCommand('unlink', false, null); } catch (e) {}
-      reportChange();
-      reportSelection();
-    },
-    insertImage: function (src, cid, alt) {
-      editor.focus();
-      var safeSrc = (src || '').replace(/"/g, '&quot;');
-      var safeAlt = (alt || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-      var safeCid = cid ? cid.replace(/"/g, '&quot;') : '';
-      var html = '<img src="' + safeSrc + '" alt="' + safeAlt + '"' +
-        (safeCid ? ' data-cid="' + safeCid + '"' : '') + ' />';
-      try { document.execCommand('insertHTML', false, html); } catch (e) {}
-      reportChange();
-      reportHeight();
-    },
-    focus: function () { editor.focus(); },
-  };
-
-  reportHeight();
-  reportChange();
-
-  // Re-measure after async layout (image loads, font swap).
-  window.addEventListener('load', function () {
-    setTimeout(reportHeight, 50);
-    setTimeout(reportHeight, 200);
-    setTimeout(reportHeight, 600);
-  });
-  if (window.ResizeObserver) {
-    new ResizeObserver(reportHeight).observe(editor);
-  }
-})();
-true;
-</script>
 </body>
 </html>`;
 }
@@ -350,15 +388,24 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   onFocusRef.current = onFocus;
   onBlurRef.current = onBlur;
 
-  // Build the source HTML once. Theming changes won't auto-rebuild the page,
-  // which is fine: themes change rarely and the user can recompose if needed.
   const html = React.useMemo(
-    () => buildEditorHtml({ initialHtml, placeholder, c }),
-    // c reference changes per theme switch but we don't want to lose user
-    // edits on a theme change. Bake in the initial colors only.
+    () => buildEditorHtml({ initialHtml: initialHtml ?? '', placeholder: placeholder ?? '', c }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  const injectedJs = React.useMemo(
+    () => buildEditorScript({ initialHtml: initialHtml ?? '', placeholder: placeholder ?? '', minHeight: MIN_HEIGHT, c }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const source = React.useMemo(() => {
+    if (Platform.OS === 'android') {
+      return { uri: 'file:///android_asset/editor.html' };
+    }
+    return { html };
+  }, [html]);
 
   const call = React.useCallback((script: string) => {
     webViewRef.current?.injectJavaScript(`${script}; true;`);
@@ -395,6 +442,9 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       return;
     }
     switch (data.type) {
+      case 'ready':
+        call(`window.__rne && window.__rne.init(${JSON.stringify(initialHtml)}, ${JSON.stringify(placeholder)}, ${JSON.stringify(c)})`);
+        break;
       case 'change':
         onChangeRef.current?.(typeof data.payload === 'string' ? data.payload : '');
         break;
@@ -419,10 +469,16 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     <View style={[styles.container, { height }]}>
       <WebView
         ref={webViewRef}
-        originWhitelist={['about:blank']}
-        source={{ html }}
+        originWhitelist={['*']}
+        source={source}
+        injectedJavaScript={injectedJs}
         onMessage={onMessage}
-        javaScriptEnabled
+        onLoadEnd={() => {
+          setTimeout(() => {
+            webViewRef.current?.injectJavaScript(injectedJs);
+          }, 50);
+        }}
+        javaScriptEnabled={true}
         domStorageEnabled={false}
         scrollEnabled={false}
         showsVerticalScrollIndicator={false}
@@ -436,13 +492,14 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         allowFileAccessFromFileURLs={false}
         allowUniversalAccessFromFileURLs={false}
         allowsBackForwardNavigationGestures={false}
-        incognito
+        incognito={true}
         cacheEnabled={false}
         mixedContentMode="never"
         androidLayerType={Platform.OS === 'android' ? 'hardware' : undefined}
         style={styles.webview}
         containerStyle={styles.webviewContainer}
         onShouldStartLoadWithRequest={(request) => {
+          if (Platform.OS === 'android') return true;
           // Allow only the initial about:blank doc + data URIs we emit
           // ourselves. Reject `about:*` (e.g. about:srcdoc) and every other
           // scheme so a paste-injected anchor can't navigate the editor.
