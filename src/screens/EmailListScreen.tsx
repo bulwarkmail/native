@@ -24,8 +24,8 @@ import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useKeywordsStore } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
+import { findTrashMailbox, findArchiveMailbox, findJunkMailbox } from '../lib/mailbox-tree';
 import type { Email } from '../api/types';
-
 function getSenderName(email: Email): string {
   return email.from?.[0]?.name || email.from?.[0]?.email || 'Unknown';
 }
@@ -164,6 +164,7 @@ interface EmailListScreenProps {
 export default function EmailListScreen({ onEmailPress, onComposePress }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { t } = useLocaleStore();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const emails = useEmailStore((s) => s.emails);
@@ -232,15 +233,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   }, [emails, disableThreading]);
 
   const archiveMailboxId = React.useMemo(
-    () => mailboxes.find((m) => m.role === 'archive')?.id ?? null,
+    () => findArchiveMailbox(mailboxes)?.id ?? null,
     [mailboxes],
   );
   const trashMailboxId = React.useMemo(
-    () => mailboxes.find((m) => m.role === 'trash')?.id ?? null,
+    () => findTrashMailbox(mailboxes)?.id ?? null,
     [mailboxes],
   );
   const junkMailboxId = React.useMemo(
-    () => mailboxes.find((m) => m.role === 'junk' || m.role === 'spam')?.id ?? null,
+    () => findJunkMailbox(mailboxes)?.id ?? null,
     [mailboxes],
   );
 
@@ -336,16 +337,31 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       case 'archive':
         if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
           void archiveEmailAction(id);
+        } else if (!archiveMailboxId) {
+          Alert.alert(
+            t('email_list.error', 'Error'),
+            t('email_list.no_archive_folder', 'Could not find an Archive folder on the server.'),
+          );
         }
         break;
       case 'delete':
         if (trashMailboxId) {
           void deleteEmailAction(id, trashMailboxId, currentMailboxId);
+        } else {
+          Alert.alert(
+            t('email_list.error', 'Error'),
+            t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.'),
+          );
         }
         break;
       case 'spam':
         if (junkMailboxId && currentMailboxId !== junkMailboxId) {
           void moveToMailboxAction(id, currentMailboxId, junkMailboxId);
+        } else if (!junkMailboxId) {
+          Alert.alert(
+            t('email_list.error', 'Error'),
+            t('email_list.no_junk_folder', 'Could not find a Spam/Junk folder on the server.'),
+          );
         }
         break;
       case 'read':
@@ -365,7 +381,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   }, [
     currentMailboxId, archiveMailboxId, trashMailboxId, junkMailboxId,
     moveToMailboxAction, archiveEmailAction, deleteEmailAction,
-    markRead, markUnread, toggleStar, togglePin,
+    markRead, markUnread, toggleStar, togglePin, t,
   ]);
 
   const renderEmailRow = React.useCallback(
@@ -433,7 +449,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   };
 
   const handleBulkDelete = async () => {
-    const trash = mailboxes.find((m) => m.role === 'trash');
+    const trash = findTrashMailbox(mailboxes);
     if (!trash || !currentMailboxId) {
       clearSelection();
       return;

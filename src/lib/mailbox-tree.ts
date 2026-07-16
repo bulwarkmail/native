@@ -96,3 +96,36 @@ export function flattenVisible(
   walk(nodes);
   return out;
 }
+
+export function findTrashMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
+  const roleMatch = mailboxes.find((m) => m.role === 'trash');
+  if (roleMatch) return roleMatch;
+
+  const names = ['trash', 'bin', 'deleted', 'deleted items', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
+  return mailboxes.find((m) => {
+    const lower = m.name.toLowerCase();
+    return names.includes(lower) || names.some((n) => lower.includes(n));
+  });
+}
+
+export function findArchiveMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
+  const roleMatch = mailboxes.find((m) => m.role === 'archive');
+  if (roleMatch) return roleMatch;
+
+  const names = ['archive', 'archives', 'archived'];
+  return mailboxes.find((m) => {
+    const lower = m.name.toLowerCase();
+    return names.includes(lower) || names.some((n) => lower.includes(n));
+  });
+}
+
+export function findJunkMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
+  const roleMatch = mailboxes.find((m) => m.role === 'junk' || m.role === 'spam');
+  if (roleMatch) return roleMatch;
+
+  const names = ['junk', 'spam', 'indésirables', 'indésirable', 'courrier indésirable'];
+  return mailboxes.find((m) => {
+    const lower = m.name.toLowerCase();
+    return names.includes(lower) || names.some((n) => lower.includes(n));
+  });
+}

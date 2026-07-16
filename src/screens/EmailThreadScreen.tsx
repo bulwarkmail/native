@@ -29,6 +29,8 @@ import { setEmailKeywords } from '../api/email';
 import { shareEmailEml, shareAttachment, downloadAttachment } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
+import { useLocaleStore } from '../stores/locale-store';
+import { findTrashMailbox } from '../lib/mailbox-tree';
 import type { Email, Mailbox } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -65,6 +67,7 @@ function plainTextBody(email: Email): string {
 export default function EmailThreadScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { t } = useLocaleStore();
   const { jmapAccountId } = route.params;
   // The displayed email is tracked in local state (not a route param) so that
   // swiping / Prev-Next can switch messages in place without remounting the
@@ -299,8 +302,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   const onDelete = () => {
     if (!email || !currentMailboxId) return;
-    const trash = mailboxes.find((m) => m.role === 'trash');
-    if (!trash) return;
+    const trash = findTrashMailbox(mailboxes);
+    if (!trash) {
+      Alert.alert(
+        t('email_list.error', 'Error'),
+        t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.'),
+      );
+      return;
+    }
     void deleteEmail(email.id, trash.id, currentMailboxId);
     navigation.goBack();
   };
