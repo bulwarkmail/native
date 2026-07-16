@@ -113,10 +113,11 @@ function RecipientChip({ recipient, onRemove }: { recipient: Recipient; onRemove
 }
 
 function SuggestionList({
-  suggestions, onPick,
+  suggestions, onPick, onPressIn,
 }: {
   suggestions: Array<{ contact: ContactCard; name: string; email: string }>;
   onPick: (s: { name: string; email: string }) => void;
+  onPressIn?: () => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -127,6 +128,7 @@ function SuggestionList({
         return (
           <Pressable
             key={`${s.contact.id}-${s.email}-${i}`}
+            onPressIn={onPressIn}
             onPress={() => onPick(s)}
             style={({ pressed }) => [styles.suggestionRow, pressed && styles.suggestionRowPressed]}
           >
@@ -343,6 +345,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   });
 
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
   const inlineRegistryRef = React.useRef<Map<string, AttachmentEntry>>(new Map());
@@ -375,6 +378,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, [suggestionQuery, individuals, alreadySelected]);
 
   const pickSuggestion = (s: { name: string; email: string }) => {
+    isPickingSuggestion.current = true;
     const recipient: Recipient = { name: s.name, email: s.email };
     if (activeField === 'cc') {
       setCcRecipients((prev) => [...prev, recipient]);
@@ -976,7 +980,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       <View style={[styles.flex, { paddingBottom: bottomPad }]}>
         <ScrollView
           style={styles.flex}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.fieldRow}>
@@ -993,7 +997,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             </Pressable>
           </View>
 
-          <View style={styles.fieldRow}>
+          <View style={[styles.fieldRow, { zIndex: 5 }]}>
             <Text style={styles.fieldLabel}>{t('email_composer.to', 'To')}</Text>
             <View style={styles.recipientField}>
               {toRecipients.map((r, i) => (
@@ -1011,8 +1015,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 onChangeText={setToInput}
                 onFocus={() => setActiveField('to')}
                 onBlur={() => {
-                  addTyped();
-                  setTimeout(() => setActiveField((f) => (f === 'to' ? null : f)), 200);
+                  setTimeout(() => {
+                    if (!isPickingSuggestion.current) {
+                      addTyped();
+                    }
+                    setActiveField((f) => (f === 'to' ? null : f));
+                    isPickingSuggestion.current = false;
+                  }, 200);
                 }}
                 onSubmitEditing={addTyped}
                 keyboardType="email-address"
@@ -1021,7 +1030,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
               />
             </View>
             {activeField === 'to' && suggestions.length > 0 && (
-              <SuggestionList suggestions={suggestions} onPick={pickSuggestion} />
+              <SuggestionList
+                suggestions={suggestions}
+                onPick={pickSuggestion}
+                onPressIn={() => {
+                  isPickingSuggestion.current = true;
+                }}
+              />
             )}
             {!ccVisible && (
               <Pressable onPress={() => setCcVisible(true)} style={styles.ccToggle}>
@@ -1031,7 +1046,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           </View>
 
           {ccVisible && (
-            <View style={styles.fieldRow}>
+            <View style={[styles.fieldRow, { zIndex: 4 }]}>
               <Text style={styles.fieldLabel}>{t('email_composer.cc', 'Cc')}</Text>
               <View style={styles.recipientField}>
                 {ccRecipients.map((r, i) => (
@@ -1049,8 +1064,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   onChangeText={setCcInput}
                   onFocus={() => setActiveField('cc')}
                   onBlur={() => {
-                    addTyped();
-                    setTimeout(() => setActiveField((f) => (f === 'cc' ? null : f)), 200);
+                    setTimeout(() => {
+                      if (!isPickingSuggestion.current) {
+                        addTyped();
+                      }
+                      setActiveField((f) => (f === 'cc' ? null : f));
+                      isPickingSuggestion.current = false;
+                    }, 200);
                   }}
                   onSubmitEditing={addTyped}
                   keyboardType="email-address"
@@ -1059,7 +1079,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 />
               </View>
               {activeField === 'cc' && suggestions.length > 0 && (
-                <SuggestionList suggestions={suggestions} onPick={pickSuggestion} />
+                <SuggestionList
+                  suggestions={suggestions}
+                  onPick={pickSuggestion}
+                  onPressIn={() => {
+                    isPickingSuggestion.current = true;
+                  }}
+                />
               )}
             </View>
           )}
@@ -1332,6 +1358,7 @@ function makeStyles(c: ThemePalette) {
     borderBottomWidth: 1,
     borderBottomColor: c.borderLight,
     gap: spacing.md,
+    position: 'relative',
   },
   fieldLabel: {
     ...typography.body,
@@ -1374,12 +1401,16 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: 6,
   },
   suggestionBox: {
-    marginTop: spacing.xs,
-    marginLeft: 60,
+    position: 'absolute',
+    top: '100%',
+    left: spacing.lg + 56 + spacing.md,
+    right: spacing.lg,
     borderWidth: 1,
     borderColor: c.borderLight,
     borderRadius: radius.sm,
     backgroundColor: c.card,
+    zIndex: 20,
+    elevation: 5,
     overflow: 'hidden',
   },
   suggestionRow: {
