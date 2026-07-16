@@ -172,9 +172,9 @@ export function SwipeableRow({
           return;
         }
         // Instant mode: fire on release-past-threshold, no second tap.
-        if (g.dx >= COMMIT_THRESHOLD && rightAction !== 'none') {
+        if ((g.dx >= COMMIT_THRESHOLD || (g.dx > 40 && g.vx >= 0.5)) && rightAction !== 'none') {
           fly(widthRef.current || EXIT_DISTANCE, rightAction);
-        } else if (g.dx <= -COMMIT_THRESHOLD && leftAction !== 'none') {
+        } else if ((g.dx <= -COMMIT_THRESHOLD || (g.dx < -40 && g.vx <= -0.5)) && leftAction !== 'none') {
           fly(-(widthRef.current || EXIT_DISTANCE), leftAction);
         } else {
           Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
