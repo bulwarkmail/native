@@ -70,7 +70,16 @@ function parseRecipients(input: string): Recipient[] {
     .split(/[,;\n]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((email) => ({ name: '', email }));
+    .map((s) => {
+      const match = s.match(/^(.*?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/);
+      if (match) {
+        return {
+          name: match[1].replace(/^["']|["']$/g, '').trim(),
+          email: match[2].trim(),
+        };
+      }
+      return { name: '', email: s };
+    });
 }
 
 function formatBytes(n: number): string {
