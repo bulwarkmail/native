@@ -92,6 +92,7 @@ const EmailRow = React.memo(function EmailRow({
       onLongPress={handleLongPress}
       delayLongPress={300}
     >
+      {unread && <View style={styles.unreadDot} />}
       {selectionMode && (
         <View style={styles.rowCheckboxWrap}>
           {selected ? (
@@ -1365,6 +1366,19 @@ function makeStyles(c: ThemePalette) {
   },
   emailRowPressed: { backgroundColor: c.surface },
   emailRowSelected: { backgroundColor: c.selection },
+  // Mirrors the webmail's unread indicator: an 8px filled circle at the row's
+  // start edge, vertically centered (email-list-item.tsx, fill-unread). The
+  // weight/color change alone is too subtle on some device fonts (#27).
+  unreadDot: {
+    position: 'absolute',
+    left: 4,
+    top: '50%',
+    marginTop: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: c.unread,
+  },
   rowCheckboxWrap: {
     width: 16,
     height: componentSizes.avatarMd,

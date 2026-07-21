@@ -96,6 +96,7 @@ export default function UnifiedInboxScreen({ navigation }: Props) {
         onPress={() => onOpen(item)}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
+        {unread && <View style={styles.unreadDot} />}
         <View style={styles.avatarWrap}>
           <SenderAvatar
             name={senderName(item)}
@@ -219,6 +220,18 @@ function makeStyles(c: ThemePalette) {
       paddingVertical: spacing.md,
     },
     rowPressed: { backgroundColor: c.surfaceHover },
+    // Same unread indicator as the mailbox list (and the webmail): an 8px
+    // filled circle in the start gutter, vertically centered (#27).
+    unreadDot: {
+      position: 'absolute',
+      left: 4,
+      top: '50%',
+      marginTop: -4,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: c.unread,
+    },
     avatarWrap: { position: 'relative' },
     accountDot: {
       position: 'absolute',
