@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { File as FsFile } from 'expo-file-system';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { Button } from '../components';
+import { Button, IdentitySheet } from '../components';
 import RichTextEditor, {
   type RichTextEditorHandle,
   type RichTextSelectionState,
@@ -26,6 +26,7 @@ import { useEmailStore } from '../stores/email-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useAccountStore } from '../stores/account-store';
 import { isGroup } from '../lib/contact-utils';
 import {
   getContactDisplayName,
@@ -69,7 +70,16 @@ function parseRecipients(input: string): Recipient[] {
     .split(/[,;\n]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .map((email) => ({ name: '', email }));
+    .map((s) => {
+      const match = s.match(/^(.*?)\s*<([^\s@]+@[^\s@]+\.[^\s@]+)>$/);
+      if (match) {
+        return {
+          name: match[1].replace(/^["']|["']$/g, '').trim(),
+          email: match[2].trim(),
+        };
+      }
+      return { name: '', email: s };
+    });
 }
 
 function formatBytes(n: number): string {
@@ -113,10 +123,11 @@ function RecipientChip({ recipient, onRemove }: { recipient: Recipient; onRemove
 }
 
 function SuggestionList({
-  suggestions, onPick,
+  suggestions, onPick, onPressIn,
 }: {
   suggestions: Array<{ contact: ContactCard; name: string; email: string }>;
   onPick: (s: { name: string; email: string }) => void;
+  onPressIn?: () => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -127,6 +138,7 @@ function SuggestionList({
         return (
           <Pressable
             key={`${s.contact.id}-${s.email}-${i}`}
+            onPressIn={onPressIn}
             onPress={() => onPick(s)}
             style={({ pressed }) => [styles.suggestionRow, pressed && styles.suggestionRowPressed]}
           >
@@ -260,6 +272,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [identityError, setIdentityError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
   const [selectedIdentityId, setSelectedIdentityId] = React.useState<string | null>(null);
+  const [identitySheetOpen, setIdentitySheetOpen] = React.useState(false);
   const [scheduleSheetOpen, setScheduleSheetOpen] = React.useState(false);
   // Custom date/time picker stage. iOS shows one 'datetime' spinner; Android
   // can only show one field at a time, so we walk date → time.
@@ -343,6 +356,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   });
 
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
   const inlineRegistryRef = React.useRef<Map<string, AttachmentEntry>>(new Map());
@@ -375,6 +389,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, [suggestionQuery, individuals, alreadySelected]);
 
   const pickSuggestion = (s: { name: string; email: string }) => {
+    isPickingSuggestion.current = true;
     const recipient: Recipient = { name: s.name, email: s.email };
     if (activeField === 'cc') {
       setCcRecipients((prev) => [...prev, recipient]);
@@ -405,34 +420,35 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // original message (matches webmail's reply-identity behaviour).
   React.useEffect(() => {
     if (selectedIdentityId || identities.length === 0) return;
+    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
+    const defaultIdentity = identities.find(
+      (i) => i.email.toLowerCase() === activeEmail?.toLowerCase()
+    ) ?? identities[0];
+
     if (autoSelectReplyIdentity && replyTo) {
       const candidates = [...(replyTo.to ?? []), ...(replyTo.cc ?? [])];
       const candidateAddrs = new Set(
         candidates.map((r) => r.email?.toLowerCase()).filter(Boolean) as string[],
       );
       const matched = identities.find((i) => candidateAddrs.has(i.email.toLowerCase()));
-      setSelectedIdentityId((matched ?? identities[0]).id);
+      setSelectedIdentityId((matched ?? defaultIdentity).id);
     } else {
-      setSelectedIdentityId(identities[0].id);
+      setSelectedIdentityId(defaultIdentity.id);
     }
   }, [identities, autoSelectReplyIdentity, replyTo, selectedIdentityId]);
 
-  const primaryIdentity =
-    identities.find((i) => i.id === selectedIdentityId) ?? identities[0];
+  const primaryIdentity = React.useMemo(() => {
+    if (identities.length === 0) return null;
+    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
+    const defaultIdentity = identities.find(
+      (i) => i.email.toLowerCase() === activeEmail?.toLowerCase()
+    ) ?? identities[0];
+    return identities.find((i) => i.id === selectedIdentityId) ?? defaultIdentity;
+  }, [identities, selectedIdentityId]);
 
   const openIdentityPicker = () => {
     if (identities.length <= 1) return;
-    Alert.alert(
-      t('email_composer.from', 'From'),
-      undefined,
-      [
-        ...identities.map((i) => ({
-          text: i.name ? `${i.name} <${i.email}>` : i.email,
-          onPress: () => setSelectedIdentityId(i.id),
-        })),
-        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' as const },
-      ],
-    );
+    setIdentitySheetOpen(true);
   };
 
   const commitTyped = () => {
@@ -448,11 +464,33 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const extraTo = parseRecipients(toInput);
     const extraCc = parseRecipients(ccInput);
     if (extraTo.length) {
-      setToRecipients((prev) => [...prev, ...extraTo]);
+      setToRecipients((prev) => {
+        const existing = new Set(prev.map((r) => r.email.toLowerCase()));
+        const unique: Recipient[] = [];
+        for (const r of extraTo) {
+          const emailLower = r.email.toLowerCase();
+          if (!existing.has(emailLower)) {
+            existing.add(emailLower);
+            unique.push(r);
+          }
+        }
+        return [...prev, ...unique];
+      });
       setToInput('');
     }
     if (extraCc.length) {
-      setCcRecipients((prev) => [...prev, ...extraCc]);
+      setCcRecipients((prev) => {
+        const existing = new Set(prev.map((r) => r.email.toLowerCase()));
+        const unique: Recipient[] = [];
+        for (const r of extraCc) {
+          const emailLower = r.email.toLowerCase();
+          if (!existing.has(emailLower)) {
+            existing.add(emailLower);
+            unique.push(r);
+          }
+        }
+        return [...prev, ...unique];
+      });
       setCcInput('');
     }
   };
@@ -976,7 +1014,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       <View style={[styles.flex, { paddingBottom: bottomPad }]}>
         <ScrollView
           style={styles.flex}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.fieldRow}>
@@ -993,7 +1031,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             </Pressable>
           </View>
 
-          <View style={styles.fieldRow}>
+          <View style={[styles.fieldRow, { zIndex: 5 }]}>
             <Text style={styles.fieldLabel}>{t('email_composer.to', 'To')}</Text>
             <View style={styles.recipientField}>
               {toRecipients.map((r, i) => (
@@ -1011,8 +1049,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 onChangeText={setToInput}
                 onFocus={() => setActiveField('to')}
                 onBlur={() => {
-                  addTyped();
-                  setTimeout(() => setActiveField((f) => (f === 'to' ? null : f)), 200);
+                  setTimeout(() => {
+                    if (!isPickingSuggestion.current) {
+                      addTyped();
+                    }
+                    setActiveField((f) => (f === 'to' ? null : f));
+                    isPickingSuggestion.current = false;
+                  }, 200);
                 }}
                 onSubmitEditing={addTyped}
                 keyboardType="email-address"
@@ -1021,7 +1064,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
               />
             </View>
             {activeField === 'to' && suggestions.length > 0 && (
-              <SuggestionList suggestions={suggestions} onPick={pickSuggestion} />
+              <SuggestionList
+                suggestions={suggestions}
+                onPick={pickSuggestion}
+                onPressIn={() => {
+                  isPickingSuggestion.current = true;
+                }}
+              />
             )}
             {!ccVisible && (
               <Pressable onPress={() => setCcVisible(true)} style={styles.ccToggle}>
@@ -1031,7 +1080,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           </View>
 
           {ccVisible && (
-            <View style={styles.fieldRow}>
+            <View style={[styles.fieldRow, { zIndex: 4 }]}>
               <Text style={styles.fieldLabel}>{t('email_composer.cc', 'Cc')}</Text>
               <View style={styles.recipientField}>
                 {ccRecipients.map((r, i) => (
@@ -1049,8 +1098,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   onChangeText={setCcInput}
                   onFocus={() => setActiveField('cc')}
                   onBlur={() => {
-                    addTyped();
-                    setTimeout(() => setActiveField((f) => (f === 'cc' ? null : f)), 200);
+                    setTimeout(() => {
+                      if (!isPickingSuggestion.current) {
+                        addTyped();
+                      }
+                      setActiveField((f) => (f === 'cc' ? null : f));
+                      isPickingSuggestion.current = false;
+                    }, 200);
                   }}
                   onSubmitEditing={addTyped}
                   keyboardType="email-address"
@@ -1059,7 +1113,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 />
               </View>
               {activeField === 'cc' && suggestions.length > 0 && (
-                <SuggestionList suggestions={suggestions} onPick={pickSuggestion} />
+                <SuggestionList
+                  suggestions={suggestions}
+                  onPick={pickSuggestion}
+                  onPressIn={() => {
+                    isPickingSuggestion.current = true;
+                  }}
+                />
               )}
             </View>
           )}
@@ -1293,6 +1353,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
           onChange={onCustomPickerChange}
         />
       )}
+
+      <IdentitySheet
+        visible={identitySheetOpen}
+        onClose={() => setIdentitySheetOpen(false)}
+        identities={identities}
+        selectedIdentityId={selectedIdentityId}
+        onPick={(identity) => setSelectedIdentityId(identity.id)}
+      />
     </SafeAreaView>
   );
 }
@@ -1332,6 +1400,7 @@ function makeStyles(c: ThemePalette) {
     borderBottomWidth: 1,
     borderBottomColor: c.borderLight,
     gap: spacing.md,
+    position: 'relative',
   },
   fieldLabel: {
     ...typography.body,
@@ -1374,12 +1443,16 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: 6,
   },
   suggestionBox: {
-    marginTop: spacing.xs,
-    marginLeft: 60,
+    position: 'absolute',
+    top: '100%',
+    left: spacing.lg + 56 + spacing.md,
+    right: spacing.lg,
     borderWidth: 1,
     borderColor: c.borderLight,
     borderRadius: radius.sm,
     backgroundColor: c.card,
+    zIndex: 20,
+    elevation: 5,
     overflow: 'hidden',
   },
   suggestionRow: {
