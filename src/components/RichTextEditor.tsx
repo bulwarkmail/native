@@ -51,6 +51,13 @@ export interface RichTextEditorHandle {
   unsetLink(): void;
   insertImage(src: string, cid?: string, alt?: string): void;
   setHtml(html: string): void;
+  /**
+   * Read the live editor DOM content. Resolves with the current innerHTML or
+   * rejects after `timeoutMs` when the page script is dead or the bridge is
+   * broken — callers must treat that as "content unknown", never fall back to
+   * possibly-stale state (issue #9: doing so silently sent blank replies).
+   */
+  getHtml(timeoutMs?: number): Promise<string>;
   focus(): void;
 }
 
@@ -94,6 +101,27 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     webViewRef.current?.injectJavaScript(`${script}; true;`);
   }, []);
 
+  // Pending getHtml() readbacks, keyed by request id. Timers reject requests
+  // the page never answers (dead script / broken bridge).
+  const snapshotSeq = React.useRef(0);
+  const pendingSnapshots = React.useRef(
+    new Map<number, {
+      resolve: (html: string) => void;
+      reject: (err: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }>(),
+  );
+  React.useEffect(() => {
+    const pending = pendingSnapshots.current;
+    return () => {
+      for (const { timer, reject } of pending.values()) {
+        clearTimeout(timer);
+        reject(new Error('Editor unmounted'));
+      }
+      pending.clear();
+    };
+  }, []);
+
   React.useImperativeHandle(ref, () => ({
     exec: (command) => {
       const [name, value] = command.split(':');
@@ -112,6 +140,16 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     setHtml: (next) => {
       call(`window.__rne && window.__rne.setHtml(${JSON.stringify(next)})`);
     },
+    getHtml: (timeoutMs = 2000) =>
+      new Promise<string>((resolve, reject) => {
+        const id = ++snapshotSeq.current;
+        const timer = setTimeout(() => {
+          pendingSnapshots.current.delete(id);
+          reject(new Error('Editor did not answer'));
+        }, timeoutMs);
+        pendingSnapshots.current.set(id, { resolve, reject, timer });
+        call(`window.__rne && window.__rne.getHtml(${id})`);
+      }),
     focus: () => {
       call(`window.__rne && window.__rne.focus()`);
     },
@@ -131,6 +169,16 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       case 'height': {
         const h = typeof data.payload === 'number' ? data.payload : Number(data.payload);
         if (!Number.isNaN(h) && h > 0) setHeight(Math.max(MIN_EDITOR_HEIGHT, h));
+        break;
+      }
+      case 'htmlSnapshot': {
+        const p = data.payload as { id?: number; html?: string } | null;
+        const entry = typeof p?.id === 'number' ? pendingSnapshots.current.get(p.id) : undefined;
+        if (entry) {
+          pendingSnapshots.current.delete(p!.id!);
+          clearTimeout(entry.timer);
+          entry.resolve(typeof p?.html === 'string' ? p.html : '');
+        }
         break;
       }
       case 'selection':

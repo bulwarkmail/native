@@ -47,4 +47,12 @@ describe('buildEditorHtml', () => {
     expect(script).toContain('window.__rne');
     expect(script).toContain('ReactNativeWebView.postMessage');
   });
+
+  // Regression for issue #9: sends must be able to read the live DOM back
+  // instead of trusting async `change` messages that can lag or be lost.
+  it('exposes the send-time getHtml readback on the bridge', () => {
+    const script = extractScript(buildEditorHtml(base));
+    expect(script).toContain('getHtml: function (id)');
+    expect(script).toContain("post('htmlSnapshot', { id: id, html: editor.innerHTML })");
+  });
 });

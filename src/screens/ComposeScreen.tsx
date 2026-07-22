@@ -758,13 +758,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Catch the classic "I forgot the attachment" footgun. Only file attachments
   // count - inline images don't satisfy the user's intent of attaching a file.
   // Returns true if it's safe to proceed, false if the user cancelled.
-  const passesAttachmentReminder = async (): Promise<boolean> => {
+  const passesAttachmentReminder = async (html: string): Promise<boolean> => {
     if (!attachmentReminderEnabled) return true;
     const hasFileAttachment = attachments.some(
       (a) => !a.inline && a.blobId && !a.error,
     );
     if (hasFileAttachment) return true;
-    const haystack = `${subject}\n${htmlToPlainText(bodyHtml)}`.toLowerCase();
+    const haystack = `${subject}\n${htmlToPlainText(html)}`.toLowerCase();
     const matchedKeyword = attachmentReminderKeywords.find((kw) => {
       const k = kw.trim().toLowerCase();
       if (!k) return false;
@@ -878,12 +878,33 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const performSend = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
-    if (!(await passesAttachmentReminder())) return;
+
+    // Read the body straight from the editor DOM at send time. The `change`
+    // messages that feed `bodyHtml` are async and best-effort — trusting them
+    // here once shipped replies with the typed text silently missing when the
+    // page script had died (issue #9). If the editor doesn't answer we abort
+    // loudly rather than send possibly-stale content.
+    let liveBodyHtml: string;
+    try {
+      liveBodyHtml = (await editorRef.current?.getHtml()) ?? bodyHtml;
+    } catch {
+      Alert.alert(
+        t('email_composer.send_failed', 'Send failed'),
+        t(
+          'email_composer.editor_unavailable',
+          'Could not read the message content. Copy your text, then close and reopen the composer.',
+        ),
+      );
+      return;
+    }
+    if (liveBodyHtml !== bodyHtml) setBodyHtml(liveBodyHtml);
+
+    if (!(await passesAttachmentReminder(liveBodyHtml))) return;
     setSending(true);
     try {
       const from: EmailAddress[] = [{ name: primaryIdentity.name, email: primaryIdentity.email }];
 
-      const { html: rewrittenHtml, usedCids } = rewriteInlineImages(bodyHtml);
+      const { html: rewrittenHtml, usedCids } = rewriteInlineImages(liveBodyHtml);
       // Belt-and-suspenders sanitization: the editor uses execCommand which
       // can preserve pasted <script>/<style>/etc. Strip them before sending.
       const safeHtml = stripDangerousTags(rewrittenHtml);

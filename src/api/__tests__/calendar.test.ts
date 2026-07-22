@@ -87,7 +87,10 @@ describe('calendar operations', () => {
   });
 
   describe('getEvents', () => {
-    it('should fetch events by id with expected properties', async () => {
+    it('should fetch events by id with singular JSCalendar 2.0 recurrence properties', async () => {
+      // Stalwart (calcard) names the property `recurrenceRule` (singular,
+      // single object) — requesting the RFC 8984 plural form returns no
+      // recurrence data and repeating events vanish from the grid (#13).
       const events = [{ id: 'ev1', title: 'Meeting', start: '2026-03-29T10:00:00' }];
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/get', { list: events }, '0']],
@@ -99,7 +102,48 @@ describe('calendar operations', () => {
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].properties).toContain('title');
       expect(call[1].properties).toContain('start');
-      expect(call[1].properties).toContain('recurrenceRules');
+      expect(call[1].properties).toContain('recurrenceRule');
+      expect(call[1].properties).toContain('excludedRecurrenceRule');
+      expect(call[1].properties).not.toContain('recurrenceRules');
+      expect(call[1].properties).not.toContain('excludedRecurrenceRules');
+    });
+
+    it('should normalize a singular recurrenceRule object to the plural array form', async () => {
+      const events = [{
+        id: 'ev1',
+        title: 'Every 5 weeks',
+        start: '2026-03-02T10:00:00',
+        recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'weekly', interval: 5 },
+        excludedRecurrenceRule: { frequency: 'weekly', interval: 10 },
+      }];
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/get', { list: events }, '0']],
+      });
+
+      const [event] = await getEvents(['ev1']);
+      expect(event.recurrenceRules).toEqual([
+        { '@type': 'RecurrenceRule', frequency: 'weekly', interval: 5 },
+      ]);
+      expect(event.excludedRecurrenceRules).toEqual([
+        { frequency: 'weekly', interval: 10 },
+      ]);
+      expect(event).not.toHaveProperty('recurrenceRule');
+      expect(event).not.toHaveProperty('excludedRecurrenceRule');
+    });
+
+    it('should keep an array-valued recurrenceRule as-is (JMAP-created events)', async () => {
+      const events = [{
+        id: 'ev1',
+        title: 'Weekly',
+        start: '2026-03-02T10:00:00',
+        recurrenceRule: [{ frequency: 'weekly', interval: 2 }],
+      }];
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/get', { list: events }, '0']],
+      });
+
+      const [event] = await getEvents(['ev1']);
+      expect(event.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 2 }]);
     });
   });
 
@@ -115,9 +159,38 @@ describe('calendar operations', () => {
         'cal-1',
       );
 
-      expect(result).toEqual(created);
+      // The /set response echoes only server-set properties; the return value
+      // merges them over the submitted payload.
+      expect(result).toEqual({
+        id: 'ev-new',
+        title: 'Lunch',
+        start: '2026-03-30T12:00:00',
+        duration: 'PT1H',
+        calendarIds: { 'cal-1': true },
+      });
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].create['new-event'].calendarIds).toEqual({ 'cal-1': true });
+    });
+
+    it('should send recurrence as a singular cleaned object', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { created: { 'new-event': { id: 'ev-new' } } }, '0']],
+      });
+
+      const result = await createEvent(
+        {
+          title: 'Series',
+          start: '2026-03-30T12:00:00',
+          recurrenceRules: [{ frequency: 'weekly', interval: 5, until: null as unknown as string }],
+        },
+        'cal-1',
+      );
+
+      const sent = mockRequest.mock.calls[0][0][0][1].create['new-event'];
+      expect(sent.recurrenceRule).toEqual({ frequency: 'weekly', interval: 5 });
+      expect(sent).not.toHaveProperty('recurrenceRules');
+      // The returned event exposes the internal plural form again.
+      expect(result.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 5 }]);
     });
   });
 
@@ -131,6 +204,23 @@ describe('calendar operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].update).toEqual({ ev1: { title: 'Updated Meeting' } });
+    });
+
+    it('should convert recurrenceRules updates to the singular property', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { updated: {} }, '0']],
+      });
+
+      await updateEvent('ev1', { recurrenceRules: [{ frequency: 'monthly' }] });
+      expect(mockRequest.mock.calls[0][0][0][1].update).toEqual({
+        ev1: { recurrenceRule: { frequency: 'monthly' } },
+      });
+
+      // Empty array means "remove recurrence" — sent as an explicit null.
+      await updateEvent('ev1', { recurrenceRules: [] });
+      expect(mockRequest.mock.calls[1][0][0][1].update).toEqual({
+        ev1: { recurrenceRule: null },
+      });
     });
   });
 

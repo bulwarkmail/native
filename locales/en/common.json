@@ -497,6 +497,7 @@
     "drop_files": "Drop files to attach",
     "show_less": "Show less",
     "send_failed": "Failed to send email",
+    "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
     "continue_draft": "Continue draft",
     "close_draft_title": "Save or discard draft?",
     "close_draft_message": "You have unsaved changes. Would you like to save this as a draft or discard it?",

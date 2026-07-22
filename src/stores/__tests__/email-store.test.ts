@@ -111,6 +111,7 @@ import { useEmailStore } from '../email-store';
 
 const mockGetMailboxesWithState = emailApi.getMailboxesWithState as ReturnType<typeof vi.fn>;
 const mockQueryEmails = emailApi.queryEmails as ReturnType<typeof vi.fn>;
+const mockGetEmailQueryChanges = emailApi.getEmailQueryChanges as ReturnType<typeof vi.fn>;
 const mockGetEmails = emailApi.getEmails as ReturnType<typeof vi.fn>;
 const mockGetEmailsWithState = emailApi.getEmailsWithState as ReturnType<typeof vi.fn>;
 const mockGetFullEmail = emailApi.getFullEmail as ReturnType<typeof vi.fn>;
@@ -310,6 +311,149 @@ describe('email-store', () => {
       const results = await useEmailStore.getState().searchEmails('nothing');
 
       expect(results).toEqual([]);
+    });
+  });
+
+  // Issue #6: the "Unread" tri-state filter must reach Email/query as a
+  // notKeyword condition and force the full re-query path (the incremental
+  // path only serves the unfiltered base view).
+  describe('filters (issue #6)', () => {
+    it('applies the unread filter to the mailbox query', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [],
+        totalEmails: 0,
+        searchQuery: '',
+        filters: { isUnread: true },
+        mailboxSnapshots: {
+          'mb-1': { emails: [{ id: 'e9' } as any], total: 1, queryState: 'q-base' },
+        },
+      });
+      mockQueryEmails.mockResolvedValue({ ids: ['e1'], total: 1, queryState: 'q-unread' });
+      mockGetEmailsWithState.mockResolvedValue({ list: [{ id: 'e1' } as any], state: 'em-1' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockGetEmailQueryChanges).not.toHaveBeenCalled();
+      const [mailboxId, opts] = mockQueryEmails.mock.calls[0];
+      expect(mailboxId).toBe('mb-1');
+      expect(opts.filter).toEqual({
+        operator: 'AND',
+        conditions: [{ inMailbox: 'mb-1' }, { notKeyword: '$seen' }],
+      });
+      // Filter results must not leak into the base-view snapshot.
+      expect(useEmailStore.getState().mailboxSnapshots['mb-1'].emails).toEqual([{ id: 'e9' }]);
+    });
+  });
+
+  // Issue #10: after searching, the inbox stayed stuck on the search results.
+  // Root cause: the incremental Email/queryChanges refresh diffed against the
+  // on-screen list (search results) instead of the cached base view, then
+  // wrote the result back into the persisted mailbox snapshot.
+  describe('search / return to inbox (issue #10)', () => {
+    const base = [
+      { id: 'e1', subject: 'One' } as any,
+      { id: 'e2', subject: 'Two' } as any,
+    ];
+
+    it('incremental refresh diffs against the snapshot, not on-screen search results', async () => {
+      // Screen still shows a (stale) search-result list, but searchQuery is
+      // already '' — the cold-start / just-cleared-search shape.
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [base[1]],
+        totalEmails: 1,
+        searchQuery: '',
+        filters: {},
+        mailboxSnapshots: { 'mb-1': { emails: base, total: 2, queryState: 'q-base' } },
+      });
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-base',
+        newQueryState: 'q-2',
+        total: 2,
+        removed: [],
+        added: [],
+      });
+
+      await useEmailStore.getState().refreshEmails();
+
+      const state = useEmailStore.getState();
+      expect(state.emails).toEqual(base);
+      expect(state.mailboxSnapshots['mb-1'].emails).toEqual(base);
+      expect(mockQueryEmails).not.toHaveBeenCalled();
+    });
+
+    it('does not write search results into the mailbox snapshot', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: base,
+        totalEmails: 2,
+        searchQuery: 'two',
+        filters: {},
+        queryState: 'q-base',
+        mailboxSnapshots: { 'mb-1': { emails: base, total: 2, queryState: 'q-base' } },
+      });
+      mockQueryEmails.mockResolvedValue({ ids: ['e2'], total: 1, queryState: 'q-search' });
+      mockGetEmailsWithState.mockResolvedValue({ list: [base[1]], state: 'em-1' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      const state = useEmailStore.getState();
+      expect(state.emails).toEqual([base[1]]);
+      // Base-view cache must survive the search untouched.
+      expect(state.mailboxSnapshots['mb-1'].emails).toEqual(base);
+      expect(state.queryState).toBe('q-base');
+      expect(mockGetEmailQueryChanges).not.toHaveBeenCalled();
+    });
+
+    it('clearSearchAndFilters restores the cached base view immediately', () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [base[1]],
+        totalEmails: 1,
+        searchQuery: 'two',
+        filters: {},
+        mailboxSnapshots: { 'mb-1': { emails: base, total: 2, queryState: 'q-base' } },
+      });
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-base',
+        newQueryState: 'q-2',
+        total: 2,
+        removed: [],
+        added: [],
+      });
+
+      useEmailStore.getState().clearSearchAndFilters();
+
+      // Synchronously back on the base view — no waiting for the network.
+      const state = useEmailStore.getState();
+      expect(state.searchQuery).toBe('');
+      expect(state.emails).toEqual(base);
+      expect(state.totalEmails).toBe(2);
+    });
+
+    it('falls back to a full re-query when the snapshot window is incomplete', async () => {
+      // A pre-fix install could have a poisoned snapshot: a handful of search
+      // results stored against the base view's total. It can't be patched
+      // incrementally — the refresh must rebuild it from the server.
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [base[1]],
+        totalEmails: 1,
+        searchQuery: '',
+        filters: {},
+        mailboxSnapshots: { 'mb-1': { emails: [base[1]], total: 50, queryState: 'q-base' } },
+      });
+      mockQueryEmails.mockResolvedValue({ ids: ['e1', 'e2'], total: 50, queryState: 'q-new' });
+      mockGetEmailsWithState.mockResolvedValue({ list: base, state: 'em-2' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      const state = useEmailStore.getState();
+      expect(mockGetEmailQueryChanges).not.toHaveBeenCalled();
+      expect(state.emails).toEqual(base);
+      expect(state.mailboxSnapshots['mb-1'].emails).toEqual(base);
+      expect(state.mailboxSnapshots['mb-1'].queryState).toBe('q-new');
     });
   });
 

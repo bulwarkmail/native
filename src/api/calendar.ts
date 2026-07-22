@@ -37,17 +37,93 @@ function buildInCalendarFilter(calendarIds: string[]): Record<string, unknown> {
   };
 }
 
+// Stalwart's calcard crate implements JSCalendar 2.0 (jscalendarbis) property
+// names: singular `recurrenceRule` / `excludedRecurrenceRule` holding a single
+// object, not RFC 8984's plural array forms. Requesting the plural names
+// returns no recurrence data at all, so recurring events silently render as
+// one-off events (#13). Request the singular names and normalize below.
 const CALENDAR_EVENT_PROPERTIES = [
   'id', '@type', 'uid', 'calendarIds', 'title', 'description',
   'start', 'duration', 'timeZone', 'showWithoutTime',
   'utcStart', 'utcEnd', 'status', 'freeBusyStatus',
-  'participants', 'alerts', 'useDefaultAlerts', 'recurrenceRules',
-  'recurrenceOverrides', 'excludedRecurrenceRules',
+  'participants', 'alerts', 'useDefaultAlerts', 'recurrenceRule',
+  'recurrenceOverrides', 'excludedRecurrenceRule', 'recurrenceId',
   'replyTo', 'organizerCalendarAddress', 'sequence',
   'locations', 'virtualLocations',
   'progress', 'due', 'priority', 'percentComplete',
   'links', 'created', 'updated',
 ];
+
+/**
+ * Normalize Stalwart's singular recurrence property names to the RFC 8984
+ * plural array forms the client uses internally. JSCalendar 2.0 defines
+ * recurrenceRule as a single object, but Stalwart may also return an array
+ * (for events created via JMAP), so both forms are handled. Mirrors webmail's
+ * normalizeStalwartPropertyNames.
+ */
+export function normalizeRecurrenceProperties<T extends Partial<CalendarEvent>>(event: T): T {
+  const raw = event as Record<string, unknown>;
+  let patched = false;
+  const updates: Partial<CalendarEvent> = {};
+
+  if ('recurrenceRule' in raw && !('recurrenceRules' in raw)) {
+    const val = raw.recurrenceRule;
+    if (val != null && !Array.isArray(val) && typeof val === 'object') {
+      updates.recurrenceRules = [val] as CalendarEvent['recurrenceRules'];
+    } else {
+      updates.recurrenceRules = val as CalendarEvent['recurrenceRules'];
+    }
+    patched = true;
+  }
+  if ('excludedRecurrenceRule' in raw && !('excludedRecurrenceRules' in raw)) {
+    const val = raw.excludedRecurrenceRule;
+    if (val != null && !Array.isArray(val) && typeof val === 'object') {
+      updates.excludedRecurrenceRules = [val] as CalendarEvent['excludedRecurrenceRules'];
+    } else {
+      updates.excludedRecurrenceRules = val as CalendarEvent['excludedRecurrenceRules'];
+    }
+    patched = true;
+  }
+
+  if (!patched) return event;
+
+  const result = { ...event, ...updates } as T;
+  delete (result as Record<string, unknown>).recurrenceRule;
+  delete (result as Record<string, unknown>).excludedRecurrenceRule;
+  return result;
+}
+
+/**
+ * Convert the client's plural recurrence arrays to the singular JSCalendar 2.0
+ * properties Stalwart expects on write, dropping null rule fields. An empty
+ * array (or null) becomes an explicit null so "remove recurrence" round-trips.
+ * Mirrors webmail's cleanRecurrenceRules.
+ */
+function cleanRecurrenceRules(event: Record<string, unknown>): void {
+  const keyMap: Record<string, string> = {
+    recurrenceRules: 'recurrenceRule',
+    excludedRecurrenceRules: 'excludedRecurrenceRule',
+  };
+  for (const [pluralKey, singularKey] of Object.entries(keyMap)) {
+    const rules = event[pluralKey];
+    if (rules === undefined) continue;
+    delete event[pluralKey];
+    if (!Array.isArray(rules)) {
+      event[singularKey] = rules;
+      continue;
+    }
+    if (rules.length === 0) {
+      event[singularKey] = null;
+      continue;
+    }
+    const rule = rules[0] as Record<string, unknown>;
+    const cleaned: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rule)) {
+      if (v !== null) cleaned[k] = v;
+    }
+    event[singularKey] = cleaned;
+  }
+}
 
 function methodResult<T = any>(res: any, index = 0): T {
   const entry = res?.methodResponses?.[index];
@@ -149,7 +225,7 @@ export async function getEvents(ids: string[], accountId?: string): Promise<Cale
       USING,
     );
     const list = methodResult<{ list: CalendarEvent[] }>(res).list ?? [];
-    all.push(...list);
+    all.push(...list.map(normalizeRecurrenceProperties));
   }
   return all;
 }
@@ -176,11 +252,11 @@ export async function createEvent(
   targetAccountId?: string,
 ): Promise<CalendarEvent> {
   const accountId = targetAccountId || jmapClient.accountId;
+  const payload: Record<string, unknown> = { ...event, calendarIds: { [calendarId]: true } };
+  cleanRecurrenceRules(payload);
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, {
-      create: {
-        'new-event': { ...event, calendarIds: { [calendarId]: true } },
-      },
+      create: { 'new-event': payload },
     }, sendSchedulingMessages), '0']],
     USING,
   );
@@ -193,7 +269,9 @@ export async function createEvent(
     const err = result.notCreated?.['new-event'];
     throw new Error(err?.description || err?.type || 'Failed to create event');
   }
-  return created;
+  // The /set response echoes only server-set properties; merge them over the
+  // submitted payload so the store's optimistic insert keeps recurrence data.
+  return normalizeRecurrenceProperties({ ...payload, ...created } as CalendarEvent);
 }
 
 // Batch-create many events in one CalendarEvent/set. Returns the number created.
@@ -206,7 +284,9 @@ export async function batchCreateEvents(
   const accountId = targetAccountId || jmapClient.accountId;
   const create: Record<string, Partial<CalendarEvent>> = {};
   events.forEach((e, i) => {
-    create[`evt-${i}`] = { ...e, calendarIds: { [calendarId]: true } };
+    const payload: Record<string, unknown> = { ...e, calendarIds: { [calendarId]: true } };
+    cleanRecurrenceRules(payload);
+    create[`evt-${i}`] = payload as Partial<CalendarEvent>;
   });
   const res = await jmapClient.request(
     [['CalendarEvent/set', { accountId, create }, '0']],
@@ -223,8 +303,10 @@ export async function updateEvent(
   targetAccountId?: string,
 ): Promise<void> {
   const accountId = targetAccountId || jmapClient.accountId;
+  const patch: Record<string, unknown> = { ...changes };
+  cleanRecurrenceRules(patch);
   const res = await jmapClient.request(
-    [['CalendarEvent/set', setArgs(accountId, { update: { [id]: changes } }, sendSchedulingMessages), '0']],
+    [['CalendarEvent/set', setArgs(accountId, { update: { [id]: patch } }, sendSchedulingMessages), '0']],
     USING,
   );
   const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
@@ -285,7 +367,8 @@ export async function parseCalendarBlob(blobId: string): Promise<Partial<Calenda
   if (result.notFound?.includes(blobId)) throw new Error('Uploaded file not found');
   const parsed = result.parsed?.[blobId];
   if (!parsed) return [];
-  return Array.isArray(parsed) ? parsed : [parsed];
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list.map(normalizeRecurrenceProperties);
 }
 
 export async function createCalendar(

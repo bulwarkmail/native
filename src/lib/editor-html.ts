@@ -263,6 +263,12 @@ export function buildEditorHtml(opts: {
       reportChange();
       reportHeight();
     },
+    // Send-time readback (issue #9): RN asks for the live DOM content instead
+    // of trusting the last change message, which can lag typing or be lost
+    // entirely if the bridge breaks. The id lets RN match reply to request.
+    getHtml: function (id) {
+      post('htmlSnapshot', { id: id, html: editor.innerHTML });
+    },
     focus: function () { editor.focus(); },
   };
 

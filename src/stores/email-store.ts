@@ -223,6 +223,17 @@ function isBaseView(searchQuery: string, filters: EmailFilters): boolean {
   return !searchQuery.trim() && Object.keys(filters).length === 0;
 }
 
+// View fields to apply when returning from a search/filter to the base view:
+// the cached base-view snapshot, shown immediately so the list doesn't keep
+// displaying search results while the refresh is in flight (issue #10).
+function restoredBaseView(state: EmailState): Partial<EmailState> {
+  const snap = state.currentMailboxId
+    ? state.mailboxSnapshots[state.currentMailboxId]
+    : undefined;
+  if (!snap) return {};
+  return { emails: snap.emails, totalEmails: snap.total, queryState: snap.queryState };
+}
+
 function snapshotFromActive(state: EmailState): AccountSnapshot {
   // Persist the currently-visible mailbox into its snapshot before tucking
   // the whole account away.
@@ -642,7 +653,7 @@ export const useEmailStore = create<EmailState>()(
 
   refreshEmails: async () => {
     const state = get();
-    const { currentMailboxId, searchQuery, filters, emails: existing, queryState, emailState, activeAccountId } = state;
+    const { currentMailboxId, searchQuery, filters, emails: existing, emailState, activeAccountId } = state;
     if (!currentMailboxId) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
     set({ loading: true, error: null });
@@ -651,13 +662,37 @@ export const useEmailStore = create<EmailState>()(
     const limit = useSettingsStore.getState().emailsPerPage;
     const baseView = isBaseView(searchQuery, filters);
 
+    // A response that lands after the user switched account/mailbox or
+    // changed search/filters must not overwrite the newer view.
+    const viewChanged = () =>
+      get().activeAccountId !== activeAccountId ||
+      get().currentMailboxId !== currentMailboxId ||
+      get().searchQuery !== searchQuery ||
+      get().filters !== filters;
+
+    // The incremental path diffs against the *base-view* list, which lives in
+    // the per-mailbox snapshot — NOT `emails`, which may still hold search or
+    // filter results (right after clearing a search, or after a cold start
+    // that rehydrated a persisted search-result list). Diffing against a
+    // non-base list lets Email/queryChanges "confirm" the search results as
+    // the whole mailbox and bakes them into the snapshot (issue #10). The
+    // snapshot is only trusted when its window is plausibly complete —
+    // anything shorter can't be patched incrementally and needs the full
+    // re-query below to rebuild it.
+    const snap = state.mailboxSnapshots[currentMailboxId];
+
     try {
       // Incremental sync path: requires the base unfiltered view AND a known
       // queryState (so Email/queryChanges has something to diff against).
       // Anything else — search, filter active, first-ever load — falls
       // through to a full re-query.
-      if (baseView && queryState) {
-        const queryChanges = await getEmailQueryChanges(currentMailboxId, queryState, {
+      if (
+        baseView &&
+        snap?.queryState &&
+        snap.emails.length >= Math.min(limit, snap.total)
+      ) {
+        const baseEmails = snap.emails;
+        const queryChanges = await getEmailQueryChanges(currentMailboxId, snap.queryState, {
           filter: undefined,
         });
         if (queryChanges) {
@@ -687,9 +722,9 @@ export const useEmailStore = create<EmailState>()(
           }
 
           // Fetch only what we don't already have. `addedIds` are new to the
-          // window; `updatedIds` may already be in `existing` but their
+          // window; `updatedIds` may already be in the base list but their
           // keywords/mailboxIds need refreshing.
-          const existingById = new Map(existing.map((e) => [e.id, e]));
+          const existingById = new Map(baseEmails.map((e) => [e.id, e]));
           const idsToFetch = [
             ...addedIds.filter((id) => !existingById.has(id)),
             ...updatedIds.filter((id) => existingById.has(id)),
@@ -705,7 +740,7 @@ export const useEmailStore = create<EmailState>()(
           // Rebuild the visible window order: start with existing emails,
           // drop removed/destroyed, then splice added at their indices.
           const allDestroyed = new Set([...destroyedExtra, ...removed]);
-          const kept = existing.filter((e) => !allDestroyed.has(e.id));
+          const kept = baseEmails.filter((e) => !allDestroyed.has(e.id));
           // Map updated entries onto kept array
           const fetchedById = new Map(fetched.map((e) => [e.id, e]));
           const updatedKept = kept.map((e) => fetchedById.get(e.id) ?? e);
@@ -727,7 +762,7 @@ export const useEmailStore = create<EmailState>()(
           const nextQueryState = queryChanges.newQueryState;
           const nextTotal = queryChanges.total;
 
-          if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+          if (viewChanged()) return;
 
           set({
             emails: trimmed,
@@ -758,7 +793,7 @@ export const useEmailStore = create<EmailState>()(
         ? await getEmailsWithState(queryRes.ids)
         : { list: [], state: undefined as string | undefined };
 
-      if (get().currentMailboxId !== currentMailboxId) return;
+      if (viewChanged()) return;
 
       const updates: Partial<EmailState> = {
         emails: fetched.list,
@@ -836,19 +871,31 @@ export const useEmailStore = create<EmailState>()(
   },
 
   setSearchQuery: (query) => {
-    set({ searchQuery: query });
+    const state = get();
+    const backToBase =
+      !isBaseView(state.searchQuery, state.filters) && isBaseView(query, state.filters);
+    set({
+      searchQuery: query,
+      ...(backToBase ? restoredBaseView(state) : {}),
+    });
     void get().refreshEmails();
   },
 
   setFilters: (filters) => {
-    set({ filters });
+    const state = get();
+    const backToBase =
+      !isBaseView(state.searchQuery, state.filters) && isBaseView(state.searchQuery, filters);
+    set({
+      filters,
+      ...(backToBase ? restoredBaseView(state) : {}),
+    });
     void get().refreshEmails();
   },
 
   clearSearchAndFilters: () => {
-    const { searchQuery, filters } = get();
-    if (!searchQuery && Object.keys(filters).length === 0) return;
-    set({ searchQuery: '', filters: {} });
+    const state = get();
+    if (!state.searchQuery && Object.keys(state.filters).length === 0) return;
+    set({ searchQuery: '', filters: {}, ...restoredBaseView(state) });
     void get().refreshEmails();
   },
 
@@ -1330,6 +1377,42 @@ export const useEmailStore = create<EmailState>()(
       // refresh once the session is ready.
       name: 'email-cache',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      // v0 → v1: drop every cached queryState. Pre-v1 builds could persist a
+      // search-result list next to the base view's queryState, and the
+      // incremental sync path would then "confirm" those search results as
+      // the whole mailbox and bake them into the snapshot (issue #10).
+      // Without a queryState the next refresh does a full re-query, which
+      // rebuilds any poisoned window from the server.
+      migrate: (persisted, version) => {
+        if (version >= 1) return persisted as EmailState;
+        const s = persisted as Pick<
+          EmailState,
+          'accountSnapshots' | 'mailboxSnapshots' | 'queryState'
+        > & Record<string, unknown>;
+        const stripQueryStates = (
+          snaps: Record<string, MailboxSnapshot> | undefined,
+        ): Record<string, MailboxSnapshot> =>
+          Object.fromEntries(
+            Object.entries(snaps ?? {}).map(([id, snap]) => [
+              id,
+              { ...snap, queryState: undefined },
+            ]),
+          );
+        const accountSnapshots: Record<string, AccountSnapshot> = {};
+        for (const [id, acc] of Object.entries(s.accountSnapshots ?? {})) {
+          accountSnapshots[id] = {
+            ...acc,
+            mailboxSnapshots: stripQueryStates(acc.mailboxSnapshots),
+          };
+        }
+        return {
+          ...s,
+          accountSnapshots,
+          mailboxSnapshots: stripQueryStates(s.mailboxSnapshots),
+          queryState: undefined,
+        } as unknown as EmailState;
+      },
       partialize: (state) => ({
         accountSnapshots: state.accountSnapshots,
         activeAccountId: state.activeAccountId,

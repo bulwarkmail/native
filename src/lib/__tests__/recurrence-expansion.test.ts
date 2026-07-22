@@ -74,6 +74,54 @@ describe('expandRecurringEvents - weekly', () => {
   });
 });
 
+describe('expandRecurringEvents - interval > 1 (#13)', () => {
+  it('expands an every-5-weeks rule', () => {
+    const rule: RecurrenceRule = { frequency: 'weekly', interval: 5 };
+    const result = expandRecurringEvents(
+      [ev({ recurrenceRules: [rule] })], // starts Mon 2026-04-06
+      '2026-04-01T00:00:00',
+      '2026-08-01T00:00:00',
+    );
+    expect(result.map((e) => e.start)).toEqual([
+      '2026-04-06T09:00:00',
+      '2026-05-11T09:00:00',
+      '2026-06-15T09:00:00',
+      '2026-07-20T09:00:00',
+    ]);
+  });
+
+  it('expands an every-5-weeks series started long before the visible range', () => {
+    const event = ev({
+      start: '2025-01-06T09:00:00', // Monday
+      recurrenceRules: [{ frequency: 'weekly', interval: 5 }],
+    });
+    // Occurrences fall every 35 days from 2025-01-06 (…2026-04-06, 05-11,
+    // 06-15, 07-20…) — only those inside the window are returned.
+    const result = expandRecurringEvents([event], '2026-05-01T00:00:00', '2026-08-01T00:00:00');
+    expect(result.map((e) => e.start)).toEqual([
+      '2026-05-11T09:00:00',
+      '2026-06-15T09:00:00',
+      '2026-07-20T09:00:00',
+    ]);
+  });
+
+  it('expands an every-2-months rule', () => {
+    const rule: RecurrenceRule = { frequency: 'monthly', interval: 2 };
+    const result = expandRecurringEvents(
+      [ev({ recurrenceRules: [rule] })],
+      '2026-04-01T00:00:00',
+      '2026-12-31T00:00:00',
+    );
+    expect(result.map((e) => e.start)).toEqual([
+      '2026-04-06T09:00:00',
+      '2026-06-06T09:00:00',
+      '2026-08-06T09:00:00',
+      '2026-10-06T09:00:00',
+      '2026-12-06T09:00:00',
+    ]);
+  });
+});
+
 describe('expandRecurringEvents - monthly', () => {
   it('expands monthly on the 6th', () => {
     const rule: RecurrenceRule = { frequency: 'monthly', count: 3 };
