@@ -45,6 +45,8 @@ beforeEach(() => {
   useCalendarStore.setState({
     calendars: [],
     events: [],
+    tasks: [],
+    taskOnlyCalendarIds: [],
     hiddenCalendarIds: [],
     loadedRange: null,
     loading: false,
@@ -128,6 +130,41 @@ describe('calendar-store', () => {
       expect(stored[0].id).toBe('acc-2:ev1');
       expect(stored[0].originalId).toBe('ev1');
       expect(stored[0].accountId).toBe('acc-2');
+    });
+
+    it('classifies calendars whose contents are all Tasks as task lists (#28)', async () => {
+      // VTODO-only CalDAV collections (Todoist imports, Thunderbird task
+      // lists) must be flagged so the drawer can keep them out of the
+      // calendar list. Mixed calendars, calendars with start-less Events,
+      // and empty calendars all stay ordinary calendars.
+      mockQueryEvents.mockResolvedValue(['t1', 'e1', 't2', 'startless']);
+      mockGetEvents.mockResolvedValue([
+        { id: 't1', '@type': 'Task', title: 'Buy milk', calendarIds: { 'cal-tasks': true } },
+        { id: 'e1', '@type': 'Event', start: '2026-03-15T10:00:00', calendarIds: { 'cal-mixed': true } },
+        { id: 't2', '@type': 'Task', title: 'Ship it', calendarIds: { 'cal-mixed': true } },
+        { id: 'startless', '@type': 'Event', calendarIds: { 'cal-startless': true } },
+      ]);
+
+      await useCalendarStore.getState().fetchEvents(
+        ['cal-tasks', 'cal-mixed', 'cal-startless', 'cal-empty'],
+        '2026-03-01',
+        '2026-03-31',
+      );
+
+      expect(useCalendarStore.getState().taskOnlyCalendarIds).toEqual(['cal-tasks']);
+      expect(useCalendarStore.getState().tasks.map((t) => t.id)).toEqual(['t1', 't2']);
+    });
+
+    it('reclassifies task lists on refetch instead of accumulating stale ids', async () => {
+      useCalendarStore.setState({ taskOnlyCalendarIds: ['cal-old'] });
+      mockQueryEvents.mockResolvedValue(['e1']);
+      mockGetEvents.mockResolvedValue([
+        { id: 'e1', '@type': 'Event', start: '2026-03-15T10:00:00', calendarIds: { 'cal-old': true } },
+      ]);
+
+      await useCalendarStore.getState().fetchEvents(['cal-old'], '2026-03-01', '2026-03-31');
+
+      expect(useCalendarStore.getState().taskOnlyCalendarIds).toEqual([]);
     });
 
     it('routes queries by account when own and shared calendars share a raw id', async () => {

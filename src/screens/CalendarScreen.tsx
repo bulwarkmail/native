@@ -163,6 +163,7 @@ export default function CalendarScreen() {
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
   const setDefaultCalendar = useCalendarStore((s) => s.setDefaultCalendar);
   const storeCalendars = useCalendarStore((s) => s.calendars);
+  const taskOnlyCalendarIds = useCalendarStore((s) => s.taskOnlyCalendarIds);
   const hiddenCalendarIds = useCalendarStore((s) => s.hiddenCalendarIds);
   const loading = useCalendarStore((s) => s.loading);
   const error = useCalendarStore((s) => s.error);
@@ -217,6 +218,28 @@ export default function CalendarScreen() {
     () => (birthdayEvents.length > 0 ? [...storeEvents, ...birthdayEvents] : storeEvents),
     [storeEvents, birthdayEvents],
   );
+
+  // VTODO-only task lists (Todoist imports, per-project Thunderbird task
+  // lists) are sibling CalDAV collections that Calendar/get returns alongside
+  // event calendars. Their contents surface in the Tasks sheet, so keep them
+  // out of the calendar drawer and out of the event/import calendar pickers —
+  // listing them as calendars just produces duplicate/confusing entries. (#28)
+  const eventCalendars = React.useMemo(() => {
+    if (taskOnlyCalendarIds.length === 0) return allCalendars;
+    const taskOnly = new Set(taskOnlyCalendarIds);
+    return allCalendars.filter((cal) => !taskOnly.has(cal.id));
+  }, [allCalendars, taskOnlyCalendarIds]);
+
+  // The Tasks sheet keeps the full list but with task lists sorted first, so
+  // its create-picker (which defaults to the first writable calendar) targets
+  // a dedicated task list when the account has one.
+  const taskSheetCalendars = React.useMemo(() => {
+    if (taskOnlyCalendarIds.length === 0) return allCalendars;
+    const taskOnly = new Set(taskOnlyCalendarIds);
+    return [...allCalendars].sort(
+      (a, b) => Number(taskOnly.has(b.id)) - Number(taskOnly.has(a.id)),
+    );
+  }, [allCalendars, taskOnlyCalendarIds]);
 
   const calendars = React.useMemo(
     () => allCalendars.filter((c) => !hiddenCalendarIds.includes(c.id)),
@@ -521,7 +544,7 @@ export default function CalendarScreen() {
       <EventModal
         visible={modalVisible}
         event={modalEvent}
-        calendars={allCalendars}
+        calendars={eventCalendars}
         defaultDate={modalDate}
         onSave={handleSave}
         onDelete={handleDeleteFromModal}
@@ -537,7 +560,7 @@ export default function CalendarScreen() {
 
       <CalendarSidebarDrawer
         visible={sidebarVisible}
-        calendars={allCalendars}
+        calendars={eventCalendars}
         hiddenCalendarIds={hiddenCalendarIds}
         onToggle={toggleCalendarVisibility}
         onClose={() => setSidebarVisible(false)}
@@ -555,7 +578,7 @@ export default function CalendarScreen() {
       <TasksSheet
         visible={tasksVisible}
         tasks={tasks}
-        calendars={allCalendars}
+        calendars={taskSheetCalendars}
         onClose={() => setTasksVisible(false)}
         onCreate={createTask}
         onToggle={toggleTaskComplete}
@@ -565,8 +588,11 @@ export default function CalendarScreen() {
       <ICalImportSheet
         visible={importVisible}
         // Import batch-creates against the primary account, so only offer the
-        // user's own calendars as targets.
-        calendars={displayCalendars.filter((cal) => !cal.isShared)}
+        // user's own event calendars (no shared calendars, no task lists) as
+        // targets.
+        calendars={eventCalendars.filter(
+          (cal) => !cal.isShared && cal.id !== BIRTHDAY_CALENDAR_ID,
+        )}
         onClose={() => setImportVisible(false)}
         onImport={importEvents}
       />

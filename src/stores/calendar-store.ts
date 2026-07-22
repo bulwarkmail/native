@@ -65,6 +65,12 @@ export interface CalendarState {
   calendars: Calendar[];
   events: CalendarEvent[];
   tasks: CalendarEvent[];
+  // Store ids of calendars that hold only Task objects (VTODO-only CalDAV
+  // collections, e.g. Thunderbird/Todoist task lists). JMAP Calendar/get
+  // doesn't expose the CalDAV supported-calendar-component-set, so the
+  // collection kind is inferred from contents: ≥1 task and no events.
+  // Empty calendars are treated as ordinary event calendars. (#28)
+  taskOnlyCalendarIds: string[];
   hiddenCalendarIds: string[];
   loadedRange: LoadedRange | null;
   loading: boolean;
@@ -124,6 +130,7 @@ export const useCalendarStore = create<CalendarState>()(
   calendars: [],
   events: [],
   tasks: [],
+  taskOnlyCalendarIds: [],
   hiddenCalendarIds: [],
   loadedRange: null,
   loading: false,
@@ -203,8 +210,23 @@ export const useCalendarStore = create<CalendarState>()(
         return (t === 'Event' || t === undefined) && !!e.start;
       });
       const tasks = raw.filter((e) => (e as { '@type'?: string })['@type'] === 'Task');
+      // Classify VTODO-only task lists from the full (undated) object set:
+      // a calendar counts as a task list when every object in it is a Task.
+      // Anything that isn't a Task — including start-less Events — keeps the
+      // calendar in the ordinary event-calendar bucket.
+      const eventCalendarIds = new Set<string>();
+      const taskCalendarIds = new Set<string>();
+      for (const obj of raw) {
+        const isTask = (obj as { '@type'?: string })['@type'] === 'Task';
+        for (const calId of Object.keys(obj.calendarIds || {})) {
+          (isTask ? taskCalendarIds : eventCalendarIds).add(calId);
+        }
+      }
+      const taskOnlyCalendarIds = [...taskCalendarIds].filter(
+        (calId) => !eventCalendarIds.has(calId),
+      );
       const events = expandRecurringEvents(onlyEvents, after, before);
-      set({ events, tasks, loadedRange: { after, before }, loading: false });
+      set({ events, tasks, taskOnlyCalendarIds, loadedRange: { after, before }, loading: false });
     } catch (err) {
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
     }
@@ -434,6 +456,7 @@ export const useCalendarStore = create<CalendarState>()(
     calendars: [],
     events: [],
     tasks: [],
+    taskOnlyCalendarIds: [],
     loadedRange: null,
     loading: false,
     error: null,
@@ -449,6 +472,7 @@ export const useCalendarStore = create<CalendarState>()(
         calendars: state.calendars,
         events: state.events,
         tasks: state.tasks,
+        taskOnlyCalendarIds: state.taskOnlyCalendarIds,
         loadedRange: state.loadedRange,
       }),
     },
