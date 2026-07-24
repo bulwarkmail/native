@@ -73,6 +73,15 @@ export function SwipeableRow({
   const claimed = useRef(false);
   const widthRef = useRef(Dimensions.get('window').width);
 
+  const leftActionRef = useRef(leftAction);
+  leftActionRef.current = leftAction;
+  const rightActionRef = useRef(rightAction);
+  rightActionRef.current = rightAction;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const onActionRef = useRef(onAction);
+  onActionRef.current = onAction;
+
   // Reveal-mode-only state: which side (if any) is currently sitting open.
   const openSideRef = useRef<'left' | 'right' | null>(null);
   const [openSide, setOpenSide] = useState<'left' | 'right' | null>(null);
@@ -101,13 +110,13 @@ export function SwipeableRow({
         duration: 180,
         useNativeDriver: true,
       }).start(() => {
-        onAction(action);
+        onActionRef.current(action);
         // The row is about to be removed; reset translation in case it isn't
         // (e.g. the action failed silently) so we don't leave it off-screen.
         dx.setValue(0);
       });
     } else {
-      onAction(action);
+      onActionRef.current(action);
       Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
     }
   };
@@ -118,9 +127,9 @@ export function SwipeableRow({
     if (exitsRow(action)) {
       // Let the row collapse a frame, then fire so the parent's list update
       // has a clean starting point.
-      requestAnimationFrame(() => onAction(action));
+      requestAnimationFrame(() => onActionRef.current(action));
     } else {
-      onAction(action);
+      onActionRef.current(action);
     }
   };
 
@@ -130,22 +139,26 @@ export function SwipeableRow({
       onMoveShouldSetPanResponder: (_, g) => {
         if (Math.abs(g.dx) < MIN_DX_TO_CLAIM) return false;
         if (Math.abs(g.dx) < Math.abs(g.dy) * DIRECTION_BIAS) return false;
+        const currentMode = modeRef.current;
+        const currentRightAction = rightActionRef.current;
+        const currentLeftAction = leftActionRef.current;
         // Reveal mode: if a side is already open, allow the gesture so the
         // user can drag it closed.
-        if (mode === 'reveal' && openSideRef.current === null) {
-          if (g.dx > 0 && rightAction === 'none') return false;
-          if (g.dx < 0 && leftAction === 'none') return false;
-        } else if (mode !== 'reveal') {
-          if (g.dx > 0 && rightAction === 'none') return false;
-          if (g.dx < 0 && leftAction === 'none') return false;
+        if (currentMode === 'reveal' && openSideRef.current === null) {
+          if (g.dx > 0 && currentRightAction === 'none') return false;
+          if (g.dx < 0 && currentLeftAction === 'none') return false;
+        } else if (currentMode !== 'reveal') {
+          if (g.dx > 0 && currentRightAction === 'none') return false;
+          if (g.dx < 0 && currentLeftAction === 'none') return false;
         }
         claimed.current = true;
         return true;
       },
       onPanResponderMove: (_, g) => {
-        const overshoot = mode === 'reveal' ? MAX_DRAG_OVERSHOOT_REVEAL : MAX_DRAG_OVERSHOOT_INSTANT;
+        const currentMode = modeRef.current;
+        const overshoot = currentMode === 'reveal' ? MAX_DRAG_OVERSHOOT_REVEAL : MAX_DRAG_OVERSHOOT_INSTANT;
         const base =
-          mode === 'reveal'
+          currentMode === 'reveal'
             ? openSideRef.current === 'right' ? REVEAL_WIDTH
               : openSideRef.current === 'left' ? -REVEAL_WIDTH
               : 0
@@ -156,15 +169,18 @@ export function SwipeableRow({
       },
       onPanResponderRelease: (_, g) => {
         claimed.current = false;
-        if (mode === 'reveal') {
+        const currentMode = modeRef.current;
+        const currentRightAction = rightActionRef.current;
+        const currentLeftAction = leftActionRef.current;
+        if (currentMode === 'reveal') {
           const base =
             openSideRef.current === 'right' ? REVEAL_WIDTH
               : openSideRef.current === 'left' ? -REVEAL_WIDTH
               : 0;
           const finalDx = base + g.dx;
-          if (finalDx > ACTIVATION_THRESHOLD && rightAction !== 'none') {
+          if (finalDx > ACTIVATION_THRESHOLD && currentRightAction !== 'none') {
             openTo('right');
-          } else if (finalDx < -ACTIVATION_THRESHOLD && leftAction !== 'none') {
+          } else if (finalDx < -ACTIVATION_THRESHOLD && currentLeftAction !== 'none') {
             openTo('left');
           } else {
             close();
@@ -172,16 +188,16 @@ export function SwipeableRow({
           return;
         }
         // Instant mode: fire on release-past-threshold, no second tap.
-        if ((g.dx >= COMMIT_THRESHOLD || (g.dx > 40 && g.vx >= 0.5)) && rightAction !== 'none') {
-          fly(widthRef.current || EXIT_DISTANCE, rightAction);
-        } else if ((g.dx <= -COMMIT_THRESHOLD || (g.dx < -40 && g.vx <= -0.5)) && leftAction !== 'none') {
-          fly(-(widthRef.current || EXIT_DISTANCE), leftAction);
+        if ((g.dx >= COMMIT_THRESHOLD || (g.dx > 40 && g.vx >= 0.5)) && currentRightAction !== 'none') {
+          fly(widthRef.current || EXIT_DISTANCE, currentRightAction);
+        } else if ((g.dx <= -COMMIT_THRESHOLD || (g.dx < -40 && g.vx <= -0.5)) && currentLeftAction !== 'none') {
+          fly(-(widthRef.current || EXIT_DISTANCE), currentLeftAction);
         } else {
           Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
         }
       },
       onPanResponderTerminate: () => {
-        if (mode === 'reveal') close();
+        if (modeRef.current === 'reveal') close();
         else Animated.spring(dx, { toValue: 0, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
         claimed.current = false;
       },
