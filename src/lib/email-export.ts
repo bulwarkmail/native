@@ -1,4 +1,7 @@
+import { Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { jmapClient } from '../api/jmap-client';
 import { getDownloadUrl } from '../api/blob';
@@ -12,6 +15,7 @@ import {
 import { getClientCertAlias, secureFetch } from './client-cert';
 
 const RFC822 = 'message/rfc822';
+const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
 
 // Read the user's filename template + transform preferences for exports.
 function emailFileOptions(): EmailFilenameOptions {
@@ -99,6 +103,21 @@ export async function shareAttachment(
   const dest = new File(Paths.cache, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
   const downloaded = await downloadInto(url, dest, Paths.cache);
+
+  if (Platform.OS === 'android') {
+    try {
+      const contentUri = await FileSystemLegacy.getContentUriAsync(downloaded.uri);
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        type: mimeType,
+        flags: FLAG_GRANT_READ_URI_PERMISSION,
+      });
+      return;
+    } catch {
+      // Fallback to sharing dialog if no viewer handles android.intent.action.VIEW
+    }
+  }
+
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
