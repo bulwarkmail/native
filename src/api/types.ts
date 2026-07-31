@@ -84,6 +84,10 @@ export interface Email {
   attachments?: Attachment[];
   blobId?: string;
   bodyStructure?: BodyPart;
+  /** RFC 5322 msg-ids, bare (no angle brackets) per RFC 8621 §4.1.2.3. */
+  messageId?: string[];
+  inReplyTo?: string[];
+  references?: string[];
 }
 
 export interface MailboxRights {
