@@ -185,26 +185,70 @@ export async function getCalendars(): Promise<Calendar[]> {
   return [...own, ...shared.flat()];
 }
 
+const QUERY_PAGE_SIZE = 1000;
+// Backstop against a server that keeps returning full pages; 20 pages is far
+// beyond any real calendar window and keeps a bug from looping forever.
+const QUERY_MAX_PAGES = 20;
+
+/**
+ * Combine the calendar restriction and the date window into a single filter.
+ * Stalwart matches an event when its whole time range - including every
+ * recurrence - overlaps the window, which is exactly the set the client-side
+ * expander needs (a recurring master whose base start predates the window
+ * still comes back if any occurrence falls inside). Either part may be absent
+ * (callers that want every event in an account pass empty bounds).
+ */
+function buildEventFilter(
+  calendarIds: string[],
+  after: string,
+  before: string,
+): Record<string, unknown> | undefined {
+  const conditions: Record<string, unknown>[] = [];
+  if (calendarIds.length > 0) conditions.push(buildInCalendarFilter(calendarIds));
+  const window: Record<string, unknown> = {};
+  if (after) window.after = after;
+  if (before) window.before = before;
+  if (Object.keys(window).length > 0) conditions.push(window);
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1) return conditions[0];
+  return { operator: 'AND', conditions };
+}
+
 export async function queryEvents(
   calendarIds: string[],
-  _after: string,
-  _before: string,
+  after: string,
+  before: string,
   accountId?: string,
 ): Promise<string[]> {
-  // Stalwart rejects after/before filters on CalendarEvent/query; date
-  // filtering is done client-side. Calendars are restricted via the singular
-  // `inCalendar` condition (the plural `inCalendars` fails the whole query
-  // with unsupportedFilter on Stalwart).
+  // The date window is applied server-side. Without it the query asks for
+  // every event in the account and the response is silently capped at the
+  // page size, so any account holding more events than one page loses
+  // everything past it - including the month being displayed. Calendars are
+  // restricted via the singular `inCalendar` condition (the plural
+  // `inCalendars` fails the whole query with unsupportedFilter on Stalwart).
   const account = accountId || jmapClient.accountId;
-  const args: Record<string, unknown> = { accountId: account, limit: 1000 };
   const timeZone = getUserTimeZone();
-  if (timeZone) args.timeZone = timeZone;
-  if (calendarIds.length > 0) args.filter = buildInCalendarFilter(calendarIds);
-  const res = await jmapClient.request(
-    [['CalendarEvent/query', args, '0']],
-    USING,
-  );
-  return methodResult<{ ids: string[] }>(res).ids ?? [];
+  const filter = buildEventFilter(calendarIds, after, before);
+  const ids: string[] = [];
+  // Page through the result set: a window can still hold more events than one
+  // page, and a truncated page must never pass for a complete answer.
+  for (let page = 0; page < QUERY_MAX_PAGES; page++) {
+    const args: Record<string, unknown> = {
+      accountId: account,
+      limit: QUERY_PAGE_SIZE,
+      position: ids.length,
+    };
+    if (timeZone) args.timeZone = timeZone;
+    if (filter) args.filter = filter;
+    const res = await jmapClient.request(
+      [['CalendarEvent/query', args, '0']],
+      USING,
+    );
+    const batch = methodResult<{ ids: string[] }>(res).ids ?? [];
+    ids.push(...batch);
+    if (batch.length < QUERY_PAGE_SIZE) break;
+  }
+  return ids;
 }
 
 export async function getEvents(ids: string[], accountId?: string): Promise<CalendarEvent[]> {
