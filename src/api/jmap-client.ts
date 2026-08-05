@@ -361,18 +361,30 @@ export class JMAPClient {
   // ── Session Discovery ─────────────────────────────────
 
   private async fetchSession(baseUrl: string): Promise<JMAPSession> {
-    const url = `${baseUrl}/.well-known/jmap`;
     await this.ensureFreshToken();
-    const doFetch = () =>
+    // Stalwart's discovery endpoint /.well-known/jmap 307-redirects to
+    // /jmap/session. On iOS, NSURLSession drops the Authorization header when it
+    // auto-follows that redirect, so the app receives an unauthenticated,
+    // empty-accounts session and fails with "No account found in JMAP session".
+    // Request the session endpoint directly so the auth header stays attached;
+    // fall back to the standard well-known path for non-Stalwart servers.
+    const doFetch = (url: string) =>
       secureFetch(url, {
         headers: {
           Authorization: this.authHeader,
           Accept: 'application/json',
         },
       });
-    let response = await doFetch();
+    const primary = `${baseUrl}/jmap/session`;
+    const fallback = `${baseUrl}/.well-known/jmap`;
+    const run = async () => {
+      const r = await doFetch(primary);
+      return r.status === 404 ? doFetch(fallback) : r;
+    };
+
+    let response = await run();
     if (response.status === 401 && (await this.forceRefreshToken())) {
-      response = await doFetch();
+      response = await run();
     }
 
     if (response.status === 401) {
@@ -382,7 +394,17 @@ export class JMAPClient {
       throw new Error(`Session discovery failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    const session: JMAPSession = await response.json();
+    // Stalwart returns HTTP 200 with empty accounts for missing/invalid
+    // credentials (rather than 401). Treat an empty session as an auth failure
+    // so the user sees "Invalid credentials" instead of "No account found".
+    const hasAccount =
+      Object.keys(session.primaryAccounts ?? {}).length > 0 ||
+      Object.keys(session.accounts ?? {}).length > 0;
+    if (!hasAccount) {
+      throw new AuthenticationError('Invalid credentials');
+    }
+    return session;
   }
 
   private resolveAccountId(session: JMAPSession): string {
