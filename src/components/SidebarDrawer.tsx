@@ -234,19 +234,28 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const openDuration = useAnimDuration(240);
   const closeDuration = useAnimDuration(200);
 
+  // Runs the slide-in. Kicked from both the visible effect and the Modal's
+  // onShow: on the very first open the modal's native view is not attached yet
+  // when the effect fires, so that first animation is dropped and the drawer
+  // stays parked off-screen. Re-running it once the modal is on screen commits
+  // the final offset (a no-op on every subsequent open).
+  const runOpen = React.useCallback(() => {
+    Animated.parallel([
+      Animated.timing(slideX, { toValue: 0, duration: openDuration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(overlayOpacity, { toValue: 1, duration: openDuration, useNativeDriver: true }),
+    ]).start();
+  }, [slideX, overlayOpacity, openDuration]);
+
   React.useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(slideX, { toValue: 0, duration: openDuration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(overlayOpacity, { toValue: 1, duration: openDuration, useNativeDriver: true }),
-      ]).start();
+      runOpen();
     } else {
       Animated.parallel([
         Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: closeDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlayOpacity, { toValue: 0, duration: closeDuration, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible, slideX, overlayOpacity, openDuration, closeDuration]);
+  }, [visible, runOpen, slideX, overlayOpacity, closeDuration]);
 
   const accountEmail = username || '';
   const initials = React.useMemo(
@@ -274,6 +283,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       animationType="none"
       statusBarTranslucent
       onRequestClose={onClose}
+      onShow={runOpen}
     >
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
