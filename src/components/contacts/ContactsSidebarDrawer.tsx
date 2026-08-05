@@ -67,19 +67,26 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const overlay = React.useRef(new Animated.Value(0)).current;
 
+  // Also kicked from the Modal's onShow — the first open fires this effect
+  // before the modal's native view exists, so that animation is dropped and
+  // the drawer stays parked off-screen until the second open.
+  const runOpen = React.useCallback(() => {
+    Animated.parallel([
+      Animated.timing(slideX, { toValue: 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(overlay, { toValue: 1, duration: 240, useNativeDriver: true }),
+    ]).start();
+  }, [slideX, overlay]);
+
   React.useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(slideX, { toValue: 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(overlay, { toValue: 1, duration: 240, useNativeDriver: true }),
-      ]).start();
+      runOpen();
     } else {
       Animated.parallel([
         Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlay, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible, slideX, overlay]);
+  }, [visible, runOpen, slideX, overlay]);
 
   const select = (cat: ContactCategory) => {
     setSelectedCategory(cat);
@@ -87,7 +94,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose} onShow={runOpen}>
       <Animated.View style={[styles.overlay, { opacity: overlay }]}>
         <Pressable style={styles.overlayPress} onPress={onClose} />
       </Animated.View>
