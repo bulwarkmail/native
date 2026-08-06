@@ -90,7 +90,7 @@ describe('JMAPClient', () => {
       await client.connect('https://mail.example.com///', 'user', 'pass');
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://mail.example.com/.well-known/jmap',
+        'https://mail.example.com/jmap/session',
         expect.any(Object),
       );
     });
@@ -281,7 +281,9 @@ describe('JMAPClient', () => {
       expect(client.accountId).toBe('only-acc');
     });
 
-    it('should throw if no accounts at all', async () => {
+    it('should throw on an empty (unauthenticated) session', async () => {
+      // Stalwart returns 200 with empty accounts for invalid credentials;
+      // the client surfaces that as an auth failure.
       const session = {
         ...MOCK_SESSION,
         primaryAccounts: {},
@@ -290,7 +292,7 @@ describe('JMAPClient', () => {
       global.fetch = mockFetch([{ status: 200, json: session }]) as any;
 
       await expect(client.connect('https://mail.example.com', 'user', 'pass'))
-        .rejects.toThrow('No account found');
+        .rejects.toThrow('Invalid credentials');
     });
   });
 });
