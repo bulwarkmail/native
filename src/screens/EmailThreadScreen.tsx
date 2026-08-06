@@ -27,6 +27,7 @@ import {
 } from '../stores/settings-store';
 import { setEmailKeywords } from '../api/email';
 import { shareEmailEml, shareAttachment, downloadAttachment } from '../lib/email-export';
+import { computeReplyThreadingHeaders } from '../lib/email-threading';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
@@ -367,6 +368,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (!email) return;
     const from = email.from?.[0];
     if (!from && mode !== 'forward') return;
+    const threading = computeReplyThreadingHeaders(email);
     navigation.navigate('Compose', {
       mode,
       replyTo: {
@@ -376,7 +378,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         subject: email.subject ?? '',
         body: plainTextBody(email),
         receivedAt: email.receivedAt,
-        inReplyTo: email.id,
+        inReplyTo: threading?.inReplyTo,
+        references: threading?.references,
       },
     });
   };

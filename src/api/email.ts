@@ -12,6 +12,8 @@ const EMAIL_FULL_PROPERTIES = [
   ...EMAIL_LIST_PROPERTIES,
   'bodyStructure', 'textBody', 'htmlBody', 'bodyValues',
   'attachments', 'blobId', 'bcc', 'replyTo', 'sentAt',
+  // Needed to thread replies (In-Reply-To/References) — see lib/email-threading.
+  'messageId', 'inReplyTo', 'references',
 ];
 
 // Prefix a shared account's folder ids so they can't collide with the user's
