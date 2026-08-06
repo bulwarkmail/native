@@ -42,10 +42,12 @@ describe('calendar operations', () => {
   });
 
   describe('queryEvents', () => {
-    it('should filter via singular inCalendar conditions (Stalwart-compatible)', async () => {
-      // Stalwart rejects the draft's plural `inCalendars` filter (and
-      // after/before); calendars are restricted via singular `inCalendar`
-      // conditions and date filtering stays client-side.
+    it('should AND the date window with the singular inCalendar condition', async () => {
+      // Stalwart rejects the draft's plural `inCalendars` filter, so calendars
+      // are restricted via singular `inCalendar` conditions. The date window
+      // must reach the server: without it the query asks for every event in
+      // the account and the response is capped at the page size, so the
+      // calendar renders empty for anyone with more than one page of history.
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/query', { ids: ['ev1', 'ev2'] }, '0']],
       });
@@ -55,8 +57,36 @@ describe('calendar operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[0]).toBe('CalendarEvent/query');
-      expect(call[1].filter).toEqual({ inCalendar: 'cal-1' });
+      expect(call[1].filter).toEqual({
+        operator: 'AND',
+        conditions: [
+          { inCalendar: 'cal-1' },
+          { after: '2026-03-01T00:00:00Z', before: '2026-03-31T23:59:59Z' },
+        ],
+      });
       expect(call[1].accountId).toBe('acc-1');
+    });
+
+    it('should page through a result set larger than one page', async () => {
+      // Regression: a full page used to be returned as the complete answer, so
+      // an account with more events than the page size silently lost every
+      // event past it - the calendar rendered empty.
+      const first = Array.from({ length: 1000 }, (_, i) => `a${i}`);
+      mockRequest
+        .mockResolvedValueOnce({
+          methodResponses: [['CalendarEvent/query', { ids: first }, '0']],
+        })
+        .mockResolvedValueOnce({
+          methodResponses: [['CalendarEvent/query', { ids: ['tail-1', 'tail-2'] }, '0']],
+        });
+
+      const result = await queryEvents(['cal-1'], '2026-03-01T00:00:00Z', '2026-03-31T23:59:59Z');
+
+      expect(result).toHaveLength(1002);
+      expect(result[1001]).toBe('tail-2');
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+      expect(mockRequest.mock.calls[0][0][0][1].position).toBe(0);
+      expect(mockRequest.mock.calls[1][0][0][1].position).toBe(1000);
     });
 
     it('should OR multiple calendars and respect the target account', async () => {
@@ -74,7 +104,7 @@ describe('calendar operations', () => {
       expect(call[1].accountId).toBe('acc-shared');
     });
 
-    it('should omit the filter when no calendars are given', async () => {
+    it('should omit the filter when no calendars are given and window is empty', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/query', { ids: [] }, '0']],
       });
