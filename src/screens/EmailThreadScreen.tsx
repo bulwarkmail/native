@@ -10,7 +10,7 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Paperclip, Archive, Mail, MailOpen,
   FolderInput, ShieldAlert, ShieldCheck, X, Check,
-  Code, Download, Tag,
+  Code, Download, Tag, SquarePen,
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -482,6 +482,20 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
               />
             );
           })}
+          {/* Own drafts only: the composer can't save into or destroy from a
+              shared account (composing on behalf of one isn't supported). */}
+          {!!email?.keywords?.$draft && !ownerAccountId && (
+            <ToolbarButton
+              icon={<SquarePen size={18} color={c.textSecondary} />}
+              label="Edit"
+              onPress={() => {
+                if (!email) return;
+                navigation.navigate('Compose', {
+                  draft: { emailId: email.id },
+                });
+              }}
+            />
+          )}
           <ToolbarButton
             icon={<Trash2 size={18} color={c.textSecondary} />}
             label="Delete"

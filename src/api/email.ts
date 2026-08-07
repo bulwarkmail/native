@@ -766,35 +766,32 @@ export interface SendEmailResult {
   emailSubmissionId?: string;
 }
 
-export async function sendEmail(
-  email: {
-    from: EmailAddress[];
-    to: EmailAddress[];
-    cc?: EmailAddress[];
-    bcc?: EmailAddress[];
-    subject: string;
-    htmlBody?: string;
-    textBody?: string;
-    attachments?: OutgoingAttachment[];
-    inReplyTo?: string;
-    references?: string;
-  },
-  identityId: string,
-  sentMailboxId: string,
-  // When > 0 the message is held for this many seconds before delivery via the
-  // SMTP HOLDFOR parameter (FUTURERELEASE). Used for both explicit "send later"
-  // scheduling and the global send-delay (undo-send) window.
-  holdForSeconds?: number,
-): Promise<SendEmailResult> {
-  const accountId = jmapClient.accountId;
+export interface OutgoingEmailContent {
+  from: EmailAddress[];
+  to?: EmailAddress[];
+  cc?: EmailAddress[];
+  bcc?: EmailAddress[];
+  subject: string;
+  htmlBody?: string;
+  textBody?: string;
+  attachments?: OutgoingAttachment[];
+  inReplyTo?: string;
+  references?: string;
+}
+
+function buildEmailCreate(
+  email: OutgoingEmailContent,
+  mailboxId: string,
+  keywords: Record<string, boolean>,
+): Record<string, unknown> {
   const emailCreate: Record<string, unknown> = {
     from: email.from,
     to: email.to,
     cc: email.cc,
     bcc: email.bcc,
     subject: email.subject,
-    mailboxIds: { [sentMailboxId]: true },
-    keywords: { $seen: true },
+    mailboxIds: { [mailboxId]: true },
+    keywords,
   };
 
   const bodyValues: Record<string, { value: string }> = {};
@@ -826,6 +823,21 @@ export async function sendEmail(
     emailCreate['header:In-Reply-To:asText'] = email.inReplyTo;
     emailCreate['header:References:asText'] = email.references ?? email.inReplyTo;
   }
+
+  return emailCreate;
+}
+
+export async function sendEmail(
+  email: OutgoingEmailContent & { to: EmailAddress[] },
+  identityId: string,
+  sentMailboxId: string,
+  // When > 0 the message is held for this many seconds before delivery via the
+  // SMTP HOLDFOR parameter (FUTURERELEASE). Used for both explicit "send later"
+  // scheduling and the global send-delay (undo-send) window.
+  holdForSeconds?: number,
+): Promise<SendEmailResult> {
+  const accountId = jmapClient.accountId;
+  const emailCreate = buildEmailCreate(email, sentMailboxId, { $seen: true });
 
   const submissionCreate: Record<string, unknown> = { emailId: '#draft', identityId };
   // For a deferred send the envelope must be set explicitly so the HOLDFOR
@@ -883,6 +895,40 @@ export async function sendEmail(
     emailId,
     emailSubmissionId,
   };
+}
+
+/**
+ * Create (or re-create) a draft in the drafts mailbox. JMAP emails are
+ * immutable apart from keywords/mailboxIds (RFC 8621 §4), so "updating" a
+ * draft means creating a replacement and destroying the original in the same
+ * Email/set call. A failed destroy leaves a stale copy behind but never loses
+ * the new draft, so it is reported by the server yet not treated as an error.
+ */
+export async function saveDraft(
+  email: OutgoingEmailContent,
+  draftsMailboxId: string,
+  replaceEmailId?: string,
+): Promise<{ emailId: string }> {
+  const accountId = jmapClient.accountId;
+  const emailCreate = buildEmailCreate(email, draftsMailboxId, { $draft: true, $seen: true });
+
+  const setArgs: Record<string, unknown> = { accountId, create: { draft: emailCreate } };
+  if (replaceEmailId) setArgs.destroy = [replaceEmailId];
+
+  const res = await jmapClient.request(
+    [['Email/set', setArgs, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.MAIL],
+  );
+
+  const [methodName, result] = res.methodResponses[0];
+  if (methodName.endsWith('/error')) {
+    throw new Error((result as { description?: string }).description ?? 'Failed to save draft');
+  }
+  const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.draft;
+  if (notCreated) throw new Error(notCreated.description ?? notCreated.type ?? 'Failed to save draft');
+  const emailId = (result as { created?: Record<string, { id?: string }> }).created?.draft?.id;
+  if (!emailId) throw new Error('Failed to save draft');
+  return { emailId };
 }
 
 export interface ScheduledEmail {

@@ -24,6 +24,7 @@ import {
   deleteEmail,
   searchEmails,
   sendEmail,
+  saveDraft,
 } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -404,6 +405,76 @@ describe('email operations', () => {
       const emailCreate = mockRequest.mock.calls[0][0][0][1].create.draft;
       expect(emailCreate['header:In-Reply-To:asText']).toBe('<msg-1@example.com>');
       expect(emailCreate['header:References:asText']).toBe('<msg-0@example.com> <msg-1@example.com>');
+    });
+  });
+
+  describe('saveDraft', () => {
+    it('should create the draft in the drafts mailbox with the $draft keyword', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['Email/set', { created: { draft: { id: 'e-draft' } } }, '0']],
+      });
+
+      const result = await saveDraft(
+        {
+          from: [{ email: 'me@example.com' }],
+          to: [{ email: 'you@example.com' }],
+          subject: 'WIP',
+          htmlBody: '<p>half-written</p>',
+        },
+        'drafts-mb',
+      );
+
+      expect(result).toEqual({ emailId: 'e-draft' });
+      const setArgs = mockRequest.mock.calls[0][0][0][1];
+      expect(setArgs.destroy).toBeUndefined();
+      expect(setArgs.create.draft.mailboxIds).toEqual({ 'drafts-mb': true });
+      expect(setArgs.create.draft.keywords).toEqual({ $draft: true, $seen: true });
+    });
+
+    it('should destroy the replaced draft in the same Email/set call', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/set', { created: { draft: { id: 'e-new' } }, destroyed: ['e-old'] }, '0'],
+        ],
+      });
+
+      await saveDraft(
+        { from: [{ email: 'me@example.com' }], subject: '', textBody: 'note to self' },
+        'drafts-mb',
+        'e-old',
+      );
+
+      const setArgs = mockRequest.mock.calls[0][0][0][1];
+      expect(setArgs.destroy).toEqual(['e-old']);
+    });
+
+    it('should allow a draft without recipients', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['Email/set', { created: { draft: { id: 'e-draft' } } }, '0']],
+      });
+
+      await saveDraft(
+        { from: [{ email: 'me@example.com' }], subject: 'no recipients yet', textBody: 'x' },
+        'drafts-mb',
+      );
+
+      const emailCreate = mockRequest.mock.calls[0][0][0][1].create.draft;
+      expect(emailCreate.to).toBeUndefined();
+    });
+
+    it('should throw when the server rejects the create', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/set', { notCreated: { draft: { type: 'overQuota', description: 'Mailbox full' } } }, '0'],
+        ],
+      });
+
+      await expect(
+        saveDraft(
+          { from: [{ email: 'me@example.com' }], subject: 'x', textBody: 'y' },
+          'drafts-mb',
+        ),
+      ).rejects.toThrow('Mailbox full');
     });
   });
 });
