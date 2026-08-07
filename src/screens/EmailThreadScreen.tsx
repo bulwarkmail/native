@@ -25,9 +25,9 @@ import {
   REPLY_QUICK_ACTIONS,
   type QuickAction,
 } from '../stores/settings-store';
-import { setEmailKeywords } from '../api/email';
+import { setEmailKeywords, getThread, getEmails } from '../api/email';
 import { shareEmailEml, shareAttachment, downloadAttachment } from '../lib/email-export';
-import { computeReplyThreadingHeaders } from '../lib/email-threading';
+import { computeReplyThreadingHeaders, orderThreadEmails } from '../lib/email-threading';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
@@ -147,6 +147,64 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     inFlight.set(id, p);
     return p;
   }, [getEmailDetail, ownerAccountId, detailCache, bumpCache, inFlight]);
+
+  // One thread fetch per threadId, shared by every mounted pane (the pager
+  // keeps up to three alive, often on the same thread). Metadata only — an
+  // expanded message fetches its full detail through `ensureDetail` as usual.
+  // Cached for the screen's lifetime: a message arriving mid-read shows up on
+  // the next visit, which is also when the list badge catches up.
+  const threadCache = React.useRef(new Map<string, Email[]>()).current;
+  const threadInFlight = React.useRef(new Map<string, Promise<Email[] | null>>()).current;
+  const fetchThread = React.useCallback((threadId: string): Promise<Email[] | null> => {
+    const cached = threadCache.get(threadId);
+    if (cached) return Promise.resolve(cached);
+    const pending = threadInFlight.get(threadId);
+    if (pending) return pending;
+    const p = (async () => {
+      try {
+        const thread = await getThread(threadId, ownerAccountId);
+        if (!thread?.emailIds?.length) return null;
+        const metas = await getEmails(thread.emailIds, ownerAccountId);
+        const ordered = orderThreadEmails(thread.emailIds, metas);
+        threadCache.set(threadId, ordered);
+        return ordered;
+      } catch {
+        // Best-effort: without the thread the pane still shows its own message.
+        return null;
+      } finally {
+        threadInFlight.delete(threadId);
+      }
+    })();
+    threadInFlight.set(threadId, p);
+    return p;
+  }, [ownerAccountId, threadCache, threadInFlight]);
+
+  // Expanding a collapsed thread message loads its body and marks it read
+  // right away — being unfolded on screen is what "read" means here. The
+  // cached copy is patched too so folding it again drops the unread dot.
+  const onExpandMessage = React.useCallback((id: string) => {
+    const cached = detailCache.get(id);
+    const detail = cached ? Promise.resolve(cached) : ensureDetail(id);
+    void detail.then((fetched) => {
+      if (fetched && !fetched.keywords?.$seen) {
+        // A thread member living in another folder (a reply filed in Sent,
+        // say) isn't in the store's list; `markRead` would then build its
+        // keyword map from nothing and — JMAP Email/set replacing `keywords`
+        // wholesale — wipe $flagged and every user label server-side. Merge
+        // from the fetched copy instead, and only take the store's optimistic
+        // path for messages it actually knows.
+        const inList = useEmailStore.getState().emails.some((e) => e.id === id);
+        if (inList) {
+          void markRead(id, ownerAccountId);
+        } else {
+          void setEmailKeywords(id, { ...fetched.keywords, $seen: true }, ownerAccountId)
+            .catch((err) => console.warn('[thread] mark-read on expand failed', err));
+        }
+        detailCache.set(id, { ...fetched, keywords: { ...fetched.keywords, $seen: true } });
+        bumpCache();
+      }
+    });
+  }, [ensureDetail, markRead, ownerAccountId, detailCache, bumpCache]);
 
   // Slide to a page by index and reflect it in the toolbar immediately; a swipe
   // that settles on the same page confirms the same id via onMomentumEnd.
@@ -559,6 +617,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   email={detailCache.get(item.id) ?? null}
                   jmapAccountId={ownerAccountId}
                   ensureDetail={ensureDetail}
+                  fetchThread={fetchThread}
+                  getDetail={(eid) => detailCache.get(eid) ?? null}
+                  onExpandMessage={onExpandMessage}
                   c={c}
                   styles={styles}
                   bottomBarHeight={bottomBarHeight}
@@ -668,6 +729,9 @@ interface EmailPaneProps {
   /** Owning account when the message lives in a shared/group mailbox. */
   jmapAccountId?: string;
   ensureDetail: (id: string) => Promise<Email | null>;
+  fetchThread: (threadId: string) => Promise<Email[] | null>;
+  getDetail: (id: string) => Email | null;
+  onExpandMessage: (id: string) => void;
   c: ThemePalette;
   styles: ReturnType<typeof makeStyles>;
   bottomBarHeight: number;
@@ -680,21 +744,28 @@ interface EmailPaneProps {
   onZoomChange: (zoom: { pinching: boolean; zoomed: boolean }) => void;
 }
 
-// One swipeable page: the scrollable subject / sender / attachments / body for a
-// single message. The pager keeps three of these mounted (prev, current, next)
-// so a swipe slides ready content into view. Each pane owns its own vertical
-// scroll position and "show all attachments" toggle, and renders directly from
-// the email passed to it — neighbours show real content, not a placeholder.
+// One swipeable page: the scrollable subject header plus every message of the
+// tapped email's thread, oldest first — the tapped message expanded, the rest
+// collapsed to tappable header rows. The pager keeps three of these mounted
+// (prev, current, next) so a swipe slides ready content into view. Each pane
+// owns its own vertical scroll position and renders directly from the email
+// passed to it — neighbours show real content, not a placeholder.
 function EmailPane({
-  id, email, jmapAccountId, ensureDetail, c, styles, bottomBarHeight, attachmentPosition,
+  id, email, jmapAccountId, ensureDetail, fetchThread, getDetail, onExpandMessage,
+  c, styles, bottomBarHeight, attachmentPosition,
   hideInlineImageAttachments, downloadingBlobId, onToggleStar, onPressAttachment, onSwipe,
   onZoomChange,
 }: EmailPaneProps) {
-  const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
   // Freeze the pane's vertical scroll while a pinch is in flight so a two-
   // finger zoom can't fling the page; while merely zoomed, vertical scrolling
   // stays on — it is how the user pans the (taller) zoomed content vertically.
   const [pinching, setPinching] = React.useState(false);
+
+  // The other messages of this thread (metadata, oldest first), present only
+  // when the thread has more than one. Which of them are unfolded lives here
+  // too — the pane's own message starts expanded.
+  const [threadEmails, setThreadEmails] = React.useState<Email[] | null>(null);
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set([id]));
 
   // Each pane owns loading its own message: when the list mounts this page and
   // its detail isn't cached yet, fetch it (coalesced upstream). The shared
@@ -702,6 +773,33 @@ function EmailPane({
   React.useEffect(() => {
     if (!email) void ensureDetail(id);
   }, [id, email, ensureDetail]);
+
+  React.useEffect(() => {
+    const threadId = email?.threadId;
+    if (!threadId || threadEmails) return;
+    let cancelled = false;
+    void fetchThread(threadId).then((ordered) => {
+      // Adopt the thread only when it has company AND still contains this
+      // pane's message — otherwise (re-threaded server-side between the tap
+      // and the fetch) stick to the single-message view.
+      if (!cancelled && ordered && ordered.length > 1 && ordered.some((m) => m.id === id)) {
+        setThreadEmails(ordered);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [email?.threadId, threadEmails, fetchThread, id]);
+
+  const expandMessage = (mid: string) => {
+    setExpandedIds((prev) => new Set(prev).add(mid));
+    onExpandMessage(mid);
+  };
+  const collapseMessage = (mid: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(mid);
+      return next;
+    });
+  };
 
   // Detail not fetched yet. Show a skeleton of the pane layout instead of a
   // spinner so the transition into real content doesn't jump.
@@ -712,6 +810,103 @@ function EmailPane({
   const from = email.from?.[0];
   const starred = !!email.keywords?.$flagged;
   const subject = email.subject || '(no subject)';
+
+  const sectionProps = {
+    jmapAccountId,
+    c,
+    styles,
+    attachmentPosition,
+    hideInlineImageAttachments,
+    downloadingBlobId,
+    onPressAttachment,
+    onSwipe,
+    onZoomChange: (z: { pinching: boolean; zoomed: boolean }) => {
+      setPinching(z.pinching);
+      onZoomChange(z);
+    },
+  };
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
+      scrollEnabled={!pinching}
+    >
+      {/* Subject block */}
+      <View style={styles.subjectBlock}>
+        <View style={styles.subjectRow}>
+          <Text style={styles.subjectText}>{subject}</Text>
+          {threadEmails && (
+            <Text style={styles.subjectThreadCount}>{threadEmails.length}</Text>
+          )}
+          <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.subjectStar}>
+            <Star
+              size={18}
+              color={starred ? c.starred : c.textMuted}
+              fill={starred ? c.starred : 'transparent'}
+            />
+          </Pressable>
+        </View>
+      </View>
+
+      {threadEmails ? (
+        // Every message of the thread, oldest first: collapsed header rows
+        // that unfold in place, with full sections for the expanded ones.
+        threadEmails.map((m) => {
+          const detail = m.id === id ? email : getDetail(m.id);
+          if (!expandedIds.has(m.id)) {
+            return (
+              <CollapsedMessageRow
+                key={m.id}
+                email={detail ?? m}
+                c={c}
+                styles={styles}
+                onPress={() => expandMessage(m.id)}
+              />
+            );
+          }
+          return detail ? (
+            <MessageSection
+              key={m.id}
+              email={detail}
+              onCollapse={() => collapseMessage(m.id)}
+              {...sectionProps}
+            />
+          ) : (
+            <View key={m.id} style={styles.threadLoadingRow}>
+              <ActivityIndicator size="small" color={c.textMuted} />
+            </View>
+          );
+        })
+      ) : (
+        <MessageSection email={email} {...sectionProps} />
+      )}
+    </ScrollView>
+  );
+}
+
+interface MessageSectionProps {
+  email: Email;
+  jmapAccountId?: string;
+  c: ThemePalette;
+  styles: ReturnType<typeof makeStyles>;
+  attachmentPosition: 'beside-sender' | 'below-header';
+  hideInlineImageAttachments: boolean;
+  downloadingBlobId: string | null;
+  onPressAttachment: (email: Email, blobId: string, name: string | undefined, type: string | undefined) => void;
+  onSwipe: (direction: 'prev' | 'next') => void;
+  onZoomChange: (zoom: { pinching: boolean; zoomed: boolean }) => void;
+  /** Present in thread view: tapping the sender header folds the message. */
+  onCollapse?: () => void;
+}
+
+// Sender header, attachment chips, calendar banner and body for one message —
+// the single-message pane and every expanded thread message render this.
+function MessageSection({
+  email, jmapAccountId, c, styles, attachmentPosition, hideInlineImageAttachments,
+  downloadingBlobId, onPressAttachment, onSwipe, onZoomChange, onCollapse,
+}: MessageSectionProps) {
+  const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
+  const from = email.from?.[0];
 
   const renderAttachments = () => {
     const all = email.attachments;
@@ -771,54 +966,47 @@ function EmailPane({
     );
   };
 
-  return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
-      scrollEnabled={!pinching}
-    >
-      {/* Subject block */}
-      <View style={styles.subjectBlock}>
-        <View style={styles.subjectRow}>
-          <Text style={styles.subjectText}>{subject}</Text>
-          <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.subjectStar}>
-            <Star
-              size={18}
-              color={starred ? c.starred : c.textMuted}
-              fill={starred ? c.starred : 'transparent'}
-            />
-          </Pressable>
-        </View>
+  const senderRowContent = (
+    <>
+      <SenderAvatar
+        name={from?.name}
+        email={from?.email}
+        size={componentSizes.avatarMd}
+      />
+      <View style={styles.senderInfo}>
+        <Text style={styles.senderName} numberOfLines={1}>
+          {from?.name || from?.email || 'Unknown sender'}
+        </Text>
+        {from?.name && from?.email ? (
+          <Text style={styles.senderEmail} numberOfLines={1}>{from.email}</Text>
+        ) : null}
+        <Text style={styles.senderRecipients} numberOfLines={1}>
+          <Text style={styles.senderRecipientsLabel}>to </Text>
+          {email.to?.map((t) => t.name || t.email).join(', ') || '-'}
+        </Text>
       </View>
+      <View style={styles.senderMeta}>
+        <Text style={styles.senderDate}>{formatHeaderDate(email.receivedAt)}</Text>
+        <Text style={styles.senderTime}>
+          {formatHeaderTime(email.receivedAt)}
+          {email.size > 0 ? ` · ${formatSize(email.size)}` : ''}
+        </Text>
+      </View>
+    </>
+  );
 
-      {/* Sender info */}
+  return (
+    <View style={onCollapse ? styles.threadMessage : undefined}>
+      {/* Sender info — tappable only in thread view, where it folds the
+          message; the single-message pane keeps the plain header. */}
       <View style={styles.senderBlock}>
-        <View style={styles.senderRow}>
-          <SenderAvatar
-            name={from?.name}
-            email={from?.email}
-            size={componentSizes.avatarMd}
-          />
-          <View style={styles.senderInfo}>
-            <Text style={styles.senderName} numberOfLines={1}>
-              {from?.name || from?.email || 'Unknown sender'}
-            </Text>
-            {from?.name && from?.email ? (
-              <Text style={styles.senderEmail} numberOfLines={1}>{from.email}</Text>
-            ) : null}
-            <Text style={styles.senderRecipients} numberOfLines={1}>
-              <Text style={styles.senderRecipientsLabel}>to </Text>
-              {email.to?.map((t) => t.name || t.email).join(', ') || '-'}
-            </Text>
-          </View>
-          <View style={styles.senderMeta}>
-            <Text style={styles.senderDate}>{formatHeaderDate(email.receivedAt)}</Text>
-            <Text style={styles.senderTime}>
-              {formatHeaderTime(email.receivedAt)}
-              {email.size > 0 ? ` · ${formatSize(email.size)}` : ''}
-            </Text>
-          </View>
-        </View>
+        {onCollapse ? (
+          <Pressable style={styles.senderRow} onPress={onCollapse}>
+            {senderRowContent}
+          </Pressable>
+        ) : (
+          <View style={styles.senderRow}>{senderRowContent}</View>
+        )}
         {attachmentPosition === 'beside-sender' && renderAttachments()}
       </View>
 
@@ -835,10 +1023,50 @@ function EmailPane({
           senderEmail={from?.email}
           jmapAccountId={jmapAccountId}
           onSwipe={onSwipe}
-          onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
+          onZoomChange={onZoomChange}
         />
       </View>
-    </ScrollView>
+    </View>
+  );
+}
+
+// Folded thread message: avatar, sender, one preview line and the date.
+// Tapping unfolds it in place (and marks it read).
+function CollapsedMessageRow({
+  email, c, styles, onPress,
+}: {
+  email: Email;
+  c: ThemePalette;
+  styles: ReturnType<typeof makeStyles>;
+  onPress: () => void;
+}) {
+  const from = email.from?.[0];
+  const unread = !email.keywords?.$seen;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.threadCollapsedRow,
+        pressed && styles.threadCollapsedRowPressed,
+      ]}
+    >
+      <SenderAvatar name={from?.name} email={from?.email} size={componentSizes.avatarSm} />
+      <View style={styles.threadCollapsedInfo}>
+        <Text
+          style={[styles.threadCollapsedName, unread && styles.threadCollapsedNameUnread]}
+          numberOfLines={1}
+        >
+          {from?.name || from?.email || 'Unknown sender'}
+        </Text>
+        <Text style={styles.threadCollapsedPreview} numberOfLines={1}>
+          {email.preview ?? ''}
+        </Text>
+      </View>
+      <View style={styles.threadCollapsedMeta}>
+        {unread && <View style={[styles.threadCollapsedDot, { backgroundColor: c.primary }]} />}
+        <Text style={styles.threadCollapsedDate}>{formatHeaderDate(email.receivedAt)}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -1236,6 +1464,64 @@ function makeStyles(c: ThemePalette) {
     lineHeight: 28,
     color: c.text,
     letterSpacing: -0.2,
+  },
+  subjectThreadCount: {
+    ...typography.caption,
+    color: c.textMuted,
+    paddingTop: 4,
+    marginRight: spacing.sm,
+  },
+  threadMessage: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: c.border,
+  },
+  threadLoadingRow: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: c.border,
+  },
+  threadCollapsedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: c.border,
+  },
+  threadCollapsedRowPressed: {
+    backgroundColor: c.surfaceHover,
+  },
+  threadCollapsedInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  threadCollapsedName: {
+    ...typography.body,
+    color: c.text,
+  },
+  threadCollapsedNameUnread: {
+    fontWeight: '700',
+  },
+  threadCollapsedPreview: {
+    ...typography.caption,
+    color: c.textMuted,
+    marginTop: 1,
+  },
+  threadCollapsedMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  threadCollapsedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  threadCollapsedDate: {
+    ...typography.caption,
+    color: c.textMuted,
   },
 
   // Sender block
