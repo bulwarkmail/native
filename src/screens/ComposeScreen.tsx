@@ -35,10 +35,16 @@ import {
   matchesContactSearch,
 } from '../lib/contact-utils';
 import { getIdentities } from '../api/identity';
-import { sendEmail, type OutgoingAttachment } from '../api/email';
+import {
+  sendEmail, getFullEmail, destroyEmails, saveDraft as saveDraftApi,
+  type OutgoingAttachment,
+} from '../api/email';
 import { jmapClient } from '../api/jmap-client';
 import { uploadBlob } from '../api/blob';
 import { buildInitialHtml, htmlToPlainText, rewriteInlineImages } from '../lib/compose-html';
+import {
+  draftToComposeInit, rewriteCidSrcToDataUrls, type DraftComposeInit,
+} from '../lib/draft-compose';
 import { stripDangerousTags } from '../lib/email-html';
 import type { EmailAddress, Identity, ContactCard } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -83,6 +89,24 @@ function parseRecipients(input: string): Recipient[] {
     });
 }
 
+// Content fingerprint used to tell "opened a draft and closed it" apart from
+// real edits — only changed content should prompt on close.
+function snapshotDraftContent(
+  subject: string,
+  bodyPlain: string,
+  to: Recipient[],
+  cc: Recipient[],
+  attachments: AttachmentEntry[],
+): string {
+  return JSON.stringify({
+    subject: subject.trim(),
+    body: bodyPlain.trim(),
+    to: to.map((r) => r.email.toLowerCase()).sort(),
+    cc: cc.map((r) => r.email.toLowerCase()).sort(),
+    attachments: attachments.map((a) => a.blobId ?? a.localId).sort(),
+  });
+}
+
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -95,6 +119,20 @@ function genCid(): string {
 
 function genLocalId(): string {
   return `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Same 2 MB ceiling and chunked base64 conversion as EmailBodyView's inline
+// image hydration — bigger cid parts stay as plain attachments.
+const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+  }
+  return global.btoa ? global.btoa(binary) : btoa(binary);
 }
 
 async function readUriAsDataUrl(uri: string, mime: string): Promise<string | null> {
@@ -263,17 +301,24 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const replyTo = route.params?.replyTo;
   const mode = route.params?.mode ?? 'compose';
   const prefillTo = route.params?.prefillTo;
+  const draftParam = route.params?.draft;
   const mailboxes = useEmailStore((s) => s.mailboxes);
+  const refreshEmails = useEmailStore((s) => s.refreshEmails);
   // Always the user's own Sent — composing on behalf of a shared account
   // isn't supported, so a group account's Sent must never be picked up here.
   const sentMailbox = React.useMemo(
     () => ownMailboxes(mailboxes).find((m) => m.role === 'sent'),
     [mailboxes],
   );
+  const draftsMailbox = React.useMemo(
+    () => ownMailboxes(mailboxes).find((m) => m.role === 'drafts'),
+    [mailboxes],
+  );
 
   const [identities, setIdentities] = React.useState<Identity[]>([]);
   const [identityError, setIdentityError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
+  const [savingDraft, setSavingDraft] = React.useState(false);
   const [selectedIdentityId, setSelectedIdentityId] = React.useState<string | null>(null);
   const [identitySheetOpen, setIdentitySheetOpen] = React.useState(false);
   const [scheduleSheetOpen, setScheduleSheetOpen] = React.useState(false);
@@ -363,6 +408,82 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
   const inlineRegistryRef = React.useRef<Map<string, AttachmentEntry>>(new Map());
+
+  // ── Draft editing ────────────────────────────────────────────────────
+  // Loaded state of the draft being edited. The whole composer is gated on it
+  // (spinner until then) so the editor mounts with the draft body as its
+  // initial HTML instead of racing a later setHtml into the webview.
+  const [draftInit, setDraftInit] = React.useState<DraftComposeInit | null>(null);
+  const [draftLoadError, setDraftLoadError] = React.useState<string | null>(null);
+  const draftBaselineRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!draftParam) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const full = await getFullEmail(draftParam.emailId);
+        const init = draftToComposeInit(full);
+
+        // Server-side blobs are reused as-is (uploading: false, no local uri).
+        // Inline cid images are hydrated to data: URLs so the editor shows
+        // them; when hydration fails they downgrade to plain attachments so
+        // the part is never silently dropped from the re-created message.
+        const dataUrlByCid: Record<string, string> = {};
+        const entries: AttachmentEntry[] = [];
+        for (const att of init.attachments) {
+          const entry: AttachmentEntry = {
+            localId: genLocalId(),
+            name: att.name,
+            type: att.type,
+            size: att.size,
+            uri: '',
+            inline: false,
+            blobId: att.blobId,
+            uploading: false,
+          };
+          if (att.inline && att.cid && att.size <= MAX_INLINE_IMAGE_BYTES) {
+            try {
+              const buf = await jmapClient.fetchBlobArrayBuffer(
+                att.blobId, att.name, att.type,
+              );
+              dataUrlByCid[att.cid] = `data:${att.type};base64,${arrayBufferToBase64(buf)}`;
+              entry.inline = true;
+              entry.cid = att.cid;
+              inlineRegistryRef.current.set(att.cid, entry);
+            } catch (err) {
+              console.warn('[compose] draft cid hydration failed', att.cid, err);
+            }
+          }
+          // A cid part that wasn't hydrated (too big, fetch failed) rides
+          // along as a regular chip but keeps its cid, so the body's
+          // untouched `src="cid:X"` still resolves for the recipient.
+          if (att.cid && !entry.inline) entry.cid = att.cid;
+          entries.push(entry);
+        }
+        if (cancelled) return;
+
+        const to = init.to.filter((r) => !!r.email).map((r) => ({ name: r.name ?? '', email: r.email }));
+        const cc = init.cc.filter((r) => !!r.email).map((r) => ({ name: r.name ?? '', email: r.email }));
+        setToRecipients(to);
+        setCcRecipients(cc);
+        if (cc.length > 0) setCcVisible(true);
+        setSubject(init.subject);
+        setAttachments(entries);
+        const body = rewriteCidSrcToDataUrls(init.bodyHtml, dataUrlByCid);
+        setBodyHtml(body);
+        draftBaselineRef.current = snapshotDraftContent(
+          init.subject, htmlToPlainText(body), to, cc, entries,
+        );
+        setDraftInit({ ...init, bodyHtml: body });
+      } catch (e) {
+        if (!cancelled) {
+          setDraftLoadError(e instanceof Error ? e.message : 'Failed to load draft');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [draftParam]);
 
   const allContacts = useContactsStore((s) => s.contacts);
   const individuals = React.useMemo(() => allContacts.filter((c) => !isGroup(c)), [allContacts]);
@@ -507,6 +628,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     || attachments.some((a) => a.blobId && !a.error);
   const canSend =
     !sending &&
+    !savingDraft &&
     !hasUploadInFlight &&
     !hasUploadError &&
     hasValidRecipients &&
@@ -515,29 +637,110 @@ export default function ComposeScreen({ route, navigation }: Props) {
     !!primaryIdentity &&
     !!sentMailbox;
 
-  const onClose = () => {
-    const isDirty =
-      bodyPlain.trim().length > 0
-      || subject.trim().length > 0
-      || toRecipients.length > 0
-      || ccRecipients.length > 0
-      || attachments.length > 0;
-    if (isDirty) {
+  const performSaveDraft = async () => {
+    if (!draftsMailbox) return;
+    if (hasUploadInFlight) {
       Alert.alert(
-        t('email_composer.discard_draft_title', 'Discard draft?'),
-        t('email_composer.discard_draft_confirm', 'You have unsaved changes. Do you want to discard this draft?'),
-        [
-          { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
-          {
-            text: t('email_composer.discard', 'Discard'),
-            style: 'destructive',
-            onPress: () => navigation.goBack(),
-          },
-        ],
+        t('email_composer.save_draft_failed', 'Could not save draft'),
+        t('email_composer.uploads_in_flight', 'Wait for attachments to finish uploading.'),
       );
       return;
     }
-    navigation.goBack();
+    const liveBodyHtml = await readLiveBodyHtml();
+    if (liveBodyHtml === null) {
+      Alert.alert(
+        t('email_composer.save_draft_failed', 'Could not save draft'),
+        t(
+          'email_composer.editor_unavailable',
+          'Could not read the message content. Copy your text, then close and reopen the composer.',
+        ),
+      );
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      const { finalHtml, finalText, outgoing } = buildOutgoingParts(liveBodyHtml);
+      const from: EmailAddress[] = primaryIdentity
+        ? [{ name: primaryIdentity.name, email: primaryIdentity.email }]
+        : [];
+      await saveDraftApi(
+        {
+          from,
+          to: finalTo.length
+            ? finalTo.map((r) => ({ name: r.name || undefined, email: r.email }))
+            : undefined,
+          cc: finalCc.length
+            ? finalCc.map((r) => ({ name: r.name || undefined, email: r.email }))
+            : undefined,
+          bcc: draftInit?.bcc.length ? draftInit.bcc : undefined,
+          subject,
+          htmlBody: plainTextMode ? undefined : finalHtml,
+          textBody: finalText,
+          attachments: outgoing.length ? outgoing : undefined,
+          inReplyTo: replyTo?.inReplyTo ?? draftInit?.inReplyTo,
+          references: replyTo?.references ?? draftInit?.references,
+        },
+        draftsMailbox.id,
+        draftParam?.emailId,
+      );
+      void refreshEmails();
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert(
+        t('email_composer.save_draft_failed', 'Could not save draft'),
+        e instanceof Error ? e.message : 'Failed to save draft',
+      );
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const onClose = () => { void handleCloseRequest(); };
+
+  const handleCloseRequest = async () => {
+    // Fingerprint the live editor DOM, not the async-fed `bodyHtml` state —
+    // text typed right before closing may not have reached the state yet and
+    // would otherwise be dropped without a prompt (issue #9's trap, at close
+    // time). An unresponsive editor counts as dirty for the same reason.
+    const live = await readLiveBodyHtml();
+    const livePlain = live === null ? null : htmlToPlainText(live);
+    // An edited draft is dirty only when its content changed; a fresh compose
+    // is dirty as soon as it has any content at all.
+    const isDirty = livePlain === null || (draftParam
+      ? draftBaselineRef.current !== null
+        && draftBaselineRef.current !== snapshotDraftContent(
+          subject, livePlain, toRecipients, ccRecipients, attachments,
+        )
+      : livePlain.trim().length > 0
+        || subject.trim().length > 0
+        || toRecipients.length > 0
+        || ccRecipients.length > 0
+        || attachments.length > 0);
+    if (!isDirty) {
+      navigation.goBack();
+      return;
+    }
+    const buttons: Parameters<typeof Alert.alert>[2] = [
+      { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+      {
+        text: t('email_composer.discard', 'Discard'),
+        style: 'destructive',
+        onPress: () => navigation.goBack(),
+      },
+    ];
+    // Discarding an edited draft keeps the original message untouched;
+    // saving replaces it. Without a drafts folder only discard is offered.
+    if (draftsMailbox) {
+      buttons.push({
+        text: t('email_composer.save_draft', 'Save draft'),
+        onPress: () => { void performSaveDraft(); },
+      });
+    }
+    Alert.alert(
+      t('email_composer.discard_draft_title', 'Discard draft?'),
+      t('email_composer.discard_draft_confirm', 'You have unsaved changes. Do you want to discard this draft?'),
+      buttons,
+    );
   };
 
   // ── Attachments ──────────────────────────────────────────────────────
@@ -879,18 +1082,64 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // Read the body straight from the editor DOM rather than trusting the
+  // async, best-effort `change` messages that feed `bodyHtml` — doing so once
+  // shipped replies with the typed text silently missing when the page script
+  // had died (issue #9). Every consumer of the body (send, save draft, the
+  // close-time dirty check) goes through this; null means the editor didn't
+  // answer and callers must fail safe instead of using stale content.
+  const readLiveBodyHtml = async (): Promise<string | null> => {
+    let live: string;
+    try {
+      live = (await editorRef.current?.getHtml()) ?? bodyHtml;
+    } catch {
+      return null;
+    }
+    if (live !== bodyHtml) setBodyHtml(live);
+    return live;
+  };
+
+  const buildOutgoingParts = (liveBodyHtml: string) => {
+    const { html: rewrittenHtml, usedCids } = rewriteInlineImages(liveBodyHtml);
+    // Belt-and-suspenders sanitization: the editor uses execCommand which
+    // can preserve pasted <script>/<style>/etc. Strip them before sending.
+    const safeHtml = stripDangerousTags(rewrittenHtml);
+    const finalHtml = `<div>${safeHtml}</div>`;
+    const finalText = htmlToPlainText(safeHtml);
+
+    const inlineFromBody = usedCids
+      .map((cid) => inlineRegistryRef.current.get(cid))
+      .filter((e): e is AttachmentEntry => !!e && !!e.blobId && !e.error)
+      .map<OutgoingAttachment>((e) => ({
+        blobId: e.blobId!,
+        type: e.type,
+        name: e.name,
+        size: e.size,
+        disposition: 'inline',
+        cid: e.cid,
+      }));
+
+    const fileAttachments = attachments
+      .filter((a) => !a.inline && a.blobId && !a.error)
+      .map<OutgoingAttachment>((a) => ({
+        blobId: a.blobId!,
+        type: a.type,
+        name: a.name,
+        size: a.size,
+        // A non-hydrated draft cid part stays inline so the body's cid: ref
+        // keeps resolving; anything else is a plain attachment.
+        disposition: a.cid ? 'inline' : 'attachment',
+        cid: a.cid,
+      }));
+
+    return { finalHtml, finalText, outgoing: [...inlineFromBody, ...fileAttachments] };
+  };
+
   const performSend = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
 
-    // Read the body straight from the editor DOM at send time. The `change`
-    // messages that feed `bodyHtml` are async and best-effort — trusting them
-    // here once shipped replies with the typed text silently missing when the
-    // page script had died (issue #9). If the editor doesn't answer we abort
-    // loudly rather than send possibly-stale content.
-    let liveBodyHtml: string;
-    try {
-      liveBodyHtml = (await editorRef.current?.getHtml()) ?? bodyHtml;
-    } catch {
+    const liveBodyHtml = await readLiveBodyHtml();
+    if (liveBodyHtml === null) {
       Alert.alert(
         t('email_composer.send_failed', 'Send failed'),
         t(
@@ -900,43 +1149,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       );
       return;
     }
-    if (liveBodyHtml !== bodyHtml) setBodyHtml(liveBodyHtml);
 
     if (!(await passesAttachmentReminder(liveBodyHtml))) return;
     setSending(true);
     try {
       const from: EmailAddress[] = [{ name: primaryIdentity.name, email: primaryIdentity.email }];
-
-      const { html: rewrittenHtml, usedCids } = rewriteInlineImages(liveBodyHtml);
-      // Belt-and-suspenders sanitization: the editor uses execCommand which
-      // can preserve pasted <script>/<style>/etc. Strip them before sending.
-      const safeHtml = stripDangerousTags(rewrittenHtml);
-      const finalHtml = `<div>${safeHtml}</div>`;
-      const finalText = htmlToPlainText(safeHtml);
-
-      const inlineFromBody = usedCids
-        .map((cid) => inlineRegistryRef.current.get(cid))
-        .filter((e): e is AttachmentEntry => !!e && !!e.blobId && !e.error)
-        .map<OutgoingAttachment>((e) => ({
-          blobId: e.blobId!,
-          type: e.type,
-          name: e.name,
-          size: e.size,
-          disposition: 'inline',
-          cid: e.cid,
-        }));
-
-      const fileAttachments = attachments
-        .filter((a) => !a.inline && a.blobId && !a.error)
-        .map<OutgoingAttachment>((a) => ({
-          blobId: a.blobId!,
-          type: a.type,
-          name: a.name,
-          size: a.size,
-          disposition: 'attachment',
-        }));
-
-      const outgoing = [...inlineFromBody, ...fileAttachments];
+      const { finalHtml, finalText, outgoing } = buildOutgoingParts(liveBodyHtml);
 
       const result = await sendEmail(
         {
@@ -945,19 +1163,29 @@ export default function ComposeScreen({ route, navigation }: Props) {
           cc: finalCc.length
             ? finalCc.map((r) => ({ name: r.name || undefined, email: r.email }))
             : undefined,
+          // The composer has no Bcc field; carry an edited draft's Bcc
+          // through unchanged rather than silently dropping it.
+          bcc: draftInit?.bcc.length ? draftInit.bcc : undefined,
           subject,
           // Plain-text mode: skip the HTML part entirely so receiving clients
           // render the text/plain alternative without any formatting.
           htmlBody: plainTextMode ? undefined : finalHtml,
           textBody: finalText,
           attachments: outgoing.length ? outgoing : undefined,
-          inReplyTo: replyTo?.inReplyTo,
-          references: replyTo?.references,
+          inReplyTo: replyTo?.inReplyTo ?? draftInit?.inReplyTo,
+          references: replyTo?.references ?? draftInit?.references,
         },
         primaryIdentity.id,
         sentMailbox.id,
         holdForSeconds,
       );
+      // The message now lives in Sent (or Scheduled): retire the draft it was
+      // edited from. A failed destroy only leaves a stale copy behind.
+      if (draftParam) {
+        void destroyEmails([draftParam.emailId])
+          .then(() => refreshEmails())
+          .catch((err) => console.warn('[compose] failed to destroy edited draft', err));
+      }
       // Confirm an explicit "send later" so the user knows it didn't go out
       // now. The brief undo-send delay stays silent — it's meant to be
       // invisible unless the user cancels from the Scheduled view.
@@ -983,10 +1211,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const titleKey =
-    mode === 'forward' ? 'email_composer.forward'
+    draftParam ? 'email_composer.edit_draft'
+    : mode === 'forward' ? 'email_composer.forward'
     : mode === 'replyAll' ? 'email_composer.reply_all'
     : replyTo ? 'email_composer.reply'
     : 'email_composer.new_message';
+
+  // Gate the composer on the loaded draft so the editor mounts with the
+  // draft body as its initial HTML (see the draft-loading effect above).
+  if (draftParam && !draftInit) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn}>
+            <X size={22} color={c.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>
+            {t('email_composer.edit_draft', 'Edit draft')}
+          </Text>
+          <View style={styles.headerRight} />
+        </View>
+        {draftLoadError ? (
+          <Text style={styles.draftLoadError}>{draftLoadError}</Text>
+        ) : (
+          <ActivityIndicator style={styles.draftLoading} color={c.primary} />
+        )}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -995,7 +1247,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           <X size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle}>
-          {t(titleKey, mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : replyTo ? 'Reply' : 'New Message')}
+          {t(titleKey, draftParam ? 'Edit draft' : mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : replyTo ? 'Reply' : 'New Message')}
         </Text>
         <View style={styles.headerRight}>
           <Pressable
@@ -1173,7 +1425,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
           <RichTextEditor
             ref={editorRef}
-            initialHtml={initialBodyHtml}
+            initialHtml={draftInit ? draftInit.bodyHtml : initialBodyHtml}
             placeholder={t('email_composer.body_placeholder', 'Write your message...')}
             onChange={setBodyHtml}
             onSelectionChange={setSelState}
@@ -1415,6 +1667,13 @@ function makeStyles(c: ThemePalette) {
   headerTitle: { ...typography.h3, color: c.text, flex: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sendButtonDisabled: { opacity: 0.5 },
+  draftLoading: { marginTop: spacing.xl },
+  draftLoadError: {
+    ...typography.body,
+    color: c.error,
+    padding: spacing.lg,
+    textAlign: 'center',
+  },
 
   fieldRow: {
     flexDirection: 'row',

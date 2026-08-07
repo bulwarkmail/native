@@ -143,6 +143,16 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           <EmailListScreen
             onComposePress={() => navigation.navigate('Compose')}
             onEmailPress={(email) => {
+              // An own-account draft opens back in the composer for editing,
+              // not in the read-only thread view. Drafts browsed in a shared
+              // account's folder stay read-only — the composer can't save
+              // into or destroy from another account.
+              const { currentMailboxId } = useEmailStore.getState();
+              const currentMailbox = mailboxes.find((m) => m.id === currentMailboxId);
+              if (email.keywords?.$draft && !currentMailbox?.isShared) {
+                navigation.navigate('Compose', { draft: { emailId: email.id } });
+                return;
+              }
               navigation.navigate('EmailThread', {
                 emailId: email.id,
                 threadId: email.threadId,

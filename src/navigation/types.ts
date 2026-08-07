@@ -18,6 +18,10 @@ export type RootStackParamList = {
           references?: string;
         };
         prefillTo?: EmailAddress[];
+        // Re-open an existing draft for editing. The composer loads the full
+        // message, prefills its fields, and replaces the original on save/send.
+        // Own-account drafts only: the composer can't write into a shared one.
+        draft?: { emailId: string };
       }
     | undefined;
   ContactDetail: { contactId: string };
