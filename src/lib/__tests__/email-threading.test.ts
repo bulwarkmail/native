@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeReplyThreadingHeaders } from '../email-threading';
+import { computeReplyThreadingHeaders, orderThreadEmails } from '../email-threading';
 
 describe('computeReplyThreadingHeaders', () => {
   it('returns undefined when the parent has no msg-id', () => {
@@ -37,5 +37,24 @@ describe('computeReplyThreadingHeaders', () => {
     expect(
       computeReplyThreadingHeaders({ messageId: ['<a@host>'], references: ['<z@host>'] }),
     ).toEqual({ inReplyTo: '<a@host>', references: '<z@host> <a@host>' });
+  });
+});
+
+describe('orderThreadEmails', () => {
+  it('follows the server thread order, not the metadata order', () => {
+    const metas = [{ id: 'c' }, { id: 'a' }, { id: 'b' }];
+    expect(orderThreadEmails(['a', 'b', 'c'], metas)).toEqual([
+      { id: 'a' }, { id: 'b' }, { id: 'c' },
+    ]);
+  });
+
+  it('drops ids whose metadata did not come back', () => {
+    expect(orderThreadEmails(['a', 'gone', 'b'], [{ id: 'a' }, { id: 'b' }])).toEqual([
+      { id: 'a' }, { id: 'b' },
+    ]);
+  });
+
+  it('returns empty for an empty thread', () => {
+    expect(orderThreadEmails([], [])).toEqual([]);
   });
 });

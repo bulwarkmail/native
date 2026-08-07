@@ -49,3 +49,18 @@ export function computeReplyThreadingHeaders(
     references: chain.map((id) => `<${id}>`).join(' '),
   };
 }
+
+/**
+ * Order thread members for display: JMAP's `Thread.emailIds` is the server's
+ * oldest-first ordering (RFC 8621 §3), so follow it and drop ids whose
+ * metadata didn't come back (expunged between Thread/get and Email/get).
+ */
+export function orderThreadEmails<T extends { id: string }>(
+  emailIds: string[],
+  metas: T[],
+): T[] {
+  const byId = new Map(metas.map((m) => [m.id, m]));
+  return emailIds
+    .map((id) => byId.get(id))
+    .filter((m): m is T => !!m);
+}
