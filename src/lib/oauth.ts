@@ -63,8 +63,8 @@ function randomState(): string {
 }
 
 // Anything from the redirect fragment is attacker-influenced: another app can
-// register the same custom scheme. Only accept https endpoints, and only a
-// token endpoint that lives on the mail server's own host (or the webmail's).
+// register the same custom scheme. External token endpoints need verification
+// through the selected webmail, rather than trusting the redirect alone.
 function isHttpsUrl(value: string | null): value is string {
   return !!value && /^https:\/\/[^/?#\s]+/i.test(value);
 }
@@ -90,6 +90,60 @@ export function isAcceptableTokenEndpoint(
   if (!host) return false;
   const allowed = [hostOf(serverUrl), webmailUrl ? hostOf(webmailUrl) : ''].filter(Boolean);
   return allowed.some((h) => host === h || host.endsWith(`.${h}`) || h.endsWith(`.${host}`));
+}
+
+// External IdPs must be authorized by the selected webmail over TLS, never
+// by callback fields or a shared DNS suffix. Bind all returned identifiers.
+async function isTrustedHandoffEndpoint(
+  tokenEndpoint: string,
+  serverUrl: string,
+  webmailUrl: string,
+  clientId: string,
+): Promise<boolean> {
+  if (isAcceptableTokenEndpoint(tokenEndpoint, serverUrl, webmailUrl)) return true;
+  function httpsUrl(value: unknown): value is string {
+    if (typeof value !== 'string') return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password && !url.hash;
+    } catch {
+      return false;
+    }
+  }
+  if (!httpsUrl(webmailUrl) || !httpsUrl(tokenEndpoint) || !httpsUrl(serverUrl)) return false;
+  const base = webmailUrl.replace(/\/+$/, '');
+  try {
+    const load = async (path: string) => {
+      const url = `${base}${path}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await secureFetch(url, {
+          headers: { Accept: 'application/json' },
+          redirect: 'error',
+          signal: controller.signal,
+          timeoutMs: 8000,
+        });
+        // The native client-certificate bridge omits the final URL. Without
+        // transport evidence of its destination, external-IdP trust must fail.
+        if (!response.ok || response.url !== url || response.redirected) {
+          throw new Error('Untrusted metadata response');
+        }
+        return await response.json();
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    const config = await load('/api/config');
+    if (
+      config.oauthEnabled !== true || config.oauthClientId !== clientId ||
+      config.jmapServerUrl !== serverUrl || !httpsUrl(config.oauthIssuerUrl)
+    ) return false;
+    const metadata = await load('/api/auth/oauth/metadata');
+    return metadata.issuer === config.oauthIssuerUrl && metadata.token_endpoint === tokenEndpoint;
+  } catch {
+    return false;
+  }
 }
 
 function buildHandoffUrl(webmailUrl: string, state: string): string {
@@ -154,7 +208,7 @@ export async function runWebmailHandoff(webmailUrl: string): Promise<HandoffResu
     if (!accessToken || !tokenEndpoint || !clientId) {
       throw new HandoffError('Sign-in response missing OAuth tokens');
     }
-    if (!isAcceptableTokenEndpoint(tokenEndpoint, serverUrl, webmailUrl)) {
+    if (!(await isTrustedHandoffEndpoint(tokenEndpoint, serverUrl, webmailUrl, clientId))) {
       throw new HandoffError('Sign-in response token endpoint is not trusted');
     }
     const refreshToken = params.get('refresh_token') ?? undefined;
@@ -249,7 +303,7 @@ export async function redeemPairingCode(webmailUrl: string, code: string): Promi
   if (!isHttpsUrl(data.server_url) && !isLoopbackHttp(data.server_url)) {
     throw new HandoffError('Pairing response server URL must use https');
   }
-  if (!isAcceptableTokenEndpoint(data.token_endpoint, data.server_url, base)) {
+  if (!(await isTrustedHandoffEndpoint(data.token_endpoint, data.server_url, base, data.client_id))) {
     throw new HandoffError('Pairing response token endpoint is not trusted');
   }
 
