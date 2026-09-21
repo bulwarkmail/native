@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  PanResponder,
 } from 'react-native';
 import { addDays, format, isSameDay, isToday, startOfWeek } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
@@ -23,6 +24,7 @@ import {
   type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
+import { weekSwipeDelta } from '../../lib/calendar-navigation';
 
 const HOUR_HEIGHT = 48;
 const GUTTER_WIDTH = 44;
@@ -41,6 +43,8 @@ interface WeekViewProps {
   onSelectDate?: (date: Date) => void;
   onSelectEvent?: (event: CalendarEvent) => void;
   onCreateAtTime?: (date: Date) => void;
+  /** -1 previous week, +1 next week. Horizontal swipe on the grid. */
+  onSwipeWeek?: (delta: -1 | 1) => void;
   weekStartsOn?: 0 | 1 | 6;
   timeFormat?: '12h' | '24h';
 }
@@ -54,6 +58,7 @@ function WeekViewInner({
   onSelectDate,
   onSelectEvent,
   onCreateAtTime,
+  onSwipeWeek,
   weekStartsOn = 0,
   timeFormat = '24h',
 }: WeekViewProps) {
@@ -126,6 +131,20 @@ function WeekViewInner({
     });
   }, []);
 
+  const onSwipeWeekRef = React.useRef(onSwipeWeek);
+  onSwipeWeekRef.current = onSwipeWeek;
+  const weekPan = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderRelease: (_, g) => {
+        const delta = weekSwipeDelta(g.dx, g.dy, g.vx);
+        if (delta !== 0) onSwipeWeekRef.current?.(delta);
+      },
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
+
   const handleSlotLongPress = (day: Date, hour: number) => {
     if (!onCreateAtTime) return;
     const date = new Date(day);
@@ -165,7 +184,7 @@ function WeekViewInner({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...weekPan.panHandlers}>
       <View style={styles.headerRow}>
         <View style={styles.gutter} />
         <View style={styles.dayHeaders}>{weekDays.map(dayHeader)}</View>

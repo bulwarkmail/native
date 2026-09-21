@@ -31,3 +31,20 @@ export function applyCalendarNavigation(
   }
   return { currentDate: nextCurrent, selectedDate };
 }
+
+const SWIPE_DX = 60;
+const SWIPE_FLING_DX = 40;
+const SWIPE_FLING_VX = 0.5;
+const SWIPE_DIRECTION_BIAS = 1.5;
+
+/**
+ * Horizontal week paging: swipe right → previous week, swipe left → next.
+ * Returns 0 when the gesture is vertical or too short, so the hour grid
+ * keeps scrolling.
+ */
+export function weekSwipeDelta(dx: number, dy: number, vx = 0): -1 | 1 | 0 {
+  if (Math.abs(dx) < Math.abs(dy) * SWIPE_DIRECTION_BIAS) return 0;
+  if (dx > SWIPE_DX || (dx > SWIPE_FLING_DX && vx > SWIPE_FLING_VX)) return -1;
+  if (dx < -SWIPE_DX || (dx < -SWIPE_FLING_DX && vx < -SWIPE_FLING_VX)) return 1;
+  return 0;
+}

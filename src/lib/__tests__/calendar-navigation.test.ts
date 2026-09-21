@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { format, startOfWeek } from 'date-fns';
-import { applyCalendarNavigation, shiftViewDate } from '../calendar-navigation';
+import { applyCalendarNavigation, shiftViewDate, weekSwipeDelta } from '../calendar-navigation';
 
 function ymd(d: Date): string {
   return format(d, 'yyyy-MM-dd');
@@ -52,5 +52,23 @@ describe('applyCalendarNavigation', () => {
 
     expect(ymd(next.currentDate)).toBe('2026-10-01');
     expect(ymd(next.selectedDate)).toBe('2026-09-16');
+  });
+});
+
+describe('weekSwipeDelta', () => {
+  it('pages previous on a rightward swipe', () => {
+    expect(weekSwipeDelta(80, 10)).toBe(-1);
+  });
+
+  it('pages next on a leftward swipe', () => {
+    expect(weekSwipeDelta(-80, 10)).toBe(1);
+  });
+
+  it('leaves vertical hour-grid scrolls alone', () => {
+    expect(weekSwipeDelta(20, 80)).toBe(0);
+  });
+
+  it('pages on a short fast fling', () => {
+    expect(weekSwipeDelta(-45, 5, -0.8)).toBe(1);
   });
 });

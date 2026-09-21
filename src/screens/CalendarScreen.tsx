@@ -822,6 +822,7 @@ export default function CalendarScreen() {
             onSelectDate={handleSelectDate}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
+            onSwipeWeek={(delta) => (delta < 0 ? goPrev() : goNext())}
           />
         )}
         {viewMode === 'agenda' && (
