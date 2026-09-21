@@ -29,10 +29,6 @@ import {
   endOfWeek,
   addDays,
   isToday,
-  addMonths,
-  subMonths,
-  addWeeks,
-  subWeeks,
   type Locale,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
@@ -76,6 +72,7 @@ import {
   isRecurringSeriesMember,
   truncateRecurrenceRules,
 } from '../lib/recurrence-overrides';
+import { AGENDA_DAYS, applyCalendarNavigation, type CalendarViewMode } from '../lib/calendar-navigation';
 import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from '../lib/birthday-calendar';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -86,7 +83,7 @@ import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
 
-type ViewMode = 'month' | 'week' | 'agenda';
+type ViewMode = CalendarViewMode;
 type PendingAction =
   | {
       kind: 'edit';
@@ -98,7 +95,6 @@ type PendingAction =
   | { kind: 'delete'; event: CalendarEvent }
   | null;
 
-const AGENDA_DAYS = 30;
 const RANGE_BUFFER_DAYS = 14;
 
 type WeekStart = 0 | 1 | 6;
@@ -358,20 +354,16 @@ export default function CalendarScreen() {
   }, [viewMode, currentDate, ensureRange, calendarFirstDayOfWeek]);
 
   const goPrev = React.useCallback(() => {
-    setCurrentDate((d) => {
-      if (viewMode === 'month') return subMonths(d, 1);
-      if (viewMode === 'week') return subWeeks(d, 1);
-      return addDays(d, -AGENDA_DAYS);
-    });
-  }, [viewMode]);
+    const next = applyCalendarNavigation(viewMode, currentDate, selectedDate, -1);
+    setCurrentDate(next.currentDate);
+    setSelectedDate(next.selectedDate);
+  }, [viewMode, currentDate, selectedDate]);
 
   const goNext = React.useCallback(() => {
-    setCurrentDate((d) => {
-      if (viewMode === 'month') return addMonths(d, 1);
-      if (viewMode === 'week') return addWeeks(d, 1);
-      return addDays(d, AGENDA_DAYS);
-    });
-  }, [viewMode]);
+    const next = applyCalendarNavigation(viewMode, currentDate, selectedDate, 1);
+    setCurrentDate(next.currentDate);
+    setSelectedDate(next.selectedDate);
+  }, [viewMode, currentDate, selectedDate]);
 
   const goToday = React.useCallback(() => {
     const today = new Date();
@@ -768,7 +760,10 @@ export default function CalendarScreen() {
                 <Pressable
                   key={mode}
                   style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
-                  onPress={() => setViewMode(mode)}
+                  onPress={() => {
+                    if (mode === 'week') setCurrentDate(selectedDate);
+                    setViewMode(mode);
+                  }}
                 >
                   <Icon size={16} color={active ? c.primary : c.textMuted} />
                 </Pressable>
@@ -818,6 +813,7 @@ export default function CalendarScreen() {
         {viewMode === 'week' && (
           <WeekView
             selectedDate={selectedDate}
+            weekDate={currentDate}
             events={events}
             eventsByDay={eventsByDay}
             calendars={calendars}

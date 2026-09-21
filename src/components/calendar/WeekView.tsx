@@ -32,6 +32,9 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 interface WeekViewProps {
   selectedDate: Date;
+  /** Week to display. Defaults to selectedDate. Kept separate so paging
+   *  the visible week (header + grid) does not depend on the highlighted day. */
+  weekDate?: Date;
   events: CalendarEvent[];
   calendars: Calendar[];
   eventsByDay?: EventDayIndex;
@@ -44,6 +47,7 @@ interface WeekViewProps {
 
 function WeekViewInner({
   selectedDate,
+  weekDate,
   events,
   calendars,
   eventsByDay,
@@ -64,9 +68,9 @@ function WeekViewInner({
   );
 
   const weekDays = React.useMemo(() => {
-    const start = startOfWeek(selectedDate, { weekStartsOn });
+    const start = startOfWeek(weekDate ?? selectedDate, { weekStartsOn });
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-  }, [selectedDate, weekStartsOn]);
+  }, [weekDate, selectedDate, weekStartsOn]);
 
   // Multi-day all-day events render as one bar across the days they span.
   // Timed events that consume the entire day get promoted to this strip too.
