@@ -450,6 +450,7 @@ describe('email-store', () => {
         totalEmails: 1,
         searchQuery: '',
         filters: {},
+        emailStates: { 'mb-1': 'em-1' },
         mailboxSnapshots: { 'mb-1': { emails: base, total: 1, queryState: 'q-asc' } },
       });
       mockGetEmailQueryChanges.mockResolvedValue({
@@ -487,6 +488,7 @@ describe('email-store', () => {
         totalEmails: 1,
         searchQuery: '',
         filters: {},
+        emailStates: { 'mb-1': 'em-1' },
         mailboxSnapshots: { 'mb-1': { emails: base, total: 2, queryState: 'q-base' } },
       });
       mockGetEmailQueryChanges.mockResolvedValue({
@@ -677,7 +679,7 @@ describe('email-store', () => {
         emails: [{ id: 'e1', keywords: {} } as any],
         totalEmails: 1,
         queryState: 'q-1',
-        emailStates: { '@primary': 'em-1' },
+        emailStates: { 'mb-1': 'em-1' },
         mailboxSnapshots: { 'mb-1': { emails: [{ id: 'e1', keywords: {} } as any], total: 1, queryState: 'q-1' } },
       });
       mockGetEmailQueryChanges.mockResolvedValue({
@@ -692,7 +694,7 @@ describe('email-store', () => {
 
       expect(mockGetEmailChanges).toHaveBeenCalledTimes(2);
       expect(mockGetEmailChanges.mock.calls[1][0]).toBe('em-2');
-      expect(useEmailStore.getState().emailStates['@primary']).toBe('em-3');
+      expect(useEmailStore.getState().emailStates['mb-1']).toBe('em-3');
       expect(useEmailStore.getState().emails[0].keywords).toEqual({ $seen: true });
     });
 
@@ -850,6 +852,159 @@ describe('email-store', () => {
     });
   });
 
+  // B6: `inMailbox` is a mutable filter, so Stalwart's Email/queryChanges
+  // reports every updated message as removed and re-added. Those rows used to
+  // vanish until a pull-to-refresh, and visiting an empty folder dropped the
+  // Email state that Email/changes needed.
+  describe('delta refresh', () => {
+    const mockGetEmailChanges = emailApi.getEmailChanges as ReturnType<typeof vi.fn>;
+    const row = (id: string, keywords: Record<string, boolean> = {}) =>
+      ({ id, keywords, mailboxIds: { 'mb-1': true } } as any);
+    const inbox = [row('e1'), row('e2'), row('e3')];
+    const noChanges = { oldState: 'em-1', newState: 'em-2', hasMoreChanges: false, created: [], updated: [], destroyed: [] };
+
+    function openInbox(extra: Record<string, unknown> = {}) {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: inbox,
+        totalEmails: 3,
+        queryState: 'q-1',
+        emailStates: { 'mb-1': 'em-1' },
+        mailboxSnapshots: { 'mb-1': { emails: inbox, total: 3, queryState: 'q-1' } },
+        ...extra,
+      });
+    }
+
+    it('keeps a removed-and-re-added row at its new index with fresh keywords', async () => {
+      openInbox();
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 3,
+        removed: ['e2', 'e3'], added: [{ id: 'e3', index: 0 }, { id: 'e2', index: 2 }],
+      });
+      // Email/changes needn't list them: the queryChanges report is enough.
+      mockGetEmailChanges.mockResolvedValue(noChanges);
+      mockGetEmailsWithState.mockResolvedValue({
+        list: [row('e3', { $flagged: true }), row('e2', { $seen: true })], state: 'em-2',
+      });
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockGetEmailChanges).toHaveBeenCalledWith('em-1', undefined, undefined);
+      expect(mockGetEmailsWithState).toHaveBeenCalledWith(['e3', 'e2'], undefined);
+      expect(mockQueryEmails).not.toHaveBeenCalled();
+      const state = useEmailStore.getState();
+      expect(state.emails.map((e) => e.id)).toEqual(['e3', 'e1', 'e2']);
+      expect(state.emails[0].keywords).toEqual({ $flagged: true });
+      expect(state.emails[2].keywords).toEqual({ $seen: true });
+      expect(state.mailboxSnapshots['mb-1'].emails.map((e) => e.id)).toEqual(['e3', 'e1', 'e2']);
+      expect(state.emailStates['mb-1']).toBe('em-2');
+    });
+
+    it('does not duplicate a re-added row that Email/changes also reports', async () => {
+      openInbox();
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 3,
+        removed: ['e2'], added: [{ id: 'e2', index: 1 }],
+      });
+      mockGetEmailChanges.mockResolvedValue({ ...noChanges, updated: ['e2'] });
+      mockGetEmailsWithState.mockResolvedValue({ list: [row('e2', { $flagged: true })], state: 'em-2' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockGetEmailsWithState).toHaveBeenCalledWith(['e2'], undefined);
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3']);
+      expect(useEmailStore.getState().emails[1].keywords).toEqual({ $flagged: true });
+    });
+
+    it('leaves an added row past the loaded window to load-more', async () => {
+      openInbox({ totalEmails: 40, mailboxSnapshots: { 'mb-1': { emails: inbox, total: 40, queryState: 'q-1' } } });
+      useSettingsStore.getState().updateSetting('emailsPerPage', 3);
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 40,
+        removed: ['e3', 'e30'], added: [{ id: 'e30', index: 29 }],
+      });
+      mockGetEmailChanges.mockResolvedValue(noChanges);
+      mockGetEmailsWithState.mockResolvedValue({ list: [row('e30', { $flagged: true })], state: 'em-2' });
+
+      try {
+        await useEmailStore.getState().refreshEmails();
+      } finally {
+        useSettingsStore.getState().updateSetting('emailsPerPage', 25);
+      }
+
+      // Not appended after e2: rows 2-28 would be skipped.
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2']);
+    });
+
+    it('an empty folder keeps both its own and the other lists\' Email state', async () => {
+      openInbox({ emailStates: { 'mb-1': 'em-1', 'mb-empty': 'em-0' } });
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q-empty' });
+
+      await useEmailStore.getState().selectMailbox('mb-empty');
+
+      expect(mockGetEmailsWithState).not.toHaveBeenCalled();
+      expect(useEmailStore.getState().emailStates).toEqual({ 'mb-1': 'em-1', 'mb-empty': 'em-0' });
+
+      // Back in the Inbox, the refresh still runs Email/changes from the
+      // Inbox's own state and patches the flagged row in place.
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 3,
+        removed: ['e2'], added: [{ id: 'e2', index: 1 }],
+      });
+      mockGetEmailChanges.mockResolvedValue({ ...noChanges, updated: ['e2'] });
+      mockGetEmailsWithState.mockResolvedValue({ list: [row('e2', { $flagged: true })], state: 'em-2' });
+
+      await useEmailStore.getState().selectMailbox('mb-1');
+
+      expect(mockGetEmailQueryChanges).toHaveBeenCalledWith('mb-1', 'q-1', expect.anything());
+      expect(mockGetEmailChanges).toHaveBeenCalledWith('em-1', undefined, undefined);
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3']);
+      expect(useEmailStore.getState().emails[1].keywords).toEqual({ $flagged: true });
+    });
+
+    it('another folder\'s refresh does not move this list\'s baseline', async () => {
+      openInbox();
+      mockQueryEmails.mockResolvedValue({ ids: ['p1'], total: 1, queryState: 'q-p' });
+      mockGetEmailsWithState.mockResolvedValue({ list: [row('p1')], state: 'em-9' });
+
+      await useEmailStore.getState().selectMailbox('mb-2');
+
+      expect(useEmailStore.getState().emailStates).toEqual({ 'mb-1': 'em-1', 'mb-2': 'em-9' });
+
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 3, removed: [], added: [],
+      });
+      mockGetEmailChanges.mockResolvedValue(noChanges);
+      await useEmailStore.getState().selectMailbox('mb-1');
+
+      expect(mockGetEmailChanges).toHaveBeenCalledWith('em-1', undefined, undefined);
+    });
+
+    it('re-queries a list that has no Email state of its own', async () => {
+      openInbox({ emailStates: {} });
+      mockQueryEmails.mockResolvedValue({ ids: ['e1'], total: 1, queryState: 'q-new' });
+      mockGetEmailsWithState.mockResolvedValue({ list: [row('e1')], state: 'em-5' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockGetEmailQueryChanges).not.toHaveBeenCalled();
+      expect(mockQueryEmails).toHaveBeenCalledWith('mb-1', expect.anything());
+      expect(useEmailStore.getState().emailStates).toEqual({ 'mb-1': 'em-5' });
+    });
+
+    it('forgets the list state when Email/changes cannot calculate changes', async () => {
+      openInbox();
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 3, removed: [], added: [],
+      });
+      mockGetEmailChanges.mockResolvedValue(null);
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(useEmailStore.getState().emailStates).toEqual({});
+    });
+  });
+
   describe('pin and spam keywords', () => {
     it('togglePin writes $pinned, not $important', async () => {
       useEmailStore.setState({ emails: [{ id: 'e1', keywords: {} } as any] });
@@ -964,8 +1119,8 @@ describe('email-store', () => {
         accountId: 'grp-1',
       }));
       expect(mockGetEmailsWithState).toHaveBeenCalledWith(['e1'], 'grp-1');
-      // Email state tokens are per-account, so the shared account gets its own.
-      expect(useEmailStore.getState().emailStates).toEqual({ 'grp-1': 'em-1' });
+      // Each folder list keeps the Email state it was synced at.
+      expect(useEmailStore.getState().emailStates).toEqual({ 'grp-1:s-inbox': 'em-1' });
     });
 
     it('deletes from a shared folder against the owning account', async () => {

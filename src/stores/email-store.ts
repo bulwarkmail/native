@@ -144,26 +144,18 @@ function toRawMailboxes(mailboxes: Mailbox[]): Mailbox[] {
     : m));
 }
 
-// Key for `emailStates`. JMAP Email state tokens are per-account, so the
-// primary account and each shared account track their own.
-const PRIMARY_STATE_KEY = '@primary';
-function stateKey(accountId?: string): string {
-  return accountId ?? PRIMARY_STATE_KEY;
-}
-
 // Record (or forget, when the server said cannotCalculateChanges) one
-// account's Email state without disturbing the others'.
+// folder list's Email state without disturbing the others'.
 function withEmailState(
   states: Record<string, string>,
-  accountId: string | undefined,
+  mailboxId: string,
   value: string | undefined,
 ): Record<string, string> {
-  const key = stateKey(accountId);
   if (value === undefined) {
-    const { [key]: _drop, ...rest } = states;
+    const { [mailboxId]: _drop, ...rest } = states;
     return rest;
   }
-  return { ...states, [key]: value };
+  return { ...states, [mailboxId]: value };
 }
 
 // True only when the JMAP client is actually serving the email-store's active
@@ -256,8 +248,10 @@ export interface MailboxSnapshot {
 export interface AccountSnapshot {
   mailboxes: Mailbox[];
   mailboxState?: string;       // JMAP Mailbox state (drives Mailbox/changes)
-  // JMAP Email state per JMAP account (drives Email/changes). Keyed by
-  // `stateKey()`: the primary account plus any shared/group accounts.
+  // JMAP Email state each folder's base-view list was last synced at, keyed
+  // by store mailbox id (drives Email/changes). Per list, not per account:
+  // refreshing one folder must not move another folder's baseline past
+  // changes that folder's cached list has not seen yet.
   emailStates: Record<string, string>;
   currentMailboxId: string | null;
   mailboxSnapshots: Record<string, MailboxSnapshot>;
@@ -1904,7 +1898,9 @@ async function refreshEmailsImpl(): Promise<void> {
     // A shared (group account) folder is queried against its owning account
     // with its unprefixed id; own folders resolve to no override at all.
     const ref = refFor(state.mailboxes, currentMailboxId);
-    const emailState = state.emailStates[stateKey(ref.accountId)];
+    // The Email state this folder's list was last synced at: the list's own
+    // baseline for Email/changes (webmail `emailListSync`).
+    const emailState = state.emailStates[currentMailboxId];
     const scope = queryScope(state, ref);
     const filter = buildJmapFilter(searchQuery, filters);
     const { emailsPerPage: limit, mailSortAscending: sortAscending } =
@@ -1935,13 +1931,15 @@ async function refreshEmailsImpl(): Promise<void> {
     const snap = state.mailboxSnapshots[currentMailboxId];
 
     try {
-      // Incremental sync path: requires the base unfiltered view AND a known
-      // queryState (so Email/queryChanges has something to diff against).
-      // Anything else — search, filter active, first-ever load — falls
-      // through to a full re-query.
+      // Incremental sync path: requires the base unfiltered view, a known
+      // queryState (so Email/queryChanges has something to diff against)
+      // AND the list's Email state (so Email/changes can refresh rows it
+      // already holds). Anything else — search, filter active, first-ever
+      // load — falls through to a full re-query.
       if (
         baseView &&
         snap?.queryState &&
+        emailState &&
         snap.emails.length >= Math.min(limit, snap.total)
       ) {
         const baseEmails = snap.emails;
@@ -1958,50 +1956,49 @@ async function refreshEmailsImpl(): Promise<void> {
 
           // Email/changes catches updates to messages already in our list
           // (e.g. another device toggled $seen) that queryChanges wouldn't
-          // report. Skipped when we have no emailState yet — first refresh
-          // after a cold start primes it from the Email/get below.
+          // report. It runs from the list's own state, so changes made while
+          // another folder was open are not skipped.
           let updatedIds: string[] = [];
           let destroyedExtra: string[] = [];
           let nextEmailState: string | undefined = emailState;
-          if (emailState) {
-            // Drain `hasMoreChanges`: the server caps one response, so keep
-            // asking from the returned state until the delta is complete
-            // (bounded so a runaway server can't loop us forever).
-            let since: string | undefined = emailState;
-            for (let round = 0; since && round < 10; round++) {
-              const ec = await getEmailChanges(since, undefined, ref.accountId);
-              if (!ec) {
-                // cannotCalculateChanges → forget the state and rely on the
-                // next full re-sync to repopulate it.
-                nextEmailState = undefined;
-                break;
-              }
-              updatedIds.push(...ec.updated);
-              destroyedExtra.push(...ec.destroyed);
-              nextEmailState = ec.newState;
-              since = ec.hasMoreChanges && ec.newState !== since ? ec.newState : undefined;
+          // Drain `hasMoreChanges`: the server caps one response, so keep
+          // asking from the returned state until the delta is complete
+          // (bounded so a runaway server can't loop us forever).
+          let since: string | undefined = emailState;
+          for (let round = 0; since && round < 10; round++) {
+            const ec = await getEmailChanges(since, undefined, ref.accountId);
+            if (!ec) {
+              // cannotCalculateChanges → forget the state so the next
+              // refresh re-queries the list and records a fresh one.
+              nextEmailState = undefined;
+              break;
             }
+            updatedIds.push(...ec.updated);
+            destroyedExtra.push(...ec.destroyed);
+            nextEmailState = ec.newState;
+            since = ec.hasMoreChanges && ec.newState !== since ? ec.newState : undefined;
           }
 
-          // Fetch only what we don't already have. `addedIds` are new to the
-          // window; `updatedIds` may already be in the base list but their
-          // keywords/mailboxIds need refreshing.
+          // Fetch every added id, including ones the list already holds:
+          // `inMailbox` is a mutable filter, so the server reports each
+          // updated message as removed and re-added, and that row has to
+          // come back at its new index with fresh keywords. `updatedIds`
+          // refreshes rows Email/changes saw change in place.
           const existingById = new Map(baseEmails.map((e) => [e.id, e]));
-          const idsToFetch = [
-            ...addedIds.filter((id) => !existingById.has(id)),
+          const idsToFetch = Array.from(new Set([
+            ...addedIds,
             ...updatedIds.filter((id) => existingById.has(id)),
-          ];
-          let fetchState: string | undefined;
+          ]));
           let fetched: Email[] = [];
           if (idsToFetch.length > 0) {
-            const res = await getEmailsWithState(idsToFetch, ref.accountId);
-            fetched = res.list;
-            fetchState = res.state;
+            fetched = (await getEmailsWithState(idsToFetch, ref.accountId)).list;
           }
 
           // Rebuild the visible window order: start with existing emails,
           // drop removed/destroyed, then splice added at their indices.
-          const allDestroyed = new Set([...destroyedExtra, ...removed]);
+          // Added ids are dropped too, so a row the server re-adds without
+          // also listing it as removed can't end up in the list twice.
+          const allDestroyed = new Set([...destroyedExtra, ...removed, ...addedIds]);
           const kept = baseEmails.filter((e) => !allDestroyed.has(e.id));
           // Map updated entries onto kept array
           const fetchedById = new Map(fetched.map((e) => [e.id, e]));
@@ -2013,9 +2010,11 @@ async function refreshEmailsImpl(): Promise<void> {
           const out = [...updatedKept];
           for (const entry of sortedAdded) {
             const email = fetchedById.get(entry.id);
-            if (!email) continue;
-            const idx = Math.min(entry.index, out.length);
-            out.splice(idx, 0, email);
+            // An index past the end of the loaded window belongs to a page
+            // load-more hasn't fetched; clamping it onto the end would skip
+            // the rows in between.
+            if (!email || entry.index > out.length) continue;
+            out.splice(entry.index, 0, email);
           }
           // Keep the window at what the user had scrolled to (at least one
           // page) — Email/queryChanges can push entries past the original
@@ -2033,8 +2032,8 @@ async function refreshEmailsImpl(): Promise<void> {
             queryState: nextQueryState,
             emailStates: withEmailState(
               get().emailStates,
-              ref.accountId,
-              nextEmailState ?? fetchState ?? emailState,
+              currentMailboxId,
+              nextEmailState,
             ),
             loading: false,
             mailboxSnapshots: {
@@ -2081,7 +2080,11 @@ async function refreshEmailsImpl(): Promise<void> {
       };
       if (baseView) {
         updates.queryState = queryRes.queryState;
-        updates.emailStates = withEmailState(get().emailStates, ref.accountId, fetched.state);
+        // An empty result ran no Email/get, so it has no state to record:
+        // keep the list's previous one rather than dropping it.
+        if (fetched.state) {
+          updates.emailStates = withEmailState(get().emailStates, currentMailboxId, fetched.state);
+        }
         updates.mailboxSnapshots = {
           ...get().mailboxSnapshots,
           [currentMailboxId]: {
