@@ -16,6 +16,9 @@ vi.mock('../../api/email', () => ({
   // queryEmailPage.
   queryEmailPagesAcrossAccounts: vi.fn(),
   getEmailQueryChanges: vi.fn(async () => null),
+  // Email/queryChanges, Email/changes, Email/get and Thread/get in one
+  // request; beforeEach scripts it from the separate mocks.
+  getEmailListDelta: vi.fn(),
   getEmails: vi.fn(),
   getEmailsWithState: vi.fn(async () => ({ list: [], state: 'em-state-0' })),
   getEmailChanges: vi.fn(async () => null),
@@ -194,6 +197,17 @@ beforeEach(() => {
     });
     return { accountId: target.accountId, ok: true, total: page.total, list: page.list, threads: page.threads };
   })));
+  // The incremental refresh asks for its delta in one request; most tests
+  // describe it as the queryChanges, changes and Email/get it chains.
+  (emailApi.getEmailListDelta as ReturnType<typeof vi.fn>).mockImplementation(async (
+    mailboxId: string | undefined, sinceQueryState: string, sinceState: string, opts?: { accountId?: string },
+  ) => {
+    const queryChanges = await emailApi.getEmailQueryChanges(mailboxId, sinceQueryState, opts);
+    const changes = await emailApi.getEmailChanges(sinceState, undefined, opts?.accountId);
+    const ids = queryChanges?.added.map((a) => a.id) ?? [];
+    const added = ids.length > 0 ? (await emailApi.getEmailsWithState(ids, opts?.accountId)).list : [];
+    return { queryChanges, changes, added, addedFetched: !!queryChanges, threads: [] };
+  });
 });
 
 describe('email-store', () => {
@@ -1094,6 +1108,90 @@ describe('email-store', () => {
       await useEmailStore.getState().refreshEmails();
 
       expect(useEmailStore.getState().emailStates).toEqual({});
+    });
+
+    // PF7: the delta was Email/queryChanges, then Email/changes, then
+    // Email/get, then Thread/get, one after the other.
+    describe('in one request', () => {
+      const mockDelta = emailApi.getEmailListDelta as ReturnType<typeof vi.fn>;
+      const threaded = (id: string, keywords: Record<string, boolean> = {}) => ({ ...row(id, keywords), threadId: `t-${id}` });
+
+      it('needs nothing else when the delta brought every row', async () => {
+        openInbox();
+        mockDelta.mockResolvedValueOnce({
+          queryChanges: {
+            oldQueryState: 'q-1', newQueryState: 'q-2', total: 4,
+            removed: ['e2'], added: [{ id: 'n1', index: 0 }, { id: 'e2', index: 2 }],
+          },
+          changes: { ...noChanges, created: ['n1'], updated: ['e2'] },
+          added: [threaded('n1'), threaded('e2', { $seen: true })],
+          addedFetched: true,
+          threads: [{ id: 't-n1', emailIds: ['n1', 'x1'] }],
+        });
+
+        await useEmailStore.getState().refreshEmails();
+
+        expect(mockDelta).toHaveBeenCalledWith('mb-1', 'q-1', 'em-1', expect.objectContaining({ accountId: undefined }));
+        expect(mockGetEmailQueryChanges).not.toHaveBeenCalled();
+        expect(mockGetEmailChanges).not.toHaveBeenCalled();
+        expect(mockGetEmailsWithState).not.toHaveBeenCalled();
+        const state = useEmailStore.getState();
+        expect(state.emails.map((e) => e.id)).toEqual(['n1', 'e1', 'e2', 'e3']);
+        expect(state.emails[2].keywords).toEqual({ $seen: true });
+        expect(state.threadCounts['t-n1']).toBe(2);
+        expect(state.emailStates['mb-1']).toBe('em-2');
+        expect(state.queryState).toBe('q-2');
+      });
+
+      it('fetches the added rows apart when the chained Email/get was refused', async () => {
+        openInbox();
+        mockDelta.mockResolvedValueOnce({
+          queryChanges: { oldQueryState: 'q-1', newQueryState: 'q-2', total: 4, removed: [], added: [{ id: 'n1', index: 0 }] },
+          changes: { ...noChanges, created: ['n1'] },
+          added: [],
+          addedFetched: false,
+          threads: [],
+        });
+        mockGetEmailsWithState.mockResolvedValue({ list: [row('n1')], state: 'em-2' });
+
+        await useEmailStore.getState().refreshEmails();
+
+        expect(mockGetEmailsWithState).toHaveBeenCalledWith(['n1'], undefined);
+        expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['n1', 'e1', 'e2', 'e3']);
+      });
+
+      it('re-queries when the server cannot diff the query', async () => {
+        openInbox();
+        mockDelta.mockResolvedValueOnce({ queryChanges: null, changes: noChanges, added: [], addedFetched: false, threads: [] });
+        mockQueryEmails.mockResolvedValue({ ids: ['e1'], total: 1, queryState: 'q-9' });
+        mockGetEmailsWithState.mockResolvedValue({ list: [row('e1')], state: 'em-9' });
+
+        await useEmailStore.getState().refreshEmails();
+
+        expect(mockQueryEmailPage).toHaveBeenCalledTimes(1);
+        expect(useEmailStore.getState().emailStates['mb-1']).toBe('em-9');
+        expect(useEmailStore.getState().queryState).toBe('q-9');
+      });
+
+      it('drains further Email/changes pages apart', async () => {
+        openInbox();
+        mockDelta.mockResolvedValueOnce({
+          queryChanges: { oldQueryState: 'q-1', newQueryState: 'q-2', total: 3, removed: [], added: [] },
+          changes: { ...noChanges, newState: 'em-2', hasMoreChanges: true },
+          added: [],
+          addedFetched: true,
+          threads: [],
+        });
+        mockGetEmailChanges.mockResolvedValueOnce({ ...noChanges, oldState: 'em-2', newState: 'em-3', updated: ['e3'] });
+        mockGetEmailsWithState.mockResolvedValue({ list: [row('e3', { $flagged: true })], state: 'em-3' });
+
+        await useEmailStore.getState().refreshEmails();
+
+        expect(mockGetEmailChanges).toHaveBeenCalledWith('em-2', undefined, undefined);
+        expect(mockGetEmailsWithState).toHaveBeenCalledWith(['e3'], undefined);
+        expect(useEmailStore.getState().emails[2].keywords).toEqual({ $flagged: true });
+        expect(useEmailStore.getState().emailStates['mb-1']).toBe('em-3');
+      });
     });
   });
 

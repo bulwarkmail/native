@@ -586,6 +586,103 @@ export async function getEmailQueryChanges(
   };
 }
 
+export interface EmailListDelta {
+  /** Null when the server can't diff the query (the list is re-queried). */
+  queryChanges: EmailQueryChangesResult | null;
+  /** Null when the server can't compute Email changes since the list's state. */
+  changes: EmailChangesResult | null;
+  /** The messages the query added, with the list properties. */
+  added: Email[];
+  /** False when the chained Email/get failed (too many ids): fetch them apart. */
+  addedFetched: boolean;
+  /** Threads of the added messages (with `threads`). */
+  threads: Thread[];
+}
+
+function methodBody(
+  responses: Array<[string, Record<string, any>, string]>,
+  callId: string,
+  name: string,
+): Record<string, any> | null {
+  const match = responses.find((r) => r[2] === callId);
+  return match && match[0] === name ? match[1] : null;
+}
+
+/**
+ * What changed in a folder list since it was read, in one request instead of
+ * three or four in a row: Email/queryChanges from the list's queryState,
+ * Email/changes from its Email state (rows that changed in place), and by
+ * result reference Email/get of the messages the query added and, with
+ * `threads`, Thread/get of their threads. Each part fails on its own: a query
+ * the server can't diff comes back as `queryChanges: null` (the caller
+ * re-queries), a state it can't diff as `changes: null`.
+ */
+export async function getEmailListDelta(
+  mailboxId: string | undefined,
+  sinceQueryState: string,
+  sinceState: string,
+  options?: {
+    sort?: Array<{ property: string; isAscending: boolean; keyword?: string }>;
+    /** Owning JMAP account when the mailbox belongs to a shared account. */
+    accountId?: string;
+    threads?: boolean;
+  },
+): Promise<EmailListDelta> {
+  const accountId = options?.accountId ?? jmapClient.accountId;
+  const calls: JMAPMethodCall[] = [
+    ['Email/queryChanges', {
+      accountId,
+      filter: buildMailboxQueryFilter(mailboxId, undefined),
+      sort: options?.sort ?? [{ property: 'receivedAt', isAscending: false }],
+      sinceQueryState,
+      calculateTotal: true,
+    }, 'qc'],
+    ['Email/changes', { accountId, sinceState }, 'ch'],
+    ['Email/get', {
+      accountId,
+      '#ids': { resultOf: 'qc', name: 'Email/queryChanges', path: '/added/*/id' },
+      properties: EMAIL_LIST_PROPERTIES,
+    }, 'get'],
+  ];
+  if (options?.threads) {
+    calls.push(['Thread/get', {
+      accountId,
+      '#ids': { resultOf: 'get', name: 'Email/get', path: '/list/*/threadId' },
+    }, 'th']);
+  }
+  const res = await jmapClient.request(calls);
+  const responses = res.methodResponses ?? [];
+
+  const qc = methodBody(responses, 'qc', 'Email/queryChanges');
+  const ch = methodBody(responses, 'ch', 'Email/changes');
+  const got = methodBody(responses, 'get', 'Email/get');
+  const th = methodBody(responses, 'th', 'Thread/get');
+  return {
+    queryChanges: qc
+      ? {
+        oldQueryState: qc.oldQueryState as string,
+        newQueryState: qc.newQueryState as string,
+        total: (qc.total as number) ?? 0,
+        removed: (qc.removed as string[]) ?? [],
+        added: (qc.added as Array<{ id: string; index: number }>) ?? [],
+      }
+      : null,
+    changes: ch
+      ? {
+        oldState: ch.oldState as string,
+        newState: ch.newState as string,
+        hasMoreChanges: Boolean(ch.hasMoreChanges),
+        created: (ch.created as string[]) ?? [],
+        updated: (ch.updated as string[]) ?? [],
+        destroyed: (ch.destroyed as string[]) ?? [],
+      }
+      : null,
+    added: (got?.list as Email[] | undefined) ?? [],
+    addedFetched: !!got,
+    threads: (th?.list as Thread[] | undefined) ?? [],
+  };
+}
+
 export async function getEmails(ids: string[], accountIdOverride?: string): Promise<Email[]> {
   return (await getEmailsWithState(ids, accountIdOverride)).list;
 }

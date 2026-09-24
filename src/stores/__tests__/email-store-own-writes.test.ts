@@ -11,6 +11,7 @@ vi.mock('../../api/email', () => ({
   getMailboxChanges: vi.fn(async () => null),
   queryEmailPage: vi.fn(async () => ({ ids: [], total: 0, list: [], threads: [] })),
   getEmailQueryChanges: vi.fn(async () => null),
+  getEmailListDelta: vi.fn(async () => ({ queryChanges: null, changes: null, added: [], addedFetched: false, threads: [] })),
   getEmails: vi.fn(),
   getEmailsWithState: vi.fn(async () => ({ list: [], state: 'em-0' })),
   getEmailChanges: vi.fn(async () => null),
@@ -124,7 +125,7 @@ function folderCountsBecome(totalEmails: number) {
 }
 
 function listWasReRead(): boolean {
-  return [emailApi.getEmailQueryChanges, emailApi.getEmailChanges, emailApi.queryEmailPage, emailApi.getEmailsWithState]
+  return [emailApi.getEmailListDelta, emailApi.getEmailChanges, emailApi.queryEmailPage, emailApi.getEmailsWithState]
     .some((fn) => mock(fn).mock.calls.length > 0);
 }
 
@@ -207,7 +208,7 @@ describe('echo of our own writes', () => {
       '@type': 'StateChange', changed: { 'acc-1': { Email: 'em-3' } },
     });
 
-    expect(emailApi.getEmailQueryChanges).toHaveBeenCalledTimes(1);
+    expect(emailApi.getEmailListDelta).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes when new mail was delivered', async () => {
@@ -218,7 +219,7 @@ describe('echo of our own writes', () => {
       '@type': 'StateChange', changed: { 'acc-1': { Email: 'em-2', EmailDelivery: 'd-1' } },
     });
 
-    expect(emailApi.getEmailQueryChanges).toHaveBeenCalledTimes(1);
+    expect(emailApi.getEmailListDelta).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes when the folder count shows a message we do not hold left it', async () => {
@@ -230,7 +231,7 @@ describe('echo of our own writes', () => {
       '@type': 'StateChange', changed: { 'acc-1': { Email: 'em-2', Mailbox: 'mbs-2' } },
     });
 
-    expect(emailApi.getEmailQueryChanges).toHaveBeenCalledTimes(1);
+    expect(emailApi.getEmailListDelta).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes when a pinned row moves', async () => {
@@ -241,7 +242,7 @@ describe('echo of our own writes', () => {
       '@type': 'StateChange', changed: { 'acc-1': { Email: 'em-2' } },
     });
 
-    expect(emailApi.getEmailQueryChanges).toHaveBeenCalledTimes(1);
+    expect(emailApi.getEmailListDelta).toHaveBeenCalledTimes(1);
   });
 
   it('waits for a write whose push overtook its response', async () => {

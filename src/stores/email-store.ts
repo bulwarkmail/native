@@ -12,7 +12,7 @@ import {
   getMailboxChanges,
   queryEmailPage,
   queryEmailPagesAcrossAccounts,
-  getEmailQueryChanges,
+  getEmailListDelta,
   getEmails as fetchEmails,
   getEmailsWithState,
   getEmailChanges,
@@ -32,6 +32,7 @@ import {
   undoSpam as apiUndoSpam,
   destroyEmails as apiDestroyEmails,
   unprefixMailboxId,
+  type EmailChangesResult,
 } from '../api/email';
 import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
@@ -2620,11 +2621,14 @@ async function refreshEmailsImpl(): Promise<void> {
         snap.emails.length >= Math.min(limit, snap.total)
       ) {
         const baseEmails = snap.emails;
-        const queryChanges = await getEmailQueryChanges(ref.id, snap.queryState, {
+        // One request: Email/queryChanges, Email/changes, and Email/get of
+        // the added messages plus their threads by result reference.
+        const delta = await getEmailListDelta(ref.id, snap.queryState, emailState, {
           sort,
-          filter: undefined,
           accountId: ref.accountId,
+          threads: !useSettingsStore.getState().disableThreading,
         });
+        const queryChanges = delta.queryChanges;
         if (queryChanges) {
           // What's in the visible window now: drop removed ids, then apply
           // added (id, index) entries. Newly added ids need bodies fetched.
@@ -2640,10 +2644,13 @@ async function refreshEmailsImpl(): Promise<void> {
           let nextEmailState: string | undefined = emailState;
           // Drain `hasMoreChanges`: the server caps one response, so keep
           // asking from the returned state until the delta is complete
-          // (bounded so a runaway server can't loop us forever).
+          // (bounded so a runaway server can't loop us forever). The first
+          // round came with the delta.
           let since: string | undefined = emailState;
           for (let round = 0; since && round < 10; round++) {
-            const ec = await getEmailChanges(since, undefined, ref.accountId);
+            const ec: EmailChangesResult | null = round === 0
+              ? delta.changes
+              : await getEmailChanges(since, undefined, ref.accountId);
             if (!ec) {
               // cannotCalculateChanges → forget the state so the next
               // refresh re-queries the list and records a fresh one.
@@ -2656,19 +2663,22 @@ async function refreshEmailsImpl(): Promise<void> {
             since = ec.hasMoreChanges && ec.newState !== since ? ec.newState : undefined;
           }
 
-          // Fetch every added id, including ones the list already holds:
-          // `inMailbox` is a mutable filter, so the server reports each
-          // updated message as removed and re-added, and that row has to
-          // come back at its new index with fresh keywords. `updatedIds`
-          // refreshes rows Email/changes saw change in place.
+          // Every added id is fetched, including ones the list already
+          // holds: `inMailbox` is a mutable filter, so the server reports
+          // each updated message as removed and re-added, and that row has
+          // to come back at its new index with fresh keywords. The delta
+          // brought them unless there were more than one Email/get takes.
+          // `updatedIds` refreshes rows Email/changes saw change in place;
+          // only those the delta didn't bring cost another request.
           const existingById = new Map(baseEmails.map((e) => [e.id, e]));
+          const brought = new Set(delta.added.map((e) => e.id));
           const idsToFetch = Array.from(new Set([
-            ...addedIds,
-            ...updatedIds.filter((id) => existingById.has(id)),
+            ...(delta.addedFetched ? [] : addedIds),
+            ...updatedIds.filter((id) => existingById.has(id) && !brought.has(id)),
           ]));
-          let fetched: Email[] = [];
+          let fetched: Email[] = delta.added;
           if (idsToFetch.length > 0) {
-            fetched = (await getEmailsWithState(idsToFetch, ref.accountId)).list;
+            fetched = [...fetched, ...(await getEmailsWithState(idsToFetch, ref.accountId)).list];
           }
 
           // Rebuild the visible window order: start with existing emails,
@@ -2712,6 +2722,7 @@ async function refreshEmailsImpl(): Promise<void> {
               currentMailboxId,
               nextEmailState,
             ),
+            threadCounts: withThreadCounts(get().threadCounts, delta.threads),
             loading: false,
             mailboxSnapshots: {
               ...get().mailboxSnapshots,

@@ -14,6 +14,7 @@ vi.mock('../../api/email', () => ({
   getMailboxChanges: vi.fn(async () => null),
   queryEmails: vi.fn(),
   getEmailQueryChanges: vi.fn(async () => null),
+  getEmailListDelta: vi.fn(async () => ({ queryChanges: null, changes: null, added: [], addedFetched: false, threads: [] })),
   getEmails: vi.fn(),
   getEmailsWithState: vi.fn(async () => ({ list: [], state: 'em-state-0' })),
   getEmailChanges: vi.fn(async () => null),
