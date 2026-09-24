@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Email as ParsedEmail } from 'postal-mime';
 import type { Attachment, Email } from '../../api/types';
 import { pickEmailBody } from '../../lib/email-body';
 import { fetchBlobBytes, bytesToBase64 } from '../../lib/email-export';
@@ -32,18 +33,46 @@ function toBytes(content: ArrayBuffer | Uint8Array | string): Uint8Array {
   return content instanceof Uint8Array ? content : new Uint8Array(content);
 }
 
+async function parseMessage(bytes: Uint8Array): Promise<ParsedEmail> {
+  const { default: PostalMime } = await import('postal-mime');
+  return PostalMime.parse(bytes, { attachmentEncoding: 'arraybuffer' });
+}
+
 /**
  * Parse an embedded message/rfc822 part with postal-mime and inline its cid
  * images as data: URIs (they are not JMAP blobs, so the body view can't
  * fetch them).
  */
-export async function unwrapEmbeddedMessage(bytes: Uint8Array): Promise<{
+export async function unwrapEmbeddedMessage(bytes: Uint8Array): Promise<UnwrappedMessage> {
+  return unwrapParsed(await parseMessage(bytes));
+}
+
+interface UnwrappedMessage {
   html: string | null;
   text: string | null;
   attachments: ExtractedAttachment[];
-}> {
-  const { default: PostalMime } = await import('postal-mime');
-  const parsed = await PostalMime.parse(bytes, { attachmentEncoding: 'arraybuffer' });
+}
+
+/** What the in-app preview shows for an .eml file or message/rfc822 part. */
+export interface EmlPreview {
+  subject?: string;
+  from?: string;
+  date?: string;
+  html: string | null;
+  text: string | null;
+}
+
+/** Parse a message once for the preview: its unwrapped body plus the header lines shown above it. */
+export async function emlPreviewFromBytes(bytes: Uint8Array): Promise<EmlPreview> {
+  const parsed = await parseMessage(bytes);
+  const { html, text } = unwrapParsed(parsed);
+  const from = parsed.from && 'address' in parsed.from
+    ? `${parsed.from.name ? `${parsed.from.name} ` : ''}<${parsed.from.address}>`
+    : parsed.from?.name;
+  return { subject: parsed.subject, from, date: parsed.date, html, text };
+}
+
+function unwrapParsed(parsed: ParsedEmail): UnwrappedMessage {
   let html = parsed.html ?? null;
   const text = parsed.text ?? null;
   const attachments: ExtractedAttachment[] = [];

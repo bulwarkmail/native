@@ -73,12 +73,24 @@ function deleteQuietly(file: File): void {
   } catch { /* already gone or still in use - the sweep gets it later */ }
 }
 
+// Folders the in-app preview downloads into (see cachePreviewFile).
+const PREVIEW_DIR_PREFIX = 'preview-';
+
+function deleteStaleFiles(dir: Directory, now: number, maxAgeMs: number): void {
+  for (const entry of dir.list()) {
+    if (!(entry instanceof File)) continue;
+    const modified = (entry as { modificationTime?: number | null }).modificationTime;
+    const age = typeof modified === 'number' ? now - modified : Number.POSITIVE_INFINITY;
+    if (age > maxAgeMs) deleteQuietly(entry);
+  }
+}
+
 /**
  * Remove temp files older than a day. Files shared into other apps could not
  * always be deleted right after the share sheet closed (the receiving app may
- * still be reading them), so anything that slipped through is collected here.
- * Runs once per process, lazily before the first export, and is also safe to
- * call at launch.
+ * still be reading them), so anything that slipped through is collected here,
+ * including preview folders whose file went to another app. Runs once per
+ * process, lazily before the first export, and is also safe to call at launch.
  */
 let sweptThisProcess = false;
 export async function sweepStaleExportFiles(maxAgeMs = STALE_EXPORT_MS): Promise<void> {
@@ -88,11 +100,13 @@ export async function sweepStaleExportFiles(maxAgeMs = STALE_EXPORT_MS): Promise
     const dir = exportsDir();
     if (!dir.exists) return;
     const now = Date.now();
+    deleteStaleFiles(dir, now, maxAgeMs);
     for (const entry of dir.list()) {
-      if (!(entry instanceof File)) continue;
-      const modified = (entry as { modificationTime?: number | null }).modificationTime;
-      const age = typeof modified === 'number' ? now - modified : Number.POSITIVE_INFINITY;
-      if (age > maxAgeMs) deleteQuietly(entry);
+      if (!(entry instanceof Directory) || !entry.name.startsWith(PREVIEW_DIR_PREFIX)) continue;
+      try {
+        deleteStaleFiles(entry, now, maxAgeMs);
+        if (entry.list().length === 0) entry.delete();
+      } catch { /* in use - a later launch gets it */ }
     }
   } catch { /* housekeeping only */ }
 }
@@ -261,13 +275,76 @@ export async function downloadAttachment(
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
   const downloaded = await downloadInto(url, dest, Paths.document);
+  await offerSavedFile(downloaded, filename, mimeType);
+}
+
+async function offerSavedFile(file: File, filename: string, mimeType: string): Promise<void> {
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device');
   }
-  await Sharing.shareAsync(downloaded.uri, {
+  await Sharing.shareAsync(file.uri, {
     mimeType,
     dialogTitle: filename,
   });
+}
+
+/**
+ * {@link downloadAttachment} for a file already on the device (an open
+ * preview): copy it into the document directory and offer it through the
+ * share sheet, without downloading it again.
+ */
+export async function saveLocalFileCopy(file: File, mimeType: string, filename = file.name): Promise<void> {
+  const name = safeAttachmentName(filename, mimeType);
+  const dest = new File(Paths.document, name);
+  if (dest.exists) dest.delete();
+  file.copy(dest);
+  await offerSavedFile(dest, name, mimeType);
+}
+
+// ─── In-app preview files ───────────────────────────────────────────────
+
+let previewSeq = 0;
+
+/**
+ * Download a blob for the in-app preview. Every preview gets its own folder
+ * in the exports cache, so the file keeps its real name for Share and Open
+ * with while its path stays unique: React Native's Image caches decoded
+ * images by URI, and two files both called "photo.jpg" must not show the same
+ * picture. Remove it with {@link discardPreviewFile} when the preview closes;
+ * once it went to another app, leave it to the stale-file sweep instead.
+ */
+export async function cachePreviewFile(
+  blobId: string,
+  name: string | undefined,
+  type: string | undefined,
+  // Owning account for blobs shared by another principal (Files app).
+  accountId?: string,
+): Promise<File> {
+  void sweepStaleExportFiles();
+  previewSeq += 1;
+  const dir = new Directory(exportsDir(), `${PREVIEW_DIR_PREFIX}${Date.now().toString(36)}-${previewSeq.toString(36)}`);
+  const filename = safeAttachmentName(name, type);
+  const url = getDownloadUrl(blobId, filename, type || 'application/octet-stream', accountId);
+  try {
+    return await downloadInto(url, new File(dir, filename), dir);
+  } catch (err) {
+    try {
+      if (dir.exists) dir.delete();
+    } catch { /* the sweep gets it */ }
+    throw err;
+  }
+}
+
+/** Delete a file from {@link cachePreviewFile} together with its folder. */
+export function discardPreviewFile(file: File): void {
+  try {
+    const dir = file.parentDirectory;
+    if (dir.name.startsWith(PREVIEW_DIR_PREFIX)) {
+      if (dir.exists) dir.delete();
+      return;
+    }
+  } catch { /* fall back to the file alone */ }
+  deleteQuietly(file);
 }
 
 /** Write bytes into the exports cache (caller shares / previews / cleans up). */
@@ -285,13 +362,15 @@ export function writeTempFile(bytes: Uint8Array, filename: string, mimeType?: st
 /**
  * Share an already-materialised local file (zip bundles, extracted parts).
  * `forceSheet` skips the Android viewer handoff and always shows the share
- * sheet - the explicit "Share" action, as opposed to "Open".
+ * sheet - the explicit "Share" action, as opposed to "Open". `keep` leaves the
+ * file in place afterwards, for a caller that still shows it (an open
+ * preview) and removes it itself.
  */
 export async function shareLocalFile(
   file: File,
   mimeType: string,
   dialogTitle?: string,
-  opts: { forceSheet?: boolean } = {},
+  opts: { forceSheet?: boolean; keep?: boolean } = {},
 ): Promise<void> {
   if (!opts.forceSheet && Platform.OS === 'android' && (await openWithViewer(file, mimeType))) return;
   if (!(await Sharing.isAvailableAsync())) {
@@ -300,7 +379,7 @@ export async function shareLocalFile(
   try {
     await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: dialogTitle ?? file.name });
   } finally {
-    scheduleTempCleanup(file);
+    if (!opts.keep) scheduleTempCleanup(file);
   }
 }
 

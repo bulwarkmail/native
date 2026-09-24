@@ -19,7 +19,7 @@ import {
   ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check,
+  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink,
 } from 'lucide-react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -63,6 +63,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useLocaleStore } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
+import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
 
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
@@ -191,6 +192,7 @@ export default function FilesScreen() {
   const [actionsTarget, setActionsTarget] = useState<FileRow | null>(null);
   const [shareTarget, setShareTarget] = useState<FileRow | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileRow | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<FileRow | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
@@ -252,6 +254,7 @@ export default function FilesScreen() {
       setActionsTarget(null);
       setShareTarget(null);
       setMoveTarget(null);
+      setPreviewTarget(null);
       setSearchQuery('');
     }
     loadedForAccountRef.current = activeAccountId;
@@ -338,7 +341,9 @@ export default function FilesScreen() {
     });
   }, []);
 
-  const previewFile = useCallback(async (row: FileRow) => {
+  // Hand the file to another app: the viewer for its type on Android, the
+  // share sheet otherwise.
+  const openFileWith = useCallback(async (row: FileRow) => {
     if (!row.blobId) return;
     setBusyId(row.id);
     try {
@@ -349,6 +354,13 @@ export default function FilesScreen() {
       setBusyId(null);
     }
   }, [t]);
+
+  // Tap on a file: the in-app preview for the types it shows (images, text
+  // and code, .eml, PDFs on iOS), the other app for the rest.
+  const openFile = useCallback((row: FileRow) => {
+    if (canPreviewInApp(row)) setPreviewTarget(row);
+    else void openFileWith(row);
+  }, [openFileWith]);
 
   const downloadFile = useCallback(async (row: FileRow) => {
     if (!row.blobId) return;
@@ -432,9 +444,9 @@ export default function FilesScreen() {
         setSearchQuery('');
         return;
       }
-      void previewFile(row);
+      openFile(row);
     },
-    [selectionMode, toggleSelect, previewFile],
+    [selectionMode, toggleSelect, openFile],
   );
 
   const handleRowLongPress = useCallback((row: FileRow) => {
@@ -1019,7 +1031,11 @@ export default function FilesScreen() {
         onClose={() => setActionsTarget(null)}
         onPreview={(r) => {
           setActionsTarget(null);
-          void previewFile(r);
+          setPreviewTarget(r);
+        }}
+        onOpenWith={(r) => {
+          setActionsTarget(null);
+          void openFileWith(r);
         }}
         onDownload={(r) => {
           setActionsTarget(null);
@@ -1066,6 +1082,8 @@ export default function FilesScreen() {
         onChangeKey={(k) => setSetting('filesDefaultSortKey', k)}
         onChangeDir={(d) => setSetting('filesDefaultSortDir', d)}
       />
+
+      <FilePreviewModal file={previewTarget} onClose={() => setPreviewTarget(null)} />
 
       <ShareSheet
         node={shareTarget}
@@ -1154,6 +1172,7 @@ interface ActionsSheetProps {
   t: Translate;
   onClose: () => void;
   onPreview: (r: FileRow) => void;
+  onOpenWith: (r: FileRow) => void;
   onDownload: (r: FileRow) => void;
   onShare: (r: FileRow) => void;
   onMove: (r: FileRow) => void;
@@ -1163,7 +1182,7 @@ interface ActionsSheetProps {
 }
 
 function ActionsSheet({
-  target, sharingEnabled, t, onClose, onPreview, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
+  target, sharingEnabled, t, onClose, onPreview, onOpenWith, onDownload, onShare, onMove, onDuplicate, onRename, onDelete,
 }: ActionsSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
@@ -1190,10 +1209,16 @@ function ActionsSheet({
                   modified ? formatModified(modified) : null,
                 ].filter(Boolean).join(' · ')}
               </Text>
-              {!isDir ? (
+              {!isDir && canPreviewInApp(target) ? (
                 <Pressable style={styles.action} onPress={() => onPreview(target)}>
-                  <Share2 size={18} color={c.text} />
-                  <Text style={styles.actionLabel}>{t('files.preview', 'Preview')} / {t('files.share', 'Share')}</Text>
+                  <Eye size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>{t('files.preview', 'Preview')}</Text>
+                </Pressable>
+              ) : null}
+              {!isDir ? (
+                <Pressable style={styles.action} onPress={() => onOpenWith(target)}>
+                  <ExternalLink size={18} color={c.text} />
+                  <Text style={styles.actionLabel}>{t('files.open_with', 'Open with…')}</Text>
                 </Pressable>
               ) : null}
               {!isDir ? (

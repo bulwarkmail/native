@@ -16,7 +16,7 @@ import {
 import { emailExportFilename } from '../../lib/download-filename';
 import { ActionSheet, type ActionSheetItem } from './ActionSheet';
 import { AttachmentPreviewModal, type PreviewItem } from './AttachmentPreviewModal';
-import { unwrapEmbeddedMessage, type ExtractedAttachment } from './use-body-override';
+import { emlPreviewFromBytes, type ExtractedAttachment } from './use-body-override';
 
 interface Props {
   email: Email;
@@ -131,16 +131,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
             ? await fetchBlobBytes(item.att.blobId, item.att.name, item.att.type, jmapAccountId)
             : item.part.bytes;
           if (kind === 'eml') {
-            const res = await unwrapEmbeddedMessage(bytes);
-            const { default: PostalMime } = await import('postal-mime');
-            const parsed = await PostalMime.parse(bytes, { attachmentEncoding: 'arraybuffer' });
-            const from = parsed.from && 'address' in parsed.from
-              ? `${parsed.from.name ? `${parsed.from.name} ` : ''}<${parsed.from.address}>`
-              : parsed.from?.name;
-            setPreview({
-              kind, name: item.name, mimeType: item.type,
-              eml: { subject: parsed.subject, from, date: parsed.date, html: res.html, text: res.text },
-            });
+            setPreview({ kind, name: item.name, mimeType: item.type, eml: await emlPreviewFromBytes(bytes) });
           } else {
             setPreview({ kind, name: item.name, mimeType: item.type, text: new TextDecoder('utf-8').decode(bytes) });
           }
