@@ -42,6 +42,15 @@ if (parts.length !== 3 || parts.some(Number.isNaN)) {
 parts[2] += 1;
 const next = parts.join('.');
 
+// android/app/build.gradle derives versionCode as
+// major * 10000000 + minor * 10000 + patch. Past these limits it would stop
+// increasing, and Android refuses an update with a lower versionCode.
+if (parts[1] > 999 || parts[2] > 9999) {
+  console.error(`${next} would break the Android versionCode: minor must stay below 1000 and patch below 10000.`);
+  console.error('Raise the minor or major version in VERSION by hand and commit it, then bump again.');
+  process.exit(1);
+}
+
 const existingTags = new Set(git('tag', '--list').split(/\r?\n/).filter(Boolean));
 if (existingTags.has(next)) {
   console.error(`Tag ${next} already exists.`);
