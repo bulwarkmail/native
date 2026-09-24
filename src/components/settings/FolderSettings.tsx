@@ -306,7 +306,12 @@ export function FolderSettings() {
                   ? t('settings.folders.edit_folder', `Edit "${editor.mailbox.name}"`, { name: editor.mailbox.name })
                   : t('settings.folders.new_folder', 'New folder')}
               </Text>
-              <Pressable onPress={closeEditor} hitSlop={8}>
+              <Pressable
+                onPress={closeEditor}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', 'Close')}
+              >
                 <X size={20} color={c.text} />
               </Pressable>
             </View>

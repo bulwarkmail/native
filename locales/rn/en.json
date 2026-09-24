@@ -640,6 +640,13 @@
     "experimental": {
       "title": "Experimental Feature"
     },
+    "filters": {
+      "remove_action": "Remove action",
+      "remove_condition": "Remove condition",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# line} other {# lines}}"
+      }
+    },
     "folders": {
       "account": "Account",
       "cannot_delete": "Cannot delete",

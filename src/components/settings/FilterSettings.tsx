@@ -408,6 +408,8 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                       disabled={editIdx <= 0}
                       hitSlop={6}
                       style={[styles.reorderBtn, editIdx <= 0 && styles.reorderBtnDisabled]}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('settings.appearance.message_list_order.move_up', 'Move up')}
                     >
                       <ChevronUp size={16} color={c.mutedForeground} />
                     </Pressable>
@@ -416,12 +418,20 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                       disabled={editIdx === editableIds.length - 1}
                       hitSlop={6}
                       style={[styles.reorderBtn, editIdx === editableIds.length - 1 && styles.reorderBtnDisabled]}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('settings.appearance.message_list_order.move_down', 'Move down')}
                     >
                       <ChevronDown size={16} color={c.mutedForeground} />
                     </Pressable>
                   </View>
 
-                  <Pressable onPress={() => handleDelete(rule)} hitSlop={6} style={styles.deleteBtn}>
+                  <Pressable
+                    onPress={() => handleDelete(rule)}
+                    hitSlop={6}
+                    style={styles.deleteBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('settings.filters.delete_rule', 'Delete Rule')}
+                  >
                     <X size={16} color={c.mutedForeground} />
                   </Pressable>
                 </View>

@@ -232,6 +232,8 @@ export function ReadingSettings() {
                     )
                   }
                   hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.email_behavior.attachment_reminder.remove', 'Remove')}
                 >
                   <X size={12} color={c.mutedForeground} />
                 </Pressable>

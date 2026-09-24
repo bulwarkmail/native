@@ -65,7 +65,13 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.headerClose}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            style={styles.headerClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close', 'Close')}
+          >
             <X size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>{t('settings.filters.sieve_editor.title', 'Sieve Script Editor')}</Text>
@@ -104,7 +110,9 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
               />
             </ScrollView>
 
-            <Text style={styles.lineCount}>{lineCount} {lineCount === 1 ? 'line' : 'lines'}</Text>
+            <Text style={styles.lineCount}>
+              {t('settings.filters.sieve_editor.line_count', '{count, plural, one {# line} other {# lines}}', { count: lineCount })}
+            </Text>
 
             {validationResult && (
               <View style={[styles.resultBanner, validationResult.isValid ? styles.resultOk : styles.resultErr]}>

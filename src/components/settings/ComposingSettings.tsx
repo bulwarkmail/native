@@ -205,7 +205,12 @@ export function ComposingSettings() {
             {attachmentReminderKeywords.map((kw) => (
               <View key={kw} style={styles.chip}>
                 <Text style={styles.chipText}>{kw}</Text>
-                <Pressable onPress={() => removeKeyword(kw)} hitSlop={6}>
+                <Pressable
+                  onPress={() => removeKeyword(kw)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.email_behavior.attachment_reminder.remove', 'Remove')}
+                >
                   <X size={12} color={c.textSecondary} />
                 </Pressable>
               </View>

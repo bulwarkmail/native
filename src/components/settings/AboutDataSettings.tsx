@@ -268,7 +268,7 @@ export function AboutDataSettings() {
               : sync.phase === 'scanning'
                 ? t('settings.offline.scanning', 'Scanning recent mail…')
                 : sync.phase === 'error'
-                  ? t('settings.offline.last_sync_failed', 'Last sync failed: {message}', { message: sync.message ?? 'unknown error' })
+                  ? t('settings.offline.last_sync_failed', 'Last sync failed: {message}', { message: sync.message ?? t('identities.validation_errors.unknown_error', 'Unknown error') })
                   : t('settings.offline.last_sync', 'Last sync {when}', { when: formatRelativeTime(sync.finishedAt) })}
           </Text>
           {queuedChanges > 0 && (

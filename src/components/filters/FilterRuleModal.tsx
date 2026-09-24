@@ -229,7 +229,13 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.headerClose}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            style={styles.headerClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close', 'Close')}
+          >
             <X size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>
@@ -295,6 +301,8 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                         disabled={conditions.length <= 1}
                         hitSlop={8}
                         style={[styles.removeBtn, conditions.length <= 1 && styles.removeBtnDisabled]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('settings.filters.remove_condition', 'Remove condition')}
                       >
                         <Trash2 size={16} color={c.mutedForeground} />
                       </Pressable>
@@ -361,6 +369,8 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                         disabled={actions.length <= 1}
                         hitSlop={8}
                         style={[styles.removeBtn, actions.length <= 1 && styles.removeBtnDisabled]}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('settings.filters.remove_action', 'Remove action')}
                       >
                         <Trash2 size={16} color={c.mutedForeground} />
                       </Pressable>
