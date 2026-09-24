@@ -5,11 +5,10 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image as ImageIcon, ShieldCheck } from 'lucide-react-native';
 import type { Email } from '../api/types';
-import {
-  prepareEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml, extractCidRefs,
-} from '../lib/email-html';
+import { extractCidRefs } from '../lib/email-html';
 import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
-import { buildQuoteCollapseScript, collapsePlainTextQuotes } from '../lib/quote-collapse';
+import { buildQuoteCollapseScript } from '../lib/quote-collapse';
+import { bodyDocument } from '../lib/email-body-document';
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted } from '../lib/trusted-senders';
@@ -583,7 +582,9 @@ export default function EmailBodyView({
 
   React.useEffect(() => {
     setHeight(120);
-    setCidMap({});
+    // Keep the empty map it started with: a new object would rebuild the
+    // document (sanitise the body) a second time on every mount.
+    setCidMap((prev) => (Object.keys(prev).length === 0 ? prev : {}));
     settledRef.current = false;
   }, [email.id]);
 
@@ -628,33 +629,24 @@ export default function EmailBodyView({
     hide: t('email_viewer.hide_quoted_text', 'Hide quoted text'),
   }), [t]);
 
-  const prepared = React.useMemo(() => {
-    if (rawHtml) {
-      const res = prepareEmailHtml(rawHtml, {
-        blockRemoteImages: shouldBlock,
-        cidMap,
-        isDark: renderAsDark,
-        messageSpacing,
-      });
-      return { ...res, isHtml: true };
-    }
-    const fallbackText = text ?? email.preview ?? '';
-    if (!fallbackText) {
-      const res = prepareEmailHtml(
-        `<em style="color:#71717a">${t('email_viewer.no_body_content', '(No body content available)')}</em>`,
-        { isDark: renderAsDark },
-      );
-      return { ...res, isHtml: true };
-    }
-    const safe = collapsePlainTextQuotes(plainTextToSafeHtml(fallbackText), quoteLabels);
-    return {
-      html: wrapPlainTextEmail(safe, { isDark: renderAsDark, font: plainTextFont }),
-      applyInversion: false,
-      hasNativeDark: false,
-      blockedExternal: false,
-      isHtml: false,
-    };
-  }, [rawHtml, text, email.preview, shouldBlock, cidMap, renderAsDark, messageSpacing, plainTextFont, quoteLabels, t]);
+  // Sanitised and wrapped once per message, body and settings, and reused
+  // when the same body mounts again (lib/email-body-document).
+  const emptyLabel = t('email_viewer.no_body_content', '(No body content available)');
+  const prepared = React.useMemo(() => bodyDocument({
+    key: `${jmapAccountId ?? ''}|${email.id}`,
+    rawHtml,
+    text: text ?? email.preview ?? '',
+    emptyLabel,
+    blockRemoteImages: shouldBlock,
+    cidMap,
+    isDark: renderAsDark,
+    messageSpacing,
+    plainTextFont,
+    quoteLabels,
+  }), [
+    jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
+    messageSpacing, plainTextFont, quoteLabels,
+  ]);
 
   const source = React.useMemo(() => ({ html: prepared.html }), [prepared.html]);
   const showBanner = shouldBlock && prepared.blockedExternal;
