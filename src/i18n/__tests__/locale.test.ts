@@ -53,8 +53,10 @@ describe('translate', () => {
     expect(many).toBe('3 emails selected');
   });
 
-  it('serves RN-only overlay keys in every locale via the en fallback', () => {
-    expect(translate('fr', 'email_list.no_trash_folder')).toContain('Trash');
+  it('serves RN-only overlay keys in every locale', () => {
+    const french = translate('fr', 'email_list.no_trash_folder');
+    expect(french).not.toBe('email_list.no_trash_folder');
+    expect(french).not.toBe('');
   });
 });
 
@@ -68,7 +70,7 @@ describe('catalog loading', () => {
     expect(i18n.loadedLocales().sort()).toEqual(['de']);
 
     // A key German lacks falls through to English, which is built then.
-    i18n.translate('de', 'email_list.no_trash_folder');
+    i18n.translate('de', 'nope.missing');
     expect(i18n.loadedLocales().sort()).toEqual(['de', 'en']);
 
     // Switching language loads the new catalog synchronously.
