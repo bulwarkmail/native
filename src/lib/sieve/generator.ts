@@ -129,7 +129,11 @@ function generateActions(actions: FilterAction[]): string[] {
       case 'reject':
         return `reject "${escapeString(action.value || '')}";`;
       case 'keep':
-        return 'keep;';
+        // A bare `keep;` delivers to the "default place", which on Stalwart is
+        // Junk for a message its spam filter has already classified, so an
+        // allow-list rule made with "Keep" would change nothing. An explicit
+        // `fileinto "INBOX"` is honored over the spam verdict (#1027).
+        return 'fileinto "INBOX";';
       case 'stop':
         return 'stop;';
     }
@@ -152,6 +156,7 @@ function computeRequires(rules: FilterRule[], vacation?: VacationSieveConfig): s
     for (const action of rule.actions) {
       switch (action.type) {
         case 'move':
+        case 'keep':
           extensions.add('fileinto');
           break;
         case 'copy':

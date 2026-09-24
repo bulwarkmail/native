@@ -148,6 +148,38 @@ describe('parseScript', () => {
       const result = parseScript(script);
       expect(result.rules).toEqual(rules);
     });
+
+    it('reads a webmail "Keep in inbox" rule back as keep and saves it unchanged (#1027)', () => {
+      // What the webmail writes since 62465e1e: the action stays `keep` in the
+      // metadata, but the Sieve block files into INBOX explicitly.
+      const rule = makeRule({
+        id: 'allow',
+        name: 'Allow boss',
+        conditions: [{ field: 'from', comparator: 'is', value: 'boss@example.com' }],
+        actions: [{ type: 'keep' }],
+        stopProcessing: true,
+      });
+      const webScript = [
+        '/* @metadata:begin',
+        JSON.stringify({ version: 1, rules: [rule] }),
+        '@metadata:end */',
+        '',
+        'require ["fileinto"];',
+        '',
+        '# Rule: Allow boss',
+        'if header :is "From" "boss@example.com" {',
+        '    fileinto "INBOX";',
+        '    stop;',
+        '}',
+        '',
+      ].join('\n');
+
+      const result = parseScript(webScript);
+      expect(result.isOpaque).toBe(false);
+      expect(result.rules).toEqual([rule]);
+      expect(generateScript(result.rules, result.vacation, { externalRequires: result.externalRequires }))
+        .toBe(webScript);
+    });
   });
 
   describe('validation edge cases', () => {

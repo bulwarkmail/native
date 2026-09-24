@@ -209,9 +209,14 @@ describe('generateScript', () => {
       expect(script).toContain('reject "Go away";');
     });
 
-    it('generates keep', () => {
+    it('generates keep as an explicit fileinto "INBOX" (#1027)', () => {
+      // A bare `keep;` lets Stalwart's spam verdict decide the folder, so a
+      // "Keep in inbox" allow-list rule must file into INBOX explicitly.
       const script = generateScript([makeRule({ actions: [{ type: 'keep' }] })]);
-      expect(script).toContain('keep;');
+      expect(script).toContain('fileinto "INBOX";');
+      expect(script).not.toMatch(/^\s*keep;/m);
+      const requireLine = script.split('\n').find(l => l.startsWith('require'))!;
+      expect(requireLine).toContain('"fileinto"');
     });
 
     it('generates stop', () => {
@@ -434,9 +439,9 @@ describe('generateScript', () => {
       expect(requireLine).toContain('"imap4flags"');
     });
 
-    it('generates no require line when only keep/discard/stop/forward actions', () => {
+    it('generates no require line when only discard/stop/forward actions', () => {
       const script = generateScript([makeRule({
-        actions: [{ type: 'keep' }, { type: 'forward', value: 'a@b.com' }],
+        actions: [{ type: 'forward', value: 'a@b.com' }, { type: 'stop' }],
       })]);
       expect(script).not.toContain('require');
     });
