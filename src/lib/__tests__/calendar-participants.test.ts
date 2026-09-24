@@ -3,6 +3,7 @@ import type { CalendarEvent } from '../../api/types';
 import {
   buildParticipantMap,
   collectUserCalendarAddresses,
+  getParticipantCount,
   getParticipantList,
   getStatusCounts,
   getUserParticipantId,
@@ -87,5 +88,86 @@ describe('seedAttendees', () => {
     const emails = Object.values(map).map((p) => p.email?.toLowerCase());
     expect(emails.filter((e) => e === 'alice@example.com')).toHaveLength(1);
     expect(emails).toHaveLength(3);
+  });
+});
+
+describe('getParticipantList dedupe, names and organizer status', () => {
+  const org = { name: 'Alice', email: 'alice@example.com', roles: { owner: true }, participationStatus: 'accepted' as const };
+  const bob = { name: 'Bob', email: 'bob@example.com', roles: { attendee: true }, participationStatus: 'needs-action' as const };
+
+  it('renders the organizer once when the server also emits them as an attendee', () => {
+    const list = getParticipantList({
+      organizerCalendarAddress: 'mailto:alice@example.com',
+      participants: {
+        org: { ...org, name: '' },
+        att1: bob,
+        att2: { ...bob, name: 'Carol', email: 'carol@example.com' },
+        orgDup: { ...bob, name: '', email: 'alice@example.com' },
+      },
+    });
+    expect(list).toHaveLength(3);
+    const alices = list.filter((p) => p.email === 'alice@example.com');
+    expect(alices).toHaveLength(1);
+    expect(alices[0]).toMatchObject({ isOrganizer: true, status: 'accepted' });
+  });
+
+  it('keeps the real RSVP when the first entry of an address never replied', () => {
+    const list = getParticipantList({
+      organizerCalendarAddress: 'mailto:alice@example.com',
+      participants: {
+        att1: { ...bob, name: '', email: 'alice@example.com' },
+        org,
+      },
+    });
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ isOrganizer: true, status: 'accepted', name: 'Alice' });
+  });
+
+  it('merges duplicate attendees case-insensitively, first-seen name wins', () => {
+    const list = getParticipantList({
+      participants: {
+        att1: bob,
+        att2: { ...bob, name: 'Bobby', email: 'BOB@example.com', participationStatus: 'accepted' },
+      },
+    });
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ name: 'Bob', status: 'accepted' });
+  });
+
+  it('shows a statusless organizer as accepted, not pending', () => {
+    const list = getParticipantList(event);
+    expect(list.find((p) => p.isOrganizer)?.status).toBe('accepted');
+  });
+
+  it('fills missing names from resolveName without overriding event data', () => {
+    const resolveName = (email: string) => (email.startsWith('alice') || email.startsWith('bob') ? 'Contact' : undefined);
+    const list = getParticipantList(
+      { participants: { org: { ...org, name: '' }, att1: bob } },
+      { resolveName },
+    );
+    expect(list.find((p) => p.email === 'alice@example.com')?.name).toBe('Contact');
+    expect(list.find((p) => p.email === 'bob@example.com')?.name).toBe('Bob');
+  });
+
+  it('keeps entries without an address unmerged', () => {
+    const list = getParticipantList({
+      participants: {
+        org,
+        ghost1: { name: 'No Address', participationStatus: 'needs-action' },
+        ghost2: { name: 'Also No Address', participationStatus: 'accepted' },
+      },
+    });
+    expect(list).toHaveLength(3);
+  });
+
+  it('counts addresses, not raw entries', () => {
+    expect(getParticipantCount({
+      participants: {
+        org: { ...org, name: '' },
+        att1: bob,
+        orgDup: { ...bob, name: '', email: 'alice@example.com' },
+        ghost: { name: 'No Address' },
+      },
+    })).toBe(3);
   });
 });

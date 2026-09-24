@@ -68,6 +68,7 @@ import {
 } from '../../lib/calendar-participants';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
+import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -187,6 +188,7 @@ export function EventModal({
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const timeLabelPattern = timePattern(timeFormat);
   const isEdit = !!event;
+  const resolveContactName = useContactNameResolver();
 
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -352,8 +354,12 @@ export function EventModal({
       };
       const organizerEmail = currentUserEmails[0];
       if (attendees.length > 0 && organizerEmail) {
+        // A new event has no participants yet, so it would store an empty
+        // organizer name; fall back to the contact card / account name.
         const organizerName =
-          (event ? getParticipantList(event).find((p) => p.isOrganizer)?.name : '') || '';
+          (event ? getParticipantList(event).find((p) => p.isOrganizer)?.name : '')
+          || resolveContactName(organizerEmail)
+          || '';
         data.participants = buildParticipantMap(
           { name: organizerName, email: organizerEmail },
           attendees,

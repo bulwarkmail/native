@@ -49,6 +49,7 @@ import {
   isOrganizer,
 } from '../../lib/calendar-participants';
 import { getEventEditability } from '../../lib/calendar-editability';
+import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 
@@ -143,6 +144,9 @@ export function EventDetailSheet({
   const { locale, t } = useCalendarLocale();
   const [rsvpBusy, setRsvpBusy] = React.useState(false);
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // Bare addresses (the organizer above all — Stalwart drops its display
+  // name) render with the contact card's name instead of the raw email.
+  const resolveContactName = useContactNameResolver();
   const slideY = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const visible = !!event;
@@ -192,7 +196,7 @@ export function EventDetailSheet({
   const range = formatRange(event, timeFormat, locale);
   const recurrence = recurrenceLabel(event, t, locale);
   const reminders = alertsToReminders(event.alerts);
-  const participants = getParticipantList(event);
+  const participants = getParticipantList(event, { resolveName: resolveContactName });
   const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
   const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
   const isCancelled = event.status === 'cancelled';
@@ -365,9 +369,9 @@ export function EventDetailSheet({
                         </Text>
                       ) : null}
                     </Text>
-                    <Text style={styles.participantStatus}>
-                      {p.isOrganizer ? '' : statusLabel(p.status, t)}
-                    </Text>
+                    {/* The organizer is marked by the suffix; this shows their status
+                        (organizers default to accepted), like the dot. */}
+                    <Text style={styles.participantStatus}>{statusLabel(p.status, t)}</Text>
                   </View>
                 ))}
               </View>
