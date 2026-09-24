@@ -61,6 +61,8 @@ const latestStates = new Map<string, string>();
 const listeners = new Set<() => void>();
 let detailChars = 0;
 let wired = false;
+// Bumped by clearEmailDetailCache: a load started before must not refill it.
+let generation = 0;
 
 // JMAP ids are only unique per account (RFC 8621 §1.3), and two signed-in
 // servers can hand out the same account ids, so the key names both.
@@ -201,8 +203,12 @@ export function patchDetail(id: string, accountId: string | undefined, patch: Fl
   if (changed) emit();
 }
 
-/** Drop everything (tests, sign-out). */
+/**
+ * Drop everything held, and keep loads still in flight from storing what
+ * they bring (sign-out, account removal).
+ */
 export function clearEmailDetailCache(): void {
+  generation++;
   details.clear();
   threads.clear();
   rows.clear();
@@ -243,16 +249,19 @@ async function fetchBodies(
   waiting: Map<string, Deferred<Email>>,
 ): Promise<void> {
   if (ids.length === 0) return;
+  const gen = generation;
   try {
     const res = await getFullEmailsWithState(ids, accountId);
-    noteEmailState(accountId, res.state);
+    const keep = gen === generation;
+    if (keep) noteEmailState(accountId, res.state);
     const found = new Map<string, Email>();
     for (const email of res.list) {
       found.set(email.id, email);
+      if (!keep) continue;
       putDetail(keyOf(email.id, accountId), { email, state: res.state, chars: bodyChars(email) });
       refreshOfflineCopy(email, accountId);
     }
-    emit();
+    if (keep) emit();
     for (const id of ids) {
       const email = found.get(id);
       if (email) waiting.get(id)?.resolve(email);
@@ -269,9 +278,11 @@ async function revalidate(
   waiting: Map<string, Deferred<Email>>,
 ): Promise<void> {
   if (ids.length === 0) return;
+  const gen = generation;
   let gone = new Set<string>();
   try {
     const res = await getEmailFlags(ids, accountId);
+    if (gen !== generation) throw new Error('cleared');
     noteEmailState(accountId, res.state);
     gone = new Set(res.notFound);
     let changed = false;
@@ -362,10 +373,11 @@ function startLoads(
   void (async () => {
     // An offline copy is shown right away, then checked like a held one.
     if (fromOffline.length > 0) {
+      const gen = generation;
       const copies = await Promise.all(fromOffline.map((id) => offline.get(id, accountId).catch(() => null)));
       let shown = false;
       fromOffline.forEach((id, i) => {
-        const email = copies[i];
+        const email = gen === generation ? copies[i] : null;
         if (!email) {
           missing.push(id);
           return;
@@ -419,8 +431,10 @@ export function loadThread(threadId: string, accountId?: string): Promise<Thread
   if (held && held.state && held.state === latest) return Promise.resolve(held);
   const pending = pendingThreads.get(key);
   if (pending) return pending;
+  const gen = generation;
   const p = getThreadHeaders(threadId, accountId)
     .then((res) => {
+      if (gen !== generation) throw new Error('cleared');
       noteEmailState(accountId, res.state);
       const entry: ThreadEntry = {
         ids: res.emailIds,
@@ -447,10 +461,10 @@ export function loadThread(threadId: string, accountId?: string): Promise<Thread
       return entry as ThreadView;
     })
     .catch((err) => {
-      if (held) return held as ThreadView;
+      if (held && gen === generation) return held as ThreadView;
       throw err;
     })
-    .finally(() => { pendingThreads.delete(key); });
+    .finally(() => { if (pendingThreads.get(key) === p) pendingThreads.delete(key); });
   pendingThreads.set(key, p);
   return p;
 }

@@ -24,7 +24,7 @@ export function lastBodyHeight(key: string, width: number): number | undefined {
   return heights.get(keyOf(key, width));
 }
 
-/** Forget every height (tests). */
+/** Forget every height (sign-out, account removal). */
 export function clearBodyHeights(): void {
   heights.clear();
 }

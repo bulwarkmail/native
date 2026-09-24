@@ -316,3 +316,22 @@ describe('prefetchMessage', () => {
     return [{ id: 'e1', threadId: 't-e1', keywords: {}, mailboxIds: {} }];
   }
 });
+
+describe('clearing the cache', () => {
+  it('drops what it holds and keeps a load still in flight from refilling it', async () => {
+    fullGet.mockResolvedValueOnce(fullResponse([full('e1')], 's1'));
+    await loadDetail('e1');
+    let release!: () => void;
+    fullGet.mockReturnValueOnce(new Promise((resolve) => {
+      release = () => resolve(fullResponse([full('e2')], 's1'));
+    }));
+    const inFlight = loadDetail('e2');
+
+    clearEmailDetailCache();
+    release();
+    await inFlight;
+
+    expect(peekDetail('e1')).toBeUndefined();
+    expect(peekDetail('e2')).toBeUndefined();
+  });
+});

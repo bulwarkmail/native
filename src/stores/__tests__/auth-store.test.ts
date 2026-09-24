@@ -41,6 +41,10 @@ import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
 import { useContactsStore } from '../contacts-store';
 import { useEmailStore } from '../email-store';
+import type { Email } from '../../api/types';
+import { peekRow, rememberRows } from '../../lib/email-detail-cache';
+import { bodyDocument } from '../../lib/email-body-document';
+import { lastBodyHeight, rememberBodyHeight } from '../../lib/body-heights';
 
 const mockConnect = jmapClient.connect as ReturnType<typeof vi.fn>;
 const mockLogout = jmapClient.logout as ReturnType<typeof vi.fn>;
@@ -124,6 +128,50 @@ describe('auth-store', () => {
       expect(state.isAuthenticated).toBe(false);
       expect(state.serverUrl).toBeNull();
       expect(state.username).toBeNull();
+    });
+  });
+
+  describe('mail the viewer held in memory', () => {
+    const docInput = {
+      key: '|e1', rawHtml: '<p>Hi</p>', text: null, emptyLabel: '-', blockRemoteImages: false,
+      cidMap: {}, isDark: false, messageSpacing: 'auto' as const, plainTextFont: 'sans' as const,
+      quoteLabels: { show: 's', hide: 'h' },
+    };
+
+    function holdMail() {
+      rememberRows([{ id: 'e1', threadId: 't1', receivedAt: '2026-09-01T00:00:00Z' } as Email]);
+      rememberBodyHeight('|e1', 400, 900);
+      return bodyDocument(docInput);
+    }
+
+    it('is dropped on sign-out', async () => {
+      const doc = holdMail();
+      mockLogout.mockResolvedValue(undefined);
+
+      await useAuthStore.getState().logout();
+
+      expect(peekRow('e1')).toBeUndefined();
+      expect(lastBodyHeight('|e1', 400)).toBeUndefined();
+      expect(bodyDocument(docInput)).not.toBe(doc);
+    });
+
+    it('is dropped when another account is removed', async () => {
+      const doc = holdMail();
+      useAccountStore.setState({
+        accounts: [{
+          id: 'other@mail.example.com', serverUrl: 'https://mail.example.com', username: 'other',
+          displayName: 'other', email: 'other', avatarColor: '#000', lastLoginAt: 0,
+          isConnected: true, hasError: false, isDefault: false,
+        }],
+      });
+      useAuthStore.setState({ activeAccountId: 'me@mail.example.com' });
+
+      await useAuthStore.getState().removeAccount('other@mail.example.com');
+
+      expect(useAccountStore.getState().accounts).toEqual([]);
+      expect(peekRow('e1')).toBeUndefined();
+      expect(lastBodyHeight('|e1', 400)).toBeUndefined();
+      expect(bodyDocument(docInput)).not.toBe(doc);
     });
   });
 

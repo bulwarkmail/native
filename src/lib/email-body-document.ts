@@ -98,7 +98,7 @@ export function bodyDocument(input: BodyDocumentInput): BodyDocument {
   return doc;
 }
 
-/** Forget every document built (tests). */
+/** Forget every document built (sign-out, account removal). */
 export function clearBodyDocuments(): void {
   documents.clear();
 }

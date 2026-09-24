@@ -9,6 +9,9 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { flushPersistedWrites } from './persist-storage';
+import { clearEmailDetailCache } from '../lib/email-detail-cache';
+import { clearBodyDocuments } from '../lib/email-body-document';
+import { clearBodyHeights } from '../lib/body-heights';
 import { generateAccountId } from '../lib/account-utils';
 import { runWebmailHandoff, redeemPairingCode, HandoffCancelledError, HandoffError, type HandoffResult } from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
@@ -88,11 +91,21 @@ export interface AuthState {
   clearError: () => void;
 }
 
+// The messages the viewer read, their rendered documents and their heights,
+// held in memory only. Their keys name the server and login, but a signed-out
+// user's mail has no business staying in memory at all.
+function clearViewerCaches(): void {
+  clearEmailDetailCache();
+  clearBodyDocuments();
+  clearBodyHeights();
+}
+
 // Wipe ALL cached feature data for ALL accounts. Used for logoutAll where
 // the user is signing out of everything — we don't want stale snapshots
 // lingering on disk for accounts that no longer exist.
 function clearAllFeatureStores(): void {
   useEmailStore.getState().clearAllAccounts();
+  clearViewerCaches();
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
   useFilterStore.getState().clearState();
@@ -109,6 +122,7 @@ function clearAccountFeatureStores(accountId: string | null): void {
   } else {
     useEmailStore.getState().clearAllAccounts();
   }
+  clearViewerCaches();
   // Contacts and calendar stores aren't yet keyed by account — the safe
   // thing on logout is still to wipe them so the next account doesn't see
   // the previous user's data. Per-account caching for those stores is a
@@ -619,6 +633,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await revokeStoredRefreshToken(accountId);
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
+    clearViewerCaches();
     accountStore.removeAccount(accountId);
   },
 
