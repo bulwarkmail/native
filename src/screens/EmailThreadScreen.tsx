@@ -332,7 +332,9 @@ function EmailViewer({ route, navigation }: Props) {
   const scheduleMarkRead = React.useCallback((target: Email): (() => void) => {
     if (target.keywords?.$seen || markAsReadDelay === -1) return () => undefined;
     const apply = () => {
-      updateLocalKeywords(target.id, { ...target.keywords, $seen: true });
+      // The keywords as they are now: a star or tag set during the delay stays.
+      const current = peekDetail(target.id, ownerAccountId) ?? target;
+      updateLocalKeywords(target.id, { ...current.keywords, $seen: true });
       void markSeen(target.id);
     };
     if (markAsReadDelay > 0) {
@@ -341,7 +343,7 @@ function EmailViewer({ route, navigation }: Props) {
     }
     apply();
     return () => undefined;
-  }, [markAsReadDelay, markSeen, updateLocalKeywords]);
+  }, [markAsReadDelay, markSeen, updateLocalKeywords, ownerAccountId]);
 
   React.useEffect(() => {
     let cancelled = false;
