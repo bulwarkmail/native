@@ -40,7 +40,7 @@ npx expo start
 
 Then press `a` for Android, `i` for iOS, or scan the QR with Expo Go.
 
-For a release APK build see [.github/workflows/release-android.yml](.github/workflows/release-android.yml).
+For release APK builds and signing see [docs/android-release.md](docs/android-release.md).
 For iOS builds and TestFlight distribution see [docs/ios-release.md](docs/ios-release.md).
 
 ## License
