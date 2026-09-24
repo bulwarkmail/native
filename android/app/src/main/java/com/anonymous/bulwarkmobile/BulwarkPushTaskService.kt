@@ -7,6 +7,12 @@ import com.facebook.react.jstasks.HeadlessJsTaskConfig
 import com.facebook.react.HeadlessJsTaskService
 
 class BulwarkPushTaskService : HeadlessJsTaskService() {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
+        super.onStartCommand(intent, flags, startId).also {
+            // startTask has taken React Native's wake lock by now.
+            BulwarkMessagingService.releaseStartWakeLock()
+        }
+
     override fun getTaskConfig(intent: Intent?): HeadlessJsTaskConfig? {
         val extras = intent?.extras ?: return null
         return taskConfig(extras)
