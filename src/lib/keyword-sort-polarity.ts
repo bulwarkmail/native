@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jmapClient } from '../api/jmap-client';
 import { CAPABILITIES } from '../api/types';
 import type { Email } from '../api/types';
@@ -12,9 +13,19 @@ import {
 // Port of the webmail's JMAPClient.resolveKeywordSortPolarity /
 // probeKeywordSortPolarity / buildListSort (lib/jmap/client.ts). Stalwart
 // inverts `isAscending` on hasKeyword comparators (#718), so the server is
-// probed once per account and session and the verdict feeds buildEmailSort.
+// probed once per account and the verdict feeds buildEmailSort. Unlike the
+// webmail, which lives in one long session, the app starts often: a
+// conclusive verdict is stored per server and account and reused for a week
+// (a server upgrade may change it), instead of probing on every start.
 
 const KEYWORD_SORT_PROBE_RETRY_MS = 5 * 60 * 1000;
+// Bump the version when the probe or what it decides changes.
+const STORAGE_KEY = 'keyword-sort-polarity:v1';
+const STORED_VERDICT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+type StoredVerdict = { verdict: KeywordSortPolarity | 'unsupported'; at: number };
+let stored: Record<string, StoredVerdict> = {};
+let hydration: Promise<void> | null = null;
 
 // Keyed by `<serverUrl>|<jmap account id>` so two logged-in accounts on the
 // same server, or the same id on two servers, never share a verdict.
@@ -48,14 +59,56 @@ export function keywordSortSupported(accountId: string): boolean {
 
 /** Remember that the server answered a keyword comparator with unsupportedSort. */
 export function markKeywordSortUnsupported(accountId: string): void {
-  unsupported.add(cacheKey(accountId));
+  const key = cacheKey(accountId);
+  unsupported.add(key);
+  store(key, 'unsupported');
 }
 
-/** Test hook. */
+/** Test hook: forgets the verdicts, stored ones too. */
 export function resetKeywordSortState(): void {
   polarityCache.clear();
   probes.clear();
   unsupported.clear();
+  stored = {};
+  hydration = null;
+  void AsyncStorage.removeItem(STORAGE_KEY).catch(() => undefined);
+}
+
+function isStoredVerdict(value: unknown): value is StoredVerdict {
+  const v = value as StoredVerdict | null;
+  return !!v && typeof v.at === 'number' && (v.verdict === 'rfc' || v.verdict === 'inverted' || v.verdict === 'unsupported');
+}
+
+// Load the stored verdicts once per launch; expired or unreadable ones are
+// dropped and probed again.
+function hydrateStoredVerdicts(): Promise<void> {
+  hydration ??= (async () => {
+    let raw: string | null = null;
+    try {
+      raw = await AsyncStorage.getItem(STORAGE_KEY);
+    } catch {
+      return;
+    }
+    let parsed: unknown = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
+    const now = Date.now();
+    for (const [key, entry] of Object.entries((parsed ?? {}) as Record<string, unknown>)) {
+      if (!isStoredVerdict(entry) || now - entry.at >= STORED_VERDICT_MAX_AGE_MS || entry.at > now) continue;
+      stored[key] ??= entry;
+      if (entry.verdict === 'unsupported') unsupported.add(key);
+      else if (!polarityCache.has(key)) polarityCache.set(key, { value: entry.verdict, at: entry.at });
+    }
+  })();
+  return hydration;
+}
+
+function store(key: string, verdict: StoredVerdict['verdict']): void {
+  stored = { ...stored, [key]: { verdict, at: Date.now() } };
+  void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored)).catch(() => undefined);
 }
 
 async function probeKeywordSortPolarity(accountId: string): Promise<KeywordSortPolarity | null> {
@@ -94,9 +147,11 @@ async function probeKeywordSortPolarity(accountId: string): Promise<KeywordSortP
 /**
  * Which way the server reads `isAscending` on hasKeyword comparators, probed
  * once per account (an inconclusive probe is retried after a few minutes; a
- * failed one falls back to the RFC reading without caching a verdict).
+ * failed one falls back to the RFC reading without caching a verdict). A
+ * conclusive verdict is stored and reused on later starts.
  */
-export function resolveKeywordSortPolarity(accountId: string): Promise<KeywordSortPolarity> {
+export async function resolveKeywordSortPolarity(accountId: string): Promise<KeywordSortPolarity> {
+  await hydrateStoredVerdicts();
   const key = cacheKey(accountId);
   const cached = polarityCache.get(key);
   if (cached && (cached.value !== null || Date.now() - cached.at < KEYWORD_SORT_PROBE_RETRY_MS)) {
@@ -107,6 +162,8 @@ export function resolveKeywordSortPolarity(accountId: string): Promise<KeywordSo
   const probe = probeKeywordSortPolarity(accountId)
     .then((value) => {
       polarityCache.set(key, { value, at: Date.now() });
+      // An unsupportedSort answer was stored as such by the probe.
+      if (value !== null && !unsupported.has(key)) store(key, value);
       return value ?? 'rfc';
     })
     .catch((error) => {
@@ -134,6 +191,7 @@ export async function buildListSort(
 ): Promise<JMAPEmailComparator[]> {
   const pinnedFirst = opts.pinnedFirst ?? true;
   let sort: JMAPEmailComparator[];
+  if (hasKeywordLevels(order, pinnedFirst)) await hydrateStoredVerdicts();
   if (!hasKeywordLevels(order, pinnedFirst)) {
     sort = buildEmailSort(order);
   } else if (!keywordSortSupported(accountId)) {

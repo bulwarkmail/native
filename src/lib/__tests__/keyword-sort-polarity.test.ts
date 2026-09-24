@@ -13,6 +13,7 @@ vi.mock('../../api/jmap-client', () => ({
 import {
   buildListSort,
   keywordSortSupported,
+  markKeywordSortUnsupported,
   resetKeywordSortState,
   resolveKeywordSortPolarity,
 } from '../keyword-sort-polarity';
@@ -80,5 +81,74 @@ describe('buildListSort', () => {
     const sort = await buildListSort('acc-1', [], { pinnedFirst: false });
     expect(sort).toEqual([{ property: 'receivedAt', isAscending: false }]);
     expect(request).not.toHaveBeenCalled();
+  });
+});
+
+// The verdict used to live in memory only, so every start probed again.
+describe('stored verdicts', () => {
+  // A fresh launch: the module's memory is gone, AsyncStorage is not.
+  async function relaunch() {
+    vi.resetModules();
+    return import('../keyword-sort-polarity');
+  }
+
+  it('reuses a verdict from an earlier start without probing', async () => {
+    request.mockResolvedValue(probeResponse('a', 'b', true));
+    expect(await resolveKeywordSortPolarity('acc-1')).toBe('inverted');
+    await new Promise((r) => setTimeout(r, 0));
+
+    const next = await relaunch();
+    expect(await next.resolveKeywordSortPolarity('acc-1')).toBe('inverted');
+    const sort = await next.buildListSort('acc-1', [{ criterion: 'unread', direction: 'desc' }]);
+    expect(sort[0]).toEqual({ property: 'hasKeyword', keyword: '$pinned', isAscending: true });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps verdicts per server and account', async () => {
+    request.mockResolvedValue(probeResponse('a', 'b', true));
+    await resolveKeywordSortPolarity('acc-1');
+    await new Promise((r) => setTimeout(r, 0));
+
+    const next = await relaunch();
+    request.mockResolvedValue(probeResponse('a', 'b', false));
+    expect(await next.resolveKeywordSortPolarity('acc-2')).toBe('rfc');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('remembers a server that refuses keyword sorts', async () => {
+    markKeywordSortUnsupported('acc-1');
+    await new Promise((r) => setTimeout(r, 0));
+
+    const next = await relaunch();
+    const sort = await next.buildListSort('acc-1', [{ criterion: 'unread', direction: 'desc' }]);
+    expect(sort).toEqual([{ property: 'receivedAt', isAscending: false }]);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('probes again once the stored verdict is a week old', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      request.mockResolvedValue(probeResponse('a', 'b', true));
+      await resolveKeywordSortPolarity('acc-1');
+      await Promise.resolve();
+      vi.setSystemTime(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      const next = await relaunch();
+      request.mockResolvedValue(probeResponse('a', 'b', false));
+      expect(await next.resolveKeywordSortPolarity('acc-1')).toBe('rfc');
+      expect(request).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not store an inconclusive probe', async () => {
+    request.mockResolvedValue(probeResponse('a', 'a', true));
+    await resolveKeywordSortPolarity('acc-1');
+    await new Promise((r) => setTimeout(r, 0));
+
+    const next = await relaunch();
+    await next.resolveKeywordSortPolarity('acc-1');
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });
