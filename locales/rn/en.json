@@ -116,6 +116,8 @@
     "recipient_move_to": "Move to {field}",
     "recipient_remove": "Remove",
     "save_draft": "Save Draft",
+    "save_failed_no_drafts": "There is no Drafts folder to save this draft to.",
+    "save_failed_no_identity": "Your sender identities could not be loaded, so this draft cannot be saved. Check your connection, or copy your text before closing.",
     "schedule_custom": "Pick date & time…",
     "schedule_in_1h": "In 1 hour",
     "schedule_in_3h": "In 3 hours",

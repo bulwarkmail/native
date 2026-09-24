@@ -4,6 +4,7 @@ import {
   Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   X, Send, Paperclip, ChevronDown, Bold, Italic, Underline, Strikethrough,
@@ -1279,10 +1280,24 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // ── Close guard ──────────────────────────────────────────────────────
 
+  // Why a draft can't be saved right now: the identities didn't load (e.g.
+  // offline when the composer opened) or the account has no Drafts folder.
+  const draftUnsavableReason = !primaryIdentity
+    ? t('email_composer.save_failed_no_identity', 'Your sender identities could not be loaded, so this draft cannot be saved. Check your connection, or copy your text before closing.')
+    : !draftsMailbox
+      ? t('email_composer.save_failed_no_drafts', 'There is no Drafts folder to save this draft to.')
+      : null;
+
   const saveAndClose = async (proceed: () => void) => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
+    }
+    // Closing after a save that couldn't run would drop the text as if it
+    // had been saved: stay open and say why.
+    if (draftUnsavableReason) {
+      Alert.alert(t('email_composer.save_failed', 'Failed to save'), draftUnsavableReason);
+      return;
     }
     setSavingDraft(true);
     try {
@@ -1322,6 +1337,17 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const showCloseDialog = (proceed: () => void) => {
+    if (draftUnsavableReason) {
+      Alert.alert(
+        t('email_composer.discard_draft_title', 'Discard draft?'),
+        draftUnsavableReason,
+        [
+          { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+          { text: t('email_composer.discard', 'Discard'), style: 'destructive', onPress: () => discardAndClose(proceed) },
+        ],
+      );
+      return;
+    }
     Alert.alert(
       t('email_composer.close_draft_title', 'Save or discard draft?'),
       t('email_composer.close_draft_message', 'You have unsaved changes. Would you like to save this as a draft or discard it?'),
@@ -1332,19 +1358,18 @@ export default function ComposeScreen({ route, navigation }: Props) {
       ],
     );
   };
-  const showCloseDialogRef = React.useRef(showCloseDialog);
-  showCloseDialogRef.current = showCloseDialog;
 
   // The OS back gesture / hardware back goes through the same guard as the
-  // header X.
-  React.useEffect(() => {
-    return navigation.addListener('beforeRemove', (e) => {
-      if (allowLeaveRef.current) return;
-      if (!latestRef.current.isDirty && !latestRef.current.needsSave) return;
-      e.preventDefault();
-      showCloseDialogRef.current(() => navigation.dispatch(e.data.action));
-    });
-  }, [navigation]);
+  // header X. `usePreventRemove` (not a bare `beforeRemove` listener) also
+  // blocks the iOS modal swipe-down, which is dismissed natively otherwise.
+  // Re-dispatching the intercepted action doesn't come back here.
+  usePreventRemove(isDirty || needsSave, ({ data }) => {
+    if (allowLeaveRef.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    showCloseDialog(() => navigation.dispatch(data.action));
+  });
 
   const onClose = () => {
     navigation.goBack();
