@@ -1043,10 +1043,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
     att: s.attachments.filter((a) => !a.inline).map((a) => a.blobId ?? a.localId),
   });
 
-  const currentSnapshot = snapshotOf({
+  // Memoized: the snapshot copies the whole body, and the screen re-renders
+  // for plenty that doesn't touch it (PF8).
+  const currentSnapshot = React.useMemo(() => snapshotOf({
     to: finalTo, cc: finalCc, bcc: finalBcc, subject,
     body: plainTextMode ? plainBody : bodyHtml, attachments,
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments]);
   const baselineRef = React.useRef(snapshotOf({
     to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
     body: plainTextMode ? initialPlainBody : initialBodyHtml, attachments: initialAttachments,
@@ -1322,7 +1325,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
       if (sendingRef.current || !latestRef.current.needsSave) return;
-      saveDraftRef.current({ live: false }).catch((err) => {
+      // Live: the editor posts its content throttled, so read the DOM itself.
+      saveDraftRef.current({ live: true }).catch((err) => {
         console.warn('[compose] autosave failed', err);
       });
     }, wait);

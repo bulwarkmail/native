@@ -15,6 +15,11 @@ import type { ThemePalette } from '../theme/tokens';
 // user types, and the parent ScrollView handles overflow.
 export const MIN_EDITOR_HEIGHT = 220;
 
+// Shortest gap between two `change` posts while typing (see the page script).
+// Readers that need the current body - send, save, format switch - ask the
+// page with `getHtml` instead of waiting for the next post.
+export const CHANGE_THROTTLE_MS = 400;
+
 /**
  * The editor page's Content-Security-Policy, mirroring the viewer's
  * (`src/lib/email-html.ts`). Nothing but images, styles and our own inline
@@ -134,15 +139,18 @@ export function buildEditorHtml(opts: {
   var editor = document.getElementById('editor');
   var lastHtml = null;
   var lastHeight = 0;
+  var lastSelection = '';
+  // Every 'change' re-renders the whole composer, so typing posts at most
+  // one per window: the first keystroke at once (the composer learns it is
+  // dirty), then the latest content when the window ends. Commands, blur
+  // and setHtml post straight away.
+  var CHANGE_THROTTLE_MS = ${CHANGE_THROTTLE_MS};
+  var lastChangeAt = 0;
+  var changeTimer = null;
 
+  // Checked on every keystroke, so it avoids serializing innerHTML.
   function refreshEmpty() {
-    var html = editor.innerHTML;
-    var isEmpty =
-      html === '' ||
-      html === '<br>' ||
-      html === '<p></p>' ||
-      html === '<p><br></p>' ||
-      editor.textContent.trim() === '' && editor.querySelectorAll('img').length === 0;
+    var isEmpty = editor.textContent.trim() === '' && !editor.querySelector('img');
     editor.setAttribute('data-empty', isEmpty ? 'true' : 'false');
   }
 
@@ -160,11 +168,34 @@ export function buildEditorHtml(opts: {
   }
 
   function reportChange() {
+    if (changeTimer) {
+      clearTimeout(changeTimer);
+      changeTimer = null;
+    }
     refreshEmpty();
     var html = editor.innerHTML;
     if (html === lastHtml) return;
     lastHtml = html;
+    lastChangeAt = Date.now();
     post('change', html);
+  }
+
+  function scheduleChange() {
+    refreshEmpty();
+    if (changeTimer) return;
+    var wait = CHANGE_THROTTLE_MS - (Date.now() - lastChangeAt);
+    if (wait <= 0) {
+      reportChange();
+      return;
+    }
+    changeTimer = setTimeout(function () {
+      changeTimer = null;
+      reportChange();
+    }, wait);
+  }
+
+  function flushChange() {
+    if (changeTimer) reportChange();
   }
 
   function reportSelection() {
@@ -196,6 +227,11 @@ export function buildEditorHtml(opts: {
       alignRight: active('justifyRight'),
       link: inBlock('A'),
     };
+    // The caret moves on every keystroke; only a change of the formatting
+    // state is worth a message (and a composer re-render).
+    var key = JSON.stringify(state);
+    if (key === lastSelection) return;
+    lastSelection = key;
     post('selection', state);
   }
 
@@ -206,10 +242,13 @@ export function buildEditorHtml(opts: {
   lastHtml = editor.innerHTML;
 
   editor.addEventListener('input', function () {
-    reportChange();
+    scheduleChange();
     reportHeight();
   });
-  editor.addEventListener('blur', function () { post('blur', null); });
+  editor.addEventListener('blur', function () {
+    flushChange();
+    post('blur', null);
+  });
   editor.addEventListener('focus', function () { post('focus', null); });
   document.addEventListener('selectionchange', function () {
     if (document.activeElement === editor) reportSelection();
