@@ -5,14 +5,17 @@
  * recurrence rule interpretation: implicit byX addition, byX filtering,
  * bySetPosition. Mobile port of webmail's lib/recurrence-expansion.ts.
  *
- * Stalwart does not yet support mutations on the synthetic IDs produced by
- * CalendarEvent/query?expandRecurrences=true, so we fetch raw events (with
- * real, mutable IDs) and expand recurring series into individual occurrences
- * on the client.
+ * Used for servers that do not accept the synthetic ids produced by
+ * CalendarEvent/query?expandRecurrences=true in CalendarEvent/set (Stalwart
+ * before 0.16.20, see lib/recurrence-instances.ts), and for a range the
+ * server refuses to expand: raw events (with real, mutable ids) are fetched
+ * and recurring series are expanded into individual occurrences on the
+ * device. Occurrences the server already expanded pass through unchanged.
  */
 
 import { addDays, addMonths, addWeeks, addYears, differenceInCalendarDays, format, parseISO } from 'date-fns';
 import type { CalendarEvent, RecurrenceRule } from '../api/types';
+import { isServerRecurrenceInstance } from './recurrence-instances';
 
 type NDay = { day: string; nthOfPeriod?: number };
 
@@ -49,7 +52,10 @@ export function expandRecurringEvents(
   for (const event of events) {
     if (event.recurrenceId && event.uid && recurringUids.has(event.uid)) continue;
 
-    if (!event.recurrenceRules?.length) {
+    // An occurrence the server already expanded is a single instance even
+    // though it carries its series' recurrence rule (lib/recurrence-instances
+    // hydrates it with that); never expand it again.
+    if (!event.recurrenceRules?.length || isServerRecurrenceInstance(event)) {
       result.push(event);
       continue;
     }

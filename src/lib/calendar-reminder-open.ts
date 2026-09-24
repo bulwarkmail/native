@@ -8,6 +8,7 @@ import {
 } from '../stores/calendar-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useToastStore } from '../stores/toast-store';
+import { seriesIdOf } from './recurrence-instances';
 import {
   usePendingCalendarOpen,
   type CalendarReminderTarget,
@@ -21,14 +22,9 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The raw JMAP id of the stored event behind a store event or occurrence. */
-function serverIdOf(event: CalendarEvent): string {
-  return event.originalId ?? event.id;
-}
-
 function matchesTarget(event: CalendarEvent, target: CalendarReminderTarget): boolean {
   if (event.id === target.eventId) return true;
-  if (!target.serverId || serverIdOf(event) !== target.serverId) return false;
+  if (!target.serverId || seriesIdOf(event) !== target.serverId) return false;
   return (event.accountId ?? undefined) === (target.accountId ?? undefined)
     && (event.recurrenceId ?? undefined) === (target.recurrenceId ?? undefined);
 }
@@ -74,7 +70,7 @@ export async function resolveReminderTask(
   const find = () => useCalendarStore.getState().tasks.find((task) =>
     task.id === target.eventId
     || (!!target.serverId
-      && serverIdOf(task) === target.serverId
+      && seriesIdOf(task) === target.serverId
       && (task.accountId ?? undefined) === (target.accountId ?? undefined)));
   const loaded = find();
   if (loaded) return loaded;

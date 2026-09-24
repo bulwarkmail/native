@@ -24,10 +24,19 @@ import {
   rsvpEvent as apiRsvpEvent,
   createCalendar as apiCreateCalendar,
   setDefaultCalendar as apiSetDefaultCalendar,
+  supportsSyntheticCalendarIds,
+  queryExpandedEvents,
+  hydrateExpandedOccurrences,
+  resetSyntheticIdSupport,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
+import {
+  baseEventStoreId,
+  isServerRecurrenceInstance,
+  seriesIdOf,
+} from '../lib/recurrence-instances';
 import { findTasksOnlyCalendarIds, isTaskLikeObject } from '../lib/calendar-component-detection';
 
 // Does the event carry attendees the server should notify over iMIP? Used to
@@ -267,7 +276,9 @@ function unionRange(loaded: LoadedRange, after: string, before: string): LoadedR
 
 /**
  * The events of the given calendars (store ids) that overlap [after, before],
- * mapped to store ids and with recurring series expanded over the window.
+ * mapped to store ids and with recurring series expanded over the window:
+ * by the server when it accepts the synthetic occurrence ids that gives
+ * (Stalwart >= 0.16.20, see lib/recurrence-instances), else on the device.
  * Doesn't touch the store: fetchEvents keeps the result as the visible
  * window, the reminders load their own upcoming window with it. Throws when
  * the primary account fails; a failing shared account is skipped.
@@ -296,16 +307,37 @@ export async function loadEventsInRange(
   }
   if (groups.size === 0) groups.set(undefined, []);
 
+  const expand = !!after && !!before
+    && await supportsSyntheticCalendarIds().catch(() => false);
   const raw: CalendarEvent[] = [];
   for (const [accountId, ids] of groups) {
     if (accountId && isCalendarAccessDenied(accountId)) continue;
     try {
-      // The window is sent as after/before so accounts with more than
-      // 1000 objects don't silently lose events and navigating past the
-      // loaded range doesn't re-download everything.
-      const eventIds = (await queryEvents(ids, after, before, accountId)) ?? [];
-      if (eventIds.length === 0) continue;
-      const fetched = (await fetchEvents(eventIds, accountId)) ?? [];
+      let fetched: CalendarEvent[] | null = null;
+      if (expand) {
+        // null: the server won't expand a range this long; the series are
+        // then fetched whole and expanded below.
+        const expandedIds = await queryExpandedEvents(after, before, accountId);
+        if (expandedIds) {
+          const occurrences = expandedIds.length > 0
+            ? (await fetchEvents(expandedIds, accountId, { expanded: true })) ?? []
+            : [];
+          // The expanded query spans the account; keep the asked-for calendars.
+          const wanted = new Set(ids);
+          const inCalendars = wanted.size === 0
+            ? occurrences
+            : occurrences.filter((e) => Object.keys(e.calendarIds || {}).some((id) => wanted.has(id)));
+          fetched = await hydrateExpandedOccurrences(inCalendars, accountId);
+        }
+      }
+      if (!fetched) {
+        // The window is sent as after/before so accounts with more than
+        // 1000 objects don't silently lose events and navigating past the
+        // loaded range doesn't re-download everything.
+        const eventIds = (await queryEvents(ids, after, before, accountId)) ?? [];
+        if (eventIds.length === 0) continue;
+        fetched = (await fetchEvents(eventIds, accountId)) ?? [];
+      }
       raw.push(...fetched.map((e) => mapServerEventToStoreEvent(e, calendars, accountId)));
     } catch (err) {
       // A failing shared account must not hide the user's own events;
@@ -319,6 +351,49 @@ export async function loadEventsInRange(
   // they don't pollute the grid.
   const onlyEvents = raw.filter((e) => !isTaskLikeObject(e) && !!e.start);
   return expandRecurringEvents(onlyEvents, after, before);
+}
+
+// Masters fetched by getMasterEvent: an expanded series has no master in
+// `events`, so a mutation addressed at one looks up its account and raw id
+// here.
+const knownMasters = new Map<string, CalendarEvent>();
+
+export interface MutationTarget {
+  storeEvent?: CalendarEvent;
+  /** Raw JMAP id the change is sent to. */
+  realId: string;
+  /** Owning account of a shared calendar's event. */
+  accountId?: string;
+}
+
+/**
+ * Where a change to the event with store id `id` goes, as a change to the
+ * stored event: an occurrence (expanded by the server or on the device)
+ * resolves to its base event, a master fetched by getMasterEvent to itself,
+ * and a base event that is not in the store borrows the account routing of
+ * a server-expanded occurrence of it in view. Mirrors the webmail's
+ * resolveMutationTarget for the whole-series case.
+ */
+export function resolveSeriesTarget(events: CalendarEvent[], id: string): MutationTarget {
+  const storeEvent = events.find((e) => e.id === id) ?? knownMasters.get(id);
+  if (storeEvent) {
+    return { storeEvent, realId: seriesIdOf(storeEvent), accountId: storeEvent.accountId };
+  }
+  const instance = events.find((e) => baseEventStoreId(e) === id);
+  if (instance?.baseEventId) return { realId: instance.baseEventId, accountId: instance.accountId };
+  return { realId: id };
+}
+
+/**
+ * Does the store show server-expanded occurrences of base event `baseId`?
+ * Their synthetic ids reshuffle when the series changes, so the range is
+ * reloaded after such a change.
+ */
+function hasServerOccurrencesOf(events: CalendarEvent[], baseId: string, accountId?: string): boolean {
+  return events.some((e) =>
+    isServerRecurrenceInstance(e)
+    && e.baseEventId === baseId
+    && (e.accountId ?? undefined) === (accountId ?? undefined));
 }
 
 export const useCalendarStore = create<CalendarState>()(
@@ -529,9 +604,8 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   updateEvent: async (id, changes, options) => {
-    // Resolve client-side expanded occurrence IDs back to the master event ID.
-    const storeEvent = get().events.find((e) => e.id === id);
-    const realId = storeEvent?.originalId || id;
+    // Resolve expanded occurrence ids back to the stored (base) event.
+    const { storeEvent, realId, accountId } = resolveSeriesTarget(get().events, id);
     // Remap namespaced (shared-calendar) store ids in calendarIds back to the
     // raw server ids the owning account knows.
     const patch: Record<string, unknown> = { ...changes };
@@ -552,48 +626,63 @@ export const useCalendarStore = create<CalendarState>()(
         hasSchedulingParticipants(storeEvent)
         ? true
         : undefined);
-    await apiUpdateEvent(realId, patch, schedule, storeEvent?.accountId);
+    const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
+      || hasServerOccurrencesOf(get().events, realId, accountId);
+    await apiUpdateEvent(realId, patch, schedule, accountId);
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
     });
     // A series mutation (an occurrence override, a truncated/changed rule, a
     // master edit) touches every expanded sibling, and the optimistic merge
-    // above only updated the tapped one — reload the visible range like
-    // webmail's refetchAfterOccurrenceMutation.
-    if (storeEvent && isRecurringSeriesMember(storeEvent)) {
+    // above only updated the tapped one; server-expanded occurrences also
+    // get new ids. Reload the visible range like webmail's
+    // refetchAfterOccurrenceMutation.
+    if (touchesSeries) {
       await get().refresh();
     }
   },
 
   deleteEvent: async (id) => {
-    const storeEvent = get().events.find((e) => e.id === id);
-    const realId = storeEvent?.originalId || id;
+    const { storeEvent, realId, accountId } = resolveSeriesTarget(get().events, id);
+    const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
+      || hasServerOccurrencesOf(get().events, realId, accountId);
     await apiDeleteEvents(
       [realId],
       hasSchedulingParticipants(storeEvent) ? true : undefined,
-      storeEvent?.accountId,
+      accountId,
     );
+    knownMasters.delete(id);
     // Destroying a master removes every expanded occurrence of it, not just
     // the tapped one.
-    set({ events: get().events.filter((e) => e.id !== id && (e.originalId || e.id) !== realId) });
-    if (storeEvent && isRecurringSeriesMember(storeEvent)) {
+    set({
+      events: get().events.filter((e) =>
+        e.id !== id
+        && !(seriesIdOf(e) === realId && (e.accountId ?? undefined) === (accountId ?? undefined))),
+    });
+    if (touchesSeries) {
       await get().refresh();
     }
   },
 
   getMasterEvent: async (event) => {
-    if (event.recurrenceRules?.length && !event.recurrenceId) return event;
-    // Client-side expansion replaces the master with its occurrences, each
-    // pointing back at the master's server id through originalId.
-    const realId = event.originalId || event.id;
+    if (event.recurrenceRules?.length && !event.recurrenceId && !isServerRecurrenceInstance(event)) {
+      return event;
+    }
+    // Expansion replaces the master with its occurrences, each pointing back
+    // at the stored event: through baseEventId when the server expanded it,
+    // through originalId when the device did.
+    const realId = seriesIdOf(event);
     const inStore = get().events.find(
-      (e) => e.id === realId && !e.recurrenceId && !!e.recurrenceRules?.length,
+      (e) => !e.recurrenceId && !!e.recurrenceRules?.length && !isServerRecurrenceInstance(e)
+        && seriesIdOf(e) === realId && (e.accountId ?? undefined) === (event.accountId ?? undefined),
     );
     if (inStore) return inStore;
     const fetched = (await fetchEvents([realId], event.accountId)) ?? [];
     const master = fetched[0];
     if (!master) return null;
-    return mapServerEventToStoreEvent(master, get().calendars, event.accountId);
+    const mapped = mapServerEventToStoreEvent(master, get().calendars, event.accountId);
+    knownMasters.set(mapped.id, mapped);
+    return mapped;
   },
 
   rsvpEvent: async (eventId, participantId, status, replyTo, event) => {
@@ -603,16 +692,21 @@ export const useCalendarStore = create<CalendarState>()(
       throw new Error('Invalid participant ID');
     }
     // An event outside the loaded window (an invitation looked up by UID)
-    // isn't in the store; the caller hands it over instead.
-    const storeEvent = get().events.find((e) => e.id === eventId) ?? event;
-    const realId = storeEvent?.originalId || eventId;
+    // isn't in the store; the caller hands it over instead. An occurrence
+    // answers for its whole series: the stored event is updated.
+    const target = resolveSeriesTarget(get().events, eventId);
+    const storeEvent = target.storeEvent ?? event;
+    const realId = target.storeEvent || !event ? target.realId : seriesIdOf(event);
+    const accountId = target.storeEvent ? target.accountId : event?.accountId ?? target.accountId;
+    const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
+      || hasServerOccurrencesOf(get().events, realId, accountId);
     // Repair events that are missing the organizer (e.g. imported ones) so
     // Stalwart can route the REPLY; never touch an existing one.
     const repair =
       replyTo?.imip && storeEvent && !storeEvent.organizerCalendarAddress
         ? replyTo.imip
         : undefined;
-    await apiRsvpEvent(realId, participantId, status, repair, storeEvent?.accountId);
+    await apiRsvpEvent(realId, participantId, status, repair, accountId);
     set({
       events: get().events.map((e) => {
         if (e.id !== eventId || !e.participants?.[participantId]) return e;
@@ -625,6 +719,8 @@ export const useCalendarStore = create<CalendarState>()(
         };
       }),
     });
+    // The other occurrences in view still show the old answer.
+    if (touchesSeries) await get().refresh();
   },
 
   importEvents: async (events, calendarId) => {
@@ -832,8 +928,11 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   reset: () => {
-    // A new session may grant access the old one lacked.
+    // A new session may grant access the old one lacked, or reach an
+    // upgraded server.
     resetCalendarAccessDenied();
+    resetSyntheticIdSupport();
+    knownMasters.clear();
     set({
       calendars: [],
       events: [],

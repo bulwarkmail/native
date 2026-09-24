@@ -1,6 +1,7 @@
 import { parseISO } from 'date-fns';
 import type { Alert, Calendar, CalendarEvent } from '../api/types';
 import { getTaskDueDate, parseDuration } from './calendar-utils';
+import { seriesIdOf, stableOccurrenceKey } from './recurrence-instances';
 
 // Pure alert maths for calendar reminders. Port of the webmail's
 // lib/calendar-alerts.ts (computeFireTime / getEffectiveAlerts /
@@ -8,7 +9,11 @@ import { getTaskDueDate, parseDuration } from './calendar-utils';
 // instead of polling for alerts that just fired.
 
 export interface ScheduledAlert {
-  /** `${eventId}:${alertId}:${fireTimeMs}` — stable across refetches. */
+  /**
+   * `${event}:${alertId}:${fireTimeMs}` — stable across refetches; a
+   * server-expanded occurrence is named by its base event and recurrence
+   * id, since its synthetic id is positional.
+   */
   key: string;
   eventId: string;
   alertId: string;
@@ -147,14 +152,14 @@ export function getUpcomingAlerts(
       const fireTimeMs = computeFireTime(event, alert.trigger);
       if (fireTimeMs === null || fireTimeMs <= window.now || fireTimeMs > until) continue;
       out.push({
-        key: buildAlertKey(event.id, alertId, fireTimeMs),
+        key: buildAlertKey(stableOccurrenceKey(event), alertId, fireTimeMs),
         eventId: event.id,
         alertId,
         fireTimeMs,
         title: event.title || '(No title)',
         body: Number.isNaN(startMs) ? '' : `Starts ${formatWhen(fireTimeMs, startMs)}`,
         kind: 'event',
-        serverId: event.originalId ?? event.id,
+        serverId: seriesIdOf(event),
         accountId: event.accountId,
         recurrenceId: event.recurrenceId,
         startMs: Number.isNaN(startMs) ? undefined : startMs,

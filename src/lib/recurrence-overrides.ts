@@ -151,6 +151,8 @@ export function buildFutureSeriesData(
   delete raw.utcStart;
   delete raw.utcEnd;
   delete raw.originalId;
+  delete raw.baseEventId;
+  delete raw.recurrenceIdTimeZone;
   delete raw.originalCalendarIds;
   delete raw.accountId;
   delete raw.isShared;

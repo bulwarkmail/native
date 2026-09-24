@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/calendar', () => ({
   getCalendars: vi.fn(),
@@ -14,6 +14,10 @@ vi.mock('../../api/calendar', () => ({
   batchCreateEvents: vi.fn(),
   setDefaultCalendar: vi.fn(),
   rsvpEvent: vi.fn(),
+  supportsSyntheticCalendarIds: vi.fn(async () => false),
+  queryExpandedEvents: vi.fn(),
+  hydrateExpandedOccurrences: vi.fn(async (events: unknown[]) => events),
+  resetSyntheticIdSupport: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -48,6 +52,9 @@ const mockDeleteEvents = calendarApi.deleteEvents as ReturnType<typeof vi.fn>;
 const mockSetDefaultCalendar = calendarApi.setDefaultCalendar as ReturnType<typeof vi.fn>;
 const mockScan = calendarApi.scanCalendarObjects as ReturnType<typeof vi.fn>;
 const mockRsvpEvent = calendarApi.rsvpEvent as ReturnType<typeof vi.fn>;
+const mockSupportsSynthetic = calendarApi.supportsSyntheticCalendarIds as ReturnType<typeof vi.fn>;
+const mockQueryExpanded = calendarApi.queryExpandedEvents as ReturnType<typeof vi.fn>;
+const mockHydrate = calendarApi.hydrateExpandedOccurrences as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -672,6 +679,132 @@ describe('calendar-store', () => {
         useCalendarStore.getState().importEvents([{ uid: 'dup', title: 'Dup' }], 'cal-1'),
       ).resolves.toEqual({ imported: 0, refused: [] });
       expect(batch()).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('server-side recurrence expansion', () => {
+    const RANGE = { after: '2026-03-01T00:00:00Z', before: '2026-03-31T00:00:00Z' };
+    const weekly = [{ frequency: 'weekly' }];
+
+    beforeEach(() => {
+      mockSupportsSynthetic.mockResolvedValue(true);
+    });
+
+    afterEach(() => {
+      mockSupportsSynthetic.mockResolvedValue(false);
+      mockHydrate.mockImplementation(async (events: unknown[]) => events);
+    });
+
+    it('lets a server that takes synthetic ids expand the range, keeping the asked-for calendars', async () => {
+      useCalendarStore.setState({ calendars: [{ id: 'cal-1' }, { id: 'cal-2' }] as any });
+      mockQueryExpanded.mockResolvedValue(['s1', 's2', 's3']);
+      mockGetEvents.mockResolvedValue([
+        { id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02T09:00:00', start: '2026-03-02T09:00:00', calendarIds: { 'cal-1': true } },
+        { id: 's2', baseEventId: 'base', recurrenceId: '2026-03-09T09:00:00', start: '2026-03-09T09:00:00', calendarIds: { 'cal-1': true } },
+        { id: 's3', baseEventId: 'other', start: '2026-03-03T09:00:00', calendarIds: { 'cal-2': true } },
+      ]);
+      mockHydrate.mockImplementation(async (events: any[]) =>
+        events.map((e) => (e.recurrenceId ? { ...e, recurrenceRules: weekly } : e)));
+
+      await useCalendarStore.getState().fetchEvents(['cal-1'], RANGE.after, RANGE.before);
+
+      expect(mockQueryExpanded).toHaveBeenCalledWith(RANGE.after, RANGE.before, undefined);
+      expect(mockQueryEvents).not.toHaveBeenCalled();
+      expect(mockGetEvents).toHaveBeenCalledWith(['s1', 's2', 's3'], undefined, { expanded: true });
+      expect(mockHydrate.mock.calls[0][0].map((e: any) => e.id)).toEqual(['s1', 's2']);
+      // Hydrated occurrences carry the rule but are not expanded again.
+      expect(useCalendarStore.getState().events.map((e) => e.id)).toEqual(['s1', 's2']);
+    });
+
+    it('expands on the device when the server will not expand the range', async () => {
+      useCalendarStore.setState({ calendars: [{ id: 'cal-1' }] as any });
+      mockQueryExpanded.mockResolvedValue(null);
+      mockQueryEvents.mockResolvedValue(['m']);
+      mockGetEvents.mockResolvedValue([
+        { id: 'm', uid: 'u', start: '2026-03-02T09:00:00', recurrenceRules: weekly, calendarIds: { 'cal-1': true } },
+      ]);
+
+      await useCalendarStore.getState().fetchEvents(['cal-1'], RANGE.after, RANGE.before);
+
+      expect(mockGetEvents).toHaveBeenCalledWith(['m'], undefined);
+      const events = useCalendarStore.getState().events;
+      expect(events.length).toBeGreaterThan(1);
+      expect(events.every((e) => e.originalId === 'm')).toBe(true);
+    });
+
+    it('sends a change to a server occurrence to its base event and reloads the range', async () => {
+      useCalendarStore.setState({
+        calendars: [{ id: 'cal-1' }] as any,
+        loadedRange: RANGE,
+        events: [
+          { id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02T09:00:00', recurrenceRules: weekly } as any,
+          { id: 's2', baseEventId: 'base', recurrenceId: '2026-03-09T09:00:00', recurrenceRules: weekly } as any,
+        ],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+      mockQueryExpanded.mockResolvedValue([]);
+
+      await useCalendarStore.getState().updateEvent('s1', { 'recurrenceOverrides/2026-03-02T09:00:00': { title: 'x' } });
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        'base', { 'recurrenceOverrides/2026-03-02T09:00:00': { title: 'x' } }, undefined, undefined,
+      );
+      expect(mockQueryExpanded).toHaveBeenCalled();
+    });
+
+    it('routes a single event\'s synthetic id to the stored event on every server', async () => {
+      useCalendarStore.setState({
+        calendars: [{ id: 'cal-1' }] as any,
+        events: [{ id: 's5', baseEventId: 'plain', title: 'Once' } as any],
+      });
+      mockDeleteEvents.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().deleteEvent('s5');
+
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['plain'], undefined, undefined);
+      expect(useCalendarStore.getState().events).toEqual([]);
+    });
+
+    it('deletes a shared series through the master fetched for one of its occurrences', async () => {
+      const occurrence = {
+        id: 'acc-2:s1', originalId: 's1', accountId: 'acc-2', baseEventId: 'base',
+        recurrenceId: '2026-03-02T09:00:00', recurrenceRules: weekly, calendarIds: { 'acc-2:cal-9': true },
+      };
+      useCalendarStore.setState({
+        calendars: [{ id: 'acc-2:cal-9', originalId: 'cal-9', accountId: 'acc-2', isShared: true }] as any,
+        events: [
+          occurrence as any,
+          { ...occurrence, id: 'acc-2:s2', originalId: 's2', recurrenceId: '2026-03-09T09:00:00' } as any,
+          { id: 'mine' } as any,
+        ],
+      });
+      mockGetEvents.mockResolvedValue([
+        { id: 'base', start: '2026-03-02T09:00:00', recurrenceRules: weekly, calendarIds: { 'cal-9': true } },
+      ]);
+      mockDeleteEvents.mockResolvedValue(undefined);
+
+      const master = await useCalendarStore.getState().getMasterEvent(occurrence as any);
+      expect(mockGetEvents).toHaveBeenCalledWith(['base'], 'acc-2');
+      expect(master?.id).toBe('acc-2:base');
+
+      await useCalendarStore.getState().deleteEvent(master!.id);
+
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['base'], undefined, 'acc-2');
+      expect(useCalendarStore.getState().events.map((e) => e.id)).toEqual(['mine']);
+    });
+
+    it('answers an invitation for the whole series from a server occurrence', async () => {
+      useCalendarStore.setState({
+        events: [{
+          id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02T09:00:00', recurrenceRules: weekly,
+          organizerCalendarAddress: 'mailto:org@x', participants: { me: { participationStatus: 'needs-action' } },
+        } as any],
+      });
+      mockRsvpEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().rsvpEvent('s1', 'me', 'accepted');
+
+      expect(mockRsvpEvent).toHaveBeenCalledWith('base', 'me', 'accepted', undefined, undefined);
     });
   });
 

@@ -20,6 +20,10 @@ import {
   clearCalendarEvents,
   findEventsByUid,
   toLocalDateTime,
+  supportsSyntheticCalendarIds,
+  resetSyntheticIdSupport,
+  queryExpandedEvents,
+  hydrateExpandedOccurrences,
 } from '../calendar';
 
 describe('toLocalDateTime', () => {
@@ -38,6 +42,7 @@ const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetSyntheticIdSupport();
 });
 
 describe('calendar operations', () => {
@@ -51,9 +56,139 @@ describe('calendar operations', () => {
       const result = await getCalendars();
       expect(result).toEqual(calendars);
       expect(mockRequest).toHaveBeenCalledWith(
-        [['Calendar/get', { accountId: 'acc-1' }, '0']],
+        [
+          ['Calendar/get', { accountId: 'acc-1' }, '0'],
+          // The synthetic-id probe rides along with the first Calendar/get.
+          ['CalendarEvent/set', { accountId: 'acc-1', update: { h333333: {} } }, 'synthetic-id-probe'],
+        ],
         expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
       );
+    });
+  });
+
+  describe('supportsSyntheticCalendarIds', () => {
+    it('takes the verdict from the probe that rode along with Calendar/get', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Calendar/get', { list: [] }, '0'],
+          ['CalendarEvent/set', { notUpdated: { h333333: { type: 'notFound' } } }, 'synthetic-id-probe'],
+        ],
+      });
+
+      await getCalendars();
+      expect(await supportsSyntheticCalendarIds()).toBe(true);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+
+      // Known now: the next Calendar/get goes out alone.
+      await getCalendars();
+      expect(mockRequest.mock.calls[1][0]).toHaveLength(1);
+    });
+
+    it('counts a server that refuses synthetic ids as unsupported', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', {
+          notUpdated: { h333333: { type: 'invalidProperties', description: 'Updating synthetic ids is not yet supported.' } },
+        }, 'synthetic-id-probe']],
+      });
+
+      expect(await supportsSyntheticCalendarIds()).toBe(false);
+      expect(await supportsSyntheticCalendarIds()).toBe(false);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('probes again after a failed request', async () => {
+      mockRequest.mockRejectedValueOnce(new Error('offline'));
+      expect(await supportsSyntheticCalendarIds()).toBe(false);
+
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [['CalendarEvent/set', { notUpdated: { h333333: { type: 'notFound' } } }, 'synthetic-id-probe']],
+      });
+      expect(await supportsSyntheticCalendarIds()).toBe(true);
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('queryExpandedEvents', () => {
+    it('asks the server to expand the range with a filter of the bounds alone', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/query', { ids: ['s1', 's2'] }, '0']],
+      });
+
+      expect(await queryExpandedEvents('2026-03-01T00:00:00Z', '2026-04-01T00:00:00Z')).toEqual(['s1', 's2']);
+      const args = mockRequest.mock.calls[0][0][0][1];
+      expect(args.expandRecurrences).toBe(true);
+      expect(Object.keys(args.filter).sort()).toEqual(['after', 'before']);
+    });
+
+    it('returns null when the range expands past the server limit', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['error', {
+          type: 'invalidArguments',
+          description: 'The number of expanded recurrences exceeds the limit of 1000',
+        }, '0']],
+      });
+
+      expect(await queryExpandedEvents('2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z')).toBeNull();
+    });
+
+    it('throws on any other error', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['error', { type: 'forbidden' }, '0']],
+      });
+
+      await expect(queryExpandedEvents('2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z')).rejects.toThrow('forbidden');
+    });
+  });
+
+  describe('hydrateExpandedOccurrences', () => {
+    it('gives server occurrences their base event\'s rules, overrides and all-day flag', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/get', {
+          list: [{
+            id: 'base',
+            recurrenceRule: { frequency: 'daily' },
+            recurrenceOverrides: { '2026-03-03': { title: 'Moved' } },
+            showWithoutTime: true,
+            timeZone: null,
+            duration: 'P1D',
+          }],
+        }, '0']],
+      });
+      const occurrence = {
+        id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02', start: '2026-03-02T00:00:00',
+        timeZone: 'Europe/Berlin', title: 'Daily',
+      } as any;
+      const single = { id: 's9', baseEventId: 'other', start: '2026-03-02T09:00:00', title: 'Once' } as any;
+
+      const [hydrated, untouched] = await hydrateExpandedOccurrences([occurrence, single]);
+
+      expect(mockRequest.mock.calls[0][0][0][1]).toMatchObject({ ids: ['base'] });
+      expect(hydrated).toMatchObject({
+        id: 's1',
+        recurrenceRules: [{ frequency: 'daily' }],
+        recurrenceOverrides: { '2026-03-03': { title: 'Moved' } },
+        showWithoutTime: true,
+        timeZone: null,
+      });
+      expect(untouched).toBe(single);
+    });
+
+    it('skips the round trip when nothing recurs', async () => {
+      const single = { id: 's9', baseEventId: 'other', start: '2026-03-02T09:00:00' } as any;
+      expect(await hydrateExpandedOccurrences([single])).toEqual([single]);
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getEvents for expanded occurrences', () => {
+    it('asks for the base event id only then', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['CalendarEvent/get', { list: [] }, '0']] });
+
+      await getEvents(['a'], undefined, { expanded: true });
+      await getEvents(['a']);
+
+      expect(mockRequest.mock.calls[0][0][0][1].properties).toContain('baseEventId');
+      expect(mockRequest.mock.calls[1][0][0][1].properties).not.toContain('baseEventId');
     });
   });
 

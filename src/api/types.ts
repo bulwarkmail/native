@@ -506,6 +506,12 @@ export interface CalendarEvent {
   recurrenceOverrides?: Record<string, Partial<CalendarEvent>> | null;
   excludedRecurrenceRules?: RecurrenceRule[] | null;
   recurrenceId?: string;
+  // The zone of a LocalDateTime `recurrenceId` (server-expanded occurrences).
+  recurrenceIdTimeZone?: string | null;
+  // Server-expanded occurrences (CalendarEvent/query expandRecurrences) carry
+  // a synthetic `id`; this is the raw id of the stored event they come from.
+  // A stored event fetched directly carries its own id here.
+  baseEventId?: string | null;
   originalId?: string;
   // Client-only: the event's server-side calendarIds (raw, unprefixed), kept
   // when `calendarIds` is remapped to namespaced store ids for shared events.

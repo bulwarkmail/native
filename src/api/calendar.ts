@@ -4,6 +4,12 @@ import type { Calendar, CalendarEvent, CalendarRights } from './types';
 import { assertSetResult } from './jmap-result';
 import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
+import {
+  RECURRENCE_BASE_PROPERTIES,
+  SYNTHETIC_ID_PROBE,
+  hydrateRecurrenceInstances,
+  isServerRecurrenceInstance,
+} from '../lib/recurrence-instances';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
 
@@ -108,6 +114,19 @@ const CALENDAR_EVENT_PROPERTIES = [
   'progress', 'due', 'priority', 'percentComplete',
   'links', 'created', 'updated',
 ];
+
+// Asked for only on server-expanded ranges: servers that expand recurrences
+// for the app (see supportsSyntheticCalendarIds) know these.
+const EXPANDED_EVENT_PROPERTIES = [...CALENDAR_EVENT_PROPERTIES, 'baseEventId', 'recurrenceIdTimeZone'];
+
+// Client-side fields that must never reach CalendarEvent/set.
+const CLIENT_ONLY_EVENT_KEYS = [
+  'originalId', 'baseEventId', 'originalCalendarIds', 'accountId', 'isShared', 'localAccountId',
+];
+
+function stripClientOnlyFields(payload: Record<string, unknown>): void {
+  for (const key of CLIENT_ONLY_EVENT_KEYS) delete payload[key];
+}
 
 /**
  * Normalize Stalwart's singular recurrence property names to the RFC 8984
@@ -233,12 +252,83 @@ function sharedCalendarAccountIds(): string[] {
     .map(([id]) => id);
 }
 
+// ─── Synthetic ids ───────────────────────────────────────
+// Whether CalendarEvent/set accepts the synthetic ids that
+// CalendarEvent/query?expandRecurrences=true hands out (Stalwart >= 0.16.20),
+// per server and account. Mirrors the webmail's supportsSyntheticCalendarIds.
+
+const SYNTHETIC_ID_PROBE_CALL_ID = 'synthetic-id-probe';
+const syntheticIdSupport = new Map<string, Promise<boolean>>();
+
+function syntheticIdProbeKey(): string | null {
+  try {
+    return `${jmapClient.currentSession?.apiUrl ?? ''}|${jmapClient.accountId}`;
+  } catch {
+    return null;
+  }
+}
+
+function syntheticIdProbeCall(accountId: string): [string, Record<string, unknown>, string] {
+  return ['CalendarEvent/set', { accountId, update: { [SYNTHETIC_ID_PROBE]: {} } }, SYNTHETIC_ID_PROBE_CALL_ID];
+}
+
+/**
+ * Derive (and cache) the probe verdict from a response that carried the
+ * probe call. A server that still rejects synthetic ids answers
+ * `invalidProperties` before looking the event up, one that supports them
+ * answers `notFound`; anything else counts as unsupported. A request that
+ * failed outright is not remembered, so the next range load probes again.
+ */
+function rememberSyntheticIdProbe(key: string, pending: Promise<any>): void {
+  const verdict: Promise<boolean> = pending.then(
+    (res) => {
+      const entry = ((res?.methodResponses ?? []) as [string, any, string][]).find(
+        (r) => r[2] === SYNTHETIC_ID_PROBE_CALL_ID,
+      );
+      if (!entry || entry[0] !== 'CalendarEvent/set') return false;
+      return entry[1]?.notUpdated?.[SYNTHETIC_ID_PROBE]?.type === 'notFound';
+    },
+    () => {
+      if (syntheticIdSupport.get(key) === verdict) syntheticIdSupport.delete(key);
+      return false;
+    },
+  );
+  syntheticIdSupport.set(key, verdict);
+}
+
+/**
+ * Whether the server expands recurring events for the app: it accepts the
+ * synthetic occurrence ids in CalendarEvent/set, so each occurrence can be
+ * edited through its own id. Probed once per server and account with a
+ * side-effect-free update of an id that cannot exist; the first Calendar/get
+ * carries the probe along (getCalendars), so the usual start-up pays no
+ * extra round trip.
+ */
+export function supportsSyntheticCalendarIds(): Promise<boolean> {
+  const key = syntheticIdProbeKey();
+  if (!key) return Promise.resolve(false);
+  if (!syntheticIdSupport.has(key)) {
+    rememberSyntheticIdProbe(
+      key,
+      jmapClient.request([syntheticIdProbeCall(jmapClient.accountId)], USING),
+    );
+  }
+  return syntheticIdSupport.get(key)!;
+}
+
+export function resetSyntheticIdSupport(): void {
+  syntheticIdSupport.clear();
+}
+
 export async function getCalendars(): Promise<Calendar[]> {
   const accountId = jmapClient.accountId;
-  const res = await jmapClient.request(
-    [['Calendar/get', { accountId }, '0']],
-    USING,
-  );
+  const probeKey = syntheticIdProbeKey();
+  const carriesProbe = !!probeKey && !syntheticIdSupport.has(probeKey);
+  const methodCalls: [string, Record<string, unknown>, string][] = [['Calendar/get', { accountId }, '0']];
+  if (carriesProbe) methodCalls.push(syntheticIdProbeCall(accountId));
+  const pending = jmapClient.request(methodCalls, USING);
+  if (carriesProbe) rememberSyntheticIdProbe(probeKey!, pending);
+  const res = await pending;
   const own = methodResult<{ list: Calendar[] }>(res).list ?? [];
 
   // Calendars shared with the user live in other session accounts. Failures
@@ -331,6 +421,91 @@ export async function queryEvents(
 }
 
 /**
+ * Occurrence ids in a date window, with recurring series expanded by the
+ * server into one synthetic id per occurrence (CalendarEvent/query
+ * `expandRecurrences`). Only for servers that accept those ids in
+ * CalendarEvent/set (supportsSyntheticCalendarIds). The filter holds just
+ * the two range bounds, the form the server expands with (the webmail
+ * sends the same); the caller keeps the calendars it asked for. `null` when
+ * the server refuses to expand this range (more occurrences than its
+ * maxRecurrenceExpansions): the caller then expands on the device.
+ */
+export async function queryExpandedEvents(
+  after: string,
+  before: string,
+  accountId?: string,
+): Promise<string[] | null> {
+  const account = accountId || jmapClient.accountId;
+  const timeZone = getUserTimeZone();
+  const filter = {
+    after: toLocalDateTime(after, timeZone),
+    before: toLocalDateTime(before, timeZone),
+  };
+  const ids: string[] = [];
+  for (let page = 0; page < QUERY_MAX_PAGES; page++) {
+    const args: Record<string, unknown> = {
+      accountId: account,
+      filter,
+      expandRecurrences: true,
+      limit: QUERY_PAGE_SIZE,
+      position: ids.length,
+    };
+    if (timeZone) args.timeZone = timeZone;
+    const res = await jmapClient.request([['CalendarEvent/query', args, '0']], USING);
+    const entry = res?.methodResponses?.[0];
+    if (
+      entry?.[0] === 'error'
+      && entry[1]?.type === 'invalidArguments'
+      && /expanded recurrences exceeds/i.test(entry[1]?.description ?? '')
+    ) {
+      return null;
+    }
+    const batch = methodResult<{ ids: string[] }>(res).ids ?? [];
+    ids.push(...batch);
+    if (batch.length < QUERY_PAGE_SIZE) break;
+  }
+  return ids;
+}
+
+/**
+ * Server-expanded occurrences come back without their series' recurrence
+ * rule / overrides (and all-day ones without showWithoutTime). Fetch those
+ * from the base events in one batched get and merge them in, so an
+ * occurrence carries the same series context the device-side expansion
+ * copies from its master.
+ */
+export async function hydrateExpandedOccurrences(
+  events: CalendarEvent[],
+  accountId?: string,
+): Promise<CalendarEvent[]> {
+  const baseIds = Array.from(new Set(
+    events
+      .filter((event) => isServerRecurrenceInstance(event) && event.recurrenceId)
+      .map((event) => event.baseEventId as string),
+  ));
+  if (baseIds.length === 0) return events;
+  const account = accountId || jmapClient.accountId;
+  const timeZone = getUserTimeZone();
+  const batchSize = jmapClient.getMaxObjectsInGet();
+  const bases = new Map<string, Partial<CalendarEvent>>();
+  for (let i = 0; i < baseIds.length; i += batchSize) {
+    const res = await jmapClient.request(
+      [['CalendarEvent/get', {
+        accountId: account,
+        ids: baseIds.slice(i, i + batchSize),
+        properties: [...RECURRENCE_BASE_PROPERTIES],
+        ...(timeZone ? { timeZone } : {}),
+      }, '0']],
+      USING,
+    );
+    for (const base of methodResult<{ list: Partial<CalendarEvent>[] }>(res).list ?? []) {
+      if (base.id) bases.set(base.id, normalizeRecurrenceProperties(base));
+    }
+  }
+  return hydrateRecurrenceInstances(events, bases);
+}
+
+/**
  * Every calendar object of an account with just the properties needed to tell
  * tasks from events (see lib/calendar-component-detection). Used to find
  * tasks-only calendars and the task ids; pages through the query so accounts
@@ -366,7 +541,12 @@ export async function scanCalendarObjects(accountId?: string): Promise<ScannedCa
   return all;
 }
 
-export async function getEvents(ids: string[], accountId?: string): Promise<CalendarEvent[]> {
+export async function getEvents(
+  ids: string[],
+  accountId?: string,
+  // `expanded`: the ids are server-expanded occurrences (queryExpandedEvents).
+  options?: { expanded?: boolean },
+): Promise<CalendarEvent[]> {
   if (ids.length === 0) return [];
   const account = accountId || jmapClient.accountId;
   const timeZone = getUserTimeZone();
@@ -378,7 +558,7 @@ export async function getEvents(ids: string[], accountId?: string): Promise<Cale
       [['CalendarEvent/get', {
         accountId: account,
         ids: batch,
-        properties: CALENDAR_EVENT_PROPERTIES,
+        properties: options?.expanded ? EXPANDED_EVENT_PROPERTIES : CALENDAR_EVENT_PROPERTIES,
         ...(timeZone ? { timeZone } : {}),
       }, '0']],
       USING,
@@ -427,6 +607,7 @@ export async function createEvent(
 ): Promise<CalendarEvent> {
   const accountId = targetAccountId || jmapClient.accountId;
   const payload: Record<string, unknown> = { ...event, calendarIds: { [calendarId]: true } };
+  stripClientOnlyFields(payload);
   cleanRecurrenceRules(payload);
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, {
@@ -476,6 +657,7 @@ export async function batchCreateEvents(
   const create: Record<string, Partial<CalendarEvent>> = {};
   events.forEach((e, i) => {
     const payload: Record<string, unknown> = { ...e, calendarIds: { [calendarId]: true } };
+    stripClientOnlyFields(payload);
     cleanRecurrenceRules(payload);
     create[`evt-${i}`] = payload as Partial<CalendarEvent>;
   });
@@ -503,6 +685,7 @@ export async function updateEvent(
 ): Promise<void> {
   const accountId = targetAccountId || jmapClient.accountId;
   const patch: Record<string, unknown> = { ...changes };
+  stripClientOnlyFields(patch);
   cleanRecurrenceRules(patch);
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, { update: { [id]: patch } }, sendSchedulingMessages), '0']],
