@@ -20,6 +20,7 @@ import {
   addTokenRefreshListener,
   getInitialNotificationTap,
   getStoredRelayBaseUrl,
+  notificationTapJmapAccountId,
   resyncPushNotifications,
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
@@ -87,6 +88,8 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
     emailId: payload.emailId,
     threadId: payload.threadId,
     subject: payload.subject,
+    // A group mailbox's message lives under another JMAP account (#839).
+    jmapAccountId: notificationTapJmapAccountId(payload),
   });
 }
 

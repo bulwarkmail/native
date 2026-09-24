@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
@@ -11,9 +11,13 @@ vi.mock('../client-cert', () => ({ secureFetch: vi.fn(async () => ({ ok: false, 
 vi.mock('../oauth', () => ({ refreshOAuthAccessToken: vi.fn(async (t: unknown) => t) }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeModules } from 'react-native';
+import { jmapClient } from '../../api/jmap-client';
+import { secureFetch } from '../client-cert';
 import {
   matchAccountsForPush,
   parseRelayPushData,
+  pushBackgroundTask,
   selectNotifiableEmails,
   senderFaviconsAllowed,
 } from '../push-background-task';
@@ -75,6 +79,81 @@ describe('matchAccountsForPush', () => {
   it('checks every account when nothing matches', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'carol' });
     expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(accounts);
+  });
+});
+
+describe('pushBackgroundTask notifications', () => {
+  const LOCAL = 'alice@mail.example.com';
+  const showNotification = vi.fn(async () => undefined);
+  let emailGetAccount: string | null = null;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary' }));
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockResolvedValue({
+      serverUrl: 'https://mail.example.com',
+      username: 'alice',
+      password: 'secret',
+    });
+    emailGetAccount = null;
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return {
+          ok: true,
+          json: async () => ({
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {}, team: {} },
+          }),
+        };
+      }
+      const [[, args]] = JSON.parse(init?.body ?? '{}').methodCalls;
+      emailGetAccount = args.accountId;
+      return {
+        ok: true,
+        json: async () => ({
+          methodResponses: [[
+            'Email/get',
+            { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Hi', from: [{ email: 'bob@example.com' }] }] },
+            '0',
+          ]],
+        }),
+      };
+    });
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  it('tags a group mailbox notification with the JMAP account the message lives in (#839)', async () => {
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'team',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(emailGetAccount).toBe('team');
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ emailId: 'm1', accountId: LOCAL, jmapAccountId: 'team' }),
+    );
+  });
+
+  it('tags the user\'s own mail with the primary account', async () => {
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'jmap-primary',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ emailId: 'm1', accountId: LOCAL, jmapAccountId: 'jmap-primary' }),
+    );
   });
 });
 

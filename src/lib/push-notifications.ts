@@ -1284,6 +1284,26 @@ export interface NotificationTapPayload {
   // Optional for back-compat: older notifications already on the system tray
   // won't carry this and will fall back to the active account on tap.
   accountId?: string;
+  // The JMAP account the message lives in: a group or shared mailbox's account
+  // when it isn't the user's own. Absent on older notifications.
+  jmapAccountId?: string;
+}
+
+/**
+ * The JMAP account to open a tapped notification's message against, in the
+ * form the EmailThread route takes: the group or shared account it was
+ * delivered from, or undefined for the user's own mail - including
+ * notifications posted before the field existed (#839).
+ */
+export function notificationTapJmapAccountId(payload: NotificationTapPayload): string | undefined {
+  if (!payload.jmapAccountId) return undefined;
+  let primary: string | null = null;
+  try {
+    primary = jmapClient.accountId;
+  } catch {
+    primary = null;
+  }
+  return payload.jmapAccountId === primary ? undefined : payload.jmapAccountId;
 }
 
 // Returns - and clears - any pending "notification tap" that launched the app

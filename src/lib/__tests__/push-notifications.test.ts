@@ -73,6 +73,7 @@ import {
   deviceClientIdKey,
   disablePushForAccount,
   isValidRelayUrl,
+  notificationTapJmapAccountId,
   readPushAccountIds,
   readPushJmapAccountIds,
   PushSetupError,
@@ -790,6 +791,22 @@ describe('teardownPushNotificationsForAccount', () => {
     const native = (NativeModules as { BulwarkFcm: { deleteToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
     expect(native.deleteToken).not.toHaveBeenCalled();
     expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+  });
+});
+
+describe('notificationTapJmapAccountId', () => {
+  const tap = { emailId: 'm1', threadId: 't1', accountId: ACCOUNT_ID };
+
+  it('opens a group mailbox message against the group account', () => {
+    expect(notificationTapJmapAccountId({ ...tap, jmapAccountId: 'team' })).toBe('team');
+  });
+
+  it('leaves the user\'s own mail on the default account', () => {
+    expect(notificationTapJmapAccountId({ ...tap, jmapAccountId: 'jmap-primary' })).toBeUndefined();
+  });
+
+  it('keeps notifications posted before the field existed working', () => {
+    expect(notificationTapJmapAccountId(tap)).toBeUndefined();
   });
 });
 

@@ -81,6 +81,9 @@ interface ShowNotificationOptions {
   threadId: string;
   subject?: string;
   accountId: string;
+  // The JMAP account the message lives in - a group or shared mailbox's
+  // account rather than the user's own - so a tap opens it there.
+  jmapAccountId: string;
   // Android notification group: one per account so the tray bundles
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
@@ -416,6 +419,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
 
   const alreadyNotified = await readNotifiedIds(accountId);
   let candidates: Email[];
+  let emailAccountId = session.jmapAccountId;
 
   if (payload.emailIds.length > 0) {
     // EmailPush (or a relay that forwards ids): fetch exactly the delivered
@@ -423,8 +427,8 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     // to, in which case the ids live under that JMAP account.
     const fresh = payload.emailIds.filter((id) => !alreadyNotified.includes(id));
     if (fresh.length === 0) return;
-    const targetAccount = payload.jmapAccountId ?? session.jmapAccountId;
-    candidates = await detachedGetEmails(session, targetAccount, fresh);
+    emailAccountId = payload.jmapAccountId ?? session.jmapAccountId;
+    candidates = await detachedGetEmails(session, emailAccountId, fresh);
   } else {
     // Legacy `jmap-state-change` payload without ids: look at the newest
     // unread inbox messages and notify the ones not shown before. The ring
@@ -472,6 +476,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
       threadId: email.threadId,
       subject: email.subject ?? undefined,
       accountId,
+      jmapAccountId: emailAccountId,
       groupKey,
       groupTitle,
     });
