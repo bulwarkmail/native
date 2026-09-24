@@ -294,23 +294,28 @@ export async function moveFileNode(id: string, parentId: string | null): Promise
 export async function deleteFileNodes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const accountId = filesAccountId();
-  const res = await jmapClient.request(
-    [['FileNode/set', {
-      accountId,
-      destroy: ids,
-      // The server removes descendant nodes of destroyed folders.
-      onDestroyRemoveChildren: true,
-    }, '0']],
-    fileUsing(),
-  );
-  const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
-    | Record<string, { description?: string }>
-    | undefined;
-  const failedIds = Object.keys(notDestroyed ?? {});
-  if (failedIds.length > 0) {
-    throw new Error(
-      notDestroyed![failedIds[0]]?.description || `Failed to delete ${failedIds.length} item(s)`,
+  // One FileNode/set per `maxObjectsInSet` ids: a request over the limit
+  // fails whole (RFC 8620 §3.6.1), so a large selection deleted nothing.
+  // Every batch runs; refusals are reported once all of them are done.
+  const refused: Array<{ description?: string }> = [];
+  for (const slice of batched(ids, jmapClient.getMaxObjectsInSet())) {
+    const res = await jmapClient.request(
+      [['FileNode/set', {
+        accountId,
+        destroy: slice,
+        // The server removes descendant nodes of destroyed folders.
+        onDestroyRemoveChildren: true,
+      }, '0']],
+      fileUsing(),
     );
+    const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
+      | Record<string, { type?: string; description?: string }>
+      | undefined;
+    // A node inside a folder an earlier batch removed is already gone.
+    refused.push(...Object.values(notDestroyed ?? {}).filter((err) => err?.type !== 'notFound'));
+  }
+  if (refused.length > 0) {
+    throw new Error(refused[0]?.description || `Failed to delete ${refused.length} item(s)`);
   }
 }
 

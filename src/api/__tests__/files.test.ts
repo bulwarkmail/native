@@ -8,6 +8,7 @@ vi.mock('../jmap-client', () => ({
     hasAccountCapability: vi.fn(() => false),
     getMaxSizeUpload: vi.fn(() => 0),
     getMaxObjectsInGet: vi.fn(() => 500),
+    getMaxObjectsInSet: vi.fn(() => 500),
     getMaxCallsInRequest: vi.fn(() => 16),
     currentSession: null as unknown,
   },
@@ -45,6 +46,7 @@ const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
 const mockMaxObjectsInGet = jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>;
 const mockMaxCallsInRequest = jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>;
+const mockMaxObjectsInSet = jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>;
 
 function setSession(session: unknown) {
   (jmapClient as { currentSession: unknown }).currentSession = session;
@@ -53,6 +55,7 @@ function setSession(session: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockMaxObjectsInGet.mockReturnValue(500);
+  mockMaxObjectsInSet.mockReturnValue(500);
   mockMaxCallsInRequest.mockReturnValue(16);
   mockHasCapability.mockImplementation(
     (urn: string) =>
@@ -124,6 +127,43 @@ describe('deleteFileNodes', () => {
     });
 
     await expect(deleteFileNodes(['f1'])).rejects.toThrow('forbidden');
+  });
+
+  it("splits a large selection into batches of the server's maxObjectsInSet", async () => {
+    mockMaxObjectsInSet.mockReturnValue(2);
+    const destroyed = (ids: string[]) => ({ methodResponses: [['FileNode/set', { destroyed: ids }, '0']] });
+    mockRequest
+      .mockResolvedValueOnce(destroyed(['a', 'b']))
+      .mockResolvedValueOnce(destroyed(['c', 'd']))
+      .mockResolvedValueOnce(destroyed(['e']));
+
+    await deleteFileNodes(['a', 'b', 'c', 'd', 'e']);
+
+    expect(mockRequest.mock.calls.map((c) => c[0][0][1].destroy)).toEqual([['a', 'b'], ['c', 'd'], ['e']]);
+    expect(mockRequest.mock.calls.every((c) => c[0][0][1].onDestroyRemoveChildren === true)).toBe(true);
+  });
+
+  it('accepts a node that an earlier batch already removed with its folder', async () => {
+    mockMaxObjectsInSet.mockReturnValue(1);
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { destroyed: ['folder'] }, '0']] })
+      .mockResolvedValueOnce({
+        methodResponses: [['FileNode/set', { notDestroyed: { child: { type: 'notFound' } } }, '0']],
+      });
+
+    await expect(deleteFileNodes(['folder', 'child'])).resolves.toBeUndefined();
+  });
+
+  it('still deletes the other batches when one item is refused', async () => {
+    mockMaxObjectsInSet.mockReturnValue(1);
+    mockRequest
+      .mockResolvedValueOnce({
+        methodResponses: [['FileNode/set', { notDestroyed: { a: { type: 'forbidden', description: 'forbidden' } } }, '0']],
+      })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', { destroyed: ['b'] }, '0']] });
+
+    await expect(deleteFileNodes(['a', 'b'])).rejects.toThrow('forbidden');
+    expect(mockRequest).toHaveBeenCalledTimes(2);
   });
 });
 
