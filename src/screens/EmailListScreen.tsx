@@ -21,6 +21,10 @@ import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { UndoSnackbar } from '../components/UndoSnackbar';
 import { OfflineBanner } from '../components/OfflineBanner';
+import {
+  ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
+} from '../components/email/ListAttachmentChips';
+import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, effectiveFolderScope, type EmailFilters } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
@@ -43,7 +47,7 @@ import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
-import type { Email } from '../api/types';
+import type { Attachment, Email } from '../api/types';
 
 function getSenderName(email: Email): string {
   return email.from?.[0]?.name || email.from?.[0]?.email || 'Unknown';
@@ -92,6 +96,8 @@ const EmailRow = React.memo(function EmailRow({
   onLongPress,
   selected,
   selectionMode,
+  loadAttachments,
+  onOpenAttachment,
 }: {
   item: Email;
   threadCount: number;
@@ -107,6 +113,8 @@ const EmailRow = React.memo(function EmailRow({
   onLongPress: (id: string) => void;
   selected: boolean;
   selectionMode: boolean;
+  loadAttachments?: LoadListAttachments;
+  onOpenAttachment?: (email: Email, attachment: Attachment) => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -229,6 +237,14 @@ const EmailRow = React.memo(function EmailRow({
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
             {singleLine(item.preview)}
           </Text>
+        )}
+        {onOpenAttachment && (
+          <ListAttachmentChips
+            email={item}
+            load={loadAttachments}
+            onOpen={onOpenAttachment}
+            disabled={selectionMode}
+          />
         )}
       </View>
     </Pressable>
@@ -418,6 +434,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const scopedMailboxes = React.useMemo(
     () => mailboxesForSiblingOf(mailboxes, currentMailboxId),
     [mailboxes, currentMailboxId],
+  );
+  const { loadAttachments, openAttachment, openerRef: attachmentOpenerRef } = useListRowAttachments(
+    mailboxes, currentMailboxId,
   );
   const archiveMailboxId = React.useMemo(
     () => findArchiveMailbox(scopedMailboxes)?.id ?? null,
@@ -659,6 +678,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           selectionMode={selectionMode}
           onPress={handleRowPress}
           onLongPress={toggleSelect}
+          loadAttachments={loadAttachments}
+          onOpenAttachment={openAttachment}
         />
       );
     },
@@ -666,6 +687,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
+      loadAttachments, openAttachment,
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
@@ -1333,6 +1355,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       </Pressable>
 
       <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <ListAttachmentOpener ref={attachmentOpenerRef} />
 
       <Modal
         visible={filterMenuOpen}

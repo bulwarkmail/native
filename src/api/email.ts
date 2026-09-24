@@ -2,7 +2,7 @@ import { jmapClient } from './jmap-client';
 import { assertSetResult, batched, parseHoldLimit, requireMethodResult, ScheduleTooLateError } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
-import type { Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
+import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
 import { toWildcardQuery } from '../lib/search-utils';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
@@ -529,6 +529,40 @@ export async function getEmailsWithState(
     state = body.state as string;
   }
   return { list, state };
+}
+
+// Body-part fields a list-row attachment chip needs (lib/list-attachments).
+const LIST_ATTACHMENT_BODY_PROPERTIES = ['blobId', 'size', 'name', 'type', 'cid', 'disposition'];
+
+/**
+ * Attachment parts of the given emails, keyed by email id, for list-row
+ * chips. Kept out of the list request on purpose: Stalwart reads and parses
+ * each message's whole raw blob to answer `attachments`, so asking for it on
+ * every list page made large folders slow (webmail #1089). Callers ask only
+ * for rows on screen that have `hasAttachment`. Ids the server did not
+ * return are absent from the map.
+ */
+export async function getEmailAttachments(
+  ids: string[],
+  accountIdOverride?: string,
+): Promise<Map<string, Attachment[]>> {
+  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const found = new Map<string, Attachment[]>();
+  for (const slice of batched(ids, maxInGet())) {
+    const res = await jmapClient.request([
+      ['Email/get', {
+        accountId,
+        ids: slice,
+        properties: ['id', 'attachments'],
+        bodyProperties: LIST_ATTACHMENT_BODY_PROPERTIES,
+      }, '0'],
+    ]);
+    const body = requireMethodResult(res, '0', 'Email/get');
+    for (const email of (body.list as Pick<Email, 'id' | 'attachments'>[]) ?? []) {
+      found.set(email.id, email.attachments ?? []);
+    }
+  }
+  return found;
 }
 
 export interface EmailChangesResult {
