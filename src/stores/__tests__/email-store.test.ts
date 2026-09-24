@@ -101,9 +101,8 @@ vi.mock('../settings-store', () => {
   };
 });
 
-// offline-cache-store is touched by selectMailbox (cache-seed fallback),
-// getEmailDetail (best-effort body refresh), and setActiveAccount (account
-// switch). Stub it as an empty cache so tests don't need to set up
+// offline-cache-store is touched by selectMailbox (cache-seed fallback) and
+// setActiveAccount (account switch). Stub it as an empty cache so tests don't need to set up
 // AsyncStorage.
 vi.mock('../offline-cache-store', () => ({
   useOfflineCacheStore: {
@@ -164,7 +163,6 @@ const mockGetThreads = emailApi.getThreads as ReturnType<typeof vi.fn>;
 const mockGetEmailQueryChanges = emailApi.getEmailQueryChanges as ReturnType<typeof vi.fn>;
 const mockGetEmails = emailApi.getEmails as ReturnType<typeof vi.fn>;
 const mockGetEmailsWithState = emailApi.getEmailsWithState as ReturnType<typeof vi.fn>;
-const mockGetFullEmail = emailApi.getFullEmail as ReturnType<typeof vi.fn>;
 const mockPatchKeywords = emailApi.patchKeywordsForEmails as ReturnType<typeof vi.fn>;
 const mockMoveEmail = emailApi.moveEmail as ReturnType<typeof vi.fn>;
 const mockDeleteEmail = emailApi.deleteEmail as ReturnType<typeof vi.fn>;
@@ -683,17 +681,6 @@ describe('email-store', () => {
       expect(state.emails).toEqual(base);
       expect(state.mailboxSnapshots['mb-1'].emails).toEqual(base);
       expect(state.mailboxSnapshots['mb-1'].queryState).toBe('q-new');
-    });
-  });
-
-  describe('getEmailDetail', () => {
-    it('should fetch full email', async () => {
-      const fullEmail = { id: 'e1', subject: 'Test', bodyValues: { html: { value: '<p>Hi</p>' } } };
-      mockGetFullEmail.mockResolvedValue(fullEmail);
-
-      const result = await useEmailStore.getState().getEmailDetail('e1');
-
-      expect(result).toEqual(fullEmail);
     });
   });
 

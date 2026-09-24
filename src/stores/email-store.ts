@@ -379,7 +379,6 @@ export interface EmailState {
     mailboxId: string,
   ) => Promise<{ imported: number; failed: number }>;
   handleStateChange: (change: StateChange) => Promise<void>;
-  getEmailDetail: (id: string, accountId?: string) => Promise<Email>;
   markRead: (emailId: string, accountId?: string) => Promise<void>;
   markUnread: (emailId: string) => Promise<void>;
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
@@ -857,8 +856,8 @@ export const useEmailStore = create<EmailState>()(
       loading: false,
     });
 
-    // Point the offline body cache at the same account so getEmailDetail's
-    // fallback and selectMailbox's seed read from the right bucket. Fire-
+    // Point the offline body cache at the same account so the viewer's
+    // cache-first open and selectMailbox's seed read from the right bucket. Fire-
     // and-forget — the cache returns empty until hydration completes,
     // which is the correct degraded behaviour.
     void useOfflineCacheStore.getState().setAccount(accountId);
@@ -1230,31 +1229,6 @@ export const useEmailStore = create<EmailState>()(
     if (!state.searchQuery && activeFilterKeys(state.filters).length === 0) return;
     set({ searchQuery: '', filters: {}, retainedIds: [], ...restoredBaseView(state) });
     void get().refreshEmails();
-  },
-
-  getEmailDetail: async (id, accountId) => {
-    // Try the network first so the user sees fresh keywords/flags. If that
-    // fails (offline / server unreachable), fall back to the offline cache
-    // when the message is in it. Without the cache hit, propagate the error
-    // so the caller can surface it. `accountId` targets a group/shared inbox
-    // message opened from the unified view.
-    try {
-      const fresh = await getFullEmail(id, accountId);
-      // Opportunistically refresh the cached copy so the next offline open
-      // reflects the latest keywords without needing a full sync.
-      const cache = useOfflineCacheStore.getState();
-      if (cache.has(id, accountId)) {
-        try {
-          const size = JSON.stringify(fresh).length;
-          await cache.put(fresh, size, accountId);
-        } catch { /* ignore — best-effort refresh */ }
-      }
-      return fresh;
-    } catch (err) {
-      const cached = await useOfflineCacheStore.getState().get(id, accountId);
-      if (cached) return cached;
-      throw err;
-    }
   },
 
   markRead: async (emailId, accountId) => {

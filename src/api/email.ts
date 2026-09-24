@@ -752,17 +752,99 @@ export async function getFullEmail(id: string, accountIdOverride?: string): Prom
 // Batch variant for offline sync and the thread view. Splits to the server's
 // maxObjectsInGet ceiling itself.
 export async function getFullEmails(ids: string[], accountIdOverride?: string): Promise<Email[]> {
-  if (ids.length === 0) return [];
+  return (await getFullEmailsWithState(ids, accountIdOverride)).list;
+}
+
+/** An `Email/get` result: what came back, what the server does not know, and its Email state. */
+export interface EmailGetResult<T> {
+  list: T[];
+  notFound: string[];
+  /** The account's Email state the result was read at (RFC 8620 §5.1). */
+  state?: string;
+}
+
+/**
+ * {@link getFullEmails} with the Email state of the response and the ids the
+ * server reported missing, for callers that cache what they read.
+ */
+export async function getFullEmailsWithState(
+  ids: string[],
+  accountIdOverride?: string,
+): Promise<EmailGetResult<Email>> {
+  if (ids.length === 0) return { list: [], notFound: [] };
   const accountId = accountIdOverride ?? jmapClient.accountId;
-  const out: Email[] = [];
+  const out: EmailGetResult<Email> = { list: [], notFound: [] };
   for (const slice of batched(ids, maxInGet())) {
     const res = await jmapClient.request([
       ['Email/get', { accountId, ids: slice, ...FULL_BODY_ARGS }, '0'],
     ]);
-    out.push(...((requireMethodResult(res, '0', 'Email/get').list as Email[]) ?? []));
+    const body = requireMethodResult(res, '0', 'Email/get');
+    out.list.push(...((body.list as Email[]) ?? []));
+    out.notFound.push(...((body.notFound as string[] | undefined) ?? []));
+    out.state = body.state as string | undefined;
   }
-  await refetchTruncatedBodyValues(out, accountId);
+  await refetchTruncatedBodyValues(out.list, accountId);
   return out;
+}
+
+/** The two mutable properties of an Email (RFC 8621 §4.1); nothing else ever changes. */
+export type EmailFlags = Pick<Email, 'id' | 'keywords' | 'mailboxIds'>;
+
+/**
+ * Only the keywords and folders of messages, to bring a copy read earlier up
+ * to date without downloading its body again.
+ */
+export async function getEmailFlags(
+  ids: string[],
+  accountIdOverride?: string,
+): Promise<EmailGetResult<EmailFlags>> {
+  if (ids.length === 0) return { list: [], notFound: [] };
+  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const out: EmailGetResult<EmailFlags> = { list: [], notFound: [] };
+  for (const slice of batched(ids, maxInGet())) {
+    const res = await jmapClient.request([
+      ['Email/get', { accountId, ids: slice, properties: ['id', 'keywords', 'mailboxIds'] }, '0'],
+    ]);
+    const body = requireMethodResult(res, '0', 'Email/get');
+    out.list.push(...((body.list as EmailFlags[]) ?? []));
+    out.notFound.push(...((body.notFound as string[] | undefined) ?? []));
+    out.state = body.state as string | undefined;
+  }
+  return out;
+}
+
+// What a collapsed conversation card shows; `sentAt` is the date it prints.
+export const THREAD_HEADER_PROPERTIES = [...EMAIL_LIST_PROPERTIES, 'sentAt'];
+
+/**
+ * The messages of a thread without their bodies, oldest first, in one
+ * back-referenced Thread/get → Email/get. The viewer lists a conversation from
+ * these and downloads bodies only for the cards it opens.
+ */
+export async function getThreadHeaders(
+  threadId: string,
+  accountIdOverride?: string,
+): Promise<{ emailIds: string[]; list: Email[]; state?: string }> {
+  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Thread/get', { accountId, ids: [threadId] }, '0'],
+    ['Email/get', {
+      accountId,
+      '#ids': { resultOf: '0', name: 'Thread/get', path: '/list/*/emailIds' },
+      properties: THREAD_HEADER_PROPERTIES,
+    }, '1'],
+  ]);
+  const thread = (requireMethodResult(res, '0', 'Thread/get').list as Thread[] | undefined)?.[0];
+  if (!thread) throw new Error(`Thread ${threadId} not found`);
+  const body = requireMethodResult(res, '1', 'Email/get');
+  const byId = new Map(((body.list as Email[]) ?? []).map((e) => [e.id, e]));
+  // Members the server did not return (no access to them) are left out.
+  const emailIds = thread.emailIds.filter((id) => byId.has(id));
+  return {
+    emailIds,
+    list: emailIds.map((id) => byId.get(id)!),
+    state: body.state as string | undefined,
+  };
 }
 
 /**

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Paperclip, Reply, ReplyAll, Forward, Star } from 'lucide-react-native';
 import type { Email } from '../../api/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -13,6 +13,8 @@ import { singleLine } from '../../lib/single-line';
 
 interface Props extends MessageContentProps {
   expanded: boolean;
+  /** Opened, with its body still on the way: the summary row with a spinner. */
+  loading?: boolean;
   onToggleExpanded: () => void;
   onReply: (mode: 'reply' | 'replyAll' | 'forward', email: Email) => void;
 }
@@ -22,7 +24,7 @@ interface Props extends MessageContentProps {
  * preview) that expands into the full message with its own reply / forward
  * actions - the webmail's thread-conversation-view cards.
  */
-export function ThreadMessageCard({ expanded, onToggleExpanded, onReply, ...content }: Props) {
+export function ThreadMessageCard({ expanded, loading, onToggleExpanded, onReply, ...content }: Props) {
   const { email, onToggleStar } = content;
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -48,6 +50,7 @@ export function ThreadMessageCard({ expanded, onToggleExpanded, onReply, ...cont
           </View>
           <Text style={styles.collapsedPreview} numberOfLines={1}>{singleLine(email.preview)}</Text>
         </View>
+        {loading && <ActivityIndicator size="small" color={c.textMuted} />}
         {starred && <Star size={14} color={c.starred} fill={c.starred} />}
       </Pressable>
     );

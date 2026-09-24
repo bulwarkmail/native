@@ -28,7 +28,11 @@ import {
   REPLY_QUICK_ACTIONS,
   type QuickAction,
 } from '../stores/settings-store';
-import { patchKeywordsForEmails, getThreadEmails } from '../api/email';
+import { patchKeywordsForEmails } from '../api/email';
+import {
+  loadDetail, loadDetails, loadThread, patchDetail, peekDetail, peekThread, subscribeEmailCache,
+  type FlagsHint,
+} from '../lib/email-detail-cache';
 import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
@@ -66,7 +70,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const [activeEmailId, setActiveEmailId] = React.useState(route.params.emailId);
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
   const markRead = useEmailStore((s) => s.markRead);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
@@ -126,21 +129,25 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // Per-message override of the light/dark rendering (More sheet toggle).
   const [themeOverrides, setThemeOverrides] = React.useState<Record<string, 'light' | 'dark'>>({});
 
-  // In-memory cache of fetched message details keyed by id. This is the single
-  // source of truth for every rendered pane: the active message *and* its
-  // prefetched neighbours all read their detail from here, so a swipe lands on
-  // ready content with no spinner and no late content-swap. `cacheVersion` is
-  // bumped whenever an entry changes so the panes re-render.
-  const detailCache = React.useRef(new Map<string, Email>()).current;
-  // Thread id -> message ids (oldest first), once the conversation was fetched.
-  const threadCache = React.useRef(new Map<string, string[]>()).current;
+  // Message details and conversations come from the shared cache
+  // (lib/email-detail-cache): every rendered pane, the active one and its
+  // neighbours, reads from it, so a swipe lands on ready content and a message
+  // opened before paints at once. `cacheVersion` is bumped on every change to
+  // it so the panes re-render.
   const [cacheVersion, setCacheVersion] = React.useState(0);
   const bumpCache = React.useCallback(() => setCacheVersion((v) => v + 1), []);
-  const email = React.useMemo(
-    () => detailCache.get(activeEmailId) ?? null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeEmailId, cacheVersion, detailCache],
+  React.useEffect(() => subscribeEmailCache(bumpCache), [bumpCache]);
+  const detailOf = React.useCallback(
+    (id: string) => peekDetail(id, ownerAccountId),
+    [ownerAccountId],
   );
+  const email = React.useMemo(
+    () => detailOf(activeEmailId) ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeEmailId, cacheVersion, detailOf],
+  );
+  // Conversations whose fetch failed with nothing held: shown as one message.
+  const failedThreads = React.useRef(new Set<string>()).current;
 
   // --- Pager -------------------------------------------------------------
   // A horizontal, page-snapping FlatList over `emails`. Native scroll provides
@@ -152,49 +159,50 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     Math.max(0, emails.findIndex((e) => e.id === route.params.emailId)),
   );
 
-  // Coalesced detail fetch: stores the result in the shared cache and bumps the
-  // version so every mounted pane (and the toolbar) re-reads it. Concurrent
-  // calls for the same id share a single in-flight request.
-  const inFlight = React.useRef(new Map<string, Promise<Email | null>>()).current;
-  const ensureDetail = React.useCallback((id: string): Promise<Email | null> => {
-    const pending = inFlight.get(id);
-    if (pending) return pending;
-    const p = getEmailDetail(id, ownerAccountId)
-      .then((fetched) => { detailCache.set(id, fetched); bumpCache(); return fetched; })
-      .catch(() => detailCache.get(id) ?? null)
-      .finally(() => { inFlight.delete(id); });
-    inFlight.set(id, p);
-    return p;
-  }, [getEmailDetail, ownerAccountId, detailCache, bumpCache, inFlight]);
+  // What each page's list row said about its message the first time it is
+  // loaded here: a copy held from an earlier open that disagrees with it (the
+  // user marked it unread in the list a moment ago) is checked first. Later
+  // loads go by the cache, which has the viewer's own changes.
+  const hintedIds = React.useRef(new Set<string>()).current;
+  const hintFor = React.useCallback((id: string): FlagsHint | undefined => {
+    if (hintedIds.has(id)) return undefined;
+    hintedIds.add(id);
+    const row = emails.find((e) => e.id === id);
+    return row?.keywords ? { keywords: row.keywords, mailboxIds: row.mailboxIds } : undefined;
+  }, [emails, hintedIds]);
 
-  // Whole conversation (Thread/get -> Email/get), cached per thread id. Every
-  // message lands in the detail cache so the cards render straight from it.
-  const threadInFlight = React.useRef(new Map<string, Promise<string[]>>()).current;
-  const ensureThread = React.useCallback((threadId: string): Promise<string[]> => {
-    const cached = threadCache.get(threadId);
-    if (cached) return Promise.resolve(cached);
-    const pending = threadInFlight.get(threadId);
-    if (pending) return pending;
-    const p = getThreadEmails(threadId, ownerAccountId)
-      .then((list) => {
-        for (const e of list) detailCache.set(e.id, e);
-        const ids = list.map((e) => e.id);
-        threadCache.set(threadId, ids);
-        bumpCache();
-        return ids;
-      })
-      .catch((err) => {
-        console.warn('[thread] fetch failed', err);
-        // Fall back to the single message so the pane still renders.
-        const single = detailCache.has(activeEmailId) ? [activeEmailId] : [];
-        threadCache.set(threadId, single);
-        bumpCache();
-        return single;
-      })
-      .finally(() => { threadInFlight.delete(threadId); });
-    threadInFlight.set(threadId, p);
-    return p;
-  }, [ownerAccountId, detailCache, threadCache, bumpCache, threadInFlight, activeEmailId]);
+  // Cache first: a held copy renders at once and the promise resolves with the
+  // checked one (which mark-as-read goes by). Concurrent loads share a request.
+  const ensureDetail = React.useCallback(
+    (id: string): Promise<Email | null> =>
+      loadDetail(id, ownerAccountId, hintFor(id)).catch(() => peekDetail(id, ownerAccountId) ?? null),
+    [ownerAccountId, hintFor],
+  );
+  const ensureDetails = React.useCallback((ids: string[]) => {
+    const missing = ids.filter((id) => !peekDetail(id, ownerAccountId));
+    if (missing.length > 0) void loadDetails(missing, ownerAccountId);
+  }, [ownerAccountId]);
+
+  // The conversation's members without bodies; the cards fetch bodies only
+  // when opened (ensureDetails).
+  const ensureThread = React.useCallback((threadId: string): void => {
+    void loadThread(threadId, ownerAccountId).catch((err) => {
+      console.warn('[thread] fetch failed', err);
+      // Show the single message instead of a spinner that never ends.
+      failedThreads.add(threadId);
+      bumpCache();
+    });
+  }, [ownerAccountId, failedThreads, bumpCache]);
+  const threadIdsOf = React.useCallback((threadId: string): string[] | null => {
+    const view = peekThread(threadId, ownerAccountId);
+    if (view) return view.ids;
+    return failedThreads.has(threadId) ? [] : null;
+  }, [ownerAccountId, failedThreads]);
+  const memberOf = React.useCallback(
+    (threadId: string, id: string): Email | undefined =>
+      peekDetail(id, ownerAccountId) ?? peekThread(threadId, ownerAccountId)?.headers.get(id),
+    [ownerAccountId],
+  );
 
   const goToIndex = React.useCallback((index: number) => {
     if (index < 0 || index >= emails.length) return;
@@ -239,13 +247,10 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
 
   // Optimistically write a message's keywords into the cache (the single source
-  // of truth for every pane) and bump the version so the panes re-render.
+  // of truth for every pane, and for the next open); its listeners re-render.
   const updateLocalKeywords = React.useCallback((id: string, next: Record<string, boolean>) => {
-    const prev = detailCache.get(id);
-    if (!prev) return;
-    detailCache.set(id, { ...prev, keywords: next });
-    bumpCache();
-  }, [detailCache, bumpCache]);
+    patchDetail(id, ownerAccountId, { keywords: next });
+  }, [ownerAccountId]);
 
   // Mark read through the store (its list row and offline queue) only when
   // the list holds the message's account; the store would otherwise read the
@@ -293,7 +298,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       const fetched = await ensureDetail(activeEmailId);
       if (cancelled) return;
       if (!fetched) {
-        if (!detailCache.has(activeEmailId)) setError(t('email_viewer.load_failed', 'Failed to load email'));
+        if (!detailOf(activeEmailId)) setError(t('email_viewer.load_failed', 'Failed to load email'));
         return;
       }
       cancelRead = scheduleMarkRead(fetched);
@@ -302,7 +307,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       cancelled = true;
       cancelRead?.();
     };
-  }, [activeEmailId, ensureDetail, scheduleMarkRead, detailCache, t]);
+  }, [activeEmailId, ensureDetail, scheduleMarkRead, detailOf, t]);
 
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
@@ -385,10 +390,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     }
   };
 
+  // Banners and the quick reply hand back the message with a keyword changed
+  // (`$mdnsent`, `$answered`); only that goes into the cache.
   const onEmailPatched = React.useCallback((patched: Email) => {
-    detailCache.set(patched.id, patched);
-    bumpCache();
-  }, [detailCache, bumpCache]);
+    patchDetail(patched.id, ownerAccountId, { keywords: patched.keywords });
+  }, [ownerAccountId]);
 
   const performDelete = () => {
     if (!email || !sourceMailbox || !trashMailbox) return;
@@ -693,19 +699,20 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   id={item.id}
                   active={item.id === activeEmailId}
                   threadIdHint={item.threadId}
-                  email={detailCache.get(item.id) ?? null}
-                  detailCache={detailCache}
+                  email={detailOf(item.id) ?? null}
                   threadIds={
                     !disableThreading
-                      ? threadCache.get(detailCache.get(item.id)?.threadId ?? item.threadId) ?? null
+                      ? threadIdsOf(detailOf(item.id)?.threadId ?? item.threadId)
                       : null
                   }
+                  memberOf={memberOf}
                   threading={!disableThreading}
                   jmapAccountId={ownerAccountId}
                   currentMailboxRole={currentMailboxRole}
                   identities={identities}
                   themeOverrides={themeOverrides}
                   ensureDetail={ensureDetail}
+                  ensureDetails={ensureDetails}
                   ensureThread={ensureThread}
                   scheduleMarkRead={scheduleMarkRead}
                   styles={styles}
@@ -838,16 +845,18 @@ interface EmailPaneProps {
   active: boolean;
   threadIdHint?: string;
   email: Email | null;
-  detailCache: Map<string, Email>;
   /** Ids of the whole conversation (oldest first) once fetched; null = not (yet) loaded. */
   threadIds: string[] | null;
+  /** A conversation member: its full copy when held, else its header. */
+  memberOf: (threadId: string, id: string) => Email | undefined;
   threading: boolean;
   jmapAccountId?: string;
   currentMailboxRole: string | null;
   identities: Identity[];
   themeOverrides: Record<string, 'light' | 'dark'>;
   ensureDetail: (id: string) => Promise<Email | null>;
-  ensureThread: (threadId: string) => Promise<string[]>;
+  ensureDetails: (ids: string[]) => void;
+  ensureThread: (threadId: string) => void;
   scheduleMarkRead: (email: Email) => () => void;
   styles: ReturnType<typeof makeStyles>;
   bottomBarHeight: number;
@@ -862,11 +871,12 @@ interface EmailPaneProps {
 // One swipeable page: the subject plus either a single message or the whole
 // conversation as collapsible cards (newest + unread expanded, mark-read on
 // expand). The pager keeps three of these mounted (prev, current, next) so a
-// swipe slides ready content into view.
+// swipe slides ready content into view. A conversation is listed from its
+// members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
-  id, active, threadIdHint, email, detailCache, threadIds, threading, jmapAccountId, currentMailboxRole,
-  identities, themeOverrides, ensureDetail, ensureThread, scheduleMarkRead, styles, bottomBarHeight,
-  onToggleStar, onAddressPress, onEmailPatched, onReply, onSwipe, onZoomChange,
+  id, active, threadIdHint, email, threadIds, memberOf, threading, jmapAccountId, currentMailboxRole,
+  identities, themeOverrides, ensureDetail, ensureDetails, ensureThread, scheduleMarkRead, styles,
+  bottomBarHeight, onToggleStar, onAddressPress, onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
   const c = useColors();
   const t = useLocaleStore((s) => s.t);
@@ -882,22 +892,33 @@ function EmailPane({
     if (!email) void ensureDetail(id);
   }, [id, email, ensureDetail]);
 
+  // Also run for a conversation already held: it is checked against the
+  // account's Email state (and refetched only when that moved on).
   const threadId = email?.threadId ?? threadIdHint;
   React.useEffect(() => {
-    if (threading && threadId && !threadIds) void ensureThread(threadId);
-  }, [threading, threadId, threadIds, ensureThread]);
+    if (threading && threadId) ensureThread(threadId);
+  }, [threading, threadId, ensureThread]);
 
+  // Seeded once the message itself is known: before that `threadId` may be
+  // a guess (a page handed over by id only carries the opened one's).
   React.useEffect(() => {
-    if (!threadIds || expanded) return;
+    if (!email || !threadIds || !threadId || expanded) return;
     const seed = new Set<string>();
     for (const mid of threadIds) {
-      const m = detailCache.get(mid);
+      const m = memberOf(threadId, mid);
       if (m && !m.keywords?.$seen) seed.add(mid);
     }
     seed.add(id);
     if (threadIds.length > 0) seed.add(threadIds[threadIds.length - 1]);
     setExpanded(seed);
-  }, [threadIds, expanded, detailCache, id]);
+  }, [email, threadIds, threadId, expanded, memberOf, id]);
+
+  // Bodies of the open cards, in one request.
+  React.useEffect(() => {
+    if (expanded && threadIds && threadIds.length > 1) {
+      ensureDetails(threadIds.filter((mid) => expanded.has(mid)));
+    }
+  }, [expanded, threadIds, ensureDetails]);
 
   React.useEffect(() => () => { readTimers.forEach((cancel) => cancel()); readTimers.clear(); }, [readTimers]);
 
@@ -908,7 +929,7 @@ function EmailPane({
         next.delete(mid);
       } else {
         next.add(mid);
-        const m = detailCache.get(mid);
+        const m = threadId ? memberOf(threadId, mid) : undefined;
         if (m && mid !== id) {
           readTimers.get(mid)?.();
           readTimers.set(mid, scheduleMarkRead(m));
@@ -923,10 +944,12 @@ function EmailPane({
   }
 
   const subject = singleLine(email.subject) || t('email_viewer.no_subject', '(No Subject)');
-  const conversation = threading && threadIds && threadIds.length > 1
-    ? threadIds.map((mid) => detailCache.get(mid)).filter((m): m is Email => !!m)
+  const conversation = threading && threadId && threadIds && threadIds.length > 1
+    ? threadIds.map((mid) => memberOf(threadId, mid)).filter((m): m is Email => !!m)
     : null;
   const newest = conversation ? conversation[conversation.length - 1] : email;
+  // The quick reply quotes the message, so it waits for the newest one's body.
+  const newestLoaded = !conversation || !!peekDetail(newest.id, jmapAccountId);
 
   return (
     <ScrollView
@@ -962,25 +985,31 @@ function EmailPane({
       )}
 
       {conversation ? (
-        conversation.map((m) => (
-          <ThreadMessageCard
-            key={m.id}
-            email={m}
-            expanded={expanded?.has(m.id) ?? m.id === id}
-            onToggleExpanded={() => toggleCard(m.id)}
-            onReply={onReply}
-            jmapAccountId={jmapAccountId}
-            identities={identities}
-            currentMailboxRole={currentMailboxRole}
-            active={active}
-            themeOverride={themeOverrides[m.id] ?? null}
-            onSwipe={onSwipe}
-            onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
-            onToggleStar={onToggleStar}
-            onAddressPress={onAddressPress}
-            onEmailPatched={onEmailPatched}
-          />
-        ))
+        conversation.map((m) => {
+          const open = expanded?.has(m.id) ?? m.id === id;
+          // An open card shows its header until its body has arrived.
+          const full = open ? peekDetail(m.id, jmapAccountId) : undefined;
+          return (
+            <ThreadMessageCard
+              key={m.id}
+              email={full ?? m}
+              expanded={!!full}
+              loading={open && !full}
+              onToggleExpanded={() => toggleCard(m.id)}
+              onReply={onReply}
+              jmapAccountId={jmapAccountId}
+              identities={identities}
+              currentMailboxRole={currentMailboxRole}
+              active={active}
+              themeOverride={themeOverrides[m.id] ?? null}
+              onSwipe={onSwipe}
+              onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
+              onToggleStar={onToggleStar}
+              onAddressPress={onAddressPress}
+              onEmailPatched={onEmailPatched}
+            />
+          );
+        })
       ) : (
         <MessageContent
           email={email}
@@ -996,12 +1025,14 @@ function EmailPane({
         />
       )}
 
-      <QuickReplyBox
-        email={newest}
-        jmapAccountId={jmapAccountId}
-        onMoreOptions={() => onReply('reply', newest)}
-        onSent={onEmailPatched}
-      />
+      {newestLoaded && (
+        <QuickReplyBox
+          email={newest}
+          jmapAccountId={jmapAccountId}
+          onMoreOptions={() => onReply('reply', newest)}
+          onSent={onEmailPatched}
+        />
+      )}
     </ScrollView>
   );
 }
