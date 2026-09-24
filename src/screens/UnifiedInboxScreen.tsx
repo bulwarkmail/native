@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert,
+  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +24,8 @@ import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
+import { onStateChangeType } from '../lib/state-change-bus';
+import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -75,6 +77,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const positionsRef = React.useRef<Record<string, number>>({});
   const hasMoreRef = React.useRef(false);
   const loadSeq = React.useRef(0);
+  const reloadTracker = React.useMemo(() => createUnifiedReloadTracker(), []);
 
   const accountById = React.useMemo(
     () => new Map(accounts.map((a) => [a.id, a])),
@@ -94,6 +97,8 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   const load = React.useCallback(async () => {
     const seq = ++loadSeq.current;
+    const active = useAuthStore.getState().activeAccountId;
+    reloadTracker.loaded([accountIds, fetchOpts], active, accountIds.some((id) => id !== active));
     setLoading(true);
     try {
       const result = await fetchUnifiedInbox(accountIds, PAGE_SIZE, { ...fetchOpts, positions: {} });
@@ -105,7 +110,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     } finally {
       if (seq === loadSeq.current) setLoading(false);
     }
-  }, [accountIds, fetchOpts]);
+  }, [accountIds, fetchOpts, reloadTracker]);
 
   const loadMore = React.useCallback(async () => {
     if (loading || loadingMore || !hasMoreRef.current) return;
@@ -130,13 +135,31 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     }
   }, [accountIds, fetchOpts, loading, loadingMore]);
 
-  // Reload when the view comes back into focus (a message read or deleted
-  // in the thread screen is stale otherwise) and whenever the inputs change.
+  // Reload whenever the inputs change, and on coming back into focus only
+  // when something may have changed meanwhile (a message read or deleted in
+  // the thread screen); see createUnifiedReloadTracker.
   useFocusEffect(
     React.useCallback(() => {
-      void load();
-    }, [load]),
+      if (reloadTracker.focus([accountIds, fetchOpts], useAuthStore.getState().activeAccountId)) {
+        void load();
+      }
+      return () => reloadTracker.blur();
+    }, [load, accountIds, fetchOpts, reloadTracker]),
   );
+  React.useEffect(() => {
+    const offEmail = onStateChangeType('Email', () => {
+      if (reloadTracker.changeArrived()) void load();
+    });
+    // The event stream is closed in the background: changes made meanwhile
+    // are never reported.
+    const appState = AppState.addEventListener('change', (next) => {
+      if (next === 'background') reloadTracker.markStale();
+    });
+    return () => {
+      offEmail();
+      appState.remove();
+    };
+  }, [load, reloadTracker]);
 
   // Search on submit / after a pause (2+ chars), like the folder list.
   React.useEffect(() => {
@@ -151,6 +174,8 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     (email: UnifiedEmail) => {
       if (opening) return;
       setOpening(true);
+      // The thread screen marks it read: show that when coming back.
+      if (!email.keywords?.$seen) reloadTracker.markStale();
       void (async () => {
         try {
           const auth = useAuthStore.getState();
@@ -180,7 +205,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         }
       })();
     },
-    [opening, switchAccount, navigation, emails],
+    [opening, switchAccount, navigation, emails, reloadTracker],
   );
 
   // ── Actions (routed to each message's own account) ────────────────────
