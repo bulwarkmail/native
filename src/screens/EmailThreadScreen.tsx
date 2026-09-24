@@ -49,6 +49,9 @@ import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
 
+// How long the pages beside the one on screen wait for its body at most.
+const NEIGHBOUR_FALLBACK_MS = 1500;
+
 // Actions finish after the viewer may already have gone back, so a failure is
 // reported as a toast instead of vanishing with the promise (webmail
 // `lib/email-action-toast.ts`).
@@ -125,6 +128,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const currentIndex = emails.findIndex((e) => e.id === activeEmailId);
   const prevEmail = currentIndex > 0 ? emails[currentIndex - 1] : null;
   const nextEmail = currentIndex >= 0 && currentIndex < emails.length - 1 ? emails[currentIndex + 1] : null;
+  const prevId = prevEmail?.id;
+  const nextId = nextEmail?.id;
 
   const [error, setError] = React.useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
@@ -209,12 +214,34 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     [ownerAccountId],
   );
 
+  // The pages beside the one on screen wait for it: their fetches and
+  // WebViews would otherwise compete with it for the network, the JS thread
+  // and the WebView process while it opens. They are let go once its body has
+  // reported its height, as soon as the user starts to swipe, or after a
+  // while regardless; until then they show their header and placeholders.
+  const [neighboursReady, setNeighboursReady] = React.useState(false);
+  const releaseNeighbours = React.useCallback(() => setNeighboursReady(true), []);
+  React.useEffect(() => {
+    if (neighboursReady) return;
+    const timer = setTimeout(releaseNeighbours, NEIGHBOUR_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [neighboursReady, releaseNeighbours]);
+
+  // Both neighbours in one request once they may load (see neighboursReady).
+  React.useEffect(() => {
+    if (!neighboursReady) return;
+    const ids = [prevId, nextId].filter((id): id is string => !!id && !peekDetail(id, ownerAccountId));
+    if (ids.length === 0) return;
+    void loadDetails(ids, ownerAccountId, Object.fromEntries(ids.map((id) => [id, hintFor(id)])));
+  }, [neighboursReady, prevId, nextId, ownerAccountId, hintFor]);
+
   const goToIndex = React.useCallback((index: number) => {
     if (index < 0 || index >= emails.length) return;
+    releaseNeighbours();
     listRef.current?.scrollToOffset({ offset: index * windowWidth, animated: true });
     const target = emails[index];
     if (target) setActiveEmailId(target.id);
-  }, [emails, windowWidth]);
+  }, [emails, windowWidth, releaseNeighbours]);
 
   const onMomentumEnd = React.useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
@@ -227,6 +254,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (index >= 0) listRef.current?.scrollToOffset({ offset: index * windowWidth, animated: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowWidth]);
+
+  const pagerExtraData = React.useMemo(
+    () => [cacheVersion, neighboursReady],
+    [cacheVersion, neighboursReady],
+  );
 
   // While the body is pinch-zoomed the pager must not treat horizontal
   // gestures as page swipes.
@@ -687,7 +719,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             ref={listRef}
             style={styles.pagerViewport}
             data={emails}
-            extraData={cacheVersion}
+            extraData={pagerExtraData}
             keyExtractor={(item) => item.id}
             horizontal
             pagingEnabled
@@ -699,12 +731,15 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
             maxToRenderPerBatch={2}
             removeClippedSubviews
             scrollEnabled={!pagerLocked}
+            onScrollBeginDrag={releaseNeighbours}
             onMomentumScrollEnd={onMomentumEnd}
             renderItem={({ item, index }) => (
               <View style={{ width: windowWidth }}>
                 <EmailPane
                   id={item.id}
                   active={item.id === activeEmailId}
+                  bodyEnabled={item.id === activeEmailId || neighboursReady}
+                  onBodySettled={item.id === activeEmailId ? releaseNeighbours : undefined}
                   threadIdHint={item.threadId}
                   email={detailOf(item.id) ?? null}
                   row={item}
@@ -851,6 +886,10 @@ interface EmailPaneProps {
   id: string;
   /** The page on screen; its neighbours are only pre-rendered. */
   active: boolean;
+  /** May fetch its conversation and mount its body WebViews (see neighboursReady). */
+  bodyEnabled: boolean;
+  /** The page's body loaded and reported its height. */
+  onBodySettled?: () => void;
   threadIdHint?: string;
   email: Email | null;
   /** The page as the pager lists it: a list row, or just the id for one handed over by id. */
@@ -884,9 +923,10 @@ interface EmailPaneProps {
 // swipe slides ready content into view. A conversation is listed from its
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
-  id, active, threadIdHint, email, row, threadIds, memberOf, threading, jmapAccountId, currentMailboxRole,
-  identities, themeOverrides, ensureDetail, ensureDetails, ensureThread, scheduleMarkRead, styles,
-  bottomBarHeight, onToggleStar, onAddressPress, onEmailPatched, onReply, onSwipe, onZoomChange,
+  id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threading,
+  jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
+  ensureThread, scheduleMarkRead, styles, bottomBarHeight, onToggleStar, onAddressPress,
+  onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
   const c = useColors();
   const t = useLocaleStore((s) => s.t);
@@ -898,16 +938,17 @@ function EmailPane({
   const [expanded, setExpanded] = React.useState<Set<string> | null>(null);
   const readTimers = React.useRef(new Map<string, () => void>()).current;
 
+  // The screen loads the neighbours' details itself, both in one request.
   React.useEffect(() => {
-    if (!email) void ensureDetail(id);
-  }, [id, email, ensureDetail]);
+    if (!email && active) void ensureDetail(id);
+  }, [id, email, active, ensureDetail]);
 
   // Also run for a conversation already held: it is checked against the
   // account's Email state (and refetched only when that moved on).
   const threadId = email?.threadId ?? threadIdHint;
   React.useEffect(() => {
-    if (threading && threadId) ensureThread(threadId);
-  }, [threading, threadId, ensureThread]);
+    if (threading && threadId && bodyEnabled) ensureThread(threadId);
+  }, [threading, threadId, bodyEnabled, ensureThread]);
 
   // Seeded once the message itself is known: before that `threadId` may be
   // a guess (a page handed over by id only carries the opened one's).
@@ -925,10 +966,10 @@ function EmailPane({
 
   // Bodies of the open cards, in one request.
   React.useEffect(() => {
-    if (expanded && threadIds && threadIds.length > 1) {
+    if (bodyEnabled && expanded && threadIds && threadIds.length > 1) {
       ensureDetails(threadIds.filter((mid) => expanded.has(mid)));
     }
-  }, [expanded, threadIds, ensureDetails]);
+  }, [bodyEnabled, expanded, threadIds, ensureDetails]);
 
   React.useEffect(() => () => { readTimers.forEach((cancel) => cancel()); readTimers.clear(); }, [readTimers]);
 
@@ -1020,6 +1061,8 @@ function EmailPane({
               currentMailboxRole={currentMailboxRole}
               active={active}
               themeOverride={themeOverrides[m.id] ?? null}
+              deferBody={!bodyEnabled}
+              onBodySettled={onBodySettled}
               onSwipe={onSwipe}
               onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
               onToggleStar={onToggleStar}
@@ -1031,7 +1074,8 @@ function EmailPane({
       ) : (
         <MessageContent
           email={shown}
-          deferBody={!email}
+          deferBody={!email || !bodyEnabled}
+          onBodySettled={onBodySettled}
           jmapAccountId={jmapAccountId}
           identities={identities}
           currentMailboxRole={currentMailboxRole}

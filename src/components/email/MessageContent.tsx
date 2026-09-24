@@ -32,9 +32,12 @@ export interface MessageContentProps {
   compact?: boolean;
   /**
    * Show a placeholder where the body goes: `email` is the list row, painted
-   * while the message itself loads.
+   * while the message itself loads, or the page is off screen and its
+   * WebView waits for the one on screen.
    */
   deferBody?: boolean;
+  /** The body loaded and reported its height. */
+  onBodySettled?: () => void;
 }
 
 /**
@@ -45,7 +48,7 @@ export interface MessageContentProps {
  */
 export function MessageContent({
   email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
-  onToggleStar, onAddressPress, onEmailPatched, compact, deferBody,
+  onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled,
 }: MessageContentProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -116,6 +119,7 @@ export function MessageContent({
             onZoomChange={onZoomChange}
             themeOverride={themeOverride}
             bodyOverride={unwrap.override}
+            onSettled={onBodySettled}
           />
         )}
       </View>

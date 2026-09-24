@@ -44,6 +44,8 @@ interface EmailBodyViewProps {
    * real content was extracted client-side.
    */
   bodyOverride?: { html?: string | null; text?: string | null } | null;
+  /** Called once the body has loaded and reported its height (it is on screen). */
+  onSettled?: () => void;
 }
 
 // Dark-mode re-inversion, mirroring the webmail's handleIframeLoad pass. The
@@ -510,7 +512,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride,
+  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -577,10 +579,12 @@ export default function EmailBodyView({
   const [height, setHeight] = React.useState(120);
   const [cidMap, setCidMap] = React.useState<Record<string, string>>({});
   const webviewRef = React.useRef<WebView>(null);
+  const settledRef = React.useRef(false);
 
   React.useEffect(() => {
     setHeight(120);
     setCidMap({});
+    settledRef.current = false;
   }, [email.id]);
 
   React.useEffect(() => {
@@ -689,6 +693,10 @@ export default function EmailBodyView({
     const parsed = parseInt(data, 10);
     if (Number.isNaN(parsed) || parsed <= 0) return;
     setHeight((prev) => (Math.abs(parsed - prev) < 2 ? prev : parsed));
+    if (!settledRef.current) {
+      settledRef.current = true;
+      onSettled?.();
+    }
   };
 
   const onLoadImages = () => setAllowOnce(true);
