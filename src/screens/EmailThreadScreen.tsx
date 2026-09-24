@@ -83,7 +83,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const identities = useSettingsStore((s) => s.identities);
-  const fetchIdentities = useSettingsStore((s) => s.fetchIdentities);
+  const ensureIdentities = useSettingsStore((s) => s.ensureIdentities);
   const deleteAction = useSettingsStore((s) => s.deleteAction);
   const permanentlyDeleteJunk = useSettingsStore((s) => s.permanentlyDeleteJunk);
   const postExportAction = useSettingsStore((s) => s.postExportAction);
@@ -92,7 +92,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const exportLowercase = useSettingsStore((s) => s.exportLowercase);
   const exportStripDiacritics = useSettingsStore((s) => s.exportStripDiacritics);
   const resolvedTheme = useResolvedTheme();
-  React.useEffect(() => { if (identities.length === 0) void fetchIdentities(); }, [identities.length, fetchIdentities]);
+  // Held for the account after the first read, even when it has none.
+  React.useEffect(() => { void ensureIdentities(); }, [ensureIdentities]);
 
   // The account whose mail the store's list holds (the open folder's). Its
   // rows only stand for this message when that is the message's account.

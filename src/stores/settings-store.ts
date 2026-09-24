@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
+import { jmapClient } from '../api/jmap-client';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
@@ -442,11 +443,19 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
 export interface SettingsState extends PersistedSettings {
   identities: Identity[];
+  /** The signed-in account (server, login, JMAP account) `identities` were read for. */
+  identitiesFor: string | null;
   loading: boolean;
   error: string | null;
   hydrated: boolean;
 
+  /** Read the identities; concurrent calls share one request. */
   fetchIdentities: () => Promise<void>;
+  /**
+   * Read the identities only when they are not held for the signed-in account
+   * yet. An account without identities is not asked again on every call.
+   */
+  ensureIdentities: () => Promise<void>;
   hydrate: () => Promise<void>;
 
   // Generic setter — preferred for new code.
@@ -670,21 +679,58 @@ function stripDisplayName(email: string): string {
   return (angleMatch ? angleMatch[2] : trimmed).toLowerCase().trim();
 }
 
+// Which signed-in account the identities belong to. Two servers can hand out
+// the same JMAP account ids, so the server and login are part of it.
+function identityScope(): string | null {
+  try {
+    return `${jmapClient.serverUrl ?? ''}|${jmapClient.username ?? ''}|${jmapClient.accountId}`;
+  } catch {
+    return null;
+  }
+}
+
+let identitiesInFlight: { scope: string | null; promise: Promise<void> } | null = null;
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...DEFAULT_PERSISTED,
   identities: [],
+  identitiesFor: null,
   loading: false,
   error: null,
   hydrated: false,
 
-  fetchIdentities: async () => {
-    set({ loading: true, error: null });
-    try {
-      const identities = await fetchIdentities();
-      set({ identities, loading: false });
-    } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load identities' });
-    }
+  fetchIdentities: () => {
+    const scope = identityScope();
+    if (identitiesInFlight && identitiesInFlight.scope === scope) return identitiesInFlight.promise;
+    let promise: Promise<void> | undefined;
+    promise = (async () => {
+      set({ loading: true, error: null });
+      try {
+        const identities = await fetchIdentities();
+        // Signed in to another account meanwhile: these are not its identities.
+        if (identityScope() !== scope) {
+          set({ loading: false });
+          return;
+        }
+        set({ identities, identitiesFor: scope, loading: false });
+      } catch (err) {
+        set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load identities' });
+      } finally {
+        if (identitiesInFlight?.promise === promise) identitiesInFlight = null;
+      }
+    })();
+    identitiesInFlight = { scope, promise };
+    return promise;
+  },
+
+  ensureIdentities: () => {
+    const scope = identityScope();
+    const held = get().identitiesFor;
+    if (scope !== null && held === scope) return Promise.resolve();
+    // Another account's identities must not stand in (the quick reply would
+    // send through one this account does not have).
+    if (held !== null && held !== scope) set({ identities: [], identitiesFor: null });
+    return get().fetchIdentities();
   },
 
   hydrate: async () => {
@@ -804,6 +850,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   reset: () => set({
     identities: [],
+    identitiesFor: null,
     loading: false,
     error: null,
   }),

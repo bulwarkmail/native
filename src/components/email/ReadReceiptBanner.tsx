@@ -42,14 +42,15 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const identities = useSettingsStore((s) => s.identities);
-  const fetchIdentities = useSettingsStore((s) => s.fetchIdentities);
+  const ensureIdentities = useSettingsStore((s) => s.ensureIdentities);
   const readReceiptResponse = useSettingsStore((s) => s.readReceiptResponse);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [busy, setBusy] = React.useState(false);
   const [handledLocally, setHandledLocally] = React.useState(false);
 
   React.useEffect(() => { setHandledLocally(false); }, [email.id]);
-  React.useEffect(() => { if (identities.length === 0) void fetchIdentities(); }, [identities.length, fetchIdentities]);
+  // Held for the account after the first read, even when it has none.
+  React.useEffect(() => { void ensureIdentities(); }, [ensureIdentities]);
 
   const eligibleFolder = !['sent', 'drafts', 'trash', 'junk', 'spam'].includes(currentMailboxRole || '');
   const identity = React.useMemo(() => findReceivingIdentity(identities, email), [identities, email]);
