@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { openExternalUrl } from '../../lib/open-url';
+import { splitTextLinks } from '../../lib/linkify-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   AlignLeft,
@@ -282,6 +283,7 @@ export function EventDetailSheet({
                 icon={<AlignLeft size={16} color={c.textMuted} />}
                 text={event.description}
                 multiline
+                linkify
               />
             ) : null}
             {recurrence && (
@@ -420,18 +422,38 @@ function DetailRow({
   icon,
   text,
   multiline = false,
+  linkify = false,
 }: {
   icon: React.ReactNode;
   text: string;
   multiline?: boolean;
+  /**
+   * Render the http(s) URLs inside `text` as tappable links. For rows whose
+   * text comes from the invitation itself - a meeting description carries the
+   * join URL - never for text the app composed.
+   */
+  linkify?: boolean;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const segments = React.useMemo(() => (linkify ? splitTextLinks(text) : null), [linkify, text]);
   return (
     <View style={styles.detailRow}>
       <View style={styles.detailIcon}>{icon}</View>
       <Text style={styles.detailText} numberOfLines={multiline ? undefined : 2}>
-        {text}
+        {segments
+          ? segments.map((segment, i) => (segment.url ? (
+            <Text
+              key={i}
+              style={styles.detailLink}
+              onPress={() => { void openExternalUrl(segment.url as string, { confirm: true }); }}
+            >
+              {segment.text}
+            </Text>
+          ) : (
+            <Text key={i}>{segment.text}</Text>
+          )))
+          : text}
       </Text>
     </View>
   );
@@ -582,6 +604,7 @@ function makeStyles(c: ThemePalette) {
   detailRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   detailIcon: { width: 16, paddingTop: 2 },
   detailText: { flex: 1, ...typography.body, color: c.text },
+  detailLink: { color: c.primary, textDecorationLine: 'underline' },
 
   joinBtn: {
     flex: 1,
