@@ -449,6 +449,96 @@ export async function queryEmailPage(
   };
 }
 
+/** One account's part of a list that spans accounts. */
+export interface AccountPageTarget {
+  /** Shared/group JMAP account; undefined = the user's own. */
+  accountId?: string;
+  position: number;
+  sort: Array<{ property: string; isAscending: boolean; keyword?: string }>;
+}
+
+export type AccountPage =
+  | { accountId?: string; ok: true; total: number; list: Email[]; threads: Thread[] }
+  | { accountId?: string; ok: false; error: Error };
+
+/**
+ * A folder-less ("All folders") page from each of several accounts the
+ * session reaches, in as few requests as `maxCallsInRequest` allows: per
+ * account its Email/query, the Email/get of the ids and, with `threads`, the
+ * Thread/get of their threads, chained with result references. Results come
+ * back in `targets` order; an account whose calls fail carries its error
+ * while the others still return their page (webmail `fanOutAccountQuery`).
+ */
+export async function queryEmailPagesAcrossAccounts(
+  targets: AccountPageTarget[],
+  options: { limit: number; filter?: Record<string, unknown>; threads?: boolean },
+): Promise<AccountPage[]> {
+  const callsPerTarget = options.threads ? 3 : 2;
+  const perRequest = Math.max(1, Math.floor(jmapClient.getMaxCallsInRequest() / callsPerTarget));
+  const limit = Math.min(options.limit, maxInGet());
+  const out: AccountPage[] = new Array(targets.length);
+  const indexed = targets.map((target, index) => ({ target, index }));
+  await Promise.all(batched(indexed, perRequest).map(async (chunk) => {
+    const calls: JMAPMethodCall[] = [];
+    for (const { target, index } of chunk) {
+      const args = emailQueryArgs(undefined, {
+        position: target.position,
+        limit,
+        sort: target.sort,
+        filter: options.filter,
+        accountId: target.accountId,
+      });
+      calls.push(['Email/query', args, `${index}:q`]);
+      calls.push(['Email/get', {
+        accountId: args.accountId,
+        '#ids': { resultOf: `${index}:q`, name: 'Email/query', path: '/ids' },
+        properties: EMAIL_LIST_PROPERTIES,
+      }, `${index}:g`]);
+      if (options.threads) {
+        calls.push(['Thread/get', {
+          accountId: args.accountId,
+          '#ids': { resultOf: `${index}:g`, name: 'Email/get', path: '/list/*/threadId' },
+        }, `${index}:t`]);
+      }
+    }
+    let res: Awaited<ReturnType<typeof jmapClient.request>>;
+    try {
+      res = await jmapClient.request(calls);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      for (const { target, index } of chunk) out[index] = { accountId: target.accountId, ok: false, error };
+      return;
+    }
+    for (const { target, index } of chunk) {
+      try {
+        const query = requireMethodResult(res, `${index}:q`, 'Email/query');
+        const got = requireMethodResult(res, `${index}:g`, 'Email/get');
+        let threads: Thread[] = [];
+        if (options.threads) {
+          try {
+            threads = (requireMethodResult(res, `${index}:t`, 'Thread/get').list as Thread[]) ?? [];
+          } catch { /* thread sizes only decorate the rows */ }
+        }
+        const byId = new Map(((got.list as Email[]) ?? []).map((e) => [e.id, e]));
+        out[index] = {
+          accountId: target.accountId,
+          ok: true,
+          total: (query.total as number) ?? 0,
+          list: ((query.ids as string[]) ?? []).flatMap((id) => byId.get(id) ?? []),
+          threads,
+        };
+      } catch (err) {
+        out[index] = {
+          accountId: target.accountId,
+          ok: false,
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+      }
+    }
+  }));
+  return out;
+}
+
 export interface EmailQueryChangesResult {
   oldQueryState: string;
   newQueryState: string;

@@ -46,7 +46,7 @@ import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
-import { useEmailStore } from './src/stores/email-store';
+import { useEmailStore, viewerParamsForRow } from './src/stores/email-store';
 import { mailboxAccountId } from './src/lib/mailbox-tree';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
@@ -200,6 +200,9 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
                 threadId: email.threadId,
                 subject: email.subject,
                 jmapAccountId: mailboxAccountId(all, currentMailboxId),
+                // A row of an "All folders" list or a tag view names its own
+                // account instead, and pages over that account's rows.
+                ...viewerParamsForRow(email),
               });
             }}
           />

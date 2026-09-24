@@ -26,7 +26,10 @@ import {
 } from '../components/email/ListAttachmentChips';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
-import { useEmailStore, effectiveFolderScope, type EmailFilters } from '../stores/email-store';
+import {
+  useEmailStore, effectiveFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  type EmailFilters,
+} from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -41,7 +44,7 @@ import {
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
-  collapseThreads, groupByThread, expandThreadSelection, getThreadTagIds, threadKeyOf,
+  collapseThreads, groupByThread, expandThreadSelection, getThreadTagIds, threadKeyOf, accountScopedId,
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
@@ -301,7 +304,8 @@ function EmailRowSeparator() {
   return <View style={styles.separator} />;
 }
 
-const emailKeyExtractor = (item: Email) => item.id;
+// Rows of a list spanning accounts can share an id (#1082).
+const emailKeyExtractor = (item: Email) => accountScopedId(item, item.id);
 
 interface EmailListScreenProps {
   onEmailPress?: (email: Email) => void;
@@ -325,6 +329,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const storeSearchQuery = useEmailStore((s) => s.searchQuery);
   const filters = useEmailStore((s) => s.filters);
+  const accountErrors = useEmailStore((s) => s.accountErrors);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
   const loadMoreEmails = useEmailStore((s) => s.loadMoreEmails);
@@ -406,7 +411,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const threadCountFor = React.useCallback((e: Email): number => {
     if (disableThreading) return 1;
     const local = threadGroups.get(threadKeyOf(e, false))?.length ?? 1;
-    const server = e.threadId ? serverThreadCounts[e.threadId] : undefined;
+    const server = e.threadId ? serverThreadCounts[accountScopedId(e, e.threadId)] : undefined;
     return Math.max(local, server ?? 1);
   }, [disableThreading, threadGroups, serverThreadCounts]);
 
@@ -533,8 +538,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     if (openingDraftId) return;
     setOpeningDraftId(email.id);
     try {
-      const full = await getFullEmail(email.id, currentOwnerAccountId);
-      navigation.navigate('Compose', { draft: draftContextFromEmail(full, currentOwnerAccountId) });
+      const owner = accountIdOfRow(email);
+      const full = await getFullEmail(email.id, owner);
+      navigation.navigate('Compose', { draft: draftContextFromEmail(full, owner) });
     } catch (err) {
       Alert.alert(
         t('email_list.error', 'Error'),
@@ -543,7 +549,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     } finally {
       setOpeningDraftId(null);
     }
-  }, [openingDraftId, currentOwnerAccountId, navigation, t]);
+  }, [openingDraftId, navigation, t]);
   const openDraftRef = React.useRef(openDraft);
   React.useEffect(() => { openDraftRef.current = openDraft; }, [openDraft]);
   const currentRoleRef = React.useRef(currentRole);
@@ -578,7 +584,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       );
       return;
     }
-    const permanent = isPermanentDelete({
+    // Rows of a list spanning accounts are judged by their own folders.
+    const permanent = deleteDestroysAcrossAccounts(ids) ?? isPermanentDelete({
       inTrash: currentMailboxId === trashMailboxId,
       inJunk,
       deleteAction,
@@ -743,7 +750,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       return;
     }
     const ids = selectedMessageIds;
-    const permanent = isPermanentDelete({
+    const permanent = deleteDestroysAcrossAccounts(ids) ?? isPermanentDelete({
       inTrash: currentMailboxId === trash.id,
       inJunk,
       deleteAction,
@@ -843,6 +850,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (filters.folder && filters.folder !== 'current' ? 1 : 0);
   const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
   const folderScope = effectiveFolderScope(storeSearchQuery, filters);
+  // Accounts an "All folders" list could not reach (#1082).
+  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters })
+    ? Object.values(accountErrors)
+    : [];
   const scopeFolderName = React.useMemo(() => {
     if (folderScope === 'all' || folderScope === 'current') return null;
     const m = mailboxes.find((mb) => mb.id === folderScope);
@@ -1278,6 +1289,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           <Pressable onPress={discardFailedOps} style={styles.emptyFolderButton} hitSlop={6}>
             <Text style={styles.emptyFolderButtonText}>{t('email_list.outbox_discard', 'Discard')}</Text>
           </Pressable>
+        </View>
+      )}
+
+      {unreachedAccounts.length > 0 && (
+        <View style={[styles.emptyFolderBanner, { borderColor: c.error }]}>
+          <Text style={styles.emptyFolderHint} numberOfLines={2}>
+            {t('unified_mailbox.accounts_failed', `${unreachedAccounts.length} account(s) could not be loaded`, { count: unreachedAccounts.length })}
+            {`: ${unreachedAccounts[0]}`}
+          </Text>
         </View>
       )}
 

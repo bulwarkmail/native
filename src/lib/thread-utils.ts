@@ -46,9 +46,20 @@ export function tagIdFromKeyword(keyword: string): string | null {
   return null;
 }
 
+/**
+ * A message or thread id scoped by the account stamp of a row from a list
+ * that spans accounts: JMAP ids are only unique per account (Stalwart hands
+ * out small per-account counters), so keys built from bare ids would merge
+ * two accounts' rows. Unstamped rows keep the bare id (webmail
+ * `threadKeyFor`).
+ */
+export function accountScopedId(email: Pick<Email, 'jmapAccountId'>, id: string): string {
+  return email.jmapAccountId ? `${email.jmapAccountId}:${id}` : id;
+}
+
 /** Key a message groups under: its thread, or itself when threading is off. */
 export function threadKeyOf(email: Email, disableThreading: boolean): string {
-  return disableThreading ? email.id : email.threadId || email.id;
+  return accountScopedId(email, disableThreading ? email.id : email.threadId || email.id);
 }
 
 function time(value: string | undefined): number {

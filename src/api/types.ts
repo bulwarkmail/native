@@ -92,6 +92,13 @@ export interface Email {
   attachments?: Attachment[];
   blobId?: string;
   bodyStructure?: BodyPart;
+  /**
+   * Client-side stamp, never sent by the server: the JMAP account a row of a
+   * list that spans accounts (an "All folders" search) was fetched from, the
+   * user's own account included. Rows of a single folder carry none; they
+   * belong to the folder's account.
+   */
+  jmapAccountId?: string;
 }
 
 export interface MailboxRights {

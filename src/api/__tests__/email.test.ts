@@ -19,6 +19,7 @@ import {
   getSharedMailboxes,
   queryEmails,
   queryEmailPage,
+  queryEmailPagesAcrossAccounts,
   getEmails,
   getFullEmail,
   getThread,
@@ -250,6 +251,60 @@ describe('email operations', () => {
         state: 's-1',
         threads: [{ id: 't1', emailIds: ['e1', 'e2', 'e3'] }],
       });
+    });
+
+    it('asks several accounts for a folder-less page in one request (#1082)', async () => {
+      (jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>).mockReturnValueOnce(16);
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 3 }, '0:q'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }] }, '0:g'],
+          ['Thread/get', { list: [{ id: 't1', emailIds: ['e1'] }] }, '0:t'],
+          ['error', { type: 'forbidden' }, '1:q'],
+          ['error', { type: 'invalidResultReference' }, '1:g'],
+          ['error', { type: 'invalidResultReference' }, '1:t'],
+        ],
+      });
+      const sort = [{ property: 'receivedAt', isAscending: false }];
+
+      const pages = await queryEmailPagesAcrossAccounts(
+        [{ position: 2, sort }, { accountId: 'grp-1', position: 0, sort }],
+        { limit: 25, filter: { text: 'zephyr*' }, threads: true },
+      );
+
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls.map((c: unknown[]) => [c[0], (c[1] as { accountId: string }).accountId, c[2]])).toEqual([
+        ['Email/query', 'acc-1', '0:q'], ['Email/get', 'acc-1', '0:g'], ['Thread/get', 'acc-1', '0:t'],
+        ['Email/query', 'grp-1', '1:q'], ['Email/get', 'grp-1', '1:g'], ['Thread/get', 'grp-1', '1:t'],
+      ]);
+      expect(calls[0][1]).toMatchObject({ filter: { text: 'zephyr*' }, position: 2, limit: 25, sort });
+      expect(calls[4][1]['#ids']).toEqual({ resultOf: '1:q', name: 'Email/query', path: '/ids' });
+      expect(pages[0]).toEqual({
+        accountId: undefined, ok: true, total: 3,
+        list: [{ id: 'e1', threadId: 't1' }], threads: [{ id: 't1', emailIds: ['e1'] }],
+      });
+      expect(pages[1]).toMatchObject({ accountId: 'grp-1', ok: false, error: { type: 'forbidden' } });
+    });
+
+    it('splits the accounts over requests by maxCallsInRequest', async () => {
+      (jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>).mockReturnValueOnce(4);
+      mockRequest.mockImplementation(async (calls: Array<[string, Record<string, unknown>, string]>) => ({
+        methodResponses: calls.map(([name, , id]) => (name === 'Email/query'
+          ? [name, { ids: [], total: 0 }, id]
+          : [name, { list: [] }, id])),
+      }));
+      const sort = [{ property: 'receivedAt', isAscending: false }];
+
+      const pages = await queryEmailPagesAcrossAccounts(
+        [{ position: 0, sort }, { accountId: 'g1', position: 0, sort }, { accountId: 'g2', position: 0, sort }],
+        { limit: 10 },
+      );
+
+      // Two calls per account without threads: two accounts fit in one request.
+      expect(mockRequest.mock.calls.map((c) => c[0].length)).toEqual([4, 2]);
+      expect(pages.map((p) => p.ok)).toEqual([true, true, true]);
+      mockRequest.mockReset();
     });
 
     it('leaves Thread/get out unless asked, and targets a shared account', async () => {

@@ -5,6 +5,7 @@ import {
   getEmailTagIds,
   getThreadTagIds,
   tagIdFromKeyword,
+  threadKeyOf,
 } from '../thread-utils';
 import type { Email } from '../../api/types';
 
@@ -53,6 +54,17 @@ describe('collapseThreads', () => {
 
   it('leaves every message as its own row when threading is off', () => {
     expect(collapseThreads([oldest, other, newest], true).map((e) => e.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it("keeps two accounts' threads with the same id apart (#1082)", () => {
+    // Stalwart hands out per-account counters, so an "All folders" list can
+    // hold an own and a team thread that share an id.
+    const own = { ...email('a', 't1', '2026-01-01T00:00:00Z'), jmapAccountId: 'c' };
+    const team = { ...email('a', 't1', '2026-01-02T00:00:00Z'), jmapAccountId: 'team' };
+    expect(collapseThreads([team, own], false)).toEqual([team, own]);
+    expect(threadKeyOf(own, false)).toBe('c:t1');
+    expect(threadKeyOf(team, true)).toBe('team:a');
+    expect(threadKeyOf(email('a', 't1', '2026-01-01T00:00:00Z'), false)).toBe('t1');
   });
 
   it('puts threads with a pinned message first', () => {

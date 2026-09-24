@@ -11,6 +11,7 @@ import {
   getMailboxesByIds,
   getMailboxChanges,
   queryEmailPage,
+  queryEmailPagesAcrossAccounts,
   getEmailQueryChanges,
   getEmails as fetchEmails,
   getEmailsWithState,
@@ -34,9 +35,12 @@ import {
 } from '../api/email';
 import { useNetworkStore } from './network-store';
 import { JMAPMethodError } from '../api/jmap-result';
-import { mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox } from '../lib/mailbox-tree';
+import {
+  mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
+} from '../lib/mailbox-tree';
 import { toWildcardQuery } from '../lib/search-utils';
-import { orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
+import { collapseThreads, accountScopedId } from '../lib/thread-utils';
+import { compareEmails, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
@@ -151,9 +155,11 @@ function actionTarget(
   emailId: string,
   viewed?: ViewedEmail,
 ): { email: Email | undefined; listed: boolean } {
-  const listed = !viewed || viewed.accountId === currentAccountId(state);
-  const row = listed ? state.emails.find((e) => e.id === emailId) : undefined;
-  return { email: row ?? viewed?.email, listed };
+  // A row is the viewer's message only in the message's account: a folder's
+  // rows are in the folder's, a row of a list spanning accounts in its own
+  // (#1082).
+  const row = state.emails.find((e) => e.id === emailId && (!viewed || rowAccountId(state, e) === viewed.accountId));
+  return { email: row ?? viewed?.email, listed: !viewed || !!row };
 }
 
 // actionTarget for the selection actions: the viewer only acts on its one message.
@@ -283,6 +289,11 @@ export interface UndoEntry {
     email: Email;
     originalMailboxIds: Record<string, boolean>;
     originalKeywords?: Record<string, boolean>;
+    /**
+     * The item's own JMAP account when one action covered several accounts
+     * (a list that spans accounts); `accountId` above applies otherwise.
+     */
+    accountId?: string;
   }>;
 }
 
@@ -348,6 +359,11 @@ export interface EmailState {
    * folders. Cleared when the folder or account changes.
    */
   threadCounts: Record<string, number>;
+  /**
+   * Accounts an "All folders" list could not reach, by JMAP account id → the
+   * error. The other accounts' messages still show.
+   */
+  accountErrors: Record<string, string>;
 
   // ── Actions ────────────────────────────────────────────────────
   setActiveAccount: (accountId: string | null) => void;
@@ -502,6 +518,176 @@ function isUnsupportedSort(err: unknown): boolean {
   return err instanceof JMAPMethodError && err.type === 'unsupportedSort';
 }
 
+// ── Lists that span accounts ───────────────────────────────────────────
+// "All folders" covers every folder of the user's own account AND of the
+// shared (group) accounts whose folders are in the sidebar (#1082, webmail
+// `searchAcrossAccounts`). Each account is asked for its own page, the pages
+// are merged under the list order and every row is stamped with its JMAP
+// account (`Email.jmapAccountId`), so opening and acting on a row reach the
+// account it lives in. A search scoped to one folder stays in its account.
+
+/** Whether the list on screen spans the own and the shared accounts. */
+export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>): boolean {
+  return effectiveFolderScope(state.searchQuery, state.filters) === 'all' && !state.filters.keyword;
+}
+
+// The JMAP accounts such a list covers; undefined = the user's own.
+function listAccounts(mailboxes: Mailbox[]): Array<string | undefined> {
+  const out: Array<string | undefined> = [undefined];
+  for (const m of mailboxes) {
+    if (m.isShared && m.accountId && m.accountId !== jmapClient.accountId && !out.includes(m.accountId)) {
+      out.push(m.accountId);
+    }
+  }
+  return out;
+}
+
+// The JMAP account a list row lives under (undefined = the user's own): its
+// stamp in a list that spans accounts, else the folder on screen.
+function rowAccountId(state: EmailState, email: Email | undefined): string | undefined {
+  if (email?.jmapAccountId) {
+    return email.jmapAccountId === jmapClient.accountId ? undefined : email.jmapAccountId;
+  }
+  return currentAccountId(state);
+}
+
+// The folders of one JMAP account (undefined = the user's own).
+function accountMailboxes(mailboxes: Mailbox[], accountId: string | undefined): Mailbox[] {
+  return accountId
+    ? mailboxes.filter((m) => m.isShared && m.accountId === accountId)
+    : ownMailboxes(mailboxes);
+}
+
+// Rows grouped by the account they live in, in first-seen order.
+function groupByAccount(state: EmailState, emails: Email[]): Array<{ accountId?: string; emails: Email[] }> {
+  const groups = new Map<string, { accountId?: string; emails: Email[] }>();
+  for (const e of emails) {
+    const accountId = rowAccountId(state, e);
+    const group = groups.get(accountId ?? '');
+    if (group) group.emails.push(e);
+    else groups.set(accountId ?? '', { accountId, emails: [e] });
+  }
+  return [...groups.values()];
+}
+
+// The rows among `ids` that come from a list spanning accounts.
+function spanningRows(state: EmailState, ids: string[]): Email[] {
+  return state.emails.filter((e) => !!e.jmapAccountId && ids.includes(e.id));
+}
+
+// Client-side mirror of the list sort, for merging the accounts' pages.
+function listComparator(state: EmailState): (a: Email, b: Email) => number {
+  const order = orderFor(state);
+  const oldestFirst = useSettingsStore.getState().mailSortAscending
+    && !order.some((l) => l.criterion === 'receivedAt');
+  const levels: SortLevel[] = oldestFirst ? [...order, { criterion: 'receivedAt', direction: 'asc' }] : order;
+  return compareEmails(levels, { pinnedFirst: true });
+}
+
+interface SpanningPage {
+  /** Stamped rows of every account that answered, merged under the list order. */
+  list: Email[];
+  /** Sum of the answering accounts' totals. */
+  total: number;
+  /** Their conversations, ids scoped like `accountScopedId`. */
+  threads: Thread[];
+  /** JMAP account id → error, for the accounts that did not answer. */
+  errors: Record<string, string>;
+}
+
+// One page from every account the list spans, each account starting at its
+// own position (`loaded[stamp]`: its rows already on screen), so "load more"
+// never skips one account's messages because another had more. An account
+// refusing the keyword sort is retried once without it; a failing account
+// lands in `errors`. Throws only when no account answered.
+async function fetchSpanningPage(
+  state: EmailState,
+  loaded: Record<string, number>,
+  filter: Record<string, unknown> | undefined,
+  limit: number,
+): Promise<SpanningPage> {
+  const primary = jmapClient.accountId;
+  const threads = !useSettingsStore.getState().disableThreading;
+  const run = async (accounts: Array<string | undefined>) => queryEmailPagesAcrossAccounts(
+    await Promise.all(accounts.map(async (accountId) => ({
+      accountId,
+      position: loaded[accountId ?? primary] ?? 0,
+      sort: await resolveSort(state, accountId),
+    }))),
+    { limit, filter, threads },
+  );
+  let pages = await run(listAccounts(state.mailboxes));
+  const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
+  if (refused.length > 0) {
+    for (const p of refused) markKeywordSortUnsupported(p.accountId ?? primary);
+    const retried = await run(refused.map((p) => p.accountId));
+    pages = pages.map((p) => retried.find((r) => r.accountId === p.accountId) ?? p);
+  }
+
+  const page: SpanningPage = { list: [], total: 0, threads: [], errors: {} };
+  let firstError: Error | undefined;
+  for (const p of pages) {
+    const stamp = p.accountId ?? primary;
+    if (!p.ok) {
+      page.errors[stamp] = p.error.message;
+      if (!firstError) firstError = p.error;
+      continue;
+    }
+    page.total += p.total;
+    for (const e of p.list) page.list.push({ ...e, jmapAccountId: stamp });
+    for (const th of p.threads) page.threads.push({ ...th, id: `${stamp}:${th.id}` });
+  }
+  if (firstError && Object.keys(page.errors).length === pages.length) throw firstError;
+  page.list.sort(listComparator(state));
+  return page;
+}
+
+// Whether deleting a row of a list that spans accounts destroys it instead of
+// moving it to its account's Trash: the rule `deleteEmail` applies to the
+// folder on screen, per row — in that Trash already, the "permanent" delete
+// action, or in Junk with "permanently delete junk".
+function destroysOnDelete(state: EmailState, email: Email): boolean {
+  const settings = useSettingsStore.getState();
+  if (settings.deleteAction === 'permanent') return true;
+  const mailboxes = accountMailboxes(state.mailboxes, rowAccountId(state, email));
+  const trash = findTrashMailbox(mailboxes);
+  if (trash && email.mailboxIds?.[trash.originalId ?? trash.id]) return true;
+  const junk = findJunkMailbox(mailboxes);
+  return !!(settings.permanentlyDeleteJunk && junk && email.mailboxIds?.[junk.originalId ?? junk.id]);
+}
+
+/**
+ * For rows of a list that spans accounts: whether deleting them destroys any
+ * outright, so the caller asks first. Null when none of them comes from such
+ * a list; the folder on screen decides for those.
+ */
+export function deleteDestroysAcrossAccounts(emailIds: string[]): boolean | null {
+  const state = useEmailStore.getState();
+  const rows = spanningRows(state, emailIds);
+  if (rows.length === 0) return null;
+  return rows.some((e) => destroysOnDelete(state, e));
+}
+
+/** The JMAP account a row of the list on screen lives under; undefined = the user's own. */
+export function accountIdOfRow(email: Email): string | undefined {
+  return rowAccountId(useEmailStore.getState(), email);
+}
+
+/**
+ * Viewer route params for a row of a list that spans accounts: its own
+ * account (undefined = the user's), whatever folder is open, and the rows of
+ * that account to page over. Empty for the rows of a single folder.
+ */
+export function viewerParamsForRow(email: Email): { jmapAccountId?: string; emailIds?: string[] } {
+  if (!email.jmapAccountId) return {};
+  const state = useEmailStore.getState();
+  const rows = state.emails.filter((e) => e.jmapAccountId === email.jmapAccountId);
+  return {
+    jmapAccountId: rowAccountId(state, email),
+    emailIds: collapseThreads(rows, useSettingsStore.getState().disableThreading).map((e) => e.id),
+  };
+}
+
 // Splice rows the user just read/unstarred back into a freshly re-queried
 // Unread/Starred view at their previous position (webmail `mergeRetainedRows`).
 function mergeRetainedRows(previous: Email[], fresh: Email[], retainedIds: string[]): Email[] {
@@ -631,6 +817,7 @@ export const useEmailStore = create<EmailState>()(
   pendingUndo: null,
   retainedIds: [],
   threadCounts: {},
+  accountErrors: {},
 
   // Swap which account's data is currently visible. The previous account's
   // view is tucked into accountSnapshots so a return-trip can restore it
@@ -836,6 +1023,31 @@ export const useEmailStore = create<EmailState>()(
       const scope = queryScope(state, refFor(state.mailboxes, currentMailboxId));
       const filter = buildJmapFilter(searchQuery, filters);
       const limit = useSettingsStore.getState().emailsPerPage;
+      if (spansAccounts(state)) {
+        // Each account continues from its own rows on screen (#1082).
+        const loaded: Record<string, number> = {};
+        for (const e of emails) {
+          if (e.jmapAccountId && !retained.has(e.id)) loaded[e.jmapAccountId] = (loaded[e.jmapAccountId] ?? 0) + 1;
+        }
+        const page = await fetchSpanningPage(state, loaded, filter, limit);
+        const now = get();
+        if (
+          now.activeAccountId !== activeAccountId || now.currentMailboxId !== currentMailboxId ||
+          now.searchQuery !== searchQuery || now.filters !== filters
+        ) return;
+        const shown = new Set(now.emails.map((e) => accountScopedId(e, e.id)));
+        set({
+          emails: [...now.emails, ...page.list.filter((e) => !shown.has(accountScopedId(e, e.id)))]
+            .sort(listComparator(now)),
+          // An account that failed this time keeps counting what it showed,
+          // so load-more doesn't keep asking for it.
+          totalEmails: page.total + Object.keys(page.errors).reduce((n, id) => n + (loaded[id] ?? 0), 0),
+          threadCounts: withThreadCounts(now.threadCounts, page.threads),
+          accountErrors: page.errors,
+          loading: false,
+        });
+        return;
+      }
       const { list, total, threads } = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
@@ -935,13 +1147,15 @@ export const useEmailStore = create<EmailState>()(
         ? refFor(state.mailboxes, state.currentMailboxId).accountId ?? primaryId
         : primaryId;
     const known = new Set([primaryId, ...jmapClient.getSharedMailAccounts().map((a) => a.id)]);
+    // An "All folders" list shows every account's mail (#1082).
+    const spanning = spansAccounts(state);
 
     let mailboxChanged = false;
     let emailChanged = false;
     for (const [accountId, accountChanges] of Object.entries(change.changed ?? {})) {
       if (!known.has(accountId) || !accountChanges) continue;
       if ('Mailbox' in accountChanges) mailboxChanged = true;
-      if (accountId !== currentAccountId) continue;
+      if (accountId !== currentAccountId && !spanning) continue;
       if ('Email' in accountChanges || 'EmailDelivery' in accountChanges) emailChanged = true;
     }
     if (!mailboxChanged && !emailChanged) return;
@@ -1033,7 +1247,10 @@ export const useEmailStore = create<EmailState>()(
 
   markRead: async (emailId, accountId) => {
     const state = get();
-    const email = state.emails.find((e) => e.id === emailId);
+    // Ids repeat across the accounts of a list spanning accounts: take the
+    // row of the account asked for when there is one (#1082).
+    const email = state.emails.find((e) => e.id === emailId && rowAccountId(state, e) === accountId)
+      ?? state.emails.find((e) => e.id === emailId);
     // Only `$seen` goes to the server: the message may not be in the list at
     // all, and a whole keyword map would erase its stars and tags.
     const patch = { $seen: true };
@@ -1044,7 +1261,7 @@ export const useEmailStore = create<EmailState>()(
       await patchKeywordsForEmails([emailId], patch, accountId);
       return;
     }
-    const owner = accountId ?? currentAccountId(state);
+    const owner = accountId ?? rowAccountId(state, email);
     await applyOrQueue({ kind: 'keywords', emailId, accountId: owner, patch });
     set({
       emails: get().emails.map((e) =>
@@ -1063,7 +1280,7 @@ export const useEmailStore = create<EmailState>()(
     await applyOrQueue({
       kind: 'keywords',
       emailId,
-      accountId: currentAccountId(state),
+      accountId: rowAccountId(state, email),
       patch,
     });
     set({
@@ -1072,7 +1289,7 @@ export const useEmailStore = create<EmailState>()(
       ),
       ...(state.filters.isUnread === false ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
     });
-    patchCache(emailId, { keywords: patch }, currentAccountId(state));
+    patchCache(emailId, { keywords: patch }, rowAccountId(state, email));
   },
 
   toggleStar: async (emailId, starred) => {
@@ -1083,7 +1300,7 @@ export const useEmailStore = create<EmailState>()(
     await applyOrQueue({
       kind: 'keywords',
       emailId,
-      accountId: currentAccountId(state),
+      accountId: rowAccountId(state, email),
       patch,
     });
     set({
@@ -1094,7 +1311,7 @@ export const useEmailStore = create<EmailState>()(
         ? { retainedIds: retain(get().retainedIds, [emailId]) }
         : {}),
     });
-    patchCache(emailId, { keywords: patch }, currentAccountId(state));
+    patchCache(emailId, { keywords: patch }, rowAccountId(state, email));
   },
 
   togglePin: async (emailId, pinned) => {
@@ -1107,7 +1324,7 @@ export const useEmailStore = create<EmailState>()(
     await applyOrQueue({
       kind: 'keywords',
       emailId,
-      accountId: currentAccountId(state),
+      accountId: rowAccountId(state, email),
       patch,
     });
     set({
@@ -1115,11 +1332,15 @@ export const useEmailStore = create<EmailState>()(
         e.id === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
     });
-    patchCache(emailId, { keywords: patch }, currentAccountId(state));
+    patchCache(emailId, { keywords: patch }, rowAccountId(state, email));
   },
 
   markSpam: async (emailIds, viewed) => {
     const state = get();
+    // A list spanning accounts files each row in its own account (#1082);
+    // the viewer names its message's account itself.
+    const spanning = viewed ? [] : spanningRows(state, emailIds);
+    if (spanning.length > 0) return fileAcrossAccounts('spam', spanning);
     const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
     const scoped = actionMailboxes(state, viewed);
@@ -1165,6 +1386,10 @@ export const useEmailStore = create<EmailState>()(
 
   unmarkSpam: async (emailIds, viewed) => {
     const state = get();
+    // A list spanning accounts files each row in its own account (#1082);
+    // the viewer names its message's account itself.
+    const spanning = viewed ? [] : spanningRows(state, emailIds);
+    if (spanning.length > 0) return fileAcrossAccounts('notSpam', spanning);
     const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
     const scoped = actionMailboxes(state, viewed);
@@ -1206,6 +1431,10 @@ export const useEmailStore = create<EmailState>()(
 
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId, viewed) => {
     const state = get();
+    // A list spanning accounts files each row in its own account (#1082);
+    // the viewer names its message's account itself.
+    const spanning = viewed ? [] : spanningRows(state, [emailId]).slice(0, 1);
+    if (spanning.length > 0) return fileAcrossAccounts('move', spanning, toMailboxId);
     const { email, listed } = actionTarget(state, emailId, viewed);
     const from = refFor(state.mailboxes, fromMailboxId);
     const to = refFor(state.mailboxes, toMailboxId);
@@ -1253,6 +1482,10 @@ export const useEmailStore = create<EmailState>()(
 
   archiveEmail: async (emailId, viewed) => {
     const state = get();
+    // A list spanning accounts files each row in its own account (#1082);
+    // the viewer names its message's account itself.
+    const spanning = viewed ? [] : spanningRows(state, [emailId]).slice(0, 1);
+    if (spanning.length > 0) return fileAcrossAccounts('archive', spanning);
     // The viewer's copy stands in for a message the list doesn't hold
     // (unified inbox, notification, deep link).
     const { email, listed } = actionTarget(state, emailId, viewed);
@@ -1312,6 +1545,10 @@ export const useEmailStore = create<EmailState>()(
 
   deleteEmail: async (emailId, trashMailboxId, currentMailboxId, viewed) => {
     const state = get();
+    // A list spanning accounts files each row in its own account (#1082);
+    // the viewer names its message's account itself.
+    const spanning = viewed ? [] : spanningRows(state, [emailId]).slice(0, 1);
+    if (spanning.length > 0) return fileAcrossAccounts('delete', spanning);
     const { email, listed } = actionTarget(state, emailId, viewed);
     const original = email ? { ...email.mailboxIds } : null;
     const settings = useSettingsStore.getState();
@@ -1386,6 +1623,9 @@ export const useEmailStore = create<EmailState>()(
 
   archiveEmailsBatch: async (emailIds) => {
     const state = get();
+    // A list spanning accounts files each row in its own account (#1082).
+    const spanning = spanningRows(state, emailIds);
+    if (spanning.length > 0) return fileAcrossAccounts('archive', spanning);
     const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
     const archiveMailbox = findArchiveMailbox(scoped);
     if (!archiveMailbox) return;
@@ -1437,6 +1677,9 @@ export const useEmailStore = create<EmailState>()(
 
   moveEmailsToMailbox: async (emailIds, toMailboxId) => {
     const { emails, currentMailboxId, mailboxes } = get();
+    // A list spanning accounts files each row in its own account (#1082).
+    const spanning = spanningRows(get(), emailIds);
+    if (spanning.length > 0) return fileAcrossAccounts('move', spanning, toMailboxId);
     if (!currentMailboxId || toMailboxId === currentMailboxId) return;
     const source = refFor(mailboxes, currentMailboxId);
     const to = refFor(mailboxes, toMailboxId);
@@ -1491,6 +1734,9 @@ export const useEmailStore = create<EmailState>()(
 
   deleteEmailsBatch: async (emailIds, trashMailboxId, currentMailboxId) => {
     const { emails, mailboxes } = get();
+    // A list spanning accounts files each row in its own account (#1082).
+    const spanning = spanningRows(get(), emailIds);
+    if (spanning.length > 0) return fileAcrossAccounts('delete', spanning);
     const settings = useSettingsStore.getState();
     const trash = refFor(mailboxes, trashMailboxId);
     const source = refFor(mailboxes, currentMailboxId);
@@ -1586,17 +1832,23 @@ export const useEmailStore = create<EmailState>()(
     const state = get();
     const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
-    const owner = viewed ? viewed.accountId : currentAccountId(state);
+    // One Email/set per account the selection spans (#1082); the viewer's
+    // message goes to the account it names.
+    const groups = viewed ? [{ accountId: viewed.accountId, emails: targets }] : groupByAccount(state, targets);
     const ids = targets.map((e) => e.id);
     const patch = { [token]: on ? true : null };
     await applyOrQueueBatch(
-      ids.map((id): OutboxOp => ({
+      groups.flatMap(({ accountId, emails }) => emails.map((e): OutboxOp => ({
         kind: 'keywords',
-        emailId: id,
-        accountId: owner,
+        emailId: e.id,
+        accountId,
         patch,
-      })),
-      () => patchKeywordsForEmails(ids, patch, owner),
+      }))),
+      async () => {
+        for (const { accountId, emails } of groups) {
+          await patchKeywordsForEmails(emails.map((e) => e.id), patch, accountId);
+        }
+      },
     );
     const touched = new Set(listed ? ids : []);
     set({
@@ -1609,7 +1861,9 @@ export const useEmailStore = create<EmailState>()(
         ? { retainedIds: retain(get().retainedIds, ids) }
         : {}),
     });
-    for (const id of ids) patchCache(id, { keywords: patch }, owner);
+    for (const { accountId, emails } of groups) {
+      for (const e of emails) patchCache(e.id, { keywords: patch }, accountId);
+    }
   },
 
   undoLast: async () => {
@@ -1617,43 +1871,67 @@ export const useEmailStore = create<EmailState>()(
     if (!entry) return;
     set({ pendingUndo: null });
 
+    // An action on a list spanning accounts is undone in each item's account.
+    const accountOf = (it: UndoEntry['items'][number]) => it.accountId ?? entry.accountId;
+    const byAccount = new Map<string, { accountId?: string; items: UndoEntry['items'] }>();
+    for (const it of entry.items) {
+      const accountId = accountOf(it);
+      const group = byAccount.get(accountId ?? '');
+      if (group) group.items.push(it);
+      else byAccount.set(accountId ?? '', { accountId, items: [it] });
+    }
     try {
       await applyOrQueueBatch(
         entry.items.map((it): OutboxOp => ({
           kind: 'mailboxes',
           emailId: it.email.id,
-          accountId: entry.accountId,
+          accountId: accountOf(it),
           mailboxIds: it.originalMailboxIds,
         })),
-        () => restoreEmailMailboxes(
-          entry.items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
-          entry.accountId,
-        ),
+        async () => {
+          for (const { accountId, items } of byAccount.values()) {
+            await restoreEmailMailboxes(
+              items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
+              accountId,
+            );
+          }
+        },
       );
       // Spam / not-spam also flipped `$junk`/`$notjunk` (and maybe `$seen`):
       // put those keywords back as they were, leaving the rest alone.
       const keywordPatch = entry.keywordPatch;
       const keywordUndo = keywordPatch
-        ? entry.items.map((it) => ({ id: it.email.id, patch: revertKeywordPatch(keywordPatch, it.originalKeywords) }))
+        ? entry.items.map((it) => ({
+          id: it.email.id,
+          accountId: accountOf(it),
+          patch: revertKeywordPatch(keywordPatch, it.originalKeywords),
+        }))
         : [];
       if (keywordUndo.length > 0) {
         await applyOrQueueBatch(
           keywordUndo.map((u): OutboxOp => ({
             kind: 'keywords',
             emailId: u.id,
-            accountId: entry.accountId,
+            accountId: u.accountId,
             patch: u.patch,
           })),
-          () => patchKeywordsPerEmail(keywordUndo, entry.accountId),
+          async () => {
+            for (const { accountId } of byAccount.values()) {
+              await patchKeywordsPerEmail(
+                keywordUndo.filter((u) => u.accountId === accountId).map(({ id, patch }) => ({ id, patch })),
+                accountId,
+              );
+            }
+          },
         );
       }
-      const undoById = new Map(keywordUndo.map((u) => [u.id, u.patch]));
+      const undoById = new Map(keywordUndo.map((u) => [`${u.accountId ?? ''}:${u.id}`, u.patch]));
       for (const it of entry.items) {
-        const patch = undoById.get(it.email.id);
+        const patch = undoById.get(`${accountOf(it) ?? ''}:${it.email.id}`);
         patchCache(it.email.id, {
           mailboxIds: it.originalMailboxIds,
           ...(patch ? { keywords: patch } : {}),
-        }, entry.accountId);
+        }, accountOf(it));
       }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed') });
@@ -1665,7 +1943,21 @@ export const useEmailStore = create<EmailState>()(
     // ordering, but local re-insertion gives the user instant feedback. Only
     // into a list of the same account: mailbox ids repeat across accounts.
     const { currentMailboxId, emails, mailboxes } = get();
-    if (currentMailboxId && entry.accountId === currentAccountId(get())) {
+    const spanned = entry.items.filter((it) => it.email.jmapAccountId);
+    if (spanned.length > 0) {
+      // Rows of a list spanning accounts go back while that list is shown.
+      if (spansAccounts(get())) {
+        const shown = new Set(emails.map((e) => accountScopedId(e, e.id)));
+        const restored = spanned
+          .filter((it) => !shown.has(accountScopedId(it.email, it.email.id)))
+          .map((it) => ({
+            ...it.email,
+            mailboxIds: it.originalMailboxIds,
+            ...(it.originalKeywords ? { keywords: it.originalKeywords } : {}),
+          }));
+        set({ emails: [...restored, ...emails].sort(listComparator(get())) });
+      }
+    } else if (currentMailboxId && entry.accountId === currentAccountId(get())) {
       const currentRawId = rawMailboxId(mailboxes, currentMailboxId);
       const restored = entry.items
         .filter((it) => it.originalMailboxIds[currentRawId])
@@ -1711,6 +2003,7 @@ export const useEmailStore = create<EmailState>()(
     filters: {},
     retainedIds: [],
     threadCounts: {},
+    accountErrors: {},
   }),
     }),
     {
@@ -1821,6 +2114,176 @@ async function crossAccountMove(targets: Email[], from: MailboxRef, to: MailboxR
     await importEmailBlob(blobId, to.id, keywords, to.accountId);
     await apiDestroyEmails([e.id], from.accountId);
   }
+}
+
+type SpanningAction = 'archive' | 'delete' | 'spam' | 'notSpam' | 'move';
+
+// Archive / delete / spam / move rows of a list that spans accounts (#1082).
+// Each row is filed into a folder of its own account (a group message can't
+// go to the user's Archive or Trash) and leaves every folder it is in: the
+// list is not one folder it could be taken out of. `move` goes to the picked
+// folder, copying across accounts when it is another account's. One undo
+// covers all accounts.
+async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMailboxId?: string): Promise<void> {
+  const get = useEmailStore.getState;
+  const set = useEmailStore.setState;
+  const state = get();
+  const settings = useSettingsStore.getState();
+  const to = toMailboxId ? refFor(state.mailboxes, toMailboxId) : undefined;
+  const ops: OutboxOp[] = [];
+  const runs: Array<() => Promise<unknown>> = [];
+  const cacheUpdates: Array<() => void> = [];
+  const items: UndoEntry['items'] = [];
+  const gone: Email[] = [];
+  const copies: Array<{ accountId?: string; emails: Email[] }> = [];
+  let missing: string | null = null;
+  let refreshFolders = false;
+  const keywordPatch: KeywordPatch | undefined =
+    action === 'spam' ? { $junk: true, $notjunk: null, ...(settings.deleteAction === 'trash-and-read' ? { $seen: true } : {}) }
+      : action === 'notSpam' ? { $junk: null, $notjunk: true }
+        : undefined;
+
+  // Replace each row's folders with `destId`, keeping undo and cache in step.
+  const fileInto = (accountId: string | undefined, rows: Email[], destId: string, patch?: KeywordPatch) => {
+    const mailboxIds = { [destId]: true };
+    for (const e of rows) {
+      ops.push({ kind: 'mailboxes', emailId: e.id, accountId, mailboxIds });
+      if (patch) ops.push({ kind: 'keywords', emailId: e.id, accountId, patch });
+      items.push({
+        email: e,
+        originalMailboxIds: { ...e.mailboxIds },
+        ...(keywordPatch ? { originalKeywords: { ...e.keywords } } : {}),
+        accountId,
+      });
+      cacheUpdates.push(() => patchCache(e.id, { mailboxIds, ...(patch ? { keywords: patch } : {}) }, accountId));
+      gone.push(e);
+    }
+  };
+
+  for (const { accountId, emails } of groupByAccount(state, targets)) {
+    const mailboxes = accountMailboxes(state.mailboxes, accountId);
+    const ids = (rows: Email[]) => rows.map((e) => e.id);
+    if (action === 'archive') {
+      const archive = findArchiveMailbox(mailboxes);
+      if (!archive) {
+        missing = t('email_list.no_archive_folder', 'Could not find an Archive folder on the server.');
+        continue;
+      }
+      const archiveId = archive.originalId ?? archive.id;
+      const rows = emails.filter((e) => !e.mailboxIds?.[archiveId]);
+      const mode = settings.archiveMode;
+      for (const e of rows) {
+        ops.push({ kind: 'archive', emailId: e.id, accountId, archiveMailboxId: archiveId, mode, receivedAt: e.receivedAt });
+        items.push({ email: e, originalMailboxIds: { ...e.mailboxIds }, accountId });
+        cacheUpdates.push(() => patchCache(e.id, { mailboxIds: { [archiveId]: true } }, accountId));
+        gone.push(e);
+      }
+      if (rows.length > 0) {
+        runs.push(() => apiArchiveEmails(
+          rows.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
+          archiveId,
+          mode,
+          toRawMailboxes(mailboxes),
+          accountId,
+        ));
+        if (mode !== 'single') refreshFolders = true;
+      }
+    } else if (action === 'delete') {
+      const trash = findTrashMailbox(mailboxes);
+      const destroy = emails.filter((e) => destroysOnDelete(state, e));
+      const toTrash = emails.filter((e) => !destroy.includes(e));
+      if (destroy.length > 0) {
+        for (const e of destroy) ops.push({ kind: 'destroy', emailId: e.id, accountId });
+        runs.push(() => apiDestroyEmails(ids(destroy), accountId));
+        cacheUpdates.push(() => dropFromCache(ids(destroy), accountId));
+        gone.push(...destroy);
+      }
+      if (toTrash.length > 0 && !trash) {
+        missing = t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.');
+      } else if (toTrash.length > 0 && trash) {
+        const trashId = trash.originalId ?? trash.id;
+        // "Move to Trash and mark as read" (#323).
+        const unread = settings.deleteAction === 'trash-and-read' ? toTrash.filter((e) => !e.keywords?.$seen) : [];
+        const read = new Set(unread);
+        for (const e of toTrash) fileInto(accountId, [e], trashId, read.has(e) ? { $seen: true } : undefined);
+        runs.push(() => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), accountId));
+        if (unread.length > 0) runs.push(() => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId));
+      }
+    } else if (action === 'spam' || action === 'notSpam') {
+      const dest = action === 'spam' ? findJunkMailbox(mailboxes) : mailboxes.find((m) => m.role === 'inbox');
+      if (!dest) {
+        if (action === 'spam') missing = t('email_list.no_junk_folder', 'Could not find a Spam/Junk folder on the server.');
+        continue;
+      }
+      const destId = dest.originalId ?? dest.id;
+      fileInto(accountId, emails, destId, keywordPatch);
+      runs.push(() => (action === 'spam'
+        ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
+        : apiUndoSpam(ids(emails), destId, accountId)));
+    } else if (to) {
+      if (to.accountId !== accountId) {
+        copies.push({ accountId, emails });
+        continue;
+      }
+      const rows = emails.filter((e) => {
+        const current = Object.keys(e.mailboxIds ?? {}).filter((id) => e.mailboxIds[id]);
+        return !(current.length === 1 && current[0] === to.id);
+      });
+      if (rows.length === 0) continue;
+      fileInto(accountId, rows, to.id);
+      runs.push(() => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), accountId));
+    }
+  }
+
+  if (ops.length > 0) {
+    const { queued } = await applyOrQueueBatch(ops, async () => {
+      for (const run of runs) await run();
+    });
+    // Year/month archiving may have created folders.
+    if (refreshFolders && !queued) void get().fetchMailboxes();
+  }
+  for (const copy of copies) {
+    try {
+      await crossAccountMove(copy.emails, { accountId: copy.accountId, id: '' }, to!);
+      gone.push(...copy.emails);
+      dropFromCache(copy.emails.map((e) => e.id), copy.accountId);
+    } catch (err) {
+      missing = err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed');
+    }
+  }
+  for (const update of cacheUpdates) update();
+
+  const goneKeys = new Set(gone.map((e) => accountScopedId(e, e.id)));
+  const count = items.length;
+  const targetName = toMailboxId ? mailboxPath(state.mailboxes, toMailboxId) : undefined;
+  const label = action === 'archive'
+    ? (count === 1 ? t('notifications.email_archived', 'Email archived') : t('email_list.emails_archived_count', `${count} emails archived`, { count }))
+    : action === 'delete'
+      ? (count === 1 ? t('email_list.moved_to_trash', 'Email moved to Trash') : t('email_list.moved_to_trash_count', `${count} emails moved to Trash`, { count }))
+      : action === 'spam'
+        ? (count === 1 ? t('email_list.marked_as_spam', 'Marked as spam') : t('email_list.marked_as_spam_count', `${count} emails marked as spam`, { count }))
+        : action === 'notSpam'
+          ? (count === 1 ? t('email_list.marked_not_spam', 'Marked as not spam') : t('email_list.marked_not_spam_count', `${count} emails marked as not spam`, { count }))
+          : targetName
+            ? (count === 1
+              ? t('notifications.moved_to_mailbox', `Email moved to ${targetName}`, { mailbox: targetName })
+              : t('email_list.emails_moved_to', `${count} emails moved to ${targetName}`, { count, mailbox: targetName }))
+            : t('notifications.emails_moved', 'Emails moved');
+  set({
+    emails: get().emails.filter((e) => !goneKeys.has(accountScopedId(e, e.id))),
+    ...(count > 0
+      ? {
+        pendingUndo: {
+          kind: action === 'notSpam' ? 'spam' : action,
+          label,
+          createdAt: Date.now(),
+          ...(keywordPatch ? { keywordPatch } : {}),
+          items,
+        },
+      }
+      : {}),
+    ...(missing ? { error: missing } : {}),
+  });
 }
 
 // ── Refresh implementations (wrapped by coalesceRefresh above) ─────────
@@ -2155,6 +2618,19 @@ async function refreshEmailsImpl(): Promise<void> {
       // query), or when the server returned cannotCalculateChanges above.
       // One request carries the query, its messages and (for the
       // conversation badges) their threads.
+      if (spansAccounts(state)) {
+        // "All folders": the own and every shared account, one request (#1082).
+        const page = await fetchSpanningPage(state, {}, filter, limit);
+        if (viewChanged()) return;
+        set({
+          emails: mergeRetainedRows(get().emails, page.list, get().retainedIds),
+          totalEmails: page.total,
+          threadCounts: withThreadCounts(get().threadCounts, page.threads),
+          accountErrors: page.errors,
+          loading: false,
+        });
+        return;
+      }
       const threads = !useSettingsStore.getState().disableThreading;
       let queryRes: Awaited<ReturnType<typeof queryEmailPage>>;
       try {

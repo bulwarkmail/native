@@ -12,6 +12,9 @@ vi.mock('../../api/email', () => ({
   // A list page: Email/query, Email/get and Thread/get in one request.
   // beforeEach scripts it from the queryEmails / getEmailsWithState mocks.
   queryEmailPage: vi.fn(),
+  // "All folders": one page per account; beforeEach runs each through
+  // queryEmailPage.
+  queryEmailPagesAcrossAccounts: vi.fn(),
   getEmailQueryChanges: vi.fn(async () => null),
   getEmails: vi.fn(),
   getEmailsWithState: vi.fn(async () => ({ list: [], state: 'em-state-0' })),
@@ -156,6 +159,7 @@ const mockGetMailboxesWithState = emailApi.getMailboxesWithState as ReturnType<t
 const mockGetSharedMailboxes = emailApi.getSharedMailboxes as ReturnType<typeof vi.fn>;
 const mockQueryEmails = emailApi.queryEmails as ReturnType<typeof vi.fn>;
 const mockQueryEmailPage = emailApi.queryEmailPage as ReturnType<typeof vi.fn>;
+const mockQueryAcross = emailApi.queryEmailPagesAcrossAccounts as ReturnType<typeof vi.fn>;
 const mockGetThreads = emailApi.getThreads as ReturnType<typeof vi.fn>;
 const mockGetEmailQueryChanges = emailApi.getEmailQueryChanges as ReturnType<typeof vi.fn>;
 const mockGetEmails = emailApi.getEmails as ReturnType<typeof vi.fn>;
@@ -183,6 +187,15 @@ beforeEach(() => {
       : { list: [], state: 'em-state-0' };
     return { ...query, list: got.list, state: got.state, threads: [] };
   });
+  mockQueryAcross.mockImplementation(async (
+    targets: Array<{ accountId?: string; position: number; sort: unknown }>,
+    opts: Record<string, unknown>,
+  ) => Promise.all(targets.map(async (target) => {
+    const page = await emailApi.queryEmailPage(undefined, {
+      ...opts, position: target.position, sort: target.sort as never, accountId: target.accountId,
+    });
+    return { accountId: target.accountId, ok: true, total: page.total, list: page.list, threads: page.threads };
+  })));
 });
 
 describe('email-store', () => {
@@ -614,7 +627,8 @@ describe('email-store', () => {
       await useEmailStore.getState().refreshEmails();
 
       const state = useEmailStore.getState();
-      expect(state.emails).toEqual([base[1]]);
+      // An "All folders" hit carries the account it came from (#1082).
+      expect(state.emails).toEqual([{ ...base[1], jmapAccountId: 'acc-1' }]);
       // Base-view cache must survive the search untouched.
       expect(state.mailboxSnapshots['mb-1'].emails).toEqual(base);
       expect(state.queryState).toBe('q-base');
@@ -1127,10 +1141,12 @@ describe('email-store', () => {
       mockQueryEmailPage.mockResolvedValue(page);
 
       useEmailStore.getState().setSearchQuery('invoice');
-      await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ t1: 3, t2: 1 }));
+      // "All folders" rows and their threads are scoped by account (#1082).
+      await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ 'acc-1:t1': 3, 'acc-1:t2': 1 }));
 
+      expect(mockQueryAcross).toHaveBeenCalledTimes(1);
+      expect(mockQueryAcross.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice*' }, threads: true });
       expect(mockQueryEmailPage).toHaveBeenCalledTimes(1);
-      expect(mockQueryEmailPage.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice*' }, threads: true });
       expect(mockGetThreads).not.toHaveBeenCalled();
     });
 
