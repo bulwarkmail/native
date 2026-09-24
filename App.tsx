@@ -67,6 +67,7 @@ import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
 import { PushOnboardingPrompt } from './src/components/PushOnboardingPrompt';
 import { ToastHost } from './src/components/ToastHost';
+import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { AppIconBadge } from './src/components/AppIconBadge';
 import { getEmails } from './src/api/email';
 import { handleDeepLink, parseDeepLink, shareToDeepLink, type DeepLink } from './src/navigation/linking';
@@ -150,20 +151,29 @@ async function openDeepLink(link: DeepLink): Promise<void> {
   });
 }
 
-// Toasts show on whichever stack screen is up, so a failure that lands after
-// leaving the screen it came from (a viewer action finishing on the Unified
-// Inbox or a contact) is still seen. Every screen carries a host, and only
-// the focused one renders, so a toast never shows twice (the screen below
-// the top one is kept live).
-function FocusedToastHost() {
-  return useIsFocused() ? <ToastHost /> : null;
+// Toasts and the undo bar show on whichever stack screen is up, so a failure
+// that lands after leaving the screen it came from (a viewer action finishing
+// on the Unified Inbox or a contact) is still seen, and a reply held by the
+// undo-send delay can be undone from the viewer it was sent from. Every
+// screen carries the hosts, and only the focused one renders them, so
+// neither ever shows twice (the screen below the top one is kept live).
+// The composer gets no undo bar: its Undo would hand the open composer
+// another draft. A held send's bar shows on the screen below once it closes.
+function FocusedHosts({ undo }: { undo: boolean }) {
+  if (!useIsFocused()) return null;
+  return (
+    <>
+      {undo && <UndoSnackbar />}
+      <ToastHost />
+    </>
+  );
 }
 
-function withToastHost({ children }: { children: React.ReactElement }) {
+function withHosts({ route, children }: { route: { name: string }; children: React.ReactElement }) {
   return (
     <>
       {children}
-      <FocusedToastHost />
+      <FocusedHosts undo={route.name !== 'Compose'} />
     </>
   );
 }
@@ -709,7 +719,7 @@ export default function App() {
       <StatusBar style={statusBarStyle} />
       {/* On Fabric, native-stack keeps the screen right below the top live and
           freezes the ones further down. */}
-      <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }} screenLayout={withToastHost}>
+      <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }} screenLayout={withHosts}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
         <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
         <Stack.Screen name="EmailSource" component={EmailSourceScreen} />

@@ -19,7 +19,6 @@ import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
-import { UndoSnackbar } from '../components/UndoSnackbar';
 import { OfflineBanner } from '../components/OfflineBanner';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
@@ -1721,8 +1720,6 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         selectedEmails={selectedEmails}
         onToggle={handleBatchTagToggle}
       />
-
-      <UndoSnackbar />
     </View>
   );
 }

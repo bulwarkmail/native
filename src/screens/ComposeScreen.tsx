@@ -2151,19 +2151,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
           t('email_composer.scheduled_title', 'Scheduled'),
           t('email_composer.scheduled_body', 'Your message will be sent at {time}.', { time: formatWhen(when) }),
         );
-      } else if (holdForSeconds && result.scheduled && result.emailSubmissionId && result.emailId) {
-        // Undo-send window: the mail list's snackbar offers Undo / Send now.
-        useSendUndoStore.getState().setPending({
-          emailSubmissionId: result.emailSubmissionId,
-          emailId: result.emailId,
+      } else if (result.scheduled) {
+        // Undo-send window: the undo bar offers Undo / Send now.
+        useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
           identityId: primaryIdentity.id,
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
-          sendAt: result.sendAt,
-          delaySeconds: holdForSeconds,
-          createdAt: Date.now(),
         });
-      } else if (!result.scheduled) {
+      } else {
         // Held sends get the undo bar instead (webmail b03a0c1d).
         toast.success(t('notifications.email_sent', 'Email sent successfully'));
       }

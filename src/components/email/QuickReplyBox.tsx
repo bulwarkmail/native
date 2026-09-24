@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, Keyboard } from 'react-native';
 import { Send, Maximize2 } from 'lucide-react-native';
 import type { Email } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
+import { useSendUndoStore } from '../../stores/send-undo-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
@@ -88,6 +89,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       const quoted = original.split('\n').map((l) => `> ${l}`).join('\n');
       const header = `${formatFullDateTime(emailDisplayDate(email), timeFormat, locale)}, ${from.name ? `${from.name} <${from.email}>` : from.email}:`;
       const threading = computeReplyThreadingHeaders(email);
+      const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
       const result = await sendEmail(
         {
           from: [{ name: identity.name, email: identity.email }],
@@ -105,14 +107,23 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         },
         identity.id,
         sent.originalId ?? sent.id,
-        jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId),
+        holdFor,
         { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
       );
+      // Held for the undo-send delay: the undo bar offers Undo / Send now.
+      // Recorded before the flag below so its round trip doesn't eat the window.
+      useSendUndoStore.getState().recordHeldSend(result, holdFor, {
+        identityId: identity.id,
+        accountId: jmapAccountId,
+        from: [{ name: identity.name, email: identity.email }],
+      });
       try {
         await patchKeywordsForEmails([email.id], { $answered: true }, jmapAccountId);
       } catch { /* the reply is out; the flag is cosmetic */ }
       onSent?.({ ...email, keywords: { ...email.keywords, $answered: true } });
       setText('');
+      // The keyboard would cover the undo bar or the toast.
+      Keyboard.dismiss();
       // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
       if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
     } catch (err) {

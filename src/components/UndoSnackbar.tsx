@@ -6,14 +6,13 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useEmailStore } from '../stores/email-store';
-import { useSendUndoStore, type PendingUndoSend } from '../stores/send-undo-store';
+import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
-import { getFullEmail, restoreEmailToDraft } from '../api/email';
-import { ownMailboxes } from '../lib/mailbox-tree';
-import { draftContextFromEmail } from '../lib/draft-context';
 import type { RootStackParamList } from '../navigation/types';
 
 const VISIBLE_MS = 5000;
+// Clears the tab bar and the viewer's action bar, like the toasts (ToastHost).
+const BOTTOM_CLEARANCE = 64;
 
 interface Shown {
   label: string;
@@ -23,6 +22,12 @@ interface Shown {
   send?: PendingUndoSend;
 }
 
+/**
+ * The undo bar for the last list action (archive, delete, move, spam) and
+ * for a send held by the undo-send delay. App.tsx gives every stack screen
+ * one and only the focused screen's renders, so a reply sent from the viewer
+ * can be undone there and the bar never shows twice.
+ */
 export function UndoSnackbar() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -105,12 +110,8 @@ export function UndoSnackbar() {
     if (!ok) return;
     // Bring the message back as an editable draft and reopen the composer.
     try {
-      const own = ownMailboxes(useEmailStore.getState().mailboxes);
-      const drafts = own.find((m) => m.role === 'drafts');
-      const sent = own.find((m) => m.role === 'sent');
-      if (drafts) await restoreEmailToDraft(send.emailId, drafts.id, sent?.id);
-      const email = await getFullEmail(send.emailId);
-      navigation.navigate('Compose', { draft: draftContextFromEmail(email) });
+      const draft = await restoreUndoneSend(send, useEmailStore.getState().mailboxes);
+      navigation.navigate('Compose', { draft });
     } catch (err) {
       console.warn('[send-undo] reopen failed', err);
     }
@@ -127,7 +128,7 @@ export function UndoSnackbar() {
       pointerEvents="box-none"
       style={[
         styles.wrap,
-        { bottom: insets.bottom + spacing.md, opacity, transform: [{ translateY: slideY }] },
+        { bottom: insets.bottom + BOTTOM_CLEARANCE, opacity, transform: [{ translateY: slideY }] },
       ]}
     >
       <View style={styles.bar}>
