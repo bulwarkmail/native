@@ -1,7 +1,8 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { FileNode, FileNodeRights, JMAPAccountInfo, Principal } from './types';
+import type { FileNode, FileNodeRights, JMAPAccountInfo, JMAPMethodCall, Principal } from './types';
 import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
+import { batched } from './jmap-result';
 import { decodeFileNodeName } from '../lib/filenode-name';
 
 // A FileNode is a folder (container) only when it has no blob content — the
@@ -89,26 +90,105 @@ export function isCrossAccountId(id: string | null | undefined): boolean {
   return id != null && id.includes(':');
 }
 
-// Fetch every FileNode in the account, files AND folders, to build the
-// hierarchy client-side from parentId links.
+/** Ids asked for per FileNode/query page; Stalwart clamps it to queryMaxResults (5000 by default). */
+const FILE_NODE_QUERY_PAGE = 5000;
+/** Safety bound on how many FileNode ids one listing pages through. */
+const FILE_NODE_MAX_IDS = 200_000;
+
+// Every raw FileNode of one account, files AND folders, to build the
+// hierarchy client-side from parentId links. Mirrors the webmail's
+// fetchAllFileNodes.
 //
-// IMPORTANT: this uses FileNode/get with ids:null (return-all), NOT
-// FileNode/query — Stalwart's query only returns leaf files and omits folder
-// nodes entirely, which would make every folder invisible.
-export async function getAllFileNodes(): Promise<FileNode[]> {
-  const accountId = filesAccountId();
+// This starts from FileNode/get with ids:null (return-all), NOT
+// FileNode/query: before Stalwart 0.16.6 the query returns leaf files only
+// and omits folder nodes, which made every folder invisible. But ids:null
+// stops at maxObjectsInGet (500 by default) and Stalwart gives no sign that
+// the list was cut, so larger accounts silently lost files and folders
+// (#1069). A full first page therefore counts as truncated: the remaining ids
+// come from paging FileNode/query and are fetched in /get-sized batches, and
+// parents that are still unknown afterwards (folders, on older Stalwart) are
+// fetched by id.
+async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
+  const using = fileUsing();
   const res = await jmapClient.request(
     [['FileNode/get', { accountId, ids: null, properties: FILE_NODE_PROPERTIES }, '0']],
-    fileUsing(),
+    using,
   );
   const result = res.methodResponses[0];
   if (!result || result[0] === 'error') {
     throw new Error(result?.[1]?.description || 'FileNode list failed');
   }
-  return ((result[1].list ?? []) as FileNode[]).map((node) => ({
-    ...node,
-    name: decodeFileNodeName(node.name),
-  }));
+  const firstPage = (result[1].list ?? []) as FileNode[];
+  const maxObjects = jmapClient.getMaxObjectsInGet();
+  if (firstPage.length < maxObjects) return firstPage;
+
+  const known = new Map(firstPage.map((node) => [node.id, node]));
+  // Several /get calls share one request, so a large account costs a few
+  // round trips rather than one per batch.
+  const fetchByIds = async (ids: string[]) => {
+    const calls = batched(ids, maxObjects).map((batch, i): JMAPMethodCall =>
+      ['FileNode/get', { accountId, ids: batch, properties: FILE_NODE_PROPERTIES }, String(i)]);
+    for (const group of batched(calls, jmapClient.getMaxCallsInRequest())) {
+      const batchRes = await jmapClient.request(group, using);
+      for (const r of batchRes.methodResponses ?? []) {
+        if (r[0] !== 'FileNode/get') {
+          throw new Error(r[1]?.description || 'FileNode/get failed');
+        }
+        for (const node of (r[1].list ?? []) as FileNode[]) known.set(node.id, node);
+      }
+    }
+  };
+
+  try {
+    const missing = new Set<string>();
+    for (let position = 0; position < FILE_NODE_MAX_IDS;) {
+      const queryRes = await jmapClient.request(
+        [['FileNode/query', {
+          accountId, filter: {}, position, limit: FILE_NODE_QUERY_PAGE, calculateTotal: true,
+        }, '0']],
+        using,
+      );
+      const queryResult = queryRes.methodResponses?.[0];
+      if (!queryResult || queryResult[0] !== 'FileNode/query') {
+        throw new Error(queryResult?.[1]?.description || 'FileNode/query failed');
+      }
+      // The server may clamp `limit`, so only an empty page or a reached
+      // total ends the listing, never a page shorter than the one asked for.
+      const pageIds = (queryResult[1].ids ?? []) as string[];
+      if (pageIds.length === 0) break;
+      for (const id of pageIds) {
+        if (!known.has(id)) missing.add(id);
+      }
+      position += pageIds.length;
+      const total = queryResult[1].total;
+      if (typeof total === 'number' && position >= total) break;
+    }
+    await fetchByIds([...missing]);
+
+    const asked = new Set<string>();
+    for (;;) {
+      const parents = new Set<string>();
+      for (const node of known.values()) {
+        if (node.parentId && !known.has(node.parentId) && !asked.has(node.parentId)) {
+          parents.add(node.parentId);
+        }
+      }
+      if (parents.size === 0) break;
+      for (const id of parents) asked.add(id);
+      await fetchByIds([...parents]);
+    }
+  } catch (err) {
+    // A partial tree beats none: keep what was read, as before #1069.
+    console.warn(`[files] listing for account ${accountId} is incomplete past ${maxObjects} nodes`, err);
+  }
+
+  return [...known.values()];
+}
+
+// Fetch every FileNode in the files account (see fetchAllFileNodes).
+export async function getAllFileNodes(): Promise<FileNode[]> {
+  const nodes = await fetchAllFileNodes(filesAccountId());
+  return nodes.map((node) => ({ ...node, name: decodeFileNodeName(node.name) }));
 }
 
 // Accounts (primary + shared/group) that can hold FileNodes: any non-primary
@@ -138,13 +218,8 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   for (const accountId of filesCapableAccountIds()) {
     const isPrimary = accountId === primaryId;
     try {
-      const res = await jmapClient.request(
-        [['FileNode/get', { accountId, ids: null, properties: FILE_NODE_PROPERTIES }, '0']],
-        fileUsing(),
-      );
-      const result = res.methodResponses[0];
-      if (!result || result[0] === 'error') continue;
-      for (const node of (result[1].list ?? []) as FileNode[]) {
+      const nodes = await fetchAllFileNodes(accountId);
+      for (const node of nodes) {
         all.push({
           ...node,
           name: decodeFileNodeName(node.name),

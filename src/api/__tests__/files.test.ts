@@ -7,6 +7,8 @@ vi.mock('../jmap-client', () => ({
     hasCapability: vi.fn(),
     hasAccountCapability: vi.fn(() => false),
     getMaxSizeUpload: vi.fn(() => 0),
+    getMaxObjectsInGet: vi.fn(() => 500),
+    getMaxCallsInRequest: vi.fn(() => 16),
     currentSession: null as unknown,
   },
 }));
@@ -40,6 +42,8 @@ import {
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
+const mockMaxObjectsInGet = jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>;
+const mockMaxCallsInRequest = jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>;
 
 function setSession(session: unknown) {
   (jmapClient as { currentSession: unknown }).currentSession = session;
@@ -47,6 +51,8 @@ function setSession(session: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockMaxObjectsInGet.mockReturnValue(500);
+  mockMaxCallsInRequest.mockReturnValue(16);
   mockHasCapability.mockImplementation(
     (urn: string) =>
       urn === CAPABILITIES.FILES ||
@@ -223,6 +229,166 @@ describe('getAllFileNodesAcrossAccounts', () => {
 
     expect(mockRequest).toHaveBeenCalledTimes(1);
     expect(mockRequest.mock.calls[0][0][0][1].accountId).toBe('acc-1');
+  });
+});
+
+type MethodCall = [string, Record<string, unknown>, string];
+interface FakeNode { id: string; parentId: string | null; name: string; blobId: string | null }
+
+const fakeFile = (id: string, parentId: string | null = null): FakeNode =>
+  ({ id, parentId, name: `${id}.txt`, blobId: `blob-${id}` });
+const fakeFolder = (id: string, parentId: string | null = null): FakeNode =>
+  ({ id, parentId, name: id, blobId: null });
+const sortedIds = (nodes: { id: string }[]) => nodes.map((n) => n.id).sort();
+
+// Answers like Stalwart: FileNode/get with ids:null silently stops at
+// maxObjectsInGet, an over-long id list is refused, and FileNode/query clamps
+// `limit` to the server's own maximum.
+function fakeFilesServer(nodes: FakeNode[], opts: {
+  maxObjectsInGet: number;
+  maxCallsInRequest?: number;
+  queryMaxResults?: number;
+  // Stalwart before 0.16.6 returns leaf files only.
+  queryOmitsFolders?: boolean;
+  queryFails?: boolean;
+}): MethodCall[][] {
+  mockMaxObjectsInGet.mockReturnValue(opts.maxObjectsInGet);
+  if (opts.maxCallsInRequest) mockMaxCallsInRequest.mockReturnValue(opts.maxCallsInRequest);
+  const sent: MethodCall[][] = [];
+  mockRequest.mockImplementation(async (methodCalls: MethodCall[]) => {
+    sent.push(methodCalls);
+    const methodResponses = methodCalls.map(([method, args, callId]) => {
+      if (method === 'FileNode/get') {
+        const ids = args.ids as string[] | null;
+        if (ids === null) return [method, { list: nodes.slice(0, opts.maxObjectsInGet) }, callId];
+        if (ids.length > opts.maxObjectsInGet) return ['error', { type: 'requestTooLarge' }, callId];
+        return [method, {
+          list: nodes.filter((n) => ids.includes(n.id)),
+          notFound: ids.filter((id) => !nodes.some((n) => n.id === id)),
+        }, callId];
+      }
+      if (method === 'FileNode/query') {
+        if (opts.queryFails) return ['error', { type: 'unknownMethod' }, callId];
+        const matching = opts.queryOmitsFolders ? nodes.filter((n) => n.blobId !== null) : nodes;
+        const position = (args.position as number) ?? 0;
+        const limit = Math.min((args.limit as number) ?? Infinity, opts.queryMaxResults ?? Infinity);
+        return [method, {
+          ids: matching.slice(position, position + limit).map((n) => n.id),
+          position,
+          total: matching.length,
+        }, callId];
+      }
+      return ['error', { type: 'unknownMethod' }, callId];
+    });
+    return { methodResponses };
+  });
+  return sent;
+}
+
+describe('listing past maxObjectsInGet (#1069)', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  it('lists files and folders created after the first 500 nodes', async () => {
+    // The audit repro: 510 root files created before two folders.
+    const all = [
+      ...Array.from({ length: 510 }, (_, i) => fakeFile(`file-${String(i).padStart(4, '0')}`)),
+      fakeFolder('Documents'),
+      fakeFolder('Photos'),
+      fakeFile('cv', 'Documents'),
+      fakeFile('beach', 'Photos'),
+    ];
+    const sent = fakeFilesServer(all, { maxObjectsInGet: 500 });
+
+    const nodes = await getAllFileNodes();
+
+    expect(nodes).toHaveLength(all.length);
+    expect(sortedIds(nodes)).toEqual(sortedIds(all));
+    // Only the 14 nodes the first /get cut off are fetched again.
+    const idGets = sent.flat().filter(([m, a]) => m === 'FileNode/get' && a.ids !== null);
+    expect(idGets.flatMap(([, a]) => a.ids as string[]).sort()).toEqual(sortedIds(all.slice(500)));
+  });
+
+  it('stays a single request while the account fits in one /get', async () => {
+    const sent = fakeFilesServer(
+      [fakeFolder('d1'), fakeFile('a', 'd1'), fakeFile('b')],
+      { maxObjectsInGet: 5 },
+    );
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(['a', 'b', 'd1']);
+    expect(sent).toHaveLength(1);
+    expect(sent[0][0][1].ids).toBeNull();
+  });
+
+  it('pages the query and batches the /gets within the server limits', async () => {
+    const all = [
+      fakeFolder('d1'),
+      ...Array.from({ length: 10 }, (_, i) => fakeFile(`f${i}`, 'd1')),
+      fakeFolder('d2'),
+    ];
+    // The server hands out fewer ids per page than the client asks for.
+    const sent = fakeFilesServer(all, { maxObjectsInGet: 3, maxCallsInRequest: 2, queryMaxResults: 5 });
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(sortedIds(all));
+
+    const calls = sent.flat();
+    expect(calls.filter(([m]) => m === 'FileNode/query').map(([, a]) => a.position)).toEqual([0, 5, 10]);
+    const idGets = calls.filter(([m, a]) => m === 'FileNode/get' && a.ids !== null);
+    expect(idGets.flatMap(([, a]) => a.ids as string[]).sort()).toEqual(sortedIds(all.slice(3)));
+    for (const [, args] of idGets) expect((args.ids as string[]).length).toBeLessThanOrEqual(3);
+    for (const request of sent) expect(request.length).toBeLessThanOrEqual(2);
+  });
+
+  it('recovers folders when the query returns files only (Stalwart < 0.16.6)', async () => {
+    // Both folders sit past the first /get, and only `deep` has files in it.
+    const all = [
+      fakeFile('f0'), fakeFile('f1'), fakeFile('f2', 'deep'),
+      fakeFolder('top'), fakeFolder('deep', 'top'),
+    ];
+    fakeFilesServer(all, { maxObjectsInGet: 2, queryOmitsFolders: true });
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(sortedIds(all));
+  });
+
+  it('asks for an unreadable parent once and moves on', async () => {
+    // A node shared out of a folder the user cannot read.
+    const all = [fakeFile('f0'), fakeFile('f1'), fakeFile('f2', 'hidden')];
+    const sent = fakeFilesServer(all, { maxObjectsInGet: 2 });
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(['f0', 'f1', 'f2']);
+    const askedForHidden = sent.flat().filter(
+      ([m, a]) => m === 'FileNode/get' && (a.ids as string[] | null)?.includes('hidden'),
+    );
+    expect(askedForHidden).toHaveLength(1);
+  });
+
+  it('keeps the first page when the query is refused', async () => {
+    fakeFilesServer([fakeFile('f0'), fakeFile('f1'), fakeFile('f2')], { maxObjectsInGet: 2, queryFails: true });
+
+    const nodes = await getAllFileNodes();
+    expect(sortedIds(nodes)).toEqual(['f0', 'f1']);
+  });
+
+  it('lists shared accounts past the limit too', async () => {
+    setSession({
+      primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
+      accounts: {
+        'acc-1': { name: 'me@example.com', isPersonal: true },
+        'acc-2': { name: 'Team', isPersonal: false },
+      },
+    });
+    const all = [fakeFile('f0'), fakeFile('f1'), fakeFile('f2'), fakeFile('f3')];
+    fakeFilesServer(all, { maxObjectsInGet: 2 });
+
+    const nodes = await getAllFileNodesAcrossAccounts();
+    expect(sortedIds(nodes.filter((n) => !n.isShared))).toEqual(['f0', 'f1', 'f2', 'f3']);
+    expect(sortedIds(nodes.filter((n) => n.isShared)))
+      .toEqual(['acc-2:f0', 'acc-2:f1', 'acc-2:f2', 'acc-2:f3']);
   });
 });
 
