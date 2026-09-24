@@ -10,6 +10,9 @@
 // Both variants also define `getInitials` with slightly different rules, so we
 // export them separately to keep the match 1:1.
 
+import type { ContactCard } from '../api/types';
+import { getContactPhotoUri } from './contact-utils';
+
 // --- Account avatar -------------------------------------------------------
 
 const ACCOUNT_AVATAR_PALETTE = [
@@ -149,4 +152,40 @@ export function hasFaviconFailed(domain: string): boolean {
 
 export function markFaviconFailed(domain: string): void {
   failedFaviconDomains.add(domain);
+}
+
+// --- Contact photos -------------------------------------------------------
+//
+// Webmail `components/ui/avatar.tsx` looks the sender up in the address book
+// and shows their contact photo ahead of favicons and initials. The webmail
+// scans every contact per avatar; the mail list renders dozens of avatars, so
+// build one lowercased email → photo index per contacts array instead and
+// reuse it until the store hands out a new array.
+
+const contactPhotoIndexCache = new WeakMap<readonly ContactCard[], Map<string, string>>();
+
+export function getContactPhotoIndex(contacts: readonly ContactCard[]): Map<string, string> {
+  let index = contactPhotoIndexCache.get(contacts);
+  if (index) return index;
+  index = new Map();
+  for (const contact of contacts) {
+    if (!contact.emails) continue;
+    const photo = getContactPhotoUri(contact);
+    if (!photo) continue;
+    for (const entry of Object.values(contact.emails)) {
+      const key = entry?.address?.trim().toLowerCase();
+      // First card with a photo wins, so the pick is stable across renders.
+      if (key && !index.has(key)) index.set(key, photo);
+    }
+  }
+  contactPhotoIndexCache.set(contacts, index);
+  return index;
+}
+
+export function getContactPhotoForEmail(
+  contacts: readonly ContactCard[],
+  email: string | null | undefined,
+): string | undefined {
+  const key = email?.trim().toLowerCase();
+  return key ? getContactPhotoIndex(contacts).get(key) : undefined;
 }
