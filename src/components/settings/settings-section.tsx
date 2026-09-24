@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   View,
   Text,
@@ -65,6 +65,10 @@ export function SettingsSection({
   );
 }
 
+// The label of the SettingItem a control sits in. A switch has no text of
+// its own, so without it a screen reader only announces "switch, off".
+const SettingLabelContext = React.createContext<string | undefined>(undefined);
+
 interface SettingItemProps {
   label: string;
   description?: string;
@@ -96,7 +100,11 @@ export function SettingItem({
         </View>
         {description && <Text style={styles.settingDescription}>{description}</Text>}
       </View>
-      {children && <View style={styles.settingRight}>{children}</View>}
+      {children && (
+        <SettingLabelContext.Provider value={label}>
+          <View style={styles.settingRight}>{children}</View>
+        </SettingLabelContext.Provider>
+      )}
     </View>
   );
 }
@@ -105,14 +113,18 @@ interface ToggleSwitchProps {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  /** Defaults to the label of the enclosing SettingItem. */
+  accessibilityLabel?: string;
 }
 
-export function ToggleSwitch({ checked, onChange, disabled }: ToggleSwitchProps) {
+export function ToggleSwitch({ checked, onChange, disabled, accessibilityLabel }: ToggleSwitchProps) {
+  const settingLabel = useContext(SettingLabelContext);
   return (
     <ToggleSwitchComponent
       value={checked}
       onValueChange={onChange}
       disabled={disabled}
+      accessibilityLabel={accessibilityLabel ?? settingLabel}
     />
   );
 }

@@ -246,11 +246,19 @@ export function TemplateSettings() {
               </Text>
               <View style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>{tr('settings.templates.favorite', 'Favorite')}</Text>
-                <ToggleSwitch checked={draftFavorite} onChange={setDraftFavorite} />
+                <ToggleSwitch
+                  checked={draftFavorite}
+                  onChange={setDraftFavorite}
+                  accessibilityLabel={tr('settings.templates.favorite', 'Favorite')}
+                />
               </View>
               <View style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>{tr('settings.templates.is_html', 'Body is HTML')}</Text>
-                <ToggleSwitch checked={draftIsHtml} onChange={setDraftIsHtml} />
+                <ToggleSwitch
+                  checked={draftIsHtml}
+                  onChange={setDraftIsHtml}
+                  accessibilityLabel={tr('settings.templates.is_html', 'Body is HTML')}
+                />
               </View>
             </ScrollView>
             <View style={styles.modalActions}>

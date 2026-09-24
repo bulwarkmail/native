@@ -385,7 +385,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
               return (
                 <View key={rule.id} style={[styles.ruleRow, !rule.enabled && styles.ruleDisabled]}>
                   <View style={{ paddingTop: 2 }}>
-                    <ToggleSwitch checked={rule.enabled} onChange={() => handleToggle(rule.id)} />
+                    <ToggleSwitch checked={rule.enabled} onChange={() => handleToggle(rule.id)} accessibilityLabel={rule.name} />
                   </View>
 
                   <Pressable
@@ -458,7 +458,11 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
           {!isOpaque && rules.length > 0 && (
             <View style={styles.expandedToggle}>
               <Text style={styles.expandedLabel}>{t('settings.filters.expanded_view', 'Expanded view')}</Text>
-              <ToggleSwitch checked={expandedView} onChange={(v) => updateSetting('filtersExpandedView', v)} />
+              <ToggleSwitch
+                checked={expandedView}
+                onChange={(v) => updateSetting('filtersExpandedView', v)}
+                accessibilityLabel={t('settings.filters.expanded_view', 'Expanded view')}
+              />
             </View>
           )}
         </View>

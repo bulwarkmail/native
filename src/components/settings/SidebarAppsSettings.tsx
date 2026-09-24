@@ -188,7 +188,11 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={formStyles.label}>{t('settings.sidebar_apps.form.show_on_mobile', "Show on mobile")}</Text>
-        <ToggleSwitch checked={showOnMobile} onChange={setShowOnMobile} />
+        <ToggleSwitch
+          checked={showOnMobile}
+          onChange={setShowOnMobile}
+          accessibilityLabel={t('settings.sidebar_apps.form.show_on_mobile', "Show on mobile")}
+        />
       </View>
 
       <View style={{ flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end' }}>

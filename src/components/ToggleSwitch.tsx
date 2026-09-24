@@ -7,6 +7,8 @@ interface ToggleSwitchProps {
   value: boolean;
   onValueChange: (val: boolean) => void;
   disabled?: boolean;
+  /** What the switch turns on or off, read out by screen readers. */
+  accessibilityLabel?: string;
 }
 
 /**
@@ -16,7 +18,7 @@ interface ToggleSwitchProps {
  * - thumb: h-4 w-4 rounded-full bg-background
  * - translate-x-6 (checked) / translate-x-1 (unchecked)
  */
-export default function ToggleSwitch({ value, onValueChange, disabled = false }: ToggleSwitchProps) {
+export default function ToggleSwitch({ value, onValueChange, disabled = false, accessibilityLabel }: ToggleSwitchProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
@@ -28,6 +30,7 @@ export default function ToggleSwitch({ value, onValueChange, disabled = false }:
       ]}
       onPress={() => !disabled && onValueChange(!value)}
       accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: value, disabled }}
     >
       <View

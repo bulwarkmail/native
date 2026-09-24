@@ -400,6 +400,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                           <ToggleSwitch
                             checked={!!action.keepCopy}
                             onChange={(v) => updateAction(index, { keepCopy: v || undefined })}
+                            accessibilityLabel={t('settings.filters.forward_keep_copy', 'Keep a copy')}
                           />
                         </View>
                       </>
@@ -446,7 +447,11 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
               <Text style={styles.stopLabel}>
                 {t('settings.filters.stop_processing', 'Stop processing subsequent rules')}
               </Text>
-              <ToggleSwitch checked={stopProcessing} onChange={setStopProcessing} />
+              <ToggleSwitch
+                checked={stopProcessing}
+                onChange={setStopProcessing}
+                accessibilityLabel={t('settings.filters.stop_processing', 'Stop processing subsequent rules')}
+              />
             </View>
 
             {/* Folder rules skip spam unless the rule opts in (webmail 6241ed61). */}
@@ -455,7 +460,11 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                 <Text style={styles.stopLabel}>
                   {t('settings.filters.include_spam', 'Also move messages marked as spam')}
                 </Text>
-                <ToggleSwitch checked={includeSpam} onChange={setIncludeSpam} />
+                <ToggleSwitch
+                  checked={includeSpam}
+                  onChange={setIncludeSpam}
+                  accessibilityLabel={t('settings.filters.include_spam', 'Also move messages marked as spam')}
+                />
               </View>
             )}
           </ScrollView>
