@@ -13,6 +13,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import ToggleSwitchComponent from '../ToggleSwitch';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useSearchHighlight } from './search-highlight';
 
 /**
  * Mirrors webmail settings-section.tsx:
@@ -41,6 +42,7 @@ export function SettingsSection({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const highlight = useSearchHighlight(title);
   return (
     <View style={styles.section}>
       {experimental && (
@@ -54,7 +56,7 @@ export function SettingsSection({
           </View>
         </View>
       )}
-      <View>
+      <View ref={highlight.ref} onLayout={highlight.onLayout} style={highlight.highlighted && styles.searchHighlight}>
         <Text style={styles.sectionTitle}>{title}</Text>
         {description && <Text style={styles.sectionDescription}>{description}</Text>}
       </View>
@@ -80,8 +82,13 @@ export function SettingItem({
 }: SettingItemProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const highlight = useSearchHighlight(label);
   return (
-    <View style={[styles.settingItem, !noBorder && styles.settingItemBorder, locked && styles.locked]}>
+    <View
+      ref={highlight.ref}
+      onLayout={highlight.onLayout}
+      style={[styles.settingItem, !noBorder && styles.settingItemBorder, locked && styles.locked, highlight.highlighted && styles.searchHighlight]}
+    >
       <View style={styles.settingContent}>
         <View style={styles.settingLabelRow}>
           <Text style={styles.settingLabel}>{label}</Text>
@@ -281,6 +288,14 @@ function makeStyles(c: ThemePalette) {
   },
   settingRight: {
     flexShrink: 0,
+  },
+  // A row opened from Settings search. The negative margin keeps the
+  // content where it was while the tint gets some room around it.
+  searchHighlight: {
+    backgroundColor: c.selection,
+    borderRadius: radius.sm,
+    marginHorizontal: -spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   radioGroup: {
     flexDirection: 'row',

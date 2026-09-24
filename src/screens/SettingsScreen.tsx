@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, LogOut, Settings, ChevronRight,
+  ArrowLeft, LogOut, Settings, ChevronRight, Search, X,
   Palette, User, Shield, UserPen, Palmtree, Calendar,
   Filter, FileText, FolderOpen, Tags, HardDrive,
   BookUser, KeyRound, PanelLeftClose, Bell, Puzzle, RefreshCw,
@@ -45,15 +45,15 @@ import {
 import { supportsSideloadUpdates } from '../lib/platform-capabilities';
 import { usePendingSettingsTab } from '../navigation/pending-settings-tab';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import {
+  buildSettingsSearchIndex, normalizeSettingsQuery, subResultsForQuery, tabMatchesQuery,
+  type SettingsTabId, type SubResult,
+} from '../lib/settings-search';
+import { SearchHighlightContext, type SearchHighlight } from '../components/settings/search-highlight';
+import { BUILTIN_THEMES } from '../theme/builtin-themes';
+import { getDictionary } from '../i18n';
 
-type Tab =
-  | 'account' | 'language' | 'notifications'
-  | 'appearance' | 'layout'
-  | 'reading' | 'composing' | 'identities' | 'vacation'
-  | 'filters' | 'templates' | 'folders' | 'keywords' | 'downloads'
-  | 'security' | 'encryption' | 'content_senders'
-  | 'calendar' | 'contacts' | 'files' | 'sidebar_apps'
-  | 'about_data' | 'themes' | 'plugins' | 'updates' | 'debug';
+type Tab = SettingsTabId;
 
 type TabGroup = 'general' | 'appearance' | 'mail' | 'privacy' | 'apps' | 'advanced';
 
@@ -173,6 +173,11 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  // A tapped search result: its pane scrolls to the setting and flashes it.
+  const [pendingHighlight, setPendingHighlight] = useState<{ tab: Tab; label: string } | null>(null);
+  const paneScrollRef = React.useRef<ScrollView>(null);
+  const paneContentRef = React.useRef<View>(null);
   // Subscribe to locale so labels re-render when the user picks a different language.
   const locale = useLocaleStore((s) => s.locale);
   const t = useLocaleStore((s) => s.t);
@@ -233,13 +238,60 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
     }));
   }, [locale, t, scopedTabs]);
 
+  // Settings search (webmail: lib/settings-search). The index is built on the
+  // first keystroke and again when the language changes.
+  const query = normalizeSettingsQuery(searchQuery);
+  const searching = query.length > 0;
+  const searchIndex = React.useMemo(() => {
+    if (!searching) return null;
+    void locale; // dependency: re-translate on locale change
+    return buildSettingsSearchIndex(getDictionary('en'), t, {
+      themes: [
+        {
+          label: t('settings.themes.default_name', 'Bulwark'),
+          description: t('settings.themes.default_description', 'The default light and dark palettes.'),
+        },
+        ...BUILTIN_THEMES.map((theme) => ({ label: theme.name, description: theme.description })),
+      ],
+    });
+  }, [searching, locale, t]);
+  const visibleGroups = searchIndex
+    ? groupedTabs
+        .map((g) => ({ ...g, items: g.items.filter((tab) => tabMatchesQuery(searchIndex, tab.id, tab.label, query)) }))
+        .filter((g) => g.items.length > 0)
+    : groupedTabs;
+
+  const closePane = React.useCallback(() => {
+    setSelectedTab(null);
+    setPendingHighlight(null);
+  }, []);
+
   // Settings is a tab and stays mounted behind the other tabs, so hardware
   // back is only claimed while it is the focused one.
   const handleBack = React.useCallback(() => {
-    if (selectedTab) setSelectedTab(null);
+    if (selectedTab) closePane();
+    else if (searchQuery) setSearchQuery('');
     else leaveScope();
-  }, [selectedTab, leaveScope]);
-  useBackWhileFocused(!!selectedTab || !!managedAccount, handleBack);
+  }, [selectedTab, searchQuery, closePane, leaveScope]);
+  useBackWhileFocused(!!selectedTab || !!searchQuery || !!managedAccount, handleBack);
+
+  // The first row of the open pane whose label matches the tapped result
+  // calls this once it is laid out.
+  const revealHighlight = React.useCallback((view: View) => {
+    const content = paneContentRef.current;
+    if (content) {
+      view.measureLayout(content, (_x, y) => {
+        paneScrollRef.current?.scrollTo({ y: Math.max(0, y - spacing.lg), animated: true });
+      }, () => undefined);
+    }
+    setPendingHighlight(null);
+  }, []);
+  const searchHighlight = React.useMemo<SearchHighlight | null>(
+    () => (pendingHighlight && pendingHighlight.tab === selectedTab
+      ? { label: pendingHighlight.label, reveal: revealHighlight }
+      : null),
+    [pendingHighlight, selectedTab, revealHighlight],
+  );
 
   const scopeBanner = managedAccount ? (
     <Pressable
@@ -258,8 +310,15 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const handleTabPress = (tab: TabDef) => {
     if (!tab.implemented) return;
     if (unavailableTabs.has(tab.id)) return;
+    Keyboard.dismiss();
     setSelectedTab(tab.id);
+    setPendingHighlight(null);
     onTabSelect?.(tab.id);
+  };
+
+  const handleSubResultPress = (tab: TabDef, sub: SubResult) => {
+    handleTabPress(tab);
+    setPendingHighlight({ tab: tab.id, label: sub.label });
   };
 
   if (selectedTab) {
@@ -272,7 +331,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Pressable
-            onPress={() => setSelectedTab(null)}
+            onPress={closePane}
             accessibilityRole="button"
             accessibilityLabel={t('common.back', 'Back')}
             style={({ pressed }) => [styles.headerBackBtn, pressed && styles.headerBackBtnPressed]}
@@ -283,13 +342,17 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
           <Text style={styles.headerTitle}>{tabLabel}</Text>
         </View>
 
-        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
-          {scopeBanner}
-          {selectedTab === 'filters' ? (
-            <FilterSettings
-              onOpenVacation={hasVacation ? () => setSelectedTab('vacation') : undefined}
-            />
-          ) : Component ? <Component /> : null}
+        <ScrollView ref={paneScrollRef} style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
+          <View ref={paneContentRef}>
+            <SearchHighlightContext.Provider value={searchHighlight}>
+              {scopeBanner}
+              {selectedTab === 'filters' ? (
+                <FilterSettings
+                  onOpenVacation={hasVacation ? () => setSelectedTab('vacation') : undefined}
+                />
+              ) : Component ? <Component /> : null}
+            </SearchHighlightContext.Provider>
+          </View>
         </ScrollView>
       </SafeAreaView>
     );
@@ -318,10 +381,41 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
       </View>
 
       {/* Tab list - matches webmail mobile: flat grouped list, no cards */}
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         {scopeBanner && <View style={styles.scopeBannerList}>{scopeBanner}</View>}
+        <View style={styles.searchBar}>
+          <Search size={16} color={c.mutedForeground} />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={t('settings.search_placeholder', 'Search settings')}
+            placeholderTextColor={c.mutedForeground}
+            accessibilityLabel={t('settings.search_placeholder', 'Search settings')}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable
+              onPress={() => setSearchQuery('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('settings.search_clear', 'Clear search')}
+            >
+              <X size={16} color={c.mutedForeground} />
+            </Pressable>
+          )}
+        </View>
         <View style={styles.tabList}>
-          {groupedTabs.map((group, groupIndex) => (
+          {visibleGroups.length === 0 && (
+            <Text style={styles.searchEmpty}>{t('settings.search_no_results', 'No matching settings')}</Text>
+          )}
+          {visibleGroups.map((group, groupIndex) => (
             <View key={group.group}>
               {groupIndex > 0 && <View style={styles.groupDivider} />}
 
@@ -338,7 +432,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                   : unavailable
                     ? t('settings.badges.unavailable', 'Unavailable')
                     : null;
-                return (
+                const row = (
                   <Pressable
                     key={tab.id}
                     onPress={() => handleTabPress(tab)}
@@ -373,6 +467,24 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
                       <ChevronRight size={16} color={c.mutedForeground} />
                     )}
                   </Pressable>
+                );
+                // The pane's matching settings, one tap from opening it there.
+                const subs = searchIndex && !disabled ? subResultsForQuery(searchIndex, tab.id, query) : [];
+                if (subs.length === 0) return row;
+                return (
+                  <View key={tab.id}>
+                    {row}
+                    {subs.map((sub) => (
+                      <Pressable
+                        key={sub.label}
+                        onPress={() => handleSubResultPress(tab, sub)}
+                        accessibilityRole="button"
+                        style={({ pressed }) => [styles.subResult, pressed && styles.tabItemPressed]}
+                      >
+                        <Text style={styles.subResultText} numberOfLines={1}>{sub.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 );
               })}
             </View>
@@ -420,6 +532,32 @@ function makeStyles(c: ThemePalette) {
     detailContent: { padding: spacing.lg, paddingBottom: 40 },
 
     tabList: { paddingVertical: spacing.sm },
+
+    // Search - matches webmail mobile: full-width input above the list,
+    // matching settings as indented rows under their pane.
+    searchBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.md,
+      height: componentSizes.inputHeight,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.background,
+    },
+    searchInput: { flex: 1, ...typography.body, color: c.text, paddingVertical: 0 },
+    searchEmpty: {
+      ...typography.body,
+      color: c.mutedForeground,
+      textAlign: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: spacing.xxl,
+    },
+    subResult: { paddingLeft: 48, paddingRight: 20, paddingVertical: spacing.sm },
+    subResultText: { ...typography.caption, color: c.mutedForeground },
 
     scopeBanner: {
       flexDirection: 'row',
