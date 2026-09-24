@@ -8,7 +8,7 @@ import {
 import type { Calendar, CalendarEvent } from '../api/types';
 import { colors } from '../theme/tokens';
 import { zonedWallTimeToUtc } from './recurrence-expansion';
-import { getEffectiveTimeZone } from './calendar-timezone';
+import { getEffectiveTimeZone, localDateTimeToInstant, toDisplayDate } from './calendar-timezone';
 
 // ─── Duration ────────────────────────────────────────────
 // Parse an ISO 8601 duration ("PT1H30M", "P2D", "PT45M") to milliseconds.
@@ -34,15 +34,29 @@ export function parseLocalDateTime(iso: string): Date {
 }
 
 // ─── Event time-range ────────────────────────────────────
+/**
+ * Start of an event as a *display date* (calendar-timezone): a Date whose
+ * local getters read as the wall clock in the calendar's time zone, which is
+ * what the grid math, the detail sheet and the editor work with. The real
+ * instant while the calendar zone is the device zone; convert a picked time
+ * back with `fromDisplayDate`. All-day events are calendar dates and stay as
+ * they are. Mirrors the webmail's getEventStartDate.
+ */
 export function getEventStartDate(
-  event: Pick<CalendarEvent, 'start' | 'utcStart' | 'showWithoutTime'>,
+  event: Pick<CalendarEvent, 'start' | 'utcStart' | 'showWithoutTime' | 'timeZone'>,
 ): Date {
   // Prefer utcStart for timed events but fall back to start if utcStart is
   // missing or unparseable — a malformed utcStart used to surface as an
   // Invalid Date that silently dropped the event from every view (#316).
   if (!event.showWithoutTime && event.utcStart) {
     const utc = parseISO(event.utcStart);
-    if (!isNaN(utc.getTime())) return utc;
+    if (!isNaN(utc.getTime())) return toDisplayDate(utc);
+  }
+  // Without utcStart, a start in a zone of its own is converted here; a
+  // floating one is a wall clock in the calendar's zone already.
+  if (!event.showWithoutTime && event.timeZone) {
+    const instant = localDateTimeToInstant(event.start, event.timeZone);
+    if (instant) return toDisplayDate(instant);
   }
   return parseISO(event.start);
 }
@@ -55,20 +69,52 @@ export function getEventStartDate(
 // computes utcStart for floating events (every query carries that zone), so
 // a floating task and a floating event at 17:00 land at the same instant.
 // Date-only and all-day dues are calendar dates and stay as they are.
+// This is the real instant (reminders fire at it); what the calendar shows
+// is getTaskDueDisplayDate.
 export function getTaskDueDate(
   task: Pick<CalendarEvent, 'due' | 'timeZone' | 'showWithoutTime'>,
 ): Date | null {
   if (!task.due) return null;
   const wall = parseISO(task.due);
   if (isNaN(wall.getTime())) return null;
-  if (task.showWithoutTime || /^\d{4}-\d{2}-\d{2}$/.test(task.due)) return wall;
-  return zonedWallTimeToUtc(wall, task.timeZone || getEffectiveTimeZone()) ?? wall;
+  if (isDateOnlyDue(task)) return wall;
+  return localDateTimeToInstant(task.due, task.timeZone || getEffectiveTimeZone())
+    ?? zonedWallTimeToUtc(wall, task.timeZone || getEffectiveTimeZone())
+    ?? wall;
 }
 
+/** A due without a time of day: a date-only value or an all-day task. */
+export function isDateOnlyDue(task: Pick<CalendarEvent, 'due' | 'showWithoutTime'>): boolean {
+  return !!task.showWithoutTime || /^\d{4}-\d{2}-\d{2}$/.test(task.due ?? '');
+}
+
+/** A task's due as a display date (see getEventStartDate), for the tasks list and editor. */
+export function getTaskDueDisplayDate(
+  task: Pick<CalendarEvent, 'due' | 'timeZone' | 'showWithoutTime'>,
+): Date | null {
+  const due = getTaskDueDate(task);
+  if (!due || isDateOnlyDue(task)) return due;
+  return toDisplayDate(due);
+}
+
+/**
+ * A JSCalendar LocalDateTime moved by whole calendar days, wall clock kept:
+ * the same time of day in the same zone (duplicating an event one day
+ * later). Returned unchanged when it doesn't parse.
+ */
+export function addDaysToLocalDateTime(value: string, days: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(.*)$/.exec(value);
+  if (!m) return value;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days));
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}${m[4]}`;
+}
+
+/** End of an event as a display date - see getEventStartDate. */
 export function getEventEndDate(event: CalendarEvent): Date {
   if (!event.showWithoutTime && event.utcEnd) {
     const utc = parseISO(event.utcEnd);
-    if (!isNaN(utc.getTime())) return utc;
+    if (!isNaN(utc.getTime())) return toDisplayDate(utc);
   }
   const start = getEventStartDate(event);
   if (!event.duration) return start;

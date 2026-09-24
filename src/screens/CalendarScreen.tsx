@@ -76,6 +76,7 @@ import {
 } from '../lib/calendar-scroll-window';
 import { coversRange, createRangeLoader } from '../lib/calendar-range-cache';
 import {
+  addDaysToLocalDateTime,
   applySharedCalendarColors,
   buildEventDayIndex,
   dayKey,
@@ -794,13 +795,11 @@ export default function CalendarScreen() {
   const handleDuplicateFromDetail = React.useCallback(
     async (event: CalendarEvent) => {
       setDetailEvent(null);
-      const newStart = addDays(getEventStartDate(event), 1);
       const data: Partial<CalendarEvent> = {
         title: event.title,
         description: event.description,
-        start: event.showWithoutTime
-          ? format(newStart, "yyyy-MM-dd'T'00:00:00")
-          : format(newStart, "yyyy-MM-dd'T'HH:mm:ss"),
+        // A day later at the same wall clock in the event's own zone.
+        start: addDaysToLocalDateTime(event.start, 1),
         duration: event.duration,
         timeZone: event.timeZone,
         showWithoutTime: event.showWithoutTime,

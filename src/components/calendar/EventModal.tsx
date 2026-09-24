@@ -37,15 +37,12 @@ import type {
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import {
-  buildAllDayDuration,
   getCalendarColor,
-  getEventDisplayEndDate,
-  getEventEndDate,
-  getEventStartDate,
   getPrimaryCalendarId,
   timePattern,
 } from '../../lib/calendar-utils';
-import { getEffectiveTimeZone } from '../../lib/calendar-timezone';
+import { displayNow } from '../../lib/calendar-timezone';
+import { editorTimesFromEvent, eventTimeFieldsToSave } from '../../lib/event-editor-times';
 import { useSettingsStore } from '../../stores/settings-store';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
@@ -108,21 +105,6 @@ function nextHalfHour(d: Date): Date {
   const add = min < 30 ? 30 - min : 60 - min;
   date.setMinutes(date.getMinutes() + add, 0, 0);
   return date;
-}
-
-function buildDuration(start: Date, end: Date): string {
-  const diffMin = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000));
-  const days = Math.floor(diffMin / (24 * 60));
-  const hours = Math.floor((diffMin % (24 * 60)) / 60);
-  const mins = diffMin % 60;
-  let dur = 'P';
-  if (days > 0) dur += `${days}D`;
-  if (hours > 0 || mins > 0) {
-    dur += 'T';
-    if (hours > 0) dur += `${hours}H`;
-    if (mins > 0) dur += `${mins}M`;
-  }
-  return dur === 'P' ? 'PT0M' : dur;
 }
 
 function detectRecurrence(event: CalendarEvent | null | undefined): RecurrenceOption {
@@ -193,8 +175,8 @@ export function EventModal({
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [allDay, setAllDay] = React.useState(false);
-  const [start, setStart] = React.useState<Date>(() => nextHalfHour(defaultDate ?? new Date()));
-  const [end, setEnd] = React.useState<Date>(() => addHours(nextHalfHour(defaultDate ?? new Date()), 1));
+  const [start, setStart] = React.useState<Date>(() => nextHalfHour(defaultDate ?? displayNow()));
+  const [end, setEnd] = React.useState<Date>(() => addHours(nextHalfHour(defaultDate ?? displayNow()), 1));
   // New events land in the explicitly requested calendar, else the account's
   // default calendar, else the first one.
   // Never default new events into a subscription / read-only calendar (#762).
@@ -239,12 +221,11 @@ export function EventModal({
     if (event) {
       setTitle(event.title || '');
       setDescription(event.description || '');
-      setAllDay(!!event.showWithoutTime);
-      setStart(getEventStartDate(event));
-      // All-day events store an exclusive end (start + P1D = next day 00:00);
-      // the editor works with the inclusive last day, otherwise every re-save
-      // grows the event by one day.
-      setEnd(event.showWithoutTime ? getEventDisplayEndDate(event) : getEventEndDate(event));
+      // In the calendar's time zone, like the grid and the detail sheet.
+      const times = editorTimesFromEvent(event);
+      setAllDay(times.allDay);
+      setStart(times.start);
+      setEnd(times.end);
       setCalendarId(getPrimaryCalendarId(event) || calendars[0]?.id || '');
       setAttendees(seedAttendees(event, currentUserEmails));
       const detected = detectRecurrence(event);
@@ -258,7 +239,7 @@ export function EventModal({
       setLocation(detectLocation(event));
       setVideoUrl(detectVideoUrl(event));
     } else {
-      const d = defaultDate ? nextHalfHour(defaultDate) : nextHalfHour(new Date());
+      const d = nextHalfHour(defaultDate ?? displayNow());
       setTitle('');
       setDescription('');
       setAllDay(false);
@@ -337,15 +318,9 @@ export function EventModal({
       const data: Partial<CalendarEvent> = {
         title: title.trim(),
         description: description.trim() || (isEdit && event?.description ? '' : undefined),
-        showWithoutTime: allDay || (isEdit ? false : undefined),
-        start: allDay
-          ? format(start, "yyyy-MM-dd'T'00:00:00")
-          : format(start, "yyyy-MM-dd'T'HH:mm:ss"),
-        duration: allDay ? buildAllDayDuration(start, end) : buildDuration(start, end),
-        // A floating (zone-less) start renders at a different instant for
-        // every viewer; label the wall-clock with the zone it was entered in.
-        // All-day events are date-only and carry no zone.
-        timeZone: allDay ? null : getEffectiveTimeZone(),
+        // The times shown are in the calendar's zone; this converts them back
+        // into the event's own zone and keeps untouched ones as stored.
+        ...eventTimeFieldsToSave({ allDay, start, end }, event),
         recurrenceRules: clearedOr(recurrenceRules, 'recurrenceRules'),
         alerts: clearedOr(remindersToAlerts(reminders, preserved), 'alerts'),
         useDefaultAlerts: reminders.length > 0 ? false : undefined,

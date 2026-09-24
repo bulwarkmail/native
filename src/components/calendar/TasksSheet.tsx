@@ -25,11 +25,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native';
-import { format, isBefore, isToday, startOfDay } from 'date-fns';
+import { format, isBefore, startOfDay } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { getCalendarColor, getTaskDueDate, timePattern, type TimeFormat } from '../../lib/calendar-utils';
+import { getCalendarColor, getTaskDueDisplayDate, timePattern, type TimeFormat } from '../../lib/calendar-utils';
+import { displayNow, isDisplayToday } from '../../lib/calendar-timezone';
 import {
   emptyTaskEditor,
   priorityToLevel,
@@ -64,9 +65,9 @@ function isCompleted(task: CalendarEvent): boolean {
 
 function isOverdue(task: CalendarEvent): boolean {
   if (isCompleted(task)) return false;
-  const d = getTaskDueDate(task);
+  const d = getTaskDueDisplayDate(task);
   if (!d) return false;
-  return isBefore(d, startOfDay(new Date())) && !isToday(d);
+  return isBefore(d, startOfDay(displayNow())) && !isDisplayToday(d);
 }
 
 // Open tasks first, overdue first among them, then by due date (soonest
@@ -78,8 +79,8 @@ function compareTasks(a: CalendarEvent, b: CalendarEvent): number {
   const ao = isOverdue(a);
   const bo = isOverdue(b);
   if (ao !== bo) return ao ? -1 : 1;
-  const ad = getTaskDueDate(a)?.getTime() ?? Infinity;
-  const bd = getTaskDueDate(b)?.getTime() ?? Infinity;
+  const ad = getTaskDueDisplayDate(a)?.getTime() ?? Infinity;
+  const bd = getTaskDueDisplayDate(b)?.getTime() ?? Infinity;
   if (ad !== bd) return ad - bd;
   const ap = a.priority || 10;
   const bp = b.priority || 10;
@@ -201,7 +202,7 @@ export function TasksSheet({
   };
 
   const dueLabel = (task: CalendarEvent): string | null => {
-    const d = getTaskDueDate(task);
+    const d = getTaskDueDisplayDate(task);
     if (!d || !task.due) return null;
     const hasTime = !task.showWithoutTime && !/^\d{4}-\d{2}-\d{2}$/.test(task.due);
     return hasTime
@@ -419,7 +420,7 @@ export function TasksSheet({
 
       {showDatePicker && (
         <DateTimePicker
-          value={editor.due ?? new Date()}
+          value={editor.due ?? displayNow()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(_, d) => {
@@ -437,7 +438,7 @@ export function TasksSheet({
       )}
       {showTimePicker && (
         <DateTimePicker
-          value={editor.due ?? new Date()}
+          value={editor.due ?? displayNow()}
           mode="time"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(_, d) => {

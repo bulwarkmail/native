@@ -1,7 +1,12 @@
 import { format } from 'date-fns';
 import type { CalendarEvent } from '../api/types';
-import { getTaskDueDate } from './calendar-utils';
-import { getEffectiveTimeZone } from './calendar-timezone';
+import { getTaskDueDisplayDate, isDateOnlyDue } from './calendar-utils';
+import {
+  formatWallClock,
+  fromDisplayDate,
+  getEffectiveTimeZone,
+  isValidTimeZone,
+} from './calendar-timezone';
 
 export type PriorityLevel = 'none' | 'high' | 'medium' | 'low';
 
@@ -39,40 +44,64 @@ export function emptyTaskEditor(calendarId: string): TaskEditorState {
   return { id: null, title: '', description: '', due: null, withTime: false, priority: 'none', calendarId };
 }
 
-export function taskEditorFromTask(task: CalendarEvent, fallbackCalendarId: string): TaskEditorState {
+export function taskEditorFromTask(
+  task: Pick<CalendarEvent, 'id' | 'title' | 'description' | 'due' | 'timeZone' | 'showWithoutTime' | 'priority' | 'calendarIds'>,
+  fallbackCalendarId: string,
+): TaskEditorState {
   return {
     id: task.id,
     title: task.title || '',
     description: task.description || '',
-    due: getTaskDueDate(task),
-    withTime: !!task.due && !task.showWithoutTime && !/^\d{4}-\d{2}-\d{2}$/.test(task.due),
+    // In the calendar's time zone, like events (see getTaskDueDisplayDate).
+    due: getTaskDueDisplayDate(task),
+    withTime: !!task.due && !isDateOnlyDue(task),
     priority: priorityToLevel(task.priority),
     calendarId: Object.keys(task.calendarIds || {})[0] || fallbackCalendarId,
   };
 }
 
+type ExistingTask = Pick<CalendarEvent, 'calendarIds'>
+  & Partial<Pick<CalendarEvent, 'id' | 'title' | 'due' | 'timeZone' | 'showWithoutTime'>>;
+
+/** Did the editor leave the due of `existing` as it was shown? */
+function dueUnchanged(editor: TaskEditorState, existing: ExistingTask | undefined): boolean {
+  if (!existing?.due || !editor.due) return false;
+  const shown = getTaskDueDisplayDate(existing as Pick<CalendarEvent, 'due' | 'timeZone' | 'showWithoutTime'>);
+  return !!shown
+    && shown.getTime() === editor.due.getTime()
+    && editor.withTime === !isDateOnlyDue(existing);
+}
+
 /**
  * The task properties the editor writes. `existing` is the task being
  * edited (undefined for a new one); a changed calendar is only sent when it
- * differs from the one the task is in.
+ * differs from the one the task is in. A due the user left alone is not
+ * sent at all, so saving never moves it; a changed one is converted from the
+ * calendar's zone into the zone the task lives in.
  */
 export function buildTaskEditorChanges(
   editor: TaskEditorState,
-  existing?: Pick<CalendarEvent, 'calendarIds'>,
+  existing?: ExistingTask,
 ): Partial<CalendarEvent> {
   const data: Partial<CalendarEvent> = {
     title: editor.title.trim(),
     description: editor.description.trim(),
     priority: levelToPriority(editor.priority),
   };
-  if (editor.due) {
+  if (editor.id && dueUnchanged(editor, existing)) {
+    // Keep the stored due, zone and all-day flag.
+  } else if (editor.due) {
     if (editor.withTime) {
-      data.due = format(editor.due, "yyyy-MM-dd'T'HH:mm:ss");
+      // The editor shows the due as a wall clock in the calendar's zone.
+      // Keep a timed task in its own zone; a new, floating or date-only one
+      // takes the calendar's.
+      const ownZone = existing?.due && !isDateOnlyDue(existing) && isValidTimeZone(existing.timeZone)
+        ? existing.timeZone
+        : null;
+      const zone = ownZone ?? getEffectiveTimeZone();
+      data.due = formatWallClock(fromDisplayDate(editor.due), zone);
       data.showWithoutTime = false;
-      // The editor shows the due in local time; label it with the zone
-      // it was entered in, like the event editor, or the task's old zone
-      // would shift it.
-      data.timeZone = getEffectiveTimeZone();
+      data.timeZone = zone;
     } else {
       data.due = format(editor.due, "yyyy-MM-dd'T'00:00:00");
       data.showWithoutTime = true;
