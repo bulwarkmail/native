@@ -1,1 +1,4 @@
-<resources/>
+<resources>
+  <!-- Matches the dark palette background (src/theme/tokens.ts). -->
+  <color name="window_background">#09090b</color>
+</resources>

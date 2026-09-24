@@ -3,4 +3,6 @@
   <color name="iconBackground">#09090b</color>
   <color name="colorPrimary">#023c69</color>
   <color name="colorPrimaryDark">#09090b</color>
+  <!-- Behind the React root until the first frame; matches the light palette background (src/theme/tokens.ts). -->
+  <color name="window_background">#ffffff</color>
 </resources>

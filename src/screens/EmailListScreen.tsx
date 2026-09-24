@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Image, ActivityIndicator, Modal, Platform, ScrollView, TouchableWithoutFeedback, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -295,6 +295,10 @@ interface EmailListScreenProps {
 export default function EmailListScreen({ onEmailPress, onComposePress }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // The navigator's safe-area provider knows the insets on the first render;
+  // the native SafeAreaView only learned them a few frames later on Fabric,
+  // so the header first drew under the status bar and then jumped down.
+  const insets = useSafeAreaInsets();
   const { t } = useLocaleStore();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
@@ -917,7 +921,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   }, [mailboxes, currentMailboxId, selectMailbox]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       {selectionMode ? (
         <View style={styles.header}>
@@ -1592,7 +1596,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       />
 
       <UndoSnackbar />
-    </SafeAreaView>
+    </View>
   );
 }
 

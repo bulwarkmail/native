@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Mail, Calendar, BookUser, HardDrive, Settings } from 'lucide-react-native';
@@ -267,6 +267,13 @@ export default function App() {
   const resolvedScheme: 'light' | 'dark' =
     themePref === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : themePref;
   const statusBarStyle: 'light' | 'dark' = resolvedScheme === 'light' ? 'dark' : 'light';
+  // React Navigation's default theme is light: without this its containers
+  // paint white behind and between screens, even in dark mode.
+  const background = useColors().background;
+  const navigationTheme = React.useMemo(() => {
+    const base = resolvedScheme === 'light' ? DefaultTheme : DarkTheme;
+    return { ...base, colors: { ...base.colors, background, card: background } };
+  }, [resolvedScheme, background]);
   // Persisted active account is the signal that the user was already signed
   // in on the previous launch. When present we render the main UI with the
   // cached mail list instead of the "Restoring session" spinner; the real
@@ -642,7 +649,7 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={navigationTheme}>
       <StatusBar style={statusBarStyle} />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
