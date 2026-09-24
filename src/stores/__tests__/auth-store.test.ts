@@ -39,6 +39,8 @@ import { jmapClient } from '../../api/jmap-client';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
+import { useContactsStore } from '../contacts-store';
+import { useEmailStore } from '../email-store';
 
 const mockConnect = jmapClient.connect as ReturnType<typeof vi.fn>;
 const mockLogout = jmapClient.logout as ReturnType<typeof vi.fn>;
@@ -177,6 +179,31 @@ describe('auth-store', () => {
         expect(useAuthStore.getState().hasRestoredSession).toBe(true);
       } finally {
         hasHydrated.mockRestore();
+        warn.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    it('waits for the four persisted stores at the same time', async () => {
+      vi.useFakeTimers();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const spies = [useAccountStore, useEmailStore, useCalendarStore, useContactsStore]
+        .map((store) => vi.spyOn(store.persist, 'hasHydrated').mockReturnValue(false));
+      try {
+        let settled = false;
+        const restoring = useAuthStore.getState().restoreSession().finally(() => { settled = true; });
+
+        // One after another, four stuck stores would hold the session for
+        // four timeouts; waited on together, they cost one.
+        await vi.advanceTimersByTimeAsync(HYDRATION_TIMEOUT_MS - 1);
+        expect(settled).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(settled).toBe(true);
+        expect(await restoring).toBe(false);
+        expect(warn.mock.calls.filter(([m]) => String(m).includes('did not hydrate in time'))).toHaveLength(4);
+      } finally {
+        for (const spy of spies) spy.mockRestore();
         warn.mockRestore();
         vi.useRealTimers();
       }
