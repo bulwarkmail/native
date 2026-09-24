@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "Na",
+    "before": "Voor",
+    "no_attachment": "Zonder bijlage",
+    "not_starred": "Zonder ster"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "De komende {count} dagen zijn vrij.",
+      "no_upcoming": "Geen komende afspraken"
+    },
+    "alerts": {
+      "unit_minutes_after": "minuten erna"
+    },
+    "drawer": {
+      "my_calendars": "Mijn agenda's",
+      "no_calendars": "Nog geen agenda's.",
+      "shared_with_me": "Gedeeld met mij",
+      "subscribed": "Geabonneerd"
+    },
+    "event_modal": {
+      "participant_placeholder": "Deelnemer toevoegen via e-mail"
+    },
+    "events": {
+      "copy_link_short": "Link",
+      "export_ics_short": ".ics",
+      "tap_to_create": "Tik op + om er een te maken"
+    },
+    "form": {
+      "description_placeholder": "Notities, agendapunten…",
+      "location_placeholder": "Plaats of adres",
+      "time": "Tijd"
+    },
+    "invitation": {
+      "accept": "Ja",
+      "add_error": "Kon het evenement niet toevoegen",
+      "add_to_calendar": "Toevoegen aan agenda",
+      "added": "Toegevoegd aan agenda",
+      "already_in_calendar": "Staat al in uw agenda",
+      "cancelled": "Dit evenement is geannuleerd",
+      "decline": "Nee",
+      "join_video": "Deelnemen aan videogesprek",
+      "no_writable_calendar": "Geen beschrijfbare agenda beschikbaar",
+      "organizer": "Organisator",
+      "reading": "Uitnodiging lezen…",
+      "reply": "Een deelnemer heeft op deze uitnodiging gereageerd",
+      "response_error": "Kon uw reactie niet verzenden",
+      "response_sent": "Reactie verzonden",
+      "tentative": "Misschien",
+      "title": "Agenda-uitnodiging",
+      "trust_verified": "Afzender geverifieerd"
+    },
+    "management": {
+      "clear_confirm": "Alles verwijderen",
+      "clear_description": "Alle afspraken in deze agenda worden verwijderd. Afspraken die ook bij een andere agenda horen, worden alleen ontkoppeld.",
+      "clear_title": "Alle afspraken verwijderen?",
+      "delete_description": "De agenda en alle afspraken daarin worden verwijderd. Dit kan niet ongedaan worden gemaakt.",
+      "delete_title": "Agenda verwijderen?",
+      "description_placeholder": "Optioneel",
+      "edit_calendar": "Agenda bewerken",
+      "new_calendar": "Nieuwe agenda"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "Weeknummers weergeven in de maandweergave.",
+      "time_zone": "Tijdzone",
+      "time_zone_auto": "Tijdzone van apparaat",
+      "time_zone_desc": "Tijdzone voor nieuwe afspraken en voor het weergeven van de agenda. \"Tijdzone van apparaat\" volgt de telefoon."
+    },
+    "share": {
+      "add_people": "Personen toevoegen",
+      "error": "Delen kon niet worden bijgewerkt",
+      "no_matches": "Geen overeenkomsten",
+      "no_principals": "Delen is niet beschikbaar op deze server.",
+      "role_custom": "Aangepast",
+      "search_placeholder": "Zoeken op naam of e-mail",
+      "shared_with": "Gedeeld met",
+      "title": "Delen"
+    },
+    "tasks": {
+      "add_placeholder": "Taak toevoegen…",
+      "add_time": "Tijd toevoegen",
+      "delete_error": "Taak verwijderen mislukt",
+      "update_error": "Taak bijwerken mislukt"
+    }
+  },
+  "common": {
+    "add": "Toevoegen",
+    "back": "Terug",
+    "confirm": "Bevestigen",
+    "create": "Aanmaken",
+    "dismiss": "Sluiten",
+    "done": "Klaar",
+    "remove": "Verwijderen",
+    "retry": "Opnieuw proberen",
+    "undo": "Ongedaan maken",
+    "update": "Bijwerken"
+  },
+  "context_menu": {
+    "color_tag": "Label",
+    "remove_color": "Label verwijderen"
+  },
+  "email_composer": {
+    "attach_camera": "Camera",
+    "attachment_reminder_body": "Uw bericht vermeldt \"{keyword}\" maar er is geen bestand bijgevoegd. Toch verzenden?",
+    "attachment_reminder_title": "Bijlage vergeten?",
+    "attachments_too_large_total": "De bijlagen zouden de {max} overschrijden die deze server per bericht toestaat.",
+    "editor_unavailable": "Kon de inhoud van het bericht niet lezen. Kopieer uw tekst en sluit en open daarna het opstelvenster opnieuw.",
+    "identity_unavailable": "Identiteit niet beschikbaar",
+    "image_load_failed": "Kon afbeelding niet laden",
+    "no_recipient": "(geen ontvanger)",
+    "no_sent_folder": "Geen map Verzonden gevonden",
+    "permission_camera": "Toestemming voor de camera is nodig om een foto te maken.",
+    "permission_photos": "Toestemming voor de fotobibliotheek is nodig om afbeeldingen bij te voegen.",
+    "recipient_add_contact": "Aan contacten toevoegen",
+    "recipient_copy": "Adres kopiëren",
+    "recipient_move_to": "Verplaatsen naar {field}",
+    "recipient_remove": "Verwijderen",
+    "save_draft": "Concept opslaan",
+    "save_failed_no_drafts": "Er is geen map Concepten om dit concept in op te slaan.",
+    "save_failed_no_identity": "Uw afzenderidentiteiten konden niet worden geladen, dus dit concept kan niet worden opgeslagen. Controleer uw verbinding of kopieer uw tekst voordat u sluit.",
+    "schedule_custom": "Datum en tijd kiezen…",
+    "schedule_in_1h": "Over 1 uur",
+    "schedule_in_3h": "Over 3 uur",
+    "schedule_past_body": "Het geplande tijdstip moet in de toekomst liggen.",
+    "schedule_past_title": "Kies een tijdstip in de toekomst",
+    "schedule_tomorrow": "Morgen, 8:00",
+    "schedule_tomorrow_morning": "Morgenochtend",
+    "schedule_too_late_body": "Dat is later dan deze server toestaat. Kies een eerder tijdstip.",
+    "schedule_too_late_title": "Te ver vooruit",
+    "schedule_unsupported_body": "Deze mailserver ondersteunt gepland verzenden niet.",
+    "schedule_unsupported_title": "Plannen niet beschikbaar",
+    "scheduled_body": "Uw bericht wordt verzonden op {time}.",
+    "scheduled_title": "Gepland",
+    "send_now": "Nu verzenden",
+    "send_timeout_body": "Het bericht is mogelijk al verzonden. Controleer uw map Verzonden voordat u het opnieuw verstuurt.",
+    "send_timeout_title": "Geen antwoord van de server",
+    "undo_send_label": "Verzenden over {seconds} s…",
+    "uploading": "Uploaden...",
+    "validation": {
+      "subject_required": "Voeg een onderwerp toe"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "Verplaatsen tussen accounts vereist een verbinding",
+    "emails_archived_count": "{count, plural, one {# e-mail} other {# e-mails}} gearchiveerd",
+    "emails_moved_to": "{count, plural, one {# e-mail} other {# e-mails}} verplaatst naar {mailbox}",
+    "error": "Fout",
+    "marked_as_spam": "Gemarkeerd als spam",
+    "marked_as_spam_count": "{count, plural, one {# e-mail} other {# e-mails}} gemarkeerd als spam",
+    "marked_not_spam": "Gemarkeerd als geen spam",
+    "marked_not_spam_count": "{count, plural, one {# e-mail} other {# e-mails}} gemarkeerd als geen spam",
+    "move_same_account": "Berichten kunnen alleen binnen hetzelfde account worden verplaatst",
+    "moved_to_trash": "E-mail verplaatst naar Prullenbak",
+    "moved_to_trash_count": "{count, plural, one {# e-mail} other {# e-mails}} verplaatst naar Prullenbak",
+    "no_archive_folder": "Kon geen map Archief vinden op de server.",
+    "no_emails_in": "Geen e-mails in {folder}",
+    "no_junk_folder": "Kon geen map Spam/Ongewenst vinden op de server.",
+    "no_mailboxes": "Geen mappen gevonden",
+    "no_mailboxes_hint": "Controleer of uw JMAP-account e-mailfunctionaliteit heeft.",
+    "no_tags_defined": "Geen labels gedefinieerd. Voeg labels toe in Instellingen.",
+    "no_trash_folder": "Kon geen map Prullenbak vinden op de server. Controleer uw mapconfiguratie.",
+    "offline_nothing_cached": "Geen verbinding. Er wordt niets weergegeven omdat er nog geen e-mail in de cache staat.",
+    "open_draft_failed": "Kon het concept niet openen.",
+    "outbox_discard": "Verwijderen",
+    "outbox_failed": "{count} wijzigingen konden niet op de server worden opgeslagen.",
+    "recent_searches": "Recente zoekopdrachten",
+    "scope_all_folders": "Alle mappen",
+    "scope_this_folder": "Deze map",
+    "search_placeholder": "Zoeken in e-mail...",
+    "showing_cached": "E-mail uit de cache wordt weergegeven",
+    "swipe_move": "Verplaatsen",
+    "swipe_spam": "Spam",
+    "total": "totaal",
+    "undo_failed": "Ongedaan maken mislukt",
+    "unknown_tag": "hier niet gedefinieerd"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "Afzender aan contacten toevoegen",
+    "address_actions": {
+      "add_contact": "Aan contacten toevoegen",
+      "compose": "Nieuw bericht",
+      "copy": "Adres kopiëren",
+      "copy_failed": "Kon het adres niet kopiëren."
+    },
+    "attachment_actions": {
+      "open": "Openen",
+      "preview": "Voorbeeld",
+      "save": "Opslaan",
+      "share": "Delen"
+    },
+    "attachment_failed": "Kon bijlage niet openen",
+    "authentication": {
+      "spoof_warning": "Het afzenderadres kon niet worden geverifieerd - dit bericht is mogelijk vervalst."
+    },
+    "body_truncated": "Dit bericht is te groot om volledig weer te geven.",
+    "bundle_too_large": "De bijlagen zijn te groot om te bundelen.",
+    "color_tag": {
+      "blue": "Blauw",
+      "green": "Groen",
+      "none": "Geen",
+      "orange": "Oranje",
+      "pink": "Roze",
+      "purple": "Paars",
+      "red": "Rood",
+      "title": "Kleurlabel",
+      "yellow": "Geel"
+    },
+    "delete_permanently_message": "Dit bericht wordt definitief verwijderd en kan niet worden hersteld.",
+    "delete_permanently_title": "Definitief verwijderen?",
+    "export_failed": "Exporteren mislukt",
+    "forwarded": "Doorgestuurd",
+    "load_failed": "E-mail laden mislukt",
+    "preview": {
+      "open_external": "Openen in app",
+      "pdf_external": "PDF's worden geopend in de PDF-viewer op dit apparaat.",
+      "unsupported": "Geen voorbeeld voor dit bestandstype."
+    },
+    "received_via": "aan {name}",
+    "remove_color": "Label verwijderen",
+    "replied": "Beantwoord",
+    "sender_actions": "Afzender…",
+    "set_color": "Label instellen",
+    "show_all_count": "Alles tonen ({count})",
+    "show_less": "Minder tonen",
+    "smime_unsupported": "Ondertekend/versleuteld met S/MIME - niet ondersteund op mobiel",
+    "source_too_large": "Het bericht is te groot om volledig weer te geven. Deel in plaats daarvan de volledige bron.",
+    "thread_loading": "Gesprek laden...",
+    "unsubscribe_banner": {
+      "no_identity": "Geen verzendidentiteit beschikbaar"
+    },
+    "view_dark_mode": "Weergeven in donkere modus",
+    "view_light_mode": "Weergeven in lichte modus"
+  },
+  "files": {
+    "delete_cascade_hint": "Mappen worden samen met alles erin verwijderd. Dit kan niet ongedaan worden gemaakt.",
+    "delete_item_title": "Dit item verwijderen?",
+    "delete_items_title": "{count} items verwijderen?",
+    "done": "Klaar",
+    "folder_empty": "Deze map is leeg",
+    "invalid_name": "Ongeldige naam",
+    "invalid_name_slash": "Namen mogen geen \"/\" bevatten.",
+    "move_to": "Verplaatsen naar…",
+    "open_error": "Kon het bestand niet openen",
+    "open_with": "Openen met…",
+    "preview_too_large": "Dit bestand is te groot voor een voorbeeld.",
+    "selected_count": "{count} geselecteerd",
+    "share_add_people": "Personen toevoegen",
+    "share_empty": "Nog met niemand gedeeld",
+    "share_error": "Delen kon niet worden bijgewerkt",
+    "share_file_error": "Kon het bestand niet delen",
+    "share_folder_hint": "Als u een map deelt, deelt u alles wat erin staat.",
+    "share_no_matches": "Geen overeenkomsten",
+    "share_no_users": "Geen andere gebruikers gevonden",
+    "share_remove": "Toegang intrekken",
+    "share_role_custom": "Aangepast",
+    "share_search_placeholder": "Zoeken op naam of e-mail",
+    "shared_with": "Gedeeld met",
+    "sharing_access": "Delen en toegang",
+    "upload_unavailable": "De bestandskiezer is niet geïnstalleerd in deze build. Bouw de app opnieuw om uploaden mogelijk te maken."
+  },
+  "identities": {
+    "badge": {
+      "to": "aan {identity}",
+      "via": "via {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "Bij deze accounts bent u al ingelogd.",
+      "add_title": "Nog een account toevoegen",
+      "camera_allow": "Cameratoegang toestaan",
+      "camera_disabled": "Cameratoegang is uitgeschakeld. Schakel deze in via Instellingen om een QR-inlogcode te scannen.",
+      "camera_needed": "Bulwark Mail heeft cameratoegang nodig om een QR-inlogcode te scannen.",
+      "choose_subtitle": "Kies hoe u wilt inloggen.",
+      "confirm_check": "Controleer of dit klopt",
+      "confirm_found": "Uw mailserver is gevonden",
+      "confirm_subtitle": "Vervolgens logt u in op de pagina van uw provider.",
+      "connecting": "Verbinden met {host}",
+      "connecting_detail": "Uw mailbox wordt ingesteld…",
+      "continue": "Doorgaan",
+      "different_server": "Een andere server gebruiken",
+      "elsewhere_title": "Een account op een andere server",
+      "email_desc": "Wij zoeken uw mailserver",
+      "email_step_hint": "Werkt met Stalwart en elke andere JMAP-mailserver.",
+      "email_step_subtitle": "Meer hebben we meestal niet nodig om uw mailserver te vinden.",
+      "email_step_title": "Wat is uw e-mailadres?",
+      "email_step_title_add": "Wat is het andere adres?",
+      "email_title": "Mijn e-mailadres gebruiken",
+      "err_bad_detail": "Controleer uw e-mailadres en wachtwoord. Als uw account tweefactorauthenticatie gebruikt, maak dan in de webmail een app-wachtwoord aan en gebruik dat hier.",
+      "err_bad_title": "Dat is niet gelukt",
+      "err_cert_detail": "Het beveiligingscertificaat van de server is geweigerd. Als dit uw eigen server is, controleer dan of het certificaat geldig en niet verlopen is.",
+      "err_cert_title": "Kan {host} niet verifiëren",
+      "err_code_expired_detail": "Inlogcodes zijn maar een paar minuten geldig. Genereer een nieuwe in de webmail en scan opnieuw.",
+      "err_code_expired_title": "Die code is verlopen",
+      "err_generic_detail": "Er is iets misgegaan. Probeer het opnieuw.",
+      "err_generic_title": "Inloggen mislukt",
+      "err_interrupted_detail": "Het antwoord kwam niet overeen met het gestarte verzoek. Probeer opnieuw in te loggen.",
+      "err_interrupted_title": "Inloggen is onderbroken",
+      "err_no_server_detail": "Controleer het adres of scan in plaats daarvan een inlogcode uit de webmail.",
+      "err_no_server_title": "Geen mailserver op {host}",
+      "err_no_webmail_detail": "Deze server heeft geen Bulwark-webmail en geen OAuth-aanmelding. Gebruik in plaats daarvan een wachtwoord (of een app-wachtwoord).",
+      "err_no_webmail_title": "Geen inlogpagina op {host}",
+      "err_rate_detail": "De server vroeg ons even te wachten. Probeer het zo opnieuw.",
+      "err_rate_detail_seconds": "De server vroeg ons te wachten. Probeer het over ongeveer {seconds} seconden opnieuw.",
+      "err_rate_title": "Te veel pogingen",
+      "err_server_detail": "De server antwoordde met een fout. Probeer het over een paar minuten opnieuw.",
+      "err_server_title": "Problemen bij {host}",
+      "err_totp_bad_detail": "Controleer uw wachtwoord en de huidige code uit uw authenticator-app en probeer het opnieuw.",
+      "err_totp_detail": "Dit account is beveiligd met tweefactorauthenticatie. Voer de 6-cijferige code uit uw authenticator-app in.",
+      "err_totp_title": "Voer uw tweefactorcode in",
+      "err_unreachable_detail": "Controleer uw verbinding en het serveradres en probeer het opnieuw.",
+      "err_unreachable_title": "Kan {host} niet bereiken",
+      "know_server": "Ik ken mijn serveradres",
+      "known_server_desc": "We kennen deze server al, dus er hoeft niets te worden ingesteld",
+      "known_server_title": "Nog een account op {host}",
+      "looking_up": "Uw server opzoeken…",
+      "manual": "Servergegevens handmatig invoeren",
+      "notice_bad_qr": "Die code is geen Bulwark-inlogcode",
+      "notice_bad_qr_detail": "Open Bulwark op het web en ga naar Instellingen → Beveiliging → Mobiele app koppelen om er een te tonen.",
+      "notice_bad_server": "Dat lijkt geen serveradres",
+      "notice_bad_server_detail": "Probeer het adres dat u voor de webmail gebruikt, zoals mail.example.com.",
+      "notice_full_email": "Voer een volledig e-mailadres in",
+      "notice_full_email_detail": "Zoals ada@example.com. Als u in plaats daarvan met een gebruikersnaam inlogt, gebruik dan “Ik ken mijn serveradres”.",
+      "notice_need_code": "Voer de 6-cijferige code uit uw authenticator-app in",
+      "notice_need_credentials": "Voer uw e-mailadres en wachtwoord in",
+      "notice_need_server": "We hebben eerst een serveradres nodig",
+      "open_settings": "Instellingen openen",
+      "opening": "Doorsturen naar {host}",
+      "opening_detail": "Rond het inloggen af op de pagina die zojuist is geopend. Daarna nemen wij het over.",
+      "pairing": "Uw inlogcode wordt verzilverd",
+      "pairing_detail": "Dit apparaat wordt gekoppeld aan {host}…",
+      "password_subtitle": "Uw wachtwoord wordt alleen naar deze server verzonden en opgeslagen in de sleutelhanger van het apparaat.",
+      "password_title": "Inloggen bij {host}",
+      "provider_detail": "U typt het op hun pagina. Bulwark bewaart alleen een inlogtoken, dat u op elk moment kunt intrekken.",
+      "provider_title": "Uw wachtwoord blijft bij uw provider",
+      "qr_hint": "Instellingen → Beveiliging → Mobiele app koppelen toont een code. Richt de camera erop.",
+      "qr_hint_title": "Open Bulwark op uw computer",
+      "qr_title": "Inlogcode",
+      "scan_desc": "De snelste manier als u op het web bent ingelogd",
+      "scan_title": "Een inlogcode scannen",
+      "server_hint": "Hetzelfde adres dat u in de browser typt. We voegen https:// voor u toe.",
+      "server_label": "Serveradres",
+      "server_not_found": "We konden geen server vinden voor {domain}. Als u zelf host, is het het adres dat u voor de webmail gebruikt.",
+      "server_scan_hint": "Weet u het niet zeker? Scan dan een inlogcode. Die bevat het serveradres.",
+      "server_subtitle": "Voer het adres in waarmee u uw webmail bereikt.",
+      "server_title": "Wat is uw serveradres?",
+      "the_server": "de server",
+      "unencrypted": "Onversleutelde verbinding",
+      "use_password": "In plaats daarvan inloggen met een wachtwoord",
+      "username_label": "E-mail of gebruikersnaam",
+      "your_server": "uw server"
+    }
+  },
+  "offline": {
+    "banner": "U bent offline",
+    "queued_changes": "{count, plural, one {# wijziging wordt} other {# wijzigingen worden}} gesynchroniseerd zodra u weer verbinding hebt"
+  },
+  "push_prompt": {
+    "body": "Schakel achtergrondmeldingen in zodat nieuwe berichten u bereiken terwijl de app gesloten is.",
+    "dismiss": "Niet nu",
+    "enable": "Inschakelen",
+    "title": "Meldingen ontvangen over nieuwe e-mail"
+  },
+  "scheduled": {
+    "cancel_body": "Het bericht wordt niet bezorgd. Er blijft een kopie in uw map Verzonden.",
+    "cancel_failed": "Annuleren mislukt",
+    "edit_failed": "Kon het bericht niet openen om te bewerken",
+    "keep_scheduled": "Gepland laten",
+    "reschedule_failed": "Opnieuw plannen mislukt",
+    "send_now_failed": "Kon niet nu verzenden"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "Wijzig de volgorde van accounts in de accountwisselaar, kies het standaardaccount of meld er een af.",
+        "limit": "Maximum van {count} accounts bereikt."
+      },
+      "shared_accounts": {
+        "description_manage": "Groeps- en gedeelde accounts die u via dit account kunt lezen. Selecteer er een om de filters en de afwezigheidsmelder te beheren."
+      },
+      "unknown": "Onbekend"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "Update vereist: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "Beveiligingsupdate: {version}",
+        "update_available": "Update: {version}",
+        "update_store_hint": "beschikbaar in TestFlight / App Store"
+      },
+      "export_settings": {
+        "saved_to": "Opgeslagen in {path}"
+      },
+      "reset_settings": {
+        "done": "Alle instellingen zijn teruggezet naar de standaardwaarden."
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "Start de app opnieuw om de nieuwe tekstrichting toe te passen.",
+        "system_default": "Systeemstandaard"
+      },
+      "toolbar_labels": {
+        "description_mobile": "Tekstlabels naast werkbalkpictogrammen weergeven."
+      }
+    },
+    "badges": {
+      "experimental": "Experimenteel",
+      "not_implemented": "Niet geïmplementeerd",
+      "unavailable": "Niet beschikbaar"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "Sjabloon voor het opslaan of delen van een bijlage."
+      },
+      "email_template": {
+        "description_mobile": "Sjabloon voor het exporteren van een bericht als .eml-bestand."
+      },
+      "strip_diacritics": {
+        "description_mobile": "Letters met accenten omzetten naar gewone ASCII (ä → a)."
+      },
+      "transform_description": "Toegepast op elke geëxporteerde bestandsnaam.",
+      "transform_title": "Bestandsnaamtransformatie"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "Geen archiefmap gevonden.",
+        "reorganize_result": "{moved} van {total} e-mails verplaatst.",
+        "reorganizing": "Herorganiseren…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "Wat er gebeurt als u op een bijlage tikt."
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "Antwoorden worden altijd verzonden vanaf de identiteit waaraan een bericht is gestuurd. Als dit aanstaat, wordt een antwoord op een ander adres op uw domeinen (een catch-all-alias) ook vanaf dat adres verzonden."
+      },
+      "plain_text_mode": {
+        "description_mobile": "Alleen in platte tekst opstellen en lezen."
+      },
+      "send_delay": {
+        "description_mobile": "Houd uitgaande e-mail een paar seconden vast zodat u het verzenden kunt annuleren. Vereist serverondersteuning."
+      },
+      "swipe_actions": {
+        "move": "Verplaatsen naar map",
+        "pin": "Vastmaken"
+      },
+      "swipe_left_action": {
+        "description_mobile": "Actie wanneer u een rij vanaf de rechterrand naar links sleept.",
+        "label_mobile": "Naar links vegen (rechts → links)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "Actie wanneer u een rij vanaf de linkerrand naar rechts sleept.",
+        "label_mobile": "Naar rechts vegen (links → rechts)"
+      }
+    },
+    "experimental": {
+      "title": "Experimentele functie"
+    },
+    "folders": {
+      "account": "Account",
+      "cannot_delete": "Kan niet verwijderen",
+      "description_mobile": "Mappen aanmaken, hernoemen, verplaatsen en verwijderen. Druk lang op een map in de zijbalk voor snelle acties.",
+      "edit_folder": "\"{name}\" bewerken",
+      "folder_name": "Mapnaam",
+      "move_under": "Verplaatsen onder",
+      "name_placeholder": "Bonnetjes",
+      "name_required": "Naam vereist",
+      "new_folder": "Nieuwe map",
+      "not_empty_message": "\"{name}\" bevat {count} e-mails. Toch verwijderen?",
+      "not_empty_title": "Map niet leeg",
+      "own_account": "Mijn mappen",
+      "role": "Maprol",
+      "role_hint": "Wijs een speciale rol (Archief, Spam, …) toe aan deze map. Elke rol kan maar bij één map horen.",
+      "save_failed": "Opslaan mislukt",
+      "system_folder_delete": "Systeemmappen kunnen niet worden verwijderd.",
+      "system_folder_rename": "Systeemmappen kunnen niet worden hernoemd.",
+      "top_level": "Hoofdniveau"
+    },
+    "identities": {
+      "cannot_delete": "De primaire identiteit kan niet worden verwijderd.",
+      "cannot_delete_title": "Kan niet verwijderen",
+      "count": "{count, plural, =0 {Geen identiteiten} one {# identiteit} other {# identiteiten}}",
+      "create": "Nieuwe identiteit",
+      "delete_confirm": "\"{name}\" verwijderen?",
+      "delete_failed": "Verwijderen mislukt",
+      "delete_title": "Identiteit verwijderen",
+      "description_mobile": "Beheer afzendernamen, e-mailadressen en handtekeningen. Tik op een rij om deze te bewerken.",
+      "display_name": "Weergavenaam",
+      "edit": "Identiteit bewerken",
+      "email_address": "E-mailadres",
+      "email_locked": "JMAP staat niet toe dat het e-mailadres van een identiteit wordt gewijzigd; maak in plaats daarvan een nieuwe aan.",
+      "invalid_email": "Voer een geldig e-mailadres in voor deze identiteit.",
+      "invalid_email_title": "Ongeldig e-mailadres",
+      "new": "Nieuw",
+      "no_name": "(geen naam)",
+      "primary": "primair",
+      "save_failed": "Opslaan mislukt",
+      "text_signature": "Handtekening in platte tekst"
+    },
+    "keywords": {
+      "description_mobile": "Gekleurde labels om uw e-mail te organiseren.",
+      "discover": {
+        "add_all": "Alles toevoegen",
+        "found": "{count} labels gevonden die hier niet zijn gedefinieerd.",
+        "none": "Geen onbekende labels gevonden in {scanned} berichten.",
+        "partial": "(Alleen de nieuwste berichten zijn doorzocht.)",
+        "progress": "{scanned} van {total} berichten doorzocht…",
+        "scan": "Labels zoeken in mailbox"
+      },
+      "reset_confirm": "Uw labellijst vervangen door de standaardlabels? Labels die al op berichten staan, blijven op de server.",
+      "reset_defaults": "Resetten naar standaard"
+    },
+    "layout": {
+      "description": "Stem de interacties van de e-maillijst af op mobiel.",
+      "quick_actions": {
+        "description": "De drie knoppen tussen Vorige/Volgende onderaan een geopende e-mail. Standaard Beantwoorden, Allen beantwoorden en Doorsturen.",
+        "label": "Snelle acties bij lezen",
+        "mark_unread": "Gelezen/ongelezen markeren",
+        "relocated": "{count, plural, one {{actions} wordt naar de bovenste werkbalk verplaatst, zodat u het nog kunt gebruiken.} other {{actions} worden naar de bovenste werkbalk verplaatst, zodat u ze nog kunt gebruiken.}}",
+        "slot": "Plaats {n}",
+        "spam": "Spam",
+        "star": "Ster",
+        "tag": "Label"
+      },
+      "show_avatars_in_junk": "Afzenderavatars tonen in Spam",
+      "show_avatars_in_junk_description": "Afzenderlogo's laden voor berichten in de map Spam. Uit voorkomt dat er contact wordt gelegd met spamafzenders.",
+      "show_folder_total_count": "Totaal aantal berichten bij mappen tonen",
+      "show_folder_total_count_description": "Het totaal naast het aantal ongelezen berichten in de mappenlijst tonen.",
+      "swipe_mode": {
+        "instant": "Direct (vegen = actie)",
+        "reveal": "Tonen (vegen, dan tikken)"
+      },
+      "unified_cross_account": "Gecombineerde weergaven over alle accounts",
+      "unified_cross_account_description": "Alle aangemelde accounts samenvoegen in \"Gecombineerd postvak IN\". Uit houdt de gecombineerde weergaven binnen het actieve account en de gedeelde mappen ervan."
+    },
+    "message_list_order": {
+      "description": "Welke berichten als eerste in de lijst staan. Binnen elke groep geldt nieuwste eerst; de schakelaar in de koptekst wisselt nog steeds tussen oudste en nieuwste.",
+      "preset_chronological": "Nieuwste eerst",
+      "preset_custom": "Aangepast",
+      "preset_starred_first": "Met ster eerst",
+      "preset_tagged_first": "Met label eerst",
+      "preset_unread_first": "Ongelezen eerst",
+      "scope": "Toepassen op",
+      "scope_all": "Alle mappen",
+      "scope_inbox": "Alleen Postvak IN",
+      "tag": "Label",
+      "title": "Volgorde van de berichtenlijst"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "Aantal ongelezen op app-pictogram",
+        "app_icon_badge_desc": "Het aantal ongelezen berichten in Postvak IN als badge op het app-pictogram tonen.",
+        "sound_channel_hint": "Geluid en trillen voor e-mailmeldingen worden geregeld via het Android-meldingskanaal: druk lang op een melding of open de app-instellingen van het systeem."
+      },
+      "push": {
+        "confirm_disable_message_mobile": "Dit apparaat ontvangt voor dit account geen meldingen van nieuwe e-mail meer.",
+        "description_mobile": "Ontvang systeemmeldingen voor nieuwe e-mail wanneer de app gesloten is. Bezorgd via de Bulwark-push-relay; de relay ziet nooit de inhoud van e-mails.",
+        "phase_account": "Account",
+        "phase_distributor": "UnifiedPush-distributor",
+        "phase_jmap": "Abonnement op mailserver",
+        "phase_permission": "Toestemming voor meldingen",
+        "phase_platform": "Platform",
+        "phase_relay": "Registratie bij relay",
+        "phase_token": "Apparaattoken",
+        "phase_verify": "Verificatie",
+        "relay_desc_mobile": "De server die uw meldingen bezorgt. Standaard de gehoste Bulwark-relay; wijzig dit alleen als u zelf host. Moet https gebruiken.",
+        "relay_invalid": "Voer een geldige https://-URL in",
+        "setup_failed": "Instellen mislukt",
+        "status_android_only": "Achtergrondmeldingen zijn alleen beschikbaar op Android.",
+        "transport_desc": "Hoe meldingen dit apparaat bereiken: Firebase Cloud Messaging van Google, of een UnifiedPush-distributor-app (zoals ntfy) voor bezorging zonder Google.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "Bezorgmethode",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "Er zijn meerdere UnifiedPush-distributor-apps geïnstalleerd - kies de app die meldingen moet bezorgen.",
+        "up_distributor_label": "Distributor",
+        "up_no_distributor": "Er is geen UnifiedPush-distributor-app geïnstalleerd op dit apparaat. Installeer er een (bijvoorbeeld ntfy) en probeer het opnieuw."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, one {# bericht} other {# berichten}}",
+      "clear": "Wissen",
+      "clear_cache": "Cache wissen",
+      "clear_message": "{count, plural, one {# bericht in de cache} other {# berichten in de cache}} ({size}) verwijderen?",
+      "clear_title": "Offline e-mail wissen",
+      "days_ago": "{count} d geleden",
+      "description": "Download recente berichten zodat ze direct openen en zonder verbinding leesbaar blijven. Alleen de berichttekst — bijlagen worden nog steeds opgehaald wanneer nodig.",
+      "downloading": "Downloaden {completed}/{total}…",
+      "enabled": "Recente e-mail in cache bewaren",
+      "enabled_desc": "Als dit aanstaat, bewaart de app berichtteksten uit de gekozen periode op dit apparaat.",
+      "hours_ago": "{count} u geleden",
+      "just_now": "zojuist",
+      "last_sync": "Laatste synchronisatie: {when}",
+      "last_sync_failed": "Laatste synchronisatie mislukt: {message}",
+      "max_size": "Maximale grootte",
+      "max_size_desc": "De oudste berichten worden verwijderd wanneer de cache groter wordt dan dit.",
+      "minutes_ago": "{count} min geleden",
+      "never": "nooit",
+      "nothing_cached": "Nog niets in de cache",
+      "queued_changes": "{count, plural, one {# wijziging wacht} other {# wijzigingen wachten}} op synchronisatie",
+      "scanning": "Recente e-mail doorzoeken…",
+      "sync_now": "Nu synchroniseren",
+      "syncing": "Synchroniseren…",
+      "title": "Offline e-mail",
+      "window": "Periode",
+      "window_24h": "Afgelopen 24 uur",
+      "window_days": "Afgelopen {count} dagen",
+      "window_desc": "Hoe ver terug er in de cache wordt bewaard, gemeten naar de ontvangstdatum van het bericht."
+    },
+    "plugins": {
+      "mobile_description": "Plug-ins draaien in de webmail en breiden die uit in de browser.",
+      "mobile_explainer": "De mobiele app heeft geen runtime voor plug-ins. Installeer en beheer plug-ins in de webmail onder Instellingen → Plug-ins; thema's en filters die ze leveren, worden hier niet toegepast."
+    },
+    "security": {
+      "client_cert": {
+        "active": "Actief: {alias}",
+        "choose_another": "Ander kiezen",
+        "clear": "Wissen",
+        "clear_message": "Nieuwe verzoeken bieden geen certificaat meer aan. Het certificaat blijft geïnstalleerd in Android.",
+        "clear_title": "Clientcertificaat niet meer gebruiken?",
+        "description": "Kiest een geïnstalleerd Android-certificaat om tijdens de TLS-handshake te authenticeren bij de server. Handig als de reverse proxy mTLS afdwingt.",
+        "hint": "Installeer het certificaat via Android-instellingen → Beveiliging → Versleuteling en inloggegevens en kies het daarna hier.",
+        "not_set": "Niet ingesteld",
+        "pick": "Certificaat kiezen",
+        "pick_failed": "Kiezen mislukt",
+        "title": "TLS-clientcertificaat"
+      },
+      "credentials": {
+        "allowed_ips": "Toegestane IP's (optioneel)",
+        "allowed_ips_hint": "Gescheiden door komma's of spaties. Laat leeg om elk IP-adres toe te staan.",
+        "clear_expiry": "Vervaldatum wissen",
+        "copy_now": "Kopieer dit nu — het wordt maar één keer getoond. Houd ingedrukt om te selecteren.",
+        "create_error": "Kon niet aanmaken",
+        "expires": "Verloopt (optioneel)",
+        "expires_on": "verloopt op {date}",
+        "no_expiry": "Geen vervaldatum",
+        "none": "Nog geen.",
+        "remove_error": "Kon niet verwijderen",
+        "remove_message": "Elke client die het gebruikt, werkt dan niet meer.",
+        "remove_title": "Inloggegevens verwijderen?"
+      },
+      "display_name": {
+        "error_title": "Bijwerken mislukt"
+      },
+      "encryption": {
+        "no_keys": "Voeg eerst een openbare sleutel toe - versleuteling in rust heeft er een nodig."
+      },
+      "load_error": "Kan beveiligingsinstellingen niet laden.",
+      "not_supported": "Beheer van accountbeveiliging vereist een Stalwart-server. Deze functies zijn niet beschikbaar voor dit account.",
+      "offline": "U bent offline. De beveiligingsinstellingen van het account hebben een actieve verbinding met de server nodig.",
+      "password": {
+        "change": "Wachtwoord wijzigen",
+        "changed": "Uw accountwachtwoord is bijgewerkt.",
+        "changed_title": "Wachtwoord gewijzigd",
+        "description": "Wijzig het wachtwoord voor dit account.",
+        "error": "Kan wachtwoord niet wijzigen.",
+        "mismatch": "De wachtwoorden komen niet overeen.",
+        "toggle_visibility": "Wachtwoord tonen of verbergen",
+        "too_short": "Het nieuwe wachtwoord moet minimaal 8 tekens bevatten."
+      },
+      "public_keys": {
+        "add_error": "Kan openbare sleutel niet toevoegen",
+        "description": "S/MIME-certificaten en PGP-sleutels die op de server zijn opgeslagen. Ze worden gebruikt voor versleuteling in rust.",
+        "expires": "verloopt op {date}",
+        "remove_error": "Kan openbare sleutel niet verwijderen",
+        "remove_message": "Versleuteling in rust die deze sleutel gebruikt, werkt dan niet meer.",
+        "remove_title": "Openbare sleutel verwijderen?",
+        "title": "Openbare sleutels"
+      },
+      "two_factor": {
+        "active": "Actief",
+        "code": "Verificatiecode",
+        "code_required": "Voer de 6-cijferige code uit uw app in.",
+        "description": "Vraag bij het inloggen om een eenmalige code.",
+        "disable": "Uitschakelen",
+        "disable_error": "Kan tweefactorauthenticatie niet uitschakelen.",
+        "disable_hint": "Voer uw wachtwoord in om tweefactorauthenticatie uit te schakelen.",
+        "enable_error": "Kan tweefactorauthenticatie niet inschakelen.",
+        "enabled_message": "De volgende keer dat u inlogt, wordt u om een code gevraagd.",
+        "enabled_title": "Tweefactorauthenticatie ingeschakeld",
+        "enrol_hint": "Voeg dit geheim toe aan uw authenticator-app en voer daarna de 6-cijferige code in om te bevestigen.",
+        "inactive": "Inactief",
+        "label": "Authenticator-app",
+        "manual_secret": "Of voer dit geheim handmatig in",
+        "no_app": "Kon geen authenticator-app openen. Voeg het geheim hieronder handmatig toe.",
+        "no_app_title": "Geen authenticator-app",
+        "open_app": "Toevoegen aan authenticator-app",
+        "password_required": "Voer uw huidige wachtwoord in.",
+        "section_title": "Tweefactorauthenticatie"
+      }
+    },
+    "sidebar_apps": {
+      "add": "App toevoegen",
+      "empty": "Nog geen apps toegevoegd.",
+      "form": {
+        "name": "Naam",
+        "name_placeholder": "App-naam",
+        "open_mode": "Openingsmodus",
+        "show_on_mobile": "Weergeven op mobiel",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "Ingesloten apps op de achtergrond laten draaien bij het wisselen.",
+      "open_mode": {
+        "inline": "Ingesloten",
+        "new_tab": "Nieuw tabblad",
+        "tab": "Tabblad"
+      }
+    },
+    "smime": {
+      "mobile_description": "E-mail ondertekenen en versleutelen met S/MIME-certificaten.",
+      "mobile_explainer": "S/MIME is nog niet beschikbaar in de mobiele app. Beheer sleutels en certificaten in de webmail; ondertekende berichten worden hier zonder verificatie getoond."
+    },
+    "tabs": {
+      "plugins": "Plug-ins"
+    },
+    "templates": {
+      "delete_title": "Sjabloon verwijderen"
+    },
+    "themes": {
+      "default_description": "De standaard lichte en donkere paletten.",
+      "default_name": "Bulwark",
+      "mobile_description": "Kies een kleurthema. Thema's volgen de instelling licht/donker onder Uiterlijk; aangepaste themapakketten worden beheerd in de webmail.",
+      "title": "Thema's"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "Datums moeten de vorm \"YYYY-MM-DD\" of \"YYYY-MM-DD HH:MM\" hebben"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "Actie vereist",
+    "remove_account_hint": "Lang drukken om dit account te verwijderen",
+    "remove_account_message": "Uitloggen van {account} op dit apparaat. Uw e-mail blijft op de server.",
+    "remove_account_title": "Account verwijderen?",
+    "show_unread": "Ongelezen tonen"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count} account(s) konden niet worden geladen"
+  },
+  "updates": {
+    "advisory": "Beveiligingsadvies",
+    "advisory_desc": "Details over het probleem dat deze release oplost.",
+    "auto_check": "Automatisch controleren",
+    "auto_check_desc": "Om de paar uur op updates controleren wanneer de app start.",
+    "available": "Update beschikbaar",
+    "available_desc": "Tik op Installeren om v{version} te downloaden en te openen met het pakketinstallatieprogramma van Android.",
+    "banner": {
+      "advisory": "Advies lezen",
+      "deprecated_subtitle": "Installeer v{version} om de app te blijven gebruiken.",
+      "deprecated_title": "Deze versie wordt niet meer ondersteund",
+      "security_subtitle": "v{version} lost een beveiligingsprobleem op. Installeer deze zo snel mogelijk.",
+      "security_title": "Beveiligingsupdate beschikbaar",
+      "subtitle": "v{version} is klaar om te installeren.",
+      "title": "Update beschikbaar"
+    },
+    "building": "Update wordt gebouwd",
+    "building_desc": "v{version} is gepubliceerd, maar de APK wordt nog gebouwd. Deze pagina controleert elke 30 seconden opnieuw.",
+    "check": "Controleren op updates",
+    "check_again": "Opnieuw controleren",
+    "check_now": "Nu controleren",
+    "checking": "Controleren…",
+    "current_version": "Huidige versie",
+    "description": "Controleer op nieuwe versies en installeer ze.",
+    "downloading": "Downloaden…",
+    "downloading_pct": "Downloaden {pct}%",
+    "install": "Installeren",
+    "installing": "Installeren…",
+    "last_checked": "Laatst gecontroleerd",
+    "last_error": "Laatste fout: {message}",
+    "latest_version": "Nieuwste versie",
+    "never": "nooit",
+    "open": "Openen",
+    "open_github": "Openen op GitHub",
+    "opening_installer": "Installatieprogramma openen…",
+    "progress_of": "{written} van {total}",
+    "published": "Gepubliceerd op {date}",
+    "rate_limited": "GitHub beperkt het aantal updatecontroles; later opnieuw proberen.",
+    "release_notes": "Release-opmerkingen",
+    "release_page": "Releasepagina",
+    "release_page_desc": "Volledige release-opmerkingen en downloads op GitHub.",
+    "release_page_pending_desc": "Volg de voortgang van de build of download de APK handmatig.",
+    "severity_deprecated": "Vereist",
+    "severity_security": "Beveiliging",
+    "title": "App-updates"
+  }
+}

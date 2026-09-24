@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "Sonra:",
+    "before": "Önce:",
+    "no_attachment": "Ek yok",
+    "not_starred": "Yıldızsız"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "Önümüzdeki {count} gün boş.",
+      "no_upcoming": "Yaklaşan etkinlik yok"
+    },
+    "alerts": {
+      "unit_minutes_after": "dakika sonra"
+    },
+    "drawer": {
+      "my_calendars": "Takvimlerim",
+      "no_calendars": "Henüz takvim yok.",
+      "shared_with_me": "Benimle paylaşılanlar",
+      "subscribed": "Abone olunanlar"
+    },
+    "event_modal": {
+      "participant_placeholder": "E-posta ile katılımcı ekle"
+    },
+    "events": {
+      "copy_link_short": "Bağlantı",
+      "export_ics_short": ".ics",
+      "tap_to_create": "Etkinlik oluşturmak için + simgesine dokunun"
+    },
+    "form": {
+      "description_placeholder": "Notlar, gündem…",
+      "location_placeholder": "Yer veya adres",
+      "time": "Saat"
+    },
+    "invitation": {
+      "accept": "Evet",
+      "add_error": "Etkinlik eklenemedi",
+      "add_to_calendar": "Takvime ekle",
+      "added": "Takvime eklendi",
+      "already_in_calendar": "Zaten takviminizde",
+      "cancelled": "Bu etkinlik iptal edildi",
+      "decline": "Hayır",
+      "join_video": "Görüntülü görüşmeye katıl",
+      "no_writable_calendar": "Yazılabilir takvim yok",
+      "organizer": "Organizatör",
+      "reading": "Davet okunuyor…",
+      "reply": "Bir katılımcı bu davete yanıt verdi",
+      "response_error": "Yanıtınız gönderilemedi",
+      "response_sent": "Yanıt gönderildi",
+      "tentative": "Belki",
+      "title": "Takvim daveti",
+      "trust_verified": "Gönderen doğrulandı"
+    },
+    "management": {
+      "clear_confirm": "Tümünü kaldır",
+      "clear_description": "Bu takvimdeki tüm etkinlikler silinecek. Başka bir takvime de ait olan etkinliklerin yalnızca bu takvimle bağlantısı kaldırılır.",
+      "clear_title": "Tüm etkinlikler kaldırılsın mı?",
+      "delete_description": "Takvim ve tüm etkinlikleri silinecek. Bu işlem geri alınamaz.",
+      "delete_title": "Takvim silinsin mi?",
+      "description_placeholder": "İsteğe bağlı",
+      "edit_calendar": "Takvimi düzenle",
+      "new_calendar": "Yeni takvim"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "Ay görünümünde hafta numaralarını göster.",
+      "time_zone": "Saat dilimi",
+      "time_zone_auto": "Cihaz saat dilimi",
+      "time_zone_desc": "Yeni etkinlikler ve takvimin yorumlanması için kullanılan saat dilimi. \"Cihaz saat dilimi\" telefonu izler."
+    },
+    "share": {
+      "add_people": "Kişi ekle",
+      "error": "Paylaşım güncellenemedi",
+      "no_matches": "Eşleşme yok",
+      "no_principals": "Bu sunucuda paylaşım kullanılamıyor.",
+      "role_custom": "Özel",
+      "search_placeholder": "Ad veya e-posta ile arayın",
+      "shared_with": "Paylaşılanlar",
+      "title": "Paylaş"
+    },
+    "tasks": {
+      "add_placeholder": "Görev ekle…",
+      "add_time": "Saat ekle",
+      "delete_error": "Görev silinemedi",
+      "update_error": "Görev güncellenemedi"
+    }
+  },
+  "common": {
+    "add": "Ekle",
+    "back": "Geri",
+    "confirm": "Onayla",
+    "create": "Oluştur",
+    "dismiss": "Kapat",
+    "done": "Tamam",
+    "remove": "Kaldır",
+    "retry": "Yeniden dene",
+    "undo": "Geri al",
+    "update": "Güncelle"
+  },
+  "context_menu": {
+    "color_tag": "Etiket",
+    "remove_color": "Etiketi kaldır"
+  },
+  "email_composer": {
+    "attach_camera": "Kamera",
+    "attachment_reminder_body": "İletinizde \"{keyword}\" geçiyor ancak hiçbir dosya eklenmemiş. Yine de gönderilsin mi?",
+    "attachment_reminder_title": "Ek eklemeyi mi unuttunuz?",
+    "attachments_too_large_total": "Ekler, bu sunucunun ileti başına izin verdiği {max} sınırını aşacak.",
+    "editor_unavailable": "İleti içeriği okunamadı. Metninizi kopyalayın, ardından düzenleyiciyi kapatıp yeniden açın.",
+    "identity_unavailable": "Kimlik kullanılamıyor",
+    "image_load_failed": "Görsel yüklenemedi",
+    "no_recipient": "(alıcı yok)",
+    "no_sent_folder": "Gönderilenler klasörü bulunamadı",
+    "permission_camera": "Fotoğraf çekmek için kamera izni gerekiyor.",
+    "permission_photos": "Görsel eklemek için fotoğraf arşivi izni gerekiyor.",
+    "recipient_add_contact": "Kişilere ekle",
+    "recipient_copy": "Adresi kopyala",
+    "recipient_move_to": "{field} alanına taşı",
+    "recipient_remove": "Kaldır",
+    "save_draft": "Taslağı kaydet",
+    "save_failed_no_drafts": "Bu taslağın kaydedileceği bir Taslaklar klasörü yok.",
+    "save_failed_no_identity": "Gönderen kimlikleriniz yüklenemediği için bu taslak kaydedilemiyor. Bağlantınızı kontrol edin veya kapatmadan önce metninizi kopyalayın.",
+    "schedule_custom": "Tarih ve saat seç…",
+    "schedule_in_1h": "1 saat sonra",
+    "schedule_in_3h": "3 saat sonra",
+    "schedule_past_body": "Zamanlanan saat gelecekte olmalıdır.",
+    "schedule_past_title": "Gelecekte bir zaman seçin",
+    "schedule_tomorrow": "Yarın 08:00",
+    "schedule_tomorrow_morning": "Yarın sabah",
+    "schedule_too_late_body": "Bu, sunucunun izin verdiğinden daha ileri bir zaman. Daha erken bir zaman seçin.",
+    "schedule_too_late_title": "Çok ileri bir tarih",
+    "schedule_unsupported_body": "Bu posta sunucusu zamanlanmış göndermeyi desteklemiyor.",
+    "schedule_unsupported_title": "Zamanlama kullanılamıyor",
+    "scheduled_body": "İletiniz şu zamanda gönderilecek: {time}.",
+    "scheduled_title": "Zamanlandı",
+    "send_now": "Şimdi gönder",
+    "send_timeout_body": "İleti zaten gönderilmiş olabilir. Yeniden göndermeden önce Gönderilenler klasörünü kontrol edin.",
+    "send_timeout_title": "Sunucudan yanıt yok",
+    "undo_send_label": "{seconds} sn içinde gönderiliyor…",
+    "uploading": "Yükleniyor...",
+    "validation": {
+      "subject_required": "Konu ekleyin"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "Hesaplar arasında taşımak için bağlantı gerekiyor",
+    "emails_archived_count": "{count, plural, one {# e-posta arşivlendi} other {# e-posta arşivlendi}}",
+    "emails_moved_to": "{count, plural, one {# e-posta} other {# e-posta}} {mailbox} klasörüne taşındı",
+    "error": "Hata",
+    "marked_as_spam": "Spam olarak işaretlendi",
+    "marked_as_spam_count": "{count, plural, one {# e-posta spam olarak işaretlendi} other {# e-posta spam olarak işaretlendi}}",
+    "marked_not_spam": "Spam değil olarak işaretlendi",
+    "marked_not_spam_count": "{count, plural, one {# e-posta spam değil olarak işaretlendi} other {# e-posta spam değil olarak işaretlendi}}",
+    "move_same_account": "İletiler yalnızca aynı hesap içinde taşınabilir",
+    "moved_to_trash": "E-posta Çöp Kutusu'na taşındı",
+    "moved_to_trash_count": "{count, plural, one {# e-posta Çöp Kutusu'na taşındı} other {# e-posta Çöp Kutusu'na taşındı}}",
+    "no_archive_folder": "Sunucuda Arşiv klasörü bulunamadı.",
+    "no_emails_in": "{folder} klasöründe e-posta yok",
+    "no_junk_folder": "Sunucuda Spam / İstem Dışı klasörü bulunamadı.",
+    "no_mailboxes": "Posta kutusu bulunamadı",
+    "no_mailboxes_hint": "JMAP hesabınızın posta özelliğine sahip olduğunu kontrol edin.",
+    "no_tags_defined": "Tanımlı etiket yok. Etiketleri Ayarlar'dan ekleyin.",
+    "no_trash_folder": "Sunucuda Çöp Kutusu klasörü bulunamadı. Lütfen posta kutusu yapılandırmanızı kontrol edin.",
+    "offline_nothing_cached": "Bağlantı yok. Henüz önbelleğe alınmış posta olmadığı için hiçbir şey gösterilmiyor.",
+    "open_draft_failed": "Taslak açılamadı.",
+    "outbox_discard": "Vazgeç",
+    "outbox_failed": "Sunucuya kaydedilemeyen değişiklik sayısı: {count}.",
+    "recent_searches": "Son aramalar",
+    "scope_all_folders": "Tüm klasörler",
+    "scope_this_folder": "Bu klasör",
+    "search_placeholder": "Posta ara...",
+    "showing_cached": "Önbellekteki posta gösteriliyor",
+    "swipe_move": "Taşı",
+    "swipe_spam": "Spam",
+    "total": "toplam",
+    "undo_failed": "Geri alınamadı",
+    "unknown_tag": "burada tanımlı değil"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "Göndereni kişilere ekle",
+    "address_actions": {
+      "add_contact": "Kişilere ekle",
+      "compose": "Yeni ileti",
+      "copy": "Adresi kopyala",
+      "copy_failed": "Adres kopyalanamadı."
+    },
+    "attachment_actions": {
+      "open": "Aç",
+      "preview": "Önizle",
+      "save": "Kaydet",
+      "share": "Paylaş"
+    },
+    "attachment_failed": "Ek açılamadı",
+    "authentication": {
+      "spoof_warning": "Gönderen adresi doğrulanamadı - bu ileti sahte olabilir."
+    },
+    "body_truncated": "Bu ileti, tamamı gösterilemeyecek kadar büyük.",
+    "bundle_too_large": "Ekler, paketlenemeyecek kadar büyük.",
+    "color_tag": {
+      "blue": "Mavi",
+      "green": "Yeşil",
+      "none": "Yok",
+      "orange": "Turuncu",
+      "pink": "Pembe",
+      "purple": "Mor",
+      "red": "Kırmızı",
+      "title": "Renk etiketi",
+      "yellow": "Sarı"
+    },
+    "delete_permanently_message": "Bu ileti kalıcı olarak silinecek ve kurtarılamayacak.",
+    "delete_permanently_title": "Kalıcı olarak silinsin mi?",
+    "export_failed": "Dışa aktarma başarısız",
+    "forwarded": "İletildi",
+    "load_failed": "E-posta yüklenemedi",
+    "preview": {
+      "open_external": "Uygulamada aç",
+      "pdf_external": "PDF dosyaları bu cihazdaki PDF görüntüleyicide açılır.",
+      "unsupported": "Bu dosya türü için önizleme yok."
+    },
+    "received_via": "alıcı: {name}",
+    "remove_color": "Etiketi kaldır",
+    "replied": "Yanıtlandı",
+    "sender_actions": "Gönderen…",
+    "set_color": "Etiket ayarla",
+    "show_all_count": "Tümünü göster ({count})",
+    "show_less": "Daha az göster",
+    "smime_unsupported": "S/MIME ile imzalanmış/şifrelenmiş - mobilde desteklenmiyor",
+    "source_too_large": "İleti, tamamı gösterilemeyecek kadar büyük. Bunun yerine tam kaynağı paylaşın.",
+    "thread_loading": "Konuşma yükleniyor...",
+    "unsubscribe_banner": {
+      "no_identity": "Kullanılabilir gönderim kimliği yok"
+    },
+    "view_dark_mode": "Koyu modda görüntüle",
+    "view_light_mode": "Açık modda görüntüle"
+  },
+  "files": {
+    "delete_cascade_hint": "Klasörler, içindeki her şeyle birlikte silinir. Bu işlem geri alınamaz.",
+    "delete_item_title": "Bu öge silinsin mi?",
+    "delete_items_title": "{count} öge silinsin mi?",
+    "done": "Tamam",
+    "folder_empty": "Bu klasör boş",
+    "invalid_name": "Geçersiz ad",
+    "invalid_name_slash": "Adlar \"/\" içeremez.",
+    "move_to": "Şuraya taşı…",
+    "open_error": "Dosya açılamadı",
+    "open_with": "Birlikte aç…",
+    "preview_too_large": "Bu dosya, önizleme için çok büyük.",
+    "selected_count": "{count} seçildi",
+    "share_add_people": "Kişi ekle",
+    "share_empty": "Henüz kimseyle paylaşılmadı",
+    "share_error": "Paylaşım güncellenemedi",
+    "share_file_error": "Dosya paylaşılamadı",
+    "share_folder_hint": "Bir klasörü paylaşmak, içindeki her şeyi paylaşır.",
+    "share_no_matches": "Eşleşme yok",
+    "share_no_users": "Başka kullanıcı bulunamadı",
+    "share_remove": "Erişimi kaldır",
+    "share_role_custom": "Özel",
+    "share_search_placeholder": "Ad veya e-posta ile arayın",
+    "shared_with": "Paylaşılanlar",
+    "sharing_access": "Paylaşım ve erişim",
+    "upload_unavailable": "Bu derlemede dosya seçici yüklü değil. Yüklemeleri etkinleştirmek için uygulamayı yeniden derleyin."
+  },
+  "identities": {
+    "badge": {
+      "to": "alıcı: {identity}",
+      "via": "{identity} üzerinden"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "Bu hesaplarda zaten oturum açtınız.",
+      "add_title": "Başka bir hesap ekle",
+      "camera_allow": "Kamera erişimine izin ver",
+      "camera_disabled": "Kamera erişimi devre dışı. Giriş QR kodunu taramak için Ayarlar'dan etkinleştirin.",
+      "camera_needed": "Bulwark Mail'in giriş QR kodunu taramak için kamera erişimine ihtiyacı var.",
+      "choose_subtitle": "Nasıl giriş yapmak istediğinizi seçin.",
+      "confirm_check": "Her şeyin doğru olduğunu kontrol edin",
+      "confirm_found": "Posta sunucunuz bulundu",
+      "confirm_subtitle": "Ardından sağlayıcınızın kendi sayfasında giriş yapacaksınız.",
+      "connecting": "{host} ile bağlantı kuruluyor",
+      "connecting_detail": "Posta kutunuz ayarlanıyor…",
+      "continue": "Devam",
+      "different_server": "Farklı bir sunucu kullan",
+      "elsewhere_title": "Başka bir yerdeki hesap",
+      "email_desc": "Posta sunucunuzu bulacağız",
+      "email_step_hint": "Stalwart ve diğer tüm JMAP posta sunucularıyla çalışır.",
+      "email_step_subtitle": "Posta sunucunuzu bulmak için genellikle yalnızca buna ihtiyacımız var.",
+      "email_step_title": "E-posta adresiniz nedir?",
+      "email_step_title_add": "Diğer adres nedir?",
+      "email_title": "E-posta adresimi kullan",
+      "err_bad_detail": "E-posta adresinizi ve parolanızı kontrol edin. Hesabınız iki aşamalı giriş kullanıyorsa webmail'de bir uygulama parolası oluşturun ve burada onu kullanın.",
+      "err_bad_title": "Bu işe yaramadı",
+      "err_cert_detail": "Sunucunun güvenlik sertifikası reddedildi. Bu sizin sunucunuzsa sertifikanın geçerli olduğunu ve süresinin dolmadığını kontrol edin.",
+      "err_cert_title": "{host} doğrulanamadı",
+      "err_code_expired_detail": "Giriş kodları birkaç dakika geçerlidir. Webmail'de yeni bir kod oluşturup tekrar tarayın.",
+      "err_code_expired_title": "Bu kodun süresi doldu",
+      "err_generic_detail": "Bir şeyler ters gitti. Tekrar deneyin.",
+      "err_generic_title": "Giriş başarısız",
+      "err_interrupted_detail": "Yanıt, başlattığımız istekle eşleşmedi. Tekrar giriş yapmayı deneyin.",
+      "err_interrupted_title": "Giriş yarıda kesildi",
+      "err_no_server_detail": "Adresi yeniden kontrol edin veya bunun yerine webmail'den bir giriş kodu tarayın.",
+      "err_no_server_title": "Posta sunucusu bulunamadı: {host}",
+      "err_no_webmail_detail": "Bu sunucuda Bulwark webmail ve OAuth girişi yok. Bunun yerine parola (veya uygulama parolası) kullanın.",
+      "err_no_webmail_title": "Giriş sayfası bulunamadı: {host}",
+      "err_rate_detail": "Sunucu biraz beklememizi istedi. Kısa süre sonra tekrar deneyin.",
+      "err_rate_detail_seconds": "Sunucu beklememizi istedi. Yaklaşık {seconds} saniye sonra tekrar deneyin.",
+      "err_rate_title": "Çok fazla deneme",
+      "err_server_detail": "Sunucu bir hatayla yanıt verdi. Birkaç dakika sonra tekrar deneyin.",
+      "err_server_title": "{host} sorun yaşıyor",
+      "err_totp_bad_detail": "Parolanızı ve kimlik doğrulayıcı uygulamanızdaki güncel kodu kontrol edip tekrar deneyin.",
+      "err_totp_detail": "Bu hesap iki aşamalı girişle korunuyor. Kimlik doğrulayıcı uygulamanızdaki 6 haneli kodu yazın.",
+      "err_totp_title": "İki faktörlü doğrulama kodunuzu girin",
+      "err_unreachable_detail": "Bağlantınızı ve sunucu adresini kontrol edip tekrar deneyin.",
+      "err_unreachable_title": "{host} ile bağlantı kurulamıyor",
+      "know_server": "Sunucu adresimi biliyorum",
+      "known_server_desc": "Bu sunucuyu zaten tanıyoruz, kurulum gerekmiyor",
+      "known_server_title": "{host} üzerinde başka bir hesap",
+      "looking_up": "Sunucunuz aranıyor…",
+      "manual": "Sunucu bilgilerini elle girin",
+      "notice_bad_qr": "Bu bir Bulwark giriş kodu değil",
+      "notice_bad_qr_detail": "Web'de Bulwark'ı açın, ardından bir kod göstermek için Ayarlar → Güvenlik → Mobil uygulamayı bağla bölümüne gidin.",
+      "notice_bad_server": "Bu bir sunucu adresine benzemiyor",
+      "notice_bad_server_detail": "Webmail için kullandığınız adresi deneyin, ör. mail.example.com.",
+      "notice_full_email": "Tam bir e-posta adresi girin",
+      "notice_full_email_detail": "Ör. ada@example.com. Bunun yerine kullanıcı adıyla giriş yapıyorsanız \"Sunucu adresimi biliyorum\" seçeneğini kullanın.",
+      "notice_need_code": "Kimlik doğrulayıcı uygulamanızdaki 6 haneli kodu girin",
+      "notice_need_credentials": "E-posta adresinizi ve parolanızı girin",
+      "notice_need_server": "Önce bir sunucu adresine ihtiyacımız var",
+      "open_settings": "Ayarları aç",
+      "opening": "{host} açılıyor",
+      "opening_detail": "Az önce açılan sayfada girişi tamamlayın. Gerisini biz hallederiz.",
+      "pairing": "Giriş kodunuz kullanılıyor",
+      "pairing_detail": "Bu cihaz {host} ile eşleştiriliyor…",
+      "password_subtitle": "Parolanız yalnızca bu sunucuya gönderilir ve cihazın anahtar deposunda saklanır.",
+      "password_title": "Giriş yap: {host}",
+      "provider_detail": "Parolanızı sağlayıcının sayfasında yazacaksınız. Bulwark yalnızca istediğiniz zaman iptal edebileceğiniz bir giriş belirteci saklar.",
+      "provider_title": "Parolanız sağlayıcınızda kalır",
+      "qr_hint": "Ayarlar → Güvenlik → Mobil uygulamayı bağla bir kod gösterir. Kamerayı ona doğrultun.",
+      "qr_hint_title": "Bilgisayarınızda Bulwark'ı açın",
+      "qr_title": "Giriş kodu",
+      "scan_desc": "Web'de oturumunuz açıksa en hızlı yol",
+      "scan_title": "Giriş kodu tara",
+      "server_hint": "Tarayıcıya yazdığınız adresin aynısı. https:// kısmını biz ekleriz.",
+      "server_label": "Sunucu adresi",
+      "server_not_found": "{domain} için bir sunucu bulamadık. Kendi sunucunuzu barındırıyorsanız webmail için kullandığınız adresi girin.",
+      "server_scan_hint": "Emin değilseniz bunun yerine bir giriş kodu tarayın. Kod, sunucu adresini içerir.",
+      "server_subtitle": "Webmail'inize ulaşmak için kullandığınız adresi girin.",
+      "server_title": "Sunucu adresiniz nedir?",
+      "the_server": "sunucu",
+      "unencrypted": "Şifrelenmemiş bağlantı",
+      "use_password": "Bunun yerine parolayla giriş yap",
+      "username_label": "E-posta veya kullanıcı adı",
+      "your_server": "sunucunuz"
+    }
+  },
+  "offline": {
+    "banner": "Çevrimdışısınız",
+    "queued_changes": "{count, plural, one {# değişiklik} other {# değişiklik}} yeniden bağlandığınızda senkronize edilecek"
+  },
+  "push_prompt": {
+    "body": "Uygulama kapalıyken de yeni iletilerden haberdar olmak için arka plan bildirimlerini açın.",
+    "dismiss": "Şimdi değil",
+    "enable": "Etkinleştir",
+    "title": "Yeni postalardan haberdar olun"
+  },
+  "scheduled": {
+    "cancel_body": "İleti teslim edilmeyecek. Bir kopyası Gönderilenler klasöründe kalır.",
+    "cancel_failed": "İptal başarısız",
+    "edit_failed": "İleti düzenleme için açılamadı",
+    "keep_scheduled": "Zamanlanmış kalsın",
+    "reschedule_failed": "Yeniden zamanlama başarısız",
+    "send_now_failed": "Şimdi gönderilemedi"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "Hesap değiştiricide hesapların sırasını değiştirin, varsayılanı seçin veya bir hesaptan çıkış yapın.",
+        "limit": "En fazla hesap sayısına ulaşıldı ({count})."
+      },
+      "shared_accounts": {
+        "description_manage": "Bu hesap üzerinden okuyabildiğiniz grup ve paylaşılan hesaplar. Filtrelerini ve tatil yanıtlayıcısını yönetmek için birini seçin."
+      },
+      "unknown": "Bilinmiyor"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "Güncelleme gerekli: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "Güvenlik güncellemesi: {version}",
+        "update_available": "Güncelleme: {version}",
+        "update_store_hint": "TestFlight / App Store'da mevcut"
+      },
+      "export_settings": {
+        "saved_to": "Kaydedildi: {path}"
+      },
+      "reset_settings": {
+        "done": "Tüm ayarlar varsayılanlarına döndürüldü."
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "Yeni metin yönünü uygulamak için uygulamayı yeniden başlatın.",
+        "system_default": "Sistem varsayılanı"
+      },
+      "toolbar_labels": {
+        "description_mobile": "Araç çubuğu simgelerinin yanında metin etiketleri göster."
+      }
+    },
+    "badges": {
+      "experimental": "Deneysel",
+      "not_implemented": "Uygulanmadı",
+      "unavailable": "Kullanılamıyor"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "Bir eki kaydederken veya paylaşırken kullanılan şablon."
+      },
+      "email_template": {
+        "description_mobile": "Bir iletiyi .eml dosyası olarak dışa aktarırken kullanılan şablon."
+      },
+      "strip_diacritics": {
+        "description_mobile": "Aksanlı harfleri düz ASCII'ye dönüştür (ä → a)."
+      },
+      "transform_description": "Dışa aktarılan her dosya adına uygulanır.",
+      "transform_title": "Dosya adı dönüşümü"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "Arşiv klasörü bulunamadı.",
+        "reorganize_result": "{total} e-postadan {moved} tanesi taşındı.",
+        "reorganizing": "Yeniden düzenleniyor…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "Bir eke dokunduğunuzda ne olacağı."
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "Yanıtlar her zaman iletinin gönderildiği kimlikten gider. Bu açıkken, alan adlarınızdaki başka bir adrese (catch-all takma adı) gelen iletiye verilen yanıt da o adresten gönderilir."
+      },
+      "plain_text_mode": {
+        "description_mobile": "Yalnızca düz metin olarak yazın ve okuyun."
+      },
+      "send_delay": {
+        "description_mobile": "Giden postayı iptal edebilmeniz için birkaç saniye bekletin. Sunucu desteği gerektirir."
+      },
+      "swipe_actions": {
+        "move": "Klasöre taşı",
+        "pin": "Sabitle"
+      },
+      "swipe_left_action": {
+        "description_mobile": "Bir satırı sağ kenarından sola doğru sürüklediğinizde yapılacak eylem.",
+        "label_mobile": "Sola kaydırma (sağ → sol)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "Bir satırı sol kenarından sağa doğru sürüklediğinizde yapılacak eylem.",
+        "label_mobile": "Sağa kaydırma (sol → sağ)"
+      }
+    },
+    "experimental": {
+      "title": "Deneysel özellik"
+    },
+    "folders": {
+      "account": "Hesap",
+      "cannot_delete": "Silinemiyor",
+      "description_mobile": "Klasör oluşturun, yeniden adlandırın, taşıyın ve silin. Hızlı işlemler için kenar çekmecesinde bir klasöre uzun basın.",
+      "edit_folder": "\"{name}\" klasörünü düzenle",
+      "folder_name": "Klasör adı",
+      "move_under": "Üst klasör",
+      "name_placeholder": "Makbuzlar",
+      "name_required": "Ad gerekli",
+      "new_folder": "Yeni klasör",
+      "not_empty_message": "\"{name}\" klasöründe {count} e-posta var. Yine de silinsin mi?",
+      "not_empty_title": "Klasör boş değil",
+      "own_account": "Klasörlerim",
+      "role": "Özel kullanım",
+      "role_hint": "Bu klasöre özel bir rol atayın (Arşiv, İstem Dışı, …). Her rolü yalnızca bir klasör üstlenebilir.",
+      "save_failed": "Kaydetme başarısız",
+      "system_folder_delete": "Sistem klasörleri kaldırılamaz.",
+      "system_folder_rename": "Sistem klasörleri yeniden adlandırılamaz.",
+      "top_level": "En üst düzey"
+    },
+    "identities": {
+      "cannot_delete": "Birincil kimlik kaldırılamaz.",
+      "cannot_delete_title": "Silinemiyor",
+      "count": "{count, plural, =0 {Kimlik yok} one {# kimlik} other {# kimlik}}",
+      "create": "Yeni kimlik",
+      "delete_confirm": "\"{name}\" kaldırılsın mı?",
+      "delete_failed": "Silme başarısız",
+      "delete_title": "Kimliği sil",
+      "description_mobile": "Gönderen adlarını, e-posta adreslerini ve imzaları yönetin. Düzenlemek için bir satıra dokunun.",
+      "display_name": "Görünen ad",
+      "edit": "Kimliği düzenle",
+      "email_address": "E-posta adresi",
+      "email_locked": "JMAP bir kimliğin e-posta adresinin değiştirilmesine izin vermez; bunun yerine yeni bir kimlik oluşturun.",
+      "invalid_email": "Bu kimlik için geçerli bir e-posta adresi girin.",
+      "invalid_email_title": "Geçersiz e-posta",
+      "new": "Yeni",
+      "no_name": "(ad yok)",
+      "primary": "birincil",
+      "save_failed": "Kaydetme başarısız",
+      "text_signature": "Düz metin imzası"
+    },
+    "keywords": {
+      "description_mobile": "Postanızı düzenlemek için renkli etiketler.",
+      "discover": {
+        "add_all": "Tümünü ekle",
+        "found": "Burada tanımlı olmayan {count} etiket bulundu.",
+        "none": "{scanned} iletide bilinmeyen etiket bulunamadı.",
+        "partial": "(Tarama yalnızca en yeni iletileri kapsadı.)",
+        "progress": "{total} iletiden {scanned} tanesi tarandı…",
+        "scan": "Posta kutusunda etiket bul"
+      },
+      "reset_confirm": "Etiket listeniz varsayılan etiketlerle değiştirilsin mi? İletilere zaten atanmış etiketler sunucuda kalır.",
+      "reset_defaults": "Varsayılanlara sıfırla"
+    },
+    "layout": {
+      "description": "Mobil için e-posta listesi etkileşimlerini ayarlayın.",
+      "quick_actions": {
+        "description": "Açık bir e-postanın altında Önceki/Sonraki arasında gösterilen üç düğme. Varsayılan olarak Yanıtla, Tümünü Yanıtla ve İlet.",
+        "label": "Okuyucu hızlı işlemleri",
+        "mark_unread": "Okundu/Okunmadı olarak işaretle",
+        "relocated": "{count, plural, one {{actions} üst araç çubuğuna taşınır, böylece kullanmaya devam edebilirsiniz.} other {{actions} üst araç çubuğuna taşınır, böylece kullanmaya devam edebilirsiniz.}}",
+        "slot": "Konum {n}",
+        "spam": "Spam",
+        "star": "Yıldızla",
+        "tag": "Etiket"
+      },
+      "show_avatars_in_junk": "İstem Dışı klasöründe gönderen avatarlarını göster",
+      "show_avatars_in_junk_description": "İstem Dışı klasöründeki iletiler için gönderen logolarını yükle. Kapalıyken spam gönderenlerle bağlantı kurulmaz.",
+      "show_folder_total_count": "Klasörlerde toplam ileti sayısını göster",
+      "show_folder_total_count_description": "Klasör listesinde okunmamış sayısının yanında toplamı göster.",
+      "swipe_mode": {
+        "instant": "Anında (kaydırma = eylem)",
+        "reveal": "Göster (kaydır, sonra dokun)"
+      },
+      "unified_cross_account": "Hesaplar arası birleşik görünümler",
+      "unified_cross_account_description": "Oturum açılmış tüm hesapları \"Birleşik Gelen Kutusu\" içinde birleştir. Kapalıyken birleşik görünümler etkin hesap ve onun paylaşılan klasörleriyle sınırlı kalır."
+    },
+    "message_list_order": {
+      "description": "Listede hangi iletilerin önce geleceği. Her grup içinde en yeni önce gelir; başlıktaki geçiş düğmesi eskiden yeniye/yeniden eskiye sırayı yine de çevirir.",
+      "preset_chronological": "En yeni önce",
+      "preset_custom": "Özel",
+      "preset_starred_first": "Yıldızlılar önce",
+      "preset_tagged_first": "Etiketliler önce",
+      "preset_unread_first": "Okunmamışlar önce",
+      "scope": "Uygulanacağı yer",
+      "scope_all": "Tüm klasörler",
+      "scope_inbox": "Yalnızca Gelen Kutusu",
+      "tag": "Etiket",
+      "title": "İleti listesi sıralaması"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "Uygulama simgesinde okunmamış sayısı",
+        "app_icon_badge_desc": "Gelen Kutusu'ndaki okunmamış ileti sayısını uygulama simgesinde rozet olarak göster.",
+        "sound_channel_hint": "Posta uyarılarının sesi ve titreşimi Android bildirim kanalından yönetilir: bir bildirime uzun basın veya sistemin uygulama ayarlarını açın."
+      },
+      "push": {
+        "confirm_disable_message_mobile": "Bu cihaz, bu hesap için yeni posta uyarılarını almayı bırakacak.",
+        "description_mobile": "Uygulama kapalıyken yeni postalar için sistem bildirimleri alın. Bulwark push röle aracılığıyla iletilir; röle posta içeriğini asla görmez.",
+        "phase_account": "Hesap",
+        "phase_distributor": "UnifiedPush dağıtıcısı",
+        "phase_jmap": "Posta sunucusu aboneliği",
+        "phase_permission": "Bildirim izni",
+        "phase_platform": "Platform",
+        "phase_relay": "Röle kaydı",
+        "phase_token": "Cihaz belirteci",
+        "phase_verify": "Doğrulama",
+        "relay_desc_mobile": "Bildirimlerinizi ileten sunucu. Varsayılan olarak barındırılan Bulwark rölesidir; yalnızca kendiniz barındırıyorsanız değiştirin. https kullanmalıdır.",
+        "relay_invalid": "Geçerli bir https:// URL'si girin",
+        "setup_failed": "Kurulum başarısız",
+        "status_android_only": "Arka plan bildirimleri yalnızca Android'de kullanılabilir.",
+        "transport_desc": "Bildirimlerin bu cihaza nasıl ulaşacağı: Google'ın Firebase Cloud Messaging hizmeti veya Google'sız teslimat için bir UnifiedPush dağıtıcı uygulaması (ör. ntfy).",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "Teslimat yöntemi",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "Birden fazla UnifiedPush dağıtıcı uygulaması yüklü - bildirimleri hangisinin ileteceğini seçin.",
+        "up_distributor_label": "Dağıtıcı",
+        "up_no_distributor": "Bu cihazda UnifiedPush dağıtıcı uygulaması yüklü değil. Bir tane yükleyin (ör. ntfy) ve tekrar deneyin."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, one {# ileti} other {# ileti}}",
+      "clear": "Temizle",
+      "clear_cache": "Önbelleği temizle",
+      "clear_message": "Önbellekteki {count, plural, one {# ileti} other {# ileti}} kaldırılsın mı ({size})?",
+      "clear_title": "Çevrimdışı postayı temizle",
+      "days_ago": "{count} g önce",
+      "description": "Son iletileri indirin; böylece anında açılır ve bağlantı olmadan da okunabilir. Yalnızca ileti gövdeleri — ekler yine istek üzerine indirilir.",
+      "downloading": "İndiriliyor {completed}/{total}…",
+      "enabled": "Son postaları önbelleğe al",
+      "enabled_desc": "Açıkken uygulama, seçilen dönemdeki ileti gövdelerini bu cihazda tutar.",
+      "hours_ago": "{count} sa önce",
+      "just_now": "az önce",
+      "last_sync": "Son senkronizasyon: {when}",
+      "last_sync_failed": "Son senkronizasyon başarısız: {message}",
+      "max_size": "En büyük boyut",
+      "max_size_desc": "Önbellek bu boyutu aştığında en eski iletiler kaldırılır.",
+      "minutes_ago": "{count} dk önce",
+      "never": "hiçbir zaman",
+      "nothing_cached": "Henüz önbellekte bir şey yok",
+      "queued_changes": "{count, plural, one {# değişiklik} other {# değişiklik}} senkronizasyonu bekliyor",
+      "scanning": "Son postalar taranıyor…",
+      "sync_now": "Şimdi senkronize et",
+      "syncing": "Senkronize ediliyor…",
+      "title": "Çevrimdışı posta",
+      "window": "Dönem",
+      "window_24h": "Son 24 saat",
+      "window_days": "Son {count} gün",
+      "window_desc": "İletinin alınma tarihine göre ne kadar geriye kadar önbelleğe alınacağı."
+    },
+    "plugins": {
+      "mobile_description": "Eklentiler webmail içinde çalışır ve onu tarayıcıda genişletir.",
+      "mobile_explainer": "Mobil uygulamanın eklenti çalışma ortamı yoktur. Eklentileri webmail'de Ayarlar → Eklentiler altından yükleyip yönetin; sağladıkları temalar ve filtreler burada uygulanmaz."
+    },
+    "security": {
+      "client_cert": {
+        "active": "Etkin: {alias}",
+        "choose_another": "Başka birini seç",
+        "clear": "Temizle",
+        "clear_message": "Yeni istekler artık sertifika sunmayacak. Sertifika Android'de yüklü kalır.",
+        "clear_title": "İstemci sertifikası kullanımı durdurulsun mu?",
+        "description": "TLS el sıkışması sırasında sunucuya kimlik doğrulamak için yüklü bir Android sertifikası seçer. Ters vekil sunucu mTLS zorunlu kıldığında kullanışlıdır.",
+        "hint": "Sertifikayı Android Ayarlar → Güvenlik → Şifreleme ve kimlik bilgileri üzerinden yükleyin, ardından burada seçin.",
+        "not_set": "Ayarlanmadı",
+        "pick": "Sertifika seç",
+        "pick_failed": "Seçim başarısız",
+        "title": "TLS istemci sertifikası"
+      },
+      "credentials": {
+        "allowed_ips": "İzin verilen IP'ler (isteğe bağlı)",
+        "allowed_ips_hint": "Virgül veya boşlukla ayırın. Herhangi bir IP'ye izin vermek için boş bırakın.",
+        "clear_expiry": "Son kullanma tarihini temizle",
+        "copy_now": "Bunu şimdi kopyalayın — yalnızca bir kez gösterilir. Seçmek için dokunup basılı tutun.",
+        "create_error": "Oluşturulamadı",
+        "expires": "Son kullanma (isteğe bağlı)",
+        "expires_on": "bitiş: {date}",
+        "no_expiry": "Süresiz",
+        "none": "Henüz yok.",
+        "remove_error": "Kaldırılamadı",
+        "remove_message": "Bunu kullanan tüm istemciler çalışmayı durduracak.",
+        "remove_title": "Kimlik bilgisi kaldırılsın mı?"
+      },
+      "display_name": {
+        "error_title": "Güncelleme başarısız"
+      },
+      "encryption": {
+        "no_keys": "Önce bir ortak anahtar ekleyin - bekleme süresi şifrelemesi için bir anahtar gereklidir."
+      },
+      "load_error": "Güvenlik ayarları yüklenemedi.",
+      "not_supported": "Hesap güvenliği yönetimi bir Stalwart sunucusu gerektirir. Bu özellikler bu hesap için kullanılamaz.",
+      "offline": "Çevrimdışısınız. Hesap güvenliği ayarları sunucuyla canlı bir bağlantı gerektirir.",
+      "password": {
+        "change": "Parolayı değiştir",
+        "changed": "Hesap parolanız güncellendi.",
+        "changed_title": "Parola değiştirildi",
+        "description": "Bu hesabın parolasını değiştirin.",
+        "error": "Parola değiştirilemedi.",
+        "mismatch": "Parolalar eşleşmiyor.",
+        "toggle_visibility": "Parolayı göster veya gizle",
+        "too_short": "Yeni parola en az 8 karakter olmalıdır."
+      },
+      "public_keys": {
+        "add_error": "Ortak anahtar eklenemedi",
+        "description": "Sunucuda saklanan S/MIME sertifikaları ve PGP anahtarları. Bekleme süresi şifrelemesi için kullanılırlar.",
+        "expires": "bitiş: {date}",
+        "remove_error": "Ortak anahtar kaldırılamadı",
+        "remove_message": "Bu anahtarı kullanan bekleme süresi şifrelemesi çalışmayı durduracak.",
+        "remove_title": "Ortak anahtar kaldırılsın mı?",
+        "title": "Ortak anahtarlar"
+      },
+      "two_factor": {
+        "active": "Etkin",
+        "code": "Doğrulama kodu",
+        "code_required": "Uygulamanızdaki 6 haneli kodu girin.",
+        "description": "Girişte tek kullanımlık bir kod iste.",
+        "disable": "Devre dışı bırak",
+        "disable_error": "İki faktörlü kimlik doğrulama devre dışı bırakılamadı.",
+        "disable_hint": "İki faktörlü kimlik doğrulamayı kapatmak için parolanızı girin.",
+        "enable_error": "İki faktörlü kimlik doğrulama etkinleştirilemedi.",
+        "enabled_message": "Bir sonraki girişte sizden kod istenecek.",
+        "enabled_title": "İki faktörlü doğrulama etkin",
+        "enrol_hint": "Bu gizli anahtarı kimlik doğrulayıcı uygulamanıza ekleyin, ardından onaylamak için 6 haneli kodu girin.",
+        "inactive": "Devre dışı",
+        "label": "Kimlik doğrulayıcı uygulama",
+        "manual_secret": "Veya bu gizli anahtarı elle girin",
+        "no_app": "Kimlik doğrulayıcı uygulama açılamadı. Aşağıdaki gizli anahtarı elle ekleyin.",
+        "no_app_title": "Kimlik doğrulayıcı uygulama yok",
+        "open_app": "Kimlik doğrulayıcı uygulamaya ekle",
+        "password_required": "Mevcut parolanızı girin.",
+        "section_title": "İki Faktörlü Kimlik Doğrulama"
+      }
+    },
+    "sidebar_apps": {
+      "add": "Uygulama ekle",
+      "empty": "Henüz uygulama eklenmedi.",
+      "form": {
+        "name": "Ad",
+        "name_placeholder": "Uygulama adı",
+        "open_mode": "Açılış modu",
+        "show_on_mobile": "Mobilde göster",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "Başka bir yere geçildiğinde yerleşik uygulamaları arka planda çalışır durumda tut.",
+      "open_mode": {
+        "inline": "Yerleşik",
+        "new_tab": "Yeni sekme",
+        "tab": "Sekme"
+      }
+    },
+    "smime": {
+      "mobile_description": "Postaları S/MIME sertifikalarıyla imzalayın ve şifreleyin.",
+      "mobile_explainer": "S/MIME henüz mobil uygulamada kullanılamıyor. Anahtarları ve sertifikaları webmail'de yönetin; imzalı iletiler burada doğrulama olmadan gösterilir."
+    },
+    "tabs": {
+      "plugins": "Eklentiler"
+    },
+    "templates": {
+      "delete_title": "Şablonu sil"
+    },
+    "themes": {
+      "default_description": "Varsayılan açık ve koyu paletler.",
+      "default_name": "Bulwark",
+      "mobile_description": "Bir renk teması seçin. Temalar Görünüm'deki açık/koyu ayarını izler; özel tema paketleri webmail'de yönetilir.",
+      "title": "Temalar"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "Tarihler \"YYYY-MM-DD\" veya \"YYYY-MM-DD HH:MM\" biçiminde olmalıdır"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "İlgilenmeniz gerekiyor",
+    "remove_account_hint": "Bu hesabı kaldırmak için uzun basın",
+    "remove_account_message": "Bu cihazda {account} hesabından çıkış yapın. Postanız sunucuda kalır.",
+    "remove_account_title": "Hesap kaldırılsın mı?",
+    "show_unread": "Okunmamışları göster"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count} hesap yüklenemedi"
+  },
+  "updates": {
+    "advisory": "Güvenlik duyurusu",
+    "advisory_desc": "Bu sürümün düzelttiği sorunla ilgili ayrıntılar.",
+    "auto_check": "Otomatik kontrol et",
+    "auto_check_desc": "Uygulama başladığında birkaç saatte bir güncellemeleri kontrol et.",
+    "available": "Güncelleme mevcut",
+    "available_desc": "v{version} sürümünü indirip Android paket yükleyicisiyle açmak için Yükle'ye dokunun.",
+    "banner": {
+      "advisory": "Duyuruyu oku",
+      "deprecated_subtitle": "Uygulamayı kullanmaya devam etmek için v{version} sürümünü yükleyin.",
+      "deprecated_title": "Bu sürüm artık desteklenmiyor",
+      "security_subtitle": "v{version} bir güvenlik sorununu düzeltiyor. En kısa sürede yükleyin.",
+      "security_title": "Güvenlik güncellemesi mevcut",
+      "subtitle": "v{version} yüklenmeye hazır.",
+      "title": "Güncelleme mevcut"
+    },
+    "building": "Güncelleme derleniyor",
+    "building_desc": "v{version} yayımlandı ancak APK hâlâ derleniyor. Bu sayfa her 30 saniyede bir yeniden kontrol edecek.",
+    "check": "Güncellemeleri kontrol et",
+    "check_again": "Yeniden kontrol et",
+    "check_now": "Şimdi kontrol et",
+    "checking": "Kontrol ediliyor…",
+    "current_version": "Geçerli sürüm",
+    "description": "Yeni sürümleri kontrol edin ve yükleyin.",
+    "downloading": "İndiriliyor…",
+    "downloading_pct": "İndiriliyor %{pct}",
+    "install": "Yükle",
+    "installing": "Yükleniyor…",
+    "last_checked": "Son kontrol",
+    "last_error": "Son hata: {message}",
+    "latest_version": "En son sürüm",
+    "never": "hiçbir zaman",
+    "open": "Aç",
+    "open_github": "GitHub'da aç",
+    "opening_installer": "Yükleyici açılıyor…",
+    "progress_of": "{written} / {total}",
+    "published": "Yayımlanma: {date}",
+    "rate_limited": "GitHub güncelleme kontrollerini sınırlıyor; daha sonra yeniden denenecek.",
+    "release_notes": "Sürüm notları",
+    "release_page": "Sürüm sayfası",
+    "release_page_desc": "GitHub'da tam sürüm notları ve indirmeler.",
+    "release_page_pending_desc": "Derleme ilerlemesini izleyin veya APK'yı elle indirin.",
+    "severity_deprecated": "Zorunlu",
+    "severity_security": "Güvenlik",
+    "title": "Uygulama güncellemeleri"
+  }
+}

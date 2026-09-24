@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "以降",
+    "before": "以前",
+    "no_attachment": "添付ファイルなし",
+    "not_starred": "スターなし"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "今後{count}日間は予定がありません。",
+      "no_upcoming": "今後の予定はありません"
+    },
+    "alerts": {
+      "unit_minutes_after": "分後"
+    },
+    "drawer": {
+      "my_calendars": "マイカレンダー",
+      "no_calendars": "カレンダーはまだありません。",
+      "shared_with_me": "自分と共有",
+      "subscribed": "購読中"
+    },
+    "event_modal": {
+      "participant_placeholder": "メールアドレスで参加者を追加"
+    },
+    "events": {
+      "copy_link_short": "リンク",
+      "export_ics_short": ".ics",
+      "tap_to_create": "+ をタップして作成"
+    },
+    "form": {
+      "description_placeholder": "メモ、議題…",
+      "location_placeholder": "場所または住所",
+      "time": "時刻"
+    },
+    "invitation": {
+      "accept": "はい",
+      "add_error": "予定を追加できませんでした",
+      "add_to_calendar": "カレンダーに追加",
+      "added": "カレンダーに追加しました",
+      "already_in_calendar": "すでにカレンダーにあります",
+      "cancelled": "この予定はキャンセルされました",
+      "decline": "いいえ",
+      "join_video": "ビデオ通話に参加",
+      "no_writable_calendar": "書き込み可能なカレンダーがありません",
+      "organizer": "主催者",
+      "reading": "招待を読み込み中…",
+      "reply": "参加者がこの招待に返信しました",
+      "response_error": "返答を送信できませんでした",
+      "response_sent": "回答を送信しました",
+      "tentative": "未定",
+      "title": "カレンダー招待",
+      "trust_verified": "送信者を確認済み"
+    },
+    "management": {
+      "clear_confirm": "すべて削除",
+      "clear_description": "このカレンダーのすべての予定が削除されます。他のカレンダーにも属している予定は、このカレンダーとの関連付けだけが解除されます。",
+      "clear_title": "すべての予定を削除しますか？",
+      "delete_description": "カレンダーとそのすべての予定が削除されます。この操作は元に戻せません。",
+      "delete_title": "カレンダーを削除しますか？",
+      "description_placeholder": "任意",
+      "edit_calendar": "カレンダーを編集",
+      "new_calendar": "新しいカレンダー"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "月表示に週番号を表示する",
+      "time_zone": "タイムゾーン",
+      "time_zone_auto": "デバイスのタイムゾーン",
+      "time_zone_desc": "新しい予定の作成とカレンダーの表示に使うタイムゾーンです。「デバイス」を選ぶとスマートフォンの設定に従います。"
+    },
+    "share": {
+      "add_people": "ユーザーを追加",
+      "error": "共有の更新に失敗しました",
+      "no_matches": "一致する項目がありません",
+      "no_principals": "このサーバーでは共有を利用できません。",
+      "role_custom": "カスタム",
+      "search_placeholder": "名前またはメールで検索",
+      "shared_with": "共有先",
+      "title": "共有"
+    },
+    "tasks": {
+      "add_placeholder": "タスクを追加…",
+      "add_time": "時刻を追加",
+      "delete_error": "タスクの削除に失敗しました",
+      "update_error": "タスクの更新に失敗しました"
+    }
+  },
+  "common": {
+    "add": "追加",
+    "back": "戻る",
+    "confirm": "確認",
+    "create": "作成",
+    "dismiss": "閉じる",
+    "done": "完了",
+    "remove": "削除",
+    "retry": "再試行",
+    "undo": "元に戻す",
+    "update": "更新"
+  },
+  "context_menu": {
+    "color_tag": "ラベル",
+    "remove_color": "ラベルを削除"
+  },
+  "email_composer": {
+    "attach_camera": "カメラ",
+    "attachment_reminder_body": "メッセージに「{keyword}」が含まれていますが、ファイルが添付されていません。このまま送信しますか？",
+    "attachment_reminder_title": "添付ファイルを忘れていませんか？",
+    "attachments_too_large_total": "添付ファイルがサーバーの上限（1 通あたり {max}）を超えます。",
+    "editor_unavailable": "メッセージの内容を読み取れませんでした。テキストをコピーしてから、作成画面を閉じて開き直してください。",
+    "identity_unavailable": "送信者情報を利用できません",
+    "image_load_failed": "画像を読み込めませんでした",
+    "no_recipient": "（宛先なし）",
+    "no_sent_folder": "送信済みフォルダーが見つかりません",
+    "permission_camera": "写真を撮影するには、カメラへのアクセス許可が必要です。",
+    "permission_photos": "画像を添付するには、写真ライブラリへのアクセス許可が必要です。",
+    "recipient_add_contact": "連絡先に追加",
+    "recipient_copy": "アドレスをコピー",
+    "recipient_move_to": "{field}に移動",
+    "recipient_remove": "削除",
+    "save_draft": "下書きを保存",
+    "save_failed_no_drafts": "この下書きを保存する下書きフォルダーがありません。",
+    "save_failed_no_identity": "送信者情報を読み込めなかったため、この下書きを保存できません。接続を確認するか、閉じる前にテキストをコピーしてください。",
+    "schedule_custom": "日時を選択…",
+    "schedule_in_1h": "1時間後",
+    "schedule_in_3h": "3時間後",
+    "schedule_past_body": "予約日時は未来の日時にしてください。",
+    "schedule_past_title": "未来の日時を選択してください",
+    "schedule_tomorrow": "明日 午前8:00",
+    "schedule_tomorrow_morning": "明日の朝",
+    "schedule_too_late_body": "サーバーが許可する範囲を超えています。もっと早い日時を選択してください。",
+    "schedule_too_late_title": "日時が先すぎます",
+    "schedule_unsupported_body": "このメールサーバーは予約送信に対応していません。",
+    "schedule_unsupported_title": "予約送信は利用できません",
+    "scheduled_body": "メッセージは{time}に送信されます。",
+    "scheduled_title": "送信を予約しました",
+    "send_now": "今すぐ送信",
+    "send_timeout_body": "メッセージはすでに送信されている可能性があります。再送信する前に送信済みフォルダーを確認してください。",
+    "send_timeout_title": "サーバーから応答がありません",
+    "undo_send_label": "{seconds}秒後に送信…",
+    "uploading": "アップロード中...",
+    "validation": {
+      "subject_required": "件名を追加してください"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "アカウント間の移動には接続が必要です",
+    "emails_archived_count": "{count, plural, other {#件のメール}}をアーカイブしました",
+    "emails_moved_to": "{count, plural, other {#件のメール}}を{mailbox}に移動しました",
+    "error": "エラー",
+    "marked_as_spam": "迷惑メールに設定しました",
+    "marked_as_spam_count": "{count, plural, other {#件のメール}}を迷惑メールに設定しました",
+    "marked_not_spam": "迷惑メールではないとマークしました",
+    "marked_not_spam_count": "{count, plural, other {#件のメール}}を迷惑メールではないとマークしました",
+    "move_same_account": "メッセージは同じアカウント内でのみ移動できます",
+    "moved_to_trash": "メールをゴミ箱に移動しました",
+    "moved_to_trash_count": "{count, plural, other {#件のメール}}をゴミ箱に移動しました",
+    "no_archive_folder": "サーバー上にアーカイブフォルダーが見つかりませんでした。",
+    "no_emails_in": "{folder}にメールはありません",
+    "no_junk_folder": "サーバー上に迷惑メールフォルダーが見つかりませんでした。",
+    "no_mailboxes": "メールボックスが見つかりません",
+    "no_mailboxes_hint": "JMAP アカウントでメール機能が有効になっているか確認してください。",
+    "no_tags_defined": "ラベルが定義されていません。設定でラベルを追加してください。",
+    "no_trash_folder": "サーバー上にゴミ箱フォルダーが見つかりませんでした。メールボックスの設定を確認してください。",
+    "offline_nothing_cached": "接続がありません。まだメールがキャッシュされていないため、何も表示できません。",
+    "open_draft_failed": "下書きを開けませんでした。",
+    "outbox_discard": "破棄",
+    "outbox_failed": "{count}件の変更をサーバーに保存できませんでした。",
+    "recent_searches": "最近の検索",
+    "scope_all_folders": "すべてのフォルダー",
+    "scope_this_folder": "このフォルダー",
+    "search_placeholder": "メールを検索...",
+    "showing_cached": "キャッシュされたメールを表示中",
+    "swipe_move": "移動",
+    "swipe_spam": "迷惑メール",
+    "total": "合計",
+    "undo_failed": "元に戻せませんでした",
+    "unknown_tag": "ここでは未定義"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "差出人を連絡先に追加",
+    "address_actions": {
+      "add_contact": "連絡先に追加",
+      "compose": "新規メッセージ",
+      "copy": "アドレスをコピー",
+      "copy_failed": "アドレスをコピーできませんでした。"
+    },
+    "attachment_actions": {
+      "open": "開く",
+      "preview": "プレビュー",
+      "save": "保存",
+      "share": "共有"
+    },
+    "attachment_failed": "添付ファイルを開けませんでした",
+    "authentication": {
+      "spoof_warning": "差出人アドレスを検証できませんでした。このメッセージはなりすましの可能性があります。"
+    },
+    "body_truncated": "このメッセージは大きすぎるため、すべてを表示できません。",
+    "bundle_too_large": "添付ファイルが大きすぎるため、まとめられません。",
+    "color_tag": {
+      "blue": "青",
+      "green": "緑",
+      "none": "なし",
+      "orange": "オレンジ",
+      "pink": "ピンク",
+      "purple": "紫",
+      "red": "赤",
+      "title": "カラーラベル",
+      "yellow": "黄"
+    },
+    "delete_permanently_message": "このメッセージは完全に削除され、復元できません。",
+    "delete_permanently_title": "完全に削除しますか？",
+    "export_failed": "エクスポートに失敗しました",
+    "forwarded": "転送済み",
+    "load_failed": "メールの読み込みに失敗しました",
+    "preview": {
+      "open_external": "アプリで開く",
+      "pdf_external": "PDF はこのデバイスの PDF ビューアーで開きます。",
+      "unsupported": "このファイル形式はプレビューできません。"
+    },
+    "received_via": "{name}宛",
+    "remove_color": "ラベルを削除",
+    "replied": "返信済み",
+    "sender_actions": "差出人…",
+    "set_color": "ラベルを設定",
+    "show_all_count": "すべて表示（{count}）",
+    "show_less": "表示を減らす",
+    "smime_unsupported": "S/MIME で署名／暗号化されています（モバイルでは非対応）",
+    "source_too_large": "メッセージが大きすぎるため、すべてを表示できません。代わりに完全なソースを共有してください。",
+    "thread_loading": "会話を読み込み中...",
+    "unsubscribe_banner": {
+      "no_identity": "利用できる送信者情報がありません"
+    },
+    "view_dark_mode": "ダークモードで表示",
+    "view_light_mode": "ライトモードで表示"
+  },
+  "files": {
+    "delete_cascade_hint": "フォルダーは中身ごと削除されます。この操作は元に戻せません。",
+    "delete_item_title": "この項目を削除しますか？",
+    "delete_items_title": "{count}件の項目を削除しますか？",
+    "done": "完了",
+    "folder_empty": "このフォルダーは空です",
+    "invalid_name": "無効な名前",
+    "invalid_name_slash": "名前に「/」は使用できません。",
+    "move_to": "移動先…",
+    "open_error": "ファイルを開けませんでした",
+    "open_with": "別のアプリで開く…",
+    "preview_too_large": "このファイルは大きすぎるため、プレビューできません。",
+    "selected_count": "{count}件を選択中",
+    "share_add_people": "ユーザーを追加",
+    "share_empty": "まだ誰にも共有されていません",
+    "share_error": "共有の更新に失敗しました",
+    "share_file_error": "ファイルを共有できませんでした",
+    "share_folder_hint": "フォルダーを共有すると、その中のすべてが共有されます。",
+    "share_no_matches": "一致する項目がありません",
+    "share_no_users": "他のユーザーが見つかりません",
+    "share_remove": "アクセス権を削除",
+    "share_role_custom": "カスタム",
+    "share_search_placeholder": "名前またはメールで検索",
+    "shared_with": "共有先",
+    "sharing_access": "共有とアクセス",
+    "upload_unavailable": "このビルドにはファイルピッカーが含まれていません。アップロードを有効にするには、アプリを再ビルドしてください。"
+  },
+  "identities": {
+    "badge": {
+      "to": "{identity}宛",
+      "via": "{identity}経由"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "これらのアカウントにはすでにサインインしています。",
+      "add_title": "別のアカウントを追加",
+      "camera_allow": "カメラへのアクセスを許可",
+      "camera_disabled": "カメラへのアクセスが無効になっています。サインイン用の QR コードをスキャンするには、設定で有効にしてください。",
+      "camera_needed": "サインイン用の QR コードをスキャンするには、Bulwark Mail にカメラへのアクセスを許可する必要があります。",
+      "choose_subtitle": "サインイン方法を選択してください。",
+      "confirm_check": "内容が正しいか確認してください",
+      "confirm_found": "メールサーバーが見つかりました",
+      "confirm_subtitle": "次に、プロバイダーのページでサインインします。",
+      "connecting": "{host}に接続中",
+      "connecting_detail": "メールボックスを準備しています…",
+      "continue": "続行",
+      "different_server": "別のサーバーを使用",
+      "elsewhere_title": "別の場所にあるアカウント",
+      "email_desc": "メールサーバーを自動で検出します",
+      "email_step_hint": "Stalwart およびその他の JMAP メールサーバーで利用できます。",
+      "email_step_subtitle": "通常はこれだけでメールサーバーを見つけられます。",
+      "email_step_title": "メールアドレスを入力してください",
+      "email_step_title_add": "もう一つのメールアドレスを入力してください",
+      "email_title": "メールアドレスを使用",
+      "err_bad_detail": "メールアドレスとパスワードを確認してください。アカウントで二要素認証を使用している場合は、ウェブメールでアプリパスワードを作成し、ここで使用してください。",
+      "err_bad_title": "サインインできませんでした",
+      "err_cert_detail": "サーバーのセキュリティ証明書が拒否されました。ご自身のサーバーの場合は、証明書が有効で期限切れでないことを確認してください。",
+      "err_cert_title": "{host}を検証できませんでした",
+      "err_code_expired_detail": "サインインコードの有効期間は数分です。ウェブメールで新しいコードを生成して、もう一度スキャンしてください。",
+      "err_code_expired_title": "コードの有効期限が切れています",
+      "err_generic_detail": "問題が発生しました。もう一度お試しください。",
+      "err_generic_title": "サインインに失敗しました",
+      "err_interrupted_detail": "応答が開始したリクエストと一致しませんでした。もう一度サインインしてください。",
+      "err_interrupted_title": "サインインが中断されました",
+      "err_no_server_detail": "アドレスを再確認するか、代わりにウェブメールのサインインコードをスキャンしてください。",
+      "err_no_server_title": "{host}にメールサーバーがありません",
+      "err_no_webmail_detail": "このサーバーには Bulwark ウェブメールも OAuth サインインもありません。代わりにパスワード（またはアプリパスワード）を使用してください。",
+      "err_no_webmail_title": "{host}にサインインページがありません",
+      "err_rate_detail": "サーバーから少し待つよう求められました。しばらくしてからもう一度お試しください。",
+      "err_rate_detail_seconds": "サーバーから待機するよう求められました。約{seconds}秒後にもう一度お試しください。",
+      "err_rate_title": "試行回数が多すぎます",
+      "err_server_detail": "サーバーがエラーを返しました。数分後にもう一度お試しください。",
+      "err_server_title": "{host}で問題が発生しています",
+      "err_totp_bad_detail": "パスワードと認証アプリの現在のコードを確認して、もう一度お試しください。",
+      "err_totp_detail": "このアカウントは二要素認証で保護されています。認証アプリに表示される6桁のコードを入力してください。",
+      "err_totp_title": "二要素認証コードを入力してください",
+      "err_unreachable_detail": "接続とサーバーアドレスを確認して、もう一度お試しください。",
+      "err_unreachable_title": "{host}に接続できません",
+      "know_server": "サーバーアドレスがわかる",
+      "known_server_desc": "このサーバーは登録済みのため、設定は不要です",
+      "known_server_title": "{host}の別のアカウント",
+      "looking_up": "サーバーを検索しています…",
+      "manual": "サーバー情報を手動で入力",
+      "notice_bad_qr": "このコードは Bulwark のサインインコードではありません",
+      "notice_bad_qr_detail": "ウェブで Bulwark を開き、「設定 → セキュリティ → モバイルアプリを連携」でコードを表示してください。",
+      "notice_bad_server": "サーバーアドレスではないようです",
+      "notice_bad_server_detail": "mail.example.com のように、ウェブメールで使用しているアドレスを入力してください。",
+      "notice_full_email": "完全なメールアドレスを入力してください",
+      "notice_full_email_detail": "例：ada@example.com。ユーザー名でサインインする場合は、「サーバーアドレスがわかる」を使用してください。",
+      "notice_need_code": "認証アプリに表示される6桁のコードを入力してください",
+      "notice_need_credentials": "メールアドレスとパスワードを入力してください",
+      "notice_need_server": "まずサーバーアドレスを入力してください",
+      "open_settings": "設定を開く",
+      "opening": "{host}を開いています",
+      "opening_detail": "開いたページでサインインを完了してください。その後の処理はアプリが行います。",
+      "pairing": "サインインコードを確認しています",
+      "pairing_detail": "このデバイスを{host}とペアリングしています…",
+      "password_subtitle": "パスワードはこのサーバーにのみ送信され、デバイスのキーチェーンに保存されます。",
+      "password_title": "{host}にサインイン",
+      "provider_detail": "パスワードはプロバイダーのページで入力します。Bulwark が保存するのはサインイントークンのみで、いつでも取り消すことができます。",
+      "provider_title": "パスワードはプロバイダーにのみ送信されます",
+      "qr_hint": "「設定 → セキュリティ → モバイルアプリを連携」でコードが表示されます。カメラをコードに向けてください。",
+      "qr_hint_title": "パソコンで Bulwark を開いてください",
+      "qr_title": "サインインコード",
+      "scan_desc": "ウェブでサインイン済みなら、最も簡単な方法です",
+      "scan_title": "サインインコードをスキャン",
+      "server_hint": "ブラウザーで入力するものと同じアドレスです。https:// は自動で追加されます。",
+      "server_label": "サーバーアドレス",
+      "server_not_found": "{domain}のサーバーが見つかりませんでした。セルフホストしている場合は、ウェブメールで使用しているアドレスを入力してください。",
+      "server_scan_hint": "わからない場合は、代わりにサインインコードをスキャンしてください。コードにサーバーアドレスが含まれています。",
+      "server_subtitle": "ウェブメールへのアクセスに使用しているアドレスを入力してください。",
+      "server_title": "サーバーアドレスを入力してください",
+      "the_server": "サーバー",
+      "unencrypted": "暗号化されていない接続",
+      "use_password": "代わりにパスワードでサインイン",
+      "username_label": "メールアドレスまたはユーザー名",
+      "your_server": "お使いのサーバー"
+    }
+  },
+  "offline": {
+    "banner": "オフラインです",
+    "queued_changes": "{count, plural, other {#件の変更}}は再接続時に同期されます"
+  },
+  "push_prompt": {
+    "body": "バックグラウンド通知をオンにすると、アプリを閉じていても新着メッセージを受け取れます。",
+    "dismiss": "今はしない",
+    "enable": "有効化",
+    "title": "新着メールの通知を受け取る"
+  },
+  "scheduled": {
+    "cancel_body": "メッセージは配信されません。コピーは送信済みフォルダーに残ります。",
+    "cancel_failed": "キャンセルに失敗しました",
+    "edit_failed": "メッセージを編集用に開けませんでした",
+    "keep_scheduled": "予約を維持",
+    "reschedule_failed": "再予約に失敗しました",
+    "send_now_failed": "今すぐ送信できませんでした"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "アカウント切り替えでの表示順の変更、デフォルトの選択、アカウントからのサインアウトができます。",
+        "limit": "アカウント数の上限（{count}件）に達しました。"
+      },
+      "shared_accounts": {
+        "description_manage": "このアカウントから閲覧できるグループアカウントと共有アカウントです。1つ選択して、フィルターと不在応答を管理します。"
+      },
+      "unknown": "不明"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "アップデートが必要です：{version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "セキュリティアップデート：{version}",
+        "update_available": "アップデート：{version}",
+        "update_store_hint": "TestFlight / App Store で入手可能"
+      },
+      "export_settings": {
+        "saved_to": "{path}に保存しました"
+      },
+      "reset_settings": {
+        "done": "すべての設定をデフォルトに戻しました。"
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "新しい文字の方向を適用するには、アプリを再起動してください。",
+        "system_default": "システムのデフォルト"
+      },
+      "toolbar_labels": {
+        "description_mobile": "ツールバーアイコンの横にテキストラベルを表示します。"
+      }
+    },
+    "badges": {
+      "experimental": "試験運用",
+      "not_implemented": "未実装",
+      "unavailable": "利用不可"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "添付ファイルを保存または共有するときに使用するテンプレートです。"
+      },
+      "email_template": {
+        "description_mobile": "メッセージを .eml ファイルとしてエクスポートするときに使用するテンプレートです。"
+      },
+      "strip_diacritics": {
+        "description_mobile": "アクセント付き文字を通常の ASCII 文字に変換します (ä → a)。"
+      },
+      "transform_description": "エクスポートするすべてのファイル名に適用されます。",
+      "transform_title": "ファイル名の変換"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "アーカイブフォルダーが見つかりません。",
+        "reorganize_result": "{total}件中{moved}件のメールを移動しました。",
+        "reorganizing": "再整理中…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "添付ファイルをタップしたときの動作です。"
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "返信は常に、メッセージの宛先となった送信者情報から送信されます。オンにすると、ドメイン内の別のアドレス（キャッチオールエイリアス）宛てのメッセージへの返信も、そのアドレスから送信されます。"
+      },
+      "plain_text_mode": {
+        "description_mobile": "プレーンテキストのみで作成・閲覧します。"
+      },
+      "send_delay": {
+        "description_mobile": "送信メールを数秒間保留し、キャンセルできるようにします。サーバーの対応が必要です。"
+      },
+      "swipe_actions": {
+        "move": "フォルダーに移動",
+        "pin": "ピン留め"
+      },
+      "swipe_left_action": {
+        "description_mobile": "行を右端から左へドラッグしたときの操作です。",
+        "label_mobile": "左スワイプ（右 → 左）"
+      },
+      "swipe_right_action": {
+        "description_mobile": "行を左端から右へドラッグしたときの操作です。",
+        "label_mobile": "右スワイプ（左 → 右）"
+      }
+    },
+    "experimental": {
+      "title": "試験運用機能"
+    },
+    "folders": {
+      "account": "アカウント",
+      "cannot_delete": "削除できません",
+      "description_mobile": "フォルダーの作成、名前変更、移動、削除ができます。ドロワーでフォルダーを長押しすると、クイックアクションを使用できます。",
+      "edit_folder": "「{name}」を編集",
+      "folder_name": "フォルダー名",
+      "move_under": "親フォルダー",
+      "name_placeholder": "領収書",
+      "name_required": "名前を入力してください",
+      "new_folder": "新しいフォルダー",
+      "not_empty_message": "「{name}」には{count}件のメールがあります。削除しますか？",
+      "not_empty_title": "フォルダーが空ではありません",
+      "own_account": "マイフォルダー",
+      "role": "特別な用途",
+      "role_hint": "このフォルダーに特別な用途の役割（アーカイブ、迷惑メールなど）を割り当てます。各役割は1つのフォルダーにのみ割り当てられます。",
+      "save_failed": "保存に失敗しました",
+      "system_folder_delete": "システムフォルダーは削除できません。",
+      "system_folder_rename": "システムフォルダーの名前は変更できません。",
+      "top_level": "最上位"
+    },
+    "identities": {
+      "cannot_delete": "プライマリの送信者情報は削除できません。",
+      "cannot_delete_title": "削除できません",
+      "count": "{count, plural, =0 {送信者情報なし} other {#件の送信者情報}}",
+      "create": "新しい送信者情報",
+      "delete_confirm": "「{name}」を削除しますか？",
+      "delete_failed": "削除に失敗しました",
+      "delete_title": "送信者情報を削除",
+      "description_mobile": "送信者名、メールアドレス、署名を管理します。行をタップすると編集できます。",
+      "display_name": "表示名",
+      "edit": "送信者情報を編集",
+      "email_address": "メールアドレス",
+      "email_locked": "JMAP では送信者情報のメールアドレスを変更できません。代わりに新しい送信者情報を作成してください。",
+      "invalid_email": "この送信者情報に有効なメールアドレスを入力してください。",
+      "invalid_email_title": "無効なメールアドレス",
+      "new": "新規",
+      "no_name": "（名前なし）",
+      "primary": "プライマリ",
+      "save_failed": "保存に失敗しました",
+      "text_signature": "プレーンテキスト署名"
+    },
+    "keywords": {
+      "description_mobile": "メールを整理するためのカラーラベルです。",
+      "discover": {
+        "add_all": "すべて追加",
+        "found": "ここに定義されていないラベルが{count}件見つかりました。",
+        "none": "{scanned}件のメッセージに未定義のラベルは見つかりませんでした。",
+        "partial": "（最新のメッセージのみを検索しました。）",
+        "progress": "{total}件中{scanned}件のメッセージを検索しました…",
+        "scan": "メールボックス内のラベルを検索"
+      },
+      "reset_confirm": "ラベル一覧をデフォルトのラベルに置き換えますか？メッセージに設定済みのラベルはサーバーに残ります。",
+      "reset_defaults": "デフォルトにリセット"
+    },
+    "layout": {
+      "description": "モバイル向けにメール一覧の操作を調整します。",
+      "quick_actions": {
+        "description": "開いたメールの下部で「前へ」と「次へ」の間に表示される3つのボタンです。デフォルトは「返信」「全員に返信」「転送」です。",
+        "label": "閲覧画面のクイックアクション",
+        "mark_unread": "既読／未読にする",
+        "relocated": "{count, plural, other {{actions}は引き続き使用できるよう、上部のツールバーに移動されます。}}",
+        "slot": "スロット {n}",
+        "spam": "迷惑メール",
+        "star": "スター",
+        "tag": "ラベル"
+      },
+      "show_avatars_in_junk": "迷惑メールで差出人のアバターを表示",
+      "show_avatars_in_junk_description": "迷惑メールフォルダー内のメッセージについて、差出人のロゴを読み込みます。オフにすると、スパム送信者側への接続を防げます。",
+      "show_folder_total_count": "フォルダーにメッセージの総数を表示",
+      "show_folder_total_count_description": "フォルダー一覧で、未読数の横に総数を表示します。",
+      "swipe_mode": {
+        "instant": "即時（スワイプ＝操作）",
+        "reveal": "表示（スワイプしてからタップ）"
+      },
+      "unified_cross_account": "アカウントをまたいだ統合ビュー",
+      "unified_cross_account_description": "サインイン中のすべてのアカウントを「すべての受信トレイ」にまとめます。オフにすると、統合ビューはアクティブなアカウントとその共有フォルダー内に限定されます。"
+    },
+    "message_list_order": {
+      "description": "一覧でどのメッセージを先に表示するかを設定します。各グループ内では新しい順に並び、ヘッダーの切り替えで古い順／新しい順を反転できます。",
+      "preset_chronological": "新しい順",
+      "preset_custom": "カスタム",
+      "preset_starred_first": "スター付きを先に",
+      "preset_tagged_first": "タグ付きを先に",
+      "preset_unread_first": "未読を先に",
+      "scope": "適用先",
+      "scope_all": "すべてのフォルダー",
+      "scope_inbox": "受信トレイのみ",
+      "tag": "タグ",
+      "title": "メッセージ一覧の並び順"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "アプリアイコンに未読数を表示",
+        "app_icon_badge_desc": "受信トレイの未読数をアプリアイコンにバッジとして表示します。",
+        "sound_channel_hint": "メール通知の音とバイブレーションは Android の通知チャンネルで設定します。通知を長押しするか、システムのアプリ設定を開いてください。"
+      },
+      "push": {
+        "confirm_disable_message_mobile": "このデバイスはこのアカウントの新着メール通知を受信しなくなります。",
+        "description_mobile": "アプリが閉じているときに新着メールのシステム通知を受信します。Bulwark プッシュリレー経由で配信され、リレーがメール内容を見ることはありません。",
+        "phase_account": "アカウント",
+        "phase_distributor": "UnifiedPush ディストリビューター",
+        "phase_jmap": "メールサーバーの購読",
+        "phase_permission": "通知の許可",
+        "phase_platform": "プラットフォーム",
+        "phase_relay": "リレーへの登録",
+        "phase_token": "デバイストークン",
+        "phase_verify": "検証",
+        "relay_desc_mobile": "通知を配信するサーバーです。デフォルトはホストされた Bulwark リレーです。セルフホストする場合のみ変更してください。https を使用する必要があります。",
+        "relay_invalid": "有効な https:// URL を入力してください",
+        "setup_failed": "セットアップに失敗しました",
+        "status_android_only": "バックグラウンド通知は Android でのみ利用できます。",
+        "transport_desc": "通知をこのデバイスに届ける方法です。Google の Firebase Cloud Messaging か、Google を使わずに配信する UnifiedPush ディストリビューターアプリ（ntfy など）を選択できます。",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "配信方法",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "複数の UnifiedPush ディストリビューターアプリがインストールされています。通知の配信に使用するアプリを選択してください。",
+        "up_distributor_label": "ディストリビューター",
+        "up_no_distributor": "このデバイスには UnifiedPush ディストリビューターアプリがインストールされていません。アプリ（ntfy など）をインストールしてから、もう一度お試しください。"
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, other {#件のメッセージ}}",
+      "clear": "クリア",
+      "clear_cache": "キャッシュをクリア",
+      "clear_message": "キャッシュされた{count, plural, other {#件のメッセージ}}（{size}）を削除しますか？",
+      "clear_title": "オフラインメールをクリア",
+      "days_ago": "{count}日前",
+      "description": "最近のメッセージをダウンロードして、すぐに開けるようにし、接続がなくても読めるようにします。対象は本文のみで、添付ファイルは必要に応じて取得されます。",
+      "downloading": "ダウンロード中 {completed}/{total}…",
+      "enabled": "最近のメールをキャッシュ",
+      "enabled_desc": "オンにすると、選択した期間のメッセージ本文をこのデバイスに保存します。",
+      "hours_ago": "{count}時間前",
+      "just_now": "たった今",
+      "last_sync": "最終同期：{when}",
+      "last_sync_failed": "前回の同期に失敗しました：{message}",
+      "max_size": "最大サイズ",
+      "max_size_desc": "キャッシュがこのサイズを超えると、古いメッセージから削除されます。",
+      "minutes_ago": "{count}分前",
+      "never": "なし",
+      "nothing_cached": "まだ何もキャッシュされていません",
+      "queued_changes": "{count, plural, other {#件の変更}}が同期待ちです",
+      "scanning": "最近のメールをスキャンしています…",
+      "sync_now": "今すぐ同期",
+      "syncing": "同期中…",
+      "title": "オフラインメール",
+      "window": "期間",
+      "window_24h": "過去24時間",
+      "window_days": "過去{count}日間",
+      "window_desc": "どこまでさかのぼってキャッシュするかを、メッセージの受信日で指定します。"
+    },
+    "plugins": {
+      "mobile_description": "プラグインはウェブメール内で動作し、ブラウザー上で機能を拡張します。",
+      "mobile_explainer": "モバイルアプリにはプラグインの実行環境がありません。プラグインのインストールと管理は、ウェブメールの「設定 → プラグイン」から行ってください。プラグインが提供するテーマやフィルターはここでは適用されません。"
+    },
+    "security": {
+      "client_cert": {
+        "active": "使用中：{alias}",
+        "choose_another": "別の証明書を選択",
+        "clear": "クリア",
+        "clear_message": "今後のリクエストでは証明書を提示しなくなります。証明書は Android にインストールされたままです。",
+        "clear_title": "クライアント証明書の使用を停止しますか？",
+        "description": "TLS ハンドシェイク時にサーバーへの認証に使用する、インストール済みの Android 証明書を選択します。リバースプロキシが mTLS を必須にしている場合に便利です。",
+        "hint": "Android の「設定 → セキュリティ → 暗号化と認証情報」から証明書をインストールし、ここで選択してください。",
+        "not_set": "未設定",
+        "pick": "証明書を選択",
+        "pick_failed": "選択に失敗しました",
+        "title": "TLS クライアント証明書"
+      },
+      "credentials": {
+        "allowed_ips": "許可する IP（任意）",
+        "allowed_ips_hint": "カンマまたはスペースで区切ります。空欄にするとすべての IP を許可します。",
+        "clear_expiry": "有効期限をクリア",
+        "copy_now": "今すぐコピーしてください。一度しか表示されません。長押しすると選択できます。",
+        "create_error": "作成できませんでした",
+        "expires": "有効期限（任意）",
+        "expires_on": "有効期限 {date}",
+        "no_expiry": "有効期限なし",
+        "none": "まだありません。",
+        "remove_error": "削除できませんでした",
+        "remove_message": "これを使用しているクライアントは動作しなくなります。",
+        "remove_title": "認証情報を削除しますか？"
+      },
+      "display_name": {
+        "error_title": "更新に失敗しました"
+      },
+      "encryption": {
+        "no_keys": "先に公開鍵を追加してください。保存時の暗号化には公開鍵が必要です。"
+      },
+      "load_error": "セキュリティ設定の読み込みに失敗しました。",
+      "not_supported": "アカウントセキュリティの管理には Stalwart サーバーが必要です。このアカウントではこれらの機能を利用できません。",
+      "offline": "オフラインです。アカウントセキュリティの設定にはサーバーへの接続が必要です。",
+      "password": {
+        "change": "パスワードを変更",
+        "changed": "アカウントのパスワードを更新しました。",
+        "changed_title": "パスワードを変更しました",
+        "description": "このアカウントのパスワードを変更します。",
+        "error": "パスワードを変更できませんでした。",
+        "mismatch": "パスワードが一致しません。",
+        "toggle_visibility": "パスワードを表示／非表示",
+        "too_short": "新しいパスワードは8文字以上である必要があります。"
+      },
+      "public_keys": {
+        "add_error": "公開鍵の追加に失敗しました",
+        "description": "サーバーに保存されている S/MIME 証明書と PGP 鍵です。保存時の暗号化に使用されます。",
+        "expires": "有効期限 {date}",
+        "remove_error": "公開鍵の削除に失敗しました",
+        "remove_message": "この鍵を使用している保存時の暗号化は機能しなくなります。",
+        "remove_title": "公開鍵を削除しますか？",
+        "title": "公開鍵"
+      },
+      "two_factor": {
+        "active": "有効",
+        "code": "確認コード",
+        "code_required": "アプリに表示される6桁のコードを入力してください。",
+        "description": "ログイン時にワンタイムコードを要求します。",
+        "disable": "無効化",
+        "disable_error": "二要素認証を無効にできませんでした。",
+        "disable_hint": "二要素認証をオフにするには、パスワードを入力してください。",
+        "enable_error": "二要素認証を有効にできませんでした。",
+        "enabled_message": "次回のサインイン時にコードの入力を求められます。",
+        "enabled_title": "二要素認証が有効になりました",
+        "enrol_hint": "このシークレットを認証アプリに追加し、6桁のコードを入力して確認してください。",
+        "inactive": "無効",
+        "label": "認証アプリ",
+        "manual_secret": "または、このシークレットを手動で入力してください",
+        "no_app": "認証アプリを開けませんでした。以下のシークレットを手動で追加してください。",
+        "no_app_title": "認証アプリがありません",
+        "open_app": "認証アプリに追加",
+        "password_required": "現在のパスワードを入力してください。",
+        "section_title": "二要素認証"
+      }
+    },
+    "sidebar_apps": {
+      "add": "アプリを追加",
+      "empty": "アプリが追加されていません。",
+      "form": {
+        "name": "名前",
+        "name_placeholder": "アプリ名",
+        "open_mode": "開き方",
+        "show_on_mobile": "モバイルで表示",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "切り替えたときに、埋め込みアプリをバックグラウンドで実行し続けます。",
+      "open_mode": {
+        "inline": "埋め込み",
+        "new_tab": "新しいタブ",
+        "tab": "タブ"
+      }
+    },
+    "smime": {
+      "mobile_description": "S/MIME 証明書でメールに署名し、暗号化します。",
+      "mobile_explainer": "S/MIME はまだモバイルアプリでは利用できません。鍵と証明書はウェブメールで管理してください。署名付きメッセージは、ここでは検証されずに表示されます。"
+    },
+    "tabs": {
+      "plugins": "プラグイン"
+    },
+    "templates": {
+      "delete_title": "テンプレートを削除"
+    },
+    "themes": {
+      "default_description": "デフォルトのライト／ダークパレットです。",
+      "default_name": "Bulwark",
+      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。",
+      "title": "テーマ"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "日付は「YYYY-MM-DD」または「YYYY-MM-DD HH:MM」の形式で入力してください"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "要確認",
+    "remove_account_hint": "長押しするとこのアカウントを削除できます",
+    "remove_account_message": "このデバイスで{account}からサインアウトします。メールはサーバーに残ります。",
+    "remove_account_title": "アカウントを削除しますか？",
+    "show_unread": "未読を表示"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count}件のアカウントを読み込めませんでした"
+  },
+  "updates": {
+    "advisory": "セキュリティアドバイザリ",
+    "advisory_desc": "このリリースで修正された問題の詳細です。",
+    "auto_check": "自動的に確認",
+    "auto_check_desc": "アプリの起動時に、数時間ごとにアップデートを確認します。",
+    "available": "アップデートがあります",
+    "available_desc": "「インストール」をタップすると v{version} をダウンロードし、Android のパッケージインストーラーで開きます。",
+    "banner": {
+      "advisory": "アドバイザリを読む",
+      "deprecated_subtitle": "アプリを引き続き使用するには、v{version} をインストールしてください。",
+      "deprecated_title": "このバージョンはサポートが終了しました",
+      "security_subtitle": "v{version} ではセキュリティ上の問題が修正されています。できるだけ早くインストールしてください。",
+      "security_title": "セキュリティアップデートがあります",
+      "subtitle": "v{version} をインストールできます。",
+      "title": "アップデートがあります"
+    },
+    "building": "アップデートをビルド中",
+    "building_desc": "v{version} は公開されましたが、APK はまだビルド中です。このページは30秒ごとに再確認します。",
+    "check": "アップデートを確認",
+    "check_again": "再確認",
+    "check_now": "今すぐ確認",
+    "checking": "確認中…",
+    "current_version": "現在のバージョン",
+    "description": "新しいバージョンを確認してインストールします。",
+    "downloading": "ダウンロード中…",
+    "downloading_pct": "ダウンロード中 {pct}%",
+    "install": "インストール",
+    "installing": "インストール中…",
+    "last_checked": "最終確認",
+    "last_error": "前回のエラー：{message}",
+    "latest_version": "最新バージョン",
+    "never": "未確認",
+    "open": "開く",
+    "open_github": "GitHub で開く",
+    "opening_installer": "インストーラーを開いています…",
+    "progress_of": "{written} / {total}",
+    "published": "公開日：{date}",
+    "rate_limited": "GitHub によりアップデートの確認が制限されています。後でもう一度試します。",
+    "release_notes": "リリースノート",
+    "release_page": "リリースページ",
+    "release_page_desc": "GitHub で完全なリリースノートとダウンロードを確認できます。",
+    "release_page_pending_desc": "ビルドの進行状況を確認するか、APK を手動でダウンロードします。",
+    "severity_deprecated": "必須",
+    "severity_security": "セキュリティ",
+    "title": "アプリのアップデート"
+  }
+}

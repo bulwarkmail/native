@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "Dopo il",
+    "before": "Prima del",
+    "no_attachment": "Senza allegati",
+    "not_starred": "Non speciale"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "I prossimi {count} giorni sono liberi.",
+      "no_upcoming": "Nessun evento in programma"
+    },
+    "alerts": {
+      "unit_minutes_after": "minuti dopo"
+    },
+    "drawer": {
+      "my_calendars": "I miei calendari",
+      "no_calendars": "Ancora nessun calendario.",
+      "shared_with_me": "Condivisi con me",
+      "subscribed": "Sottoscritti"
+    },
+    "event_modal": {
+      "participant_placeholder": "Aggiungi partecipante tramite email"
+    },
+    "events": {
+      "copy_link_short": "Link",
+      "export_ics_short": ".ics",
+      "tap_to_create": "Tocca + per crearne uno"
+    },
+    "form": {
+      "description_placeholder": "Note, ordine del giorno…",
+      "location_placeholder": "Luogo o indirizzo",
+      "time": "Orario"
+    },
+    "invitation": {
+      "accept": "Sì",
+      "add_error": "Impossibile aggiungere l'evento",
+      "add_to_calendar": "Aggiungi al calendario",
+      "added": "Aggiunto al calendario",
+      "already_in_calendar": "Già nel tuo calendario",
+      "cancelled": "Questo evento è stato annullato",
+      "decline": "No",
+      "join_video": "Partecipa alla videochiamata",
+      "no_writable_calendar": "Nessun calendario scrivibile disponibile",
+      "organizer": "Organizzatore",
+      "reading": "Lettura dell'invito…",
+      "reply": "Un partecipante ha risposto a questo invito",
+      "response_error": "Impossibile inviare la risposta",
+      "response_sent": "Risposta inviata",
+      "tentative": "Forse",
+      "title": "Invito calendario",
+      "trust_verified": "Mittente verificato"
+    },
+    "management": {
+      "clear_confirm": "Rimuovi tutto",
+      "clear_description": "Tutti gli eventi di questo calendario verranno eliminati. Gli eventi che appartengono anche a un altro calendario verranno solo scollegati.",
+      "clear_title": "Rimuovere tutti gli eventi?",
+      "delete_description": "Il calendario e tutti i suoi eventi verranno eliminati. Questa azione non può essere annullata.",
+      "delete_title": "Eliminare il calendario?",
+      "description_placeholder": "Facoltativo",
+      "edit_calendar": "Modifica calendario",
+      "new_calendar": "Nuovo calendario"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "Mostra i numeri di settimana nella vista mensile.",
+      "time_zone": "Fuso orario",
+      "time_zone_auto": "Fuso orario del dispositivo",
+      "time_zone_desc": "Fuso usato per i nuovi eventi e per interpretare il calendario. \"Dispositivo\" segue quello del telefono."
+    },
+    "share": {
+      "add_people": "Aggiungi persone",
+      "error": "Impossibile aggiornare la condivisione",
+      "no_matches": "Nessun risultato",
+      "no_principals": "La condivisione non è disponibile su questo server.",
+      "role_custom": "Personalizzato",
+      "search_placeholder": "Cerca per nome o email",
+      "shared_with": "Condiviso con",
+      "title": "Condividi"
+    },
+    "tasks": {
+      "add_placeholder": "Aggiungi un'attività…",
+      "add_time": "Aggiungi orario",
+      "delete_error": "Impossibile eliminare l'attività",
+      "update_error": "Impossibile aggiornare l'attività"
+    }
+  },
+  "common": {
+    "add": "Aggiungi",
+    "back": "Indietro",
+    "confirm": "Conferma",
+    "create": "Crea",
+    "dismiss": "Ignora",
+    "done": "Fatto",
+    "remove": "Rimuovi",
+    "retry": "Riprova",
+    "undo": "Annulla",
+    "update": "Aggiorna"
+  },
+  "context_menu": {
+    "color_tag": "Etichetta",
+    "remove_color": "Rimuovi etichetta"
+  },
+  "email_composer": {
+    "attach_camera": "Fotocamera",
+    "attachment_reminder_body": "Il tuo messaggio menziona \"{keyword}\" ma nessun file è allegato. Inviare comunque?",
+    "attachment_reminder_title": "Hai dimenticato un allegato?",
+    "attachments_too_large_total": "Gli allegati supererebbero i {max} consentiti da questo server per messaggio.",
+    "editor_unavailable": "Impossibile leggere il contenuto del messaggio. Copia il testo, poi chiudi e riapri l'editor.",
+    "identity_unavailable": "Identità non disponibile",
+    "image_load_failed": "Impossibile caricare l'immagine",
+    "no_recipient": "(nessun destinatario)",
+    "no_sent_folder": "Nessuna cartella Inviati trovata",
+    "permission_camera": "Serve l'autorizzazione alla fotocamera per scattare una foto.",
+    "permission_photos": "Serve l'autorizzazione alla galleria foto per allegare immagini.",
+    "recipient_add_contact": "Aggiungi ai contatti",
+    "recipient_copy": "Copia indirizzo",
+    "recipient_move_to": "Sposta in {field}",
+    "recipient_remove": "Rimuovi",
+    "save_draft": "Salva bozza",
+    "save_failed_no_drafts": "Non c'è una cartella Bozze in cui salvare questa bozza.",
+    "save_failed_no_identity": "Impossibile caricare le tue identità mittente, quindi questa bozza non può essere salvata. Controlla la connessione o copia il testo prima di chiudere.",
+    "schedule_custom": "Scegli data e ora…",
+    "schedule_in_1h": "Tra 1 ora",
+    "schedule_in_3h": "Tra 3 ore",
+    "schedule_past_body": "L'orario programmato deve essere nel futuro.",
+    "schedule_past_title": "Scegli un orario futuro",
+    "schedule_tomorrow": "Domani, 8:00",
+    "schedule_tomorrow_morning": "Domani mattina",
+    "schedule_too_late_body": "È oltre il limite consentito da questo server. Scegli un orario precedente.",
+    "schedule_too_late_title": "Troppo in là",
+    "schedule_unsupported_body": "Questo server di posta non supporta l'invio programmato.",
+    "schedule_unsupported_title": "Programmazione non disponibile",
+    "scheduled_body": "Il tuo messaggio verrà inviato il {time}.",
+    "scheduled_title": "Programmato",
+    "send_now": "Invia ora",
+    "send_timeout_body": "Il messaggio potrebbe essere già stato inviato. Controlla la cartella Inviati prima di inviarlo di nuovo.",
+    "send_timeout_title": "Nessuna risposta dal server",
+    "undo_send_label": "Invio tra {seconds} s…",
+    "uploading": "Caricamento in corso...",
+    "validation": {
+      "subject_required": "Aggiungi un oggetto"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "Per spostare tra account serve una connessione",
+    "emails_archived_count": "{count, plural, one {# email archiviata} other {# email archiviate}}",
+    "emails_moved_to": "{count, plural, one {# email spostata} other {# email spostate}} in {mailbox}",
+    "error": "Errore",
+    "marked_as_spam": "Segnato come spam",
+    "marked_as_spam_count": "{count, plural, one {# email segnata} other {# email segnate}} come spam",
+    "marked_not_spam": "Segnato come non spam",
+    "marked_not_spam_count": "{count, plural, one {# email segnata} other {# email segnate}} come non spam",
+    "move_same_account": "I messaggi possono essere spostati solo all'interno dello stesso account",
+    "moved_to_trash": "Email spostata nel Cestino",
+    "moved_to_trash_count": "{count, plural, one {# email spostata} other {# email spostate}} nel Cestino",
+    "no_archive_folder": "Impossibile trovare una cartella Archivio sul server.",
+    "no_emails_in": "Nessuna email in {folder}",
+    "no_junk_folder": "Impossibile trovare una cartella Spam/Posta indesiderata sul server.",
+    "no_mailboxes": "Nessuna casella di posta trovata",
+    "no_mailboxes_hint": "Verifica che il tuo account JMAP abbia la funzionalità di posta.",
+    "no_tags_defined": "Nessuna etichetta definita. Aggiungi etichette nelle Impostazioni.",
+    "no_trash_folder": "Impossibile trovare una cartella Cestino sul server. Controlla la configurazione delle caselle di posta.",
+    "offline_nothing_cached": "Nessuna connessione. Non viene mostrato nulla perché non c'è ancora posta nella cache.",
+    "open_draft_failed": "Impossibile aprire la bozza.",
+    "outbox_discard": "Scarta",
+    "outbox_failed": "Impossibile salvare {count} modifiche sul server.",
+    "recent_searches": "Ricerche recenti",
+    "scope_all_folders": "Tutte le cartelle",
+    "scope_this_folder": "Questa cartella",
+    "search_placeholder": "Cerca nella posta...",
+    "showing_cached": "Visualizzazione della posta in cache",
+    "swipe_move": "Sposta",
+    "swipe_spam": "Spam",
+    "total": "in totale",
+    "undo_failed": "Annullamento non riuscito",
+    "unknown_tag": "non definita qui"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "Aggiungi mittente ai contatti",
+    "address_actions": {
+      "add_contact": "Aggiungi ai contatti",
+      "compose": "Nuovo messaggio",
+      "copy": "Copia indirizzo",
+      "copy_failed": "Impossibile copiare l'indirizzo."
+    },
+    "attachment_actions": {
+      "open": "Apri",
+      "preview": "Anteprima",
+      "save": "Salva",
+      "share": "Condividi"
+    },
+    "attachment_failed": "Impossibile aprire l'allegato",
+    "authentication": {
+      "spoof_warning": "Impossibile verificare l'indirizzo del mittente - questo messaggio potrebbe essere contraffatto."
+    },
+    "body_truncated": "Questo messaggio è troppo grande per essere mostrato per intero.",
+    "bundle_too_large": "Gli allegati sono troppo grandi per essere raggruppati.",
+    "color_tag": {
+      "blue": "Blu",
+      "green": "Verde",
+      "none": "Nessuna",
+      "orange": "Arancione",
+      "pink": "Rosa",
+      "purple": "Viola",
+      "red": "Rosso",
+      "title": "Etichetta colorata",
+      "yellow": "Giallo"
+    },
+    "delete_permanently_message": "Questo messaggio verrà eliminato definitivamente e non potrà essere recuperato.",
+    "delete_permanently_title": "Eliminare definitivamente?",
+    "export_failed": "Esportazione non riuscita",
+    "forwarded": "Inoltrato",
+    "load_failed": "Impossibile caricare l'email",
+    "preview": {
+      "open_external": "Apri in un'app",
+      "pdf_external": "I PDF si aprono nel lettore PDF di questo dispositivo.",
+      "unsupported": "Nessuna anteprima per questo tipo di file."
+    },
+    "received_via": "a {name}",
+    "remove_color": "Rimuovi etichetta",
+    "replied": "Risposto",
+    "sender_actions": "Mittente…",
+    "set_color": "Imposta etichetta",
+    "show_all_count": "Mostra tutto ({count})",
+    "show_less": "Mostra meno",
+    "smime_unsupported": "Firmato/cifrato con S/MIME - non supportato su mobile",
+    "source_too_large": "Il messaggio è troppo grande per essere mostrato per intero. Condividi invece il sorgente completo.",
+    "thread_loading": "Caricamento conversazione...",
+    "unsubscribe_banner": {
+      "no_identity": "Nessuna identità di invio disponibile"
+    },
+    "view_dark_mode": "Visualizza in modalità scura",
+    "view_light_mode": "Visualizza in modalità chiara"
+  },
+  "files": {
+    "delete_cascade_hint": "Le cartelle vengono eliminate insieme a tutto il loro contenuto. L'operazione non può essere annullata.",
+    "delete_item_title": "Eliminare questo elemento?",
+    "delete_items_title": "Eliminare {count} elementi?",
+    "done": "Fatto",
+    "folder_empty": "Questa cartella è vuota",
+    "invalid_name": "Nome non valido",
+    "invalid_name_slash": "I nomi non possono contenere \"/\".",
+    "move_to": "Sposta in…",
+    "open_error": "Impossibile aprire il file",
+    "open_with": "Apri con…",
+    "preview_too_large": "Questo file è troppo grande per l'anteprima.",
+    "selected_count": "{count} selezionati",
+    "share_add_people": "Aggiungi persone",
+    "share_empty": "Non ancora condiviso con nessuno",
+    "share_error": "Impossibile aggiornare la condivisione",
+    "share_file_error": "Impossibile condividere il file",
+    "share_folder_hint": "Condividere una cartella ne condivide tutto il contenuto.",
+    "share_no_matches": "Nessun risultato",
+    "share_no_users": "Nessun altro utente trovato",
+    "share_remove": "Rimuovi accesso",
+    "share_role_custom": "Personalizzato",
+    "share_search_placeholder": "Cerca per nome o email",
+    "shared_with": "Condiviso con",
+    "sharing_access": "Condivisione e accesso",
+    "upload_unavailable": "Il selettore di file non è installato in questa build. Ricompila l'app per abilitare i caricamenti."
+  },
+  "identities": {
+    "badge": {
+      "to": "a {identity}",
+      "via": "tramite {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "Hai già effettuato l'accesso a questi account.",
+      "add_title": "Aggiungi un altro account",
+      "camera_allow": "Consenti l'accesso alla fotocamera",
+      "camera_disabled": "L'accesso alla fotocamera è disattivato. Attivalo nelle Impostazioni per scansionare un codice QR di accesso.",
+      "camera_needed": "Bulwark Mail ha bisogno dell'accesso alla fotocamera per scansionare un codice QR di accesso.",
+      "choose_subtitle": "Scegli come vuoi accedere.",
+      "confirm_check": "Controlla che sia tutto corretto",
+      "confirm_found": "Abbiamo trovato il tuo server di posta",
+      "confirm_subtitle": "Ora accederai dalla pagina del tuo provider.",
+      "connecting": "Connessione a {host}",
+      "connecting_detail": "Configurazione della casella di posta…",
+      "continue": "Continua",
+      "different_server": "Usa un altro server",
+      "elsewhere_title": "Un account altrove",
+      "email_desc": "Troveremo il tuo server di posta",
+      "email_step_hint": "Funziona con Stalwart e con qualsiasi altro server di posta JMAP.",
+      "email_step_subtitle": "Di solito è tutto ciò che serve per trovare il tuo server di posta.",
+      "email_step_title": "Qual è il tuo indirizzo email?",
+      "email_step_title_add": "Qual è l'altro indirizzo?",
+      "email_title": "Usa il mio indirizzo email",
+      "err_bad_detail": "Controlla email e password. Se il tuo account usa l'autenticazione a due fattori, crea una password per le app nella webmail e usala qui.",
+      "err_bad_title": "Non ha funzionato",
+      "err_cert_detail": "Il certificato di sicurezza del server è stato rifiutato. Se è il tuo server, verifica che il certificato sia valido e non scaduto.",
+      "err_cert_title": "Impossibile verificare {host}",
+      "err_code_expired_detail": "I codici di accesso sono validi per pochi minuti. Generane uno nuovo nella webmail e scansionalo di nuovo.",
+      "err_code_expired_title": "Questo codice è scaduto",
+      "err_generic_detail": "Si è verificato un errore. Riprova.",
+      "err_generic_title": "Accesso non riuscito",
+      "err_interrupted_detail": "La risposta non corrisponde alla richiesta che abbiamo avviato. Prova ad accedere di nuovo.",
+      "err_interrupted_title": "L'accesso è stato interrotto",
+      "err_no_server_detail": "Ricontrolla l'indirizzo oppure scansiona un codice di accesso dalla webmail.",
+      "err_no_server_title": "Nessun server di posta su {host}",
+      "err_no_webmail_detail": "Questo server non ha una webmail Bulwark né l'accesso OAuth. Usa una password (o una password per le app).",
+      "err_no_webmail_title": "Nessuna pagina di accesso su {host}",
+      "err_rate_detail": "Il server ci ha chiesto di attendere un momento. Riprova tra poco.",
+      "err_rate_detail_seconds": "Il server ci ha chiesto di attendere. Riprova tra circa {seconds} secondi.",
+      "err_rate_title": "Troppi tentativi",
+      "err_server_detail": "Il server ha risposto con un errore. Riprova tra qualche minuto.",
+      "err_server_title": "{host} ha dei problemi",
+      "err_totp_bad_detail": "Controlla la password e il codice attuale della tua app di autenticazione, poi riprova.",
+      "err_totp_detail": "Questo account è protetto con l'autenticazione a due fattori. Digita il codice a 6 cifre della tua app di autenticazione.",
+      "err_totp_title": "Inserisci il codice a due fattori",
+      "err_unreachable_detail": "Controlla la connessione e l'indirizzo del server, poi riprova.",
+      "err_unreachable_title": "Impossibile raggiungere {host}",
+      "know_server": "Conosco l'indirizzo del mio server",
+      "known_server_desc": "Conosciamo già questo server, quindi non c'è nulla da configurare",
+      "known_server_title": "Un altro account su {host}",
+      "looking_up": "Ricerca del tuo server…",
+      "manual": "Inserisci i dati del server manualmente",
+      "notice_bad_qr": "Questo codice non è un codice di accesso Bulwark",
+      "notice_bad_qr_detail": "Apri Bulwark sul web, poi Impostazioni → Sicurezza → Collega l'app mobile per mostrarne uno.",
+      "notice_bad_server": "Non sembra un indirizzo di server",
+      "notice_bad_server_detail": "Prova l'indirizzo che usi per la webmail, ad esempio mail.example.com.",
+      "notice_full_email": "Inserisci un indirizzo email completo",
+      "notice_full_email_detail": "Ad esempio ada@example.com. Se accedi con un nome utente, usa “Conosco l'indirizzo del mio server”.",
+      "notice_need_code": "Inserisci il codice a 6 cifre della tua app di autenticazione",
+      "notice_need_credentials": "Inserisci email e password",
+      "notice_need_server": "Prima serve l'indirizzo di un server",
+      "open_settings": "Apri Impostazioni",
+      "opening": "Apertura di {host}",
+      "opening_detail": "Completa l'accesso nella pagina appena aperta. Al resto pensiamo noi.",
+      "pairing": "Riscatto del codice di accesso",
+      "pairing_detail": "Associazione di questo dispositivo con {host}…",
+      "password_subtitle": "La password viene inviata solo a questo server e salvata nell'archivio sicuro del dispositivo.",
+      "password_title": "Accedi a {host}",
+      "provider_detail": "La digiterai nella loro pagina. Bulwark salva solo un token di accesso, che puoi revocare in qualsiasi momento.",
+      "provider_title": "La tua password resta al tuo provider",
+      "qr_hint": "Impostazioni → Sicurezza → Collega l'app mobile mostra un codice. Inquadralo con la fotocamera.",
+      "qr_hint_title": "Apri Bulwark sul computer",
+      "qr_title": "Codice di accesso",
+      "scan_desc": "Il modo più veloce se hai già effettuato l'accesso sul web",
+      "scan_title": "Scansiona un codice di accesso",
+      "server_hint": "Lo stesso indirizzo che digiti nel browser. Aggiungeremo noi https://.",
+      "server_label": "Indirizzo del server",
+      "server_not_found": "Non abbiamo trovato un server per {domain}. Se lo gestisci tu, l'indirizzo è quello che usi per la webmail.",
+      "server_scan_hint": "Se non sei sicuro, scansiona un codice di accesso: contiene l'indirizzo del server.",
+      "server_subtitle": "Inserisci l'indirizzo che usi per raggiungere la tua webmail.",
+      "server_title": "Qual è l'indirizzo del tuo server?",
+      "the_server": "il server",
+      "unencrypted": "Connessione non cifrata",
+      "use_password": "Accedi con una password",
+      "username_label": "Email o nome utente",
+      "your_server": "il tuo server"
+    }
+  },
+  "offline": {
+    "banner": "Sei offline",
+    "queued_changes": "{count, plural, one {# modifica verrà sincronizzata} other {# modifiche verranno sincronizzate}} quando ti riconnetti"
+  },
+  "push_prompt": {
+    "body": "Attiva le notifiche in background per ricevere i nuovi messaggi anche quando l'app è chiusa.",
+    "dismiss": "Non ora",
+    "enable": "Abilita",
+    "title": "Ricevi notifiche per la nuova posta"
+  },
+  "scheduled": {
+    "cancel_body": "Il messaggio non verrà consegnato. Una copia resta nella cartella Inviati.",
+    "cancel_failed": "Annullamento non riuscito",
+    "edit_failed": "Impossibile aprire il messaggio per modificarlo",
+    "keep_scheduled": "Mantieni programmato",
+    "reschedule_failed": "Riprogrammazione non riuscita",
+    "send_now_failed": "Impossibile inviare ora"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "Riordina gli account nel selettore degli account, scegli quello predefinito o disconnettine uno.",
+        "limit": "Raggiunto il massimo di {count} account."
+      },
+      "shared_accounts": {
+        "description_manage": "Account di gruppo e condivisi che puoi leggere tramite questo account. Selezionane uno per gestirne i filtri e il risponditore automatico."
+      },
+      "unknown": "Sconosciuto"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "Aggiornamento obbligatorio: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "Aggiornamento di sicurezza: {version}",
+        "update_available": "Aggiornamento: {version}",
+        "update_store_hint": "disponibile su TestFlight / App Store"
+      },
+      "export_settings": {
+        "saved_to": "Salvato in {path}"
+      },
+      "reset_settings": {
+        "done": "Tutte le impostazioni sono state ripristinate ai valori predefiniti."
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "Riavvia l'app per applicare la nuova direzione del testo.",
+        "system_default": "Predefinita di sistema"
+      },
+      "toolbar_labels": {
+        "description_mobile": "Mostra le etichette di testo accanto alle icone della barra degli strumenti."
+      }
+    },
+    "badges": {
+      "experimental": "Sperimentale",
+      "not_implemented": "Non implementato",
+      "unavailable": "Non disponibile"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "Modello usato quando salvi o condividi un allegato."
+      },
+      "email_template": {
+        "description_mobile": "Modello usato quando esporti un messaggio come file .eml."
+      },
+      "strip_diacritics": {
+        "description_mobile": "Converti le lettere accentate in ASCII semplice (ä → a)."
+      },
+      "transform_description": "Applicata a ogni nome file esportato.",
+      "transform_title": "Trasformazione nome file"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "Nessuna cartella di archivio trovata.",
+        "reorganize_result": "Spostate {moved} email su {total}.",
+        "reorganizing": "Riorganizzazione…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "Cosa succede quando tocchi un allegato."
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "Le risposte partono sempre dall'identità a cui è stato inviato il messaggio. Con questa opzione attiva, anche una risposta a un altro indirizzo dei tuoi domini (un alias catch-all) viene inviata da quell'indirizzo."
+      },
+      "plain_text_mode": {
+        "description_mobile": "Scrivi e leggi solo in testo normale."
+      },
+      "send_delay": {
+        "description_mobile": "Trattiene la posta in uscita per qualche secondo così puoi annullarla. Richiede il supporto del server."
+      },
+      "swipe_actions": {
+        "move": "Sposta nella cartella",
+        "pin": "Fissa"
+      },
+      "swipe_left_action": {
+        "description_mobile": "Azione quando trascini una riga dal bordo destro verso sinistra.",
+        "label_mobile": "Scorri a sinistra (destra → sinistra)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "Azione quando trascini una riga dal bordo sinistro verso destra.",
+        "label_mobile": "Scorri a destra (sinistra → destra)"
+      }
+    },
+    "experimental": {
+      "title": "Funzione sperimentale"
+    },
+    "folders": {
+      "account": "Account",
+      "cannot_delete": "Impossibile eliminare",
+      "description_mobile": "Crea, rinomina, sposta ed elimina cartelle. Tieni premuta una cartella nel pannello laterale per le azioni rapide.",
+      "edit_folder": "Modifica \"{name}\"",
+      "folder_name": "Nome della cartella",
+      "move_under": "Sposta sotto",
+      "name_placeholder": "Ricevute",
+      "name_required": "Nome obbligatorio",
+      "new_folder": "Nuova cartella",
+      "not_empty_message": "\"{name}\" contiene {count} email. Eliminare comunque?",
+      "not_empty_title": "Cartella non vuota",
+      "own_account": "Le mie cartelle",
+      "role": "Uso speciale",
+      "role_hint": "Assegna un ruolo di uso speciale (Archivio, Posta indesiderata, …) a questa cartella. Ogni ruolo può essere assegnato a una sola cartella.",
+      "save_failed": "Salvataggio non riuscito",
+      "system_folder_delete": "Le cartelle di sistema non possono essere rimosse.",
+      "system_folder_rename": "Le cartelle di sistema non possono essere rinominate.",
+      "top_level": "Livello principale"
+    },
+    "identities": {
+      "cannot_delete": "L'identità principale non può essere rimossa.",
+      "cannot_delete_title": "Impossibile eliminare",
+      "count": "{count, plural, =0 {Nessuna identità} one {# identità} other {# identità}}",
+      "create": "Nuova identità",
+      "delete_confirm": "Rimuovere \"{name}\"?",
+      "delete_failed": "Eliminazione non riuscita",
+      "delete_title": "Elimina identità",
+      "description_mobile": "Gestisci nomi dei mittenti, indirizzi email e firme. Tocca una riga per modificarla.",
+      "display_name": "Nome visualizzato",
+      "edit": "Modifica identità",
+      "email_address": "Indirizzo email",
+      "email_locked": "JMAP non consente di modificare l'email di un'identità; creane una nuova.",
+      "invalid_email": "Inserisci un indirizzo email valido per questa identità.",
+      "invalid_email_title": "Email non valida",
+      "new": "Nuova",
+      "no_name": "(nessun nome)",
+      "primary": "principale",
+      "save_failed": "Salvataggio non riuscito",
+      "text_signature": "Firma in testo normale"
+    },
+    "keywords": {
+      "description_mobile": "Etichette colorate per organizzare la posta.",
+      "discover": {
+        "add_all": "Aggiungi tutte",
+        "found": "Trovate {count} etichette non definite qui.",
+        "none": "Nessuna etichetta sconosciuta trovata in {scanned} messaggi.",
+        "partial": "(L'analisi si è fermata ai messaggi più recenti.)",
+        "progress": "Analizzati {scanned} messaggi su {total}…",
+        "scan": "Cerca etichette nella casella"
+      },
+      "reset_confirm": "Sostituire l'elenco delle etichette con quelle predefinite? Le etichette già applicate ai messaggi restano sul server.",
+      "reset_defaults": "Ripristina predefinite"
+    },
+    "layout": {
+      "description": "Regola le interazioni dell'elenco email per il mobile.",
+      "quick_actions": {
+        "description": "I tre pulsanti mostrati tra Precedente/Successivo in fondo a un'email aperta. Predefiniti: Rispondi, Rispondi a tutti e Inoltra.",
+        "label": "Azioni rapide del lettore",
+        "mark_unread": "Segna come letto/non letto",
+        "relocated": "{count, plural, one {{actions} è stata spostata nella barra superiore, così puoi ancora usarla.} other {{actions} sono state spostate nella barra superiore, così puoi ancora usarle.}}",
+        "slot": "Posizione {n}",
+        "spam": "Spam",
+        "star": "Aggiungi stella",
+        "tag": "Etichetta"
+      },
+      "show_avatars_in_junk": "Mostra gli avatar dei mittenti in Posta indesiderata",
+      "show_avatars_in_junk_description": "Carica i loghi dei mittenti per i messaggi nella cartella Posta indesiderata. Se disattivato, i mittenti di spam non vengono contattati.",
+      "show_folder_total_count": "Mostra il numero totale di messaggi nelle cartelle",
+      "show_folder_total_count_description": "Mostra il totale accanto al numero di non letti nell'elenco delle cartelle.",
+      "swipe_mode": {
+        "instant": "Immediato (scorri = azione)",
+        "reveal": "Mostra (scorri, poi tocca)"
+      },
+      "unified_cross_account": "Viste unificate tra account",
+      "unified_cross_account_description": "Combina tutti gli account connessi in \"Posta in arrivo unificata\". Se disattivato, le viste unificate restano all'interno dell'account attivo e delle sue cartelle condivise."
+    },
+    "message_list_order": {
+      "description": "Quali messaggi vengono prima nell'elenco. All'interno di ogni gruppo vengono prima i più recenti; il pulsante nell'intestazione inverte comunque tra più vecchi e più recenti.",
+      "preset_chronological": "Più recenti prima",
+      "preset_custom": "Personalizzato",
+      "preset_starred_first": "Speciali prima",
+      "preset_tagged_first": "Con tag prima",
+      "preset_unread_first": "Non letti prima",
+      "scope": "Applica a",
+      "scope_all": "Tutte le cartelle",
+      "scope_inbox": "Solo Posta in arrivo",
+      "tag": "Tag",
+      "title": "Ordine dell'elenco messaggi"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "Numero di non letti sull'icona dell'app",
+        "app_icon_badge_desc": "Mostra il numero di non letti della Posta in arrivo come badge sull'icona dell'app.",
+        "sound_channel_hint": "Il suono e la vibrazione degli avvisi di posta sono gestiti dal canale di notifica di Android: tieni premuta una notifica o apri le impostazioni dell'app nel sistema."
+      },
+      "push": {
+        "confirm_disable_message_mobile": "Questo dispositivo non riceverà più gli avvisi di nuova posta per questo account.",
+        "description_mobile": "Ricevi notifiche di sistema per la nuova posta quando l'app è chiusa. Consegnate tramite il relay push Bulwark; il relay non vede mai il contenuto della posta.",
+        "phase_account": "Account",
+        "phase_distributor": "Distributore UnifiedPush",
+        "phase_jmap": "Sottoscrizione al server di posta",
+        "phase_permission": "Autorizzazione alle notifiche",
+        "phase_platform": "Piattaforma",
+        "phase_relay": "Registrazione al relay",
+        "phase_token": "Token del dispositivo",
+        "phase_verify": "Verifica",
+        "relay_desc_mobile": "Il server che consegna le notifiche. Per impostazione predefinita usa il relay Bulwark ospitato; cambialo solo se ospiti in autonomia. Deve usare https.",
+        "relay_invalid": "Inserisci un URL https:// valido",
+        "setup_failed": "Configurazione non riuscita",
+        "status_android_only": "Le notifiche in background sono disponibili solo su Android.",
+        "transport_desc": "Come arrivano le notifiche a questo dispositivo: Firebase Cloud Messaging di Google oppure un'app distributore UnifiedPush (come ntfy) per una consegna senza Google.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "Metodo di consegna",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "Sono installate più app distributore UnifiedPush - scegli quella che deve consegnare le notifiche.",
+        "up_distributor_label": "Distributore",
+        "up_no_distributor": "Nessuna app distributore UnifiedPush è installata su questo dispositivo. Installane una (ad esempio ntfy) e riprova."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, one {# messaggio} other {# messaggi}}",
+      "clear": "Cancella",
+      "clear_cache": "Cancella cache",
+      "clear_message": "Rimuovere {count, plural, one {# messaggio in cache} other {# messaggi in cache}} ({size})?",
+      "clear_title": "Cancella posta offline",
+      "days_ago": "{count} g fa",
+      "description": "Scarica i messaggi recenti così si aprono subito e restano leggibili senza connessione. Solo il corpo — gli allegati vengono comunque scaricati quando servono.",
+      "downloading": "Download {completed}/{total}…",
+      "enabled": "Salva in cache la posta recente",
+      "enabled_desc": "Se attivo, l'app conserva su questo dispositivo il corpo dei messaggi del periodo selezionato.",
+      "hours_ago": "{count} h fa",
+      "just_now": "proprio ora",
+      "last_sync": "Ultima sincronizzazione: {when}",
+      "last_sync_failed": "Ultima sincronizzazione non riuscita: {message}",
+      "max_size": "Dimensione massima",
+      "max_size_desc": "I messaggi più vecchi vengono rimossi quando la cache supera questa dimensione.",
+      "minutes_ago": "{count} min fa",
+      "never": "mai",
+      "nothing_cached": "Ancora nulla in cache",
+      "queued_changes": "{count, plural, one {# modifica in attesa} other {# modifiche in attesa}} di sincronizzazione",
+      "scanning": "Analisi della posta recente…",
+      "sync_now": "Sincronizza ora",
+      "syncing": "Sincronizzazione…",
+      "title": "Posta offline",
+      "window": "Periodo",
+      "window_24h": "Ultime 24 ore",
+      "window_days": "Ultimi {count} giorni",
+      "window_desc": "Fino a quando salvare in cache, in base alla data di ricezione del messaggio."
+    },
+    "plugins": {
+      "mobile_description": "I plugin vengono eseguiti nella webmail e la estendono nel browser.",
+      "mobile_explainer": "L'app mobile non ha un runtime per i plugin. Installa e gestisci i plugin dalla webmail in Impostazioni → Plugin; i temi e i filtri che forniscono non vengono applicati qui."
+    },
+    "security": {
+      "client_cert": {
+        "active": "Attivo: {alias}",
+        "choose_another": "Scegline un altro",
+        "clear": "Rimuovi",
+        "clear_message": "Le nuove richieste non presenteranno più un certificato. Il certificato resta installato in Android.",
+        "clear_title": "Smettere di usare il certificato client?",
+        "description": "Sceglie un certificato installato in Android per autenticarsi al server durante l'handshake TLS. Utile quando il reverse proxy richiede mTLS.",
+        "hint": "Installa il certificato da Impostazioni di Android → Sicurezza → Crittografia e credenziali, poi sceglilo qui.",
+        "not_set": "Non impostato",
+        "pick": "Scegli certificato",
+        "pick_failed": "Selezione non riuscita",
+        "title": "Certificato client TLS"
+      },
+      "credentials": {
+        "allowed_ips": "IP consentiti (opzionale)",
+        "allowed_ips_hint": "Separati da virgola o spazio. Lascia vuoto per consentire qualsiasi IP.",
+        "clear_expiry": "Rimuovi scadenza",
+        "copy_now": "Copialo ora — viene mostrato una sola volta. Tieni premuto per selezionarlo.",
+        "create_error": "Impossibile creare",
+        "expires": "Scadenza (facoltativa)",
+        "expires_on": "scade il {date}",
+        "no_expiry": "Nessuna scadenza",
+        "none": "Ancora nessuna.",
+        "remove_error": "Impossibile rimuovere",
+        "remove_message": "Qualsiasi client che la usa smetterà di funzionare.",
+        "remove_title": "Rimuovere la credenziale?"
+      },
+      "display_name": {
+        "error_title": "Aggiornamento non riuscito"
+      },
+      "encryption": {
+        "no_keys": "Aggiungi prima una chiave pubblica - la crittografia a riposo ne richiede una."
+      },
+      "load_error": "Impossibile caricare le impostazioni di sicurezza.",
+      "not_supported": "La gestione della sicurezza dell'account richiede un server Stalwart. Queste funzioni non sono disponibili per questo account.",
+      "offline": "Sei offline. Le impostazioni di sicurezza dell'account richiedono una connessione attiva al server.",
+      "password": {
+        "change": "Cambia password",
+        "changed": "La password del tuo account è stata aggiornata.",
+        "changed_title": "Password cambiata",
+        "description": "Cambia la password di questo account.",
+        "error": "Impossibile cambiare la password.",
+        "mismatch": "Le password non corrispondono.",
+        "toggle_visibility": "Mostra o nascondi password",
+        "too_short": "La nuova password deve contenere almeno 8 caratteri."
+      },
+      "public_keys": {
+        "add_error": "Impossibile aggiungere la chiave pubblica",
+        "description": "Certificati S/MIME e chiavi PGP salvati sul server. Vengono usati per la crittografia a riposo.",
+        "expires": "scade il {date}",
+        "remove_error": "Impossibile rimuovere la chiave pubblica",
+        "remove_message": "La crittografia a riposo che usa questa chiave smetterà di funzionare.",
+        "remove_title": "Rimuovere la chiave pubblica?",
+        "title": "Chiavi pubbliche"
+      },
+      "two_factor": {
+        "active": "Attiva",
+        "code": "Codice di verifica",
+        "code_required": "Inserisci il codice a 6 cifre della tua app.",
+        "description": "Richiedi un codice monouso all'accesso.",
+        "disable": "Disattiva",
+        "disable_error": "Impossibile disattivare l'autenticazione a due fattori.",
+        "disable_hint": "Inserisci la tua password per disattivare l'autenticazione a due fattori.",
+        "enable_error": "Impossibile attivare l'autenticazione a due fattori.",
+        "enabled_message": "Al prossimo accesso ti verrà chiesto un codice.",
+        "enabled_title": "Autenticazione a due fattori attivata",
+        "enrol_hint": "Aggiungi questo segreto alla tua app di autenticazione, poi inserisci il codice a 6 cifre per confermare.",
+        "inactive": "Non attiva",
+        "label": "App di autenticazione",
+        "manual_secret": "Oppure inserisci questo segreto manualmente",
+        "no_app": "Impossibile aprire un'app di autenticazione. Aggiungi manualmente il segreto qui sotto.",
+        "no_app_title": "Nessuna app di autenticazione",
+        "open_app": "Aggiungi all'app di autenticazione",
+        "password_required": "Inserisci la password attuale.",
+        "section_title": "Autenticazione a due fattori"
+      }
+    },
+    "sidebar_apps": {
+      "add": "Aggiungi app",
+      "empty": "Nessuna app aggiunta.",
+      "form": {
+        "name": "Nome",
+        "name_placeholder": "Nome dell'app",
+        "open_mode": "Modalità di apertura",
+        "show_on_mobile": "Mostra su mobile",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "Mantieni in esecuzione in background le app integrate quando passi ad altro.",
+      "open_mode": {
+        "inline": "Integrato",
+        "new_tab": "Nuova scheda",
+        "tab": "Scheda"
+      }
+    },
+    "smime": {
+      "mobile_description": "Firma e cifra la posta con certificati S/MIME.",
+      "mobile_explainer": "S/MIME non è ancora disponibile nell'app mobile. Gestisci chiavi e certificati nella webmail; qui i messaggi firmati vengono mostrati senza verifica."
+    },
+    "tabs": {
+      "plugins": "Plugin"
+    },
+    "templates": {
+      "delete_title": "Elimina modello"
+    },
+    "themes": {
+      "default_description": "Le palette chiara e scura predefinite.",
+      "default_name": "Bulwark",
+      "mobile_description": "Scegli un tema di colori. I temi seguono l'impostazione chiaro/scuro di Aspetto; i pacchetti di temi personalizzati si gestiscono nella webmail.",
+      "title": "Temi"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "Le date devono essere nel formato \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "Richiede attenzione",
+    "remove_account_hint": "Tieni premuto per rimuovere questo account",
+    "remove_account_message": "Esci da {account} su questo dispositivo. La tua posta resta sul server.",
+    "remove_account_title": "Rimuovere l'account?",
+    "show_unread": "Mostra non letti"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "Impossibile caricare {count} account"
+  },
+  "updates": {
+    "advisory": "Avviso di sicurezza",
+    "advisory_desc": "Dettagli sul problema risolto da questa versione.",
+    "auto_check": "Controlla automaticamente",
+    "auto_check_desc": "Cerca aggiornamenti ogni poche ore all'avvio dell'app.",
+    "available": "Aggiornamento disponibile",
+    "available_desc": "Tocca Installa per scaricare la v{version} e aprirla con il programma di installazione pacchetti di Android.",
+    "banner": {
+      "advisory": "Leggi l'avviso",
+      "deprecated_subtitle": "Installa la v{version} per continuare a usare l'app.",
+      "deprecated_title": "Questa versione non è più supportata",
+      "security_subtitle": "La v{version} risolve un problema di sicurezza. Installala il prima possibile.",
+      "security_title": "Aggiornamento di sicurezza disponibile",
+      "subtitle": "La v{version} è pronta per l'installazione.",
+      "title": "Aggiornamento disponibile"
+    },
+    "building": "Aggiornamento in compilazione",
+    "building_desc": "La v{version} è stata pubblicata, ma l'APK è ancora in fase di compilazione. Questa pagina ricontrollerà ogni 30 secondi.",
+    "check": "Cerca aggiornamenti",
+    "check_again": "Controlla di nuovo",
+    "check_now": "Controlla ora",
+    "checking": "Verifica in corso…",
+    "current_version": "Versione attuale",
+    "description": "Cerca nuove versioni e installale.",
+    "downloading": "Download in corso…",
+    "downloading_pct": "Download {pct}%",
+    "install": "Installa",
+    "installing": "Installazione…",
+    "last_checked": "Ultimo controllo",
+    "last_error": "Ultimo errore: {message}",
+    "latest_version": "Ultima versione",
+    "never": "mai",
+    "open": "Apri",
+    "open_github": "Apri su GitHub",
+    "opening_installer": "Apertura del programma di installazione…",
+    "progress_of": "{written} di {total}",
+    "published": "Pubblicata il {date}",
+    "rate_limited": "GitHub sta limitando i controlli degli aggiornamenti; nuovo tentativo più tardi.",
+    "release_notes": "Note di rilascio",
+    "release_page": "Pagina della release",
+    "release_page_desc": "Note di rilascio complete e download su GitHub.",
+    "release_page_pending_desc": "Segui l'avanzamento della build o scarica l'APK manualmente.",
+    "severity_deprecated": "Obbligatorio",
+    "severity_security": "Sicurezza",
+    "title": "Aggiornamenti dell'app"
+  }
+}

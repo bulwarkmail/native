@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "이후",
+    "before": "이전",
+    "no_attachment": "첨부파일 없음",
+    "not_starred": "별표 없음"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "앞으로 {count}일 동안 일정이 없어요.",
+      "no_upcoming": "다가오는 일정이 없어요"
+    },
+    "alerts": {
+      "unit_minutes_after": "분 후"
+    },
+    "drawer": {
+      "my_calendars": "내 캘린더",
+      "no_calendars": "아직 캘린더가 없어요.",
+      "shared_with_me": "나와 공유됨",
+      "subscribed": "구독 중"
+    },
+    "event_modal": {
+      "participant_placeholder": "이메일로 참석자 추가"
+    },
+    "events": {
+      "copy_link_short": "링크",
+      "export_ics_short": ".ics",
+      "tap_to_create": "+를 눌러 만들어 보세요"
+    },
+    "form": {
+      "description_placeholder": "메모, 안건…",
+      "location_placeholder": "장소 또는 주소",
+      "time": "시간"
+    },
+    "invitation": {
+      "accept": "예",
+      "add_error": "일정을 추가할 수 없어요",
+      "add_to_calendar": "캘린더에 추가",
+      "added": "캘린더에 추가되었어요",
+      "already_in_calendar": "이미 캘린더에 있어요",
+      "cancelled": "취소된 일정이에요",
+      "decline": "아니요",
+      "join_video": "화상 통화 참여",
+      "no_writable_calendar": "쓰기 가능한 캘린더가 없어요",
+      "organizer": "주최자",
+      "reading": "초대장을 읽는 중…",
+      "reply": "참석자가 이 초대에 응답했어요",
+      "response_error": "응답을 보낼 수 없어요",
+      "response_sent": "응답이 전송되었어요",
+      "tentative": "미정",
+      "title": "캘린더 초대",
+      "trust_verified": "보낸 사람 확인됨"
+    },
+    "management": {
+      "clear_confirm": "모두 지우기",
+      "clear_description": "이 캘린더의 모든 일정이 삭제돼요. 다른 캘린더에도 속한 일정은 이 캘린더와의 연결만 해제돼요.",
+      "clear_title": "모든 일정을 지울까요?",
+      "delete_description": "캘린더와 모든 일정이 삭제돼요. 이 작업은 되돌릴 수 없어요.",
+      "delete_title": "캘린더를 삭제할까요?",
+      "description_placeholder": "선택 사항",
+      "edit_calendar": "캘린더 수정",
+      "new_calendar": "새 캘린더"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "월간 보기에 주 차 번호를 표시해요.",
+      "time_zone": "시간대",
+      "time_zone_auto": "기기 시간대",
+      "time_zone_desc": "새 일정과 캘린더 표시에 사용하는 시간대예요. \"기기\"를 선택하면 휴대폰 설정을 따라요."
+    },
+    "share": {
+      "add_people": "사용자 추가",
+      "error": "공유 업데이트에 실패했어요",
+      "no_matches": "일치하는 항목이 없어요",
+      "no_principals": "이 서버에서는 공유를 사용할 수 없어요.",
+      "role_custom": "사용자 지정",
+      "search_placeholder": "이름 또는 이메일로 검색",
+      "shared_with": "공유 대상",
+      "title": "공유"
+    },
+    "tasks": {
+      "add_placeholder": "할 일 추가…",
+      "add_time": "시간 추가",
+      "delete_error": "할 일을 삭제하지 못했어요",
+      "update_error": "할 일을 업데이트하지 못했어요"
+    }
+  },
+  "common": {
+    "add": "추가",
+    "back": "뒤로",
+    "confirm": "확인",
+    "create": "만들기",
+    "dismiss": "닫기",
+    "done": "완료",
+    "remove": "제거",
+    "retry": "다시 시도",
+    "undo": "실행 취소",
+    "update": "업데이트"
+  },
+  "context_menu": {
+    "color_tag": "태그",
+    "remove_color": "태그 제거"
+  },
+  "email_composer": {
+    "attach_camera": "카메라",
+    "attachment_reminder_body": "메시지에 \"{keyword}\"이(가) 언급되어 있지만 첨부된 파일이 없어요. 그래도 보낼까요?",
+    "attachment_reminder_title": "첨부 파일을 잊으셨나요?",
+    "attachments_too_large_total": "첨부 파일이 이 서버의 메시지당 한도({max})를 넘어요.",
+    "editor_unavailable": "메시지 내용을 읽을 수 없어요. 텍스트를 복사한 다음 작성 화면을 닫았다가 다시 열어 주세요.",
+    "identity_unavailable": "보내는 사람을 사용할 수 없어요",
+    "image_load_failed": "이미지를 불러올 수 없어요",
+    "no_recipient": "(받는 사람 없음)",
+    "no_sent_folder": "보낸편지함을 찾을 수 없어요",
+    "permission_camera": "사진을 찍으려면 카메라 권한이 필요해요.",
+    "permission_photos": "이미지를 첨부하려면 사진 보관함 권한이 필요해요.",
+    "recipient_add_contact": "연락처에 추가",
+    "recipient_copy": "주소 복사",
+    "recipient_move_to": "{field}(으)로 이동",
+    "recipient_remove": "제거",
+    "save_draft": "임시 저장",
+    "save_failed_no_drafts": "이 메일을 저장할 임시보관함이 없어요.",
+    "save_failed_no_identity": "보내는 사람 정보를 불러올 수 없어 이 메일을 임시 저장할 수 없어요. 연결 상태를 확인하거나, 닫기 전에 텍스트를 복사해 두세요.",
+    "schedule_custom": "날짜 및 시간 선택…",
+    "schedule_in_1h": "1시간 후",
+    "schedule_in_3h": "3시간 후",
+    "schedule_past_body": "예약 시간은 미래여야 해요.",
+    "schedule_past_title": "미래 시간을 선택해 주세요",
+    "schedule_tomorrow": "내일 오전 8:00",
+    "schedule_tomorrow_morning": "내일 아침",
+    "schedule_too_late_body": "서버가 허용하는 시간보다 늦어요. 더 이른 시간을 선택해 주세요.",
+    "schedule_too_late_title": "너무 먼 시간이에요",
+    "schedule_unsupported_body": "이 메일 서버는 예약 보내기를 지원하지 않아요.",
+    "schedule_unsupported_title": "예약 보내기를 사용할 수 없어요",
+    "scheduled_body": "메시지가 {time}에 전송돼요.",
+    "scheduled_title": "예약됨",
+    "send_now": "지금 보내기",
+    "send_timeout_body": "메시지가 이미 발송되었을 수 있어요. 다시 보내기 전에 보낸편지함을 확인해 주세요.",
+    "send_timeout_title": "서버에서 응답이 없어요",
+    "undo_send_label": "{seconds}초 후 전송…",
+    "uploading": "업로드 중...",
+    "validation": {
+      "subject_required": "제목을 추가해 주세요"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "계정 간 이동은 인터넷 연결이 필요해요",
+    "emails_archived_count": "{count, plural, other {메일 #개}}를 보관했어요",
+    "emails_moved_to": "{count, plural, other {메일 #개}}를 {mailbox}(으)로 이동했어요",
+    "error": "오류",
+    "marked_as_spam": "스팸으로 표시했어요",
+    "marked_as_spam_count": "{count, plural, other {메일 #개}}를 스팸으로 표시했어요",
+    "marked_not_spam": "스팸 아님으로 표시했어요",
+    "marked_not_spam_count": "{count, plural, other {메일 #개}}를 스팸 아님으로 표시했어요",
+    "move_same_account": "메시지는 같은 계정 안에서만 이동할 수 있어요",
+    "moved_to_trash": "메일을 휴지통으로 이동했어요",
+    "moved_to_trash_count": "{count, plural, other {메일 #개}}를 휴지통으로 이동했어요",
+    "no_archive_folder": "서버에서 보관함을 찾을 수 없어요.",
+    "no_emails_in": "{folder}에 메일이 없어요",
+    "no_junk_folder": "서버에서 스팸함을 찾을 수 없어요.",
+    "no_mailboxes": "메일함을 찾을 수 없어요",
+    "no_mailboxes_hint": "JMAP 계정에 메일 기능이 있는지 확인해 주세요.",
+    "no_tags_defined": "정의된 태그가 없어요. 설정에서 태그를 추가해 주세요.",
+    "no_trash_folder": "서버에서 휴지통을 찾을 수 없어요. 메일함 설정을 확인해 주세요.",
+    "offline_nothing_cached": "연결되어 있지 않아요. 아직 캐시된 메일이 없어서 표시할 내용이 없어요.",
+    "open_draft_failed": "임시보관 메일을 열 수 없어요.",
+    "outbox_discard": "삭제",
+    "outbox_failed": "변경 사항 {count}개를 서버에 저장할 수 없어요.",
+    "recent_searches": "최근 검색",
+    "scope_all_folders": "모든 폴더",
+    "scope_this_folder": "이 폴더",
+    "search_placeholder": "메일 검색...",
+    "showing_cached": "캐시된 메일을 표시하는 중",
+    "swipe_move": "이동",
+    "swipe_spam": "스팸",
+    "total": "전체",
+    "undo_failed": "실행 취소에 실패했어요",
+    "unknown_tag": "여기에 정의되지 않음"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "보낸 사람을 연락처에 추가",
+    "address_actions": {
+      "add_contact": "연락처에 추가",
+      "compose": "새 메시지",
+      "copy": "주소 복사",
+      "copy_failed": "주소를 복사할 수 없어요."
+    },
+    "attachment_actions": {
+      "open": "열기",
+      "preview": "미리보기",
+      "save": "저장",
+      "share": "공유"
+    },
+    "attachment_failed": "첨부 파일을 열 수 없어요",
+    "authentication": {
+      "spoof_warning": "보낸 사람 주소를 확인할 수 없어요. 위조된 메시지일 수 있어요."
+    },
+    "body_truncated": "메시지가 너무 커서 전체를 표시할 수 없어요.",
+    "bundle_too_large": "첨부 파일이 너무 커서 하나로 묶을 수 없어요.",
+    "color_tag": {
+      "blue": "파랑",
+      "green": "초록",
+      "none": "없음",
+      "orange": "주황",
+      "pink": "분홍",
+      "purple": "보라",
+      "red": "빨강",
+      "title": "색상 태그",
+      "yellow": "노랑"
+    },
+    "delete_permanently_message": "이 메시지는 영구적으로 삭제되며, 다시 복구할 수 없어요.",
+    "delete_permanently_title": "영구 삭제할까요?",
+    "export_failed": "내보내기에 실패했어요",
+    "forwarded": "전달함",
+    "load_failed": "메일을 불러오지 못했어요",
+    "preview": {
+      "open_external": "앱에서 열기",
+      "pdf_external": "PDF는 이 기기의 PDF 뷰어에서 열려요.",
+      "unsupported": "이 파일 형식은 미리보기를 지원하지 않아요."
+    },
+    "received_via": "받는 사람: {name}",
+    "remove_color": "태그 제거",
+    "replied": "답장함",
+    "sender_actions": "보낸 사람…",
+    "set_color": "태그 설정",
+    "show_all_count": "전체 보기({count})",
+    "show_less": "간략히 보기",
+    "smime_unsupported": "S/MIME로 서명/암호화됨 - 모바일에서는 지원되지 않아요",
+    "source_too_large": "메시지가 너무 커서 전체를 표시할 수 없어요. 대신 전체 원본을 공유해 주세요.",
+    "thread_loading": "대화를 불러오는 중...",
+    "unsubscribe_banner": {
+      "no_identity": "사용할 수 있는 보내는 사람 주소가 없어요"
+    },
+    "view_dark_mode": "다크 모드로 보기",
+    "view_light_mode": "라이트 모드로 보기"
+  },
+  "files": {
+    "delete_cascade_hint": "폴더를 삭제하면 안에 있는 모든 항목도 함께 삭제돼요. 이 작업은 되돌릴 수 없어요.",
+    "delete_item_title": "이 항목을 삭제할까요?",
+    "delete_items_title": "항목 {count}개를 삭제할까요?",
+    "done": "완료",
+    "folder_empty": "이 폴더는 비어 있어요",
+    "invalid_name": "잘못된 이름",
+    "invalid_name_slash": "이름에 \"/\"를 사용할 수 없어요.",
+    "move_to": "이동할 위치…",
+    "open_error": "파일을 열 수 없어요",
+    "open_with": "다른 앱으로 열기…",
+    "preview_too_large": "파일이 너무 커서 미리볼 수 없어요.",
+    "selected_count": "{count}개 선택됨",
+    "share_add_people": "사용자 추가",
+    "share_empty": "아직 아무와도 공유하지 않았어요",
+    "share_error": "공유 업데이트에 실패했어요",
+    "share_file_error": "파일을 공유할 수 없어요",
+    "share_folder_hint": "폴더를 공유하면 안에 있는 모든 항목이 공유돼요.",
+    "share_no_matches": "일치하는 항목이 없어요",
+    "share_no_users": "다른 사용자를 찾을 수 없어요",
+    "share_remove": "액세스 권한 제거",
+    "share_role_custom": "사용자 지정",
+    "share_search_placeholder": "이름 또는 이메일로 검색",
+    "shared_with": "공유 대상",
+    "sharing_access": "공유 및 액세스",
+    "upload_unavailable": "이 빌드에는 파일 선택기가 설치되어 있지 않아요. 업로드를 사용하려면 앱을 다시 빌드해 주세요."
+  },
+  "identities": {
+    "badge": {
+      "to": "받는 사람: {identity}",
+      "via": "{identity} 경유"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "이미 로그인된 계정이에요.",
+      "add_title": "다른 계정 추가",
+      "camera_allow": "카메라 접근 허용",
+      "camera_disabled": "카메라 접근이 꺼져 있어요. 로그인 QR 코드를 스캔하려면 설정에서 켜 주세요.",
+      "camera_needed": "로그인 QR 코드를 스캔하려면 Bulwark Mail에 카메라 접근 권한이 필요해요.",
+      "choose_subtitle": "로그인 방법을 선택해 주세요.",
+      "confirm_check": "내용이 맞는지 확인해 주세요",
+      "confirm_found": "메일 서버를 찾았어요",
+      "confirm_subtitle": "다음 단계에서 메일 서비스 제공업체의 페이지에서 로그인해요.",
+      "connecting": "{host}에 연결하는 중",
+      "connecting_detail": "메일함을 설정하는 중…",
+      "continue": "계속",
+      "different_server": "다른 서버 사용",
+      "elsewhere_title": "다른 곳에 있는 계정",
+      "email_desc": "메일 서버를 찾아 드려요",
+      "email_step_hint": "Stalwart 및 기타 모든 JMAP 메일 서버에서 사용할 수 있어요.",
+      "email_step_subtitle": "보통 이것만으로 메일 서버를 찾을 수 있어요.",
+      "email_step_title": "이메일 주소가 무엇인가요?",
+      "email_step_title_add": "다른 주소는 무엇인가요?",
+      "email_title": "내 이메일 주소 사용",
+      "err_bad_detail": "이메일과 비밀번호를 확인해 주세요. 계정에 2단계 인증을 사용 중이라면 웹메일에서 앱 비밀번호를 만들어 여기에 입력해 주세요.",
+      "err_bad_title": "로그인하지 못했어요",
+      "err_cert_detail": "서버의 보안 인증서가 거부되었어요. 직접 운영하는 서버라면 인증서가 유효하고 만료되지 않았는지 확인해 주세요.",
+      "err_cert_title": "{host}을(를) 확인할 수 없어요",
+      "err_code_expired_detail": "로그인 코드는 몇 분 동안만 유효해요. 웹메일에서 새 코드를 생성한 후 다시 스캔해 주세요.",
+      "err_code_expired_title": "코드가 만료되었어요",
+      "err_generic_detail": "문제가 발생했어요. 다시 시도해 주세요.",
+      "err_generic_title": "로그인 실패",
+      "err_interrupted_detail": "응답이 시작한 요청과 일치하지 않아요. 다시 로그인해 주세요.",
+      "err_interrupted_title": "로그인이 중단되었어요",
+      "err_no_server_detail": "주소를 다시 확인하거나, 대신 웹메일의 로그인 코드를 스캔해 주세요.",
+      "err_no_server_title": "{host}에 메일 서버가 없어요",
+      "err_no_webmail_detail": "이 서버에는 Bulwark 웹메일과 OAuth 로그인이 없어요. 대신 비밀번호(또는 앱 비밀번호)를 사용해 주세요.",
+      "err_no_webmail_title": "{host}에 로그인 페이지가 없어요",
+      "err_rate_detail": "서버에서 잠시 기다려 달라고 요청했어요. 잠시 후 다시 시도해 주세요.",
+      "err_rate_detail_seconds": "서버에서 기다려 달라고 요청했어요. 약 {seconds}초 후에 다시 시도해 주세요.",
+      "err_rate_title": "시도 횟수가 너무 많아요",
+      "err_server_detail": "서버에서 오류를 반환했어요. 몇 분 후에 다시 시도해 주세요.",
+      "err_server_title": "{host}에 문제가 있어요",
+      "err_totp_bad_detail": "비밀번호와 인증 앱의 현재 코드를 확인한 후 다시 시도해 주세요.",
+      "err_totp_detail": "이 계정은 2단계 인증으로 보호되고 있어요. 인증 앱의 6자리 코드를 입력해 주세요.",
+      "err_totp_title": "2단계 인증 코드를 입력해 주세요",
+      "err_unreachable_detail": "연결 상태와 서버 주소를 확인한 후 다시 시도해 주세요.",
+      "err_unreachable_title": "{host}에 연결할 수 없어요",
+      "know_server": "서버 주소를 알고 있어요",
+      "known_server_desc": "이미 알고 있는 서버라서 설정이 필요 없어요",
+      "known_server_title": "{host}의 다른 계정",
+      "looking_up": "서버를 찾는 중…",
+      "manual": "서버 정보 직접 입력",
+      "notice_bad_qr": "Bulwark 로그인 코드가 아니에요",
+      "notice_bad_qr_detail": "웹에서 Bulwark를 열고 설정 → 보안 → 모바일 앱 연결에서 코드를 표시해 주세요.",
+      "notice_bad_server": "서버 주소가 아닌 것 같아요",
+      "notice_bad_server_detail": "mail.example.com처럼 웹메일에 사용하는 주소를 입력해 보세요.",
+      "notice_full_email": "전체 이메일 주소를 입력해 주세요",
+      "notice_full_email_detail": "예: ada@example.com. 사용자 이름으로 로그인한다면 “서버 주소를 알고 있어요”를 사용해 주세요.",
+      "notice_need_code": "인증 앱의 6자리 코드를 입력해 주세요",
+      "notice_need_credentials": "이메일과 비밀번호를 입력해 주세요",
+      "notice_need_server": "먼저 서버 주소가 필요해요",
+      "open_settings": "설정 열기",
+      "opening": "{host}을(를) 여는 중",
+      "opening_detail": "방금 열린 페이지에서 로그인을 완료해 주세요. 나머지는 앱이 처리할게요.",
+      "pairing": "로그인 코드를 확인하는 중",
+      "pairing_detail": "이 기기를 {host}와(과) 페어링하는 중…",
+      "password_subtitle": "비밀번호는 이 서버로만 전송되며 기기의 키체인에 저장돼요.",
+      "password_title": "{host}에 로그인",
+      "provider_detail": "비밀번호는 제공업체의 페이지에서 입력해요. Bulwark는 로그인 토큰만 저장하며, 언제든지 해지할 수 있어요.",
+      "provider_title": "비밀번호는 제공업체에만 전달돼요",
+      "qr_hint": "설정 → 보안 → 모바일 앱 연결에서 코드가 표시돼요. 카메라를 코드에 비춰 주세요.",
+      "qr_hint_title": "컴퓨터에서 Bulwark를 열어 주세요",
+      "qr_title": "로그인 코드",
+      "scan_desc": "웹에 로그인되어 있다면 가장 빠른 방법이에요",
+      "scan_title": "로그인 코드 스캔",
+      "server_hint": "브라우저에 입력하는 주소와 같아요. https://는 자동으로 추가돼요.",
+      "server_label": "서버 주소",
+      "server_not_found": "{domain}의 서버를 찾을 수 없어요. 직접 호스팅하는 경우 웹메일에 사용하는 주소를 입력해 주세요.",
+      "server_scan_hint": "잘 모르겠다면 대신 로그인 코드를 스캔해 주세요. 코드에 서버 주소가 포함되어 있어요.",
+      "server_subtitle": "웹메일에 접속할 때 사용하는 주소를 입력해 주세요.",
+      "server_title": "서버 주소가 무엇인가요?",
+      "the_server": "서버",
+      "unencrypted": "암호화되지 않은 연결",
+      "use_password": "대신 비밀번호로 로그인",
+      "username_label": "이메일 또는 사용자 이름",
+      "your_server": "내 서버"
+    }
+  },
+  "offline": {
+    "banner": "오프라인 상태예요",
+    "queued_changes": "{count, plural, other {변경 사항 #개}}는 다시 연결되면 동기화돼요"
+  },
+  "push_prompt": {
+    "body": "백그라운드 알림을 켜면 앱이 닫혀 있어도 새 메시지를 받을 수 있어요.",
+    "dismiss": "나중에",
+    "enable": "활성화",
+    "title": "새 메일 알림 받기"
+  },
+  "scheduled": {
+    "cancel_body": "메시지는 전송되지 않아요. 사본은 보낸편지함에 남아 있어요.",
+    "cancel_failed": "취소하지 못했어요",
+    "edit_failed": "메시지를 편집하기 위해 열 수 없어요",
+    "keep_scheduled": "예약 유지",
+    "reschedule_failed": "다시 예약하지 못했어요",
+    "send_now_failed": "지금 보낼 수 없어요"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "계정 전환 목록에 표시되는 계정 순서를 바꾸거나, 기본 계정을 선택하거나, 계정에서 로그아웃할 수 있어요.",
+        "limit": "최대 계정 수({count}개)에 도달했어요."
+      },
+      "shared_accounts": {
+        "description_manage": "이 계정을 통해 읽을 수 있는 그룹 및 공유 계정이에요. 하나를 선택하면 필터와 부재중 자동 응답을 관리할 수 있어요."
+      },
+      "unknown": "알 수 없음"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "업데이트 필요: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "보안 업데이트: {version}",
+        "update_available": "업데이트: {version}",
+        "update_store_hint": "TestFlight / App Store에서 받을 수 있어요"
+      },
+      "export_settings": {
+        "saved_to": "{path}에 저장했어요"
+      },
+      "reset_settings": {
+        "done": "모든 설정을 기본값으로 되돌렸어요."
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "새 텍스트 방향을 적용하려면 앱을 다시 시작해 주세요.",
+        "system_default": "시스템 기본값"
+      },
+      "toolbar_labels": {
+        "description_mobile": "도구 모음 아이콘 옆에 텍스트 설명을 보여줘요."
+      }
+    },
+    "badges": {
+      "experimental": "실험적",
+      "not_implemented": "미구현",
+      "unavailable": "사용 불가"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "첨부 파일을 저장하거나 공유할 때 사용하는 템플릿이에요."
+      },
+      "email_template": {
+        "description_mobile": "메시지를 .eml 파일로 내보낼 때 사용하는 템플릿이에요."
+      },
+      "strip_diacritics": {
+        "description_mobile": "악센트가 있는 문자를 일반 ASCII 문자로 변환해요 (ä → a)."
+      },
+      "transform_description": "내보내는 모든 파일 이름에 적용돼요.",
+      "transform_title": "파일 이름 변환"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "보관함을 찾을 수 없어요.",
+        "reorganize_result": "메일 {total}개 중 {moved}개를 이동했어요.",
+        "reorganizing": "다시 정리하는 중…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "첨부 파일을 탭했을 때의 동작이에요."
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "답장은 항상 메시지를 받은 보내는 사람 주소로 전송돼요. 이 옵션을 켜면 내 도메인의 다른 주소(catch-all 별칭)로 받은 메시지에 대한 답장도 해당 주소에서 전송돼요."
+      },
+      "plain_text_mode": {
+        "description_mobile": "일반 텍스트로만 작성하고 읽어요."
+      },
+      "send_delay": {
+        "description_mobile": "보내는 메일을 몇 초 동안 보류해서 취소할 수 있게 해요. 서버 지원이 필요해요."
+      },
+      "swipe_actions": {
+        "move": "폴더로 이동",
+        "pin": "고정"
+      },
+      "swipe_left_action": {
+        "description_mobile": "행을 오른쪽 끝에서 왼쪽으로 끌었을 때의 동작이에요.",
+        "label_mobile": "왼쪽으로 스와이프 (오른쪽 → 왼쪽)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "행을 왼쪽 끝에서 오른쪽으로 끌었을 때의 동작이에요.",
+        "label_mobile": "오른쪽으로 스와이프 (왼쪽 → 오른쪽)"
+      }
+    },
+    "experimental": {
+      "title": "실험적 기능"
+    },
+    "folders": {
+      "account": "계정",
+      "cannot_delete": "삭제할 수 없어요",
+      "description_mobile": "폴더를 만들고, 이름을 바꾸고, 이동하고, 삭제할 수 있어요. 메뉴에서 폴더를 길게 누르면 빠른 작업을 사용할 수 있어요.",
+      "edit_folder": "\"{name}\" 편집",
+      "folder_name": "폴더 이름",
+      "move_under": "상위 폴더",
+      "name_placeholder": "영수증",
+      "name_required": "이름을 입력해 주세요",
+      "new_folder": "새 폴더",
+      "not_empty_message": "\"{name}\"에 메일이 {count}개 있어요. 그래도 삭제할까요?",
+      "not_empty_title": "폴더가 비어 있지 않아요",
+      "own_account": "내 폴더",
+      "role": "특수 용도",
+      "role_hint": "이 폴더에 특수 용도 역할(보관함, 스팸함 등)을 지정해요. 각 역할은 폴더 하나에만 지정할 수 있어요.",
+      "save_failed": "저장에 실패했어요",
+      "system_folder_delete": "시스템 폴더는 삭제할 수 없어요.",
+      "system_folder_rename": "시스템 폴더의 이름은 바꿀 수 없어요.",
+      "top_level": "최상위"
+    },
+    "identities": {
+      "cannot_delete": "기본 보내는 사람 주소는 삭제할 수 없어요.",
+      "cannot_delete_title": "삭제할 수 없어요",
+      "count": "{count, plural, =0 {설정된 주소 없음} other {주소 #개}}",
+      "create": "새 보내는 사람",
+      "delete_confirm": "\"{name}\"을(를) 삭제할까요?",
+      "delete_failed": "삭제에 실패했어요",
+      "delete_title": "보내는 사람 삭제",
+      "description_mobile": "보내는 사람 이름, 이메일 주소, 서명을 관리해요. 항목을 탭하면 편집할 수 있어요.",
+      "display_name": "표시 이름",
+      "edit": "보내는 사람 수정",
+      "email_address": "이메일 주소",
+      "email_locked": "JMAP에서는 보내는 사람의 이메일 주소를 변경할 수 없어요. 대신 새로 만들어 주세요.",
+      "invalid_email": "이 보내는 사람에 사용할 올바른 이메일 주소를 입력해 주세요.",
+      "invalid_email_title": "잘못된 이메일",
+      "new": "새로 만들기",
+      "no_name": "(이름 없음)",
+      "primary": "기본",
+      "save_failed": "저장에 실패했어요",
+      "text_signature": "일반 텍스트 서명"
+    },
+    "keywords": {
+      "description_mobile": "메일을 정리하는 색상 태그예요.",
+      "discover": {
+        "add_all": "모두 추가",
+        "found": "여기에 정의되지 않은 태그 {count}개를 찾았어요.",
+        "none": "메시지 {scanned}개에서 알 수 없는 태그를 찾지 못했어요.",
+        "partial": "(최근 메시지만 검색했어요.)",
+        "progress": "메시지 {total}개 중 {scanned}개 검색함…",
+        "scan": "메일함에서 태그 찾기"
+      },
+      "reset_confirm": "태그 목록을 기본 태그로 바꿀까요? 메시지에 이미 설정된 태그는 서버에 그대로 남아요.",
+      "reset_defaults": "기본값으로 초기화"
+    },
+    "layout": {
+      "description": "모바일에 맞게 메일 목록 동작을 조정해요.",
+      "quick_actions": {
+        "description": "열린 메일 하단의 이전/다음 사이에 표시되는 버튼 3개예요. 기본값은 답장, 전체 답장, 전달이에요.",
+        "label": "읽기 화면 빠른 작업",
+        "mark_unread": "읽음/읽지 않음 표시",
+        "relocated": "{count, plural, other {{actions}은(는) 계속 사용할 수 있도록 상단 도구 모음으로 이동돼요.}}",
+        "slot": "슬롯 {n}",
+        "spam": "스팸",
+        "star": "별표",
+        "tag": "태그"
+      },
+      "show_avatars_in_junk": "스팸함에서 보낸 사람 아바타 표시",
+      "show_avatars_in_junk_description": "스팸함에 있는 메시지의 보낸 사람 로고를 불러와요. 끄면 스팸 발신자 쪽으로 연결되지 않아요.",
+      "show_folder_total_count": "폴더에 전체 메시지 수 표시",
+      "show_folder_total_count_description": "폴더 목록에서 읽지 않은 수 옆에 전체 수를 표시해요.",
+      "swipe_mode": {
+        "instant": "즉시 (스와이프 = 동작)",
+        "reveal": "표시 (스와이프 후 탭)"
+      },
+      "unified_cross_account": "계정 간 통합 보기",
+      "unified_cross_account_description": "로그인된 모든 계정을 \"모든 받은편지함\"에 합쳐요. 끄면 통합 보기가 현재 계정과 공유 폴더 안에서만 유지돼요."
+    },
+    "message_list_order": {
+      "description": "목록에서 어떤 메시지를 먼저 표시할지 정해요. 각 그룹 안에서는 최신 메시지가 먼저 오며, 헤더의 전환 버튼으로 오래된 순/최신 순을 바꿀 수 있어요.",
+      "preset_chronological": "최신 먼저",
+      "preset_custom": "사용자 지정",
+      "preset_starred_first": "별표 먼저",
+      "preset_tagged_first": "태그 먼저",
+      "preset_unread_first": "읽지 않음 먼저",
+      "scope": "적용 대상",
+      "scope_all": "모든 폴더",
+      "scope_inbox": "받은편지함만",
+      "tag": "태그",
+      "title": "메시지 목록 정렬 순서"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "앱 아이콘에 읽지 않은 수 표시",
+        "app_icon_badge_desc": "받은편지함의 읽지 않은 메일 수를 앱 아이콘에 배지로 표시해요.",
+        "sound_channel_hint": "메일 알림의 소리와 진동은 Android 알림 채널에서 설정해요. 알림을 길게 누르거나 시스템 앱 설정을 열어 주세요."
+      },
+      "push": {
+        "confirm_disable_message_mobile": "이 기기에서 이 계정의 새 메일 알림을 더 이상 받지 않아요.",
+        "description_mobile": "앱이 닫혀 있을 때 새 메일에 대한 시스템 알림을 받아요. Bulwark 푸시 릴레이를 통해 전달되며, 릴레이는 메일 내용을 절대 보지 않아요.",
+        "phase_account": "계정",
+        "phase_distributor": "UnifiedPush 배포자",
+        "phase_jmap": "메일 서버 구독",
+        "phase_permission": "알림 권한",
+        "phase_platform": "플랫폼",
+        "phase_relay": "릴레이 등록",
+        "phase_token": "기기 토큰",
+        "phase_verify": "확인",
+        "relay_desc_mobile": "알림을 전달하는 서버예요. 기본값은 호스팅된 Bulwark 릴레이이며, 셀프 호스팅하는 경우에만 변경하세요. https를 사용해야 해요.",
+        "relay_invalid": "올바른 https:// URL을 입력해 주세요",
+        "setup_failed": "설정에 실패했어요",
+        "status_android_only": "백그라운드 알림은 Android에서만 사용할 수 있어요.",
+        "transport_desc": "알림이 이 기기에 전달되는 방식이에요. Google의 Firebase Cloud Messaging 또는 Google 없이 전달하는 UnifiedPush 배포자 앱(예: ntfy) 중에서 선택할 수 있어요.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "전달 방식",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "여러 UnifiedPush 배포자 앱이 설치되어 있어요. 알림을 전달할 앱을 선택해 주세요.",
+        "up_distributor_label": "배포자",
+        "up_no_distributor": "이 기기에 UnifiedPush 배포자 앱이 설치되어 있지 않아요. 앱(예: ntfy)을 설치한 후 다시 시도해 주세요."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, other {메시지 #개}}",
+      "clear": "지우기",
+      "clear_cache": "캐시 지우기",
+      "clear_message": "캐시된 {count, plural, other {메시지 #개}}({size})를 삭제할까요?",
+      "clear_title": "오프라인 메일 지우기",
+      "days_ago": "{count}일 전",
+      "description": "최근 메시지를 다운로드해 바로 열 수 있고 연결 없이도 읽을 수 있게 해요. 본문만 저장되며, 첨부 파일은 필요할 때 가져와요.",
+      "downloading": "다운로드 중 {completed}/{total}…",
+      "enabled": "최근 메일 캐시",
+      "enabled_desc": "켜면 선택한 기간의 메시지 본문을 이 기기에 보관해요.",
+      "hours_ago": "{count}시간 전",
+      "just_now": "방금 전",
+      "last_sync": "마지막 동기화: {when}",
+      "last_sync_failed": "마지막 동기화 실패: {message}",
+      "max_size": "최대 크기",
+      "max_size_desc": "캐시가 이 크기를 넘으면 가장 오래된 메시지부터 삭제돼요.",
+      "minutes_ago": "{count}분 전",
+      "never": "없음",
+      "nothing_cached": "아직 캐시된 항목이 없어요",
+      "queued_changes": "{count, plural, other {변경 사항 #개}}가 동기화를 기다리고 있어요",
+      "scanning": "최근 메일을 검색하는 중…",
+      "sync_now": "지금 동기화",
+      "syncing": "동기화 중…",
+      "title": "오프라인 메일",
+      "window": "기간",
+      "window_24h": "최근 24시간",
+      "window_days": "최근 {count}일",
+      "window_desc": "메시지를 받은 날짜를 기준으로 얼마나 이전까지 캐시할지 정해요."
+    },
+    "plugins": {
+      "mobile_description": "플러그인은 웹메일 안에서 실행되며 브라우저에서 기능을 확장해요.",
+      "mobile_explainer": "모바일 앱에는 플러그인 실행 환경이 없어요. 플러그인은 웹메일의 설정 → 플러그인에서 설치하고 관리해 주세요. 플러그인이 제공하는 테마와 필터는 여기에 적용되지 않아요."
+    },
+    "security": {
+      "client_cert": {
+        "active": "사용 중: {alias}",
+        "choose_another": "다른 인증서 선택",
+        "clear": "지우기",
+        "clear_message": "이후 요청에서는 더 이상 인증서를 제시하지 않아요. 인증서는 Android에 설치된 상태로 유지돼요.",
+        "clear_title": "클라이언트 인증서 사용을 중지할까요?",
+        "description": "TLS 핸드셰이크 중 서버 인증에 사용할, 설치된 Android 인증서를 선택해요. 리버스 프록시가 mTLS를 요구할 때 유용해요.",
+        "hint": "Android 설정 → 보안 → 암호화 및 사용자 인증 정보에서 인증서를 설치한 후 여기에서 선택해 주세요.",
+        "not_set": "설정 안 됨",
+        "pick": "인증서 선택",
+        "pick_failed": "선택하지 못했어요",
+        "title": "TLS 클라이언트 인증서"
+      },
+      "credentials": {
+        "allowed_ips": "허용된 IP (선택 사항)",
+        "allowed_ips_hint": "쉼표나 공백으로 구분해요. 비워 두면 모든 IP를 허용해요.",
+        "clear_expiry": "만료일 지우기",
+        "copy_now": "지금 복사해 두세요. 한 번만 표시돼요. 길게 눌러 선택할 수 있어요.",
+        "create_error": "만들 수 없어요",
+        "expires": "만료일 (선택 사항)",
+        "expires_on": "{date} 만료",
+        "no_expiry": "만료 없음",
+        "none": "아직 없어요.",
+        "remove_error": "삭제할 수 없어요",
+        "remove_message": "이를 사용하는 모든 클라이언트가 작동을 멈춰요.",
+        "remove_title": "자격 증명을 삭제할까요?"
+      },
+      "display_name": {
+        "error_title": "업데이트하지 못했어요"
+      },
+      "encryption": {
+        "no_keys": "먼저 공개 키를 추가해 주세요. 저장 데이터 암호화에는 공개 키가 필요해요."
+      },
+      "load_error": "보안 설정을 불러오지 못했어요.",
+      "not_supported": "계정 보안 관리는 Stalwart 서버가 필요해요. 이 계정에서는 이 기능을 사용할 수 없어요.",
+      "offline": "오프라인 상태예요. 계정 보안 설정은 서버에 연결되어 있어야 해요.",
+      "password": {
+        "change": "비밀번호 변경",
+        "changed": "계정 비밀번호가 업데이트되었어요.",
+        "changed_title": "비밀번호가 변경되었어요",
+        "description": "이 계정의 비밀번호를 변경해요.",
+        "error": "비밀번호를 변경하지 못했어요.",
+        "mismatch": "비밀번호가 일치하지 않아요.",
+        "toggle_visibility": "비밀번호 표시/숨기기",
+        "too_short": "새 비밀번호는 최소 8자 이상이어야 해요."
+      },
+      "public_keys": {
+        "add_error": "공개 키를 추가하지 못했어요",
+        "description": "서버에 저장된 S/MIME 인증서와 PGP 키예요. 저장 데이터 암호화에 사용돼요.",
+        "expires": "{date} 만료",
+        "remove_error": "공개 키를 삭제하지 못했어요",
+        "remove_message": "이 키를 사용하는 저장 데이터 암호화가 작동하지 않게 돼요.",
+        "remove_title": "공개 키를 삭제할까요?",
+        "title": "공개 키"
+      },
+      "two_factor": {
+        "active": "사용 중",
+        "code": "확인 코드",
+        "code_required": "앱에 표시된 6자리 코드를 입력해 주세요.",
+        "description": "로그인할 때 일회용 코드를 요구해요.",
+        "disable": "비활성화",
+        "disable_error": "2단계 인증을 끄지 못했어요.",
+        "disable_hint": "2단계 인증을 끄려면 비밀번호를 입력해 주세요.",
+        "enable_error": "2단계 인증을 켜지 못했어요.",
+        "enabled_message": "다음에 로그인할 때 코드를 입력하라는 요청을 받게 돼요.",
+        "enabled_title": "2단계 인증이 켜졌어요",
+        "enrol_hint": "이 비밀 키를 인증 앱에 추가한 다음 6자리 코드를 입력해 확인해 주세요.",
+        "inactive": "사용 안 함",
+        "label": "인증 앱",
+        "manual_secret": "또는 이 비밀 키를 직접 입력해 주세요",
+        "no_app": "인증 앱을 열 수 없어요. 아래 비밀 키를 직접 추가해 주세요.",
+        "no_app_title": "인증 앱이 없어요",
+        "open_app": "인증 앱에 추가",
+        "password_required": "현재 비밀번호를 입력해 주세요.",
+        "section_title": "2단계 인증 (2FA)"
+      }
+    },
+    "sidebar_apps": {
+      "add": "앱 추가",
+      "empty": "아직 추가된 앱이 없어요.",
+      "form": {
+        "name": "이름",
+        "name_placeholder": "앱 이름",
+        "open_mode": "열기 모드",
+        "show_on_mobile": "모바일에서 보기",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "다른 화면으로 전환해도 인라인 앱을 백그라운드에서 계속 실행해요.",
+      "open_mode": {
+        "inline": "인라인",
+        "new_tab": "새 탭",
+        "tab": "탭"
+      }
+    },
+    "smime": {
+      "mobile_description": "S/MIME 인증서로 메일에 서명하고 암호화해요.",
+      "mobile_explainer": "S/MIME는 아직 모바일 앱에서 사용할 수 없어요. 키와 인증서는 웹메일에서 관리해 주세요. 서명된 메시지는 여기에서 검증 없이 표시돼요."
+    },
+    "tabs": {
+      "plugins": "플러그인"
+    },
+    "templates": {
+      "delete_title": "템플릿 삭제"
+    },
+    "themes": {
+      "default_description": "기본 라이트 및 다크 팔레트예요.",
+      "default_name": "Bulwark",
+      "mobile_description": "색상 테마를 선택하세요. 테마는 화면 설정의 라이트/다크 설정을 따르며, 사용자 지정 테마 패키지는 웹메일에서 관리해요.",
+      "title": "테마"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "날짜는 \"YYYY-MM-DD\" 또는 \"YYYY-MM-DD HH:MM\" 형식이어야 해요"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "확인 필요",
+    "remove_account_hint": "길게 눌러 이 계정 삭제",
+    "remove_account_message": "이 기기에서 {account} 계정에서 로그아웃해요. 메일은 서버에 그대로 남아요.",
+    "remove_account_title": "계정을 삭제할까요?",
+    "show_unread": "읽지 않음 표시"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "계정 {count}개를 불러올 수 없어요"
+  },
+  "updates": {
+    "advisory": "보안 권고",
+    "advisory_desc": "이 릴리스에서 수정된 문제에 대한 자세한 내용이에요.",
+    "auto_check": "자동으로 확인",
+    "auto_check_desc": "앱을 시작할 때 몇 시간마다 업데이트를 확인해요.",
+    "available": "업데이트 가능",
+    "available_desc": "설치를 탭하면 v{version}을(를) 다운로드하고 Android 패키지 설치 프로그램으로 열어요.",
+    "banner": {
+      "advisory": "보안 권고 읽기",
+      "deprecated_subtitle": "앱을 계속 사용하려면 v{version}을(를) 설치해 주세요.",
+      "deprecated_title": "이 버전은 더 이상 지원되지 않아요",
+      "security_subtitle": "v{version}에서 보안 문제가 수정되었어요. 가능한 한 빨리 설치해 주세요.",
+      "security_title": "보안 업데이트 가능",
+      "subtitle": "v{version}을(를) 설치할 수 있어요.",
+      "title": "업데이트 가능"
+    },
+    "building": "업데이트 빌드 중",
+    "building_desc": "v{version}이(가) 게시되었지만 APK는 아직 빌드 중이에요. 이 페이지는 30초마다 다시 확인해요.",
+    "check": "업데이트 확인",
+    "check_again": "다시 확인",
+    "check_now": "지금 확인",
+    "checking": "확인 중…",
+    "current_version": "현재 버전",
+    "description": "새 버전을 확인하고 설치해요.",
+    "downloading": "다운로드 중…",
+    "downloading_pct": "다운로드 중 {pct}%",
+    "install": "설치",
+    "installing": "설치 중…",
+    "last_checked": "마지막 확인",
+    "last_error": "마지막 오류: {message}",
+    "latest_version": "최신 버전",
+    "never": "확인한 적 없음",
+    "open": "열기",
+    "open_github": "GitHub에서 열기",
+    "opening_installer": "설치 프로그램을 여는 중…",
+    "progress_of": "{total} 중 {written}",
+    "published": "게시일: {date}",
+    "rate_limited": "GitHub에서 업데이트 확인 횟수를 제한하고 있어요. 나중에 다시 시도할게요.",
+    "release_notes": "릴리스 노트",
+    "release_page": "릴리스 페이지",
+    "release_page_desc": "GitHub에서 전체 릴리스 노트와 다운로드를 확인할 수 있어요.",
+    "release_page_pending_desc": "빌드 진행 상황을 확인하거나 APK를 직접 다운로드해요.",
+    "severity_deprecated": "필수",
+    "severity_security": "보안",
+    "title": "앱 업데이트"
+  }
+}

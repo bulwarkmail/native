@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "後",
+    "before": "前",
+    "no_attachment": "無附件",
+    "not_starred": "未加星號"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "未來 {count} 天沒有活動。",
+      "no_upcoming": "沒有即將開始的活動"
+    },
+    "alerts": {
+      "unit_minutes_after": "分鐘後"
+    },
+    "drawer": {
+      "my_calendars": "我的行事曆",
+      "no_calendars": "尚無行事曆。",
+      "shared_with_me": "與我共用",
+      "subscribed": "已訂閱"
+    },
+    "event_modal": {
+      "participant_placeholder": "依電子郵件地址新增參與者"
+    },
+    "events": {
+      "copy_link_short": "連結",
+      "export_ics_short": ".ics",
+      "tap_to_create": "點選 + 即可建立"
+    },
+    "form": {
+      "description_placeholder": "備註、議程…",
+      "location_placeholder": "地點或地址",
+      "time": "時間"
+    },
+    "invitation": {
+      "accept": "是",
+      "add_error": "無法新增活動",
+      "add_to_calendar": "新增到行事曆",
+      "added": "已新增到行事曆",
+      "already_in_calendar": "已在您的行事曆中",
+      "cancelled": "此活動已取消",
+      "decline": "否",
+      "join_video": "加入視訊通話",
+      "no_writable_calendar": "沒有可寫入的行事曆",
+      "organizer": "主辦人",
+      "reading": "正在讀取邀請…",
+      "reply": "有參與者回覆了此邀請",
+      "response_error": "無法傳送您的回覆",
+      "response_sent": "回覆已傳送",
+      "tentative": "暫定",
+      "title": "行事曆邀請",
+      "trust_verified": "寄件者已驗證"
+    },
+    "management": {
+      "clear_confirm": "全部移除",
+      "clear_description": "此行事曆中的所有活動都會刪除。同時屬於其他行事曆的活動，只會解除與此行事曆的連結。",
+      "clear_title": "要移除所有活動嗎？",
+      "delete_description": "此行事曆及其所有活動都會刪除。此動作無法復原。",
+      "delete_title": "要刪除行事曆嗎？",
+      "description_placeholder": "選填",
+      "edit_calendar": "編輯行事曆",
+      "new_calendar": "新增行事曆"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "在月檢視中顯示週數",
+      "time_zone": "時區",
+      "time_zone_auto": "裝置時區",
+      "time_zone_desc": "用於新增活動與顯示行事曆的時區。選擇「裝置」時會依照手機的設定。"
+    },
+    "share": {
+      "add_people": "新增使用者",
+      "error": "無法更新分享設定",
+      "no_matches": "找不到相符項目",
+      "no_principals": "此伺服器不支援分享。",
+      "role_custom": "自訂",
+      "search_placeholder": "依姓名或電子郵件地址搜尋",
+      "shared_with": "分享對象",
+      "title": "分享"
+    },
+    "tasks": {
+      "add_placeholder": "新增任務…",
+      "add_time": "新增時間",
+      "delete_error": "刪除任務失敗",
+      "update_error": "更新任務失敗"
+    }
+  },
+  "common": {
+    "add": "新增",
+    "back": "返回",
+    "confirm": "確認",
+    "create": "建立",
+    "dismiss": "關閉",
+    "done": "完成",
+    "remove": "移除",
+    "retry": "重試",
+    "undo": "撤銷",
+    "update": "更新"
+  },
+  "context_menu": {
+    "color_tag": "標籤",
+    "remove_color": "移除標籤"
+  },
+  "email_composer": {
+    "attach_camera": "相機",
+    "attachment_reminder_body": "您的郵件提到「{keyword}」，但沒有附加檔案。仍要傳送嗎？",
+    "attachment_reminder_title": "忘記新增附件了嗎？",
+    "attachments_too_large_total": "附件將超過此伺服器每封郵件 {max} 的上限。",
+    "editor_unavailable": "無法讀取郵件內容。請先複製您的文字，再關閉並重新開啟撰寫畫面。",
+    "identity_unavailable": "寄件身分無法使用",
+    "image_load_failed": "無法載入圖片",
+    "no_recipient": "（無收件者）",
+    "no_sent_folder": "找不到寄件備份信件匣",
+    "permission_camera": "需要相機權限才能拍照。",
+    "permission_photos": "需要相片圖庫權限才能附加圖片。",
+    "recipient_add_contact": "新增至聯絡人",
+    "recipient_copy": "複製地址",
+    "recipient_move_to": "移至{field}",
+    "recipient_remove": "移除",
+    "save_draft": "儲存草稿",
+    "save_failed_no_drafts": "沒有可儲存這份草稿的草稿信件匣。",
+    "save_failed_no_identity": "無法載入您的寄件身分，因此無法儲存這份草稿。請檢查連線，或在關閉前先複製您的文字。",
+    "schedule_custom": "選擇日期與時間…",
+    "schedule_in_1h": "1 小時後",
+    "schedule_in_3h": "3 小時後",
+    "schedule_past_body": "排程時間必須是未來的時間。",
+    "schedule_past_title": "請選擇未來的時間",
+    "schedule_tomorrow": "明天上午 8:00",
+    "schedule_tomorrow_morning": "明天早上",
+    "schedule_too_late_body": "此時間超出伺服器允許的範圍。請選擇較早的時間。",
+    "schedule_too_late_title": "時間太遠",
+    "schedule_unsupported_body": "此郵件伺服器不支援排程寄送。",
+    "schedule_unsupported_title": "無法排程寄送",
+    "scheduled_body": "您的郵件將於 {time} 傳送。",
+    "scheduled_title": "已排程寄送",
+    "send_now": "立即傳送",
+    "send_timeout_body": "郵件可能已經寄出。再次傳送前，請先檢查「寄件備份」信件匣。",
+    "send_timeout_title": "伺服器沒有回應",
+    "undo_send_label": "{seconds} 秒後傳送…",
+    "uploading": "正在上傳…",
+    "validation": {
+      "subject_required": "請新增主題"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "在帳號之間移動需要網路連線",
+    "emails_archived_count": "{count, plural, other {已封存 # 封郵件}}",
+    "emails_moved_to": "{count, plural, other {# 封郵件}}已移至 {mailbox}",
+    "error": "錯誤",
+    "marked_as_spam": "已標示為垃圾郵件",
+    "marked_as_spam_count": "{count, plural, other {# 封郵件}}已標示為垃圾郵件",
+    "marked_not_spam": "已標示為非垃圾郵件",
+    "marked_not_spam_count": "{count, plural, other {# 封郵件}}已標示為非垃圾郵件",
+    "move_same_account": "郵件只能在同一個帳號內移動",
+    "moved_to_trash": "郵件已移至垃圾桶",
+    "moved_to_trash_count": "{count, plural, other {# 封郵件}}已移至垃圾桶",
+    "no_archive_folder": "在伺服器上找不到封存信件匣。",
+    "no_emails_in": "{folder} 中沒有郵件",
+    "no_junk_folder": "在伺服器上找不到垃圾郵件信件匣。",
+    "no_mailboxes": "找不到信件匣",
+    "no_mailboxes_hint": "請確認您的 JMAP 帳號具備郵件功能。",
+    "no_tags_defined": "尚未定義標籤。請在設定中新增標籤。",
+    "no_trash_folder": "在伺服器上找不到垃圾桶信件匣。請檢查您的信件匣設定。",
+    "offline_nothing_cached": "沒有網路連線。尚未快取任何郵件，因此沒有內容可顯示。",
+    "open_draft_failed": "無法開啟草稿。",
+    "outbox_discard": "捨棄",
+    "outbox_failed": "有 {count} 項變更無法儲存到伺服器。",
+    "recent_searches": "最近搜尋",
+    "scope_all_folders": "所有信件匣",
+    "scope_this_folder": "此信件匣",
+    "search_placeholder": "搜尋郵件…",
+    "showing_cached": "正在顯示快取的郵件",
+    "swipe_move": "移動",
+    "swipe_spam": "垃圾郵件",
+    "total": "總計",
+    "undo_failed": "撤銷失敗",
+    "unknown_tag": "此處未定義"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "將寄件者新增至聯絡人",
+    "address_actions": {
+      "add_contact": "新增至聯絡人",
+      "compose": "新郵件",
+      "copy": "複製地址",
+      "copy_failed": "無法複製地址。"
+    },
+    "attachment_actions": {
+      "open": "開啟",
+      "preview": "預覽",
+      "save": "儲存",
+      "share": "分享"
+    },
+    "attachment_failed": "無法開啟附件",
+    "authentication": {
+      "spoof_warning": "無法驗證寄件者地址，這封郵件可能是偽造的。"
+    },
+    "body_truncated": "這封郵件太大，無法完整顯示。",
+    "bundle_too_large": "附件太大，無法打包。",
+    "color_tag": {
+      "blue": "藍色",
+      "green": "綠色",
+      "none": "無",
+      "orange": "橘色",
+      "pink": "粉紅色",
+      "purple": "紫色",
+      "red": "紅色",
+      "title": "顏色標籤",
+      "yellow": "黃色"
+    },
+    "delete_permanently_message": "這封郵件將永久刪除，且無法復原。",
+    "delete_permanently_title": "要永久刪除嗎？",
+    "export_failed": "匯出失敗",
+    "forwarded": "已轉寄",
+    "load_failed": "載入郵件失敗",
+    "preview": {
+      "open_external": "在應用程式中開啟",
+      "pdf_external": "PDF 會在此裝置的 PDF 檢視器中開啟。",
+      "unsupported": "無法預覽此檔案類型。"
+    },
+    "received_via": "寄給 {name}",
+    "remove_color": "移除標籤",
+    "replied": "已回覆",
+    "sender_actions": "寄件者…",
+    "set_color": "設定標籤",
+    "show_all_count": "顯示全部（{count}）",
+    "show_less": "顯示較少",
+    "smime_unsupported": "已使用 S/MIME 簽署／加密，行動裝置不支援",
+    "source_too_large": "郵件太大，無法完整顯示。請改為分享完整原始碼。",
+    "thread_loading": "正在載入對話串…",
+    "unsubscribe_banner": {
+      "no_identity": "沒有可用的寄件身分"
+    },
+    "view_dark_mode": "以深色模式檢視",
+    "view_light_mode": "以淺色模式檢視"
+  },
+  "files": {
+    "delete_cascade_hint": "資料夾會連同其中的所有內容一併刪除。此動作無法復原。",
+    "delete_item_title": "要刪除此項目嗎？",
+    "delete_items_title": "要刪除 {count} 個項目嗎？",
+    "done": "完成",
+    "folder_empty": "此資料夾是空的",
+    "invalid_name": "名稱無效",
+    "invalid_name_slash": "名稱不能包含「/」。",
+    "move_to": "移至…",
+    "open_error": "無法開啟檔案",
+    "open_with": "以其他應用程式開啟…",
+    "preview_too_large": "此檔案太大，無法預覽。",
+    "selected_count": "已選取 {count} 個",
+    "share_add_people": "新增使用者",
+    "share_empty": "尚未與任何人分享",
+    "share_error": "無法更新分享設定",
+    "share_file_error": "無法分享檔案",
+    "share_folder_hint": "分享資料夾時，會一併分享其中的所有內容。",
+    "share_no_matches": "找不到相符項目",
+    "share_no_users": "找不到其他使用者",
+    "share_remove": "移除存取權",
+    "share_role_custom": "自訂",
+    "share_search_placeholder": "依姓名或電子郵件地址搜尋",
+    "shared_with": "分享對象",
+    "sharing_access": "分享與存取",
+    "upload_unavailable": "此版本未安裝檔案選擇器。請重新建置應用程式以啟用上傳功能。"
+  },
+  "identities": {
+    "badge": {
+      "to": "寄給 {identity}",
+      "via": "透過 {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "您已登入這些帳號。",
+      "add_title": "新增其他帳號",
+      "camera_allow": "允許存取相機",
+      "camera_disabled": "相機存取權已停用。請在「設定」中啟用，才能掃描登入 QR Code。",
+      "camera_needed": "Bulwark Mail 需要存取相機，才能掃描登入 QR Code。",
+      "choose_subtitle": "請選擇登入方式。",
+      "confirm_check": "請確認資訊是否正確",
+      "confirm_found": "已找到您的郵件伺服器",
+      "confirm_subtitle": "接下來，您會在服務供應商的頁面上登入。",
+      "connecting": "正在連線至 {host}",
+      "connecting_detail": "正在設定您的信箱…",
+      "continue": "繼續",
+      "different_server": "使用其他伺服器",
+      "elsewhere_title": "其他地方的帳號",
+      "email_desc": "我們會為您找到郵件伺服器",
+      "email_step_hint": "適用於 Stalwart 及任何其他 JMAP 郵件伺服器。",
+      "email_step_subtitle": "通常只需要這項資訊就能找到您的郵件伺服器。",
+      "email_step_title": "您的電子郵件地址是什麼？",
+      "email_step_title_add": "另一個電子郵件地址是什麼？",
+      "email_title": "使用我的電子郵件地址",
+      "err_bad_detail": "請檢查您的電子郵件地址與密碼。如果您的帳號使用雙因素驗證登入，請在網頁郵件中建立應用程式密碼，並在此使用。",
+      "err_bad_title": "無法登入",
+      "err_cert_detail": "伺服器的安全性憑證遭到拒絕。如果這是您自己的伺服器，請確認憑證有效且未過期。",
+      "err_cert_title": "無法驗證 {host}",
+      "err_code_expired_detail": "登入碼只在幾分鐘內有效。請在網頁郵件中產生新的登入碼，再重新掃描。",
+      "err_code_expired_title": "此登入碼已過期",
+      "err_generic_detail": "發生錯誤。請再試一次。",
+      "err_generic_title": "登入失敗",
+      "err_interrupted_detail": "回應與我們發出的請求不符。請重新登入。",
+      "err_interrupted_title": "登入已中斷",
+      "err_no_server_detail": "請再次確認地址，或改為掃描網頁郵件中的登入碼。",
+      "err_no_server_title": "{host} 上沒有郵件伺服器",
+      "err_no_webmail_detail": "此伺服器沒有 Bulwark 網頁郵件，也不支援 OAuth 登入。請改用密碼（或應用程式密碼）。",
+      "err_no_webmail_title": "{host} 上沒有登入頁面",
+      "err_rate_detail": "伺服器要求我們稍候。請稍後再試。",
+      "err_rate_detail_seconds": "伺服器要求我們等待。請在約 {seconds} 秒後再試。",
+      "err_rate_title": "嘗試次數過多",
+      "err_server_detail": "伺服器傳回錯誤。請幾分鐘後再試。",
+      "err_server_title": "{host} 發生問題",
+      "err_totp_bad_detail": "請檢查您的密碼與驗證器應用程式中目前的驗證碼，然後再試一次。",
+      "err_totp_detail": "此帳號受雙因素驗證保護。請輸入驗證器應用程式中的 6 位數驗證碼。",
+      "err_totp_title": "請輸入雙因素驗證碼",
+      "err_unreachable_detail": "請檢查網路連線與伺服器地址，然後再試一次。",
+      "err_unreachable_title": "無法連線至 {host}",
+      "know_server": "我知道伺服器地址",
+      "known_server_desc": "我們已知道此伺服器，不需要設定",
+      "known_server_title": "{host} 上的其他帳號",
+      "looking_up": "正在尋找您的伺服器…",
+      "manual": "手動輸入伺服器資訊",
+      "notice_bad_qr": "此代碼不是 Bulwark 登入碼",
+      "notice_bad_qr_detail": "在網頁上開啟 Bulwark，然後前往「設定 → 安全 → 連結行動應用程式」顯示登入碼。",
+      "notice_bad_server": "這看起來不像伺服器地址",
+      "notice_bad_server_detail": "請試試您用來開啟網頁郵件的地址，例如 mail.example.com。",
+      "notice_full_email": "請輸入完整的電子郵件地址",
+      "notice_full_email_detail": "例如 ada@example.com。如果您使用使用者名稱登入，請選擇「我知道伺服器地址」。",
+      "notice_need_code": "請輸入驗證器應用程式中的 6 位數驗證碼",
+      "notice_need_credentials": "請輸入電子郵件地址與密碼",
+      "notice_need_server": "請先輸入伺服器地址",
+      "open_settings": "開啟設定",
+      "opening": "正在開啟 {host}",
+      "opening_detail": "請在剛開啟的頁面上完成登入，接下來交給我們處理。",
+      "pairing": "正在驗證您的登入碼",
+      "pairing_detail": "正在將此裝置與 {host} 配對…",
+      "password_subtitle": "您的密碼只會傳送到此伺服器，並儲存在裝置的鑰匙圈中。",
+      "password_title": "登入 {host}",
+      "provider_detail": "您會在服務供應商的頁面上輸入密碼。Bulwark 只會儲存登入權杖，您可以隨時撤銷。",
+      "provider_title": "您的密碼只會留在服務供應商端",
+      "qr_hint": "「設定 → 安全 → 連結行動應用程式」會顯示代碼。請將相機對準代碼。",
+      "qr_hint_title": "在電腦上開啟 Bulwark",
+      "qr_title": "登入碼",
+      "scan_desc": "如果您已在網頁上登入，這是最快的方式",
+      "scan_title": "掃描登入碼",
+      "server_hint": "與您在瀏覽器中輸入的地址相同。我們會自動加上 https://。",
+      "server_label": "伺服器地址",
+      "server_not_found": "找不到 {domain} 的伺服器。如果您自行架設，請使用開啟網頁郵件時的地址。",
+      "server_scan_hint": "如果不確定，請改為掃描登入碼。登入碼中包含伺服器地址。",
+      "server_subtitle": "請輸入您開啟網頁郵件時使用的地址。",
+      "server_title": "您的伺服器地址是什麼？",
+      "the_server": "伺服器",
+      "unencrypted": "未加密的連線",
+      "use_password": "改用密碼登入",
+      "username_label": "電子郵件地址或使用者名稱",
+      "your_server": "您的伺服器"
+    }
+  },
+  "offline": {
+    "banner": "您目前處於離線狀態",
+    "queued_changes": "{count, plural, other {# 項變更}}將在重新連線後同步"
+  },
+  "push_prompt": {
+    "body": "開啟背景通知，即使應用程式已關閉也能收到新郵件。",
+    "dismiss": "稍後再說",
+    "enable": "啟用",
+    "title": "接收新郵件通知"
+  },
+  "scheduled": {
+    "cancel_body": "這封郵件將不會寄出。副本會保留在「寄件備份」信件匣中。",
+    "cancel_failed": "取消失敗",
+    "edit_failed": "無法開啟郵件進行編輯",
+    "keep_scheduled": "保留排程",
+    "reschedule_failed": "重新排程失敗",
+    "send_now_failed": "無法立即傳送"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "調整帳號在帳號切換器中的顯示順序、選擇預設帳號，或登出某個帳號。",
+        "limit": "已達帳號數量上限（{count} 個）。"
+      },
+      "shared_accounts": {
+        "description_manage": "可透過此帳號讀取的群組與共用帳號。選取一個帳號，即可管理其篩選規則與休假自動回覆。"
+      },
+      "unknown": "未知"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "需要更新：{version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "安全性更新：{version}",
+        "update_available": "更新：{version}",
+        "update_store_hint": "可在 TestFlight / App Store 取得"
+      },
+      "export_settings": {
+        "saved_to": "已儲存到 {path}"
+      },
+      "reset_settings": {
+        "done": "所有設定已還原為預設值。"
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "請重新啟動應用程式以套用新的文字方向。",
+        "system_default": "系統預設"
+      },
+      "toolbar_labels": {
+        "description_mobile": "在工具列圖示旁顯示文字標籤。"
+      }
+    },
+    "badges": {
+      "experimental": "實驗性",
+      "not_implemented": "尚未實作",
+      "unavailable": "無法使用"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "儲存或分享附件時使用的範本。"
+      },
+      "email_template": {
+        "description_mobile": "將郵件匯出為 .eml 檔案時使用的範本。"
+      },
+      "strip_diacritics": {
+        "description_mobile": "將帶重音的字母轉換為一般 ASCII 字元（ä → a）。"
+      },
+      "transform_description": "套用至所有匯出的檔名。",
+      "transform_title": "檔名轉換"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "找不到封存信件匣。",
+        "reorganize_result": "已移動 {total} 封郵件中的 {moved} 封。",
+        "reorganizing": "正在重新整理…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "點選附件時執行的動作。"
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "回覆一律從郵件原本寄達的寄件身分傳送。開啟後，寄到您網域中其他地址（catch-all 別名）的郵件，回覆時也會從該地址傳送。"
+      },
+      "plain_text_mode": {
+        "description_mobile": "僅以純文字撰寫與閱讀。"
+      },
+      "send_delay": {
+        "description_mobile": "將寄出的郵件保留幾秒鐘，讓您可以取消。需要伺服器支援。"
+      },
+      "swipe_actions": {
+        "move": "移至信件匣",
+        "pin": "釘選"
+      },
+      "swipe_left_action": {
+        "description_mobile": "從右側邊緣向左拖曳某一列時執行的動作。",
+        "label_mobile": "向左滑動（右 → 左）"
+      },
+      "swipe_right_action": {
+        "description_mobile": "從左側邊緣向右拖曳某一列時執行的動作。",
+        "label_mobile": "向右滑動（左 → 右）"
+      }
+    },
+    "experimental": {
+      "title": "實驗性功能"
+    },
+    "folders": {
+      "account": "帳號",
+      "cannot_delete": "無法刪除",
+      "description_mobile": "建立、重新命名、移動及刪除信件匣。在側邊選單中長按信件匣即可使用快速動作。",
+      "edit_folder": "編輯「{name}」",
+      "folder_name": "信件匣名稱",
+      "move_under": "上層信件匣",
+      "name_placeholder": "收據",
+      "name_required": "名稱為必填欄位",
+      "new_folder": "新增信件匣",
+      "not_empty_message": "「{name}」中有 {count} 封郵件。仍要刪除嗎？",
+      "not_empty_title": "信件匣不是空的",
+      "own_account": "我的信件匣",
+      "role": "特殊用途",
+      "role_hint": "為此信件匣指派特殊用途角色（封存、垃圾郵件等）。每個角色只能指派給一個信件匣。",
+      "save_failed": "儲存失敗",
+      "system_folder_delete": "無法刪除系統信件匣。",
+      "system_folder_rename": "無法重新命名系統信件匣。",
+      "top_level": "最上層"
+    },
+    "identities": {
+      "cannot_delete": "無法刪除主要寄件身分。",
+      "cannot_delete_title": "無法刪除",
+      "count": "{count, plural, =0 {尚無寄件身分} other {# 個寄件身分}}",
+      "create": "新增寄件身分",
+      "delete_confirm": "要移除「{name}」嗎？",
+      "delete_failed": "刪除失敗",
+      "delete_title": "刪除寄件身分",
+      "description_mobile": "管理寄件者名稱、電子郵件地址與簽名檔。點選任一列即可編輯。",
+      "display_name": "顯示名稱",
+      "edit": "編輯寄件身分",
+      "email_address": "電子郵件地址",
+      "email_locked": "JMAP 不允許變更寄件身分的電子郵件地址，請改為建立新的寄件身分。",
+      "invalid_email": "請為此寄件身分輸入有效的電子郵件地址。",
+      "invalid_email_title": "電子郵件地址無效",
+      "new": "新增",
+      "no_name": "（無名稱）",
+      "primary": "主要",
+      "save_failed": "儲存失敗",
+      "text_signature": "純文字簽名檔"
+    },
+    "keywords": {
+      "description_mobile": "用來整理郵件的彩色標籤。",
+      "discover": {
+        "add_all": "全部新增",
+        "found": "找到 {count} 個此處未定義的標籤。",
+        "none": "在 {scanned} 封郵件中找不到未知標籤。",
+        "partial": "（僅掃描了最新的郵件。）",
+        "progress": "已掃描 {total} 封郵件中的 {scanned} 封…",
+        "scan": "在信箱中尋找標籤"
+      },
+      "reset_confirm": "要將標籤清單取代為預設標籤嗎？已套用在郵件上的標籤仍會保留在伺服器上。",
+      "reset_defaults": "重設為預設值"
+    },
+    "layout": {
+      "description": "調整行動裝置上的郵件清單操作方式。",
+      "quick_actions": {
+        "description": "開啟郵件時，底部「上一封／下一封」之間顯示的三個按鈕。預設為回覆、全部回覆與轉寄。",
+        "label": "閱讀畫面快速動作",
+        "mark_unread": "標示為已讀／未讀",
+        "relocated": "{count, plural, other {{actions}會移至頂端工具列，讓您仍可使用。}}",
+        "slot": "位置 {n}",
+        "spam": "垃圾郵件",
+        "star": "星號",
+        "tag": "標籤"
+      },
+      "show_avatars_in_junk": "在垃圾郵件中顯示寄件者頭像",
+      "show_avatars_in_junk_description": "為垃圾郵件信件匣中的郵件載入寄件者標誌。關閉後可避免連線至垃圾郵件寄件者的伺服器。",
+      "show_folder_total_count": "在信件匣上顯示郵件總數",
+      "show_folder_total_count_description": "在信件匣清單中的未讀數量旁顯示總數。",
+      "swipe_mode": {
+        "instant": "立即（滑動 = 動作）",
+        "reveal": "顯示（滑動後點選）"
+      },
+      "unified_cross_account": "跨帳號整合檢視",
+      "unified_cross_account_description": "將所有已登入的帳號合併到「所有收件匣」。關閉後，整合檢視只會包含使用中的帳號及其共用信件匣。"
+    },
+    "message_list_order": {
+      "description": "設定清單中哪些郵件排在前面。每個群組內依最新優先排序；標題列的切換按鈕仍可切換最早／最新。",
+      "preset_chronological": "最新優先",
+      "preset_custom": "自訂",
+      "preset_starred_first": "已加星號優先",
+      "preset_tagged_first": "有標籤優先",
+      "preset_unread_first": "未讀優先",
+      "scope": "套用至",
+      "scope_all": "所有信件匣",
+      "scope_inbox": "僅收件匣",
+      "tag": "標籤",
+      "title": "郵件清單排序"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "在應用程式圖示顯示未讀數量",
+        "app_icon_badge_desc": "在應用程式圖示上以徽章顯示收件匣的未讀數量。",
+        "sound_channel_hint": "郵件通知的音效與震動由 Android 通知管道控制：長按通知或開啟系統的應用程式設定即可調整。"
+      },
+      "push": {
+        "confirm_disable_message_mobile": "此裝置將停止接收此帳號的新郵件通知。",
+        "description_mobile": "應用程式關閉時仍可接收新郵件的系統通知。通知會透過 Bulwark 推送中繼傳送；中繼不會看到郵件內容。",
+        "phase_account": "帳號",
+        "phase_distributor": "UnifiedPush 分發器",
+        "phase_jmap": "郵件伺服器訂閱",
+        "phase_permission": "通知權限",
+        "phase_platform": "平台",
+        "phase_relay": "中繼註冊",
+        "phase_token": "裝置權杖",
+        "phase_verify": "驗證",
+        "relay_desc_mobile": "用來傳送通知的伺服器。預設為代管的 Bulwark 中繼；只有自行架設時才需要變更。必須使用 https。",
+        "relay_invalid": "請輸入有效的 https:// URL",
+        "setup_failed": "設定失敗",
+        "status_android_only": "背景通知僅適用於 Android。",
+        "transport_desc": "通知傳送到此裝置的方式：Google 的 Firebase Cloud Messaging，或不經 Google 傳送的 UnifiedPush 分發器應用程式（例如 ntfy）。",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "傳送方式",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "已安裝多個 UnifiedPush 分發器應用程式，請選擇要用來傳送通知的應用程式。",
+        "up_distributor_label": "分發器",
+        "up_no_distributor": "此裝置上未安裝 UnifiedPush 分發器應用程式。請安裝一個（例如 ntfy）後再試一次。"
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, other {# 封郵件}}",
+      "clear": "清除",
+      "clear_cache": "清除快取",
+      "clear_message": "要移除 {count, plural, other {# 封已快取的郵件}}（{size}）嗎？",
+      "clear_title": "清除離線郵件",
+      "days_ago": "{count} 天前",
+      "description": "下載最近的郵件，讓郵件能立即開啟，且在沒有網路時也能閱讀。僅下載內文；附件仍會在需要時才取得。",
+      "downloading": "正在下載 {completed}/{total}…",
+      "enabled": "快取最近的郵件",
+      "enabled_desc": "開啟後，應用程式會在此裝置上保留所選期間內的郵件內文。",
+      "hours_ago": "{count} 小時前",
+      "just_now": "剛剛",
+      "last_sync": "上次同步：{when}",
+      "last_sync_failed": "上次同步失敗：{message}",
+      "max_size": "大小上限",
+      "max_size_desc": "快取超過此大小時，會移除最舊的郵件。",
+      "minutes_ago": "{count} 分鐘前",
+      "never": "從未",
+      "nothing_cached": "尚未快取任何內容",
+      "queued_changes": "{count, plural, other {# 項變更}}等待同步",
+      "scanning": "正在掃描最近的郵件…",
+      "sync_now": "立即同步",
+      "syncing": "正在同步…",
+      "title": "離線郵件",
+      "window": "時間範圍",
+      "window_24h": "過去 24 小時",
+      "window_days": "過去 {count} 天",
+      "window_desc": "依郵件接收日期計算，要快取多久以前的郵件。"
+    },
+    "plugins": {
+      "mobile_description": "外掛程式在網頁郵件中執行，可在瀏覽器中擴充其功能。",
+      "mobile_explainer": "行動應用程式沒有外掛程式執行環境。請在網頁郵件的「設定 → 外掛程式」中安裝及管理外掛程式；外掛程式提供的主題與篩選規則不會套用在這裡。"
+    },
+    "security": {
+      "client_cert": {
+        "active": "使用中：{alias}",
+        "choose_another": "選擇其他憑證",
+        "clear": "清除",
+        "clear_message": "新的請求將不再出示憑證。憑證仍會安裝在 Android 中。",
+        "clear_title": "要停止使用用戶端憑證嗎？",
+        "description": "選擇已安裝的 Android 憑證，在 TLS 交握期間向伺服器進行驗證。適用於反向代理伺服器強制使用 mTLS 的情況。",
+        "hint": "請透過 Android 的「設定 → 安全性 → 加密和憑證」安裝憑證，然後在此選擇。",
+        "not_set": "未設定",
+        "pick": "選擇憑證",
+        "pick_failed": "選擇失敗",
+        "title": "TLS 用戶端憑證"
+      },
+      "credentials": {
+        "allowed_ips": "允許的 IP（選填）",
+        "allowed_ips_hint": "以逗號或空格分隔。留空則允許任何 IP。",
+        "clear_expiry": "清除到期日",
+        "copy_now": "請立即複製，這只會顯示一次。長按即可選取。",
+        "create_error": "無法建立",
+        "expires": "到期日（選填）",
+        "expires_on": "於 {date} 到期",
+        "no_expiry": "永不到期",
+        "none": "尚無。",
+        "remove_error": "無法移除",
+        "remove_message": "使用它的所有用戶端都會停止運作。",
+        "remove_title": "要移除此認證資訊嗎？"
+      },
+      "display_name": {
+        "error_title": "更新失敗"
+      },
+      "encryption": {
+        "no_keys": "請先新增公鑰，靜態資料加密需要公鑰。"
+      },
+      "load_error": "無法載入安全設定。",
+      "not_supported": "帳號安全管理需要 Stalwart 伺服器。此帳號無法使用這些功能。",
+      "offline": "您目前處於離線狀態。帳號安全設定需要連線至伺服器。",
+      "password": {
+        "change": "變更密碼",
+        "changed": "您的帳號密碼已更新。",
+        "changed_title": "密碼已變更",
+        "description": "變更此帳號的密碼。",
+        "error": "無法變更密碼。",
+        "mismatch": "密碼不相符。",
+        "toggle_visibility": "顯示或隱藏密碼",
+        "too_short": "新密碼必須至少為 8 個字元。"
+      },
+      "public_keys": {
+        "add_error": "新增公鑰失敗",
+        "description": "儲存在伺服器上的 S/MIME 憑證與 PGP 金鑰，用於靜態資料加密。",
+        "expires": "於 {date} 到期",
+        "remove_error": "移除公鑰失敗",
+        "remove_message": "使用此金鑰的靜態資料加密將停止運作。",
+        "remove_title": "要移除公鑰嗎？",
+        "title": "公鑰"
+      },
+      "two_factor": {
+        "active": "已啟用",
+        "code": "驗證碼",
+        "code_required": "請輸入應用程式中的 6 位數驗證碼。",
+        "description": "登入時需要輸入一次性驗證碼。",
+        "disable": "停用",
+        "disable_error": "無法停用雙因素驗證。",
+        "disable_hint": "請輸入密碼以關閉雙因素驗證。",
+        "enable_error": "無法啟用雙因素驗證。",
+        "enabled_message": "下次登入時將要求您輸入驗證碼。",
+        "enabled_title": "已啟用雙因素驗證",
+        "enrol_hint": "請將此密鑰新增至驗證器應用程式，然後輸入 6 位數驗證碼以確認。",
+        "inactive": "未啟用",
+        "label": "驗證器應用程式",
+        "manual_secret": "或手動輸入此密鑰",
+        "no_app": "無法開啟驗證器應用程式。請手動新增下方的密鑰。",
+        "no_app_title": "沒有驗證器應用程式",
+        "open_app": "新增至驗證器應用程式",
+        "password_required": "請輸入目前的密碼。",
+        "section_title": "雙因素驗證"
+      }
+    },
+    "sidebar_apps": {
+      "add": "新增應用程式",
+      "empty": "尚未新增任何應用程式。",
+      "form": {
+        "name": "名稱",
+        "name_placeholder": "應用程式名稱",
+        "open_mode": "開啟方式",
+        "show_on_mobile": "在行動裝置上顯示",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "切換離開時，讓內嵌應用程式在背景繼續執行。",
+      "open_mode": {
+        "inline": "內嵌",
+        "new_tab": "新分頁",
+        "tab": "分頁"
+      }
+    },
+    "smime": {
+      "mobile_description": "使用 S/MIME 憑證簽署及加密郵件。",
+      "mobile_explainer": "行動應用程式尚不支援 S/MIME。請在網頁郵件中管理金鑰與憑證；已簽署的郵件在此顯示時不會進行驗證。"
+    },
+    "tabs": {
+      "plugins": "外掛程式"
+    },
+    "templates": {
+      "delete_title": "刪除範本"
+    },
+    "themes": {
+      "default_description": "預設的淺色與深色配色。",
+      "default_name": "Bulwark",
+      "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。",
+      "title": "主題"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "日期格式必須為「YYYY-MM-DD」或「YYYY-MM-DD HH:MM」"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "需要處理",
+    "remove_account_hint": "長按即可移除此帳號",
+    "remove_account_message": "在此裝置上登出 {account}。您的郵件仍會保留在伺服器上。",
+    "remove_account_title": "要移除帳號嗎？",
+    "show_unread": "顯示未讀"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count} 個帳號無法載入"
+  },
+  "updates": {
+    "advisory": "安全性公告",
+    "advisory_desc": "此版本修正問題的詳細資訊。",
+    "auto_check": "自動檢查",
+    "auto_check_desc": "應用程式啟動時，每隔幾小時檢查一次更新。",
+    "available": "有可用的更新",
+    "available_desc": "點選「安裝」即可下載 v{version}，並以 Android 套件安裝程式開啟。",
+    "banner": {
+      "advisory": "閱讀公告",
+      "deprecated_subtitle": "請安裝 v{version} 以繼續使用此應用程式。",
+      "deprecated_title": "此版本已不再支援",
+      "security_subtitle": "v{version} 修正了一個安全性問題。請盡快安裝。",
+      "security_title": "有可用的安全性更新",
+      "subtitle": "v{version} 已可安裝。",
+      "title": "有可用的更新"
+    },
+    "building": "更新建置中",
+    "building_desc": "v{version} 已發布，但 APK 仍在建置中。此頁面會每 30 秒重新檢查一次。",
+    "check": "檢查更新",
+    "check_again": "再次檢查",
+    "check_now": "立即檢查",
+    "checking": "正在檢查…",
+    "current_version": "目前版本",
+    "description": "檢查並安裝新版本。",
+    "downloading": "正在下載…",
+    "downloading_pct": "正在下載 {pct}%",
+    "install": "安裝",
+    "installing": "正在安裝…",
+    "last_checked": "上次檢查",
+    "last_error": "上次錯誤：{message}",
+    "latest_version": "最新版本",
+    "never": "從未",
+    "open": "開啟",
+    "open_github": "在 GitHub 上開啟",
+    "opening_installer": "正在開啟安裝程式…",
+    "progress_of": "{written} / {total}",
+    "published": "發布於 {date}",
+    "rate_limited": "GitHub 正在限制更新檢查的頻率；稍後會再試一次。",
+    "release_notes": "版本資訊",
+    "release_page": "發布頁面",
+    "release_page_desc": "GitHub 上的完整版本資訊與下載。",
+    "release_page_pending_desc": "查看建置進度或手動下載 APK。",
+    "severity_deprecated": "必要",
+    "severity_security": "安全性",
+    "title": "應用程式更新"
+  }
+}

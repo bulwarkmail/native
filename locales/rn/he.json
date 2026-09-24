@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "אחרי",
+    "before": "לפני",
+    "no_attachment": "ללא קבצים מצורפים",
+    "not_starred": "ללא כוכב"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "אין אירועים ב-{count} הימים הקרובים.",
+      "no_upcoming": "אין אירועים קרובים"
+    },
+    "alerts": {
+      "unit_minutes_after": "דקות אחרי"
+    },
+    "drawer": {
+      "my_calendars": "לוחות השנה שלי",
+      "no_calendars": "אין עדיין לוחות שנה.",
+      "shared_with_me": "משותפים איתי",
+      "subscribed": "מנויים"
+    },
+    "event_modal": {
+      "participant_placeholder": "הוסף משתתף לפי אימייל"
+    },
+    "events": {
+      "copy_link_short": "קישור",
+      "export_ics_short": ".ics",
+      "tap_to_create": "הקש על + כדי ליצור"
+    },
+    "form": {
+      "description_placeholder": "הערות, סדר יום…",
+      "location_placeholder": "מקום או כתובת",
+      "time": "שעה"
+    },
+    "invitation": {
+      "accept": "כן",
+      "add_error": "לא ניתן היה להוסיף את האירוע",
+      "add_to_calendar": "הוסף ללוח השנה",
+      "added": "נוסף ללוח השנה",
+      "already_in_calendar": "כבר נמצא בלוח השנה שלך",
+      "cancelled": "האירוע הזה בוטל",
+      "decline": "לא",
+      "join_video": "הצטרף לשיחת וידאו",
+      "no_writable_calendar": "אין לוח שנה זמין לכתיבה",
+      "organizer": "מארגן",
+      "reading": "קורא את ההזמנה…",
+      "reply": "משתתף השיב להזמנה זו",
+      "response_error": "לא ניתן היה לשלוח את התשובה שלך",
+      "response_sent": "התשובה נשלחה",
+      "tentative": "אולי",
+      "title": "הזמנה ללוח שנה",
+      "trust_verified": "השולח אומת"
+    },
+    "management": {
+      "clear_confirm": "הסר הכול",
+      "clear_description": "כל האירועים בלוח שנה זה יימחקו. אירועים ששייכים גם ללוח שנה אחר רק ינותקו ממנו.",
+      "clear_title": "להסיר את כל האירועים?",
+      "delete_description": "לוח השנה וכל האירועים שבו יימחקו. לא ניתן לבטל פעולה זו.",
+      "delete_title": "למחוק את לוח השנה?",
+      "description_placeholder": "אופציונלי",
+      "edit_calendar": "עריכת לוח שנה",
+      "new_calendar": "לוח שנה חדש"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "הצג מספרי שבועות בתצוגת החודש.",
+      "time_zone": "אזור זמן",
+      "time_zone_auto": "אזור הזמן של המכשיר",
+      "time_zone_desc": "האזור המשמש לאירועים חדשים ולפירוש לוח השנה. \"אזור הזמן של המכשיר\" פועל לפי הגדרות הטלפון."
+    },
+    "share": {
+      "add_people": "הוסף אנשים",
+      "error": "עדכון השיתוף נכשל",
+      "no_matches": "אין התאמות",
+      "no_principals": "שיתוף אינו זמין בשרת זה.",
+      "role_custom": "מותאם אישית",
+      "search_placeholder": "חפש לפי שם או אימייל",
+      "shared_with": "משותף עם",
+      "title": "שיתוף"
+    },
+    "tasks": {
+      "add_placeholder": "הוסף משימה…",
+      "add_time": "הוסף שעה",
+      "delete_error": "מחיקת המשימה נכשלה",
+      "update_error": "עדכון המשימה נכשל"
+    }
+  },
+  "common": {
+    "add": "הוספה",
+    "back": "חזרה",
+    "confirm": "אישור",
+    "create": "יצירה",
+    "dismiss": "סגירה",
+    "done": "סיום",
+    "remove": "הסרה",
+    "retry": "ניסיון חוזר",
+    "undo": "ביטול",
+    "update": "עדכון"
+  },
+  "context_menu": {
+    "color_tag": "תג",
+    "remove_color": "הסר תג"
+  },
+  "email_composer": {
+    "attach_camera": "מצלמה",
+    "attachment_reminder_body": "ההודעה שלך מזכירה \"{keyword}\" אבל לא צורף קובץ. לשלוח בכל זאת?",
+    "attachment_reminder_title": "שכחת קובץ מצורף?",
+    "attachments_too_large_total": "הקבצים המצורפים יחרגו מהמגבלה של {max} להודעה שהשרת הזה מאפשר.",
+    "editor_unavailable": "לא ניתן היה לקרוא את תוכן ההודעה. העתק את הטקסט, ואז סגור ופתח מחדש את חלון הכתיבה.",
+    "identity_unavailable": "הזהות אינה זמינה",
+    "image_load_failed": "טעינת התמונה נכשלה",
+    "no_recipient": "(אין נמען)",
+    "no_sent_folder": "לא נמצאה תיקיית \"נשלח\"",
+    "permission_camera": "נדרשת הרשאת מצלמה כדי לצלם תמונה.",
+    "permission_photos": "נדרשת הרשאה לספריית התמונות כדי לצרף תמונות.",
+    "recipient_add_contact": "הוסף לאנשי הקשר",
+    "recipient_copy": "העתק כתובת",
+    "recipient_move_to": "העבר אל {field}",
+    "recipient_remove": "הסר",
+    "save_draft": "שמור טיוטה",
+    "save_failed_no_drafts": "אין תיקיית טיוטות לשמירת הטיוטה הזו.",
+    "save_failed_no_identity": "לא ניתן היה לטעון את זהויות השולח שלך, ולכן לא ניתן לשמור את הטיוטה. בדוק את החיבור, או העתק את הטקסט לפני הסגירה.",
+    "schedule_custom": "בחר תאריך ושעה…",
+    "schedule_in_1h": "בעוד שעה",
+    "schedule_in_3h": "בעוד 3 שעות",
+    "schedule_past_body": "המועד המתוזמן חייב להיות בעתיד.",
+    "schedule_past_title": "בחר מועד עתידי",
+    "schedule_tomorrow": "מחר, 8:00",
+    "schedule_tomorrow_morning": "מחר בבוקר",
+    "schedule_too_late_body": "זה מאוחר יותר ממה שהשרת מאפשר. בחר מועד מוקדם יותר.",
+    "schedule_too_late_title": "רחוק מדי",
+    "schedule_unsupported_body": "שרת הדואר הזה אינו תומך בתזמון שליחה.",
+    "schedule_unsupported_title": "התזמון אינו זמין",
+    "scheduled_body": "ההודעה שלך תישלח ב-{time}.",
+    "scheduled_title": "תוזמן",
+    "send_now": "שלח עכשיו",
+    "send_timeout_body": "ייתכן שההודעה כבר נשלחה. בדוק את תיקיית \"נשלח\" לפני שתשלח אותה שוב.",
+    "send_timeout_title": "אין תשובה מהשרת",
+    "undo_send_label": "שולח בעוד {seconds} שנ׳…",
+    "uploading": "מעלה...",
+    "validation": {
+      "subject_required": "הוסף נושא"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "העברה בין חשבונות דורשת חיבור",
+    "emails_archived_count": "{count, plural, one {הודעה אחת הועברה לארכיון} two {שתי הודעות הועברו לארכיון} other {# הודעות הועברו לארכיון}}",
+    "emails_moved_to": "{count, plural, one {הודעה אחת הועברה} two {שתי הודעות הועברו} other {# הודעות הועברו}} אל {mailbox}",
+    "error": "שגיאה",
+    "marked_as_spam": "סומן כספאם",
+    "marked_as_spam_count": "{count, plural, one {הודעה אחת סומנה כספאם} two {שתי הודעות סומנו כספאם} other {# הודעות סומנו כספאם}}",
+    "marked_not_spam": "סומן כלא ספאם",
+    "marked_not_spam_count": "{count, plural, one {הודעה אחת סומנה כלא ספאם} two {שתי הודעות סומנו כלא ספאם} other {# הודעות סומנו כלא ספאם}}",
+    "move_same_account": "ניתן להעביר הודעות רק בתוך אותו חשבון",
+    "moved_to_trash": "ההודעה הועברה לאשפה",
+    "moved_to_trash_count": "{count, plural, one {הודעה אחת הועברה לאשפה} two {שתי הודעות הועברו לאשפה} other {# הודעות הועברו לאשפה}}",
+    "no_archive_folder": "לא נמצאה תיקיית ארכיון בשרת.",
+    "no_emails_in": "אין הודעות בתיקייה {folder}",
+    "no_junk_folder": "לא נמצאה תיקיית ספאם בשרת.",
+    "no_mailboxes": "לא נמצאו תיבות דואר",
+    "no_mailboxes_hint": "ודא שחשבון ה-JMAP שלך תומך בדואר.",
+    "no_tags_defined": "לא הוגדרו תגים. הוסף תגים בהגדרות.",
+    "no_trash_folder": "לא נמצאה תיקיית אשפה בשרת. בדוק את הגדרות התיקיות.",
+    "offline_nothing_cached": "אין חיבור. אין מה להציג כי עדיין לא נשמר דואר במטמון.",
+    "open_draft_failed": "לא ניתן היה לפתוח את הטיוטה.",
+    "outbox_discard": "בטל",
+    "outbox_failed": "{count, plural, one {שינוי אחד לא נשמר בשרת.} two {שני שינויים לא נשמרו בשרת.} other {# שינויים לא נשמרו בשרת.}}",
+    "recent_searches": "חיפושים אחרונים",
+    "scope_all_folders": "כל התיקיות",
+    "scope_this_folder": "תיקייה זו",
+    "search_placeholder": "חפש בדואר...",
+    "showing_cached": "מוצג דואר מהמטמון",
+    "swipe_move": "העבר",
+    "swipe_spam": "ספאם",
+    "total": "סה״כ",
+    "undo_failed": "הביטול נכשל",
+    "unknown_tag": "לא מוגדר כאן"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "הוסף את השולח לאנשי הקשר",
+    "address_actions": {
+      "add_contact": "הוסף לאנשי הקשר",
+      "compose": "הודעה חדשה",
+      "copy": "העתק כתובת",
+      "copy_failed": "לא ניתן היה להעתיק את הכתובת."
+    },
+    "attachment_actions": {
+      "open": "פתח",
+      "preview": "תצוגה מקדימה",
+      "save": "שמור",
+      "share": "שתף"
+    },
+    "attachment_failed": "לא ניתן היה לפתוח את הקובץ המצורף",
+    "authentication": {
+      "spoof_warning": "לא ניתן היה לאמת את כתובת השולח - ייתכן שההודעה מזויפת."
+    },
+    "body_truncated": "ההודעה גדולה מכדי להציג אותה במלואה.",
+    "bundle_too_large": "הקבצים המצורפים גדולים מכדי לאגד אותם לקובץ אחד.",
+    "color_tag": {
+      "blue": "כחול",
+      "green": "ירוק",
+      "none": "ללא",
+      "orange": "כתום",
+      "pink": "ורוד",
+      "purple": "סגול",
+      "red": "אדום",
+      "title": "תג צבע",
+      "yellow": "צהוב"
+    },
+    "delete_permanently_message": "ההודעה תימחק לצמיתות ולא ניתן יהיה לשחזר אותה.",
+    "delete_permanently_title": "למחוק לצמיתות?",
+    "export_failed": "הייצוא נכשל",
+    "forwarded": "הועבר",
+    "load_failed": "טעינת ההודעה נכשלה",
+    "preview": {
+      "open_external": "פתח באפליקציה",
+      "pdf_external": "קובצי PDF נפתחים במציג ה-PDF במכשיר זה.",
+      "unsupported": "אין תצוגה מקדימה לסוג קובץ זה."
+    },
+    "received_via": "אל {name}",
+    "remove_color": "הסר תג",
+    "replied": "נענה",
+    "sender_actions": "שולח…",
+    "set_color": "הגדר תג",
+    "show_all_count": "הצג הכול ({count})",
+    "show_less": "הצג פחות",
+    "smime_unsupported": "חתום/מוצפן ב-S/MIME - לא נתמך בנייד",
+    "source_too_large": "ההודעה גדולה מכדי להציג אותה במלואה. במקום זאת, שתף את קוד המקור המלא.",
+    "thread_loading": "טוען שיחה...",
+    "unsubscribe_banner": {
+      "no_identity": "אין זהות שליחה זמינה"
+    },
+    "view_dark_mode": "הצג במצב כהה",
+    "view_light_mode": "הצג במצב בהיר"
+  },
+  "files": {
+    "delete_cascade_hint": "תיקיות נמחקות יחד עם כל מה שבתוכן. לא ניתן לבטל פעולה זו.",
+    "delete_item_title": "למחוק פריט זה?",
+    "delete_items_title": "למחוק {count} פריטים?",
+    "done": "סיום",
+    "folder_empty": "התיקייה ריקה",
+    "invalid_name": "שם לא חוקי",
+    "invalid_name_slash": "שמות לא יכולים להכיל \"/\".",
+    "move_to": "העבר אל…",
+    "open_error": "לא ניתן היה לפתוח את הקובץ",
+    "open_with": "פתח באמצעות…",
+    "preview_too_large": "הקובץ גדול מכדי להציג תצוגה מקדימה.",
+    "selected_count": "{count} נבחרו",
+    "share_add_people": "הוסף אנשים",
+    "share_empty": "עדיין לא משותף עם אף אחד",
+    "share_error": "עדכון השיתוף נכשל",
+    "share_file_error": "לא ניתן היה לשתף את הקובץ",
+    "share_folder_hint": "שיתוף תיקייה משתף את כל מה שבתוכה.",
+    "share_no_matches": "אין התאמות",
+    "share_no_users": "לא נמצאו משתמשים אחרים",
+    "share_remove": "הסר גישה",
+    "share_role_custom": "מותאם אישית",
+    "share_search_placeholder": "חפש לפי שם או אימייל",
+    "shared_with": "משותף עם",
+    "sharing_access": "שיתוף וגישה",
+    "upload_unavailable": "בורר הקבצים אינו מותקן בגרסה זו. בנה מחדש את האפליקציה כדי לאפשר העלאות."
+  },
+  "identities": {
+    "badge": {
+      "to": "אל {identity}",
+      "via": "דרך {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "אתה כבר מחובר לחשבונות האלה.",
+      "add_title": "הוסף חשבון נוסף",
+      "camera_allow": "אפשר גישה למצלמה",
+      "camera_disabled": "הגישה למצלמה מושבתת. הפעל אותה בהגדרות כדי לסרוק קוד QR להתחברות.",
+      "camera_needed": "Bulwark Mail זקוקה לגישה למצלמה כדי לסרוק קוד QR להתחברות.",
+      "choose_subtitle": "בחר איך תרצה להתחבר.",
+      "confirm_check": "ודא שהפרטים נכונים",
+      "confirm_found": "שרת הדואר שלך נמצא",
+      "confirm_subtitle": "בשלב הבא תתחבר בדף של הספק שלך.",
+      "connecting": "מתחבר אל {host}",
+      "connecting_detail": "מגדיר את תיבת הדואר שלך…",
+      "continue": "המשך",
+      "different_server": "השתמש בשרת אחר",
+      "elsewhere_title": "חשבון במקום אחר",
+      "email_desc": "נמצא את שרת הדואר שלך",
+      "email_step_hint": "עובד עם Stalwart ועם כל שרת דואר JMAP אחר.",
+      "email_step_subtitle": "בדרך כלל זה כל מה שצריך כדי למצוא את שרת הדואר שלך.",
+      "email_step_title": "מה כתובת האימייל שלך?",
+      "email_step_title_add": "מה הכתובת האחרת?",
+      "email_title": "השתמש בכתובת האימייל שלי",
+      "err_bad_detail": "בדוק את האימייל והסיסמה. אם החשבון שלך משתמש באימות דו-שלבי, צור סיסמת אפליקציה בדואר האינטרנט והשתמש בה כאן.",
+      "err_bad_title": "זה לא עבד",
+      "err_cert_detail": "תעודת האבטחה של השרת נדחתה. אם זה השרת שלך, ודא שהתעודה תקפה ושתוקפה לא פג.",
+      "err_cert_title": "לא ניתן לאמת את {host}",
+      "err_code_expired_detail": "קודי התחברות תקפים לכמה דקות בלבד. צור קוד חדש בדואר האינטרנט וסרוק שוב.",
+      "err_code_expired_title": "תוקף הקוד פג",
+      "err_generic_detail": "משהו השתבש. נסה שוב.",
+      "err_generic_title": "ההתחברות נכשלה",
+      "err_interrupted_detail": "התגובה לא תאמה לבקשה שהתחלנו. נסה להתחבר שוב.",
+      "err_interrupted_title": "ההתחברות הופסקה",
+      "err_no_server_detail": "בדוק שוב את הכתובת, או סרוק במקום זאת קוד התחברות מדואר האינטרנט.",
+      "err_no_server_title": "לא נמצא שרת דואר: {host}",
+      "err_no_webmail_detail": "בשרת זה אין דואר אינטרנט של Bulwark ואין התחברות OAuth. השתמש במקום זאת בסיסמה (או בסיסמת אפליקציה).",
+      "err_no_webmail_title": "אין דף התחברות: {host}",
+      "err_rate_detail": "השרת ביקש שנמתין רגע. נסה שוב בקרוב.",
+      "err_rate_detail_seconds": "השרת ביקש שנמתין. נסה שוב בעוד כ-{seconds} שניות.",
+      "err_rate_title": "יותר מדי ניסיונות",
+      "err_server_detail": "השרת השיב בשגיאה. נסה שוב בעוד כמה דקות.",
+      "err_server_title": "{host} נתקל בבעיה",
+      "err_totp_bad_detail": "בדוק את הסיסמה ואת הקוד הנוכחי מאפליקציית האימות, ואז נסה שוב.",
+      "err_totp_detail": "החשבון הזה מוגן באימות דו-שלבי. הקלד את הקוד בן 6 הספרות מאפליקציית האימות.",
+      "err_totp_title": "הזן את קוד האימות הדו-שלבי",
+      "err_unreachable_detail": "בדוק את החיבור ואת כתובת השרת, ואז נסה שוב.",
+      "err_unreachable_title": "אין גישה אל {host}",
+      "know_server": "אני יודע את כתובת השרת שלי",
+      "known_server_desc": "השרת הזה כבר מוכר לנו, כך שאין צורך בהגדרה",
+      "known_server_title": "חשבון נוסף ב-{host}",
+      "looking_up": "מחפש את השרת שלך…",
+      "manual": "הזן את פרטי השרת ידנית",
+      "notice_bad_qr": "הקוד הזה אינו קוד התחברות של Bulwark",
+      "notice_bad_qr_detail": "פתח את Bulwark בדפדפן, ואז הגדרות ← אבטחה ← הקשר יישום נייד כדי להציג קוד.",
+      "notice_bad_server": "זה לא נראה כמו כתובת שרת",
+      "notice_bad_server_detail": "נסה את הכתובת שבה אתה משתמש לדואר האינטרנט, למשל mail.example.com.",
+      "notice_full_email": "הזן כתובת אימייל מלאה",
+      "notice_full_email_detail": "למשל ada@example.com. אם אתה מתחבר עם שם משתמש, בחר \"אני יודע את כתובת השרת שלי\".",
+      "notice_need_code": "הזן את הקוד בן 6 הספרות מאפליקציית האימות",
+      "notice_need_credentials": "הזן את האימייל והסיסמה שלך",
+      "notice_need_server": "קודם צריך כתובת שרת",
+      "open_settings": "פתח הגדרות",
+      "opening": "פותח את {host}",
+      "opening_detail": "סיים את ההתחברות בדף שנפתח זה עתה. משם נמשיך אנחנו.",
+      "pairing": "מממש את קוד ההתחברות",
+      "pairing_detail": "מצמיד את המכשיר הזה אל {host}…",
+      "password_subtitle": "הסיסמה שלך נשלחת לשרת הזה בלבד ונשמרת במחזיק המפתחות של המכשיר.",
+      "password_title": "התחברות אל {host}",
+      "provider_detail": "תקליד אותה בדף שלהם. Bulwark שומרת רק אסימון התחברות, שאפשר לבטל בכל עת.",
+      "provider_title": "הסיסמה שלך נשארת אצל הספק",
+      "qr_hint": "בהגדרות ← אבטחה ← הקשר יישום נייד מוצג קוד. כוון אליו את המצלמה.",
+      "qr_hint_title": "פתח את Bulwark במחשב",
+      "qr_title": "קוד התחברות",
+      "scan_desc": "הדרך המהירה ביותר אם אתה מחובר באינטרנט",
+      "scan_title": "סרוק קוד התחברות",
+      "server_hint": "אותה כתובת שאתה מקליד בדפדפן. נוסיף בשבילך את https://.",
+      "server_label": "כתובת השרת",
+      "server_not_found": "לא מצאנו שרת עבור {domain}. אם אתה מארח בעצמך, הכתובת היא זו שבה אתה משתמש לדואר האינטרנט.",
+      "server_scan_hint": "אם אינך בטוח, סרוק במקום זאת קוד התחברות. הוא כולל את כתובת השרת.",
+      "server_subtitle": "הזן את הכתובת שבה אתה ניגש לדואר האינטרנט.",
+      "server_title": "מה כתובת השרת שלך?",
+      "the_server": "השרת",
+      "unencrypted": "חיבור לא מוצפן",
+      "use_password": "התחבר עם סיסמה במקום זאת",
+      "username_label": "אימייל או שם משתמש",
+      "your_server": "השרת שלך"
+    }
+  },
+  "offline": {
+    "banner": "אתה במצב לא מקוון",
+    "queued_changes": "{count, plural, one {שינוי אחד יסונכרן כשתתחבר מחדש} two {שני שינויים יסונכרנו כשתתחבר מחדש} other {# שינויים יסונכרנו כשתתחבר מחדש}}"
+  },
+  "push_prompt": {
+    "body": "הפעל התראות ברקע כדי שהודעות חדשות יגיעו אליך גם כשהאפליקציה סגורה.",
+    "dismiss": "לא עכשיו",
+    "enable": "הפעל",
+    "title": "קבל התראות על דואר חדש"
+  },
+  "scheduled": {
+    "cancel_body": "ההודעה לא תימסר. עותק יישאר בתיקיית \"נשלח\".",
+    "cancel_failed": "הביטול נכשל",
+    "edit_failed": "לא ניתן היה לפתוח את ההודעה לעריכה",
+    "keep_scheduled": "השאר מתוזמן",
+    "reschedule_failed": "התזמון מחדש נכשל",
+    "send_now_failed": "לא ניתן היה לשלוח עכשיו"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "שנה את סדר החשבונות במחליף החשבונות, בחר ברירת מחדל או התנתק מחשבון.",
+        "limit": "הגעת למספר המרבי של חשבונות ({count})."
+      },
+      "shared_accounts": {
+        "description_manage": "חשבונות קבוצתיים ומשותפים שאתה יכול לקרוא דרך החשבון הזה. בחר אחד כדי לנהל את המסננים ואת משיב החופשה שלו."
+      },
+      "unknown": "לא ידוע"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "נדרש עדכון: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "עדכון אבטחה: {version}",
+        "update_available": "עדכון: {version}",
+        "update_store_hint": "זמין ב-TestFlight / App Store"
+      },
+      "export_settings": {
+        "saved_to": "נשמר ב-{path}"
+      },
+      "reset_settings": {
+        "done": "כל ההגדרות שוחזרו לברירות המחדל."
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "הפעל מחדש את האפליקציה כדי להחיל את כיוון הטקסט החדש.",
+        "system_default": "ברירת המחדל של המערכת"
+      },
+      "toolbar_labels": {
+        "description_mobile": "הצג תוויות טקסט ליד סמלי סרגל הכלים."
+      }
+    },
+    "badges": {
+      "experimental": "ניסיוני",
+      "not_implemented": "לא מומש",
+      "unavailable": "לא זמין"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "התבנית שמשמשת בעת שמירה או שיתוף של קובץ מצורף."
+      },
+      "email_template": {
+        "description_mobile": "התבנית שמשמשת בעת ייצוא הודעה כקובץ .eml."
+      },
+      "strip_diacritics": {
+        "description_mobile": "המר אותיות עם סימנים דיאקריטיים לתווי ASCII פשוטים (ä → a)."
+      },
+      "transform_description": "חל על כל שם קובץ מיוצא.",
+      "transform_title": "המרת שם קובץ"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "לא נמצאה תיקיית ארכיון.",
+        "reorganize_result": "הועברו {moved} מתוך {total} הודעות.",
+        "reorganizing": "מארגן מחדש…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "מה קורה כשמקישים על קובץ מצורף."
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "תשובות נשלחות תמיד מהזהות שאליה נשלחה ההודעה. כשאפשרות זו פעילה, גם תשובה להודעה שנשלחה לכתובת אחרת בדומיינים שלך (כינוי catch-all) תישלח מאותה כתובת."
+      },
+      "plain_text_mode": {
+        "description_mobile": "כתיבה וקריאה בטקסט רגיל בלבד."
+      },
+      "send_delay": {
+        "description_mobile": "השהה דואר יוצא לכמה שניות כדי שתוכל לבטל אותו. דורש תמיכה בשרת."
+      },
+      "swipe_actions": {
+        "move": "העבר לתיקייה",
+        "pin": "הצמד"
+      },
+      "swipe_left_action": {
+        "description_mobile": "הפעולה כשגוררים שורה מהקצה הימני שלה שמאלה.",
+        "label_mobile": "החלקה שמאלה (מימין לשמאל)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "הפעולה כשגוררים שורה מהקצה השמאלי שלה ימינה.",
+        "label_mobile": "החלקה ימינה (משמאל לימין)"
+      }
+    },
+    "experimental": {
+      "title": "תכונה ניסיונית"
+    },
+    "folders": {
+      "account": "חשבון",
+      "cannot_delete": "לא ניתן למחוק",
+      "description_mobile": "צור, שנה שם, העבר ומחק תיקיות. לחיצה ארוכה על תיקייה בתפריט הצד פותחת פעולות מהירות.",
+      "edit_folder": "עריכת \"{name}\"",
+      "folder_name": "שם התיקייה",
+      "move_under": "תיקיית אב",
+      "name_placeholder": "קבלות",
+      "name_required": "נדרש שם",
+      "new_folder": "תיקייה חדשה",
+      "not_empty_message": "\"{name}\" מכילה {count, plural, one {הודעה אחת} two {שתי הודעות} other {# הודעות}}. למחוק בכל זאת?",
+      "not_empty_title": "התיקייה אינה ריקה",
+      "own_account": "התיקיות שלי",
+      "role": "שימוש מיוחד",
+      "role_hint": "הקצה לתיקייה זו תפקיד שימוש מיוחד (ארכיון, ספאם, …). כל תפקיד יכול להיות משויך לתיקייה אחת בלבד.",
+      "save_failed": "השמירה נכשלה",
+      "system_folder_delete": "לא ניתן להסיר תיקיות מערכת.",
+      "system_folder_rename": "לא ניתן לשנות שם של תיקיות מערכת.",
+      "top_level": "רמה עליונה"
+    },
+    "identities": {
+      "cannot_delete": "לא ניתן להסיר את הזהות הראשית.",
+      "cannot_delete_title": "לא ניתן למחוק",
+      "count": "{count, plural, =0 {אין זהויות} one {זהות אחת} two {שתי זהויות} other {# זהויות}}",
+      "create": "זהות חדשה",
+      "delete_confirm": "להסיר את \"{name}\"?",
+      "delete_failed": "המחיקה נכשלה",
+      "delete_title": "מחיקת זהות",
+      "description_mobile": "נהל שמות שולח, כתובות אימייל וחתימות. הקש על שורה כדי לערוך.",
+      "display_name": "שם תצוגה",
+      "edit": "עריכת זהות",
+      "email_address": "כתובת אימייל",
+      "email_locked": "JMAP אינו מאפשר לשנות את האימייל של זהות; צור זהות חדשה במקום.",
+      "invalid_email": "הזן כתובת אימייל תקינה עבור זהות זו.",
+      "invalid_email_title": "אימייל לא תקין",
+      "new": "חדשה",
+      "no_name": "(ללא שם)",
+      "primary": "ראשית",
+      "save_failed": "השמירה נכשלה",
+      "text_signature": "חתימה בטקסט רגיל"
+    },
+    "keywords": {
+      "description_mobile": "תגים צבעוניים לארגון הדואר שלך.",
+      "discover": {
+        "add_all": "הוסף הכול",
+        "found": "{count, plural, one {נמצא תג אחד שאינו מוגדר כאן.} two {נמצאו שני תגים שאינם מוגדרים כאן.} other {נמצאו # תגים שאינם מוגדרים כאן.}}",
+        "none": "לא נמצאו תגים לא מוכרים ב-{scanned} הודעות.",
+        "partial": "(הסריקה כללה רק את ההודעות החדשות ביותר.)",
+        "progress": "נסרקו {scanned} מתוך {total} הודעות…",
+        "scan": "חפש תגים בתיבת הדואר"
+      },
+      "reset_confirm": "להחליף את רשימת התגים בתגי ברירת המחדל? תגים שכבר הוגדרו על הודעות יישארו בשרת.",
+      "reset_defaults": "אפס לברירות המחדל"
+    },
+    "layout": {
+      "description": "התאם את האינטראקציות עם רשימת ההודעות בנייד.",
+      "quick_actions": {
+        "description": "שלושת הכפתורים שמוצגים בין הקודם/הבא בתחתית הודעה פתוחה. ברירת המחדל: השב, השב לכולם והעבר.",
+        "label": "פעולות מהירות בקריאה",
+        "mark_unread": "סמן כנקרא/כלא נקרא",
+        "relocated": "{count, plural, one {הפעולה {actions} הועברה לסרגל הכלים העליון כדי שתוכל עדיין להשתמש בה.} two {הפעולות {actions} הועברו לסרגל הכלים העליון כדי שתוכל עדיין להשתמש בהן.} other {הפעולות {actions} הועברו לסרגל הכלים העליון כדי שתוכל עדיין להשתמש בהן.}}",
+        "slot": "מיקום {n}",
+        "spam": "ספאם",
+        "star": "כוכב",
+        "tag": "תג"
+      },
+      "show_avatars_in_junk": "הצג תמונות שולחים בספאם",
+      "show_avatars_in_junk_description": "טען סמלי לוגו של שולחים עבור הודעות בתיקיית הספאם. כשהאפשרות כבויה, לא נוצר קשר עם שולחי ספאם.",
+      "show_folder_total_count": "הצג את מספר ההודעות הכולל בתיקיות",
+      "show_folder_total_count_description": "הצג את הסך הכולל לצד מספר ההודעות שלא נקראו ברשימת התיקיות.",
+      "swipe_mode": {
+        "instant": "מיידי (החלקה = פעולה)",
+        "reveal": "חשיפה (החלקה ואז הקשה)"
+      },
+      "unified_cross_account": "תצוגות מאוחדות בין חשבונות",
+      "unified_cross_account_description": "שלב את כל החשבונות המחוברים ב\"תיבת דואר מאוחדת\". כשהאפשרות כבויה, התצוגות המאוחדות נשארות בתוך החשבון הפעיל והתיקיות המשותפות שלו."
+    },
+    "message_list_order": {
+      "description": "אילו הודעות מופיעות ראשונות ברשימה. בתוך כל קבוצה החדשות מופיעות תחילה; המתג בכותרת עדיין הופך בין ישנות לחדשות.",
+      "preset_chronological": "החדשות תחילה",
+      "preset_custom": "מותאם אישית",
+      "preset_starred_first": "מסומנות בכוכב תחילה",
+      "preset_tagged_first": "מתויגות תחילה",
+      "preset_unread_first": "שלא נקראו תחילה",
+      "scope": "החל על",
+      "scope_all": "כל התיקיות",
+      "scope_inbox": "דואר נכנס בלבד",
+      "tag": "תגית",
+      "title": "סדר רשימת ההודעות"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "מספר ההודעות שלא נקראו על סמל האפליקציה",
+        "app_icon_badge_desc": "הצג את מספר ההודעות שלא נקראו בדואר הנכנס כתג על סמל האפליקציה.",
+        "sound_channel_hint": "הצליל והרטט של התראות הדואר נשלטים על ידי ערוץ ההתראות של Android: לחץ לחיצה ארוכה על התראה או פתח את הגדרות האפליקציה במערכת."
+      },
+      "push": {
+        "confirm_disable_message_mobile": "המכשיר הזה יפסיק לקבל התראות על דואר חדש בחשבון זה.",
+        "description_mobile": "קבל התראות מערכת על דואר חדש כשהאפליקציה סגורה. נמסרות דרך ממסר הדחיפה של Bulwark; הממסר אף פעם לא רואה את תוכן הדואר.",
+        "phase_account": "חשבון",
+        "phase_distributor": "מפיץ UnifiedPush",
+        "phase_jmap": "מינוי בשרת הדואר",
+        "phase_permission": "הרשאת התראות",
+        "phase_platform": "פלטפורמה",
+        "phase_relay": "רישום בממסר",
+        "phase_token": "אסימון מכשיר",
+        "phase_verify": "אימות",
+        "relay_desc_mobile": "השרת שמוסר את ההתראות שלך. ברירת המחדל היא ממסר Bulwark המתארח; שנה רק אם אתה מארח בעצמך. חייב להשתמש ב-https.",
+        "relay_invalid": "הזן כתובת https:// תקינה",
+        "setup_failed": "ההגדרה נכשלה",
+        "status_android_only": "התראות ברקע זמינות ב-Android בלבד.",
+        "transport_desc": "איך ההתראות מגיעות למכשיר הזה: Firebase Cloud Messaging של Google, או אפליקציית מפיץ של UnifiedPush (כמו ntfy) למסירה ללא Google.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "שיטת מסירה",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "מותקנות כמה אפליקציות מפיץ של UnifiedPush - בחר את זו שתמסור את ההתראות.",
+        "up_distributor_label": "מפיץ",
+        "up_no_distributor": "לא מותקנת במכשיר זה אפליקציית מפיץ של UnifiedPush. התקן אחת (למשל ntfy) ונסה שוב."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, one {הודעה אחת} two {שתי הודעות} other {# הודעות}}",
+      "clear": "נקה",
+      "clear_cache": "נקה מטמון",
+      "clear_message": "להסיר {count, plural, one {הודעה אחת שמורה} two {שתי הודעות שמורות} other {# הודעות שמורות}} ({size})?",
+      "clear_title": "ניקוי דואר לא מקוון",
+      "days_ago": "{count, plural, one {לפני יום} two {לפני יומיים} other {לפני # ימים}}",
+      "description": "הורד הודעות אחרונות כדי שייפתחו מיד ויישארו קריאות גם ללא חיבור. גוף ההודעות בלבד — קבצים מצורפים עדיין נטענים לפי דרישה.",
+      "downloading": "מוריד {completed}/{total}…",
+      "enabled": "שמירת דואר אחרון במטמון",
+      "enabled_desc": "כשהאפשרות פעילה, האפליקציה שומרת במכשיר את גוף ההודעות מהתקופה שנבחרה.",
+      "hours_ago": "{count, plural, one {לפני שעה} two {לפני שעתיים} other {לפני # שעות}}",
+      "just_now": "זה עתה",
+      "last_sync": "סנכרון אחרון: {when}",
+      "last_sync_failed": "הסנכרון האחרון נכשל: {message}",
+      "max_size": "גודל מרבי",
+      "max_size_desc": "ההודעות הישנות ביותר מוסרות כשהמטמון חורג מגודל זה.",
+      "minutes_ago": "{count, plural, one {לפני דקה} two {לפני שתי דקות} other {לפני # דקות}}",
+      "never": "אף פעם",
+      "nothing_cached": "עדיין לא נשמר דבר במטמון",
+      "queued_changes": "{count, plural, one {שינוי אחד ממתין לסנכרון} two {שני שינויים ממתינים לסנכרון} other {# שינויים ממתינים לסנכרון}}",
+      "scanning": "סורק דואר אחרון…",
+      "sync_now": "סנכרן עכשיו",
+      "syncing": "מסנכרן…",
+      "title": "דואר לא מקוון",
+      "window": "תקופה",
+      "window_24h": "24 השעות האחרונות",
+      "window_days": "{count, plural, one {היום האחרון} two {היומיים האחרונים} other {# הימים האחרונים}}",
+      "window_desc": "כמה זמן אחורה לשמור במטמון, לפי תאריך קבלת ההודעה."
+    },
+    "plugins": {
+      "mobile_description": "תוספים פועלים בתוך דואר האינטרנט ומרחיבים אותו בדפדפן.",
+      "mobile_explainer": "לאפליקציה לנייד אין סביבת הרצה לתוספים. התקן ונהל תוספים בדואר האינטרנט תחת הגדרות ← תוספים; ערכות הנושא והמסננים שהם מספקים אינם מוחלים כאן."
+    },
+    "security": {
+      "client_cert": {
+        "active": "פעיל: {alias}",
+        "choose_another": "בחר אחר",
+        "clear": "נקה",
+        "clear_message": "בקשות חדשות לא יציגו עוד תעודה. התעודה תישאר מותקנת ב-Android.",
+        "clear_title": "להפסיק להשתמש בתעודת לקוח?",
+        "description": "בוחר תעודה מותקנת ב-Android לאימות מול השרת במהלך לחיצת היד של TLS. שימושי כששרת ה-proxy ההפוך אוכף mTLS.",
+        "hint": "התקן את התעודה דרך הגדרות Android ← אבטחה ← הצפנה ופרטי כניסה, ואז בחר בה כאן.",
+        "not_set": "לא הוגדר",
+        "pick": "בחר תעודה",
+        "pick_failed": "הבחירה נכשלה",
+        "title": "תעודת לקוח TLS"
+      },
+      "credentials": {
+        "allowed_ips": "כתובות IP מורשות (אופציונלי)",
+        "allowed_ips_hint": "מופרדות בפסיק או ברווח. השאר ריק כדי לאפשר כל IP.",
+        "clear_expiry": "נקה תפוגה",
+        "copy_now": "העתק את זה עכשיו — זה מוצג פעם אחת בלבד. לחץ לחיצה ארוכה כדי לבחור.",
+        "create_error": "היצירה נכשלה",
+        "expires": "תפוגה (אופציונלי)",
+        "expires_on": "פג ב-{date}",
+        "no_expiry": "ללא תפוגה",
+        "none": "עדיין אין.",
+        "remove_error": "ההסרה נכשלה",
+        "remove_message": "כל לקוח שמשתמש בהם יפסיק לעבוד.",
+        "remove_title": "להסיר את פרטי הגישה?"
+      },
+      "display_name": {
+        "error_title": "העדכון נכשל"
+      },
+      "encryption": {
+        "no_keys": "הוסף קודם מפתח ציבורי - הצפנה במנוחה זקוקה לאחד."
+      },
+      "load_error": "טעינת הגדרות האבטחה נכשלה.",
+      "not_supported": "ניהול אבטחת החשבון דורש שרת Stalwart. תכונות אלה אינן זמינות לחשבון זה.",
+      "offline": "אתה במצב לא מקוון. הגדרות אבטחת החשבון דורשות חיבור פעיל לשרת.",
+      "password": {
+        "change": "שנה סיסמה",
+        "changed": "סיסמת החשבון שלך עודכנה.",
+        "changed_title": "הסיסמה שונתה",
+        "description": "שנה את הסיסמה של חשבון זה.",
+        "error": "שינוי הסיסמה נכשל.",
+        "mismatch": "הסיסמאות אינן תואמות.",
+        "toggle_visibility": "הצג או הסתר סיסמה",
+        "too_short": "הסיסמה החדשה חייבת להכיל לפחות 8 תווים."
+      },
+      "public_keys": {
+        "add_error": "הוספת המפתח הציבורי נכשלה",
+        "description": "תעודות S/MIME ומפתחות PGP שמאוחסנים בשרת. הם משמשים להצפנה במנוחה.",
+        "expires": "פג ב-{date}",
+        "remove_error": "הסרת המפתח הציבורי נכשלה",
+        "remove_message": "הצפנה במנוחה שמשתמשת במפתח זה תפסיק לעבוד.",
+        "remove_title": "להסיר את המפתח הציבורי?",
+        "title": "מפתחות ציבוריים"
+      },
+      "two_factor": {
+        "active": "פעיל",
+        "code": "קוד אימות",
+        "code_required": "הזן את הקוד בן 6 הספרות מהאפליקציה.",
+        "description": "דרוש קוד חד-פעמי בעת ההתחברות.",
+        "disable": "השבת",
+        "disable_error": "השבתת האימות הדו-שלבי נכשלה.",
+        "disable_hint": "הזן את הסיסמה שלך כדי לכבות את האימות הדו-שלבי.",
+        "enable_error": "הפעלת האימות הדו-שלבי נכשלה.",
+        "enabled_message": "בהתחברות הבאה תתבקש להזין קוד.",
+        "enabled_title": "האימות הדו-שלבי הופעל",
+        "enrol_hint": "הוסף את הסוד הזה לאפליקציית האימות, ואז הזן את הקוד בן 6 הספרות לאישור.",
+        "inactive": "לא פעיל",
+        "label": "אפליקציית אימות",
+        "manual_secret": "או הזן את הסוד הזה ידנית",
+        "no_app": "לא ניתן היה לפתוח אפליקציית אימות. הוסף את הסוד שלמטה ידנית.",
+        "no_app_title": "אין אפליקציית אימות",
+        "open_app": "הוסף לאפליקציית האימות",
+        "password_required": "הזן את הסיסמה הנוכחית שלך.",
+        "section_title": "אימות דו-שלבי"
+      }
+    },
+    "sidebar_apps": {
+      "add": "הוסף אפליקציה",
+      "empty": "עדיין לא נוספו אפליקציות.",
+      "form": {
+        "name": "שם",
+        "name_placeholder": "שם האפליקציה",
+        "open_mode": "מצב פתיחה",
+        "show_on_mobile": "הצג בנייד",
+        "url": "כתובת URL"
+      },
+      "keep_loaded_description_mobile": "השאר אפליקציות מוטמעות פועלות ברקע בעת מעבר למקום אחר.",
+      "open_mode": {
+        "inline": "מוטמע",
+        "new_tab": "כרטיסייה חדשה",
+        "tab": "כרטיסייה"
+      }
+    },
+    "smime": {
+      "mobile_description": "חתום והצפן דואר באמצעות תעודות S/MIME.",
+      "mobile_explainer": "S/MIME עדיין אינו זמין באפליקציה לנייד. נהל מפתחות ותעודות בדואר האינטרנט; הודעות חתומות מוצגות כאן ללא אימות."
+    },
+    "tabs": {
+      "plugins": "תוספים"
+    },
+    "templates": {
+      "delete_title": "מחיקת תבנית"
+    },
+    "themes": {
+      "default_description": "ערכות הצבעים הבהירה והכהה המוגדרות כברירת מחדל.",
+      "default_name": "Bulwark",
+      "mobile_description": "בחר ערכת צבעים. ערכות הנושא פועלות לפי הגדרת בהיר/כהה במראה; חבילות ערכות נושא מותאמות מנוהלות בדואר האינטרנט.",
+      "title": "ערכות נושא"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "תאריכים חייבים להיות בפורמט \"YYYY-MM-DD\" או \"YYYY-MM-DD HH:MM\""
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "דורש תשומת לב",
+    "remove_account_hint": "לחיצה ארוכה להסרת החשבון הזה",
+    "remove_account_message": "התנתק מ-{account} במכשיר זה. הדואר שלך נשאר בשרת.",
+    "remove_account_title": "להסיר את החשבון?",
+    "show_unread": "הצג הודעות שלא נקראו"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {לא ניתן היה לטעון חשבון אחד} two {לא ניתן היה לטעון שני חשבונות} other {לא ניתן היה לטעון # חשבונות}}"
+  },
+  "updates": {
+    "advisory": "הודעת אבטחה",
+    "advisory_desc": "פרטים על הבעיה שגרסה זו מתקנת.",
+    "auto_check": "בדוק אוטומטית",
+    "auto_check_desc": "בדוק אם יש עדכונים כל כמה שעות בעת הפעלת האפליקציה.",
+    "available": "יש עדכון זמין",
+    "available_desc": "הקש על התקנה כדי להוריד את v{version} ולפתוח אותה במתקין החבילות של Android.",
+    "banner": {
+      "advisory": "קרא את הודעת האבטחה",
+      "deprecated_subtitle": "התקן את v{version} כדי להמשיך להשתמש באפליקציה.",
+      "deprecated_title": "גרסה זו אינה נתמכת עוד",
+      "security_subtitle": "v{version} מתקנת בעיית אבטחה. התקן אותה בהקדם האפשרי.",
+      "security_title": "יש עדכון אבטחה זמין",
+      "subtitle": "v{version} מוכנה להתקנה.",
+      "title": "יש עדכון זמין"
+    },
+    "building": "העדכון בבנייה",
+    "building_desc": "v{version} פורסמה, אך קובץ ה-APK עדיין נבנה. דף זה יבדוק שוב כל 30 שניות.",
+    "check": "בדוק אם יש עדכונים",
+    "check_again": "בדוק שוב",
+    "check_now": "בדוק עכשיו",
+    "checking": "בודק…",
+    "current_version": "גרסה נוכחית",
+    "description": "בדוק אם יש גרסאות חדשות והתקן אותן.",
+    "downloading": "מוריד…",
+    "downloading_pct": "מוריד {pct}%",
+    "install": "התקנה",
+    "installing": "מתקין…",
+    "last_checked": "בדיקה אחרונה",
+    "last_error": "שגיאה אחרונה: {message}",
+    "latest_version": "הגרסה העדכנית ביותר",
+    "never": "אף פעם",
+    "open": "פתח",
+    "open_github": "פתח ב-GitHub",
+    "opening_installer": "פותח את המתקין…",
+    "progress_of": "{written} מתוך {total}",
+    "published": "פורסם ב-{date}",
+    "rate_limited": "GitHub מגביל את קצב בדיקות העדכונים; ננסה שוב מאוחר יותר.",
+    "release_notes": "הערות גרסה",
+    "release_page": "דף הגרסה",
+    "release_page_desc": "הערות גרסה מלאות והורדות ב-GitHub.",
+    "release_page_pending_desc": "עקוב אחר התקדמות הבנייה או הורד את ה-APK ידנית.",
+    "severity_deprecated": "חובה",
+    "severity_security": "אבטחה",
+    "title": "עדכוני אפליקציה"
+  }
+}

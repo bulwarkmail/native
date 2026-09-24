@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "后",
+    "before": "前",
+    "no_attachment": "无附件",
+    "not_starred": "无星标"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "未来 {count} 天没有活动。",
+      "no_upcoming": "没有即将举行的活动"
+    },
+    "alerts": {
+      "unit_minutes_after": "分钟后"
+    },
+    "drawer": {
+      "my_calendars": "我的日历",
+      "no_calendars": "还没有日历。",
+      "shared_with_me": "与我共享",
+      "subscribed": "已订阅"
+    },
+    "event_modal": {
+      "participant_placeholder": "通过邮箱地址添加参与者"
+    },
+    "events": {
+      "copy_link_short": "链接",
+      "export_ics_short": ".ics",
+      "tap_to_create": "点按 + 创建"
+    },
+    "form": {
+      "description_placeholder": "备注、议程…",
+      "location_placeholder": "地点或地址",
+      "time": "时间"
+    },
+    "invitation": {
+      "accept": "是",
+      "add_error": "无法添加活动",
+      "add_to_calendar": "添加到日历",
+      "added": "已添加到日历",
+      "already_in_calendar": "已在您的日历中",
+      "cancelled": "此活动已取消",
+      "decline": "否",
+      "join_video": "加入视频通话",
+      "no_writable_calendar": "没有可写入的日历",
+      "organizer": "组织者",
+      "reading": "正在读取邀请…",
+      "reply": "有参与者回复了此邀请",
+      "response_error": "无法发送您的回复",
+      "response_sent": "回复已发送",
+      "tentative": "暂定",
+      "title": "日历邀请",
+      "trust_verified": "发件人已验证"
+    },
+    "management": {
+      "clear_confirm": "全部删除",
+      "clear_description": "此日历中的所有活动都将被删除。同时属于其他日历的活动只会解除与此日历的关联。",
+      "clear_title": "删除所有活动？",
+      "delete_description": "该日历及其所有活动都将被删除。此操作无法撤销。",
+      "delete_title": "删除日历？",
+      "description_placeholder": "可选",
+      "edit_calendar": "编辑日历",
+      "new_calendar": "新建日历"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "在月视图中显示周数",
+      "time_zone": "时区",
+      "time_zone_auto": "设备时区",
+      "time_zone_desc": "用于新建活动和显示日历的时区。“设备”将跟随手机设置。"
+    },
+    "share": {
+      "add_people": "添加用户",
+      "error": "更新共享失败",
+      "no_matches": "无匹配项",
+      "no_principals": "此服务器不支持共享。",
+      "role_custom": "自定义",
+      "search_placeholder": "按姓名或邮箱搜索",
+      "shared_with": "共享对象",
+      "title": "共享"
+    },
+    "tasks": {
+      "add_placeholder": "添加任务…",
+      "add_time": "添加时间",
+      "delete_error": "删除任务失败",
+      "update_error": "更新任务失败"
+    }
+  },
+  "common": {
+    "add": "添加",
+    "back": "返回",
+    "confirm": "确认",
+    "create": "创建",
+    "dismiss": "关闭",
+    "done": "完成",
+    "remove": "移除",
+    "retry": "重试",
+    "undo": "撤销",
+    "update": "更新"
+  },
+  "context_menu": {
+    "color_tag": "标签",
+    "remove_color": "删除标签"
+  },
+  "email_composer": {
+    "attach_camera": "相机",
+    "attachment_reminder_body": "您的邮件中提到了“{keyword}”，但未附加任何文件。仍然发送吗？",
+    "attachment_reminder_title": "忘记添加附件了吗？",
+    "attachments_too_large_total": "附件将超过此服务器每封邮件 {max} 的上限。",
+    "editor_unavailable": "无法读取邮件内容。请复制您的文本，然后关闭并重新打开撰写窗口。",
+    "identity_unavailable": "身份不可用",
+    "image_load_failed": "无法加载图片",
+    "no_recipient": "（无收件人）",
+    "no_sent_folder": "未找到“已发送”文件夹",
+    "permission_camera": "需要相机权限才能拍照。",
+    "permission_photos": "需要相册权限才能附加图片。",
+    "recipient_add_contact": "添加到联系人",
+    "recipient_copy": "复制地址",
+    "recipient_move_to": "移至{field}",
+    "recipient_remove": "移除",
+    "save_draft": "保存草稿",
+    "save_failed_no_drafts": "没有可用于保存此草稿的“草稿”文件夹。",
+    "save_failed_no_identity": "无法加载您的发件身份，因此无法保存此草稿。请检查网络连接，或在关闭前复制您的文本。",
+    "schedule_custom": "选择日期和时间…",
+    "schedule_in_1h": "1 小时后",
+    "schedule_in_3h": "3 小时后",
+    "schedule_past_body": "计划时间必须是将来的时间。",
+    "schedule_past_title": "请选择将来的时间",
+    "schedule_tomorrow": "明天上午 8:00",
+    "schedule_tomorrow_morning": "明天早上",
+    "schedule_too_late_body": "该时间晚于此服务器允许的范围。请选择更早的时间。",
+    "schedule_too_late_title": "时间太远",
+    "schedule_unsupported_body": "此邮件服务器不支持计划发送。",
+    "schedule_unsupported_title": "无法计划发送",
+    "scheduled_body": "您的邮件将于 {time} 发送。",
+    "scheduled_title": "已计划发送",
+    "send_now": "立即发送",
+    "send_timeout_body": "邮件可能已经发出。再次发送前，请检查“已发送”文件夹。",
+    "send_timeout_title": "服务器无响应",
+    "undo_send_label": "{seconds} 秒后发送…",
+    "uploading": "正在上传…",
+    "validation": {
+      "subject_required": "请添加主题"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "在账户之间移动需要网络连接",
+    "emails_archived_count": "{count, plural, other {已归档 # 封邮件}}",
+    "emails_moved_to": "{count, plural, other {# 封邮件}}已移至 {mailbox}",
+    "error": "错误",
+    "marked_as_spam": "已标记为垃圾邮件",
+    "marked_as_spam_count": "{count, plural, other {# 封邮件}}已标记为垃圾邮件",
+    "marked_not_spam": "已标记为非垃圾邮件",
+    "marked_not_spam_count": "{count, plural, other {# 封邮件}}已标记为非垃圾邮件",
+    "move_same_account": "邮件只能在同一账户内移动",
+    "moved_to_trash": "邮件已移至“已删除”",
+    "moved_to_trash_count": "{count, plural, other {# 封邮件}}已移至“已删除”",
+    "no_archive_folder": "在服务器上找不到“归档”文件夹。",
+    "no_emails_in": "{folder} 中没有邮件",
+    "no_junk_folder": "在服务器上找不到“垃圾邮件”文件夹。",
+    "no_mailboxes": "未找到邮箱",
+    "no_mailboxes_hint": "请检查您的 JMAP 账户是否具有邮件功能。",
+    "no_tags_defined": "尚未定义标签。请在设置中添加标签。",
+    "no_trash_folder": "在服务器上找不到“已删除”文件夹。请检查您的邮箱配置。",
+    "offline_nothing_cached": "无网络连接。尚未缓存任何邮件，因此没有可显示的内容。",
+    "open_draft_failed": "无法打开草稿。",
+    "outbox_discard": "丢弃",
+    "outbox_failed": "有 {count} 项更改无法保存到服务器。",
+    "recent_searches": "最近搜索",
+    "scope_all_folders": "所有文件夹",
+    "scope_this_folder": "此文件夹",
+    "search_placeholder": "搜索邮件...",
+    "showing_cached": "正在显示缓存的邮件",
+    "swipe_move": "移动",
+    "swipe_spam": "垃圾邮件",
+    "total": "总计",
+    "undo_failed": "撤销失败",
+    "unknown_tag": "此处未定义"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "将发件人添加到联系人",
+    "address_actions": {
+      "add_contact": "添加到联系人",
+      "compose": "新邮件",
+      "copy": "复制地址",
+      "copy_failed": "无法复制地址。"
+    },
+    "attachment_actions": {
+      "open": "打开",
+      "preview": "预览",
+      "save": "保存",
+      "share": "分享"
+    },
+    "attachment_failed": "无法打开附件",
+    "authentication": {
+      "spoof_warning": "无法验证发件人地址——此邮件可能是伪造的。"
+    },
+    "body_truncated": "此邮件过大，无法完整显示。",
+    "bundle_too_large": "附件过大，无法打包。",
+    "color_tag": {
+      "blue": "蓝色",
+      "green": "绿色",
+      "none": "无",
+      "orange": "橙色",
+      "pink": "粉色",
+      "purple": "紫色",
+      "red": "红色",
+      "title": "颜色标签",
+      "yellow": "黄色"
+    },
+    "delete_permanently_message": "此邮件将被永久删除，且无法恢复。",
+    "delete_permanently_title": "永久删除？",
+    "export_failed": "导出失败",
+    "forwarded": "已转发",
+    "load_failed": "加载邮件失败",
+    "preview": {
+      "open_external": "在应用中打开",
+      "pdf_external": "PDF 将在此设备的 PDF 查看器中打开。",
+      "unsupported": "无法预览此类文件。"
+    },
+    "received_via": "发给 {name}",
+    "remove_color": "删除标签",
+    "replied": "已回复",
+    "sender_actions": "发件人…",
+    "set_color": "设置颜色标签",
+    "show_all_count": "显示全部（{count}）",
+    "show_less": "收起",
+    "smime_unsupported": "已使用 S/MIME 签名/加密——移动端不支持",
+    "source_too_large": "邮件过大，无法完整显示。请改为分享完整源码。",
+    "thread_loading": "正在加载会话…",
+    "unsubscribe_banner": {
+      "no_identity": "没有可用的发送身份"
+    },
+    "view_dark_mode": "以深色模式查看",
+    "view_light_mode": "以浅色模式查看"
+  },
+  "files": {
+    "delete_cascade_hint": "文件夹将连同其中的所有内容一起删除。此操作无法撤销。",
+    "delete_item_title": "删除此项目？",
+    "delete_items_title": "删除 {count} 个项目？",
+    "done": "完成",
+    "folder_empty": "此文件夹为空",
+    "invalid_name": "名称无效",
+    "invalid_name_slash": "名称不能包含“/”。",
+    "move_to": "移至…",
+    "open_error": "无法打开文件",
+    "open_with": "打开方式…",
+    "preview_too_large": "此文件过大，无法预览。",
+    "selected_count": "已选择 {count} 项",
+    "share_add_people": "添加用户",
+    "share_empty": "尚未与任何人共享",
+    "share_error": "更新共享失败",
+    "share_file_error": "无法分享文件",
+    "share_folder_hint": "共享文件夹会同时共享其中的所有内容。",
+    "share_no_matches": "无匹配项",
+    "share_no_users": "未找到其他用户",
+    "share_remove": "取消访问",
+    "share_role_custom": "自定义",
+    "share_search_placeholder": "按姓名或邮箱搜索",
+    "shared_with": "共享对象",
+    "sharing_access": "共享与访问",
+    "upload_unavailable": "此版本未安装文件选择器。请重新构建应用以启用上传。"
+  },
+  "identities": {
+    "badge": {
+      "to": "发给 {identity}",
+      "via": "通过 {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "您已登录以下账户。",
+      "add_title": "添加其他账户",
+      "camera_allow": "允许访问相机",
+      "camera_disabled": "相机访问已禁用。请在设置中启用，以扫描登录二维码。",
+      "camera_needed": "Bulwark Mail 需要访问相机才能扫描登录二维码。",
+      "choose_subtitle": "请选择登录方式。",
+      "confirm_check": "请确认信息无误",
+      "confirm_found": "已找到您的邮件服务器",
+      "confirm_subtitle": "接下来，您将在服务提供商自己的页面上登录。",
+      "connecting": "正在连接到 {host}",
+      "connecting_detail": "正在设置您的邮箱…",
+      "continue": "继续",
+      "different_server": "使用其他服务器",
+      "elsewhere_title": "其他地方的账户",
+      "email_desc": "我们会找到您的邮件服务器",
+      "email_step_hint": "适用于 Stalwart 及任何其他 JMAP 邮件服务器。",
+      "email_step_subtitle": "通常只需这些信息即可找到您的邮件服务器。",
+      "email_step_title": "您的邮箱地址是什么？",
+      "email_step_title_add": "另一个邮箱地址是什么？",
+      "email_title": "使用我的邮箱地址",
+      "err_bad_detail": "请检查您的邮箱地址和密码。如果您的账户使用双因素身份验证登录，请在网页邮箱中创建应用密码并在此使用。",
+      "err_bad_title": "无法登录",
+      "err_cert_detail": "服务器的安全证书被拒绝。如果这是您自己的服务器，请检查证书是否有效且未过期。",
+      "err_cert_title": "无法验证 {host}",
+      "err_code_expired_detail": "登录码仅在几分钟内有效。请在网页邮箱中生成新的登录码，然后重新扫描。",
+      "err_code_expired_title": "该登录码已过期",
+      "err_generic_detail": "出现问题。请重试。",
+      "err_generic_title": "登录失败",
+      "err_interrupted_detail": "响应与我们发起的请求不匹配。请重新登录。",
+      "err_interrupted_title": "登录已中断",
+      "err_no_server_detail": "请仔细检查地址，或改为扫描网页邮箱中的登录码。",
+      "err_no_server_title": "{host} 上没有邮件服务器",
+      "err_no_webmail_detail": "此服务器没有 Bulwark 网页邮箱，也不支持 OAuth 登录。请改用密码（或应用密码）。",
+      "err_no_webmail_title": "{host} 上没有登录页面",
+      "err_rate_detail": "服务器要求我们稍候。请稍后重试。",
+      "err_rate_detail_seconds": "服务器要求我们等待。请在约 {seconds} 秒后重试。",
+      "err_rate_title": "尝试次数过多",
+      "err_server_detail": "服务器返回了错误。请几分钟后重试。",
+      "err_server_title": "{host} 出现问题",
+      "err_totp_bad_detail": "请检查您的密码和身份验证器应用中的当前验证码，然后重试。",
+      "err_totp_detail": "此账户受双因素身份验证保护。请输入身份验证器应用中的 6 位验证码。",
+      "err_totp_title": "请输入双因素验证码",
+      "err_unreachable_detail": "请检查网络连接和服务器地址，然后重试。",
+      "err_unreachable_title": "无法访问 {host}",
+      "know_server": "我知道服务器地址",
+      "known_server_desc": "我们已经知道此服务器，无需设置",
+      "known_server_title": "{host} 上的其他账户",
+      "looking_up": "正在查找您的服务器…",
+      "manual": "手动输入服务器信息",
+      "notice_bad_qr": "该代码不是 Bulwark 登录码",
+      "notice_bad_qr_detail": "在网页上打开 Bulwark，然后前往“设置 → 安全 → 关联移动应用”显示登录码。",
+      "notice_bad_server": "这看起来不像服务器地址",
+      "notice_bad_server_detail": "请尝试您访问网页邮箱时使用的地址，例如 mail.example.com。",
+      "notice_full_email": "请输入完整的邮箱地址",
+      "notice_full_email_detail": "例如 ada@example.com。如果您使用用户名登录，请选择“我知道服务器地址”。",
+      "notice_need_code": "请输入身份验证器应用中的 6 位验证码",
+      "notice_need_credentials": "请输入邮箱地址和密码",
+      "notice_need_server": "请先输入服务器地址",
+      "open_settings": "打开设置",
+      "opening": "正在打开 {host}",
+      "opening_detail": "请在刚打开的页面上完成登录，之后的步骤将由我们处理。",
+      "pairing": "正在验证您的登录码",
+      "pairing_detail": "正在将此设备与 {host} 配对…",
+      "password_subtitle": "您的密码只会发送到此服务器，并存储在设备的钥匙串中。",
+      "password_title": "登录 {host}",
+      "provider_detail": "您将在服务提供商的页面上输入密码。Bulwark 只存储登录令牌，您可以随时撤销。",
+      "provider_title": "您的密码只保留在服务提供商处",
+      "qr_hint": "“设置 → 安全 → 关联移动应用”中会显示一个二维码。请将相机对准它。",
+      "qr_hint_title": "在电脑上打开 Bulwark",
+      "qr_title": "登录码",
+      "scan_desc": "如果您已在网页上登录，这是最快的方式",
+      "scan_title": "扫描登录码",
+      "server_hint": "即您在浏览器中输入的地址。我们会自动为您添加 https://。",
+      "server_label": "服务器地址",
+      "server_not_found": "找不到 {domain} 的服务器。如果您自行托管，请使用访问网页邮箱时的地址。",
+      "server_scan_hint": "如果不确定，请改为扫描登录码。登录码中包含服务器地址。",
+      "server_subtitle": "请输入您访问网页邮箱时使用的地址。",
+      "server_title": "您的服务器地址是什么？",
+      "the_server": "服务器",
+      "unencrypted": "未加密的连接",
+      "use_password": "改用密码登录",
+      "username_label": "邮箱地址或用户名",
+      "your_server": "您的服务器"
+    }
+  },
+  "offline": {
+    "banner": "您已离线",
+    "queued_changes": "{count, plural, other {# 项更改}}将在重新连接后同步"
+  },
+  "push_prompt": {
+    "body": "开启后台通知，即使应用已关闭也能收到新邮件。",
+    "dismiss": "以后再说",
+    "enable": "启用",
+    "title": "接收新邮件通知"
+  },
+  "scheduled": {
+    "cancel_body": "该邮件将不会被投递。副本会保留在“已发送”文件夹中。",
+    "cancel_failed": "取消失败",
+    "edit_failed": "无法打开邮件进行编辑",
+    "keep_scheduled": "保留计划",
+    "reschedule_failed": "重新计划失败",
+    "send_now_failed": "无法立即发送"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "调整账户在账户切换器中的显示顺序、选择默认账户或退出某个账户。",
+        "limit": "已达到账户数量上限（{count} 个）。"
+      },
+      "shared_accounts": {
+        "description_manage": "可通过此账户读取的群组和共享账户。选择一个以管理其过滤器和假期自动回复。"
+      },
+      "unknown": "未知"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "需要更新：{version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "安全更新：{version}",
+        "update_available": "更新：{version}",
+        "update_store_hint": "可在 TestFlight / App Store 获取"
+      },
+      "export_settings": {
+        "saved_to": "已保存到 {path}"
+      },
+      "reset_settings": {
+        "done": "所有设置已恢复为默认值。"
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "请重启应用以应用新的文字方向。",
+        "system_default": "系统默认"
+      },
+      "toolbar_labels": {
+        "description_mobile": "在工具栏图标旁显示文字标签。"
+      }
+    },
+    "badges": {
+      "experimental": "实验性",
+      "not_implemented": "未实现",
+      "unavailable": "不可用"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "保存或分享附件时使用的模板。"
+      },
+      "email_template": {
+        "description_mobile": "将邮件导出为 .eml 文件时使用的模板。"
+      },
+      "strip_diacritics": {
+        "description_mobile": "将带重音的字母转换为普通 ASCII 字符（ä → a）。"
+      },
+      "transform_description": "应用于所有导出的文件名。",
+      "transform_title": "文件名转换"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "未找到归档文件夹。",
+        "reorganize_result": "已移动 {total} 封邮件中的 {moved} 封。",
+        "reorganizing": "正在重新整理…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "点按附件时执行的操作。"
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "回复始终从邮件的收件身份发送。开启后，发往您域名下其他地址（catch-all 别名）的邮件，其回复也会从该地址发送。"
+      },
+      "plain_text_mode": {
+        "description_mobile": "仅以纯文本撰写和阅读。"
+      },
+      "send_delay": {
+        "description_mobile": "将外发邮件保留几秒钟，以便您取消发送。需要服务器支持。"
+      },
+      "swipe_actions": {
+        "move": "移动到文件夹",
+        "pin": "置顶"
+      },
+      "swipe_left_action": {
+        "description_mobile": "从右边缘向左拖动某一行时执行的操作。",
+        "label_mobile": "左滑（右 → 左）"
+      },
+      "swipe_right_action": {
+        "description_mobile": "从左边缘向右拖动某一行时执行的操作。",
+        "label_mobile": "右滑（左 → 右）"
+      }
+    },
+    "experimental": {
+      "title": "实验性功能"
+    },
+    "folders": {
+      "account": "账户",
+      "cannot_delete": "无法删除",
+      "description_mobile": "创建、重命名、移动和删除文件夹。在侧边菜单中长按文件夹可使用快捷操作。",
+      "edit_folder": "编辑“{name}”",
+      "folder_name": "文件夹名称",
+      "move_under": "上级文件夹",
+      "name_placeholder": "收据",
+      "name_required": "名称为必填项",
+      "new_folder": "新建文件夹",
+      "not_empty_message": "“{name}”中有 {count} 封邮件。仍要删除吗？",
+      "not_empty_title": "文件夹不为空",
+      "own_account": "我的文件夹",
+      "role": "特殊用途",
+      "role_hint": "为此文件夹分配特殊用途角色（归档、垃圾邮件等）。每个角色只能分配给一个文件夹。",
+      "save_failed": "保存失败",
+      "system_folder_delete": "无法删除系统文件夹。",
+      "system_folder_rename": "无法重命名系统文件夹。",
+      "top_level": "顶层"
+    },
+    "identities": {
+      "cannot_delete": "无法删除主要身份。",
+      "cannot_delete_title": "无法删除",
+      "count": "{count, plural, =0 {暂无身份} other {# 个身份}}",
+      "create": "新建身份",
+      "delete_confirm": "删除“{name}”？",
+      "delete_failed": "删除失败",
+      "delete_title": "删除身份",
+      "description_mobile": "管理发件人名称、邮箱地址和签名。点按某一行即可编辑。",
+      "display_name": "显示名称",
+      "edit": "编辑身份",
+      "email_address": "邮箱地址",
+      "email_locked": "JMAP 不允许更改身份的邮箱地址，请改为创建一个新身份。",
+      "invalid_email": "请为此身份输入有效的邮箱地址。",
+      "invalid_email_title": "邮箱地址无效",
+      "new": "新建",
+      "no_name": "（无名称）",
+      "primary": "主要",
+      "save_failed": "保存失败",
+      "text_signature": "纯文本签名"
+    },
+    "keywords": {
+      "description_mobile": "用于整理邮件的彩色标签。",
+      "discover": {
+        "add_all": "全部添加",
+        "found": "找到 {count} 个此处未定义的标签。",
+        "none": "在 {scanned} 封邮件中未找到未知标签。",
+        "partial": "（仅扫描了最新的邮件。）",
+        "progress": "已扫描 {total} 封邮件中的 {scanned} 封…",
+        "scan": "在邮箱中查找标签"
+      },
+      "reset_confirm": "将标签列表替换为默认标签？已设置在邮件上的标签仍会保留在服务器上。",
+      "reset_defaults": "重置为默认值"
+    },
+    "layout": {
+      "description": "针对移动端调整邮件列表的交互方式。",
+      "quick_actions": {
+        "description": "打开邮件时底部“上一封/下一封”之间显示的三个按钮。默认为回复、全部回复和转发。",
+        "label": "阅读视图快捷操作",
+        "mark_unread": "标记为已读/未读",
+        "relocated": "{count, plural, other {{actions}将移至顶部工具栏，以便您继续使用。}}",
+        "slot": "位置 {n}",
+        "spam": "垃圾邮件",
+        "star": "星标",
+        "tag": "标签"
+      },
+      "show_avatars_in_junk": "在垃圾邮件中显示发件人头像",
+      "show_avatars_in_junk_description": "为垃圾邮件文件夹中的邮件加载发件人徽标。关闭后可避免联系垃圾邮件发件人的服务器。",
+      "show_folder_total_count": "在文件夹上显示邮件总数",
+      "show_folder_total_count_description": "在文件夹列表中的未读数量旁显示总数。",
+      "swipe_mode": {
+        "instant": "即时（滑动 = 操作）",
+        "reveal": "显示（滑动后点按）"
+      },
+      "unified_cross_account": "跨账户统一视图",
+      "unified_cross_account_description": "将所有已登录账户合并到“所有收件箱”中。关闭后，统一视图仅限于当前账户及其共享文件夹。"
+    },
+    "message_list_order": {
+      "description": "设置列表中哪些邮件排在前面。每组内按最新在前排序；标题栏的切换按钮仍可在最早/最新之间切换。",
+      "preset_chronological": "最新在前",
+      "preset_custom": "自定义",
+      "preset_starred_first": "星标优先",
+      "preset_tagged_first": "标签优先",
+      "preset_unread_first": "未读优先",
+      "scope": "应用于",
+      "scope_all": "所有文件夹",
+      "scope_inbox": "仅收件箱",
+      "tag": "标签",
+      "title": "邮件列表排序"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "在应用图标上显示未读数",
+        "app_icon_badge_desc": "在应用图标上以角标显示收件箱的未读数。",
+        "sound_channel_hint": "邮件提醒的声音和振动由 Android 通知渠道控制：长按通知或打开系统应用设置即可调整。"
+      },
+      "push": {
+        "confirm_disable_message_mobile": "此设备将停止接收此账户的新邮件提醒。",
+        "description_mobile": "在应用关闭时接收新邮件的系统通知。通过 Bulwark 推送中继传送；中继永远不会看到邮件内容。",
+        "phase_account": "账户",
+        "phase_distributor": "UnifiedPush 分发器",
+        "phase_jmap": "邮件服务器订阅",
+        "phase_permission": "通知权限",
+        "phase_platform": "平台",
+        "phase_relay": "中继注册",
+        "phase_token": "设备令牌",
+        "phase_verify": "验证",
+        "relay_desc_mobile": "用于传送通知的服务器。默认使用托管的 Bulwark 中继；仅当您自托管时才更改。必须使用 https。",
+        "relay_invalid": "请输入有效的 https:// URL",
+        "setup_failed": "设置失败",
+        "status_android_only": "后台通知仅在 Android 上可用。",
+        "transport_desc": "通知送达此设备的方式：Google 的 Firebase Cloud Messaging，或无需 Google 的 UnifiedPush 分发器应用（如 ntfy）。",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "推送方式",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "已安装多个 UnifiedPush 分发器应用，请选择用于传送通知的应用。",
+        "up_distributor_label": "分发器",
+        "up_no_distributor": "此设备上未安装 UnifiedPush 分发器应用。请安装一个（例如 ntfy）后重试。"
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, other {# 封邮件}}",
+      "clear": "清除",
+      "clear_cache": "清除缓存",
+      "clear_message": "删除 {count, plural, other {# 封已缓存的邮件}}（{size}）？",
+      "clear_title": "清除离线邮件",
+      "days_ago": "{count} 天前",
+      "description": "下载最近的邮件，使其可以立即打开，并在无网络时仍可阅读。仅下载正文——附件仍会按需获取。",
+      "downloading": "正在下载 {completed}/{total}…",
+      "enabled": "缓存最近的邮件",
+      "enabled_desc": "开启后，应用会在此设备上保存所选时间范围内的邮件正文。",
+      "hours_ago": "{count} 小时前",
+      "just_now": "刚刚",
+      "last_sync": "上次同步：{when}",
+      "last_sync_failed": "上次同步失败：{message}",
+      "max_size": "最大大小",
+      "max_size_desc": "缓存超过此大小时，将删除最早的邮件。",
+      "minutes_ago": "{count} 分钟前",
+      "never": "从未",
+      "nothing_cached": "尚未缓存任何内容",
+      "queued_changes": "{count, plural, other {# 项更改}}等待同步",
+      "scanning": "正在扫描最近的邮件…",
+      "sync_now": "立即同步",
+      "syncing": "正在同步…",
+      "title": "离线邮件",
+      "window": "时间范围",
+      "window_24h": "过去 24 小时",
+      "window_days": "过去 {count} 天",
+      "window_desc": "按邮件接收日期计算，缓存多久以前的邮件。"
+    },
+    "plugins": {
+      "mobile_description": "插件在网页邮箱中运行，用于在浏览器中扩展其功能。",
+      "mobile_explainer": "移动应用没有插件运行环境。请在网页邮箱的“设置 → 插件”中安装和管理插件；插件提供的主题和过滤器不会在此应用。"
+    },
+    "security": {
+      "client_cert": {
+        "active": "使用中：{alias}",
+        "choose_another": "选择其他证书",
+        "clear": "清除",
+        "clear_message": "新请求将不再出示证书。该证书仍安装在 Android 中。",
+        "clear_title": "停止使用客户端证书？",
+        "description": "选择一个已安装的 Android 证书，在 TLS 握手期间向服务器进行身份验证。适用于反向代理强制要求 mTLS 的情况。",
+        "hint": "请通过 Android 的“设置 → 安全 → 加密与凭据”安装证书，然后在此处选择。",
+        "not_set": "未设置",
+        "pick": "选择证书",
+        "pick_failed": "选择失败",
+        "title": "TLS 客户端证书"
+      },
+      "credentials": {
+        "allowed_ips": "允许的 IP（可选）",
+        "allowed_ips_hint": "以逗号或空格分隔。留空则允许任何 IP。",
+        "clear_expiry": "清除过期时间",
+        "copy_now": "请立即复制——它只会显示一次。长按即可选择。",
+        "create_error": "无法创建",
+        "expires": "过期时间（可选）",
+        "expires_on": "{date} 过期",
+        "no_expiry": "永不过期",
+        "none": "暂无。",
+        "remove_error": "无法移除",
+        "remove_message": "使用它的所有客户端都将停止工作。",
+        "remove_title": "移除凭据？"
+      },
+      "display_name": {
+        "error_title": "更新失败"
+      },
+      "encryption": {
+        "no_keys": "请先添加公钥——静态加密需要公钥。"
+      },
+      "load_error": "加载安全设置失败。",
+      "not_supported": "账户安全管理需要 Stalwart 服务器。此账户无法使用这些功能。",
+      "offline": "您已离线。账户安全设置需要与服务器保持连接。",
+      "password": {
+        "change": "更改密码",
+        "changed": "您的账户密码已更新。",
+        "changed_title": "密码已更改",
+        "description": "更改此账户的密码。",
+        "error": "更改密码失败。",
+        "mismatch": "密码不匹配。",
+        "toggle_visibility": "显示或隐藏密码",
+        "too_short": "新密码必须至少为 8 个字符。"
+      },
+      "public_keys": {
+        "add_error": "添加公钥失败",
+        "description": "存储在服务器上的 S/MIME 证书和 PGP 密钥，用于静态加密。",
+        "expires": "{date} 过期",
+        "remove_error": "移除公钥失败",
+        "remove_message": "使用此密钥的静态加密将停止工作。",
+        "remove_title": "移除公钥？",
+        "title": "公钥"
+      },
+      "two_factor": {
+        "active": "已启用",
+        "code": "验证码",
+        "code_required": "请输入应用中的 6 位验证码。",
+        "description": "登录时需要输入一次性验证码。",
+        "disable": "禁用",
+        "disable_error": "禁用双因素身份验证失败。",
+        "disable_hint": "输入密码以关闭双因素身份验证。",
+        "enable_error": "启用双因素身份验证失败。",
+        "enabled_message": "下次登录时将要求您输入验证码。",
+        "enabled_title": "已启用双因素身份验证",
+        "enrol_hint": "请将此密钥添加到身份验证器应用中，然后输入 6 位验证码进行确认。",
+        "inactive": "未启用",
+        "label": "身份验证器应用",
+        "manual_secret": "或手动输入此密钥",
+        "no_app": "无法打开身份验证器应用。请手动添加下方的密钥。",
+        "no_app_title": "没有身份验证器应用",
+        "open_app": "添加到身份验证器应用",
+        "password_required": "请输入当前密码。",
+        "section_title": "双因素身份验证"
+      }
+    },
+    "sidebar_apps": {
+      "add": "添加应用",
+      "empty": "尚未添加应用。",
+      "form": {
+        "name": "名称",
+        "name_placeholder": "应用名称",
+        "open_mode": "打开方式",
+        "show_on_mobile": "在手机上显示",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "切换离开时，保持内嵌应用在后台运行。",
+      "open_mode": {
+        "inline": "内嵌",
+        "new_tab": "新标签页",
+        "tab": "标签页"
+      }
+    },
+    "smime": {
+      "mobile_description": "使用 S/MIME 证书对邮件进行签名和加密。",
+      "mobile_explainer": "移动应用暂不支持 S/MIME。请在网页邮箱中管理密钥和证书；已签名的邮件在此显示时不会进行验证。"
+    },
+    "tabs": {
+      "plugins": "插件"
+    },
+    "templates": {
+      "delete_title": "删除模板"
+    },
+    "themes": {
+      "default_description": "默认的浅色和深色配色。",
+      "default_name": "Bulwark",
+      "mobile_description": "选择颜色主题。主题会跟随“外观”中的浅色/深色设置；自定义主题包需在网页邮箱中管理。",
+      "title": "主题"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "日期格式必须为“YYYY-MM-DD”或“YYYY-MM-DD HH:MM”"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "需要处理",
+    "remove_account_hint": "长按可移除此账户",
+    "remove_account_message": "在此设备上退出 {account}。您的邮件仍保留在服务器上。",
+    "remove_account_title": "移除账户？",
+    "show_unread": "显示未读"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count} 个账户无法加载"
+  },
+  "updates": {
+    "advisory": "安全公告",
+    "advisory_desc": "此版本所修复问题的详细信息。",
+    "auto_check": "自动检查",
+    "auto_check_desc": "应用启动时，每隔几小时检查一次更新。",
+    "available": "有可用更新",
+    "available_desc": "点按“安装”即可下载 v{version}，并使用 Android 软件包安装程序打开。",
+    "banner": {
+      "advisory": "阅读公告",
+      "deprecated_subtitle": "请安装 v{version} 以继续使用此应用。",
+      "deprecated_title": "此版本已不再受支持",
+      "security_subtitle": "v{version} 修复了一个安全问题。请尽快安装。",
+      "security_title": "有可用的安全更新",
+      "subtitle": "v{version} 已可安装。",
+      "title": "有可用更新"
+    },
+    "building": "更新正在构建",
+    "building_desc": "v{version} 已发布，但 APK 仍在构建中。此页面将每 30 秒重新检查一次。",
+    "check": "检查更新",
+    "check_again": "再次检查",
+    "check_now": "立即检查",
+    "checking": "正在检查…",
+    "current_version": "当前版本",
+    "description": "检查并安装新版本。",
+    "downloading": "正在下载…",
+    "downloading_pct": "正在下载 {pct}%",
+    "install": "安装",
+    "installing": "正在安装…",
+    "last_checked": "上次检查",
+    "last_error": "上次错误：{message}",
+    "latest_version": "最新版本",
+    "never": "从未",
+    "open": "打开",
+    "open_github": "在 GitHub 上打开",
+    "opening_installer": "正在打开安装程序…",
+    "progress_of": "{written} / {total}",
+    "published": "发布于 {date}",
+    "rate_limited": "GitHub 正在限制更新检查的频率；稍后将重试。",
+    "release_notes": "发行说明",
+    "release_page": "发布页面",
+    "release_page_desc": "GitHub 上的完整发行说明和下载。",
+    "release_page_pending_desc": "查看构建进度或手动下载 APK。",
+    "severity_deprecated": "必需",
+    "severity_security": "安全",
+    "title": "应用更新"
+  }
+}

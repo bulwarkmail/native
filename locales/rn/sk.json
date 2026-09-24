@@ -1,1 +1,787 @@
-{}
+{
+  "advanced_search": {
+    "after": "Po",
+    "before": "Pred",
+    "no_attachment": "Bez prílohy",
+    "not_starred": "Bez hviezdičky"
+  },
+  "calendar": {
+    "agenda": {
+      "days_clear": "Nasledujúcich {count} dní je voľných.",
+      "no_upcoming": "Žiadne nadchádzajúce udalosti"
+    },
+    "alerts": {
+      "unit_minutes_after": "min po"
+    },
+    "drawer": {
+      "my_calendars": "Moje kalendáre",
+      "no_calendars": "Zatiaľ žiadne kalendáre.",
+      "shared_with_me": "Zdieľané so mnou",
+      "subscribed": "Odoberané"
+    },
+    "event_modal": {
+      "participant_placeholder": "Pridať účastníka podľa e-mailu"
+    },
+    "events": {
+      "copy_link_short": "Odkaz",
+      "export_ics_short": ".ics",
+      "tap_to_create": "Udalosť vytvoríte klepnutím na +"
+    },
+    "form": {
+      "description_placeholder": "Poznámky, program…",
+      "location_placeholder": "Miesto alebo adresa",
+      "time": "Čas"
+    },
+    "invitation": {
+      "accept": "Áno",
+      "add_error": "Udalosť sa nepodarilo pridať",
+      "add_to_calendar": "Pridať do kalendára",
+      "added": "Pridané do kalendára",
+      "already_in_calendar": "Už je vo vašom kalendári",
+      "cancelled": "Táto udalosť bola zrušená",
+      "decline": "Nie",
+      "join_video": "Pripojiť sa k videohovoru",
+      "no_writable_calendar": "Nie je k dispozícii žiadny zapisovateľný kalendár",
+      "organizer": "Organizátor",
+      "reading": "Načítava sa pozvánka…",
+      "reply": "Účastník odpovedal na túto pozvánku",
+      "response_error": "Vašu odpoveď sa nepodarilo odoslať",
+      "response_sent": "Odpoveď odoslaná",
+      "tentative": "Možno",
+      "title": "Pozvánka do kalendára",
+      "trust_verified": "Odosielateľ overený"
+    },
+    "management": {
+      "clear_confirm": "Odstrániť všetko",
+      "clear_description": "Všetky udalosti v tomto kalendári budú odstránené. Udalosti, ktoré patria aj do iného kalendára, sa iba odpoja.",
+      "clear_title": "Odstrániť všetky udalosti?",
+      "delete_description": "Kalendár a všetky jeho udalosti budú odstránené. Túto akciu nie je možné vrátiť späť.",
+      "delete_title": "Odstrániť kalendár?",
+      "description_placeholder": "Voliteľné",
+      "edit_calendar": "Upraviť kalendár",
+      "new_calendar": "Nový kalendár"
+    },
+    "settings": {
+      "show_week_numbers_mobile_desc": "Zobrazovať čísla týždňov v mesačnom zobrazení.",
+      "time_zone": "Časové pásmo",
+      "time_zone_auto": "Časové pásmo zariadenia",
+      "time_zone_desc": "Pásmo pre nové udalosti a na zobrazenie kalendára. „Časové pásmo zariadenia“ sa riadi telefónom."
+    },
+    "share": {
+      "add_people": "Pridať osoby",
+      "error": "Aktualizácia zdieľania zlyhala",
+      "no_matches": "Žiadne výsledky",
+      "no_principals": "Zdieľanie nie je na tomto serveri k dispozícii.",
+      "role_custom": "Vlastné",
+      "search_placeholder": "Hľadať podľa mena alebo e-mailu",
+      "shared_with": "Zdieľané s",
+      "title": "Zdieľať"
+    },
+    "tasks": {
+      "add_placeholder": "Pridať úlohu…",
+      "add_time": "Pridať čas",
+      "delete_error": "Úlohu sa nepodarilo odstrániť",
+      "update_error": "Úlohu sa nepodarilo aktualizovať"
+    }
+  },
+  "common": {
+    "add": "Pridať",
+    "back": "Späť",
+    "confirm": "Potvrdiť",
+    "create": "Vytvoriť",
+    "dismiss": "Zavrieť",
+    "done": "Hotovo",
+    "remove": "Odstrániť",
+    "retry": "Opakovať",
+    "undo": "Späť",
+    "update": "Aktualizovať"
+  },
+  "context_menu": {
+    "color_tag": "Štítok",
+    "remove_color": "Odstrániť štítok"
+  },
+  "email_composer": {
+    "attach_camera": "Fotoaparát",
+    "attachment_reminder_body": "Vaša správa spomína „{keyword}“, ale nie je priložený žiadny súbor. Odoslať aj tak?",
+    "attachment_reminder_title": "Nezabudli ste prílohu?",
+    "attachments_too_large_total": "Prílohy by prekročili limit {max}, ktorý tento server povoľuje na jednu správu.",
+    "editor_unavailable": "Obsah správy sa nepodarilo načítať. Skopírujte si text a potom editor zatvorte a znova otvorte.",
+    "identity_unavailable": "Identita nie je k dispozícii",
+    "image_load_failed": "Obrázok sa nepodarilo načítať",
+    "no_recipient": "(bez príjemcu)",
+    "no_sent_folder": "Priečinok Odoslané sa nenašiel",
+    "permission_camera": "Na odfotenie je potrebné povolenie pre fotoaparát.",
+    "permission_photos": "Na priloženie obrázkov je potrebné povolenie pre knižnicu fotiek.",
+    "recipient_add_contact": "Pridať do kontaktov",
+    "recipient_copy": "Kopírovať adresu",
+    "recipient_move_to": "Presunúť do poľa {field}",
+    "recipient_remove": "Odstrániť",
+    "save_draft": "Uložiť koncept",
+    "save_failed_no_drafts": "Chýba priečinok Koncepty, do ktorého by sa dal koncept uložiť.",
+    "save_failed_no_identity": "Vaše identity odosielateľa sa nepodarilo načítať, preto tento koncept nemožno uložiť. Skontrolujte pripojenie alebo si pred zatvorením skopírujte text.",
+    "schedule_custom": "Vybrať dátum a čas…",
+    "schedule_in_1h": "O 1 hodinu",
+    "schedule_in_3h": "O 3 hodiny",
+    "schedule_past_body": "Naplánovaný čas musí byť v budúcnosti.",
+    "schedule_past_title": "Vyberte budúci čas",
+    "schedule_tomorrow": "Zajtra o 8:00",
+    "schedule_tomorrow_morning": "Zajtra ráno",
+    "schedule_too_late_body": "To je neskôr, ako tento server povoľuje. Vyberte skorší čas.",
+    "schedule_too_late_title": "Príliš ďaleko v budúcnosti",
+    "schedule_unsupported_body": "Tento poštový server nepodporuje plánované odoslanie.",
+    "schedule_unsupported_title": "Plánovanie nie je k dispozícii",
+    "scheduled_body": "Vaša správa bude odoslaná {time}.",
+    "scheduled_title": "Naplánované",
+    "send_now": "Odoslať teraz",
+    "send_timeout_body": "Správa už možno odišla. Skôr ako ju odošlete znova, skontrolujte priečinok Odoslané.",
+    "send_timeout_title": "Server neodpovedá",
+    "undo_send_label": "Odoslanie o {seconds} s…",
+    "uploading": "Nahrávanie...",
+    "validation": {
+      "subject_required": "Doplňte predmet"
+    }
+  },
+  "email_list": {
+    "cross_account_move_offline": "Presun medzi účtami vyžaduje pripojenie",
+    "emails_archived_count": "{count, plural, one {Archivovaný # e-mail} few {Archivované # e-maily} many {Archivované # e-mailu} other {Archivovaných # e-mailov}}",
+    "emails_moved_to": "{count, plural, one {Presunutý # e-mail} few {Presunuté # e-maily} many {Presunuté # e-mailu} other {Presunutých # e-mailov}} do priečinka {mailbox}",
+    "error": "Chyba",
+    "marked_as_spam": "Označené ako spam",
+    "marked_as_spam_count": "{count, plural, one {# e-mail označený ako spam} few {# e-maily označené ako spam} many {# e-mailu označené ako spam} other {# e-mailov označených ako spam}}",
+    "marked_not_spam": "Označené ako ne-spam",
+    "marked_not_spam_count": "{count, plural, one {# e-mail označený ako ne-spam} few {# e-maily označené ako ne-spam} many {# e-mailu označené ako ne-spam} other {# e-mailov označených ako ne-spam}}",
+    "move_same_account": "Správy je možné presúvať iba v rámci toho istého účtu",
+    "moved_to_trash": "E-mail presunutý do koša",
+    "moved_to_trash_count": "{count, plural, one {# e-mail presunutý do koša} few {# e-maily presunuté do koša} many {# e-mailu presunuté do koša} other {# e-mailov presunutých do koša}}",
+    "no_archive_folder": "Na serveri sa nepodarilo nájsť priečinok Archív.",
+    "no_emails_in": "V priečinku {folder} nie sú žiadne e-maily",
+    "no_junk_folder": "Na serveri sa nepodarilo nájsť priečinok Spam / Nevyžiadaná pošta.",
+    "no_mailboxes": "Nenašli sa žiadne poštové schránky",
+    "no_mailboxes_hint": "Skontrolujte, či váš účet JMAP podporuje poštu.",
+    "no_tags_defined": "Nie sú definované žiadne štítky. Pridajte ich v Nastaveniach.",
+    "no_trash_folder": "Na serveri sa nepodarilo nájsť priečinok Kôš. Skontrolujte konfiguráciu schránky.",
+    "offline_nothing_cached": "Bez pripojenia. Nič sa nezobrazuje, pretože zatiaľ nie je uložená žiadna pošta vo vyrovnávacej pamäti.",
+    "open_draft_failed": "Koncept sa nepodarilo otvoriť.",
+    "outbox_discard": "Zahodiť",
+    "outbox_failed": "Počet zmien, ktoré sa nepodarilo uložiť na server: {count}.",
+    "recent_searches": "Nedávne vyhľadávania",
+    "scope_all_folders": "Všetky priečinky",
+    "scope_this_folder": "Tento priečinok",
+    "search_placeholder": "Hľadať poštu...",
+    "showing_cached": "Zobrazuje sa pošta z vyrovnávacej pamäte",
+    "swipe_move": "Presunúť",
+    "swipe_spam": "Spam",
+    "total": "celkom",
+    "undo_failed": "Vrátenie späť zlyhalo",
+    "unknown_tag": "tu nie je definovaný"
+  },
+  "email_viewer": {
+    "add_sender_to_contacts": "Pridať odosielateľa do kontaktov",
+    "address_actions": {
+      "add_contact": "Pridať do kontaktov",
+      "compose": "Nová správa",
+      "copy": "Kopírovať adresu",
+      "copy_failed": "Adresu sa nepodarilo skopírovať."
+    },
+    "attachment_actions": {
+      "open": "Otvoriť",
+      "preview": "Náhľad",
+      "save": "Uložiť",
+      "share": "Zdieľať"
+    },
+    "attachment_failed": "Prílohu sa nepodarilo otvoriť",
+    "authentication": {
+      "spoof_warning": "Adresu odosielateľa sa nepodarilo overiť – správa môže byť podvrhnutá."
+    },
+    "body_truncated": "Táto správa je príliš veľká na zobrazenie v celom rozsahu.",
+    "bundle_too_large": "Prílohy sú príliš veľké na zbalenie.",
+    "color_tag": {
+      "blue": "Modrá",
+      "green": "Zelená",
+      "none": "Žiadna",
+      "orange": "Oranžová",
+      "pink": "Ružová",
+      "purple": "Fialová",
+      "red": "Červená",
+      "title": "Farebný štítok",
+      "yellow": "Žltá"
+    },
+    "delete_permanently_message": "Táto správa bude natrvalo odstránená a nebude ju možné obnoviť.",
+    "delete_permanently_title": "Odstrániť natrvalo?",
+    "export_failed": "Export zlyhal",
+    "forwarded": "Preposlané",
+    "load_failed": "E-mail sa nepodarilo načítať",
+    "preview": {
+      "open_external": "Otvoriť v aplikácii",
+      "pdf_external": "Súbory PDF sa otvárajú v prehliadači PDF na tomto zariadení.",
+      "unsupported": "Pre tento typ súboru nie je k dispozícii náhľad."
+    },
+    "received_via": "pre {name}",
+    "remove_color": "Odstrániť štítok",
+    "replied": "Zodpovedané",
+    "sender_actions": "Odosielateľ…",
+    "set_color": "Nastaviť štítok",
+    "show_all_count": "Zobraziť všetko ({count})",
+    "show_less": "Zobraziť menej",
+    "smime_unsupported": "Podpísané/zašifrované pomocou S/MIME – v mobilnej aplikácii nie je podporované",
+    "source_too_large": "Správa je príliš veľká na zobrazenie v celom rozsahu. Namiesto toho zdieľajte celý zdroj.",
+    "thread_loading": "Načítavanie konverzácie...",
+    "unsubscribe_banner": {
+      "no_identity": "Nie je k dispozícii žiadna identita na odosielanie"
+    },
+    "view_dark_mode": "Zobraziť v tmavom režime",
+    "view_light_mode": "Zobraziť vo svetlom režime"
+  },
+  "files": {
+    "delete_cascade_hint": "Priečinky sa odstránia spolu so všetkým obsahom. Túto akciu nie je možné vrátiť späť.",
+    "delete_item_title": "Odstrániť túto položku?",
+    "delete_items_title": "Odstrániť vybrané položky ({count})?",
+    "done": "Hotovo",
+    "folder_empty": "Tento priečinok je prázdny",
+    "invalid_name": "Neplatný názov",
+    "invalid_name_slash": "Názvy nesmú obsahovať „/“.",
+    "move_to": "Presunúť do…",
+    "open_error": "Súbor sa nepodarilo otvoriť",
+    "open_with": "Otvoriť pomocou…",
+    "preview_too_large": "Tento súbor je príliš veľký na náhľad.",
+    "selected_count": "Vybrané: {count}",
+    "share_add_people": "Pridať osoby",
+    "share_empty": "Zatiaľ nikomu nezdieľané",
+    "share_error": "Aktualizácia zdieľania zlyhala",
+    "share_file_error": "Súbor sa nepodarilo zdieľať",
+    "share_folder_hint": "Zdieľaním priečinka zdieľate všetko, čo obsahuje.",
+    "share_no_matches": "Žiadne výsledky",
+    "share_no_users": "Nenašli sa žiadni ďalší používatelia",
+    "share_remove": "Odstrániť prístup",
+    "share_role_custom": "Vlastné",
+    "share_search_placeholder": "Hľadať podľa mena alebo e-mailu",
+    "shared_with": "Zdieľané s",
+    "sharing_access": "Zdieľanie a prístup",
+    "upload_unavailable": "Výber súborov nie je v tejto zostave nainštalovaný. Ak chcete povoliť nahrávanie, zostavte aplikáciu znova."
+  },
+  "identities": {
+    "badge": {
+      "to": "pre {identity}",
+      "via": "cez {identity}"
+    }
+  },
+  "login": {
+    "mobile": {
+      "add_subtitle": "Do týchto účtov ste už prihlásení.",
+      "add_title": "Pridať ďalší účet",
+      "camera_allow": "Povoliť prístup k fotoaparátu",
+      "camera_disabled": "Prístup k fotoaparátu je zakázaný. Povoľte ho v Nastaveniach, aby ste mohli naskenovať prihlasovací QR kód.",
+      "camera_needed": "Bulwark Mail potrebuje prístup k fotoaparátu, aby mohol naskenovať prihlasovací QR kód.",
+      "choose_subtitle": "Vyberte, ako sa chcete prihlásiť.",
+      "confirm_check": "Skontrolujte, či všetko sedí",
+      "confirm_found": "Váš poštový server sa našiel",
+      "confirm_subtitle": "Ďalej sa prihlásite na stránke svojho poskytovateľa.",
+      "connecting": "Pripája sa: {host}",
+      "connecting_detail": "Nastavuje sa vaša schránka…",
+      "continue": "Pokračovať",
+      "different_server": "Použiť iný server",
+      "elsewhere_title": "Účet u iného poskytovateľa",
+      "email_desc": "Nájdeme váš poštový server",
+      "email_step_hint": "Funguje so Stalwart aj s akýmkoľvek iným poštovým serverom JMAP.",
+      "email_step_subtitle": "Zvyčajne nám to stačí na nájdenie vášho poštového servera.",
+      "email_step_title": "Aká je vaša e-mailová adresa?",
+      "email_step_title_add": "Aká je tá druhá adresa?",
+      "email_title": "Použiť moju e-mailovú adresu",
+      "err_bad_detail": "Skontrolujte e-mail a heslo. Ak váš účet používa dvojfaktorové prihlásenie, vytvorte vo webmaile heslo aplikácie a použite ho tu.",
+      "err_bad_title": "To nevyšlo",
+      "err_cert_detail": "Bezpečnostný certifikát servera bol odmietnutý. Ak ide o váš vlastný server, skontrolujte, či je certifikát platný a nevypršal.",
+      "err_cert_title": "{host} sa nepodarilo overiť",
+      "err_code_expired_detail": "Prihlasovacie kódy platia niekoľko minút. Vygenerujte vo webmaile nový a naskenujte ho znova.",
+      "err_code_expired_title": "Platnosť kódu vypršala",
+      "err_generic_detail": "Niečo sa pokazilo. Skúste to znova.",
+      "err_generic_title": "Prihlásenie zlyhalo",
+      "err_interrupted_detail": "Odpoveď nezodpovedala začatej požiadavke. Skúste sa prihlásiť znova.",
+      "err_interrupted_title": "Prihlásenie bolo prerušené",
+      "err_no_server_detail": "Skontrolujte adresu alebo namiesto toho naskenujte prihlasovací kód z webmailu.",
+      "err_no_server_title": "Poštový server sa nenašiel: {host}",
+      "err_no_webmail_detail": "Tento server nemá webmail Bulwark ani prihlásenie cez OAuth. Použite heslo (alebo heslo aplikácie).",
+      "err_no_webmail_title": "Prihlasovacia stránka sa nenašla: {host}",
+      "err_rate_detail": "Server nás požiadal o chvíľu strpenia. Skúste to o chvíľu znova.",
+      "err_rate_detail_seconds": "Server nás požiadal o strpenie. Skúste to znova približne o {seconds} s.",
+      "err_rate_title": "Príliš veľa pokusov",
+      "err_server_detail": "Server odpovedal chybou. Skúste to znova o niekoľko minút.",
+      "err_server_title": "{host} má problémy",
+      "err_totp_bad_detail": "Skontrolujte heslo a aktuálny kód z overovacej aplikácie a skúste to znova.",
+      "err_totp_detail": "Tento účet je chránený dvojfaktorovým prihlásením. Zadajte 6-miestny kód z overovacej aplikácie.",
+      "err_totp_title": "Zadajte kód dvojfaktorového overenia",
+      "err_unreachable_detail": "Skontrolujte pripojenie a adresu servera a skúste to znova.",
+      "err_unreachable_title": "{host} nie je dostupný",
+      "know_server": "Poznám adresu svojho servera",
+      "known_server_desc": "Tento server už poznáme, takže nie je potrebné nič nastavovať",
+      "known_server_title": "Ďalší účet na {host}",
+      "looking_up": "Hľadá sa váš server…",
+      "manual": "Zadať údaje servera ručne",
+      "notice_bad_qr": "Toto nie je prihlasovací kód Bulwark",
+      "notice_bad_qr_detail": "Otvorte Bulwark na webe a kód zobrazíte v Nastavenia → Zabezpečenie → Prepojiť mobilnú aplikáciu.",
+      "notice_bad_server": "Toto nevyzerá ako adresa servera",
+      "notice_bad_server_detail": "Skúste adresu, ktorú používate pre webmail, napríklad mail.example.com.",
+      "notice_full_email": "Zadajte celú e-mailovú adresu",
+      "notice_full_email_detail": "Napríklad ada@example.com. Ak sa prihlasujete používateľským menom, použite „Poznám adresu svojho servera“.",
+      "notice_need_code": "Zadajte 6-miestny kód z overovacej aplikácie",
+      "notice_need_credentials": "Zadajte e-mail a heslo",
+      "notice_need_server": "Najprv potrebujeme adresu servera",
+      "open_settings": "Otvoriť Nastavenia",
+      "opening": "Otvára sa: {host}",
+      "opening_detail": "Dokončite prihlásenie na stránke, ktorá sa práve otvorila. O zvyšok sa postaráme.",
+      "pairing": "Overuje sa prihlasovací kód",
+      "pairing_detail": "Párovanie tohto zariadenia: {host}…",
+      "password_subtitle": "Heslo sa odošle iba tomuto serveru a uloží sa do úložiska kľúčov v zariadení.",
+      "password_title": "Prihlásiť sa do {host}",
+      "provider_detail": "Zadáte ho na jeho stránke. Bulwark ukladá iba prihlasovací token, ktorý môžete kedykoľvek odvolať.",
+      "provider_title": "Vaše heslo zostáva u poskytovateľa",
+      "qr_hint": "V Nastavenia → Zabezpečenie → Prepojiť mobilnú aplikáciu sa zobrazí kód. Namierte naň fotoaparát.",
+      "qr_hint_title": "Otvorte Bulwark na počítači",
+      "qr_title": "Prihlasovací kód",
+      "scan_desc": "Najrýchlejšia cesta, ak ste prihlásení na webe",
+      "scan_title": "Naskenovať prihlasovací kód",
+      "server_hint": "Rovnaká adresa, akú zadávate v prehliadači. https:// doplníme za vás.",
+      "server_label": "Adresa servera",
+      "server_not_found": "Pre {domain} sme nenašli žiadny server. Ak prevádzkujete vlastný server, zadajte adresu, ktorú používate pre webmail.",
+      "server_scan_hint": "Ak si nie ste istí, naskenujte radšej prihlasovací kód. Obsahuje adresu servera.",
+      "server_subtitle": "Zadajte adresu, cez ktorú otvárate webmail.",
+      "server_title": "Aká je adresa vášho servera?",
+      "the_server": "server",
+      "unencrypted": "Nešifrované pripojenie",
+      "use_password": "Prihlásiť sa radšej heslom",
+      "username_label": "E-mail alebo používateľské meno",
+      "your_server": "váš server"
+    }
+  },
+  "offline": {
+    "banner": "Ste offline",
+    "queued_changes": "{count, plural, one {# zmena sa zosynchronizuje} few {# zmeny sa zosynchronizujú} many {# zmeny sa zosynchronizuje} other {# zmien sa zosynchronizuje}} po obnovení pripojenia"
+  },
+  "push_prompt": {
+    "body": "Zapnite oznámenia na pozadí, aby vám nové správy chodili, aj keď je aplikácia zatvorená.",
+    "dismiss": "Teraz nie",
+    "enable": "Povoliť",
+    "title": "Dostávajte oznámenia o novej pošte"
+  },
+  "scheduled": {
+    "cancel_body": "Správa nebude doručená. Kópia zostane v priečinku Odoslané.",
+    "cancel_failed": "Zrušenie zlyhalo",
+    "edit_failed": "Správu sa nepodarilo otvoriť na úpravu",
+    "keep_scheduled": "Ponechať naplánované",
+    "reschedule_failed": "Preplánovanie zlyhalo",
+    "send_now_failed": "Správu sa nepodarilo odoslať teraz"
+  },
+  "settings": {
+    "account": {
+      "accounts": {
+        "description_mobile": "Zmeňte poradie účtov v prepínači účtov, vyberte predvolený účet alebo sa z niektorého odhláste.",
+        "limit": "Dosiahli ste maximálny počet účtov ({count})."
+      },
+      "shared_accounts": {
+        "description_manage": "Skupinové a zdieľané účty, ktoré môžete čítať cez tento účet. Vyberte jeden na správu jeho filtrov a automatickej odpovede."
+      },
+      "unknown": "Neznáme"
+    },
+    "advanced": {
+      "about": {
+        "deprecated_update": "Vyžaduje sa aktualizácia: {version}",
+        "mobile_title": "Bulwark Mobile",
+        "security_update": "Bezpečnostná aktualizácia: {version}",
+        "update_available": "Aktualizácia: {version}",
+        "update_store_hint": "k dispozícii v TestFlight / App Store"
+      },
+      "export_settings": {
+        "saved_to": "Uložené do: {path}"
+      },
+      "reset_settings": {
+        "done": "Všetky nastavenia boli obnovené na predvolené hodnoty."
+      }
+    },
+    "appearance": {
+      "language": {
+        "restart_for_direction": "Na použitie nového smeru textu reštartujte aplikáciu.",
+        "system_default": "Podľa systému"
+      },
+      "toolbar_labels": {
+        "description_mobile": "Zobrazovať textové popisky vedľa ikon na paneli nástrojov."
+      }
+    },
+    "badges": {
+      "experimental": "Experimentálne",
+      "not_implemented": "Neimplementované",
+      "unavailable": "Nedostupné"
+    },
+    "downloads": {
+      "attachment_template": {
+        "description_mobile": "Šablóna použitá pri ukladaní alebo zdieľaní prílohy."
+      },
+      "email_template": {
+        "description_mobile": "Šablóna použitá pri exporte správy ako súboru .eml."
+      },
+      "strip_diacritics": {
+        "description_mobile": "Prevádzať písmená s diakritikou na obyčajné ASCII (ä → a)."
+      },
+      "transform_description": "Použije sa na každý exportovaný názov súboru.",
+      "transform_title": "Úprava názvov súborov"
+    },
+    "email_behavior": {
+      "archive_mode": {
+        "no_archive": "Nenašiel sa žiadny priečinok archívu.",
+        "reorganize_result": "Presunuté {moved} z {total} e-mailov.",
+        "reorganizing": "Reorganizuje sa…"
+      },
+      "attachment_click_action": {
+        "description_mobile": "Čo sa stane, keď klepnete na prílohu."
+      },
+      "auto_select_reply_identity": {
+        "description_mobile": "Odpovede sa vždy odosielajú z identity, na ktorú správa prišla. Ak je táto voľba zapnutá, odpoveď na inú adresu vo vašich doménach (catch-all alias) sa odošle tiež z tejto adresy."
+      },
+      "plain_text_mode": {
+        "description_mobile": "Písať a čítať iba v obyčajnom texte."
+      },
+      "send_delay": {
+        "description_mobile": "Pozdržať odchádzajúcu poštu o niekoľko sekúnd, aby ste ju mohli zrušiť. Vyžaduje podporu servera."
+      },
+      "swipe_actions": {
+        "move": "Presunúť do priečinka",
+        "pin": "Pripnúť"
+      },
+      "swipe_left_action": {
+        "description_mobile": "Akcia pri potiahnutí riadka od pravého okraja doľava.",
+        "label_mobile": "Potiahnutie doľava (vpravo → vľavo)"
+      },
+      "swipe_right_action": {
+        "description_mobile": "Akcia pri potiahnutí riadka od ľavého okraja doprava.",
+        "label_mobile": "Potiahnutie doprava (vľavo → vpravo)"
+      }
+    },
+    "experimental": {
+      "title": "Experimentálna funkcia"
+    },
+    "folders": {
+      "account": "Účet",
+      "cannot_delete": "Nemožno odstrániť",
+      "description_mobile": "Vytvárajte, premenúvajte, presúvajte a odstraňujte priečinky. Dlhým stlačením priečinka v bočnom paneli otvoríte rýchle akcie.",
+      "edit_folder": "Upraviť „{name}“",
+      "folder_name": "Názov priečinka",
+      "move_under": "Nadradený priečinok",
+      "name_placeholder": "Účtenky",
+      "name_required": "Názov je povinný",
+      "new_folder": "Nový priečinok",
+      "not_empty_message": "Priečinok „{name}“ obsahuje e-maily ({count}). Odstrániť aj tak?",
+      "not_empty_title": "Priečinok nie je prázdny",
+      "own_account": "Moje priečinky",
+      "role": "Špeciálne použitie",
+      "role_hint": "Priraďte tomuto priečinku špeciálnu rolu (Archív, Spam, …). Každú rolu môže mať iba jeden priečinok.",
+      "save_failed": "Uloženie zlyhalo",
+      "system_folder_delete": "Systémové priečinky nemožno odstrániť.",
+      "system_folder_rename": "Systémové priečinky nemožno premenovať.",
+      "top_level": "Najvyššia úroveň"
+    },
+    "identities": {
+      "cannot_delete": "Hlavnú identitu nemožno odstrániť.",
+      "cannot_delete_title": "Nemožno odstrániť",
+      "count": "{count, plural, =0 {Žiadne identity} one {# identita} few {# identity} many {# identity} other {# identít}}",
+      "create": "Nová identita",
+      "delete_confirm": "Odstrániť „{name}“?",
+      "delete_failed": "Odstránenie zlyhalo",
+      "delete_title": "Odstrániť identitu",
+      "description_mobile": "Spravujte mená odosielateľa, e-mailové adresy a podpisy. Klepnutím na riadok ho upravíte.",
+      "display_name": "Zobrazené meno",
+      "edit": "Upraviť identitu",
+      "email_address": "E-mailová adresa",
+      "email_locked": "JMAP neumožňuje zmeniť e-mail identity; namiesto toho vytvorte novú.",
+      "invalid_email": "Zadajte platnú e-mailovú adresu pre túto identitu.",
+      "invalid_email_title": "Neplatný e-mail",
+      "new": "Nová",
+      "no_name": "(bez mena)",
+      "primary": "hlavná",
+      "save_failed": "Uloženie zlyhalo",
+      "text_signature": "Textový podpis"
+    },
+    "keywords": {
+      "description_mobile": "Farebné štítky na organizáciu pošty.",
+      "discover": {
+        "add_all": "Pridať všetky",
+        "found": "Nájdené štítky, ktoré tu nie sú definované: {count}.",
+        "none": "Nenašli sa žiadne neznáme štítky (prehľadané správy: {scanned}).",
+        "partial": "(Prehľadávanie sa zastavilo iba pri najnovších správach.)",
+        "progress": "Prehľadané {scanned} z {total} správ…",
+        "scan": "Nájsť štítky v schránke"
+      },
+      "reset_confirm": "Nahradiť zoznam štítkov predvolenými štítkami? Štítky už nastavené na správach zostanú na serveri.",
+      "reset_defaults": "Obnoviť predvolené"
+    },
+    "layout": {
+      "description": "Prispôsobte si ovládanie zoznamu e-mailov na mobile.",
+      "quick_actions": {
+        "description": "Tri tlačidlá medzi Predchádzajúci/Ďalší v dolnej časti otvoreného e-mailu. Predvolene Odpovedať, Odpovedať všetkým a Preposlať.",
+        "label": "Rýchle akcie čítačky",
+        "mark_unread": "Označiť ako prečítané/neprečítané",
+        "relocated": "{count, plural, one {Akcia {actions} sa presunie na horný panel nástrojov, takže ju môžete ďalej používať.} few {Akcie {actions} sa presunú na horný panel nástrojov, takže ich môžete ďalej používať.} many {Akcie {actions} sa presunú na horný panel nástrojov, takže ich môžete ďalej používať.} other {Akcie {actions} sa presunú na horný panel nástrojov, takže ich môžete ďalej používať.}}",
+        "slot": "Pozícia {n}",
+        "spam": "Spam",
+        "star": "Označiť hviezdičkou",
+        "tag": "Štítok"
+      },
+      "show_avatars_in_junk": "Zobrazovať avatary odosielateľov v spame",
+      "show_avatars_in_junk_description": "Načítavať logá odosielateľov pri správach v priečinku Spam. Vypnuté zabráni kontaktovaniu odosielateľov spamu.",
+      "show_folder_total_count": "Zobrazovať celkový počet správ pri priečinkoch",
+      "show_folder_total_count_description": "Zobrazovať celkový počet vedľa počtu neprečítaných v zozname priečinkov.",
+      "swipe_mode": {
+        "instant": "Okamžite (potiahnutie = akcia)",
+        "reveal": "Odkryť (potiahnutie, potom klepnutie)"
+      },
+      "unified_cross_account": "Zjednotené zobrazenia naprieč účtami",
+      "unified_cross_account_description": "Zlúčiť všetky prihlásené účty do „Zjednotená doručená pošta“. Vypnuté ponechá zjednotené zobrazenia v rámci aktívneho účtu a jeho zdieľaných priečinkov."
+    },
+    "message_list_order": {
+      "description": "Ktoré správy budú v zozname prvé. V rámci každej skupiny rozhoduje poradie od najnovších; prepínač v hlavičke stále obracia poradie najstaršie/najnovšie.",
+      "preset_chronological": "Najnovšie prvé",
+      "preset_custom": "Vlastné",
+      "preset_starred_first": "S hviezdičkou prvé",
+      "preset_tagged_first": "So štítkom prvé",
+      "preset_unread_first": "Neprečítané prvé",
+      "scope": "Použiť na",
+      "scope_all": "Všetky priečinky",
+      "scope_inbox": "Iba Doručené",
+      "tag": "Štítok",
+      "title": "Poradie zoznamu správ"
+    },
+    "notifications": {
+      "email": {
+        "app_icon_badge": "Počet neprečítaných na ikone aplikácie",
+        "app_icon_badge_desc": "Zobrazovať počet neprečítaných správ v Doručených ako odznak na ikone aplikácie.",
+        "sound_channel_hint": "Zvuk a vibrácie oznámení pošty sa nastavujú v kanáli oznámení Androidu: dlho stlačte oznámenie alebo otvorte systémové nastavenia aplikácie."
+      },
+      "push": {
+        "confirm_disable_message_mobile": "Toto zariadenie prestane dostávať upozornenia na novú poštu pre tento účet.",
+        "description_mobile": "Prijímať systémové oznámenia o novej pošte, keď je aplikácia zatvorená. Doručované cez push relay Bulwark; relay nikdy nevidí obsah pošty.",
+        "phase_account": "Účet",
+        "phase_distributor": "Distribútor UnifiedPush",
+        "phase_jmap": "Odber na poštovom serveri",
+        "phase_permission": "Povolenie oznámení",
+        "phase_platform": "Platforma",
+        "phase_relay": "Registrácia v relay",
+        "phase_token": "Token zariadenia",
+        "phase_verify": "Overenie",
+        "relay_desc_mobile": "Server, ktorý doručuje vaše oznámenia. Predvolený je hostovaný relay Bulwark; meňte iba vtedy, ak prevádzkujete vlastný. Musí používať https.",
+        "relay_invalid": "Zadajte platnú adresu URL https://",
+        "setup_failed": "Nastavenie zlyhalo",
+        "status_android_only": "Oznámenia na pozadí sú k dispozícii iba v Androide.",
+        "transport_desc": "Ako sa oznámenia dostanú do tohto zariadenia: cez Firebase Cloud Messaging od Googlu alebo cez aplikáciu distribútora UnifiedPush (napríklad ntfy) bez Googlu.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "Spôsob doručenia",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "Je nainštalovaných niekoľko aplikácií distribútora UnifiedPush – vyberte tú, ktorá má doručovať oznámenia.",
+        "up_distributor_label": "Distribútor",
+        "up_no_distributor": "V tomto zariadení nie je nainštalovaná žiadna aplikácia distribútora UnifiedPush. Nainštalujte si ju (napríklad ntfy) a skúste to znova."
+      }
+    },
+    "offline": {
+      "cached_count": "{count, plural, one {# správa} few {# správy} many {# správy} other {# správ}}",
+      "clear": "Vymazať",
+      "clear_cache": "Vymazať vyrovnávaciu pamäť",
+      "clear_message": "Odstrániť z vyrovnávacej pamäte {count, plural, one {# správu} few {# správy} many {# správy} other {# správ}} ({size})?",
+      "clear_title": "Vymazať offline poštu",
+      "days_ago": "pred {count} d",
+      "description": "Sťahovať nedávne správy, aby sa otvárali okamžite a boli čitateľné aj bez pripojenia. Iba telá správ — prílohy sa stále sťahujú na požiadanie.",
+      "downloading": "Sťahovanie {completed}/{total}…",
+      "enabled": "Ukladať nedávnu poštu",
+      "enabled_desc": "Ak je zapnuté, aplikácia uchováva v tomto zariadení telá správ za zvolené obdobie.",
+      "hours_ago": "pred {count} h",
+      "just_now": "práve teraz",
+      "last_sync": "Posledná synchronizácia: {when}",
+      "last_sync_failed": "Posledná synchronizácia zlyhala: {message}",
+      "max_size": "Maximálna veľkosť",
+      "max_size_desc": "Keď vyrovnávacia pamäť prekročí túto veľkosť, najstaršie správy sa odstránia.",
+      "minutes_ago": "pred {count} min",
+      "never": "nikdy",
+      "nothing_cached": "Zatiaľ nič uložené",
+      "queued_changes": "{count, plural, one {# zmena čaká} few {# zmeny čakajú} many {# zmeny čaká} other {# zmien čaká}} na synchronizáciu",
+      "scanning": "Prehľadáva sa nedávna pošta…",
+      "sync_now": "Synchronizovať teraz",
+      "syncing": "Synchronizuje sa…",
+      "title": "Offline pošta",
+      "window": "Obdobie",
+      "window_24h": "Posledných 24 hodín",
+      "window_days": "{count, plural, one {Posledný # deň} few {Posledné # dni} many {Posledného # dňa} other {Posledných # dní}}",
+      "window_desc": "Ako ďaleko do minulosti ukladať, podľa dátumu prijatia správy."
+    },
+    "plugins": {
+      "mobile_description": "Pluginy bežia vo webmaile a rozširujú ho v prehliadači.",
+      "mobile_explainer": "Mobilná aplikácia nemá prostredie na spúšťanie pluginov. Pluginy inštalujte a spravujte vo webmaile v Nastavenia → Pluginy; témy a filtre, ktoré poskytujú, sa tu nepoužijú."
+    },
+    "security": {
+      "client_cert": {
+        "active": "Aktívny: {alias}",
+        "choose_another": "Vybrať iný",
+        "clear": "Vymazať",
+        "clear_message": "Nové požiadavky už nebudú predkladať certifikát. Certifikát zostane nainštalovaný v Androide.",
+        "clear_title": "Prestať používať klientsky certifikát?",
+        "description": "Vyberie certifikát nainštalovaný v Androide na overenie voči serveru počas TLS handshake. Užitočné, keď reverzný proxy vyžaduje mTLS.",
+        "hint": "Nainštalujte certifikát v Nastaveniach Androidu → Zabezpečenie → Šifrovanie a poverenia a potom ho vyberte tu.",
+        "not_set": "Nenastavené",
+        "pick": "Vybrať certifikát",
+        "pick_failed": "Výber zlyhal",
+        "title": "Klientsky certifikát TLS"
+      },
+      "credentials": {
+        "allowed_ips": "Povolené IP (voliteľné)",
+        "allowed_ips_hint": "Oddeľte čiarkou alebo medzerou. Nechajte prázdne, ak chcete povoliť akúkoľvek IP.",
+        "clear_expiry": "Zrušiť platnosť do",
+        "copy_now": "Skopírujte si to hneď — zobrazí sa iba raz. Na výber klepnite a podržte.",
+        "create_error": "Nepodarilo sa vytvoriť",
+        "expires": "Platí do (voliteľné)",
+        "expires_on": "vyprší {date}",
+        "no_expiry": "Bez vypršania",
+        "none": "Zatiaľ žiadne.",
+        "remove_error": "Nepodarilo sa odstrániť",
+        "remove_message": "Každý klient, ktorý ich používa, prestane fungovať.",
+        "remove_title": "Odstrániť prihlasovacie údaje?"
+      },
+      "display_name": {
+        "error_title": "Aktualizácia zlyhala"
+      },
+      "encryption": {
+        "no_keys": "Najprv pridajte verejný kľúč – šifrovanie dát v pokoji ho vyžaduje."
+      },
+      "load_error": "Nastavenia zabezpečenia sa nepodarilo načítať.",
+      "not_supported": "Správa zabezpečenia účtu vyžaduje server Stalwart. Tieto funkcie nie sú pre tento účet k dispozícii.",
+      "offline": "Ste offline. Nastavenia zabezpečenia účtu vyžadujú aktívne pripojenie k serveru.",
+      "password": {
+        "change": "Zmeniť heslo",
+        "changed": "Heslo k vášmu účtu bolo aktualizované.",
+        "changed_title": "Heslo zmenené",
+        "description": "Zmeňte heslo k tomuto účtu.",
+        "error": "Heslo sa nepodarilo zmeniť.",
+        "mismatch": "Heslá sa nezhodujú.",
+        "toggle_visibility": "Zobraziť alebo skryť heslo",
+        "too_short": "Nové heslo musí mať aspoň 8 znakov."
+      },
+      "public_keys": {
+        "add_error": "Verejný kľúč sa nepodarilo pridať",
+        "description": "Certifikáty S/MIME a kľúče PGP uložené na serveri. Používajú sa na šifrovanie dát v pokoji.",
+        "expires": "vyprší {date}",
+        "remove_error": "Verejný kľúč sa nepodarilo odstrániť",
+        "remove_message": "Šifrovanie dát v pokoji, ktoré používa tento kľúč, prestane fungovať.",
+        "remove_title": "Odstrániť verejný kľúč?",
+        "title": "Verejné kľúče"
+      },
+      "two_factor": {
+        "active": "Aktívne",
+        "code": "Overovací kód",
+        "code_required": "Zadajte 6-miestny kód z aplikácie.",
+        "description": "Vyžadovať pri prihlásení jednorazový kód.",
+        "disable": "Vypnúť",
+        "disable_error": "Dvojfaktorové overenie sa nepodarilo vypnúť.",
+        "disable_hint": "Na vypnutie dvojfaktorového overenia zadajte heslo.",
+        "enable_error": "Dvojfaktorové overenie sa nepodarilo zapnúť.",
+        "enabled_message": "Pri ďalšom prihlásení budete požiadaní o kód.",
+        "enabled_title": "Dvojfaktorové overenie zapnuté",
+        "enrol_hint": "Pridajte tento kľúč do overovacej aplikácie a na potvrdenie zadajte 6-miestny kód.",
+        "inactive": "Neaktívne",
+        "label": "Overovacia aplikácia",
+        "manual_secret": "Alebo zadajte tento kľúč ručne",
+        "no_app": "Overovaciu aplikáciu sa nepodarilo otvoriť. Pridajte kľúč uvedený nižšie ručne.",
+        "no_app_title": "Žiadna overovacia aplikácia",
+        "open_app": "Pridať do overovacej aplikácie",
+        "password_required": "Zadajte svoje aktuálne heslo.",
+        "section_title": "Dvojfaktorové overenie"
+      }
+    },
+    "sidebar_apps": {
+      "add": "Pridať aplikáciu",
+      "empty": "Zatiaľ neboli pridané žiadne aplikácie.",
+      "form": {
+        "name": "Názov",
+        "name_placeholder": "Názov aplikácie",
+        "open_mode": "Režim otvárania",
+        "show_on_mobile": "Zobraziť na mobile",
+        "url": "URL"
+      },
+      "keep_loaded_description_mobile": "Nechať vložené aplikácie bežať na pozadí aj po prepnutí inam.",
+      "open_mode": {
+        "inline": "Vložené",
+        "new_tab": "Nová karta",
+        "tab": "Karta"
+      }
+    },
+    "smime": {
+      "mobile_description": "Podpisujte a šifrujte poštu pomocou certifikátov S/MIME.",
+      "mobile_explainer": "S/MIME zatiaľ v mobilnej aplikácii nie je k dispozícii. Kľúče a certifikáty spravujte vo webmaile; podpísané správy sa tu zobrazujú bez overenia."
+    },
+    "tabs": {
+      "plugins": "Pluginy"
+    },
+    "templates": {
+      "delete_title": "Odstrániť šablónu"
+    },
+    "themes": {
+      "default_description": "Predvolené svetlé a tmavé palety.",
+      "default_name": "Bulwark",
+      "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile.",
+      "title": "Témy"
+    },
+    "vacation": {
+      "warnings": {
+        "date_format": "Dátumy musia byť vo formáte „YYYY-MM-DD“ alebo „YYYY-MM-DD HH:MM“"
+      }
+    }
+  },
+  "sidebar": {
+    "account_error": "Vyžaduje pozornosť",
+    "remove_account_hint": "Dlhým stlačením odstránite tento účet",
+    "remove_account_message": "Odhlásiť účet {account} v tomto zariadení. Vaša pošta zostane na serveri.",
+    "remove_account_title": "Odstrániť účet?",
+    "show_unread": "Zobraziť neprečítané"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "Počet účtov, ktoré sa nepodarilo načítať: {count}"
+  },
+  "updates": {
+    "advisory": "Bezpečnostné upozornenie",
+    "advisory_desc": "Podrobnosti o probléme, ktorý táto verzia opravuje.",
+    "auto_check": "Kontrolovať automaticky",
+    "auto_check_desc": "Pri spustení aplikácie kontrolovať aktualizácie každých niekoľko hodín.",
+    "available": "Aktualizácia je k dispozícii",
+    "available_desc": "Klepnutím na Nainštalovať stiahnete v{version} a otvoríte ju v inštalátore balíkov Androidu.",
+    "banner": {
+      "advisory": "Prečítať upozornenie",
+      "deprecated_subtitle": "Nainštalujte v{version}, aby ste mohli aplikáciu ďalej používať.",
+      "deprecated_title": "Táto verzia už nie je podporovaná",
+      "security_subtitle": "v{version} opravuje bezpečnostný problém. Nainštalujte ju čo najskôr.",
+      "security_title": "K dispozícii je bezpečnostná aktualizácia",
+      "subtitle": "v{version} je pripravená na inštaláciu.",
+      "title": "Aktualizácia je k dispozícii"
+    },
+    "building": "Aktualizácia sa zostavuje",
+    "building_desc": "Verzia v{version} bola zverejnená, ale APK sa ešte zostavuje. Táto stránka bude kontrolovať znova každých 30 sekúnd.",
+    "check": "Skontrolovať aktualizácie",
+    "check_again": "Skontrolovať znova",
+    "check_now": "Skontrolovať teraz",
+    "checking": "Kontroluje sa…",
+    "current_version": "Aktuálna verzia",
+    "description": "Kontrolujte nové verzie a inštalujte ich.",
+    "downloading": "Sťahuje sa…",
+    "downloading_pct": "Sťahuje sa {pct} %",
+    "install": "Nainštalovať",
+    "installing": "Inštaluje sa…",
+    "last_checked": "Naposledy skontrolované",
+    "last_error": "Posledná chyba: {message}",
+    "latest_version": "Najnovšia verzia",
+    "never": "nikdy",
+    "open": "Otvoriť",
+    "open_github": "Otvoriť na GitHube",
+    "opening_installer": "Otvára sa inštalátor…",
+    "progress_of": "{written} z {total}",
+    "published": "Zverejnené {date}",
+    "rate_limited": "GitHub obmedzuje počet kontrol aktualizácií; skúsime to neskôr.",
+    "release_notes": "Poznámky k vydaniu",
+    "release_page": "Stránka vydania",
+    "release_page_desc": "Úplné poznámky k vydaniu a súbory na stiahnutie na GitHube.",
+    "release_page_pending_desc": "Sledujte priebeh zostavenia alebo si stiahnite APK ručne.",
+    "severity_deprecated": "Povinná",
+    "severity_security": "Zabezpečenie",
+    "title": "Aktualizácie aplikácie"
+  }
+}
