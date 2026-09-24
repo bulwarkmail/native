@@ -284,9 +284,40 @@ export async function removePublicKey(id: string): Promise<void> {
   if (failure) throw new Error(failure.description || failure.type || 'Failed to remove public key');
 }
 
+/**
+ * The account's "Full name": the `description` of `x:AccountSettings`, which
+ * every user can read (webmail #900). Null when it is not set.
+ */
+export async function fetchAccountDisplayName(): Promise<string | null> {
+  const accountId = jmapClient.accountId;
+  const responses = await send([['x:AccountSettings/get', { accountId, ids: ['singleton'] }, '0']]);
+  const result = resultFor<{ list?: Array<{ description?: string | null }> }>(responses, '0');
+  const description = result.list?.[0]?.description;
+  return typeof description === 'string' && description.trim() ? description.trim() : null;
+}
+
+// Stalwart only lets admins read their own principal with x:Account/get;
+// everyone else is refused, every time. A refusal is remembered per account
+// for the session, so the alias lookups don't keep asking.
+const PRINCIPAL_REFUSALS = new Set(['forbidden', 'unknownMethod', 'accountNotSupportedByMethod']);
+const principalRefused = new Set<string>();
+
+function principalKey(accountId: string): string {
+  return `${jmapClient.serverUrl ?? ''}|${accountId}`;
+}
+
+/** Test hook. */
+export function resetPrincipalRefusals(): void {
+  principalRefused.clear();
+}
+
 export async function fetchPrincipal(): Promise<PrincipalInfo> {
   const accountId = jmapClient.accountId;
+  const key = principalKey(accountId);
+  if (principalRefused.has(key)) throw new Error('forbidden');
   const responses = await send([['x:Account/get', { accountId, ids: [accountId] }, '0']]);
+  const refusal = responses.find((r) => r[2] === '0' && r[0] === 'error')?.[1] as { type?: string } | undefined;
+  if (refusal?.type && PRINCIPAL_REFUSALS.has(refusal.type)) principalRefused.add(key);
   const result = resultFor<{
     list?: Array<{
       description?: string | null;

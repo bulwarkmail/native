@@ -7,13 +7,14 @@ import { collectUserCalendarAddresses } from './calendar-participants';
 
 // Account aliases come from x:Account/get (Stalwart's principal object) and
 // only change when an admin edits the account, so they're fetched once per
-// JMAP account and remembered for the session. Failure (older server, no
-// permission) simply leaves the list at login address + identities.
+// JMAP account and remembered for the session, and only by a view that needs
+// them. Failure (older server, no permission: only admins may read it) simply
+// leaves the list at login address + identities.
 const aliasCache = new Map<string, string[]>();
 const aliasInFlight = new Map<string, Promise<string[]>>();
 const aliasListeners = new Set<() => void>();
 
-function loadAliases(accountId: string): Promise<string[]> {
+function fetchAliases(accountId: string): Promise<string[]> {
   const cached = aliasCache.get(accountId);
   if (cached) return Promise.resolve(cached);
   const pending = aliasInFlight.get(accountId);
@@ -42,20 +43,22 @@ export function resetUserCalendarAddressCache(): void {
  * login address, the sending identities and the account aliases. Used to
  * find "me" among an event's participants (RSVP), to detect alias-organized
  * events as the user's own, and as the organizer address of new invites.
+ * `loadAliases: false` skips the alias lookup (a message that carries no
+ * invitation).
  */
-export function useUserCalendarAddresses(): string[] {
+export function useUserCalendarAddresses(loadAliases = true): string[] {
   const activeEmail = useAccountStore((s) => s.getActiveAccount()?.email ?? null);
   const identities = useSettingsStore((s) => s.identities);
   const [, bump] = React.useReducer((n: number) => n + 1, 0);
 
   const accountId = jmapClient.isConnected ? jmapClient.accountId : null;
   React.useEffect(() => {
-    if (!accountId) return;
+    if (!accountId || !loadAliases) return;
     if (aliasCache.has(accountId)) return;
     aliasListeners.add(bump);
-    void loadAliases(accountId);
+    void fetchAliases(accountId);
     return () => { aliasListeners.delete(bump); };
-  }, [accountId]);
+  }, [accountId, loadAliases]);
 
   const aliases = accountId ? aliasCache.get(accountId) ?? [] : [];
   return React.useMemo(

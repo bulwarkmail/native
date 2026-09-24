@@ -68,11 +68,10 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const subscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
   const importEvents = useCalendarStore((s) => s.importEvents);
   const rsvpEvent = useCalendarStore((s) => s.rsvpEvent);
-  // Login address + identities + aliases, so invitations addressed to an
-  // alias still show the RSVP buttons.
-  const currentUserEmails = useUserCalendarAddresses();
-
   const attachment = React.useMemo(() => findCalendarAttachment(email), [email]);
+  // Login address + identities + aliases, so invitations addressed to an
+  // alias still show the RSVP buttons. Only an invitation looks the aliases up.
+  const currentUserEmails = useUserCalendarAddresses(!!attachment && enabled);
 
   const [state, setState] = React.useState<BannerState>('loading');
   const [event, setEvent] = React.useState<Partial<CalendarEvent> | null>(null);

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { jmapClient, AuthenticationError, NetworkError } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
 import { getIdentities } from '../api/identity';
-import { fetchPrincipal, isStalwartSupported } from '../api/account-security';
+import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-security';
 import { useAccountStore } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
@@ -153,9 +153,10 @@ async function revokeStoredRefreshToken(accountId: string): Promise<void> {
 }
 
 // Refresh the registry's display name / address from the server (#900): the
-// primary identity first, then the Stalwart principal's "Full name" when the
-// account advertises the extension. Fire-and-forget; a failure keeps whatever
-// the registry already had.
+// primary identity first, then the Stalwart account's "Full name" when the
+// account advertises the extension. Read from x:AccountSettings, which every
+// user can read; x:Account/get is refused to everyone but admins. Fire-and-
+// forget; a failure keeps whatever the registry already had.
 async function syncAccountDisplayName(accountId: string): Promise<void> {
   try {
     const accountStore = useAccountStore.getState();
@@ -169,11 +170,8 @@ async function syncAccountDisplayName(accountId: string): Promise<void> {
     if (primary?.name?.trim()) updates.displayName = primary.name.trim();
     if (primary?.email && !entry.email.includes('@')) updates.email = primary.email;
     if (isStalwartSupported()) {
-      const principal = await fetchPrincipal().catch(() => null);
-      if (principal?.displayName?.trim()) updates.displayName = principal.displayName.trim();
-      if (!updates.email && principal?.emails[0] && !entry.email.includes('@')) {
-        updates.email = principal.emails[0];
-      }
+      const fullName = await fetchAccountDisplayName().catch(() => null);
+      if (fullName) updates.displayName = fullName;
     }
     if (Object.keys(updates).length === 0) return;
     if (useAccountStore.getState().getAccountById(accountId)) {
