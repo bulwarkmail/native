@@ -136,6 +136,10 @@
     "send_now": "Send now",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
+    "toolbar": {
+      "background_color": "Background color",
+      "remove_background_color": "Remove background color"
+    },
     "undo_send_label": "Sending in {seconds}s…",
     "uploading": "Uploading...",
     "validation": {

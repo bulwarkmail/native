@@ -23,7 +23,9 @@ export type RichTextCommand =
   | 'undo'
   | 'redo'
   // Text colour: a CSS colour after the colon, e.g. 'foreColor:#d97706'.
-  | `foreColor:${string}`;
+  | `foreColor:${string}`
+  // Background colour, the same way; 'hiliteColor:transparent' removes it.
+  | `hiliteColor:${string}`;
 
 export interface RichTextSelectionState {
   bold: boolean;

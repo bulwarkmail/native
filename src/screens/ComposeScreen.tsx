@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Tag, Type,
+  Users, Tag, Type, Highlighter,
 } from 'lucide-react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -103,7 +103,11 @@ type Field = 'to' | 'cc' | 'bcc';
 
 const URL_RE = /^https?:\/\/.+/i;
 
-const TEXT_COLORS = ['#000000', '#6b7280', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb', '#7c3aed'];
+// The webmail's 2 x 8 palette, used for text and background colour alike.
+const TEXT_COLORS = [
+  '#000000', '#5f6368', '#9aa0a6', '#c5221f', '#e8710a', '#f9ab00', '#188038', '#1967d2',
+  '#7627bb', '#c2185b', '#795548', '#fa5252', '#fd7e14', '#40c057', '#4dabf7', '#e64980',
+];
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -1759,7 +1763,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // ── Colour / table ───────────────────────────────────────────────────
-  const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
+  const [colorTarget, setColorTarget] = React.useState<'text' | 'background' | null>(null);
   const [tableMenuOpen, setTableMenuOpen] = React.useState(false);
   const insertTable = (rows: number, cols: number) => {
     const cell = '<td style="border:1px solid #cccccc;padding:6px;min-width:40px">&nbsp;</td>';
@@ -2437,8 +2441,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 icon={<Underline size={18} color={selState.underline ? c.primary : c.textSecondary} />} />
               <ToolbarButton active={selState.strikeThrough} onPress={() => editorRef.current?.exec('strikeThrough')}
                 icon={<Strikethrough size={18} color={selState.strikeThrough ? c.primary : c.textSecondary} />} />
-              <ToolbarButton onPress={() => setColorPickerOpen(true)}
+              <ToolbarButton onPress={() => setColorTarget('text')}
+                label={t('email_composer.toolbar.text_color', 'Text color')}
                 icon={<Palette size={18} color={c.textSecondary} />} />
+              <ToolbarButton onPress={() => setColorTarget('background')}
+                label={t('email_composer.toolbar.background_color', 'Background color')}
+                icon={<Highlighter size={18} color={c.textSecondary} />} />
 
               <View style={styles.formatSep} />
 
@@ -2539,21 +2547,40 @@ export default function ComposeScreen({ route, navigation }: Props) {
         </View>
       </Modal>
 
-      {/* Text colour palette */}
-      <Modal visible={colorPickerOpen} transparent animationType="fade" onRequestClose={() => setColorPickerOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setColorPickerOpen(false)}>
+      {/* Text / background colour palette */}
+      <Modal visible={!!colorTarget} transparent animationType="fade" onRequestClose={() => setColorTarget(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setColorTarget(null)}>
           <Pressable style={styles.scheduleCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>{t('email_composer.toolbar.text_color', 'Text color')}</Text>
+            <Text style={styles.modalTitle}>
+              {colorTarget === 'background'
+                ? t('email_composer.toolbar.background_color', 'Background color')
+                : t('email_composer.toolbar.text_color', 'Text color')}
+            </Text>
             <View style={styles.swatchRow}>
               {TEXT_COLORS.map((color) => (
                 <Pressable
                   key={color}
-                  onPress={() => { setColorPickerOpen(false); editorRef.current?.exec(`foreColor:${color}`); }}
+                  accessibilityLabel={color}
+                  onPress={() => {
+                    setColorTarget(null);
+                    editorRef.current?.exec(colorTarget === 'background' ? `hiliteColor:${color}` : `foreColor:${color}`);
+                  }}
                   style={[styles.swatch, { backgroundColor: color }]}
                 />
               ))}
             </View>
-            <Pressable style={styles.scheduleCancel} onPress={() => setColorPickerOpen(false)}>
+            {colorTarget === 'background' && (
+              <Pressable
+                style={styles.scheduleRow}
+                onPress={() => { setColorTarget(null); editorRef.current?.exec('hiliteColor:transparent'); }}
+              >
+                <RemoveFormatting size={16} color={c.textSecondary} />
+                <Text style={styles.scheduleRowLabel}>
+                  {t('email_composer.toolbar.remove_background_color', 'Remove background color')}
+                </Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.scheduleCancel} onPress={() => setColorTarget(null)}>
               <Text style={styles.modalCancelText}>{t('email_composer.cancel', 'Cancel')}</Text>
             </Pressable>
           </Pressable>
