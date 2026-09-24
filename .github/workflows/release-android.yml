@@ -230,20 +230,49 @@ jobs:
           fi
           aapt2 dump badging "$APK" | grep '^package:' || true
 
-      - name: Rename APK with version
+      # The R8 mapping goes out with the APK: without the one from this exact
+      # build, the obfuscated frames in a release stack trace cannot be
+      # decoded (docs/android-release.md, "Stack traces").
+      - name: Rename APK and R8 mapping with version
         id: artifact
         run: |
+          set -euo pipefail
           VERSION=$(cat VERSION | tr -d '[:space:]')
           SRC=android/app/build/outputs/apk/release/app-release.apk
           DEST="bulwark-mobile-${VERSION}-${GITHUB_SHA::7}.apk"
           cp "$SRC" "$DEST"
+
+          MAPPING_SRC=android/app/build/outputs/mapping/release/mapping.txt
+          MAPPING=""
+          if [ -f "$MAPPING_SRC" ]; then
+            MAPPING="bulwark-mobile-${VERSION}-${GITHUB_SHA::7}-mapping.txt"
+            cp "$MAPPING_SRC" "$MAPPING"
+          elif grep -Eq '^android\.enableMinifyInReleaseBuilds=true\s*$' android/gradle.properties; then
+            echo "::error title=R8 mapping missing::R8 is on but the build wrote no $MAPPING_SRC, so stack traces from this APK could not be decoded."
+            exit 1
+          fi
+
           echo "path=$DEST" >> "$GITHUB_OUTPUT"
+          echo "mapping=$MAPPING" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "files<<FILES_EOF"
+            echo "$DEST"
+            if [ -n "$MAPPING" ]; then echo "$MAPPING"; fi
+            echo "FILES_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.path }}
           path: ${{ steps.artifact.outputs.path }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: steps.artifact.outputs.mapping != ''
+        with:
+          name: ${{ steps.artifact.outputs.mapping }}
+          path: ${{ steps.artifact.outputs.mapping }}
           if-no-files-found: error
 
       - name: Resolve target release tag
@@ -265,9 +294,9 @@ jobs:
             echo "No release tag resolved - APK is in workflow artifacts only."
           fi
 
-      - name: Attach APK to release
+      - name: Attach APK and R8 mapping to release
         if: steps.target_tag.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.target_tag.outputs.tag }}
-          files: ${{ steps.artifact.outputs.path }}
+          files: ${{ steps.artifact.outputs.files }}

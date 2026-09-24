@@ -237,6 +237,23 @@ either.
 With neither, a release build stops and lists what is missing. Debug builds and
 `npx expo run:android` never need any of this.
 
+## Stack traces
+
+Release builds are shrunk and obfuscated by R8, so library frames in a crash
+report look like `com.facebook.react.uimanager.U.a`. The app's own classes
+(`com.anonymous.bulwarkmobile`) keep their names. The workflow attaches
+`bulwark-mobile-<version>-<commit>-mapping.txt` to the release next to the APK
+and keeps it as a workflow artifact. Decode a trace with the mapping of that
+exact build:
+
+```bash
+retrace bulwark-mobile-0.1.63-abc1234-mapping.txt stacktrace.txt
+```
+
+`retrace` is in the Android SDK command-line tools (`cmdline-tools/latest/bin`).
+A local build writes its mapping to
+`android/app/build/outputs/mapping/release/mapping.txt`.
+
 ## versionCode
 
 `versionCode` was `1` for every release up to 0.1.62. It is now derived from
