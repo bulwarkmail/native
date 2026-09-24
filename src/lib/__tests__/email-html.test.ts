@@ -205,6 +205,20 @@ describe('prepareEmailHtml', () => {
     expect(html).toContain('max-height:134px; max-width:200px; width:100%;');
     expect(html).toContain('style="max-width:300px; width:100%"');
   });
+
+  it('lets the content pick its text direction', () => {
+    expect(prepareEmailHtml('<p>مرحبا بالعالم.</p>').html).toContain('<body dir="auto">');
+  });
+
+  it('keeps a direction the email declares on its own html or body tag', () => {
+    const body = prepareEmailHtml('<body dir="rtl"><p>Newsletter مرحبا</p></body>').html;
+    expect(body).not.toContain('dir="auto"');
+    expect(body).toContain('<body dir="rtl">');
+    const root = prepareEmailHtml('<html lang="ar" dir="rtl"><body><p>x</p></body></html>').html;
+    expect(root).not.toContain('dir="auto"');
+    // A dir on an inner element is not a document direction.
+    expect(prepareEmailHtml('<p dir="rtl">x</p>').html).toContain('<body dir="auto">');
+  });
 });
 
 describe('wrapPlainTextEmail', () => {
@@ -212,6 +226,10 @@ describe('wrapPlainTextEmail', () => {
     expect(wrapPlainTextEmail('x', { font: 'sans' })).toContain('-apple-system');
     expect(wrapPlainTextEmail('x', { font: 'mono' })).toContain('ui-monospace');
     expect(wrapPlainTextEmail('x')).not.toContain('ui-monospace');
+  });
+
+  it('lets the content pick its text direction', () => {
+    expect(wrapPlainTextEmail('مرحبا بالعالم.')).toContain('<body dir="auto">');
   });
 });
 

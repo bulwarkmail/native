@@ -248,10 +248,15 @@ const HEIGHT_REPORTER = `
       if (Z.tx < minTx) Z.tx = minTx;
       if (Z.tx > 0) Z.tx = 0;
       w.style.width = Z.layoutW + 'px';
+      // An over-wide block in a right-to-left body overflows to the left,
+      // where the top-left origin and the pan clamp don't expect it. The
+      // negative right margin keeps it flush left in either direction.
+      w.style.marginRight = (Z.avail - Z.layoutW) + 'px';
       w.style.transform = 'translateX(' + Z.tx + 'px) scale(' + s + ')';
     } else {
       Z.tx = 0;
       w.style.width = '100%';
+      w.style.marginRight = '';
       w.style.transform = 'none';
     }
   }
@@ -266,6 +271,7 @@ const HEIGHT_REPORTER = `
     // Reset to full width so wrapping content reports its true overflow extent
     // (the widest unbreakable element) rather than a previously-scaled box.
     w.style.width = '100%';
+    w.style.marginRight = '';
     var content = w.scrollWidth;
     Z.avail = avail;
     Z.layoutW = content > avail + 1 ? content : avail;

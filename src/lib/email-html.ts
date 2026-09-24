@@ -526,6 +526,13 @@ function isWordHtml(html: string): boolean {
   return /class=["']?(?:Mso|WordSection)|<o:p[\s>/]|urn:schemas-microsoft-com:office:office/i.test(html);
 }
 
+// The parser merges the attributes of an email's own <html>/<body> tags into
+// our document's where ours lack them, so a direction the sender declared
+// there applies as long as we don't set one first.
+function declaresOwnDirection(html: string): boolean {
+  return /<(?:html|body)\b[^>]*\sdir\s*=/i.test(html);
+}
+
 // "auto" spacing: only drop our gutter when the mail paints a full-bleed
 // background canvas (a width:100% element carrying a background colour) - the
 // one case where the gutter shows as a frame around the email's own
@@ -633,6 +640,9 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
   const autoDropsGutter = hasStyleTag && !word && hasFullBleedCanvas(processed);
   const dropGutter = messageSpacing === 'edge' || (messageSpacing === 'auto' && autoDropsGutter);
   const bodyPadding = dropGutter ? '0' : '16px';
+  // dir="auto" lets the first strong character pick the direction, so
+  // right-to-left mail reads right-to-left.
+  const bodyDir = declaresOwnDirection(processed) ? '' : ' dir="auto"';
 
   const html = `<!doctype html>
 <html style="color-scheme: ${colorScheme};">
@@ -643,7 +653,7 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
 <meta name="referrer" content="no-referrer">
 <style>${baseStyles(bodyPadding)}${word ? WORD_HTML_CSS : ''}${darkCss}</style>
 </head>
-<body>${processed}<style>html,body{height:auto!important;min-height:0!important;max-height:none!important}</style></body>
+<body${bodyDir}>${processed}<style>html,body{height:auto!important;min-height:0!important;max-height:none!important}</style></body>
 </html>`;
 
   return { html, applyInversion, hasNativeDark, blockedExternal };
@@ -701,7 +711,7 @@ details > summary::-webkit-details-marker { display: none; }
 <meta http-equiv="Content-Security-Policy" content="${buildCsp(true)}">
 <style>${styles}</style>
 </head>
-<body>${cleaned}</body>
+<body dir="auto">${cleaned}</body>
 </html>`;
 }
 
