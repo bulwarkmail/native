@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist } from 'zustand/middleware';
+import { createPersistStorage } from './persist-storage';
 import type { Email, Mailbox, StateChange } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -1654,7 +1654,7 @@ export const useEmailStore = create<EmailState>()(
       // session has finished restoring. auth-store triggers a background
       // refresh once the session is ready.
       name: 'email-cache',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createPersistStorage(),
       version: 2,
       // v0 → v1: drop every cached queryState. Pre-v1 builds could persist a
       // search-result list next to the base view's queryState, and the

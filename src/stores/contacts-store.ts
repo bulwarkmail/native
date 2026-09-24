@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createPersistStorage } from './persist-storage';
 import type { ContactCard, AddressBook, StateChange, EmailAddress } from '../api/types';
 import {
   getAddressBooks as fetchPrimaryAddressBooks,
@@ -820,7 +821,7 @@ export const useContactsStore = create<ContactsState>()(
       // on re-open. A refresh runs in the background once the JMAP session is
       // ready and replaces the cached data.
       name: 'contacts-cache',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createPersistStorage(),
       partialize: (state) => ({
         addressBooks: state.addressBooks,
         // Photos are inline base64 blobs; a few hundred of them blow past

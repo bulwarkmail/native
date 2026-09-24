@@ -20,13 +20,32 @@ import {
 // guard, restoreSession() can read the account-store before AsyncStorage has
 // loaded the previous active account, then short-circuit to LoginScreen even
 // though the user is actually signed in.
-async function waitForHydration(store: { persist: { hasHydrated: () => boolean; onFinishHydration: (cb: () => void) => () => void } }): Promise<void> {
+//
+// The wait is bounded. A failed read already resolves as an empty store (see
+// persist-storage), but zustand never reports a hydration that throws later,
+// in migrate or merge, or a storage call that never settles. Waiting on one
+// of those left the app on the splash screen for good.
+export const HYDRATION_TIMEOUT_MS = 5000;
+
+async function waitForHydration(store: {
+  persist: {
+    hasHydrated: () => boolean;
+    onFinishHydration: (cb: () => void) => () => void;
+    getOptions: () => { name?: string };
+  };
+}): Promise<void> {
   if (store.persist.hasHydrated()) return;
   await new Promise<void>((resolve) => {
     const unsubscribe = store.persist.onFinishHydration(() => {
+      clearTimeout(timer);
       unsubscribe();
       resolve();
     });
+    const timer = setTimeout(() => {
+      unsubscribe();
+      console.warn(`[auth-store] '${store.persist.getOptions().name}' did not hydrate in time, continuing without it`);
+      resolve();
+    }, HYDRATION_TIMEOUT_MS);
   });
 }
 

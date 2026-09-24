@@ -36,8 +36,9 @@ vi.mock('../../lib/push-notifications', () => ({
 }));
 
 import { jmapClient } from '../../api/jmap-client';
-import { useAuthStore } from '../auth-store';
+import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
+import { useCalendarStore } from '../calendar-store';
 
 const mockConnect = jmapClient.connect as ReturnType<typeof vi.fn>;
 const mockLogout = jmapClient.logout as ReturnType<typeof vi.fn>;
@@ -158,6 +159,27 @@ describe('auth-store', () => {
 
       expect(restored).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    it('stops waiting for a persisted store that never finishes hydrating', async () => {
+      vi.useFakeTimers();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const hasHydrated = vi.spyOn(useCalendarStore.persist, 'hasHydrated').mockReturnValue(false);
+      try {
+        let settled = false;
+        const restoring = useAuthStore.getState().restoreSession().finally(() => { settled = true; });
+
+        await vi.advanceTimersByTimeAsync(HYDRATION_TIMEOUT_MS - 1);
+        expect(settled).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(await restoring).toBe(false);
+        expect(useAuthStore.getState().hasRestoredSession).toBe(true);
+      } finally {
+        hasHydrated.mockRestore();
+        warn.mockRestore();
+        vi.useRealTimers();
+      }
     });
   });
 

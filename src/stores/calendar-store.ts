@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createPersistStorage } from './persist-storage';
 import type { Calendar, CalendarEvent, CalendarRights, Participant, StateChange } from '../api/types';
 import { normalizeAllDayDuration } from '../lib/calendar-utils';
 import {
@@ -765,7 +766,7 @@ export const useCalendarStore = create<CalendarState>()(
       // calendar renders instantly on re-open. A refresh happens in the
       // background and replaces the cached data with fresh copies.
       name: 'calendar-cache',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createPersistStorage(),
       partialize: (state) => ({
         calendars: state.calendars,
         events: state.events,

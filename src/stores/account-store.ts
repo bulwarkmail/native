@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist } from 'zustand/middleware';
+import { createPersistStorage } from './persist-storage';
 import { generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
 import { generateAvatarColor } from '../lib/avatar-utils';
 
@@ -169,7 +169,7 @@ export const useAccountStore = create<AccountState>()(
     }),
     {
       name: 'account-registry',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createPersistStorage(),
       partialize: (state) => ({
         accounts: state.accounts,
         activeAccountId: state.activeAccountId,
