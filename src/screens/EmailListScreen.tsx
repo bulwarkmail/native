@@ -44,7 +44,7 @@ import {
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
-  collapseThreads, groupByThread, expandThreadSelection, getThreadTagIds, threadKeyOf, accountScopedId,
+  collapseThreads, groupByThread, expandThreadSelection, getThreadTagIds, threadKeyOf, accountScopedId, rowKeyOf,
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
@@ -144,8 +144,11 @@ const EmailRow = React.memo(function EmailRow({
     });
   }, [tagIds, keywordDefs, c]);
 
-  const handlePress = React.useCallback(() => onPress(item.id), [onPress, item.id]);
-  const handleLongPress = React.useCallback(() => onLongPress(item.id), [onLongPress, item.id]);
+  // The row's key (`rowKeyOf`): ids repeat across the accounts of a list
+  // spanning accounts (#1082).
+  const key = rowKeyOf(item);
+  const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
+  const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
 
   return (
     <Pressable
@@ -281,9 +284,10 @@ const EmailListItem = React.memo(function EmailListItem({
     () => ({ unread, starred, pinned, inJunk }),
     [unread, starred, pinned, inJunk],
   );
+  const key = rowKeyOf(item);
   const onAction = React.useCallback(
-    (action: SwipeAction) => onSwipe(item.id, action),
-    [onSwipe, item.id],
+    (action: SwipeAction) => onSwipe(key, action),
+    [onSwipe, key],
   );
   return (
     <SwipeableRow
@@ -305,7 +309,7 @@ function EmailRowSeparator() {
 }
 
 // Rows of a list spanning accounts can share an id (#1082).
-const emailKeyExtractor = (item: Email) => accountScopedId(item, item.id);
+const emailKeyExtractor = rowKeyOf;
 
 interface EmailListScreenProps {
   onEmailPress?: (email: Email) => void;
@@ -511,7 +515,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const selectionMode = selectedIds.size > 0;
   const allSelected =
-    visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(e.id));
+    visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(rowKeyOf(e)));
 
   // Refs so row press handlers stay referentially stable across renders.
   // FlatList rows then skip re-render when the parent re-renders for unrelated
@@ -560,7 +564,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     if (selectionModeRef.current) {
       toggleSelect(id);
     } else {
-      const email = emailsRef.current.find((e) => e.id === id);
+      const email = emailsRef.current.find((e) => rowKeyOf(e) === id);
       if (!email) return;
       if (isDraftEmail(email, currentRoleRef.current)) void openDraftRef.current(email);
       else onEmailPressRef.current?.(email);
@@ -599,7 +603,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   const handleSwipeAction = React.useCallback((id: string, action: SwipeAction) => {
     if (action === 'none') return;
-    const email = emailsRef.current.find((e) => e.id === id);
+    const email = emailsRef.current.find((e) => rowKeyOf(e) === id);
     if (!email || !currentMailboxId) return;
     switch (action) {
       case 'archive':
@@ -682,7 +686,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           disableAvatarImages={inJunk && !showAvatarsInJunk}
           answered={flags?.answered ?? false}
           forwarded={flags?.forwarded ?? false}
-          selected={selectedIds.has(item.id)}
+          selected={selectedIds.has(rowKeyOf(item))}
           selectionMode={selectionMode}
           onPress={handleRowPress}
           onLongPress={toggleSelect}
@@ -707,9 +711,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   const toggleSelectAllVisible = React.useCallback(() => {
     setSelectedIds((prev) => {
-      const allCurrent = visibleEmails.length > 0 && visibleEmails.every((e) => prev.has(e.id));
+      const allCurrent = visibleEmails.length > 0 && visibleEmails.every((e) => prev.has(rowKeyOf(e)));
       if (allCurrent) return new Set();
-      return new Set(visibleEmails.map((e) => e.id));
+      return new Set(visibleEmails.map(rowKeyOf));
     });
   }, [visibleEmails]);
 
@@ -718,7 +722,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     setSelectedIds(new Set());
   }, [currentMailboxId]);
 
-  // `selectedIds` holds the representative row ids; every action expands to
+  // `selectedIds` holds the representative rows' keys (`rowKeyOf`, unique
+  // across the accounts of a list spanning accounts); every action expands to
   // all loaded messages of the selected conversations (webmail
   // `toggleThreadSelection`), so "3 selected" conversations never means
   // "3 messages touched".
@@ -728,7 +733,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   );
   const selectedEmails = React.useMemo(() => {
     const wanted = new Set(selectedMessageIds);
-    return emails.filter((e) => wanted.has(e.id));
+    return emails.filter((e) => wanted.has(rowKeyOf(e)));
   }, [emails, selectedMessageIds]);
   const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
   const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));

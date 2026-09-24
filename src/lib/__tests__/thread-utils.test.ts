@@ -6,6 +6,7 @@ import {
   getThreadTagIds,
   tagIdFromKeyword,
   threadKeyOf,
+  rowKeyOf,
 } from '../thread-utils';
 import type { Email } from '../../api/types';
 
@@ -89,5 +90,17 @@ describe('expandThreadSelection', () => {
   it('passes ids through when threading is off or the id is unknown', () => {
     expect(expandThreadSelection(['b'], emails, true)).toEqual(['b']);
     expect(expandThreadSelection(['zzz'], emails, false)).toEqual(['zzz']);
+  });
+
+  it('works on row keys, so two accounts\' same ids stay apart (#1082)', () => {
+    const own = [email('a', 't1', '2026-01-01T00:00:00Z'), email('b', 't1', '2026-01-03T00:00:00Z')]
+      .map((e) => ({ ...e, jmapAccountId: 'c' }));
+    const team = [email('a', 't1', '2026-01-02T00:00:00Z')].map((e) => ({ ...e, jmapAccountId: 'team' }));
+    const rows = [...own, ...team];
+
+    expect(rowKeyOf(team[0])).toBe('team:a');
+    expect(rowKeyOf(emails[0])).toBe('a');
+    expect(expandThreadSelection(['c:b'], rows, false)).toEqual(['c:a', 'c:b']);
+    expect(expandThreadSelection(['team:a'], rows, false)).toEqual(['team:a']);
   });
 });

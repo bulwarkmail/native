@@ -6,10 +6,12 @@ export interface ViewerPagesInput {
   threadId: string;
   /** Ids handed over by a list other than the open folder (unified inbox, contact activity). */
   emailIds?: string[];
-  /** The store's loaded list: the open folder's rows. */
+  /**
+   * The store's loaded rows that live in the message's account: none when the
+   * open folder is another account's, and only that account's rows of a list
+   * spanning accounts. Ids are only unique per account (B3, #1082).
+   */
   list: Email[];
-  /** Whether that list is the message's account: ids are only unique per account. */
-  listIsMessageAccount: boolean;
   threading: boolean;
 }
 
@@ -26,9 +28,7 @@ export interface ViewerPagesInput {
  * toolbar acts on the tapped message.
  */
 export function viewerPages(input: ViewerPagesInput): Email[] {
-  const { emailId, threadId, emailIds, threading } = input;
-  // Another account's rows say nothing about this message, whatever their ids.
-  const list = input.listIsMessageAccount ? input.list : [];
+  const { emailId, threadId, emailIds, threading, list } = input;
   if (emailIds && emailIds.length > 0) {
     const byId = new Map(list.map((e) => [e.id, e]));
     return emailIds.map((id) => byId.get(id) ?? ({ id, threadId } as Email));

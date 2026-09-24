@@ -91,8 +91,9 @@ vi.mock('../offline-cache-store', () => ({
 import { generateAccountId } from '../../lib/account-utils';
 import * as settingsModule from '../settings-store';
 import {
-  useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow,
+  useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow, listRowsOfAccount,
 } from '../email-store';
+import { expandThreadSelection, rowKeyOf } from '../../lib/thread-utils';
 import { useTagCountsStore } from '../tag-counts-store';
 import type { Email, Mailbox } from '../../api/types';
 
@@ -333,7 +334,7 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
 
   it('marks a mixed selection read with one Email/set per account', async () => {
     await search('zephyr');
-    await useEmailStore.getState().setKeywordForEmails(['o1', 'm1'], '$seen', true);
+    await useEmailStore.getState().setKeywordForEmails(['c:o1', 'team:m1'], '$seen', true);
 
     const sets = server.current!.callsOf('Email/set');
     expect(sets.map(([, a]) => [a.accountId, Object.keys(a.update as object)])).toEqual([['team', ['m1']], ['c', ['o1']]]);
@@ -342,7 +343,7 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
 
   it('stars a team row in the team account', async () => {
     await search('zephyr');
-    await useEmailStore.getState().toggleStar('m3', true);
+    await useEmailStore.getState().toggleStar('team:m3', true);
 
     expect(server.current!.callsOf('Email/set')[0][1]).toEqual({
       accountId: 'team', update: { m3: { 'keywords/$flagged': true } },
@@ -351,7 +352,7 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
 
   it('archives each row into its own account\'s Archive, and undo puts them back', async () => {
     await search('zephyr');
-    await useEmailStore.getState().archiveEmailsBatch(['o1', 'm1']);
+    await useEmailStore.getState().archiveEmailsBatch(['c:o1', 'team:m1']);
 
     const sets = server.current!.callsOf('Email/set');
     expect(sets.map(([, a]) => [a.accountId, a.update])).toEqual([
@@ -371,17 +372,17 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
   it('moves a hit to Trash out of the folder it is in, not the open one', async () => {
     await search('zephyr');
     // o2 sits in Archive while the Inbox is open.
-    await useEmailStore.getState().deleteEmail('o2', 'trash', 'inbox');
+    await useEmailStore.getState().deleteEmail('c:o2', 'trash', 'inbox');
 
     expect(server.current!.accounts.c.find((e) => e.id === 'o2')!.mailboxIds).toEqual({ trash: true });
   });
 
   it('confirms before deleting a hit that already sits in its account\'s Trash', async () => {
     await search('zephyr');
-    expect(deleteDestroysAcrossAccounts(['m1'])).toBe(false);
-    expect(deleteDestroysAcrossAccounts(['m1', 'm5'])).toBe(true);
+    expect(deleteDestroysAcrossAccounts(['team:m1'])).toBe(false);
+    expect(deleteDestroysAcrossAccounts(['team:m1', 'team:m5'])).toBe(true);
 
-    await useEmailStore.getState().deleteEmailsBatch(['m1', 'm5'], 'trash', 'inbox');
+    await useEmailStore.getState().deleteEmailsBatch(['team:m1', 'team:m5'], 'trash', 'inbox');
     expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update ?? a.destroy])).toEqual([
       ['team', ['m5']],
       ['team', { m1: { mailboxIds: { 't-trash': true } } }],
@@ -391,7 +392,7 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
 
   it('files spam in each row\'s own Junk', async () => {
     await search('zephyr');
-    await useEmailStore.getState().markSpam(['m2']);
+    await useEmailStore.getState().markSpam(['team:m2']);
 
     expect(server.current!.callsOf('Email/set')[0][1]).toEqual({
       accountId: 'team',
@@ -410,6 +411,90 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
 // #1038: a tag is set on messages in the own and in the team account alike,
 // but the tag view only asked the account of the open folder: 2 own and 2
 // team messages tagged Red showed 2 or the other 2, depending on the folder.
+// Stalwart hands out per-account counters, so the own and the team account
+// both hold an "x" in a thread "t-x". The list names its rows by `rowKeyOf`
+// (`c:x`, `team:x`), so selection, swipe and batch actions reach exactly the
+// row the user picked, in its own account.
+describe('same-id rows of two accounts (#1082)', () => {
+  beforeEach(async () => {
+    server.current = createFakeJmap({
+      c: [mail('x', 'inbox', 20, 'zephyr own')],
+      team: [mail('x', 't-inbox', 21, 'zephyr team')],
+    });
+    await search('zephyr');
+  });
+
+  const rows = () => useEmailStore.getState().emails.map((e) => [e.jmapAccountId, e.id, !!e.keywords.$seen]);
+
+  it('keeps both rows apart in selection and conversation', () => {
+    const emails = useEmailStore.getState().emails;
+    expect(emails.map(rowKeyOf)).toEqual(['team:x', 'c:x']);
+    // Selecting the team row selects it alone, even with threading on.
+    expect(expandThreadSelection(['team:x'], emails, false)).toEqual(['team:x']);
+  });
+
+  it('select all + mark read reads both, each in its own account', async () => {
+    const emails = useEmailStore.getState().emails;
+    const selected = expandThreadSelection(emails.map(rowKeyOf), emails, false);
+    await useEmailStore.getState().setKeywordForEmails(selected, '$seen', true);
+
+    expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+      ['team', { x: { 'keywords/$seen': true } }],
+      ['c', { x: { 'keywords/$seen': true } }],
+    ]);
+    expect(rows()).toEqual([['team', 'x', true], ['c', 'x', true]]);
+  });
+
+  it('marks only the selected row read', async () => {
+    await useEmailStore.getState().setKeywordForEmails(['c:x'], '$seen', true);
+
+    expect(server.current!.callsOf('Email/set').map(([, a]) => a.accountId)).toEqual(['c']);
+    expect(rows()).toEqual([['team', 'x', false], ['c', 'x', true]]);
+  });
+
+  it('swipe-archives the team row alone', async () => {
+    await useEmailStore.getState().archiveEmail('team:x');
+
+    expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+      ['team', { x: { mailboxIds: { 't-archive': true } } }],
+    ]);
+    expect(server.current!.accounts.c[0].mailboxIds).toEqual({ inbox: true });
+    expect(rows()).toEqual([['c', 'x', false]]);
+  });
+
+  it('swipe-reads the own row alone', async () => {
+    await useEmailStore.getState().markRead('c:x');
+
+    expect(server.current!.callsOf('Email/set').map(([, a]) => a.accountId)).toEqual(['c']);
+    expect(rows()).toEqual([['team', 'x', false], ['c', 'x', true]]);
+  });
+
+  it('batch-deletes the own row alone', async () => {
+    expect(deleteDestroysAcrossAccounts(['c:x'])).toBe(false);
+    await useEmailStore.getState().deleteEmailsBatch(['c:x'], 'trash', 'inbox');
+
+    expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+      ['c', { x: { mailboxIds: { trash: true } } }],
+    ]);
+    expect(server.current!.accounts.team[0].mailboxIds).toEqual({ 't-inbox': true });
+    expect(rows()).toEqual([['team', 'x', false]]);
+  });
+
+  it('does nothing for a row that is no longer loaded, rather than guess its account', async () => {
+    useEmailStore.setState({ emails: [] });
+    await useEmailStore.getState().markRead('team:x');
+    await useEmailStore.getState().moveToMailbox('team:x', 'inbox', 'archive');
+    await useEmailStore.getState().deleteEmail('team:x', 'trash', 'inbox');
+
+    expect(server.current!.callsOf('Email/set')).toEqual([]);
+  });
+
+  it('hands the viewer only the rows of the opened message\'s account', () => {
+    expect(listRowsOfAccount('team').map(rowKeyOf)).toEqual(['team:x']);
+    expect(listRowsOfAccount(undefined).map(rowKeyOf)).toEqual(['c:x']);
+  });
+});
+
 describe('tag view across the own and the team account (#1038)', () => {
   const RED = '$label:red';
 
@@ -467,13 +552,13 @@ describe('tag view across the own and the team account (#1038)', () => {
 
   it('untags a team row in the team account and keeps it in view', async () => {
     await openTag('inbox');
-    await useEmailStore.getState().setKeywordForEmails(['m2'], RED, false);
+    await useEmailStore.getState().setKeywordForEmails(['team:m2'], RED, false);
 
     expect(server.current!.callsOf('Email/set')[0][1]).toEqual({
       accountId: 'team', update: { m2: { 'keywords/$label:red': null } },
     });
     expect(ids()).toContain('m2');
-    expect(useEmailStore.getState().retainedIds).toEqual(['m2']);
+    expect(useEmailStore.getState().retainedIds).toEqual(['team:m2']);
   });
 
   it('pages each account on from its own rows', async () => {

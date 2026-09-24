@@ -18,7 +18,7 @@ import { MoveSheet } from '../components/MoveSheet';
 import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
-import { useEmailStore } from '../stores/email-store';
+import { useEmailStore, listRowsOfAccount } from '../stores/email-store';
 import { toast } from '../stores/toast-store';
 import {
   useSettingsStore,
@@ -126,8 +126,10 @@ function EmailViewer({ route, navigation }: Props) {
     emailId: route.params.emailId,
     threadId: route.params.threadId,
     emailIds: route.params.emailIds,
-    list: useEmailStore.getState().emails,
-    listIsMessageAccount: listAccountId === ownerAccountId,
+    // Only the list rows of the message's account: none when the open
+    // folder is another's, that account's rows of an "All folders" list or
+    // a tag view, whose ids repeat across accounts (#1082).
+    list: listRowsOfAccount(ownerAccountId),
     threading: !disableThreading,
   }).map((page) => (page.receivedAt ? page : peekRow(page.id, ownerAccountId) ?? page)));
 
@@ -310,10 +312,11 @@ function EmailViewer({ route, navigation }: Props) {
   }, [ownerAccountId]);
 
   // Mark read through the store (its list row and offline queue) only when
-  // the list holds the message's account; the store would otherwise read the
-  // id as a row of the open folder's account (B3), so go to the server.
+  // the list holds the message's account, or its row in an "All folders"
+  // list or a tag view (#1082); the store would otherwise read the id as a
+  // row of the open folder's account (B3), so go to the server.
   const markSeen = React.useCallback(
-    (id: string) => (listAccountId === ownerAccountId
+    (id: string) => (listAccountId === ownerAccountId || listRowsOfAccount(ownerAccountId).some((e) => e.id === id)
       ? markRead(id, ownerAccountId)
       : patchKeywordsForEmails([id], { $seen: true }, ownerAccountId)),
     [listAccountId, ownerAccountId, markRead],

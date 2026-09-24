@@ -57,6 +57,15 @@ export function accountScopedId(email: Pick<Email, 'jmapAccountId'>, id: string)
   return email.jmapAccountId ? `${email.jmapAccountId}:${id}` : id;
 }
 
+/**
+ * A list row's identity: its id, scoped by its account in a list spanning
+ * accounts, where an own and a shared message can share an id. What the list
+ * keys, selects and hands to the store's actions (#1082).
+ */
+export function rowKeyOf(email: Pick<Email, 'id' | 'jmapAccountId'>): string {
+  return accountScopedId(email, email.id);
+}
+
 /** Key a message groups under: its thread, or itself when threading is off. */
 export function threadKeyOf(email: Email, disableThreading: boolean): string {
   return accountScopedId(email, disableThreading ? email.id : email.threadId || email.id);
@@ -121,33 +130,35 @@ export function groupByThread(emails: Email[], disableThreading: boolean): Map<s
 }
 
 /**
- * Expands selected representative ids to every loaded message of their
- * threads, so batch actions on "3 selected" conversations touch all their
- * messages rather than one each. Ids that are not in `emails` pass through.
+ * Expands selected representative rows (by `rowKeyOf`) to every loaded
+ * message of their threads, so batch actions on "3 selected" conversations
+ * touch all their messages rather than one each. Keys that are not in
+ * `emails` pass through.
  */
 export function expandThreadSelection(
-  ids: Iterable<string>,
+  keys: Iterable<string>,
   emails: Email[],
   disableThreading: boolean,
 ): string[] {
-  const wanted = new Set(ids);
+  const wanted = new Set(keys);
   if (disableThreading) return [...wanted];
-  const byId = new Map(emails.map((e) => [e.id, e]));
-  const keys = new Set<string>();
-  for (const id of wanted) {
-    const e = byId.get(id);
-    if (e) keys.add(threadKeyOf(e, false));
+  const byKey = new Map(emails.map((e) => [rowKeyOf(e), e]));
+  const threads = new Set<string>();
+  for (const key of wanted) {
+    const e = byKey.get(key);
+    if (e) threads.add(threadKeyOf(e, false));
   }
   const out: string[] = [];
   const seen = new Set<string>();
   for (const e of emails) {
-    if (keys.has(threadKeyOf(e, false)) && !seen.has(e.id)) {
-      seen.add(e.id);
-      out.push(e.id);
+    const key = rowKeyOf(e);
+    if (threads.has(threadKeyOf(e, false)) && !seen.has(key)) {
+      seen.add(key);
+      out.push(key);
     }
   }
-  for (const id of wanted) {
-    if (!seen.has(id)) { seen.add(id); out.push(id); }
+  for (const key of wanted) {
+    if (!seen.has(key)) { seen.add(key); out.push(key); }
   }
   return out;
 }
