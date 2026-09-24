@@ -6,9 +6,6 @@
     "not_starred": "No destacat"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minuts després"
-    },
     "drawer": {
       "my_calendars": "Els meus calendaris",
       "no_calendars": "Encara no hi ha cap calendari.",
@@ -68,10 +65,8 @@
       "error": "No s'ha pogut actualitzar la compartició",
       "no_matches": "Cap coincidència",
       "no_principals": "La compartició no està disponible en aquest servidor.",
-      "role_custom": "Personalitzat",
       "search_placeholder": "Cerca per nom o correu electrònic",
-      "shared_with": "Compartit amb",
-      "title": "Comparteix"
+      "shared_with": "Compartit amb"
     },
     "tasks": {
       "add_placeholder": "Afegiu una tasca…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Les carpetes se suprimeixen amb tot el que contenen. Això no es pot desfer.",
     "delete_item_title": "Voleu suprimir aquest element?",
-    "delete_items_title": "Voleu suprimir {count} elements?",
     "done": "Fet",
     "folder_empty": "Aquesta carpeta és buida",
     "invalid_name": "Nom no vàlid",
@@ -240,7 +234,6 @@
     "open_error": "No s'ha pogut obrir el fitxer",
     "open_with": "Obre amb…",
     "preview_too_large": "Aquest fitxer és massa gran per previsualitzar-lo.",
-    "selected_count": "{count} seleccionats",
     "share_add_people": "Afegeix persones",
     "share_empty": "Encara no s'ha compartit amb ningú",
     "share_error": "No s'ha pogut actualitzar la compartició",
@@ -730,9 +723,6 @@
     "remove_account_message": "Tanca la sessió de {account} en aquest dispositiu. El correu es queda al servidor.",
     "remove_account_title": "Voleu eliminar el compte?",
     "show_unread": "Mostra els no llegits"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "No s'han pogut carregar {count} compte(s)"
   },
   "updates": {
     "advisory": "Avís de seguretat",

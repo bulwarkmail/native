@@ -6,9 +6,6 @@
     "not_starred": "Bez hvězdičky"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "min po"
-    },
     "drawer": {
       "my_calendars": "Moje kalendáře",
       "no_calendars": "Zatím žádné kalendáře.",
@@ -68,10 +65,8 @@
       "error": "Aktualizace sdílení selhala",
       "no_matches": "Žádné výsledky",
       "no_principals": "Sdílení není na tomto serveru k dispozici.",
-      "role_custom": "Vlastní",
       "search_placeholder": "Hledat podle jména nebo e-mailu",
-      "shared_with": "Sdíleno s",
-      "title": "Sdílet"
+      "shared_with": "Sdíleno s"
     },
     "tasks": {
       "add_placeholder": "Přidat úkol…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Složky se smažou včetně veškerého obsahu. Tuto akci nelze vrátit zpět.",
     "delete_item_title": "Smazat tuto položku?",
-    "delete_items_title": "Smazat vybrané položky ({count})?",
     "done": "Hotovo",
     "folder_empty": "Tato složka je prázdná",
     "invalid_name": "Neplatný název",
@@ -240,7 +234,6 @@
     "open_error": "Soubor se nepodařilo otevřít",
     "open_with": "Otevřít pomocí…",
     "preview_too_large": "Tento soubor je příliš velký pro náhled.",
-    "selected_count": "Vybráno: {count}",
     "share_add_people": "Přidat osoby",
     "share_empty": "Zatím nikomu nesdíleno",
     "share_error": "Aktualizace sdílení selhala",
@@ -730,9 +723,6 @@
     "remove_account_message": "Odhlásit účet {account} v tomto zařízení. Vaše pošta zůstane na serveru.",
     "remove_account_title": "Odebrat účet?",
     "show_unread": "Zobrazit nepřečtené"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Počet účtů, které se nepodařilo načíst: {count}"
   },
   "updates": {
     "advisory": "Bezpečnostní upozornění",

@@ -6,9 +6,6 @@
     "not_starred": "Nem csillagozott"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "perccel utána"
-    },
     "drawer": {
       "my_calendars": "Saját naptárak",
       "no_calendars": "Még nincsenek naptárak.",
@@ -68,10 +65,8 @@
       "error": "Nem sikerült frissíteni a megosztást",
       "no_matches": "Nincs találat",
       "no_principals": "A megosztás nem érhető el ezen a szerveren.",
-      "role_custom": "Egyéni",
       "search_placeholder": "Keresés név vagy e-mail alapján",
-      "shared_with": "Megosztva a következőkkel",
-      "title": "Megosztás"
+      "shared_with": "Megosztva a következőkkel"
     },
     "tasks": {
       "add_placeholder": "Feladat hozzáadása…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "A mappák a teljes tartalmukkal együtt törlődnek. Ez nem vonható vissza.",
     "delete_item_title": "Törlöd ezt az elemet?",
-    "delete_items_title": "Törlöd a kijelölt elemeket ({count})?",
     "done": "Kész",
     "folder_empty": "Ez a mappa üres",
     "invalid_name": "Érvénytelen név",
@@ -240,7 +234,6 @@
     "open_error": "Nem sikerült megnyitni a fájlt",
     "open_with": "Megnyitás ezzel…",
     "preview_too_large": "Ez a fájl túl nagy az előnézethez.",
-    "selected_count": "Kijelölve: {count}",
     "share_add_people": "Személyek hozzáadása",
     "share_empty": "Még nincs megosztva senkivel",
     "share_error": "Nem sikerült frissíteni a megosztást",
@@ -730,9 +723,6 @@
     "remove_account_message": "Kijelentkezés erről a fiókról ezen az eszközön: {account}. A leveleid a szerveren maradnak.",
     "remove_account_title": "Eltávolítod a fiókot?",
     "show_unread": "Olvasatlanok megjelenítése"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Ennyi fiókot nem sikerült betölteni: {count}"
   },
   "updates": {
     "advisory": "Biztonsági közlemény",

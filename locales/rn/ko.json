@@ -6,9 +6,6 @@
     "not_starred": "별표 없음"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "분 후"
-    },
     "drawer": {
       "my_calendars": "내 캘린더",
       "no_calendars": "아직 캘린더가 없어요.",
@@ -68,10 +65,8 @@
       "error": "공유 업데이트에 실패했어요",
       "no_matches": "일치하는 항목이 없어요",
       "no_principals": "이 서버에서는 공유를 사용할 수 없어요.",
-      "role_custom": "사용자 지정",
       "search_placeholder": "이름 또는 이메일로 검색",
-      "shared_with": "공유 대상",
-      "title": "공유"
+      "shared_with": "공유 대상"
     },
     "tasks": {
       "add_placeholder": "할 일 추가…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "폴더를 삭제하면 안에 있는 모든 항목도 함께 삭제돼요. 이 작업은 되돌릴 수 없어요.",
     "delete_item_title": "이 항목을 삭제할까요?",
-    "delete_items_title": "항목 {count}개를 삭제할까요?",
     "done": "완료",
     "folder_empty": "이 폴더는 비어 있어요",
     "invalid_name": "잘못된 이름",
@@ -240,7 +234,6 @@
     "open_error": "파일을 열 수 없어요",
     "open_with": "다른 앱으로 열기…",
     "preview_too_large": "파일이 너무 커서 미리볼 수 없어요.",
-    "selected_count": "{count}개 선택됨",
     "share_add_people": "사용자 추가",
     "share_empty": "아직 아무와도 공유하지 않았어요",
     "share_error": "공유 업데이트에 실패했어요",
@@ -730,9 +723,6 @@
     "remove_account_message": "이 기기에서 {account} 계정에서 로그아웃해요. 메일은 서버에 그대로 남아요.",
     "remove_account_title": "계정을 삭제할까요?",
     "show_unread": "읽지 않음 표시"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "계정 {count}개를 불러올 수 없어요"
   },
   "updates": {
     "advisory": "보안 권고",

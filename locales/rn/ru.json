@@ -6,9 +6,6 @@
     "not_starred": "Без пометки"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "минут после"
-    },
     "drawer": {
       "my_calendars": "Мои календари",
       "no_calendars": "Календарей пока нет.",
@@ -68,10 +65,8 @@
       "error": "Не удалось обновить общий доступ",
       "no_matches": "Нет совпадений",
       "no_principals": "Общий доступ на этом сервере недоступен.",
-      "role_custom": "Пользовательский",
       "search_placeholder": "Искать по имени или email",
-      "shared_with": "Доступ имеют",
-      "title": "Поделиться"
+      "shared_with": "Доступ имеют"
     },
     "tasks": {
       "add_placeholder": "Добавить задачу…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Папки удаляются вместе со всем содержимым. Это действие нельзя отменить.",
     "delete_item_title": "Удалить этот объект?",
-    "delete_items_title": "Удалить объекты ({count})?",
     "done": "Готово",
     "folder_empty": "Эта папка пуста",
     "invalid_name": "Недопустимое имя",
@@ -240,7 +234,6 @@
     "open_error": "Не удалось открыть файл",
     "open_with": "Открыть с помощью…",
     "preview_too_large": "Файл слишком большой для предпросмотра.",
-    "selected_count": "Выбрано: {count}",
     "share_add_people": "Добавить людей",
     "share_empty": "Пока никому не предоставлен доступ",
     "share_error": "Не удалось обновить общий доступ",
@@ -730,9 +723,6 @@
     "remove_account_message": "Выйти из {account} на этом устройстве. Ваша почта останется на сервере.",
     "remove_account_title": "Удалить аккаунт?",
     "show_unread": "Показать непрочитанные"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count, plural, one {Не удалось загрузить # аккаунт} few {Не удалось загрузить # аккаунта} many {Не удалось загрузить # аккаунтов} other {Не удалось загрузить # аккаунта}}"
   },
   "updates": {
     "advisory": "Бюллетень безопасности",

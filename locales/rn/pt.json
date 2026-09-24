@@ -6,9 +6,6 @@
     "not_starred": "Sem estrela"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minutos depois"
-    },
     "drawer": {
       "my_calendars": "Meus calendários",
       "no_calendars": "Nenhum calendário ainda.",
@@ -68,10 +65,8 @@
       "error": "Falha ao atualizar o compartilhamento",
       "no_matches": "Sem resultados",
       "no_principals": "O compartilhamento não está disponível neste servidor.",
-      "role_custom": "Personalizado",
       "search_placeholder": "Buscar por nome ou e-mail",
-      "shared_with": "Compartilhado com",
-      "title": "Compartilhar"
+      "shared_with": "Compartilhado com"
     },
     "tasks": {
       "add_placeholder": "Adicionar uma tarefa…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "As pastas são excluídas junto com tudo o que há dentro delas. Esta ação não pode ser desfeita.",
     "delete_item_title": "Excluir este item?",
-    "delete_items_title": "Excluir {count} itens?",
     "done": "Concluído",
     "folder_empty": "Esta pasta está vazia",
     "invalid_name": "Nome inválido",
@@ -240,7 +234,6 @@
     "open_error": "Não foi possível abrir o arquivo",
     "open_with": "Abrir com…",
     "preview_too_large": "Este arquivo é grande demais para pré-visualizar.",
-    "selected_count": "{count} selecionados",
     "share_add_people": "Adicionar pessoas",
     "share_empty": "Ainda não compartilhado com ninguém",
     "share_error": "Falha ao atualizar o compartilhamento",
@@ -730,9 +723,6 @@
     "remove_account_message": "Sair de {account} neste dispositivo. Seus e-mails permanecem no servidor.",
     "remove_account_title": "Remover conta?",
     "show_unread": "Mostrar não lidas"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Não foi possível carregar {count} conta(s)"
   },
   "updates": {
     "advisory": "Aviso de segurança",

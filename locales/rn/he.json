@@ -6,9 +6,6 @@
     "not_starred": "ללא כוכב"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "דקות אחרי"
-    },
     "drawer": {
       "my_calendars": "לוחות השנה שלי",
       "no_calendars": "אין עדיין לוחות שנה.",
@@ -68,10 +65,8 @@
       "error": "עדכון השיתוף נכשל",
       "no_matches": "אין התאמות",
       "no_principals": "שיתוף אינו זמין בשרת זה.",
-      "role_custom": "מותאם אישית",
       "search_placeholder": "חפש לפי שם או אימייל",
-      "shared_with": "משותף עם",
-      "title": "שיתוף"
+      "shared_with": "משותף עם"
     },
     "tasks": {
       "add_placeholder": "הוסף משימה…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "תיקיות נמחקות יחד עם כל מה שבתוכן. לא ניתן לבטל פעולה זו.",
     "delete_item_title": "למחוק פריט זה?",
-    "delete_items_title": "למחוק {count} פריטים?",
     "done": "סיום",
     "folder_empty": "התיקייה ריקה",
     "invalid_name": "שם לא חוקי",
@@ -240,7 +234,6 @@
     "open_error": "לא ניתן היה לפתוח את הקובץ",
     "open_with": "פתח באמצעות…",
     "preview_too_large": "הקובץ גדול מכדי להציג תצוגה מקדימה.",
-    "selected_count": "{count} נבחרו",
     "share_add_people": "הוסף אנשים",
     "share_empty": "עדיין לא משותף עם אף אחד",
     "share_error": "עדכון השיתוף נכשל",
@@ -730,9 +723,6 @@
     "remove_account_message": "התנתק מ-{account} במכשיר זה. הדואר שלך נשאר בשרת.",
     "remove_account_title": "להסיר את החשבון?",
     "show_unread": "הצג הודעות שלא נקראו"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count, plural, one {לא ניתן היה לטעון חשבון אחד} two {לא ניתן היה לטעון שני חשבונות} other {לא ניתן היה לטעון # חשבונות}}"
   },
   "updates": {
     "advisory": "הודעת אבטחה",

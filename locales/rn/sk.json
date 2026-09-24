@@ -6,9 +6,6 @@
     "not_starred": "Bez hviezdičky"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "min po"
-    },
     "drawer": {
       "my_calendars": "Moje kalendáre",
       "no_calendars": "Zatiaľ žiadne kalendáre.",
@@ -68,10 +65,8 @@
       "error": "Aktualizácia zdieľania zlyhala",
       "no_matches": "Žiadne výsledky",
       "no_principals": "Zdieľanie nie je na tomto serveri k dispozícii.",
-      "role_custom": "Vlastné",
       "search_placeholder": "Hľadať podľa mena alebo e-mailu",
-      "shared_with": "Zdieľané s",
-      "title": "Zdieľať"
+      "shared_with": "Zdieľané s"
     },
     "tasks": {
       "add_placeholder": "Pridať úlohu…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Priečinky sa odstránia spolu so všetkým obsahom. Túto akciu nie je možné vrátiť späť.",
     "delete_item_title": "Odstrániť túto položku?",
-    "delete_items_title": "Odstrániť vybrané položky ({count})?",
     "done": "Hotovo",
     "folder_empty": "Tento priečinok je prázdny",
     "invalid_name": "Neplatný názov",
@@ -240,7 +234,6 @@
     "open_error": "Súbor sa nepodarilo otvoriť",
     "open_with": "Otvoriť pomocou…",
     "preview_too_large": "Tento súbor je príliš veľký na náhľad.",
-    "selected_count": "Vybrané: {count}",
     "share_add_people": "Pridať osoby",
     "share_empty": "Zatiaľ nikomu nezdieľané",
     "share_error": "Aktualizácia zdieľania zlyhala",
@@ -730,9 +723,6 @@
     "remove_account_message": "Odhlásiť účet {account} v tomto zariadení. Vaša pošta zostane na serveri.",
     "remove_account_title": "Odstrániť účet?",
     "show_unread": "Zobraziť neprečítané"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Počet účtov, ktoré sa nepodarilo načítať: {count}"
   },
   "updates": {
     "advisory": "Bezpečnostné upozornenie",

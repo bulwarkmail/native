@@ -6,9 +6,6 @@
     "not_starred": "بدون ستاره"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "دقیقه بعد"
-    },
     "drawer": {
       "my_calendars": "تقویم‌های من",
       "no_calendars": "هنوز تقویمی نیست.",
@@ -68,10 +65,8 @@
       "error": "به‌روزرسانی اشتراک‌گذاری ناموفق بود",
       "no_matches": "موردی مطابقت ندارد",
       "no_principals": "اشتراک‌گذاری در این سرور در دسترس نیست.",
-      "role_custom": "سفارشی",
       "search_placeholder": "جستجو با نام یا ایمیل",
-      "shared_with": "به اشتراک گذاشته شده با",
-      "title": "اشتراک‌گذاری"
+      "shared_with": "به اشتراک گذاشته شده با"
     },
     "tasks": {
       "add_placeholder": "افزودن وظیفه…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "پوشه‌ها همراه با همه محتوایشان حذف می‌شوند. این کار قابل بازگشت نیست.",
     "delete_item_title": "این مورد حذف شود؟",
-    "delete_items_title": "{count} مورد حذف شود؟",
     "done": "انجام شد",
     "folder_empty": "این پوشه خالی است",
     "invalid_name": "نام نامعتبر",
@@ -240,7 +234,6 @@
     "open_error": "باز کردن فایل ممکن نشد",
     "open_with": "باز کردن با…",
     "preview_too_large": "این فایل برای پیش‌نمایش بیش از حد بزرگ است.",
-    "selected_count": "{count} انتخاب شد",
     "share_add_people": "افزودن افراد",
     "share_empty": "هنوز با کسی به اشتراک گذاشته نشده",
     "share_error": "به‌روزرسانی اشتراک‌گذاری ناموفق بود",
@@ -730,9 +723,6 @@
     "remove_account_message": "خروج از {account} روی این دستگاه. ایمیل‌های شما روی سرور باقی می‌مانند.",
     "remove_account_title": "حساب حذف شود؟",
     "show_unread": "نمایش خوانده‌نشده‌ها"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count, plural, one {# حساب بارگذاری نشد} other {# حساب بارگذاری نشد}}"
   },
   "updates": {
     "advisory": "اطلاعیه امنیتی",

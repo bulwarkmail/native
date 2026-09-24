@@ -6,9 +6,6 @@
     "not_starred": "未加星號"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "分鐘後"
-    },
     "drawer": {
       "my_calendars": "我的行事曆",
       "no_calendars": "尚無行事曆。",
@@ -68,10 +65,8 @@
       "error": "無法更新分享設定",
       "no_matches": "找不到相符項目",
       "no_principals": "此伺服器不支援分享。",
-      "role_custom": "自訂",
       "search_placeholder": "依姓名或電子郵件地址搜尋",
-      "shared_with": "分享對象",
-      "title": "分享"
+      "shared_with": "分享對象"
     },
     "tasks": {
       "add_placeholder": "新增任務…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "資料夾會連同其中的所有內容一併刪除。此動作無法復原。",
     "delete_item_title": "要刪除此項目嗎？",
-    "delete_items_title": "要刪除 {count} 個項目嗎？",
     "done": "完成",
     "folder_empty": "此資料夾是空的",
     "invalid_name": "名稱無效",
@@ -240,7 +234,6 @@
     "open_error": "無法開啟檔案",
     "open_with": "以其他應用程式開啟…",
     "preview_too_large": "此檔案太大，無法預覽。",
-    "selected_count": "已選取 {count} 個",
     "share_add_people": "新增使用者",
     "share_empty": "尚未與任何人分享",
     "share_error": "無法更新分享設定",
@@ -730,9 +723,6 @@
     "remove_account_message": "在此裝置上登出 {account}。您的郵件仍會保留在伺服器上。",
     "remove_account_title": "要移除帳號嗎？",
     "show_unread": "顯示未讀"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} 個帳號無法載入"
   },
   "updates": {
     "advisory": "安全性公告",

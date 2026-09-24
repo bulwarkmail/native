@@ -6,9 +6,6 @@
     "not_starred": "スターなし"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "分後"
-    },
     "drawer": {
       "my_calendars": "マイカレンダー",
       "no_calendars": "カレンダーはまだありません。",
@@ -68,10 +65,8 @@
       "error": "共有の更新に失敗しました",
       "no_matches": "一致する項目がありません",
       "no_principals": "このサーバーでは共有を利用できません。",
-      "role_custom": "カスタム",
       "search_placeholder": "名前またはメールで検索",
-      "shared_with": "共有先",
-      "title": "共有"
+      "shared_with": "共有先"
     },
     "tasks": {
       "add_placeholder": "タスクを追加…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "フォルダーは中身ごと削除されます。この操作は元に戻せません。",
     "delete_item_title": "この項目を削除しますか？",
-    "delete_items_title": "{count}件の項目を削除しますか？",
     "done": "完了",
     "folder_empty": "このフォルダーは空です",
     "invalid_name": "無効な名前",
@@ -240,7 +234,6 @@
     "open_error": "ファイルを開けませんでした",
     "open_with": "別のアプリで開く…",
     "preview_too_large": "このファイルは大きすぎるため、プレビューできません。",
-    "selected_count": "{count}件を選択中",
     "share_add_people": "ユーザーを追加",
     "share_empty": "まだ誰にも共有されていません",
     "share_error": "共有の更新に失敗しました",
@@ -730,9 +723,6 @@
     "remove_account_message": "このデバイスで{account}からサインアウトします。メールはサーバーに残ります。",
     "remove_account_title": "アカウントを削除しますか？",
     "show_unread": "未読を表示"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count}件のアカウントを読み込めませんでした"
   },
   "updates": {
     "advisory": "セキュリティアドバイザリ",

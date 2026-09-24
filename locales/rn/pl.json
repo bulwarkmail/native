@@ -6,9 +6,6 @@
     "not_starred": "Bez gwiazdki"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "min po"
-    },
     "drawer": {
       "my_calendars": "Moje kalendarze",
       "no_calendars": "Brak kalendarzy.",
@@ -68,10 +65,8 @@
       "error": "Nie udało się zaktualizować udostępniania",
       "no_matches": "Brak wyników",
       "no_principals": "Udostępnianie nie jest dostępne na tym serwerze.",
-      "role_custom": "Niestandardowe",
       "search_placeholder": "Szukaj po imieniu lub e-mailu",
-      "shared_with": "Osoby z dostępem",
-      "title": "Udostępnij"
+      "shared_with": "Osoby z dostępem"
     },
     "tasks": {
       "add_placeholder": "Dodaj zadanie…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Foldery są usuwane wraz z całą zawartością. Tej operacji nie można cofnąć.",
     "delete_item_title": "Usunąć ten element?",
-    "delete_items_title": "Usunąć elementy ({count})?",
     "done": "Gotowe",
     "folder_empty": "Ten folder jest pusty",
     "invalid_name": "Nieprawidłowa nazwa",
@@ -240,7 +234,6 @@
     "open_error": "Nie udało się otworzyć pliku",
     "open_with": "Otwórz za pomocą…",
     "preview_too_large": "Ten plik jest zbyt duży, aby wyświetlić podgląd.",
-    "selected_count": "Zaznaczono: {count}",
     "share_add_people": "Dodaj osoby",
     "share_empty": "Jeszcze nikomu nie udostępniono",
     "share_error": "Nie udało się zaktualizować udostępniania",
@@ -730,9 +723,6 @@
     "remove_account_message": "Wyloguj konto {account} na tym urządzeniu. Twoja poczta pozostanie na serwerze.",
     "remove_account_title": "Usunąć konto?",
     "show_unread": "Pokaż nieprzeczytane"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Nie udało się wczytać kont: {count}"
   },
   "updates": {
     "advisory": "Biuletyn bezpieczeństwa",

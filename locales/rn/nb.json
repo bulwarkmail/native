@@ -6,9 +6,6 @@
     "not_starred": "Ikke stjernemerket"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minutter etter"
-    },
     "drawer": {
       "my_calendars": "Mine kalendere",
       "no_calendars": "Ingen kalendere ennå.",
@@ -68,10 +65,8 @@
       "error": "Kunne ikke oppdatere deling",
       "no_matches": "Ingen treff",
       "no_principals": "Deling er ikke tilgjengelig på denne serveren.",
-      "role_custom": "Egendefinert",
       "search_placeholder": "Søk etter navn eller e-postadresse",
-      "shared_with": "Delt med",
-      "title": "Del"
+      "shared_with": "Delt med"
     },
     "tasks": {
       "add_placeholder": "Legg til en oppgave…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Mapper slettes sammen med alt innholdet. Dette kan ikke angres.",
     "delete_item_title": "Vil du slette dette elementet?",
-    "delete_items_title": "Vil du slette {count} elementer?",
     "done": "Ferdig",
     "folder_empty": "Denne mappen er tom",
     "invalid_name": "Ugyldig navn",
@@ -240,7 +234,6 @@
     "open_error": "Kunne ikke åpne filen",
     "open_with": "Åpne med…",
     "preview_too_large": "Denne filen er for stor til å forhåndsvises.",
-    "selected_count": "{count} valgt",
     "share_add_people": "Legg til personer",
     "share_empty": "Ikke delt med noen ennå",
     "share_error": "Kunne ikke oppdatere deling",
@@ -730,9 +723,6 @@
     "remove_account_message": "Logg ut av {account} på denne enheten. E-posten din blir liggende på serveren.",
     "remove_account_title": "Vil du fjerne kontoen?",
     "show_unread": "Vis uleste"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} konto(er) kunne ikke lastes inn"
   },
   "updates": {
     "advisory": "Sikkerhetsvarsel",

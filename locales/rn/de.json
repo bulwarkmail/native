@@ -6,9 +6,6 @@
     "not_starred": "Nicht markiert"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "Minuten danach"
-    },
     "drawer": {
       "my_calendars": "Meine Kalender",
       "no_calendars": "Noch keine Kalender.",
@@ -68,10 +65,8 @@
       "error": "Freigabe konnte nicht aktualisiert werden",
       "no_matches": "Keine Treffer",
       "no_principals": "Freigaben sind auf diesem Server nicht verfügbar.",
-      "role_custom": "Benutzerdefiniert",
       "search_placeholder": "Nach Name oder E-Mail suchen",
-      "shared_with": "Freigegeben für",
-      "title": "Freigeben"
+      "shared_with": "Freigegeben für"
     },
     "tasks": {
       "add_placeholder": "Aufgabe hinzufügen…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Ordner werden samt ihrem gesamten Inhalt gelöscht. Dies kann nicht rückgängig gemacht werden.",
     "delete_item_title": "Dieses Element löschen?",
-    "delete_items_title": "{count} Elemente löschen?",
     "done": "Fertig",
     "folder_empty": "Dieser Ordner ist leer",
     "invalid_name": "Ungültiger Name",
@@ -240,7 +234,6 @@
     "open_error": "Die Datei konnte nicht geöffnet werden",
     "open_with": "Öffnen mit…",
     "preview_too_large": "Diese Datei ist zu groß für eine Vorschau.",
-    "selected_count": "{count} ausgewählt",
     "share_add_people": "Personen hinzufügen",
     "share_empty": "Noch mit niemandem geteilt",
     "share_error": "Freigabe konnte nicht aktualisiert werden",
@@ -730,9 +723,6 @@
     "remove_account_message": "Von {account} auf diesem Gerät abmelden. Ihre E-Mails bleiben auf dem Server.",
     "remove_account_title": "Konto entfernen?",
     "show_unread": "Ungelesene anzeigen"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} Konto/Konten konnten nicht geladen werden"
   },
   "updates": {
     "advisory": "Sicherheitshinweis",

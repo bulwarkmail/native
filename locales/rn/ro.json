@@ -6,9 +6,6 @@
     "not_starred": "Fără stea"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minute după"
-    },
     "drawer": {
       "my_calendars": "Calendarele mele",
       "no_calendars": "Niciun calendar încă.",
@@ -68,10 +65,8 @@
       "error": "Nu s-a putut actualiza partajarea",
       "no_matches": "Niciun rezultat",
       "no_principals": "Partajarea nu este disponibilă pe acest server.",
-      "role_custom": "Personalizat",
       "search_placeholder": "Căutați după nume sau adresă de e-mail",
-      "shared_with": "Partajat cu",
-      "title": "Partajare"
+      "shared_with": "Partajat cu"
     },
     "tasks": {
       "add_placeholder": "Adăugați o sarcină…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Folderele sunt șterse împreună cu tot conținutul lor. Această acțiune nu poate fi anulată.",
     "delete_item_title": "Ștergeți acest element?",
-    "delete_items_title": "Ștergeți elementele selectate ({count})?",
     "done": "Gata",
     "folder_empty": "Acest folder este gol",
     "invalid_name": "Nume invalid",
@@ -240,7 +234,6 @@
     "open_error": "Fișierul nu a putut fi deschis",
     "open_with": "Deschideți cu…",
     "preview_too_large": "Acest fișier este prea mare pentru previzualizare.",
-    "selected_count": "{count} selectate",
     "share_add_people": "Adăugați persoane",
     "share_empty": "Nu a fost partajat încă cu nimeni",
     "share_error": "Nu s-a putut actualiza partajarea",
@@ -730,9 +723,6 @@
     "remove_account_message": "Deconectați {account} de pe acest dispozitiv. E-mailurile rămân pe server.",
     "remove_account_title": "Eliminați contul?",
     "show_unread": "Afișați necitite"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count, plural, one {# cont nu a putut fi încărcat} few {# conturi nu au putut fi încărcate} other {# de conturi nu au putut fi încărcate}}"
   },
   "updates": {
     "advisory": "Aviz de securitate",

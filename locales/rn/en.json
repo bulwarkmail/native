@@ -7,8 +7,7 @@
   },
   "calendar": {
     "alerts": {
-      "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}",
-      "unit_minutes_after": "minutes after"
+      "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}"
     },
     "colors": {
       "indigo": "Indigo",
@@ -105,10 +104,8 @@
       "error": "Failed to update sharing",
       "no_matches": "No matches",
       "no_principals": "Sharing is not available on this server.",
-      "role_custom": "Custom",
       "search_placeholder": "Search by name or email",
-      "shared_with": "Shared with",
-      "title": "Share"
+      "shared_with": "Shared with"
     },
     "subscription": {
       "add_feed": "Add a feed",

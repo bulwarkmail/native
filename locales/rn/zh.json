@@ -6,9 +6,6 @@
     "not_starred": "无星标"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "分钟后"
-    },
     "drawer": {
       "my_calendars": "我的日历",
       "no_calendars": "还没有日历。",
@@ -68,10 +65,8 @@
       "error": "更新共享失败",
       "no_matches": "无匹配项",
       "no_principals": "此服务器不支持共享。",
-      "role_custom": "自定义",
       "search_placeholder": "按姓名或邮箱搜索",
-      "shared_with": "共享对象",
-      "title": "共享"
+      "shared_with": "共享对象"
     },
     "tasks": {
       "add_placeholder": "添加任务…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "文件夹将连同其中的所有内容一起删除。此操作无法撤销。",
     "delete_item_title": "删除此项目？",
-    "delete_items_title": "删除 {count} 个项目？",
     "done": "完成",
     "folder_empty": "此文件夹为空",
     "invalid_name": "名称无效",
@@ -240,7 +234,6 @@
     "open_error": "无法打开文件",
     "open_with": "打开方式…",
     "preview_too_large": "此文件过大，无法预览。",
-    "selected_count": "已选择 {count} 项",
     "share_add_people": "添加用户",
     "share_empty": "尚未与任何人共享",
     "share_error": "更新共享失败",
@@ -730,9 +723,6 @@
     "remove_account_message": "在此设备上退出 {account}。您的邮件仍保留在服务器上。",
     "remove_account_title": "移除账户？",
     "show_unread": "显示未读"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} 个账户无法加载"
   },
   "updates": {
     "advisory": "安全公告",

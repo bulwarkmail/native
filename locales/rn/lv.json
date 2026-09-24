@@ -6,9 +6,6 @@
     "not_starred": "Bez zvaigznītes"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "min pēc sākuma"
-    },
     "drawer": {
       "my_calendars": "Mani kalendāri",
       "no_calendars": "Vēl nav kalendāru.",
@@ -68,10 +65,8 @@
       "error": "Neizdevās atjaunināt kopīgošanu",
       "no_matches": "Nav atbilstību",
       "no_principals": "Kopīgošana šajā serverī nav pieejama.",
-      "role_custom": "Pielāgots",
       "search_placeholder": "Meklēt pēc vārda vai e-pasta",
-      "shared_with": "Kopīgots ar",
-      "title": "Kopīgot"
+      "shared_with": "Kopīgots ar"
     },
     "tasks": {
       "add_placeholder": "Pievienot uzdevumu…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Mapes tiek dzēstas kopā ar visu to saturu. To nevar atsaukt.",
     "delete_item_title": "Dzēst šo vienumu?",
-    "delete_items_title": "Dzēst atlasītos vienumus ({count})?",
     "done": "Gatavs",
     "folder_empty": "Šī mape ir tukša",
     "invalid_name": "Nederīgs nosaukums",
@@ -240,7 +234,6 @@
     "open_error": "Neizdevās atvērt failu",
     "open_with": "Atvērt ar…",
     "preview_too_large": "Šis fails ir pārāk liels priekšskatīšanai.",
-    "selected_count": "Atlasīti: {count}",
     "share_add_people": "Pievienot personas",
     "share_empty": "Vēl nav kopīgots ne ar vienu",
     "share_error": "Neizdevās atjaunināt kopīgošanu",
@@ -730,9 +723,6 @@
     "remove_account_message": "Izrakstīties no konta {account} šajā ierīcē. Jūsu pasts paliek serverī.",
     "remove_account_title": "Noņemt kontu?",
     "show_unread": "Rādīt nelasītās"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Kontus neizdevās ielādēt: {count}"
   },
   "updates": {
     "advisory": "Drošības paziņojums",

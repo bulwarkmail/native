@@ -6,9 +6,6 @@
     "not_starred": "غير مميزة بنجمة"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "دقائق بعد"
-    },
     "drawer": {
       "my_calendars": "تقويماتي",
       "no_calendars": "لا توجد تقويمات بعد.",
@@ -68,10 +65,8 @@
       "error": "فشل تحديث المشاركة",
       "no_matches": "لا توجد نتائج مطابقة",
       "no_principals": "المشاركة غير متاحة على هذا الخادم.",
-      "role_custom": "مخصص",
       "search_placeholder": "البحث بالاسم أو البريد الإلكتروني",
-      "shared_with": "تمت المشاركة مع",
-      "title": "مشاركة"
+      "shared_with": "تمت المشاركة مع"
     },
     "tasks": {
       "add_placeholder": "إضافة مهمة…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "تُحذف المجلدات مع كل ما بداخلها. لا يمكن التراجع عن ذلك.",
     "delete_item_title": "حذف هذا العنصر؟",
-    "delete_items_title": "حذف العناصر المحددة ({count})؟",
     "done": "تم",
     "folder_empty": "هذا المجلد فارغ",
     "invalid_name": "اسم غير صالح",
@@ -240,7 +234,6 @@
     "open_error": "تعذّر فتح الملف",
     "open_with": "فتح باستخدام…",
     "preview_too_large": "هذا الملف كبير جدًا بحيث لا يمكن معاينته.",
-    "selected_count": "المحدد: {count}",
     "share_add_people": "إضافة أشخاص",
     "share_empty": "لم تتم المشاركة مع أي شخص بعد",
     "share_error": "فشل تحديث المشاركة",
@@ -730,9 +723,6 @@
     "remove_account_message": "تسجيل الخروج من {account} على هذا الجهاز. يبقى بريدك على الخادم.",
     "remove_account_title": "إزالة الحساب؟",
     "show_unread": "إظهار غير المقروءة"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count, plural, zero {تعذّر تحميل # حساب} one {تعذّر تحميل حساب واحد} two {تعذّر تحميل حسابين} few {تعذّر تحميل # حسابات} many {تعذّر تحميل # حسابًا} other {تعذّر تحميل # حساب}}"
   },
   "updates": {
     "advisory": "نشرة أمنية",

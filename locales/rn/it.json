@@ -6,9 +6,6 @@
     "not_starred": "Non speciale"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minuti dopo"
-    },
     "drawer": {
       "my_calendars": "I miei calendari",
       "no_calendars": "Ancora nessun calendario.",
@@ -68,10 +65,8 @@
       "error": "Impossibile aggiornare la condivisione",
       "no_matches": "Nessun risultato",
       "no_principals": "La condivisione non è disponibile su questo server.",
-      "role_custom": "Personalizzato",
       "search_placeholder": "Cerca per nome o email",
-      "shared_with": "Condiviso con",
-      "title": "Condividi"
+      "shared_with": "Condiviso con"
     },
     "tasks": {
       "add_placeholder": "Aggiungi un'attività…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Le cartelle vengono eliminate insieme a tutto il loro contenuto. L'operazione non può essere annullata.",
     "delete_item_title": "Eliminare questo elemento?",
-    "delete_items_title": "Eliminare {count} elementi?",
     "done": "Fatto",
     "folder_empty": "Questa cartella è vuota",
     "invalid_name": "Nome non valido",
@@ -240,7 +234,6 @@
     "open_error": "Impossibile aprire il file",
     "open_with": "Apri con…",
     "preview_too_large": "Questo file è troppo grande per l'anteprima.",
-    "selected_count": "{count} selezionati",
     "share_add_people": "Aggiungi persone",
     "share_empty": "Non ancora condiviso con nessuno",
     "share_error": "Impossibile aggiornare la condivisione",
@@ -730,9 +723,6 @@
     "remove_account_message": "Esci da {account} su questo dispositivo. La tua posta resta sul server.",
     "remove_account_title": "Rimuovere l'account?",
     "show_unread": "Mostra non letti"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "Impossibile caricare {count} account"
   },
   "updates": {
     "advisory": "Avviso di sicurezza",

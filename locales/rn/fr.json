@@ -6,9 +6,6 @@
     "not_starred": "Non suivis"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minutes après"
-    },
     "drawer": {
       "my_calendars": "Mes calendriers",
       "no_calendars": "Aucun calendrier pour le moment.",
@@ -68,10 +65,8 @@
       "error": "Échec de la mise à jour du partage",
       "no_matches": "Aucun résultat",
       "no_principals": "Le partage n'est pas disponible sur ce serveur.",
-      "role_custom": "Personnalisé",
       "search_placeholder": "Rechercher par nom ou e-mail",
-      "shared_with": "Partagé avec",
-      "title": "Partager"
+      "shared_with": "Partagé avec"
     },
     "tasks": {
       "add_placeholder": "Ajouter une tâche…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Les dossiers sont supprimés avec tout leur contenu. Cette action est irréversible.",
     "delete_item_title": "Supprimer cet élément ?",
-    "delete_items_title": "Supprimer {count} éléments ?",
     "done": "Terminé",
     "folder_empty": "Ce dossier est vide",
     "invalid_name": "Nom non valide",
@@ -240,7 +234,6 @@
     "open_error": "Impossible d'ouvrir le fichier",
     "open_with": "Ouvrir avec…",
     "preview_too_large": "Ce fichier est trop volumineux pour être prévisualisé.",
-    "selected_count": "{count} sélectionné(s)",
     "share_add_people": "Ajouter des personnes",
     "share_empty": "Pas encore partagé",
     "share_error": "Échec de la mise à jour du partage",
@@ -730,9 +723,6 @@
     "remove_account_message": "Se déconnecter de {account} sur cet appareil. Vos e-mails restent sur le serveur.",
     "remove_account_title": "Supprimer le compte ?",
     "show_unread": "Afficher les non lus"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} compte(s) n'ont pas pu être chargés"
   },
   "updates": {
     "advisory": "Avis de sécurité",

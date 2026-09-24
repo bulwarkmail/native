@@ -6,9 +6,6 @@
     "not_starred": "No destacado"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minutos después"
-    },
     "drawer": {
       "my_calendars": "Mis calendarios",
       "no_calendars": "Aún no hay calendarios.",
@@ -68,10 +65,8 @@
       "error": "No se pudo actualizar el uso compartido",
       "no_matches": "Sin resultados",
       "no_principals": "El uso compartido no está disponible en este servidor.",
-      "role_custom": "Personalizado",
       "search_placeholder": "Buscar por nombre o correo",
-      "shared_with": "Compartido con",
-      "title": "Compartir"
+      "shared_with": "Compartido con"
     },
     "tasks": {
       "add_placeholder": "Añadir una tarea…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Las carpetas se eliminan junto con todo su contenido. Esta acción no se puede deshacer.",
     "delete_item_title": "¿Eliminar este elemento?",
-    "delete_items_title": "¿Eliminar {count} elementos?",
     "done": "Hecho",
     "folder_empty": "Esta carpeta está vacía",
     "invalid_name": "Nombre no válido",
@@ -240,7 +234,6 @@
     "open_error": "No se pudo abrir el archivo",
     "open_with": "Abrir con…",
     "preview_too_large": "Este archivo es demasiado grande para la vista previa.",
-    "selected_count": "{count} seleccionados",
     "share_add_people": "Añadir personas",
     "share_empty": "Aún no se ha compartido con nadie",
     "share_error": "No se pudo actualizar el uso compartido",
@@ -730,9 +723,6 @@
     "remove_account_message": "Cierra la sesión de {account} en este dispositivo. Tu correo se queda en el servidor.",
     "remove_account_title": "¿Quitar la cuenta?",
     "show_unread": "Mostrar no leídos"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "No se pudieron cargar {count} cuenta(s)"
   },
   "updates": {
     "advisory": "Aviso de seguridad",

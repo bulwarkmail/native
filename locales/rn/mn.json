@@ -6,9 +6,6 @@
     "not_starred": "Одгүй"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "минутын дараа"
-    },
     "drawer": {
       "my_calendars": "Миний хуанлиуд",
       "no_calendars": "Одоогоор хуанли алга.",
@@ -68,10 +65,8 @@
       "error": "Хуваалцалтыг шинэчилж чадсангүй",
       "no_matches": "Тохирох зүйл алга",
       "no_principals": "Энэ сервер дээр хуваалцах боломжгүй.",
-      "role_custom": "Захиалгат",
       "search_placeholder": "Нэр эсвэл имэйлээр хайх",
-      "shared_with": "Хандах эрхтэй хүмүүс",
-      "title": "Хуваалцах"
+      "shared_with": "Хандах эрхтэй хүмүүс"
     },
     "tasks": {
       "add_placeholder": "Даалгавар нэмэх…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Хавтсыг доторх бүх зүйлийн хамт устгана. Үүнийг буцаах боломжгүй.",
     "delete_item_title": "Энэ зүйлийг устгах уу?",
-    "delete_items_title": "{count} зүйлийг устгах уу?",
     "done": "Болсон",
     "folder_empty": "Энэ хавтас хоосон",
     "invalid_name": "Буруу нэр",
@@ -240,7 +234,6 @@
     "open_error": "Файлыг нээж чадсангүй",
     "open_with": "Өөр аппаар нээх…",
     "preview_too_large": "Энэ файл урьдчилан харахад хэт том байна.",
-    "selected_count": "{count} сонгосон",
     "share_add_people": "Хүн нэмэх",
     "share_empty": "Одоохондоо хэнтэй ч хуваалцаагүй",
     "share_error": "Хуваалцалтыг шинэчилж чадсангүй",
@@ -730,9 +723,6 @@
     "remove_account_message": "Энэ төхөөрөмж дээр дараах бүртгэлээс гарна: {account}. Таны имэйл сервер дээр үлдэнэ.",
     "remove_account_title": "Бүртгэлийг хасах уу?",
     "show_unread": "Уншаагүйг харуулах"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count, plural, one {# бүртгэлийг ачаалж чадсангүй} other {# бүртгэлийг ачаалж чадсангүй}}"
   },
   "updates": {
     "advisory": "Аюулгүй байдлын зөвлөмж",

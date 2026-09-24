@@ -6,9 +6,6 @@
     "not_starred": "Yıldızsız"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "dakika sonra"
-    },
     "drawer": {
       "my_calendars": "Takvimlerim",
       "no_calendars": "Henüz takvim yok.",
@@ -68,10 +65,8 @@
       "error": "Paylaşım güncellenemedi",
       "no_matches": "Eşleşme yok",
       "no_principals": "Bu sunucuda paylaşım kullanılamıyor.",
-      "role_custom": "Özel",
       "search_placeholder": "Ad veya e-posta ile arayın",
-      "shared_with": "Paylaşılanlar",
-      "title": "Paylaş"
+      "shared_with": "Paylaşılanlar"
     },
     "tasks": {
       "add_placeholder": "Görev ekle…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Klasörler, içindeki her şeyle birlikte silinir. Bu işlem geri alınamaz.",
     "delete_item_title": "Bu öge silinsin mi?",
-    "delete_items_title": "{count} öge silinsin mi?",
     "done": "Tamam",
     "folder_empty": "Bu klasör boş",
     "invalid_name": "Geçersiz ad",
@@ -240,7 +234,6 @@
     "open_error": "Dosya açılamadı",
     "open_with": "Birlikte aç…",
     "preview_too_large": "Bu dosya, önizleme için çok büyük.",
-    "selected_count": "{count} seçildi",
     "share_add_people": "Kişi ekle",
     "share_empty": "Henüz kimseyle paylaşılmadı",
     "share_error": "Paylaşım güncellenemedi",
@@ -730,9 +723,6 @@
     "remove_account_message": "Bu cihazda {account} hesabından çıkış yapın. Postanız sunucuda kalır.",
     "remove_account_title": "Hesap kaldırılsın mı?",
     "show_unread": "Okunmamışları göster"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} hesap yüklenemedi"
   },
   "updates": {
     "advisory": "Güvenlik duyurusu",

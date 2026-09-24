@@ -6,9 +6,6 @@
     "not_starred": "Zonder ster"
   },
   "calendar": {
-    "alerts": {
-      "unit_minutes_after": "minuten erna"
-    },
     "drawer": {
       "my_calendars": "Mijn agenda's",
       "no_calendars": "Nog geen agenda's.",
@@ -68,10 +65,8 @@
       "error": "Delen kon niet worden bijgewerkt",
       "no_matches": "Geen overeenkomsten",
       "no_principals": "Delen is niet beschikbaar op deze server.",
-      "role_custom": "Aangepast",
       "search_placeholder": "Zoeken op naam of e-mail",
-      "shared_with": "Gedeeld met",
-      "title": "Delen"
+      "shared_with": "Gedeeld met"
     },
     "tasks": {
       "add_placeholder": "Taak toevoegen…",
@@ -231,7 +226,6 @@
   "files": {
     "delete_cascade_hint": "Mappen worden samen met alles erin verwijderd. Dit kan niet ongedaan worden gemaakt.",
     "delete_item_title": "Dit item verwijderen?",
-    "delete_items_title": "{count} items verwijderen?",
     "done": "Klaar",
     "folder_empty": "Deze map is leeg",
     "invalid_name": "Ongeldige naam",
@@ -240,7 +234,6 @@
     "open_error": "Kon het bestand niet openen",
     "open_with": "Openen met…",
     "preview_too_large": "Dit bestand is te groot voor een voorbeeld.",
-    "selected_count": "{count} geselecteerd",
     "share_add_people": "Personen toevoegen",
     "share_empty": "Nog met niemand gedeeld",
     "share_error": "Delen kon niet worden bijgewerkt",
@@ -730,9 +723,6 @@
     "remove_account_message": "Uitloggen van {account} op dit apparaat. Uw e-mail blijft op de server.",
     "remove_account_title": "Account verwijderen?",
     "show_unread": "Ongelezen tonen"
-  },
-  "unified_mailbox": {
-    "accounts_failed": "{count} account(s) konden niet worden geladen"
   },
   "updates": {
     "advisory": "Beveiligingsadvies",
