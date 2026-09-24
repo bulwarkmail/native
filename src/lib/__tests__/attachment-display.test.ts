@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getAttachmentDisplayName, visibleAttachments, previewKindFor, isReportPart, isRfc822Attachment,
+  isEmbeddedInBody,
 } from '../attachment-display';
 import { buildForwardAsAttachmentPayload } from '../forward-as-attachment';
 import type { Email } from '../../api/types';
@@ -35,6 +36,60 @@ describe('visibleAttachments', () => {
   it('keeps calendar parts and inline images when asked', () => {
     const shown = visibleAttachments(email, { hideInlineImageAttachments: false, calendarBannerShown: false });
     expect(shown.map((a) => a.blobId)).toEqual(['1', '2', '4', '5', '6']);
+  });
+
+  // Octet-stream, no disposition, no name, rendered in the body via cid:.
+  const sloppy = {
+    htmlBody: [{ partId: '1', type: 'text/html' }],
+    textBody: [{ partId: '1', type: 'text/html' }],
+    bodyValues: { '1': { value: '<p>Thanks</p><img src="cid:signaturImage">' } },
+    attachments: [
+      { blobId: 'a', type: 'application/octet-stream', cid: 'signaturImage' },
+      { blobId: 'b', type: 'application/octet-stream', name: 'data.bin' },
+      { blobId: 'c', type: 'application/octet-stream', cid: 'orphan' },
+    ],
+  };
+
+  it('hides generically typed parts the rendered HTML body embeds by cid', () => {
+    const shown = visibleAttachments(sloppy, { hideInlineImageAttachments: true, calendarBannerShown: false });
+    expect(shown.map((a) => a.blobId)).toEqual(['b', 'c']);
+    const all = visibleAttachments(sloppy, { hideInlineImageAttachments: false, calendarBannerShown: false });
+    expect(all.map((a) => a.blobId)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('hides nothing by reference when the message renders as plain text', () => {
+    const text = {
+      ...sloppy,
+      textBody: [{ partId: '2', type: 'text/plain' }],
+      // A minimal wrapper around the text alternative renders as text.
+      bodyValues: { '1': { value: '<div>cid:signaturImage</div>' }, '2': { value: 'Thanks' } },
+    };
+    const shown = visibleAttachments(text, { hideInlineImageAttachments: true, calendarBannerShown: false });
+    expect(shown.map((a) => a.blobId)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('isEmbeddedInBody', () => {
+  const body = new Set(['signaturImage', 'logoImage']);
+
+  it('hides referenced octet-stream or untyped parts, with or without angle brackets', () => {
+    expect(isEmbeddedInBody({ cid: 'signaturImage', type: 'application/octet-stream' }, body)).toBe(true);
+    expect(isEmbeddedInBody({ cid: 'logoImage', type: '' }, body)).toBe(true);
+    expect(isEmbeddedInBody({ cid: '<logoImage>', type: 'application/octet-stream' }, body)).toBe(true);
+    expect(isEmbeddedInBody({ cid: 'logoImage', type: 'image/png' }, body)).toBe(true);
+  });
+
+  it('keeps hiding declared inline images even without a reference', () => {
+    expect(isEmbeddedInBody({ cid: 'unreferenced', type: 'image/png', disposition: 'inline' }, body)).toBe(true);
+  });
+
+  it('keeps explicit attachments, referenced non-image types and unreferenced parts', () => {
+    expect(isEmbeddedInBody({ cid: 'logoImage', type: 'image/png', disposition: 'attachment' }, body)).toBe(false);
+    expect(isEmbeddedInBody({ cid: 'logoImage', type: 'application/pdf' }, body)).toBe(false);
+    expect(isEmbeddedInBody({ cid: 'orphan', type: 'application/octet-stream' }, body)).toBe(false);
+    expect(isEmbeddedInBody({ cid: 'orphan', type: 'image/png' }, body)).toBe(false);
+    expect(isEmbeddedInBody({ type: 'image/png', disposition: 'inline' }, body)).toBe(false);
+    expect(isEmbeddedInBody({ cid: 'logoImage', type: 'application/octet-stream' }, new Set())).toBe(false);
   });
 });
 

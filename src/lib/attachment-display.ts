@@ -5,6 +5,8 @@
 
 import type { Attachment, Email } from '../api/types';
 import { findCalendarAttachment } from './calendar-invitation';
+import { pickEmailBody, selectRenderableHtml } from './email-body';
+import { extractCidRefs } from './email-html';
 
 const MIME_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'Document.pdf',
@@ -71,6 +73,34 @@ export function isTnefAttachment(name?: string | null, type?: string | null): bo
   );
 }
 
+/**
+ * True when a part is embedded in the rendered body and stays out of the chip
+ * list while "hide inline images" is on. Port of the webmail's
+ * `isEmbeddedInBody` (`lib/attachment-visibility.ts`):
+ *  - declared inline images hide, referenced or not;
+ *  - an explicit `attachment` disposition always keeps its chip;
+ *  - otherwise a part hides only when the body references its Content-ID AND
+ *    it is an image or generically typed (octet-stream, no type). Some senders
+ *    ship the images their HTML embeds that way, with no disposition and no
+ *    name, which showed up as nameless "Attachment" chips. A referenced part
+ *    with a real non-image type keeps its chip, its only download.
+ *
+ * `referencedCids` are the body's `cid:` references without angle brackets,
+ * as {@link extractCidRefs} returns them.
+ */
+export function isEmbeddedInBody(
+  att: Pick<Attachment, 'cid' | 'type' | 'disposition'>,
+  referencedCids: ReadonlySet<string>,
+): boolean {
+  if (!att.cid) return false;
+  const base = (att.type || '').split(';')[0].trim().toLowerCase();
+  const isImage = base.startsWith('image/');
+  if (att.disposition === 'inline' && isImage) return true;
+  if (att.disposition === 'attachment') return false;
+  if (!isImage && base && base !== 'application/octet-stream') return false;
+  return referencedCids.has(att.cid.replace(/^<|>$/g, ''));
+}
+
 export interface VisibleAttachmentOptions {
   hideInlineImageAttachments: boolean;
   /** True when the calendar-invitation banner renders for this message. */
@@ -81,25 +111,26 @@ export interface VisibleAttachmentOptions {
 
 /**
  * The attachments that get a chip. Mirrors the webmail filter chain:
- *  - inline cid images are hidden only when their disposition really is
- *    `inline` (an image with a Content-ID but `disposition: attachment` is a
- *    real attachment the body may never reference);
+ *  - parts the rendered HTML body embeds are hidden (see
+ *    {@link isEmbeddedInBody}); a plain-text render embeds nothing;
  *  - calendar parts are hidden while the invitation banner shows them;
  *  - MDN/DSN report parts are never listed;
  *  - winmail.dat is hidden once its content was extracted.
  */
-export function visibleAttachments(email: Pick<Email, 'attachments'>, opts: VisibleAttachmentOptions): Attachment[] {
+export function visibleAttachments(
+  email: Pick<Email, 'attachments' | 'htmlBody' | 'textBody' | 'bodyValues'>,
+  opts: VisibleAttachmentOptions,
+): Attachment[] {
   const all = email.attachments ?? [];
+  // Scan the HTML the body actually renders, and only when a part could hide.
+  const bodyCids: ReadonlySet<string> = opts.hideInlineImageAttachments && all.some((att) => att.cid)
+    ? new Set(extractCidRefs(selectRenderableHtml(pickEmailBody(email)) ?? ''))
+    : new Set();
   return all.filter((att) => {
     if (isReportPart(att.type)) return false;
     if (opts.calendarBannerShown && isCalendarMimeType(att.type)) return false;
     if (opts.tnefUnpacked && isTnefAttachment(att.name, att.type)) return false;
-    if (
-      opts.hideInlineImageAttachments
-      && att.cid
-      && att.disposition === 'inline'
-      && (att.type || '').toLowerCase().startsWith('image/')
-    ) return false;
+    if (opts.hideInlineImageAttachments && isEmbeddedInBody(att, bodyCids)) return false;
     return true;
   });
 }
