@@ -210,9 +210,12 @@ jobs:
           set -euo pipefail
           APK=android/app/build/outputs/apk/release/app-release.apk
           apksigner verify --verbose --print-certs "$APK"
+          # build-tools 36 prints "Signer #1 certificate SHA-256 digest: …",
+          # 37 prints "V3.0 Signer: certificate …" and "V2 Signer: …".
           signers() {
             apksigner verify --print-certs "$@" "$APK" \
-              | sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p'
+              | sed -n -E 's/^(Signer #[0-9]+|V[0-9.]+ Signer:) certificate SHA-256 digest: //p' \
+              | sort -u
           }
           MODERN=$(signers --min-sdk-version 28)
           LEGACY=$(signers --max-sdk-version 27)
