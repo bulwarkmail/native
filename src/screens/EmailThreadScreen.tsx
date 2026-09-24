@@ -42,7 +42,7 @@ import {
 import { pickEmailBody, plainTextBody } from '../lib/email-body';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
-import { viewerPages } from '../lib/viewer-pages';
+import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -59,14 +59,26 @@ function toastFailure(title: string, err: unknown): void {
   toast.error(title, err instanceof Error ? err.message : undefined);
 }
 
-export default function EmailThreadScreen({ route, navigation }: Props) {
+/**
+ * The viewer route. A new target handed to it while it is showing (a
+ * notification tapped with the viewer open) arrives as new params on the same
+ * route; the viewer is mounted afresh for it, taking its own page snapshot,
+ * instead of ignoring it.
+ */
+export default function EmailThreadScreen(props: Props) {
+  const instance = React.useRef<ViewerInstance | null>(null);
+  instance.current = viewerInstance(instance.current, props.route.params);
+  return <EmailViewer key={instance.current.key} {...props} />;
+}
+
+function EmailViewer({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { t } = useLocaleStore();
   // The JMAP account the message lives in, as the screen that opened it named
   // it (undefined = the user's own). Never the open folder's: that may be
   // another account holding a different message under the same id (B3).
-  // Fixed at open, since a later navigate() here only swaps route.params.
+  // Fixed for this instance: a new target mounts a new one.
   const [ownerAccountId] = React.useState(route.params.jmapAccountId);
   // The displayed email is tracked in local state (not a route param) so that
   // swiping / Prev-Next can switch messages in place without remounting the

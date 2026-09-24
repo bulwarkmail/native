@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { viewerPages } from '../viewer-pages';
+import { viewerInstance, viewerPages } from '../viewer-pages';
 import type { Email } from '../../api/types';
 
 function row(id: string, threadId = id): Email {
@@ -59,5 +59,23 @@ describe('viewerPages', () => {
       list: LIST, listIsMessageAccount: false, threading: true,
     });
     expect(handed).toEqual([{ id: 'o3', threadId: 't-o3' }]);
+  });
+});
+
+describe('viewerInstance', () => {
+  it('keeps the instance while the params stay the same', () => {
+    const params = { emailId: 'e1' };
+    const first = viewerInstance(null, params);
+    expect(viewerInstance(first, params)).toBe(first);
+  });
+
+  it('starts a new instance for every new open, even of the same message', () => {
+    const first = viewerInstance(null, { emailId: 'e1' });
+    const other = viewerInstance(first, { emailId: 'e2', jmapAccountId: 'group' });
+    const again = viewerInstance(other, { emailId: 'e2', jmapAccountId: 'group' });
+
+    expect(other.key).not.toBe(first.key);
+    expect(other.key).toContain('group|e2');
+    expect(again.key).not.toBe(other.key);
   });
 });

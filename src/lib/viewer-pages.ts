@@ -47,3 +47,27 @@ export function viewerPages(input: ViewerPagesInput): Email[] {
   }
   return out;
 }
+
+/** Which viewer instance shows a navigation target; see {@link viewerInstance}. */
+export interface ViewerInstance {
+  params: object;
+  key: string;
+  opens: number;
+}
+
+/**
+ * The viewer instance for the route's current params. Opening the viewer
+ * while it is already on top (a notification tap) does not push a new screen:
+ * React Navigation hands the new target to the same route as new params. Each
+ * such open (new params object) gets a new key, so the viewer is mounted
+ * afresh on the new message, with its own page snapshot, instead of ignoring
+ * the tap. The same params keep the same instance.
+ */
+export function viewerInstance(
+  prev: ViewerInstance | null,
+  params: { emailId: string; jmapAccountId?: string },
+): ViewerInstance {
+  if (prev && prev.params === params) return prev;
+  const opens = (prev?.opens ?? 0) + 1;
+  return { params, key: `${params.jmapAccountId ?? ''}|${params.emailId}|${opens}`, opens };
+}
