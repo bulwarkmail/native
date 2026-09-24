@@ -255,6 +255,9 @@ interface PersistedSettings {
   emailNotificationsEnabled: boolean;
   calendarNotificationsEnabled: boolean;
   calendarInvitationParsingEnabled: boolean;
+  // Inbox unread count on the app icon (iOS, see lib/app-badge). Same
+  // preference as the webmail's `faviconUnreadBadge` (tab and app icon).
+  appIconUnreadBadge: boolean;
 
   // Sidebar apps
   sidebarApps: SidebarApp[];
@@ -403,6 +406,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   emailNotificationsEnabled: true,
   calendarNotificationsEnabled: true,
   calendarInvitationParsingEnabled: true,
+  appIconUnreadBadge: true,
 
   sidebarApps: [],
   keepAppsLoaded: false,
@@ -610,6 +614,7 @@ export const SETTINGS_KEY_MAP: Partial<Record<keyof PersistedSettings, string>> 
   exportLowercase: 'filenameLowercase',
   exportStripDiacritics: 'filenameStripDiacritics',
   filtersExpandedView: 'expandedFilterView',
+  appIconUnreadBadge: 'faviconUnreadBadge',
 };
 
 // Keys that describe this device rather than the user's preferences.

@@ -562,6 +562,8 @@
     },
     "notifications": {
       "email": {
+        "app_icon_badge": "Unread count on app icon",
+        "app_icon_badge_desc": "Show the inbox unread count as a badge on the app icon.",
         "sound_channel_hint": "Sound and vibration for mail alerts are controlled by the Android notification channel: long-press a notification or open the system app settings."
       },
       "push": {

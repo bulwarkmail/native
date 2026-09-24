@@ -41,6 +41,7 @@ import {
   isUnifiedPushSupported,
   saveUnifiedPushDistributor,
 } from '../../lib/unified-push';
+import { canBadgeAppIcon } from '../../lib/app-badge';
 
 type PushStatus =
   | { kind: 'idle' }
@@ -79,6 +80,7 @@ export function NotificationSettings() {
   const emailEnabled = useSettingsStore((s) => s.emailNotificationsEnabled);
   const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
+  const appIconBadge = useSettingsStore((s) => s.appIconUnreadBadge);
 
   const supported = isPushSupported();
   const upSupported = isUnifiedPushSupported();
@@ -465,6 +467,17 @@ export function NotificationSettings() {
         >
           <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
         </SettingItem>
+        {canBadgeAppIcon() && (
+          <SettingItem
+            label={t('settings.notifications.email.app_icon_badge', 'Unread count on app icon')}
+            description={t(
+              'settings.notifications.email.app_icon_badge_desc',
+              'Show the inbox unread count as a badge on the app icon.',
+            )}
+          >
+            <ToggleSwitch checked={appIconBadge} onChange={(v) => update('appIconUnreadBadge', v)} />
+          </SettingItem>
+        )}
         {Platform.OS === 'android' && (
           <Text style={styles.fieldDescription}>
             {t(

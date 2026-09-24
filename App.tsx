@@ -56,6 +56,7 @@ import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
 import { PushOnboardingPrompt } from './src/components/PushOnboardingPrompt';
 import { ToastHost } from './src/components/ToastHost';
+import { AppIconBadge } from './src/components/AppIconBadge';
 import { getEmails } from './src/api/email';
 import { handleDeepLink, parseDeepLink, shareToDeepLink, type DeepLink } from './src/navigation/linking';
 import { addShareListener, getInitialShare, shareAttachments } from './src/lib/share-intent';
@@ -146,6 +147,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
       <ToastHost />
+      <AppIconBadge />
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
