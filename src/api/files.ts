@@ -25,14 +25,14 @@ const FILE_NODE_PROPERTIES = [
   'shareWith', 'myRights',
 ];
 
-// RFC 9670 sharing is only usable when the server advertises the exact
-// `principals:owner` capability, either in the session or on the account
-// (Stalwart places it in accountCapabilities).
+// Sharing with other users (RFC 9670) needs the principal directory to pick
+// people from, so it is offered whenever the server advertises
+// `urn:ietf:params:jmap:principals`, like the webmail's supportsPrincipals().
+// It used to require `principals:owner`, which Stalwart advertises nowhere,
+// so "Sharing & access" and the calendar share picker never had anyone to
+// offer.
 export function supportsSharing(): boolean {
-  return (
-    jmapClient.hasCapability(CAPABILITIES.PRINCIPALS_OWNER) ||
-    jmapClient.hasAccountCapability(CAPABILITIES.PRINCIPALS_OWNER, filesAccountId())
-  );
+  return jmapClient.hasCapability(CAPABILITIES.PRINCIPALS);
 }
 
 export function filesAccountId(): string {
@@ -74,9 +74,13 @@ function fileUsing(): string[] {
   if (jmapClient.hasCapability(CAPABILITIES.FILES)) {
     using.push(CAPABILITIES.FILES);
   }
-  // Required for shareWith/myRights on FileNode and for cross-account
-  // (shared-with-me) FileNode/get.
-  if (supportsSharing()) {
+  // Only name principals:owner where the server advertises it: an unknown
+  // capability in `using` fails the whole request. Stalwart returns
+  // shareWith/myRights without it.
+  if (
+    jmapClient.hasCapability(CAPABILITIES.PRINCIPALS_OWNER) ||
+    jmapClient.hasAccountCapability(CAPABILITIES.PRINCIPALS_OWNER, filesAccountId())
+  ) {
     using.push(CAPABILITIES.PRINCIPALS_OWNER);
   }
   return using;
@@ -410,23 +414,38 @@ export async function setFileNodeShare(
   }
 }
 
+/** Safety bound on how many principals the share picker pages through. */
+const MAX_PRINCIPALS = 20_000;
+
 // List all principals visible to the user. Stalwart returns the full
-// directory regardless of `filter`, so callers filter client-side.
+// directory regardless of `filter`, so callers filter client-side. Paged by
+// maxObjectsInGet: an unbounded query hands every id to the chained
+// Principal/get, which the server refuses with `requestTooLarge` once the
+// directory holds more than that (500), leaving the picker empty.
 export async function getPrincipals(): Promise<Principal[]> {
   if (!supportsSharing()) return [];
   const accountId = jmapClient.accountId;
-  const res = await jmapClient.request(
-    [
-      ['Principal/query', { accountId }, '0'],
-      ['Principal/get', {
-        accountId,
-        '#ids': { resultOf: '0', name: 'Principal/query', path: '/ids' },
-      }, '1'],
-    ],
-    [CAPABILITIES.CORE, CAPABILITIES.PRINCIPALS],
-  );
-  const getResp = res.methodResponses.find((r) => r[0] === 'Principal/get');
-  return (getResp?.[1].list ?? []) as Principal[];
+  const pageSize = jmapClient.getMaxObjectsInGet();
+  const all: Principal[] = [];
+  for (let position = 0; position < MAX_PRINCIPALS;) {
+    const res = await jmapClient.request(
+      [
+        ['Principal/query', { accountId, position, limit: pageSize }, '0'],
+        ['Principal/get', {
+          accountId,
+          '#ids': { resultOf: '0', name: 'Principal/query', path: '/ids' },
+        }, '1'],
+      ],
+      [CAPABILITIES.CORE, CAPABILITIES.PRINCIPALS],
+    );
+    const ids = (res.methodResponses.find((r) => r[0] === 'Principal/query')?.[1].ids ?? []) as string[];
+    const getResp = res.methodResponses.find((r) => r[0] === 'Principal/get');
+    if (!getResp) break;
+    all.push(...((getResp[1].list ?? []) as Principal[]));
+    if (ids.length < pageSize) break;
+    position += ids.length;
+  }
+  return all;
 }
 
 // The principal id that represents the logged-in user (excluded from the

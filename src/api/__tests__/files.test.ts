@@ -426,6 +426,26 @@ describe('getPrincipals', () => {
     expect(await getPrincipals()).toEqual([]);
     expect(mockRequest).not.toHaveBeenCalled();
   });
+
+  it('pages through a directory larger than maxObjectsInGet', async () => {
+    const directory = Array.from({ length: 1203 }, (_, i) => ({ id: `p${i}`, name: `user${i}`, type: 'individual' }));
+    mockRequest.mockImplementation(async (calls: [string, Record<string, unknown>, string][]) => {
+      const { position, limit } = calls[0][1] as { position: number; limit: number };
+      const page = directory.slice(position, position + limit);
+      return {
+        methodResponses: [
+          ['Principal/query', { ids: page.map((p) => p.id), position }, '0'],
+          ['Principal/get', { list: page }, '1'],
+        ],
+      };
+    });
+
+    const principals = await getPrincipals();
+
+    expect(principals).toHaveLength(1203);
+    expect(mockRequest.mock.calls.map(([calls]) => calls[0][1].position)).toEqual([0, 500, 1000]);
+    for (const [calls] of mockRequest.mock.calls) expect(calls[0][1].limit).toBe(500);
+  });
 });
 
 describe('decodeFileNodeName at the API boundary (#869)', () => {
@@ -540,19 +560,34 @@ describe('accountSupportsFiles (#563)', () => {
 });
 
 describe('supportsSharing', () => {
-  it('accepts principals:owner from the session or the account capabilities', () => {
-    const mockHasAccountCapability = jmapClient.hasAccountCapability as ReturnType<typeof vi.fn>;
+  // What Stalwart advertises: principals and principals:availability, never
+  // principals:owner.
+  const stalwartCapabilities = (urn: string) =>
+    urn === CAPABILITIES.FILES ||
+    urn === CAPABILITIES.PRINCIPALS ||
+    urn === 'urn:ietf:params:jmap:principals:availability';
+
+  it('offers sharing when the server advertises principals', () => {
+    mockHasCapability.mockImplementation(stalwartCapabilities);
+    expect(supportsSharing()).toBe(true);
+
     mockHasCapability.mockImplementation((urn: string) => urn === CAPABILITIES.FILES);
-    mockHasAccountCapability.mockReturnValue(false);
     expect(supportsSharing()).toBe(false);
+  });
 
-    mockHasAccountCapability.mockImplementation((urn: string) => urn === CAPABILITIES.PRINCIPALS_OWNER);
-    expect(supportsSharing()).toBe(true);
+  it('still lists principals and leaves principals:owner out of FileNode requests on Stalwart', async () => {
+    mockHasCapability.mockImplementation(stalwartCapabilities);
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['Principal/query', { ids: ['p1'] }, '0'],
+        ['Principal/get', { list: [{ id: 'p1', name: 'other', type: 'individual' }] }, '1'],
+      ],
+    });
+    expect(await getPrincipals()).toHaveLength(1);
 
-    mockHasAccountCapability.mockReturnValue(false);
-    mockHasCapability.mockImplementation(
-      (urn: string) => urn === CAPABILITIES.FILES || urn === CAPABILITIES.PRINCIPALS_OWNER,
-    );
-    expect(supportsSharing()).toBe(true);
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { updated: { f1: null } }, '0']] });
+    await setFileNodeShare('f1', 'p1', null);
+    const [, using] = mockRequest.mock.calls[1];
+    expect(using).toEqual([CAPABILITIES.CORE, CAPABILITIES.FILES]);
   });
 });
