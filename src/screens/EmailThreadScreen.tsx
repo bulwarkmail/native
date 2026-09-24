@@ -35,6 +35,7 @@ import { findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail 
 import { pickEmailBody, plainTextBody } from '../lib/email-body';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
+import { viewerPages } from '../lib/viewer-pages';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -62,7 +63,6 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
-  const storeEmails = useEmailStore((s) => s.emails);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const identities = useSettingsStore((s) => s.identities);
   const fetchIdentities = useSettingsStore((s) => s.fetchIdentities);
@@ -83,36 +83,18 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     [mailboxes, currentMailboxId],
   );
 
-  // The list the pager pages over. A message opened from the active folder
-  // pages over that folder (collapsed to one page per thread when threading
-  // is on, the opened message standing in for its thread); one opened from
-  // another list (unified inbox, contact activity) pages over the ids that
-  // list handed us, and a message that is in neither (e.g. a group-inbox
-  // message not in the folder page) gets a one-element list — otherwise the
-  // pager would render `emails[0]` while the toolbar acted on the tapped one.
-  const emails = React.useMemo<Email[]>(() => {
-    const { emailIds, emailId, threadId } = route.params;
-    const list = listAccountId === ownerAccountId ? storeEmails : [];
-    if (emailIds && emailIds.length > 0) {
-      const byId = new Map(list.map((e) => [e.id, e]));
-      return emailIds.map((id) => byId.get(id) ?? ({ id, threadId } as Email));
-    }
-    const opened = list.find((e) => e.id === emailId);
-    if (opened) {
-      if (disableThreading) return list;
-      const openedKey = opened.threadId || opened.id;
-      const seen = new Set<string>();
-      const out: Email[] = [];
-      for (const e of list) {
-        const key = e.threadId || e.id;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(key === openedKey ? opened : e);
-      }
-      return out;
-    }
-    return [{ id: emailId, threadId } as Email];
-  }, [storeEmails, route.params, listAccountId, ownerAccountId, disableThreading]);
+  // The pages the pager swipes through (see viewerPages), taken once when the
+  // viewer opens: new mail or a refresh must not shift the page under the
+  // user while the toolbar acts on `activeEmailId` (B5). Delete, archive,
+  // move and spam leave the screen, so no page outlives its message here.
+  const [emails] = React.useState<Email[]>(() => viewerPages({
+    emailId: route.params.emailId,
+    threadId: route.params.threadId,
+    emailIds: route.params.emailIds,
+    list: useEmailStore.getState().emails,
+    listIsMessageAccount: listAccountId === ownerAccountId,
+    threading: !disableThreading,
+  }));
 
   const currentMailboxRole = React.useMemo(
     () => (currentMailboxId ? mailboxes.find((m) => m.id === currentMailboxId)?.role ?? null : null),
