@@ -7,6 +7,7 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
+import { toast } from '../../stores/toast-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
@@ -78,7 +79,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       const quoted = original.split('\n').map((l) => `> ${l}`).join('\n');
       const header = `${formatFullDateTime(emailDisplayDate(email), timeFormat, locale)}, ${from.name ? `${from.name} <${from.email}>` : from.email}:`;
       const threading = computeReplyThreadingHeaders(email);
-      await sendEmail(
+      const result = await sendEmail(
         {
           from: [{ name: identity.name, email: identity.email }],
           to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
@@ -98,6 +99,8 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       } catch { /* the reply is out; the flag is cosmetic */ }
       onSent?.({ ...email, keywords: { ...email.keywords, $answered: true } });
       setText('');
+      // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
+      if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
     } catch (err) {
       Alert.alert(t('email_composer.send_failed', 'Failed to send'), err instanceof Error ? err.message : String(err));
     } finally {

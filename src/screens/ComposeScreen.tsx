@@ -33,6 +33,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
+import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import {
@@ -2032,6 +2033,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
           delaySeconds: holdForSeconds,
           createdAt: Date.now(),
         });
+      } else if (!result.scheduled) {
+        // Held sends get the undo bar instead (webmail b03a0c1d).
+        toast.success(t('notifications.email_sent', 'Email sent successfully'));
       }
       allowLeaveRef.current = true;
       navigation.goBack();

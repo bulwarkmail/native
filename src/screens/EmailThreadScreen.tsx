@@ -19,7 +19,9 @@ import { MessageContent } from '../components/email/MessageContent';
 import { ThreadMessageCard } from '../components/email/ThreadMessageCard';
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
+import { ToastHost } from '../components/ToastHost';
 import { useEmailStore } from '../stores/email-store';
+import { toast } from '../stores/toast-store';
 import {
   useSettingsStore,
   normalizeBottomQuickActions,
@@ -40,6 +42,14 @@ import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
+
+// Actions finish after the viewer may already have gone back, so a failure is
+// reported as a toast instead of vanishing with the promise (webmail
+// `lib/email-action-toast.ts`).
+function toastFailure(title: string, err: unknown): void {
+  console.warn('[viewer]', title, err);
+  toast.error(title, err instanceof Error ? err.message : undefined);
+}
 
 export default function EmailThreadScreen({ route, navigation }: Props) {
   const c = useColors();
@@ -326,7 +336,10 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (next[token]) delete next[token];
     else next[token] = true;
     updateLocalKeywords(email.id, next);
-    void patchKeywordsForEmails([email.id], { [token]: next[token] ?? null }, ownerAccountId);
+    patchKeywordsForEmails([email.id], { [token]: next[token] ?? null }, ownerAccountId).catch((err) => {
+      updateLocalKeywords(email.id, email.keywords);
+      toastFailure(t('notifications.tag_failed', 'Tagging failed'), err);
+    });
   };
 
   // Toggle the star on a specific message — used both by the toolbar (current
@@ -336,21 +349,28 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (next.$flagged) delete next.$flagged;
     else next.$flagged = true;
     updateLocalKeywords(target.id, next);
-    void patchKeywordsForEmails([target.id], { $flagged: next.$flagged ?? null }, ownerAccountId);
-  }, [updateLocalKeywords, ownerAccountId]);
+    patchKeywordsForEmails([target.id], { $flagged: next.$flagged ?? null }, ownerAccountId).catch((err) => {
+      updateLocalKeywords(target.id, target.keywords);
+      toastFailure(t('notifications.error_updating', 'Failed to update email'), err);
+    });
+  }, [updateLocalKeywords, ownerAccountId, t]);
 
   const onToggleStar = () => { if (email) toggleStarFor(email); };
 
   const onToggleUnread = () => {
     if (!email) return;
+    const failed = (err: unknown) => {
+      updateLocalKeywords(email.id, email.keywords);
+      toastFailure(t('notifications.error_updating', 'Failed to update email'), err);
+    };
     if (unread) {
-      void markSeen(email.id);
+      markSeen(email.id).catch(failed);
       updateLocalKeywords(email.id, { ...email.keywords, $seen: true });
     } else {
       const next = { ...email.keywords };
       delete next.$seen;
       updateLocalKeywords(email.id, next);
-      void patchKeywordsForEmails([email.id], { $seen: null }, ownerAccountId);
+      patchKeywordsForEmails([email.id], { $seen: null }, ownerAccountId).catch(failed);
     }
   };
 
@@ -361,7 +381,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   const performDelete = () => {
     if (!email || !sourceMailbox || !trashMailbox) return;
-    void deleteEmail(email.id, trashMailbox.id, sourceMailbox.id, { email, accountId: ownerAccountId });
+    deleteEmail(email.id, trashMailbox.id, sourceMailbox.id, { email, accountId: ownerAccountId })
+      .catch((err) => toastFailure(t('notifications.error_deleting', 'Failed to delete email'), err));
     navigation.goBack();
   };
 
@@ -394,7 +415,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   const onArchive = () => {
     if (!email || !canArchive) return;
-    void archiveEmailAction(email.id, { email, accountId: ownerAccountId });
+    archiveEmailAction(email.id, { email, accountId: ownerAccountId })
+      .catch((err) => toastFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
     navigation.goBack();
   };
 
@@ -405,8 +427,13 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (!email || !canToggleSpam) return;
     setMoreMenuOpen(false);
     const viewed = { email, accountId: ownerAccountId };
-    if (isInJunk) void unmarkSpam([email.id], viewed);
-    else void markSpam([email.id], viewed);
+    if (isInJunk) {
+      unmarkSpam([email.id], viewed)
+        .catch((err) => toastFailure(t('email_viewer.spam.error_not_spam', 'Failed to restore email'), err));
+    } else {
+      markSpam([email.id], viewed)
+        .catch((err) => toastFailure(t('email_viewer.spam.error', 'Failed to report spam'), err));
+    }
     navigation.goBack();
   };
 
@@ -414,7 +441,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (!email || !sourceMailbox || toId === sourceMailbox.id) return;
     setMoveMenuOpen(false);
     setMoreMenuOpen(false);
-    void moveToMailbox(email.id, sourceMailbox.id, toId, { email, accountId: ownerAccountId });
+    moveToMailbox(email.id, sourceMailbox.id, toId, { email, accountId: ownerAccountId })
+      .catch((err) => toastFailure(t('notifications.move_failed', 'Move failed'), err));
     navigation.goBack();
   };
 
@@ -786,6 +814,9 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       />
 
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
+
+      {/* The list's host sits under this screen; failures in here need their own. */}
+      <ToastHost />
     </SafeAreaView>
   );
 }
