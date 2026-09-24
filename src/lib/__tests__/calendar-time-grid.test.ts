@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CalendarEvent } from '../../api/types';
-import {
-  buildEventDayIndex,
-  buildTimedFullDayWeekSegments,
-  dayKey,
-  isTimedEventFullDayOnDate,
-} from '../calendar-utils';
+import { buildEventDayIndex, dayKey } from '../calendar-utils';
 import {
   computeScrollWindow,
   freshScrollWindowState,
@@ -16,7 +11,6 @@ import {
   headerColumnRange,
   hourAtOffset,
   timeGridFocusColumn,
-  timedFullDaySegments,
   windowDays,
 } from '../calendar-time-grid';
 
@@ -73,87 +67,6 @@ describe('headerColumnRange', () => {
   it('is clamped to the columns there are', () => {
     expect(headerColumnRange(0, 7, 10)).toEqual({ from: 0, to: 9 });
   });
-});
-
-describe('timedFullDaySegments', () => {
-  const week = windowDays({ start: new Date(2026, 8, 7), end: new Date(2026, 8, 13) });
-
-  it('finds the whole days a timed event covers', () => {
-    // Tue 10:00 .. Fri 15:00 covers Wed and Thu in full.
-    const segments = timedFullDaySegments([ev('trip', '2026-09-08T10:00:00', 'P3DT5H')], week);
-    expect(segments).toHaveLength(1);
-    expect(segments[0]).toMatchObject({ startIndex: 2, span: 2, continuesBefore: false, continuesAfter: false });
-  });
-
-  it('marks events that run past the given days', () => {
-    const segments = timedFullDaySegments([ev('long', '2026-09-01T00:00:00', 'P20D')], week);
-    expect(segments[0]).toMatchObject({ startIndex: 0, span: 7, continuesBefore: true, continuesAfter: true });
-  });
-
-  it('skips events that fill no whole day and all-day events', () => {
-    const segments = timedFullDaySegments(
-      [
-        ev('meeting', '2026-09-08T10:00:00', 'PT1H'),
-        ev('allday', '2026-09-08T00:00:00', 'P1D', { showWithoutTime: true }),
-      ],
-      week,
-    );
-    expect(segments).toEqual([]);
-  });
-
-  it('agrees with the per-day version', () => {
-    const events = [
-      ev('a', '2026-09-08T10:00:00', 'P3DT5H'),
-      ev('b', '2026-09-07T00:00:00', 'P1D'),
-      ev('c', '2026-09-12T00:00:00', 'P4D'),
-      ev('d', '2026-09-09T08:00:00', 'PT2H'),
-    ];
-    const pick = (s: { event: CalendarEvent; startIndex: number; span: number; continuesBefore: boolean; continuesAfter: boolean }) =>
-      `${s.event.id}:${s.startIndex}+${s.span}:${s.continuesBefore}:${s.continuesAfter}`;
-    expect(timedFullDaySegments(events, week).map(pick).sort()).toEqual(
-      buildTimedFullDayWeekSegments(events, week).map(pick).sort(),
-    );
-  });
-});
-
-describe('timedFullDaySegments across DST changes', () => {
-  // Europe and the US change clocks on these weekends; whichever zone the
-  // tests run in, the strip must agree with the grid's per-day test.
-  const spans = [
-    { start: new Date(2026, 2, 5), end: new Date(2026, 2, 31) },
-    { start: new Date(2026, 9, 20), end: new Date(2026, 10, 5) },
-  ];
-  const events = [
-    ev('conf-eu-spring', '2026-03-27T09:00:00', 'P4D'),
-    ev('trip-us-spring', '2026-03-07T00:00:00', 'P3D'),
-    ev('trip-eu-fall', '2026-10-24T00:00:00', 'P2D'),
-    ev('camp-us-fall', '2026-10-30T12:00:00', 'P4DT2H'),
-    ev('nearly', '2026-10-25T00:00:00', 'PT23H59M59S'),
-  ];
-
-  for (const span of spans) {
-    const days = windowDays(span);
-
-    it(`matches the per-day version (${dayKey(span.start)})`, () => {
-      const key = (s: { event: CalendarEvent; startIndex: number; span: number; continuesBefore: boolean; continuesAfter: boolean }) =>
-        `${s.event.id}:${s.startIndex}+${s.span}:${s.continuesBefore}:${s.continuesAfter}`;
-      expect(timedFullDaySegments(events, days).map(key).sort()).toEqual(
-        buildTimedFullDayWeekSegments(events, days).map(key).sort(),
-      );
-    });
-
-    it(`puts an event in the strip exactly on the days the grid leaves it out (${dayKey(span.start)})`, () => {
-      const segments = timedFullDaySegments(events, days);
-      for (const event of events) {
-        days.forEach((day, i) => {
-          const inStrip = segments.some(
-            (s) => s.event === event && i >= s.startIndex && i < s.startIndex + s.span,
-          );
-          expect(inStrip, `${event.id} on ${dayKey(day)}`).toBe(isTimedEventFullDayOnDate(event, day));
-        });
-      }
-    });
-  }
 });
 
 describe('buildAllDaySegments', () => {

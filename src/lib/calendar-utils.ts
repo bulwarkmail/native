@@ -324,48 +324,47 @@ export function buildWeekSegmentsRaw(
   });
 }
 
+// Timed events that fill whole days of `weekDays` (consecutive days), as
+// segments. Each event is only tested on the days it spans, not on every
+// day: the freely scrolling week and day grids hand in months of days (#759).
 export function buildTimedFullDayWeekSegments(
   events: CalendarEvent[],
   weekDays: Date[],
 ): CalendarWeekSegment[] {
   if (weekDays.length === 0) return [];
 
-  const rawSegments = events.flatMap((event) => {
-    const fullDayIndices = weekDays
-      .map((day, index) => (isTimedEventFullDayOnDate(event, day) ? index : -1))
-      .filter((index) => index >= 0);
-    if (fullDayIndices.length === 0) return [];
+  const firstDay = startOfDay(weekDays[0]);
+  const lastIndex = weekDays.length - 1;
+  const segments: CalendarWeekSegment[] = [];
+  const pushSegment = (event: CalendarEvent, startIndex: number, endIndex: number) => {
+    segments.push({
+      event,
+      startIndex,
+      span: endIndex - startIndex + 1,
+      row: -1,
+      continuesBefore: isTimedEventFullDayOnDate(event, addDays(weekDays[startIndex], -1)),
+      continuesAfter: isTimedEventFullDayOnDate(event, addDays(weekDays[endIndex], 1)),
+    });
+  };
 
-    const segments: CalendarWeekSegment[] = [];
-    let rangeStart = fullDayIndices[0];
-    let previousIndex = fullDayIndices[0];
-
-    const pushSegment = (startIndex: number, endIndex: number) => {
-      const startDay = weekDays[startIndex];
-      const endDay = weekDays[endIndex];
-      segments.push({
-        event,
-        startIndex,
-        span: endIndex - startIndex + 1,
-        row: -1,
-        continuesBefore: isTimedEventFullDayOnDate(event, addDays(startDay, -1)),
-        continuesAfter: isTimedEventFullDayOnDate(event, addDays(endDay, 1)),
-      });
-    };
-
-    for (let index = 1; index < fullDayIndices.length; index++) {
-      const currentIndex = fullDayIndices[index];
-      if (currentIndex !== previousIndex + 1) {
-        pushSegment(rangeStart, previousIndex);
-        rangeStart = currentIndex;
+  for (const event of events) {
+    if (event.showWithoutTime) continue;
+    const from = Math.max(0, differenceInCalendarDays(getEventStartDate(event), firstDay));
+    const to = Math.min(lastIndex, differenceInCalendarDays(getEventEndDate(event), firstDay));
+    if (!(from <= to)) continue;
+    let runStart = -1;
+    for (let index = from; index <= to; index++) {
+      if (isTimedEventFullDayOnDate(event, weekDays[index])) {
+        if (runStart < 0) runStart = index;
+      } else if (runStart >= 0) {
+        pushSegment(event, runStart, index - 1);
+        runStart = -1;
       }
-      previousIndex = currentIndex;
     }
-    pushSegment(rangeStart, previousIndex);
-    return segments;
-  });
+    if (runStart >= 0) pushSegment(event, runStart, to);
+  }
 
-  return rawSegments;
+  return segments;
 }
 
 // ─── Overlapping timed-event layout (cluster-based packing) ──

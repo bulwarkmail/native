@@ -1,11 +1,9 @@
 import { addDays, differenceInCalendarDays, startOfDay, startOfWeek } from 'date-fns';
 import type { CalendarEvent } from '../api/types';
 import {
+  buildTimedFullDayWeekSegments,
   buildWeekSegmentsRaw,
   eventsOnDayFromIndex,
-  getEventEndDate,
-  getEventStartDate,
-  isTimedEventFullDayOnDate,
   packWeekSegments,
   type CalendarWeekSegment,
   type EventDayIndex,
@@ -61,51 +59,6 @@ export function headerColumnRange(
 }
 
 /**
- * Segments for timed events that fill whole days within `days`, which must
- * be consecutive. Same result as buildTimedFullDayWeekSegments (the same
- * isTimedEventFullDayOnDate test, so the strip and the timed grid agree on
- * every day, DST days included), but each event is only tested on the days
- * it spans instead of on every day: the scrolling grids hand in months of
- * days (#759).
- */
-export function timedFullDaySegments(
-  events: CalendarEvent[],
-  days: Date[],
-): CalendarWeekSegment[] {
-  if (days.length === 0) return [];
-  const firstDay = startOfDay(days[0]);
-  const last = days.length - 1;
-  const out: CalendarWeekSegment[] = [];
-  const push = (event: CalendarEvent, from: number, to: number) => {
-    out.push({
-      event,
-      startIndex: from,
-      span: to - from + 1,
-      row: -1,
-      continuesBefore: isTimedEventFullDayOnDate(event, addDays(days[from], -1)),
-      continuesAfter: isTimedEventFullDayOnDate(event, addDays(days[to], 1)),
-    });
-  };
-  for (const event of events) {
-    if (event.showWithoutTime) continue;
-    const from = Math.max(0, differenceInCalendarDays(getEventStartDate(event), firstDay));
-    const to = Math.min(last, differenceInCalendarDays(getEventEndDate(event), firstDay));
-    if (!(from <= to)) continue;
-    let runStart = -1;
-    for (let i = from; i <= to; i++) {
-      if (isTimedEventFullDayOnDate(event, days[i])) {
-        if (runStart < 0) runStart = i;
-      } else if (runStart >= 0) {
-        push(event, runStart, i - 1);
-        runStart = -1;
-      }
-    }
-    if (runStart >= 0) push(event, runStart, to);
-  }
-  return out;
-}
-
-/**
  * The all-day strip over the window: all-day events plus timed events that
  * fill whole days, as bars packed into rows. Bars are cut at every
  * `chunkSize` days (a week, or a day in the day view) so each part carries
@@ -131,7 +84,7 @@ export function buildAllDaySegments(
         (event.showWithoutTime ? allDay : timed).push(event);
       }
     }
-    for (const segment of [...buildWeekSegmentsRaw(allDay, chunk), ...timedFullDaySegments(timed, chunk)]) {
+    for (const segment of [...buildWeekSegmentsRaw(allDay, chunk), ...buildTimedFullDayWeekSegments(timed, chunk)]) {
       raw.push({ ...segment, startIndex: segment.startIndex + from });
     }
   }
