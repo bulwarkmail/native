@@ -7,6 +7,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
+import { toast } from '../../stores/toast-store';
 import { sendReadReceipt, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { findReceivingIdentity } from '../../lib/email-headers';
@@ -104,8 +105,13 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
     setHandledLocally(true);
     send(true).catch((err) => {
       console.warn('[mdn] auto-send failed', err);
+      // Not retried, so say so rather than fail silently (webmail parity).
+      toast.error(
+        t('email_viewer.read_receipt.send_failed', 'Read receipt could not be sent'),
+        err instanceof Error ? err.message : String(err),
+      );
     });
-  }, [readReceiptResponse, shouldOffer, active, jmapAccountId, email.id, send]);
+  }, [readReceiptResponse, shouldOffer, active, jmapAccountId, email.id, send, t]);
 
   if (!shouldOffer || readReceiptResponse === 'always') return null;
 

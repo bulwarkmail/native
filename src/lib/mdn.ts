@@ -1,7 +1,8 @@
 // Builds an RFC 8098 Message Disposition Notification (MDN) as a raw RFC 5322
 // message string. JMAP/Stalwart has no native MDN support, so the client
 // constructs the multipart/report itself and sends it via
-// blob-upload -> Email/import -> EmailSubmission/set (see api/email sendMdn).
+// blob-upload -> Email/import -> EmailSubmission/set (see api/email
+// sendReadReceipt).
 // Port of the webmail's `lib/mdn.ts`.
 //
 // The message has two parts:
