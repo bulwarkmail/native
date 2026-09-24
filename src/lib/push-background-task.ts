@@ -3,6 +3,7 @@ import { NativeModules } from 'react-native';
 import { jmapClient, type StoredCredentials } from '../api/jmap-client';
 import { CAPABILITIES } from '../api/types';
 import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
+import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
 import { secureFetch } from './client-cert';
 import { refreshOAuthAccessToken, type OAuthTokens } from './oauth';
 import {
@@ -23,6 +24,8 @@ import {
 // import the Zustand store (would pull in React) so we read AsyncStorage
 // directly. Keep this in sync if the store key ever changes.
 const SETTINGS_STORAGE_KEY = 'webmail:settings:v1';
+// Mirrors STORAGE_KEY in `stores/locale-store.ts`, for the same reason.
+const LOCALE_STORAGE_KEY = 'webmail:locale:v1';
 // Mirrors the persist name in `stores/account-store.ts`. Used to map the
 // relay's `accountLabel` (= username) back to a local account when the JMAP
 // account id is not known yet.
@@ -68,6 +71,16 @@ export async function senderFaviconsAllowed(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** The app's language: the in-app override, else the device's. */
+export async function notificationLocale(): Promise<LocaleCode> {
+  try {
+    const raw = await AsyncStorage.getItem(LOCALE_STORAGE_KEY);
+    const override = raw ? (JSON.parse(raw) as { override?: unknown }).override : null;
+    if (typeof override === 'string' && isSupportedLocale(override)) return override;
+  } catch { /* the device language it is */ }
+  return detectDeviceLocale();
 }
 
 interface ShowNotificationOptions {
@@ -449,6 +462,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
   const groupKey = `bulwark-mail:${accountId}`;
   const groupTitle = payload.accountLabel ?? accountId.split('@')[0] ?? accountId;
   const favicons = await senderFaviconsAllowed();
+  const locale = await notificationLocale();
 
   // Oldest first so the newest ends up on top of the tray.
   const ordered = [...toNotify].sort(
@@ -459,7 +473,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const name = from?.name ?? '';
     const address = from?.email ?? '';
     const title = name || address || 'New mail';
-    const body = email.subject || '(no subject)';
+    const body = email.subject || translate(locale, 'email_viewer.no_subject', '(No Subject)');
     const initials = getEmailInitials(name, address);
     const bgColorHex = hslToHex(generateEmailAvatarColor(name, address));
     const faviconDomain = favicons ? getFaviconDomain(address) : null;

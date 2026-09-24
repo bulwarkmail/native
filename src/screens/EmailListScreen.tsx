@@ -219,7 +219,7 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 2: Subject + tag pills */}
         <View style={styles.subjectRow}>
           <Text style={[styles.emailSubject, dyn.body, unread && styles.textBold]} numberOfLines={1}>
-            {singleLine(item.subject) || '(no subject)'}
+            {singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
           </Text>
           {tags.slice(0, 3).map((tag) => (
             <View key={tag.id} style={[styles.tagPill, { backgroundColor: tag.bg }]}>

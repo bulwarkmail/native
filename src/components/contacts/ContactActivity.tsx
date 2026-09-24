@@ -9,6 +9,7 @@ import type { RootStackParamList } from '../../navigation/types';
 import { getEmails, queryEmailsByFilter } from '../../api/email';
 import { getEvents, queryEvents } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
+import { useLocaleStore } from '../../stores/locale-store';
 import { getEventColor } from '../../lib/calendar-utils';
 import { hasCalendarCapability } from '../../lib/capabilities';
 import SenderAvatar from '../SenderAvatar';
@@ -90,6 +91,7 @@ export function ContactActivity({ contact }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
+  const t = useLocaleStore((s) => s.t);
   const calendarEvents = useCalendarStore((s) => s.events);
   const calendars = useCalendarStore((s) => s.calendars);
 
@@ -219,7 +221,7 @@ export function ContactActivity({ contact }: Props) {
                       <Text style={styles.rowDate}>{formatRelativeDate(email.receivedAt)}</Text>
                     </View>
                     <Text style={styles.rowSubject} numberOfLines={1}>
-                      {email.subject || '(no subject)'}
+                      {email.subject || t('contacts.activity.no_subject', '(No subject)')}
                     </Text>
                     {email.preview ? (
                       <Text style={styles.rowPreview} numberOfLines={1}>{email.preview}</Text>

@@ -320,7 +320,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               <Text style={styles.time}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
             </View>
             <Text style={[styles.subject, unread && styles.bold]} numberOfLines={1}>
-              {singleLine(item.subject) || '(no subject)'}
+              {singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}
             </Text>
             <View style={styles.line}>
               {acc && accountIds.length > 1 && (

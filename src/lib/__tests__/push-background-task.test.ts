@@ -155,6 +155,35 @@ describe('pushBackgroundTask notifications', () => {
       expect.objectContaining({ emailId: 'm1', accountId: LOCAL, jmapAccountId: 'jmap-primary' }),
     );
   });
+
+  it("says a message has no subject in the app's language", async () => {
+    await AsyncStorage.setItem('webmail:locale:v1', JSON.stringify({ override: 'de' }));
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => (url.endsWith('/.well-known/jmap')
+        ? {
+          apiUrl: 'https://mail.example.com/jmap/',
+          primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+          accounts: { 'jmap-primary': {} },
+        }
+        : {
+          methodResponses: [[
+            'Email/get',
+            { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: '', from: [{ email: 'bob@example.com' }] }] },
+            '0',
+          ]],
+        }),
+    }));
+
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'jmap-primary',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', body: '(Kein Betreff)' }));
+  });
 });
 
 describe('selectNotifiableEmails', () => {
