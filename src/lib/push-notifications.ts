@@ -8,6 +8,7 @@ import {
   verifyPushSubscription,
 } from '../api/push';
 import { getMailboxes, getSharedMailboxes } from '../api/email';
+import { loadedMailboxes } from './mailbox-source';
 import { jmapClient } from '../api/jmap-client';
 import { JMAPMethodError } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
@@ -259,9 +260,16 @@ export function serverSupportsEmailPush(): boolean {
 export async function buildEmailPushConfig(): Promise<Record<string, EmailPushConfig>> {
   const primary = jmapClient.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
-  const own = await getMailboxes().catch(() => [] as Mailbox[]);
-  const shared = await getSharedMailboxes().catch(() => [] as Mailbox[]);
-  for (const m of [...own, ...shared]) {
+  // The mail store loads the same folders at the same moment (sign-in,
+  // start): reuse its list rather than a second Mailbox/get of our own.
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  const loaded = username && serverUrl ? await loadedMailboxes(generateAccountId(username, serverUrl)) : null;
+  const all = loaded ?? [
+    ...(await getMailboxes().catch(() => [] as Mailbox[])),
+    ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
+  ];
+  for (const m of all) {
     const accountId = m.accountId || primary;
     const junk = junkByAccount.get(accountId) ?? [];
     // Shared-account mailboxes carry a client-side "<account>:<id>" id;

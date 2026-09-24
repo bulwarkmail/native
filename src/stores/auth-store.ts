@@ -224,6 +224,9 @@ async function completeOAuthHandoff(
   useEmailStore.getState().setActiveAccount(accountId);
 
   applyConnectedState(set, session, result.serverUrl.replace(/\/+$/, ''), username, accountId);
+  // Start on the folder list now rather than once the mail screen has
+  // mounted; the screen joins this load.
+  void useEmailStore.getState().fetchMailboxes();
   void syncAccountDisplayName(accountId);
 }
 
@@ -299,6 +302,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       applyConnectedState(set, session, serverUrl.replace(/\/+$/, ''), username, accountId);
       set({ pendingTotpLogin: null });
+      // Start on the folder list now rather than once the mail screen has
+      // mounted; the screen joins this load.
+      void useEmailStore.getState().fetchMailboxes();
       void syncAccountDisplayName(accountId);
     } catch (err) {
       if (err instanceof Error && err.name === 'TotpRequiredError') {

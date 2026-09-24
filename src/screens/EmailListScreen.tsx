@@ -331,6 +331,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const filters = useEmailStore((s) => s.filters);
   const accountErrors = useEmailStore((s) => s.accountErrors);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
+  const ensureMailboxes = useEmailStore((s) => s.ensureMailboxes);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
   const loadMoreEmails = useEmailStore((s) => s.loadMoreEmails);
   const refreshEmails = useEmailStore((s) => s.refreshEmails);
@@ -937,12 +938,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     );
   };
 
-  // Load mailboxes and select inbox on mount
+  // Load mailboxes and select inbox on mount (joining the load sign-in
+  // started rather than queueing another)
   React.useEffect(() => {
     if (mailboxes.length === 0) {
-      void fetchMailboxes();
+      void ensureMailboxes();
     }
-  }, [fetchMailboxes, mailboxes.length]);
+  }, [ensureMailboxes, mailboxes.length]);
 
   React.useEffect(() => {
     if (mailboxes.length > 0 && !currentMailboxId) {

@@ -85,6 +85,7 @@ import * as emailApi from '../../api/email';
 import { beginOwnWrite, recordOwnEmailWrites, resetOwnWrites } from '../../api/own-writes';
 import type { JMAPMethodCall } from '../../api/types';
 import { useEmailStore } from '../email-store';
+import { loadedMailboxes } from '../../lib/mailbox-source';
 
 const SERVER = 'https://mail.example.com';
 const mock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
@@ -289,5 +290,34 @@ describe('folder pushes', () => {
     await useEmailStore.getState().fetchMailboxes();
     expect(emailApi.getMailboxesWithState).toHaveBeenCalledTimes(1);
     expect(emailApi.getSharedMailboxes).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the folder list for the push filter', () => {
+  const ACCOUNT = generateAccountId('test@example.com', SERVER);
+
+  it('joins the load on its way instead of fetching again', async () => {
+    useEmailStore.setState({ activeAccountId: ACCOUNT, mailboxes: [], mailboxState: undefined });
+    mock(emailApi.getMailboxesWithState).mockResolvedValue({ list: [inboxFolder(0)], state: 'mbs-1' });
+    const loading = useEmailStore.getState().fetchMailboxes();
+
+    const list = await loadedMailboxes(ACCOUNT);
+    await loading;
+
+    expect(list?.map((m) => m.id)).toEqual(['mb-1']);
+    expect(emailApi.getMailboxesWithState).toHaveBeenCalledTimes(1);
+    expect(emailApi.getMailboxChanges).not.toHaveBeenCalled();
+  });
+
+  it('hands out a list it already holds without a request', async () => {
+    openInbox([row('e1')]);
+    expect((await loadedMailboxes(ACCOUNT))?.map((m) => m.id)).toEqual(['mb-1']);
+    expect(emailApi.getMailboxesWithState).not.toHaveBeenCalled();
+    expect(emailApi.getMailboxChanges).not.toHaveBeenCalled();
+  });
+
+  it('has nothing for another account', async () => {
+    openInbox([row('e1')]);
+    expect(await loadedMailboxes('someone-else@mail.example.com')).toBeNull();
   });
 });

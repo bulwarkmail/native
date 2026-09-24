@@ -34,6 +34,7 @@ import {
   unprefixMailboxId,
 } from '../api/email';
 import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
+import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
@@ -372,6 +373,12 @@ export interface EmailState {
   removeAccount: (accountId: string) => void;
   clearAllAccounts: () => void;
   fetchMailboxes: () => Promise<void>;
+  /**
+   * Load the folder list unless it is loaded or already loading: for
+   * mount-time callers, which would otherwise queue a second sync behind the
+   * one sign-in started.
+   */
+  ensureMailboxes: () => Promise<void>;
   selectMailbox: (mailboxId: string) => Promise<void>;
   loadMoreEmails: () => Promise<void>;
   refreshEmails: () => Promise<void>;
@@ -929,6 +936,13 @@ export const useEmailStore = create<EmailState>()(
     const activeAccountId = get().activeAccountId;
     if (!jmapClientServesActiveAccount(activeAccountId)) return Promise.resolve();
     return syncMailboxes(activeAccountId!, { own: true, shared: true });
+  },
+
+  ensureMailboxes: () => {
+    const { mailboxes, activeAccountId } = get();
+    if (mailboxes.length > 0 || !activeAccountId) return Promise.resolve();
+    const running = mailboxSyncsRunning(activeAccountId);
+    return running ?? get().fetchMailboxes();
   },
 
   selectMailbox: async (mailboxId) => {
@@ -2095,6 +2109,23 @@ export const useEmailStore = create<EmailState>()(
     },
   ),
 );
+
+// The folder syncs of an account on their way, joined (not queued behind).
+function mailboxSyncsRunning(activeAccountId: string): Promise<void> | null {
+  const running = [`${activeAccountId}:mailboxes`, `${activeAccountId}:shared-mailboxes`]
+    .map((key) => inflightRefresh.get(key))
+    .filter((p): p is Promise<void> => !!p);
+  return running.length > 0 ? Promise.all(running).then(() => undefined) : null;
+}
+
+// The push filter needs the Junk folders of every account: hand it this list
+// instead of letting it fetch its own (see lib/mailbox-source).
+provideLoadedMailboxes(async (accountId) => {
+  if (useEmailStore.getState().activeAccountId !== accountId) return null;
+  await (mailboxSyncsRunning(accountId) ?? useEmailStore.getState().ensureMailboxes());
+  const { mailboxes, activeAccountId } = useEmailStore.getState();
+  return activeAccountId === accountId && mailboxes.length > 0 ? mailboxes : null;
+});
 
 // Copy-then-delete across accounts (webmail `crossAccountMoveEmails`, 1.7.2):
 // download each message's blob from the source account, upload it to the
