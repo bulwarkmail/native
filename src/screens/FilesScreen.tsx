@@ -53,6 +53,7 @@ import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import { filesBackStep } from '../lib/files-back';
 import type { FileNode } from '../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -325,10 +326,6 @@ export default function FilesScreen() {
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
 
-  // Android back leaves selection mode first, like the header's X, instead
-  // of switching to the Mail tab.
-  useBackWhileFocused(selectionMode, clearSelection);
-
   // Shared-with-me rows stay out of multi-select: batch delete routes to our
   // own account and would fail (or worse, mismatch) on namespaced ids.
   const toggleSelect = useCallback((row: FileRow) => {
@@ -458,6 +455,20 @@ export default function FilesScreen() {
     setSearchQuery('');
     clearSelection();
   }, [clearSelection]);
+
+  // Android back closes the preview, then leaves selection mode, then goes
+  // up one folder; only at the root does it switch to the Mail tab.
+  const backStep = filesBackStep({
+    previewOpen: previewTarget != null,
+    selecting: selectionMode,
+    folderDepth: path.length,
+  });
+  const handleBack = useCallback(() => {
+    if (backStep === 'close-preview') setPreviewTarget(null);
+    else if (backStep === 'clear-selection') clearSelection();
+    else if (backStep === 'folder-up') goBack();
+  }, [backStep, clearSelection, goBack]);
+  useBackWhileFocused(backStep !== 'leave', handleBack);
 
   const toggleView = useCallback(() => {
     const next: FilesViewMode = viewMode === 'list' ? 'grid' : 'list';
