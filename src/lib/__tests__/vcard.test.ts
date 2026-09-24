@@ -8,6 +8,25 @@ import {
 import type { ContactCard } from '../../api/types';
 
 describe('parseVCard', () => {
+  it('keeps FN as name.full so the written card carries the mandatory FN (#430)', () => {
+    const fnOnly = parseVCard('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:John Doe\r\nEND:VCARD');
+    expect(fnOnly[0].name?.full).toBe('John Doe');
+
+    // FN before N: N replaces the components but must keep full.
+    const fnFirst = parseVCard('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Dr. John Doe Jr.\r\nN:Doe;John;;;\r\nEND:VCARD');
+    expect(fnFirst[0].name?.full).toBe('Dr. John Doe Jr.');
+
+    // N before FN: FN fills full on the existing name.
+    const nFirst = parseVCard('BEGIN:VCARD\r\nVERSION:3.0\r\nN:Doe;John;;;\r\nFN:Dr. John Doe Jr.\r\nEND:VCARD');
+    expect(nFirst[0].name?.full).toBe('Dr. John Doe Jr.');
+    expect(nFirst[0].name?.components?.find((c) => c.kind === 'given')?.value).toBe('John');
+  });
+
+  it('derives name.full from N when a card has no FN (#430)', () => {
+    const [card] = parseVCard('BEGIN:VCARD\r\nVERSION:3.0\r\nN:Doe;John;Q;Dr.;Jr.\r\nEND:VCARD');
+    expect(card.name?.full).toBe('Dr. John Q Doe Jr.');
+  });
+
   it('parses a basic 3.0 card with name, email, and phone', () => {
     const vcf = [
       'BEGIN:VCARD',

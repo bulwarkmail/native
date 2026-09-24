@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  deriveFullName,
   getContactDisplayName,
+  getCustomFullName,
   getContactPhotoUri,
   normalizeContactPhotoUri,
   partialDateToString,
@@ -78,5 +80,45 @@ describe('stringToPartialDate', () => {
     for (const s of ['1990-05-04', '1990-05', '1990', '--05-04', '--05', '---04']) {
       expect(partialDateToString(stringToPartialDate(s)!)).toBe(s);
     }
+  });
+});
+
+describe('name.full for the vCard FN (#430)', () => {
+  const person = (full: string | undefined, components: Array<{ kind: string; value: string }>): ContactCard => ({
+    id: 'c',
+    addressBookIds: {},
+    name: { components, isOrdered: true, ...(full !== undefined ? { full } : {}) },
+  });
+
+  it('joins the name components in display order, like the webmail form', () => {
+    expect(deriveFullName([
+      { kind: 'surname', value: 'Doe' },
+      { kind: 'generation', value: 'Jr.' },
+      { kind: 'given', value: ' John ' },
+      { kind: 'title', value: 'Dr.' },
+      { kind: 'given2', value: 'Q' },
+    ])).toBe('Dr. John Q Doe Jr.');
+    // Legacy vCard-style kinds count too.
+    expect(deriveFullName([{ kind: 'prefix', value: 'Ms.' }, { kind: 'given', value: 'Ann' }])).toBe('Ms. Ann');
+    expect(deriveFullName(undefined)).toBe('');
+    expect(deriveFullName([])).toBe('');
+  });
+
+  it('treats a full that repeats the components as derived, so an edit cannot leave it stale', () => {
+    const card = person('John Doe', [{ kind: 'given', value: 'John' }, { kind: 'surname', value: 'Doe' }]);
+    expect(getCustomFullName(card)).toBe('');
+  });
+
+  it('keeps a display name of its own', () => {
+    const card = person('Johnny D', [{ kind: 'given', value: 'John' }, { kind: 'surname', value: 'Doe' }]);
+    expect(getCustomFullName(card)).toBe('Johnny D');
+    expect(getCustomFullName(person('Solo', []))).toBe('Solo');
+    expect(getCustomFullName(person(undefined, [{ kind: 'given', value: 'A' }]))).toBe('');
+  });
+
+  it('treats an organization card whose full is the organization name as derived', () => {
+    const org = person('Acme Corp', []);
+    expect(getCustomFullName(org, 'Acme Corp')).toBe('');
+    expect(getCustomFullName(org, 'Acme Inc')).toBe('Acme Corp');
   });
 });

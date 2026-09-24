@@ -1,6 +1,7 @@
 import type {
   ContactCard,
   AnniversaryDate,
+  NameComponent,
   PartialDate,
   Timestamp,
 } from '../api/types';
@@ -57,6 +58,39 @@ export function getPrimaryTitle(contact: ContactCard): string {
   if (!contact.titles) return '';
   const title = Object.values(contact.titles)[0];
   return title?.name || '';
+}
+
+/**
+ * `name.full` derived from the name components in display order (prefix,
+ * given, middle, surname, suffix), as the webmail's form writes it. Every
+ * write should carry `full`: the vCard FN is built from it, FN is mandatory
+ * (RFC 6350 §6.2.1), and strict CardDAV clients such as Apple Contacts drop
+ * cards without it (#430).
+ */
+export function deriveFullName(components: readonly NameComponent[] | undefined): string {
+  const find = (...kinds: string[]) =>
+    components?.find((c) => kinds.includes(c.kind))?.value?.trim() || '';
+  return [
+    find('title', 'prefix'),
+    find('given'),
+    find('given2', 'additional', 'middle'),
+    find('surname'),
+    find('generation', 'suffix'),
+  ].filter(Boolean).join(' ');
+}
+
+/**
+ * The card's `name.full` when it is a display name of its own. Empty when it
+ * only repeats what `deriveFullName` (or, on an organization card, the
+ * organization name) gives, so an edit form re-derives it from the edited
+ * fields on save instead of writing back a stale copy (#430).
+ */
+export function getCustomFullName(contact: ContactCard, orgName?: string): string {
+  const full = contact.name?.full?.trim() || '';
+  if (!full) return '';
+  if (full === deriveFullName(contact.name?.components)) return '';
+  if (orgName && full === orgName.trim()) return '';
+  return full;
 }
 
 export function getContactInitials(contact: ContactCard): string {

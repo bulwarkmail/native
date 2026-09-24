@@ -23,6 +23,7 @@ import { useContactsStore, selectGroupMembers } from '../stores/contacts-store';
 import {
   getContactKeywords, getContactDisplayName, getContactPrimaryEmail,
   normalizeContactPhotoUri, partialDateToString, stringToPartialDate,
+  deriveFullName, getCustomFullName,
 } from '../lib/contact-utils';
 import { splitMailbox } from '../lib/rfc5322-mailbox';
 import Dialog from '../components/Dialog';
@@ -146,7 +147,6 @@ function contactToForm(contact: ContactCard, memberIds: string[]): FormState {
   const middle = findNameComponent(contact, 'given2', 'additional', 'middle');
   const surname = findNameComponent(contact, 'surname');
   const suffix = findNameComponent(contact, 'generation', 'suffix');
-  const full = contact.name?.full || '';
 
   const nicknames = contact.nicknames
     ? Object.values(contact.nicknames).map((n) => n.name || '').filter(Boolean)
@@ -232,6 +232,9 @@ function contactToForm(contact: ContactCard, memberIds: string[]): FormState {
   const isOrg = contact.kind
     ? contact.kind === 'org'
     : !(given || surname) && !!rawOrgs[0]?.name;
+  // Only a display name of its own goes in the field; a derived one is
+  // derived again on save, so it can't go stale when the name changes.
+  const full = getCustomFullName(contact, isOrg ? rawOrgs[0]?.name : undefined);
 
   return {
     isOrg, prefix, given, middle, surname, suffix, full,
@@ -285,9 +288,10 @@ function formToPatch(
     if (form.suffix.trim()) components.push({ kind: 'generation', value: form.suffix.trim() });
   }
 
-  // Without personal name components, carry the organization name in
-  // `name.full` so servers and other clients have something to display.
-  const full = form.full.trim() || (form.isOrg ? orgName : '');
+  // Always send `name.full`: the vCard FN is built from it and is mandatory
+  // (#430). Without personal name components, carry the organization name
+  // so servers and other clients have something to display.
+  const full = form.full.trim() || (form.isOrg ? orgName : deriveFullName(components));
   const name: ContactCard['name'] | undefined =
     components.length > 0 || full
       ? { ...(components.length > 0 ? { components, isOrdered: true } : {}), ...(full ? { full } : {}) }

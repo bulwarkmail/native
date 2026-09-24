@@ -6,6 +6,7 @@ import type {
   PartialDate,
 } from '../api/types';
 import { generateUUID } from './uuid';
+import { deriveFullName } from './contact-utils';
 
 // Convert RFC 9553 AnniversaryDate (PartialDate|Timestamp|string) to vCard date string
 function anniversaryDateToVcardString(date: AnniversaryDate): string {
@@ -573,6 +574,8 @@ function buildContact(raw: Record<string, string[]>): ContactCard | null {
 
       switch (propName) {
         case 'FN':
+          // Keep the verbatim FN in `full` (RFC 9553): it feeds the mandatory
+          // vCard FN on re-export, which strict clients require (#430).
           if (!card.name) {
             const parts = val.split(' ');
             const components: NameComponent[] = [];
@@ -582,7 +585,9 @@ function buildContact(raw: Record<string, string[]>): ContactCard | null {
             } else if (parts.length === 1) {
               components.push({ kind: 'given', value: parts[0] });
             }
-            card.name = { components, isOrdered: true };
+            card.name = { components, isOrdered: true, full: val };
+          } else if (!card.name.full) {
+            card.name.full = val;
           }
           break;
 
@@ -599,7 +604,8 @@ function buildContact(raw: Record<string, string[]>): ContactCard | null {
           if (nParts[0]) components.push({ kind: 'surname', value: nParts[0] });
           if (nParts[4]) components.push({ kind: 'generation', value: nParts[4] });
           if (components.length > 0) {
-            card.name = { components, isOrdered: true };
+            // Preserve `full` captured from FN when FN preceded N.
+            card.name = { ...card.name, components, isOrdered: true };
           }
           break;
         }
@@ -1160,6 +1166,13 @@ function buildContact(raw: Record<string, string[]>): ContactCard | null {
     if (!card.name.components.some((c) => c.kind === 'surname2')) {
       card.name.components.push({ kind: 'surname2', value: maidenName });
     }
+  }
+
+  // A card without FN (invalid, but seen in the wild) still gets a `full`,
+  // derived from N like the contact form does, so the server writes an FN.
+  if (card.name && !card.name.full) {
+    const derived = deriveFullName(card.name.components);
+    if (derived) card.name.full = derived;
   }
 
   const hasName = (card.name && (card.name.components?.length ?? 0) > 0) || !!card.name?.full;
