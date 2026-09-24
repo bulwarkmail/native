@@ -340,9 +340,9 @@ export default function CalendarScreen() {
   React.useEffect(() => {
     void hydrate();
     void fetchCalendarsAction();
-    // Local reminders follow the store from here on (honours the
-    // notifications setting; cancelled/acknowledged alerts are skipped).
-    startCalendarNotificationSync();
+    // Reminders already sync from launch; opening the calendar may also ask
+    // for notification permission.
+    startCalendarNotificationSync({ askPermission: true });
   }, [hydrate, fetchCalendarsAction]);
 
   // Refresh iCal subscriptions whose interval elapsed: on mount and whenever

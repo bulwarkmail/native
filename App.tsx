@@ -11,6 +11,7 @@ import { startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream'
 import { jmapClient } from './src/api/jmap-client';
 import type { StateChange } from './src/api/types';
 import { dispatchStateChange } from './src/lib/state-change-bus';
+import { startCalendarNotificationSync } from './src/lib/calendar-notifications';
 import { sweepStaleExportFiles } from './src/lib/email-export';
 import { useFilterStore } from './src/stores/filter-store';
 import { useVacationStore } from './src/stores/vacation-store';
@@ -281,6 +282,9 @@ export default function App() {
   React.useEffect(() => {
     void useSettingsStore.getState().hydrate();
     void useLocaleStore.getState().hydrate();
+    // Calendar reminders are kept scheduled from launch, not only once the
+    // Calendar tab has been opened.
+    startCalendarNotificationSync();
     return useNetworkStore.getState().init();
   }, []);
 

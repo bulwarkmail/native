@@ -1,43 +1,64 @@
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { useCalendarStore } from '../stores/calendar-store';
+import type { CalendarEvent } from '../api/types';
+import { jmapClient } from '../api/jmap-client';
+import { useAuthStore } from '../stores/auth-store';
+import { loadEventsInRange, useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { hasCalendarCapability } from './capabilities';
+import { onStateChangeType } from './state-change-bus';
 import { getUpcomingAlerts, type ScheduledAlert } from './calendar-alert-scheduler';
 
 // Local reminders for calendar events and tasks. The webmail polls
 // `getPendingAlerts` every minute while a tab is open; a phone is mostly
-// asleep, so instead every (re)load of the calendar schedules OS-level local
-// notifications for the alerts that fall due in the next few days and
-// cancels the ones that no longer apply. Honours the
+// asleep, so instead we schedule OS-level local notifications for the alerts
+// that fall due in the next few days and cancel the ones that no longer
+// apply. The events come from their own upcoming window, not from the month
+// the calendar happens to show, and the sync runs from launch, so reminders
+// don't depend on the Calendar tab being open. Honours the
 // `calendarNotificationsEnabled` setting.
 
 const CHANNEL_ID = 'calendar-reminders';
-const HORIZON_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HORIZON_MS = 7 * DAY_MS;
+// The events loaded for the horizon: from a day back (an end-relative alert
+// of an event that already started) to a week past it (alerts set up to a
+// week before the start).
+const LOOKBEHIND_MS = DAY_MS;
+const LOOKAHEAD_MS = 7 * DAY_MS;
 // iOS keeps at most 64 pending local notifications per app; leave room for
 // the rest of the app.
 const MAX_SCHEDULED = 48;
 const DATA_TAG = 'bulwark-calendar-alert';
 
-let permissionGranted: boolean | null = null;
+let permissionGranted = false;
+let permissionRequested = false;
+// Only the Calendar tab asks for notification permission; the launch-time
+// sync uses what was granted and never prompts out of the blue.
+let mayAskPermission = false;
 let channelReady = false;
 let rescheduleTimer: ReturnType<typeof setTimeout> | null = null;
 let rescheduling: Promise<void> | null = null;
 let queued = false;
 let syncStarted = false;
-let lastScheduledKeys: string[] = [];
+let tasksLoadedFor: string | null = null;
+
+function isGranted(status: Notifications.NotificationPermissionsStatus): boolean {
+  return status.granted || status.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+}
 
 async function ensurePermission(): Promise<boolean> {
-  if (permissionGranted !== null) return permissionGranted;
+  if (permissionGranted) return true;
   try {
     const current = await Notifications.getPermissionsAsync();
-    let granted = current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
-    if (!granted && current.canAskAgain) {
-      const requested = await Notifications.requestPermissionsAsync();
-      granted = requested.granted || requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+    let granted = isGranted(current);
+    if (!granted && current.canAskAgain && mayAskPermission && !permissionRequested) {
+      permissionRequested = true;
+      granted = isGranted(await Notifications.requestPermissionsAsync());
     }
-    permissionGranted = !!granted;
+    permissionGranted = granted;
   } catch {
-    permissionGranted = false;
+    return false;
   }
   return permissionGranted;
 }
@@ -74,7 +95,6 @@ export async function cancelAllCalendarNotifications(): Promise<void> {
   } catch {
     // Nothing to do; the OS keeps whatever it has.
   }
-  lastScheduledKeys = [];
 }
 
 async function scheduleOne(alert: ScheduledAlert): Promise<void> {
@@ -93,10 +113,59 @@ async function scheduleOne(alert: ScheduledAlert): Promise<void> {
   });
 }
 
+function isSignedOut(): boolean {
+  const { hasRestoredSession, isAuthenticated } = useAuthStore.getState();
+  return hasRestoredSession && !isAuthenticated;
+}
+
 /**
- * Re-derive the reminders from the store and reconcile them with what the
- * OS has pending: cancel alerts that vanished (event deleted, reminder
- * removed, task completed) and add the new ones. Concurrent calls coalesce.
+ * The events whose alerts can fire within the horizon, straight from the
+ * server. `null` when that can't be known (offline, no session yet, the
+ * request failed): the caller then leaves the scheduled reminders alone
+ * instead of cancelling what it can't re-derive.
+ */
+async function loadUpcomingEvents(now: number): Promise<CalendarEvent[] | null> {
+  if (!jmapClient.isConnected) return null;
+  if (!hasCalendarCapability()) return [];
+  if (useCalendarStore.getState().calendars.length === 0) {
+    await useCalendarStore.getState().fetchCalendars();
+  }
+  const { calendars } = useCalendarStore.getState();
+  if (calendars.length === 0) return null;
+  try {
+    return await loadEventsInRange(
+      calendars,
+      calendars.map((c) => c.id),
+      new Date(now - LOOKBEHIND_MS).toISOString(),
+      new Date(now + HORIZON_MS + LOOKAHEAD_MS).toISOString(),
+    );
+  } catch {
+    return null;
+  }
+}
+
+// Task reminders read the store's tasks, which the Calendar tab loads. When
+// it hasn't, and tasks are switched on, scan them once per account.
+async function ensureTasksLoaded(): Promise<void> {
+  let accountId: string;
+  try {
+    accountId = jmapClient.accountId;
+  } catch {
+    return;
+  }
+  if (tasksLoadedFor === accountId) return;
+  tasksLoadedFor = accountId;
+  const { tasks, taskOnlyCalendarIds, fetchTasks } = useCalendarStore.getState();
+  if (tasks.length > 0 || taskOnlyCalendarIds.length > 0) return;
+  if (!useSettingsStore.getState().enableCalendarTasks) return;
+  await fetchTasks();
+}
+
+/**
+ * Derive the reminders from the upcoming window and reconcile them with
+ * what the OS has pending: cancel the reminders this code scheduled that are
+ * no longer wanted (event deleted or moved, reminder removed, task
+ * completed) and add the new ones. Concurrent calls coalesce.
  */
 export async function rescheduleCalendarNotifications(): Promise<void> {
   if (rescheduling) {
@@ -105,17 +174,24 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
   }
   rescheduling = (async () => {
     try {
-      const enabled = useSettingsStore.getState().calendarNotificationsEnabled;
-      if (!enabled) {
-        if (lastScheduledKeys.length > 0) await cancelAllCalendarNotifications();
+      const settings = useSettingsStore.getState();
+      // Until the settings load, the switch holds its default, not the
+      // user's choice.
+      if (!settings.hydrated) return;
+      if (!settings.calendarNotificationsEnabled || isSignedOut()) {
+        await cancelAllCalendarNotifications();
         return;
       }
       if (!(await ensurePermission())) return;
       await ensureChannel();
 
-      const { events, tasks, calendars } = useCalendarStore.getState();
+      const now = Date.now();
+      const events = await loadUpcomingEvents(now);
+      if (!events) return;
+      await ensureTasksLoaded();
+      const { tasks, calendars } = useCalendarStore.getState();
       const wanted = getUpcomingAlerts(events, tasks, calendars, {
-        now: Date.now(),
+        now,
         horizonMs: HORIZON_MS,
         limit: MAX_SCHEDULED,
       });
@@ -140,7 +216,6 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
           // A single bad trigger must not block the rest.
         }
       }
-      lastScheduledKeys = [...wantedByKey.keys()];
     } catch {
       // Notifications are best-effort.
     } finally {
@@ -156,34 +231,69 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
 
 function scheduleSoon(): void {
   if (rescheduleTimer) clearTimeout(rescheduleTimer);
-  // Debounce: a refresh sets events and tasks in two steps.
+  // Debounce: a refresh sets events and tasks in two steps, and a push
+  // reaches both the store and the state-change bus.
   rescheduleTimer = setTimeout(() => {
     rescheduleTimer = null;
     void rescheduleCalendarNotifications();
   }, 1500);
 }
 
+// expo-notifications drops a notification that fires while the app is in
+// the foreground unless a handler asks for it. Only calendar reminders go
+// through expo-notifications (mail push is posted by the native messaging
+// services), so show those and leave anything else as it was.
+function installForegroundHandler(): void {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const show = alertKeyOf(notification.request) !== null;
+      return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
+    },
+  });
+}
+
 /**
- * Keep local reminders in sync with the calendar store and the notification
- * setting for the rest of the session. Idempotent; call once the calendar
- * has been shown.
+ * Keep local reminders in sync for the rest of the session: at launch,
+ * sign-in and account switch, when calendar data changes on the server or
+ * in the app, when the app comes back to the foreground, and when the
+ * setting flips. Idempotent. `askPermission` lets the sync ask for
+ * notification permission; the Calendar tab passes it.
  */
-export function startCalendarNotificationSync(): void {
+export function startCalendarNotificationSync(options?: { askPermission?: boolean }): void {
+  if (options?.askPermission && !mayAskPermission) {
+    mayAskPermission = true;
+    if (syncStarted) scheduleSoon();
+  }
   if (syncStarted) return;
   syncStarted = true;
-  let prev = useCalendarStore.getState();
-  useCalendarStore.subscribe((state) => {
-    if (state.events !== prev.events || state.tasks !== prev.tasks || state.calendars !== prev.calendars) {
-      prev = state;
+  installForegroundHandler();
+  // Edits in the app, a refresh after a push, tasks loading. Moving the
+  // calendar to another window changes no reminder.
+  useCalendarStore.subscribe((state, prev) => {
+    const sameWindow =
+      state.loadedRange?.after === prev.loadedRange?.after &&
+      state.loadedRange?.before === prev.loadedRange?.before;
+    if (state.tasks !== prev.tasks || (state.events !== prev.events && sameWindow)) {
       scheduleSoon();
     }
   });
-  let prevEnabled = useSettingsStore.getState().calendarNotificationsEnabled;
-  useSettingsStore.subscribe((state) => {
-    if (state.calendarNotificationsEnabled !== prevEnabled) {
-      prevEnabled = state.calendarNotificationsEnabled;
+  useSettingsStore.subscribe((state, prev) => {
+    if (
+      state.calendarNotificationsEnabled !== prev.calendarNotificationsEnabled ||
+      state.hydrated !== prev.hydrated
+    ) {
       scheduleSoon();
     }
+  });
+  useAuthStore.subscribe((state, prev) => {
+    if (state.session !== prev.session || state.isAuthenticated !== prev.isAuthenticated) {
+      scheduleSoon();
+    }
+  });
+  onStateChangeType('CalendarEvent', scheduleSoon);
+  onStateChangeType('Calendar', scheduleSoon);
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') scheduleSoon();
   });
   scheduleSoon();
 }
