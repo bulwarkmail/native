@@ -15,7 +15,7 @@ import {
   getFullEmail,
   type ScheduledEmail,
 } from '../api/email';
-import { jmapClient } from '../api/jmap-client';
+import { jmapClient, ScheduleTooLateError } from '../api/jmap-client';
 import { useEmailStore } from '../stores/email-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -78,6 +78,13 @@ export default function ScheduledScreen({ navigation }: Props) {
     try {
       await action();
     } catch (e) {
+      if (e instanceof ScheduleTooLateError) {
+        Alert.alert(
+          t('email_composer.schedule_too_late_title', 'Too far ahead'),
+          t('email_composer.schedule_too_late_body', 'That is later than this server allows. Pick an earlier time.'),
+        );
+        return;
+      }
       Alert.alert(failTitle, e instanceof Error ? e.message : String(e));
     } finally {
       setBusyId(null);
@@ -172,11 +179,13 @@ export default function ScheduledScreen({ navigation }: Props) {
     const tomorrowMorning = new Date(now);
     tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
     tomorrowMorning.setHours(8, 0, 0, 0);
+    // Only offer times within the server's hold limit.
+    const maxMs = jmapClient.getMaxDelayedSend() * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
       { label: t('email_composer.schedule_tomorrow_morning', 'Tomorrow morning'), date: tomorrowMorning },
-    ];
+    ].filter((preset) => preset.date.getTime() - now.getTime() <= maxMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t, rescheduleFor]);
 

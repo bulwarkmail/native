@@ -80,6 +80,26 @@ export function assertSetResult(
   }
 }
 
+/** A scheduled send later than the server's hold limit. */
+export class ScheduleTooLateError extends Error {
+  maxSeconds?: number;
+  constructor(maxSeconds?: number) {
+    super('Scheduled send time is later than the server allows');
+    this.name = 'ScheduleTooLateError';
+    this.maxSeconds = maxSeconds;
+  }
+}
+
+/**
+ * The hold limit named in a rejected submission, if that was the reason:
+ * Stalwart's MTA refuses a HOLDFOR beyond its `futureRelease` limit with
+ * "501 5.5.4 Requested hold time exceeds maximum of N seconds".
+ */
+export function parseHoldLimit(description: string | undefined): number | null {
+  const m = description?.match(/hold time exceeds maximum of (\d+) seconds/i);
+  return m ? Number(m[1]) : null;
+}
+
 /** Split `items` into consecutive batches of at most `size` entries. */
 export function batched<T>(items: T[], size: number): T[][] {
   const step = Math.max(1, Math.floor(size));

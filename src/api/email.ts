@@ -1,5 +1,5 @@
 import { jmapClient } from './jmap-client';
-import { assertSetResult, batched, requireMethodResult } from './jmap-result';
+import { assertSetResult, batched, parseHoldLimit, requireMethodResult, ScheduleTooLateError } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
 import type { Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
@@ -1142,6 +1142,18 @@ function buildEmailCreate(email: OutgoingEmail): Record<string, unknown> {
   return emailCreate;
 }
 
+/**
+ * The error for a submission the server refused. A hold beyond the MTA's
+ * limit becomes `ScheduleTooLateError`, and the limit it names is remembered
+ * so the pickers stop offering such times (webmail parity).
+ */
+function submissionError(err: { description?: string; type?: string }, fallback: string): Error {
+  const limit = parseHoldLimit(err.description);
+  if (limit === null) return new Error(err.description ?? err.type ?? fallback);
+  jmapClient.learnHoldLimit(limit);
+  return new ScheduleTooLateError(limit);
+}
+
 export interface SendEmailOptions {
   /**
    * Drafts folder id. When given, the message is created there with `$draft`
@@ -1256,7 +1268,7 @@ export async function sendEmail(
     }
     if (methodName === 'EmailSubmission/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
-      if (notCreated) throw new Error(notCreated.description ?? notCreated.type ?? 'Failed to submit message');
+      if (notCreated) throw submissionError(notCreated, 'Failed to submit message');
       const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
       emailSubmissionId = created?.id;
       sendAt = created?.sendAt;
@@ -1482,7 +1494,7 @@ export async function rescheduleScheduledSend(
   const notUpdated = body.notUpdated?.[scheduled.emailSubmissionId] as { description?: string; type?: string } | undefined;
   if (notUpdated) throw new Error(notUpdated.description ?? notUpdated.type ?? 'Failed to cancel the previous schedule');
   const notCreated = body.notCreated?.replacement as { description?: string; type?: string } | undefined;
-  if (notCreated) throw new Error(notCreated.description ?? notCreated.type ?? 'Failed to reschedule');
+  if (notCreated) throw submissionError(notCreated, 'Failed to reschedule');
   const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
   return { emailSubmissionId: created?.id, sendAt: created?.sendAt };
 }

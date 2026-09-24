@@ -38,7 +38,7 @@ import { getIdentities } from '../api/identity';
 import {
   sendEmail, createDraft, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
-import { jmapClient, RequestTimeoutError } from '../api/jmap-client';
+import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
@@ -1862,9 +1862,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // The Send button: applies the global undo-send delay when the server
-  // supports it, otherwise sends immediately.
+  // supports it (capped at its hold limit), otherwise sends immediately.
   const onSend = () => {
-    const holdFor = sendDelaySeconds > 0 && jmapClient.hasDelayedSend() ? sendDelaySeconds : undefined;
+    const holdFor = jmapClient.undoSendHold(sendDelaySeconds);
     void performSend(holdFor);
   };
 
@@ -1883,11 +1883,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
     const tomorrowMorning = new Date(now);
     tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
     tomorrowMorning.setHours(8, 0, 0, 0);
+    // Only offer times within the server's hold limit.
+    const maxMs = jmapClient.getMaxDelayedSend() * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
       { label: t('email_composer.schedule_tomorrow_morning', 'Tomorrow morning'), date: tomorrowMorning },
-    ];
+    ].filter((preset) => preset.date.getTime() - now.getTime() <= maxMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t, scheduleSheetOpen]);
 
@@ -2043,6 +2045,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
             'email_composer.send_timeout_body',
             'The message may already have gone out. Check your Sent folder before sending it again.',
           ),
+        );
+        return;
+      }
+      if (e instanceof ScheduleTooLateError) {
+        // The server refused the hold; the pickers now only offer times
+        // within the limit it named.
+        Alert.alert(
+          t('email_composer.schedule_too_late_title', 'Too far ahead'),
+          t('email_composer.schedule_too_late_body', 'That is later than this server allows. Pick an earlier time.'),
         );
         return;
       }

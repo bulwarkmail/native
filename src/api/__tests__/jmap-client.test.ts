@@ -8,7 +8,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 
 import * as SecureStore from 'expo-secure-store';
-import { JMAPClient, AuthenticationError, RateLimitError } from '../jmap-client';
+import { JMAPClient, AuthenticationError, RateLimitError, parseHoldLimit } from '../jmap-client';
 import type { JMAPSession } from '../types';
 
 const MOCK_SESSION: JMAPSession = {
@@ -306,7 +306,8 @@ describe('JMAPClient', () => {
       await client.connect('https://mail.example.com', 'user', 'pass');
 
       expect(client.hasDelayedSend()).toBe(true);
-      expect(client.getMaxDelayedSend()).toBe(2_592_000);
+      // Stalwart's advertised 30 days count as the 7 its MTA accepts.
+      expect(client.getMaxDelayedSend()).toBe(604_800);
       expect(client.getMaxSizeAttachmentsPerEmail()).toBe(50_000_000);
       expect(client.getMaxSizeUpload()).toBe(50_000_000);
     });
@@ -349,6 +350,63 @@ describe('JMAPClient', () => {
 
       expect(client.hasDelayedSend()).toBe(false);
       expect(client.getMaxDelayedSend()).toBe(0);
+    });
+
+    describe('hold limit', () => {
+      const withSubmission = (maxDelayedSend: number, stalwart: boolean): JMAPSession => ({
+        ...STALWART_SESSION,
+        accounts: {
+          'acc-1': {
+            name: 'user@example.com',
+            isPersonal: true,
+            isReadOnly: false,
+            accountCapabilities: {
+              'urn:ietf:params:jmap:submission': { maxDelayedSend, submissionExtensions: { FUTURERELEASE: [] } },
+              ...(stalwart ? { 'urn:stalwart:jmap': {} } : {}),
+            },
+          },
+        },
+      });
+
+      it('trusts the advertised limit on other servers and other values', async () => {
+        global.fetch = mockFetch([{ status: 200, json: withSubmission(2_592_000, false) }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        expect(client.getMaxDelayedSend()).toBe(2_592_000);
+
+        const other = new JMAPClient();
+        global.fetch = mockFetch([{ status: 200, json: withSubmission(3600, true) }]) as any;
+        await other.connect('https://mail.example.com', 'user', 'pass');
+        expect(other.getMaxDelayedSend()).toBe(3600);
+      });
+
+      it('learns the limit from a rejection, per server', async () => {
+        global.fetch = mockFetch([{ status: 200, json: withSubmission(2_592_000, false) }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        client.learnHoldLimit(172_800);
+        expect(client.getMaxDelayedSend()).toBe(172_800);
+
+        global.fetch = mockFetch([{ status: 200, json: withSubmission(2_592_000, false) }]) as any;
+        await client.connect('https://other.example.com', 'user', 'pass');
+        expect(client.getMaxDelayedSend()).toBe(2_592_000);
+      });
+
+      it('caps the undo-send hold and drops it where holding is unsupported', async () => {
+        global.fetch = mockFetch([{ status: 200, json: withSubmission(20, false) }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        expect(client.undoSendHold(10)).toBe(10);
+        expect(client.undoSendHold(30)).toBe(20);
+        expect(client.undoSendHold(0)).toBeUndefined();
+
+        global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        expect(client.undoSendHold(30)).toBeUndefined();
+      });
+
+      it('parses only hold-limit rejections', () => {
+        expect(parseHoldLimit('Server rejected MAIL-FROM: 501 5.5.4 Requested hold time exceeds maximum of 604800 seconds.')).toBe(604_800);
+        expect(parseHoldLimit('Server rejected MAIL-FROM: 550 nope')).toBeNull();
+        expect(parseHoldLimit(undefined)).toBeNull();
+      });
     });
   });
 

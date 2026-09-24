@@ -4,6 +4,7 @@ vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     request: vi.fn(),
+    learnHoldLimit: vi.fn(),
     getMaxCallsInRequest: vi.fn(() => 16),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
@@ -12,6 +13,7 @@ vi.mock('../jmap-client', () => ({
 
 import { jmapClient } from '../jmap-client';
 import { rescheduleScheduledSend, sendEmail } from '../email';
+import { ScheduleTooLateError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -154,5 +156,70 @@ describe('sendEmail', () => {
     });
 
     await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb')).rejects.toThrow('Disk full');
+  });
+});
+
+describe('hold-limit rejections', () => {
+  const HOLD_REJECTED = {
+    type: 'forbiddenMailFrom',
+    description: 'Server rejected MAIL-FROM: 501 5.5.4 Requested hold time exceeds maximum of 172800 seconds.',
+  };
+
+  it('turns a refused send-later into ScheduleTooLateError and learns the limit', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+        ['EmailSubmission/set', { notCreated: { 'sub-1': HOLD_REJECTED } }, '1'],
+      ],
+    });
+
+    const err = await sendEmail(
+      { from: [{ email: 'me@example.com' }], to: [{ email: 'you@example.com' }], subject: 'Later', textBody: 'x' },
+      'identity-1',
+      'sent-mb',
+      5 * 24 * 3600,
+      { draftsMailboxId: 'drafts-mb' },
+    ).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ScheduleTooLateError);
+    expect(err.maxSeconds).toBe(172_800);
+    expect(jmapClient.learnHoldLimit).toHaveBeenCalledWith(172_800);
+  });
+
+  it('keeps other submission errors as they are', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+        ['EmailSubmission/set', { notCreated: { 'sub-1': { type: 'forbiddenFrom', description: 'Not your address' } } }, '1'],
+      ],
+    });
+
+    const err = await sendEmail(
+      { from: [{ email: 'me@example.com' }], to: [{ email: 'you@example.com' }], subject: 'Now', textBody: 'x' },
+      'identity-1',
+      'sent-mb',
+    ).catch((e) => e);
+
+    expect(err).not.toBeInstanceOf(ScheduleTooLateError);
+    expect(err.message).toBe('Not your address');
+    expect(jmapClient.learnHoldLimit).not.toHaveBeenCalled();
+  });
+
+  it('turns a refused reschedule into ScheduleTooLateError', async () => {
+    mockRequest
+      .mockResolvedValueOnce({
+        methodResponses: [
+          ['EmailSubmission/get', { list: [{ id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] } }] }, '0'],
+          ['Email/get', { list: [] }, '1'],
+        ],
+      })
+      .mockResolvedValueOnce({
+        methodResponses: [['EmailSubmission/set', { updated: { 'sub-1': null }, notCreated: { replacement: HOLD_REJECTED } }, '0']],
+      });
+
+    const err = await rescheduleScheduledSend(SCHEDULED, 5 * 24 * 3600).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ScheduleTooLateError);
+    expect(jmapClient.learnHoldLimit).toHaveBeenCalledWith(172_800);
   });
 });

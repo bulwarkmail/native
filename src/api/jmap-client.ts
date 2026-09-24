@@ -126,7 +126,16 @@ function canonicalUrl(url: string): string {
 
 // Shared response helpers live in ./jmap-result (dependency-free) and are
 // re-exported here for convenience.
-export { JMAPMethodError, requireMethodResult, assertSetResult, batched } from './jmap-result';
+export {
+  JMAPMethodError, requireMethodResult, assertSetResult, batched, ScheduleTooLateError, parseHoldLimit,
+} from './jmap-result';
+
+/**
+ * Stalwart advertises `maxDelayedSend` as a fixed 30 days, while its MTA
+ * rejects any hold beyond the `futureRelease` limit, 7 days by default.
+ */
+const STALWART_ADVERTISED_MAX_DELAYED_SEND = 30 * 24 * 60 * 60;
+const STALWART_DEFAULT_MAX_HOLD = 7 * 24 * 60 * 60;
 
 export class JMAPClient {
   private session: JMAPSession | null = null;
@@ -137,6 +146,8 @@ export class JMAPClient {
   private authFailureListeners = new Set<(err: AuthenticationError) => void>();
   private rateLimitListeners = new Set<(retryAfterMs: number) => void>();
   private tokenRefreshListeners = new Set<() => void>();
+  /** Hold limits learned from rejected scheduled sends, per server (seconds). */
+  private learnedHoldLimits = new Map<string, number>();
 
   get accountId(): string {
     if (!this._accountId) {
@@ -1040,9 +1051,40 @@ export class JMAPClient {
       | undefined;
   }
 
+  /**
+   * The longest hold (seconds) a send from `accountId` may ask for. On
+   * Stalwart the advertised 30 days counts as the 7 its MTA accepts, and a
+   * limit learned from a rejection wins over both (webmail parity).
+   */
   getMaxDelayedSend(accountId?: string): number {
     const max = this.submissionCapability(accountId)?.maxDelayedSend;
-    return typeof max === 'number' ? max : 0;
+    if (typeof max !== 'number' || max <= 0) return 0;
+    const learned = this.serverUrl ? this.learnedHoldLimits.get(this.serverUrl) : undefined;
+    if (learned !== undefined) return Math.min(max, learned);
+    if (
+      max === STALWART_ADVERTISED_MAX_DELAYED_SEND &&
+      this.hasAccountCapability('urn:stalwart:jmap', this.submissionAccountId(accountId))
+    ) {
+      return STALWART_DEFAULT_MAX_HOLD;
+    }
+    return max;
+  }
+
+  /**
+   * Remember the hold limit a rejected submission named, so the pickers only
+   * offer times the server accepts for the rest of the session.
+   */
+  learnHoldLimit(seconds: number): void {
+    if (this.serverUrl && seconds > 0) this.learnedHoldLimits.set(this.serverUrl, seconds);
+  }
+
+  /**
+   * The HOLDFOR for the undo-send delay: none when the account can't hold
+   * mail, and never longer than the server allows.
+   */
+  undoSendHold(delaySeconds: number, accountId?: string): number | undefined {
+    if (delaySeconds <= 0 || !this.hasDelayedSend(accountId)) return undefined;
+    return Math.min(delaySeconds, this.getMaxDelayedSend(accountId));
   }
 
   hasDelayedSend(accountId?: string): boolean {

@@ -90,7 +90,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         },
         identity.id,
         sent.originalId ?? sent.id,
-        sendDelaySeconds > 0 && jmapClient.hasDelayedSend(jmapAccountId) ? sendDelaySeconds : undefined,
+        jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId),
         { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
       );
       try {
