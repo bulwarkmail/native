@@ -8,6 +8,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { hasCalendarCapability } from './capabilities';
 import { onStateChangeType } from './state-change-bus';
 import { getUpcomingAlerts, type ScheduledAlert } from './calendar-alert-scheduler';
+import type { CalendarReminderTarget } from '../navigation/pending-calendar-open';
 
 // Local reminders for calendar events and tasks. The webmail polls
 // `getPendingAlerts` every minute while a tab is open; a phone is mostly
@@ -98,12 +99,25 @@ export async function cancelAllCalendarNotifications(): Promise<void> {
 }
 
 async function scheduleOne(alert: ScheduledAlert): Promise<void> {
+  const data: Record<string, unknown> = {
+    tag: DATA_TAG,
+    key: alert.key,
+    eventId: alert.eventId,
+    kind: alert.kind,
+    // Enough to find the event again when the reminder is tapped.
+    serverId: alert.serverId,
+    accountId: alert.accountId,
+    recurrenceId: alert.recurrenceId,
+    startMs: alert.startMs,
+    appAccountId: useAuthStore.getState().activeAccountId ?? undefined,
+  };
+  for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
   await Notifications.scheduleNotificationAsync({
     content: {
       title: alert.title,
       body: alert.body,
       sound: 'default',
-      data: { tag: DATA_TAG, key: alert.key, eventId: alert.eventId, kind: alert.kind },
+      data,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -250,6 +264,60 @@ function installForegroundHandler(): void {
       return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
     },
   });
+}
+
+/** The event or task a calendar reminder notification points at; null for anything else. */
+export function reminderTargetOf(request: Notifications.NotificationRequest): CalendarReminderTarget | null {
+  if (alertKeyOf(request) === null) return null;
+  const data = request.content.data as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+  const eventId = str(data.eventId);
+  if (!eventId) return null;
+  return {
+    kind: data.kind === 'task' ? 'task' : 'event',
+    eventId,
+    serverId: str(data.serverId),
+    accountId: str(data.accountId),
+    recurrenceId: str(data.recurrenceId),
+    startMs: typeof data.startMs === 'number' && Number.isFinite(data.startMs) ? data.startMs : undefined,
+    appAccountId: str(data.appAccountId),
+  };
+}
+
+// Responses already acted on: the cold-start response is reported both by
+// getLastNotificationResponseAsync and, on some platforms, the listener.
+const handledResponses = new Set<string>();
+
+/**
+ * Call `open` when the user taps a calendar reminder: the one that launched
+ * the app and any tapped while it runs. Only reminders scheduled here are
+ * handled; mail push is posted by the native messaging services and its taps
+ * arrive through the native tap store (push-notifications), never here.
+ * Returns the unsubscribe.
+ */
+export function startCalendarReminderTapHandling(
+  open: (target: CalendarReminderTarget) => void,
+): () => void {
+  let active = true;
+  const handle = (response: Notifications.NotificationResponse | null) => {
+    if (!active || !response) return;
+    if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const { request } = response.notification;
+    const target = reminderTargetOf(request);
+    if (!target || handledResponses.has(request.identifier)) return;
+    handledResponses.add(request.identifier);
+    // Don't reopen it on the next sign-in or app start.
+    void Promise.resolve()
+      .then(() => Notifications.clearLastNotificationResponseAsync())
+      .catch(() => undefined);
+    open(target);
+  };
+  void Notifications.getLastNotificationResponseAsync().then(handle, () => undefined);
+  const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+  return () => {
+    active = false;
+    subscription.remove();
+  };
 }
 
 /**

@@ -83,6 +83,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
 import { useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
+import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
@@ -200,6 +201,11 @@ export default function CalendarScreen() {
   const deleteTask = useCalendarStore((s) => s.deleteTask);
   // Task to open in the tasks sheet when a task chip on the grid is tapped.
   const [tasksInitialId, setTasksInitialId] = React.useState<string | null>(null);
+  // A tapped reminder notification opens its event or task here.
+  useCalendarReminderOpen({
+    onEvent: setDetailEvent,
+    onTask: (id) => { setTasksInitialId(id); setTasksVisible(true); },
+  });
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
   const setDefaultCalendar = useCalendarStore((s) => s.setDefaultCalendar);
   const createCalendar = useCalendarStore((s) => s.createCalendar);

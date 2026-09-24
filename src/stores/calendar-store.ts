@@ -45,7 +45,7 @@ const HIDDEN_CALENDARS_STORAGE_KEY = 'webmail:calendar:hidden:v1';
 // visibility filtering and per-calendar colour lookup line up. Events from the
 // primary account are returned unchanged. Mirrors webmail's
 // mapServerEventToStoreEvent.
-function mapServerEventToStoreEvent(
+export function mapServerEventToStoreEvent(
   event: CalendarEvent,
   calendars: Calendar[],
   accountId?: string,

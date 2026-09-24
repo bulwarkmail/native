@@ -16,6 +16,12 @@ export interface ScheduledAlert {
   title: string;
   body: string;
   kind: 'event' | 'task';
+  // What a tap on the reminder opens (see calendar-reminder-open): the
+  // stored event's raw id and account, and the occurrence.
+  serverId?: string;
+  accountId?: string;
+  recurrenceId?: string;
+  startMs?: number;
 }
 
 const DURATION_RE = /^(-?)P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/;
@@ -148,6 +154,10 @@ export function getUpcomingAlerts(
         title: event.title || '(No title)',
         body: Number.isNaN(startMs) ? '' : `Starts ${formatWhen(fireTimeMs, startMs)}`,
         kind: 'event',
+        serverId: event.originalId ?? event.id,
+        accountId: event.accountId,
+        recurrenceId: event.recurrenceId,
+        startMs: Number.isNaN(startMs) ? undefined : startMs,
       });
     }
   }
@@ -169,6 +179,8 @@ export function getUpcomingAlerts(
         title: task.title || '(No title)',
         body: 'Task due',
         kind: 'task',
+        serverId: task.originalId ?? task.id,
+        accountId: task.accountId,
       });
     }
   }

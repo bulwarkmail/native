@@ -11,7 +11,14 @@ import { startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream'
 import { jmapClient } from './src/api/jmap-client';
 import type { StateChange } from './src/api/types';
 import { dispatchStateChange } from './src/lib/state-change-bus';
-import { startCalendarNotificationSync } from './src/lib/calendar-notifications';
+import {
+  startCalendarNotificationSync,
+  startCalendarReminderTapHandling,
+} from './src/lib/calendar-notifications';
+import {
+  setPendingCalendarOpen,
+  type CalendarReminderTarget,
+} from './src/navigation/pending-calendar-open';
 import { sweepStaleExportFiles } from './src/lib/email-export';
 import { useFilterStore } from './src/stores/filter-store';
 import { useVacationStore } from './src/stores/vacation-store';
@@ -93,6 +100,26 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
     // A group mailbox's message lives under another JMAP account (#839).
     jmapAccountId: notificationTapJmapAccountId(payload),
   });
+}
+
+// A tapped calendar reminder opens its event (or task) in the Calendar tab,
+// under the account it was scheduled for. The target is parked for
+// CalendarScreen, which also picks it up when it mounts after a cold start.
+async function openCalendarReminder(target: CalendarReminderTarget): Promise<void> {
+  const auth = useAuthStore.getState();
+  if (target.appAccountId && target.appAccountId !== auth.activeAccountId) {
+    if (!useAccountStore.getState().getAccountById(target.appAccountId)) return;
+    await auth.switchAccount(target.appAccountId);
+    if (useAuthStore.getState().activeAccountId !== target.appAccountId) return;
+  }
+  setPendingCalendarOpen(target);
+  // On a cold start the navigator mounts right after the auth gate flips.
+  for (let attempt = 0; attempt < 50 && !navigationRef.isReady(); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (navigationRef.isReady()) {
+    navigationRef.navigate('MainTabs', { screen: 'Calendar' } as never);
+  }
 }
 
 // Deep links (bulwarkmobile://, webmail https permalinks, mailto:) and
@@ -404,6 +431,15 @@ export default function App() {
       cancelled = true;
       unsubscribe();
     };
+  }, [isAuthenticated]);
+
+  // Calendar reminders are local expo notifications; their taps come through
+  // expo-notifications, not the native tap store used for mail push above.
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    return startCalendarReminderTapHandling((target) => {
+      void openCalendarReminder(target);
+    });
   }, [isAuthenticated]);
 
   // Deep links and share-sheet payloads. The cold-start URL / share is read

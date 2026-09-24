@@ -84,6 +84,7 @@
       "add_placeholder": "Add a task…",
       "add_time": "Add time",
       "delete_error": "Failed to delete task",
+      "not_found": "This task is no longer available.",
       "save_error": "Failed to save task",
       "update_error": "Failed to update task"
     }

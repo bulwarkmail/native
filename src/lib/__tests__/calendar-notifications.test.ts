@@ -5,7 +5,9 @@ type Listener = (state: Record<string, unknown>, prev: Record<string, unknown>) 
 const h = vi.hoisted(() => ({
   pending: [] as Array<{ identifier: string; content: { data: Record<string, unknown> } }>,
   permission: { granted: true, canAskAgain: true },
-  auth: { hasRestoredSession: true, isAuthenticated: true, session: null as unknown },
+  auth: { hasRestoredSession: true, isAuthenticated: true, session: null as unknown, activeAccountId: 'app-1' as string | null },
+  lastResponse: null as unknown,
+  responseListener: null as ((response: unknown) => void) | null,
   settings: { hydrated: true, calendarNotificationsEnabled: true, enableCalendarTasks: false },
   calendar: {
     calendars: [{ id: 'cal-1', name: 'Personal' }],
@@ -34,6 +36,13 @@ vi.mock('expo-notifications', () => ({
   cancelScheduledNotificationAsync: vi.fn(async () => undefined),
   scheduleNotificationAsync: vi.fn(async () => 'id'),
   setNotificationHandler: vi.fn(),
+  getLastNotificationResponseAsync: vi.fn(async () => h.lastResponse),
+  clearLastNotificationResponseAsync: vi.fn(async () => undefined),
+  addNotificationResponseReceivedListener: vi.fn((listener: (response: unknown) => void) => {
+    h.responseListener = listener;
+    return { remove: vi.fn() };
+  }),
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
   IosAuthorizationStatus: { PROVISIONAL: 3 },
   SchedulableTriggerInputTypes: { DATE: 'date' },
@@ -85,7 +94,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   h.pending = [];
   h.permission = { granted: true, canAskAgain: true };
-  h.auth = { hasRestoredSession: true, isAuthenticated: true, session: null };
+  h.auth = { hasRestoredSession: true, isAuthenticated: true, session: null, activeAccountId: 'app-1' };
+  h.lastResponse = null;
+  h.responseListener = null;
   h.settings = { hydrated: true, calendarNotificationsEnabled: true, enableCalendarTasks: false };
   h.calendar.events = [];
   h.calendar.tasks = [];
@@ -152,14 +163,14 @@ describe('calendar reminders (B17)', () => {
       reminder('r1', upcomingKey),
       { identifier: 'other', content: { data: {} } },
     ];
-    h.auth = { hasRestoredSession: true, isAuthenticated: false, session: null };
+    h.auth = { hasRestoredSession: true, isAuthenticated: false, session: null, activeAccountId: 'app-1' };
 
     await mod.rescheduleCalendarNotifications();
     expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(1);
     expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledWith('r1');
 
     vi.mocked(N.cancelScheduledNotificationAsync).mockClear();
-    h.auth = { hasRestoredSession: true, isAuthenticated: true, session: null };
+    h.auth = { hasRestoredSession: true, isAuthenticated: true, session: null, activeAccountId: 'app-1' };
     h.settings.calendarNotificationsEnabled = false;
     await mod.rescheduleCalendarNotifications();
     expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledWith('r1');
@@ -213,5 +224,67 @@ describe('calendar reminders (B17)', () => {
     h.calendarListener!({ ...prev, events: [{}], loadedRange: { after: 'a', before: 'b' } }, prev);
     await vi.advanceTimersByTimeAsync(1500);
     expect(h.loadEventsInRange).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('tapping a calendar reminder', () => {
+  const DEFAULT = 'expo.modules.notifications.actions.DEFAULT';
+  function response(identifier: string, data: Record<string, unknown>, action = DEFAULT) {
+    return { actionIdentifier: action, notification: { request: { identifier, content: { data } } } };
+  }
+
+  it('schedules each reminder with what a tap needs to find the event again', async () => {
+    h.loadEventsInRange.mockResolvedValue([
+      { ...upcoming, id: 'acc-2:ev1:2026-09-24T10:00:00Z', originalId: 'ev1', accountId: 'acc-2', recurrenceId: '2026-09-24T10:00:00Z' },
+    ]);
+
+    await mod.rescheduleCalendarNotifications();
+
+    const request = vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0];
+    expect(request.content.data).toEqual({
+      tag: TAG,
+      key: expect.any(String),
+      eventId: 'acc-2:ev1:2026-09-24T10:00:00Z',
+      kind: 'event',
+      serverId: 'ev1',
+      accountId: 'acc-2',
+      recurrenceId: '2026-09-24T10:00:00Z',
+      startMs: new Date('2026-09-24T10:00:00Z').getTime(),
+      appAccountId: 'app-1',
+    });
+  });
+
+  it('opens the reminder that launched the app, once', async () => {
+    const data = { tag: TAG, key: upcomingKey, eventId: 'ev1', kind: 'event', serverId: 'ev1', startMs: 5, appAccountId: 'app-1' };
+    h.lastResponse = response('n1', data);
+    const open = vi.fn();
+
+    mod.startCalendarReminderTapHandling(open);
+    await vi.advanceTimersByTimeAsync(0);
+    // Some platforms report the launching tap to the listener as well.
+    h.responseListener!(response('n1', data));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith({
+      kind: 'event', eventId: 'ev1', serverId: 'ev1', startMs: 5, appAccountId: 'app-1',
+      accountId: undefined, recurrenceId: undefined,
+    });
+    expect(N.clearLastNotificationResponseAsync).toHaveBeenCalled();
+  });
+
+  it('opens tapped reminders while running and ignores every other notification', async () => {
+    const open = vi.fn();
+    const stop = mod.startCalendarReminderTapHandling(open);
+    await vi.advanceTimersByTimeAsync(0);
+
+    h.responseListener!(response('mail', { emailId: 'e1', threadId: 't1' }));
+    h.responseListener!(response('dismissed', { tag: TAG, key: 'k', eventId: 'ev2' }, 'expo.modules.notifications.actions.DISMISS'));
+    h.responseListener!(response('task', { tag: TAG, key: 'k2', eventId: 't1', kind: 'task' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0]).toMatchObject({ kind: 'task', eventId: 't1' });
+
+    stop();
+    h.responseListener!(response('later', { tag: TAG, key: 'k3', eventId: 'ev3' }));
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });
