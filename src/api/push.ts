@@ -1,5 +1,5 @@
 import { jmapClient } from './jmap-client';
-import { assertSetResult, JMAPMethodError } from './jmap-result';
+import { assertSetResult, JMAPMethodError, requireMethodResult } from './jmap-result';
 import { CAPABILITIES } from './types';
 import type { EmailPushConfig, PushSubscription, StateChange } from './types';
 
@@ -33,8 +33,8 @@ export async function listPushSubscriptions(): Promise<PushSubscription[]> {
     [['PushSubscription/get', args, '0']],
     pushUsing(withEmailPush),
   );
-  const [, body] = res.methodResponses[0] ?? [];
-  return (body?.list as PushSubscription[]) ?? [];
+  const body = requireMethodResult(res, '0', 'PushSubscription/get');
+  return (body.list as PushSubscription[]) ?? [];
 }
 
 /**
@@ -74,9 +74,9 @@ export async function createPushSubscription(params: {
     ],
     pushUsing(withEmailPush),
   );
-  const [, body] = res.methodResponses[0] ?? [];
+  const body = requireMethodResult(res, '0', 'PushSubscription/set');
   assertSetResult(body, ['new'], 'push subscription');
-  const result = body?.created?.new as { id?: string } | undefined;
+  const result = body.created?.new as { id?: string } | undefined;
   if (!result?.id) {
     throw new Error(`PushSubscription/set create failed: ${JSON.stringify(body)}`);
   }
@@ -107,9 +107,9 @@ export async function updatePushSubscription(
     ],
     pushUsing(withEmailPush),
   );
-  const [, body] = res.methodResponses[0] ?? [];
+  const body = requireMethodResult(res, '0', 'PushSubscription/set');
   assertSetResult(body, [id], 'push subscription');
-  if (body?.updated?.[id] === undefined) {
+  if (body.updated?.[id] === undefined) {
     throw new JMAPMethodError('notUpdated', `PushSubscription/set did not update ${id}`);
   }
 }
@@ -132,19 +132,19 @@ export async function verifyPushSubscription(
     ],
     [CAPABILITIES.CORE],
   );
-  const [, body] = res.methodResponses[0] ?? [];
-  if (body?.notUpdated?.[id]) {
-    throw new Error(
-      `PushSubscription verification failed: ${JSON.stringify(body.notUpdated[id])}`,
-    );
-  }
+  const body = requireMethodResult(res, '0', 'PushSubscription/set');
+  assertSetResult(body, [id], 'push subscription');
 }
 
 export async function destroyPushSubscription(id: string): Promise<void> {
-  await jmapClient.request(
+  const res = await jmapClient.request(
     [['PushSubscription/set', { destroy: [id] }, '0']],
     [CAPABILITIES.CORE],
   );
+  const body = requireMethodResult(res, '0', 'PushSubscription/set');
+  // Already gone is what the caller asked for.
+  if (body.notDestroyed?.[id]?.type === 'notFound') return;
+  assertSetResult(body, [id], 'push subscription');
 }
 
 // ─── Live updates ────────────────────────────────────────

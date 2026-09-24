@@ -15,9 +15,11 @@ vi.mock('../jmap-client', () => ({
 import { jmapClient } from '../jmap-client';
 import {
   createPushSubscription,
+  destroyPushSubscription,
   listPushSubscriptions,
   startPolling,
   updatePushSubscription,
+  verifyPushSubscription,
 } from '../push';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -119,6 +121,44 @@ describe('push operations', () => {
       });
       await expect(updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' }))
         .rejects.toMatchObject({ type: 'forbidden' });
+    });
+
+    it('throws when the verification code is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [[
+          'PushSubscription/set',
+          { notUpdated: { s1: { type: 'invalidProperties', description: 'Verification code does not match.' } } },
+          '0',
+        ]],
+      });
+      await expect(verifyPushSubscription('s1', 'CODE')).rejects.toThrow('Verification code does not match.');
+    });
+
+    it('throws when a destroy is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { notDestroyed: { s1: forbidden } }, '0']],
+      });
+      await expect(destroyPushSubscription('s1')).rejects.toMatchObject({ type: 'forbidden' });
+    });
+
+    it('treats destroying a subscription that is already gone as done', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { notDestroyed: { s1: { type: 'notFound' } } }, '0']],
+      });
+      await expect(destroyPushSubscription('s1')).resolves.toBeUndefined();
+    });
+
+    it.each([
+      ['list', () => listPushSubscriptions()],
+      ['create', () => createPushSubscription({ deviceClientId: 'd', url: 'https://relay/x', types: ['EmailDelivery'] })],
+      ['update', () => updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' })],
+      ['verify', () => verifyPushSubscription('s1', 'CODE')],
+      ['destroy', () => destroyPushSubscription('s1')],
+    ])('%s throws on a method-level error response', async (_name, call) => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['error', { type: 'serverFail', description: 'Store unavailable' }, '0']],
+      });
+      await expect(call()).rejects.toMatchObject({ name: 'JMAPMethodError', type: 'serverFail' });
     });
 
     it('resolves when the update is applied', async () => {
