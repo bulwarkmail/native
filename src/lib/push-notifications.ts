@@ -14,6 +14,7 @@ import { JMAPMethodError } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
 import type { EmailPushConfig, JMAPAccountInfo, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
+import { t } from '../stores/locale-store';
 import {
   getUnifiedPushDistributors,
   isUnifiedPushSupported,
@@ -568,17 +569,23 @@ async function getFcmTokenOrThrow(native: BulwarkFcmNative): Promise<string> {
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     const distributors = await getUnifiedPushDistributors().catch(() => []);
-    const hint =
-      distributors.length > 0
-        ? ' This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.'
-        : '';
     throw new PushSetupError(
       'token',
-      `Firebase could not issue a device token (${detail}). Push over FCM needs Google Play services on this device.${hint}`,
+      distributors.length > 0
+        ? t(
+          'settings.notifications.push.err_fcm_token_up',
+          'Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.',
+          { detail },
+        )
+        : t(
+          'settings.notifications.push.err_fcm_token',
+          'Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device.',
+          { detail },
+        ),
     );
   }
   if (!token) {
-    throw new PushSetupError('token', 'Firebase returned an empty device token.');
+    throw new PushSetupError('token', t('settings.notifications.push.err_fcm_empty', 'Firebase returned an empty device token.'));
   }
   return token;
 }
@@ -655,10 +662,21 @@ async function registerWithRelay(params: {
     });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new PushSetupError('relay', `Could not reach the push relay at ${params.relayBaseUrl} (${detail}).`);
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_unreachable', 'Could not reach the push relay at {url} ({detail}).', {
+        url: params.relayBaseUrl,
+        detail,
+      }),
+    );
   }
   if (!res.ok) {
-    throw new PushSetupError('relay', `The push relay rejected the registration: ${await readRelayError(res)}`);
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_rejected', 'The push relay rejected the registration: {detail}', {
+        detail: await readRelayError(res),
+      }),
+    );
   }
 }
 
@@ -686,10 +704,21 @@ async function registerWithRelayUnifiedPush(params: {
     });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new PushSetupError('relay', `Could not reach the push relay at ${params.relayBaseUrl} (${detail}).`);
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_unreachable', 'Could not reach the push relay at {url} ({detail}).', {
+        url: params.relayBaseUrl,
+        detail,
+      }),
+    );
   }
   if (!res.ok) {
-    throw new PushSetupError('relay', `The push relay rejected the registration: ${await readRelayError(res)}`);
+    throw new PushSetupError(
+      'relay',
+      t('settings.notifications.push.err_relay_rejected', 'The push relay rejected the registration: {detail}', {
+        detail: await readRelayError(res),
+      }),
+    );
   }
 }
 
@@ -768,8 +797,15 @@ async function pollVerificationCode(
   throw new PushSetupError(
     'verify',
     lastRelayError
-      ? `The relay never received the verification code from the mail server (last relay response: ${lastRelayError}).`
-      : 'The mail server did not send a verification code to the relay within 75 s. Check that the server can reach the relay URL.',
+      ? t(
+        'settings.notifications.push.err_verify_relay',
+        'The relay never received the verification code from the mail server (last relay response: {detail}).',
+        { detail: lastRelayError },
+      )
+      : t(
+        'settings.notifications.push.err_verify_timeout',
+        'The mail server did not send a verification code to the relay within 75 s. Check that the server can reach the relay URL.',
+      ),
   );
 }
 
@@ -812,22 +848,22 @@ async function setupPushNotificationsInner(
   const transport = await getEffectivePushTransport();
   const native = getNative();
   if (transport === 'fcm' && !native) {
-    throw new PushSetupError('platform', 'Push notifications are only available on Android.');
+    throw new PushSetupError('platform', t('settings.notifications.push.err_android_only', 'Push notifications are only available on Android.'));
   }
   if (transport === 'unifiedpush' && !isUnifiedPushSupported()) {
-    throw new PushSetupError('platform', 'UnifiedPush is only available on Android.');
+    throw new PushSetupError('platform', t('settings.notifications.push.err_up_android_only', 'UnifiedPush is only available on Android.'));
   }
 
   const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
   if (!relayBaseUrl) throw new PushSetupError('relay', 'relayBaseUrl is required');
   if (!isValidRelayUrl(relayBaseUrl)) {
-    throw new PushSetupError('relay', 'The relay URL must use https://.');
+    throw new PushSetupError('relay', t('settings.notifications.push.err_relay_https', 'The relay URL must use https://.'));
   }
 
   logPhase('permission');
   const granted = await requestNotificationPermission();
   if (!granted) {
-    throw new PushSetupError('permission', 'Notification permission was not granted.');
+    throw new PushSetupError('permission', t('settings.notifications.push.err_permission', 'Notification permission was not granted.'));
   }
 
   logPhase('token', transport);
@@ -844,7 +880,7 @@ async function setupPushNotificationsInner(
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
   if (!username || !serverUrl) {
-    throw new PushSetupError('account', 'No account loaded - cannot set up push.');
+    throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
   }
   const accountId = generateAccountId(username, serverUrl);
 
@@ -963,7 +999,10 @@ async function setupPushNotificationsInner(
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new PushSetupError('jmap', `The mail server refused the push subscription: ${detail}`);
+    throw new PushSetupError(
+      'jmap',
+      t('settings.notifications.push.err_jmap_refused', 'The mail server refused the push subscription: {detail}', { detail }),
+    );
   }
 
   logPhase('verify');
@@ -972,7 +1011,10 @@ async function setupPushNotificationsInner(
     await verifyPushSubscription(serverAssignedId, verificationCode);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new PushSetupError('verify', `The mail server rejected the verification code: ${detail}`);
+    throw new PushSetupError(
+      'verify',
+      t('settings.notifications.push.err_verify_rejected', 'The mail server rejected the verification code: {detail}', { detail }),
+    );
   }
 
   await AsyncStorage.setItem(subKey, serverAssignedId);

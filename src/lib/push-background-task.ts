@@ -472,7 +472,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const from = email.from?.[0];
     const name = from?.name ?? '';
     const address = from?.email ?? '';
-    const title = name || address || 'New mail';
+    const title = name || address || translate(locale, 'notifications.new_email', 'New email');
     const body = email.subject || translate(locale, 'email_viewer.no_subject', '(No Subject)');
     const initials = getEmailInitials(name, address);
     const bgColorHex = hslToHex(generateEmailAvatarColor(name, address));
