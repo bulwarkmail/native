@@ -33,6 +33,7 @@ import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
 import { findTrashMailbox, mailboxesForSiblingOf } from '../lib/mailbox-tree';
 import { pickEmailBody, plainTextBody } from '../lib/email-body';
+import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -876,7 +877,7 @@ function EmailPane({
     return <EmailPaneSkeleton styles={styles} />;
   }
 
-  const subject = email.subject || t('email_viewer.no_subject', '(No Subject)');
+  const subject = singleLine(email.subject) || t('email_viewer.no_subject', '(No Subject)');
   const conversation = threading && threadIds && threadIds.length > 1
     ? threadIds.map((mid) => detailCache.get(mid)).filter((m): m is Email => !!m)
     : null;

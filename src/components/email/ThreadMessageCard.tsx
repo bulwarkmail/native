@@ -9,6 +9,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import SenderAvatar from '../SenderAvatar';
 import { MessageContent, type MessageContentProps } from './MessageContent';
 import { emailDisplayDate, formatHeaderDate, formatHeaderTime } from '../../lib/email-date';
+import { singleLine } from '../../lib/single-line';
 
 interface Props extends MessageContentProps {
   expanded: boolean;
@@ -45,7 +46,7 @@ export function ThreadMessageCard({ expanded, onToggleExpanded, onReply, ...cont
             {email.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
             <Text style={styles.collapsedDate}>{formatHeaderDate(date, locale)} {formatHeaderTime(date, timeFormat, locale)}</Text>
           </View>
-          <Text style={styles.collapsedPreview} numberOfLines={1}>{email.preview || ''}</Text>
+          <Text style={styles.collapsedPreview} numberOfLines={1}>{singleLine(email.preview)}</Text>
         </View>
         {starred && <Star size={14} color={c.starred} fill={c.starred} />}
       </Pressable>

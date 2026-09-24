@@ -21,6 +21,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
+import { singleLine } from '../lib/single-line';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -319,7 +320,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               <Text style={styles.time}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
             </View>
             <Text style={[styles.subject, unread && styles.bold]} numberOfLines={1}>
-              {item.subject || '(no subject)'}
+              {singleLine(item.subject) || '(no subject)'}
             </Text>
             <View style={styles.line}>
               {acc && accountIds.length > 1 && (
@@ -342,7 +343,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               )}
             </View>
             {item.preview ? (
-              <Text style={styles.preview} numberOfLines={1}>{item.preview}</Text>
+              <Text style={styles.preview} numberOfLines={1}>{singleLine(item.preview)}</Text>
             ) : null}
           </View>
         </Pressable>

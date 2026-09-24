@@ -31,6 +31,7 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
+import { singleLine } from '../lib/single-line';
 import {
   findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
 } from '../lib/mailbox-tree';
@@ -210,7 +211,7 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 2: Subject + tag pills */}
         <View style={styles.subjectRow}>
           <Text style={[styles.emailSubject, dyn.body, unread && styles.textBold]} numberOfLines={1}>
-            {item.subject || '(no subject)'}
+            {singleLine(item.subject) || '(no subject)'}
           </Text>
           {tags.slice(0, 3).map((tag) => (
             <View key={tag.id} style={[styles.tagPill, { backgroundColor: tag.bg }]}>
@@ -226,7 +227,7 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
         {showPreview && density.showPreview && (
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
-            {item.preview}
+            {singleLine(item.preview)}
           </Text>
         )}
       </View>
