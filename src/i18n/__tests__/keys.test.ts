@@ -74,8 +74,8 @@ describe('translation coverage', () => {
   }, SRC_WALK_TIMEOUT);
 
   it('every other locale is a subset of English', () => {
-    // The vendored webmail catalog, without the RN-only overlay (which only
-    // exists for English and is served to every locale through the fallback).
+    // The vendored webmail catalog, without the RN-only overlay (English is
+    // complete; the other overlays are partial and fall back to it).
     const baseEn = flatten(
       JSON.parse(readFileSync(join(SRC_ROOT, '..', 'locales', 'en', 'common.json'), 'utf8')) as Record<string, unknown>,
     );

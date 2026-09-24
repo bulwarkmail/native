@@ -12,9 +12,9 @@ import { formatMessage, type MessageParams } from './format';
 // catalogs are loaded on first use; see CATALOG_LOADERS below.
 import en from '../../locales/en/common.json';
 
-// Keys the native app needs that the webmail catalog does not carry. Only an
-// English overlay exists today; other languages fall through to it via the
-// en fallback below.
+// Keys the native app needs that the webmail catalog does not carry. English
+// is complete; a key another language has not translated yet falls through
+// to it via the en fallback in translate().
 import rnEn from '../../locales/rn/en.json';
 
 export type { MessageParams } from './format';
@@ -71,10 +71,6 @@ function deepMerge(base: Dictionary, overlay: Dictionary): Dictionary {
   return out;
 }
 
-const RN_OVERLAYS: Partial<Record<LocaleCode, Dictionary>> = {
-  en: rnEn as Dictionary,
-};
-
 // A catalog is a few hundred KB of JSON. Metro only evaluates a module when it
 // is first required, so keeping each require inside its loader means startup
 // builds English plus the active language instead of all 27, and switching
@@ -110,15 +106,44 @@ const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
   'zh-TW': () => require('../../locales/zh-TW/common.json'),
 };
 
+// The RN-only overlays, loaded alongside their catalog.
+const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
+  ar: () => require('../../locales/rn/ar.json'),
+  ca: () => require('../../locales/rn/ca.json'),
+  cs: () => require('../../locales/rn/cs.json'),
+  da: () => require('../../locales/rn/da.json'),
+  de: () => require('../../locales/rn/de.json'),
+  en: () => rnEn as Dictionary,
+  es: () => require('../../locales/rn/es.json'),
+  fa: () => require('../../locales/rn/fa.json'),
+  fr: () => require('../../locales/rn/fr.json'),
+  he: () => require('../../locales/rn/he.json'),
+  hu: () => require('../../locales/rn/hu.json'),
+  it: () => require('../../locales/rn/it.json'),
+  ja: () => require('../../locales/rn/ja.json'),
+  ko: () => require('../../locales/rn/ko.json'),
+  lv: () => require('../../locales/rn/lv.json'),
+  mn: () => require('../../locales/rn/mn.json'),
+  nb: () => require('../../locales/rn/nb.json'),
+  nl: () => require('../../locales/rn/nl.json'),
+  pl: () => require('../../locales/rn/pl.json'),
+  pt: () => require('../../locales/rn/pt.json'),
+  ro: () => require('../../locales/rn/ro.json'),
+  ru: () => require('../../locales/rn/ru.json'),
+  sk: () => require('../../locales/rn/sk.json'),
+  tr: () => require('../../locales/rn/tr.json'),
+  uk: () => require('../../locales/rn/uk.json'),
+  zh: () => require('../../locales/rn/zh.json'),
+  'zh-TW': () => require('../../locales/rn/zh-TW.json'),
+};
+
 const dictionaries: Partial<Record<LocaleCode, Dictionary>> = {};
 
 /** The merged catalog (vendored + RN overlay) for a locale, loaded on first use. */
 export function getDictionary(locale: LocaleCode): Dictionary {
   let dict = dictionaries[locale];
   if (!dict) {
-    const base = CATALOG_LOADERS[locale]();
-    const overlay = RN_OVERLAYS[locale];
-    dict = overlay ? deepMerge(base, overlay) : base;
+    dict = deepMerge(CATALOG_LOADERS[locale](), OVERLAY_LOADERS[locale]());
     dictionaries[locale] = dict;
   }
   return dict;
