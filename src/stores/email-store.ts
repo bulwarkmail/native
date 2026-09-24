@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage } from './persist-storage';
+import { boundEmailCache, type PersistedEmailCache } from './email-cache-persist';
 import type { Email, Mailbox, StateChange } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -244,7 +245,7 @@ export interface UndoEntry {
 // Cached emails for one mailbox (the base view: no search query, no filters).
 // `queryState` is the JMAP queryState for the matching Email/query, used to
 // drive Email/queryChanges on the next refresh.
-interface MailboxSnapshot {
+export interface MailboxSnapshot {
   emails: Email[];
   total: number;
   queryState?: string;
@@ -252,7 +253,7 @@ interface MailboxSnapshot {
 
 // Everything we cache for one account so switching accounts can restore the
 // previous view instantly instead of going through a network round-trip.
-interface AccountSnapshot {
+export interface AccountSnapshot {
   mailboxes: Mailbox[];
   mailboxState?: string;       // JMAP Mailbox state (drives Mailbox/changes)
   // JMAP Email state per JMAP account (drives Email/changes). Keyed by
@@ -1711,18 +1712,19 @@ export const useEmailStore = create<EmailState>()(
           queryState: undefined,
         } as unknown as EmailState;
       },
-      partialize: (state) => ({
+      // The active view is stored the way an account switch tucks it away,
+      // so its folder is in the row once and `merge` rebuilds `emails` from
+      // it. Bounded so Android can still read the row back.
+      partialize: (state): PersistedEmailCache => boundEmailCache({
         accountSnapshots: state.accountSnapshots,
         activeAccountId: state.activeAccountId,
-        mailboxes: state.mailboxes,
-        mailboxState: state.mailboxState,
-        emailStates: state.emailStates,
-        currentMailboxId: state.currentMailboxId,
-        mailboxSnapshots: state.mailboxSnapshots,
-        emails: state.emails,
-        totalEmails: state.totalEmails,
-        queryState: state.queryState,
+        ...snapshotFromActive(state),
       }),
+      merge: (persisted, current) => {
+        if (!persisted) return current;
+        const cache = persisted as PersistedEmailCache;
+        return { ...current, ...cache, ...viewFromSnapshot(cache) };
+      },
     },
   ),
 );
