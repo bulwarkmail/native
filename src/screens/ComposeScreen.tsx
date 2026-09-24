@@ -2170,14 +2170,17 @@ export default function ComposeScreen({ route, navigation }: Props) {
           >
             <Paperclip size={20} color={c.text} />
           </Pressable>
-          <Pressable
-            onPress={() => setScheduleSheetOpen(true)}
-            style={styles.headerBtn}
-            hitSlop={8}
-            disabled={!canSend}
-          >
-            <Clock size={20} color={canSend ? c.text : c.textMuted} />
-          </Pressable>
+          {/* Only offer scheduling when the server can hold the message (webmail parity). */}
+          {jmapClient.hasDelayedSend() && (
+            <Pressable
+              onPress={() => setScheduleSheetOpen(true)}
+              style={styles.headerBtn}
+              hitSlop={8}
+              disabled={!canSend}
+            >
+              <Clock size={20} color={canSend ? c.text : c.textMuted} />
+            </Pressable>
+          )}
           <Button
             variant="default"
             size="sm"
@@ -2462,11 +2465,6 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <Text style={styles.modalTitle}>
               {t('email_composer.schedule_send', 'Schedule send')}
             </Text>
-            {!jmapClient.hasDelayedSend() && (
-              <Text style={styles.scheduleWarning}>
-                {t('email_composer.schedule_unsupported_body', 'This mail server does not support scheduled send.')}
-              </Text>
-            )}
             {schedulePresets.map((preset) => (
               <Pressable
                 key={preset.label}
