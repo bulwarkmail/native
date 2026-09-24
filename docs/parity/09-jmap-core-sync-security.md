@@ -96,7 +96,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `fetchMailboxes` does one `Mailbox/get`; an empty list on a brand-new Stalwart account stays empty until pull-to-refresh (`src/stores/email-store.ts:584-588`).
   - Fix hint: if the list is empty and there is no `inbox` role, retry after ~1 s up to 3 times.
 
-- [x] **Session redirect with dropped Authorization not handled** — `P3` — `partial` — fixed in 0b1c240
+- [x] **Session redirect with dropped Authorization not handled** — `P3` — `partial` — fixed in 0b1c240; the check keyed on `response.redirected`, which React Native's fetch never sets, so it only works since 859770b (audit B15)
   - What WEB does: detects `response.redirected` + empty accounts/username and refetches the final URL with the header (`lib/jmap/client.ts:911-925`).
   - What RN does: `fetchSession` accepts whatever comes back; `resolveAccountId` then throws "No account found in JMAP session" (`src/api/jmap-client.ts:363-401`). iOS strips Authorization on cross-origin redirects.
   - Fix hint: same detection; retry against `response.url`.
@@ -128,7 +128,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `Email`/`EmailDelivery`/`Mailbox` (`src/stores/email-store.ts:981-1020`), `AddressBook`/`ContactCard`/`Contact` (`src/stores/contacts-store.ts:152-168`), `Calendar`/`CalendarEvent` incl. shared accounts (`src/stores/calendar-store.ts:261-283`). `ScheduledScreen`, `filter-store`, `vacation-store`, Files and Identity never refresh on push (`grep handleStateChange src/stores/filter-store.ts src/stores/vacation-store.ts` empty).
   - Fix hint: add `EmailSubmission` -> scheduled list refresh (when the Scheduled screen is mounted), `SieveScript` -> `filter-store.fetch`, `VacationResponse` -> vacation store, `FileNode` -> Files screen refresh; dispatch from the `onStateChange` fan-out in `App.tsx:391-396`.
 
-- [ ] **Contacts state changes ignore shared/group accounts** — `P3` — `partial`
+- [x] **Contacts state changes ignore shared/group accounts** — `P3` — `partial` — done in 26a34d5 (`handleStateChange` walks `getContactCapableAccountIds()`)
   - What WEB does: per-account clients; `handleStateChange` reacts to the client's own account (`stores/email-store.ts:3255-3257`); calendar/contacts stores use the account of the shared collection.
   - What RN does: `contacts-store.handleStateChange` only reads `change.changed[jmapClient.accountId]` (`src/stores/contacts-store.ts:154-156`) although address books from shared accounts are shown; `calendar-store` already folds shared accounts in (`calendar-store.ts:263-272`).
   - Fix hint: mirror the calendar store's `known` set using `addressBook.accountId`.
@@ -143,7 +143,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `react-native-sse` accumulates `xhr.responseText` for the life of the connection (`EventSource.js:108`, `_lastIndexProcessed`), and RN requests `{ping}=30`, `{closeafter}=no` (`src/api/push.ts:126-129`), so memory grows for every ping/event until reconnect. No ping-timeout detection either.
   - Fix hint: either request `closeafter=state` (server closes after each event; library auto-reconnects) or recycle the EventSource every ~30 min / when no `ping` event arrived in 90 s (add a `ping` listener).
 
-- [x] **Push subscription `types` include `Email` and `Mailbox`; no `emailPush` spam filter** — `P2` — `partial` — fixed in 00faceb
+- [x] **Push subscription `types` include `Email` and `Mailbox`; no `emailPush` spam filter** — `P2` — `partial` — fixed in 00faceb; the `emailPush` map was refused for ACL-shared mailboxes and never read back until d8046a8 and ccaa24e (audit B18)
   - What WEB does: subscribes to `EmailDelivery` only, plus an `emailPush` filter excluding `$junk`/Junk when the server advertises `urn:ietf:params:jmap:emailpush` (`lib/web-push.ts:39-52`, `lib/jmap/client.ts:8085-8142`; changelog 1.9.x "Stop sending notifications for spam").
   - What RN does: `PUSH_TYPES = ['Email', 'EmailDelivery', 'Mailbox']` (`src/lib/push-notifications.ts:104`); `createPushSubscription` has no `emailPush` support (`src/api/push.ts:23-57`). Every read/flag/move on any device wakes the relay -> FCM -> headless task, which then re-queries the inbox (`src/lib/push-background-task.ts:452-455`); a spam delivery still triggers a push (only the inbox `notKeyword $seen` query hides it, at the cost of a wake-up).
   - Fix hint: subscribe to `EmailDelivery` only; add `hasEmailPushCapability()` + `emailPush` filter as in WEB; the relay must forward it (see memory note: relay lacks EmailPush).

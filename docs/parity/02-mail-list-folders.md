@@ -109,7 +109,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: `UnifiedInboxScreen` loads once per mount/`includeGroup` change (`:57-59`); after opening (mark read) or deleting in the thread screen and going back, the unread dot/row is stale until pull-to-refresh. No push hookup.
   - Fix hint: `useFocusEffect` → reload, or patch the local list from the thread screen result; when Unread/Starred views are added, keep the WEB retain semantics.
 
-- [x] **Opening a unified-inbox message that is not in the active folder page shows another message's body** — `P1` — `rn-only-bug` — fixed in c8be383
+- [x] **Opening a unified-inbox message that is not in the active folder page shows another message's body** — `P1` — `rn-only-bug` — fixed in c8be383; the viewer's actions still hit the open folder's account and followed the live list until 5c7301b and 9c31de2 (audit B3, B5)
   - What WEB does: opens the clicked row object itself and fetches by source client/account (#847, `components/mail/mail-app.tsx:3111-3190`).
   - What RN does: `UnifiedInboxScreen.onOpen` switches account then navigates to `EmailThread` (`src/screens/UnifiedInboxScreen.tsx:61-86`). `EmailThreadScreen` pages over the *active folder's* `emails` (`src/screens/EmailThreadScreen.tsx:131-133`, FlatList `data={emails}` `:538`, `initialScrollIndex={Math.max(0, findIndex)}`). A group-inbox message (or any message not in the first page of the user's own inbox snapshot) is not in `emails`, so index 0 is shown: the pane renders `emails[0]` while the toolbar/`activeEmailId` (and delete/archive/spam) refer to the message that was tapped; with an empty snapshot the body area is blank. Bare-id `findIndex` also collides across accounts (Stalwart reuses id ranges, #847).
   - Fix hint: when `route.params.emailId` is not found in `emails` (or `jmapAccountId` is set), page over a one-element list `[{ id, threadId }]` instead of `emails`; compare ids together with the owning account.
@@ -160,12 +160,12 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: tapping a draft opens the read-only `EmailThreadScreen`; `Compose` params have no draft/edit mode (`src/navigation/types.ts:7-24`), locale keys `email_viewer.draft_banner`/`edit_draft` exist but are unused.
   - Fix hint: in `handleRowPress`, if `item.keywords.$draft` (or folder role is drafts) navigate to `Compose` with a `draft: { id, to, cc, bcc, subject, body, blobId }` param; on send, destroy the old draft (composer area).
 
-- [ ] **Permanent delete without confirmation (Trash, `deleteAction: permanent`, junk auto-permanent)** — `P2` — `bugfix-parity` — list side fixed in 3194b5e (single, batch, swipe via `src/lib/delete-confirm.ts`); deferred: thread screen `onDelete` belongs to the viewer area — use `confirmPermanentDelete()`/`isPermanentDelete()` from `src/lib/delete-confirm.ts`
+- [x] **Permanent delete without confirmation (Trash, `deleteAction: permanent`, junk auto-permanent)** — `P2` — `bugfix-parity` — list side fixed in 3194b5e (single, batch, swipe via `src/lib/delete-confirm.ts`); viewer side done in d2ed27f (`src/screens/EmailThreadScreen.tsx`)
   - What WEB does: confirm dialog before any permanent destroy, single and batch (`components/mail/mail-app.tsx:2086-2100`, `components/email/email-list.tsx:229-247`).
   - What RN does: `deleteEmail`/`deleteEmailsBatch` destroy immediately when in Trash, when `deleteAction === 'permanent'`, or junk + `permanentlyDeleteJunk` (`src/stores/email-store.ts:1286-1298`, `1449-1458`); the swipe fires without any prompt (`EmailListScreen.tsx:369-378`), and no undo is offered (correctly, `:1322-1324`).
   - Fix hint: compute `destroy` in the screen before calling the store (same rule) and show `Alert.alert` with Cancel/Delete; same for the thread screen `onDelete`.
 
-- [ ] **"Never" mark-as-read (`markAsReadDelay === -1`) marks read instantly** — `P2` — `rn-only-bug`
+- [x] **"Never" mark-as-read (`markAsReadDelay === -1`) marks read instantly** — `P2` — `rn-only-bug` — fixed in d2ed27f
   - What WEB does: `-1` → never, `0` → instant, else timer (`components/mail/mail-app.tsx:1511-1528`).
   - What RN does: `if (markAsReadDelay > 0) { timer } else { markRead() }` (`src/screens/EmailThreadScreen.tsx:236-245`) so the "Never" option in `ReadingSettings.tsx:171` behaves like "Instant".
   - Fix hint: add `if (markAsReadDelay === -1) return;` before the branch.
@@ -184,7 +184,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: `handleSwipeAction 'spam'` only checks `currentMailboxId !== junkMailboxId` (`src/screens/EmailListScreen.tsx:379-388`), so a swipe in Sent moves your own mail to Junk; in Junk the swipe silently does nothing.
   - Fix hint: skip when `currentMailbox.role` is sent/drafts; in junk call an `undoSpam` (see next item) and change the band label to "Not spam".
 
-- [x] **Spam / not-spam do not flip `$junk`/`$notjunk` (#850) nor honour "trash-and-read"** — `P2` — `bugfix-parity` — fixed in 3194b5e
+- [x] **Spam / not-spam do not flip `$junk`/`$notjunk` (#850) nor honour "trash-and-read"** — `P2` — `bugfix-parity` — fixed in 3194b5e; the viewer's Spam and Not spam stayed a plain move until 5e42c67 (#695)
   - What WEB does: `markAsSpam` patches `mailboxIds` + `keywords/$junk: true` + `keywords/$notjunk: null` (+ `$seen` when `deleteAction === 'trash-and-read'`); `undoSpam` restores the original mailbox with `$junk: null`, `$notjunk: true` (`lib/jmap/client.ts:2422-2475`, store `stores/email-store.ts:2947-3100`, undo toast in `components/mail/mail-app.tsx:2228-2270`).
   - What RN does: swipe and thread-screen spam are plain `moveToMailbox` calls (`src/screens/EmailListScreen.tsx:381`, `src/screens/EmailThreadScreen.tsx:344-356`); the keywords stay untouched, so other clients/Stalwart's classifier never learn; undo label reads "Email moved to Junk".
   - Fix hint: add `markAsSpam(ids, junkRawId, accountId, alsoMarkRead)` / `undoSpam(ids, targetRawId, accountId)` to `src/api/email.ts` writing the keyword pointers; store actions with `pendingUndo.kind = 'spam'` (type already exists, `src/stores/email-store.ts:155`) whose `undoLast` also restores the keywords; queue-safe via an outbox `keywords` op.
@@ -214,7 +214,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: 300 ms debounce into `setSearchQuery` → full `Email/query` + `Email/get` per pause (`src/screens/EmailListScreen.tsx:512-516`); with the `*` wildcard a single letter matches the whole mailbox.
   - Fix hint: search on `onSubmitEditing` (keep the clear button live), or debounce ≥ 600 ms with a minimum of 2 characters.
 
-- [x] **Date format: no regional date-locale setting; relative strings hard-coded** — `P3` — `partial` — fixed in 0205aa0
+- [ ] **Date format: no regional date-locale setting; relative strings hard-coded** — `P3` — `partial` — partly: 0205aa0 localized the relative strings; there is still no `dateLocale` setting (see area 08, "Language list not localized")
   - What WEB does: user-selectable regional format (`dateLocale`, changelog 1.7.7) and a preset picker (#331); strings localized.
   - What RN does: `formatListDate` follows the app locale only (`src/lib/date-format.ts:17-31`), "Just now"/"m ago" are English (`:38-41`).
   - Fix hint: localize the relative strings via `t()`; add a `dateLocale` select if parity is wanted.
@@ -241,7 +241,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 
 ### Search
 
-- [x] **Search folder scope: always the current folder; no all-folders default (#788) and no folder picker** — `P2` — `bugfix-parity` — fixed in 3194b5e
+- [x] **Search folder scope: always the current folder; no all-folders default (#788) and no folder picker** — `P2` — `bugfix-parity` — fixed in 3194b5e; "All folders" only searched the open folder's account until ee50418 (#1082)
   - What WEB does: `searchMailboxId` defaults to `""` = all folders, is a separate, persisted choice in the filter panel (`stores/email-store.ts:95-101`, `2344-2378`, changelog 1.9.0 #788); cross-mailbox queries.
   - What RN does: `buildJmapFilter` always starts with `{ inMailbox: current }` (`src/stores/email-store.ts:255`); the filter modal has no folder field.
   - Fix hint: add `folder?: string | 'all'` to `EmailFilters` (default `'all'` while a text query or filter is active, i.e. omit `inMailbox`); expose a folder select in the modal; the base-view snapshot logic already keys off `isBaseView`.

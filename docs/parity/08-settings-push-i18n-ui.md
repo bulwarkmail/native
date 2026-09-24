@@ -12,7 +12,7 @@ Legend: RN? = key exists in RN store; Honored = read by RN app code outside `sto
 
 | WEB key (default) | RN key (default) | RN? | Honored | Notes |
 |---|---|---|---|---|
-| fontSize (medium) | fontSize (medium) | yes | partial | Only `useTypography()` callers scale: EmailListScreen, SidebarDrawer, CalendarSidebarDrawer (`RN: src/theme/dynamic.ts:47`); 89 files import static `typography` from tokens |
+| fontSize (medium) | fontSize (medium) | yes | partial | Only `useTypography()` callers scale: EmailListScreen and its attachment chips (`RN: src/theme/dynamic.ts:47`); the other files import static `typography` from tokens |
 | density (regular) | density (regular) | yes | yes | EmailListScreen via `useDensity()` |
 | animationsEnabled (true) | animationsEnabled (true) | yes | partial | Only via `useAnimDuration` in 3 files; 18 files call `Animated.timing` with fixed durations (UndoSnackbar, SwipeableRow, every sheet) |
 | messageListOrder / messageListOrderScope (#718) | mailSortAscending (false) | partial | yes | Single boolean; native issue #5. Owner: mail-list agent |
@@ -120,7 +120,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - Fix hint: add `resetToDefaults` to the store (`set(DEFAULT_PERSISTED)` + persist), an export via `expo-sharing` and import via `expo-document-picker` using WEB's export shape so files round-trip between clients; add a "refresh cached data" that clears `email-snapshot`/contacts/calendar caches without logging out.
 
 - [x] **Debug mode / categories are inert local state; no debug/logger abstraction** — fixed in 8deff66 — `P3` — `missing` — src/lib/debug.ts; dead Debug tab removed in 3d0d440
-  - What WEB does: `debugMode`/`debugCategories` persisted and honoured by `lib/debug.ts:8-13`; `lib/error-reporting.ts` funnels error-boundary reports; `lib/logger.ts` server side. Debug tab gated by admin (`settings-app.tsx:766`).
+  - What WEB does: `debugMode`/`debugCategories` persisted and honoured by `lib/debug.ts:8-13`; `lib/logger.ts` server side (`lib/error-reporting.ts`, cited here before, has since been deleted from the webmail). Debug tab gated by admin (`settings-app.tsx:766`).
   - What RN does: `AboutDataSettings.tsx:61-66,226-244` keeps toggles in `useState` with categories (`sync`, `render`) that exist nowhere; the "Debug" tab is `implemented: false` (`SettingsScreen.tsx:111`); code uses raw `console.warn`.
   - Fix hint: persist `debugMode`/`debugCategories`, add `src/lib/debug.ts` mirroring WEB's category API, route the `[push]`, `[settings-store]`, `[updates-store]` warnings through it, and drop the dead Debug tab or implement a log viewer.
 
@@ -136,7 +136,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
 
 ### Push notifications
 
-- [x] **RN subscribes to `Email` and `Mailbox` state changes, not just `EmailDelivery`** — fixed in 00faceb — `P2` — `bugfix-parity`
+- [x] **RN subscribes to `Email` and `Mailbox` state changes, not just `EmailDelivery`** — fixed in 00faceb — `P2` — `bugfix-parity` — the `emailPush` map it added was refused for ACL-shared mailboxes, which could leave push off for good, and was re-patched on every launch, until d8046a8 and ccaa24e (audit B18)
   - What WEB does: `PUSH_TYPES = ['EmailDelivery']` because `Email` fires on every mutation and produced spurious notifications (`lib/web-push.ts:39-44`; changelog 1.5.x "Scope new-mail notifications to genuine inbox deliveries").
   - What RN does: `PUSH_TYPES = ['Email', 'EmailDelivery', 'Mailbox']` (`RN: src/lib/push-notifications.ts:104`). Every read/flag/move/draft on any client wakes the device through FCM and runs the headless task.
   - Fix hint: change to `['EmailDelivery']` and bump the subscription (the refresh path only patches `expires`, `:411-429`; add a `types` mismatch check like WEB `:369-383` so existing subscriptions get corrected).
@@ -151,7 +151,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: `identifyAccountFromFcmData` scans payload values for a locally stored `deviceClientId` (`RN: src/lib/push-background-task.ts:67-87`), but the relay sends `kind, accountLabel, accountId, emailIds, changed` (`repos/relay/src/fcm.ts` message.data) - never the subscription id. Result: every push processes every logged-in account serially inside a 30 s headless budget (`BulwarkPushTaskService.kt` timeout), loading each account's JMAP session.
   - Fix hint: the relay's `accountId` is the JMAP primary account id; persist each account's JMAP account id in `AccountEntry` (`RN: src/stores/account-store.ts:7-19` has none) or in the push registry (`push:accountIds:v1` → map local id → jmap id) at setup time, and match on that. `accountLabel` (= username) is a weaker second key.
 
-- [x] **No `emailPush` delivery filter (spam still wakes the device)** — fixed in 00faceb — `P2` — `bugfix-parity`
+- [x] **No `emailPush` delivery filter (spam still wakes the device)** — fixed in 00faceb — `P2` — `bugfix-parity` — the map was refused for ACL-shared mailboxes and never read back until d8046a8 and ccaa24e (audit B18)
   - What WEB does: when the session advertises `urn:ietf:params:jmap:emailpush` (Stalwart ≥ 0.16.16) the subscription carries a per-account filter `notKeyword:$junk AND inMailboxOtherThan:[junk ids]` (`lib/web-push.ts:53-108,491-497`, commit 63fa2d2d) and re-syncs it in the background on every page load (`:668-688`, `components/push-notification-prompt.tsx:119-126`, 1.9.2).
   - What RN does: `createPushSubscription` has no `emailPush` parameter (`RN: src/api/push.ts:23-57`); the Inbox-only query hides junk from the notification but the wake-up and JMAP round-trip still happen for every spam delivery.
   - Fix hint: port `buildEmailPushConfig` + `serverSupportsEmailPush` (session capabilities are in `jmapClient.currentSession.capabilities`), add `emailPush` to `createPushSubscription`/`updatePushSubscription`, and extend `refreshSubscriptionExpires` to patch `types`/`emailPush` when they differ.
@@ -220,7 +220,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
 
 - [ ] **No RTL support (ar/he/fa)** — `P2` — `missing` — done in 990cd84: forceRTL/allowRTL on override + restart hint, isLayoutRTL() helper in src/i18n; deferred: SwipeableRow side swap (mail-list agent's file - call isLayoutRTL() there)
   - What WEB does: `getLocaleDirection` sets `dir=rtl`, logical CSS, JS popovers flip, RTL-aware swipe (`i18n/direction.ts`; changelog 1.7.0-1.7.3 RTL entries).
-  - What RN does: none of the three RTL locales are shipped; no `I18nManager` usage anywhere; `android:supportsRtl="true"` is set (`RN: AndroidManifest.xml:16`) so the OS would mirror layouts when the device locale is RTL, but the app's own locale override cannot force it, and `SwipeableRow` maps left/right physically.
+  - What RN does: ar, he and fa ship since 990cd84, which also calls `I18nManager.forceRTL`/`allowRTL` when the language override changes (after a restart); mail bodies get `dir="auto"` since 910c503 (audit U4). `SwipeableRow` still maps left/right physically.
   - Fix hint: when adding ar/he/fa, call `I18nManager.forceRTL(dir==='rtl')` + `allowRTL` on override change (requires reload), audit `paddingLeft/Right` → `paddingStart/End`, and swap swipe actions when `I18nManager.isRTL`.
 
 - [ ] **Language list not localized and no "auto" date locale** — `P3` — `partial` — deferred: language labels are native names (webmail parity); timeZone landed as calendarTimeZone (calendar agent); dateLocale needs a locale override threaded through src/lib/date-format.ts call sites in other areas
@@ -230,9 +230,9 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
 
 ### Themes and appearance
 
-- [ ] **Font size setting is honoured by 3 of ~90 files** — `P3` — `partial` — deferred: Text.defaultProps is gone on the new architecture; needs the static typography import replaced by useTypography() per screen
+- [ ] **Font size setting is honoured by the mail list only** — `P3` — `partial` — deferred: Text.defaultProps is gone on the new architecture; needs the static typography import replaced by useTypography() per screen
   - What WEB does: `--font-size-base` on `:root` scales everything (`stores/settings-store.ts:1264-1274`).
-  - What RN does: `useTypography()` (`RN: src/theme/dynamic.ts:47-68`) is used by EmailListScreen, SidebarDrawer, CalendarSidebarDrawer; the other screens spread the static `typography` from `tokens.ts`, so Small/Large changes almost nothing (the thread reader, compose, settings, calendar, contacts all stay fixed).
+  - What RN does: `useTypography()` (`RN: src/theme/dynamic.ts:47-68`) is used by EmailListScreen and its attachment chips only; the other screens spread the static `typography` from `tokens.ts`, so Small/Large changes almost nothing (the thread reader, compose, settings, calendar, contacts all stay fixed).
   - Fix hint: either make `tokens.typography` a hook-backed getter or, cheaper, set `Text.defaultProps`/`maxFontSizeMultiplier` and scale via `allowFontScaling` + a root `PixelRatio` factor.
 
 - [x] **`animationsEnabled` ignored by most animations; no reduce-motion respect** — fixed in 3ae9bbe — `P3` — `partial` — useShouldAnimate ORs in AccessibilityInfo.isReduceMotionEnabled; the 18 fixed-duration Animated.timing calls in other areas' files still need useAnimDuration
@@ -294,7 +294,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
 
 ### Misc UI
 
-- [x] **Deep-link scheme registered but nothing handles it** — fixed in 5802cae — `P2` — `missing` — bulwarkmobile://, webmail https permalinks, mailto: (scheme + SENDTO filter) and ACTION_SEND/SEND_MULTIPLE share targets → Compose; iOS universal links still deferred
+- [x] **Deep-link scheme registered but nothing handles it** — fixed in 5802cae — `P2` — `missing` — bulwarkmobile://, webmail https permalinks, mailto: (scheme + SENDTO filter) and ACTION_SEND/SEND_MULTIPLE share targets → Compose; iOS universal links still deferred; shared files never uploaded, `SENDTO` opened the inbox and `+` addresses opened nothing until cd4ce9d, 06e8942 and ee652d3 (audit B9–B11)
   - What WEB does: permalinks for mail/calendar/contacts/files/settings with build/parse helpers (`lib/deep-links.ts:196-235,272-311,322-370,379-414`), `mailto:` opens the built-in composer, protocol handler registration, `webcal:`.
   - What RN does: `scheme: 'bulwarkmobile'` (`RN: app.config.js:29`) and a `VIEW`/`BROWSABLE` intent filter (`AndroidManifest.xml:25-30`) exist, but `NavigationContainer` has no `linking` prop (`App.tsx:443`) and there is no `Linking.getInitialURL`/`addEventListener('url')` anywhere, so tapping a `bulwarkmobile://` URL merely launches the app. No `https` App Links for the webmail permalink format, no `mailto:` intent filter (tapping a mailto link in another app never offers Bulwark), no `SEND`/`SEND_MULTIPLE` share target.
   - Fix hint: add a `linking` config mapping `bulwarkmobile://mail/message/:emailId`, `/calendar/event/:id`, `/contacts/:id`, `/settings/:tab` to the existing routes (`src/navigation/types.ts`), reuse WEB's path grammar so a webmail permalink can be rewritten; add `<data android:scheme="mailto"/>` and `ACTION_SEND` (`text/*`, `image/*`) filters routed to `Compose` with `prefillTo`/attachments. iOS: `CFBundleURLTypes` via `scheme` is already emitted; add `associatedDomains` for universal links later.

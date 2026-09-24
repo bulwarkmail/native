@@ -88,11 +88,6 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
   - What RN does: `EventDetailSheet` has an `onDuplicate` prop that `CalendarScreen` never passes (`src/components/calendar/EventDetailSheet.tsx:59, 336-342`); no export/copy/note.
   - Fix hint: wire `onDuplicate` (clone like WEB `handleDuplicateFromDetail`), add "Share .ics" via `expo-sharing` + a port of `eventToICS`, add "Copy link" with `Clipboard`.
 
-- [ ] **Quick natural-language event input** — `P3` — `missing` — deferred: low priority, needs a port of the webmail's quick-event parser and a text field above the month grid
-  - What WEB does: `QuickEventInput` in the toolbar (ref `components/calendar/quick-event-input.tsx`, `calendar-toolbar.tsx`).
-  - What RN does: none.
-  - Fix hint: low priority; could reuse WEB's parser in a text field above the month grid.
-
 ### Invitations / scheduling
 
 - [x] **Invitations are never sent: participants built with retired `sendTo`, no organizer, no `organizerCalendarAddress`** — `P1` — `bugfix-parity` — fixed in 5dc4070
@@ -219,9 +214,9 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
   - What RN does: `formatRange` uses `eventTimeRange` -> `getEventEndDate` (exclusive), so a single-day all-day event on Mar 1 prints "Mar 1 – Mar 2" and a two-day one "Mar 1 – Mar 3" (`src/components/calendar/EventDetailSheet.tsx:63-74`, `src/lib/calendar-utils.ts:84-90`).
   - Fix hint: for `allDay` use `getEventDisplayEndDate(event)` before comparing/formatting.
 
-- [ ] **Deep links to calendar/event** — `P3` — `missing` — deferred: no `linking` config exists yet (mail area plumbing); `Calendar` route still takes no params
+- [ ] **Deep links to calendar/event** — `P3` — `missing` — partly: incoming links are parsed since 5802cae (`src/navigation/linking.ts`), and an event link opens the event since 9282ee6; a date link only opens the Calendar tab
   - What WEB does: `parseCalendarPath`/`buildCalendarPath` handle `/calendar/<view>/<date>?event=` (ref `lib/deep-links.ts:272-300`, changelog 1.8.3 "Deep links for mail, calendar, contacts, files").
-  - What RN does: `Calendar: undefined` route params (`src/navigation/types.ts:33`); no linking config for calendar. Only matters once RN adds a `linking` config; the mail area may already cover the plumbing.
+  - What RN does: `Calendar: undefined` route params (`src/navigation/types.ts:33`); `handleDeepLink` hands an event to the Calendar tab through `pending-calendar-open`, the same path a tapped reminder takes, but ignores the date.
   - Fix hint: accept `{ date?, eventId? }` params on the Calendar route and open the detail sheet.
 
 ### Data loading / sync
@@ -251,21 +246,21 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
   - What RN does: `createEvent` merges the `/set` echo over the payload (`src/api/calendar.ts:272-274`) and appends without expansion (`src/stores/calendar-store.ts:286-304`).
   - Fix hint: after create, `CalendarEvent/get` the id (RN `getEvents([id])`) and, if `recurrenceRules` is set, run `expandRecurringEvents` for `loadedRange` or call `refresh()`.
 
-- [ ] **Push: FCM subscription excludes `CalendarEvent`/`Calendar` types** — `P3` — `partial` — deferred: local reminders (8e1d03c) are scheduled from foreground fetches only; adding the calendar types to the FCM subscription lives in `src/lib/push-notifications.ts` (push area) and would need a background refresh + reschedule hook
+- [ ] **Push: FCM subscription excludes `CalendarEvent`/`Calendar` types** — `P3` — `partial` — deferred: local reminders (8e1d03c) are resynced at launch, on `Calendar`/`CalendarEvent` state changes and on return to the foreground (4b903ed), but nothing refreshes them in the background; adding the calendar types to the push subscription lives in `src/lib/push-notifications.ts` (push area) and would need a background refresh + reschedule hook
   - What WEB does: push subscription covers calendar types so the sidebar refreshes on external changes (FEATURES.md "JMAP push keeps everything in sync").
-  - What RN does: foreground EventSource/polling dispatches to `useCalendarStore.handleStateChange` (`App.tsx:390-397`, `src/stores/calendar-store.ts:261-284`) — at parity while the app is open; the background FCM subscription lists only `['Email','EmailDelivery','Mailbox']` (`src/lib/push-notifications.ts:104`), so calendar changes never wake the app. Acceptable unless local reminders are added.
+  - What RN does: foreground EventSource/polling dispatches to `useCalendarStore.handleStateChange` (`App.tsx:390-397`, `src/stores/calendar-store.ts:261-284`) — at parity while the app is open; the background push subscription carries only `['EmailDelivery']` since 00faceb (`src/lib/push-notifications.ts`), so calendar changes never wake the app.
   - Fix hint: leave as is unless background calendar refresh becomes needed.
 
 ### Alerts / notifications
 
-- [x] **Reminders never fire on mobile (no alert scheduler, no local notifications)** — `P2` — `missing` — fixed in 8e1d03c (expo-notifications local notifications scheduled from the store for the next 7 days, calendar default alerts honoured, cancelled events / completed tasks / acknowledged alerts skipped)
+- [x] **Reminders never fire on mobile (no alert scheduler, no local notifications)** — `P2` — `missing` — fixed in 8e1d03c (expo-notifications local notifications scheduled from the store for the next 7 days, calendar default alerts honoured, cancelled events / completed tasks / acknowledged alerts skipped); moving the calendar view cancelled them until 4b903ed (audit B17), and a tapped reminder opens its event since 83db70a
   - What WEB does: `useCalendarAlerts` polls every 60 s, proactively fetches the next 24 h, computes fire times from `alerts` (offset relative to start/end, absolute triggers, calendar default alerts via `useDefaultAlerts`), dedupes through a persisted acknowledged store, plays a sound and toasts; task due alerts too; cancelled events muted (#572) (ref `lib/calendar-alerts.ts:39-201`, `hooks/use-calendar-alerts.ts:21-158`, `stores/calendar-notification-store.ts`).
   - What RN does: `src/lib/calendar-alerts.ts` only converts offsets <-> reminder presets (1-103); the `calendarNotificationsEnabled`/`calendarNotificationSound` settings are shown in `NotificationSettings.tsx:52-53, 235-240` but nothing reads them; `package.json` has no `expo-notifications`. Users who set "15 minutes before" get nothing.
   - Fix hint: add `expo-notifications`, port `computeFireTime`/`getPendingAlerts`, and schedule local notifications for the next N days on every `fetchEvents` (cancel + reschedule by event id); honour `useDefaultAlerts` via `Calendar.defaultAlertsWithTime/WithoutTime` (add those to `Calendar/get` properties).
 
 ### Tasks
 
-- [x] **Task sheet supports only title + due date; no edit, description, priority, due time, progress states, alerts, filters, "show on calendar"** — `P2` — `partial` — fixed in 09c24fa (edit, description, priority, due date + time, calendar move, all/pending/completed/overdue filters, overdue-first sort, `needs-action` <-> `completed` with `progressUpdated`, due tasks overlaid on the grid; task alerts still come only from the server data)
+- [x] **Task sheet supports only title + due date; no edit, description, priority, due time, progress states, alerts, filters, "show on calendar"** — `P2` — `partial` — fixed in 09c24fa (edit, description, priority, due date + time, calendar move, all/pending/completed/overdue filters, overdue-first sort, `needs-action` <-> `completed` with `progressUpdated`, due tasks overlaid on the grid; task alerts still come only from the server data); completing failed on Stalwart, which rejects `progressUpdated`, until dcdda5e (audit B12, #958)
   - What WEB does: task modal with description, due date + optional time, priority (none/high/medium/low -> 1-9), progress, calendar, alert; list filters all/pending/completed/overdue, overdue-first sort, `showTasksOnCalendar` overlays due tasks on the grid; completion toggles `needs-action` <-> `completed` with `progressUpdated` (ref `components/calendar/task-modal.tsx:55-140`, `task-list-view.tsx:80-110`, `stores/task-store.ts:366, 442-452`).
   - What RN does: `TasksSheet` creates `{ title, progress, due }` only, no tap-to-edit, delete + toggle only (`src/components/calendar/TasksSheet.tsx:117-135, 210-235`); un-completing sets `in-process` (`src/stores/calendar-store.ts:418-426`); `showTasksOnCalendar` (`settings-store.ts:174`) is unused; tasks are never drawn in month/week/agenda.
   - Fix hint: add a task edit sheet mirroring `task-modal.tsx`, filter chips, and render due tasks as all-day chips when `showTasksOnCalendar`.
@@ -304,3 +299,4 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
 - `webcal:` / `mailto:` protocol-handler registration and import-or-subscribe prompt for detected webcal links.
 - Agenda plugin sidecar, plugin event-action slot (Jitsi), Pro tab deep-link URL writing.
 - Refresh-gesture interception (F5/Ctrl-R) — RN has pull-to-refresh.
+- Quick natural-language event input: the webmail has no parser for it either (dropped from the findings by the 2026-09 audit).

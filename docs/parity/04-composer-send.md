@@ -9,7 +9,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 
 ### Drafts
 
-- [x] **No draft autosave / save-on-close — closing a compose loses everything** — fixed in 5b72c4d — `P1` — `missing`
+- [x] **No draft autosave / save-on-close — closing a compose loses everything** — fixed in 5b72c4d — `P1` — `missing` — offline or without a Drafts folder the close dialog still dropped the text, and the iOS swipe skipped the dialog, until 92b42e4 (audit B16)
   - What WEB does: debounced 2 s autosave to the server Drafts folder with `$draft`+`$seen` keywords (`components/email/email-composer.tsx:1648-1815` saveDraftOnce, `:1842-1883` timer; `lib/jmap/client.ts:2998-3060` createDraft), serialized against send (#303, `:1821-1837`), `beforeunload` best-effort save (`:1082-1091`), "Save / Discard / Cancel" close dialog (`:2347-2426`, `handleSaveDraftAndClose`, `handleDiscardAndClose`), toast when the save is refused so text is not dropped (`:2384-2401`, #702).
   - What RN does: the only close path is `onClose` in `src/screens/ComposeScreen.tsx:518-541`, an Alert with Cancel / **Discard** — no "Save draft" option and no server draft is ever created. The hardware back button / iOS swipe-back is not intercepted at all (no `beforeRemove` listener anywhere in `ComposeScreen.tsx` or `src/navigation/*`), so the dirty guard is bypassed entirely by the OS back gesture.
   - Fix hint: add a `createDraft(...)`-style call in `src/api/email.ts` (Email/set create into the `drafts`-role mailbox with `$draft`/`$seen`, destroy previous draft id only after the new create succeeds), call it from a debounced effect + from the close Alert ("Save draft" button), and register `navigation.addListener('beforeRemove', …)` to route back gestures through the same guard.
@@ -221,7 +221,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 
 ### Scheduled send
 
-- [x] **Scheduled screen: cancel only — no reschedule, no "send now", no edit** — fixed in c659b54 — `P2` — `partial`
+- [x] **Scheduled screen: cancel only — no reschedule, no "send now", no edit** — fixed in c659b54 — `P2` — `partial` — reschedule dropped Cc and Bcc until e67947a, and a refused half of it could drop or double-send the message until 7e598c5 (audit B19)
   - What WEB does: scheduled view with send-now button (changelog 1.6.x), reschedule (`stores/email-store.ts:4353` rescheduleScheduledEmail, `lib/jmap/client.ts:7985`), cancel-for-edit that reopens the composer (`email-store.ts:4326`), listing routed to the owning account (#874).
   - What RN does: `src/screens/ScheduledScreen.tsx:51-78` offers only "Cancel send"; `src/api/email.ts:902-988` has `listScheduledEmails`/`cancelScheduledSend` only.
   - Fix hint: add `rescheduleScheduledSend(submissionId, emailId, identityId, holdFor)` = `EmailSubmission/set { update: {id: {undoStatus:'canceled'}}, create: {replacement: {emailId, identityId, envelope(HOLDFOR)}} }` and an edit path once drafts exist (cancel → open composer prefilled from the Email).
@@ -253,7 +253,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 
 ### mailto / share intents
 
-- [ ] **No `mailto:` handling / share-to-app intent** — `P2` — `missing` — composer side (prefill*, prefillAttachments upload) done in 5b72c4d; scheme/intent filters + Linking → Compose belong to area 08
+- [x] **No `mailto:` handling / share-to-app intent** — `P2` — `missing` — composer side (prefill*, prefillAttachments upload) done in 5b72c4d; scheme, intent filters and links to Compose done in 5802cae (area 08); shared files, `SENDTO` and `+` addresses work since cd4ce9d, 06e8942, ee652d3 (audit B9–B11)
   - What WEB does: PWA `protocol_handlers` for mailto (`app/manifest.ts:118`), `parseMailtoUrl` (`lib/validation.ts:133-167`), in-app composer open through the unsaved-draft guard (`components/mail/mail-app.tsx:1110`, changelog 1.9.0).
   - What RN does: `app.config.js:29` registers only the custom `bulwarkmobile` scheme; no `intentFilters` (Android `mailto`/`SEND`) or iOS `LSApplicationQueriesSchemes`/`CFBundleURLTypes` for `mailto`; no `Linking.getInitialURL`/`addEventListener('url')` handling that routes to `Compose` (grep over `App.tsx`/`src/navigation` shows none). Tapping a mailto link in another app cannot open Bulwark; sharing a file/text to the app is impossible.
   - Fix hint: add `scheme: ['bulwarkmobile', 'mailto']` + Android `intentFilters` for `mailto` and `android.intent.action.SEND`, parse with a port of `parseMailtoUrl`, and navigate to `Compose` with `prefillTo`/subject/body (add those params); for SEND intents seed `attachments` from the shared `content://` URI (upload path already supports it, `src/api/blob.ts:17-22`).

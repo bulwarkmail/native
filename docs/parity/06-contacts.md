@@ -197,7 +197,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
 
 ### Viewer integration
 
-- [ ] **"Add sender to contacts" from the message view missing** — `P2` — `missing`
+- [x] **"Add sender to contacts" from the message view missing** — `P2` — `missing` — done in d2ed27f (the viewer's address sheet, `src/components/email/AddressActionSheet.tsx`, offers "Add to contacts" and "Open contact")
   - contact-side done: `ContactForm { prefill }` seeds email + given/surname (9800ad0), `findContactByEmail` in the store (26a34d5); the sender sheet in `EmailThreadScreen` belongs to the viewer agent.
   - What WEB does: contact sidebar/popover on sender click with "Add to contacts" that creates a card with given/surname split from the display name (`components/email/email-viewer.tsx:5350-5366, 558-564`); also the mobile recipient popover (#306) and `/contacts/new?addEmail=` deep link (`components/contacts/contacts-app.tsx:182-198`).
   - What RN does: no contact lookup or "add" action in `EmailThreadScreen` (grep contact/ContactForm: only `SenderAvatar` at `:794`). Only `ContactForm`'s `route.params` support `contactId/addressBookId/asGroup` (`src/navigation/types.ts:24`) — no email/name prefill.
@@ -210,9 +210,9 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - Fix hint: same sheet as above; show the matching card's phone/org and an "Open" that navigates to `ContactDetail`.
 
 - [ ] **Contact deep links (`/contacts/<id>[/edit]`, `/contacts/new`)** — `P3` — `missing`
-  - deferred: navigation/deep-link agent; contact routes already exist.
+  - partly: `/contacts/<id>` opens the contact since 5802cae; `/contacts/new` and `/contacts/<id>/edit` only open the Contacts tab.
   - What WEB does: `parseContactsPath`/`buildContactsPath` (`lib/deep-links.ts:323-329`), applied once on mount (`components/contacts/contacts-app.tsx:182-224`).
-  - What RN does: no `linking` config anywhere (grep `prefixes|LinkingOptions|getInitialURL` in `App.tsx`/`src`: none). Cross-reference the navigation/deep-link agent; contact-side requirement is just `ContactDetail { contactId }` / `ContactForm { contactId }` which already exist (`src/navigation/types.ts:23-24`).
+  - What RN does: `src/navigation/linking.ts` (5802cae) maps `/contacts/<id>` to `ContactDetail { contactId }` and every other contacts path to the tab; it never opens `ContactForm`.
 
 ### vCard import / export (`lib/vcard.ts` vs `src/lib/vcard.ts`)
 
@@ -257,7 +257,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - Fix hint: in the modal, list `trustedSenders ∪ trustedSenderEmails`, mark book entries, and call `removeFromTrustedSendersBook` (+ local remove) on delete; show the union count.
 
 - [x] **`trustedSendersAddressBook` setting is dead (`false`, no setter, no toggle) — book is consulted unconditionally** — `P3` — `partial` — fixed in 78114b6
-  - Setting is now `boolean | null`, auto-`true` once the session advertises contacts, with a "Sync trusted senders to address book" toggle. Gating the passive load / write in `EmailBodyView` belongs to the viewer agent.
+  - Setting is `boolean | null` with a "Sync trusted senders to address book" toggle. Until d89e331 it switched itself on for a contacts-capable account, and the viewer then trusted every contact in every book; it now stays off until the user turns it on, and only the Trusted Senders book counts (the webmail still auto-enables it).
   - What WEB does: `null` until the account proves contacts support, then auto-`true` (`stores/auth-store.ts:380-385`, `stores/settings-store.ts:361,593`); toggle in settings (`content-senders-settings.tsx:77-82`); the book is only loaded/used when enabled (`mail-app.tsx:199-203`, `email-viewer.tsx:1705`).
   - What RN does: default `false`, no setter (`src/stores/settings-store.ts:106,239`); `EmailBodyView` loads the book regardless and ORs `trustedSenderEmails` into the trust check (`:480-485, 513-516`); the `addressBookEmails` branch (treats *every* contact as trusted) is gated on the dead flag (`:486-498`) so it never runs.
   - Fix hint: either drop the flag and the dead `addressBookEmails` branch, or expose a "Sync trusted senders to address book" toggle that gates the passive load and the `addToTrustedSendersBook` write.
@@ -278,7 +278,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: lower-cases the whole string and stores `emails` only (`src/stores/contacts-store.ts:308-321`); a `Name <email>` string (e.g. typed in settings) becomes an invalid address.
   - Fix hint: reuse the WEB regex.
 
-- [ ] **Auto-trust reply recipients missing** — `P3` — `missing`
+- [x] **Auto-trust reply recipients missing** — `P3` — `missing` — done in 5b72c4d (area 04)
   - deferred: composer agent; `addToTrustedSendersBook` now accepts `Name <email>` and never races the passive load (26a34d5).
   - What WEB does: on reply/replyAll every To/Cc recipient is added to the trusted book (`components/email/email-composer.tsx:2284-2292`; changelog 1.4.x "Auto-add recipients to trusted senders when replying").
   - What RN does: `ComposeScreen` has no trusted-sender code (grep `trusted`: none).
@@ -290,8 +290,6 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What WEB does: queries the server for the next 365 days (`components/contacts/contact-activity.tsx:133-169`).
   - What RN does: filters `useCalendarStore().events` (`src/components/contacts/ContactActivity.tsx:90-91, 127-142`), i.e. only the range the calendar tab happened to load; on a fresh start it is empty.
   - Fix hint: call the RN calendar API for `[now, now+365d]` with a participant filter, falling back to the cache.
-
-- [ ] **Print contact** — N/A on mobile (share vCard exists). Listed under N/A.
 
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Address book list/create/rename/delete with `myRights` checks (`src/components/settings/ContactsSettings.tsx`, `AddressBookPickerSheet`); inline "New address book…" in the move sheet (WEB #415).

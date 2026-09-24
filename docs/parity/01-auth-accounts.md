@@ -54,7 +54,7 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `rewriteSessionUrls` only rewrites absolute URLs; `extractOrigin` returns null for `/jmap/` so the relative value is passed through unchanged and `secureFetch('/jmap/')` fails (`src/api/jmap-client.ts:320-340`). Same in the unified inbox `rewriteApiUrl` (`src/api/unified-inbox.ts:55-60`).
   - Fix hint: when the URL has no `^https?://`, return `serverOrigin + (url.startsWith('/') ? url : '/' + url)`; keep the plain string splitting (the comment about the RN URL polyfill corrupting templates still applies).
 
-- [x] **Redirected session fetch may lose the Authorization header** — `P3` — `partial` — fixed in 0b1c240
+- [x] **Redirected session fetch may lose the Authorization header** — `P3` — `partial` — fixed in 0b1c240; the check keyed on `response.redirected`, which React Native's fetch never sets, so it only works since 859770b (audit B15)
   - What WEB does: `fetchSessionResponse` detects a redirected 200 with no accounts/username (Safari and some auth proxies drop `Authorization` on redirect) and refetches `response.url` with the header (`lib/jmap/client.ts:911-925`).
   - What RN does: `fetchSession` trusts the redirected response (`src/api/jmap-client.ts:363-383`); Stalwart 0.16.19 answers `/.well-known/jmap` with a 307 to `/jmap/session` (verified against stw-test19), and iOS `NSURLSession` can strip the header on redirect, which ends in `resolveAccountId` throwing "No account found in JMAP session".
   - Fix hint: mirror the WEB check (`response.redirected` and empty `accounts`/`username` → refetch `response.url` with the header).
@@ -106,12 +106,12 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `connectWithOAuth` uses `session.username || accessToken.slice(0, 8)` (`src/api/jmap-client.ts:135-136`), so the same mailbox logged in via password and via OAuth can produce two registry entries, and the drawer synthesizes `username@host`.
   - Fix hint: read `Identity/get` after connect and use the primary identity email for `email` (and ideally for the registry id).
 
-- [ ] **Cannot remove a non-active account** — `P2` — `missing` (changelog 1.7.8 "Remove a specific account from the switcher")
+- [x] **Cannot remove a non-active account** — `P2` — `missing` (changelog 1.7.8 "Remove a specific account from the switcher") — done in 6ae21d5, 490355c
   - What WEB does: per-row remove button in the switcher (`components/layout/account-switcher.tsx:138-143, 322-333`) backed by `removeAccount` which tears down the client, evicts caches and clears cookies (`stores/auth-store.ts:1382-1401`).
   - What RN does: only "Sign out of <active>" and "Sign out all" (`src/components/SidebarDrawer.tsx:400-437`).
   - Fix hint: add a per-row remove (long-press or trailing X) that runs `teardownPushNotificationsForAccount(id)`, `jmapClient.clearAccountCredentials(id)`, `useEmailStore.removeAccount(id)`, `accountStore.removeAccount(id)`.
 
-- [ ] **Switcher shows stale connection state and no error indicator** — `P3` — `partial`
+- [x] **Switcher shows stale connection state and no error indicator** — `P3` — `partial` — done in 6ae21d5 (the drawer shows `hasError` with its message)
   - What WEB does: shows `hasError` (alert icon) with `errorMessage` and a live `isConnected` dot per account (`account-switcher.tsx:296-303`).
   - What RN does: renders only the `isConnected` dot (`SidebarDrawer.tsx:355-361`); `hasError`/`errorMessage` (set in `restoreSession`) are never displayed, and since only the active account is ever connected, other rows show whatever value they had last.
   - Fix hint: render `hasError`; show the dot only for the active account (or treat inactive as "cached").
@@ -126,7 +126,7 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `authMode = props.authMode ?? 'basic'` and `quotaUsed = props.quotaUsed ?? 0` (`AccountSettings.tsx:46-47`) but `SettingsScreen` renders `<Component />` with no props (`SettingsScreen.tsx:242`), so OAuth accounts read "Basic" and the storage row never appears (RN has no `Quota/get` at all — flag for the mail/settings audit).
   - Fix hint: derive from `jmapClient.usesBearerAuth` (or persist `authMode` on `AccountEntry`); fetch quota via `Quota/get` when `urn:ietf:params:jmap:quota` is advertised.
 
-- [ ] **Hard account cap of 5** — `P3` — `partial`
+- [x] **Hard account cap of 5** — `P3` — `partial` — done in 6ae21d5 (cap raised to 10, `src/lib/account-utils.ts:4`)
   - What WEB does: 5 on HTTP/1.1, lifted to 50 when HTTP/2 is observed, because each web account pins an SSE socket (`lib/account-utils.ts:75-107`).
   - What RN does: `MAX_ACCOUNTS = 5` (`src/lib/account-utils.ts:1`) although only the active account holds a live connection.
   - Fix hint: raise the constant (or drop the cap) once the unified inbox cost per account is acceptable.
@@ -136,7 +136,7 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `getSharedMailAccounts()` exists for mail/unified inbox (`src/api/jmap-client.ts:480-495`) but there is no shared-account listing or scoped settings.
   - Fix hint: list non-personal `session.accounts` in `AccountSettings` and pass an `accountId` into the filter/vacation stores.
 
-- [ ] **Unified-inbox shared-account filter disagrees with `getSharedMailAccounts`** — `P3` — `rn-only-bug`
+- [x] **Unified-inbox shared-account filter disagrees with `getSharedMailAccounts`** — `P3` — `rn-only-bug` — done in 6ae21d5
   - What WEB does: a non-personal account counts as mail-capable even when its `accountCapabilities` omit mail (`lib/jmap/client.ts:4421-4445`); RN's own `getSharedMailAccounts` mirrors that (`jmap-client.ts:486-493`).
   - What RN does: the unified inbox requires `accountCapabilities == null || MAIL in accountCapabilities` (`src/api/unified-inbox.ts:208-210`), so a shared account that advertises other capabilities but not mail is silently skipped there while it appears in the sidebar.
   - Fix hint: reuse the `!advertisesMail && info.isPersonal → skip` rule from `getSharedMailAccounts`.
