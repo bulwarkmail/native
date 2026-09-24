@@ -253,6 +253,59 @@ describe('setupPushNotifications subscription shape', () => {
     expect(createMock).not.toHaveBeenCalled();
   });
 
+  it('leaves an emailPush filter alone when the server already holds it', async () => {
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: { 'urn:ietf:params:jmap:emailpush': {} },
+    };
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([
+      {
+        id: 'existing',
+        deviceClientId: OUR_DCID,
+        expires: new Date(Date.now() + 80 * 86400000).toISOString(),
+        types: ['EmailDelivery'],
+        // As the server echoes it back: same content, its own key order.
+        emailPush: {
+          'jmap-primary': {
+            urgency: 'high',
+            properties: ['id', 'threadId'],
+            filter: { conditions: [{ notKeyword: '$junk' }, { inMailboxOtherThan: ['junk'] }], operator: 'AND' },
+          },
+        },
+      },
+    ]);
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('re-patches an emailPush filter that has drifted', async () => {
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: { 'urn:ietf:params:jmap:emailpush': {} },
+    };
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([
+      {
+        id: 'existing',
+        deviceClientId: OUR_DCID,
+        expires: new Date(Date.now() + 80 * 86400000).toISOString(),
+        types: ['EmailDelivery'],
+        emailPush: {
+          'jmap-primary': {
+            filter: { operator: 'AND', conditions: [{ notKeyword: '$junk' }, { inMailboxOtherThan: ['old-junk'] }] },
+            properties: ['id', 'threadId'],
+            urgency: 'high',
+          },
+        },
+      },
+    ]);
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(updateMock.mock.calls[0][1].emailPush['jmap-primary'].filter.conditions[1]).toEqual({
+      inMailboxOtherThan: ['junk'],
+    });
+  });
+
   it('forceRecreate destroys the recorded subscription and creates a new one', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
     listMock.mockResolvedValue([

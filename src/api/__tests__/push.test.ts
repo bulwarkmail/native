@@ -8,13 +8,21 @@ vi.mock('../jmap-client', () => ({
     },
     authHeader: 'Basic dXNlcjpwYXNz',
     request: vi.fn(),
+    hasCapability: vi.fn(() => false),
   },
 }));
 
 import { jmapClient } from '../jmap-client';
-import { createPushSubscription, startPolling, updatePushSubscription } from '../push';
+import {
+  createPushSubscription,
+  listPushSubscriptions,
+  startPolling,
+  updatePushSubscription,
+} from '../push';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
+const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
+const EMAIL_PUSH = 'urn:ietf:params:jmap:emailpush';
 
 describe('push operations', () => {
   beforeEach(() => {
@@ -24,6 +32,70 @@ describe('push operations', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  describe('emailPush read-back', () => {
+    const FILTER = {
+      filter: { operator: 'AND', conditions: [{ notKeyword: '$junk' }] },
+      properties: ['id', 'threadId'],
+      urgency: 'high' as const,
+    };
+
+    beforeEach(() => {
+      mockHasCapability.mockImplementation((urn: string) => urn === EMAIL_PUSH);
+    });
+
+    afterEach(() => {
+      mockHasCapability.mockImplementation(() => false);
+    });
+
+    it('asks for emailPush explicitly under the emailpush capability', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/get', { list: [{ id: 's1', emailPush: { a: FILTER } }] }, '0']],
+      });
+      const list = await listPushSubscriptions();
+      const [calls, using] = mockRequest.mock.calls[0];
+      expect(calls[0][1].properties).toContain('emailPush');
+      expect(using).toEqual(['urn:ietf:params:jmap:core', EMAIL_PUSH]);
+      expect(list[0].emailPush).toEqual({ a: FILTER });
+    });
+
+    it('keeps the default properties on servers without emailpush', async () => {
+      mockHasCapability.mockImplementation(() => false);
+      mockRequest.mockResolvedValue({ methodResponses: [['PushSubscription/get', { list: [] }, '0']] });
+      await listPushSubscriptions();
+      const [calls, using] = mockRequest.mock.calls[0];
+      expect(calls[0][1]).toEqual({ ids: null });
+      expect(using).toEqual(['urn:ietf:params:jmap:core']);
+    });
+
+    it('sends the capability with an emailPush create and update', async () => {
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [['PushSubscription/set', { created: { new: { id: 's1' } } }, '0']],
+      });
+      await createPushSubscription({
+        deviceClientId: 'd', url: 'https://relay/x', types: ['EmailDelivery'], emailPush: { a: FILTER },
+      });
+      expect(mockRequest.mock.calls[0][1]).toEqual(['urn:ietf:params:jmap:core', EMAIL_PUSH]);
+
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [['PushSubscription/set', { updated: { s1: null } }, '0']],
+      });
+      await updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' });
+      // An update that leaves the filter alone doesn't need the capability.
+      expect(mockRequest.mock.calls[1][1]).toEqual(['urn:ietf:params:jmap:core']);
+    });
+
+    it('drops emailPush from writes on servers without the capability', async () => {
+      mockHasCapability.mockImplementation(() => false);
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { updated: { s1: null } }, '0']],
+      });
+      await updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z', emailPush: { a: FILTER } });
+      const [calls, using] = mockRequest.mock.calls[0];
+      expect(calls[0][1].update.s1).toEqual({ expires: '2026-10-01T00:00:00Z' });
+      expect(using).toEqual(['urn:ietf:params:jmap:core']);
+    });
   });
 
   describe('PushSubscription/set refusals', () => {

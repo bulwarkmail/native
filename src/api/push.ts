@@ -6,11 +6,32 @@ import type { EmailPushConfig, PushSubscription, StateChange } from './types';
 export type StateChangeHandler = (change: StateChange) => void;
 
 // ─── PushSubscription (RFC 8620 §7.2) ───────────────────
+// Mirrors the webmail's lib/jmap/client.ts push calls - keep them in sync.
+
+// draft-ietf-jmap-emailpush (Stalwart >= 0.16.16) lets a subscription carry a
+// per-account `emailPush` delivery filter. Older servers reject the capability
+// in `using` and the property outright, so every call that touches it gates
+// on the session advertising the capability.
+function hasEmailPushCapability(): boolean {
+  return jmapClient.hasCapability(CAPABILITIES.EMAIL_PUSH);
+}
+
+function pushUsing(withEmailPush: boolean): string[] {
+  return withEmailPush ? [CAPABILITIES.CORE, CAPABILITIES.EMAIL_PUSH] : [CAPABILITIES.CORE];
+}
 
 export async function listPushSubscriptions(): Promise<PushSubscription[]> {
+  const withEmailPush = hasEmailPushCapability();
+  // `emailPush` is not in the server's default property set, so ask for it
+  // explicitly - without it the stored filter never compares equal to the
+  // wanted one and every launch re-patches it.
+  const args: Record<string, unknown> = { ids: null };
+  if (withEmailPush) {
+    args.properties = ['id', 'deviceClientId', 'verificationCode', 'expires', 'types', 'emailPush'];
+  }
   const res = await jmapClient.request(
-    [['PushSubscription/get', { ids: null }, '0']],
-    [CAPABILITIES.CORE],
+    [['PushSubscription/get', args, '0']],
+    pushUsing(withEmailPush),
   );
   const [, body] = res.methodResponses[0] ?? [];
   return (body?.list as PushSubscription[]) ?? [];
@@ -40,7 +61,8 @@ export async function createPushSubscription(params: {
     types: params.types,
   };
   if (params.expires) created.expires = params.expires;
-  if (params.emailPush) created.emailPush = params.emailPush;
+  const withEmailPush = !!params.emailPush && hasEmailPushCapability();
+  if (withEmailPush) created.emailPush = params.emailPush;
 
   const res = await jmapClient.request(
     [
@@ -50,7 +72,7 @@ export async function createPushSubscription(params: {
         '0',
       ],
     ],
-    [CAPABILITIES.CORE],
+    pushUsing(withEmailPush),
   );
   const [, body] = res.methodResponses[0] ?? [];
   assertSetResult(body, ['new'], 'push subscription');
@@ -72,15 +94,18 @@ export async function updatePushSubscription(
   id: string,
   patch: { expires?: string; types?: string[]; emailPush?: Record<string, EmailPushConfig> },
 ): Promise<void> {
+  const withEmailPush = patch.emailPush !== undefined && hasEmailPushCapability();
+  const update: Record<string, unknown> = { ...patch };
+  if (!withEmailPush) delete update.emailPush;
   const res = await jmapClient.request(
     [
       [
         'PushSubscription/set',
-        { update: { [id]: patch } },
+        { update: { [id]: update } },
         '0',
       ],
     ],
-    [CAPABILITIES.CORE],
+    pushUsing(withEmailPush),
   );
   const [, body] = res.methodResponses[0] ?? [];
   assertSetResult(body, [id], 'push subscription');
