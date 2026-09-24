@@ -711,7 +711,8 @@ export const useCalendarStore = create<CalendarState>()(
   toggleTaskComplete: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
-    const completed = task.progress === 'completed';
+    // The tasks sheet ticks cancelled tasks too, so a tap on one reopens it.
+    const completed = task.progress === 'completed' || task.progress === 'cancelled';
     // Un-completing goes back to needs-action (not in-process), like webmail.
     // No progressUpdated: JSCalendar 2.0 dropped it and Stalwart rejects the
     // whole update with invalidProperties (#958).

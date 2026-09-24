@@ -209,6 +209,55 @@ describe('calendar operations', () => {
       const [event] = await getEvents(['ev1']);
       expect(event.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 2 }]);
     });
+
+    it('normalizes the CalDAV spellings of task progress (calcard#20)', async () => {
+      const list = [
+        { id: 't1', progress: 'COMPLETED' },
+        { id: 't2', progress: 'NEEDS_ACTION' },
+        { id: 't3', progress: 'IN_PROCESS' },
+        { id: 't4', progress: 'canceled' },
+        { id: 't5', progress: 'CANCELLED' },
+        { id: 't6', progress: 'needs-action' },
+      ];
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/get', { list }, '0']],
+      });
+
+      const result = await getEvents(list.map((t) => t.id));
+      expect(result.map((t) => t.progress)).toEqual([
+        'completed',
+        'needs-action',
+        'in-process',
+        'cancelled',
+        'cancelled',
+        'needs-action',
+      ]);
+    });
+
+    it('leaves unknown and non-string task progress untouched', async () => {
+      const list = [
+        { id: 't1', progress: 'constructor' },
+        { id: 't2', progress: '__proto__' },
+        { id: 't3', progress: 'failed' },
+        { id: 't4', progress: 42 },
+        { id: 't5', progress: null },
+        { id: 'ev1', title: 'Event' },
+      ];
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/get', { list }, '0']],
+      });
+
+      const result = await getEvents(list.map((t) => t.id));
+      expect(result.map((t) => t.progress as unknown)).toEqual([
+        'constructor',
+        '__proto__',
+        'failed',
+        42,
+        null,
+        undefined,
+      ]);
+      expect(result[5]).not.toHaveProperty('progress');
+    });
   });
 
   describe('createEvent', () => {

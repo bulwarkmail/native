@@ -147,6 +147,32 @@ export function normalizeRecurrenceProperties<T extends Partial<CalendarEvent>>(
   return result;
 }
 
+const TASK_PROGRESS_NORMALIZATION = new Map<string, string>([
+  ['needs-action', 'needs-action'],
+  ['needs_action', 'needs-action'],
+  ['in-process', 'in-process'],
+  ['in_process', 'in-process'],
+  ['completed', 'completed'],
+  ['cancelled', 'cancelled'],
+  ['canceled', 'cancelled'],
+]);
+
+/**
+ * CalDAV-created tasks can come back with their iCalendar STATUS spelling
+ * (`COMPLETED`, `NEEDS_ACTION`) or as `canceled` (stalwartlabs/calcard#20).
+ * Map the known spellings onto the JSCalendar values the task filters, the
+ * checkbox and the reminders compare against; leave unknown values alone.
+ * Mirrors webmail's normalizeCalendarTask.
+ */
+export function normalizeTaskProgress<T extends Partial<CalendarEvent>>(event: T): T {
+  const progress = (event as { progress?: unknown }).progress;
+  if (typeof progress !== 'string') return event;
+  const normalized = TASK_PROGRESS_NORMALIZATION.get(progress.toLowerCase());
+  return normalized === undefined || normalized === progress
+    ? event
+    : { ...event, progress: normalized };
+}
+
 /**
  * Convert the client's plural recurrence arrays to the singular JSCalendar 2.0
  * properties Stalwart expects on write, dropping null rule fields. An empty
@@ -357,7 +383,7 @@ export async function getEvents(ids: string[], accountId?: string): Promise<Cale
       USING,
     );
     const list = methodResult<{ list: CalendarEvent[] }>(res).list ?? [];
-    all.push(...list.map(normalizeRecurrenceProperties));
+    all.push(...list.map((e) => normalizeTaskProgress(normalizeRecurrenceProperties(e))));
   }
   return all;
 }

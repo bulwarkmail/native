@@ -674,6 +674,22 @@ describe('calendar-store', () => {
       expect(useCalendarStore.getState().tasks[0].progress).toBe('needs-action');
     });
 
+    it('reopens a cancelled task, which the tasks sheet shows as ticked', async () => {
+      useCalendarStore.setState({
+        tasks: [{ id: 't1', progress: 'cancelled' } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('t1');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't1',
+        { progress: 'needs-action', percentComplete: 0 },
+        undefined,
+        undefined,
+      );
+    });
+
     it('flips the task at once and reverts it when the server refuses', async () => {
       useCalendarStore.setState({
         tasks: [{ id: 't1', progress: 'needs-action', percentComplete: 20 } as any],
