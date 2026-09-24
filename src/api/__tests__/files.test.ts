@@ -36,6 +36,7 @@ import {
   isCrossAccountId,
   isFolder,
   moveFileNode,
+  renameFileNode,
   setFileNodeShare,
   supportsSharing,
 } from '../files';
@@ -486,6 +487,38 @@ describe('moveFileNode', () => {
     await moveFileNode('f1', null);
     const [, args] = mockRequest.mock.calls[0][0][0];
     expect(args.update.f1).toEqual({ parentId: null });
+  });
+});
+
+describe('FileNode/set refused by the server', () => {
+  const methodError = {
+    methodResponses: [['error', { type: 'forbidden', description: 'No write access' }, '0']],
+  };
+
+  it('fails a rename, move or delete answered with a method error', async () => {
+    mockRequest.mockResolvedValue(methodError);
+
+    await expect(renameFileNode('f1', 'new.txt')).rejects.toThrow('No write access');
+    await expect(moveFileNode('f1', 'dir-1')).rejects.toThrow('No write access');
+    await expect(deleteFileNodes(['f1'])).rejects.toThrow('No write access');
+  });
+
+  it('fails a create or share answered with a method error', async () => {
+    mockRequest.mockResolvedValue(methodError);
+
+    await expect(createFolder('Docs', null)).rejects.toThrow('No write access');
+    await expect(
+      copyFileNode({ id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1' }, null),
+    ).rejects.toThrow('No write access');
+    await expect(setFileNodeShare('f1', 'p2', null)).rejects.toThrow('No write access');
+  });
+
+  it('fails a rename the server lists under notUpdated', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { notUpdated: { f1: { type: 'forbidden', description: 'read-only' } } }, '0']],
+    });
+
+    await expect(renameFileNode('f1', 'new.txt')).rejects.toThrow('read-only');
   });
 });
 

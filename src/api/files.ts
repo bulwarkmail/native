@@ -2,7 +2,7 @@ import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { FileNode, FileNodeRights, JMAPAccountInfo, JMAPMethodCall, Principal } from './types';
 import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
-import { batched } from './jmap-result';
+import { batched, requireMethodResult } from './jmap-result';
 import { decodeFileNodeName } from '../lib/filenode-name';
 
 // A FileNode is a folder (container) only when it has no blob content — the
@@ -253,7 +253,7 @@ export async function createFolder(
     [['FileNode/set', { accountId, create: { 'new-dir': props } }, '0']],
     fileUsing(),
   );
-  const result = res.methodResponses[0][1];
+  const result = requireMethodResult(res, '0', 'FileNode/set');
   const created = result.created?.['new-dir'];
   if (!created) {
     const err = result.notCreated?.['new-dir'];
@@ -271,7 +271,9 @@ export async function updateFileNode(
     [['FileNode/set', { accountId, update: { [id]: updates } }, '0']],
     fileUsing(),
   );
-  const notUpdated = res.methodResponses[0][1].notUpdated?.[id];
+  // A method-level error (e.g. forbidden) has no notUpdated entry, so without
+  // this check a refused rename or move reported success.
+  const notUpdated = requireMethodResult(res, '0', 'FileNode/set').notUpdated?.[id];
   if (notUpdated) throw new Error(notUpdated.description || 'Update failed');
 }
 
@@ -297,7 +299,7 @@ export async function deleteFileNodes(ids: string[]): Promise<void> {
     }, '0']],
     fileUsing(),
   );
-  const notDestroyed = res.methodResponses[0][1].notDestroyed as
+  const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
     | Record<string, { description?: string }>
     | undefined;
   const failedIds = Object.keys(notDestroyed ?? {});
@@ -335,13 +337,10 @@ async function createFileNodeFromBlob(
     [['FileNode/set', { accountId, create: { 'new-file': props } }, '0']],
     fileUsing(),
   );
-  const result = res.methodResponses[0];
-  if (!result || result[0] === 'error') {
-    throw new Error(result?.[1]?.description || 'FileNode/set create failed');
-  }
-  const created = result[1].created?.['new-file'];
+  const result = requireMethodResult(res, '0', 'FileNode/set');
+  const created = result.created?.['new-file'];
   if (!created) {
-    const err = result[1].notCreated?.['new-file'];
+    const err = result.notCreated?.['new-file'];
     throw new Error(err?.description || 'Upload failed');
   }
   return { ...props, ...created } as FileNode;
@@ -402,7 +401,7 @@ export async function setFileNodeShare(
     }, '0']],
     fileUsing(),
   );
-  const result = res.methodResponses[0][1];
+  const result = requireMethodResult(res, '0', 'FileNode/set');
   if (result.notUpdated?.[fileNodeId]) {
     throw new Error(result.notUpdated[fileNodeId].description || 'Failed to update file share');
   }
