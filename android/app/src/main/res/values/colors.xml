@@ -1,5 +1,6 @@
 <resources>
-  <color name="splashscreen_background">#09090b</color>
+  <!-- Splash background, as `splash.backgroundColor` in app.config.js; the dark one is in values-night. -->
+  <color name="splashscreen_background">#ffffff</color>
   <color name="iconBackground">#09090b</color>
   <color name="colorPrimary">#023c69</color>
   <color name="colorPrimaryDark">#09090b</color>
