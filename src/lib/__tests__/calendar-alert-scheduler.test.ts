@@ -56,6 +56,13 @@ describe('parseAlertOffset / computeFireTime', () => {
     );
     expect(computeTaskFireTime({ ...task, due: null }, { '@type': 'OffsetTrigger', offset: '-PT1H' })).toBeNull();
   });
+
+  it('reads a zoned task due in its own time zone', () => {
+    const task = { ...event, due: '2026-07-01T17:00:00', timeZone: 'Europe/Berlin', alerts: undefined };
+    expect(computeTaskFireTime(task, { '@type': 'OffsetTrigger', offset: '-PT1H' })).toBe(
+      new Date('2026-07-01T14:00:00Z').getTime(),
+    );
+  });
 });
 
 describe('getEffectiveAlerts', () => {

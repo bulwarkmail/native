@@ -24,11 +24,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native';
-import { format, isBefore, isToday, parseISO, startOfDay } from 'date-fns';
+import { format, isBefore, isToday, startOfDay } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { getCalendarColor, timePattern, type TimeFormat } from '../../lib/calendar-utils';
+import { getCalendarColor, getTaskDueDate, timePattern, type TimeFormat } from '../../lib/calendar-utils';
+import { getEffectiveTimeZone } from '../../lib/calendar-timezone';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
@@ -74,9 +75,9 @@ function isCompleted(task: CalendarEvent): boolean {
 }
 
 function isOverdue(task: CalendarEvent): boolean {
-  if (!task.due || isCompleted(task)) return false;
-  const d = parseISO(task.due);
-  if (isNaN(d.getTime())) return false;
+  if (isCompleted(task)) return false;
+  const d = getTaskDueDate(task);
+  if (!d) return false;
   return isBefore(d, startOfDay(new Date())) && !isToday(d);
 }
 
@@ -89,8 +90,8 @@ function compareTasks(a: CalendarEvent, b: CalendarEvent): number {
   const ao = isOverdue(a);
   const bo = isOverdue(b);
   if (ao !== bo) return ao ? -1 : 1;
-  const ad = a.due ? parseISO(a.due).getTime() : Infinity;
-  const bd = b.due ? parseISO(b.due).getTime() : Infinity;
+  const ad = getTaskDueDate(a)?.getTime() ?? Infinity;
+  const bd = getTaskDueDate(b)?.getTime() ?? Infinity;
   if (ad !== bd) return ad - bd;
   const ap = a.priority || 10;
   const bp = b.priority || 10;
@@ -113,12 +114,11 @@ function emptyEditor(calendarId: string): EditorState {
 }
 
 function editorFromTask(task: CalendarEvent, fallbackCalendarId: string): EditorState {
-  const due = task.due ? parseISO(task.due) : null;
   return {
     id: task.id,
     title: task.title || '',
     description: task.description || '',
-    due: due && !isNaN(due.getTime()) ? due : null,
+    due: getTaskDueDate(task),
     withTime: !!task.due && !task.showWithoutTime && !/^\d{4}-\d{2}-\d{2}$/.test(task.due),
     priority: priorityToLevel(task.priority),
     calendarId: Object.keys(task.calendarIds || {})[0] || fallbackCalendarId,
@@ -236,9 +236,14 @@ export function TasksSheet({
         if (editor.withTime) {
           data.due = format(editor.due, "yyyy-MM-dd'T'HH:mm:ss");
           data.showWithoutTime = false;
+          // The editor shows the due in local time; label it with the zone
+          // it was entered in, like the event editor, or the task's old zone
+          // would shift it.
+          data.timeZone = getEffectiveTimeZone();
         } else {
           data.due = format(editor.due, "yyyy-MM-dd'T'00:00:00");
           data.showWithoutTime = true;
+          data.timeZone = null;
         }
       } else if (editor.id) {
         data.due = null;
@@ -260,9 +265,8 @@ export function TasksSheet({
   };
 
   const dueLabel = (task: CalendarEvent): string | null => {
-    if (!task.due) return null;
-    const d = parseISO(task.due);
-    if (isNaN(d.getTime())) return null;
+    const d = getTaskDueDate(task);
+    if (!d || !task.due) return null;
     const hasTime = !task.showWithoutTime && !/^\d{4}-\d{2}-\d{2}$/.test(task.due);
     return hasTime
       ? format(d, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale })

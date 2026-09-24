@@ -175,7 +175,7 @@ function wallClockAsUtcTimestamp(formatter: Intl.DateTimeFormat, instant: number
  * and return the corresponding UTC instant. Two fixup iterations converge
  * for all real offsets, including across DST transitions.
  */
-function zonedWallTimeToUtc(wall: Date, timeZone: string): Date | null {
+export function zonedWallTimeToUtc(wall: Date, timeZone: string): Date | null {
   const formatter = getTzFormatter(timeZone);
   if (!formatter) return null;
   const wallAsUtc = Date.UTC(

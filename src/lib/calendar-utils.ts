@@ -7,6 +7,7 @@ import {
 } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../api/types';
 import { colors } from '../theme/tokens';
+import { zonedWallTimeToUtc } from './recurrence-expansion';
 
 // ─── Duration ────────────────────────────────────────────
 // Parse an ISO 8601 duration ("PT1H30M", "P2D", "PT45M") to milliseconds.
@@ -43,6 +44,21 @@ export function getEventStartDate(
     if (!isNaN(utc.getTime())) return utc;
   }
   return parseISO(event.start);
+}
+
+// ─── Task due ────────────────────────────────────────────
+// A task's `due` is a wall-clock time in its `timeZone` (a CalDAV DUE with a
+// TZID keeps it). Resolve it to the instant, as utcStart does for events, so
+// a 17:00 Europe/Berlin due shows at the viewer's local time. Date-only and
+// floating dues stay in the device zone.
+export function getTaskDueDate(
+  task: Pick<CalendarEvent, 'due' | 'timeZone' | 'showWithoutTime'>,
+): Date | null {
+  if (!task.due) return null;
+  const wall = parseISO(task.due);
+  if (isNaN(wall.getTime())) return null;
+  if (task.showWithoutTime || !task.timeZone || /^\d{4}-\d{2}-\d{2}$/.test(task.due)) return wall;
+  return zonedWallTimeToUtc(wall, task.timeZone) ?? wall;
 }
 
 export function getEventEndDate(event: CalendarEvent): Date {

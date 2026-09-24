@@ -9,6 +9,7 @@ import {
   getCalendarColor,
   getEventStartDate,
   getEventEndDate,
+  getTaskDueDate,
   timePattern,
   layoutOverlappingEvents,
   CALENDAR_COLOR_PALETTE,
@@ -69,6 +70,31 @@ describe('getEventStartDate / getEventEndDate malformed utc fallback', () => {
     expect(isNaN(end.getTime())).toBe(false);
     const start = getEventStartDate(ev({}));
     expect(end.getTime() - start.getTime()).toBe(60 * 60 * 1000);
+  });
+});
+
+describe('getTaskDueDate', () => {
+  it('reads a timed due as wall time in the task zone', () => {
+    const d = getTaskDueDate({ due: '2026-07-01T17:00:00', timeZone: 'Europe/Berlin' });
+    expect(d?.toISOString()).toBe('2026-07-01T15:00:00.000Z');
+    const winter = getTaskDueDate({ due: '2026-01-15T17:00:00', timeZone: 'Europe/Berlin' });
+    expect(winter?.toISOString()).toBe('2026-01-15T16:00:00.000Z');
+  });
+
+  it('keeps floating, date-only and all-day dues in the device zone', () => {
+    expect(getTaskDueDate({ due: '2026-07-01T17:00:00' })?.getTime())
+      .toBe(new Date('2026-07-01T17:00:00').getTime());
+    expect(getTaskDueDate({ due: '2026-07-01', timeZone: 'Europe/Berlin' })?.getTime())
+      .toBe(new Date('2026-07-01T00:00:00').getTime());
+    expect(getTaskDueDate({ due: '2026-07-01T00:00:00', timeZone: 'Europe/Berlin', showWithoutTime: true })?.getTime())
+      .toBe(new Date('2026-07-01T00:00:00').getTime());
+  });
+
+  it('falls back to wall time for an unknown zone and returns null without a valid due', () => {
+    expect(getTaskDueDate({ due: '2026-07-01T17:00:00', timeZone: 'Mars/Olympus' })?.getTime())
+      .toBe(new Date('2026-07-01T17:00:00').getTime());
+    expect(getTaskDueDate({ due: null })).toBeNull();
+    expect(getTaskDueDate({ due: 'garbage', timeZone: 'Europe/Berlin' })).toBeNull();
   });
 });
 

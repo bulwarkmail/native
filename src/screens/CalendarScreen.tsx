@@ -63,6 +63,7 @@ import {
   eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
+  getTaskDueDate,
   pickUnusedCalendarColor,
   sharedCalendarColorKey,
   type EventDayIndex,
@@ -279,7 +280,9 @@ export default function CalendarScreen() {
         start: dateOnly ? `${task.due}T00:00:00` : task.due,
         showWithoutTime: allDay,
         duration: allDay ? 'P1D' : 'PT30M',
-        utcStart: undefined,
+        // The due is wall time in the task's zone; place the chip at the
+        // instant, like events.
+        utcStart: allDay ? undefined : getTaskDueDate(task)?.toISOString(),
         utcEnd: undefined,
         title: `☐ ${task.title || ''}`.trim(),
         recurrenceRules: undefined,

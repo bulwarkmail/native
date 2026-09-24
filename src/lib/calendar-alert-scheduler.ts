@@ -1,6 +1,6 @@
 import { parseISO } from 'date-fns';
 import type { Alert, Calendar, CalendarEvent } from '../api/types';
-import { parseDuration } from './calendar-utils';
+import { getTaskDueDate, parseDuration } from './calendar-utils';
 
 // Pure alert maths for calendar reminders. Port of the webmail's
 // lib/calendar-alerts.ts (computeFireTime / getEffectiveAlerts /
@@ -71,10 +71,9 @@ export function computeTaskFireTime(task: CalendarEvent, trigger: Alert['trigger
   if (trigger.offset === undefined) return null;
   const offsetMs = parseAlertOffset(trigger.offset);
   if (offsetMs === null) return null;
-  if (!task.due) return null;
-  const baseTime = parseISO(task.due).getTime();
-  if (Number.isNaN(baseTime)) return null;
-  return baseTime + offsetMs;
+  const due = getTaskDueDate(task);
+  if (!due) return null;
+  return due.getTime() + offsetMs;
 }
 
 /** The event's own alerts, or the calendar defaults when `useDefaultAlerts` is set. */
