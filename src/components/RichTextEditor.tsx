@@ -68,6 +68,8 @@ export interface RichTextEditorHandle {
 interface Props {
   initialHtml?: string;
   placeholder?: string;
+  /** Keep remote images and fonts from loading (read once, on mount). */
+  blockRemoteImages?: boolean;
   onChange?: (html: string) => void;
   onSelectionChange?: (state: RichTextSelectionState) => void;
   onFocus?: () => void;
@@ -75,7 +77,7 @@ interface Props {
 }
 
 const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function RichTextEditor(
-  { initialHtml = '', placeholder = '', onChange, onSelectionChange, onFocus, onBlur },
+  { initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur },
   ref,
 ) {
   const c = useColors();
@@ -94,7 +96,7 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   // Build the source HTML once. Theming changes won't auto-rebuild the page,
   // which is fine: themes change rarely and the user can recompose if needed.
   const html = React.useMemo(
-    () => buildEditorHtml({ initialHtml, placeholder, c }),
+    () => buildEditorHtml({ initialHtml, placeholder, c, blockRemoteImages }),
     // c reference changes per theme switch but we don't want to lose user
     // edits on a theme change. Bake in the initial colors only.
     // eslint-disable-next-line react-hooks/exhaustive-deps

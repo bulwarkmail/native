@@ -15,12 +15,58 @@ import type { ThemePalette } from '../theme/tokens';
 // user types, and the parent ScrollView handles overflow.
 export const MIN_EDITOR_HEIGHT = 220;
 
+/**
+ * The editor page's Content-Security-Policy, mirroring the viewer's
+ * (`src/lib/email-html.ts`). Nothing but images, styles and our own inline
+ * script may load. With `blockRemoteImages` images and fonts are limited to
+ * what the composer produces itself - `data:` (inline and hydrated `cid:`
+ * images) and `blob:` (pasted images) - so a quoted original's tracking
+ * pixels and remote images don't fire just because it is replied to.
+ */
+export function buildEditorCsp(blockRemoteImages: boolean): string {
+  const resources = blockRemoteImages
+    ? ['img-src data: blob:', 'font-src data:', "media-src 'none'"]
+    : ['img-src data: blob: https: http:', 'font-src data: https: http:', 'media-src data: https: http:'];
+  return [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    ...resources,
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
+}
+
+/**
+ * Whether the composer must open the editor with remote images blocked: it
+ * is seeded with someone else's HTML (the quoted original of a reply or
+ * forward, or a reopened draft that carries a quote) and the viewer would
+ * have shown that message with its remote content blocked too. A reopened
+ * draft doesn't say whose message it quotes, so its quote counts as
+ * untrusted.
+ */
+export function shouldBlockEditorRemoteImages(opts: {
+  /** The HTML the editor is seeded with from a message, if any. */
+  seedHtml?: string | null;
+  isDraft: boolean;
+  externalContentPolicy: 'allow' | 'block' | 'ask';
+  /** The quoted message's sender is trusted (ignored for drafts). */
+  senderTrusted: boolean;
+}): boolean {
+  const { seedHtml, isDraft, externalContentPolicy, senderTrusted } = opts;
+  if (!seedHtml || externalContentPolicy === 'allow') return false;
+  if (isDraft) return /\sdata-quoted-html=|<blockquote\b/i.test(seedHtml);
+  return !senderTrusted;
+}
+
 export function buildEditorHtml(opts: {
   initialHtml: string;
   placeholder: string;
   c: ThemePalette;
+  /** Block remote images and fonts (see `buildEditorCsp`). */
+  blockRemoteImages?: boolean;
 }): string {
-  const { initialHtml, placeholder, c } = opts;
+  const { initialHtml, placeholder, c, blockRemoteImages = false } = opts;
   // Inject initial content as a JSON-encoded string so any HTML/quotes inside
   // are safely embedded (no template literal collision with the script body).
   const initialJson = JSON.stringify(initialHtml);
@@ -30,6 +76,8 @@ export function buildEditorHtml(opts: {
 <html>
 <head>
 <meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="${buildEditorCsp(blockRemoteImages)}" />
+<meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }

@@ -55,6 +55,7 @@ import {
   isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, type Recipient as ParsedRecipient,
 } from '../lib/recipients';
 import { findDraftIdentityId, resolveReplyFrom } from '../lib/reply-identity';
+import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import {
   hasSignature, buildEmbeddedSignatureHtml, containsEmbeddedSignature, spliceSignature,
   insertSignatureAboveQuote, getPlainTextSignature, appendPlainTextSignature,
@@ -527,6 +528,24 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (!raw) return { html: undefined as string | undefined, cids: [] as string[] };
     const { html, cids } = rewriteCidImagesForEditor(stripDangerousTags(raw));
     return { html, cids };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Remote images in a quoted original stay blocked in the editor whenever
+  // the viewer blocks them; the sent HTML keeps them. Read once: the editor
+  // page is built on mount.
+  const blockRemoteImages = React.useMemo(() => {
+    const settings = useSettingsStore.getState();
+    const sender = replyTo?.from.email?.trim().toLowerCase();
+    return shouldBlockEditorRemoteImages({
+      seedHtml: draft ? draft.htmlBody : replyTo?.htmlBody,
+      isDraft: !!draft,
+      externalContentPolicy: settings.externalContentPolicy,
+      senderTrusted: !!sender && (
+        settings.isSenderTrusted(sender)
+        || useContactsStore.getState().trustedSenderEmails.includes(sender)
+      ),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2317,6 +2336,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <RichTextEditor
               ref={editorRef}
               initialHtml={initialBodyHtml}
+              blockRemoteImages={blockRemoteImages}
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
