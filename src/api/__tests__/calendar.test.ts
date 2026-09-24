@@ -16,6 +16,7 @@ import {
   createEvent,
   updateEvent,
   deleteEvents,
+  findEventsByUid,
   toLocalDateTime,
 } from '../calendar';
 
@@ -334,6 +335,35 @@ describe('calendar operations', () => {
       expect(mockRequest.mock.calls[1][0][0][1].update).toEqual({
         ev1: { recurrenceRule: null },
       });
+    });
+  });
+
+  describe('findEventsByUid', () => {
+    it('queries by uid, whatever the date, and fetches the matches', async () => {
+      mockRequest
+        .mockResolvedValueOnce({
+          methodResponses: [['CalendarEvent/query', { ids: ['ev9'] }, '0']],
+        })
+        .mockResolvedValueOnce({
+          methodResponses: [['CalendarEvent/get', { list: [{ id: 'ev9', uid: 'inv@example.com' }] }, '0']],
+        });
+
+      const found = await findEventsByUid('inv@example.com');
+
+      const query = mockRequest.mock.calls[0][0][0];
+      expect(query[0]).toBe('CalendarEvent/query');
+      expect(query[1]).toEqual({ accountId: 'acc-1', filter: { uid: 'inv@example.com' } });
+      expect(mockRequest.mock.calls[1][0][0][1].ids).toEqual(['ev9']);
+      expect(found.map((e) => e.id)).toEqual(['ev9']);
+    });
+
+    it('returns nothing without a second request when no event matches', async () => {
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [['CalendarEvent/query', { ids: [] }, '0']],
+      });
+
+      expect(await findEventsByUid('missing@example.com')).toEqual([]);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
     });
   });
 

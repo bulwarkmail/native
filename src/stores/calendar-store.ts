@@ -190,6 +190,8 @@ export interface CalendarState {
     participantId: string,
     status: 'accepted' | 'declined' | 'tentative',
     replyTo?: Record<string, string> | null,
+    // The event itself, for one that isn't in the loaded window.
+    event?: CalendarEvent,
   ) => Promise<void>;
   importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<number>;
   createCalendar: (name: string, color?: string, description?: string) => Promise<Calendar>;
@@ -561,13 +563,15 @@ export const useCalendarStore = create<CalendarState>()(
     return mapServerEventToStoreEvent(master, get().calendars, event.accountId);
   },
 
-  rsvpEvent: async (eventId, participantId, status, replyTo) => {
+  rsvpEvent: async (eventId, participantId, status, replyTo, event) => {
     // JMAP participant ids are opaque strings (they can contain @, ., :, /);
     // the api layer RFC 6901-escapes them, so only reject empty values.
     if (!participantId) {
       throw new Error('Invalid participant ID');
     }
-    const storeEvent = get().events.find((e) => e.id === eventId);
+    // An event outside the loaded window (an invitation looked up by UID)
+    // isn't in the store; the caller hands it over instead.
+    const storeEvent = get().events.find((e) => e.id === eventId) ?? event;
     const realId = storeEvent?.originalId || eventId;
     // Repair events that are missing the organizer (e.g. imported ones) so
     // Stalwart can route the REPLY; never touch an existing one.

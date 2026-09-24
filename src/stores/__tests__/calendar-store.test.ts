@@ -13,6 +13,7 @@ vi.mock('../../api/calendar', () => ({
   deleteEvents: vi.fn(),
   batchCreateEvents: vi.fn(),
   setDefaultCalendar: vi.fn(),
+  rsvpEvent: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -45,6 +46,7 @@ const mockUpdateEvent = calendarApi.updateEvent as ReturnType<typeof vi.fn>;
 const mockDeleteEvents = calendarApi.deleteEvents as ReturnType<typeof vi.fn>;
 const mockSetDefaultCalendar = calendarApi.setDefaultCalendar as ReturnType<typeof vi.fn>;
 const mockScan = calendarApi.scanCalendarObjects as ReturnType<typeof vi.fn>;
+const mockRsvpEvent = calendarApi.rsvpEvent as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -636,6 +638,39 @@ describe('calendar-store', () => {
       const ev = { id: 'ev1', recurrenceRules: [{ frequency: 'daily' }] } as any;
       expect(await useCalendarStore.getState().getMasterEvent(ev)).toBe(ev);
       expect(mockGetEvents).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rsvpEvent', () => {
+    it('answers an event outside the loaded window that the caller hands over (B22)', async () => {
+      useCalendarStore.setState({ events: [] });
+      mockRsvpEvent.mockResolvedValue(undefined);
+      const found = { id: 'ev9', uid: 'inv@example.com', start: '2027-01-10T09:00:00' } as any;
+
+      await useCalendarStore.getState().rsvpEvent(
+        'ev9', 'p1', 'accepted', { imip: 'mailto:boss@example.com' }, found,
+      );
+
+      // No organizer on the event: repaired from the invitation's replyTo.
+      expect(mockRsvpEvent).toHaveBeenCalledWith(
+        'ev9', 'p1', 'accepted', 'mailto:boss@example.com', undefined,
+      );
+    });
+
+    it('prefers the loaded copy of the event', async () => {
+      useCalendarStore.setState({
+        events: [{
+          id: 'acc-2:ev1', originalId: 'ev1', accountId: 'acc-2',
+          organizerCalendarAddress: 'mailto:boss@example.com',
+          participants: { p1: { participationStatus: 'needs-action' } },
+        } as any],
+      });
+      mockRsvpEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().rsvpEvent('acc-2:ev1', 'p1', 'declined', { imip: 'mailto:x@example.com' });
+
+      expect(mockRsvpEvent).toHaveBeenCalledWith('ev1', 'p1', 'declined', undefined, 'acc-2');
+      expect(useCalendarStore.getState().events[0].participants?.p1.participationStatus).toBe('declined');
     });
   });
 

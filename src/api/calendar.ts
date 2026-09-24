@@ -388,6 +388,21 @@ export async function getEvents(ids: string[], accountId?: string): Promise<Cale
   return all;
 }
 
+/**
+ * The calendar objects carrying an iCalendar UID, found on the server with a
+ * `uid` filter — unlike the store, not limited to the loaded date window.
+ * Mirrors webmail's `queryCalendarEvents({ uid })`.
+ */
+export async function findEventsByUid(uid: string, accountId?: string): Promise<CalendarEvent[]> {
+  const account = accountId || jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['CalendarEvent/query', { accountId: account, filter: { uid } }, '0']],
+    USING,
+  );
+  const ids = methodResult<{ ids: string[] }>(res).ids ?? [];
+  return getEvents(ids, accountId);
+}
+
 // `sendSchedulingMessages` asks Stalwart to deliver iMIP (RFC 6047) invitation
 // / reply / cancellation emails to participants. We pass it whenever an event
 // has participants so creating/updating/deleting a meeting notifies attendees.

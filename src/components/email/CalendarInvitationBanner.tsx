@@ -9,7 +9,7 @@ import { format, parseISO } from 'date-fns';
 import type { Calendar, Email, CalendarEvent } from '../../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { fetchCalendarBlobText, parseCalendarBlob } from '../../api/calendar';
+import { fetchCalendarBlobText, findEventsByUid, parseCalendarBlob } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -76,6 +76,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
 
   const [state, setState] = React.useState<BannerState>('loading');
   const [event, setEvent] = React.useState<Partial<CalendarEvent> | null>(null);
+  // The invitation's event as found on the server by UID, for one outside
+  // the calendar's loaded window.
+  const [serverMatch, setServerMatch] = React.useState<CalendarEvent | null>(null);
   const [method, setMethod] = React.useState<InvitationMethod>('unknown');
   const [rsvpStatus, setRsvpStatus] = React.useState<RsvpStatus | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
@@ -87,6 +90,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     let cancelled = false;
     if (!attachment || !enabled) return;
     setState('loading');
+    setServerMatch(null);
     (async () => {
       try {
         const events = await parseCalendarBlob(attachment.blobId, jmapAccountId);
@@ -97,6 +101,14 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
         }
         const parsed = events[0];
         setEvent(parsed);
+        // The store only holds the calendar's loaded window; look the event
+        // up on the server so one already there counts as existing and the
+        // RSVP goes to it. Best-effort, must not block the banner.
+        if (parsed.uid && !useCalendarStore.getState().events.some((e) => e.uid === parsed.uid)) {
+          findEventsByUid(parsed.uid)
+            .then((found) => { if (!cancelled && found[0]) setServerMatch(found[0]); })
+            .catch(() => undefined);
+        }
         // Explicit method (Content-Type params) first; JMAP usually strips
         // them, so fall back to the raw ICS METHOD line before guessing.
         let detected = getInvitationMethod(parsed, { email, attachment });
@@ -126,11 +138,12 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     ?? candidates.find((cal) => cal.isDefault)
     ?? candidates[0];
 
-  // Already imported? Look for the UID among the loaded events.
+  // Already imported? Look for the UID among the loaded events, then among
+  // what the server lookup found.
   const existing = React.useMemo(() => {
     if (!event?.uid) return null;
-    return storeEvents.find((e) => e.uid === event.uid) ?? null;
-  }, [storeEvents, event?.uid]);
+    return storeEvents.find((e) => e.uid === event.uid) ?? serverMatch;
+  }, [storeEvents, event?.uid, serverMatch]);
 
   const trust = React.useMemo(
     () => (event ? getInvitationTrustAssessment(event, email, method) : null),
@@ -173,20 +186,21 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     setBusy(true);
     setNotice(null);
     try {
-      // Make sure the event exists in a local calendar (dedupes by UID).
-      if (!existing) await importEvents([event], targetCalendar.id);
-      // Re-read from the store to get the server-assigned id + participant.
-      const stored = useCalendarStore.getState().events.find((e) => e.uid === event.uid);
-      const participant = stored
-        ? findParticipantByEmail(stored, currentUserEmails)
-        : me;
-      if (stored && participant) {
-        await rsvpEvent(stored.id, participant.id, status, buildReplyTo(event));
-        setRsvpStatus(status);
-        setNotice(t('calendar.invitation.response_sent', 'Response sent'));
-      } else {
-        setNotice(t('calendar.invitation.added', 'Added to calendar'));
+      let target = existing;
+      if (!target) {
+        // Make sure the event exists in a local calendar (dedupes by UID),
+        // then find it on the server for its id and participant: the store
+        // never sees an event outside the loaded window.
+        await importEvents([event], targetCalendar.id);
+        target = event.uid ? (await findEventsByUid(event.uid))[0] ?? null : null;
+        if (target) setServerMatch(target);
       }
+      const participant = target ? findParticipantByEmail(target, currentUserEmails) : null;
+      // Never claim success when no response went out.
+      if (!target || !participant) throw new Error('No event to respond to');
+      await rsvpEvent(target.id, participant.id, status, buildReplyTo(event), target);
+      setRsvpStatus(status);
+      setNotice(t('calendar.invitation.response_sent', 'Response sent'));
       setState('done');
     } catch {
       setNotice(t('calendar.invitation.response_error', 'Could not send your response'));
