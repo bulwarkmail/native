@@ -1,4 +1,5 @@
 import { jmapClient } from './jmap-client';
+import { assertSetResult, JMAPMethodError } from './jmap-result';
 import { CAPABILITIES } from './types';
 import type { EmailPushConfig, PushSubscription, StateChange } from './types';
 
@@ -18,7 +19,9 @@ export async function listPushSubscriptions(): Promise<PushSubscription[]> {
 /**
  * Create a PushSubscription pointing the JMAP server at the given relay URL.
  * Returns the server-assigned id (which the client also registers with the
- * relay so the relay can route incoming pushes to an Expo token).
+ * relay so the relay can route incoming pushes to an Expo token). A refusal
+ * throws a JMAPMethodError carrying the server's SetError type, so callers
+ * can tell a `forbidden` emailPush map from other failures.
  */
 export async function createPushSubscription(params: {
   deviceClientId: string;
@@ -50,25 +53,25 @@ export async function createPushSubscription(params: {
     [CAPABILITIES.CORE],
   );
   const [, body] = res.methodResponses[0] ?? [];
+  assertSetResult(body, ['new'], 'push subscription');
   const result = body?.created?.new as { id?: string } | undefined;
   if (!result?.id) {
-    const notCreated = body?.notCreated?.new;
-    throw new Error(
-      `PushSubscription/set create failed: ${JSON.stringify(notCreated ?? body)}`,
-    );
+    throw new Error(`PushSubscription/set create failed: ${JSON.stringify(body)}`);
   }
   return result.id;
 }
 
 /**
- * Push the subscription's expiry forward (RFC 8620 §7.2.1). Returns false if
- * the server rejected the update (e.g. the subscription no longer exists),
- * which the caller treats as a signal to recreate.
+ * Push the subscription's expiry forward and re-sync its types or delivery
+ * filter (RFC 8620 §7.2.1). Throws a JMAPMethodError carrying the server's
+ * SetError type when it refuses the update - `notFound` once the
+ * subscription is gone, `forbidden` for an emailPush map naming an account
+ * the user may not subscribe to.
  */
 export async function updatePushSubscription(
   id: string,
   patch: { expires?: string; types?: string[]; emailPush?: Record<string, EmailPushConfig> },
-): Promise<boolean> {
+): Promise<void> {
   const res = await jmapClient.request(
     [
       [
@@ -80,8 +83,10 @@ export async function updatePushSubscription(
     [CAPABILITIES.CORE],
   );
   const [, body] = res.methodResponses[0] ?? [];
-  if (body?.notUpdated?.[id]) return false;
-  return body?.updated?.[id] !== undefined;
+  assertSetResult(body, [id], 'push subscription');
+  if (body?.updated?.[id] === undefined) {
+    throw new JMAPMethodError('notUpdated', `PushSubscription/set did not update ${id}`);
+  }
 }
 
 /**

@@ -12,7 +12,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { startPolling } from '../push';
+import { createPushSubscription, startPolling, updatePushSubscription } from '../push';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -24,6 +24,37 @@ describe('push operations', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  describe('PushSubscription/set refusals', () => {
+    const forbidden = {
+      type: 'forbidden',
+      description: 'No access to one of the accounts in the emailPush map.',
+    };
+
+    it('surfaces the SetError type when a create is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { notCreated: { new: forbidden } }, '0']],
+      });
+      await expect(
+        createPushSubscription({ deviceClientId: 'd', url: 'https://relay/x', types: ['EmailDelivery'] }),
+      ).rejects.toMatchObject({ name: 'JMAPMethodError', type: 'forbidden' });
+    });
+
+    it('surfaces the SetError type when an update is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { notUpdated: { s1: forbidden } }, '0']],
+      });
+      await expect(updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' }))
+        .rejects.toMatchObject({ type: 'forbidden' });
+    });
+
+    it('resolves when the update is applied', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { updated: { s1: null } }, '0']],
+      });
+      await expect(updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' })).resolves.toBeUndefined();
+    });
   });
 
   describe('startPolling', () => {

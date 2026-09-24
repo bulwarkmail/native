@@ -9,7 +9,9 @@ import {
 } from '../api/push';
 import { getMailboxes, getSharedMailboxes } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
-import type { EmailPushConfig, Mailbox } from '../api/types';
+import { JMAPMethodError } from '../api/jmap-result';
+import { CAPABILITIES } from '../api/types';
+import type { EmailPushConfig, JMAPAccountInfo, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
 import {
   getUnifiedPushDistributors,
@@ -39,6 +41,10 @@ export const LAST_NOTIFIED_EMAIL_ID_PREFIX = 'push:lastNotifiedEmailId:v2:';
 // lastNotified id, which could not tell "already shown" from "older mail").
 const NOTIFIED_IDS_PREFIX = 'push:notifiedIds:v1:';
 const PROMPT_DISMISSED_PREFIX = 'push:promptDismissed:v1:';
+// JMAP account ids the server refused in this account's emailPush map (see
+// emailPushFallbacks). Left out of the map from then on, so a refusal isn't
+// re-provoked on every launch.
+const EMAIL_PUSH_REFUSED_PREFIX = 'push:emailPushRefused:v1:';
 
 // Legacy single-account keys (pre-multi-account). Migrated lazily on the next
 // setupPushNotifications / pushBackgroundTask call, then deleted.
@@ -65,6 +71,10 @@ export function notifiedIdsKey(accountId: string): string {
 
 function promptDismissedKey(accountId: string): string {
   return PROMPT_DISMISSED_PREFIX + accountId;
+}
+
+function emailPushRefusedKey(accountId: string): string {
+  return EMAIL_PUSH_REFUSED_PREFIX + accountId;
 }
 
 export async function readPushAccountIds(): Promise<string[]> {
@@ -275,6 +285,106 @@ export function sameEmailPush(
 ): boolean {
   if (!a) return false;
   return normalizeEmailPush(a) === normalizeEmailPush(b);
+}
+
+// Stalwart marks the accounts a user owns - their own and the groups they
+// belong to - through the create flags of its per-account collection
+// capabilities: true there, false on accounts shared with them by ACL.
+const OWNERSHIP_FLAGS: ReadonlyArray<readonly [string, string]> = [
+  [CAPABILITIES.CALENDARS, 'mayCreateCalendar'],
+  [CAPABILITIES.CONTACTS, 'mayCreateAddressBook'],
+  [CAPABILITIES.FILES, 'mayCreateTopLevelFileNode'],
+];
+
+function looksOwned(info: JMAPAccountInfo | undefined): boolean {
+  if (!info) return false;
+  if (info.isPersonal) return true;
+  if (info.isReadOnly) return false;
+  return OWNERSHIP_FLAGS.some(([urn, flag]) => {
+    const capability = info.accountCapabilities?.[urn] as Record<string, unknown> | undefined;
+    return capability?.[flag] === true;
+  });
+}
+
+/**
+ * The emailPush maps to try, widest first. Stalwart refuses the whole map as
+ * `forbidden` when it names an account the user neither owns nor belongs to
+ * as a group member - a mailbox shared by ACL - and only fans a subscription
+ * out to owned accounts anyway, so dropping the others loses nothing. The
+ * session lists both kinds as isPersonal:false, isReadOnly:false, so the
+ * first fallback keeps the accounts that look owned (see OWNERSHIP_FLAGS) and
+ * the last keeps only the primary account, which is always accepted.
+ */
+export function emailPushFallbacks(
+  desired: Record<string, EmailPushConfig>,
+  primaryAccountId: string,
+  accounts: Record<string, JMAPAccountInfo> | undefined,
+): Record<string, EmailPushConfig>[] {
+  const keep = (predicate: (id: string) => boolean) =>
+    Object.fromEntries(
+      Object.entries(desired).filter(([id]) => id === primaryAccountId || predicate(id)),
+    );
+  const out = [desired];
+  for (const next of [keep((id) => looksOwned(accounts?.[id])), keep(() => false)]) {
+    // Only steps that actually drop an account are worth another round-trip.
+    if (Object.keys(next).length < Object.keys(out[out.length - 1]).length) out.push(next);
+  }
+  return out;
+}
+
+/**
+ * Run a subscription write that carries `emailPush`, narrowing the map along
+ * emailPushFallbacks while the server refuses it as `forbidden`. Resolves to
+ * the write's result and the map the server took.
+ */
+async function writeWithEmailPush<T>(
+  emailPush: Record<string, EmailPushConfig> | null,
+  write: (emailPush: Record<string, EmailPushConfig> | null) => Promise<T>,
+): Promise<{ result: T; emailPush: Record<string, EmailPushConfig> | null }> {
+  const attempts = emailPush
+    ? emailPushFallbacks(emailPush, jmapClient.accountId, jmapClient.currentSession?.accounts)
+    : [null];
+  for (let i = 0; ; i++) {
+    try {
+      return { result: await write(attempts[i]), emailPush: attempts[i] };
+    } catch (err) {
+      const forbidden = err instanceof JMAPMethodError && err.type === 'forbidden';
+      if (!forbidden || i === attempts.length - 1) throw err;
+      logPhase('jmap', 'emailPush map refused, retrying with fewer accounts');
+    }
+  }
+}
+
+async function readRefusedEmailPushAccounts(accountId: string): Promise<string[]> {
+  try {
+    const parsed = JSON.parse((await AsyncStorage.getItem(emailPushRefusedKey(accountId))) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Add the accounts the server dropped from `wanted` to reach `accepted`. */
+async function rememberRefusedEmailPushAccounts(
+  accountId: string,
+  refusedBefore: string[],
+  wanted: Record<string, EmailPushConfig> | null,
+  accepted: Record<string, EmailPushConfig> | null,
+): Promise<void> {
+  if (!wanted || !accepted) return;
+  const refusedNow = Object.keys(wanted).filter((id) => !(id in accepted));
+  if (refusedNow.length === 0) return;
+  await AsyncStorage.setItem(
+    emailPushRefusedKey(accountId),
+    JSON.stringify(Array.from(new Set([...refusedBefore, ...refusedNow]))),
+  );
+}
+
+function withoutAccounts(
+  config: Record<string, EmailPushConfig>,
+  accountIds: string[],
+): Record<string, EmailPushConfig> {
+  return Object.fromEntries(Object.entries(config).filter(([id]) => !accountIds.includes(id)));
 }
 
 type BulwarkFcmNative = {
@@ -739,10 +849,18 @@ async function setupPushNotificationsInner(
 
   // Reuse the previous JMAP subscription when the server still has it, but
   // push the expiry forward so it doesn't time out before the next app start.
-  // With forceRecreate we skip the reuse and destroy it instead (#841).
+  // With forceRecreate we skip the reuse and replace it instead (#841). Either
+  // way the old record keeps delivering until its replacement is verified, so
+  // a replacement the server refuses never leaves the device without push.
   logPhase('jmap');
   const existingSubs = await listPushSubscriptions().catch(() => []);
-  const emailPush = serverSupportsEmailPush() ? await buildEmailPushConfig() : null;
+  // A forced re-registration re-learns which accounts the server accepts in
+  // the emailPush map.
+  if (params.forceRecreate) await AsyncStorage.removeItem(emailPushRefusedKey(accountId));
+  const refusedBefore = await readRefusedEmailPushAccounts(accountId);
+  const emailPush = serverSupportsEmailPush()
+    ? withoutAccounts(await buildEmailPushConfig(), refusedBefore)
+    : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);
   let jmapAccountId: string | null = null;
@@ -751,24 +869,26 @@ async function setupPushNotificationsInner(
   } catch {
     jmapAccountId = null;
   }
+  let replacedServerId: string | null = null;
   if (storedServerId) {
     const match = existingSubs.find((s) => s.id === storedServerId);
     if (match) {
       if (!params.forceRecreate) {
         const refreshed = await refreshSubscriptionExpires(match, emailPush);
         if (refreshed) {
+          await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
           await writePushJmapAccountId(accountId, jmapAccountId);
           logPhase('done', 'reused existing subscription');
           return { subscriptionId: storedServerId, verified: true };
         }
       }
-      // Server rejected the refresh (likely the subscription was already
-      // deleted server-side) or the caller asked for a fresh record - drop
-      // the stale id and recreate below.
-      await destroyPushSubscription(storedServerId).catch(() => undefined);
+      // Server rejected the refresh or the caller asked for a fresh record:
+      // create a replacement below and destroy this one once it's verified.
+      replacedServerId = storedServerId;
+    } else {
+      await AsyncStorage.removeItem(subKey);
     }
-    await AsyncStorage.removeItem(subKey);
   }
 
   // Reap leftover Stalwart subscriptions that would otherwise starve the new
@@ -798,13 +918,17 @@ async function setupPushNotificationsInner(
 
   let serverAssignedId: string;
   try {
-    serverAssignedId = await createPushSubscription({
-      deviceClientId,
-      url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
-      types: [...PUSH_TYPES],
-      expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
-      ...(emailPush ? { emailPush } : {}),
-    });
+    const created = await writeWithEmailPush(emailPush, (filter) =>
+      createPushSubscription({
+        deviceClientId,
+        url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
+        types: [...PUSH_TYPES],
+        expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
+        ...(filter ? { emailPush: filter } : {}),
+      }),
+    );
+    serverAssignedId = created.result;
+    await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new PushSetupError('jmap', `The mail server refused the push subscription: ${detail}`);
@@ -820,6 +944,9 @@ async function setupPushNotificationsInner(
   }
 
   await AsyncStorage.setItem(subKey, serverAssignedId);
+  if (replacedServerId) {
+    await destroyPushSubscription(replacedServerId).catch(() => undefined);
+  }
   await addPushAccountId(accountId);
   await writePushJmapAccountId(accountId, jmapAccountId);
   logPhase('done', 'subscription verified');
@@ -839,7 +966,8 @@ async function addPushAccountId(accountId: string): Promise<void> {
 // from what this client wants (a subscription created by an older build still
 // listens to `Email`/`Mailbox`; a Junk mailbox id can change under us).
 // Returns false if the server rejects the update, which the caller treats as
-// "recreate".
+// "replace"; otherwise the emailPush map the update installed (null when it
+// left the filter alone).
 async function refreshSubscriptionExpires(
   sub: {
     id: string;
@@ -849,7 +977,7 @@ async function refreshSubscriptionExpires(
   },
   // null when the server has no emailPush support - leave the property alone.
   desiredEmailPush: Record<string, EmailPushConfig> | null,
-): Promise<boolean> {
+): Promise<false | { emailPush: Record<string, EmailPushConfig> | null }> {
   const typesNeedUpdate = !sameTypes(sub.types, PUSH_TYPES);
   const emailPushNeedsUpdate =
     desiredEmailPush !== null && !sameEmailPush(sub.emailPush, desiredEmailPush);
@@ -858,18 +986,19 @@ async function refreshSubscriptionExpires(
     const thresholdMs = SUBSCRIPTION_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
     if (Number.isFinite(remainingMs) && remainingMs > thresholdMs) {
       // Plenty of life left - skip the update round-trip.
-      return true;
+      return { emailPush: null };
     }
   }
   try {
-    const patch: {
-      expires?: string;
-      types?: string[];
-      emailPush?: Record<string, EmailPushConfig>;
-    } = { expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS) };
+    const patch: { expires?: string; types?: string[] } = {
+      expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
+    };
     if (typesNeedUpdate) patch.types = [...PUSH_TYPES];
-    if (emailPushNeedsUpdate && desiredEmailPush) patch.emailPush = desiredEmailPush;
-    return await updatePushSubscription(sub.id, patch);
+    const { emailPush } = await writeWithEmailPush(
+      emailPushNeedsUpdate ? desiredEmailPush : null,
+      (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
+    );
+    return { emailPush };
   } catch {
     return false;
   }
@@ -891,6 +1020,7 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
     deviceClientIdKey(accountId),
     lastNotifiedKey(accountId),
     notifiedIdsKey(accountId),
+    emailPushRefusedKey(accountId),
   ]);
   await writePushJmapAccountId(accountId, null);
 }

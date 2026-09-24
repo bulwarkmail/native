@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Provide the Android native FCM surface setupPushNotifications needs. The
 // global test-setup mocks react-native with an empty NativeModules, so override
@@ -58,7 +58,7 @@ vi.mock('../../api/push', () => ({
   createPushSubscription: vi.fn(async () => 'new-server-id'),
   verifyPushSubscription: vi.fn(async () => undefined),
   destroyPushSubscription: vi.fn(async () => undefined),
-  updatePushSubscription: vi.fn(async () => true),
+  updatePushSubscription: vi.fn(async () => undefined),
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -75,7 +75,11 @@ import {
   createPushSubscription,
   destroyPushSubscription,
   updatePushSubscription,
+  verifyPushSubscription,
 } from '../../api/push';
+import { getSharedMailboxes } from '../../api/email';
+import { JMAPMethodError } from '../../api/jmap-result';
+import type { EmailPushConfig } from '../../api/types';
 import { jmapClient } from '../../api/jmap-client';
 import { NativeModules } from 'react-native';
 import { generateAccountId } from '../account-utils';
@@ -286,6 +290,168 @@ describe('setupPushNotifications subscription shape', () => {
   });
 });
 
+describe('setupPushNotifications with ACL-shared accounts (B18)', () => {
+  const REFUSED_KEY = 'push:emailPushRefused:v1:' + ACCOUNT_ID;
+  const sharedMock = getSharedMailboxes as ReturnType<typeof vi.fn>;
+  const verifyMock = verifyPushSubscription as ReturnType<typeof vi.fn>;
+  const calendars = (mayCreateCalendar: boolean) => ({
+    'urn:ietf:params:jmap:calendars': { mayCreateCalendar },
+  });
+  // What Stalwart puts in the session: a group the user belongs to and a
+  // mailbox another user shared by ACL look alike except for the create flags.
+  const SESSION = {
+    capabilities: { 'urn:ietf:params:jmap:emailpush': {} },
+    accounts: {
+      'jmap-primary': { name: 'user', isPersonal: true, isReadOnly: false, accountCapabilities: calendars(true) },
+      team: { name: 'team', isPersonal: false, isReadOnly: false, accountCapabilities: calendars(true) },
+      'acl-b': { name: 'userb', isPersonal: false, isReadOnly: false, accountCapabilities: calendars(false) },
+    },
+  };
+  const forbidden = () =>
+    new JMAPMethodError('forbidden', 'No access to one of the accounts in the emailPush map.');
+  // Stalwart refuses the whole map as soon as it names an account the user
+  // doesn't own; `allowed` is what it accepts.
+  const refuseUnless = (allowed: string[]) => (emailPush?: Record<string, EmailPushConfig>) => {
+    if (emailPush && Object.keys(emailPush).some((id) => !allowed.includes(id))) throw forbidden();
+  };
+  const healthy = () => ({
+    id: 'existing',
+    deviceClientId: OUR_DCID,
+    expires: new Date(Date.now() + 80 * 86400000).toISOString(),
+    types: ['EmailDelivery'],
+  });
+  const mapKeys = (emailPush: Record<string, EmailPushConfig> | undefined) =>
+    Object.keys(emailPush ?? {}).sort();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    (jmapClient as { currentSession: unknown }).currentSession = SESSION;
+    sharedMock.mockResolvedValue([
+      { id: 'team:inbox', originalId: 'inbox', role: 'inbox', accountId: 'team' },
+      { id: 'acl-b:inbox', originalId: 'inbox', role: 'inbox', accountId: 'acl-b' },
+    ]);
+    listMock.mockResolvedValue([]);
+    installFetch({});
+  });
+
+  afterEach(() => {
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: { 'urn:ietf:params:jmap:core': {} },
+    };
+    sharedMock.mockResolvedValue([]);
+    createMock.mockImplementation(async () => 'new-server-id');
+    updateMock.mockImplementation(async () => undefined);
+  });
+
+  it('narrows a refused map on refresh instead of destroying the working subscription', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([healthy()]);
+    const accept = refuseUnless(['jmap-primary', 'team']);
+    updateMock.mockImplementation(async (_id: string, patch: { emailPush?: Record<string, EmailPushConfig> }) =>
+      accept(patch.emailPush),
+    );
+
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result.subscriptionId).toBe('existing');
+    expect(updateMock).toHaveBeenCalledTimes(2);
+    expect(mapKeys(updateMock.mock.calls[0][1].emailPush)).toEqual(['acl-b', 'jmap-primary', 'team']);
+    // The group keeps its junk filter; only the ACL share is dropped.
+    expect(mapKeys(updateMock.mock.calls[1][1].emailPush)).toEqual(['jmap-primary', 'team']);
+    expect(destroyMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    expect(JSON.parse((await AsyncStorage.getItem(REFUSED_KEY))!)).toEqual(['acl-b']);
+  });
+
+  it('leaves a remembered refusal out of the map on the next run', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(REFUSED_KEY, JSON.stringify(['acl-b']));
+    listMock.mockResolvedValue([healthy()]);
+    const accept = refuseUnless(['jmap-primary', 'team']);
+    updateMock.mockImplementation(async (_id: string, patch: { emailPush?: Record<string, EmailPushConfig> }) =>
+      accept(patch.emailPush),
+    );
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(mapKeys(updateMock.mock.calls[0][1].emailPush)).toEqual(['jmap-primary', 'team']);
+  });
+
+  it('falls back to the primary account alone when the group is refused too', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([healthy()]);
+    const accept = refuseUnless(['jmap-primary']);
+    updateMock.mockImplementation(async (_id: string, patch: { emailPush?: Record<string, EmailPushConfig> }) =>
+      accept(patch.emailPush),
+    );
+
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result.subscriptionId).toBe('existing');
+    expect(updateMock).toHaveBeenCalledTimes(3);
+    expect(mapKeys(updateMock.mock.calls[2][1].emailPush)).toEqual(['jmap-primary']);
+    expect(JSON.parse((await AsyncStorage.getItem(REFUSED_KEY))!).sort()).toEqual(['acl-b', 'team']);
+  });
+
+  it('narrows a refused map when creating a subscription', async () => {
+    const accept = refuseUnless(['jmap-primary', 'team']);
+    createMock.mockImplementation(async (params: { emailPush?: Record<string, EmailPushConfig> }) => {
+      accept(params.emailPush);
+      return 'new-server-id';
+    });
+
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toEqual({ subscriptionId: 'new-server-id', verified: true });
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(mapKeys(createMock.mock.calls[1][0].emailPush)).toEqual(['jmap-primary', 'team']);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
+  });
+
+  it('does not retry other refusals with a narrower map', async () => {
+    createMock.mockImplementation(async () => {
+      throw new JMAPMethodError('overQuota', 'There are too many subscriptions.');
+    });
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.phase).toBe('jmap');
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroys the replaced subscription only after the new one is verified', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([healthy()]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true });
+
+    const destroyOrder = destroyMock.mock.invocationCallOrder[
+      destroyMock.mock.calls.findIndex((c) => c[0] === 'existing')
+    ];
+    expect(destroyOrder).toBeGreaterThan(verifyMock.mock.invocationCallOrder[0]);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
+  });
+
+  it('keeps the working subscription when its replacement is refused', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([healthy()]);
+    createMock.mockImplementation(async () => {
+      throw forbidden();
+    });
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true }).catch((e) => e);
+
+    expect(err.phase).toBe('jmap');
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+  });
+});
+
 describe('setupPushNotifications over UnifiedPush', () => {
   type UpNative = {
     getDistributors: ReturnType<typeof vi.fn>;
@@ -342,6 +508,35 @@ describe('setupPushNotifications over UnifiedPush', () => {
     });
     // The JMAP subscription flow is transport-independent.
     expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('narrows a refused emailPush map over UnifiedPush as well', async () => {
+    installUpFetch();
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: { 'urn:ietf:params:jmap:emailpush': {} },
+      accounts: { 'jmap-primary': { name: 'user', isPersonal: true, isReadOnly: false } },
+    };
+    (getSharedMailboxes as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { id: 'acl-b:inbox', originalId: 'inbox', role: 'inbox', accountId: 'acl-b' },
+    ]);
+    createMock.mockImplementation(async (params: { emailPush?: Record<string, EmailPushConfig> }) => {
+      if (params.emailPush && 'acl-b' in params.emailPush) {
+        throw new JMAPMethodError('forbidden', 'No access to one of the accounts in the emailPush map.');
+      }
+      return 'new-server-id';
+    });
+
+    try {
+      const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+      expect(result.verified).toBe(true);
+      expect(createMock).toHaveBeenCalledTimes(2);
+      expect(Object.keys(createMock.mock.calls[1][0].emailPush)).toEqual(['jmap-primary']);
+    } finally {
+      (jmapClient as { currentSession: unknown }).currentSession = {
+        capabilities: { 'urn:ietf:params:jmap:core': {} },
+      };
+      createMock.mockImplementation(async () => 'new-server-id');
+    }
   });
 
   it('sends keys: null for a legacy distributor without Web Push keys', async () => {
