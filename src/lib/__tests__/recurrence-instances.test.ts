@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
   baseEventStoreId,
+  buildFallbackExcludePatch,
+  buildFallbackOverridePatch,
+  buildOccurrencePatch,
   hydrateRecurrenceInstances,
+  isBrowserExpandedOccurrence,
   isServerRecurrenceInstance,
+  isSyntheticIdMutationUnsupported,
   mergeOverrideParticipants,
   resolveOverrideKey,
   seriesIdOf,
   stableOccurrenceKey,
+  withNewOverrideDetails,
 } from '../recurrence-instances';
 import { expandRecurringEvents } from '../recurrence-expansion';
 import type { CalendarEvent } from '../../api/types';
@@ -148,5 +154,79 @@ describe('expandRecurringEvents with server occurrences', () => {
     });
     const result = expandRecurringEvents([occurrence], '2026-03-01T00:00:00', '2026-03-31T00:00:00');
     expect(result).toEqual([occurrence]);
+  });
+});
+
+describe('changing one occurrence', () => {
+  it('recognises a server that refuses synthetic ids', () => {
+    expect(isSyntheticIdMutationUnsupported(new Error('Updating synthetic ids is not yet supported.'))).toBe(true);
+    expect(isSyntheticIdMutationUnsupported(
+      new Error('Failed to destroy event s1: invalidProperties – Deleting synthetic ids is not yet supported.'),
+    )).toBe(true);
+    expect(isSyntheticIdMutationUnsupported(new Error('forbidden'))).toBe(false);
+  });
+
+  it('tells an occurrence the device expanded from a server one', () => {
+    const rules = [{ frequency: 'daily' } as any];
+    expect(isBrowserExpandedOccurrence(ev({ id: 'm:x', originalId: 'm', recurrenceId: 'x', recurrenceRules: rules }))).toBe(true);
+    expect(isBrowserExpandedOccurrence(ev({ id: 's1', baseEventId: 'm', recurrenceId: 'x', recurrenceRules: rules }))).toBe(false);
+    expect(isBrowserExpandedOccurrence(ev({ id: 'lone', recurrenceId: 'x' }))).toBe(false);
+  });
+
+  it('keeps only what one occurrence may carry, also behind a pointer', () => {
+    expect(buildOccurrencePatch({
+      title: 'x',
+      'locations/l1/name': 'Room',
+      'calendarIds/c2': true,
+      recurrenceRules: [],
+      recurrenceId: 'r',
+      utcStart: 'z',
+      useDefaultAlerts: true,
+      originalId: 'o',
+    } as any)).toEqual({ title: 'x', 'locations/l1/name': 'Room' });
+  });
+
+  it('builds an override that keeps what the occurrence already overrides', () => {
+    const occurrence = ev({
+      id: 'm:2026-03-03T09:00:00', originalId: 'm', recurrenceId: '2026-03-03T09:00:00',
+      start: '2026-03-03T11:00:00', duration: 'PT1H', recurrenceRules: [{ frequency: 'daily' } as any],
+      recurrenceOverrides: {
+        '2026-03-03T09:00:00': { start: '2026-03-03T11:00:00', title: 'Late', updated: '2026-01-01T00:00:00Z' } as any,
+      },
+    });
+
+    expect(buildFallbackOverridePatch(occurrence, { description: 'Bring slides' })).toEqual({
+      'recurrenceOverrides/2026-03-03T09:00:00': {
+        start: '2026-03-03T11:00:00',
+        duration: 'PT1H',
+        title: 'Late',
+        description: 'Bring slides',
+      },
+    });
+    expect(buildFallbackExcludePatch(occurrence)).toEqual({
+      'recurrenceOverrides/2026-03-03T09:00:00': { excluded: true },
+    });
+  });
+
+  it('copies the occurrence details into a new override only', () => {
+    const fresh = ev({
+      id: 's1', baseEventId: 'm', recurrenceId: '2026-03-02T09:00:00', title: 'Standup',
+      alerts: { a: {} } as any, sequence: 3, recurrenceOverrides: null,
+    });
+    expect(withNewOverrideDetails(fresh, { start: '2026-03-02T10:00:00' })).toEqual({
+      title: 'Standup', alerts: { a: {} }, sequence: 3, start: '2026-03-02T10:00:00',
+    });
+
+    const overridden = { ...fresh, recurrenceOverrides: { '2026-03-02T09:00:00': { title: 'Standup' } } };
+    expect(withNewOverrideDetails(overridden, { start: '2026-03-02T10:00:00' }))
+      .toEqual({ start: '2026-03-02T10:00:00' });
+
+    // Not hydrated: the base event's overrides are unknown, so nothing is guessed.
+    const unknown = { ...fresh, recurrenceOverrides: undefined };
+    expect(withNewOverrideDetails(unknown, { start: '2026-03-02T10:00:00' }))
+      .toEqual({ start: '2026-03-02T10:00:00' });
+    expect(buildFallbackExcludePatch(unknown)).toEqual({
+      'recurrenceOverrides/2026-03-02T09:00:00': { excluded: true },
+    });
   });
 });

@@ -538,14 +538,53 @@ describe('calendar-store', () => {
           { id: 'ev2' } as any,
         ],
       });
+      mockGetEvents.mockResolvedValueOnce([
+        { id: 'ev1', start: '2026-03-02T09:00:00', recurrenceRules: [{ frequency: 'daily' }] },
+      ]);
       mockDeleteEvents.mockResolvedValue(undefined);
       mockQueryEvents.mockResolvedValue([]);
 
-      await useCalendarStore.getState().deleteEvent('ev1:a');
+      // "All events": the master is looked up for the tapped occurrence.
+      const master = await useCalendarStore.getState().getMasterEvent(
+        useCalendarStore.getState().events[0],
+      );
+      await useCalendarStore.getState().deleteEvent(master!.id);
 
       expect(mockDeleteEvents).toHaveBeenCalledWith(['ev1'], undefined, undefined);
       // The visible range was reloaded (empty here).
       expect(mockQueryEvents).toHaveBeenCalled();
+    });
+
+    it('deletes just the tapped occurrence of a series expanded on the device', async () => {
+      useCalendarStore.setState({
+        calendars: [{ id: 'cal-1', name: 'Personal' } as any],
+        events: [
+          {
+            id: 'ev1:2026-03-02T09:00:00', originalId: 'ev1', recurrenceId: '2026-03-02T09:00:00',
+            start: '2026-03-02T09:00:00', recurrenceRules: [{ frequency: 'daily' }],
+          } as any,
+          {
+            id: 'ev1:2026-03-03T09:00:00', originalId: 'ev1', recurrenceId: '2026-03-03T09:00:00',
+            start: '2026-03-03T09:00:00', recurrenceRules: [{ frequency: 'daily' }],
+            recurrenceOverrides: { '2026-03-05T09:00:00': { title: 'Moved' } },
+          } as any,
+        ],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+      mockQueryEvents.mockResolvedValue([]);
+
+      await useCalendarStore.getState().deleteEvent('ev1:2026-03-02T09:00:00');
+      await useCalendarStore.getState().deleteEvent('ev1:2026-03-03T09:00:00');
+
+      expect(mockDeleteEvents).not.toHaveBeenCalled();
+      // No overrides yet: a pointer into the missing map would fail, so the
+      // whole map is sent.
+      expect(mockUpdateEvent).toHaveBeenNthCalledWith(
+        1, 'ev1', { recurrenceOverrides: { '2026-03-02T09:00:00': { excluded: true } } }, undefined, undefined,
+      );
+      expect(mockUpdateEvent).toHaveBeenNthCalledWith(
+        2, 'ev1', { 'recurrenceOverrides/2026-03-03T09:00:00': { excluded: true } }, undefined, undefined,
+      );
     });
   });
 
@@ -732,24 +771,86 @@ describe('calendar-store', () => {
       expect(events.every((e) => e.originalId === 'm')).toBe(true);
     });
 
-    it('sends a change to a server occurrence to its base event and reloads the range', async () => {
+    const serverOccurrence = {
+      id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02T09:00:00', start: '2026-03-02T09:00:00',
+      duration: 'PT1H', title: 'Standup', recurrenceRules: weekly, recurrenceOverrides: null,
+      locations: { l: { name: 'Room 1' } }, sequence: 2, calendarIds: { 'cal-1': true },
+      utcStart: '2026-03-02T08:00:00Z', useDefaultAlerts: false,
+    };
+
+    it('writes a change to one server occurrence through its synthetic id and reloads the range', async () => {
       useCalendarStore.setState({
         calendars: [{ id: 'cal-1' }] as any,
         loadedRange: RANGE,
         events: [
-          { id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02T09:00:00', recurrenceRules: weekly } as any,
-          { id: 's2', baseEventId: 'base', recurrenceId: '2026-03-09T09:00:00', recurrenceRules: weekly } as any,
+          serverOccurrence as any,
+          { ...serverOccurrence, id: 's2', recurrenceId: '2026-03-09T09:00:00' } as any,
         ],
       });
       mockUpdateEvent.mockResolvedValue(undefined);
       mockQueryExpanded.mockResolvedValue([]);
 
-      await useCalendarStore.getState().updateEvent('s1', { 'recurrenceOverrides/2026-03-02T09:00:00': { title: 'x' } });
+      await useCalendarStore.getState().updateEvent('s1', {
+        title: 'Moved standup', start: '2026-03-02T10:00:00', calendarIds: { 'cal-1': true },
+        recurrenceRules: weekly as any, useDefaultAlerts: false,
+      });
 
-      expect(mockUpdateEvent).toHaveBeenCalledWith(
-        'base', { 'recurrenceOverrides/2026-03-02T09:00:00': { title: 'x' } }, undefined, undefined,
-      );
+      // A new override also carries the occurrence's details; series-level
+      // and refused keys are left out.
+      expect(mockUpdateEvent).toHaveBeenCalledWith('s1', {
+        title: 'Moved standup',
+        start: '2026-03-02T10:00:00',
+        locations: { l: { name: 'Room 1' } },
+        sequence: 2,
+      }, undefined, undefined);
       expect(mockQueryExpanded).toHaveBeenCalled();
+    });
+
+    it('falls back to an override on the base event when the server refuses synthetic ids', async () => {
+      useCalendarStore.setState({
+        calendars: [{ id: 'cal-1' }] as any,
+        events: [serverOccurrence as any, { ...serverOccurrence, id: 's2', recurrenceId: '2026-03-09T09:00:00' } as any],
+      });
+      mockUpdateEvent
+        .mockRejectedValueOnce(new Error('Updating synthetic ids is not yet supported.'))
+        .mockResolvedValue(undefined);
+
+      try {
+        await useCalendarStore.getState().updateEvent('s1', { title: 'Moved' });
+        expect(mockUpdateEvent).toHaveBeenLastCalledWith('base', {
+          recurrenceOverrides: {
+            '2026-03-02T09:00:00': {
+              start: '2026-03-02T09:00:00',
+              duration: 'PT1H',
+              title: 'Moved',
+              locations: { l: { name: 'Room 1' } },
+              sequence: 2,
+            },
+          },
+        }, undefined, undefined);
+
+        // Remembered: a delete goes straight to the exclusion.
+        await useCalendarStore.getState().deleteEvent('s2');
+        expect(mockDeleteEvents).not.toHaveBeenCalled();
+        expect(mockUpdateEvent).toHaveBeenLastCalledWith('base', {
+          recurrenceOverrides: { '2026-03-09T09:00:00': { excluded: true } },
+        }, undefined, undefined);
+      } finally {
+        useCalendarStore.getState().reset();
+      }
+    });
+
+    it('deletes one server occurrence through its synthetic id', async () => {
+      useCalendarStore.setState({
+        calendars: [{ id: 'cal-1' }] as any,
+        events: [serverOccurrence as any, { ...serverOccurrence, id: 's2', recurrenceId: '2026-03-09T09:00:00' } as any],
+      });
+      mockDeleteEvents.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().deleteEvent('s1');
+
+      expect(mockDeleteEvents).toHaveBeenCalledWith(['s1'], undefined, undefined);
+      expect(useCalendarStore.getState().events.map((e) => e.id)).toEqual(['s2']);
     });
 
     it('routes a single event\'s synthetic id to the stored event on every server', async () => {
@@ -809,13 +910,20 @@ describe('calendar-store', () => {
   });
 
   describe('recurring series mutations', () => {
-    it('updateEvent on an occurrence patches the master and refetches the range', async () => {
+    it('updateEvent on an occurrence writes an override on the master and refetches the range', async () => {
       useCalendarStore.setState({
         calendars: [{ id: 'cal-1', name: 'Personal' } as any],
         loadedRange: { after: '2026-03-01T00:00:00Z', before: '2026-03-31T00:00:00Z' },
         events: [
-          { id: 'ev1:a', originalId: 'ev1', recurrenceId: 'a', title: 'Old', recurrenceRules: [{ frequency: 'daily' }] } as any,
-          { id: 'ev1:b', originalId: 'ev1', recurrenceId: 'b', title: 'Old', recurrenceRules: [{ frequency: 'daily' }] } as any,
+          {
+            id: 'ev1:a', originalId: 'ev1', recurrenceId: 'a', title: 'Old', start: '2026-03-02T09:00:00',
+            duration: 'PT30M', recurrenceRules: [{ frequency: 'daily' }],
+            recurrenceOverrides: { b: { title: 'Other' } },
+          } as any,
+          {
+            id: 'ev1:b', originalId: 'ev1', recurrenceId: 'b', title: 'Other', recurrenceRules: [{ frequency: 'daily' }],
+            recurrenceOverrides: { b: { title: 'Other' } },
+          } as any,
         ],
       });
       mockUpdateEvent.mockResolvedValue(undefined);
@@ -824,9 +932,12 @@ describe('calendar-store', () => {
         { id: 'ev1', title: 'New', start: '2026-03-02T09:00:00', recurrenceRules: [{ frequency: 'daily', count: 2 }], calendarIds: { 'cal-1': true } },
       ]);
 
-      await useCalendarStore.getState().updateEvent('ev1:a', { 'recurrenceOverrides/a': { title: 'New' } });
+      await useCalendarStore.getState().updateEvent('ev1:a', { title: 'New' });
 
-      expect(mockUpdateEvent).toHaveBeenCalledWith('ev1', { 'recurrenceOverrides/a': { title: 'New' } }, undefined, undefined);
+      // Never the series itself: the change becomes this occurrence's override.
+      expect(mockUpdateEvent).toHaveBeenCalledWith('ev1', {
+        'recurrenceOverrides/a': { start: '2026-03-02T09:00:00', duration: 'PT30M', title: 'New' },
+      }, undefined, undefined);
       // Refetched: siblings now carry the server's state.
       const events = useCalendarStore.getState().events;
       expect(events.length).toBeGreaterThan(0);

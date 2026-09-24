@@ -73,7 +73,6 @@ import { buildReplyTo } from '../lib/calendar-invitation';
 import {
   buildAllScopeUpdates,
   buildFutureSeriesData,
-  buildRecurrenceOverridePatch,
   isRecurringSeriesMember,
   truncateRecurrenceRules,
 } from '../lib/recurrence-overrides';
@@ -492,13 +491,10 @@ export default function CalendarScreen() {
           const opts = { sendSchedulingMessages: action.sendScheduling };
           switch (scope) {
             case 'this': {
-              if (event.recurrenceId) {
-                // Client-side expanded occurrence: write a one-shot override
-                // on the master instead of touching the series.
-                await updateEvent(event.id, buildRecurrenceOverridePatch(updates, event.recurrenceId), opts);
-              } else {
-                await updateEvent(event.id, updates, opts);
-              }
+              // The store keeps the change on this occurrence: through its
+              // own (synthetic) id, or as a recurrence override on the event
+              // it was expanded from.
+              await updateEvent(event.id, updates, opts);
               break;
             }
             case 'this_and_future': {
@@ -532,13 +528,9 @@ export default function CalendarScreen() {
         } else {
           switch (scope) {
             case 'this': {
-              if (event.recurrenceId) {
-                await updateEvent(event.id, {
-                  [`recurrenceOverrides/${event.recurrenceId}`]: { excluded: true },
-                });
-              } else {
-                await deleteEvent(event.id);
-              }
+              // The store destroys a server occurrence, or excludes one the
+              // device expanded on its base event.
+              await deleteEvent(event.id);
               break;
             }
             case 'this_and_future': {

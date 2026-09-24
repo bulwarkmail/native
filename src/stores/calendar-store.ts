@@ -34,8 +34,14 @@ import { expandRecurringEvents } from '../lib/recurrence-expansion';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
 import {
   baseEventStoreId,
+  buildFallbackExcludePatch,
+  buildFallbackOverridePatch,
+  buildOccurrencePatch,
+  isBrowserExpandedOccurrence,
   isServerRecurrenceInstance,
+  isSyntheticIdMutationUnsupported,
   seriesIdOf,
+  withNewOverrideDetails,
 } from '../lib/recurrence-instances';
 import { findTasksOnlyCalendarIds, isTaskLikeObject } from '../lib/calendar-component-detection';
 
@@ -364,24 +370,130 @@ export interface MutationTarget {
   realId: string;
   /** Owning account of a shared calendar's event. */
   accountId?: string;
+  /** `realId` is the synthetic id of one server-expanded occurrence. */
+  isOccurrence: boolean;
+  /** `storeEvent` is one occurrence the device expanded, `realId` its base event. */
+  isBrowserOccurrence?: boolean;
 }
 
 /**
- * Where a change to the event with store id `id` goes, as a change to the
- * stored event: an occurrence (expanded by the server or on the device)
- * resolves to its base event, a master fetched by getMasterEvent to itself,
- * and a base event that is not in the store borrows the account routing of
- * a server-expanded occurrence of it in view. Mirrors the webmail's
- * resolveMutationTarget for the whole-series case.
+ * Where a change to the event with store id `id` has to go. Mirrors the
+ * webmail's resolveMutationTarget.
+ *
+ * With scope 'occurrence', a server-expanded occurrence is written through
+ * its synthetic id (the server turns the patch into a recurrence override),
+ * unless it is the single instance of a non-recurring event, where the base
+ * event is the same thing and works on every server version; an occurrence
+ * the device expanded resolves to its base event, to be written as a
+ * recurrence override on it. Scope 'series' (an answer for the whole
+ * series) always targets the stored event. A master fetched by
+ * getMasterEvent resolves to itself, and a base event that is not in the
+ * store borrows the account routing of a server occurrence of it in view.
  */
-export function resolveSeriesTarget(events: CalendarEvent[], id: string): MutationTarget {
+export function resolveMutationTarget(
+  events: CalendarEvent[],
+  id: string,
+  scope: 'occurrence' | 'series',
+): MutationTarget {
   const storeEvent = events.find((e) => e.id === id) ?? knownMasters.get(id);
   if (storeEvent) {
-    return { storeEvent, realId: seriesIdOf(storeEvent), accountId: storeEvent.accountId };
+    const context = { storeEvent, accountId: storeEvent.accountId };
+    if (isServerRecurrenceInstance(storeEvent) && storeEvent.baseEventId) {
+      if (scope === 'series' || !storeEvent.recurrenceId) {
+        return { ...context, realId: storeEvent.baseEventId, isOccurrence: false };
+      }
+      return { ...context, realId: storeEvent.originalId ?? storeEvent.id, isOccurrence: true };
+    }
+    if (scope === 'occurrence' && isBrowserExpandedOccurrence(storeEvent)) {
+      return { ...context, realId: seriesIdOf(storeEvent), isOccurrence: false, isBrowserOccurrence: true };
+    }
+    return { ...context, realId: seriesIdOf(storeEvent), isOccurrence: false };
   }
   const instance = events.find((e) => baseEventStoreId(e) === id);
-  if (instance?.baseEventId) return { realId: instance.baseEventId, accountId: instance.accountId };
-  return { realId: id };
+  if (instance?.baseEventId) {
+    return { realId: instance.baseEventId, accountId: instance.accountId, isOccurrence: false };
+  }
+  return { realId: id, isOccurrence: false };
+}
+
+// Set once CalendarEvent/set rejected a synthetic id although the probe
+// said it would take them: go straight to the base-event override then.
+let syntheticIdRejected = false;
+
+/**
+ * Patch one server-expanded occurrence through its synthetic id. A server
+ * that predates synthetic-id writes rejects it; the same change is then
+ * written as a recurrence override on the base event instead, and that is
+ * remembered. A change that creates the override carries the occurrence's
+ * details along (`withNewOverrideDetails`).
+ */
+async function updateOccurrence(
+  instance: CalendarEvent,
+  syntheticId: string,
+  updates: Partial<CalendarEvent>,
+  sendSchedulingMessages: boolean | undefined,
+  accountId: string | undefined,
+): Promise<void> {
+  const patch = withNewOverrideDetails(instance, buildOccurrencePatch(updates));
+  if (!syntheticIdRejected) {
+    try {
+      await apiUpdateEvent(syntheticId, patch, sendSchedulingMessages, accountId);
+      return;
+    } catch (err) {
+      if (!isSyntheticIdMutationUnsupported(err)) throw err;
+      syntheticIdRejected = true;
+    }
+  }
+  const fallback = buildFallbackOverridePatch(instance, patch);
+  if (!fallback || !instance.baseEventId) throw new Error('Cannot resolve the occurrence to override');
+  await apiUpdateEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId);
+}
+
+/** Destroy one server-expanded occurrence; falls back to excluding it on the base event. */
+async function destroyOccurrence(
+  instance: CalendarEvent,
+  syntheticId: string,
+  sendSchedulingMessages: boolean | undefined,
+  accountId: string | undefined,
+): Promise<void> {
+  if (!syntheticIdRejected) {
+    try {
+      await apiDeleteEvents([syntheticId], sendSchedulingMessages, accountId);
+      return;
+    } catch (err) {
+      if (!isSyntheticIdMutationUnsupported(err)) throw err;
+      syntheticIdRejected = true;
+    }
+  }
+  const fallback = buildFallbackExcludePatch(instance);
+  if (!fallback || !instance.baseEventId) throw new Error('Cannot resolve the occurrence to exclude');
+  await apiUpdateEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId);
+}
+
+/**
+ * Write a change to one occurrence the device expanded as a recurrence
+ * override on its base event (`target.realId`) - never as a change to the
+ * base event itself, which would move or edit the whole series.
+ */
+async function updateBrowserOccurrence(
+  target: MutationTarget,
+  updates: Partial<CalendarEvent>,
+  sendSchedulingMessages: boolean | undefined,
+): Promise<void> {
+  const occurrence = target.storeEvent!;
+  const patch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates));
+  if (!patch) throw new Error('Cannot resolve the occurrence to override');
+  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+}
+
+/** Delete one occurrence the device expanded by excluding it on its base event. */
+async function destroyBrowserOccurrence(
+  target: MutationTarget,
+  sendSchedulingMessages: boolean | undefined,
+): Promise<void> {
+  const patch = buildFallbackExcludePatch(target.storeEvent!);
+  if (!patch) throw new Error('Cannot resolve the occurrence to exclude');
+  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
 }
 
 /**
@@ -604,8 +716,11 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   updateEvent: async (id, changes, options) => {
-    // Resolve expanded occurrence ids back to the stored (base) event.
-    const { storeEvent, realId, accountId } = resolveSeriesTarget(get().events, id);
+    // A change to an occurrence stays on that occurrence: through its
+    // synthetic id, or as an override on the base event it was expanded
+    // from. Everything else goes to the stored event.
+    const target = resolveMutationTarget(get().events, id, 'occurrence');
+    const { storeEvent, realId, accountId } = target;
     // Remap namespaced (shared-calendar) store ids in calendarIds back to the
     // raw server ids the owning account knows.
     const patch: Record<string, unknown> = { ...changes };
@@ -628,7 +743,13 @@ export const useCalendarStore = create<CalendarState>()(
         : undefined);
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
-    await apiUpdateEvent(realId, patch, schedule, accountId);
+    if (target.isOccurrence && storeEvent) {
+      await updateOccurrence(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+    } else if (target.isBrowserOccurrence) {
+      await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule);
+    } else {
+      await apiUpdateEvent(realId, patch, schedule, accountId);
+    }
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
     });
@@ -643,22 +764,30 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   deleteEvent: async (id) => {
-    const { storeEvent, realId, accountId } = resolveSeriesTarget(get().events, id);
+    // Deleting an occurrence removes just that one: through its synthetic
+    // id, or by excluding it on the base event it was expanded from.
+    const target = resolveMutationTarget(get().events, id, 'occurrence');
+    const { storeEvent, realId, accountId } = target;
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
-    await apiDeleteEvents(
-      [realId],
-      hasSchedulingParticipants(storeEvent) ? true : undefined,
-      accountId,
-    );
-    knownMasters.delete(id);
-    // Destroying a master removes every expanded occurrence of it, not just
-    // the tapped one.
-    set({
-      events: get().events.filter((e) =>
-        e.id !== id
-        && !(seriesIdOf(e) === realId && (e.accountId ?? undefined) === (accountId ?? undefined))),
-    });
+    const schedule = hasSchedulingParticipants(storeEvent) ? true : undefined;
+    if (target.isOccurrence && storeEvent) {
+      await destroyOccurrence(storeEvent, realId, schedule, accountId);
+      set({ events: get().events.filter((e) => e.id !== id) });
+    } else if (target.isBrowserOccurrence) {
+      await destroyBrowserOccurrence(target, schedule);
+      set({ events: get().events.filter((e) => e.id !== id) });
+    } else {
+      await apiDeleteEvents([realId], schedule, accountId);
+      knownMasters.delete(id);
+      // Destroying a master removes every expanded occurrence of it, not
+      // just the tapped one.
+      set({
+        events: get().events.filter((e) =>
+          e.id !== id
+          && !(seriesIdOf(e) === realId && (e.accountId ?? undefined) === (accountId ?? undefined))),
+      });
+    }
     if (touchesSeries) {
       await get().refresh();
     }
@@ -694,7 +823,7 @@ export const useCalendarStore = create<CalendarState>()(
     // An event outside the loaded window (an invitation looked up by UID)
     // isn't in the store; the caller hands it over instead. An occurrence
     // answers for its whole series: the stored event is updated.
-    const target = resolveSeriesTarget(get().events, eventId);
+    const target = resolveMutationTarget(get().events, eventId, 'series');
     const storeEvent = target.storeEvent ?? event;
     const realId = target.storeEvent || !event ? target.realId : seriesIdOf(event);
     const accountId = target.storeEvent ? target.accountId : event?.accountId ?? target.accountId;
@@ -932,6 +1061,7 @@ export const useCalendarStore = create<CalendarState>()(
     // upgraded server.
     resetCalendarAccessDenied();
     resetSyntheticIdSupport();
+    syntheticIdRejected = false;
     knownMasters.clear();
     set({
       calendars: [],

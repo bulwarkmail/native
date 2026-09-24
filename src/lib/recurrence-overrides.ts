@@ -13,27 +13,6 @@ export const RECURRENCE_OVERRIDE_IMMUTABLE_KEYS = [
 ] as const;
 
 /**
- * Build the "This event only" override patch for a recurring master.
- *
- * Why one pointer: a JMAP nested pointer can't create a missing intermediate,
- * so the override object has to be set whole at `recurrenceOverrides/<id>`, not
- * field-by-field (#774). Mirrors webmail's lib/recurrence-overrides.ts.
- */
-export function buildRecurrenceOverridePatch(
-  updates: Partial<CalendarEvent>,
-  recurrenceId: string,
-): Record<string, unknown> {
-  const immutable = new Set<string>(RECURRENCE_OVERRIDE_IMMUTABLE_KEYS);
-  const override: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(updates)) {
-    if (immutable.has(key)) continue;
-    if (key === 'recurrenceId') continue;
-    override[key] = value;
-  }
-  return { [`recurrenceOverrides/${recurrenceId}`]: override };
-}
-
-/**
  * A recurring series member is a master (has recurrenceRules) or an expanded
  * occurrence (has recurrenceId) — those get the this/future/all scope dialog.
  * Note: `originalId` alone is not a signal, shared/group events carry it for

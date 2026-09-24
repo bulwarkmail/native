@@ -3,7 +3,6 @@ import type { CalendarEvent } from '../../api/types';
 import {
   buildAllScopeUpdates,
   buildFutureSeriesData,
-  buildRecurrenceOverridePatch,
   isRecurringSeriesMember,
   truncateRecurrenceRules,
 } from '../recurrence-overrides';
@@ -26,37 +25,6 @@ const occurrence: CalendarEvent = {
   start: '2026-03-04T09:00:00',
   recurrenceId: '2026-03-04T08:00:00.000Z',
 };
-
-describe('buildRecurrenceOverridePatch', () => {
-  it('writes the whole override under one recurrenceOverrides pointer', () => {
-    const patch = buildRecurrenceOverridePatch(
-      { title: 'Moved', start: '2026-03-04T10:00:00', calendarIds: { x: true }, uid: 'nope' },
-      '2026-03-04T08:00:00.000Z',
-    );
-    expect(patch).toEqual({
-      'recurrenceOverrides/2026-03-04T08:00:00.000Z': {
-        title: 'Moved',
-        start: '2026-03-04T10:00:00',
-      },
-    });
-  });
-
-  it('never leaks series-level keys or recurrenceId into the override', () => {
-    const patch = buildRecurrenceOverridePatch(
-      {
-        recurrenceRules: [{ frequency: 'weekly' }],
-        recurrenceOverrides: {},
-        excludedRecurrenceRules: [],
-        recurrenceId: '2026-03-04',
-        id: 'x',
-        '@type': 'Event',
-        description: 'kept',
-      },
-      '2026-03-04',
-    );
-    expect(patch['recurrenceOverrides/2026-03-04']).toEqual({ description: 'kept' });
-  });
-});
 
 describe('isRecurringSeriesMember', () => {
   it('detects masters and expanded occurrences but not plain shared events', () => {
