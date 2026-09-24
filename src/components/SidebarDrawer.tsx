@@ -26,6 +26,7 @@ import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
+import { showUnifiedSection } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -631,12 +632,15 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   };
 
   // ── Unified rows ──────────────────────────────────────────────────────
-  // Shown with one account as soon as it has group inboxes to merge, and
-  // always with several accounts. Counts are projected from the mailbox
-  // lists we hold: the active account's (own + shared) plus, cross-account,
-  // the tucked-away snapshots of the other accounts.
+  // Shown only when the views hold more than this account's own folders:
+  // cross-account with several accounts, or group inboxes to merge (#843).
+  // Counts are projected from the mailbox lists we hold: the active
+  // account's (own + shared) plus, cross-account, the tucked-away snapshots
+  // of the other accounts.
   const hasSharedInbox = mailboxes.some((m) => m.isShared && m.role === 'inbox');
-  const showUnified = accounts.length > 1 || (includeGroupInUnified && hasSharedInbox);
+  const showUnified = showUnifiedSection({
+    accountCount: accounts.length, unifiedCrossAccount, includeGroupInUnified, hasSharedInbox,
+  });
   const unifiedCounts = React.useMemo(() => {
     const pools: Mailbox[][] = [mailboxes];
     if (unifiedCrossAccount) {
