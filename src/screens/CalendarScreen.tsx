@@ -29,7 +29,6 @@ import {
   endOfWeek,
   addDays,
   subDays,
-  isToday,
   addMonths,
   subMonths,
   addWeeks,
@@ -37,6 +36,7 @@ import {
   type Locale,
 } from 'date-fns';
 import { useCalendarLocale } from '../lib/calendar-locale';
+import { displayNow, isDisplayToday } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { Button } from '../components';
@@ -172,8 +172,10 @@ export default function CalendarScreen() {
   const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
   const removeSharedCalendarColor = useSettingsStore((s) => s.removeSharedCalendarColor);
   const contacts = useContactsStore((s) => s.contacts);
+  const calendarTimeZone = useSettingsStore((s) => s.calendarTimeZone);
 
-  const [selectedDate, setSelectedDate] = React.useState(() => new Date());
+  // "Today" is the day on a clock in the calendar's time zone.
+  const [selectedDate, setSelectedDate] = React.useState(displayNow);
   const initialViewMode: ViewMode =
     calendarDefaultView === 'week' || calendarDefaultView === 'day' || calendarDefaultView === 'agenda'
       ? calendarDefaultView
@@ -190,11 +192,11 @@ export default function CalendarScreen() {
     () => ({ weekStartsOn: calendarFirstDayOfWeek }),
     [calendarFirstDayOfWeek],
   );
-  const [focus, setFocus] = React.useState<CalendarFocus>(() => ({ date: new Date(), nonce: 0 }));
+  const [focus, setFocus] = React.useState<CalendarFocus>(() => ({ date: displayNow(), nonce: 0 }));
   // The day the scrolled view shows at its top, while it differs from the focus.
   const [visibleDate, setVisibleDate] = React.useState<Date | null>(null);
   const [windowState, setWindowState] = React.useState<ScrollWindowState>(
-    () => freshScrollWindowState(initialViewMode, new Date()),
+    () => freshScrollWindowState(initialViewMode, displayNow()),
   );
   // The sideways-scrolling week and day grids assume a left-to-right strip;
   // right-to-left layouts keep them paged.
@@ -402,7 +404,21 @@ export default function CalendarScreen() {
   }, [allEvents, hiddenCalendarIds]);
   // Pre-index events by day once. Child views do O(1) map lookups per cell
   // instead of re-filtering the full event list with parseISO per day.
-  const eventsByDay = React.useMemo(() => buildEventDayIndex(events), [events]);
+  // The days events fall on depend on the calendar's time zone too.
+  const eventsByDay = React.useMemo(
+    () => buildEventDayIndex(events),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, calendarTimeZone],
+  );
+
+  // A new calendar time zone also changes how the server reads floating
+  // times and the range bounds: reload what is loaded.
+  const loadedTimeZoneRef = React.useRef(calendarTimeZone);
+  React.useEffect(() => {
+    if (loadedTimeZoneRef.current === calendarTimeZone) return;
+    loadedTimeZoneRef.current = calendarTimeZone;
+    void refresh();
+  }, [calendarTimeZone, refresh]);
 
   React.useEffect(() => {
     void hydrate();
@@ -492,7 +508,7 @@ export default function CalendarScreen() {
   }, [viewMode, visibleDate, focus.date, jumpTo]);
 
   const goToday = React.useCallback(() => {
-    jumpTo(new Date());
+    jumpTo(displayNow());
   }, [jumpTo]);
 
   // Switching views keeps the period on screen in view.
@@ -906,7 +922,7 @@ export default function CalendarScreen() {
     [t, removeCalendar, reportError],
   );
 
-  const isSelectedToday = isToday(selectedDate);
+  const isSelectedToday = isDisplayToday(selectedDate);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

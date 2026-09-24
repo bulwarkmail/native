@@ -222,10 +222,26 @@ export function displayNow(): Date {
   return toDisplayDate(new Date());
 }
 
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
 /** Is the display date `date` on today's calendar day in the calendar's zone? */
 export function isDisplayToday(date: Date): boolean {
+  return sameLocalDay(date, displayNow());
+}
+
+/** Is the display date `date` on tomorrow's calendar day in the calendar's zone? */
+export function isDisplayTomorrow(date: Date): boolean {
+  const tomorrow = displayNow();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return sameLocalDay(date, tomorrow);
+}
+
+/** Minutes since midnight on a clock in the calendar's zone: where the grids draw the now-line. */
+export function displayNowMinutes(): number {
   const now = displayNow();
-  return date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
+  return now.getHours() * 60 + now.getMinutes();
 }

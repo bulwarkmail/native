@@ -24,6 +24,7 @@ import {
   windowWeekStarts,
 } from '../../lib/calendar-month-scroll';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { displayNow } from '../../lib/calendar-timezone';
 import {
   MONTH_ROW_HEIGHT,
   MONTH_ROW_HEIGHT_CHIPS,
@@ -173,7 +174,8 @@ function MonthScrollViewInner({
   }, [focus, window, weeks.length, opts, rowHeight]);
 
   const selectedKey = dayKey(selectedDate);
-  const todayKey = dayKey(new Date());
+  // Today on a clock in the calendar's time zone.
+  const todayKey = dayKey(displayNow());
 
   const renderItem = React.useCallback(
     ({ item: days }: ListRenderItemInfo<Date[]>) => {
@@ -182,7 +184,7 @@ function MonthScrollViewInner({
           days={days}
           activeMask={monthMask(days, activeMonth)}
           selectedIndex={dayIndexIn(days, selectedDate)}
-          todayIndex={dayIndexIn(days, new Date())}
+          todayIndex={dayIndexIn(days, displayNow())}
           index={index}
           calendars={calendars}
           weekStartsOn={weekStartsOn}

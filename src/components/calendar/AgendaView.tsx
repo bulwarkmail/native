@@ -9,7 +9,8 @@ import {
   type LayoutChangeEvent,
   type ViewToken,
 } from 'react-native';
-import { format, isSameDay, isToday, isTomorrow, type Locale } from 'date-fns';
+import { format, type Locale } from 'date-fns';
+import { displayNow, isDisplayToday, isDisplayTomorrow } from '../../lib/calendar-timezone';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -59,8 +60,9 @@ function formatDayHeader(
   t: (key: string, fallback?: string) => string,
   locale: Locale,
 ): string {
-  if (isToday(date)) return t('calendar.events.today_header', 'Today');
-  if (isTomorrow(date)) return t('calendar.events.tomorrow_header', 'Tomorrow');
+  // Today and tomorrow on a clock in the calendar's time zone.
+  if (isDisplayToday(date)) return t('calendar.events.today_header', 'Today');
+  if (isDisplayTomorrow(date)) return t('calendar.events.tomorrow_header', 'Tomorrow');
   return format(date, 'EEEE, MMM d', { locale });
 }
 
@@ -101,7 +103,7 @@ export function AgendaView({
 
   const sections = React.useMemo<DaySection[]>(
     () =>
-      buildAgendaDays(index, loaded, new Date()).map((day) => ({
+      buildAgendaDays(index, loaded, displayNow()).map((day) => ({
         ...day,
         key: dayKey(day.date),
         title: formatDayHeader(day.date, t, locale),
@@ -310,7 +312,7 @@ export function AgendaView({
       maxToRenderPerBatch={12}
       windowSize={11}
       renderSectionHeader={({ section }) => {
-        const today = isSameDay(section.date, new Date());
+        const today = isDisplayToday(section.date);
         return (
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, today && styles.sectionTitleToday]}>

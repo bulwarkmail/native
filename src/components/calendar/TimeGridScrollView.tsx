@@ -32,6 +32,7 @@ import {
   type TimedEventLayout,
 } from '../../lib/calendar-utils';
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
+import { displayNow, displayNowMinutes } from '../../lib/calendar-timezone';
 import {
   buildAllDaySegments,
   headerColumnRange,
@@ -262,21 +263,18 @@ function TimeGridScrollViewInner({
   // Start the hours at the one before now, like the paged week view.
   const vScrollRef = React.useRef<ScrollView>(null);
   React.useEffect(() => {
-    const target = Math.max(0, (new Date().getHours() - 1) * HOUR_HEIGHT);
+    const target = Math.max(0, (displayNow().getHours() - 1) * HOUR_HEIGHT);
     const frame = requestAnimationFrame(() => {
       vScrollRef.current?.scrollTo({ y: target, animated: false });
     });
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const [nowMinutes, setNowMinutes] = React.useState(() => {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
-  });
+  // The now-line and "today" follow a clock in the calendar's time zone.
+  const [nowMinutes, setNowMinutes] = React.useState(displayNowMinutes);
   React.useEffect(() => {
     const interval = setInterval(() => {
-      const now = new Date();
-      setNowMinutes(now.getHours() * 60 + now.getMinutes());
+      setNowMinutes(displayNowMinutes());
     }, 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -284,6 +282,8 @@ function TimeGridScrollViewInner({
   const handleLongPressAt = React.useCallback(
     (day: Date, hour: number) => {
       if (!onCreateAtTime) return;
+      // A display date (that hour in the calendar's zone); the editor turns
+      // it into the real instant when it saves (eventTimeFieldsToSave).
       const date = new Date(day);
       date.setHours(hour, 0, 0, 0);
       onCreateAtTime(date);
@@ -291,7 +291,7 @@ function TimeGridScrollViewInner({
     [onCreateAtTime],
   );
 
-  const todayKey = dayKey(new Date());
+  const todayKey = dayKey(displayNow());
   const renderItem = React.useCallback(
     ({ item: day }: ListRenderItemInfo<Date>) => (
       <DayColumn

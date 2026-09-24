@@ -25,6 +25,7 @@ import {
 } from '../../lib/calendar-utils';
 import { dayIndexIn, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
 import { useCalendarLocale } from '../../lib/calendar-locale';
+import { displayNow } from '../../lib/calendar-timezone';
 
 type WeekStart = 0 | 1 | 6;
 
@@ -258,7 +259,8 @@ function MonthViewInner({
     return out;
   }, [currentDate, weekStartsOn]);
   const activeMonth = monthKeyOf(currentDate);
-  const today = new Date();
+  // Today on a clock in the calendar's time zone.
+  const today = displayNow();
 
   return (
     <View style={styles.grid}>

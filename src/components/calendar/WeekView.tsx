@@ -6,7 +6,8 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { addDays, format, isSameDay, isToday, startOfWeek } from 'date-fns';
+import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
+import { displayNow, displayNowMinutes, isDisplayToday } from '../../lib/calendar-timezone';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -106,21 +107,18 @@ function WeekViewInner({
     });
   }, [weekDays, index]);
 
-  const [nowMinutes, setNowMinutes] = React.useState(() => {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
-  });
+  // The now-line and "today" follow a clock in the calendar's time zone.
+  const [nowMinutes, setNowMinutes] = React.useState(displayNowMinutes);
 
   React.useEffect(() => {
     const interval = setInterval(() => {
-      const now = new Date();
-      setNowMinutes(now.getHours() * 60 + now.getMinutes());
+      setNowMinutes(displayNowMinutes());
     }, 60_000);
     return () => clearInterval(interval);
   }, []);
 
   React.useEffect(() => {
-    const target = Math.max(0, (new Date().getHours() - 1) * HOUR_HEIGHT);
+    const target = Math.max(0, (displayNow().getHours() - 1) * HOUR_HEIGHT);
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({ y: target, animated: false });
     });
@@ -128,13 +126,14 @@ function WeekViewInner({
 
   const handleSlotLongPress = (day: Date, hour: number) => {
     if (!onCreateAtTime) return;
+    // A display date; the editor converts it when it saves.
     const date = new Date(day);
     date.setHours(hour, 0, 0, 0);
     onCreateAtTime(date);
   };
 
   const dayHeader = (day: Date) => {
-    const today = isToday(day);
+    const today = isDisplayToday(day);
     const selected = isSameDay(day, selectedDate);
     return (
       <Pressable
@@ -244,7 +243,7 @@ function WeekViewInner({
           <View style={styles.dayCols}>
             {weekDays.map((day, dayIndex) => {
               const layouted = layoutsByDay[dayIndex];
-              const todayCol = isToday(day);
+              const todayCol = isDisplayToday(day);
               return (
                 <View key={day.toISOString()} style={styles.dayCol}>
                   {HOURS.map((h) => (
