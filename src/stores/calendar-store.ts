@@ -37,6 +37,7 @@ import {
   buildFallbackExcludePatch,
   buildFallbackOverridePatch,
   buildOccurrencePatch,
+  buildOccurrenceRsvpPatch,
   isBrowserExpandedOccurrence,
   isServerRecurrenceInstance,
   isSyntheticIdMutationUnsupported,
@@ -238,6 +239,9 @@ export interface CalendarState {
     replyTo?: Record<string, string> | null,
     // The event itself, for one that isn't in the loaded window.
     event?: CalendarEvent,
+    // 'occurrence': answer just this occurrence of a series (the server
+    // stores it as an override and replies with its RECURRENCE-ID).
+    scope?: 'occurrence' | 'series',
   ) => Promise<void>;
   // Resolves with what got in and what the server refused; rejects with an
   // ImportRefusedError when nothing got in because everything was refused.
@@ -814,28 +818,42 @@ export const useCalendarStore = create<CalendarState>()(
     return mapped;
   },
 
-  rsvpEvent: async (eventId, participantId, status, replyTo, event) => {
+  rsvpEvent: async (eventId, participantId, status, replyTo, event, scope = 'series') => {
     // JMAP participant ids are opaque strings (they can contain @, ., :, /);
     // the api layer RFC 6901-escapes them, so only reject empty values.
     if (!participantId) {
       throw new Error('Invalid participant ID');
     }
     // An event outside the loaded window (an invitation looked up by UID)
-    // isn't in the store; the caller hands it over instead. An occurrence
-    // answers for its whole series: the stored event is updated.
-    const target = resolveMutationTarget(get().events, eventId, 'series');
+    // isn't in the store; the caller hands it over instead. With scope
+    // 'series' an occurrence answers for its whole series: the stored event
+    // is updated.
+    const target = resolveMutationTarget(get().events, eventId, scope);
     const storeEvent = target.storeEvent ?? event;
     const realId = target.storeEvent || !event ? target.realId : seriesIdOf(event);
     const accountId = target.storeEvent ? target.accountId : event?.accountId ?? target.accountId;
+    const occurrence = scope === 'occurrence' && (target.isOccurrence || target.isBrowserOccurrence)
+      ? target.storeEvent ?? null
+      : null;
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
-      || hasServerOccurrencesOf(get().events, realId, accountId);
-    // Repair events that are missing the organizer (e.g. imported ones) so
-    // Stalwart can route the REPLY; never touch an existing one.
-    const repair =
-      replyTo?.imip && storeEvent && !storeEvent.organizerCalendarAddress
-        ? replyTo.imip
-        : undefined;
-    await apiRsvpEvent(realId, participantId, status, repair, accountId);
+      || hasServerOccurrencesOf(get().events, seriesIdOf(storeEvent ?? { id: realId }), accountId);
+    if (occurrence) {
+      const patch = buildOccurrenceRsvpPatch(occurrence, participantId, status);
+      if (!patch) throw new Error('Participant not found on this occurrence');
+      if (target.isOccurrence) {
+        await updateOccurrence(occurrence, target.realId, patch, true, accountId);
+      } else {
+        await updateBrowserOccurrence(target, patch, true);
+      }
+    } else {
+      // Repair events that are missing the organizer (e.g. imported ones) so
+      // Stalwart can route the REPLY; never touch an existing one.
+      const repair =
+        replyTo?.imip && storeEvent && !storeEvent.organizerCalendarAddress
+          ? replyTo.imip
+          : undefined;
+      await apiRsvpEvent(realId, participantId, status, repair, accountId);
+    }
     set({
       events: get().events.map((e) => {
         if (e.id !== eventId || !e.participants?.[participantId]) return e;

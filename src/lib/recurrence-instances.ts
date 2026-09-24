@@ -458,3 +458,34 @@ export function withNewOverrideDetails(
   }
   return { ...details, ...patch } as Partial<CalendarEvent>;
 }
+
+/**
+ * The patch that answers one occurrence as `participantId`.
+ *
+ * - The whole participants map, with only that participant's status changed.
+ *   Stalwart rejects a `participants/<id>/participationStatus` pointer on a
+ *   single occurrence ("Multiple organizers found in iCalendar object",
+ *   0.16.23), and a pointer inside an override keeps just the patched
+ *   participant, dropping the organizer and everyone else from it.
+ * - The organizer: 0.16.19 rejects the override the same way without it.
+ * - The sequence (see NEW_OVERRIDE_COPIED_KEYS).
+ * - For a new override, the occurrence's details (`withNewOverrideDetails`).
+ */
+export function buildOccurrenceRsvpPatch(
+  occurrence: Partial<CalendarEvent>,
+  participantId: string,
+  status: Participant['participationStatus'],
+): Partial<CalendarEvent> | null {
+  const participant = occurrence.participants?.[participantId];
+  if (!participant) return null;
+  const patch: Record<string, unknown> = {};
+  if (occurrence.sequence != null) patch.sequence = occurrence.sequence;
+  if (occurrence.organizerCalendarAddress) {
+    patch.organizerCalendarAddress = occurrence.organizerCalendarAddress;
+  }
+  patch.participants = {
+    ...occurrence.participants,
+    [participantId]: { ...participant, participationStatus: status },
+  };
+  return withNewOverrideDetails(occurrence, patch as Partial<CalendarEvent>);
+}

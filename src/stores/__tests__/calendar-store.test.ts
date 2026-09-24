@@ -907,6 +907,63 @@ describe('calendar-store', () => {
 
       expect(mockRsvpEvent).toHaveBeenCalledWith('base', 'me', 'accepted', undefined, undefined);
     });
+
+    it('answers just one server occurrence through its synthetic id', async () => {
+      const participants = {
+        org: { calendarAddress: 'mailto:org@x', roles: { owner: true }, participationStatus: 'accepted' },
+        me: { calendarAddress: 'mailto:me@x', participationStatus: 'needs-action' },
+      };
+      useCalendarStore.setState({
+        events: [{
+          id: 's1', baseEventId: 'base', recurrenceId: '2026-03-02T09:00:00', recurrenceRules: weekly,
+          recurrenceOverrides: { '2026-03-02T09:00:00': { title: 'Standup' } }, title: 'Standup',
+          organizerCalendarAddress: 'mailto:org@x', sequence: 4, participants,
+        } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().rsvpEvent('s1', 'me', 'declined', undefined, undefined, 'occurrence');
+
+      expect(mockRsvpEvent).not.toHaveBeenCalled();
+      // The whole participants map with the organizer, as Stalwart needs it
+      // on one occurrence; sent with scheduling so the organizer hears back.
+      expect(mockUpdateEvent).toHaveBeenCalledWith('s1', {
+        sequence: 4,
+        organizerCalendarAddress: 'mailto:org@x',
+        participants: { ...participants, me: { ...participants.me, participationStatus: 'declined' } },
+      }, true, undefined);
+      expect(useCalendarStore.getState().events[0].participants?.me.participationStatus).toBe('declined');
+    });
+  });
+
+  describe('answering one occurrence expanded on the device', () => {
+    it('writes the answer as an override on the master', async () => {
+      useCalendarStore.setState({
+        events: [{
+          id: 'ev1:2026-03-02T09:00:00', originalId: 'ev1', recurrenceId: '2026-03-02T09:00:00',
+          start: '2026-03-02T09:00:00', duration: 'PT30M', title: 'Standup',
+          recurrenceRules: [{ frequency: 'weekly' }], organizerCalendarAddress: 'mailto:org@x',
+          participants: { me: { calendarAddress: 'mailto:me@x', participationStatus: 'needs-action' } },
+        } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().rsvpEvent(
+        'ev1:2026-03-02T09:00:00', 'me', 'tentative', undefined, undefined, 'occurrence',
+      );
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith('ev1', {
+        recurrenceOverrides: {
+          '2026-03-02T09:00:00': {
+            start: '2026-03-02T09:00:00',
+            duration: 'PT30M',
+            title: 'Standup',
+            organizerCalendarAddress: 'mailto:org@x',
+            participants: { me: { calendarAddress: 'mailto:me@x', participationStatus: 'tentative' } },
+          },
+        },
+      }, true, undefined);
+    });
   });
 
   describe('recurring series mutations', () => {

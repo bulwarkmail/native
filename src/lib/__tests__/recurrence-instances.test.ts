@@ -4,6 +4,7 @@ import {
   buildFallbackExcludePatch,
   buildFallbackOverridePatch,
   buildOccurrencePatch,
+  buildOccurrenceRsvpPatch,
   hydrateRecurrenceInstances,
   isBrowserExpandedOccurrence,
   isServerRecurrenceInstance,
@@ -228,5 +229,27 @@ describe('changing one occurrence', () => {
     expect(buildFallbackExcludePatch(unknown)).toEqual({
       'recurrenceOverrides/2026-03-02T09:00:00': { excluded: true },
     });
+  });
+
+  it('answers one occurrence with the whole participant map and the organizer', () => {
+    const occurrence = ev({
+      id: 's1', baseEventId: 'm', recurrenceId: '2026-03-02T09:00:00', title: 'Standup',
+      organizerCalendarAddress: 'mailto:org@x', sequence: 1,
+      recurrenceOverrides: { '2026-03-02T09:00:00': {} },
+      participants: {
+        org: { calendarAddress: 'mailto:org@x', participationStatus: 'accepted' },
+        me: { calendarAddress: 'mailto:me@x', participationStatus: 'needs-action' },
+      } as any,
+    });
+
+    expect(buildOccurrenceRsvpPatch(occurrence, 'me', 'accepted')).toEqual({
+      sequence: 1,
+      organizerCalendarAddress: 'mailto:org@x',
+      participants: {
+        org: { calendarAddress: 'mailto:org@x', participationStatus: 'accepted' },
+        me: { calendarAddress: 'mailto:me@x', participationStatus: 'accepted' },
+      },
+    });
+    expect(buildOccurrenceRsvpPatch(occurrence, 'nobody', 'accepted')).toBeNull();
   });
 });

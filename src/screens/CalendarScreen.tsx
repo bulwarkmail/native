@@ -97,6 +97,12 @@ type PendingAction =
       sendScheduling?: boolean;
     }
   | { kind: 'delete'; event: CalendarEvent }
+  | {
+      kind: 'rsvp';
+      event: CalendarEvent;
+      participantId: string;
+      status: 'accepted' | 'declined' | 'tentative';
+    }
   | null;
 
 const AGENDA_DAYS = 30;
@@ -479,12 +485,48 @@ export default function CalendarScreen() {
     [getMasterEvent, updateEvent],
   );
 
+  // Send an answer and show it in the open detail sheet. 'occurrence'
+  // answers just that occurrence of a series.
+  const submitRsvp = React.useCallback(
+    async (
+      ev: CalendarEvent,
+      participantId: string,
+      status: 'accepted' | 'declined' | 'tentative',
+      scope: 'occurrence' | 'series',
+    ) => {
+      await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev), undefined, scope);
+      setDetailEvent((cur) =>
+        cur && cur.id === ev.id && cur.participants?.[participantId]
+          ? {
+              ...cur,
+              participants: {
+                ...cur.participants,
+                [participantId]: { ...cur.participants[participantId], participationStatus: status },
+              },
+            }
+          : cur,
+      );
+    },
+    [rsvpEvent],
+  );
+
   const handleScopeSelect = React.useCallback(
     async (scope: RecurrenceEditScope) => {
       const action = pendingAction;
       setPendingAction(null);
       if (!action) return;
       const { event } = action;
+      if (action.kind === 'rsvp') {
+        try {
+          await submitRsvp(event, action.participantId, action.status, scope === 'this' ? 'occurrence' : 'series');
+        } catch (err) {
+          Alert.alert(
+            t('calendar.notifications.rsvp_error', 'Failed to update response'),
+            err instanceof Error ? err.message : undefined,
+          );
+        }
+        return;
+      }
       try {
         if (action.kind === 'edit') {
           const { updates } = action;
@@ -558,7 +600,7 @@ export default function CalendarScreen() {
         // Best effort — the next navigation refetches anyway.
       }
     },
-    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, t],
+    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, submitRsvp, t],
   );
 
   const handleSave = React.useCallback(
@@ -903,18 +945,13 @@ export default function CalendarScreen() {
         onExport={handleExportFromDetail}
         onCopyLink={handleCopyLink}
         onRsvp={async (ev, participantId, status) => {
-          await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev));
-          setDetailEvent((cur) =>
-            cur && cur.id === ev.id && cur.participants?.[participantId]
-              ? {
-                  ...cur,
-                  participants: {
-                    ...cur.participants,
-                    [participantId]: { ...cur.participants[participantId], participationStatus: status },
-                  },
-                }
-              : cur,
-          );
+          // An answer on one occurrence of a series asks whether it covers
+          // just that occurrence or the whole series (webmail #1086).
+          if (ev.recurrenceId) {
+            setPendingAction({ kind: 'rsvp', event: ev, participantId, status });
+            return;
+          }
+          await submitRsvp(ev, participantId, status, 'series');
         }}
       />
 
@@ -932,7 +969,7 @@ export default function CalendarScreen() {
 
       <RecurrenceScopeDialog
         visible={!!pendingAction}
-        actionType={pendingAction?.kind === 'delete' ? 'delete' : 'edit'}
+        actionType={pendingAction?.kind ?? 'edit'}
         onSelect={handleScopeSelect}
         onClose={() => setPendingAction(null)}
       />

@@ -10,7 +10,7 @@ export type RecurrenceEditScope = 'this' | 'this_and_future' | 'all';
 
 interface RecurrenceScopeDialogProps {
   visible: boolean;
-  actionType: 'edit' | 'delete';
+  actionType: 'edit' | 'delete' | 'rsvp';
   onSelect: (scope: RecurrenceEditScope) => void;
   onClose: () => void;
 }
@@ -32,6 +32,10 @@ export function RecurrenceScopeDialog({
   const t = useLocaleStore((s) => s.t);
   const [selected, setSelected] = React.useState<RecurrenceEditScope>('this');
   const isDelete = actionType === 'delete';
+  const isRsvp = actionType === 'rsvp';
+  // An attendee cannot split the organizer's series, so an answer covers
+  // one occurrence or all of them (webmail #1086).
+  const options = isRsvp ? OPTIONS.filter((opt) => opt.value !== 'this_and_future') : OPTIONS;
 
   React.useEffect(() => {
     if (visible) setSelected('this');
@@ -53,19 +57,26 @@ export function RecurrenceScopeDialog({
               <Text style={styles.title}>
                 {isDelete
                   ? t('calendar.recurrence_scope.delete_title', 'Delete recurring event')
-                  : t('calendar.recurrence_scope.edit_title', 'Edit recurring event')}
+                  : isRsvp
+                    ? t('calendar.recurrence_scope.rsvp_title', 'Respond to recurring event')
+                    : t('calendar.recurrence_scope.edit_title', 'Edit recurring event')}
               </Text>
               <Text style={styles.description}>
-                {t(
-                  'calendar.recurrence_scope.description',
-                  'This is a recurring event. Which events would you like to modify?',
-                )}
+                {isRsvp
+                  ? t(
+                    'calendar.recurrence_scope.rsvp_description',
+                    'This is a recurring event. Which events does your response apply to?',
+                  )
+                  : t(
+                    'calendar.recurrence_scope.description',
+                    'This is a recurring event. Which events would you like to modify?',
+                  )}
               </Text>
             </View>
           </View>
 
           <View style={styles.options}>
-            {OPTIONS.map((opt) => {
+            {options.map((opt) => {
               const active = selected === opt.value;
               return (
                 <Pressable
@@ -93,7 +104,9 @@ export function RecurrenceScopeDialog({
             >
               {isDelete
                 ? t('calendar.recurrence_scope.delete', 'Delete')
-                : t('calendar.recurrence_scope.save', 'Save')}
+                : isRsvp
+                  ? t('calendar.recurrence_scope.respond', 'Respond')
+                  : t('calendar.recurrence_scope.save', 'Save')}
             </Button>
           </View>
         </View>
