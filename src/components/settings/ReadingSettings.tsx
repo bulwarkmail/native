@@ -291,37 +291,37 @@ export function ReadingSettings() {
         />
       </SettingItem>
 
-      <SettingItem label="Plain Text Font" description="Font used for plain-text messages.">
+      <SettingItem label={t('settings.email_behavior.plain_text_font.label', "Plain Text Font")} description={t('settings.email_behavior.plain_text_font.description', "Font used for plain text emails")}>
         <Select
           value={plainTextFont}
           onChange={(v) => update('plainTextFont', v as PlainTextFont)}
           options={[
-            { value: 'sans', label: 'App font' },
-            { value: 'mono', label: 'Monospace' },
+            { value: 'sans', label: t('settings.email_behavior.plain_text_font.sans', "Normal (same as the app)") },
+            { value: 'mono', label: t('settings.email_behavior.plain_text_font.mono', "Monospace") },
           ]}
         />
       </SettingItem>
 
-      <SettingItem label="Message Spacing" description="Gutter around the message body.">
+      <SettingItem label={t('settings.email_behavior.message_spacing.label', "Message Spacing")} description={t('settings.email_behavior.message_spacing.description', "Padding around the message body in the reader")}>
         <Select
           value={messageSpacing}
           onChange={(v) => update('messageSpacing', v as MessageSpacing)}
           options={[
-            { value: 'auto', label: 'Automatic' },
-            { value: 'always', label: 'Always padded' },
-            { value: 'edge', label: 'Edge to edge' },
+            { value: 'auto', label: t('settings.email_behavior.message_spacing.auto', "Auto (recommended)") },
+            { value: 'always', label: t('settings.email_behavior.message_spacing.always', "Always add spacing") },
+            { value: 'edge', label: t('settings.email_behavior.message_spacing.edge', "Edge to edge") },
           ]}
         />
       </SettingItem>
 
-      <SettingItem label="Read Receipts" description="When a sender asks to be notified that you opened a message.">
+      <SettingItem label={t('settings.email_behavior.read_receipt_response.label', "Respond to read-receipt requests")} description={t('settings.email_behavior.read_receipt_response.description', "What to do when an incoming message asks for a read receipt.")}>
         <Select
           value={readReceiptResponse}
           onChange={(v) => update('readReceiptResponse', v as ReadReceiptResponse)}
           options={[
-            { value: 'ask', label: 'Ask me' },
-            { value: 'always', label: 'Always send' },
-            { value: 'never', label: 'Never send' },
+            { value: 'ask', label: t('settings.email_behavior.read_receipt_response.ask', "Ask each time") },
+            { value: 'always', label: t('settings.email_behavior.read_receipt_response.always', "Always send") },
+            { value: 'never', label: t('settings.email_behavior.read_receipt_response.never', "Never send") },
           ]}
         />
       </SettingItem>
