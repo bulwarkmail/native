@@ -79,7 +79,10 @@ export function TemplateSheet({ visible, onClose, onPick }: TemplateSheetProps) 
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('templates.picker_title', 'Choose a Template')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>

@@ -83,7 +83,10 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
             <Text style={styles.title}>
               {t('context_menu.items_selected', `${selectedEmails.length} emails selected`, { count: selectedEmails.length })}
             </Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>

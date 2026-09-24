@@ -277,7 +277,13 @@ export default function ScheduledScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{t('sidebar.scheduled', 'Scheduled')}</Text>

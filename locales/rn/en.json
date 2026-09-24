@@ -56,6 +56,10 @@
       "response_sent": "Response sent",
       "tentative": "Maybe",
       "title": "Calendar invitation",
+      "trust_authentication_failed": "This message failed sender authentication (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "The sender could not be verified.",
+      "trust_sender_mismatch": "The sender differs from the event organizer.",
+      "trust_sender_mismatch_unverified": "The sender does not match the organizer and the message is not authenticated.",
       "trust_verified": "Sender verified"
     },
     "management": {
@@ -266,6 +270,15 @@
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
     "error": "Error",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filter emails",
+    "folder_counts": "{total} total · {unread} unread",
+    "import": {
+      "none": "No messages were imported.",
+      "partial": "{imported} imported, {failed} failed.",
+      "success": "{count, plural, one {# message imported.} other {# messages imported.}}",
+      "title": "Import"
+    },
     "marked_as_spam": "Marked as spam",
     "marked_as_spam_count": "{count, plural, one {# email} other {# emails}} marked as spam",
     "marked_not_spam": "Marked as not spam",
@@ -285,10 +298,12 @@
     "outbox_discard": "Discard",
     "outbox_failed": "{count} changes could not be saved to the server.",
     "recent_searches": "Recent searches",
+    "remove_filter": "Remove filter {label}",
     "scope_all_folders": "All folders",
     "scope_this_folder": "This folder",
     "search_placeholder": "Search mail...",
     "showing_cached": "Showing cached mail",
+    "sort_toggle_hint": "Reverses the mail sort order",
     "swipe_move": "Move",
     "swipe_spam": "Spam",
     "total": "total",
@@ -475,7 +490,18 @@
   },
   "offline": {
     "banner": "You are offline",
-    "queued_changes": "{count, plural, one {# change} other {# changes}} will sync when you reconnect"
+    "queued_changes": "{count, plural, one {# change} other {# changes}} will sync when you reconnect",
+    "sync": {
+      "cached_count": "{count, plural, one {# new message cached} other {# new messages cached}} • {size}",
+      "cancelled": "Sync cancelled",
+      "failed": "Offline sync failed",
+      "processed": "{completed}/{total} processed",
+      "ready": "Offline mail ready",
+      "syncing": "Syncing offline mail",
+      "title": "Offline sync",
+      "unable_to_download": "Unable to download",
+      "up_to_date": "Already up to date"
+    }
   },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",

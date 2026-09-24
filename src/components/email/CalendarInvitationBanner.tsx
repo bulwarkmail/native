@@ -39,24 +39,25 @@ interface Props {
   jmapAccountId?: string;
 }
 
-const TRUST_REASON_KEYS: Record<NonNullable<InvitationTrustAssessment['reason']>, [string, string]> = {
-  sender_mismatch_unverified: [
-    'calendar.invitation.trust_sender_mismatch_unverified',
-    'The sender does not match the organizer and the message is not authenticated.',
-  ],
-  authentication_failed: [
-    'calendar.invitation.trust_authentication_failed',
-    'This message failed sender authentication (SPF/DKIM/DMARC).',
-  ],
-  sender_mismatch: [
-    'calendar.invitation.trust_sender_mismatch',
-    'The sender differs from the event organizer.',
-  ],
-  authentication_missing: [
-    'calendar.invitation.trust_authentication_missing',
-    'The sender could not be verified.',
-  ],
-};
+// Literal t() calls so the keys are harvested into the catalog.
+function trustReasonText(
+  reason: NonNullable<InvitationTrustAssessment['reason']>,
+  t: (key: string, fallback?: string) => string,
+): string {
+  switch (reason) {
+    case 'sender_mismatch_unverified':
+      return t(
+        'calendar.invitation.trust_sender_mismatch_unverified',
+        'The sender does not match the organizer and the message is not authenticated.',
+      );
+    case 'authentication_failed':
+      return t('calendar.invitation.trust_authentication_failed', 'This message failed sender authentication (SPF/DKIM/DMARC).');
+    case 'sender_mismatch':
+      return t('calendar.invitation.trust_sender_mismatch', 'The sender differs from the event organizer.');
+    case 'authentication_missing':
+      return t('calendar.invitation.trust_authentication_missing', 'The sender could not be verified.');
+  }
+}
 
 export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const c = useColors();
@@ -264,7 +265,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
           )}
           <Text style={[styles.trustText, { color: trustColor }]} numberOfLines={3}>
             {trust.reason
-              ? t(TRUST_REASON_KEYS[trust.reason][0], TRUST_REASON_KEYS[trust.reason][1])
+              ? trustReasonText(trust.reason, t)
               : t('calendar.invitation.trust_verified', 'Sender verified')}
           </Text>
         </View>
@@ -287,7 +288,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
       {organizer ? (
         <Row
           icon={<CalendarPlus size={15} color={c.textMuted} />}
-          text={`${t('calendar.invitation.organizer', 'Organizer')}: ${organizer}`}
+          text={t('email_viewer.calendar_invitation.organizer', 'Organized by {name}', { name: organizer })}
           styles={styles}
         />
       ) : null}

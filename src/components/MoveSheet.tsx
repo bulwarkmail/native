@@ -92,7 +92,10 @@ export function MoveSheet({
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('context_menu.move_to', 'Move to folder')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>

@@ -5,6 +5,7 @@ import { X } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
+import { useLocaleStore } from '../../stores/locale-store';
 
 export interface ActionSheetItem {
   key: string;
@@ -34,6 +35,7 @@ export function ActionSheet({ visible, title, subtitle, items, onClose, children
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
+  const t = useLocaleStore((s) => s.t);
   const slideY = React.useRef(new Animated.Value(500)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
@@ -72,7 +74,10 @@ export function ActionSheet({ visible, title, subtitle, items, onClose, children
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
               {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
             </View>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Pressable onPress={onClose} hitSlop={8} style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>

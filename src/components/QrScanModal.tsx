@@ -76,7 +76,10 @@ export function QrScanModal({ visible, onClose, onScanned }: QrScanModalProps) {
 
         <SafeAreaView style={styles.overlay}>
           <View style={styles.header}>
-            <Pressable onPress={onClose} hitSlop={10} style={styles.closeButton}>
+            <Pressable onPress={onClose} hitSlop={10} style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={24} color={c.text} />
             </Pressable>
             <Text style={styles.title}>{t('login.mobile.qr_title', 'Sign-in code')}</Text>

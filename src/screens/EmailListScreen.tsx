@@ -52,8 +52,8 @@ import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import type { Attachment, Email } from '../api/types';
 
-function getSenderName(email: Email): string {
-  return email.from?.[0]?.name || email.from?.[0]?.email || 'Unknown';
+function getSenderName(email: Email, unknownLabel: string): string {
+  return email.from?.[0]?.name || email.from?.[0]?.email || unknownLabel;
 }
 
 function getSenderEmail(email: Email): string | undefined {
@@ -61,12 +61,12 @@ function getSenderEmail(email: Email): string | undefined {
 }
 
 // Sent/Drafts rows name the recipient, not "me" (webmail 1.4.12).
-function getCounterpart(email: Email, showRecipient: boolean): { name: string; email?: string } {
+function getCounterpart(email: Email, showRecipient: boolean, unknownLabel: string): { name: string; email?: string } {
   if (showRecipient) {
     const to = email.to?.[0] ?? email.cc?.[0] ?? email.bcc?.[0];
     if (to) return { name: to.name || to.email, email: to.email };
   }
-  return { name: getSenderName(email), email: getSenderEmail(email) };
+  return { name: getSenderName(email, unknownLabel), email: getSenderEmail(email) };
 }
 
 function isUnread(email: Email): boolean {
@@ -128,7 +128,11 @@ const EmailRow = React.memo(function EmailRow({
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const locale = useLocaleStore((s) => s.locale);
   const tr = useLocaleStore((s) => s.t);
-  const { name: senderName, email: senderEmail } = getCounterpart(item, showRecipient);
+  const { name: senderName, email: senderEmail } = getCounterpart(
+    item,
+    showRecipient,
+    tr('email_viewer.unknown_sender', 'Unknown'),
+  );
   const unread = isUnread(item);
   const starred = isStarred(item);
   const pinned = isPinned(item);
@@ -493,12 +497,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       }));
       const { imported, failed } = await importEmails(files, targetMailboxId);
       Alert.alert(
-        'Import',
+        t('email_list.import.title', 'Import'),
         failed > 0
-          ? `${imported} imported, ${failed} failed.`
+          ? t('email_list.import.partial', '{imported} imported, {failed} failed.', { imported, failed })
           : imported === 0
-            ? 'No messages were imported.'
-            : `${imported} message${imported === 1 ? '' : 's'} imported.`,
+            ? t('email_list.import.none', 'No messages were imported.')
+            : t('email_list.import.success', '{count, plural, one {# message imported.} other {# messages imported.}}', { count: imported }),
       );
     } finally {
       setImporting(false);
@@ -965,14 +969,23 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       {/* Header */}
       {selectionMode ? (
         <View style={styles.header}>
-          <Pressable onPress={clearSelection} style={styles.headerButton}>
+          <Pressable
+            onPress={clearSelection}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_list.batch_actions.clear_selection', 'Clear selection')}
+          >
             <X size={20} color={c.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>{selectedIds.size} selected</Text>
+          <Text style={styles.headerTitle}>
+            {t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selectedIds.size })}
+          </Text>
           <Pressable
             onPress={() => { void handleBulkStar(); }}
             style={styles.headerButton}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={allSelectedAreStarred ? t('context_menu.unstar', 'Unstar') : t('context_menu.star', 'Star')}
           >
             <Star
               size={20}
@@ -984,6 +997,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             onPress={() => { void handleBulkMarkReadToggle(); }}
             style={styles.headerButton}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={allSelectedAreRead
+              ? t('email_list.batch_actions.mark_unread', 'Mark as unread')
+              : t('email_list.batch_actions.mark_read', 'Mark as read')}
           >
             {allSelectedAreRead ? (
               <MailIcon size={20} color={c.text} />
@@ -995,6 +1012,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             onPress={() => setTagSheetOpen(true)}
             style={styles.headerButton}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('context_menu.tag', 'Tag')}
           >
             <Tag size={20} color={c.text} />
           </Pressable>
@@ -1002,6 +1021,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             onPress={() => setBatchMoveOpen(true)}
             style={styles.headerButton}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_viewer.move', 'Move')}
           >
             <FolderInput size={20} color={c.text} />
           </Pressable>
@@ -1010,6 +1031,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               onPress={() => { void handleBulkSpam(); }}
               style={styles.headerButton}
               hitSlop={6}
+              accessibilityRole="button"
               accessibilityLabel={inJunk ? t('context_menu.not_spam', 'Not spam') : t('context_menu.mark_as_spam', 'Report spam')}
             >
               {inJunk ? (
@@ -1024,6 +1046,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               onPress={() => { void handleBulkArchive(); }}
               style={styles.headerButton}
               hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('context_menu.archive', 'Archive')}
             >
               <Archive size={20} color={c.text} />
             </Pressable>
@@ -1032,13 +1056,20 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             onPress={() => { void handleBulkDelete(); }}
             style={styles.headerButton}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_list.batch_actions.delete', 'Delete')}
           >
             <Trash2 size={20} color={c.text} />
           </Pressable>
         </View>
       ) : (
         <View style={styles.header}>
-          <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerButton}>
+          <Pressable
+            onPress={() => setDrawerOpen(true)}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
+          >
             <Menu size={20} color={c.textMuted} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -1050,6 +1081,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             style={styles.headerButton}
             disabled={importing}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_viewer.import_email', 'Import .eml or .zip')}
           >
             {importing ? (
               <ActivityIndicator size="small" color={c.textMuted} />
@@ -1067,7 +1100,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
       {/* Search bar (always visible) */}
       <View style={styles.searchBar}>
-        <Pressable style={styles.checkboxButton} onPress={toggleSelectAllVisible} hitSlop={6}>
+        <Pressable
+          style={styles.checkboxButton}
+          onPress={toggleSelectAllVisible}
+          hitSlop={6}
+          accessibilityRole="checkbox"
+          accessibilityLabel={t('email_list.batch_actions.select_all', 'Select all')}
+          accessibilityState={{ checked: allSelected ? true : selectionMode ? 'mixed' : false }}
+        >
           {allSelected ? (
             <SquareCheck size={18} color={c.primary} />
           ) : selectionMode ? (
@@ -1099,6 +1139,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               onPress={() => { setSearchInput(''); setSearchQuery(''); }}
               hitSlop={8}
               style={styles.searchClearButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.clear_search', 'Clear search')}
             >
               <X size={14} color={c.textMuted} />
             </Pressable>
@@ -1108,8 +1150,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           style={styles.filterButton}
           onPress={() => setSortAscending(!sortAscending)}
           accessibilityRole="button"
-          accessibilityLabel={sortAscending ? 'Sorted oldest first' : 'Sorted newest first'}
-          accessibilityHint="Reverses the mail sort order"
+          accessibilityLabel={sortAscending
+            ? t('settings.appearance.message_list_order.direction.oldest_first', 'Oldest first')
+            : t('settings.appearance.message_list_order.direction.newest_first', 'Newest first')}
+          accessibilityHint={t('email_list.sort_toggle_hint', 'Reverses the mail sort order')}
         >
           {sortAscending ? (
             <ArrowUpNarrowWide size={18} color={c.primary} />
@@ -1120,6 +1164,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         <Pressable
           style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
           onPress={() => setFilterMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('advanced_search.advanced_filters_tooltip', 'Advanced search filters')}
+          accessibilityValue={activeFilterCount > 0 ? { text: String(activeFilterCount) } : undefined}
         >
           <Filter size={18} color={activeFilterCount > 0 ? c.primary : c.textMuted} />
           {activeFilterCount > 0 && (
@@ -1141,7 +1188,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                     <Search size={12} color={c.textMuted} />
                     <Text style={styles.recentSearchText} numberOfLines={1}>{q}</Text>
                   </Pressable>
-                  <Pressable onPress={() => removeRecentSearch(q)} hitSlop={8}>
+                  <Pressable
+                    onPress={() => removeRecentSearch(q)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('advanced_search.suggestions_remove_recent', 'Remove from recent searches')}
+                  >
                     <X size={12} color={c.textMuted} />
                   </Pressable>
                 </View>
@@ -1202,28 +1254,40 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             />
           ) : null}
           {filters.from ? (
-            <FilterChip label={`${t('advanced_search.from', 'From')}: ${filters.from}`} onRemove={() => setFilterField('from', undefined)} />
+            <FilterChip
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.from', 'From'), value: filters.from })}
+              onRemove={() => setFilterField('from', undefined)}
+            />
           ) : null}
           {filters.to ? (
-            <FilterChip label={`${t('advanced_search.to', 'To')}: ${filters.to}`} onRemove={() => setFilterField('to', undefined)} />
+            <FilterChip
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.to', 'To'), value: filters.to })}
+              onRemove={() => setFilterField('to', undefined)}
+            />
           ) : null}
           {filters.subject ? (
-            <FilterChip label={`${t('advanced_search.subject', 'Subject')}: ${filters.subject}`} onRemove={() => setFilterField('subject', undefined)} />
+            <FilterChip
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.subject', 'Subject'), value: filters.subject })}
+              onRemove={() => setFilterField('subject', undefined)}
+            />
           ) : null}
           {filters.body ? (
-            <FilterChip label={`${t('advanced_search.body', 'Body')}: ${filters.body}`} onRemove={() => setFilterField('body', undefined)} />
+            <FilterChip
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.body', 'Body'), value: filters.body })}
+              onRemove={() => setFilterField('body', undefined)}
+            />
           ) : null}
           {filters.dateAfter ? (
             <FilterChip
               icon={<CalendarDays size={12} color={c.textSecondary} />}
-              label={`${t('advanced_search.after', 'After')} ${filters.dateAfter}`}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.date_after', 'After'), value: filters.dateAfter })}
               onRemove={() => setFilterField('dateAfter', undefined)}
             />
           ) : null}
           {filters.dateBefore ? (
             <FilterChip
               icon={<CalendarDays size={12} color={c.textSecondary} />}
-              label={`${t('advanced_search.before', 'Before')} ${filters.dateBefore}`}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.date_before', 'Before'), value: filters.dateBefore })}
               onRemove={() => setFilterField('dateBefore', undefined)}
             />
           ) : null}
@@ -1232,7 +1296,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               icon={filters.isUnread
                 ? <MailIcon size={12} color={c.textSecondary} />
                 : <MailOpen size={12} color={c.textSecondary} />}
-              label={filters.isUnread ? t('email_list.unread', 'Unread') : t('advanced_search.read', 'Read')}
+              label={filters.isUnread ? t('advanced_search.unread', 'Unread') : t('advanced_search.read', 'Read')}
               onRemove={() => cycleTriStateTo('isUnread', undefined)}
             />
           )}
@@ -1259,6 +1323,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             }}
             style={styles.clearAllButton}
             hitSlop={6}
+            accessibilityRole="button"
           >
             <Text style={styles.clearAllText}>{t('advanced_search.clear', 'Clear')}</Text>
           </Pressable>
@@ -1352,7 +1417,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           </Text>
           {currentMailbox && !hasActiveSearchOrFilter ? (
             <Text style={styles.hintText}>
-              {currentMailbox.totalEmails} {t('email_list.total', 'total')} · {currentMailbox.unreadEmails} {t('email_list.unread', 'unread')}
+              {t('email_list.folder_counts', '{total} total · {unread} unread', {
+                total: currentMailbox.totalEmails,
+                unread: currentMailbox.unreadEmails,
+              })}
             </Text>
           ) : null}
         </View>
@@ -1377,6 +1445,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       <Pressable
         onPress={onComposePress}
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={t('sidebar.mobile.compose', 'Compose')}
       >
         <SquarePen size={24} color={c.background} />
       </Pressable>
@@ -1395,20 +1465,23 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             <TouchableWithoutFeedback>
               <View style={styles.filterMenu}>
                 <View style={styles.filterMenuHeader}>
-                  <Text style={styles.filterMenuTitle}>Filter emails</Text>
+                  <Text style={styles.filterMenuTitle}>{t('email_list.filter_title', 'Filter emails')}</Text>
                   <View style={styles.filterMenuHeaderActions}>
                     <Pressable
                       onPress={() => setFilters({})}
                       style={styles.filterMenuHeaderBtn}
                       hitSlop={6}
+                      accessibilityRole="button"
                     >
                       <RotateCcw size={12} color={c.textSecondary} />
-                      <Text style={styles.filterMenuHeaderBtnText}>Clear</Text>
+                      <Text style={styles.filterMenuHeaderBtnText}>{t('advanced_search.clear', 'Clear')}</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => setFilterMenuOpen(false)}
                       style={styles.filterMenuClose}
                       hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.close', 'Close')}
                     >
                       <X size={16} color={c.textSecondary} />
                     </Pressable>
@@ -1418,11 +1491,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                 <ScrollView contentContainerStyle={styles.filterMenuBody} keyboardShouldPersistTaps="handled">
                   <View style={styles.filterFieldRow}>
                     <View style={styles.filterFieldHalf}>
-                      <Text style={styles.filterFieldLabel}>From</Text>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.from', 'From')}</Text>
                       <TextInput
                         value={filters.from ?? ''}
                         onChangeText={(v) => setFilterField('from', v)}
-                        placeholder="sender@example.com"
+                        placeholder={t('advanced_search.from_placeholder', 'Sender email or name')}
                         placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -1430,11 +1503,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                       />
                     </View>
                     <View style={styles.filterFieldHalf}>
-                      <Text style={styles.filterFieldLabel}>To</Text>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.to', 'To')}</Text>
                       <TextInput
                         value={filters.to ?? ''}
                         onChangeText={(v) => setFilterField('to', v)}
-                        placeholder="recipient@example.com"
+                        placeholder={t('advanced_search.to_placeholder', 'Recipient email or name')}
                         placeholderTextColor={c.textMuted}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -1496,7 +1569,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
                   <View style={styles.filterFieldRow}>
                     <View style={styles.filterFieldHalf}>
-                      <Text style={styles.filterFieldLabel}>After</Text>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.date_after', 'After')}</Text>
                       <Pressable
                         style={styles.filterDateButton}
                         onPress={() => setDatePickerField('dateAfter')}
@@ -1509,6 +1582,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                           <Pressable
                             onPress={() => setFilterField('dateAfter', undefined)}
                             hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('advanced_search.clear', 'Clear')}
                           >
                             <X size={14} color={c.textMuted} />
                           </Pressable>
@@ -1516,7 +1591,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                       </Pressable>
                     </View>
                     <View style={styles.filterFieldHalf}>
-                      <Text style={styles.filterFieldLabel}>Before</Text>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.date_before', 'Before')}</Text>
                       <Pressable
                         style={styles.filterDateButton}
                         onPress={() => setDatePickerField('dateBefore')}
@@ -1529,6 +1604,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                           <Pressable
                             onPress={() => setFilterField('dateBefore', undefined)}
                             hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('advanced_search.clear', 'Clear')}
                           >
                             <X size={14} color={c.textMuted} />
                           </Pressable>
@@ -1540,13 +1617,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                   <View style={styles.filterToggleGroup}>
                     <TriToggle
                       icon={<Paperclip size={14} color={c.textSecondary} />}
-                      label="Has attachment"
+                      label={t('email_list.has_attachment', 'Has attachment')}
                       value={filters.hasAttachment}
                       onPress={() => cycleTriState('hasAttachment')}
                     />
                     <TriToggle
                       icon={<Star size={14} color={c.starred} fill={filters.isStarred ? c.starred : 'transparent'} />}
-                      label="Starred"
+                      label={t('advanced_search.starred', 'Starred')}
                       value={filters.isStarred}
                       onPress={() => cycleTriState('isStarred')}
                     />
@@ -1558,7 +1635,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                           <MailIcon size={14} color={c.textSecondary} />
                         )
                       }
-                      label={filters.isUnread === false ? 'Read' : 'Unread'}
+                      label={filters.isUnread === false ? t('advanced_search.read', 'Read') : t('advanced_search.unread', 'Unread')}
                       value={filters.isUnread}
                       onPress={() => cycleTriState('isUnread')}
                     />
@@ -1588,7 +1665,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               <View style={styles.pickerSheet}>
                 <View style={styles.pickerHeader}>
                   <Pressable onPress={() => setDatePickerField(null)} hitSlop={8}>
-                    <Text style={styles.pickerDone}>Done</Text>
+                    <Text style={styles.pickerDone}>{t('common.done', 'Done')}</Text>
                   </Pressable>
                 </View>
                 <DateTimePicker
@@ -1664,12 +1741,24 @@ function FilterChip({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   return (
-    <Pressable style={styles.chip} onPress={onPress} disabled={!onPress}>
+    <Pressable
+      style={styles.chip}
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+    >
       {icon}
       <Text style={styles.chipText} numberOfLines={1}>{label}</Text>
       {onRemove ? (
-        <Pressable onPress={onRemove} hitSlop={8} style={styles.chipRemove}>
+        <Pressable
+          onPress={onRemove}
+          hitSlop={8}
+          style={styles.chipRemove}
+          accessibilityRole="button"
+          accessibilityLabel={t('email_list.remove_filter', 'Remove filter {label}', { label })}
+        >
           <X size={11} color={c.textMuted} />
         </Pressable>
       ) : null}
@@ -1681,7 +1770,12 @@ function ScopeChip({ label, active, onPress }: { label: string; active: boolean;
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
-    <Pressable onPress={onPress} style={[styles.triToggle, active && styles.triToggleOn]}>
+    <Pressable
+      onPress={onPress}
+      style={[styles.triToggle, active && styles.triToggleOn]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
       <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
@@ -1710,6 +1804,8 @@ function TriToggle({
         state === 'on' && styles.triToggleOn,
         state === 'off' && styles.triToggleOff,
       ]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: state !== 'unset' }}
     >
       {icon}
       <Text

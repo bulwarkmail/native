@@ -10,11 +10,13 @@ import { useUpdatesStore } from '../stores/updates-store';
 import { formatBytes } from '../lib/offline-sync';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useLocaleStore } from '../stores/locale-store';
 
 export function OfflineCacheBanner(): React.ReactElement | null {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
+  const t = useLocaleStore((s) => s.t);
   const sync = useOfflineCacheStore((s) => s.sync);
   const requestAbort = useOfflineCacheStore((s) => s.requestAbort);
   const resetSync = useOfflineCacheStore((s) => s.resetSync);
@@ -32,9 +34,9 @@ export function OfflineCacheBanner(): React.ReactElement | null {
   // permanent fixture; the Settings screen still shows the cache stats.
   React.useEffect(() => {
     if (sync.phase === 'done' || sync.phase === 'cancelled') {
-      const t = setTimeout(() => resetSync(), 4000);
-      setHideTimer(t);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => resetSync(), 4000);
+      setHideTimer(timer);
+      return () => clearTimeout(timer);
     }
     if (hideTimer) clearTimeout(hideTimer);
     return undefined;
@@ -48,30 +50,34 @@ export function OfflineCacheBanner(): React.ReactElement | null {
       ? Math.min(100, Math.round((sync.completed / sync.total) * 100))
       : sync.phase === 'done' ? 100 : 0;
 
-  let title = 'Offline sync';
+  let title = t('offline.sync.title', 'Offline sync');
   let subtitle = '';
   switch (sync.phase) {
     case 'scanning':
-      title = 'Syncing offline mail';
-      subtitle = 'Scanning recent messages…';
+      title = t('offline.sync.syncing', 'Syncing offline mail');
+      subtitle = t('settings.offline.scanning', 'Scanning recent mail…');
       break;
     case 'fetching':
-      title = 'Syncing offline mail';
+      title = t('offline.sync.syncing', 'Syncing offline mail');
       subtitle = `${sync.completed}/${sync.total} • ${formatBytes(sync.bytes)}`;
       break;
     case 'done':
-      title = 'Offline mail ready';
+      title = t('offline.sync.ready', 'Offline mail ready');
       subtitle = sync.fetched > 0
-        ? `${sync.fetched} new message${sync.fetched === 1 ? '' : 's'} cached • ${formatBytes(sync.bytes)}`
-        : 'Already up to date';
+        ? t(
+          'offline.sync.cached_count',
+          '{count, plural, one {# new message cached} other {# new messages cached}} • {size}',
+          { count: sync.fetched, size: formatBytes(sync.bytes) },
+        )
+        : t('offline.sync.up_to_date', 'Already up to date');
       break;
     case 'cancelled':
-      title = 'Sync cancelled';
-      subtitle = `${sync.completed}/${sync.total} processed`;
+      title = t('offline.sync.cancelled', 'Sync cancelled');
+      subtitle = t('offline.sync.processed', '{completed}/{total} processed', { completed: sync.completed, total: sync.total });
       break;
     case 'error':
-      title = 'Offline sync failed';
-      subtitle = sync.message ?? 'Unable to download';
+      title = t('offline.sync.failed', 'Offline sync failed');
+      subtitle = sync.message ?? t('offline.sync.unable_to_download', 'Unable to download');
       break;
     default:
       return null;
@@ -94,12 +100,18 @@ export function OfflineCacheBanner(): React.ReactElement | null {
         )}
       </View>
       {showCancel && (
-        <Pressable style={styles.cancelButton} onPress={requestAbort} hitSlop={6}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <Pressable style={styles.cancelButton} onPress={requestAbort} hitSlop={6} accessibilityRole="button">
+          <Text style={styles.cancelText}>{t('common.cancel', 'Cancel')}</Text>
         </Pressable>
       )}
       {showDismiss && (
-        <Pressable style={styles.dismiss} onPress={resetSync} hitSlop={8}>
+        <Pressable
+          style={styles.dismiss}
+          onPress={resetSync}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.dismiss', 'Dismiss')}
+        >
           <X size={14} color={c.primaryForeground} />
         </Pressable>
       )}

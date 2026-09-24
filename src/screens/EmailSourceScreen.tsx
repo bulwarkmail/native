@@ -67,7 +67,13 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -82,7 +88,14 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
         >
           {copied ? <Check size={20} color={c.success} /> : <Copy size={20} color={raw ? c.text : c.textMuted} />}
         </Pressable>
-        <Pressable onPress={onShare} style={styles.headerBtn} hitSlop={8} disabled={!raw}>
+        <Pressable
+          onPress={onShare}
+          style={styles.headerBtn}
+          hitSlop={8}
+          disabled={!raw}
+          accessibilityRole="button"
+          accessibilityLabel={t('email_viewer.attachment_actions.share', 'Share')}
+        >
           <Share2 size={20} color={raw ? c.text : c.textMuted} />
         </Pressable>
       </View>
