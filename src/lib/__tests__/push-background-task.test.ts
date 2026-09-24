@@ -10,10 +10,12 @@ vi.mock('../../api/jmap-client', () => ({
 vi.mock('../client-cert', () => ({ secureFetch: vi.fn(async () => ({ ok: false, status: 500 })) }));
 vi.mock('../oauth', () => ({ refreshOAuthAccessToken: vi.fn(async (t: unknown) => t) }));
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   matchAccountsForPush,
   parseRelayPushData,
   selectNotifiableEmails,
+  senderFaviconsAllowed,
 } from '../push-background-task';
 import type { Email } from '../../api/types';
 
@@ -86,5 +88,24 @@ describe('selectNotifiableEmails', () => {
       ['d'],
     );
     expect(out.map((e) => e.id)).toEqual(['a']);
+  });
+});
+
+describe('senderFaviconsAllowed', () => {
+  const KEY = 'webmail:settings:v1';
+
+  it('follows the "Sender Favicons" setting the settings store persisted', async () => {
+    await AsyncStorage.setItem(KEY, JSON.stringify({ senderFavicons: false }));
+    expect(await senderFaviconsAllowed()).toBe(false);
+    await AsyncStorage.setItem(KEY, JSON.stringify({ senderFavicons: true }));
+    expect(await senderFaviconsAllowed()).toBe(true);
+  });
+
+  it('defaults to on like the store, but skips icons when the settings are unreadable', async () => {
+    await AsyncStorage.removeItem(KEY);
+    expect(await senderFaviconsAllowed()).toBe(true);
+    await AsyncStorage.setItem(KEY, '{not json');
+    expect(await senderFaviconsAllowed()).toBe(false);
+    await AsyncStorage.removeItem(KEY);
   });
 });

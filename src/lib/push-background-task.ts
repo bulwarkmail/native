@@ -42,6 +42,7 @@ const EMAIL_PROPERTIES = [
 
 interface PushPersistedSettings {
   emailNotificationsEnabled?: boolean;
+  senderFavicons?: boolean;
 }
 
 async function emailNotificationsAllowed(): Promise<boolean> {
@@ -52,6 +53,20 @@ async function emailNotificationsAllowed(): Promise<boolean> {
     return parsed.emailNotificationsEnabled !== false;
   } catch {
     return true;
+  }
+}
+
+// The "Sender Favicons" setting covers notification icons as well as the
+// in-app avatars: with it off the tray shows initials, and the sender's domain
+// and the device's IP never reach the icon service. Off when unreadable.
+export async function senderFaviconsAllowed(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return true; // first launch: the store's default is on
+    const parsed = JSON.parse(raw) as PushPersistedSettings;
+    return parsed.senderFavicons !== false;
+  } catch {
+    return false;
   }
 }
 
@@ -429,6 +444,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
 
   const groupKey = `bulwark-mail:${accountId}`;
   const groupTitle = payload.accountLabel ?? accountId.split('@')[0] ?? accountId;
+  const favicons = await senderFaviconsAllowed();
 
   // Oldest first so the newest ends up on top of the tray.
   const ordered = [...toNotify].sort(
@@ -442,7 +458,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const body = email.subject || '(no subject)';
     const initials = getEmailInitials(name, address);
     const bgColorHex = hslToHex(generateEmailAvatarColor(name, address));
-    const faviconDomain = getFaviconDomain(address);
+    const faviconDomain = favicons ? getFaviconDomain(address) : null;
     const iconUrl = faviconDomain ? getFaviconUrl(faviconDomain) : undefined;
 
     await native.showNotification({
