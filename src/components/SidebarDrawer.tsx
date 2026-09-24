@@ -32,7 +32,7 @@ import { jmapClient } from '../api/jmap-client';
 import {
   markMailboxAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
-import { fetchTagCounts, type TagCount } from '../api/tag-counts';
+import { useTagCountsStore } from '../stores/tag-counts-store';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -338,7 +338,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const [tagCounts, setTagCounts] = React.useState<Map<string, TagCount>>(new Map());
+  const tagCounts = useTagCountsStore((s) => s.counts);
+  const tagCountsGeneration = useTagCountsStore((s) => s.generation);
+  const ensureTagCounts = useTagCountsStore((s) => s.ensure);
 
   React.useEffect(() => { if (!keywordsHydrated) void hydrateKeywords(); }, [keywordsHydrated, hydrateKeywords]);
 
@@ -429,23 +431,17 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     onClose();
   }, [setFilters, onClose]);
 
-  // Tag counts: one query pair per tag and account, refreshed each time the
-  // drawer opens with the section expanded. A tag view lists the tagged mail
-  // of the own and the shared accounts, so its badge counts all of them
-  // (#1038).
+  // Tag counts: one query pair per tag and account. A tag view lists the
+  // tagged mail of the own and the shared accounts, so its badge counts all
+  // of them (#1038). They are cached until an Email change is reported
+  // (PF6): opening the drawer costs no request when nothing changed, and
+  // while it is open a change refreshes them.
   const tagAccountsKey = React.useMemo(() => spannedAccounts(mailboxes).join('|'), [mailboxes]);
   React.useEffect(() => {
-    if (!visible || !tagsExpanded || keywordDefs.length === 0 || !jmapClient.isConnected) return;
-    let cancelled = false;
+    if (!visible || !tagsExpanded || keywordDefs.length === 0 || !activeAccountId || !jmapClient.isConnected) return;
     const accounts = tagAccountsKey.split('|').map((id) => id || undefined);
-    fetchTagCounts(keywordDefs.map((k) => k.id), accounts)
-      .then((counts) => {
-        if (cancelled) return;
-        setTagCounts(new Map(counts.map((tc) => [tc.id, tc])));
-      })
-      .catch(() => { /* counts are decoration */ });
-    return () => { cancelled = true; };
-  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey]);
+    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts);
+  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, activeAccountId, tagCountsGeneration, ensureTagCounts]);
 
   // ── Folder actions (long-press) ───────────────────────────────────────
   const refFor = (mb: Mailbox) => ({
@@ -1101,7 +1097,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   <Text style={styles.sectionHeaderText}>{t('sidebar.tags', 'Tags')}</Text>
                 </Pressable>
                 {tagsExpanded && keywordDefs.map((kw) => {
-                  const counts = tagCounts.get(kw.id);
+                  const counts = tagCounts[kw.id];
                   const isSelected = filters.keyword === keywordToken(kw.id);
                   const dot = c.tags[kw.color]?.dot ?? c.textMuted;
                   return (

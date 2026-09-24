@@ -93,6 +93,7 @@ import * as settingsModule from '../settings-store';
 import {
   useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow,
 } from '../email-store';
+import { useTagCountsStore } from '../tag-counts-store';
 import type { Email, Mailbox } from '../../api/types';
 
 const settings = (settingsModule as unknown as { __settings: Record<string, unknown> }).__settings;
@@ -505,5 +506,21 @@ describe('tag view across the own and the team account (#1038)', () => {
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
     expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox' } });
+  });
+});
+
+describe('tag badges (PF6)', () => {
+  it('go stale on an Email change in any account, not on a Mailbox change', async () => {
+    const before = useTagCountsStore.getState().generation;
+
+    await useEmailStore.getState().handleStateChange({
+      '@type': 'StateChange', changed: { team: { Mailbox: 'm2' } },
+    } as never);
+    expect(useTagCountsStore.getState().generation).toBe(before);
+
+    await useEmailStore.getState().handleStateChange({
+      '@type': 'StateChange', changed: { team: { Email: 's2' } },
+    } as never);
+    expect(useTagCountsStore.getState().generation).toBe(before + 1);
   });
 });

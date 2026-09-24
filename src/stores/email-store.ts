@@ -48,6 +48,7 @@ import { t } from './locale-store';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
 import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from './outbox-store';
+import { useTagCountsStore } from './tag-counts-store';
 
 // ── Refresh coalescing ─────────────────────────────────────────────────
 // Push events, mount effects and post-action follow-ups all call
@@ -1159,12 +1160,16 @@ export const useEmailStore = create<EmailState>()(
 
     let mailboxChanged = false;
     let emailChanged = false;
+    let tagCountsChanged = false;
     for (const [accountId, accountChanges] of Object.entries(change.changed ?? {})) {
       if (!known.has(accountId) || !accountChanges) continue;
       if ('Mailbox' in accountChanges) mailboxChanged = true;
+      // The sidebar tag badges count every account (PF6, #1038).
+      if ('Email' in accountChanges) tagCountsChanged = true;
       if (accountId !== currentAccountId && !spanning) continue;
       if ('Email' in accountChanges || 'EmailDelivery' in accountChanges) emailChanged = true;
     }
+    if (tagCountsChanged) useTagCountsStore.getState().invalidate();
     if (!mailboxChanged && !emailChanged) return;
 
     if (mailboxChanged) {
