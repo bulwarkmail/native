@@ -23,7 +23,7 @@ import { UndoSnackbar } from '../components/UndoSnackbar';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useNetworkStore } from '../stores/network-store';
 import { useEmailStore, effectiveFolderScope, type EmailFilters } from '../stores/email-store';
-import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
+import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
@@ -232,6 +232,50 @@ const EmailRow = React.memo(function EmailRow({
         )}
       </View>
     </Pressable>
+  );
+});
+
+// A list row: the swipe wrapper around the email row. Its props are all
+// primitives or stable callbacks, so a re-render of the list (the refresh
+// flag, a new page, another row's selection) only re-renders the rows whose
+// own data changed; the swipe context and callback are built here, per row,
+// to keep their identity as well.
+const EmailListItem = React.memo(function EmailListItem({
+  swipeLeftAction,
+  swipeRightAction,
+  swipeMode,
+  inJunk,
+  onSwipe,
+  ...rowProps
+}: React.ComponentProps<typeof EmailRow> & {
+  swipeLeftAction: SwipeAction;
+  swipeRightAction: SwipeAction;
+  swipeMode: SwipeMode;
+  inJunk: boolean;
+  onSwipe: (id: string, action: SwipeAction) => void;
+}) {
+  const { item } = rowProps;
+  const unread = isUnread(item);
+  const starred = isStarred(item);
+  const pinned = isPinned(item);
+  const context = React.useMemo(
+    () => ({ unread, starred, pinned, inJunk }),
+    [unread, starred, pinned, inJunk],
+  );
+  const onAction = React.useCallback(
+    (action: SwipeAction) => onSwipe(item.id, action),
+    [onSwipe, item.id],
+  );
+  return (
+    <SwipeableRow
+      leftAction={swipeLeftAction}
+      rightAction={swipeRightAction}
+      mode={swipeMode}
+      context={context}
+      onAction={onAction}
+    >
+      <EmailRow {...rowProps} />
+    </SwipeableRow>
   );
 });
 
@@ -577,42 +621,51 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     markRead, markUnread, toggleStar, togglePin, t,
   ]);
 
+  // Rows keep one swipe callback for their whole life. It reads the current
+  // handler, so a rebuilt handler (say, once the folder ids load) neither
+  // goes stale in a row nor re-renders every row.
+  const handleSwipeActionRef = React.useRef(handleSwipeAction);
+  React.useEffect(() => { handleSwipeActionRef.current = handleSwipeAction; }, [handleSwipeAction]);
+  const handleRowSwipe = React.useCallback(
+    (id: string, action: SwipeAction) => handleSwipeActionRef.current(id, action),
+    [],
+  );
+
   const renderEmailRow = React.useCallback(
     ({ item }: { item: Email }) => {
       const key = threadKeyOf(item, disableThreading);
       const flags = rowFlags.get(key);
       return (
-        <SwipeableRow
-          leftAction={selectionMode ? 'none' : swipeLeftAction}
-          rightAction={selectionMode ? 'none' : swipeRightAction}
-          mode={swipeMode}
-          context={{ unread: isUnread(item), starred: isStarred(item), pinned: isPinned(item), inJunk }}
-          onAction={(action) => handleSwipeAction(item.id, action)}
-        >
-          <EmailRow
-            item={item}
-            threadCount={threadCountFor(item)}
-            showPreview={showPreview}
-            showRecipient={showRecipient}
-            tagIds={rowTagIds.get(key) ?? ''}
-            keywordDefs={keywordDefs}
-            disableAvatarImages={inJunk && !showAvatarsInJunk}
-            answered={flags?.answered ?? false}
-            forwarded={flags?.forwarded ?? false}
-            selected={selectedIds.has(item.id)}
-            selectionMode={selectionMode}
-            onPress={handleRowPress}
-            onLongPress={toggleSelect}
-          />
-        </SwipeableRow>
+        <EmailListItem
+          swipeLeftAction={selectionMode ? 'none' : swipeLeftAction}
+          swipeRightAction={selectionMode ? 'none' : swipeRightAction}
+          swipeMode={swipeMode}
+          inJunk={inJunk}
+          onSwipe={handleRowSwipe}
+          item={item}
+          threadCount={threadCountFor(item)}
+          showPreview={showPreview}
+          showRecipient={showRecipient}
+          tagIds={rowTagIds.get(key) ?? ''}
+          keywordDefs={keywordDefs}
+          disableAvatarImages={inJunk && !showAvatarsInJunk}
+          answered={flags?.answered ?? false}
+          forwarded={flags?.forwarded ?? false}
+          selected={selectedIds.has(item.id)}
+          selectionMode={selectionMode}
+          onPress={handleRowPress}
+          onLongPress={toggleSelect}
+        />
       );
     },
     [
       selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
-      swipeMode, handleSwipeAction, disableThreading, rowFlags, rowTagIds, threadCountFor,
+      swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
     ],
   );
+  const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
+  const handleRefresh = React.useCallback(() => { void refreshEmails(); }, [refreshEmails]);
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
@@ -1255,12 +1308,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           data={visibleEmails}
           keyExtractor={emailKeyExtractor}
           renderItem={renderEmailRow}
+          // Without it FlatList gives its cells a new render function on each
+          // of its own renders, and every mounted row re-renders with it.
+          strictMode
           ItemSeparatorComponent={EmailRowSeparator}
           contentContainerStyle={styles.listContent}
-          onEndReached={() => { void loadMoreEmails(); }}
+          onEndReached={handleEndReached}
           onEndReachedThreshold={0.3}
           refreshing={loading}
-          onRefresh={() => { void refreshEmails(); }}
+          onRefresh={handleRefresh}
         />
       )}
 
