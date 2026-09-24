@@ -316,10 +316,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     [scopedMailboxes, email, currentMailboxId],
   );
   const isInTrash = !!(trashMailbox && sourceMailbox?.id === trashMailbox.id);
-  // Archive still resolves its folder from the open one, so it is only
-  // offered for mail of that account.
-  const canArchive = !!archiveMailbox && listAccountId === ownerAccountId
-    && sourceMailbox?.id !== archiveMailbox.id;
+  const canArchive = !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
   // Not spam files back into the Inbox, so it needs one.
   const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
 
@@ -397,7 +394,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
   const onArchive = () => {
     if (!email || !canArchive) return;
-    void archiveEmailAction(email.id);
+    void archiveEmailAction(email.id, { email, accountId: ownerAccountId });
     navigation.goBack();
   };
 

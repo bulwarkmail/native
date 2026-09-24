@@ -368,7 +368,7 @@ export interface EmailState {
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
   togglePin: (emailId: string, pinned: boolean) => Promise<void>;
   moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
-  archiveEmail: (emailId: string) => Promise<void>;
+  archiveEmail: (emailId: string, viewed?: ViewedEmail) => Promise<void>;
   deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
   /**
    * File messages into the current account's Junk and flip `$junk`/`$notjunk`
@@ -1241,14 +1241,16 @@ export const useEmailStore = create<EmailState>()(
     }
   },
 
-  archiveEmail: async (emailId) => {
+  archiveEmail: async (emailId, viewed) => {
     const state = get();
-    const email = state.emails.find((e) => e.id === emailId);
+    // The viewer's copy stands in for a message the list doesn't hold
+    // (unified inbox, notification, deep link).
+    const { email, listed } = actionTarget(state, emailId, viewed);
     if (!email) return;
 
     // Archive into the *same account's* Archive folder — a shared mailbox's
     // messages can't be filed into the user's own.
-    const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
+    const scoped = actionMailboxes(state, viewed);
     const archiveMailbox = scoped.find(
       (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
     );
@@ -1281,7 +1283,7 @@ export const useEmailStore = create<EmailState>()(
     );
 
     set({
-      emails: get().emails.filter((e) => e.id !== emailId),
+      ...(listed ? { emails: get().emails.filter((e) => e.id !== emailId) } : {}),
       pendingUndo: {
         kind: 'archive',
         label: t('notifications.email_archived', 'Email archived'),

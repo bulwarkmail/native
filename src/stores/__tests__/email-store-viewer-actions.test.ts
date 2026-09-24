@@ -103,6 +103,7 @@ const mockMoveEmail = emailApi.moveEmail as ReturnType<typeof vi.fn>;
 const mockRestore = emailApi.restoreEmailMailboxes as ReturnType<typeof vi.fn>;
 const mockMarkAsSpam = emailApi.markAsSpam as ReturnType<typeof vi.fn>;
 const mockUndoSpam = emailApi.undoSpam as ReturnType<typeof vi.fn>;
+const mockArchive = emailApi.archiveEmails as ReturnType<typeof vi.fn>;
 
 function own(id: string, role: string): Mailbox {
   return { id, name: role, role, accountId: 'acc-1', isShared: false } as Mailbox;
@@ -223,5 +224,33 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
 
     expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'a', 'grp-1');
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+  });
+});
+
+describe('viewer Archive of a message the list does not hold', () => {
+  const RECEIVED = '2026-09-01T10:00:00Z';
+
+  it('archives an own message opened from a notification', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [] });
+    const opened = { ...OWN_ROW, receivedAt: RECEIVED } as Email;
+
+    await useEmailStore.getState().archiveEmail('e1', { email: opened, accountId: undefined });
+
+    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', expect.any(Array), undefined);
+    expect(useEmailStore.getState().pendingUndo).toMatchObject({ kind: 'archive', accountId: undefined });
+  });
+
+  it('archives a team message into the team Archive and leaves the open inbox alone', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+    const opened = { ...TEAM_MESSAGE, receivedAt: RECEIVED } as Email;
+
+    await useEmailStore.getState().archiveEmail('e1', { email: opened, accountId: 'grp-1' });
+
+    // Year/month foldering matches against the team's folders by raw id.
+    const teamRaw = mockArchive.mock.calls[0][3] as Mailbox[];
+    expect(teamRaw.map((m) => m.id)).toEqual(['a', 't', 'x', 'j']);
+    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', teamRaw, 'grp-1');
+    expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+    expect(useEmailStore.getState().pendingUndo?.accountId).toBe('grp-1');
   });
 });
