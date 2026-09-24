@@ -131,6 +131,33 @@ export function findComposeIdentityId(
 }
 
 /**
+ * Address whose identity `findComposeIdentityId` should preselect, based on the
+ * mailbox currently open.
+ *
+ * A shared/group folder has no login of its own - it is reached through the
+ * user's - so the owner of the open folder is the right default sender there.
+ * `accountName` is the JMAP `Account.name`, which RFC 8620 describes as "e.g.,
+ * the email address of the account"; a server that puts a human label there
+ * produces no match (the `@` test keeps that explicit) and the caller keeps
+ * its default identity.
+ */
+export function resolveComposeAccountEmail(
+  mailboxes: Array<{ id: string; isShared?: boolean; accountName?: string }>,
+  selectedMailbox?: string | null,
+  activeAccountEmail?: string | null,
+): string | undefined {
+  const current = selectedMailbox
+    ? mailboxes.find((mailbox) => mailbox.id === selectedMailbox)
+    : undefined;
+
+  if (current?.isShared && current.accountName?.includes('@')) {
+    return current.accountName;
+  }
+
+  return activeAccountEmail ?? undefined;
+}
+
+/**
  * Restore the identity a draft was composed with from its saved From. A draft
  * stores only the From address+name, not an identityId, so when two identities
  * share an address (a default + an alias with a different display name) the name

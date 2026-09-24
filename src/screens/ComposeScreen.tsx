@@ -54,7 +54,9 @@ import { buildQuoteHeader, formatQuoteDate, type QuoteHeaderLabels } from '../li
 import {
   isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, type Recipient as ParsedRecipient,
 } from '../lib/recipients';
-import { findDraftIdentityId, resolveReplyIdentity } from '../lib/reply-identity';
+import {
+  findComposeIdentityId, findDraftIdentityId, resolveComposeAccountEmail, resolveReplyIdentity,
+} from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import {
   hasSignature, buildEmbeddedSignatureHtml, containsEmbeddedSignature, spliceSignature,
@@ -834,12 +836,22 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A new message started while a shared folder is open sends as that
+  // mailbox's owner when the user has an identity for it (webmail 129f545a).
+  // Read once: it is the folder the message was started from. Own folders
+  // resolve to nothing, so they keep the preferred identity below.
+  const composeFromAccountEmail = React.useMemo(() => {
+    const { mailboxes: all, currentMailboxId } = useEmailStore.getState();
+    return resolveComposeAccountEmail(all, currentMailboxId);
+  }, []);
+
   // Choose the identity once we know both the loaded identities and the
   // compose context: a re-opened draft keeps the identity it was written
-  // with; a reply or forward sends from the own identity the original was
-  // delivered to (a reply to our own message, from the one that sent it);
-  // with auto-select on, a reply to a catch-all alias on an owned domain
-  // takes that address as a From override; otherwise the preferred ("Use as
+  // with; a new message in a shared folder uses that folder's identity; a
+  // reply or forward sends from the own identity the original was delivered
+  // to (a reply to our own message, from the one that sent it); with
+  // auto-select on, a reply to a catch-all alias on an owned domain takes
+  // that address as a From override; otherwise the preferred ("Use as
   // default") identity, else the one matching the active account.
   React.useEffect(() => {
     if (selectedIdentityId || identities.length === 0) return;
@@ -855,6 +867,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const matched = findDraftIdentityId(identities, draft.from?.[0]);
       setSelectedIdentityId(matched ?? defaultIdentity.id);
       return;
+    }
+    if (!replyTo) {
+      const composeId = findComposeIdentityId(identities, composeFromAccountEmail);
+      if (composeId) {
+        setSelectedIdentityId(composeId);
+        return;
+      }
     }
     if (replyTo) {
       // The catch-all From rewrite is opt-in and never used on a forward.

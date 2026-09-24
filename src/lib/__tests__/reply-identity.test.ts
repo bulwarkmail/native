@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   findReplyIdentityId, findDraftIdentityId, resolveReplyFrom, findComposeIdentityId, resolveReplyIdentity,
+  resolveComposeAccountEmail,
 } from '../reply-identity';
 import type { Identity } from '../../api/types';
 
@@ -134,5 +135,34 @@ describe('resolveReplyIdentity', () => {
   it('returns null without identities or a match', () => {
     expect(resolveReplyIdentity([], { to: [{ email: 'info@example.com' }] }, { ownEmails, catchAll: true })).toBeNull();
     expect(resolveReplyIdentity(identities, { to: [{ email: 'x@other.com' }] }, { ownEmails, catchAll: true })).toBeNull();
+  });
+});
+
+describe('resolveComposeAccountEmail', () => {
+  const mailboxes = [
+    { id: 'a-inbox' },
+    { id: 'owner-x:x-inbox', isShared: true, accountName: 'team@shared.example' },
+    { id: 'owner-y:y-inbox', isShared: true, accountName: 'Support Team' },
+  ];
+
+  it('uses the shared folder owner address when a shared folder is open', () => {
+    expect(resolveComposeAccountEmail(mailboxes, 'owner-x:x-inbox', 'me@primary.example')).toBe('team@shared.example');
+    expect(resolveComposeAccountEmail(mailboxes, 'owner-x:x-inbox')).toBe('team@shared.example');
+  });
+
+  it('keeps the fallback for an own folder, a non-address account name or no selection', () => {
+    expect(resolveComposeAccountEmail(mailboxes, 'a-inbox', 'me@primary.example')).toBe('me@primary.example');
+    expect(resolveComposeAccountEmail(mailboxes, 'owner-y:y-inbox', 'me@primary.example')).toBe('me@primary.example');
+    expect(resolveComposeAccountEmail(mailboxes, null, 'me@primary.example')).toBe('me@primary.example');
+    expect(resolveComposeAccountEmail(mailboxes, 'a-inbox')).toBeUndefined();
+  });
+
+  it('preselects the shared identity end-to-end', () => {
+    const ids: Identity[] = [
+      { id: 'primary', name: 'D R', email: 'me@primary.example', mayDelete: false },
+      { id: 'shared', name: 'D R', email: 'team@shared.example', mayDelete: false },
+    ];
+    expect(findComposeIdentityId(ids, resolveComposeAccountEmail(mailboxes, 'owner-x:x-inbox'))).toBe('shared');
+    expect(findComposeIdentityId(ids, resolveComposeAccountEmail(mailboxes, 'a-inbox'))).toBeNull();
   });
 });
