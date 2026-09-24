@@ -16,6 +16,18 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/calendar/MonthView.tsx': [],
   'components/calendar/TimeGridScrollView.tsx': [],
   'components/calendar/WeekView.tsx': [],
+  'components/calendar/CalendarEditSheet.tsx': [],
+  'components/calendar/CalendarShareSheet.tsx': [],
+  'components/calendar/CalendarSidebarDrawer.tsx': [],
+  'components/calendar/EventDetailSheet.tsx': [],
+  // The meeting link placeholder shows an example URL.
+  'components/calendar/EventModal.tsx': ['https://meet.example.com/…'],
+  'components/calendar/ICalImportSheet.tsx': [],
+  'components/calendar/ICalSubscriptionSheet.tsx': [],
+  'components/calendar/ParticipantInput.tsx': [],
+  'components/calendar/RecurrenceEditor.tsx': [],
+  'components/calendar/RecurrenceScopeDialog.tsx': [],
+  'components/calendar/TasksSheet.tsx': [],
 };
 
 describe('translated calendar screens', () => {

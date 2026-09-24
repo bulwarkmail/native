@@ -7,6 +7,7 @@ import {
 } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../api/types';
 import { colors } from '../theme/tokens';
+import type { TranslateFn } from '../stores/locale-store';
 import { zonedWallTimeToUtc } from './recurrence-expansion';
 import { getEffectiveTimeZone, localDateTimeToInstant, toDisplayDate } from './calendar-timezone';
 
@@ -499,6 +500,27 @@ const CALENDAR_PALETTE = [
 ] as const;
 
 export const CALENDAR_COLOR_PALETTE = CALENDAR_PALETTE;
+
+/**
+ * The name of a palette color ("Blue") for screen readers; any other color
+ * as it is written.
+ */
+export function calendarColorName(color: string, t: TranslateFn): string {
+  const index = CALENDAR_PALETTE.findIndex((c) => c.toLowerCase() === color.toLowerCase());
+  if (index < 0) return color;
+  // In palette order.
+  const names = [
+    t('email_viewer.color_tag.blue', 'Blue'),
+    t('email_viewer.color_tag.green', 'Green'),
+    t('email_viewer.color_tag.purple', 'Purple'),
+    t('email_viewer.color_tag.orange', 'Orange'),
+    t('email_viewer.color_tag.red', 'Red'),
+    t('email_viewer.color_tag.pink', 'Pink'),
+    t('calendar.colors.teal', 'Teal'),
+    t('calendar.colors.indigo', 'Indigo'),
+  ];
+  return names[index];
+}
 
 function hashString(value: string): number {
   let hash = 0;

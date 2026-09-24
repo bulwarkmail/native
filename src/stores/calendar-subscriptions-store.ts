@@ -15,6 +15,7 @@ import {
 import { jmapClient } from '../api/jmap-client';
 import { uploadBytes } from '../api/blob';
 import { useCalendarStore } from './calendar-store';
+import { t } from './locale-store';
 
 export interface CalendarSubscription {
   id: string;
@@ -100,13 +101,16 @@ function base64(input: string): string {
 async function fetchAndParseFeed(url: string): Promise<Partial<CalendarEvent>[]> {
   const { url: feedUrl, headers } = normalizeFeedUrl(url);
   const res = await fetch(feedUrl, { headers });
-  if (!res.ok) throw new Error(`Could not fetch feed (HTTP ${res.status})`);
+  if (!res.ok) {
+    throw new Error(t('calendar.subscription.fetch_failed', 'Could not fetch feed (HTTP {status})', { status: res.status }));
+  }
+  const tooLarge = () => new Error(t('calendar.subscription.feed_too_large', 'Feed is too large'));
   const length = Number(res.headers.get('content-length') || 0);
-  if (length > MAX_FEED_BYTES) throw new Error('Feed is too large');
+  if (length > MAX_FEED_BYTES) throw tooLarge();
   const text = await res.text();
-  if (text.length > MAX_FEED_BYTES) throw new Error('Feed is too large');
+  if (text.length > MAX_FEED_BYTES) throw tooLarge();
   if (!/BEGIN:VCALENDAR/i.test(text)) {
-    throw new Error('That URL did not return an iCalendar feed');
+    throw new Error(t('calendar.subscription.not_a_feed', 'That URL did not return an iCalendar feed'));
   }
   const bytes = new TextEncoder().encode(text);
   const { blobId } = await uploadBytes(bytes, 'text/calendar');
@@ -177,7 +181,7 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
             // best-effort
           }
           await useCalendarStore.getState().fetchCalendars();
-          throw err instanceof Error ? err : new Error('Sync failed');
+          throw err instanceof Error ? err : new Error(t('calendar.subscription.error', 'Failed to add subscription'));
         } finally {
           set({ syncing: { ...get().syncing, [sub.id]: false } });
         }
@@ -234,7 +238,7 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
             ),
           });
         } catch (err) {
-          const message = err instanceof Error ? err.message : 'Sync failed';
+          const message = err instanceof Error ? err.message : t('calendar.subscription.refresh_error', 'Failed to refresh subscription');
           set({
             subscriptions: get().subscriptions.map((s) =>
               s.id === id ? { ...s, lastError: message } : s,

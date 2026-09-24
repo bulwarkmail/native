@@ -7,9 +7,10 @@ import type { RecurrenceRule } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { Button } from '..';
+import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
   EDITOR_FREQUENCIES,
-  UNIT_LABELS,
+  UNIT_LABEL_KEYS,
   WEEKDAYS,
   buildRecurrenceSummary,
   buildRuleFromEditorValue,
@@ -80,11 +81,13 @@ function NumberInput({
   min,
   max,
   onChange,
+  accessibilityLabel,
 }: {
   value: number;
   min: number;
   max: number;
   onChange: (value: number) => void;
+  accessibilityLabel?: string;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -102,6 +105,7 @@ function NumberInput({
       }}
       keyboardType="number-pad"
       style={styles.numberInput}
+      accessibilityLabel={accessibilityLabel}
     />
   );
 }
@@ -109,6 +113,7 @@ function NumberInput({
 export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: RecurrenceEditorProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { locale, t } = useCalendarLocale();
 
   const [value, setValue] = React.useState<RecurrenceEditorValue>(() =>
     editorValueFromRule(rule, eventStart),
@@ -130,22 +135,23 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
   };
 
   const builtRule = buildRuleFromEditorValue(value, eventStart);
-  const summary = buildRecurrenceSummary(builtRule);
+  const summary = buildRecurrenceSummary(builtRule, t, locale);
 
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        <Text style={styles.rowLabel}>Every</Text>
+        <Text style={styles.rowLabel}>{t('calendar.recurrence.editor_every', 'Every')}</Text>
         <NumberInput
           value={value.interval}
           min={1}
           max={999}
           onChange={(interval) => update({ interval })}
+          accessibilityLabel={t('calendar.recurrence.editor_every', 'Every')}
         />
         <InlineSelect<EditorFrequency>
           flex
           value={value.frequency}
-          options={EDITOR_FREQUENCIES.map((f) => ({ value: f, label: UNIT_LABELS[f] }))}
+          options={EDITOR_FREQUENCIES.map((f) => ({ value: f, label: t(UNIT_LABEL_KEYS[f][0], UNIT_LABEL_KEYS[f][1]) }))}
           onChange={(frequency) => update({ frequency })}
         />
       </View>
@@ -159,9 +165,12 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
                 key={day}
                 onPress={() => toggleWeekDay(day)}
                 style={[styles.weekdayChip, active && styles.weekdayChipActive]}
+                accessibilityRole="checkbox"
+                accessibilityLabel={weekdayName(day, 'long', locale)}
+                accessibilityState={{ checked: active }}
               >
                 <Text style={[styles.weekdayChipText, active && styles.weekdayChipTextActive]}>
-                  {weekdayName(day, 'short')}
+                  {weekdayName(day, 'short', locale)}
                 </Text>
               </Pressable>
             );
@@ -171,13 +180,13 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
 
       {value.frequency === 'yearly' && (
         <View style={styles.row}>
-          <Text style={styles.rowLabel}>In</Text>
+          <Text style={styles.rowLabel}>{capitalize(t('calendar.recurrence.editor_in', 'in'))}</Text>
           <InlineSelect<number>
             flex
             value={value.month}
             options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
               value: m,
-              label: capitalize(monthName(m)),
+              label: capitalize(monthName(m, locale)),
             }))}
             onChange={(month) => update({ month })}
           />
@@ -189,8 +198,8 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
           <InlineSelect<MonthlyMode>
             value={value.monthlyMode}
             options={[
-              { value: 'day', label: 'On day' },
-              { value: 'nth', label: 'On the' },
+              { value: 'day', label: capitalize(t('calendar.recurrence.editor_on_day', 'on day')) },
+              { value: 'nth', label: capitalize(t('calendar.recurrence.editor_on_the', 'on the')) },
             ]}
             onChange={(monthlyMode) => update({ monthlyMode })}
           />
@@ -200,19 +209,20 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
               min={1}
               max={31}
               onChange={(monthDay) => update({ monthDay })}
+              accessibilityLabel={t('calendar.recurrence.editor_on_day', 'on day')}
             />
           ) : (
             <>
               <InlineSelect<number>
                 flex
                 value={value.nth}
-                options={[1, 2, 3, 4, -1].map((n) => ({ value: n, label: capitalize(nthLabel(n)) }))}
+                options={[1, 2, 3, 4, -1].map((n) => ({ value: n, label: capitalize(nthLabel(n, t)) }))}
                 onChange={(nth) => update({ nth })}
               />
               <InlineSelect<string>
                 flex
                 value={value.nthDay}
-                options={WEEKDAYS.map((d) => ({ value: d, label: capitalize(weekdayName(d)) }))}
+                options={WEEKDAYS.map((d) => ({ value: d, label: capitalize(weekdayName(d, 'long', locale)) }))}
                 onChange={(nthDay) => update({ nthDay })}
               />
             </>
@@ -221,21 +231,21 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
       )}
 
       <View style={styles.row}>
-        <Text style={styles.rowLabel}>Ends</Text>
+        <Text style={styles.rowLabel}>{t('calendar.recurrence.editor_ends', 'Ends')}</Text>
         <InlineSelect<EndsMode>
           flex={value.endsMode === 'never'}
           value={value.endsMode}
           options={[
-            { value: 'never', label: 'Never' },
-            { value: 'on', label: 'On date' },
-            { value: 'after', label: 'After' },
+            { value: 'never', label: t('calendar.recurrence.editor_never', 'Never') },
+            { value: 'on', label: t('calendar.recurrence.editor_ends_on', 'On') },
+            { value: 'after', label: t('calendar.recurrence.editor_ends_after', 'After') },
           ]}
           onChange={(endsMode) => update({ endsMode })}
         />
         {value.endsMode === 'on' && (
           <Pressable style={[styles.selectButton, styles.selectFlex]} onPress={() => setShowUntilPicker(true)}>
             <Text style={styles.selectText}>
-              {format(parseISO(value.untilDate), 'MMM d, yyyy')}
+              {format(parseISO(value.untilDate), 'MMM d, yyyy', { locale })}
             </Text>
           </Pressable>
         )}
@@ -246,8 +256,11 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
               min={1}
               max={999}
               onChange={(count) => update({ count })}
+              accessibilityLabel={t('calendar.recurrence.editor_ends_after', 'After')}
             />
-            <Text style={styles.muted}>occurrences</Text>
+            <Text style={styles.muted}>
+              {t('calendar.recurrence.editor_occurrences_count', '{count, plural, one {occurrence} other {occurrences}}', { count: value.count })}
+            </Text>
           </>
         )}
       </View>
@@ -258,10 +271,10 @@ export function RecurrenceEditor({ rule, eventStart, onSave, onCancel }: Recurre
         </Text>
         <View style={styles.footerButtons}>
           <Button variant="outline" size="sm" onPress={onCancel}>
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </Button>
           <Button variant="default" size="sm" onPress={() => onSave(builtRule)}>
-            Done
+            {t('common.done', 'Done')}
           </Button>
         </View>
       </View>

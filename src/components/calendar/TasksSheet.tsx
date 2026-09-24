@@ -241,7 +241,13 @@ export function TasksSheet({
             <View style={styles.header}>
               <ListChecks size={20} color={c.text} />
               <Text style={styles.headerTitle}>{t('calendar.tasks.label', 'Tasks')}</Text>
-              <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+              <Pressable
+                onPress={onClose}
+                style={styles.closeBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', 'Close')}
+              >
                 <X size={20} color={c.textMuted} />
               </Pressable>
             </View>
@@ -262,6 +268,8 @@ export function TasksSheet({
               onPress={() => { void handleSave(); }}
               disabled={!editor.title.trim() || !editor.calendarId || saving}
               style={[styles.addBtn, (!editor.title.trim() || saving) && styles.addBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel={editor.id ? t('calendar.tasks.save', 'Save') : t('calendar.tasks.create', 'New Task')}
             >
               {editor.id ? <Check size={18} color={c.primaryForeground} /> : <Plus size={18} color={c.primaryForeground} />}
             </Pressable>
@@ -290,6 +298,8 @@ export function TasksSheet({
                     <Pressable
                       hitSlop={6}
                       onPress={() => setEditor((e) => ({ ...e, due: null, withTime: false }))}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('calendar.tasks.clear_due_date', 'Clear due date')}
                     >
                       <X size={12} color={c.textMuted} />
                     </Pressable>
@@ -383,6 +393,9 @@ export function TasksSheet({
                       onPress={() => { void onToggle(task.id); }}
                       style={[styles.checkbox, completed && styles.checkboxChecked]}
                       hitSlop={8}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={task.title || t('calendar.tasks.no_title', '(No title)')}
+                      accessibilityState={{ checked: completed }}
                     >
                       {completed && <Check size={14} color={c.primaryForeground} />}
                     </Pressable>
@@ -407,7 +420,13 @@ export function TasksSheet({
                         <Text style={[styles.taskDue, overdue && styles.taskDueOverdue]}>{due}</Text>
                       )}
                     </Pressable>
-                    <Pressable onPress={() => { void onDelete(task.id); }} hitSlop={8} style={styles.taskDelete}>
+                    <Pressable
+                      onPress={() => { void onDelete(task.id); }}
+                      hitSlop={8}
+                      style={styles.taskDelete}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('calendar.tasks.delete', 'Delete')}
+                    >
                       <Trash2 size={16} color={c.textMuted} />
                     </Pressable>
                   </View>

@@ -387,7 +387,7 @@ export function EventModal({
   const recurrenceOption = RECURRENCE_OPTIONS.find((o) => o.value === recurrence);
   const recurrenceLabel =
     recurrence === 'custom'
-      ? (customRule && buildRecurrenceSummary(customRule)) || t('calendar.recurrence.custom', 'Custom…')
+      ? (customRule && buildRecurrenceSummary(customRule, t, locale)) || t('calendar.recurrence.custom', 'Custom…')
       : recurrenceOption
         ? t(recurrenceOption.key, recurrenceOption.fallback)
         : t('calendar.recurrence.none', 'Does not repeat');
@@ -416,7 +416,13 @@ export function EventModal({
     >
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.headerBtn}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            style={styles.headerBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close', 'Close')}
+          >
             <X size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle}>
@@ -501,6 +507,7 @@ export function EventModal({
               <Switch
                 value={allDay}
                 onValueChange={setAllDay}
+                accessibilityLabel={t('calendar.form.all_day_event', 'All-day event')}
                 thumbColor={allDay ? c.primary : c.textMuted}
                 trackColor={{ false: c.surface, true: c.primaryBg }}
               />
@@ -608,6 +615,8 @@ export function EventModal({
                       onPress={() => removeReminder(r.minutesBefore)}
                       hitSlop={8}
                       style={styles.reminderRemove}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('calendar.alerts.remove', 'Remove reminder')}
                     >
                       <X size={16} color={c.textMuted} />
                     </Pressable>
@@ -739,6 +748,7 @@ export function EventModal({
                 <Switch
                   value={sendInvitations}
                   onValueChange={setSendInvitations}
+                  accessibilityLabel={t('calendar.participants.send_invitations', 'Send invitations to participants')}
                   thumbColor={sendInvitations ? c.primary : c.textMuted}
                   trackColor={{ false: c.surface, true: c.primaryBg }}
                 />

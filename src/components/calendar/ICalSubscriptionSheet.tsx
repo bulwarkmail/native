@@ -8,7 +8,8 @@ import { formatDistanceToNow } from 'date-fns';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { CALENDAR_COLOR_PALETTE } from '../../lib/calendar-utils';
+import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-utils';
+import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
   DEFAULT_REFRESH_INTERVAL_MINUTES,
   selectAccountSubscriptions,
@@ -17,11 +18,12 @@ import {
 } from '../../stores/calendar-subscriptions-store';
 import { jmapClient } from '../../api/jmap-client';
 
-const INTERVAL_OPTIONS: { minutes: number; label: string }[] = [
-  { minutes: 15, label: '15 min' },
-  { minutes: 60, label: '1 h' },
-  { minutes: 360, label: '6 h' },
-  { minutes: 1440, label: '1 day' },
+// The webmail's refresh intervals and their labels.
+const INTERVAL_OPTIONS: { minutes: number; key: string; fallback: string }[] = [
+  { minutes: 15, key: 'calendar.subscription.interval_15', fallback: 'Every 15 minutes' },
+  { minutes: 60, key: 'calendar.subscription.interval_60', fallback: 'Every hour' },
+  { minutes: 360, key: 'calendar.subscription.interval_360', fallback: 'Every 6 hours' },
+  { minutes: 1440, key: 'calendar.subscription.interval_1440', fallback: 'Every day' },
 ];
 
 interface Props {
@@ -33,6 +35,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
+  const { locale, t } = useCalendarLocale();
   const allSubscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
   // Only the signed-in account's feeds: a sub created under another account
   // mirrors into a calendar id that doesn't exist (or collides) here.
@@ -98,11 +101,11 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
     const n = name.trim();
     const u = url.trim();
     if (!n || !u) {
-      setFormError('Enter a name and a feed URL.');
+      setFormError(t('calendar.subscription.name_and_url_required', 'Enter a name and a feed URL.'));
       return;
     }
     if (!/^(https?|webcals?):\/\//i.test(u)) {
-      setFormError('URL must start with https://, http://, webcal:// or webcals://');
+      setFormError(t('calendar.subscription.url_scheme_invalid', 'URL must start with https://, http://, webcal:// or webcals://'));
       return;
     }
     setFormError(null);
@@ -115,7 +118,13 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
       }
       resetForm();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Could not add subscription.');
+      setFormError(
+        e instanceof Error && e.message
+          ? e.message
+          : editingId
+            ? t('calendar.subscription.update_error', 'Failed to update subscription')
+            : t('calendar.subscription.error', 'Failed to add subscription'),
+      );
     } finally {
       setAdding(false);
     }
@@ -130,26 +139,38 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Rss size={20} color={c.text} />
-            <Text style={styles.title}>Calendar subscriptions</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Text style={styles.title}>{t('calendar.subscription.section_title', 'iCal Subscriptions')}</Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={20} color={c.text} />
             </Pressable>
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll}>
-            <Text style={styles.sectionLabel}>{editingId ? 'Edit subscription' : 'Add a feed'}</Text>
+            <Text style={styles.sectionLabel}>
+              {editingId
+                ? t('calendar.subscription.edit_title', 'Edit Subscription')
+                : t('calendar.subscription.add_feed', 'Add a feed')}
+            </Text>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Name (e.g. Holidays)"
+              placeholder={t('calendar.subscription.name_placeholder', 'e.g. Public Holidays')}
               placeholderTextColor={c.textMuted}
               style={styles.input}
+              accessibilityLabel={t('calendar.subscription.name_label', 'Calendar name')}
             />
             <TextInput
               value={url}
               onChangeText={setUrl}
-              placeholder="https://… or webcal://…"
+              placeholder={t('calendar.subscription.url_placeholder', 'https://example.com/calendar.ics or webcal://...')}
               placeholderTextColor={c.textMuted}
+              accessibilityLabel={t('calendar.subscription.url_label', 'Calendar URL')}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
@@ -165,10 +186,13 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                     { backgroundColor: col },
                     color === col && styles.colorDotActive,
                   ]}
+                  accessibilityRole="radio"
+                  accessibilityLabel={calendarColorName(col, t)}
+                  accessibilityState={{ selected: color === col }}
                 />
               ))}
             </View>
-            <Text style={styles.fieldLabel}>Refresh every</Text>
+            <Text style={styles.fieldLabel}>{t('calendar.subscription.refresh_interval', 'Refresh interval')}</Text>
             <View style={styles.intervalRow}>
               {INTERVAL_OPTIONS.map((opt) => {
                 const active = interval === opt.minutes;
@@ -177,9 +201,11 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                     key={opt.minutes}
                     onPress={() => setInterval(opt.minutes)}
                     style={[styles.intervalChip, active && styles.intervalChipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
                   >
                     <Text style={[styles.intervalChipText, active && styles.intervalChipTextActive]}>
-                      {opt.label}
+                      {t(opt.key, opt.fallback)}
                     </Text>
                   </Pressable>
                 );
@@ -194,7 +220,7 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
             <View style={styles.formActions}>
               {editingId && (
                 <Button variant="outline" onPress={resetForm} disabled={adding}>
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
               )}
               <Button
@@ -202,13 +228,21 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                 disabled={adding}
                 icon={adding ? <ActivityIndicator size="small" color={c.primaryForeground} /> : <Plus size={16} color={c.primaryForeground} />}
               >
-                {adding ? (editingId ? 'Saving…' : 'Subscribing…') : editingId ? 'Save changes' : 'Subscribe'}
+                {adding
+                  ? (editingId
+                    ? t('calendar.subscription.saving', 'Saving...')
+                    : t('calendar.subscription.subscribing', 'Subscribing...'))
+                  : editingId
+                    ? t('calendar.subscription.save', 'Save changes')
+                    : t('calendar.subscription.subscribe', 'Subscribe')}
               </Button>
             </View>
 
             {subscriptions.length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>Your subscriptions</Text>
+                <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>
+                  {t('calendar.subscription.your_subscriptions', 'Your subscriptions')}
+                </Text>
                 {subscriptions.map((sub) => {
                   const busy = !!syncing[sub.id];
                   return (
@@ -220,8 +254,10 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                           {sub.lastError
                             ? sub.lastError
                             : sub.lastSyncAt
-                              ? `Synced ${formatDistanceToNow(sub.lastSyncAt, { addSuffix: true })}`
-                              : 'Not synced yet'}
+                              ? t('calendar.subscription.last_refreshed', 'Last updated: {time}', {
+                                time: formatDistanceToNow(sub.lastSyncAt, { addSuffix: true, locale }),
+                              })
+                              : t('calendar.subscription.not_synced', 'Not synced yet')}
                         </Text>
                       </Pressable>
                       <Pressable
@@ -229,6 +265,8 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                         hitSlop={6}
                         style={styles.subBtn}
                         disabled={busy}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('calendar.subscription.refresh', 'Refresh now')}
                       >
                         {busy ? (
                           <ActivityIndicator size="small" color={c.textMuted} />
@@ -240,6 +278,8 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
                         onPress={() => { void removeSubscription(sub.id); }}
                         hitSlop={6}
                         style={styles.subBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('calendar.subscription.unsubscribe', 'Unsubscribe')}
                       >
                         <Trash2 size={16} color={c.error} />
                       </Pressable>

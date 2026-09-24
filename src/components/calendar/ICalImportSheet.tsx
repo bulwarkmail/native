@@ -192,7 +192,13 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Text style={styles.title}>{t('calendar.import.title', 'Import Calendar')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={20} color={c.text} />
             </Pressable>
           </View>

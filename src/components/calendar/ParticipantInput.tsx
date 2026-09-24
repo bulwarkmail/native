@@ -93,7 +93,12 @@ export function ParticipantInput({ attendees, onAdd, onRemove }: ParticipantInpu
               <Text style={styles.chipText} numberOfLines={1}>
                 {a.name || a.email}
               </Text>
-              <Pressable onPress={() => onRemove(a.email)} hitSlop={6}>
+              <Pressable
+                onPress={() => onRemove(a.email)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={t('calendar.participants.remove', 'Remove')}
+              >
                 <X size={12} color={c.textMuted} />
               </Pressable>
             </View>

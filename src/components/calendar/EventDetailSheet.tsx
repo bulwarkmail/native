@@ -52,6 +52,8 @@ import { getEventEditability } from '../../lib/calendar-editability';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
+import { recurrenceEndLabel, recurrenceIntervalLabel } from '../../lib/recurrence';
+import type { TranslateFn } from '../../stores/locale-store';
 
 type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 
@@ -100,30 +102,14 @@ function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, l
   return `${format(start, `MMM d, ${tp}`, opts)} – ${format(end, `MMM d, ${tp}`, opts)}`;
 }
 
-type Translate = (key: string, fallback?: string) => string;
-
-function recurrenceLabel(event: CalendarEvent, t: Translate, locale: Locale): string | null {
+function recurrenceLabel(event: CalendarEvent, t: TranslateFn, locale: Locale): string | null {
   const rule = event.recurrenceRules?.[0];
   if (!rule) return null;
   const freq = rule.frequency.toLowerCase();
-  const unitKey: Record<string, [string, string]> = {
-    daily: ['calendar.recurrence.every_n_days', 'Every {count} days'],
-    weekly: ['calendar.recurrence.every_n_weeks', 'Every {count} weeks'],
-    monthly: ['calendar.recurrence.every_n_months', 'Every {count} months'],
-    yearly: ['calendar.recurrence.every_n_years', 'Every {count} years'],
-  };
-  let label: string;
-  if (rule.interval && rule.interval > 1 && unitKey[freq]) {
-    label = t(unitKey[freq][0], unitKey[freq][1]).replace('{count}', String(rule.interval));
-  } else {
-    label = t(`calendar.recurrence.${freq}`, rule.frequency);
-  }
-  if (rule.until) {
-    label += ` · ${t('calendar.recurrence.until', 'Until')} ${format(new Date(rule.until), 'MMM d, yyyy', { locale })}`;
-  } else if (rule.count) {
-    label += ` · ${t('calendar.recurrence.occurrences', '{count} occurrences').replace('{count}', String(rule.count))}`;
-  }
-  return label;
+  const label = recurrenceIntervalLabel(freq, rule.interval ?? 1, t)
+    ?? t(`calendar.recurrence.${freq}`, rule.frequency);
+  const end = recurrenceEndLabel(rule, t, locale);
+  return end ? `${label} · ${end}` : label;
 }
 
 export function EventDetailSheet({
@@ -257,7 +243,13 @@ export function EventDetailSheet({
                 </Text>
                 {calendar && <Text style={styles.subtitle}>{calendar.name}</Text>}
               </View>
-              <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+              <Pressable
+                onPress={onClose}
+                style={styles.closeBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', 'Close')}
+              >
                 <X size={20} color={c.textMuted} />
               </Pressable>
             </View>
@@ -362,7 +354,7 @@ export function EventDetailSheet({
                       ]}
                     />
                     <Text style={styles.participantName} numberOfLines={1}>
-                      {p.name || p.email || 'Unknown'}
+                      {p.name || p.email || t('common.unknown', 'Unknown')}
                       {p.isOrganizer ? (
                         <Text style={styles.participantOrganizer}>
                           {' '}({t('calendar.participants.organizer', 'Organizer').toLowerCase()})
@@ -520,7 +512,7 @@ function statusColor(c: ThemePalette, status?: string): string {
   }
 }
 
-function statusLabel(status: string | undefined, t: Translate): string {
+function statusLabel(status: string | undefined, t: TranslateFn): string {
   switch (status) {
     case 'accepted':
       return t('calendar.participants.accepted', 'Accepted');

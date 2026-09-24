@@ -1,6 +1,6 @@
 import type { Locale } from 'date-fns';
 import { enUS } from 'date-fns/locale/en-US';
-import { useLocaleStore } from '../stores/locale-store';
+import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import type { LocaleCode } from '../i18n';
 
 // date-fns locale for each UI language so month/day names, "EEE, MMM d"
@@ -54,7 +54,7 @@ export function getDateFnsLocale(code: LocaleCode | string | null | undefined): 
 }
 
 /** `{ locale }` options for date-fns `format()` plus the translate function. */
-export function useCalendarLocale(): { locale: Locale; t: (key: string, fallback?: string) => string } {
+export function useCalendarLocale(): { locale: Locale; t: TranslateFn } {
   const code = useLocaleStore((s) => s.locale);
   const t = useLocaleStore((s) => s.t);
   return { locale: getDateFnsLocale(code), t };

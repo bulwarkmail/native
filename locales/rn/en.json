@@ -9,6 +9,10 @@
     "alerts": {
       "unit_minutes_after": "minutes after"
     },
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Teal"
+    },
     "drawer": {
       "my_calendars": "My calendars",
       "no_calendars": "No calendars yet.",
@@ -72,6 +76,15 @@
       "edit_calendar": "Edit calendar",
       "new_calendar": "New calendar"
     },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",
+      "every_count_days": "{count, plural, one {Every # day} other {Every # days}}",
+      "every_count_months": "{count, plural, one {Every # month} other {Every # months}}",
+      "every_count_weeks": "{count, plural, one {Every # week} other {Every # weeks}}",
+      "every_count_years": "{count, plural, one {Every # year} other {Every # years}}",
+      "occurrence_count": "{count, plural, one {# occurrence} other {# occurrences}}",
+      "until_date": "Until {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
       "time_zone": "Time zone",
@@ -89,9 +102,20 @@
       "shared_with": "Shared with",
       "title": "Share"
     },
+    "subscription": {
+      "add_feed": "Add a feed",
+      "feed_too_large": "Feed is too large",
+      "fetch_failed": "Could not fetch feed (HTTP {status})",
+      "name_and_url_required": "Enter a name and a feed URL.",
+      "not_a_feed": "That URL did not return an iCalendar feed",
+      "not_synced": "Not synced yet",
+      "url_scheme_invalid": "URL must start with https://, http://, webcal:// or webcals://",
+      "your_subscriptions": "Your subscriptions"
+    },
     "tasks": {
       "add_placeholder": "Add a task…",
       "add_time": "Add time",
+      "clear_due_date": "Clear due date",
       "delete_error": "Failed to delete task",
       "not_found": "This task is no longer available.",
       "save_error": "Failed to save task",

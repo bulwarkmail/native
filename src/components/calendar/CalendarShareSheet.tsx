@@ -40,11 +40,12 @@ const CALENDAR_PRESETS: Record<RolePreset, CalendarRights> = {
   },
 };
 
+// The webmail's sharing presets (same rights, same names).
 const PRESET_LABEL_KEYS: Record<RolePreset, [string, string]> = {
-  freeBusy: ['calendar.share.role_free_busy', 'Free/busy'],
-  read: ['calendar.share.role_viewer', 'Viewer'],
-  readWrite: ['calendar.share.role_editor', 'Editor'],
-  manager: ['calendar.share.role_manager', 'Manager'],
+  freeBusy: ['sharing.preset.freeBusy', 'Free/busy only'],
+  read: ['sharing.preset.read', 'Read only'],
+  readWrite: ['sharing.preset.readWrite', 'Read & write'],
+  manager: ['sharing.preset.manager', 'Manager'],
 };
 
 const PRESET_ORDER: RolePreset[] = ['freeBusy', 'read', 'readWrite', 'manager'];
@@ -159,7 +160,7 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
               <View style={styles.titleRow}>
                 <Users size={18} color={c.textMuted} />
                 <Text style={styles.title} numberOfLines={1}>
-                  {t('calendar.share.title', 'Share')} “{calendar.name}”
+                  {t('sharing.title', 'Share "{name}"', { name: calendar.name })}
                 </Text>
               </View>
 
@@ -180,6 +181,8 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
                                 onPress={() => void applyShare(principalId, CALENDAR_PRESETS[p])}
                                 disabled={busy}
                                 style={[styles.chip, preset === p && styles.chipActive]}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: preset === p, disabled: busy }}
                               >
                                 <Text style={[styles.chipText, preset === p && styles.chipTextActive]}>
                                   {t(PRESET_LABEL_KEYS[p][0], PRESET_LABEL_KEYS[p][1])}
@@ -187,13 +190,15 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
                               </Pressable>
                             ))}
                             {preset === 'custom' ? (
-                              <Text style={styles.customLabel}>{t('calendar.share.role_custom', 'Custom')}</Text>
+                              <Text style={styles.customLabel}>{t('sharing.preset.custom', 'Custom')}</Text>
                             ) : null}
                             <Pressable
                               onPress={() => void applyShare(principalId, null)}
                               disabled={busy}
                               hitSlop={8}
                               style={styles.removeBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel={t('sharing.remove', 'Remove access')}
                             >
                               {busy ? (
                                 <ActivityIndicator size="small" color={c.textMuted} />

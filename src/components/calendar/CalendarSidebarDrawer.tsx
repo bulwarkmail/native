@@ -18,7 +18,7 @@ import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useAnimDuration } from '../../theme/dynamic';
-import { CALENDAR_COLOR_PALETTE, getCalendarColor } from '../../lib/calendar-utils';
+import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
 import { BIRTHDAY_CALENDAR_ID } from '../../lib/birthday-calendar';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -152,7 +152,13 @@ export function CalendarSidebarDrawer({
       >
         <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
           <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.headerClose} hitSlop={8}>
+            <Pressable
+              onPress={onClose}
+              style={styles.headerClose}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={20} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle}>{t('calendar.my_calendars', 'Calendars')}</Text>
@@ -274,6 +280,8 @@ function Section({
                 styles.row,
                 pressed && styles.rowPressed,
               ]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: visible }}
             >
               <View
                 style={[
@@ -328,6 +336,9 @@ function Section({
                               { backgroundColor: color },
                               active && styles.paletteSwatchActive,
                             ]}
+                            accessibilityRole="radio"
+                            accessibilityLabel={calendarColorName(color, t)}
+                            accessibilityState={{ selected: active }}
                           >
                             {active && <Check size={12} color={c.textInverse} />}
                           </Pressable>

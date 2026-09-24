@@ -15,7 +15,7 @@ import type { Calendar } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
-import { CALENDAR_COLOR_PALETTE, getCalendarColor } from '../../lib/calendar-utils';
+import { CALENDAR_COLOR_PALETTE, calendarColorName, getCalendarColor } from '../../lib/calendar-utils';
 import Button from '../Button';
 
 export interface CalendarEditValues {
@@ -98,6 +98,9 @@ export function CalendarEditSheet({ visible, calendar, onSave, onClose }: Calend
                         key={col}
                         onPress={() => setColor(col)}
                         style={[styles.swatch, { backgroundColor: col }, active && styles.swatchActive]}
+                        accessibilityRole="radio"
+                        accessibilityLabel={calendarColorName(col, t)}
+                        accessibilityState={{ selected: active }}
                       >
                         {active && <Check size={12} color={c.textInverse} />}
                       </Pressable>
