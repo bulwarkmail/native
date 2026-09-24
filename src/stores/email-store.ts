@@ -33,6 +33,7 @@ import {
   destroyEmails as apiDestroyEmails,
   unprefixMailboxId,
 } from '../api/email';
+import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
 import { useNetworkStore } from './network-store';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
@@ -40,7 +41,7 @@ import {
 } from '../lib/mailbox-tree';
 import { toWildcardQuery } from '../lib/search-utils';
 import { collapseThreads, accountScopedId } from '../lib/thread-utils';
-import { compareEmails, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
+import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
@@ -927,7 +928,7 @@ export const useEmailStore = create<EmailState>()(
     // into the new account's snapshot.
     const activeAccountId = get().activeAccountId;
     if (!jmapClientServesActiveAccount(activeAccountId)) return Promise.resolve();
-    return coalesceRefresh(`${activeAccountId}:mailboxes`, () => fetchMailboxesImpl(activeAccountId!));
+    return syncMailboxes(activeAccountId!, { own: true, shared: true });
   },
 
   selectMailbox: async (mailboxId) => {
@@ -1157,24 +1158,38 @@ export const useEmailStore = create<EmailState>()(
     // (#1082, #1038).
     const spanning = spansAccounts(state);
 
-    let mailboxChanged = false;
+    let ownMailboxChanged = false;
+    let sharedMailboxChanged = false;
     let emailChanged = false;
     let tagCountsChanged = false;
     for (const [accountId, accountChanges] of Object.entries(change.changed ?? {})) {
       if (!known.has(accountId) || !accountChanges) continue;
-      if ('Mailbox' in accountChanges) mailboxChanged = true;
+      if ('Mailbox' in accountChanges) {
+        // Only the part of the folder list that changed is re-read, and not
+        // at all for a state we already hold (a duplicate notification).
+        if (accountId !== primaryId) sharedMailboxChanged = true;
+        else if (accountChanges.Mailbox !== get().mailboxState) ownMailboxChanged = true;
+      }
       // The sidebar tag badges count every account (PF6, #1038).
       if ('Email' in accountChanges) tagCountsChanged = true;
       if (accountId !== currentAccountId && !spanning) continue;
       if ('Email' in accountChanges || 'EmailDelivery' in accountChanges) emailChanged = true;
     }
     if (tagCountsChanged) useTagCountsStore.getState().invalidate();
-    if (!mailboxChanged && !emailChanged) return;
+    if (!ownMailboxChanged && !sharedMailboxChanged && !emailChanged) return;
 
-    if (mailboxChanged) {
-      await get().fetchMailboxes();
+    if (ownMailboxChanged || sharedMailboxChanged) {
+      const activeAccountId = get().activeAccountId;
+      if (activeAccountId) {
+        await syncMailboxes(activeAccountId, { own: ownMailboxChanged, shared: sharedMailboxChanged });
+      }
     }
     if (emailChanged && get().currentMailboxId) {
+      // The echo of our own writes: the list already shows them.
+      const pushed = change.changed[currentAccountId];
+      if (pushed?.Email && !pushed.EmailDelivery && (await absorbOwnEmailWrites(pushed.Email, pushed.Mailbox))) {
+        return;
+      }
       await get().refreshEmails();
     }
   },
@@ -2369,19 +2384,7 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
         replaceOwn(list, state);
       }
 
-      // Shared/group accounts have their own Mailbox state tokens, and there
-      // are only ever a handful of them, so they're re-read in full rather
-      // than diffed. Failing to reach one must not lose the own folders we
-      // just synced, hence the separate try.
-      try {
-        const shared = await getSharedMailboxes();
-        if (get().activeAccountId !== activeAccountId) return;
-        set({ mailboxes: [...get().mailboxes.filter((m) => !m.isShared), ...shared] });
-      } catch (err) {
-        console.warn('[email-store] shared mailbox fetch failed:', err);
-      }
-
-      if (drainAgain) void get().fetchMailboxes();
+      if (drainAgain) void syncMailboxes(activeAccountId, { own: true, shared: false });
     } catch (err) {
       console.warn('[email-store] fetchMailboxes failed:', err);
       if (get().activeAccountId !== activeAccountId) return;
@@ -2403,6 +2406,102 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
       }
     }, 2000);
   }
+}
+
+// Shared/group accounts have their own Mailbox state tokens, and there are
+// only ever a handful of them, so they're re-read in full rather than diffed.
+// Failing to reach one must not lose the own folders.
+async function fetchSharedMailboxesImpl(activeAccountId: string): Promise<void> {
+  const get = useEmailStore.getState;
+  try {
+    const shared = await getSharedMailboxes();
+    if (get().activeAccountId !== activeAccountId) return;
+    useEmailStore.setState({ mailboxes: [...get().mailboxes.filter((m) => !m.isShared), ...shared] });
+  } catch (err) {
+    console.warn('[email-store] shared mailbox fetch failed:', err);
+  }
+}
+
+// The folder list is synced in two parts, each coalesced on its own: a push
+// that only changed the user's own folders doesn't re-read every shared
+// account's, and one that only changed a shared account's doesn't diff the
+// own ones.
+function syncMailboxes(activeAccountId: string, parts: { own: boolean; shared: boolean }): Promise<void> {
+  const runs: Promise<void>[] = [];
+  if (parts.own) {
+    runs.push(coalesceRefresh(`${activeAccountId}:mailboxes`, () => fetchMailboxesImpl(activeAccountId)));
+  }
+  if (parts.shared) {
+    runs.push(coalesceRefresh(`${activeAccountId}:shared-mailboxes`, () => fetchSharedMailboxesImpl(activeAccountId)));
+  }
+  return Promise.all(runs).then(() => undefined);
+}
+
+// How long a push waits for our own mail writes still in flight before it
+// decides whether it is their echo: a push can overtake the write's response.
+const OWN_WRITE_SETTLE_MS = 3000;
+
+// Keywords the open folder is sorted on ($pinned always leads): changing one
+// moves the row, which only a re-query can place.
+function sortKeywordsFor(state: EmailState): Set<string> {
+  const keywords = new Set(['$pinned']);
+  for (const level of orderFor(state)) {
+    const keyword = levelKeyword(level);
+    if (keyword) keywords.add(keyword);
+  }
+  return keywords;
+}
+
+/**
+ * Take a pushed Email state that only our own writes led to (their responses
+ * carry the states, see api/own-writes) into the open folder's list without
+ * re-reading it: the rows get what the writes did (the optimistic updates
+ * mostly did already) and the list's state moves to the pushed one. False
+ * when anything else changed or the writes need a re-query to show; the
+ * caller refreshes then, as before.
+ */
+async function absorbOwnEmailWrites(pushedEmailState: string, pushedMailboxState: string | undefined): Promise<boolean> {
+  await whenOwnWritesSettled(OWN_WRITE_SETTLE_MS);
+  const state = useEmailStore.getState();
+  const { currentMailboxId, activeAccountId } = state;
+  if (!currentMailboxId || !activeAccountId || !isBaseView(state.searchQuery, state.filters)) return false;
+  if (!jmapClientServesActiveAccount(activeAccountId)) return false;
+  // A refresh already on its way would land with the list from before.
+  if (inflightRefresh.has(`${activeAccountId}:emails`)) return false;
+  const ref = refFor(state.mailboxes, currentMailboxId);
+  // Only own folders: the folder count below has to be as new as the push,
+  // and only the own Mailbox state is tracked.
+  if (ref.accountId) return false;
+  if (pushedMailboxState !== undefined && state.mailboxState !== pushedMailboxState) return false;
+  const baseline = state.emailStates[currentMailboxId];
+  const snap = state.mailboxSnapshots[currentMailboxId];
+  if (!baseline || !snap?.queryState) return false;
+
+  const chain = ownEmailWritesBetween(jmapClient.serverUrl ?? '', jmapClient.accountId, baseline, pushedEmailState);
+  if (!chain) return false;
+  const applied = applyOwnWritesToList(chain, {
+    emails: state.emails,
+    syncedIds: new Set(snap.emails.map((e) => e.id)),
+    folderId: ref.id,
+    sortKeywords: sortKeywordsFor(state),
+  });
+  if (!applied) return false;
+  // The writes may also have taken messages we don't hold out of the folder
+  // (a destroyed draft somewhere): its count tells.
+  const total = state.totalEmails - applied.removed;
+  const folder = state.mailboxes.find((m) => m.id === currentMailboxId);
+  if (!folder || folder.totalEmails !== total) return false;
+
+  useEmailStore.setState({
+    emails: applied.emails,
+    totalEmails: total,
+    emailStates: withEmailState(state.emailStates, currentMailboxId, pushedEmailState),
+    mailboxSnapshots: {
+      ...state.mailboxSnapshots,
+      [currentMailboxId]: { emails: applied.emails, total, queryState: snap.queryState },
+    },
+  });
+  return true;
 }
 
 // Record Thread/get results as conversation sizes for the list's badges.

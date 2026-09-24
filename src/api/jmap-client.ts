@@ -15,6 +15,7 @@ import {
   type OAuthTokenSource,
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
+import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 
 // Refresh OAuth access tokens this many ms before they actually expire so
 // in-flight requests don't race the expiry window.
@@ -858,6 +859,20 @@ export class JMAPClient {
     methodCalls: JMAPMethodCall[],
     using?: string[],
   ): Promise<JMAPResponseBody> {
+    if (!this.session) throw new Error('Not connected');
+    // Log the states our own mail writes move between, so the mail store can
+    // recognise their push echo (see api/own-writes).
+    const settled = beginOwnWrite(methodCalls);
+    try {
+      const response = await this.postRequest(methodCalls, using);
+      recordOwnEmailWrites(this.serverUrl ?? '', methodCalls, response.methodResponses);
+      return response;
+    } finally {
+      settled();
+    }
+  }
+
+  private async postRequest(methodCalls: JMAPMethodCall[], using?: string[]): Promise<JMAPResponseBody> {
     if (!this.session) throw new Error('Not connected');
 
     const body: JMAPRequestBody = {
