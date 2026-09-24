@@ -57,8 +57,12 @@ export function ContactsSettings() {
   const exportable = React.useMemo(() => contacts.filter((cc) => !isGroup(cc)), [contacts]);
   const exportLabel =
     exportable.length === 0
-      ? 'No contacts to export'
-      : `Export ${exportable.length} contact${exportable.length === 1 ? '' : 's'} as a single vCard file.`;
+      ? t('settings.contacts.export_empty', 'No contacts to export')
+      : t(
+        'settings.contacts.export_description_count',
+        '{count, plural, one {Export # contact as a single vCard file.} other {Export # contacts as a single vCard file.}}',
+        { count: exportable.length },
+      );
   // Imports land in the account's default book unless the user picks another.
   const resolvedImportTarget = importTargetBookId ?? getDefaultAddressBookId();
   const importTargetName = books.find((b) => b.id === resolvedImportTarget)?.name;
@@ -69,7 +73,7 @@ export function ContactsSettings() {
     try {
       await setDefaultAddressBook(id);
     } catch (err) {
-      Alert.alert('Could not set default', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.set_default_failed', 'Failed to set default address book'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     } finally {
       setBusy(false);
     }
@@ -87,13 +91,13 @@ export function ContactsSettings() {
         await Sharing.shareAsync(path, {
           mimeType: 'text/vcard',
           UTI: 'public.vcard',
-          dialogTitle: 'Export contacts',
+          dialogTitle: t('contacts.export.title', 'Export Contacts'),
         });
       } else {
         await Share.share({ message: vcf });
       }
     } catch (err) {
-      Alert.alert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.export.failed', 'Export failed'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     } finally {
       setExporting(false);
     }
@@ -113,7 +117,7 @@ export function ContactsSettings() {
       await renameAddressBook(editingId, name);
       setEditingId(null);
     } catch (err) {
-      Alert.alert('Rename failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.rename_failed', 'Failed to rename address book'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     } finally {
       setBusy(false);
     }
@@ -128,7 +132,7 @@ export function ContactsSettings() {
       setAdding(false);
       setNewName('');
     } catch (err) {
-      Alert.alert('Could not create address book', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.create_failed', 'Failed to create address book'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     } finally {
       setBusy(false);
     }
@@ -141,19 +145,19 @@ export function ContactsSettings() {
     try {
       await deleteAddressBook(id);
     } catch (err) {
-      Alert.alert('Delete failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.delete_failed', 'Failed to delete address book'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
   return (
     <>
       <SettingsSection
-        title="Contacts"
-        description="Display preferences and address-book tools."
+        title={t('settings.contacts.title', 'Contacts')}
+        description={t('settings.contacts.description_mobile', 'Display preferences and address-book tools.')}
       >
         <SettingItem
-          label="Group by first letter"
-          description="Show alphabetical section headers in the contacts list."
+          label={t('settings.contacts.group_by_letter_label', 'Group by first letter')}
+          description={t('settings.contacts.group_by_letter_description', 'Show alphabetical section headers in the contact list')}
         >
           <ToggleSwitch checked={groupByLetter} onChange={setGroupByLetter} />
         </SettingItem>
@@ -172,8 +176,8 @@ export function ContactsSettings() {
         </SettingItem>
 
         <SettingItem
-          label="Import contacts"
-          description="Import contacts from a vCard (.vcf) file with duplicate detection."
+          label={t('settings.contacts.import_label', 'Import Contacts')}
+          description={t('settings.contacts.import_description_mobile', 'Import contacts from a vCard (.vcf) file with duplicate detection.')}
         >
           <Button
             variant="outline"
@@ -182,12 +186,12 @@ export function ContactsSettings() {
             onPress={() => setImportOpen(true)}
             disabled={books.length === 0}
           >
-            Import
+            {t('contacts.import.import_button', 'Import')}
           </Button>
         </SettingItem>
 
         <SettingItem
-          label="Export contacts"
+          label={t('settings.contacts.export_label', 'Export Contacts')}
           description={exportLabel}
         >
           <Button
@@ -198,14 +202,14 @@ export function ContactsSettings() {
             disabled={exportable.length === 0 || exporting}
             loading={exporting}
           >
-            Export
+            {t('contacts.bulk.export', 'Export')}
           </Button>
         </SettingItem>
       </SettingsSection>
 
       <SettingsSection
-        title="Address books"
-        description="Create, rename, and remove the address books that organize your contacts."
+        title={t('settings.contacts.manage_title', 'Address Books')}
+        description={t('settings.contacts.manage_description_mobile', 'Create, rename, and remove the address books that organize your contacts.')}
       >
         {books.map((book) => (
           <View key={book.id} style={styles.bookRow}>
@@ -221,10 +225,22 @@ export function ContactsSettings() {
                   onSubmitEditing={() => { void commitRename(); }}
                   placeholderTextColor={c.textMuted}
                 />
-                <Pressable onPress={() => { void commitRename(); }} hitSlop={6} style={styles.iconBtn}>
+                <Pressable
+                  onPress={() => { void commitRename(); }}
+                  hitSlop={6}
+                  style={styles.iconBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.save', 'Save')}
+                >
                   <Check size={16} color={c.primary} />
                 </Pressable>
-                <Pressable onPress={() => setEditingId(null)} hitSlop={6} style={styles.iconBtn}>
+                <Pressable
+                  onPress={() => setEditingId(null)}
+                  hitSlop={6}
+                  style={styles.iconBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.cancel', 'Cancel')}
+                >
                   <X size={16} color={c.textMuted} />
                 </Pressable>
               </>
@@ -235,8 +251,8 @@ export function ContactsSettings() {
                     {book.isShared && book.accountName ? `${book.name} (${book.accountName})` : book.name}
                   </Text>
                   <Text style={styles.bookCount}>
-                    {book.count} contact{book.count === 1 ? '' : 's'}
-                    {book.isDefault ? ' · Default' : ''}
+                    {t('settings.contacts.book_count', '{count, plural, one {# contact} other {# contacts}}', { count: book.count })}
+                    {book.isDefault ? ` · ${t('contacts.address_books.default', 'Default')}` : ''}
                   </Text>
                 </View>
                 {!book.isShared && (
@@ -245,7 +261,10 @@ export function ContactsSettings() {
                     hitSlop={6}
                     style={styles.iconBtn}
                     disabled={!!book.isDefault}
-                    accessibilityLabel={book.isDefault ? 'Default address book' : 'Set as default'}
+                    accessibilityRole="button"
+                    accessibilityLabel={book.isDefault
+                      ? t('settings.contacts.default_book', 'Default address book')
+                      : t('contacts.address_books.set_default', 'Set as default')}
                   >
                     <Star
                       size={15}
@@ -255,7 +274,13 @@ export function ContactsSettings() {
                   </Pressable>
                 )}
                 {book.myRights?.mayWrite !== false && (
-                  <Pressable onPress={() => startRename(book.id, book.name)} hitSlop={6} style={styles.iconBtn}>
+                  <Pressable
+                    onPress={() => startRename(book.id, book.name)}
+                    hitSlop={6}
+                    style={styles.iconBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('contacts.address_books.rename', 'Rename address book')}
+                  >
                     <Pencil size={15} color={c.textSecondary} />
                   </Pressable>
                 )}
@@ -265,6 +290,8 @@ export function ContactsSettings() {
                     onPress={() => setDeleteTarget({ id: book.id, name: book.name, count: book.count })}
                     hitSlop={6}
                     style={styles.iconBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('contacts.address_books.delete', 'Delete address book')}
                   >
                     <Trash2 size={15} color={c.error} />
                   </Pressable>
@@ -281,7 +308,7 @@ export function ContactsSettings() {
               style={styles.bookInput}
               value={newName}
               onChangeText={setNewName}
-              placeholder="New address book name"
+              placeholder={t('contacts.address_books.name_label', 'Address book name')}
               placeholderTextColor={c.textMuted}
               autoFocus
               returnKeyType="done"
@@ -292,10 +319,18 @@ export function ContactsSettings() {
               disabled={!newName.trim() || busy}
               hitSlop={6}
               style={styles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.address_books.create', 'New address book')}
             >
               <Check size={16} color={c.primary} />
             </Pressable>
-            <Pressable onPress={() => { setAdding(false); setNewName(''); }} hitSlop={6} style={styles.iconBtn}>
+            <Pressable
+              onPress={() => { setAdding(false); setNewName(''); }}
+              hitSlop={6}
+              style={styles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.cancel', 'Cancel')}
+            >
               <X size={16} color={c.textMuted} />
             </Pressable>
           </View>
@@ -303,9 +338,10 @@ export function ContactsSettings() {
           <Pressable
             style={styles.addRow}
             onPress={() => { setEditingId(null); setAdding(true); }}
+            accessibilityRole="button"
           >
             <Plus size={16} color={c.primary} />
-            <Text style={styles.addLabel}>New address book</Text>
+            <Text style={styles.addLabel}>{t('contacts.address_books.create', 'New address book')}</Text>
           </Pressable>
         )}
 
@@ -315,7 +351,7 @@ export function ContactsSettings() {
             size="sm"
             onPress={() => { void fetchAddressBooks(); void fetchContacts(); }}
           >
-            Refresh
+            {t('common.refresh', 'Refresh')}
           </Button>
         </View>
       </SettingsSection>
@@ -333,20 +369,24 @@ export function ContactsSettings() {
         visible={importTargetOpen}
         onClose={() => setImportTargetOpen(false)}
         currentBookId={resolvedImportTarget}
-        title="Import into address book"
+        title={t('contacts.import.into_address_book', 'Import into address book')}
         onPick={(id) => { setImportTargetBookId(id); setImportTargetOpen(false); }}
       />
 
       <Dialog
         visible={deleteTarget !== null}
-        title="Delete address book"
+        title={t('contacts.address_books.delete', 'Delete address book')}
         message={
           deleteTarget
-            ? `Delete "${deleteTarget.name}"?${deleteTarget.count > 0 ? ` Its ${deleteTarget.count} contact${deleteTarget.count === 1 ? '' : 's'} will be deleted with it.` : ''} This cannot be undone.`
+            ? t(
+              'contacts.address_books.confirm_delete_count',
+              '{count, plural, =0 {Delete "{name}"? This cannot be undone.} one {Delete "{name}"? Its # contact will be deleted with it. This cannot be undone.} other {Delete "{name}"? Its # contacts will be deleted with it. This cannot be undone.}}',
+              { name: deleteTarget.name, count: deleteTarget.count },
+            )
             : ''
         }
         variant="destructive"
-        confirmText="Delete"
+        confirmText={t('common.delete', 'Delete')}
         onConfirm={() => { void confirmDelete(); }}
         onCancel={() => setDeleteTarget(null)}
       />

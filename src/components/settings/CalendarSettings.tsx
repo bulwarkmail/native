@@ -57,7 +57,7 @@ export function CalendarSettings() {
     return [
       {
         value: AUTO_TIME_ZONE,
-        label: `${t('calendar.settings.time_zone_auto', 'Device time zone')} (${deviceZone})`,
+        label: t('calendar.settings.time_zone_auto_zone', 'Device time zone ({zone})', { zone: deviceZone }),
       },
       ...[...zones].sort().map((z) => ({ value: z, label: z.replace(/_/g, ' ') })),
     ];

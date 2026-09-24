@@ -10,6 +10,7 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore, type ExternalContentPolicy } from '../../stores/settings-store';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useHasContacts } from '../../lib/capabilities';
+import { useLocaleStore } from '../../stores/locale-store';
 
 interface TrustedRow {
   email: string;
@@ -22,6 +23,7 @@ interface TrustedRow {
 export function ContentSendersSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   const externalContentPolicy = useSettingsStore((s) => s.externalContentPolicy);
   const setExternalContentPolicy = useSettingsStore((s) => s.setExternalContentPolicy);
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
@@ -77,7 +79,11 @@ export function ContentSendersSettings() {
   }, [trustedSenders, trustedSenderEmails, syncEnabled]);
 
   const trustedCount = rows.length;
-  const trustedLabel = trustedCount === 0 ? 'None' : trustedCount === 1 ? '1 sender' : `${trustedCount} senders`;
+  const trustedLabel = trustedCount === 0
+    ? t('settings.email_behavior.trusted_senders.count_zero', 'None')
+    : trustedCount === 1
+      ? t('settings.email_behavior.trusted_senders.count_one', '1 sender')
+      : t('settings.email_behavior.trusted_senders.count_other', '{count} senders', { count: trustedCount });
   const syncedCount = rows.filter((r) => r.synced).length;
 
   const handleAdd = async () => {
@@ -90,7 +96,10 @@ export function ContentSendersSettings() {
       try {
         await addToTrustedSendersBook(value);
       } catch (err) {
-        Alert.alert('Could not sync to address book', err instanceof Error ? err.message : 'Unknown error');
+        Alert.alert(
+          t('settings.email_behavior.trusted_senders.sync_add_failed', 'Could not sync to address book'),
+          err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'),
+        );
       } finally {
         setBusy(null);
       }
@@ -104,7 +113,10 @@ export function ContentSendersSettings() {
       try {
         await removeFromTrustedSendersBook(row.email);
       } catch (err) {
-        Alert.alert('Could not remove from address book', err instanceof Error ? err.message : 'Unknown error');
+        Alert.alert(
+          t('settings.email_behavior.trusted_senders.sync_remove_failed', 'Could not remove from address book'),
+          err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'),
+        );
       } finally {
         setBusy(null);
       }
@@ -114,41 +126,46 @@ export function ContentSendersSettings() {
   return (
     <View style={{ gap: spacing.xxxl }}>
       <SettingsSection
-        title="Content & Senders"
-        description="Control how external resources and tracking pixels are handled."
+        title={t('settings.tabs.content_senders', 'Content & Senders')}
+        description={t('settings.email_behavior.content_senders_description_mobile', 'Control how external resources and tracking pixels are handled.')}
       >
         <SettingItem
-          label="External content"
-          description="What to do when an email links to remote images or media."
+          label={t('settings.email_behavior.external_content.label', 'External Content')}
+          description={t('settings.email_behavior.external_content.description', 'How to handle images and external content')}
         >
           <RadioGroup
             value={externalContentPolicy}
             onChange={(v) => setExternalContentPolicy(v as ExternalContentPolicy)}
             options={[
-              { value: 'ask', label: 'Ask' },
-              { value: 'block', label: 'Block' },
-              { value: 'allow', label: 'Allow' },
+              { value: 'ask', label: t('settings.email_behavior.external_content.ask_mobile', 'Ask') },
+              { value: 'block', label: t('settings.email_behavior.external_content.block_mobile', 'Block') },
+              { value: 'allow', label: t('settings.email_behavior.external_content.allow_mobile', 'Allow') },
             ]}
           />
         </SettingItem>
 
         <SettingItem
-          label="Always view emails in light mode"
-          description="Force a light background for the message body, even when the app is in dark mode."
+          label={t('settings.email_behavior.always_light_mode.label', 'Always Show Emails in Light Mode')}
+          description={t('settings.email_behavior.always_light_mode.description', 'Render email content in light mode even when the app is in dark mode, avoiding dark mode conversion issues')}
         >
           <ToggleSwitch checked={emailAlwaysLightMode} onChange={setEmailAlwaysLightMode} />
         </SettingItem>
 
         <SettingItem
-          label="Trusted senders"
+          label={t('settings.email_behavior.trusted_senders.label', 'Trusted Senders')}
           description={
             syncEnabled && syncedCount > 0
-              ? `External content always loads for senders on this list. ${syncedCount} synced via your address book.`
-              : 'External content always loads for senders on this list.'
+              ? t(
+                'settings.email_behavior.trusted_senders.description_synced_mobile',
+                'External content always loads for senders on this list. {count} synced via your address book.',
+                { count: syncedCount },
+              )
+              : t('settings.email_behavior.trusted_senders.description_mobile', 'External content always loads for senders on this list.')
           }
         >
           <Pressable
             onPress={() => setModalOpen(true)}
+            accessibilityRole="button"
             style={({ pressed }) => [styles.trustedButton, pressed && styles.trustedButtonPressed]}
           >
             <Text style={styles.trustedButtonText}>{trustedLabel}</Text>
@@ -158,8 +175,8 @@ export function ContentSendersSettings() {
 
         {hasContacts && (
           <SettingItem
-            label="Sync trusted senders to address book"
-            description='Keep the list in a "Trusted Senders" address book so it is shared with the webmail and your other devices.'
+            label={t('settings.email_behavior.trusted_senders.use_address_book_label', 'Sync with address book')}
+            description={t('settings.email_behavior.trusted_senders.use_address_book_description', 'Store trusted senders in a dedicated "Trusted Senders" address book so they sync across all your devices')}
           >
             <ToggleSwitch
               checked={!!trustedSendersAddressBook}
@@ -181,8 +198,13 @@ export function ContentSendersSettings() {
         <Pressable style={styles.modalBackdrop} onPress={() => setModalOpen(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Trusted senders</Text>
-              <Pressable onPress={() => setModalOpen(false)} hitSlop={6}>
+              <Text style={styles.modalTitle}>{t('settings.email_behavior.trusted_senders.modal_title', 'Trusted Senders')}</Text>
+              <Pressable
+                onPress={() => setModalOpen(false)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.email_behavior.trusted_senders.close', 'Close')}
+              >
                 <X size={18} color={c.textSecondary} />
               </Pressable>
             </View>
@@ -191,7 +213,7 @@ export function ContentSendersSettings() {
               <TextInput
                 value={newSender}
                 onChangeText={setNewSender}
-                placeholder="sender@example.com"
+                placeholder={t('settings.email_behavior.trusted_senders.add_placeholder', 'Enter email address')}
                 placeholderTextColor={c.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -206,15 +228,15 @@ export function ContentSendersSettings() {
                 disabled={!newSender.trim()}
                 icon={<Plus size={14} color={c.primaryForeground} />}
               >
-                Add
+                {t('settings.email_behavior.trusted_senders.add_button', 'Add')}
               </Button>
             </View>
 
             {rows.length === 0 ? (
               <Text style={styles.emptyText}>
                 {syncEnabled && !trustedSendersLoaded
-                  ? 'Loading…'
-                  : 'No trusted senders yet.'}
+                  ? t('common.loading', 'Loading...')
+                  : t('settings.email_behavior.trusted_senders.empty_title', 'No trusted senders yet')}
               </Text>
             ) : (
               <FlatList
@@ -226,7 +248,7 @@ export function ContentSendersSettings() {
                   <View style={styles.row}>
                     <Text style={styles.rowText} numberOfLines={1}>{item.email}</Text>
                     {item.synced && (
-                      <View style={styles.syncedBadge} accessibilityLabel="Synced via address book">
+                      <View style={styles.syncedBadge} accessibilityLabel={t('settings.email_behavior.trusted_senders.synced_badge', 'Synced via address book')}>
                         <BookUser size={12} color={c.textMuted} />
                       </View>
                     )}
@@ -234,6 +256,8 @@ export function ContentSendersSettings() {
                       onPress={() => { void handleRemove(item); }}
                       disabled={busy === item.email}
                       hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('settings.email_behavior.trusted_senders.remove', 'Remove')}
                       style={({ pressed }) => [styles.removeBtn, pressed && styles.removeBtnPressed]}
                     >
                       <Trash2 size={16} color={busy === item.email ? c.textMuted : c.error} />

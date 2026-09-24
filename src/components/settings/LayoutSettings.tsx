@@ -189,10 +189,12 @@ export function LayoutSettings() {
       </View>
 
       <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
-        <Text style={styles.rowLabel}>Swipe behavior</Text>
+        <Text style={styles.rowLabel}>{t('settings.layout.swipe_mode.label', 'Swipe behavior')}</Text>
         <Text style={styles.rowDescription}>
-          Pick instant (swipe past the threshold to fire the action) or reveal
-          (swipe to expose an action band, then tap to confirm).
+          {t(
+            'settings.layout.swipe_mode.description',
+            'Pick instant (swipe past the threshold to fire the action) or reveal (swipe to expose an action band, then tap to confirm).',
+          )}
         </Text>
         <RadioGroup
           value={swipeMode}

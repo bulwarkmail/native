@@ -314,7 +314,7 @@ export function IdentitySettings() {
               <TextInput
                 value={editing?.name ?? ''}
                 onChangeText={(name) => setEditing((d) => (d ? { ...d, name } : d))}
-                placeholder="Jane Doe"
+                placeholder={t('settings.identities.display_name_placeholder', 'Jane Doe')}
                 placeholderTextColor={c.textMuted}
                 style={styles.input}
               />
@@ -322,7 +322,7 @@ export function IdentitySettings() {
               <TextInput
                 value={editing?.email ?? ''}
                 onChangeText={(email) => setEditing((d) => (d ? { ...d, email } : d))}
-                placeholder="jane@example.com"
+                placeholder={t('identities.form.email_placeholder', 'your.email@example.com')}
                 placeholderTextColor={c.textMuted}
                 style={[styles.input, !!editing?.id && styles.inputDisabled]}
                 editable={!editing?.id}

@@ -72,6 +72,7 @@
       "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
       "time_zone": "Time zone",
       "time_zone_auto": "Device time zone",
+      "time_zone_auto_zone": "Device time zone ({zone})",
       "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone."
     },
     "share": {
@@ -104,6 +105,17 @@
     "retry": "Retry",
     "undo": "Undo",
     "update": "Update"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Delete \"{name}\"? This cannot be undone.} one {Delete \"{name}\"? Its # contact will be deleted with it. This cannot be undone.} other {Delete \"{name}\"? Its # contacts will be deleted with it. This cannot be undone.}}"
+    },
+    "export": {
+      "failed": "Export failed"
+    },
+    "import": {
+      "into_address_book": "Import into address book"
+    }
   },
   "context_menu": {
     "color_tag": "Tag",
@@ -426,6 +438,15 @@
       "not_implemented": "Not implemented",
       "unavailable": "Unavailable"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# contact} other {# contacts}}",
+      "default_book": "Default address book",
+      "description_mobile": "Display preferences and address-book tools.",
+      "export_description_count": "{count, plural, one {Export # contact as a single vCard file.} other {Export # contacts as a single vCard file.}}",
+      "export_empty": "No contacts to export",
+      "import_description_mobile": "Import contacts from a vCard (.vcf) file with duplicate detection.",
+      "manage_description_mobile": "Create, rename, and remove the address books that organize your contacts."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Template used when saving or sharing an attachment."
@@ -451,6 +472,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too."
       },
+      "content_senders_description_mobile": "Control how external resources and tracking pixels are handled.",
+      "external_content": {
+        "allow_mobile": "Allow",
+        "ask_mobile": "Ask",
+        "block_mobile": "Block"
+      },
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
       },
@@ -474,6 +501,13 @@
       "swipe_right_action": {
         "description_mobile": "Action when you drag a row from its left edge towards the right.",
         "label_mobile": "Swipe right (left → right)"
+      },
+      "trusted_senders": {
+        "description_mobile": "External content always loads for senders on this list.",
+        "description_synced_mobile": "External content always loads for senders on this list. {count} synced via your address book.",
+        "sync_add_failed": "Could not sync to address book",
+        "sync_remove_failed": "Could not remove from address book",
+        "synced_badge": "Synced via address book"
       }
     },
     "experimental": {
@@ -509,6 +543,7 @@
       "delete_title": "Delete identity",
       "description_mobile": "Manage sender names, email addresses, and signatures. Tap a row to edit.",
       "display_name": "Display name",
+      "display_name_placeholder": "Jane Doe",
       "edit": "Edit identity",
       "email_address": "Email address",
       "email_locked": "JMAP does not allow changing an identity's email; create a new one instead.",
@@ -550,7 +585,9 @@
       "show_folder_total_count": "Show total message count on folders",
       "show_folder_total_count_description": "Show the total next to the unread count in the folder list.",
       "swipe_mode": {
+        "description": "Pick instant (swipe past the threshold to fire the action) or reveal (swipe to expose an action band, then tap to confirm).",
         "instant": "Instant (swipe = action)",
+        "label": "Swipe behavior",
         "reveal": "Reveal (swipe, then tap)"
       },
       "unified_cross_account": "Unified views across accounts",
