@@ -438,6 +438,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const customDraftRef = React.useRef<Date>(new Date());
 
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
+  const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
   const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
   const attachmentReminderKeywords = useSettingsStore((s) => s.attachmentReminderKeywords);
@@ -860,6 +861,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const resolved = resolveReplyIdentity(identities, replyTo, {
         ownEmails,
         catchAll: autoSelectReplyIdentity && mode !== 'forward',
+        matchMode: replyIdentityMatch,
       });
       if (resolved) {
         setSelectedIdentityId(resolved.identityId);
@@ -871,7 +873,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     setSelectedIdentityId(defaultIdentity.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identities, autoSelectReplyIdentity, replyTo, draft, selectedIdentityId, preferredIdentityIds]);
+  }, [identities, autoSelectReplyIdentity, replyIdentityMatch, replyTo, draft, selectedIdentityId, preferredIdentityIds]);
 
   const primaryIdentity = React.useMemo(() => {
     if (identities.length === 0) return null;

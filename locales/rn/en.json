@@ -428,10 +428,16 @@
         "description_mobile": "What happens when you tap an attachment."
       },
       "auto_select_reply_identity": {
-        "description_mobile": "When replying, send from the address the message was originally sent to."
+        "description_mobile": "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too."
       },
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
+      },
+      "reply_identity_match": {
+        "description": "Which received addresses count as yours. Exact address only picks one of your configured identities. Same domain also treats any other address on one of your identity domains as a catch-all alias and rewrites the From header to it. Choose exact address if those addresses are distribution lists rather than aliases.",
+        "domain": "Any address on my domains",
+        "exact": "Exact address only",
+        "label": "Received Address Matching"
       },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."

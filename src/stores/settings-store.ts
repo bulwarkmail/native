@@ -26,6 +26,9 @@ export type SwipeAction =
   | 'move';
 export type SwipeMode = 'instant' | 'reveal';
 export type SignaturePosition = 'above_quote' | 'below_quote';
+// With autoSelectReplyIdentity on: 'exact' = configured identities only,
+// 'domain' = also same-domain catch-all addresses (rewrites From), #1000.
+export type ReplyIdentityMatch = 'exact' | 'domain';
 // Actions that can be placed in the email reader's bottom quick-action bar.
 // The first three are the reply family (the default bar); any reply-family
 // action the user removes from the bar is relocated to the top toolbar so it
@@ -154,6 +157,7 @@ interface PersistedSettings {
 
   // Composing
   autoSelectReplyIdentity: boolean;
+  replyIdentityMatch: ReplyIdentityMatch;
   attachmentReminderEnabled: boolean;
   attachmentReminderKeywords: string[];
   plainTextMode: boolean;
@@ -306,6 +310,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   activeThemeId: null,
 
   autoSelectReplyIdentity: false,
+  replyIdentityMatch: 'domain',
   attachmentReminderEnabled: true,
   // Same multilingual list as the webmail so a synced/imported settings blob
   // does not flip the reminder behaviour between clients.
@@ -530,6 +535,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   // Same set the webmail accepts (stores/settings-store.ts importSettings).
   sendDelaySeconds: oneOf([0, 10, 30, 60]),
   signaturePosition: oneOf(['above_quote', 'below_quote']),
+  replyIdentityMatch: oneOf(['exact', 'domain']),
   autoSaveDraftInterval: intBetween(1000, 3600000),
   // RFC 5321 atext specials minus alphanumerics and "@" (lib/sub-addressing).
   subAddressDelimiter: (v) => typeof v === 'string' && /^[!#$%&'*+\-./=?^_`{|}~]$/.test(v),

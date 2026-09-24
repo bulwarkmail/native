@@ -98,6 +98,11 @@ describe('resolveReplyFrom', () => {
   it('returns null for foreign domains', () => {
     expect(resolveReplyFrom(identities, { to: [{ email: 'x@other.com' }] })).toBeNull();
   });
+
+  it('skips the catch-all in exact match mode but still matches identities', () => {
+    expect(resolveReplyFrom(identities, { to: [{ email: 'sales@example.com' }] }, 'exact')).toBeNull();
+    expect(resolveReplyFrom(identities, { to: [{ email: 'info+x@example.com' }] }, 'exact')).toEqual({ identityId: 'info' });
+  });
 });
 
 describe('resolveReplyIdentity', () => {
@@ -116,6 +121,7 @@ describe('resolveReplyIdentity', () => {
     expect(resolveReplyIdentity(identities, original, { ownEmails, catchAll: true })).toEqual({
       identityId: 'main', overrideEmail: 'sales@example.com', overrideName: 'Sales',
     });
+    expect(resolveReplyIdentity(identities, original, { ownEmails, catchAll: true, matchMode: 'exact' })).toBeNull();
   });
 
   it('replies to our own message from the identity that sent it', () => {

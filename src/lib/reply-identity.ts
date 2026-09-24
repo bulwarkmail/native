@@ -167,6 +167,16 @@ export function findDraftIdentityId(
   return base?.id ?? null;
 }
 
+/**
+ * How far `resolveReplyFrom` goes when matching received addresses:
+ * `exact` stops at the user's configured identities (steps 1-2 below),
+ * `domain` also takes the same-domain catch-all step (3), which rewrites
+ * `From:` to an address the user has not configured. Deployments where the
+ * extra addresses on a domain are distribution lists rather than aliases
+ * want `exact` (webmail #1000).
+ */
+export type ReplyIdentityMatchMode = 'exact' | 'domain';
+
 export interface ReplyFromResolution {
   /** Identity to use for JMAP `identityId` and the SMTP envelope MAIL FROM. */
   identityId: string;
@@ -192,12 +202,14 @@ export interface ReplyFromResolution {
  *      sub-addressing, reply as that identity with no override.
  *   3. Else if a recipient address is on a domain that one of the identities
  *      uses, treat that recipient as a catch-all alias: return the matching
- *      identity + the recipient as a header-From override.
+ *      identity + the recipient as a header-From override. Skipped in
+ *      `exact` match mode.
  *   4. Else return `null` (caller falls back to primary identity).
  */
 export function resolveReplyFrom(
   identities: Identity[],
   recipients?: ReplyRecipients,
+  matchMode: ReplyIdentityMatchMode = 'domain',
 ): ReplyFromResolution | null {
   if (identities.length === 0 || !recipients) {
     return null;
@@ -234,6 +246,10 @@ export function resolveReplyFrom(
     return { identityId: baseIdentity.id };
   }
 
+  if (matchMode !== 'domain') {
+    return null;
+  }
+
   const ownedDomains = new Set(identities.map((i) => domainOf(i.email)).filter(Boolean));
 
   const catchAll = received.find((r) => {
@@ -264,15 +280,16 @@ export function resolveReplyFrom(
  *   2. The own identity the original was delivered to (`findReplyIdentityId`).
  *      Unconditional: it only ever picks a configured address.
  *   3. With `catchAll`, the same-domain catch-all From override of
- *      `resolveReplyFrom`. Callers pass it only for an opted-in reply, never
- *      a forward: a reply continues a thread whose participants know the
- *      addressing, a forward shows the rewritten From to someone new.
+ *      `resolveReplyFrom`, unless `matchMode` is `exact`. Callers pass it
+ *      only for an opted-in reply, never a forward: a reply continues a
+ *      thread whose participants know the addressing, a forward shows the
+ *      rewritten From to someone new.
  * Null when nothing matches (the caller keeps its default identity).
  */
 export function resolveReplyIdentity(
   identities: Identity[],
   original: ReplyRecipients & { from?: ReplyRecipient | null },
-  opts: { ownEmails: string[]; catchAll: boolean },
+  opts: { ownEmails: string[]; catchAll: boolean; matchMode?: ReplyIdentityMatchMode },
 ): ReplyFromResolution | null {
   if (identities.length === 0) {
     return null;
@@ -292,5 +309,5 @@ export function resolveReplyIdentity(
     return { identityId: ownId };
   }
 
-  return opts.catchAll ? resolveReplyFrom(identities, recipients) : null;
+  return opts.catchAll ? resolveReplyFrom(identities, recipients, opts.matchMode) : null;
 }

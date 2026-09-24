@@ -5,7 +5,7 @@ import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { useSettingsStore, type SignaturePosition } from '../../stores/settings-store';
+import { useSettingsStore, type ReplyIdentityMatch, type SignaturePosition } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { SUPPORTED_SUB_ADDRESS_DELIMITERS } from '../../lib/sub-addressing';
 
@@ -13,6 +13,7 @@ export function ComposingSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
+  const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
   const t = useLocaleStore((s) => s.t);
   const setAutoSelectReplyIdentity = useSettingsStore((s) => s.setAutoSelectReplyIdentity);
   const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
@@ -69,6 +70,11 @@ export function ComposingSettings() {
     { label: t('settings.email_behavior.signature_position.below_quote', 'After quoted text'), value: 'below_quote' },
   ];
 
+  const REPLY_IDENTITY_MATCHES: { label: string; value: ReplyIdentityMatch }[] = [
+    { label: t('settings.email_behavior.reply_identity_match.exact', 'Exact address only'), value: 'exact' },
+    { label: t('settings.email_behavior.reply_identity_match.domain', 'Any address on my domains'), value: 'domain' },
+  ];
+
   const segmented = <T extends string | number>(
     options: { label: string; value: T }[],
     current: T,
@@ -99,10 +105,20 @@ export function ComposingSettings() {
     >
       <SettingItem
         label={t('settings.email_behavior.auto_select_reply_identity.label', "Reply From Received Address")}
-        description={t('settings.email_behavior.auto_select_reply_identity.description_mobile', "When replying, send from the address the message was originally sent to.")}
+        description={t('settings.email_behavior.auto_select_reply_identity.description_mobile', "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too.")}
       >
         <ToggleSwitch checked={autoSelectReplyIdentity} onChange={setAutoSelectReplyIdentity} />
       </SettingItem>
+
+      {autoSelectReplyIdentity && (
+        <View style={styles.subBlock}>
+          <Text style={styles.subLabel}>{t('settings.email_behavior.reply_identity_match.label', 'Received Address Matching')}</Text>
+          <Text style={styles.subDescription}>
+            {t('settings.email_behavior.reply_identity_match.description', 'Which received addresses count as yours. Exact address only picks one of your configured identities. Same domain also treats any other address on one of your identity domains as a catch-all alias and rewrites the From header to it. Choose exact address if those addresses are distribution lists rather than aliases.')}
+          </Text>
+          {segmented(REPLY_IDENTITY_MATCHES, replyIdentityMatch, (v) => updateSetting('replyIdentityMatch', v))}
+        </View>
+      )}
 
       <SettingItem
         label={t('settings.email_behavior.plain_text_mode.label', "Plain Text Only")}

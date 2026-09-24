@@ -21,6 +21,7 @@ describe('settings-store', () => {
       const s = useSettingsStore.getState();
       expect(s.includeGroupInUnified).toBe(true);
       expect(s.autoSelectReplyIdentity).toBe(false);
+      expect(s.replyIdentityMatch).toBe('domain');
       expect(s.showBirthdayCalendar).toBe(false);
       expect(s.attachmentReminderKeywords).toContain('anhang');
       expect(s.attachmentReminderKeywords).toContain('添付');
@@ -50,6 +51,11 @@ describe('settings-store', () => {
       });
       expect(out.sendDelaySeconds).toBe(30);
       expect(out.bottomQuickActions).toEqual(['delete', 'reply', 'replyAll']);
+    });
+
+    it('accepts only the known reply identity match modes', () => {
+      expect(mergeWithDefaults({ replyIdentityMatch: 'exact' }).replyIdentityMatch).toBe('exact');
+      expect(mergeWithDefaults({ replyIdentityMatch: 'loose' as never }).replyIdentityMatch).toBe('domain');
     });
 
     it('fills missing debug categories from the default', () => {
