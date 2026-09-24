@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -29,13 +30,19 @@ import type { Calendar, CalendarEvent } from '../../api/types';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { getCalendarColor, getTaskDueDate, timePattern, type TimeFormat } from '../../lib/calendar-utils';
-import { getEffectiveTimeZone } from '../../lib/calendar-timezone';
+import {
+  emptyTaskEditor,
+  priorityToLevel,
+  submitTaskEditor,
+  taskEditorFromTask,
+  type PriorityLevel,
+  type TaskEditorState,
+} from '../../lib/task-editor';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 
 type TaskFilter = 'all' | 'pending' | 'completed' | 'overdue';
-type PriorityLevel = 'none' | 'high' | 'medium' | 'low';
 
 interface TasksSheetProps {
   visible: boolean;
@@ -49,25 +56,6 @@ interface TasksSheetProps {
   onUpdate?: (id: string, changes: Partial<CalendarEvent>) => Promise<void> | void;
   onToggle: (id: string) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
-}
-
-// RFC 8984 priority 0-9 <-> the three levels the editor offers (webmail's
-// task-modal mapping).
-export function priorityToLevel(p: number | undefined): PriorityLevel {
-  if (p === undefined) return 'none';
-  if (p >= 1 && p <= 4) return 'high';
-  if (p === 5) return 'medium';
-  if (p >= 6 && p <= 9) return 'low';
-  return 'none';
-}
-
-export function levelToPriority(l: PriorityLevel): number {
-  switch (l) {
-    case 'high': return 1;
-    case 'medium': return 5;
-    case 'low': return 9;
-    default: return 0;
-  }
 }
 
 function isCompleted(task: CalendarEvent): boolean {
@@ -97,32 +85,6 @@ function compareTasks(a: CalendarEvent, b: CalendarEvent): number {
   const bp = b.priority || 10;
   if (ap !== bp) return ap - bp;
   return (a.title || '').localeCompare(b.title || '');
-}
-
-interface EditorState {
-  id: string | null;
-  title: string;
-  description: string;
-  due: Date | null;
-  withTime: boolean;
-  priority: PriorityLevel;
-  calendarId: string;
-}
-
-function emptyEditor(calendarId: string): EditorState {
-  return { id: null, title: '', description: '', due: null, withTime: false, priority: 'none', calendarId };
-}
-
-function editorFromTask(task: CalendarEvent, fallbackCalendarId: string): EditorState {
-  return {
-    id: task.id,
-    title: task.title || '',
-    description: task.description || '',
-    due: getTaskDueDate(task),
-    withTime: !!task.due && !task.showWithoutTime && !/^\d{4}-\d{2}-\d{2}$/.test(task.due),
-    priority: priorityToLevel(task.priority),
-    calendarId: Object.keys(task.calendarIds || {})[0] || fallbackCalendarId,
-  };
 }
 
 export function TasksSheet({
@@ -155,7 +117,7 @@ export function TasksSheet({
   const defaultCalendarId = writableCalendars[0]?.id || '';
 
   const [filter, setFilter] = React.useState<TaskFilter>('all');
-  const [editor, setEditor] = React.useState<EditorState>(() => emptyEditor(defaultCalendarId));
+  const [editor, setEditor] = React.useState<TaskEditorState>(() => emptyTaskEditor(defaultCalendarId));
   const [expanded, setExpanded] = React.useState(false);
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   const [showTimePicker, setShowTimePicker] = React.useState(false);
@@ -165,10 +127,10 @@ export function TasksSheet({
     if (!visible) return;
     const initial = initialTaskId ? tasks.find((task) => task.id === initialTaskId) : undefined;
     if (initial) {
-      setEditor(editorFromTask(initial, defaultCalendarId));
+      setEditor(taskEditorFromTask(initial, defaultCalendarId));
       setExpanded(true);
     } else {
-      setEditor(emptyEditor(defaultCalendarId));
+      setEditor(emptyTaskEditor(defaultCalendarId));
       setExpanded(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,47 +180,21 @@ export function TasksSheet({
   }), [tasks]);
 
   const resetEditor = () => {
-    setEditor(emptyEditor(defaultCalendarId));
+    setEditor(emptyTaskEditor(defaultCalendarId));
     setExpanded(false);
   };
 
   const handleSave = async () => {
-    const title = editor.title.trim();
-    if (!title || !editor.calendarId || saving) return;
+    if (!editor.title.trim() || !editor.calendarId || saving) return;
     setSaving(true);
     try {
-      const data: Partial<CalendarEvent> = {
-        title,
-        description: editor.description.trim(),
-        priority: levelToPriority(editor.priority),
-      };
-      if (editor.due) {
-        if (editor.withTime) {
-          data.due = format(editor.due, "yyyy-MM-dd'T'HH:mm:ss");
-          data.showWithoutTime = false;
-          // The editor shows the due in local time; label it with the zone
-          // it was entered in, like the event editor, or the task's old zone
-          // would shift it.
-          data.timeZone = getEffectiveTimeZone();
-        } else {
-          data.due = format(editor.due, "yyyy-MM-dd'T'00:00:00");
-          data.showWithoutTime = true;
-          data.timeZone = null;
-        }
-      } else if (editor.id) {
-        data.due = null;
-      }
-      if (editor.id) {
-        const existing = tasks.find((task) => task.id === editor.id);
-        const currentCalendar = existing ? Object.keys(existing.calendarIds || {})[0] : undefined;
-        if (editor.calendarId && currentCalendar && editor.calendarId !== currentCalendar) {
-          data.calendarIds = { [editor.calendarId]: true };
-        }
-        await onUpdate?.(editor.id, data);
+      const result = await submitTaskEditor(editor, tasks, { onCreate, onUpdate });
+      if (result.ok) {
+        resetEditor();
       } else {
-        await onCreate({ ...data, progress: 'needs-action' }, editor.calendarId);
+        // Keep the editor as it is so the user can fix it or try again.
+        Alert.alert(t('calendar.tasks.save_error', 'Failed to save task'), result.message);
       }
-      resetEditor();
     } finally {
       setSaving(false);
     }
@@ -453,7 +389,7 @@ export function TasksSheet({
                       style={styles.taskText}
                       onPress={() => {
                         if (!onUpdate) return;
-                        setEditor(editorFromTask(task, defaultCalendarId));
+                        setEditor(taskEditorFromTask(task, defaultCalendarId));
                         setExpanded(true);
                       }}
                     >

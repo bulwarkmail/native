@@ -81,6 +81,7 @@
       "add_placeholder": "Add a task…",
       "add_time": "Add time",
       "delete_error": "Failed to delete task",
+      "save_error": "Failed to save task",
       "update_error": "Failed to update task"
     }
   },
