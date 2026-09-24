@@ -1379,7 +1379,7 @@ export async function cancelScheduledSend(emailSubmissionId: string): Promise<vo
 /**
  * Change when a scheduled message goes out (or send it now with `holdForSeconds`
  * = 0): cancel the pending submission and create a replacement for the same
- * Email with a fresh HOLDFOR envelope, in one request. Returns the new
+ * Email with the held envelope and a fresh HOLDFOR, in one request. Returns the new
  * submission id and resolved send time.
  */
 export async function rescheduleScheduledSend(
@@ -1390,10 +1390,27 @@ export async function rescheduleScheduledSend(
   const accountId = jmapClient.accountId;
   const create: Record<string, unknown> = { emailId: scheduled.emailId, identityId: scheduled.identityId };
   if (holdForSeconds > 0) {
-    const rcpt = (recipients ?? scheduled.to ?? []).map((r) => ({ email: r.email.trim() })).filter((r) => r.email);
+    // Reuse the held submission's envelope: it names every recipient,
+    // Cc and Bcc included, and the envelope sender a catch-all From went
+    // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
+    // The Email's To/Cc/Bcc are the fallback when the server has none.
+    const lookup = await jmapClient.request(
+      [
+        ['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0'],
+        ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
+      ],
+      [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
+    );
+    const envelope = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
+      envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
+    }> | undefined)?.[0]?.envelope;
+    const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
+    const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
+    const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
+    const rcpt = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
     create.envelope = {
       mailFrom: {
-        email: scheduled.from?.[0]?.email,
+        email: envelope?.mailFrom?.email || scheduled.from?.[0]?.email,
         parameters: { HOLDFOR: String(Math.ceil(holdForSeconds)) },
       },
       rcptTo: rcpt,
