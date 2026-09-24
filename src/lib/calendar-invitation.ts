@@ -250,6 +250,20 @@ export function findCalendarAttachment(
   return findCalendarBodyPart(email.textBody) || findCalendarBodyPart(email.htmlBody);
 }
 
+/**
+ * What identifies a message's invitation for loading it: the message, its
+ * account and the calendar part's blob. A keyword change (read, star) hands
+ * a new message object with the same key, and must not download and parse
+ * the .ics again. Null when the message has no calendar part.
+ */
+export function calendarInvitationKey(
+  email: Pick<Email, 'id'>,
+  attachment: Pick<Attachment, 'blobId'> | null,
+  jmapAccountId?: string,
+): string | null {
+  return attachment ? `${jmapAccountId ?? ''}|${email.id}|${attachment.blobId}` : null;
+}
+
 // ─── Authentication-Results / trust ──────────────────────
 
 export interface AuthenticationResults {

@@ -14,6 +14,7 @@ import { useCalendarStore } from '../../stores/calendar-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import {
+  calendarInvitationKey,
   findCalendarAttachment,
   findParticipantByEmail,
   getInvitationMethod,
@@ -72,6 +73,11 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   // Login address + identities + aliases, so invitations addressed to an
   // alias still show the RSVP buttons. Only an invitation looks the aliases up.
   const currentUserEmails = useUserCalendarAddresses(!!attachment && enabled);
+  // The invitation is loaded once per message, account and calendar part;
+  // a mark-read or star hands a new `email` for the same one.
+  const invitationKey = calendarInvitationKey(email, attachment, jmapAccountId);
+  const latest = React.useRef({ email, attachment });
+  latest.current = { email, attachment };
 
   const [state, setState] = React.useState<BannerState>('loading');
   const [event, setEvent] = React.useState<Partial<CalendarEvent> | null>(null);
@@ -87,12 +93,13 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
 
   React.useEffect(() => {
     let cancelled = false;
-    if (!attachment || !enabled) return;
+    const { email: current, attachment: part } = latest.current;
+    if (!invitationKey || !part || !enabled) return;
     setState('loading');
     setServerMatch(null);
     (async () => {
       try {
-        const events = await parseCalendarBlob(attachment.blobId, jmapAccountId);
+        const events = await parseCalendarBlob(part.blobId, jmapAccountId);
         if (cancelled) return;
         if (events.length === 0) {
           setState('error');
@@ -110,11 +117,11 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
         }
         // Explicit method (Content-Type params) first; JMAP usually strips
         // them, so fall back to the raw ICS METHOD line before guessing.
-        let detected = getInvitationMethod(parsed, { email, attachment });
+        let detected = getInvitationMethod(parsed, { email: current, attachment: part });
         if (detected === 'unknown') {
-          const raw = await fetchCalendarBlobText(attachment.blobId, jmapAccountId);
+          const raw = await fetchCalendarBlobText(part.blobId, jmapAccountId);
           if (cancelled) return;
-          detected = getInvitationMethod(parsed, { email, attachment, rawIcs: raw });
+          detected = getInvitationMethod(parsed, { email: current, attachment: part, rawIcs: raw });
         }
         setMethod(detected);
         setState('parsed');
@@ -123,7 +130,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [attachment, enabled, email, jmapAccountId]);
+  }, [invitationKey, enabled, jmapAccountId]);
 
   // Import into the account's default calendar; never into a shared calendar,
   // an iCal subscription (the next feed sync would delete the event) or a

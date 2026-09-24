@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Email } from '../../api/types';
 import {
+  calendarInvitationKey,
   extractMethodFromContentType,
   extractMethodFromRawIcs,
   findCalendarAttachment,
@@ -111,5 +112,27 @@ describe('getInvitationTrustAssessment', () => {
     const e = email({ from: [{ email: 'alice@example.com' }] });
     expect(getInvitationTrustAssessment(request, e, 'request').reason).toBe('authentication_missing');
     expect(getInvitationTrustAssessment(request, e, 'unknown').level).toBe('trusted');
+  });
+});
+
+describe('calendarInvitationKey', () => {
+  const invite = {
+    id: 'e1',
+    keywords: {},
+    attachments: [{ blobId: 'b1', type: 'text/calendar', name: 'invite.ics', size: 10 }],
+  } as unknown as Email;
+
+  it('stays the same when only the keywords change', () => {
+    const read = { ...invite, keywords: { $seen: true } } as Email;
+    const key = calendarInvitationKey(invite, findCalendarAttachment(invite), 'group');
+    expect(key).toBe('group|e1|b1');
+    expect(calendarInvitationKey(read, findCalendarAttachment(read), 'group')).toBe(key);
+  });
+
+  it('differs per account and calendar part, and is null without one', () => {
+    const other = { ...invite, attachments: [{ ...invite.attachments![0], blobId: 'b2' }] } as Email;
+    expect(calendarInvitationKey(invite, findCalendarAttachment(invite))).toBe('|e1|b1');
+    expect(calendarInvitationKey(other, findCalendarAttachment(other))).toBe('|e1|b2');
+    expect(calendarInvitationKey({ id: 'e2' }, null)).toBeNull();
   });
 });
