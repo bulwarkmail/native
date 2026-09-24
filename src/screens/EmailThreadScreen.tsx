@@ -42,6 +42,7 @@ import { pickEmailBody, plainTextBody } from '../lib/email-body';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
+import { accountScopedId } from '../lib/thread-utils';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -218,13 +219,14 @@ function EmailViewer({ route, navigation }: Props) {
     if (view) return view.ids;
     return failedThreads.has(threadId) ? [] : null;
   }, [ownerAccountId, failedThreads]);
-  // The conversation's size as the open folder's list knows it (only when
-  // that list is the message's account: thread ids are per account).
+  // The conversation's size as the store's list knows it, for pages that are
+  // that list's rows (its counts are keyed by the row's account and thread).
+  const [storeRows] = React.useState(() => new Set(useEmailStore.getState().emails));
   const threadSizeOf = React.useCallback(
-    (threadId: string): number | undefined => (listAccountId === ownerAccountId
-      ? useEmailStore.getState().threadCounts[threadId]
+    (page: Email): number | undefined => (storeRows.has(page) && page.threadId
+      ? useEmailStore.getState().threadCounts[accountScopedId(page, page.threadId)]
       : undefined),
-    [listAccountId, ownerAccountId],
+    [storeRows],
   );
   const memberOf = React.useCallback(
     (threadId: string, id: string): Email | undefined =>
@@ -769,7 +771,7 @@ function EmailViewer({ route, navigation }: Props) {
                       : null
                   }
                   memberOf={memberOf}
-                  threadSizeHint={!disableThreading ? threadSizeOf(item.threadId) : undefined}
+                  threadSizeHint={!disableThreading ? threadSizeOf(item) : undefined}
                   threading={!disableThreading}
                   jmapAccountId={ownerAccountId}
                   currentMailboxRole={currentMailboxRole}
