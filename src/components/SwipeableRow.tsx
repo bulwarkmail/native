@@ -75,7 +75,57 @@ function actionIcon(action: Exclude<SwipeAction, 'none'>, context: SwipeContext)
   return ACTION_META[action].icon;
 }
 
-export function SwipeableRow({
+// What the instant-mode bands animate, keyed by the edge the band sits at. It
+// only depends on `dx`, which lives as long as the row, so it is built once
+// per row instead of on every render.
+function makeBandAnimations(dx: Animated.Value) {
+  return {
+    // Holds `rightAction`; shows under a rightward drag.
+    left: {
+      opacity: dx.interpolate({
+        inputRange: [-1, 0, 1],
+        outputRange: [0, 0, 1],
+        extrapolate: 'clamp',
+      }),
+      iconScale: dx.interpolate({
+        inputRange: [0, COMMIT_THRESHOLD],
+        outputRange: [0.85, 1.15],
+        extrapolate: 'clamp',
+      }),
+    },
+    // Holds `leftAction`; shows under a leftward drag.
+    right: {
+      opacity: dx.interpolate({
+        inputRange: [-1, 0, 1],
+        outputRange: [1, 0, 0],
+        extrapolate: 'clamp',
+      }),
+      iconScale: dx.interpolate({
+        inputRange: [-COMMIT_THRESHOLD, 0],
+        outputRange: [1.15, 0.85],
+        extrapolate: 'clamp',
+      }),
+    },
+  };
+}
+
+function sameContext(a: SwipeContext, b: SwipeContext): boolean {
+  if (a === b) return true;
+  const keys = Object.keys(a) as (keyof SwipeContext)[];
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+// Props compare by identity, except `context`, which callers build per row
+// and which therefore compares by its fields.
+function sameRowProps(prev: SwipeableRowProps, next: SwipeableRowProps): boolean {
+  const keys = Object.keys(next) as (keyof SwipeableRowProps)[];
+  if (keys.length !== Object.keys(prev).length) return false;
+  return keys.every((key) =>
+    key === 'context' ? sameContext(prev.context, next.context) : prev[key] === next[key],
+  );
+}
+
+export const SwipeableRow = React.memo(function SwipeableRow({
   children, leftAction, rightAction, context, onAction, mode = 'instant',
 }: SwipeableRowProps) {
   const c = useColors();
@@ -84,6 +134,14 @@ export function SwipeableRow({
   const dx = useRef(new Animated.Value(0)).current;
   const claimed = useRef(false);
   const widthRef = useRef(Dimensions.get('window').width);
+  const bandAnimations = React.useMemo(() => makeBandAnimations(dx), [dx]);
+
+  // The action bands (colour, icon and label behind the row) are only mounted
+  // while the row is swiped or sits open, so an idle row renders just its
+  // content. They mount when a drag is granted and go again once the row is
+  // back at rest, where the row covers them anyway.
+  const [bandsMounted, setBandsMounted] = useState(false);
+  const dragging = useRef(false);
 
   // The PanResponder below is built once, so its handlers close over the props
   // of the render that built it. Reading them through a ref instead keeps the
@@ -102,8 +160,18 @@ export function SwipeableRow({
   const openSideRef = useRef<'left' | 'right' | null>(null);
   const [openSide, setOpenSide] = useState<'left' | 'right' | null>(null);
 
+  const unmountBandsAtRest = () => {
+    if (dragging.current || openSideRef.current !== null) return;
+    setBandsMounted(false);
+  };
+
   const springTo = (toValue: number) => {
-    Animated.spring(dx, { toValue, useNativeDriver: true, speed: 24, bounciness: 4 }).start();
+    Animated.spring(dx, { toValue, useNativeDriver: true, speed: 24, bounciness: 4 }).start(
+      ({ finished }) => {
+        // Not `finished` when a new drag took over from the spring.
+        if (finished && toValue === 0) unmountBandsAtRest();
+      },
+    );
   };
   // Spring back to rest without changing which side is open.
   const settle = () => springTo(0);
@@ -135,6 +203,7 @@ export function SwipeableRow({
         // The row is about to be removed; reset translation in case it isn't
         // (e.g. the action failed silently) so we don't leave it off-screen.
         dx.setValue(0);
+        unmountBandsAtRest();
       });
     } else {
       latest.current.onAction(action);
@@ -167,11 +236,16 @@ export function SwipeableRow({
           claimed.current = true;
           return true;
         },
+        onPanResponderGrant: () => {
+          dragging.current = true;
+          setBandsMounted(true);
+        },
         onPanResponderMove: (_, g) => {
           dx.setValue(dragOffset(g, latest.current, openSideRef.current));
         },
         onPanResponderRelease: (_, g) => {
           claimed.current = false;
+          dragging.current = false;
           const outcome = resolveRelease(g, latest.current, openSideRef.current);
           switch (outcome.kind) {
             case 'open':
@@ -189,6 +263,7 @@ export function SwipeableRow({
           }
         },
         onPanResponderTerminate: () => {
+          dragging.current = false;
           if (latest.current.mode === 'reveal') close();
           else settle();
           claimed.current = false;
@@ -231,8 +306,8 @@ export function SwipeableRow({
 
     return (
       <View style={styles.wrap} onLayout={onLayout} {...responder.panHandlers}>
-        {renderRevealBand(rightAction, 'left')}
-        {renderRevealBand(leftAction, 'right')}
+        {bandsMounted ? renderRevealBand(rightAction, 'left') : null}
+        {bandsMounted ? renderRevealBand(leftAction, 'right') : null}
         <Animated.View style={[styles.content, { transform: [{ translateX: dx }] }]}>
           {children}
           {/* When an action is revealed, an overlay absorbs taps on the row so
@@ -254,12 +329,7 @@ export function SwipeableRow({
     const meta = ACTION_META[action];
     const Icon = actionIcon(action, context);
     const label = actionLabel(action, context, t);
-    const inputRange = side === 'left' ? [0, COMMIT_THRESHOLD] : [-COMMIT_THRESHOLD, 0];
-    const iconScale = dx.interpolate({
-      inputRange,
-      outputRange: side === 'left' ? [0.85, 1.15] : [1.15, 0.85],
-      extrapolate: 'clamp',
-    });
+    const { iconScale } = bandAnimations[side];
     return (
       <View
         style={[
@@ -276,31 +346,24 @@ export function SwipeableRow({
     );
   };
 
-  const rightBandOpacity = dx.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: [0, 0, 1],
-    extrapolate: 'clamp',
-  });
-  const leftBandOpacity = dx.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: [1, 0, 0],
-    extrapolate: 'clamp',
-  });
-
   return (
     <View style={styles.wrap} onLayout={onLayout} {...responder.panHandlers}>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: rightBandOpacity }]} pointerEvents="none">
-        {renderInstantBand(rightAction, 'left')}
-      </Animated.View>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: leftBandOpacity }]} pointerEvents="none">
-        {renderInstantBand(leftAction, 'right')}
-      </Animated.View>
+      {bandsMounted ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: bandAnimations.left.opacity }]} pointerEvents="none">
+          {renderInstantBand(rightAction, 'left')}
+        </Animated.View>
+      ) : null}
+      {bandsMounted ? (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: bandAnimations.right.opacity }]} pointerEvents="none">
+          {renderInstantBand(leftAction, 'right')}
+        </Animated.View>
+      ) : null}
       <Animated.View style={[styles.content, { transform: [{ translateX: dx }] }]}>
         {children}
       </Animated.View>
     </View>
   );
-}
+}, sameRowProps);
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
