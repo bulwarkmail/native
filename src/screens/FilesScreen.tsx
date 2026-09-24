@@ -52,6 +52,7 @@ import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import type { FileNode } from '../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -320,6 +321,10 @@ export default function FilesScreen() {
   }, [folderNodes, searchQuery, showHiddenFiles, sortKey, sortDir]);
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
+
+  // Android back leaves selection mode first, like the header's X, instead
+  // of switching to the Mail tab.
+  useBackWhileFocused(selectionMode, clearSelection);
 
   // Shared-with-me rows stay out of multi-select: batch delete routes to our
   // own account and would fail (or worse, mismatch) on namespaced ids.
