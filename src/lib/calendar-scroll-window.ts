@@ -71,13 +71,26 @@ const INITIAL_AFTER: Record<ScrollViewMode, number> = {
   day: SCROLL_WINDOW_STEP,
 };
 
+/**
+ * Days loaded before the base range at first. The grids open with a step
+ * of room above / to the left, so the list isn't mounted right at its start
+ * edge (where rows would be prepended while it is still settling on the
+ * focus). The agenda starts at its anchor and loads the past on request.
+ */
+const INITIAL_BEFORE: Record<ScrollViewMode, number> = {
+  month: SCROLL_WINDOW_STEP,
+  agenda: 0,
+  week: SCROLL_WINDOW_STEP,
+  day: SCROLL_WINDOW_STEP,
+};
+
 export function parseDayKey(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
 export function freshScrollWindowState(mode: ScrollViewMode, anchor: Date): ScrollWindowState {
-  return { mode, anchorKey: dayKey(anchor), before: 0, after: INITIAL_AFTER[mode] };
+  return { mode, anchorKey: dayKey(anchor), before: INITIAL_BEFORE[mode], after: INITIAL_AFTER[mode] };
 }
 
 /**

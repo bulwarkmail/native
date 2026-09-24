@@ -40,6 +40,7 @@ import { Button } from '../components';
 import { useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { MonthView } from '../components/calendar/MonthView';
+import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
 import { AgendaView } from '../components/calendar/AgendaView';
 import { EventCard } from '../components/calendar/EventCard';
@@ -154,6 +155,7 @@ export default function CalendarScreen() {
   const showTasksOnCalendar = useSettingsStore((s) => s.showTasksOnCalendar);
   const calendarFirstDayOfWeek = useSettingsStore((s) => s.calendarFirstDayOfWeek);
   const calendarShowWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
+  const calendarFreeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const showBirthdayCalendar = useSettingsStore((s) => s.showBirthdayCalendar);
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
@@ -172,10 +174,12 @@ export default function CalendarScreen() {
   const [viewMode, setViewMode] = React.useState<ViewMode>(initialViewMode);
 
   // Scroll window (#759, webmail calendar-app): every view shows a window of
-  // days around the day the user navigated to (the "focus"). The agenda
-  // scrolls freely: reaching an edge widens that side and only the new days
-  // are fetched. Month and week show exactly one period. Navigation moves the
-  // focus and, when that leaves the window, starts a fresh window there.
+  // days around the day the user navigated to (the "focus"). With free
+  // scrolling (the default) the agenda and the month scroll continuously:
+  // reaching an edge widens that side and only the new days are fetched.
+  // Otherwise, and in the week view, a view shows exactly one period.
+  // Navigation moves the focus and, when that leaves the window, starts a
+  // fresh window there.
   const windowOptions = React.useMemo<ScrollWindowOptions>(
     () => ({ weekStartsOn: calendarFirstDayOfWeek }),
     [calendarFirstDayOfWeek],
@@ -186,7 +190,7 @@ export default function CalendarScreen() {
   const [windowState, setWindowState] = React.useState<ScrollWindowState>(
     () => freshScrollWindowState(initialViewMode, new Date()),
   );
-  const freeScroll = viewMode === 'agenda';
+  const freeScroll = calendarFreeScroll && (viewMode === 'agenda' || viewMode === 'month');
   const focusKey = dayKey(focus.date);
   const activeWindowState = React.useMemo(
     () =>
@@ -403,20 +407,16 @@ export default function CalendarScreen() {
   }, [syncDueSubscriptions]);
 
   // Load the window's events: one fetch at a time, and only the days not
-  // loaded yet (calendar-store extendRange). `loadingEdge` is the side an
-  // extension asked for, until the wider window is in.
+  // loaded yet (calendar-store extendRange). `loadingEdge` is the side the
+  // last extension asked for, until the wider window is in.
   const [rangeLoading, setRangeLoading] = React.useState(false);
   const [loadingEdge, setLoadingEdge] = React.useState<'start' | 'end' | null>(null);
-  const loadingEdgeRef = React.useRef<'start' | 'end' | null>(null);
   const [rangeLoader] = React.useState(() =>
     createRangeLoader(
       (range) => useCalendarStore.getState().extendRange(range.after, range.before),
       (busy) => {
         setRangeLoading(busy);
-        if (!busy) {
-          loadingEdgeRef.current = null;
-          setLoadingEdge(null);
-        }
+        if (!busy) setLoadingEdge(null);
       },
     ),
   );
@@ -440,12 +440,11 @@ export default function CalendarScreen() {
     [viewMode, windowOptions],
   );
 
+  // The grids add their rows for the wider window right away (the events
+  // follow); the agenda waits for one extension to load before the next.
   const extendWindow = React.useCallback(
     (side: 'before' | 'after') => {
-      if (loadingEdgeRef.current) return;
-      const edge = side === 'before' ? 'start' : 'end';
-      loadingEdgeRef.current = edge;
-      setLoadingEdge(edge);
+      setLoadingEdge(side === 'before' ? 'start' : 'end');
       setWindowState((prev) =>
         growScrollWindow(normalizeScrollWindowState(prev, viewMode, focus.date), side),
       );
@@ -957,7 +956,27 @@ export default function CalendarScreen() {
       )}
 
       <View style={styles.content}>
-        {viewMode === 'month' && (
+        {viewMode === 'month' && freeScroll && (
+          <MonthScrollView
+            key={windowKey}
+            focus={focus}
+            window={scrollWindow}
+            onExtendStart={scrollWindow.canExtendStart ? extendWindowStart : undefined}
+            onExtendEnd={scrollWindow.canExtendEnd ? extendWindowEnd : undefined}
+            onVisibleDateChange={setVisibleDate}
+            selectedDate={selectedDate}
+            events={events}
+            eventsByDay={eventsByDay}
+            calendars={calendars}
+            weekStartsOn={calendarFirstDayOfWeek}
+            showWeekNumbers={calendarShowWeekNumbers}
+            showTimeInMonthView={calendarShowTimeInMonth}
+            timeFormat={calendarTimeFormat}
+            onSelectDate={handleSelectDate}
+            onLongPressDate={openCreate}
+          />
+        )}
+        {viewMode === 'month' && !freeScroll && (
           <MonthView
             currentDate={focus.date}
             selectedDate={selectedDate}

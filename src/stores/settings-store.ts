@@ -232,6 +232,9 @@ interface PersistedSettings {
   calendarTimeFormat: TimeFormat;
   calendarShowTimeInMonth: boolean;
   calendarShowWeekNumbers: boolean;
+  // Scroll continuously through months, weeks and days (#759) instead of
+  // one period at a time. Same key as the webmail's setting.
+  calendarFreeScroll: boolean;
   calendarHoverPreview: CalendarHoverPreview;
   // IANA zone the calendar works in, or 'auto' to follow the device (#755).
   // Same key semantics as the webmail's `timeZone` setting.
@@ -392,6 +395,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   calendarTimeFormat: '24h',
   calendarShowTimeInMonth: true,
   calendarShowWeekNumbers: false,
+  calendarFreeScroll: true,
   calendarHoverPreview: 'delay-500ms',
   calendarTimeZone: 'auto',
   showBirthdayCalendar: false,

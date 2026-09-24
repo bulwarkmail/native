@@ -41,6 +41,7 @@ export function CalendarSettings() {
   const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   const showTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
+  const freeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
@@ -137,6 +138,19 @@ export function CalendarSettings() {
         <ToggleSwitch
           checked={showWeekNumbers}
           onChange={(v) => update('calendarShowWeekNumbers', v)}
+        />
+      </SettingItem>
+
+      <SettingItem
+        label={t('calendar.settings.calendar_free_scroll', 'Free scrolling')}
+        description={t(
+          'calendar.settings.calendar_free_scroll_desc',
+          'Scroll continuously through months, weeks and days instead of one period at a time',
+        )}
+      >
+        <ToggleSwitch
+          checked={freeScroll}
+          onChange={(v) => update('calendarFreeScroll', v)}
         />
       </SettingItem>
 

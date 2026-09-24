@@ -47,9 +47,10 @@ describe('baseRange', () => {
 });
 
 describe('computeScrollWindow', () => {
-  it('starts as the base range plus the initial days after it, snapped to whole weeks', () => {
+  it('starts as the base range plus a step either side, snapped to whole weeks', () => {
     const win = computeScrollWindow(freshScrollWindowState('month', new Date(2026, 8, 9)), opts);
-    expect(local(win.start)).toBe('2026-08-31');
+    // 2026-08-31 - 30 days = 2026-08-01 (Saturday) -> start of that week
+    expect(local(win.start)).toBe('2026-07-27');
     // 2026-10-04 + 30 days = 2026-11-03 (Tuesday) -> end of that week
     expect(local(win.end)).toBe('2026-11-08');
     expect(win.canExtendStart).toBe(true);
@@ -76,15 +77,15 @@ describe('computeScrollWindow', () => {
 
   it('does not snap the day view to weeks', () => {
     const win = computeScrollWindow(freshScrollWindowState('day', new Date(2026, 8, 9)), opts);
-    expect(local(win.start)).toBe('2026-09-09');
+    expect(local(win.start)).toBe('2026-08-10');
     expect(local(win.end)).toBe('2026-10-09');
   });
 
   it('snaps a grown week window to whole weeks', () => {
     const state = growScrollWindow(freshScrollWindowState('week', new Date(2026, 8, 9)), 'before');
     const win = computeScrollWindow(state, opts);
-    // 2026-09-07 - 30 days = 2026-08-08 (Saturday) -> Monday 2026-08-03
-    expect(local(win.start)).toBe('2026-08-03');
+    // 2026-09-07 - 60 days = 2026-07-09 (Thursday) -> Monday 2026-07-06
+    expect(local(win.start)).toBe('2026-07-06');
     expect(win.start.getDay()).toBe(1);
     expect(win.end.getDay()).toBe(0);
   });
@@ -137,8 +138,8 @@ describe('normalizeScrollWindowState / scrollWindowContains', () => {
     const win = computeScrollWindow(freshScrollWindowState('month', new Date(2026, 8, 9)), opts);
     expect(scrollWindowContains(win, 'month', new Date(2026, 9, 15), opts)).toBe(true); // October grid ends Nov 1
     expect(scrollWindowContains(win, 'month', new Date(2026, 10, 15), opts)).toBe(false); // November grid ends Dec 6
-    expect(scrollWindowContains(win, 'week', new Date(2026, 7, 31), opts)).toBe(true);
-    expect(scrollWindowContains(win, 'week', new Date(2026, 7, 30), opts)).toBe(false);
+    expect(scrollWindowContains(win, 'week', new Date(2026, 6, 27), opts)).toBe(true); // window starts Jul 27
+    expect(scrollWindowContains(win, 'week', new Date(2026, 6, 26), opts)).toBe(false);
   });
 
   it('keys the anchor by calendar day', () => {
