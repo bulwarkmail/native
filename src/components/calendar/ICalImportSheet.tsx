@@ -15,6 +15,8 @@ import { getCalendarColor } from '../../lib/calendar-utils';
 import { isWritableCalendar } from '../../lib/calendar-editability';
 import { ImportRefusedError, type ImportResult } from '../../stores/calendar-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useCalendarLocale } from '../../lib/calendar-locale';
+import type { Locale } from 'date-fns';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen / ContactImportSheet flow).
@@ -42,11 +44,13 @@ interface Props {
   onImported?: (count: number) => void;
 }
 
-function eventDateLabel(event: Partial<CalendarEvent>): string | null {
+function eventDateLabel(event: Partial<CalendarEvent>, locale: Locale): string | null {
   if (!event.start) return null;
   const d = parseISO(event.start);
   if (isNaN(d.getTime())) return null;
-  return event.showWithoutTime ? format(d, 'EEE, MMM d, yyyy') : format(d, 'EEE, MMM d · HH:mm');
+  return event.showWithoutTime
+    ? format(d, 'EEE, MMM d, yyyy', { locale })
+    : format(d, 'EEE, MMM d · HH:mm', { locale });
 }
 
 export function ICalImportSheet({ visible, onClose, calendars, onImport, onImported }: Props) {
@@ -54,6 +58,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const t = useLocaleStore((s) => s.t);
+  const { locale } = useCalendarLocale();
 
   const writable = React.useMemo(
     () => calendars.filter((cal) => isWritableCalendar(cal)),
@@ -101,8 +106,11 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
     const picker = loadDocumentPicker();
     if (!picker) {
       Alert.alert(
-        'Import unavailable',
-        'The file picker is not installed in this build. Rebuild the app (expo run:android) to enable importing.',
+        t('calendar.import.picker_unavailable_title', 'Import unavailable'),
+        t(
+          'calendar.import.picker_unavailable',
+          'The file picker is not installed in this build. Rebuild the app to enable importing.',
+        ),
       );
       return;
     }
@@ -111,13 +119,13 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
     try {
       res = await picker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not open the file picker');
+      setError(e instanceof Error ? e.message : t('calendar.import.picker_error', 'Could not open the file picker'));
       return;
     }
     if (res.canceled || res.assets.length === 0) return;
     const asset = res.assets[0];
     if (asset.size && asset.size > 5 * 1024 * 1024) {
-      setError('That file is too large (max 5 MB).');
+      setError(t('calendar.import.file_too_large_max', 'That file is too large (max {size} MB).', { size: 5 }));
       return;
     }
 
@@ -128,13 +136,13 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
       const events = await parseCalendarBlob(blobId);
       const usable = events.filter((e) => !!e.start || e['@type'] === 'Task');
       if (usable.length === 0) {
-        setError('No events were found in that file.');
+        setError(t('calendar.import.no_events', 'No events found in file'));
         return;
       }
       setParsed(usable);
       setSelected(new Set(usable.map((_, i) => i)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read or parse that file.');
+      setError(e instanceof Error ? e.message : t('calendar.import.invalid_format', 'Invalid calendar file format'));
     } finally {
       setLoading(false);
     }
@@ -153,7 +161,10 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
 
   const doImport = async () => {
     if (!calendarId) {
-      Alert.alert('No calendar', 'Create a calendar before importing events.');
+      Alert.alert(
+        t('calendar.import.no_calendar_title', 'No calendar'),
+        t('calendar.import.no_calendar', 'Create a calendar before importing events.'),
+      );
       return;
     }
     const toImport = parsed.filter((_, i) => selected.has(i));
@@ -166,7 +177,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
     } catch (e) {
       // Everything was refused: list what and why, like a partial import.
       if (e instanceof ImportRefusedError) setResult({ imported: 0, refused: e.refused });
-      else setError(e instanceof Error ? e.message : 'Import failed.');
+      else setError(e instanceof Error ? e.message : t('calendar.import.error', 'Failed to import calendar'));
     } finally {
       setImporting(false);
     }
@@ -180,7 +191,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
-            <Text style={styles.title}>Import calendar</Text>
+            <Text style={styles.title}>{t('calendar.import.title', 'Import Calendar')}</Text>
             <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
               <X size={20} color={c.text} />
             </Pressable>
@@ -201,7 +212,11 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                 <View style={{ flex: 1, minWidth: 0 }}>
                   {result.imported > 0 && (
                     <Text style={styles.successText}>
-                      Imported {result.imported} event{result.imported === 1 ? '' : 's'}.
+                      {t(
+                        'calendar.import.imported_count',
+                        '{count, plural, one {Imported # event.} other {Imported # events.}}',
+                        { count: result.imported },
+                      )}
                     </Text>
                   )}
                   <Text style={styles.refusedTitle}>
@@ -215,12 +230,14 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
               </View>
               <ScrollView style={{ flex: 1 }}>
                 {result.refused.map(({ event, reason }, idx) => {
-                  const date = eventDateLabel(event);
+                  const date = eventDateLabel(event, locale);
                   return (
                     <View key={idx} style={styles.row}>
                       <AlertTriangle size={16} color={c.error} />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.rowName} numberOfLines={1}>{event.title || 'Untitled event'}</Text>
+                        <Text style={styles.rowName} numberOfLines={1}>
+                          {event.title || t('calendar.events.no_title', '(No title)')}
+                        </Text>
                         {!!date && <Text style={styles.rowDate} numberOfLines={1}>{date}</Text>}
                         <Text style={styles.refusedReason} numberOfLines={3}>{reason}</Text>
                       </View>
@@ -229,7 +246,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                 })}
               </ScrollView>
               <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-                <Button variant="outline" onPress={onClose}>Done</Button>
+                <Button variant="outline" onPress={onClose}>{t('common.done', 'Done')}</Button>
               </View>
             </>
           ) : result !== null ? (
@@ -238,9 +255,13 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                 <Check size={26} color={c.primaryForeground} />
               </View>
               <Text style={styles.successText}>
-                Imported {result.imported} event{result.imported === 1 ? '' : 's'}.
+                {t(
+                  'calendar.import.imported_count',
+                  '{count, plural, one {Imported # event.} other {Imported # events.}}',
+                  { count: result.imported },
+                )}
               </Text>
-              <Button variant="outline" size="sm" onPress={onClose}>Done</Button>
+              <Button variant="outline" size="sm" onPress={onClose}>{t('common.done', 'Done')}</Button>
             </View>
           ) : parsed.length === 0 ? (
             <View style={styles.center}>
@@ -250,8 +271,14 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                 ) : (
                   <Upload size={32} color={c.textMuted} />
                 )}
-                <Text style={styles.dropTitle}>{loading ? 'Parsing…' : 'Choose an .ics file'}</Text>
-                <Text style={styles.dropHint}>iCalendar — single or multiple events</Text>
+                <Text style={styles.dropTitle}>
+                  {loading
+                    ? t('calendar.import.parsing', 'Parsing calendar file...')
+                    : t('calendar.import.select_file', 'Select .ics file')}
+                </Text>
+                <Text style={styles.dropHint}>
+                  {t('calendar.import.supported_formats', 'Supports iCalendar (.ics) files')}
+                </Text>
               </Pressable>
               {!!error && (
                 <View style={styles.errorBox}>
@@ -279,18 +306,24 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
 
               <View style={styles.toolbar}>
                 <Text style={styles.toolbarCount}>
-                  {parsed.length} found · {selected.size} selected
+                  {t('calendar.import.parsed_events', '{count} events found', { count: parsed.length })}
+                  {' · '}
+                  {t('calendar.import.selected_count', '{count} selected', { count: selected.size })}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                  <Pressable onPress={selectAll} hitSlop={6}><Text style={styles.link}>All</Text></Pressable>
-                  <Pressable onPress={selectNone} hitSlop={6}><Text style={styles.link}>None</Text></Pressable>
+                  <Pressable onPress={selectAll} hitSlop={6}>
+                    <Text style={styles.link}>{t('calendar.import.select_all', 'Select all')}</Text>
+                  </Pressable>
+                  <Pressable onPress={selectNone} hitSlop={6}>
+                    <Text style={styles.link}>{t('calendar.import.deselect_all', 'Deselect all')}</Text>
+                  </Pressable>
                 </View>
               </View>
 
               <ScrollView style={{ flex: 1 }}>
                 {parsed.map((event, idx) => {
                   const isSelected = selected.has(idx);
-                  const date = eventDateLabel(event);
+                  const date = eventDateLabel(event, locale);
                   return (
                     <Pressable
                       key={idx}
@@ -302,7 +335,9 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                       </View>
                       <Clock size={16} color={c.textMuted} />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.rowName} numberOfLines={1}>{event.title || 'Untitled event'}</Text>
+                        <Text style={styles.rowName} numberOfLines={1}>
+                          {event.title || t('calendar.events.no_title', '(No title)')}
+                        </Text>
                         {!!date && <Text style={styles.rowDate} numberOfLines={1}>{date}</Text>}
                       </View>
                     </Pressable>
@@ -318,13 +353,15 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
               )}
 
               <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-                <Button variant="outline" onPress={onClose} disabled={importing}>Cancel</Button>
+                <Button variant="outline" onPress={onClose} disabled={importing}>{t('common.cancel', 'Cancel')}</Button>
                 <Button
                   onPress={() => { void doImport(); }}
                   disabled={importing || selected.size === 0}
                   icon={importing ? <ActivityIndicator size="small" color={c.primaryForeground} /> : <CalendarPlus size={16} color={c.primaryForeground} />}
                 >
-                  {importing ? 'Importing…' : `Import ${selected.size}`}
+                  {importing
+                    ? t('calendar.import.importing', 'Importing events...')
+                    : t('calendar.import.import_button', 'Import selected')}
                 </Button>
               </View>
             </>

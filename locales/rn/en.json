@@ -29,7 +29,15 @@
       "time": "Time"
     },
     "import": {
-      "refused_count": "{count, plural, one {# event could not be imported:} other {# events could not be imported:}}"
+      "file_too_large_max": "That file is too large (max {size} MB).",
+      "imported_count": "{count, plural, one {Imported # event.} other {Imported # events.}}",
+      "no_calendar": "Create a calendar before importing events.",
+      "no_calendar_title": "No calendar",
+      "picker_error": "Could not open the file picker",
+      "picker_unavailable": "The file picker is not installed in this build. Rebuild the app to enable importing.",
+      "picker_unavailable_title": "Import unavailable",
+      "refused_count": "{count, plural, one {# event could not be imported:} other {# events could not be imported:}}",
+      "selected_count": "{count} selected"
     },
     "invitation": {
       "accept": "Yes",
