@@ -7,6 +7,7 @@ import type { EmailAddress } from '../api/types';
 import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
+import { setPendingCalendarOpen } from './pending-calendar-open';
 
 export const APP_SCHEME = 'bulwarkmobile';
 
@@ -14,7 +15,9 @@ export type DeepLink =
   | { kind: 'message'; emailId: string; accountId?: string }
   | { kind: 'thread'; threadId: string; accountId?: string }
   | { kind: 'folder'; ref: string; accountId?: string }
-  | { kind: 'calendar'; eventId?: string; date?: string }
+  // `jmapAccountId`: the JMAP account owning the event (`?account=`), for
+  // one on a calendar shared with the user.
+  | { kind: 'calendar'; eventId?: string; date?: string; jmapAccountId?: string }
   | { kind: 'contact'; contactId: string }
   | { kind: 'contacts' }
   | { kind: 'files' }
@@ -88,7 +91,12 @@ export function parseDeepLink(url: string): DeepLink | null {
       return { kind: 'folder', ref: 'inbox', accountId };
     }
     case 'calendar': {
-      if (kind === 'event' && value) return { kind: 'calendar', eventId: decodeSegment(value) };
+      if (kind === 'event' && value) {
+        const jmapAccountId = search.get('account') ?? undefined;
+        return jmapAccountId
+          ? { kind: 'calendar', eventId: decodeSegment(value), jmapAccountId }
+          : { kind: 'calendar', eventId: decodeSegment(value) };
+      }
       const date = [kind, value].find((s) => s && /^\d{4}-\d{2}-\d{2}$/.test(s));
       return { kind: 'calendar', date };
     }
@@ -154,6 +162,16 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
     case 'calendar':
+      // An event link opens the event like a tapped reminder does: the
+      // Calendar tab looks it up by its server id.
+      if (link.eventId) {
+        setPendingCalendarOpen({
+          kind: 'event',
+          eventId: link.jmapAccountId ? `${link.jmapAccountId}:${link.eventId}` : link.eventId,
+          serverId: link.eventId,
+          accountId: link.jmapAccountId,
+        });
+      }
       navigation.navigate('MainTabs', { screen: 'Calendar' } as never);
       return true;
     case 'contact':

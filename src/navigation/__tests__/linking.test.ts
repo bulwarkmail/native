@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handleDeepLink, parseDeepLink, shareToDeepLink } from '../linking';
 import { usePendingSettingsTab } from '../pending-settings-tab';
+import { usePendingCalendarOpen } from '../pending-calendar-open';
 
 describe('parseDeepLink', () => {
   it('parses app-scheme mail links', () => {
@@ -105,6 +106,28 @@ describe('handleDeepLink', () => {
     );
     expect(ok).toBe(false);
     expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+
+  it('opens the event a calendar link names, also on a shared calendar', async () => {
+    const navigation = nav();
+    expect(parseDeepLink('https://mail.example.com/calendar/event/E1?account=acc-2'))
+      .toEqual({ kind: 'calendar', eventId: 'E1', jmapAccountId: 'acc-2' });
+
+    await handleDeepLink(
+      { kind: 'calendar', eventId: 'E1', jmapAccountId: 'acc-2' },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    );
+    expect(usePendingCalendarOpen.getState().consume()).toEqual({
+      kind: 'event', eventId: 'acc-2:E1', serverId: 'E1', accountId: 'acc-2',
+    });
+    expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Calendar' });
+
+    // A date or view link just opens the tab.
+    await handleDeepLink(
+      { kind: 'calendar', date: '2026-08-29' },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    );
+    expect(usePendingCalendarOpen.getState().consume()).toBeNull();
   });
 
   it('parks the settings tab and opens the Settings tab', async () => {
