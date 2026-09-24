@@ -22,6 +22,7 @@ export interface OAuthMetadata {
   token_endpoint: string;
   revocation_endpoint?: string;
   scopes_supported?: string[];
+  prompt_values_supported?: string[];
 }
 
 const DISCOVERY_TIMEOUT_MS = 8_000;
@@ -108,14 +109,26 @@ function parseCallbackParams(url: string): URLSearchParams {
   return params;
 }
 
+// Adding an account must not quietly reuse the identity provider's session
+// of the account that is already signed in (webmail 5771a213). Ask for the
+// account picker, or for a fresh login where the server says it has no
+// picker (Keycloak advertises only none/login/consent).
+function addAccountPrompt(metadata: OAuthMetadata): string {
+  const supported = metadata.prompt_values_supported;
+  if (supported?.length && !supported.includes('select_account') && supported.includes('login')) return 'login';
+  return 'select_account';
+}
+
 /**
  * Run the authorization-code + PKCE flow in the system browser. Throws
- * `HandoffCancelledError` when the user closes the browser.
+ * `HandoffCancelledError` when the user closes the browser. With `addAccount`
+ * the provider is asked to pick or sign in another account, and iOS runs the
+ * session without the browser's cookies so the current one can't carry over.
  */
 export async function loginWithPkce(
   serverUrl: string,
   metadata: OAuthMetadata,
-  opts?: { clientId?: string; scopes?: string; redirectUri?: string },
+  opts?: { clientId?: string; scopes?: string; redirectUri?: string; addAccount?: boolean },
 ): Promise<OAuthTokens> {
   const clientId = opts?.clientId ?? DEFAULT_CLIENT_ID;
   const redirectUri = opts?.redirectUri ?? HANDOFF_REDIRECT_URI;
@@ -136,9 +149,14 @@ export async function loginWithPkce(
     code_challenge: challenge,
     code_challenge_method: 'S256',
   });
+  if (opts?.addAccount) params.set('prompt', addAccountPrompt(metadata));
   const authUrl = `${metadata.authorization_endpoint}${metadata.authorization_endpoint.includes('?') ? '&' : '?'}${params.toString()}`;
 
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+  const result = await WebBrowser.openAuthSessionAsync(
+    authUrl,
+    redirectUri,
+    opts?.addAccount ? { preferEphemeralSession: true } : undefined,
+  );
   if (result.type === 'cancel' || result.type === 'dismiss') throw new HandoffCancelledError();
   if (result.type !== 'success' || !result.url) throw new HandoffError(`Sign-in failed: ${result.type}`);
 

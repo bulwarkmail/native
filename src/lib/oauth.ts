@@ -107,11 +107,22 @@ function parseFragment(url: string): URLSearchParams {
   return new URLSearchParams(url.slice(hashIdx + 1));
 }
 
-export async function runWebmailHandoff(webmailUrl: string): Promise<HandoffResult> {
+export async function runWebmailHandoff(
+  webmailUrl: string,
+  opts?: { addAccount?: boolean },
+): Promise<HandoffResult> {
   const state = randomState();
   const handoffUrl = buildHandoffUrl(webmailUrl, state);
 
-  const result = await WebBrowser.openAuthSessionAsync(handoffUrl, HANDOFF_REDIRECT_URI);
+  // Adding an account: on iOS, keep the browser's webmail and identity
+  // provider cookies out of the session so the signed-in account can't
+  // silently come back as the "new" one. Android's Custom Tabs have no such
+  // mode.
+  const result = await WebBrowser.openAuthSessionAsync(
+    handoffUrl,
+    HANDOFF_REDIRECT_URI,
+    opts?.addAccount ? { preferEphemeralSession: true } : undefined,
+  );
 
   if (result.type === 'cancel' || result.type === 'dismiss') {
     throw new HandoffCancelledError();

@@ -315,7 +315,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     let result;
     try {
-      result = await runWebmailHandoff(webmailUrl);
+      result = await runWebmailHandoff(webmailUrl, { addAccount: opts?.addAccount });
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         // User closed the browser tab — quiet exit, no error banner.
@@ -359,7 +359,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const metadata = await discoverOAuthMetadata(base);
       if (!metadata) throw new HandoffError('This server does not offer OAuth sign-in');
-      tokens = await loginWithPkce(base, metadata);
+      tokens = await loginWithPkce(base, metadata, { addAccount: opts?.addAccount });
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         set({ isLoading: false, error: null });
