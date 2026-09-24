@@ -100,6 +100,30 @@ describe('push operations', () => {
     });
   });
 
+  describe('createPushSubscription', () => {
+    const params = {
+      deviceClientId: 'd', url: 'https://relay/x', types: ['EmailDelivery'], expires: '2026-12-01T00:00:00Z',
+    };
+
+    it('returns the expiry the server clamped the subscription to', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [[
+          'PushSubscription/set',
+          { created: { new: { id: 's1', keys: null, expires: '2026-10-01T00:00:00Z' } } },
+          '0',
+        ]],
+      });
+      await expect(createPushSubscription(params)).resolves.toEqual({ id: 's1', expires: '2026-10-01T00:00:00Z' });
+    });
+
+    it('keeps the requested expiry when the server does not echo one', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { created: { new: { id: 's1' } } }, '0']],
+      });
+      await expect(createPushSubscription(params)).resolves.toEqual({ id: 's1', expires: '2026-12-01T00:00:00Z' });
+    });
+  });
+
   describe('PushSubscription/set refusals', () => {
     const forbidden = {
       type: 'forbidden',

@@ -36,6 +36,12 @@ vi.mock('react-native', () => {
   };
 });
 
+// What createPushSubscription resolves to: the new id and the expiry the
+// server settled on (unknown here unless a test says otherwise).
+const { CREATED } = vi.hoisted(() => ({
+  CREATED: { id: 'new-server-id', expires: null as string | null },
+}));
+
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     username: 'user@example.com',
@@ -55,7 +61,7 @@ vi.mock('../../api/email', () => ({
 
 vi.mock('../../api/push', () => ({
   listPushSubscriptions: vi.fn(async () => []),
-  createPushSubscription: vi.fn(async () => 'new-server-id'),
+  createPushSubscription: vi.fn(async () => CREATED),
   verifyPushSubscription: vi.fn(async () => undefined),
   destroyPushSubscription: vi.fn(async () => undefined),
   updatePushSubscription: vi.fn(async () => undefined),
@@ -65,9 +71,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   setupPushNotifications,
   deviceClientIdKey,
+  disablePushForAccount,
   isValidRelayUrl,
+  readPushAccountIds,
   readPushJmapAccountIds,
   PushSetupError,
+  resyncPushNotifications,
+  revokePushDevice,
   teardownPushNotificationsForAccount,
 } from '../push-notifications';
 import {
@@ -394,7 +404,7 @@ describe('setupPushNotifications with ACL-shared accounts (B18)', () => {
       capabilities: { 'urn:ietf:params:jmap:core': {} },
     };
     sharedMock.mockResolvedValue([]);
-    createMock.mockImplementation(async () => 'new-server-id');
+    createMock.mockImplementation(async () => CREATED);
     updateMock.mockImplementation(async () => undefined);
   });
 
@@ -454,7 +464,7 @@ describe('setupPushNotifications with ACL-shared accounts (B18)', () => {
     const accept = refuseUnless(['jmap-primary', 'team']);
     createMock.mockImplementation(async (params: { emailPush?: Record<string, EmailPushConfig> }) => {
       accept(params.emailPush);
-      return 'new-server-id';
+      return CREATED;
     });
 
     const result = await setupPushNotifications({ relayBaseUrl: RELAY });
@@ -576,7 +586,7 @@ describe('setupPushNotifications over UnifiedPush', () => {
       if (params.emailPush && 'acl-b' in params.emailPush) {
         throw new JMAPMethodError('forbidden', 'No access to one of the accounts in the emailPush map.');
       }
-      return 'new-server-id';
+      return CREATED;
     });
 
     try {
@@ -588,7 +598,7 @@ describe('setupPushNotifications over UnifiedPush', () => {
       (jmapClient as { currentSession: unknown }).currentSession = {
         capabilities: { 'urn:ietf:params:jmap:core': {} },
       };
-      createMock.mockImplementation(async () => 'new-server-id');
+      createMock.mockImplementation(async () => CREATED);
     }
   });
 
@@ -628,6 +638,131 @@ describe('setupPushNotifications over UnifiedPush', () => {
 
     expect(err.phase).toBe('distributor');
     expect(err.message).toContain('choose one');
+  });
+});
+
+describe('resyncPushNotifications', () => {
+  const OPTED_OUT_KEY = 'push:optedOut:v1:' + ACCOUNT_ID;
+  const EXPIRES_KEY = 'push:subscriptionExpires:v1:' + ACCOUNT_ID;
+  const inDays = (days: number) => new Date(Date.now() + days * 86400000).toISOString();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
+    listMock.mockResolvedValue([]);
+    installFetch({});
+  });
+
+  afterEach(() => {
+    createMock.mockImplementation(async () => CREATED);
+  });
+
+  it('keeps a healthy registration up to date', async () => {
+    const expires = inDays(3);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([
+      { id: 'existing', deviceClientId: OUR_DCID, expires, types: ['EmailDelivery'] },
+    ]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result?.subscriptionId).toBe('existing');
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    // The expiry the server reported is what a later resync measures against.
+    expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(expires);
+  });
+
+  it('leaves an account alone after the user turned push off for it', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    listMock.mockResolvedValue([sub('existing', OUR_DCID)]);
+
+    await disablePushForAccount(ACCOUNT_ID);
+    vi.clearAllMocks();
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toBeNull();
+    expect(listMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await readPushAccountIds()).toEqual([]);
+  });
+
+  it('leaves push off after this device was revoked from the device list', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([sub('existing', OUR_DCID)]);
+
+    await revokePushDevice({
+      accountId: ACCOUNT_ID,
+      device: { id: 'existing', deviceClientId: OUR_DCID, isThisDevice: true },
+      relayBaseUrl: RELAY,
+    });
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toBeNull();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('does not re-register a subscription another device revoked', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    listMock.mockResolvedValue([]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toBeNull();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    expect(await readPushAccountIds()).toEqual([]);
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
+  });
+
+  it('re-creates a subscription that simply lapsed', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(-1));
+    listMock.mockResolvedValue([]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result?.subscriptionId).toBe('new-server-id');
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-creates a missing subscription whose expiry it never learned', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result?.subscriptionId).toBe('new-server-id');
+  });
+
+  it('changes nothing when the server cannot be asked', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+    listMock.mockRejectedValueOnce(new Error('network down'));
+
+    await expect(resyncPushNotifications({ relayBaseUrl: RELAY })).rejects.toThrow('network down');
+
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+  });
+
+  it('turns push back on when the user enables it again', async () => {
+    await disablePushForAccount(ACCOUNT_ID);
+    createMock.mockImplementation(async () => ({ id: 'new-server-id', expires: inDays(7) }));
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+    expect(await AsyncStorage.getItem(EXPIRES_KEY)).not.toBeNull();
+    vi.clearAllMocks();
+    listMock.mockResolvedValue([
+      { id: 'new-server-id', deviceClientId: OUR_DCID, expires: inDays(7), types: ['EmailDelivery'] },
+    ]);
+    expect((await resyncPushNotifications({ relayBaseUrl: RELAY }))?.subscriptionId).toBe('new-server-id');
   });
 });
 

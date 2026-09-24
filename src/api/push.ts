@@ -40,9 +40,10 @@ export async function listPushSubscriptions(): Promise<PushSubscription[]> {
 /**
  * Create a PushSubscription pointing the JMAP server at the given relay URL.
  * Returns the server-assigned id (which the client also registers with the
- * relay so the relay can route incoming pushes to an Expo token). A refusal
- * throws a JMAPMethodError carrying the server's SetError type, so callers
- * can tell a `forbidden` emailPush map from other failures.
+ * relay so the relay can route incoming pushes to an Expo token) and the
+ * expiry the server settled on. A refusal throws a JMAPMethodError carrying
+ * the server's SetError type, so callers can tell a `forbidden` emailPush map
+ * from other failures.
  */
 export async function createPushSubscription(params: {
   deviceClientId: string;
@@ -54,7 +55,7 @@ export async function createPushSubscription(params: {
   // draft-ietf-jmap-emailpush delivery filter, only when the server advertises
   // urn:ietf:params:jmap:emailpush (see serverSupportsEmailPush).
   emailPush?: Record<string, EmailPushConfig>;
-}): Promise<string> {
+}): Promise<{ id: string; expires: string | null }> {
   const created: Record<string, unknown> = {
     deviceClientId: params.deviceClientId,
     url: params.url,
@@ -76,11 +77,13 @@ export async function createPushSubscription(params: {
   );
   const body = requireMethodResult(res, '0', 'PushSubscription/set');
   assertSetResult(body, ['new'], 'push subscription');
-  const result = body.created?.new as { id?: string } | undefined;
+  const result = body.created?.new as { id?: string; expires?: string | null } | undefined;
   if (!result?.id) {
     throw new Error(`PushSubscription/set create failed: ${JSON.stringify(body)}`);
   }
-  return result.id;
+  // The server only echoes `expires` when it changed it (Stalwart clamps it to
+  // seven days); otherwise the requested value stands.
+  return { id: result.id, expires: result.expires ?? params.expires ?? null };
 }
 
 /**

@@ -45,6 +45,14 @@ const PROMPT_DISMISSED_PREFIX = 'push:promptDismissed:v1:';
 // emailPushFallbacks). Left out of the map from then on, so a refusal isn't
 // re-provoked on every launch.
 const EMAIL_PUSH_REFUSED_PREFIX = 'push:emailPushRefused:v1:';
+// When the recorded subscription expires, as the server last reported it. Lets
+// the launch-time resync tell a subscription that lapsed (re-create it) from
+// one that was revoked (leave push off).
+const SUBSCRIPTION_EXPIRES_PREFIX = 'push:subscriptionExpires:v1:';
+// Set when the user turned push off for the account - the settings toggle, or
+// revoking this device here or from elsewhere. The launch-time resync leaves
+// such an account alone until push is enabled for it again.
+const OPTED_OUT_PREFIX = 'push:optedOut:v1:';
 
 // Legacy single-account keys (pre-multi-account). Migrated lazily on the next
 // setupPushNotifications / pushBackgroundTask call, then deleted.
@@ -75,6 +83,14 @@ function promptDismissedKey(accountId: string): string {
 
 function emailPushRefusedKey(accountId: string): string {
   return EMAIL_PUSH_REFUSED_PREFIX + accountId;
+}
+
+function subscriptionExpiresKey(accountId: string): string {
+  return SUBSCRIPTION_EXPIRES_PREFIX + accountId;
+}
+
+function optedOutKey(accountId: string): string {
+  return OPTED_OUT_PREFIX + accountId;
 }
 
 export async function readPushAccountIds(): Promise<string[]> {
@@ -209,6 +225,10 @@ const SUBSCRIPTION_EXPIRES_DAYS = 90;
 // When an existing subscription has less than this much lifetime left, push
 // expires forward on the next app start.
 const SUBSCRIPTION_REFRESH_THRESHOLD_DAYS = 7;
+// A recorded subscription missing from the server was revoked only if it still
+// had at least this long to live; closer to its expiry (or with the clock a
+// little off) it may simply have lapsed, and is re-created.
+const REVOKED_EXPIRY_MARGIN_MS = 24 * 60 * 60 * 1000;
 
 function expiresFromNow(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
@@ -873,12 +893,14 @@ async function setupPushNotificationsInner(
   if (storedServerId) {
     const match = existingSubs.find((s) => s.id === storedServerId);
     if (match) {
+      if (match.expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), match.expires);
       if (!params.forceRecreate) {
         const refreshed = await refreshSubscriptionExpires(match, emailPush);
         if (refreshed) {
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
           await writePushJmapAccountId(accountId, jmapAccountId);
+          await AsyncStorage.removeItem(optedOutKey(accountId));
           logPhase('done', 'reused existing subscription');
           return { subscriptionId: storedServerId, verified: true };
         }
@@ -917,6 +939,7 @@ async function setupPushNotificationsInner(
   }
 
   let serverAssignedId: string;
+  let serverExpires: string | null;
   try {
     const created = await writeWithEmailPush(emailPush, (filter) =>
       createPushSubscription({
@@ -927,7 +950,8 @@ async function setupPushNotificationsInner(
         ...(filter ? { emailPush: filter } : {}),
       }),
     );
-    serverAssignedId = created.result;
+    serverAssignedId = created.result.id;
+    serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
@@ -944,11 +968,13 @@ async function setupPushNotificationsInner(
   }
 
   await AsyncStorage.setItem(subKey, serverAssignedId);
+  if (serverExpires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), serverExpires);
   if (replacedServerId) {
     await destroyPushSubscription(replacedServerId).catch(() => undefined);
   }
   await addPushAccountId(accountId);
   await writePushJmapAccountId(accountId, jmapAccountId);
+  await AsyncStorage.removeItem(optedOutKey(accountId));
   logPhase('done', 'subscription verified');
 
   return { subscriptionId: serverAssignedId, verified: true };
@@ -1021,6 +1047,7 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
     lastNotifiedKey(accountId),
     notifiedIdsKey(accountId),
     emailPushRefusedKey(accountId),
+    subscriptionExpiresKey(accountId),
   ]);
   await writePushJmapAccountId(accountId, null);
 }
@@ -1068,6 +1095,57 @@ export async function teardownPushNotificationsForAccount(
 
   const remaining = (await readPushAccountIds()).filter((id) => id !== accountId);
   await writePushAccountIds(remaining);
+}
+
+/**
+ * Turn push off for one account because the user asked to: the settings
+ * toggle, or revoking this device (here, or from another device - see
+ * resyncPushNotifications). Tears the registration down and remembers the
+ * choice, so the launch-time resync doesn't quietly register the account
+ * again. Enabling push for it again clears the mark.
+ */
+export async function disablePushForAccount(accountId: string): Promise<void> {
+  await teardownPushNotificationsForAccount(accountId);
+  await AsyncStorage.setItem(optedOutKey(accountId), String(Date.now()));
+}
+
+/**
+ * True when the server no longer has this account's recorded subscription
+ * although it wasn't due to expire - someone revoked it. Without a known
+ * expiry (a registration made by an older build) nothing can be told apart,
+ * so it counts as not revoked. Throws when the server can't be asked.
+ */
+async function wasRevokedOnServer(accountId: string): Promise<boolean> {
+  const storedServerId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+  const expires = Date.parse((await AsyncStorage.getItem(subscriptionExpiresKey(accountId))) ?? '');
+  if (!storedServerId || !Number.isFinite(expires)) return false;
+  if (expires - Date.now() < REVOKED_EXPIRY_MARGIN_MS) return false;
+  const subs = await listPushSubscriptions();
+  return !subs.some((s) => s.id === storedServerId);
+}
+
+/**
+ * Bring the loaded account's registration up to date without user action -
+ * on launch and when the push token or endpoint rotates. Skips an account the
+ * user turned push off for, and honours a revocation: when the server dropped
+ * the subscription before it was due to expire, push is turned off for the
+ * account instead of being silently registered again. Resolves to null when
+ * it left push off.
+ */
+export async function resyncPushNotifications(
+  params: PushSetupParams,
+): Promise<PushSetupResult | null> {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  if (!username || !serverUrl) return null;
+  const accountId = generateAccountId(username, serverUrl);
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return null;
+  if (await wasRevokedOnServer(accountId)) {
+    logPhase('revoked', 'subscription gone before it was due to expire; leaving push off');
+    await disablePushForAccount(accountId);
+    return null;
+  }
+  return setupPushNotifications(params);
 }
 
 /**
@@ -1166,7 +1244,7 @@ export async function revokePushDevice(params: {
   const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
 
   if (params.device.isThisDevice) {
-    await teardownPushNotificationsForAccount(params.accountId);
+    await disablePushForAccount(params.accountId);
     return;
   }
 

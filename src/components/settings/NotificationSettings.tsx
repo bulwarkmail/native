@@ -18,6 +18,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import {
   DEFAULT_RELAY_BASE_URL,
+  disablePushForAccount,
   getStoredRelayBaseUrl,
   isPushEnabledForAccount,
   isPushSupported,
@@ -28,7 +29,6 @@ import {
   revokePushDevice,
   setStoredRelayBaseUrl,
   setupPushNotifications,
-  teardownPushNotificationsForAccount,
   getStoredPushTransport,
   setStoredPushTransport,
   type PushDevice,
@@ -206,7 +206,7 @@ export function NotificationSettings() {
     });
     try {
       if (activeAccountId) {
-        await teardownPushNotificationsForAccount(activeAccountId);
+        await disablePushForAccount(activeAccountId);
       }
       // The relay base URL is a device-wide setting shared with any other
       // accounts that are still using push. Only clear it when no accounts

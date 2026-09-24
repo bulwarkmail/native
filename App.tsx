@@ -20,7 +20,7 @@ import {
   addTokenRefreshListener,
   getInitialNotificationTap,
   getStoredRelayBaseUrl,
-  setupPushNotifications,
+  resyncPushNotifications,
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
@@ -432,7 +432,8 @@ export default function App() {
   // and whenever the FCM token rotates. Honours the user's notification
   // preference - flipping it off tears down THIS account's subscription so
   // notifications stop arriving for it. Other logged-in accounts keep their
-  // setups intact.
+  // setups intact. An account the user turned push off for, or whose device
+  // registration was revoked, stays off (see resyncPushNotifications).
   const emailNotificationsEnabled = useSettingsStore(
     (s) => s.emailNotificationsEnabled,
   );
@@ -453,7 +454,7 @@ export default function App() {
       const relayBaseUrl = await getStoredRelayBaseUrl();
       if (!relayBaseUrl) return;
       try {
-        await setupPushNotifications({
+        await resyncPushNotifications({
           relayBaseUrl,
           accountLabel: client.username ?? undefined,
         });
