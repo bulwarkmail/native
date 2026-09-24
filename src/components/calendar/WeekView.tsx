@@ -59,7 +59,7 @@ function WeekViewInner({
 }: WeekViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const { locale } = useCalendarLocale();
+  const { locale, t } = useCalendarLocale();
   const scrollRef = React.useRef<ScrollView>(null);
 
   const index = React.useMemo(
@@ -173,7 +173,7 @@ function WeekViewInner({
       {allDayRowCount > 0 && (
         <View style={[styles.allDayStrip, { height: allDayStripHeight }]}>
           <View style={[styles.gutter, styles.allDayLabelWrap]}>
-            <Text style={styles.allDayLabel}>all-day</Text>
+            <Text style={styles.allDayLabel} numberOfLines={2}>{t('calendar.events.all_day', 'All day')}</Text>
           </View>
           <View style={styles.allDayGrid}>
             {/* Empty per-day columns to draw vertical separators */}
@@ -209,7 +209,7 @@ function WeekViewInner({
                   >
                     <Text style={styles.allDayChipText} numberOfLines={1}>
                       {segment.continuesBefore ? '… ' : ''}
-                      {segment.event.title || 'Untitled'}
+                      {segment.event.title || t('calendar.events.no_title', '(No title)')}
                     </Text>
                   </Pressable>
                 );
@@ -281,7 +281,7 @@ function WeekViewInner({
                           ]}
                         >
                           <Text style={styles.eventBlockTitle} numberOfLines={1}>
-                            {event.title || 'Untitled'}
+                            {event.title || t('calendar.events.no_title', '(No title)')}
                           </Text>
                           {height > 32 && (
                             <Text style={styles.eventBlockTime} numberOfLines={1}>

@@ -931,6 +931,8 @@ export default function CalendarScreen() {
           onPress={() => setSidebarVisible(true)}
           hitSlop={8}
           style={styles.headerBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar.nav_open_menu', 'Open menu')}
         >
           <Menu size={20} color={c.text} />
         </Pressable>
@@ -957,6 +959,8 @@ export default function CalendarScreen() {
               style={styles.headerBtn}
               onPress={() => setTasksVisible(true)}
               hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('calendar.views.tasks', 'Tasks')}
             >
               <ListChecks size={20} color={c.text} />
             </Pressable>
@@ -969,31 +973,56 @@ export default function CalendarScreen() {
                 : mode === 'day' ? Calendar1
                 : ListIcon;
               const active = viewMode === mode;
+              const label =
+                mode === 'month' ? t('calendar.views.month', 'Month')
+                : mode === 'week' ? t('calendar.views.week', 'Week')
+                : mode === 'day' ? t('calendar.views.day', 'Day')
+                : t('calendar.views.agenda', 'Agenda');
               return (
                 <Pressable
                   key={mode}
                   style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
                   onPress={() => changeViewMode(mode)}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected: active }}
                 >
                   <Icon size={16} color={active ? c.primary : c.textMuted} />
                 </Pressable>
               );
             })}
           </View>
-          <Pressable style={styles.fab} onPress={() => openCreate(selectedDate)}>
+          <Pressable
+            style={styles.fab}
+            onPress={() => openCreate(selectedDate)}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.events.new_event', 'New event')}
+          >
             <Plus size={18} color={c.primaryForeground} />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.nav}>
-        <Pressable onPress={goPrev} style={styles.navBtn} hitSlop={8}>
+        <Pressable
+          onPress={goPrev}
+          style={styles.navBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar.nav_prev', 'Previous')}
+        >
           <ChevronLeft size={20} color={c.text} />
         </Pressable>
         <Button variant="outline" size="sm" onPress={goToday}>
           {t('calendar.views.today', 'Today')}
         </Button>
-        <Pressable onPress={goNext} style={styles.navBtn} hitSlop={8}>
+        <Pressable
+          onPress={goNext}
+          style={styles.navBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar.nav_next', 'Next')}
+        >
           <ChevronRight size={20} color={c.text} />
         </Pressable>
       </View>
