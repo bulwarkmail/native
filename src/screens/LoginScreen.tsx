@@ -333,7 +333,8 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   if (step === 'choose') {
     // A leftover store error ("Session expired") is the reason some people
     // land back here, so it belongs on this screen.
-    const chooseNotice = notice ?? (storeError ? { title: storeError } : null);
+    // The store keeps the raw English message; show the translated copy.
+    const chooseNotice = notice ?? (storeError ? describeLoginError(storeError, { t }) : null);
     return (
       <>
         <LoginShell {...shellProps} centered showFooter>

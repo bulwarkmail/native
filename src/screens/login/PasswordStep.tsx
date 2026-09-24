@@ -55,7 +55,7 @@ export default function PasswordStep({
 
       <Input
         label={t('login.mobile.username_label', 'Email or username')}
-        placeholder="you@example.com"
+        placeholder={t('login.username_placeholder', 'user@example.com')}
         value={email}
         onChangeText={onChangeEmail}
         autoCapitalize="none"

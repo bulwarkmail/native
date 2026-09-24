@@ -84,6 +84,12 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // A saved session the server no longer accepts (the auth store's
+  // "Session expired" notice when the app lands back on sign-in).
+  if (lower.includes('session expired')) {
+    return { title: t('login.session_expired', 'Your session has expired. Please sign in again.') };
+  }
+
   if (lower.includes('certificate') || lower.includes('ssl') || lower.includes('tls')) {
     return {
       title: t('login.mobile.err_cert_title', "Couldn't verify {host}", { host }),

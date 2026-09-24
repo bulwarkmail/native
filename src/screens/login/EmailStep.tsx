@@ -49,7 +49,7 @@ export default function EmailStep({
       </View>
 
       <Input
-        placeholder="you@example.com"
+        placeholder={t('login.username_placeholder', 'user@example.com')}
         value={value}
         onChangeText={onChange}
         autoFocus

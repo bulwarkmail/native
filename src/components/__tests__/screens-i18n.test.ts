@@ -17,6 +17,17 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   // The link prompt shows an example URL.
   'screens/ComposeScreen.tsx': ['https://example.com'],
   'components/RichTextEditor.tsx': [],
+  'screens/LoginScreen.tsx': [],
+  // Product name and example host.
+  'screens/login/ChooseStep.tsx': ['Bulwark Mail'],
+  'screens/login/ConfirmStep.tsx': [],
+  'screens/login/EmailStep.tsx': [],
+  'screens/login/LoginNotice.tsx': [],
+  'screens/login/LoginShell.tsx': ['Bulwark Mobile v'],
+  'screens/login/OptionTile.tsx': [],
+  'screens/login/PasswordStep.tsx': [],
+  'screens/login/ServerStep.tsx': ['mail.example.com'],
+  'screens/login/SigningInStep.tsx': [],
   'screens/ScheduledScreen.tsx': [],
   'screens/EmailSourceScreen.tsx': [],
   'components/OfflineBanner.tsx': [],

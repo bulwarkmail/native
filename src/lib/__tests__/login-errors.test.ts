@@ -14,6 +14,11 @@ describe('describeLoginError', () => {
     expect(copy.detail).toMatch(/app password/i);
   });
 
+  it('explains the auth store\'s "Session expired" notice', () => {
+    expect(describeLoginError('Session expired').title).toBe('Your session has expired. Please sign in again.');
+    expect(describeLoginError('Session expired for this account').title).toBe('Your session has expired. Please sign in again.');
+  });
+
   it('names the host it could not reach', () => {
     const copy = describeLoginError(named('NetworkError', 'Network request failed'), {
       serverUrl: 'https://mail.example.com',

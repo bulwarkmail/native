@@ -13,6 +13,7 @@ import Constants from 'expo-constants';
 import { ArrowLeft, X } from 'lucide-react-native';
 import { spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useLocaleStore } from '../../stores/locale-store';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 
@@ -41,6 +42,7 @@ export default function LoginShell({
 }: LoginShellProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -50,14 +52,26 @@ export default function LoginShell({
       >
         <View style={styles.header}>
           {onBack ? (
-            <Pressable onPress={onBack} hitSlop={12} style={styles.headerButton}>
+            <Pressable
+              onPress={onBack}
+              hitSlop={12}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back', 'Back')}
+            >
               <ArrowLeft size={22} color={c.textSecondary} />
             </Pressable>
           ) : (
             <View style={styles.headerButton} />
           )}
           {onClose ? (
-            <Pressable onPress={onClose} hitSlop={12} style={styles.headerButton}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={12}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={22} color={c.textSecondary} />
             </Pressable>
           ) : (
