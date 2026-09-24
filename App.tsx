@@ -24,6 +24,7 @@ import {
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
+import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
 import EmailThreadScreen from './src/screens/EmailThreadScreen';
@@ -464,10 +465,16 @@ export default function App() {
     const unsubscribe = addTokenRefreshListener(() => {
       void doSetup();
     });
+    // UnifiedPush equivalent of an FCM token rotation: the distributor handed
+    // out a new endpoint, so re-register it with the relay.
+    const unsubscribeUp = addUnifiedPushEndpointListener(() => {
+      void doSetup();
+    });
 
     return () => {
       cancelled = true;
       unsubscribe();
+      unsubscribeUp();
     };
   }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId]);
 

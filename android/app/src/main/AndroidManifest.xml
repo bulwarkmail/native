@@ -59,6 +59,11 @@
       </intent-filter>
     </service>
     <service android:name=".BulwarkPushTaskService" android:exported="false"/>
+    <service android:name=".BulwarkUnifiedPushService" android:exported="false">
+      <intent-filter>
+        <action android:name="org.unifiedpush.android.connector.PUSH_EVENT"/>
+      </intent-filter>
+    </service>
     <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="bulwark_mail"/>
   </application>
 </manifest>

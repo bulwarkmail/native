@@ -9,6 +9,7 @@ class BulwarkFcmPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
         listOf(
             BulwarkFcmModule(reactContext),
+            BulwarkUnifiedPushModule(reactContext),
             BulwarkClientCertModule(reactContext),
         )
 

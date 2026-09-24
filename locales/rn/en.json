@@ -529,16 +529,24 @@
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
         "phase_account": "Account",
+        "phase_distributor": "UnifiedPush distributor",
         "phase_jmap": "Mail server subscription",
         "phase_permission": "Notification permission",
         "phase_platform": "Platform",
         "phase_relay": "Relay registration",
-        "phase_token": "Device token (Firebase)",
+        "phase_token": "Device token",
         "phase_verify": "Verification",
         "relay_desc_mobile": "The server that delivers your notifications. Defaults to the hosted Bulwark relay; change only if you self-host. Must use https.",
         "relay_invalid": "Enter a valid https:// URL",
         "setup_failed": "Setup failed",
-        "status_android_only": "Background notifications are available on Android only."
+        "status_android_only": "Background notifications are available on Android only.",
+        "transport_desc": "How notifications reach this device: Google’s Firebase Cloud Messaging, or a UnifiedPush distributor app (such as ntfy) for Google-free delivery.",
+        "transport_fcm": "Google (FCM)",
+        "transport_label": "Delivery method",
+        "transport_unifiedpush": "UnifiedPush",
+        "up_distributor_desc": "Several UnifiedPush distributor apps are installed - pick the one that should deliver notifications.",
+        "up_distributor_label": "Distributor",
+        "up_no_distributor": "No UnifiedPush distributor app is installed on this device. Install one (for example ntfy) and try again."
       }
     },
     "offline": {

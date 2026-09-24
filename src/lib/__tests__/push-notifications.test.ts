@@ -17,6 +17,19 @@ vi.mock('react-native', () => {
         getToken: vi.fn(async () => 'fcm-token-xyz'),
         deleteToken: vi.fn(async () => undefined),
       },
+      BulwarkUnifiedPush: {
+        getDistributors: vi.fn(async () => ['io.heckel.ntfy']),
+        getSavedDistributor: vi.fn(async () => 'io.heckel.ntfy'),
+        getAckDistributor: vi.fn(async () => 'io.heckel.ntfy'),
+        saveDistributor: vi.fn(async () => undefined),
+        register: vi.fn(async () => undefined),
+        unregister: vi.fn(async () => undefined),
+        getEndpoint: vi.fn(async () => ({
+          url: 'https://ntfy.sh/upAbCdEf?up=1',
+          p256dh: 'B'.repeat(87),
+          auth: 'a'.repeat(22),
+        })),
+      },
     },
     NativeEventEmitter,
     PermissionsAndroid: { RESULTS: { GRANTED: 'granted' }, request: vi.fn(async () => 'granted') },
@@ -270,6 +283,103 @@ describe('setupPushNotifications subscription shape', () => {
     const err = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((e) => e);
     expect(err.phase).toBe('token');
     expect(err.message).toContain('SERVICE_NOT_AVAILABLE');
+  });
+});
+
+describe('setupPushNotifications over UnifiedPush', () => {
+  type UpNative = {
+    getDistributors: ReturnType<typeof vi.fn>;
+    getSavedDistributor: ReturnType<typeof vi.fn>;
+    register: ReturnType<typeof vi.fn>;
+    getEndpoint: ReturnType<typeof vi.fn>;
+  };
+  const upNative = () => (NativeModules as { BulwarkUnifiedPush: UpNative }).BulwarkUnifiedPush;
+
+  // Like installFetch, plus the two UnifiedPush relay endpoints; captures the
+  // registration body so tests can assert on it.
+  function installUpFetch(): { body: () => Record<string, unknown> | null } {
+    let captured: Record<string, unknown> | null = null;
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/api/push/vapid-public-key')) {
+        return { ok: true, status: 200, json: async () => ({ publicKey: 'VAPID-PUB' }) } as Response;
+      }
+      if (url.includes('/api/push/register/unifiedpush')) {
+        captured = JSON.parse(String(init?.body ?? 'null')) as Record<string, unknown>;
+        return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+      }
+      if (url.includes('/api/push/verify/')) {
+        return { ok: true, status: 200, json: async () => ({ verificationCode: 'CODE' }) } as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+    return { body: () => captured };
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    await AsyncStorage.setItem('push:transport:v1', 'unifiedpush');
+    listMock.mockResolvedValue([]);
+  });
+
+  it('registers the distributor endpoint with the relay instead of an FCM token', async () => {
+    const relayReg = installUpFetch();
+
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result.verified).toBe(true);
+    const native = (NativeModules as { BulwarkFcm: { getToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
+    expect(native.getToken).not.toHaveBeenCalled();
+    // The relay's VAPID key is handed to the distributor at registration.
+    expect(upNative().register).toHaveBeenCalledWith('VAPID-PUB');
+    expect(relayReg.body()).toEqual({
+      subscriptionId: OUR_DCID,
+      endpoint: 'https://ntfy.sh/upAbCdEf?up=1',
+      keys: { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) },
+      accountLabel: undefined,
+    });
+    // The JMAP subscription flow is transport-independent.
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends keys: null for a legacy distributor without Web Push keys', async () => {
+    upNative().getEndpoint.mockResolvedValue({
+      url: 'https://legacy.example/up123456',
+      p256dh: null,
+      auth: null,
+    });
+    const relayReg = installUpFetch();
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(relayReg.body()).toMatchObject({
+      endpoint: 'https://legacy.example/up123456',
+      keys: null,
+    });
+  });
+
+  it('fails with the distributor phase when no distributor is installed', async () => {
+    upNative().getDistributors.mockResolvedValue([]);
+    installUpFetch();
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.phase).toBe('distributor');
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('requires an explicit choice when several distributors are installed', async () => {
+    upNative().getDistributors.mockResolvedValue(['io.heckel.ntfy', 'org.unifiedpush.distributor.sunup']);
+    upNative().getSavedDistributor.mockResolvedValue(null);
+    installUpFetch();
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((e) => e);
+
+    expect(err.phase).toBe('distributor');
+    expect(err.message).toContain('choose one');
   });
 });
 

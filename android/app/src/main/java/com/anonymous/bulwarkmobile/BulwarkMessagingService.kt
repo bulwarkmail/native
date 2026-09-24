@@ -31,7 +31,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         // receives JMAP push directly, so the fcm:message event below is
         // sufficient for it to refresh state.
         if (!isAppInForeground()) {
-            startHeadlessTask(data)
+            startHeadlessTask(applicationContext, data)
         }
 
         val params = Arguments.createMap().apply {
@@ -42,25 +42,27 @@ class BulwarkMessagingService : FirebaseMessagingService() {
         BulwarkFcmModule.emit("fcm:message", params)
     }
 
-    private fun isAppInForeground(): Boolean {
-        val info = ActivityManager.RunningAppProcessInfo()
-        ActivityManager.getMyMemoryState(info)
-        return info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-            info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
-    }
-
-    private fun startHeadlessTask(data: Map<String, String>) {
-        val intent = Intent(applicationContext, BulwarkPushTaskService::class.java)
-        val bundle = Bundle().apply {
-            for ((k, v) in data) putString(k, v)
-        }
-        intent.putExtras(bundle)
-        applicationContext.startService(intent)
-        HeadlessJsTaskService.acquireWakeLockNow(applicationContext)
-    }
-
     companion object {
         const val CHANNEL_ID = "bulwark_mail"
+
+        // Shared with BulwarkUnifiedPushService - a push arriving over either
+        // transport is dispatched the same way.
+        fun isAppInForeground(): Boolean {
+            val info = ActivityManager.RunningAppProcessInfo()
+            ActivityManager.getMyMemoryState(info)
+            return info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+                info.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+        }
+
+        fun startHeadlessTask(context: Context, data: Map<String, String>) {
+            val intent = Intent(context, BulwarkPushTaskService::class.java)
+            val bundle = Bundle().apply {
+                for ((k, v) in data) putString(k, v)
+            }
+            intent.putExtras(bundle)
+            context.startService(intent)
+            HeadlessJsTaskService.acquireWakeLockNow(context)
+        }
 
         fun ensureChannel(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

@@ -21,7 +21,7 @@ React Native (Expo SDK 54) client for [Bulwark Webmail](https://github.com/bulwa
 - Email list, threads, compose
 - Calendar (basic)
 - Contacts (basic)
-- Push notifications via FCM relay
+- Push notifications via the Bulwark relay - FCM by default, or [UnifiedPush](https://unifiedpush.org) (e.g. ntfy) for devices without Google Play services
 - In-app sideload updates from GitHub Releases
 
 ## What's missing or rough

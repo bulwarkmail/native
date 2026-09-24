@@ -29,9 +29,18 @@ import {
   setStoredRelayBaseUrl,
   setupPushNotifications,
   teardownPushNotificationsForAccount,
+  getStoredPushTransport,
+  setStoredPushTransport,
   type PushDevice,
   type PushSetupPhase,
+  type PushTransport,
 } from '../../lib/push-notifications';
+import {
+  getSavedUnifiedPushDistributor,
+  getUnifiedPushDistributors,
+  isUnifiedPushSupported,
+  saveUnifiedPushDistributor,
+} from '../../lib/unified-push';
 
 type PushStatus =
   | { kind: 'idle' }
@@ -48,7 +57,8 @@ type DevicesState =
 const PHASE_KEYS: Record<PushSetupPhase, { key: string; fallback: string }> = {
   platform: { key: 'settings.notifications.push.phase_platform', fallback: 'Platform' },
   permission: { key: 'settings.notifications.push.phase_permission', fallback: 'Notification permission' },
-  token: { key: 'settings.notifications.push.phase_token', fallback: 'Device token (Firebase)' },
+  token: { key: 'settings.notifications.push.phase_token', fallback: 'Device token' },
+  distributor: { key: 'settings.notifications.push.phase_distributor', fallback: 'UnifiedPush distributor' },
   account: { key: 'settings.notifications.push.phase_account', fallback: 'Account' },
   relay: { key: 'settings.notifications.push.phase_relay', fallback: 'Relay registration' },
   jmap: { key: 'settings.notifications.push.phase_jmap', fallback: 'Mail server subscription' },
@@ -71,7 +81,11 @@ export function NotificationSettings() {
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
 
   const supported = isPushSupported();
+  const upSupported = isUnifiedPushSupported();
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_BASE_URL);
+  const [transport, setTransport] = useState<PushTransport>('fcm');
+  const [distributors, setDistributors] = useState<string[]>([]);
+  const [savedDistributor, setSavedDistributor] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushStatus, setPushStatus] = useState<PushStatus>({ kind: 'idle' });
   const [confirmDisable, setConfirmDisable] = useState(false);
@@ -92,8 +106,16 @@ export function NotificationSettings() {
       if (stored) setRelayUrl(stored);
       setPushEnabled(enabled);
       setPushStatus(enabled ? { kind: 'enabled' } : { kind: 'idle' });
+      const storedTransport = await getStoredPushTransport();
+      const upDistributors = upSupported ? await getUnifiedPushDistributors() : [];
+      const upSaved = upSupported ? await getSavedUnifiedPushDistributor() : null;
+      if (cancelled) return;
+      setTransport(storedTransport ?? 'fcm');
+      setDistributors(upDistributors);
+      setSavedDistributor(upSaved);
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAccountId]);
 
   const trimmed = relayUrl.trim().replace(/\/+$/, '');
@@ -153,6 +175,27 @@ export function NotificationSettings() {
     } finally {
       void refreshDevices();
     }
+  };
+
+  // Switching the transport while push is on re-registers immediately so the
+  // relay record flips to the new delivery path; while off it just records
+  // the preference for the next enable.
+  const handleSelectTransport = async (next: PushTransport) => {
+    if (next === transport || busy) return;
+    setTransport(next);
+    await setStoredPushTransport(next);
+    if (pushEnabled) void handleEnable(true);
+  };
+
+  const handleSelectDistributor = async (distributor: string) => {
+    if (distributor === savedDistributor || busy) return;
+    setSavedDistributor(distributor);
+    try {
+      await saveUnifiedPushDistributor(distributor);
+    } catch {
+      return;
+    }
+    if (pushEnabled && transport === 'unifiedpush') void handleEnable(true);
   };
 
   const performDisable = async () => {
@@ -238,6 +281,68 @@ export function NotificationSettings() {
             />
           </View>
         </SettingItem>
+
+        {upSupported && (
+          <>
+            <SettingItem
+              label={t('settings.notifications.push.transport_label', 'Delivery method')}
+              description={t(
+                'settings.notifications.push.transport_desc',
+                'How notifications reach this device: Google’s Firebase Cloud Messaging, or a UnifiedPush distributor app (such as ntfy) for Google-free delivery.',
+              )}
+            >
+              <View style={styles.row}>
+                <Button
+                  variant={transport === 'fcm' ? 'default' : 'outline'}
+                  size="sm"
+                  onPress={() => void handleSelectTransport('fcm')}
+                  disabled={busy}
+                >
+                  {t('settings.notifications.push.transport_fcm', 'Google (FCM)')}
+                </Button>
+                <Button
+                  variant={transport === 'unifiedpush' ? 'default' : 'outline'}
+                  size="sm"
+                  onPress={() => void handleSelectTransport('unifiedpush')}
+                  disabled={busy}
+                >
+                  {t('settings.notifications.push.transport_unifiedpush', 'UnifiedPush')}
+                </Button>
+              </View>
+            </SettingItem>
+            {transport === 'unifiedpush' && distributors.length === 0 && (
+              <Text style={styles.errorText}>
+                {t(
+                  'settings.notifications.push.up_no_distributor',
+                  'No UnifiedPush distributor app is installed on this device. Install one (for example ntfy) and try again.',
+                )}
+              </Text>
+            )}
+            {transport === 'unifiedpush' && distributors.length > 1 && (
+              <SettingItem
+                label={t('settings.notifications.push.up_distributor_label', 'Distributor')}
+                description={t(
+                  'settings.notifications.push.up_distributor_desc',
+                  'Several UnifiedPush distributor apps are installed - pick the one that should deliver notifications.',
+                )}
+              >
+                <View style={styles.distributorList}>
+                  {distributors.map((d) => (
+                    <Button
+                      key={d}
+                      variant={d === savedDistributor ? 'default' : 'outline'}
+                      size="sm"
+                      onPress={() => void handleSelectDistributor(d)}
+                      disabled={busy}
+                    >
+                      {d}
+                    </Button>
+                  ))}
+                </View>
+              </SettingItem>
+            )}
+          </>
+        )}
 
         <SettingItem
           label={t('settings.notifications.push.relay_label', 'Push relay')}
@@ -450,6 +555,7 @@ function makeStyles(c: ThemePalette) {
       alignSelf: 'stretch',
     },
     urlInputInvalid: { borderColor: c.error },
+    distributorList: { flexDirection: 'column', alignItems: 'flex-end', gap: spacing.sm },
     errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: spacing.sm },
     errorText: { ...typography.caption, color: c.error },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },

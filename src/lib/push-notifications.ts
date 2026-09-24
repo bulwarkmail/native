@@ -11,11 +11,22 @@ import { getMailboxes, getSharedMailboxes } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
 import type { EmailPushConfig, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
+import {
+  getUnifiedPushDistributors,
+  isUnifiedPushSupported,
+  registerUnifiedPush,
+  unregisterUnifiedPush,
+  UnifiedPushRegisterError,
+  type UnifiedPushEndpoint,
+} from './unified-push';
 
 // Persist identifiers across launches so we reuse the same JMAP subscription
 // after app restarts. Each account gets its own deviceClientId so the hosted
 // relay can distinguish per-account pushes via the URL slot it forwards.
 const RELAY_BASE_URL_KEY = 'push:relayBaseUrl:v1';
+// Which transport carries pushes to this device: FCM (default) or a
+// UnifiedPush distributor. Device-wide, like the relay URL.
+const PUSH_TRANSPORT_KEY = 'push:transport:v1';
 const PUSH_ACCOUNT_IDS_KEY = 'push:accountIds:v1';
 // Local account id (username@host) → JMAP primary account id. The relay tags
 // every forwarded push with the JMAP account id it came from, which is the
@@ -276,9 +287,28 @@ function getNative(): BulwarkFcmNative | null {
   return (NativeModules as Record<string, unknown>).BulwarkFcm as BulwarkFcmNative | undefined ?? null;
 }
 
-/** True on platforms that have a push transport wired up (Android/FCM only). */
+/** True on platforms that have a push transport wired up (Android only). */
 export function isPushSupported(): boolean {
-  return getNative() !== null;
+  return getNative() !== null || isUnifiedPushSupported();
+}
+
+export type PushTransport = 'fcm' | 'unifiedpush';
+
+export async function getStoredPushTransport(): Promise<PushTransport | null> {
+  const raw = await AsyncStorage.getItem(PUSH_TRANSPORT_KEY);
+  return raw === 'fcm' || raw === 'unifiedpush' ? raw : null;
+}
+
+export async function setStoredPushTransport(transport: PushTransport | null): Promise<void> {
+  if (!transport) {
+    await AsyncStorage.removeItem(PUSH_TRANSPORT_KEY);
+  } else {
+    await AsyncStorage.setItem(PUSH_TRANSPORT_KEY, transport);
+  }
+}
+
+export async function getEffectivePushTransport(): Promise<PushTransport> {
+  return (await getStoredPushTransport()) ?? 'fcm';
 }
 
 export interface PushSetupParams {
@@ -303,6 +333,7 @@ export type PushSetupPhase =
   | 'platform'
   | 'permission'
   | 'token'
+  | 'distributor'
   | 'account'
   | 'relay'
   | 'jmap'
@@ -390,22 +421,61 @@ export async function getFcmToken(): Promise<string | null> {
 // Firebase rejects getToken() on devices without Google Play services (or
 // with a broken Firebase configuration), and briefly right after a
 // deleteToken(). Turn the raw native rejection into a phase-tagged error the
-// settings pane can explain.
+// settings pane can explain - and point de-Googled devices at UnifiedPush
+// when a distributor is around to take over.
 async function getFcmTokenOrThrow(native: BulwarkFcmNative): Promise<string> {
   let token: string | null = null;
   try {
     token = await native.getToken();
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
+    const distributors = await getUnifiedPushDistributors().catch(() => []);
+    const hint =
+      distributors.length > 0
+        ? ' This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.'
+        : '';
     throw new PushSetupError(
       'token',
-      `Firebase could not issue a device token (${detail}). Push needs Google Play services on this device.`,
+      `Firebase could not issue a device token (${detail}). Push over FCM needs Google Play services on this device.${hint}`,
     );
   }
   if (!token) {
     throw new PushSetupError('token', 'Firebase returned an empty device token.');
   }
   return token;
+}
+
+/**
+ * The relay's VAPID public key, when it has one. Passed to the UnifiedPush
+ * distributor at registration so distributors that pin the application server
+ * accept the relay's pushes; registration proceeds without it (503 on relays
+ * without configured VAPID keys - UnifiedPush delivery still works there).
+ */
+async function fetchRelayVapidPublicKey(relayBaseUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(buildRelayUrl(relayBaseUrl, '/api/push/vapid-public-key'));
+    if (!res.ok) return null;
+    const body = (await res.json()) as { publicKey?: unknown };
+    return typeof body.publicKey === 'string' && body.publicKey ? body.publicKey : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Acquire a UnifiedPush endpoint, mapping failures onto setup phases. */
+async function getUnifiedPushEndpointOrThrow(
+  relayBaseUrl: string,
+): Promise<UnifiedPushEndpoint> {
+  const vapid = await fetchRelayVapidPublicKey(relayBaseUrl);
+  try {
+    return await registerUnifiedPush({ vapid });
+  } catch (err) {
+    if (err instanceof UnifiedPushRegisterError) {
+      const phase = err.reason === 'failed' ? 'token' : 'distributor';
+      throw new PushSetupError(phase, err.message);
+    }
+    throw new PushSetupError('token', err instanceof Error ? err.message : String(err));
+  }
 }
 
 function buildRelayUrl(base: string, suffix: string): string {
@@ -442,6 +512,37 @@ async function registerWithRelay(params: {
       body: JSON.stringify({
         subscriptionId: params.subscriptionId,
         fcmToken: params.fcmToken,
+        accountLabel: params.accountLabel,
+      }),
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new PushSetupError('relay', `Could not reach the push relay at ${params.relayBaseUrl} (${detail}).`);
+  }
+  if (!res.ok) {
+    throw new PushSetupError('relay', `The push relay rejected the registration: ${await readRelayError(res)}`);
+  }
+}
+
+async function registerWithRelayUnifiedPush(params: {
+  relayBaseUrl: string;
+  subscriptionId: string;
+  endpoint: UnifiedPushEndpoint;
+  accountLabel?: string;
+}): Promise<void> {
+  const { endpoint } = params;
+  let res: Response;
+  try {
+    res = await fetch(buildRelayUrl(params.relayBaseUrl, '/api/push/register/unifiedpush'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        subscriptionId: params.subscriptionId,
+        endpoint: endpoint.url,
+        keys:
+          endpoint.p256dh && endpoint.auth
+            ? { p256dh: endpoint.p256dh, auth: endpoint.auth }
+            : null,
         accountLabel: params.accountLabel,
       }),
     });
@@ -570,9 +671,13 @@ function logPhase(phase: string, detail?: string): void {
 async function setupPushNotificationsInner(
   params: PushSetupParams,
 ): Promise<PushSetupResult> {
+  const transport = await getEffectivePushTransport();
   const native = getNative();
-  if (!native) {
+  if (transport === 'fcm' && !native) {
     throw new PushSetupError('platform', 'Push notifications are only available on Android.');
+  }
+  if (transport === 'unifiedpush' && !isUnifiedPushSupported()) {
+    throw new PushSetupError('platform', 'UnifiedPush is only available on Android.');
   }
 
   const relayBaseUrl = (params.relayBaseUrl ?? DEFAULT_RELAY_BASE_URL).replace(/\/+$/, '');
@@ -587,8 +692,14 @@ async function setupPushNotificationsInner(
     throw new PushSetupError('permission', 'Notification permission was not granted.');
   }
 
-  logPhase('token');
-  const fcmToken = await getFcmTokenOrThrow(native);
+  logPhase('token', transport);
+  let fcmToken: string | null = null;
+  let upEndpoint: UnifiedPushEndpoint | null = null;
+  if (transport === 'unifiedpush') {
+    upEndpoint = await getUnifiedPushEndpointOrThrow(relayBaseUrl);
+  } else {
+    fcmToken = await getFcmTokenOrThrow(native!);
+  }
 
   // setupPushNotifications operates on the currently-loaded jmapClient. We
   // need its username/serverUrl up-front so we can key per-account state.
@@ -606,15 +717,25 @@ async function setupPushNotificationsInner(
 
   // Register this account's device-client-id with the relay. Multiple
   // accounts on the same device end up as separate registrations sharing
-  // one fcmToken - the relay forwards each push individually and tags it
-  // with the JMAP account id so the headless task can route it.
+  // one FCM token / UnifiedPush endpoint - the relay forwards each push
+  // individually and tags it with the JMAP account id so the headless task
+  // can route it.
   logPhase('relay', relayBaseUrl);
-  await registerWithRelay({
-    relayBaseUrl,
-    subscriptionId: deviceClientId,
-    fcmToken,
-    accountLabel: params.accountLabel,
-  });
+  if (upEndpoint) {
+    await registerWithRelayUnifiedPush({
+      relayBaseUrl,
+      subscriptionId: deviceClientId,
+      endpoint: upEndpoint,
+      accountLabel: params.accountLabel,
+    });
+  } else {
+    await registerWithRelay({
+      relayBaseUrl,
+      subscriptionId: deviceClientId,
+      fcmToken: fcmToken!,
+      accountLabel: params.accountLabel,
+    });
+  }
 
   // Reuse the previous JMAP subscription when the server still has it, but
   // push the expiry forward so it doesn't time out before the next app start.
@@ -853,6 +974,9 @@ export async function teardownPushNotifications(): Promise<void> {
   if (native) {
     await native.deleteToken().catch(() => undefined);
   }
+  // Also release any UnifiedPush registration so the distributor stops
+  // holding a channel for us. No-op when never registered.
+  await unregisterUnifiedPush().catch(() => undefined);
 }
 
 export interface PushDevice {

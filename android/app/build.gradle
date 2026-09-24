@@ -171,6 +171,12 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")
 
+    // UnifiedPush - Google-free push via a user-chosen distributor app such
+    // as ntfy. Coexists with FCM; the user picks the transport in settings.
+    // NOTE: 3.3.2-3.3.4 are built with Kotlin 2.3 and break this project's
+    // Kotlin 2.1 toolchain; 3.3.5 went back to 2.2 which it can read.
+    implementation("org.unifiedpush.android:connector:3.3.5")
+
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
