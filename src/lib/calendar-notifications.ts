@@ -5,6 +5,7 @@ import { jmapClient } from '../api/jmap-client';
 import { useAuthStore } from '../stores/auth-store';
 import { loadEventsInRange, useCalendarStore } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useLocaleStore } from '../stores/locale-store';
 import { hasCalendarCapability } from './capabilities';
 import { onStateChangeType } from './state-change-bus';
 import { getUpcomingAlerts, type ScheduledAlert } from './calendar-alert-scheduler';
@@ -37,7 +38,8 @@ let permissionRequested = false;
 // Only the Calendar tab asks for notification permission; the launch-time
 // sync uses what was granted and never prompts out of the blue.
 let mayAskPermission = false;
-let channelReady = false;
+// The language the Android channel was last named in; null until created.
+let channelLocale: string | null = null;
 let rescheduleTimer: ReturnType<typeof setTimeout> | null = null;
 let rescheduling: Promise<void> | null = null;
 let queued = false;
@@ -64,11 +66,15 @@ async function ensurePermission(): Promise<boolean> {
   return permissionGranted;
 }
 
+// The channel's name shows in the system notification settings, so it is
+// (re)named in the app language; setting an existing channel only renames it.
 async function ensureChannel(): Promise<void> {
-  if (channelReady || Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android') return;
+  const { locale, t } = useLocaleStore.getState();
+  if (channelLocale === locale) return;
   try {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: 'Calendar reminders',
+      name: t('calendar.notifications.channel_name', 'Calendar reminders'),
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'default',
       vibrationPattern: [0, 250, 250, 250],
@@ -76,12 +82,19 @@ async function ensureChannel(): Promise<void> {
   } catch {
     // Channel creation failing only degrades to the default channel.
   }
-  channelReady = true;
+  channelLocale = locale;
 }
 
 function alertKeyOf(request: Notifications.NotificationRequest): string | null {
   const data = request.content.data as { tag?: string; key?: string } | undefined;
   return data?.tag === DATA_TAG && typeof data.key === 'string' ? data.key : null;
+}
+
+// A reminder worded in another language than the app's now. Ones scheduled
+// before reminders recorded their language count as current.
+function isStaleLanguage(request: Notifications.NotificationRequest, locale: string): boolean {
+  const data = request.content.data as { locale?: unknown } | undefined;
+  return typeof data?.locale === 'string' && data.locale !== locale;
 }
 
 /** Cancel every calendar reminder this app scheduled. */
@@ -98,10 +111,12 @@ export async function cancelAllCalendarNotifications(): Promise<void> {
   }
 }
 
-async function scheduleOne(alert: ScheduledAlert): Promise<void> {
+async function scheduleOne(alert: ScheduledAlert, locale: string): Promise<void> {
   const data: Record<string, unknown> = {
     tag: DATA_TAG,
     key: alert.key,
+    // The language the title and body are in, to reword it on a switch.
+    locale,
     eventId: alert.eventId,
     kind: alert.kind,
     // Enough to find the event again when the reminder is tapped.
@@ -204,11 +219,14 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
       if (!events) return;
       await ensureTasksLoaded();
       const { tasks, calendars } = useCalendarStore.getState();
+      // Reminders fire while the app is closed, so they are worded now, in
+      // the app language.
+      const { locale, t } = useLocaleStore.getState();
       const wanted = getUpcomingAlerts(events, tasks, calendars, {
         now,
         horizonMs: HORIZON_MS,
         limit: MAX_SCHEDULED,
-      });
+      }, t);
       const wantedByKey = new Map(wanted.map((a) => [a.key, a]));
 
       const pending = await Notifications.getAllScheduledNotificationsAsync();
@@ -216,7 +234,7 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
       for (const request of pending) {
         const key = alertKeyOf(request);
         if (key === null) continue;
-        if (wantedByKey.has(key)) {
+        if (wantedByKey.has(key) && !isStaleLanguage(request, locale)) {
           present.add(key);
         } else {
           await Notifications.cancelScheduledNotificationAsync(request.identifier);
@@ -225,7 +243,7 @@ export async function rescheduleCalendarNotifications(): Promise<void> {
       for (const alert of wanted) {
         if (present.has(alert.key)) continue;
         try {
-          await scheduleOne(alert);
+          await scheduleOne(alert, locale);
         } catch {
           // A single bad trigger must not block the rest.
         }
@@ -357,6 +375,10 @@ export function startCalendarNotificationSync(options?: { askPermission?: boolea
     if (state.session !== prev.session || state.isAuthenticated !== prev.isAuthenticated) {
       scheduleSoon();
     }
+  });
+  // Reword the pending reminders and rename the channel in the new language.
+  useLocaleStore.subscribe((state, prev) => {
+    if (state.locale !== prev.locale) scheduleSoon();
   });
   onStateChangeType('CalendarEvent', scheduleSoon);
   onStateChangeType('Calendar', scheduleSoon);

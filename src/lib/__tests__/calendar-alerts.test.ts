@@ -6,6 +6,7 @@ import {
   remindersToAlerts,
   formatReminder,
 } from '../calendar-alerts';
+import { translate, type MessageParams } from '../../i18n';
 
 describe('calendar-alerts', () => {
   describe('offsetToMinutesBefore', () => {
@@ -75,6 +76,15 @@ describe('calendar-alerts', () => {
       expect(formatReminder(60)).toBe('1 hour before');
       expect(formatReminder(60 * 24)).toBe('1 day before');
       expect(formatReminder(60 * 24 * 7)).toBe('1 week before');
+      expect(formatReminder(-1)).toBe('1 minute after');
+      expect(formatReminder(-30)).toBe('30 minutes after');
+    });
+
+    it('uses the catalog plurals of the app language', () => {
+      const de = (key: string, fallback?: string, params?: MessageParams) => translate('de', key, fallback, params);
+      expect(formatReminder(1, de)).toBe(translate('de', 'calendar.alerts.minutes_before', '', { count: 1 }));
+      expect(formatReminder(120, de)).toBe(translate('de', 'calendar.alerts.hours_before', '', { count: 2 }));
+      expect(formatReminder(120, de)).not.toContain('hours');
     });
   });
 });

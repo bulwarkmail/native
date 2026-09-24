@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPersistStorage } from './persist-storage';
+import { t } from './locale-store';
 import type { Calendar, CalendarEvent, CalendarRights, Participant, StateChange } from '../api/types';
 import { normalizeAllDayDuration } from '../lib/calendar-utils';
 import {
@@ -175,19 +176,22 @@ export interface ImportResult {
 export class ImportRefusedError extends Error {
   refused: RefusedImport[];
   constructor(refused: RefusedImport[]) {
-    const first = refused[0]?.reason ?? 'unknown error';
-    super(
-      refused.length === 1
-        ? `The event could not be imported: ${first}`
-        : `${refused.length} events could not be imported: ${first}`,
-    );
+    super(t(
+      'calendar.import.refused_message',
+      '{count, plural, =1 {The event could not be imported: {reason}} one {# event could not be imported: {reason}} other {# events could not be imported: {reason}}}',
+      { count: refused.length, reason: refused[0]?.reason ?? unknownReason() },
+    ));
     this.name = 'ImportRefusedError';
     this.refused = refused;
   }
 }
 
+function unknownReason(): string {
+  return t('identities.validation_errors.unknown_error', 'Unknown error');
+}
+
 function errorReason(err: unknown): string {
-  return err instanceof Error && err.message ? err.message : 'unknown error';
+  return err instanceof Error && err.message ? err.message : unknownReason();
 }
 
 export interface LoadedRange {

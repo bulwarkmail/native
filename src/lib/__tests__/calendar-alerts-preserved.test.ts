@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatReminder, preservedAlerts, remindersToAlerts } from '../calendar-alerts';
+import { formatMessage, type MessageParams } from '../../i18n/format';
 
 describe('preservedAlerts / remindersToAlerts', () => {
   const alerts = {
@@ -38,12 +39,13 @@ describe('formatReminder', () => {
     expect(formatReminder(60 * 24 * 14)).toBe('2 weeks before');
   });
 
-  it('uses a plain translated string and ignores ICU plural templates it cannot expand', () => {
-    const t = (key: string, fallback?: string) =>
-      key === 'calendar.alerts.hours_before' ? '# Stunden vorher'
-        : key === 'calendar.alerts.minutes_before' ? '{count, plural, one {# minute} other {# minutes}}'
-          : fallback ?? key;
+  it('hands the count to the translation, which picks the plural form', () => {
+    const t = (key: string, fallback?: string, params?: MessageParams) =>
+      key === 'calendar.alerts.hours_before'
+        ? formatMessage('{count, plural, one {# Stunde vorher} other {# Stunden vorher}}', params, 'de')
+        : formatMessage(fallback ?? key, params, 'en');
     expect(formatReminder(120, t)).toBe('2 Stunden vorher');
+    expect(formatReminder(60, t)).toBe('1 Stunde vorher');
     expect(formatReminder(5, t)).toBe('5 minutes before');
   });
 });

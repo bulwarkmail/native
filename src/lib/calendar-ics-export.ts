@@ -1,4 +1,5 @@
 import type { CalendarEvent } from '../api/types';
+import { t } from '../stores/locale-store';
 
 // Port of the webmail's lib/calendar-ics-export.ts: serialise one event as
 // an RFC 5545 VCALENDAR so it can be shared as a .ics file.
@@ -91,7 +92,8 @@ function pushAlerts(lines: string[], event: CalendarEvent): void {
     } else if (trigger['@type'] === 'AbsoluteTrigger' && trigger.when) {
       lines.push(`TRIGGER;VALUE=DATE-TIME:${stripDateSeparators(trigger.when)}`);
     }
-    lines.push(`DESCRIPTION:${escapeText(event.title || 'Reminder')}`);
+    // Other calendar apps show this when the alarm goes off.
+    lines.push(`DESCRIPTION:${escapeText(event.title || t('calendar.tasks.alert', 'Reminder'))}`);
     lines.push('END:VALARM');
   }
 }
@@ -204,7 +206,7 @@ export async function shareEventICS(event: CalendarEvent): Promise<void> {
   if (file.exists) file.delete();
   file.write(eventToICS(event));
   if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device');
+    throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   await Sharing.shareAsync(file.uri, { mimeType: 'text/calendar', UTI: 'com.apple.ical.ics' });
 }

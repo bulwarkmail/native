@@ -7,6 +7,7 @@
   },
   "calendar": {
     "alerts": {
+      "minutes_after": "{count, plural, one {# minute after} other {# minutes after}}",
       "unit_minutes_after": "minutes after"
     },
     "colors": {
@@ -41,6 +42,7 @@
       "picker_unavailable": "The file picker is not installed in this build. Rebuild the app to enable importing.",
       "picker_unavailable_title": "Import unavailable",
       "refused_count": "{count, plural, one {# event could not be imported:} other {# events could not be imported:}}",
+      "refused_message": "{count, plural, =1 {The event could not be imported: {reason}} one {# event could not be imported: {reason}} other {# events could not be imported: {reason}}}",
       "selected_count": "{count} selected"
     },
     "invitation": {
@@ -75,6 +77,12 @@
       "description_placeholder": "Optional",
       "edit_calendar": "Edit calendar",
       "new_calendar": "New calendar"
+    },
+    "notifications": {
+      "channel_name": "Calendar reminders",
+      "starts_in_days": "{count, plural, one {Starts in # day} other {Starts in # days}}",
+      "starts_in_hours": "{count, plural, one {Starts in # hour} other {Starts in # hours}}",
+      "starts_in_minutes": "{count, plural, one {Starts in # minute} other {Starts in # minutes}}"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",

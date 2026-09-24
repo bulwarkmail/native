@@ -146,6 +146,28 @@ describe('calendar reminders (B17)', () => {
     expect(N.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
+  it('words reminders in the app language and rewords them after a switch', async () => {
+    const { useLocaleStore } = await import('../../stores/locale-store');
+    await mod.rescheduleCalendarNotifications();
+
+    let request = vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0];
+    expect(request.content.body).toBe('Starts in 15 minutes');
+    expect(request.content.data).toMatchObject({ key: upcomingKey, locale: 'en' });
+    expect(vi.mocked(N.setNotificationChannelAsync).mock.calls[0][1]).toMatchObject({ name: 'Calendar reminders' });
+
+    // Pending in English; the app is now in German.
+    h.pending = [{ identifier: 'en-1', content: { data: { tag: TAG, key: upcomingKey, locale: 'en' } } }];
+    vi.mocked(N.scheduleNotificationAsync).mockClear();
+    useLocaleStore.setState({ locale: 'de' });
+    await mod.rescheduleCalendarNotifications();
+
+    expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledWith('en-1');
+    request = vi.mocked(N.scheduleNotificationAsync).mock.calls[0][0];
+    expect(request.content.data).toMatchObject({ key: upcomingKey, locale: 'de' });
+    // The channel is renamed too.
+    expect(N.setNotificationChannelAsync).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps the scheduled reminders when the upcoming events cannot be loaded', async () => {
     h.pending = [reminder('keep', upcomingKey)];
     h.loadEventsInRange.mockRejectedValue(new Error('offline'));
@@ -244,6 +266,7 @@ describe('tapping a calendar reminder', () => {
     expect(request.content.data).toEqual({
       tag: TAG,
       key: expect.any(String),
+      locale: 'en',
       eventId: 'acc-2:ev1:2026-09-24T10:00:00Z',
       kind: 'event',
       serverId: 'ev1',

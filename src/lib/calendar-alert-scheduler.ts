@@ -1,5 +1,6 @@
 import { parseISO } from 'date-fns';
 import type { Alert, Calendar, CalendarEvent } from '../api/types';
+import { formatMessage, type MessageParams } from '../i18n/format';
 import { getTaskDueDate, parseDuration } from './calendar-utils';
 import { seriesIdOf, stableOccurrenceKey } from './recurrence-instances';
 
@@ -113,29 +114,38 @@ export interface AlertWindow {
   limit?: number;
 }
 
-function formatWhen(fireTimeMs: number, startMs: number): string {
+/** Translates a reminder's texts; the notifications pass the app's t(). */
+export type AlertTranslate = (key: string, fallback: string, params?: MessageParams) => string;
+
+// Without a translator: the English text.
+const english: AlertTranslate = (_key, fallback, params) => formatMessage(fallback, params, 'en');
+
+/** "Starts in 15 minutes" for a reminder firing ahead of the start. */
+function startsIn(fireTimeMs: number, startMs: number, t: AlertTranslate): string {
   const diffMin = Math.round((startMs - fireTimeMs) / 60000);
-  if (diffMin <= 0) return 'now';
-  if (diffMin < 60) return `in ${diffMin} min`;
-  if (diffMin < 24 * 60) {
-    const h = Math.round(diffMin / 60);
-    return `in ${h} h`;
+  if (diffMin <= 0) return t('calendar.notifications.alert_now', 'Starting now');
+  if (diffMin < 60) {
+    return t('calendar.notifications.starts_in_minutes', '{count, plural, one {Starts in # minute} other {Starts in # minutes}}', { count: diffMin });
   }
-  const d = Math.round(diffMin / (24 * 60));
-  return `in ${d} d`;
+  if (diffMin < 24 * 60) {
+    return t('calendar.notifications.starts_in_hours', '{count, plural, one {Starts in # hour} other {Starts in # hours}}', { count: Math.round(diffMin / 60) });
+  }
+  return t('calendar.notifications.starts_in_days', '{count, plural, one {Starts in # day} other {Starts in # days}}', { count: Math.round(diffMin / (24 * 60)) });
 }
 
 /**
  * Every display alert of the given events/tasks that fires inside the
  * window, soonest first. Cancelled events, completed tasks and acknowledged
  * alerts are skipped (#572). Expanded occurrences carry their own utcStart,
- * so each occurrence yields its own alert.
+ * so each occurrence yields its own alert. Titles and bodies are in the
+ * language of `t` (English without it).
  */
 export function getUpcomingAlerts(
   events: CalendarEvent[],
   tasks: CalendarEvent[],
   calendars: Calendar[],
   window: AlertWindow,
+  t: AlertTranslate = english,
 ): ScheduledAlert[] {
   const out: ScheduledAlert[] = [];
   const until = window.now + window.horizonMs;
@@ -156,8 +166,8 @@ export function getUpcomingAlerts(
         eventId: event.id,
         alertId,
         fireTimeMs,
-        title: event.title || '(No title)',
-        body: Number.isNaN(startMs) ? '' : `Starts ${formatWhen(fireTimeMs, startMs)}`,
+        title: event.title || t('calendar.events.no_title', '(No title)'),
+        body: Number.isNaN(startMs) ? '' : startsIn(fireTimeMs, startMs, t),
         kind: 'event',
         serverId: seriesIdOf(event),
         accountId: event.accountId,
@@ -181,8 +191,8 @@ export function getUpcomingAlerts(
         eventId: task.id,
         alertId,
         fireTimeMs,
-        title: task.title || '(No title)',
-        body: 'Task due',
+        title: task.title || t('calendar.tasks.no_title', '(No title)'),
+        body: t('calendar.notifications.task_due', 'Task due'),
         kind: 'task',
         serverId: task.originalId ?? task.id,
         accountId: task.accountId,

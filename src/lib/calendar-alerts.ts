@@ -1,4 +1,5 @@
 import type { Alert, CalendarEvent } from '../api/types';
+import { formatMessage, type MessageParams } from '../i18n/format';
 
 // A reminder, expressed as "minutes before the event start". 0 means "at the
 // time of the event". Negative values (reminder *after* start) are preserved
@@ -106,37 +107,38 @@ export function remindersToAlerts(
   return alerts;
 }
 
-type Translate = (key: string, fallback?: string) => string;
-const plain: Translate = (_key, fallback) => fallback ?? _key;
+type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
+// Without a translator: the English text, plurals resolved.
+const plain: Translate = (key, fallback, params) => formatMessage(fallback ?? key, params, 'en');
 
-function plural(t: Translate, count: number, key: string, one: string, many: string): string {
-  // Locale files carry ICU plurals ("{count, plural, one {# minute before} other {# minutes before}}")
-  // that the mobile t() can't expand, so pick the English-style form and only
-  // use the translation when it is a plain string.
-  const raw = t(key, '');
-  if (raw && !raw.includes('{')) return raw.replace('#', String(count));
-  return (count === 1 ? one : many).replace('#', String(count));
-}
-
+/** "15 minutes before", "1 day before", "At time of event" in the language of `t`. */
 export function formatReminder(minutesBefore: number, t: Translate = plain): string {
+  const minutes = (count: number) =>
+    t('calendar.alerts.minutes_before', '{count, plural, one {# minute before} other {# minutes before}}', { count });
+  const hours = (count: number) =>
+    t('calendar.alerts.hours_before', '{count, plural, one {# hour before} other {# hours before}}', { count });
+  const days = (count: number) =>
+    t('calendar.alerts.days_before', '{count, plural, one {# day before} other {# days before}}', { count });
+  const weeks = (count: number) =>
+    t('calendar.alerts.weeks_before', '{count, plural, one {# week before} other {# weeks before}}', { count });
+
   if (minutesBefore === 0) return t('calendar.alerts.at_time', 'At time of event');
-  if (minutesBefore < 0) return `${Math.abs(minutesBefore)} ${t('calendar.alerts.unit_minutes_after', 'minutes after')}`;
-  if (minutesBefore < 60) {
-    return plural(t, minutesBefore, 'calendar.alerts.minutes_before', '# minute before', '# minutes before');
+  if (minutesBefore < 0) {
+    return t('calendar.alerts.minutes_after', '{count, plural, one {# minute after} other {# minutes after}}', {
+      count: Math.abs(minutesBefore),
+    });
   }
+  if (minutesBefore < 60) return minutes(minutesBefore);
   if (minutesBefore < 60 * 24) {
     const h = minutesBefore / 60;
-    if (Number.isInteger(h)) return plural(t, h, 'calendar.alerts.hours_before', '# hour before', '# hours before');
-    return plural(t, minutesBefore, 'calendar.alerts.minutes_before', '# minute before', '# minutes before');
+    return Number.isInteger(h) ? hours(h) : minutes(minutesBefore);
   }
   if (minutesBefore < 60 * 24 * 7) {
     const d = minutesBefore / (60 * 24);
-    if (Number.isInteger(d)) return plural(t, d, 'calendar.alerts.days_before', '# day before', '# days before');
-    return plural(t, Math.round(minutesBefore / 60), 'calendar.alerts.hours_before', '# hour before', '# hours before');
+    return Number.isInteger(d) ? days(d) : hours(Math.round(minutesBefore / 60));
   }
   const w = minutesBefore / (60 * 24 * 7);
-  if (Number.isInteger(w)) return plural(t, w, 'calendar.alerts.weeks_before', '# week before', '# weeks before');
-  return plural(t, Math.round(minutesBefore / (60 * 24)), 'calendar.alerts.days_before', '# day before', '# days before');
+  return Number.isInteger(w) ? weeks(w) : days(Math.round(minutesBefore / (60 * 24)));
 }
 
 export type ReminderUnit = 'minutes' | 'hours' | 'days' | 'weeks';

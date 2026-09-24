@@ -99,8 +99,26 @@ describe('getUpcomingAlerts', () => {
     const alerts = getUpcomingAlerts([event, cancelled, acknowledged], [task, doneTask], [], { now, horizonMs: 24 * HOUR });
     expect(alerts.map((a) => a.eventId + '/' + a.alertId)).toEqual(['ev1/a1', 'ev1/a2', 't1/x']);
     expect(alerts[0].key).toBe(`ev1:a1:${new Date('2026-03-01T08:45:00Z').getTime()}`);
-    expect(alerts[0].body).toBe('Starts in 15 min');
+    expect(alerts[0].body).toBe('Starts in 15 minutes');
     expect(alerts[2].kind).toBe('task');
+    expect(alerts[2].body).toBe('Task due');
+  });
+
+  it('words the reminders through the translator it is given', () => {
+    const untitled = { ...event, title: '' };
+    const task = {
+      ...untitled,
+      id: 't1',
+      due: '2026-03-01T12:00:00Z',
+      alerts: { x: { trigger: { '@type': 'OffsetTrigger' as const, offset: 'PT0S' }, action: 'display' as const } },
+    };
+    const t = (key: string, _fallback: string, params?: Record<string, unknown>) =>
+      params ? `${key}(${params.count})` : key;
+    const [first, , due] = getUpcomingAlerts([untitled], [task], [], { now, horizonMs: 24 * HOUR }, t);
+    expect(first.title).toBe('calendar.events.no_title');
+    expect(first.body).toBe('calendar.notifications.starts_in_minutes(15)');
+    expect(due.title).toBe('calendar.tasks.no_title');
+    expect(due.body).toBe('calendar.notifications.task_due');
   });
 
   it('drops alerts already in the past or beyond the horizon and honours the limit', () => {
