@@ -2,7 +2,9 @@ import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import {
+  DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef, useIsFocused,
+} from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Mail, Calendar, BookUser, HardDrive, Settings } from 'lucide-react-native';
@@ -147,6 +149,24 @@ async function openDeepLink(link: DeepLink): Promise<void> {
   });
 }
 
+// Toasts show on whichever stack screen is up, so a failure that lands after
+// leaving the screen it came from (a viewer action finishing on the Unified
+// Inbox or a contact) is still seen. Every screen carries a host, and only
+// the focused one renders, so a toast never shows twice (the screen below
+// the top one is kept live).
+function FocusedToastHost() {
+  return useIsFocused() ? <ToastHost /> : null;
+}
+
+function withToastHost({ children }: { children: React.ReactElement }) {
+  return (
+    <>
+      {children}
+      <FocusedToastHost />
+    </>
+  );
+}
+
 function LoadingScreen({ message }: { message: string }) {
   const c = useColors();
   return (
@@ -175,7 +195,6 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <UpdateBanner />
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
-      <ToastHost />
       <AppIconBadge />
     <Tab.Navigator
       screenOptions={{
@@ -706,7 +725,7 @@ export default function App() {
       <StatusBar style={statusBarStyle} />
       {/* On Fabric, native-stack keeps the screen right below the top live and
           freezes the ones further down. */}
-      <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }} screenLayout={withToastHost}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
         <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
         <Stack.Screen name="EmailSource" component={EmailSourceScreen} />

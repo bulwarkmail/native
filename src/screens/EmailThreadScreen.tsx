@@ -18,7 +18,6 @@ import { MoveSheet } from '../components/MoveSheet';
 import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
-import { ToastHost } from '../components/ToastHost';
 import { useEmailStore } from '../stores/email-store';
 import { toast } from '../stores/toast-store';
 import {
@@ -895,9 +894,6 @@ function EmailViewer({ route, navigation }: Props) {
       />
 
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
-
-      {/* The list's host sits under this screen; failures in here need their own. */}
-      <ToastHost />
     </SafeAreaView>
   );
 }

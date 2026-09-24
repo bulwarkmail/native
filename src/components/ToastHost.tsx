@@ -9,9 +9,10 @@ import { useToastStore, type Toast } from '../stores/toast-store';
 import { useLocaleStore } from '../stores/locale-store';
 
 /**
- * Renders the toast queue above the tab bar. One host is mounted in App.tsx;
- * the email undo snackbar keeps its own component because it is bound to
- * the email store's pending-undo entry.
+ * Renders the toast queue above the tab bar. App.tsx gives every stack screen
+ * one and only the focused screen's renders; the email undo snackbar keeps
+ * its own component because it is bound to the email store's pending-undo
+ * entry.
  */
 export function ToastHost(): React.ReactElement | null {
   const toasts = useToastStore((s) => s.toasts);
