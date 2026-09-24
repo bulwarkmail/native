@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.facebook.react.HeadlessJsTaskService
 import com.facebook.react.bridge.Arguments
@@ -44,6 +45,7 @@ class BulwarkMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL_ID = "bulwark_mail"
+        private const val TAG = "BulwarkPush"
 
         // Shared with BulwarkUnifiedPushService - a push arriving over either
         // transport is dispatched the same way.
@@ -60,8 +62,19 @@ class BulwarkMessagingService : FirebaseMessagingService() {
                 for ((k, v) in data) putString(k, v)
             }
             intent.putExtras(bundle)
-            context.startService(intent)
-            HeadlessJsTaskService.acquireWakeLockNow(context)
+            try {
+                context.startService(intent)
+                HeadlessJsTaskService.acquireWakeLockNow(context)
+            } catch (e: IllegalStateException) {
+                // Android 8+ refuses to start a service from the background
+                // unless the app is temporarily allowlisted. A high-priority
+                // FCM message does that; a downgraded one or a UnifiedPush
+                // message may not (BackgroundServiceStartNotAllowedException
+                // on 12+), and uncaught this crashed the app on every such
+                // push. Run the same task from a job instead.
+                Log.w(TAG, "Push service start refused in the background, using a job: ${e.message}")
+                BulwarkPushJobService.schedule(context, data)
+            }
         }
 
         fun ensureChannel(context: Context) {
