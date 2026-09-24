@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { findReplyIdentityId, findDraftIdentityId, resolveReplyFrom, findComposeIdentityId } from '../reply-identity';
+import {
+  findReplyIdentityId, findDraftIdentityId, resolveReplyFrom, findComposeIdentityId, resolveReplyIdentity,
+} from '../reply-identity';
 import type { Identity } from '../../api/types';
 
 const identities: Identity[] = [
@@ -20,6 +22,49 @@ describe('findReplyIdentityId', () => {
   it('returns null when nothing matches', () => {
     expect(findReplyIdentityId(identities, { to: [{ email: 'x@other.com' }] })).toBeNull();
     expect(findReplyIdentityId([], { to: [{ email: 'me@example.com' }] })).toBeNull();
+  });
+
+  // The shared-mailbox shape: the team address in To, the member's own
+  // address in Cc. Scanning identities rather than recipients would answer
+  // with whichever identity comes first.
+  const shared: Identity[] = [
+    { id: 'owner', name: 'Owner', email: 'owner@example.com', mayDelete: false },
+    { id: 'team', name: 'Team', email: 'team@example.com', mayDelete: false },
+  ];
+
+  it('prefers a To recipient over a Cc one, whatever order the identities are in', () => {
+    expect(findReplyIdentityId(shared, {
+      to: [{ email: 'team@example.com' }],
+      cc: [{ email: 'owner@example.com' }],
+    })).toBe('team');
+  });
+
+  it('ranks a Bcc identity below the address in To', () => {
+    const withArchive: Identity[] = [
+      { id: 'archive', name: 'Archive', email: 'archive@example.com', mayDelete: false },
+      { id: 'team', name: 'Team', email: 'team@example.com', mayDelete: false },
+    ];
+    expect(findReplyIdentityId(withArchive, {
+      to: [{ email: 'team@example.com' }],
+      bcc: [{ email: 'archive@example.com' }],
+    })).toBe('team');
+  });
+
+  it('takes an exact match anywhere over a sub-address match in To', () => {
+    expect(findReplyIdentityId(identities, {
+      to: [{ email: 'me+news@example.com' }],
+      cc: [{ email: 'info@example.com' }],
+    })).toBe('info');
+  });
+
+  // A `+tag` identifies who the address was given to, so a delivery to an
+  // unknown tag must not answer with a sibling's tag and disclose it.
+  it('prefers the untagged identity over a differently-tagged sibling', () => {
+    const tagged: Identity[] = [
+      { id: 'eu', name: 'Sales EU', email: 'sales+eu@example.com', mayDelete: false },
+      { id: 'sales', name: 'Sales', email: 'sales@example.com', mayDelete: false },
+    ];
+    expect(findReplyIdentityId(tagged, { to: [{ email: 'sales+us@example.com' }] })).toBe('sales');
   });
 });
 
@@ -52,5 +97,36 @@ describe('resolveReplyFrom', () => {
 
   it('returns null for foreign domains', () => {
     expect(resolveReplyFrom(identities, { to: [{ email: 'x@other.com' }] })).toBeNull();
+  });
+});
+
+describe('resolveReplyIdentity', () => {
+  const ownEmails = ['me@example.com', 'info@example.com'];
+
+  it('sends from the own identity the message was delivered to, without the setting', () => {
+    expect(resolveReplyIdentity(identities, {
+      from: { email: 'alice@other.com' },
+      to: [{ email: 'info@example.com' }],
+    }, { ownEmails, catchAll: false })).toEqual({ identityId: 'info' });
+  });
+
+  it('never rewrites From unless the catch-all is asked for', () => {
+    const original = { from: { email: 'alice@other.com' }, to: [{ email: 'sales@example.com', name: 'Sales' }] };
+    expect(resolveReplyIdentity(identities, original, { ownEmails, catchAll: false })).toBeNull();
+    expect(resolveReplyIdentity(identities, original, { ownEmails, catchAll: true })).toEqual({
+      identityId: 'main', overrideEmail: 'sales@example.com', overrideName: 'Sales',
+    });
+  });
+
+  it('replies to our own message from the identity that sent it', () => {
+    expect(resolveReplyIdentity(identities, {
+      from: { email: 'me@example.com', name: 'Alias' },
+      to: [{ email: 'bob@example.com' }],
+    }, { ownEmails, catchAll: true })).toEqual({ identityId: 'alias' });
+  });
+
+  it('returns null without identities or a match', () => {
+    expect(resolveReplyIdentity([], { to: [{ email: 'info@example.com' }] }, { ownEmails, catchAll: true })).toBeNull();
+    expect(resolveReplyIdentity(identities, { to: [{ email: 'x@other.com' }] }, { ownEmails, catchAll: true })).toBeNull();
   });
 });

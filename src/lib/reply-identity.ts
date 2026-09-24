@@ -2,6 +2,7 @@
 // webmail's lib/reply-identity.ts.
 
 import type { Identity } from '../api/types';
+import { isSelfSent } from './reply-recipients';
 
 interface ReplyRecipient {
   email?: string | null;
@@ -39,9 +40,14 @@ function domainOf(email: string): string {
 }
 
 /**
- * The identity that received the original message: exact address match over
- * to/cc/bcc first, then with `+tag` sub-addressing stripped. Null when none
- * matches (caller keeps the default identity).
+ * Pick the identity a message was delivered to, among the user's own. Never
+ * rewrites `From:` - it only chooses which configured address sends. Null
+ * when none matches (caller keeps the default identity).
+ *
+ * Recipients are scanned in To, then Cc, then Bcc order, exact matches before
+ * `+tag`-stripped ones. Scanning the identities instead would let the identity
+ * list's order decide, so `To: team@, Cc: you@` would reply as you rather
+ * than as the team - the exact case this is meant to fix.
  */
 export function findReplyIdentityId(
   identities: Identity[],
@@ -63,16 +69,38 @@ export function findReplyIdentityId(
     return null;
   }
 
-  const exactMatches = new Set(receivedAddresses.map(normalizeEmailAddress));
-  const exactIdentity = identities.find((identity) => exactMatches.has(normalizeEmailAddress(identity.email)));
-  if (exactIdentity) {
-    return exactIdentity.id;
+  const byExact = new Map<string, string>();
+  const byBase = new Map<string, { id: string; untagged: boolean }>();
+  for (const identity of identities) {
+    const exact = normalizeEmailAddress(identity.email);
+    const base = normalizeBaseEmailAddress(identity.email);
+    if (!byExact.has(exact)) {
+      byExact.set(exact, identity.id);
+    }
+    // For a `+tag` delivery with no exact identity, the untagged identity is the
+    // answer; a differently-tagged sibling would disclose an unrelated tag.
+    const untagged = exact === base;
+    const existing = byBase.get(base);
+    if (!existing || (untagged && !existing.untagged)) {
+      byBase.set(base, { id: identity.id, untagged });
+    }
   }
 
-  const baseMatches = new Set(receivedAddresses.map(normalizeBaseEmailAddress));
-  const baseIdentity = identities.find((identity) => baseMatches.has(normalizeBaseEmailAddress(identity.email)));
+  for (const address of receivedAddresses) {
+    const exactId = byExact.get(normalizeEmailAddress(address));
+    if (exactId) {
+      return exactId;
+    }
+  }
 
-  return baseIdentity?.id ?? null;
+  for (const address of receivedAddresses) {
+    const baseMatch = byBase.get(normalizeBaseEmailAddress(address));
+    if (baseMatch) {
+      return baseMatch.id;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -226,4 +254,43 @@ export function resolveReplyFrom(
   }
 
   return null;
+}
+
+/**
+ * Identity (and optional From override) for a reply or forward:
+ *   1. Replying to our own message in a thread (#703): the identity that sent
+ *      it. The recipients are the other party's, and on a catch-all domain
+ *      they would even become a From override.
+ *   2. The own identity the original was delivered to (`findReplyIdentityId`).
+ *      Unconditional: it only ever picks a configured address.
+ *   3. With `catchAll`, the same-domain catch-all From override of
+ *      `resolveReplyFrom`. Callers pass it only for an opted-in reply, never
+ *      a forward: a reply continues a thread whose participants know the
+ *      addressing, a forward shows the rewritten From to someone new.
+ * Null when nothing matches (the caller keeps its default identity).
+ */
+export function resolveReplyIdentity(
+  identities: Identity[],
+  original: ReplyRecipients & { from?: ReplyRecipient | null },
+  opts: { ownEmails: string[]; catchAll: boolean },
+): ReplyFromResolution | null {
+  if (identities.length === 0) {
+    return null;
+  }
+
+  const senderEmail = original.from?.email?.trim();
+  if (senderEmail && isSelfSent({ from: [{ email: senderEmail }] }, opts.ownEmails)) {
+    const senderId = findDraftIdentityId(identities, original.from);
+    if (senderId) {
+      return { identityId: senderId };
+    }
+  }
+
+  const recipients = { to: original.to, cc: original.cc, bcc: original.bcc };
+  const ownId = findReplyIdentityId(identities, recipients);
+  if (ownId) {
+    return { identityId: ownId };
+  }
+
+  return opts.catchAll ? resolveReplyFrom(identities, recipients) : null;
 }
