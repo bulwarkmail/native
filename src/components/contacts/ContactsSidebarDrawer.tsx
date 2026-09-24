@@ -17,6 +17,7 @@ import {
 import { getContactDisplayName, getContactKeywords, isGroup } from '../../lib/contact-utils';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useLocaleStore } from '../../stores/locale-store';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -37,6 +38,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
+  const t = useLocaleStore((s) => s.t);
   const selectedCategory = useContactsStore((s) => s.selectedCategory);
   const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
   const contacts = useContactsStore((s) => s.contacts);
@@ -140,7 +142,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       await renameKeyword(from, to);
       setRenaming(null);
     } catch (err) {
-      Alert.alert('Rename failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.category_rename_failed', 'Failed to rename category'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     } finally {
       setRenameBusy(false);
     }
@@ -152,7 +154,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       icon={<BookUser size={16} color={c.textSecondary} />}
       label={book.name}
       count={book.count}
-      badge={book.isDefault ? 'Default' : undefined}
+      badge={book.isDefault ? t('contacts.address_books.default', 'Default') : undefined}
       active={isSameCategory(selectedCategory, { type: 'addressBook', addressBookId: book.id })}
       onPress={() => select({ type: 'addressBook', addressBookId: book.id })}
     />
@@ -167,23 +169,29 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
         <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
           <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.headerClose} hitSlop={8}>
+            <Pressable
+              onPress={onClose}
+              style={styles.headerClose}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={20} color={c.text} />
             </Pressable>
-            <Text style={styles.headerTitle}>Contacts</Text>
+            <Text style={styles.headerTitle}>{t('contacts.title', 'Contacts')}</Text>
           </View>
 
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
             <CategoryRow
               icon={<Inbox size={16} color={c.primary} />}
-              label="All Contacts"
+              label={t('contacts.all_contacts', 'All Contacts')}
               count={totalCount}
               active={selectedCategory.type === 'all'}
               onPress={() => select({ type: 'all' })}
             />
 
             <SectionHeader
-              label="Address Books"
+              label={t('contacts.address_books.title', 'My Address Books')}
               expanded={expanded.books}
               onPress={() => setExpanded((e) => ({ ...e, books: !e.books }))}
             />
@@ -192,7 +200,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             {sharedSections.map((section) => (
               <React.Fragment key={section.accountId}>
                 <SectionHeader
-                  label={`Shared from ${section.name}`}
+                  label={t('contacts.address_books.shared_prefix', 'Shared: {name}', { name: section.name })}
                   icon={<Share2 size={12} color={c.textMuted} />}
                   expanded={expanded.shared}
                   onPress={() => setExpanded((e) => ({ ...e, shared: !e.shared }))}
@@ -202,7 +210,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             ))}
 
             <SectionHeader
-              label="Groups"
+              label={t('contacts.tabs.groups', 'Groups')}
               expanded={expanded.groups}
               onPress={() => setExpanded((e) => ({ ...e, groups: !e.groups }))}
             />
@@ -210,7 +218,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
               <CategoryRow
                 key={g.id}
                 icon={<Users size={16} color={c.textSecondary} />}
-                label={getContactDisplayName(g) || 'Group'}
+                label={getContactDisplayName(g) || t('contacts.group', 'Group')}
                 count={memberCountByGroup.get(g.id) ?? 0}
                 active={isSameCategory(selectedCategory, { type: 'group', groupId: g.id })}
                 onPress={() => select({ type: 'group', groupId: g.id })}
@@ -219,7 +227,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             {expanded.groups && (
               <CategoryRow
                 icon={<Plus size={16} color={c.primary} />}
-                label="New group"
+                label={t('contacts.groups.create', 'New Group')}
                 count={0}
                 active={false}
                 muted
@@ -235,7 +243,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             )}
 
             <SectionHeader
-              label="Tags"
+              label={t('sidebar.tags', 'Tags')}
               expanded={expanded.tags}
               onPress={() => setExpanded((e) => ({ ...e, tags: !e.tags }))}
             />
@@ -252,10 +260,22 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
                     onSubmitEditing={() => { void commitRename(); }}
                     placeholderTextColor={c.textMuted}
                   />
-                  <Pressable onPress={() => { void commitRename(); }} hitSlop={6} style={styles.renameBtn}>
+                  <Pressable
+                    onPress={() => { void commitRename(); }}
+                    hitSlop={6}
+                    style={styles.renameBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.save', 'Save')}
+                  >
                     <Check size={16} color={c.primary} />
                   </Pressable>
-                  <Pressable onPress={() => setRenaming(null)} hitSlop={6} style={styles.renameBtn}>
+                  <Pressable
+                    onPress={() => setRenaming(null)}
+                    hitSlop={6}
+                    style={styles.renameBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.cancel', 'Cancel')}
+                  >
                     <X size={16} color={c.textMuted} />
                   </Pressable>
                 </View>
@@ -277,14 +297,14 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
             {expanded.tags && (
               <CategoryRow
                 icon={<Tag size={16} color={c.textMuted} />}
-                label="No category"
+                label={t('contacts.no_category', 'No Category')}
                 count={uncategorizedCount}
                 active={selectedCategory.type === 'uncategorized'}
                 onPress={() => select({ type: 'uncategorized' })}
               />
             )}
             {expanded.tags && keywords.length > 0 && (
-              <Text style={styles.hint}>Long-press a tag to rename it</Text>
+              <Text style={styles.hint}>{t('contacts.rename_tag_hint_mobile', 'Long-press a tag to rename it')}</Text>
             )}
           </ScrollView>
         </SafeAreaView>
@@ -304,7 +324,12 @@ function SectionHeader({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
-    <Pressable style={styles.sectionHeader} onPress={onPress}>
+    <Pressable
+      style={styles.sectionHeader}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+    >
       {expanded ? (
         <ChevronDown size={14} color={c.textMuted} />
       ) : (
@@ -334,6 +359,8 @@ function CategoryRow({
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       style={({ pressed }) => [
         styles.row,
         active && styles.rowActive,

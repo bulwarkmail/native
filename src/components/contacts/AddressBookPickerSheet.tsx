@@ -8,6 +8,7 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../../theme/colors';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { useContactsStore } from '../../stores/contacts-store';
+import { useLocaleStore } from '../../stores/locale-store';
 
 interface Props {
   visible: boolean;
@@ -19,9 +20,10 @@ interface Props {
 }
 
 export default function AddressBookPickerSheet({
-  visible, onClose, currentBookId, onPick, title = 'Move to address book',
+  visible, onClose, currentBookId, onPick, title,
 }: Props) {
   const c = useColors();
+  const t = useLocaleStore((s) => s.t);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const addressBooks = useContactsStore((s) => s.addressBooks);
@@ -61,7 +63,7 @@ export default function AddressBookPickerSheet({
       setNewName('');
       onPick(book.id);
     } catch (err) {
-      Alert.alert('Could not create address book', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.create_failed', 'Failed to create address book'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     } finally {
       setBusy(false);
     }
@@ -83,8 +85,14 @@ export default function AddressBookPickerSheet({
             <View style={styles.handle} />
           </View>
           <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Text style={styles.title}>{title ?? t('contacts.bulk.move_to_address_book', 'Move to address book')}</Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>
@@ -100,6 +108,8 @@ export default function AddressBookPickerSheet({
                 key={book.id}
                 onPress={canTarget ? () => onPick(book.id) : undefined}
                 disabled={!canTarget}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canTarget, selected: isCurrent }}
                 style={({ pressed }) => [styles.row, pressed && canTarget && styles.rowPressed]}
               >
                 <BookUser size={16} color={canTarget ? c.textSecondary : c.textMuted} />
@@ -115,7 +125,7 @@ export default function AddressBookPickerSheet({
             <View style={styles.createRow}>
               <TextInput
                 style={styles.createInput}
-                placeholder="New address book name"
+                placeholder={t('contacts.address_books.name_label', 'Address book name')}
                 placeholderTextColor={c.textMuted}
                 value={newName}
                 onChangeText={setNewName}
@@ -128,6 +138,8 @@ export default function AddressBookPickerSheet({
                 disabled={!newName.trim() || busy}
                 style={[styles.createBtn, (!newName.trim() || busy) && styles.createBtnDisabled]}
                 hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.address_books.create', 'New address book')}
               >
                 <Check size={16} color={c.primaryForeground} />
               </Pressable>
@@ -136,9 +148,10 @@ export default function AddressBookPickerSheet({
             <Pressable
               onPress={() => setCreating(true)}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              accessibilityRole="button"
             >
               <Plus size={16} color={c.primary} />
-              <Text style={[styles.rowLabel, { color: c.primary }]}>New address book…</Text>
+              <Text style={[styles.rowLabel, { color: c.primary }]}>{t('contacts.address_books.create', 'New address book')}</Text>
             </Pressable>
           )}
         </ScrollView>

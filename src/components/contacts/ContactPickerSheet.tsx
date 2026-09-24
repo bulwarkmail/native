@@ -15,6 +15,7 @@ import ContactListRow from './ContactListRow';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useLocaleStore } from '../../stores/locale-store';
 
 interface Props {
   visible: boolean;
@@ -26,9 +27,10 @@ interface Props {
 }
 
 export default function ContactPickerSheet({
-  visible, onClose, onSelect, title = 'Add Contact', excludedIds, multi = true,
+  visible, onClose, onSelect, title, excludedIds, multi = true,
 }: Props) {
   const c = useColors();
+  const t = useLocaleStore((s) => s.t);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const allContacts = useContactsStore((s) => s.contacts);
   const sorted = React.useMemo(
@@ -104,18 +106,27 @@ export default function ContactPickerSheet({
               <View style={styles.handle} />
             </View>
             <View style={styles.header}>
-              <Pressable onPress={onClose} style={styles.headerBtn} hitSlop={8}>
+              <Pressable
+                onPress={onClose}
+                style={styles.headerBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close', 'Close')}
+              >
                 <X size={20} color={c.text} />
               </Pressable>
-              <Text style={styles.headerTitle}>{title}</Text>
+              <Text style={styles.headerTitle}>{title ?? t('contacts.picker.title', 'Add Contact')}</Text>
               {multi && (
                 <Pressable
                   onPress={confirm}
                   disabled={selected.size === 0}
                   style={[styles.doneBtn, selected.size === 0 && styles.doneBtnDisabled]}
                   hitSlop={8}
+                  accessibilityRole="button"
                 >
-                  <Text style={styles.doneLabel}>Add{selected.size > 0 ? ` (${selected.size})` : ''}</Text>
+                  <Text style={styles.doneLabel}>
+                    {t('contacts.picker.add_count', '{count, plural, =0 {Add} other {Add (#)}}', { count: selected.size })}
+                  </Text>
                 </Pressable>
               )}
             </View>
@@ -125,14 +136,19 @@ export default function ContactPickerSheet({
             <Search size={16} color={c.textMuted} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search contacts..."
+              placeholder={t('contacts.search_placeholder', 'Search contacts...')}
               placeholderTextColor={c.textMuted}
               value={query}
               onChangeText={setQuery}
               autoFocus
             />
             {query.length > 0 && (
-              <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <Pressable
+                onPress={() => setQuery('')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.clear_search', 'Clear search')}
+              >
                 <X size={16} color={c.textMuted} />
               </Pressable>
             )}
@@ -152,7 +168,7 @@ export default function ContactPickerSheet({
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={
               <View style={styles.empty}>
-                <Text style={styles.emptyText}>No contacts match</Text>
+                <Text style={styles.emptyText}>{t('contacts.empty_search', 'No contacts match your search')}</Text>
               </View>
             }
             keyboardShouldPersistTaps="handled"

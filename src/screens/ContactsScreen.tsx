@@ -41,6 +41,7 @@ import {
 import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
 import { useSettingsStore } from '../stores/settings-store';
+import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -75,22 +76,28 @@ function groupContacts(sorted: ContactCard[], byLastName: boolean): Section[] {
     .map((title) => ({ title, data: groups[title] }));
 }
 
-function categoryTitle(category: ContactCategory, books: Array<{ id: string; name: string }>, groups: ContactCard[]): string {
+function categoryTitle(
+  category: ContactCategory,
+  books: Array<{ id: string; name: string }>,
+  groups: ContactCard[],
+  t: TranslateFn,
+): string {
   switch (category.type) {
     case 'all':
-      return 'All Contacts';
+      return t('contacts.all_contacts', 'All Contacts');
     case 'addressBook':
-      return books.find((b) => b.id === category.addressBookId)?.name || 'Address Book';
+      return books.find((b) => b.id === category.addressBookId)?.name
+        || t('contacts.address_books.address_book', 'Address Book');
     case 'group': {
       const g = groups.find((c) => c.id === category.groupId);
-      return g ? getContactDisplayName(g) || 'Group' : 'Group';
+      return (g && getContactDisplayName(g)) || t('contacts.group', 'Group');
     }
     case 'keyword':
       return `#${category.keyword}`;
     case 'uncategorized':
-      return 'Uncategorized';
+      return t('contacts.no_category', 'No Category');
     default:
-      return 'Contacts';
+      return t('contacts.title', 'Contacts');
   }
 }
 
@@ -98,6 +105,7 @@ export default function ContactsScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
+  const t = useLocaleStore((s) => s.t);
   const contacts = useContactsStore((s) => s.contacts);
   const addressBooks = useContactsStore((s) => s.addressBooks);
   const loading = useContactsStore((s) => s.loading);
@@ -241,13 +249,13 @@ export default function ContactsScreen() {
         await Sharing.shareAsync(path, {
           mimeType: 'text/vcard',
           UTI: 'public.vcard',
-          dialogTitle: 'Export contacts',
+          dialogTitle: t('contacts.export.title', 'Export Contacts'),
         });
       } else {
         await Share.share({ message: vcf });
       }
     } catch (err) {
-      Alert.alert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.export.failed', 'Export failed'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -259,10 +267,16 @@ export default function ContactsScreen() {
   );
 
   const openNewMenu = () => {
-    Alert.alert('Create', undefined, [
-      { text: 'New contact', onPress: () => navigation.navigate('ContactForm', { addressBookId: createBookId }) },
-      { text: 'New group', onPress: () => navigation.navigate('ContactForm', { asGroup: true, addressBookId: createBookId }) },
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('common.create', 'Create'), undefined, [
+      {
+        text: t('contacts.create_new', 'New Contact'),
+        onPress: () => navigation.navigate('ContactForm', { addressBookId: createBookId }),
+      },
+      {
+        text: t('contacts.groups.create', 'New Group'),
+        onPress: () => navigation.navigate('ContactForm', { asGroup: true, addressBookId: createBookId }),
+      },
+      { text: t('common.cancel', 'Cancel'), style: 'cancel' },
     ]);
   };
 
@@ -280,7 +294,7 @@ export default function ContactsScreen() {
     try {
       await moveContactsToAddressBook(ids, bookId);
     } catch (err) {
-      Alert.alert('Move failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.move_failed', 'Failed to move contact'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -291,7 +305,7 @@ export default function ContactsScreen() {
     try {
       await addKeywordToContacts(ids, keyword);
     } catch (err) {
-      Alert.alert('Tagging failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.bulk.tag_failed', 'Tagging failed'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -305,14 +319,14 @@ export default function ContactsScreen() {
     [addressBooks, importTargetBookId],
   );
 
-  const title = categoryTitle(selectedCategory, addressBooks, groups);
+  const title = categoryTitle(selectedCategory, addressBooks, groups, t);
 
   // Top chip row: All / per-address-book / Groups
   const chips = React.useMemo(() => {
     const items: Array<{ key: string; label: string; category: ContactCategory; active: boolean }> = [
       {
         key: 'all',
-        label: 'All',
+        label: t('contacts.tabs.all', 'All'),
         category: { type: 'all' },
         active: selectedCategory.type === 'all',
       },
@@ -328,21 +342,21 @@ export default function ContactsScreen() {
     if (groups.length > 0) {
       items.push({
         key: 'groups-divider',
-        label: 'Groups',
+        label: t('contacts.tabs.groups', 'Groups'),
         category: { type: 'all' },
         active: false,
       });
       for (const g of groups) {
         items.push({
           key: `group:${g.id}`,
-          label: getContactDisplayName(g) || 'Group',
+          label: getContactDisplayName(g) || t('contacts.group', 'Group'),
           category: { type: 'group', groupId: g.id },
           active: selectedCategory.type === 'group' && selectedCategory.groupId === g.id,
         });
       }
     }
     return items;
-  }, [addressBooks, groups, selectedCategory]);
+  }, [addressBooks, groups, selectedCategory, t]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -351,15 +365,25 @@ export default function ContactsScreen() {
       <View style={styles.header}>
         {selectionMode ? (
           <>
-            <Pressable onPress={clearSelection} style={styles.headerIconBtn} hitSlop={8}>
+            <Pressable
+              onPress={clearSelection}
+              style={styles.headerIconBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.bulk.clear', 'Clear selection')}
+            >
               <X size={22} color={c.text} />
             </Pressable>
-            <Text style={styles.headerTitle}>{selection.size} selected</Text>
+            <Text style={styles.headerTitle}>
+              {t('contacts.bulk.selected', '{count, plural, one {1 selected} other {# selected}}', { count: selection.size })}
+            </Text>
             <View style={styles.headerActions}>
               <Pressable
                 onPress={selectAllVisible}
                 style={styles.headerIconBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.bulk.select_all', 'Select all')}
               >
                 <CheckSquare size={20} color={c.text} />
               </Pressable>
@@ -367,6 +391,8 @@ export default function ContactsScreen() {
                 onPress={() => { void exportSelected(); }}
                 style={styles.headerIconBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.bulk.export', 'Export')}
               >
                 <Share2 size={20} color={c.text} />
               </Pressable>
@@ -375,6 +401,8 @@ export default function ContactsScreen() {
                   onPress={() => setMoveSheetOpen(true)}
                   style={styles.headerIconBtn}
                   hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('contacts.bulk.move_to_address_book', 'Move to address book')}
                 >
                   <FolderInput size={20} color={c.text} />
                 </Pressable>
@@ -383,6 +411,8 @@ export default function ContactsScreen() {
                 onPress={() => setTagSheetOpen(true)}
                 style={styles.headerIconBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.bulk.add_tag', 'Add tag')}
               >
                 <Tag size={20} color={c.text} />
               </Pressable>
@@ -390,6 +420,8 @@ export default function ContactsScreen() {
                 onPress={() => setConfirmBulkDelete(true)}
                 style={styles.headerIconBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.bulk.delete', 'Delete')}
               >
                 <Trash2 size={20} color={c.error} />
               </Pressable>
@@ -397,7 +429,13 @@ export default function ContactsScreen() {
           </>
         ) : (
           <>
-            <Pressable onPress={() => setDrawerOpen(true)} style={styles.headerIconBtn} hitSlop={8}>
+            <Pressable
+              onPress={() => setDrawerOpen(true)}
+              style={styles.headerIconBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.open_categories', 'Open categories')}
+            >
               <Menu size={22} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
@@ -407,6 +445,8 @@ export default function ContactsScreen() {
                 onPress={() => setSearchActive((v) => !v)}
                 style={styles.headerIconBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.search', 'Search')}
               >
                 <Search size={20} color={c.text} />
               </Pressable>
@@ -414,6 +454,8 @@ export default function ContactsScreen() {
                 onPress={openImport}
                 style={styles.headerIconBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.import_vcard', 'Import vCard')}
               >
                 <Upload size={20} color={c.text} />
               </Pressable>
@@ -422,6 +464,9 @@ export default function ContactsScreen() {
                 onLongPress={openNewMenu}
                 style={styles.addBtn}
                 hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('contacts.create_new', 'New Contact')}
+                accessibilityHint={t('contacts.create_hint_mobile', 'Long-press to create a group instead')}
               >
                 <Plus size={18} color={c.primaryForeground} />
               </Pressable>
@@ -435,14 +480,19 @@ export default function ContactsScreen() {
           <Search size={16} color={c.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search contacts..."
+            placeholder={t('contacts.search_placeholder', 'Search contacts...')}
             placeholderTextColor={c.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoFocus
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+            <Pressable
+              onPress={() => setSearchQuery('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.clear_search', 'Clear search')}
+            >
               <X size={16} color={c.textMuted} />
             </Pressable>
           )}
@@ -464,6 +514,8 @@ export default function ContactsScreen() {
                 key={chip.key}
                 onPress={() => setSelectedCategory(chip.category)}
                 style={[styles.chip, chip.active && styles.chipActive]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: chip.active }}
               >
                 <Text style={[styles.chipText, chip.active && styles.chipTextActive]} numberOfLines={1}>
                   {chip.label}
@@ -521,10 +573,14 @@ export default function ContactsScreen() {
             <View style={styles.emptyState}>
               <UserCircle size={48} color={c.surfaceActive} />
               <Text style={styles.emptyTitle}>
-                {searchQuery ? 'No contacts found' : 'No contacts yet'}
+                {searchQuery
+                  ? t('contacts.empty_search', 'No contacts match your search')
+                  : t('contacts.empty_state_title', 'No contacts yet')}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {searchQuery ? 'Try a different search' : 'Tap + to add one'}
+                {searchQuery
+                  ? t('contacts.empty_search_hint', 'Try a different search term')
+                  : t('contacts.empty_state_hint_mobile', 'Tap + to add one')}
               </Text>
             </View>
           )
@@ -533,10 +589,14 @@ export default function ContactsScreen() {
 
       <Dialog
         visible={confirmBulkDelete}
-        title="Delete contacts"
-        message={`Delete ${selection.size} contact${selection.size === 1 ? '' : 's'}? This cannot be undone.`}
+        title={t('contacts.bulk.delete_confirm_title', 'Delete contacts')}
+        message={t(
+          'contacts.bulk.delete_confirm_mobile',
+          '{count, plural, one {Delete # contact? This cannot be undone.} other {Delete # contacts? This cannot be undone.}}',
+          { count: selection.size },
+        )}
         variant="destructive"
-        confirmText="Delete"
+        confirmText={t('contacts.bulk.delete', 'Delete')}
         onConfirm={doBulkDelete}
         onCancel={() => setConfirmBulkDelete(false)}
       />
@@ -566,7 +626,7 @@ export default function ContactsScreen() {
         visible={importTargetOpen}
         onClose={() => setImportTargetOpen(false)}
         currentBookId={importTargetBookId}
-        title="Import into address book"
+        title={t('contacts.import.into_address_book', 'Import into address book')}
         onPick={(id) => { setImportTargetBookId(id); setImportTargetOpen(false); }}
       />
     </SafeAreaView>

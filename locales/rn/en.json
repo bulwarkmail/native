@@ -110,12 +110,104 @@
     "address_books": {
       "confirm_delete_count": "{count, plural, =0 {Delete \"{name}\"? This cannot be undone.} one {Delete \"{name}\"? Its # contact will be deleted with it. This cannot be undone.} other {Delete \"{name}\"? Its # contacts will be deleted with it. This cannot be undone.}}"
     },
+    "all_contacts": "All Contacts",
+    "bulk": {
+      "add_tag": "Add tag",
+      "delete_confirm_mobile": "{count, plural, one {Delete # contact? This cannot be undone.} other {Delete # contacts? This cannot be undone.}}",
+      "move_to_address_book": "Move to address book",
+      "tag_failed": "Tagging failed"
+    },
+    "contact": "Contact",
+    "create_hint_mobile": "Long-press to create a group instead",
+    "detail": {
+      "add_to_group_failed": "Add to group failed",
+      "copy_name": "{name} (Copy)",
+      "created_on": "Created {date}",
+      "duplicate_failed": "Duplicate failed",
+      "duplicate_no_book": "Cannot duplicate without an address book.",
+      "no_address_book": "No address book",
+      "not_found": "Contact not found",
+      "open_dialer_failed": "Cannot open dialer",
+      "open_link_failed": "Cannot open link",
+      "open_maps_failed": "Cannot open maps",
+      "open_sms_failed": "Cannot open messaging app",
+      "share": "Share",
+      "share_title": "Share {name}",
+      "sms": "SMS",
+      "timezone_value": "Timezone: {zone}",
+      "updated_on": "Updated {date}"
+    },
+    "empty_state_hint_mobile": "Tap + to add one",
     "export": {
       "failed": "Export failed"
     },
+    "form": {
+      "add_nickname": "Add nickname",
+      "add_note": "Add note",
+      "add_organization": "Add organization",
+      "address_book_required": "Select an address book to save this contact.",
+      "categories_placeholder_mobile": "Add tag and press Enter",
+      "context_none": "None",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD",
+      "display_name_optional": "Display name (optional)",
+      "display_name_placeholder": "Custom display name",
+      "edit_named": "Edit {name}",
+      "gender_unspecified": "Unspecified",
+      "grammatical_gender": "Grammatical gender",
+      "invalid_date_message": "\"{date}\" is not a date. Use YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD.",
+      "invalid_date_title": "Invalid date",
+      "invalid_email_message": "\"{address}\" is not a valid email address.",
+      "invalid_email_title": "Invalid email",
+      "label": "Label",
+      "label_placeholder": "Work, Personal, …",
+      "missing_address_book": "Missing address book",
+      "missing_info": "Missing info",
+      "name_or_email_required": "Add a name or at least one email.",
+      "new_organization": "New organization",
+      "org_name_required": "Add the organization name.",
+      "photo_hint_mobile": "Tap photo to choose an image",
+      "photo_permission_message": "Grant photo library permission to pick a contact photo.",
+      "photo_permission_title": "Photo access needed",
+      "pick_date": "Pick a date",
+      "pronouns": "Pronouns",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "Group",
+    "groups": {
+      "add_member": "Add member",
+      "add_members": "Add members",
+      "add_members_failed": "Failed to add members",
+      "create_ellipsis": "New group…",
+      "delete_confirm_named": "Delete \"{name}\"? Members will not be deleted.",
+      "delete_failed": "Failed to delete group",
+      "email_all": "Email all",
+      "members_with_count": "Members ({count})",
+      "no_emails": "No emails",
+      "no_members_hint": "Tap \"Add member\" to get started",
+      "not_found": "Group not found",
+      "remove_member": "Remove member",
+      "remove_member_confirm": "Remove \"{name}\" from this group?",
+      "remove_member_failed": "Failed to remove member"
+    },
     "import": {
-      "into_address_book": "Import into address book"
-    }
+      "change_target": "Change",
+      "choose_file_mobile": "Choose a vCard file",
+      "failed_count": "{count, plural, one {# contact could not be imported.} other {# contacts could not be imported.}}",
+      "import_count": "Import {count}",
+      "into_address_book": "Import into address book",
+      "into_named": "Import into {name}",
+      "no_address_book": "Create an address book before importing contacts.",
+      "picker_failed": "Could not open the file picker"
+    },
+    "no_tags_hint": "No tags yet. Type one above.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Add} other {Add (#)}}",
+      "title": "Add Contact"
+    },
+    "rename_tag_hint_mobile": "Long-press a tag to rename it",
+    "tag_name_placeholder": "New tag name",
+    "unnamed": "Unnamed"
   },
   "context_menu": {
     "color_tag": "Tag",

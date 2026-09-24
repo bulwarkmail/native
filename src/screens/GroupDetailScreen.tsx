@@ -24,6 +24,7 @@ import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
 import Dialog from '../components/Dialog';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useLocaleStore } from '../stores/locale-store';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'GroupDetail'>;
 type Route = RouteProp<RootStackParamList, 'GroupDetail'>;
@@ -33,6 +34,7 @@ export default function GroupDetailScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const t = useLocaleStore((s) => s.t);
   const { groupId } = route.params;
 
   const allContacts = useContactsStore((s) => s.contacts);
@@ -57,25 +59,34 @@ export default function GroupDetailScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
             <ArrowLeft size={22} color={c.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Group</Text>
+          <Text style={styles.headerTitle}>{t('contacts.group', 'Group')}</Text>
         </View>
         <View style={styles.missing}>
-          <Text style={styles.missingText}>Group not found</Text>
+          <Text style={styles.missingText}>{t('contacts.groups.not_found', 'Group not found')}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const name = getContactDisplayName(group) || 'Group';
+  const name = getContactDisplayName(group) || t('contacts.group', 'Group');
 
   const emailAll = () => {
     // One recipient per address: two members sharing a mailbox are sent once.
     const recipients: EmailAddress[] = getGroupRecipients(group.id);
     if (recipients.length === 0) {
-      Alert.alert('No emails', 'None of the members have an email address.');
+      Alert.alert(
+        t('contacts.groups.no_emails', 'No emails'),
+        t('contacts.groups.no_member_emails', 'This group has no members with an email address.'),
+      );
       return;
     }
     navigation.navigate('Compose', { prefillTo: recipients });
@@ -85,7 +96,7 @@ export default function GroupDetailScreen() {
     try {
       await addContactsToGroup(group.id, ids);
     } catch (err) {
-      Alert.alert('Failed to add members', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.groups.add_members_failed', 'Failed to add members'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -102,7 +113,7 @@ export default function GroupDetailScreen() {
     try {
       await updateContact(group.id, { members: existing });
     } catch (err) {
-      Alert.alert('Failed to remove member', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.groups.remove_member_failed', 'Failed to remove member'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -112,7 +123,7 @@ export default function GroupDetailScreen() {
       await deleteContact(group.id);
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Delete failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.groups.delete_failed', 'Failed to delete group'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -121,7 +132,13 @@ export default function GroupDetailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{name}</Text>
@@ -130,10 +147,18 @@ export default function GroupDetailScreen() {
             onPress={() => navigation.navigate('ContactForm', { contactId: group.id, asGroup: true })}
             style={styles.headerBtn}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.groups.edit', 'Edit Group')}
           >
             <Edit2 size={18} color={c.text} />
           </Pressable>
-          <Pressable onPress={() => setConfirmDelete(true)} style={styles.headerBtn} hitSlop={8}>
+          <Pressable
+            onPress={() => setConfirmDelete(true)}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.groups.delete_confirm_title', 'Delete group')}
+          >
             <Trash2 size={18} color={c.error} />
           </Pressable>
         </View>
@@ -145,18 +170,22 @@ export default function GroupDetailScreen() {
         </View>
         <Text style={styles.heroName}>{name}</Text>
         <Text style={styles.heroSubtitle}>
-          {members.length} member{members.length === 1 ? '' : 's'}
+          {t('contacts.groups.member_count', '{count, plural, =0 {No members} one {1 member} other {# members}}', { count: members.length })}
         </Text>
       </View>
 
       <View style={styles.actionsRow}>
-        <Pressable onPress={emailAll} style={styles.actionBtn}>
+        <Pressable onPress={emailAll} style={styles.actionBtn} accessibilityRole="button">
           <Mail size={16} color={c.primary} />
-          <Text style={styles.actionLabel}>Email all</Text>
+          <Text style={styles.actionLabel}>{t('contacts.groups.email_all', 'Email all')}</Text>
         </Pressable>
-        <Pressable onPress={() => setPickerOpen(true)} style={[styles.actionBtn, styles.actionBtnPrimary]}>
+        <Pressable
+          onPress={() => setPickerOpen(true)}
+          style={[styles.actionBtn, styles.actionBtnPrimary]}
+          accessibilityRole="button"
+        >
           <Plus size={16} color={c.primaryForeground} />
-          <Text style={[styles.actionLabel, styles.actionLabelPrimary]}>Add member</Text>
+          <Text style={[styles.actionLabel, styles.actionLabelPrimary]}>{t('contacts.groups.add_member', 'Add member')}</Text>
         </Pressable>
       </View>
 
@@ -175,6 +204,8 @@ export default function GroupDetailScreen() {
               onPress={() => setRemovingMember(item)}
               style={styles.removeMemberBtn}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.groups.remove_member', 'Remove member')}
             >
               <UserMinus size={16} color={c.error} />
             </Pressable>
@@ -184,8 +215,8 @@ export default function GroupDetailScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Users size={40} color={c.surfaceActive} />
-            <Text style={styles.emptyTitle}>No members yet</Text>
-            <Text style={styles.emptySubtitle}>Tap "Add member" to get started</Text>
+            <Text style={styles.emptyTitle}>{t('contacts.groups.no_members', 'No members in this group')}</Text>
+            <Text style={styles.emptySubtitle}>{t('contacts.groups.no_members_hint', 'Tap "Add member" to get started')}</Text>
           </View>
         }
         contentContainerStyle={{ paddingBottom: spacing.xxxl }}
@@ -195,27 +226,29 @@ export default function GroupDetailScreen() {
         visible={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={(ids) => { void addMembers(ids); }}
-        title="Add members"
+        title={t('contacts.groups.add_members', 'Add members')}
         excludedIds={excludedIds}
         multi
       />
 
       <Dialog
         visible={confirmDelete}
-        title="Delete group"
-        message={`Delete "${name}"? Members will not be deleted.`}
+        title={t('contacts.groups.delete_confirm_title', 'Delete group')}
+        message={t('contacts.groups.delete_confirm_named', 'Delete "{name}"? Members will not be deleted.', { name })}
         variant="destructive"
-        confirmText="Delete"
+        confirmText={t('contacts.context_menu.delete', 'Delete')}
         onConfirm={doDelete}
         onCancel={() => setConfirmDelete(false)}
       />
 
       <Dialog
         visible={!!removingMember}
-        title="Remove member"
-        message={`Remove "${removingMember ? getContactDisplayName(removingMember) : ''}" from this group?`}
+        title={t('contacts.groups.remove_member', 'Remove member')}
+        message={t('contacts.groups.remove_member_confirm', 'Remove "{name}" from this group?', {
+          name: removingMember ? getContactDisplayName(removingMember) : '',
+        })}
         variant="destructive"
-        confirmText="Remove"
+        confirmText={t('common.remove', 'Remove')}
         onConfirm={() => {
           if (removingMember) void removeMember(removingMember);
           setRemovingMember(null);

@@ -31,6 +31,7 @@ import { ContactActivity } from '../components/contacts/ContactActivity';
 import AddressBookPickerSheet from '../components/contacts/AddressBookPickerSheet';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactDetail'>;
 type Route = RouteProp<RootStackParamList, 'ContactDetail'>;
@@ -40,6 +41,55 @@ function formatTimestamp(s: string | undefined): string {
   const d = new Date(s);
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// JSContact stores contexts, phone features and personal-info kinds as
+// English keys; show the known ones in the UI language.
+function contextLabel(key: string, t: TranslateFn): string {
+  switch (key) {
+    case 'work': return t('contacts.form.context_work', 'Work');
+    case 'private': return t('contacts.form.context_private', 'Private');
+    default: return key;
+  }
+}
+
+function phoneFeatureLabel(key: string, t: TranslateFn): string {
+  switch (key) {
+    case 'voice': return t('contacts.form.phone_voice', 'Voice');
+    case 'cell': return t('contacts.form.phone_cell', 'Mobile');
+    case 'fax': return t('contacts.form.phone_fax', 'Fax');
+    case 'pager': return t('contacts.form.phone_pager', 'Pager');
+    case 'video': return t('contacts.form.phone_video', 'Video');
+    case 'text': return t('contacts.form.phone_text', 'Text');
+    default: return key;
+  }
+}
+
+function personalInfoLabel(kind: string, level: string | undefined, t: TranslateFn): string {
+  const kindLabel =
+    kind === 'hobby' ? t('contacts.detail.personal_hobby', 'Hobby')
+    : kind === 'expertise' ? t('contacts.detail.personal_expertise', 'Expertise')
+    : kind === 'interest' ? t('contacts.detail.personal_interest', 'Interest')
+    : kind === 'other' ? t('contacts.detail.personal_other', 'Other')
+    : kind;
+  if (!level) return kindLabel;
+  const levelLabel =
+    level === 'low' ? t('contacts.form.level_low', 'Low')
+    : level === 'medium' ? t('contacts.form.level_medium', 'Medium')
+    : level === 'high' ? t('contacts.form.level_high', 'High')
+    : level;
+  return `${kindLabel} · ${levelLabel}`;
+}
+
+function genderLabel(value: string, t: TranslateFn): string {
+  switch (value) {
+    case 'masculine': return t('contacts.detail.gender_masculine', 'Male');
+    case 'feminine': return t('contacts.detail.gender_feminine', 'Female');
+    case 'other': return t('contacts.detail.gender_other', 'Other');
+    case 'none': return t('contacts.detail.gender_none', 'Not applicable');
+    case 'unknown': return t('contacts.detail.gender_unknown', 'Unknown');
+    default: return value;
+  }
 }
 
 function buildAddressLines(a: {
@@ -79,6 +129,7 @@ export default function ContactDetailScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const t = useLocaleStore((s) => s.t);
   const { contactId } = route.params;
 
   const contact = useContactsStore((s) => s.contacts.find((c) => c.id === contactId));
@@ -99,19 +150,27 @@ export default function ContactDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
             <ArrowLeft size={22} color={c.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Contact</Text>
+          <Text style={styles.headerTitle}>{t('contacts.contact', 'Contact')}</Text>
         </View>
         <View style={styles.missing}>
-          <Text style={styles.missingText}>Contact not found</Text>
+          <Text style={styles.missingText}>{t('contacts.detail.not_found', 'Contact not found')}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const name = getContactDisplayName(contact) || 'Unnamed';
+  const name = getContactDisplayName(contact) || t('contacts.unnamed', 'Unnamed');
+  const ctx = (contexts?: Record<string, boolean>): string[] =>
+    getActiveContexts(contexts).map((k) => contextLabel(k, t));
   const nickname = contact.nicknames
     ? Object.values(contact.nicknames).map((n) => n.name).filter(Boolean).join(', ')
     : getPrimaryNickname(contact);
@@ -168,20 +227,20 @@ export default function ContactDetailScreen() {
     });
   };
   const openTel = (num: string) => {
-    Linking.openURL(`tel:${num}`).catch(() => Alert.alert('Cannot open dialer'));
+    Linking.openURL(`tel:${num}`).catch(() => Alert.alert(t('contacts.detail.open_dialer_failed', 'Cannot open dialer')));
   };
   const openSms = (num: string) => {
-    Linking.openURL(`sms:${num}`).catch(() => Alert.alert('Cannot open messaging app'));
+    Linking.openURL(`sms:${num}`).catch(() => Alert.alert(t('contacts.detail.open_sms_failed', 'Cannot open messaging app')));
   };
   const openMap = (query: string) => {
     const encoded = encodeURIComponent(query);
-    Linking.openURL(`https://maps.google.com/?q=${encoded}`).catch(() => Alert.alert('Cannot open maps'));
+    Linking.openURL(`https://maps.google.com/?q=${encoded}`).catch(() => Alert.alert(t('contacts.detail.open_maps_failed', 'Cannot open maps')));
   };
   const openUrl = (uri: string) => {
     // Contact data is server-supplied: only hand http(s)/mailto/tel/sms/geo
     // schemes to the OS, never intent:// / file:// / third-party deep links.
     void openExternalUrl(uri).then((opened) => {
-      if (!opened) Alert.alert('Cannot open link');
+      if (!opened) Alert.alert(t('contacts.detail.open_link_failed', 'Cannot open link'));
     });
   };
   const shareValue = (value: string) => {
@@ -194,7 +253,7 @@ export default function ContactDetailScreen() {
       await deleteContact(contact.id);
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Delete failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.toast.error_delete', 'Failed to delete contact'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -208,7 +267,7 @@ export default function ContactDetailScreen() {
         await Sharing.shareAsync(path, {
           mimeType: 'text/vcard',
           UTI: 'public.vcard',
-          dialogTitle: `Share ${name}`,
+          dialogTitle: t('contacts.detail.share_title', 'Share {name}', { name }),
         });
       } else {
         await Share.share({ message: vcard });
@@ -221,7 +280,10 @@ export default function ContactDetailScreen() {
   const doDuplicate = async () => {
     const targetBookId = bookIds[0] || addressBooks[0]?.id;
     if (!targetBookId) {
-      Alert.alert('No address book', 'Cannot duplicate without an address book.');
+      Alert.alert(
+        t('contacts.detail.no_address_book', 'No address book'),
+        t('contacts.detail.duplicate_no_book', 'Cannot duplicate without an address book.'),
+      );
       return;
     }
     // Drop the UID too: the copy gets a fresh one on create, otherwise group
@@ -239,8 +301,7 @@ export default function ContactDetailScreen() {
       ...rest
     } = contact;
     const baseName =
-      (rest.name?.full ? `${rest.name.full} (Copy)` : null) ??
-      `${name} (Copy)`;
+      t('contacts.detail.copy_name', '{name} (Copy)', { name: rest.name?.full || name });
     const draft: Partial<ContactCard> = {
       ...rest,
       name: rest.name ? { ...rest.name, full: baseName } : { full: baseName },
@@ -249,7 +310,7 @@ export default function ContactDetailScreen() {
       const created = await createContact(draft, targetBookId);
       navigation.replace('ContactDetail', { contactId: created.id });
     } catch (err) {
-      Alert.alert('Duplicate failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.detail.duplicate_failed', 'Duplicate failed'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
@@ -258,35 +319,35 @@ export default function ContactDetailScreen() {
     try {
       await moveContactsToAddressBook([contact.id], bookId);
     } catch (err) {
-      Alert.alert('Move failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(t('contacts.address_books.move_failed', 'Failed to move contact'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
     }
   };
 
   const moreItems = [
     !isGroup(contact) && {
       icon: <Copy size={16} color={c.text} />,
-      label: 'Duplicate',
+      label: t('contacts.context_menu.duplicate', 'Duplicate'),
       onPress: () => { void doDuplicate(); },
     },
     !isGroup(contact) && {
       icon: <Users size={16} color={c.text} />,
-      label: 'Add to group',
+      label: t('contacts.context_menu.add_to_group', 'Add to group'),
       onPress: () => setGroupPickerOpen(true),
     },
     addressBooks.length > 0 && {
       icon: <FolderInput size={16} color={c.text} />,
-      label: 'Move to address book',
+      label: t('contacts.bulk.move_to_address_book', 'Move to address book'),
       onPress: () => setMoveOpen(true),
     },
     {
       icon: <Share2 size={16} color={c.text} />,
-      label: 'Export vCard',
+      label: t('contacts.context_menu.export_vcard', 'Export as vCard'),
       onPress: () => { void doShare(); },
     },
     { separator: true },
     {
       icon: <Trash2 size={16} color={c.error} />,
-      label: 'Delete',
+      label: t('contacts.context_menu.delete', 'Delete'),
       onPress: () => setConfirmDelete(true),
       destructive: true,
     },
@@ -295,17 +356,25 @@ export default function ContactDetailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {isGroup(contact) ? 'Group' : 'Contact'}
+          {isGroup(contact) ? t('contacts.group', 'Group') : t('contacts.contact', 'Contact')}
         </Text>
         <View style={styles.headerActions}>
           <Pressable
             onPress={() => navigation.navigate('ContactForm', { contactId: contact.id })}
             style={styles.headerBtn}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.context_menu.edit', 'Edit')}
           >
             <Pencil size={18} color={c.text} />
           </Pressable>
@@ -313,6 +382,8 @@ export default function ContactDetailScreen() {
             onPress={() => setMoreOpen(true)}
             style={styles.headerBtn}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.detail.more_actions', 'More actions')}
           >
             <MoreHorizontal size={20} color={c.text} />
           </Pressable>
@@ -332,33 +403,35 @@ export default function ContactDetailScreen() {
             <Text style={styles.heroSubtitle}>{subtitleParts.join(' · ')}</Text>
           )}
           {isGroup(contact) && groupMembersCount > 0 && (
-            <Text style={styles.heroSubtitle}>{groupMembersCount} member{groupMembersCount === 1 ? '' : 's'}</Text>
+            <Text style={styles.heroSubtitle}>
+              {t('contacts.groups.member_count', '{count, plural, =0 {No members} one {1 member} other {# members}}', { count: groupMembersCount })}
+            </Text>
           )}
         </View>
 
         <View style={styles.quickActions}>
           {!!email && (
-            <QuickAction icon={<Mail size={18} color={c.primary} />} label="Email" onPress={() => openMail(email)} />
+            <QuickAction icon={<Mail size={18} color={c.primary} />} label={t('contacts.detail.email_default_label', 'Email')} onPress={() => openMail(email)} />
           )}
           {!!phone && (
-            <QuickAction icon={<Phone size={18} color={c.primary} />} label="Call" onPress={() => openTel(phone)} />
+            <QuickAction icon={<Phone size={18} color={c.primary} />} label={t('contacts.context_menu.call', 'Call')} onPress={() => openTel(phone)} />
           )}
           {!!phone && (
-            <QuickAction icon={<MessageSquare size={18} color={c.primary} />} label="SMS" onPress={() => openSms(phone)} />
+            <QuickAction icon={<MessageSquare size={18} color={c.primary} />} label={t('contacts.detail.sms', 'SMS')} onPress={() => openSms(phone)} />
           )}
           <QuickAction
             icon={<Share2 size={18} color={c.primary} />}
-            label="Share"
+            label={t('contacts.detail.share', 'Share')}
             onPress={() => { void doShare(); }}
           />
         </View>
 
         <View style={styles.sections}>
           {emails.length > 0 && (
-            <Section icon={<Mail size={16} color={c.textMuted} />} label="Email">
+            <Section icon={<Mail size={16} color={c.textMuted} />} label={t('contacts.detail.email_default_label', 'Email')}>
               {emails.map((e) => {
                 const ctxLabel =
-                  e.label || getActiveContexts(e.contexts).join(', ') || undefined;
+                  e.label || ctx(e.contexts).join(', ') || undefined;
                 return (
                   <DetailRow key={e.id} label={ctxLabel}>
                     <Pressable
@@ -374,12 +447,12 @@ export default function ContactDetailScreen() {
           )}
 
           {phones.length > 0 && (
-            <Section icon={<Phone size={16} color={c.textMuted} />} label="Phone">
+            <Section icon={<Phone size={16} color={c.textMuted} />} label={t('contacts.detail.phone_default_label', 'Phone')}>
               {phones.map((p) => {
-                const features = getPhoneFeatures(p.features);
+                const features = getPhoneFeatures(p.features).map((f) => phoneFeatureLabel(f, t));
                 const labelParts = [
                   p.label,
-                  ...getActiveContexts(p.contexts),
+                  ...ctx(p.contexts),
                   ...features,
                 ].filter(Boolean) as string[];
                 return (
@@ -392,7 +465,13 @@ export default function ContactDetailScreen() {
                       >
                         <Text style={styles.linkText}>{p.number}</Text>
                       </Pressable>
-                      <Pressable onPress={() => openSms(p.number)} hitSlop={6} style={styles.smallActionBtn}>
+                      <Pressable
+                        onPress={() => openSms(p.number)}
+                        hitSlop={6}
+                        style={styles.smallActionBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('contacts.detail.sms', 'SMS')}
+                      >
                         <MessageSquare size={14} color={c.textMuted} />
                       </Pressable>
                     </View>
@@ -403,11 +482,11 @@ export default function ContactDetailScreen() {
           )}
 
           {addresses.length > 0 && (
-            <Section icon={<MapPin size={16} color={c.textMuted} />} label="Address">
+            <Section icon={<MapPin size={16} color={c.textMuted} />} label={t('contacts.detail.address_default_label', 'Address')}>
               {addresses.map((a) => {
                 const lines = buildAddressLines(a);
                 const formatted = formatAddress(a);
-                const ctxLabel = getActiveContexts(a.contexts).join(', ') || a.label;
+                const ctxLabel = ctx(a.contexts).join(', ') || a.label;
                 return (
                   <DetailRow key={a.id} label={ctxLabel}>
                     <Pressable
@@ -418,7 +497,7 @@ export default function ContactDetailScreen() {
                         <Text key={idx} style={styles.value}>{line}</Text>
                       ))}
                       {!!a.timeZone && (
-                        <Text style={styles.subValue}>Timezone: {a.timeZone}</Text>
+                        <Text style={styles.subValue}>{t('contacts.detail.timezone_value', 'Timezone: {zone}', { zone: a.timeZone })}</Text>
                       )}
                     </Pressable>
                   </DetailRow>
@@ -428,9 +507,9 @@ export default function ContactDetailScreen() {
           )}
 
           {(orgs.length > 0 || titles.length > 0) && (
-            <Section icon={<Building size={16} color={c.textMuted} />} label="Work">
+            <Section icon={<Building size={16} color={c.textMuted} />} label={t('contacts.detail.section_work', 'Work')}>
               {orgs.map((o, i) => (
-                <DetailRow key={`org-${i}`} label="Organization">
+                <DetailRow key={`org-${i}`} label={t('contacts.detail.organization_label', 'Organization')}>
                   <Text style={styles.value}>{o.name}</Text>
                   {!!(o.units && o.units.length) && (
                     <Text style={styles.subValue}>{o.units.map((u) => u.name).join(', ')}</Text>
@@ -438,12 +517,12 @@ export default function ContactDetailScreen() {
                 </DetailRow>
               ))}
               {jobTitles.map((tl, i) => (
-                <DetailRow key={`title-${i}`} label="Title">
+                <DetailRow key={`title-${i}`} label={t('contacts.detail.title_label', 'Title')}>
                   <Text style={styles.value}>{tl.name}</Text>
                 </DetailRow>
               ))}
               {roles.map((r, i) => (
-                <DetailRow key={`role-${i}`} label="Role">
+                <DetailRow key={`role-${i}`} label={t('contacts.detail.role_label', 'Role')}>
                   <Text style={styles.value}>{r.name}</Text>
                 </DetailRow>
               ))}
@@ -451,20 +530,20 @@ export default function ContactDetailScreen() {
           )}
 
           {(anniversaries.length > 0 || hasGender || preferredLanguages.length > 0 || personalInfo.length > 0) && (
-            <Section icon={<Heart size={16} color={c.textMuted} />} label="Personal">
+            <Section icon={<Heart size={16} color={c.textMuted} />} label={t('contacts.detail.section_personal', 'Personal')}>
               {anniversaries.map((a, i) => {
                 const years = getCompletedYears(a.date);
                 const suffix =
                   years !== null
                     ? a.kind === 'birth'
-                      ? ` · age ${years}`
-                      : ` · ${years} year${years === 1 ? '' : 's'} ago`
+                      ? ` · ${t('contacts.detail.age_years', '{count, plural, one {1 year old} other {# years old}}', { count: years })}`
+                      : ` · ${t('contacts.detail.years_since', '{count, plural, one {1 year} other {# years}}', { count: years })}`
                     : '';
                 const kindLabel =
-                  a.kind === 'birth' ? 'Birthday'
-                  : a.kind === 'wedding' ? 'Anniversary'
-                  : a.kind === 'death' ? 'Memorial'
-                  : 'Other';
+                  a.kind === 'birth' ? t('contacts.detail.anniversary_birth', 'Birthday')
+                  : a.kind === 'wedding' ? t('contacts.detail.anniversary_wedding', 'Anniversary')
+                  : a.kind === 'death' ? t('contacts.form.anniversary_death', 'Memorial')
+                  : t('contacts.detail.anniversary_other', 'Other');
                 return (
                   <DetailRow key={`an-${i}`} label={kindLabel} icon={<Cake size={14} color={c.textMuted} />}>
                     <Text style={styles.value}>{formatPartialDate(a.date)}{suffix}</Text>
@@ -472,16 +551,19 @@ export default function ContactDetailScreen() {
                 );
               })}
               {hasGender && (
-                <DetailRow label="Gender" icon={<UserCircle size={14} color={c.textMuted} />}>
+                <DetailRow label={t('contacts.detail.gender', 'Gender')} icon={<UserCircle size={14} color={c.textMuted} />}>
                   <Text style={styles.value}>
-                    {[contact.speakToAs?.grammaticalGender, firstPronoun].filter(Boolean).join(' · ')}
+                    {[
+                      contact.speakToAs?.grammaticalGender && genderLabel(contact.speakToAs.grammaticalGender, t),
+                      firstPronoun,
+                    ].filter(Boolean).join(' · ')}
                   </Text>
                 </DetailRow>
               )}
               {preferredLanguages.map((lang, i) => (
                 <DetailRow
                   key={`lg-${i}`}
-                  label={getActiveContexts(lang.contexts).join(', ') || 'Language'}
+                  label={ctx(lang.contexts).join(', ') || t('contacts.detail.language_label', 'Language')}
                   icon={<Languages size={14} color={c.textMuted} />}
                 >
                   <Text style={styles.value}>{lang.language}</Text>
@@ -490,7 +572,7 @@ export default function ContactDetailScreen() {
               {personalInfo.map((pi, i) => (
                 <DetailRow
                   key={`pi-${i}`}
-                  label={`${pi.kind}${pi.level ? ` · ${pi.level}` : ''}`}
+                  label={personalInfoLabel(pi.kind, pi.level, t)}
                 >
                   <Text style={styles.value}>{pi.value}</Text>
                 </DetailRow>
@@ -499,9 +581,9 @@ export default function ContactDetailScreen() {
           )}
 
           {onlineServices.length > 0 && (
-            <Section icon={<Globe size={16} color={c.textMuted} />} label="Online">
+            <Section icon={<Globe size={16} color={c.textMuted} />} label={t('contacts.detail.online_service_default_label', 'Online')}>
               {onlineServices.map((s, i) => {
-                const labelParts = [s.service, ...getActiveContexts(s.contexts)].filter(Boolean) as string[];
+                const labelParts = [s.service, ...ctx(s.contexts)].filter(Boolean) as string[];
                 const isHttp = typeof s.uri === 'string' && /^https?:/i.test(s.uri);
                 return (
                   <DetailRow key={`os-${i}`} label={labelParts.join(' · ') || undefined}>
@@ -518,23 +600,23 @@ export default function ContactDetailScreen() {
           )}
 
           {(contact.calendarUri || contact.schedulingUri || contact.freeBusyUri) && (
-            <Section icon={<CalendarIcon size={16} color={c.textMuted} />} label="Calendar">
+            <Section icon={<CalendarIcon size={16} color={c.textMuted} />} label={t('contacts.detail.calendar', 'Calendar')}>
               {!!contact.calendarUri && (
-                <DetailRow label="Calendar">
+                <DetailRow label={t('contacts.detail.calendar_uri', 'Calendar URL')}>
                   <Pressable onPress={() => openUrl(contact.calendarUri!)}>
                     <Text style={[styles.value, styles.linkText]} numberOfLines={2}>{contact.calendarUri}</Text>
                   </Pressable>
                 </DetailRow>
               )}
               {!!contact.schedulingUri && (
-                <DetailRow label="Scheduling">
+                <DetailRow label={t('contacts.detail.scheduling_uri', 'Scheduling URL')}>
                   <Pressable onPress={() => openUrl(contact.schedulingUri!)}>
                     <Text style={[styles.value, styles.linkText]} numberOfLines={2}>{contact.schedulingUri}</Text>
                   </Pressable>
                 </DetailRow>
               )}
               {!!contact.freeBusyUri && (
-                <DetailRow label="Free/Busy">
+                <DetailRow label={t('contacts.detail.freebusy_uri', 'Free/Busy URL')}>
                   <Pressable onPress={() => openUrl(contact.freeBusyUri!)}>
                     <Text style={[styles.value, styles.linkText]} numberOfLines={2}>{contact.freeBusyUri}</Text>
                   </Pressable>
@@ -544,9 +626,9 @@ export default function ContactDetailScreen() {
           )}
 
           {cryptoKeys.length > 0 && (
-            <Section icon={<KeyRound size={16} color={c.textMuted} />} label="Crypto Keys">
+            <Section icon={<KeyRound size={16} color={c.textMuted} />} label={t('contacts.detail.crypto_keys', 'Crypto Keys')}>
               {cryptoKeys.map((key, i) => (
-                <DetailRow key={`ck-${i}`} label={getActiveContexts(key.contexts).join(', ') || key.mediaType}>
+                <DetailRow key={`ck-${i}`} label={ctx(key.contexts).join(', ') || key.mediaType}>
                   <Text style={styles.value} numberOfLines={3}>
                     {typeof key.uri === 'string'
                       ? `${key.uri.substring(0, 80)}${key.uri.length > 80 ? '…' : ''}`
@@ -558,7 +640,7 @@ export default function ContactDetailScreen() {
           )}
 
           {keywords.length > 0 && (
-            <Section icon={<Tag size={16} color={c.textMuted} />} label="Categories">
+            <Section icon={<Tag size={16} color={c.textMuted} />} label={t('contacts.detail.categories', 'Categories')}>
               <View style={styles.chipRow}>
                 {keywords.map((kw) => (
                   <View key={kw} style={styles.tagChip}>
@@ -570,7 +652,7 @@ export default function ContactDetailScreen() {
           )}
 
           {relatedTo.length > 0 && (
-            <Section icon={<Users size={16} color={c.textMuted} />} label="Related">
+            <Section icon={<Users size={16} color={c.textMuted} />} label={t('contacts.detail.related_default_label', 'Related')}>
               {relatedTo.map(([uri, rel], i) => {
                 const relType = rel.relation
                   ? Object.keys(rel.relation).find((k) => rel.relation![k])
@@ -585,7 +667,7 @@ export default function ContactDetailScreen() {
           )}
 
           {memberContacts.length > 0 && (
-            <Section icon={<Users size={16} color={c.textMuted} />} label={`Members (${memberContacts.length})`}>
+            <Section icon={<Users size={16} color={c.textMuted} />} label={t('contacts.groups.members_with_count', 'Members ({count})', { count: memberContacts.length })}>
               {memberContacts.map((m) => (
                 <Pressable
                   key={m.id}
@@ -609,7 +691,7 @@ export default function ContactDetailScreen() {
           )}
 
           {notes.length > 0 && (
-            <Section icon={<FileText size={16} color={c.textMuted} />} label="Notes">
+            <Section icon={<FileText size={16} color={c.textMuted} />} label={t('contacts.detail.notes', 'Notes')}>
               {notes.map((n, i) => (
                 <Text key={i} style={styles.noteText}>{n.note}</Text>
               ))}
@@ -617,7 +699,7 @@ export default function ContactDetailScreen() {
           )}
 
           {bookNames.length > 0 && (
-            <Section icon={<BookUser size={16} color={c.textMuted} />} label="Address Book">
+            <Section icon={<BookUser size={16} color={c.textMuted} />} label={t('contacts.address_books.address_book', 'Address Book')}>
               {bookNames.map((n, i) => (
                 <Text key={i} style={styles.value}>{n}</Text>
               ))}
@@ -630,9 +712,9 @@ export default function ContactDetailScreen() {
             <View style={styles.metaRow}>
               <Clock size={12} color={c.textMuted} />
               <Text style={styles.metaText}>
-                {contact.created && `Created ${formatTimestamp(contact.created)}`}
+                {contact.created && t('contacts.detail.created_on', 'Created {date}', { date: formatTimestamp(contact.created) })}
                 {contact.created && contact.updated && '   ·   '}
-                {contact.updated && `Updated ${formatTimestamp(contact.updated)}`}
+                {contact.updated && t('contacts.detail.updated_on', 'Updated {date}', { date: formatTimestamp(contact.updated) })}
               </Text>
             </View>
           )}
@@ -641,10 +723,12 @@ export default function ContactDetailScreen() {
 
       <Dialog
         visible={confirmDelete}
-        title={isGroup(contact) ? 'Delete group' : 'Delete contact'}
-        message={`Are you sure you want to delete "${name}"? This cannot be undone.`}
+        title={isGroup(contact)
+          ? t('contacts.groups.delete_confirm_title', 'Delete group')
+          : t('contacts.delete_confirm_title', 'Delete contact')}
+        message={t('files.delete_confirm_message', 'Are you sure you want to delete "{name}"? This cannot be undone.', { name })}
         variant="destructive"
-        confirmText="Delete"
+        confirmText={t('contacts.context_menu.delete', 'Delete')}
         onConfirm={doDelete}
         onCancel={() => setConfirmDelete(false)}
       />
@@ -661,17 +745,17 @@ export default function ContactDetailScreen() {
         items={[
           ...groups.map((g): MoreItem => ({
             icon: <Users size={16} color={c.text} />,
-            label: getContactDisplayName(g) || 'Group',
+            label: getContactDisplayName(g) || t('contacts.group', 'Group'),
             onPress: () => {
               addContactsToGroup(g.id, [contact.id]).catch((err) => {
-                Alert.alert('Add to group failed', err instanceof Error ? err.message : 'Unknown error');
+                Alert.alert(t('contacts.detail.add_to_group_failed', 'Add to group failed'), err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'));
               });
             },
           })),
           ...(groups.length > 0 ? [{ separator: true } as MoreItem] : []),
           {
             icon: <Plus size={16} color={c.text} />,
-            label: 'New group…',
+            label: t('contacts.groups.create_ellipsis', 'New group…'),
             onPress: () => navigation.navigate('ContactForm', { asGroup: true, memberIds: [contact.id] }),
           },
         ]}
@@ -736,6 +820,7 @@ function MoreActionsSheet({
               <Pressable
                 key={i}
                 onPress={() => { it.onPress(); onClose(); }}
+                accessibilityRole="button"
                 style={({ pressed }) => [styles.sheetItem, pressed && styles.sheetItemPressed]}
               >
                 {it.icon}
@@ -803,7 +888,11 @@ function QuickAction({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
-    <Pressable style={({ pressed }) => [styles.quickBtn, pressed && styles.quickBtnPressed]} onPress={onPress}>
+    <Pressable
+      style={({ pressed }) => [styles.quickBtn, pressed && styles.quickBtnPressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
       <View style={styles.quickIcon}>{icon}</View>
       <Text style={styles.quickLabel}>{label}</Text>
     </Pressable>

@@ -9,7 +9,7 @@ import type { RootStackParamList } from '../../navigation/types';
 import { getEmails, queryEmailsByFilter } from '../../api/email';
 import { getEvents, queryEvents } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
-import { useLocaleStore } from '../../stores/locale-store';
+import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
 import { getEventColor } from '../../lib/calendar-utils';
 import { hasCalendarCapability } from '../../lib/capabilities';
 import { singleLine } from '../../lib/single-line';
@@ -76,8 +76,8 @@ function formatRelativeDate(iso: string): string {
   }
 }
 
-function formatEventTime(event: CalendarEvent): string {
-  if (event.showWithoutTime) return 'All day';
+function formatEventTime(event: CalendarEvent, t: TranslateFn): string {
+  if (event.showWithoutTime) return t('contacts.activity.all_day', 'All day');
   try {
     return format(parseISO(event.start), 'HH:mm');
   } catch {
@@ -189,7 +189,7 @@ export function ContactActivity({ contact }: Props) {
           <View style={styles.sectionIcon}>
             <MailIcon size={16} color={c.textMuted} />
           </View>
-          <Text style={styles.sectionLabel}>Recent emails</Text>
+          <Text style={styles.sectionLabel}>{t('contacts.activity.recent_emails', 'Recent Emails')}</Text>
         </View>
         <View style={styles.sectionBody}>
           {emailsLoading ? (
@@ -197,13 +197,13 @@ export function ContactActivity({ contact }: Props) {
               <ActivityIndicator size="small" color={c.primary} />
             </View>
           ) : emailsError ? (
-            <Text style={styles.emptyText}>Couldn't load emails.</Text>
+            <Text style={styles.emptyText}>{t('contacts.activity.load_failed', 'Failed to load')}</Text>
           ) : !emails || emails.length === 0 ? (
-            <Text style={styles.emptyText}>No emails with this contact.</Text>
+            <Text style={styles.emptyText}>{t('contacts.activity.no_emails', 'No recent emails')}</Text>
           ) : (
             emails.map((email) => {
               const sender = email.from?.[0];
-              const senderName = sender?.name || sender?.email || 'Unknown';
+              const senderName = sender?.name || sender?.email || t('contacts.activity.unknown_sender', 'Unknown sender');
               const preview = singleLine(email.preview);
               return (
                 <Pressable
@@ -243,21 +243,21 @@ export function ContactActivity({ contact }: Props) {
           <View style={styles.sectionIcon}>
             <CalendarDays size={16} color={c.textMuted} />
           </View>
-          <Text style={styles.sectionLabel}>Upcoming events</Text>
+          <Text style={styles.sectionLabel}>{t('contacts.activity.upcoming_events', 'Upcoming Events')}</Text>
         </View>
         <View style={styles.sectionBody}>
           {upcomingEvents.length === 0 ? (
-            <Text style={styles.emptyText}>No upcoming events.</Text>
+            <Text style={styles.emptyText}>{t('contacts.activity.no_events', 'No upcoming events')}</Text>
           ) : (
             upcomingEvents.map((event) => (
               <View key={event.id} style={styles.eventRow}>
                 <View
                   style={[styles.eventDot, { backgroundColor: getEventColor(event, calendars) }]}
                 />
-                <Text style={styles.eventTime}>{formatEventTime(event)}</Text>
+                <Text style={styles.eventTime}>{formatEventTime(event, t)}</Text>
                 <View style={styles.eventInfo}>
                   <Text style={styles.eventTitle} numberOfLines={1}>
-                    {event.title || '(no title)'}
+                    {event.title || t('contacts.activity.no_title', '(No title)')}
                   </Text>
                   <Text style={styles.eventDate}>
                     {formatRelativeDate(event.utcStart || event.start)}

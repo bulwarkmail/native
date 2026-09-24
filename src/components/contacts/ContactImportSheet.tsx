@@ -12,6 +12,7 @@ import { useContactsStore } from '../../stores/contacts-store';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useLocaleStore } from '../../stores/locale-store';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen upload flow).
@@ -43,6 +44,7 @@ export default function ContactImportSheet({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
+  const t = useLocaleStore((s) => s.t);
   const existing = useContactsStore((s) => s.contacts);
   const importContacts = useContactsStore((s) => s.importContacts);
 
@@ -94,14 +96,14 @@ export default function ContactImportSheet({
     try {
       res = await picker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not open the file picker');
+      setError(e instanceof Error ? e.message : t('contacts.import.picker_failed', 'Could not open the file picker'));
       return;
     }
     if (res.canceled || res.assets.length === 0) return;
     const asset = res.assets[0];
 
     if (asset.size && asset.size > 5 * 1024 * 1024) {
-      setError('That file is too large (max 5 MB).');
+      setError(t('contacts.import.file_too_large', 'File is too large (max 5 MB)'));
       return;
     }
 
@@ -109,7 +111,7 @@ export default function ContactImportSheet({
       const text = await FileSystem.readAsStringAsync(asset.uri);
       const contacts = parseVCard(text);
       if (contacts.length === 0) {
-        setError('No contacts were found in that file.');
+        setError(t('contacts.import.no_contacts', 'No contacts found in file'));
         return;
       }
       const dupes = detectDuplicates(existing, contacts);
@@ -119,7 +121,7 @@ export default function ContactImportSheet({
       setDuplicates(dupes);
       setSelected(initial);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read or parse that file.');
+      setError(e instanceof Error ? e.message : t('contacts.import.parse_error', 'Failed to parse vCard file'));
     }
   };
 
@@ -137,7 +139,10 @@ export default function ContactImportSheet({
 
   const doImport = async () => {
     if (!targetBookId) {
-      Alert.alert('No address book', 'Create an address book before importing contacts.');
+      Alert.alert(
+        t('contacts.detail.no_address_book', 'No address book'),
+        t('contacts.import.no_address_book', 'Create an address book before importing contacts.'),
+      );
       return;
     }
     const toImport = parsed.filter((_, i) => selected.has(i));
@@ -148,7 +153,7 @@ export default function ContactImportSheet({
       setResult(outcome);
       onImported?.(outcome.imported);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Import failed.');
+      setError(e instanceof Error ? e.message : t('contacts.import.failed', 'Import failed'));
     } finally {
       setImporting(false);
     }
@@ -162,8 +167,14 @@ export default function ContactImportSheet({
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
         <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
           <View style={styles.header}>
-            <Text style={styles.title}>Import contacts</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Text style={styles.title}>{t('contacts.import.title', 'Import Contacts')}</Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.import.close', 'Close')}
+            >
               <X size={20} color={c.text} />
             </Pressable>
           </View>
@@ -174,21 +185,25 @@ export default function ContactImportSheet({
                 <Check size={26} color={c.primaryForeground} />
               </View>
               <Text style={styles.successText}>
-                Imported {result.imported} contact{result.imported === 1 ? '' : 's'}.
+                {t('contacts.import.success', '{count, plural, one {1 contact imported} other {# contacts imported}}', { count: result.imported })}
               </Text>
               {result.failed > 0 && (
                 <Text style={[styles.successText, { color: c.error }]}>
-                  {result.failed} contact{result.failed === 1 ? '' : 's'} could not be imported.
+                  {t(
+                    'contacts.import.failed_count',
+                    '{count, plural, one {# contact could not be imported.} other {# contacts could not be imported.}}',
+                    { count: result.failed },
+                  )}
                 </Text>
               )}
-              <Button variant="outline" size="sm" onPress={onClose}>Done</Button>
+              <Button variant="outline" size="sm" onPress={onClose}>{t('common.done', 'Done')}</Button>
             </View>
           ) : parsed.length === 0 ? (
             <View style={styles.center}>
-              <Pressable style={styles.dropZone} onPress={() => { void pickFile(); }}>
+              <Pressable style={styles.dropZone} onPress={() => { void pickFile(); }} accessibilityRole="button">
                 <Upload size={32} color={c.textMuted} />
-                <Text style={styles.dropTitle}>Choose a vCard file</Text>
-                <Text style={styles.dropHint}>.vcf / .vcard — single or multiple contacts</Text>
+                <Text style={styles.dropTitle}>{t('contacts.import.choose_file_mobile', 'Choose a vCard file')}</Text>
+                <Text style={styles.dropHint}>{t('contacts.import.file_types', '.vcf or .vcard files')}</Text>
               </Pressable>
               {!!error && (
                 <View style={styles.errorBox}>
@@ -203,24 +218,29 @@ export default function ContactImportSheet({
                 style={styles.targetRow}
                 onPress={onChangeTarget}
                 disabled={!onChangeTarget}
+                accessibilityRole={onChangeTarget ? 'button' : undefined}
               >
                 <BookUser size={16} color={c.textSecondary} />
                 <Text style={styles.targetText} numberOfLines={1}>
-                  Import into {targetBookName || 'address book'}
+                  {targetBookName
+                    ? t('contacts.import.into_named', 'Import into {name}', { name: targetBookName })
+                    : t('contacts.import.into_address_book', 'Import into address book')}
                 </Text>
-                {onChangeTarget && <Text style={styles.targetChange}>Change</Text>}
+                {onChangeTarget && <Text style={styles.targetChange}>{t('contacts.import.change_target', 'Change')}</Text>}
               </Pressable>
 
               <View style={styles.toolbar}>
                 <Text style={styles.toolbarCount}>
-                  {parsed.length} found · {selected.size} selected
+                  {t('contacts.import.found', '{count, plural, one {1 contact found} other {# contacts found}}', { count: parsed.length })}
+                  {' · '}
+                  {t('contacts.import.selected', '{count, plural, one {1 selected} other {# selected}}', { count: selected.size })}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                  <Pressable onPress={selectAll} hitSlop={6}>
-                    <Text style={styles.link}>All</Text>
+                  <Pressable onPress={selectAll} hitSlop={6} accessibilityRole="button">
+                    <Text style={styles.link}>{t('contacts.import.select_all', 'Select all')}</Text>
                   </Pressable>
-                  <Pressable onPress={selectNone} hitSlop={6}>
-                    <Text style={styles.link}>None</Text>
+                  <Pressable onPress={selectNone} hitSlop={6} accessibilityRole="button">
+                    <Text style={styles.link}>{t('contacts.import.deselect_all', 'Deselect all')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -236,6 +256,8 @@ export default function ContactImportSheet({
                       key={idx}
                       onPress={() => toggle(idx)}
                       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isSelected }}
                     >
                       <View style={[styles.checkbox, isSelected && styles.checkboxOn]}>
                         {isSelected && <Check size={13} color={c.primaryForeground} />}
@@ -248,7 +270,7 @@ export default function ContactImportSheet({
                         )}
                       </View>
                       {isDupe && (
-                        <Text style={styles.dupeBadge}>Duplicate</Text>
+                        <Text style={styles.dupeBadge}>{t('contacts.import.duplicate', 'Duplicate')}</Text>
                       )}
                     </Pressable>
                   );
@@ -263,13 +285,15 @@ export default function ContactImportSheet({
               )}
 
               <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-                <Button variant="outline" onPress={onClose} disabled={importing}>Cancel</Button>
+                <Button variant="outline" onPress={onClose} disabled={importing}>{t('common.cancel', 'Cancel')}</Button>
                 <Button
                   onPress={() => { void doImport(); }}
                   disabled={importing || selected.size === 0}
                   icon={importing ? <ActivityIndicator size="small" color={c.primaryForeground} /> : undefined}
                 >
-                  {importing ? 'Importing…' : `Import ${selected.size}`}
+                  {importing
+                    ? t('contacts.import.importing', 'Importing...')
+                    : t('contacts.import.import_count', 'Import {count}', { count: selected.size })}
                 </Button>
               </View>
             </>

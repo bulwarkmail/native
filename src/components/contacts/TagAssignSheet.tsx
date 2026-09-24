@@ -8,6 +8,7 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../../theme/colors';
 import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { useContactsStore, selectKeywordsUsed } from '../../stores/contacts-store';
+import { useLocaleStore } from '../../stores/locale-store';
 
 interface Props {
   visible: boolean;
@@ -18,9 +19,10 @@ interface Props {
 }
 
 export default function TagAssignSheet({
-  visible, onClose, onPick, title = 'Add tag',
+  visible, onClose, onPick, title,
 }: Props) {
   const c = useColors();
+  const t = useLocaleStore((s) => s.t);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   // Subscribe to the stable `contacts` array and derive the keyword list in a
@@ -73,8 +75,14 @@ export default function TagAssignSheet({
             <View style={styles.handle} />
           </View>
           <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.close}>
+            <Text style={styles.title}>{title ?? t('contacts.bulk.add_tag', 'Add tag')}</Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.close}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>
@@ -83,7 +91,7 @@ export default function TagAssignSheet({
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
-            placeholder="New tag name"
+            placeholder={t('contacts.tag_name_placeholder', 'New tag name')}
             placeholderTextColor={c.textMuted}
             value={input}
             onChangeText={setInput}
@@ -96,6 +104,8 @@ export default function TagAssignSheet({
             disabled={!input.trim()}
             style={[styles.addBtn, !input.trim() && styles.addBtnDisabled]}
             hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.add', 'Add')}
           >
             <Plus size={16} color={c.primaryForeground} />
           </Pressable>
@@ -103,13 +113,14 @@ export default function TagAssignSheet({
 
         <ScrollView keyboardShouldPersistTaps="handled">
           {keywords.length === 0 ? (
-            <Text style={styles.empty}>No tags yet. Type one above.</Text>
+            <Text style={styles.empty}>{t('contacts.no_tags_hint', 'No tags yet. Type one above.')}</Text>
           ) : (
             keywords.map((kw) => (
               <Pressable
                 key={kw.keyword}
                 onPress={() => onPick(kw.keyword)}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
               >
                 <Tag size={16} color={c.textSecondary} />
                 <Text style={styles.rowLabel} numberOfLines={1}>{kw.keyword}</Text>

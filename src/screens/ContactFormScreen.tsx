@@ -30,6 +30,7 @@ import Dialog from '../components/Dialog';
 import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactForm'>;
 type Route = RouteProp<RootStackParamList, 'ContactForm'>;
@@ -482,58 +483,57 @@ function formToPatch(
   return patch as Partial<ContactCard>;
 }
 
-const EMAIL_CONTEXTS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'None' },
-  { value: 'work', label: 'Work' },
-  { value: 'private', label: 'Private' },
-];
-const PHONE_CONTEXTS = EMAIL_CONTEXTS;
-const ADDRESS_CONTEXTS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'None' },
-  { value: 'work', label: 'Work' },
-  { value: 'private', label: 'Private' },
-];
-const PHONE_FEATURES: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Phone' },
-  { value: 'voice', label: 'Voice' },
-  { value: 'cell', label: 'Mobile' },
-  { value: 'fax', label: 'Fax' },
-  { value: 'pager', label: 'Pager' },
-  { value: 'video', label: 'Video' },
-  { value: 'text', label: 'Text' },
-];
-const ANNIVERSARY_KINDS: Array<{ value: string; label: string }> = [
-  { value: 'birth', label: 'Birthday' },
-  { value: 'wedding', label: 'Anniversary' },
-  { value: 'death', label: 'Memorial' },
-  { value: 'other', label: 'Other' },
-];
-const PERSONAL_INFO_KINDS: Array<{ value: string; label: string }> = [
-  { value: 'hobby', label: 'Hobby' },
-  { value: 'expertise', label: 'Expertise' },
-  { value: 'interest', label: 'Interest' },
-  { value: 'other', label: 'Other' },
-];
-const PERSONAL_INFO_LEVELS: Array<{ value: string; label: string }> = [
-  { value: '', label: '–' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-];
-// Same vocabulary as the webmail form and the vCard SEX mapping
-// (M/F/O/N/U), so a card renders the same value in both apps.
-const GENDER_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Unspecified' },
-  { value: 'masculine', label: 'Masculine' },
-  { value: 'feminine', label: 'Feminine' },
-  { value: 'other', label: 'Other' },
-  { value: 'none', label: 'None' },
-  { value: 'unknown', label: 'Unknown' },
-];
-const KIND_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'person', label: 'Person' },
-  { value: 'org', label: 'Organization' },
-];
+type Option = { value: string; label: string };
+
+function formOptions(t: TranslateFn) {
+  const contexts: Option[] = [
+    { value: '', label: t('contacts.form.context_none', 'None') },
+    { value: 'work', label: t('contacts.form.context_work', 'Work') },
+    { value: 'private', label: t('contacts.form.context_private', 'Private') },
+  ];
+  const phoneFeatures: Option[] = [
+    { value: '', label: t('contacts.form.phone', 'Phone') },
+    { value: 'voice', label: t('contacts.form.phone_voice', 'Voice') },
+    { value: 'cell', label: t('contacts.form.phone_cell', 'Mobile') },
+    { value: 'fax', label: t('contacts.form.phone_fax', 'Fax') },
+    { value: 'pager', label: t('contacts.form.phone_pager', 'Pager') },
+    { value: 'video', label: t('contacts.form.phone_video', 'Video') },
+    { value: 'text', label: t('contacts.form.phone_text', 'Text') },
+  ];
+  const anniversaryKinds: Option[] = [
+    { value: 'birth', label: t('contacts.form.anniversary_birth', 'Birthday') },
+    { value: 'wedding', label: t('contacts.form.anniversary_wedding', 'Anniversary') },
+    { value: 'death', label: t('contacts.form.anniversary_death', 'Memorial') },
+    { value: 'other', label: t('contacts.form.anniversary_other', 'Other') },
+  ];
+  const personalInfoKinds: Option[] = [
+    { value: 'hobby', label: t('contacts.form.personal_hobby', 'Hobby') },
+    { value: 'expertise', label: t('contacts.form.personal_expertise', 'Expertise') },
+    { value: 'interest', label: t('contacts.form.personal_interest', 'Interest') },
+    { value: 'other', label: t('contacts.form.personal_other', 'Other') },
+  ];
+  const personalInfoLevels: Option[] = [
+    { value: '', label: '–' },
+    { value: 'low', label: t('contacts.form.level_low', 'Low') },
+    { value: 'medium', label: t('contacts.form.level_medium', 'Medium') },
+    { value: 'high', label: t('contacts.form.level_high', 'High') },
+  ];
+  // Same vocabulary as the webmail form and the vCard SEX mapping
+  // (M/F/O/N/U), so a card renders the same value in both apps.
+  const gender: Option[] = [
+    { value: '', label: t('contacts.form.gender_unspecified', 'Unspecified') },
+    { value: 'masculine', label: t('contacts.form.gender_male', 'Male') },
+    { value: 'feminine', label: t('contacts.form.gender_female', 'Female') },
+    { value: 'other', label: t('contacts.form.gender_other', 'Other') },
+    { value: 'none', label: t('contacts.form.gender_none', 'Not applicable') },
+    { value: 'unknown', label: t('contacts.form.gender_unknown', 'Unknown') },
+  ];
+  const kind: Option[] = [
+    { value: 'person', label: t('contacts.form.type_person', 'Person') },
+    { value: 'org', label: t('contacts.form.type_organization', 'Organization') },
+  ];
+  return { contexts, phoneFeatures, anniversaryKinds, personalInfoKinds, personalInfoLevels, gender, kind };
+}
 
 const MAX_PHOTO_DIM = 512;
 const PHOTO_QUALITY = 0.85;
@@ -588,6 +588,8 @@ function Pills({
             key={o.value}
             onPress={() => onChange(o.value)}
             style={[styles.pill, active && styles.pillActive]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
           >
             <Text style={[styles.pillText, active && styles.pillTextActive]}>{o.label}</Text>
           </Pressable>
@@ -618,6 +620,8 @@ function Section({
         onPress={() => collapsible && setOpen((o) => !o)}
         style={styles.sectionHeader}
         disabled={!collapsible}
+        accessibilityRole={collapsible ? 'button' : 'header'}
+        accessibilityState={collapsible ? { expanded: isOpen } : undefined}
       >
         <View style={styles.sectionIcon}>{icon}</View>
         <Text style={styles.sectionLabel}>{label}</Text>
@@ -651,10 +655,17 @@ function RemovableRow({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   return (
     <View style={styles.removableRow}>
       <View style={{ flex: 1 }}>{children}</View>
-      <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
+      <Pressable
+        onPress={onRemove}
+        hitSlop={8}
+        style={styles.removeBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.remove', 'Remove')}
+      >
         <XIcon size={14} color={c.textMuted} />
       </Pressable>
     </View>
@@ -665,7 +676,11 @@ function AddButton({ onPress, label }: { onPress: () => void; label: string }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+      accessibilityRole="button"
+    >
       <Plus size={14} color={c.primary} />
       <Text style={styles.addBtnLabel}>{label}</Text>
     </Pressable>
@@ -677,6 +692,8 @@ export default function ContactFormScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const t = useLocaleStore((s) => s.t);
+  const opts = React.useMemo(() => formOptions(t), [t]);
   const { contactId, addressBookId: initialBook, asGroup, prefill, memberIds: initialMemberIds } = route.params || {};
   const isEdit = !!contactId;
 
@@ -753,12 +770,18 @@ export default function ContactFormScreen() {
     const orgName = form.orgs[0]?.name.trim() || '';
     if (asGroup) {
       if (!form.given.trim()) {
-        Alert.alert('Missing info', 'Give the group a name.');
+        Alert.alert(
+          t('contacts.form.missing_info', 'Missing info'),
+          t('contacts.groups.name_required', 'Group name is required'),
+        );
         return;
       }
     } else if (form.isOrg) {
       if (!orgName) {
-        Alert.alert('Missing info', 'Add the organization name.');
+        Alert.alert(
+          t('contacts.form.missing_info', 'Missing info'),
+          t('contacts.form.org_name_required', 'Add the organization name.'),
+        );
         return;
       }
     } else {
@@ -766,18 +789,27 @@ export default function ContactFormScreen() {
       const hasEmail = form.emails.some((e) => e.address.trim());
       // An organization name identifies the card just as well as a personal name.
       if (!hasName && !hasEmail && !orgName) {
-        Alert.alert('Missing info', 'Add a name or at least one email.');
+        Alert.alert(
+          t('contacts.form.missing_info', 'Missing info'),
+          t('contacts.form.name_or_email_required', 'Add a name or at least one email.'),
+        );
         return;
       }
     }
     if (!form.addressBookId) {
-      Alert.alert('Missing address book', 'Select an address book to save this contact.');
+      Alert.alert(
+        t('contacts.form.missing_address_book', 'Missing address book'),
+        t('contacts.form.address_book_required', 'Select an address book to save this contact.'),
+      );
       return;
     }
     // Email validity
     for (const e of form.emails) {
       if (e.address.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.address.trim())) {
-        Alert.alert('Invalid email', `"${e.address}" is not a valid email address.`);
+        Alert.alert(
+          t('contacts.form.invalid_email_title', 'Invalid email'),
+          t('contacts.form.invalid_email_message', '"{address}" is not a valid email address.', { address: e.address }),
+        );
         return;
       }
     }
@@ -785,7 +817,14 @@ export default function ContactFormScreen() {
     // free text, and a rejected date used to take the whole card with it.
     for (const a of form.anniversaries) {
       if (a.date.trim() && !stringToPartialDate(a.date)) {
-        Alert.alert('Invalid date', `"${a.date}" is not a date. Use YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD.`);
+        Alert.alert(
+          t('contacts.form.invalid_date_title', 'Invalid date'),
+          t(
+            'contacts.form.invalid_date_message',
+            '"{date}" is not a date. Use YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD.',
+            { date: a.date },
+          ),
+        );
         return;
       }
     }
@@ -801,15 +840,23 @@ export default function ContactFormScreen() {
         else navigation.replace('ContactDetail', { contactId: created.id });
       }
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : 'Unknown error');
+      Alert.alert(
+        asGroup
+          ? t('contacts.groups.save_failed', 'Failed to save group')
+          : t('contacts.form.save_failed', 'Failed to save contact'),
+        err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'),
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  const existingName = existing ? getContactDisplayName(existing) : '';
   const headerTitle = isEdit
-    ? `Edit ${existing ? getContactDisplayName(existing) : asGroup ? 'Group' : 'Contact'}`
-    : asGroup ? 'New Group' : 'New Contact';
+    ? existingName
+      ? t('contacts.form.edit_named', 'Edit {name}', { name: existingName })
+      : asGroup ? t('contacts.groups.edit', 'Edit Group') : t('contacts.form.edit_title', 'Edit Contact')
+    : asGroup ? t('contacts.groups.create', 'New Group') : t('contacts.form.create_title', 'New Contact');
 
   const previewName = form.isOrg
     ? (form.orgs[0]?.name || '').trim()
@@ -818,7 +865,10 @@ export default function ContactFormScreen() {
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Photo access needed', 'Grant photo library permission to pick a contact photo.');
+      Alert.alert(
+        t('contacts.form.photo_permission_title', 'Photo access needed'),
+        t('contacts.form.photo_permission_message', 'Grant photo library permission to pick a contact photo.'),
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -842,7 +892,7 @@ export default function ContactFormScreen() {
   const memberIdSet = React.useMemo(() => new Set(form.members), [form.members]);
 
   const addressBookSection = addressBooks.length > 1 && (
-    <Section icon={<Book size={16} color={c.textMuted} />} label="Address Book">
+    <Section icon={<Book size={16} color={c.textMuted} />} label={t('contacts.address_books.address_book', 'Address Book')}>
       <View style={styles.pillRow}>
         {addressBooks.filter((b) => b.myRights?.mayWrite !== false || b.id === form.addressBookId).map((book) => (
           <Pressable
@@ -862,7 +912,7 @@ export default function ContactFormScreen() {
   const notesSection = (
     <Section
       icon={<FileText size={16} color={c.textMuted} />}
-      label="Notes"
+      label={t('contacts.form.note', 'Notes')}
       collapsible
       defaultOpen={form.notes.length > 0}
     >
@@ -873,7 +923,7 @@ export default function ContactFormScreen() {
         >
           <TextInput
             style={[styles.input, styles.multiline]}
-            placeholder="Notes"
+            placeholder={t('contacts.form.note_placeholder', 'Add a note...')}
             placeholderTextColor={c.textMuted}
             multiline
             value={n.note}
@@ -886,7 +936,7 @@ export default function ContactFormScreen() {
         </RemovableRow>
       ))}
       <AddButton
-        label="Add note"
+        label={t('contacts.form.add_note', 'Add note')}
         onPress={() => updateForm('notes', [...form.notes, { note: '' }])}
       />
     </Section>
@@ -895,7 +945,7 @@ export default function ContactFormScreen() {
   const categoriesSection = (
     <Section
       icon={<Tag size={16} color={c.textMuted} />}
-      label="Categories"
+      label={t('contacts.form.categories', 'Categories')}
       collapsible
       defaultOpen={form.keywords.length > 0}
     >
@@ -915,7 +965,7 @@ export default function ContactFormScreen() {
       )}
       <TextInput
         style={styles.input}
-        placeholder="Add tag and press Enter"
+        placeholder={t('contacts.form.categories_placeholder_mobile', 'Add tag and press Enter')}
         placeholderTextColor={c.textMuted}
         value={keywordInput}
         onChangeText={setKeywordInput}
@@ -949,17 +999,31 @@ export default function ContactFormScreen() {
 
   const header = (
     <View style={styles.header}>
-      <Pressable onPress={handleBack} style={styles.headerBtn} hitSlop={8}>
+      <Pressable
+        onPress={handleBack}
+        style={styles.headerBtn}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.back', 'Back')}
+      >
         <ArrowLeft size={22} color={c.text} />
       </Pressable>
       <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
-      <Pressable onPress={handleSave} disabled={saving} style={styles.saveBtn} hitSlop={8}>
+      <Pressable
+        onPress={handleSave}
+        disabled={saving}
+        style={styles.saveBtn}
+        hitSlop={8}
+        accessibilityRole="button"
+      >
         {saving ? (
-          <Text style={styles.saveLabel}>Saving…</Text>
+          <Text style={styles.saveLabel}>
+            {isEdit ? t('contacts.form.updating', 'Updating...') : t('contacts.form.creating', 'Creating...')}
+          </Text>
         ) : (
           <>
             <Check size={16} color={c.primaryForeground} />
-            <Text style={styles.saveLabel}>Save</Text>
+            <Text style={styles.saveLabel}>{t('contacts.form.save', 'Save')}</Text>
           </>
         )}
       </Pressable>
@@ -969,10 +1033,10 @@ export default function ContactFormScreen() {
   const discardDialog = (
     <Dialog
       visible={confirmDiscard}
-      title="Discard changes?"
-      message="You have unsaved changes. Discard them?"
+      title={t('settings.discard_changes', 'Discard unsaved changes?')}
+      message={t('settings.unsaved_changes', 'You have unsaved changes')}
       variant="destructive"
-      confirmText="Discard"
+      confirmText={t('settings.discard', 'Discard')}
       onConfirm={() => {
         setConfirmDiscard(false);
         navigation.goBack();
@@ -993,11 +1057,11 @@ export default function ContactFormScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             {addressBookSection}
 
-            <Section icon={<Users size={16} color={c.textMuted} />} label="Group">
-              <Field label="Group name">
+            <Section icon={<Users size={16} color={c.textMuted} />} label={t('contacts.group', 'Group')}>
+              <Field label={t('contacts.groups.name_label', 'Group Name')}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Sales team"
+                  placeholder={t('contacts.groups.name_placeholder', 'e.g., Team, Family')}
                   placeholderTextColor={c.textMuted}
                   value={form.given}
                   onChangeText={(v) => updateForm('given', v)}
@@ -1006,7 +1070,7 @@ export default function ContactFormScreen() {
               </Field>
             </Section>
 
-            <Section icon={<User size={16} color={c.textMuted} />} label={`Members (${memberContacts.length})`}>
+            <Section icon={<User size={16} color={c.textMuted} />} label={t('contacts.groups.members_with_count', 'Members ({count})', { count: memberContacts.length })}>
               {memberContacts.map((m) => {
                 const email = getContactPrimaryEmail(m);
                 return (
@@ -1014,12 +1078,12 @@ export default function ContactFormScreen() {
                     key={m.id}
                     onRemove={() => updateForm('members', form.members.filter((id) => id !== m.id))}
                   >
-                    <Text style={styles.memberName} numberOfLines={1}>{getContactDisplayName(m) || 'Unnamed'}</Text>
+                    <Text style={styles.memberName} numberOfLines={1}>{getContactDisplayName(m) || t('contacts.unnamed', 'Unnamed')}</Text>
                     {!!email && <Text style={styles.memberEmail} numberOfLines={1}>{email}</Text>}
                   </RemovableRow>
                 );
               })}
-              <AddButton label="Add members" onPress={() => setMemberPickerOpen(true)} />
+              <AddButton label={t('contacts.groups.add_members', 'Add members')} onPress={() => setMemberPickerOpen(true)} />
             </Section>
 
             {categoriesSection}
@@ -1030,7 +1094,7 @@ export default function ContactFormScreen() {
         <ContactPickerSheet
           visible={memberPickerOpen}
           onClose={() => setMemberPickerOpen(false)}
-          title="Add members"
+          title={t('contacts.groups.add_members', 'Add members')}
           excludedIds={memberIdSet}
           onSelect={(ids) => {
             setMemberPickerOpen(false);
@@ -1055,7 +1119,12 @@ export default function ContactFormScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Photo + Name preview */}
           <View style={styles.photoPanel}>
-            <Pressable onPress={() => { void pickPhoto(); }} style={styles.photoBtn}>
+            <Pressable
+              onPress={() => { void pickPhoto(); }}
+              style={styles.photoBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.form.upload_photo', 'Upload photo')}
+            >
               {form.photoUri ? (
                 <Image source={{ uri: form.photoUri }} style={styles.photoThumb} />
               ) : (
@@ -1066,9 +1135,11 @@ export default function ContactFormScreen() {
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.previewName} numberOfLines={1}>
-                {previewName || (form.isOrg ? 'New organization' : 'New contact')}
+                {previewName || (form.isOrg
+                  ? t('contacts.form.new_organization', 'New organization')
+                  : t('contacts.create_new', 'New Contact'))}
               </Text>
-              <Text style={styles.previewHint}>Tap photo to choose an image</Text>
+              <Text style={styles.previewHint}>{t('contacts.form.photo_hint_mobile', 'Tap photo to choose an image')}</Text>
               {form.photoUri ? (
                 <Pressable
                   onPress={() => {
@@ -1077,8 +1148,9 @@ export default function ContactFormScreen() {
                   }}
                   style={styles.removePhotoBtn}
                   hitSlop={8}
+                  accessibilityRole="button"
                 >
-                  <Text style={styles.removePhotoLabel}>Remove photo</Text>
+                  <Text style={styles.removePhotoLabel}>{t('contacts.form.remove_photo', 'Remove photo')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -1087,10 +1159,10 @@ export default function ContactFormScreen() {
           {addressBookSection}
 
           {/* Identity */}
-          <Section icon={<User size={16} color={c.textMuted} />} label="Identity">
+          <Section icon={<User size={16} color={c.textMuted} />} label={t('contacts.form.section_identity', 'Name & Identity')}>
             <Pills
               value={form.isOrg ? 'org' : 'person'}
-              options={KIND_OPTIONS}
+              options={opts.kind}
               onChange={(v) => {
                 const isOrg = v === 'org';
                 setDirty(true);
@@ -1105,10 +1177,10 @@ export default function ContactFormScreen() {
               }}
             />
             {form.isOrg ? (
-              <Field label="Organization name">
+              <Field label={t('contacts.form.organization', 'Organization')}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Company"
+                  placeholder={t('contacts.form.organization_placeholder', 'Company name')}
                   placeholderTextColor={c.textMuted}
                   value={form.orgs[0]?.name || ''}
                   onChangeText={(v) => {
@@ -1121,58 +1193,58 @@ export default function ContactFormScreen() {
             ) : (
               <>
                 <View style={styles.row2}>
-                  <Field label="Prefix">
+                  <Field label={t('contacts.form.prefix', 'Prefix')}>
                     <TextInput
                       style={styles.input}
-                      placeholder="Mr."
+                      placeholder={t('contacts.form.prefix_placeholder', 'Dr., Mr., Mrs.')}
                       placeholderTextColor={c.textMuted}
                       value={form.prefix}
                       onChangeText={(v) => updateForm('prefix', v)}
                     />
                   </Field>
-                  <Field label="Suffix">
+                  <Field label={t('contacts.form.suffix', 'Suffix')}>
                     <TextInput
                       style={styles.input}
-                      placeholder="Jr."
+                      placeholder={t('contacts.form.suffix_placeholder', 'Jr., Sr., III')}
                       placeholderTextColor={c.textMuted}
                       value={form.suffix}
                       onChangeText={(v) => updateForm('suffix', v)}
                     />
                   </Field>
                 </View>
-                <Field label="First name">
+                <Field label={t('contacts.form.given_name', 'First name')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="First name"
+                    placeholder={t('contacts.form.given_name', 'First name')}
                     placeholderTextColor={c.textMuted}
                     value={form.given}
                     onChangeText={(v) => updateForm('given', v)}
                   />
                 </Field>
-                <Field label="Middle name">
+                <Field label={t('contacts.form.middle_name', 'Middle name')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Middle"
+                    placeholder={t('contacts.form.middle_name', 'Middle name')}
                     placeholderTextColor={c.textMuted}
                     value={form.middle}
                     onChangeText={(v) => updateForm('middle', v)}
                   />
                 </Field>
-                <Field label="Last name">
+                <Field label={t('contacts.form.surname', 'Last name')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Last name"
+                    placeholder={t('contacts.form.surname', 'Last name')}
                     placeholderTextColor={c.textMuted}
                     value={form.surname}
                     onChangeText={(v) => updateForm('surname', v)}
                   />
                 </Field>
                 {form.nicknames.map((nick, i) => (
-                  <Field key={i} label={i === 0 ? 'Nickname' : undefined}>
+                  <Field key={i} label={i === 0 ? t('contacts.form.nickname', 'Nickname') : undefined}>
                     <View style={styles.dateInputRow}>
                       <TextInput
                         style={[styles.input, { flex: 1 }]}
-                        placeholder="Nickname"
+                        placeholder={t('contacts.form.nickname_placeholder', 'Nickname')}
                         placeholderTextColor={c.textMuted}
                         value={nick}
                         onChangeText={(v) => {
@@ -1186,6 +1258,8 @@ export default function ContactFormScreen() {
                           onPress={() => updateForm('nicknames', form.nicknames.filter((_, idx) => idx !== i))}
                           hitSlop={8}
                           style={styles.removeBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('common.remove', 'Remove')}
                         >
                           <XIcon size={14} color={c.textMuted} />
                         </Pressable>
@@ -1194,14 +1268,14 @@ export default function ContactFormScreen() {
                   </Field>
                 ))}
                 {form.nicknames.every((n) => n.trim()) && (
-                  <AddButton label="Add nickname" onPress={() => updateForm('nicknames', [...form.nicknames, ''])} />
+                  <AddButton label={t('contacts.form.add_nickname', 'Add nickname')} onPress={() => updateForm('nicknames', [...form.nicknames, ''])} />
                 )}
               </>
             )}
-            <Field label="Display name (optional)">
+            <Field label={t('contacts.form.display_name_optional', 'Display name (optional)')}>
               <TextInput
                 style={styles.input}
-                placeholder="Custom display name"
+                placeholder={t('contacts.form.display_name_placeholder', 'Custom display name')}
                 placeholderTextColor={c.textMuted}
                 value={form.full}
                 onChangeText={(v) => updateForm('full', v)}
@@ -1210,7 +1284,7 @@ export default function ContactFormScreen() {
           </Section>
 
           {/* Email */}
-          <Section icon={<Mail size={16} color={c.textMuted} />} label="Email">
+          <Section icon={<Mail size={16} color={c.textMuted} />} label={t('contacts.form.email', 'Email')}>
             {form.emails.map((e, i) => (
               <RemovableRow
                 key={i}
@@ -1218,7 +1292,7 @@ export default function ContactFormScreen() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="email@example.com"
+                  placeholder={t('contacts.form.email_placeholder', 'email@example.com')}
                   placeholderTextColor={c.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -1231,7 +1305,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={e.context}
-                  options={EMAIL_CONTEXTS}
+                  options={opts.contexts}
                   onChange={(v) => {
                     const next = [...form.emails];
                     next[i] = { ...e, context: v };
@@ -1241,13 +1315,13 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add email"
+              label={t('contacts.form.add_email', 'Add email')}
               onPress={() => updateForm('emails', [...form.emails, { address: '', context: '' }])}
             />
           </Section>
 
           {/* Phone */}
-          <Section icon={<Phone size={16} color={c.textMuted} />} label="Phone">
+          <Section icon={<Phone size={16} color={c.textMuted} />} label={t('contacts.form.phone', 'Phone')}>
             {form.phones.map((p, i) => (
               <RemovableRow
                 key={i}
@@ -1255,7 +1329,7 @@ export default function ContactFormScreen() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="+1 555 0100"
+                  placeholder={t('contacts.form.phone_placeholder', '+1 234 567 890')}
                   placeholderTextColor={c.textMuted}
                   keyboardType="phone-pad"
                   value={p.number}
@@ -1267,7 +1341,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={p.feature}
-                  options={PHONE_FEATURES}
+                  options={opts.phoneFeatures}
                   onChange={(v) => {
                     const next = [...form.phones];
                     next[i] = { ...p, feature: v };
@@ -1276,7 +1350,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={p.context}
-                  options={PHONE_CONTEXTS}
+                  options={opts.contexts}
                   onChange={(v) => {
                     const next = [...form.phones];
                     next[i] = { ...p, context: v };
@@ -1286,7 +1360,7 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add phone"
+              label={t('contacts.form.add_phone', 'Add phone')}
               onPress={() => updateForm('phones', [...form.phones, { number: '', context: '', feature: '' }])}
             />
           </Section>
@@ -1294,7 +1368,7 @@ export default function ContactFormScreen() {
           {/* Work */}
           <Section
             icon={<Building size={16} color={c.textMuted} />}
-            label="Work"
+            label={t('contacts.form.section_work', 'Work & Organization')}
             collapsible
             defaultOpen={form.orgs.length > 0}
           >
@@ -1304,10 +1378,10 @@ export default function ContactFormScreen() {
                 onRemove={() => updateForm('orgs', form.orgs.filter((_, idx) => idx !== i))}
               >
                 {!(form.isOrg && i === 0) && (
-                  <Field label="Organization">
+                  <Field label={t('contacts.form.organization', 'Organization')}>
                     <TextInput
                       style={styles.input}
-                      placeholder="Company"
+                      placeholder={t('contacts.form.organization_placeholder', 'Company name')}
                       placeholderTextColor={c.textMuted}
                       value={o.name}
                       onChangeText={(v) => {
@@ -1318,10 +1392,10 @@ export default function ContactFormScreen() {
                     />
                   </Field>
                 )}
-                <Field label="Department">
+                <Field label={t('contacts.form.department', 'Department')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Department"
+                    placeholder={t('contacts.form.department_placeholder', 'Department')}
                     placeholderTextColor={c.textMuted}
                     value={o.department}
                     onChangeText={(v) => {
@@ -1331,10 +1405,10 @@ export default function ContactFormScreen() {
                     }}
                   />
                 </Field>
-                <Field label="Job title">
+                <Field label={t('contacts.form.job_title', 'Job title')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Title"
+                    placeholder={t('contacts.form.job_title_placeholder', 'e.g., Software Engineer')}
                     placeholderTextColor={c.textMuted}
                     value={o.jobTitle}
                     onChangeText={(v) => {
@@ -1344,10 +1418,10 @@ export default function ContactFormScreen() {
                     }}
                   />
                 </Field>
-                <Field label="Role">
+                <Field label={t('contacts.form.role', 'Role')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Role"
+                    placeholder={t('contacts.form.role_placeholder', 'e.g., Team Lead')}
                     placeholderTextColor={c.textMuted}
                     value={o.role}
                     onChangeText={(v) => {
@@ -1360,7 +1434,7 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add organization"
+              label={t('contacts.form.add_organization', 'Add organization')}
               onPress={() => updateForm('orgs', [...form.orgs, { name: '', department: '', jobTitle: '', role: '' }])}
             />
           </Section>
@@ -1368,7 +1442,7 @@ export default function ContactFormScreen() {
           {/* Address */}
           <Section
             icon={<MapPin size={16} color={c.textMuted} />}
-            label="Address"
+            label={t('contacts.detail.address_default_label', 'Address')}
             collapsible
             defaultOpen={form.addresses.length > 0}
           >
@@ -1379,7 +1453,7 @@ export default function ContactFormScreen() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="Street"
+                  placeholder={t('contacts.form.street', 'Street')}
                   placeholderTextColor={c.textMuted}
                   value={a.street}
                   onChangeText={(v) => {
@@ -1392,7 +1466,7 @@ export default function ContactFormScreen() {
                   <Field>
                     <TextInput
                       style={styles.input}
-                      placeholder="City"
+                      placeholder={t('contacts.form.city', 'City')}
                       placeholderTextColor={c.textMuted}
                       value={a.locality}
                       onChangeText={(v) => {
@@ -1405,7 +1479,7 @@ export default function ContactFormScreen() {
                   <Field>
                     <TextInput
                       style={styles.input}
-                      placeholder="Region"
+                      placeholder={t('contacts.form.region', 'State / Region')}
                       placeholderTextColor={c.textMuted}
                       value={a.region}
                       onChangeText={(v) => {
@@ -1420,7 +1494,7 @@ export default function ContactFormScreen() {
                   <Field>
                     <TextInput
                       style={styles.input}
-                      placeholder="Postcode"
+                      placeholder={t('contacts.form.postcode', 'Postal code')}
                       placeholderTextColor={c.textMuted}
                       value={a.postcode}
                       onChangeText={(v) => {
@@ -1433,7 +1507,7 @@ export default function ContactFormScreen() {
                   <Field>
                     <TextInput
                       style={styles.input}
-                      placeholder="Country"
+                      placeholder={t('contacts.form.country', 'Country')}
                       placeholderTextColor={c.textMuted}
                       value={a.country}
                       onChangeText={(v) => {
@@ -1446,7 +1520,7 @@ export default function ContactFormScreen() {
                 </View>
                 <Pills
                   value={a.context}
-                  options={ADDRESS_CONTEXTS}
+                  options={opts.contexts}
                   onChange={(v) => {
                     const next = [...form.addresses];
                     next[i] = { ...a, context: v };
@@ -1456,7 +1530,7 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add address"
+              label={t('contacts.form.add_address', 'Add address')}
               onPress={() =>
                 updateForm('addresses', [...form.addresses, {
                   street: '', locality: '', region: '', postcode: '', country: '', context: '',
@@ -1468,7 +1542,7 @@ export default function ContactFormScreen() {
           {/* Online services */}
           <Section
             icon={<Globe size={16} color={c.textMuted} />}
-            label="Online"
+            label={t('contacts.form.online_services', 'Online Services')}
             collapsible
             defaultOpen={form.online.length > 0}
           >
@@ -1477,10 +1551,10 @@ export default function ContactFormScreen() {
                 key={i}
                 onRemove={() => updateForm('online', form.online.filter((_, idx) => idx !== i))}
               >
-                <Field label="URL">
+                <Field label={t('contacts.form.url', 'URL')}>
                   <TextInput
                     style={styles.input}
-                    placeholder="https://example.com/handle"
+                    placeholder={t('contacts.form.url_placeholder', 'https://...')}
                     placeholderTextColor={c.textMuted}
                     autoCapitalize="none"
                     value={s.uri}
@@ -1492,7 +1566,7 @@ export default function ContactFormScreen() {
                   />
                 </Field>
                 <View style={styles.row2}>
-                  <Field label="Service">
+                  <Field label={t('contacts.form.service_placeholder', 'Service')}>
                     <TextInput
                       style={styles.input}
                       placeholder="LinkedIn, Mastodon, …"
@@ -1505,10 +1579,10 @@ export default function ContactFormScreen() {
                       }}
                     />
                   </Field>
-                  <Field label="Label">
+                  <Field label={t('contacts.form.label', 'Label')}>
                     <TextInput
                       style={styles.input}
-                      placeholder="Work, Personal, …"
+                      placeholder={t('contacts.form.label_placeholder', 'Work, Personal, …')}
                       placeholderTextColor={c.textMuted}
                       value={s.label}
                       onChangeText={(v) => {
@@ -1522,7 +1596,7 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add link"
+              label={t('contacts.form.add_online_service', 'Add online service')}
               onPress={() => updateForm('online', [...form.online, { uri: '', service: '', label: '' }])}
             />
           </Section>
@@ -1530,7 +1604,7 @@ export default function ContactFormScreen() {
           {/* Anniversaries */}
           <Section
             icon={<Cake size={16} color={c.textMuted} />}
-            label="Important dates"
+            label={t('contacts.form.anniversaries', 'Anniversaries')}
             collapsible
             defaultOpen={form.anniversaries.length > 0}
           >
@@ -1546,7 +1620,7 @@ export default function ContactFormScreen() {
                       { flex: 1 },
                       a.date.trim() && !stringToPartialDate(a.date) ? styles.inputInvalid : null,
                     ]}
-                    placeholder="YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD"
+                    placeholder={t('contacts.form.date_placeholder', 'YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD')}
                     placeholderTextColor={c.textMuted}
                     value={a.date}
                     onChangeText={(v) => {
@@ -1559,13 +1633,15 @@ export default function ContactFormScreen() {
                     onPress={() => setDatePickerIndex(i)}
                     style={styles.datePickerBtn}
                     hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('contacts.form.pick_date', 'Pick a date')}
                   >
                     <Calendar size={18} color={c.primary} />
                   </Pressable>
                 </View>
                 <Pills
                   value={a.kind}
-                  options={ANNIVERSARY_KINDS}
+                  options={opts.anniversaryKinds}
                   onChange={(v) => {
                     const next = [...form.anniversaries];
                     next[i] = { ...a, kind: v };
@@ -1575,7 +1651,7 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add date"
+              label={t('contacts.form.add_anniversary', 'Add date')}
               onPress={() => updateForm('anniversaries', [...form.anniversaries, { kind: 'birth', date: '' }])}
             />
           </Section>
@@ -1583,7 +1659,7 @@ export default function ContactFormScreen() {
           {/* Personal info */}
           <Section
             icon={<Heart size={16} color={c.textMuted} />}
-            label="Personal info"
+            label={t('contacts.form.personal_info', 'Personal Info')}
             collapsible
             defaultOpen={form.personalInfo.length > 0}
           >
@@ -1594,7 +1670,7 @@ export default function ContactFormScreen() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="Hiking, JavaScript, …"
+                  placeholder={t('contacts.form.personal_info_placeholder', 'e.g., Photography')}
                   placeholderTextColor={c.textMuted}
                   value={pi.value}
                   onChangeText={(v) => {
@@ -1605,7 +1681,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={pi.kind}
-                  options={PERSONAL_INFO_KINDS}
+                  options={opts.personalInfoKinds}
                   onChange={(v) => {
                     const next = [...form.personalInfo];
                     next[i] = { ...pi, kind: v };
@@ -1614,7 +1690,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={pi.level}
-                  options={PERSONAL_INFO_LEVELS}
+                  options={opts.personalInfoLevels}
                   onChange={(v) => {
                     const next = [...form.personalInfo];
                     next[i] = { ...pi, level: v };
@@ -1624,7 +1700,7 @@ export default function ContactFormScreen() {
               </RemovableRow>
             ))}
             <AddButton
-              label="Add"
+              label={t('contacts.form.add_personal_info', 'Add entry')}
               onPress={() => updateForm('personalInfo', [...form.personalInfo, { kind: 'hobby', level: '', value: '' }])}
             />
           </Section>
@@ -1633,28 +1709,28 @@ export default function ContactFormScreen() {
           {!form.isOrg && (
             <Section
               icon={<UserCircle size={16} color={c.textMuted} />}
-              label="Gender"
+              label={t('contacts.form.gender', 'Gender')}
               collapsible
               defaultOpen={!!(form.grammaticalGender || form.pronouns)}
             >
-              <Field label="Grammatical gender">
+              <Field label={t('contacts.form.grammatical_gender', 'Grammatical gender')}>
                 <Pills
                   value={form.grammaticalGender}
                   options={
                     // Values from other clients (RFC 9554 GRAMGENDER: common,
                     // neuter, animate, inanimate) stay selectable so a save
                     // never silently drops them.
-                    form.grammaticalGender && !GENDER_OPTIONS.some((o) => o.value === form.grammaticalGender)
-                      ? [...GENDER_OPTIONS, { value: form.grammaticalGender, label: form.grammaticalGender }]
-                      : GENDER_OPTIONS
+                    form.grammaticalGender && !opts.gender.some((o) => o.value === form.grammaticalGender)
+                      ? [...opts.gender, { value: form.grammaticalGender, label: form.grammaticalGender }]
+                      : opts.gender
                   }
                   onChange={(v) => updateForm('grammaticalGender', v)}
                 />
               </Field>
-              <Field label="Pronouns">
+              <Field label={t('contacts.form.pronouns', 'Pronouns')}>
                 <TextInput
                   style={styles.input}
-                  placeholder="they/them"
+                  placeholder={t('contacts.form.pronouns_placeholder', 'they/them')}
                   placeholderTextColor={c.textMuted}
                   value={form.pronouns}
                   onChangeText={(v) => updateForm('pronouns', v)}
@@ -1666,34 +1742,34 @@ export default function ContactFormScreen() {
           {/* Calendar */}
           <Section
             icon={<Calendar size={16} color={c.textMuted} />}
-            label="Calendar"
+            label={t('contacts.form.calendar', 'Calendar')}
             collapsible
             defaultOpen={!!(form.calendarUri || form.schedulingUri || form.freeBusyUri)}
           >
-            <Field label="Calendar URI">
+            <Field label={t('contacts.form.calendar_uri', 'Calendar URL')}>
               <TextInput
                 style={styles.input}
-                placeholder="https://…"
+                placeholder={t('contacts.form.url_placeholder', 'https://...')}
                 placeholderTextColor={c.textMuted}
                 autoCapitalize="none"
                 value={form.calendarUri}
                 onChangeText={(v) => updateForm('calendarUri', v)}
               />
             </Field>
-            <Field label="Scheduling URI">
+            <Field label={t('contacts.form.scheduling_uri', 'Scheduling URL')}>
               <TextInput
                 style={styles.input}
-                placeholder="https://…"
+                placeholder={t('contacts.form.url_placeholder', 'https://...')}
                 placeholderTextColor={c.textMuted}
                 autoCapitalize="none"
                 value={form.schedulingUri}
                 onChangeText={(v) => updateForm('schedulingUri', v)}
               />
             </Field>
-            <Field label="Free/Busy URI">
+            <Field label={t('contacts.form.freebusy_uri', 'Free/Busy URL')}>
               <TextInput
                 style={styles.input}
-                placeholder="https://…"
+                placeholder={t('contacts.form.url_placeholder', 'https://...')}
                 placeholderTextColor={c.textMuted}
                 autoCapitalize="none"
                 value={form.freeBusyUri}
@@ -1731,7 +1807,7 @@ export default function ContactFormScreen() {
               <View style={styles.pickerSheet}>
                 <View style={styles.pickerHeader}>
                   <Pressable onPress={() => setDatePickerIndex(null)} hitSlop={8}>
-                    <Text style={styles.pickerDone}>Done</Text>
+                    <Text style={styles.pickerDone}>{t('common.done', 'Done')}</Text>
                   </Pressable>
                 </View>
                 <DateTimePicker

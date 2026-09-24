@@ -12,6 +12,7 @@ import {
 import SenderAvatar from '../SenderAvatar';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useLocaleStore } from '../../stores/locale-store';
 
 interface ContactListRowProps {
   contact: ContactCard;
@@ -32,7 +33,8 @@ export default function ContactListRow({
 }: ContactListRowProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const name = getContactDisplayName(contact) || 'Unnamed';
+  const t = useLocaleStore((s) => s.t);
+  const name = getContactDisplayName(contact) || t('contacts.unnamed', 'Unnamed');
   const email = getContactPrimaryEmail(contact);
   const org = getPrimaryOrg(contact);
   const photoUri = getContactPhotoUri(contact);
@@ -45,6 +47,8 @@ export default function ContactListRow({
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
+      accessibilityRole={selectionMode ? 'checkbox' : 'button'}
+      accessibilityState={selectionMode ? { checked: !!selected } : undefined}
       style={({ pressed }) => [
         styles.row,
         pressed && styles.rowPressed,
