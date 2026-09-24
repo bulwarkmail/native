@@ -215,9 +215,13 @@ export async function createMailbox(
 ): Promise<string> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const cid = 'new-mailbox';
+  // Subscribe explicitly: IMAP clients that list folders via LSUB
+  // (Thunderbird) hide unsubscribed mailboxes, and the server default is
+  // not guaranteed to be true. (#951)
   const create: Record<string, unknown> = {
     name: data.name,
     parentId: data.parentId ?? null,
+    isSubscribed: true,
   };
   if (data.role !== undefined) create.role = data.role;
   const res = await jmapClient.request([
