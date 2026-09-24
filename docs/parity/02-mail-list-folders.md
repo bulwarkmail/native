@@ -74,7 +74,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 
 ### Unified mailbox / cross-account views
 
-- [x] **Unified scope: account-bounded by default, cross-account opt-in; single-account + group inboxes case** — `P2` — `partial` — fixed in 6ae21d5
+- [x] **Unified scope: account-bounded by default, cross-account opt-in; single-account + group inboxes case** — `P2` — `partial` — fixed in 6ae21d5; the drawer only shows the Unified section when it can hold more than one account's mail since af6290f (#843)
   - What WEB does: unified views stay inside the active account (own + shared/group folders) unless `unifiedCrossAccount` is on *and* the admin gate allows it (`components/mail/mail-app.tsx:465-500`, `stores/settings-store.ts:405-431`); the section is shown with one account as soon as `includeGroupInUnified && hasGroupInboxes` (`components/layout/sidebar.tsx:905-907`).
   - What RN does: "All inboxes" is shown only when `accounts.length > 1` (`src/components/SidebarDrawer.tsx:438-446`) and always spans every account (`src/api/unified-inbox.ts:236-257`). A single account with group inboxes gets no unified view even with "Include Group Inboxes" on (`ReadingSettings.tsx:257`). Admin policy gates do not exist in RN (see N/A).
   - Fix hint: show the row when `accounts.length > 1 || (includeGroupInUnified && mailboxes.some(m => m.isShared))`; add a `unifiedCrossAccount` toggle (default off, like WEB) and pass only the active account id when it is off. Note WEB's default for `includeGroupInUnified` is `true` (`settings-store.ts:639`) while RN defaults to `false` (`src/stores/settings-store.ts:235`).
@@ -102,7 +102,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 - [x] **No actions on unified rows (swipe, star, read, delete, archive, spam, selection)** — `P2` — `missing` — fixed in 6ae21d5
   - What WEB does: every list action resolves the email's own client + owner account via `resolveEmailActionContext` (`stores/email-store.ts:581-640`), incl. batch actions grouped by `sourceAccountId` (`:2634-2660`, `:2740-2760`), archive into the owner's archive (`components/mail/mail-app.tsx:2141-2160`); changelog 1.7.5/1.7.7 "route counter/keyword updates to the email's own account in aggregate views".
   - What RN does: rows are plain `Pressable`s (`src/screens/UnifiedInboxScreen.tsx:95-138`); nothing but open.
-  - Fix hint: wrap rows in `SwipeableRow`; because the JMAP client is single-account, actions on a *different registry account* need the detached `jmapPost` path (`unified-inbox.ts:116-131`) with `Email/set` against `email.jmapAccountId`; for the active account and its group accounts route through `setEmailKeywords(..., email.jmapAccountId)` / `moveEmail(...)` overrides.
+  - Fix hint: wrap rows in `SwipeableRow`; because the JMAP client is single-account, actions on a *different registry account* need the detached `jmapPost` path (`unified-inbox.ts:116-131`) with `Email/set` against `email.jmapAccountId`; for the active account and its group accounts route through `setEmailKeywords(..., email.jmapAccountId)` / `moveEmail(...)` overrides. (`setEmailKeywords` is gone since 5041897; keyword changes now go through `patchKeywordsForEmails` in `src/api/email.ts` or the store's `setKeywordForEmails`.)
 
 - [x] **Unified list stays stale after acting on a message; just-read mail handling** — `P3` — `partial` — fixed in 6ae21d5
   - What WEB does: aggregate views refresh through the fan-out on push (`refreshCurrentMailbox`, #791) and keep just-read/unstarred rows in the Unread/Starred views until re-opened (`retainedInViewIds`, `stores/email-store.ts:1007-1050`).
@@ -130,7 +130,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: `EmailRow` shows no tags; `tagPill/tagDot/tagText` styles exist but are unused (`src/screens/EmailListScreen.tsx:1481-1495`). Tags are only visible inside the thread screen tag menu.
   - Fix hint: compute tag ids from `item.keywords` (`$label:*`, `$color:*`), look up `useKeywordsStore().keywords` for label/colour (unknown ids → grey with raw id), render pills on the subject row; add a `tintListRowsByTag` setting if desired.
 
-- [x] **Tag view (tap a tag → cross-folder `hasKeyword` list, #175) and tag counts in the drawer** — `P2` — `missing` — fixed in 6ae21d5
+- [x] **Tag view (tap a tag → cross-folder `hasKeyword` list, #175) and tag counts in the drawer** — `P2` — `missing` — fixed in 6ae21d5; the view and the badges cover shared accounts since 8d5bced (#1038), and the counts are no longer re-fetched on every drawer open since d097ae9
   - What WEB does: "Tags" sidebar section with unread/total per tag (`fetchTagCounts`, `stores/email-store.ts:1192`), visibility rules (`components/layout/sidebar.tsx:1002-1013`), `selectKeyword` → `getEmails(undefined, …, '$label:<id>')` across all folders (`stores/email-store.ts:1343-1420`, changelog 1.4.13 #175), counts kept in step with read/unread (1.7.8).
   - What RN does: no tag section in `SidebarDrawer`; `EmailFilters` has no keyword field (`src/stores/email-store.ts:140-149`).
   - Fix hint: add `keyword?: string` to `EmailFilters` and a "Tags" section in the drawer; when set, `buildJmapFilter` should omit `inMailbox` (search across folders) and add `{ hasKeyword: '$label:<id>' }`; counts via one `Email/query` (calculateTotal) per tag, optional.
@@ -219,7 +219,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: `formatListDate` follows the app locale only (`src/lib/date-format.ts:17-31`), "Just now"/"m ago" are English (`:38-41`).
   - Fix hint: localize the relative strings via `t()`; add a `dateLocale` select if parity is wanted.
 
-- [x] **Show avatars in Junk (off by default, 1.5.1); avatar priority** — `P3` — `partial` — fixed in bea3fc4
+- [x] **Show avatars in Junk (off by default, 1.5.1); avatar priority** — `P3` — `partial` — fixed in bea3fc4; contact photos win over favicons and initials since eca3871 (#54)
   - What WEB does: `showAvatarsInJunk` hides favicon/photo images in Junk (`components/email/thread-list-item.tsx:137`); avatar priority contact photo > plugin (Gravatar) > favicon > initials (`components/ui/avatar.tsx:236`).
   - What RN does: favicons always load, including in Junk (`src/components/SenderAvatar.tsx:37`); no contact-photo lookup.
   - Fix hint: pass `disableImages={currentMailbox.role === 'junk' && !showAvatarsInJunk}` into `SenderAvatar`; contact photos optional.
@@ -291,11 +291,11 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 - Missing Archive/Trash/Junk → error alert (`EmailListScreen.tsx:363-387`), never silently destroys when Trash is missing (#195 equivalent).
 - Delete semantics: trash / trash-and-read (#323) / permanent / junk auto-permanent, single and batch (`email-store.ts:1268-1335`, `1434-1527`); undo snackbar for archive/delete/move (single + batch) — RN is ahead of WEB here.
 - Archive single / by year / by month with folder creation in one request, batch archive, "Reorganize existing archive" (`src/api/email.ts:579-692`, `ReadingSettings.tsx:105-159`).
-- Swipe actions: configurable per direction, instant and reveal modes, pure gesture module with tests, stale-props fix (`SwipeableRow.tsx`, `swipe-gesture.ts`); more actions than WEB (pin, move). RTL: RN ships no RTL locales, nothing to do yet.
+- Swipe actions: configurable per direction, instant and reveal modes, pure gesture module with tests, stale-props fix (`SwipeableRow.tsx`, `swipe-gesture.ts`); more actions than WEB (pin, move). RTL: ar, he and fa ship since 990cd84, but swipe directions are not mirrored yet (area 08, RTL finding).
 - Multi-select: long-press, select-all-visible/indeterminate, batch star/read/tag/move/archive/delete (`EmailListScreen.tsx:320-500`).
 - Pagination via `onEndReached`, pull-to-refresh, incremental `Email/queryChanges` + `Email/changes` refresh with per-account state tokens, base-view restore after search (#10), sort change invalidates snapshots (#5), offline seed and fallback.
 - Search: full-text with wildcard suffix (`src/lib/search-utils.ts` = WEB `toWildcardQuery`), from/to/subject/date/attachment/unread/starred tri-state filters, chips row, search inside a shared folder routed to its owner.
-- Keyword writes send the whole `keywords` map (no JSON-pointer escaping issue, no `false` values) — not affected by 5c484af1 / be97c8bf; tag ids normalized exactly like WEB `normalizeKeywordLevel` (`KeywordSettings.tsx:118-123`); batch tag toggle via `TagSheet` with "all have it" semantics.
+- Keyword writes send RFC 6901-escaped `keywords/<name>` patch pointers since 5041897 (`src/api/patch-pointer.ts`; the whole-map writes erased other keywords, audit B4), with `null` instead of `false` — not affected by 5c484af1 / be97c8bf; tag ids normalized exactly like WEB `normalizeKeywordLevel` (`KeywordSettings.tsx:118-123`); batch tag toggle via `TagSheet` with "all have it" semantics.
 - Unread dot (#27), date formats smart/relative/full with 12/24h, preview toggle, density-aware rows, sender favicon avatars with failure cache, `.eml`/`.zip` import into the open folder, Scheduled quick view, "Include group inboxes" setting and shared badge/account dot in the unified list.
 - Mark-as-read delay (0/3s/5s) in the thread screen; both clients still display `receivedAt` in the list (WEB `lib/email-date.ts` is not wired into the list yet).
 
@@ -305,6 +305,6 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 - Admin policy gates for unified/cross views (`usePolicyStore` feature flags) — RN has no admin policy channel; only the user-side toggles apply.
 - Return-to-list-after-action setting — the RN thread screen always returns after delete/archive/spam.
 - "Refresh" toolbar button and F5/Ctrl+R interception — pull-to-refresh covers it.
-- Favicon unread badge, sidebar collapse/resize, Pro multi-pane shell, folder subscription (neither client exposes `isSubscribed`).
+- Favicon unread badge (its native counterpart, the app-icon badge, landed in 25c0883, iOS only), sidebar collapse/resize, Pro multi-pane shell, a folder subscription UI (neither client shows `isSubscribed`; both subscribe the folders they create, native since 30aea63, #951).
 - Plugin search hooks / external search results, `onEmailsFetched` transforms.
 - Source-folder chip on rows is N/A *until* All-mail/cross views exist in RN.

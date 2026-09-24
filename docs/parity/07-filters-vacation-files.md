@@ -32,7 +32,7 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What RN does: the `filtersExpandedView` toggle exists (`src/components/settings/FilterSettings.tsx:350-355`) but only lifts the `numberOfLines` clamp on the same one-line summary (`:268`, `:292`); `if`/`then`/`match_all_conditions` locale keys are unused.
   - Fix hint: add a `VisualRuleSummary` component rendering rows of chips (all conditions, all actions) when `expandedView` is true.
 
-- [ ] **Per-account (shared/group) filters not supported** — `P3` — `missing` (depends on whether RN gets managed shared-account settings at all) — deferred: RN has no managed/shared-account settings yet
+- [x] **Per-account (shared/group) filters not supported** — `P3` — `missing` (depends on whether RN gets managed shared-account settings at all) — done in a86cd1d (tap a shared account in Account settings to manage its filters; the rule editor offers that account's folders)
   - What WEB does: `filter-store` tracks `availableAccounts`/`selectedAccountId` and every Sieve call takes an `accountId` (`stores/filter-store.ts:62-134`); `FilterSettings` scopes to `managedAccountId` and fetches that account's mailboxes for the move target list (`components/settings/filter-settings.tsx:188-232`, `248-255`); client `getSieveAccounts()` (`lib/jmap/client.ts:4465-4469`).
   - What RN does: `src/api/sieve.ts:20-23` always uses the primary Sieve account; store has no account selection (`src/stores/filter-store.ts:32`). No `managedAccount` concept exists in RN (`grep -ri managedAccount src` → none).
   - Fix hint: only if the Accounts area adds shared-account management: thread an optional `accountId` through `api/sieve.ts` and the store's `fetchFilters/saveFilters`.
@@ -69,7 +69,7 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What RN does: `VacationSettings.tsx` never calls `useLocaleStore`; "Vacation Responder", "Date Range", "Saved", warnings etc. are literals (`:57-59`, `:72-74`, `:88`, `:101-158`). RN `locales/en/common.json` already contains `settings.vacation.{title,description,status,date_range,message,preview,save,saving,warnings}`.
   - Fix hint: wire `t('settings.vacation.…')` like `FilterSettings.tsx` does.
 
-- [ ] **Vacation fetch/save on a shared account** — `P3` — `missing` (same dependency as the filters item) — deferred: same dependency (no managed-account concept in RN)
+- [x] **Vacation fetch/save on a shared account** — `P3` — `missing` (same dependency as the filters item) — done in a86cd1d
   - What WEB does: `fetchVacationResponse(client, managedAccountId)` (`components/settings/vacation-settings.tsx:52-56`, `121-128`).
   - What RN does: always `jmapClient.accountId` (`src/api/vacation.ts:27`, `:43`).
 
@@ -110,7 +110,7 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What RN does: `getDocumentAsync({ multiple: false })` (`src/screens/FilesScreen.tsx:357-360`); uploading the same name twice creates two nodes with the same name.
   - Fix hint: `multiple: true` + sequential upload loop; reuse WEB's `getUniqueName` against `visibleFiles`.
 
-- [ ] **No in-app preview (image/text/markdown/PDF/audio/video/eml)** — `P2` — `missing` — deferred: the OS viewer/share sheet stays the mobile answer for now; no inline viewer ported
+- [x] **No in-app preview (image/text/markdown/PDF/audio/video/eml)** — `P2` — `missing` — done in 409cdb1 (images, text and source files, `.eml`, and PDFs on iOS open in the reader's preview; PDFs on Android, audio, video, HTML and Markdown still go to another app)
   - What WEB does: `ImagePreviewModal` and `FilePreviewModal` (text, markdown, PDF incl. mobile pdf.js viewer, audio, video, EML) chosen via `getFilePreviewKind` (`lib/file-preview.ts:29-68`; `components/files/file-preview-modal.tsx`, `image-preview-modal.tsx`, `pdf-mobile-viewer.tsx`; `files-app.tsx:487-495`, `690-708`).
   - What RN does: tapping a file calls `shareAttachment` which downloads to cache and hands off to the OS share/viewer sheet (`src/screens/FilesScreen.tsx:248-258`; `src/lib/email-export.ts` "preview" variant). Works but there is no inline viewer and no "recent files" tracking.
   - Fix hint: reuse whatever attachment viewer the mail area has (image modal / WebView for text+PDF); N/A if the team decides the OS viewer is the mobile answer - then close this item.

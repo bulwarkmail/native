@@ -99,7 +99,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: 25, true, true, true, false, false, right=read/left=archive, 4 English keywords (`RN: src/stores/settings-store.ts:232-325`).
   - Fix hint: align defaults where the behaviour is the same on both clients (attachment keywords, includeGroupInUnified, autoSelectReplyIdentity, showBirthdayCalendar) before any sync exists, otherwise the first sync flips them for existing users.
 
-- [ ] **`trustedSendersAddressBook` can never be turned on in RN** — `P3` — `partial`
+- [x] **`trustedSendersAddressBook` can never be turned on in RN** — `P3` — `partial` — done in 78114b6 (toggle in Content & Senders); since d89e331 it stays off until the user turns it on, where the webmail turns it on by itself
   - What WEB does: `null` resolves to `true` on first connect when the server has contacts; the Content & Senders tab has a toggle (`components/settings/content-senders-settings.tsx`, `updateSetting('trustedSendersAddressBook'`).
   - What RN does: default `false` (`RN: src/stores/settings-store.ts:239`), read by `EmailBodyView.tsx:470,489` but `ContentSendersSettings.tsx` has no control for it.
   - Fix hint: add the toggle; treat undefined as auto-on when `useHasContacts()`.
@@ -176,7 +176,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: `getNative()` returns `null` off Android and setup throws "Push notifications require Android" (`RN: src/lib/push-notifications.ts:125-128,303-304`); the relay has only FCM and Web Push transports (`repos/relay/README.md` endpoints).
   - Fix hint: needs an APNs transport in the relay (`POST /api/push/register/apns` storing a device token, HTTP/2 to `api.push.apple.com` with a `.p8` key) plus an iOS native module (or `expo-notifications`) for the token and a Notification Service Extension to fetch sender/subject over JMAP. Content-blind payload stays the same.
 
-- [ ] **No non-FCM transport (UnifiedPush, native #44/#48)** — `P3` — `missing` — deferred: relay must accept key-less web registrations + a UnifiedPush connector module
+- [x] **No non-FCM transport (UnifiedPush, native #44/#48)** — `P3` — `missing` — done in ee04e95 (Android: UnifiedPush connector through a distributor app such as ntfy; the relay falls back to unencrypted delivery for distributors without Web Push keys); not in a release yet
   - What WEB does: N/A (browser push).
   - What RN does: FCM only (`BulwarkMessagingService.kt`, `push-notifications.ts:120-128`).
   - Fix hint: UnifiedPush distributors expose an RFC 8030 endpoint, which is exactly what the relay's `/api/push/register/web` already accepts (`repos/relay/src/server.ts` handleRegisterWeb); VAPID/`keys` are optional in UnifiedPush so the relay must accept a record without `p256dh`/`auth` and send unencrypted (or only the id). Client side: `unifiedpush-react-native`/`org.unifiedpush.android.connector` receiving the message and calling the same headless task.
@@ -250,7 +250,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: `RN: app.config.js:33` sets `userInterfaceStyle: 'dark'`, which prebuild writes as `UIUserInterfaceStyle = Dark` in Info.plist, so `useColorScheme()` (`src/theme/colors.ts:16`, `App.tsx:220`) always returns `dark` and "System" behaves like "Dark". On Android without `expo-system-ui` (not in `package.json`) the key is ignored with a prebuild warning, so Android is probably fine. Splash background is also dark-only (`:38`).
   - Fix hint: set `userInterfaceStyle: 'automatic'` and give the splash a light variant (`splash.dark`).
 
-- [x] **Themes tab is a stub with fake themes; `activeThemeId` never applied** — fixed in fe45a44 — `P3` — `missing` (record as N/A for now) — Qui/Nord/Catppuccin/Solarized token sets generated from lib/builtin-themes.ts (src/theme/builtin-themes.ts); useColors() applies activeThemeId; upload button removed
+- [x] **Themes tab is a stub with fake themes; `activeThemeId` never applied** — fixed in fe45a44 — `P3` — `missing` (record as N/A for now) — Qui/Nord/Catppuccin/Solarized token sets generated from lib/builtin-themes.ts (src/theme/builtin-themes.ts); useColors() applies activeThemeId; upload button removed; Roundcube Elastic and Aurora Glass added in 7964e64, "Flat fields" not ported
   - What WEB does: 6 built-in themes (`lib/builtin-themes.ts:879-936`), zip upload, marketplace, admin forced/default theme, compiled CSS tokens, PWA theme-color meta (`stores/theme-store.ts`).
   - What RN does: `ThemesSettings.tsx:18-22` lists `Default/Qui/Sepia` (Qui exists in WEB; Sepia does not), stores `activeThemeId` that nothing reads, "Upload .zip" has no handler (`:81-83`); the tab is marked Experimental.
   - Fix hint: minimal viable subset = map WEB's built-in theme token sets (`builtin-themes.ts` light/dark `colors`) onto `ThemePalette` and let `useColors()` pick `activeThemeId`; remove the upload button. Otherwise hide the tab.

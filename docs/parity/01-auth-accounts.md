@@ -131,7 +131,7 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `MAX_ACCOUNTS = 5` (`src/lib/account-utils.ts:1`) although only the active account holds a live connection.
   - Fix hint: raise the constant (or drop the cap) once the unified inbox cost per account is acceptable.
 
-- [ ] **Shared/group account settings scope is missing** — `P3` — `missing` (changelog 1.7.5 "Manage shared/group account settings from the Accounts page") — deferred: shared accounts are now listed read-only in AccountSettings (490355c); scoped filter/vacation stores need an accountId parameter first
+- [ ] **Shared/group account settings scope is missing** — `P3` — `missing` (changelog 1.7.5 "Manage shared/group account settings from the Accounts page") — partly: shared accounts are listed in AccountSettings (490355c), and tapping one scopes Filters and Vacation to it since a86cd1d; calendar and contacts settings are not scoped yet
   - What WEB does: lists `client.getSharedAccounts()` (non-primary) on the Accounts page and enters a scoped settings mode (filters, vacation, calendars, contacts) via `managed-account-store` (`components/settings/account-settings.tsx:43-48, 112-118, 225-262`; `stores/managed-account-store.ts`).
   - What RN does: `getSharedMailAccounts()` exists for mail/unified inbox (`src/api/jmap-client.ts:480-495`) but there is no shared-account listing or scoped settings.
   - Fix hint: list non-personal `session.accounts` in `AccountSettings` and pass an `accountId` into the filter/vacation stores.

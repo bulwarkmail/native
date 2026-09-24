@@ -190,7 +190,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
 ### Composer autocomplete
 
 - [ ] **Autocomplete lacks groups, recent recipients (Sent), on-demand server search and directory principals** — `P2` — `missing`
-  - store-side done in 26a34d5 (`getAutocomplete` with group entries + recent recipients, `loadRecentRecipients`/`searchRecipients` fed by `src/api/recent-recipients.ts`, `getGroupRecipients`, #672 normalisation); wiring `ComposeScreen`/`ParticipantInput` belongs to the composer agent; directory principals not ported.
+  - store-side done in 26a34d5 (`getAutocomplete` with group entries + recent recipients, `loadRecentRecipients`/`searchRecipients` fed by `src/api/recent-recipients.ts`, `getGroupRecipients`, #672 normalisation); the composer uses `getAutocomplete` and the recent Sent recipients since 5b72c4d. Still open: the on-demand server search (`searchRecipients` has no caller), directory principals, and the calendar's `ParticipantInput`, which still offers contacts only.
   - What WEB does: `getAutocomplete` merges contacts, group entries (as one chip with `memberCount`), RFC 9670 directory principals and recent Sent recipients, deduped and sanitised (#672) (`stores/contact-store.ts:622-707, 23-49`; `loadRecentRecipients` `:1118-1142` fed from `mail-app.tsx:423`; `searchRecipients` `:1144-1154` used by `components/email/email-composer.tsx:1175-1212`; group chip insertion `:1218-1233`; changelogs 1.6.x "Recipient autocomplete from Sent, with on-demand server search", 1.7.x group chips).
   - What RN does: suggestions come only from `individuals` matched with `matchesContactSearch` (`src/screens/ComposeScreen.tsx:367-392`); groups are explicitly filtered out and nothing else is consulted. `ParticipantInput` (calendar) likewise flattens contacts only (`src/components/calendar/ParticipantInput.tsx:34-51`).
   - Fix hint: add `recentRecipients` (scan Sent `to/cc`, 300 msgs) to the contacts store, include groups as a pickable entry that expands to member emails on pick, and reuse `sanitizeDisplayName/splitMailbox`-style cleanup for names that contain a mailbox (#672).
@@ -203,7 +203,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: no contact lookup or "add" action in `EmailThreadScreen` (grep contact/ContactForm: only `SenderAvatar` at `:794`). Only `ContactForm`'s `route.params` support `contactId/addressBookId/asGroup` (`src/navigation/types.ts:24`) — no email/name prefill.
   - Fix hint: add `prefill?: { email; name }` to the `ContactForm` route, and a sender-tap sheet in `EmailThreadScreen` with "Add to contacts" / "Open contact" (lookup by email in `useContactsStore`).
 
-- [ ] **Sender-name tap → contact popup missing** — `P3` — `missing`
+- [x] **Sender-name tap → contact popup missing** — `P3` — `missing` — done in d2ed27f (tapping a sender or recipient opens `AddressActionSheet`, which shows the matching contact and "Open contact")
   - deferred: viewer agent (same sheet as above; `findContactByEmail` + `ContactDetail { contactId }` are ready).
   - What WEB does: clicking the sender name opens the contact popup with details/actions (changelog 1.4.x "Show contact popup when clicking the sender name", `email-viewer.tsx:392-455`).
   - What RN does: none (see previous item).
@@ -294,11 +294,11 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Address book list/create/rename/delete with `myRights` checks (`src/components/settings/ContactsSettings.tsx`, `AddressBookPickerSheet`); inline "New address book…" in the move sheet (WEB #415).
 - Move contacts between books (single from detail, bulk from list) via `addressBookIds` patch (`contacts-store.ts:237-241`) — RN equivalent of WEB drag-and-drop.
-- Group by first letter with sticky headers + settings toggle (`ContactsScreen.tsx:158-162`, `ContactsSettings.tsx:132-137`); sort by display name.
+- Group by first letter with sticky headers + settings toggle (`ContactsScreen.tsx:158-162`, `ContactsSettings.tsx:132-137`); sort by display name, or by last name since 1827748 (#963); the sort no longer re-runs on every search keystroke since e6be892.
 - Search over name/emails/phones/orgs (RN also matches keywords).
 - Detail screen renders every WEB field block: emails/phones with contexts+features+labels, addresses (components, flat, timezone), org/units/titles/roles, anniversaries with age, gender/pronouns, languages, personalInfo, online services, calendar URIs, crypto keys, categories, relatedTo, notes, address book names, created/updated; quick actions call/SMS/mail/share; copy via long-press.
 - Contact form: prefix/given/middle/surname/suffix, nickname, display name (`name.full`), multiple emails/phones with context + phone feature pills, addresses as RFC 9553 components, multiple orgs (org/department/title/role), anniversaries with native date picker, online services, personalInfo w/ level, gender+pronouns, calendar URIs, categories (chips + suggestions from existing keywords), multiple notes, photo pick/remove, address book pick, dirty-state discard confirm, email regex validation, `media: {}` when photo removed (equivalent of WEB `media: null`).
-- `name.full` display fallback (#179), `getContactPrimaryEmail` with `pref`.
+- `name.full` display fallback (#179), `getContactPrimaryEmail` with `pref`. `name.full` (the vCard FN) is written on every form, "add sender" and import save since a734d0a (#430).
 - Group detail: member list resolved via id/uid/`urn:uuid:` (`contacts-store.ts:401-415`), add members via `ContactPickerSheet`, remove member, delete group, email all.
 - Tags (keywords) = WEB categories: drawer section with counts, filter by tag, bulk assign via `TagAssignSheet`, per-contact edit in form.
 - vCard import sheet: file picker, 5 MB cap, parse, duplicate detection by email (`detectDuplicates` identical), select all/none, target book, result count; export all (settings) and single (detail) with share sheet; multi-vCard files; QUOTED-PRINTABLE + charset decode (RN has a Hermes-safe `decodeBytes`), RFC 6868 params, KIND/MEMBER, PHOTO/LOGO/SOUND, RFC 6474/6715/8605/9554 properties.

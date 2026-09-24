@@ -54,7 +54,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 - [x] **Reply / forward does not mark the original `$answered` / `$forwarded`** — fixed in 7f956d6 — `P2` — `missing`
   - What WEB does: after a successful reply/forward the original gets `$answered` or `$forwarded` (`components/mail/mail-app.tsx:1663-1673`), routed to the owning account.
   - What RN does: nothing — `grep -F '$answered'` over `src/` returns no hits; `performSend` (`ComposeScreen.tsx:941-974`) has no access to the original email id (`replyTo` params in `src/navigation/types.ts:10-19` carry no `emailId`).
-  - Fix hint: add `originalEmailId`/`jmapAccountId` to the `replyTo` route param and call the existing keyword primitive (`setEmailKeywords` via `applyOrQueue` in `src/stores/outbox-store.ts`) after the send resolves.
+  - Fix hint: add `originalEmailId`/`jmapAccountId` to the `replyTo` route param and call the existing keyword primitive (`setEmailKeywords` via `applyOrQueue` in `src/stores/outbox-store.ts`) after the send resolves. (`setEmailKeywords` is gone since 5041897; the keyword primitive is now `patchKeywordsForEmails`, and the outbox queues `keywords/<name>` patches.)
 
 - [x] **Identity `replyTo` / `bcc` are never applied to outgoing mail** — fixed in 7f956d6 — `P2` — `missing`
   - What WEB does: `sendEmail` copies the identity's `replyTo` onto the message (`lib/jmap/client.ts:3167-3172`, `:3184`); identity form lets users edit Reply-To and Bcc (`components/identity/identity-form.tsx:39-41`, `:66-70`, `:132-133`).
@@ -281,7 +281,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - Fix hint: route through `t()` with keys in `locales/<lang>/common.json`.
 
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
-- Scheduled send via `EmailSubmission` envelope `HOLDFOR` with explicit `rcptTo` (bare addresses, names stripped) and `maxDelayedSend`/FUTURERELEASE capability checks: `src/api/email.ts:828-844`, `src/api/jmap-client.ts:513-531`, `ComposeScreen.tsx:796-821` — matches `lib/jmap/client.ts:592-612`, `:3245-3258`.
+- Scheduled send via `EmailSubmission` envelope `HOLDFOR` with explicit `rcptTo` (bare addresses, names stripped) and `maxDelayedSend`/FUTURERELEASE capability checks: `src/api/email.ts:828-844`, `src/api/jmap-client.ts:513-531`, `ComposeScreen.tsx:796-821` — matches `lib/jmap/client.ts:592-612`, `:3245-3258`. The capability check read only the session-level object, which Stalwart leaves empty, so scheduling and the undo delay were off on Stalwart until e28e8b4 (#57, audit B8); holds are capped at Stalwart's 7-day limit since 4e7ae2f.
 - Undo-send delay setting (0/5/10/20/30 s) applied only when the server supports delayed send: `ComposeScreen.tsx:825-828`, `ComposingSettings.tsx:42-48`.
 - Send-time readback of the live editor DOM with timeout + loud abort (RN #9/#11): `RichTextEditor.tsx:143-152`, `ComposeScreen.tsx:890-902`; escape-free page script with a parse test.
 - `Name <addr>` recipients split into JMAP `name`/`email` (#672): `ComposeScreen.tsx:69-84`, `:944-947`.
@@ -310,4 +310,4 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 - Signature "double-click to unlock" atom (Tiptap-specific); the RN contenteditable is always editable.
 - Quoted-HTML shadow-island typing detection (#654) — Tiptap/shadow-DOM specific.
 - Send through another logged-in account's client for DKIM (#461) — RN is single-active-account; identities always belong to the submitting account.
-- Route scheduled sends / identity on reschedule to a shared account (#874, a15af722) — RN does not compose on behalf of shared accounts.
+- Route scheduled sends / identity on reschedule to a shared account (#874, a15af722) — RN does not compose on behalf of shared accounts, but the Scheduled screen lists, cancels, reschedules and edits sends held in shared accounts since 72f48db.

@@ -52,14 +52,14 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `rewriteSessionUrls` only rewrites when `extractOrigin(url)` matches `^https?://` (`src/api/jmap-client.ts:320-340`); a relative `apiUrl` is returned unchanged and `fetch('/jmap/')` then fails with "Network request failed". Same gap in `src/api/unified-inbox.ts:55-60`. (RN correctly avoids `new URL()` so templates are not corrupted.)
   - Fix hint: in `rewrite()`, when `extractOrigin` is null and the string starts with `/`, return `serverOrigin + url`.
 
-- [x] **Capability check uses the broad `principals` URN, not `principals:owner` (44360024)** — `P2` — `bugfix-parity` — fixed in a0ce925
+- [x] **Capability check uses the broad `principals` URN, not `principals:owner` (44360024)** — `P2` — `bugfix-parity` — fixed in a0ce925; since Stalwart advertises `principals:owner` nowhere, that also hid sharing, so since caea3d0 the sharing UI is gated on `principals` and `principals:owner` only goes into `using` when advertised
   - What WEB does: declares `urn:ietf:params:jmap:principals:owner` in `using` only when that exact capability is advertised in session or account capabilities (`lib/jmap/client.ts:4689-4698`, `6472`; changelog "Check the specific capability a request declares (principals:owner), not a broader one").
   - What RN does: `supportsSharing()` checks `CAPABILITIES.PRINCIPALS` (`src/api/files.ts:23-25`) and then pushes `PRINCIPALS_OWNER` into `using` (`files.ts:40-43`). A server advertising `principals` but not `principals:owner` rejects every FileNode request with `unknownCapability`.
   - Fix hint: check `hasCapability(CAPABILITIES.PRINCIPALS_OWNER) || accountCapabilities[...]` before adding it.
 
 - [x] **PatchObject pointer keys not JSON-Pointer escaped (5c484af1)** — `P3` — `bugfix-parity` — fixed in ccbe67c
   - What WEB does: `keywordPointer()`/`pointerToken()` escape `~` and `/` (`lib/jmap/patch-pointer.ts:39-55`); mailbox moves use a whole-map replacement (`lib/jmap/client.ts:66-74`).
-  - What RN does: `moveEmail`/`moveEmails` build `mailboxIds/${id}` pointers unescaped (`src/api/email.ts:456-457`, `473-474`). Stalwart ids never contain `/`, so exposure is limited to non-Stalwart servers; keywords are always sent as a whole map (`email.ts:436-445`), so tag names with `/` are safe.
+  - What RN does: `moveEmail`/`moveEmails` build `mailboxIds/${id}` pointers unescaped (`src/api/email.ts:456-457`, `473-474`). Stalwart ids never contain `/`, so exposure is limited to non-Stalwart servers; keywords are always sent as a whole map (`email.ts:436-445`), so tag names with `/` are safe. (Since 5041897 keywords are sent as `keywords/<name>` pointers too, escaped by `keywordPointer` in `src/api/patch-pointer.ts`.)
   - Fix hint: add `pointerToken()` or switch `moveEmail(s)` to the full `mailboxIds` replacement RN already uses in `restoreEmailMailboxes`.
 
 - [x] **Send: message created directly in Sent instead of Drafts + `onSuccessUpdateEmail` (#188)** — `P2` — `bugfix-parity` — fixed in ccbe67c
@@ -181,7 +181,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `android:allowBackup="true"` with `@xml/secure_store_backup_rules` from the expo-secure-store plugin, which only excludes SecureStore's own prefs (`android/app/src/main/AndroidManifest.xml:16`); the AsyncStorage SQLite DB (full cached bodies `webmail:offline-cache:entry:v2:*`, outbox, settings, account registry) is backed up to the user's Google account.
   - Fix hint: add an app-owned `fullBackupContent`/`dataExtractionRules` excluding `databases/RKStorage` (AsyncStorage) or set `allowBackup=false` via an Expo config plugin.
 
-- [ ] **Send has no offline path and no draft fallback** — `P2` — `missing`
+- [ ] **Send has no offline path and no draft fallback** — `P2` — `missing` — partly: drafts autosave to the server since 5b72c4d, and since 92b42e4 the close dialog no longer drops the text when the draft can't be saved; an offline send is still not queued, and a draft can't be saved offline
   - What WEB does: no offline queue either, but send failures leave the composer open with the draft autosaved (composer agent's area); send itself has a deadline (#702).
   - What RN does: `ComposeScreen` shows `Alert('Send failed')` and keeps the modal (`src/screens/ComposeScreen.tsx:975-979`); there is no draft API in `src/api/email.ts` (`grep -n '[Dd]raft' src/api/email.ts` only finds the send create id), so the body is lost if the user leaves, and an offline send is not queued although the outbox exists.
   - Fix hint: either add an `outbox` `send` op kind (blob uploads must already be done) or at minimum persist the composer state locally on failure.
@@ -298,11 +298,11 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
 - `Email/queryChanges` + `Email/changes` incremental list refresh with snapshot guard (issue #10) and full re-query fallback (`src/stores/email-store.ts:770-980`).
 - `null` for patch removal, `false` stripped from `mailboxIds` maps (`src/api/email.ts:456`, `551-556`).
 - FilterOperator/FilterCondition kept separate in query filters (`src/api/email.ts:225-237`).
-- `getSharedMailboxes` chunks to `maxCallsInRequest` (`src/api/email.ts:84-105`); `getEvents`/`getContacts`/`fetchEmailsChunked`/offline sync chunk to `maxObjectsInGet`.
-- Send: `/error`, `notCreated` checked; HOLDFOR envelope for scheduled send; FUTURERELEASE capability check (`src/api/email.ts:836-873`, `src/api/jmap-client.ts:505-531`).
-- Push subscription create/verify/update/destroy with `using: [core]` and 90-day expiry refresh (`src/api/push.ts:9-114`, `src/lib/push-notifications.ts`).
+- `getSharedMailboxes` chunks to `maxCallsInRequest` (`src/api/email.ts:84-105`); `getEvents`/`getContacts`/offline sync chunk to `maxObjectsInGet`, and list pages are capped at it since `queryEmailPage` replaced `fetchEmailsChunked` (d987930).
+- Send: `/error`, `notCreated` checked; HOLDFOR envelope for scheduled send; FUTURERELEASE capability check (`src/api/email.ts:836-873`, `src/api/jmap-client.ts:505-531`). Two gaps found later: the capability was read from the session instead of the account until e28e8b4 (#57, audit B8), and a method error after a created submission (Stalwart's failed filing into Sent) was reported as a failed send until c51a848 (audit B23).
+- Push subscription create/verify/update/destroy with `using: [core]` and 90-day expiry refresh (`src/api/push.ts:9-114`, `src/lib/push-notifications.ts`); calls that read or write `emailPush` also name `urn:ietf:params:jmap:emailpush` since ccaa24e, and every call checks the response since ddfe85a.
 - Outbox: idempotent full-state ops, per-account buckets, destroy-wins coalescing, oldest-first replay, account-switch guards (`src/stores/outbox-store.ts`).
-- Offline cache: per-account buckets, index + entry keys, eviction by `receivedAt`, optimistic `patch`, abort on account switch (`src/stores/offline-cache-store.ts`); `getEmailDetail` cache fallback.
+- Offline cache: per-account buckets, index + entry keys, eviction by `receivedAt`, optimistic `patch`, abort on account switch (`src/stores/offline-cache-store.ts`); the offline copy is shown before the network since 33e303e (`src/lib/email-detail-cache`, which replaced `getEmailDetail`).
 - Credentials in `expo-secure-store` (never AsyncStorage); SecureStore key sanitising; per-account keys; legacy migration.
 - Client-cert module uses the platform default `X509TrustManager` (no trust-all) (`BulwarkClientCertModule.kt:216-222`).
 - WebView hardening: `originWhitelist=['about:blank']`, no file/universal access, `mixedContentMode="never"`, no multiple windows, no cookies/DOM storage, `incognito`, external links limited to `https?|mailto|tel|sms` (`src/components/EmailBodyView.tsx:675-724`).

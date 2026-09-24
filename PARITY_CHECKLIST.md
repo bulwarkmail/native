@@ -75,23 +75,34 @@ commit hash. The remaining `- [ ]` items are either deferred with a note
 for TOTP accounts, relay APNs/UnifiedPush transports, a server-side settings
 store for native #1).
 
+## Status after the 2026-09-24 fix pass
+
+The native audit of 2026-09-22 ([docs/audit-2026-09.md](docs/audit-2026-09.md))
+spot-checked this list and found 14 ticks that were broken or overstated and 11
+open items that were already done. The 2026-09-24 fix pass fixed 13 of the 14
+(their ticks now also name the fixing commit; the date-locale item is open
+again), dropped three obsolete items and ticked what it completed: 379 of 415
+items are done, 36 open. What still needs a device check or a decision is in
+the audit's "Fix pass, 2026-09-24" section.
+
 ## Areas
 
-| # | Area | File | Items | P1 | P2 | P3 |
-|---|---|---|---|---|---|---|
-| 01 | Authentication, login, session, multi-account | [docs/parity/01-auth-accounts.md](docs/parity/01-auth-accounts.md) | 30 | 4 | 8 | 18 |
-| 02 | Mail list, folders, unified views, search, tags | [docs/parity/02-mail-list-folders.md](docs/parity/02-mail-list-folders.md) | 54 | 1 | 20 | 33 |
-| 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 46 | 6 | 13 | 26 |
-| 04 | Composer, drafts, sending, identities, templates, scheduled send | [docs/parity/04-composer-send.md](docs/parity/04-composer-send.md) | 51 | 5 | 14 | 32 |
-| 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 51 | 5 | 20 | 26 |
-| 06 | Contacts and address books | [docs/parity/06-contacts.md](docs/parity/06-contacts.md) | 51 | 1 | 18 | 31 |
-| 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 33 | 3 | 8 | 22 |
-| 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 46 | 0 | 14 | 32 |
-| 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 56 | 7 | 23 | 26 |
-| | **Total** | | **418** | **32** | **138** | **246** |
+| # | Area | File | Items | Done | Open | P1 | P2 | P3 |
+|---|---|---|---|---|---|---|---|---|
+| 01 | Authentication, login, session, multi-account | [docs/parity/01-auth-accounts.md](docs/parity/01-auth-accounts.md) | 30 | 29 | 1 | 4 | 8 | 18 |
+| 02 | Mail list, folders, unified views, search, tags | [docs/parity/02-mail-list-folders.md](docs/parity/02-mail-list-folders.md) | 54 | 50 | 4 | 1 | 20 | 33 |
+| 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 46 | 45 | 1 | 6 | 13 | 26 |
+| 04 | Composer, drafts, sending, identities, templates, scheduled send | [docs/parity/04-composer-send.md](docs/parity/04-composer-send.md) | 51 | 46 | 5 | 5 | 14 | 32 |
+| 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 50 | 43 | 7 | 5 | 20 | 25 |
+| 06 | Contacts and address books | [docs/parity/06-contacts.md](docs/parity/06-contacts.md) | 50 | 46 | 4 | 1 | 18 | 31 |
+| 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 32 | 29 | 3 | 3 | 8 | 21 |
+| 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 46 | 37 | 9 | 0 | 14 | 32 |
+| 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 56 | 54 | 2 | 7 | 23 | 26 |
+| | **Total** | | **415** | **379** | **36** | **32** | **138** | **244** |
 
-Counts are of `- [ ]` items per file (a handful of "verified" notes carry a
-priority tag too, so P-sums can differ by one or two from the item count).
+Counts are of the `- [ ]` and `- [x]` items per file as of 2026-09-24. Done and
+Open split them by tick; the P columns count the priority tags on those items
+(one item carries none).
 
 ## All P1 findings (fix these first)
 

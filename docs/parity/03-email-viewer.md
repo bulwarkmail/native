@@ -124,7 +124,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
 - [x] **Tags, `$important` badge and answered/forwarded state in the header — fixed in d2ed27f** — `P3` — `missing`
   - What WEB does: tag badges (removable) under the subject, "Important" pill (`components/email/email-viewer.tsx:3789-3806`); `$answered`/`$forwarded` set after send (`components/mail/mail-app.tsx:1663-1667`).
   - What RN does: Tag sheet exists but no badges are rendered in the pane; `$answered`/`$forwarded` are never set after a reply/forward (no hit for `$answered` in `src/`).
-  - Fix hint: render `keywordDefs` matches from `email.keywords` under the subject; after a successful send in `ComposeScreen` call `setEmailKeywords(originalId, {...keywords, $answered|$forwarded: true}, accountId)`.
+  - Fix hint: render `keywordDefs` matches from `email.keywords` under the subject; after a successful send in `ComposeScreen` call `setEmailKeywords(originalId, {...keywords, $answered|$forwarded: true}, accountId)`. (`setEmailKeywords` is gone since 5041897: set `keywords/$answered` or `keywords/$forwarded` through `patchKeywordsForEmails` or the store's `setKeywordForEmails`.)
 
 ### Calendar invitation banner
 
@@ -138,7 +138,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
   - What RN does: `extractMethodFromRawIcs` exists (`src/lib/calendar-invitation.ts:103-106`) but is never called; only `inferInvitationMethod` heuristics are used (`CalendarInvitationBanner.tsx:62`), so a cancellation whose event status is not `cancelled`, or a REPLY from a single attendee, is shown as a plain invitation with RSVP buttons.
   - Fix hint: fetch the blob text (`getDownloadUrl` + `secureFetch`, as `fetchRawEmail` does) in parallel with parse and prefer `extractMethodFromRawIcs`.
 
-- [ ] **Banner lacks WEB's trust assessment, actor summary, existing-event / "already in calendar" state, calendar picker, "View in calendar", collapse, sequence badge, counter-proposal review** — `P3` — `partial` — deferred: trust assessment, iTIP method and calendar picker landed in 8206893 (calendar agent); existing-event state, "View in calendar", collapse, sequence badge and counter-proposal review remain open in the calendar area
+- [ ] **Banner lacks WEB's trust assessment, actor summary, existing-event / "already in calendar" state, calendar picker, "View in calendar", collapse, sequence badge, counter-proposal review** — `P3` — `partial` — deferred: trust assessment, iTIP method and calendar picker landed in 8206893 (calendar agent); the existing-event state followed in c0582ab, which looks the event up on the server by `uid` (also so Accept sends the RSVP, audit B22); "View in calendar", collapse, sequence badge and counter-proposal review remain open in the calendar area
   - What WEB does: `getInvitationTrustAssessment` (sender vs organizer + auth results) warning, actor line ("X accepted"), `queryCalendarEvents({uid})` to show "already in calendar" and current RSVP, picker when >1 calendar, "View in calendar" navigation, collapsible card, `sequence` "updated" pill, apply counter proposal for organizers (`components/email/calendar-invitation-banner.tsx:392-474`, `502-553`, `657-672`, `721-752`, `802-1140`).
   - What RN does: title/date/location/video/organizer rows, Yes/Maybe/No, Add to first writable calendar (`src/components/email/CalendarInvitationBanner.tsx:83-207`); no dedupe check before offering "Add", no picker, no trust warning, no navigation to the event.
   - Fix hint: port `getInvitationTrustAssessment` (needs the headers finding for auth), look up `useCalendarStore.events` by `uid` to switch to "already in calendar"/current response, add a calendar picker sheet when `calendars.length > 1`, and a "View in calendar" button that navigates to `CalendarScreen` with the start date.
@@ -165,7 +165,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
   - What RN does: shows `winmail.dat` as an opaque attachment; the real files inside are unreachable.
   - Fix hint: `lib/tnef.ts` is pure `Uint8Array` code; copy it and feed `jmapClient.fetchBlobArrayBuffer`.
 
-- [x] **Attachment chip list: no MIME-based fallback names, MDN/DSN report parts and non-inline cid images mishandled — fixed in d2ed27f** — `P3` — `partial`
+- [x] **Attachment chip list: no MIME-based fallback names, MDN/DSN report parts and non-inline cid images mishandled — fixed in d2ed27f** — `P3` — `partial` — body-embedded `cid:` parts typed octet-stream are hidden from the chips since 1d1d6a5
   - What WEB does: unnamed parts get `Document.pdf`/`Email.eml`/`Attachment.<sub>` (`components/email/email-viewer.tsx:191-225`); `message/disposition-notification` and `message/delivery-status` parts are hidden (`1604-1606`); inline hiding requires `disposition === 'inline'` (`1601-1603`).
   - What RN does: unnamed → `'attachment'` (`src/screens/EmailThreadScreen.tsx:745`); report parts are listed; any `cid` image is hidden regardless of disposition (`719-721`), so an image attached with a Content-ID but `disposition: attachment` (common from some clients) disappears from the list even when the body does not reference it.
   - Fix hint: port `getAttachmentDisplayName`, add the two report-type filters, and check `disposition === 'inline'` (or that the body actually references the cid via `extractCidRefs`).
@@ -247,7 +247,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
 - External content policy ask/block/allow, per-message "Load external content", "Trust sender" persisting locally and to the address book, trusted list from the address book and contacts (`src/components/EmailBodyView.tsx:480-535`, `643-672`).
 - cid inline images fetched with auth and injected as data URIs, transparent placeholder otherwise (`src/components/EmailBodyView.tsx:546-584`, `src/lib/email-html.ts:213-218`).
 - Shrink-to-fit of fixed-width emails + in-page pinch zoom/pan with pager/scroll locking (`src/components/EmailBodyView.tsx:159-460`) — RN-only, better than WEB's horizontal scroll (#409).
-- Mark read on open with delay setting (apart from the `-1` bug), optimistic star/unread/tag toggles, delete/archive/spam/not-spam/move scoped to the message's account, `no trash folder` alert (`src/screens/EmailThreadScreen.tsx:221-364`).
+- Mark read on open with delay setting (apart from the `-1` bug), optimistic star/unread/tag toggles, delete/archive/spam/not-spam/move scoped to the message's account, `no trash folder` alert (`src/screens/EmailThreadScreen.tsx:221-364`). The account scoping was wrong for messages opened from the Unified Inbox, a notification or a deep link until 5c7301b (audit B3); star, tag and unread are queued offline since ddff2f7.
 - Prev/next navigation with prefetched neighbour panes and swipe (`src/screens/EmailThreadScreen.tsx:122-181`, `535-572`) — RN-only pager.
 - Skeleton while loading (`src/screens/EmailThreadScreen.tsx:845-886`).
 - Attachments: chips with size, show-all toggle, `hideInlineImageAttachments` setting, `attachmentPosition` setting, `mailAttachmentAction` preview/download, templated filenames + transforms identical to WEB (`src/lib/download-filename.ts` diff vs `lib/download-filename.ts` is whitespace/quotes only, minus `DEFAULT_BUNDLE_TEMPLATE`/`BUNDLE_TOKENS`), Downloads settings screen with live preview (`src/components/settings/DownloadsSettings.tsx`).
@@ -259,7 +259,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
 
 ## N/A on mobile
 - Print (WEB `handlePrint`, `components/email/email-viewer.tsx:2621-2670`) — could be done with `expo-print` later, but not a parity requirement.
-- Copy permalink / deep link to a message (#733) — RN has no linking configuration; no `linking` prop in `App.tsx`.
+- Copy permalink to a message (#733) — RN opens incoming message links since 5802cae (`src/navigation/linking.ts`) but has no "copy link" action.
 - Fullscreen reading toggle, Pro split panes, toolbar overflow measurement, plugin slots/hooks (`email-banner`, `email-detail-sidebar`, `onRenderEmailBody`, `onBeforeExternalLink`, `ui.rerenderEmail`), keyboard shortcuts, drag attachments out to the file system (#267), drag emails out as `.eml`, import `.eml` from the viewer menu (RN imports from the list screen instead).
 - Iframe-specific fixes: "Render the email body on DOM parse instead of iframe load" (#635), iframe flash/flicker fixes (1.5.4, 1.6.7), `blob:` in CSP `object-src`/`frame-src` for PDF previews (#253), pdf.js bytes vs `blob:` fetch (#871), RSC 307 loop (#919), iOS Safari viewport zoom on input focus (#838).
 - Demo-mode welcome pane, tour, contact sidebar panel layout (desktop only; the actions themselves are listed above).
