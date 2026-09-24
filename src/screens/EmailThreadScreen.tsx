@@ -26,7 +26,7 @@ import {
   REPLY_QUICK_ACTIONS,
   type QuickAction,
 } from '../stores/settings-store';
-import { setEmailKeywords, getThreadEmails } from '../api/email';
+import { patchKeywordsForEmails, getThreadEmails } from '../api/email';
 import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
@@ -319,7 +319,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (next[token]) delete next[token];
     else next[token] = true;
     updateLocalKeywords(email.id, next);
-    void setEmailKeywords(email.id, next, ownerAccountId);
+    void patchKeywordsForEmails([email.id], { [token]: next[token] ?? null }, ownerAccountId);
   };
 
   // Toggle the star on a specific message — used both by the toolbar (current
@@ -329,7 +329,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (next.$flagged) delete next.$flagged;
     else next.$flagged = true;
     updateLocalKeywords(target.id, next);
-    void setEmailKeywords(target.id, next, ownerAccountId);
+    void patchKeywordsForEmails([target.id], { $flagged: next.$flagged ?? null }, ownerAccountId);
   }, [updateLocalKeywords, ownerAccountId]);
 
   const onToggleStar = () => { if (email) toggleStarFor(email); };
@@ -343,7 +343,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       const next = { ...email.keywords };
       delete next.$seen;
       updateLocalKeywords(email.id, next);
-      void setEmailKeywords(email.id, next, ownerAccountId);
+      void patchKeywordsForEmails([email.id], { $seen: null }, ownerAccountId);
     }
   };
 

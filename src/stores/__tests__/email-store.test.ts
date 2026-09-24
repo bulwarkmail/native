@@ -15,8 +15,8 @@ vi.mock('../../api/email', () => ({
   getEmailChanges: vi.fn(async () => null),
   getFullEmail: vi.fn(),
   importEmailBlob: vi.fn(async () => 'imported-1'),
-  setEmailKeywords: vi.fn(),
-  setKeywordsForEmails: vi.fn(),
+  patchKeywordsForEmails: vi.fn(),
+  patchKeywordsPerEmail: vi.fn(),
   moveEmail: vi.fn(),
   moveEmails: vi.fn(),
   archiveEmails: vi.fn(),
@@ -49,8 +49,8 @@ vi.mock('../locale-store', () => ({
 // without pulling in network-store / NetInfo.
 vi.mock('../outbox-store', async () => {
   const api = await import('../../api/email') as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
-  const runOp = async (op: { kind: string; emailId: string; accountId?: string; keywords?: unknown; mailboxIds?: unknown }) => {
-    if (op.kind === 'keywords') return api.setEmailKeywords(op.emailId, op.keywords, op.accountId);
+  const runOp = async (op: { kind: string; emailId: string; accountId?: string; patch?: unknown; mailboxIds?: unknown }) => {
+    if (op.kind === 'keywords') return api.patchKeywordsForEmails([op.emailId], op.patch, op.accountId);
     if (op.kind === 'mailboxes') return api.setEmailMailboxes(op.emailId, op.mailboxIds, op.accountId);
     if (op.kind === 'destroy') return api.destroyEmails([op.emailId], op.accountId);
   };
@@ -155,7 +155,7 @@ const mockGetEmailQueryChanges = emailApi.getEmailQueryChanges as ReturnType<typ
 const mockGetEmails = emailApi.getEmails as ReturnType<typeof vi.fn>;
 const mockGetEmailsWithState = emailApi.getEmailsWithState as ReturnType<typeof vi.fn>;
 const mockGetFullEmail = emailApi.getFullEmail as ReturnType<typeof vi.fn>;
-const mockSetKeywords = emailApi.setEmailKeywords as ReturnType<typeof vi.fn>;
+const mockPatchKeywords = emailApi.patchKeywordsForEmails as ReturnType<typeof vi.fn>;
 const mockMoveEmail = emailApi.moveEmail as ReturnType<typeof vi.fn>;
 const mockDeleteEmail = emailApi.deleteEmail as ReturnType<typeof vi.fn>;
 const mockSearchEmails = emailApi.searchEmails as ReturnType<typeof vi.fn>;
@@ -261,11 +261,11 @@ describe('email-store', () => {
       useEmailStore.setState({
         emails: [{ id: 'e1', keywords: {} } as any],
       });
-      mockSetKeywords.mockResolvedValue(undefined);
+      mockPatchKeywords.mockResolvedValue(undefined);
 
       await useEmailStore.getState().markRead('e1');
 
-      expect(mockSetKeywords).toHaveBeenCalledWith('e1', { $seen: true }, undefined);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
       expect(useEmailStore.getState().emails[0].keywords.$seen).toBe(true);
     });
   });
@@ -275,12 +275,12 @@ describe('email-store', () => {
       useEmailStore.setState({
         emails: [{ id: 'e1', keywords: { $seen: true, $flagged: true } } as any],
       });
-      mockSetKeywords.mockResolvedValue(undefined);
+      mockPatchKeywords.mockResolvedValue(undefined);
 
       await useEmailStore.getState().markUnread('e1');
 
-      expect(mockSetKeywords).toHaveBeenCalledWith('e1', { $flagged: true }, undefined);
-      expect(useEmailStore.getState().emails[0].keywords.$seen).toBeUndefined();
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: null }, undefined);
+      expect(useEmailStore.getState().emails[0].keywords).toEqual({ $flagged: true });
     });
   });
 
@@ -289,10 +289,11 @@ describe('email-store', () => {
       useEmailStore.setState({
         emails: [{ id: 'e1', keywords: { $seen: true } } as any],
       });
-      mockSetKeywords.mockResolvedValue(undefined);
+      mockPatchKeywords.mockResolvedValue(undefined);
 
       await useEmailStore.getState().toggleStar('e1', true);
 
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $flagged: true }, undefined);
       expect(useEmailStore.getState().emails[0].keywords.$flagged).toBe(true);
     });
 
@@ -300,10 +301,11 @@ describe('email-store', () => {
       useEmailStore.setState({
         emails: [{ id: 'e1', keywords: { $seen: true, $flagged: true } } as any],
       });
-      mockSetKeywords.mockResolvedValue(undefined);
+      mockPatchKeywords.mockResolvedValue(undefined);
 
       await useEmailStore.getState().toggleStar('e1', false);
 
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $flagged: null }, undefined);
       expect(useEmailStore.getState().emails[0].keywords.$flagged).toBeUndefined();
     });
   });
@@ -736,13 +738,86 @@ describe('email-store', () => {
     });
   });
 
+  // A keyword change must reach the server as `keywords/<name>` pointers:
+  // sending the list's keyword map replaced the server's and erased stars and
+  // tags the list didn't know about (audit B4).
+  describe('keyword changes send only the keywords they change', () => {
+    it('marks a message outside the loaded list read without touching its other keywords', async () => {
+      useEmailStore.setState({ emails: [] });
+
+      await useEmailStore.getState().markRead('e9', 'grp-1');
+      await useEmailStore.getState().markRead('e8');
+
+      expect(mockPatchKeywords).toHaveBeenNthCalledWith(1, ['e9'], { $seen: true }, 'grp-1');
+      expect(mockPatchKeywords).toHaveBeenNthCalledWith(2, ['e8'], { $seen: true }, undefined);
+    });
+
+    it('stars from a stale list row by sending $flagged alone, keeping keywords that changed meanwhile', async () => {
+      useEmailStore.setState({ emails: [{ id: 'e1', keywords: { $notjunk: true, $seen: true } } as any] });
+      // The list refreshes while the request is in flight and picks up a tag
+      // another client added.
+      mockPatchKeywords.mockImplementationOnce(async () => {
+        useEmailStore.setState({ emails: [{ id: 'e1', keywords: { $notjunk: true, $seen: true, '$label:work': true } } as any] });
+      });
+
+      await useEmailStore.getState().toggleStar('e1', true);
+
+      expect(mockPatchKeywords).toHaveBeenCalledTimes(1);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $flagged: true }, undefined);
+      expect(useEmailStore.getState().emails[0].keywords).toEqual({
+        $notjunk: true, $seen: true, '$label:work': true, $flagged: true,
+      });
+    });
+
+    it('tags and untags a selection with one patch naming only that tag', async () => {
+      useEmailStore.setState({
+        emails: [
+          { id: 'e1', keywords: { $seen: true } } as any,
+          { id: 'e2', keywords: { $flagged: true, '$label:work': true } } as any,
+        ],
+      });
+
+      await useEmailStore.getState().setKeywordForEmails(['e1', 'e2'], '$label:work', true);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e1', 'e2'], { '$label:work': true }, undefined);
+      expect(useEmailStore.getState().emails.map((e) => e.keywords)).toEqual([
+        { $seen: true, '$label:work': true },
+        { $flagged: true, '$label:work': true },
+      ]);
+
+      await useEmailStore.getState().setKeywordForEmails(['e2'], '$label:work', false);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e2'], { '$label:work': null }, undefined);
+      expect(useEmailStore.getState().emails[1].keywords).toEqual({ $flagged: true });
+    });
+
+    it('batch delete with trash-and-read marks only the unread messages read with a $seen patch', async () => {
+      useSettingsStore.getState().updateSetting('deleteAction', 'trash-and-read');
+      useEmailStore.setState({
+        mailboxes: [
+          { id: 'mb-1', name: 'Inbox', role: 'inbox', isShared: false } as any,
+          { id: 'mb-trash', name: 'Trash', role: 'trash', isShared: false } as any,
+        ],
+        currentMailboxId: 'mb-1',
+        emails: [
+          { id: 'e1', keywords: { $flagged: true }, mailboxIds: { 'mb-1': true } } as any,
+          { id: 'e2', keywords: { $seen: true }, mailboxIds: { 'mb-1': true } } as any,
+        ],
+      });
+
+      await useEmailStore.getState().deleteEmailsBatch(['e1', 'e2'], 'mb-trash', 'mb-1');
+
+      expect(mockPatchKeywords).toHaveBeenCalledTimes(1);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
+      useSettingsStore.getState().updateSetting('deleteAction', 'trash');
+    });
+  });
+
   describe('pin and spam keywords', () => {
     it('togglePin writes $pinned, not $important', async () => {
       useEmailStore.setState({ emails: [{ id: 'e1', keywords: {} } as any] });
       await useEmailStore.getState().togglePin('e1', true);
-      expect(mockSetKeywords).toHaveBeenCalledWith('e1', { $pinned: true }, undefined);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $pinned: true }, undefined);
       await useEmailStore.getState().togglePin('e1', false);
-      expect(mockSetKeywords).toHaveBeenLastCalledWith('e1', {}, undefined);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e1'], { $pinned: null }, undefined);
     });
 
     const RIGHTS = {} as any;
@@ -752,7 +827,7 @@ describe('email-store', () => {
     it('markSpam files into Junk flipping $junk/$notjunk and offers an undo that restores keywords', async () => {
       const mockMarkAsSpam = emailApi.markAsSpam as ReturnType<typeof vi.fn>;
       const mockRestore = emailApi.restoreEmailMailboxes as ReturnType<typeof vi.fn>;
-      const mockSetKeywordsForEmails = emailApi.setKeywordsForEmails as ReturnType<typeof vi.fn>;
+      const mockPatchPerEmail = emailApi.patchKeywordsPerEmail as ReturnType<typeof vi.fn>;
       useSettingsStore.getState().updateSetting('deleteAction', 'trash-and-read');
       useEmailStore.setState({
         mailboxes: [inbox, junk],
@@ -770,7 +845,12 @@ describe('email-store', () => {
 
       await useEmailStore.getState().undoLast();
       expect(mockRestore).toHaveBeenCalledWith([{ id: 'e1', mailboxIds: { 'mb-1': true } }], undefined);
-      expect(mockSetKeywordsForEmails).toHaveBeenCalledWith([{ id: 'e1', keywords: { $notjunk: true } }], undefined);
+      // Only the keywords the spam action touched go back; `$seen` was set by
+      // trash-and-read on a message that was unread before.
+      expect(mockPatchPerEmail).toHaveBeenCalledWith(
+        [{ id: 'e1', patch: { $junk: null, $notjunk: true, $seen: null } }],
+        undefined,
+      );
       expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1']);
       useSettingsStore.getState().updateSetting('deleteAction', 'trash');
     });

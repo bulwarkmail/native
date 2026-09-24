@@ -599,13 +599,16 @@ export async function getThreadEmails(threadId: string, accountIdOverride?: stri
   return emails.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
-export async function setEmailKeywords(
-  emailId: string,
-  keywords: Record<string, boolean>,
-  accountIdOverride?: string,
-): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  await emailSetBatched(accountId, { update: { [emailId]: { keywords } } });
+// One `keywords/<name>` pointer per changed keyword. Never send the whole
+// `keywords` map on update: the server replaces it, erasing every keyword the
+// local copy didn't have (a star or tag set elsewhere, or all of them on a
+// message that was never loaded).
+function keywordPointers(patch: Record<string, boolean | null>): Record<string, unknown> {
+  const pointers: Record<string, unknown> = {};
+  for (const [keyword, value] of Object.entries(patch)) {
+    pointers[keywordPointer(keyword)] = value === false ? null : value;
+  }
+  return pointers;
 }
 
 /** Patch individual keywords (`{ $seen: true, $junk: null }`) on many messages. */
@@ -616,10 +619,7 @@ export async function patchKeywordsForEmails(
 ): Promise<void> {
   if (ids.length === 0) return;
   const accountId = accountIdOverride ?? jmapClient.accountId;
-  const pointerPatch: Record<string, unknown> = {};
-  for (const [keyword, value] of Object.entries(patch)) {
-    pointerPatch[keywordPointer(keyword)] = value === false ? null : value;
-  }
+  const pointerPatch = keywordPointers(patch);
   const update: Record<string, Record<string, unknown>> = {};
   for (const id of ids) update[id] = { ...pointerPatch };
   await emailSetBatched(accountId, { update });
@@ -713,15 +713,16 @@ export async function deleteEmails(
   }
 }
 
-// Apply keyword maps to several emails in one round-trip (chunked).
-export async function setKeywordsForEmails(
-  updates: Array<{ id: string; keywords: Record<string, boolean> }>,
+// Apply a different keyword patch to each of several emails in one
+// round-trip (chunked). Undo uses it to put back each message's own keywords.
+export async function patchKeywordsPerEmail(
+  updates: Array<{ id: string; patch: Record<string, boolean | null> }>,
   accountIdOverride?: string,
 ): Promise<void> {
   if (updates.length === 0) return;
   const accountId = accountIdOverride ?? jmapClient.accountId;
-  const update: Record<string, { keywords: Record<string, boolean> }> = {};
-  for (const u of updates) update[u.id] = { keywords: u.keywords };
+  const update: Record<string, Record<string, unknown>> = {};
+  for (const u of updates) update[u.id] = keywordPointers(u.patch);
   await emailSetBatched(accountId, { update });
 }
 

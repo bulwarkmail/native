@@ -2,15 +2,16 @@
 //
 // Every mutation the app performs on a message reduces to one of four
 // idempotent primitives:
-//   - keywords:  replace the full keyword map  (read/unread, flag, pin, …)
+//   - keywords:  set or clear individual keywords (read/unread, flag, pin, …)
 //   - mailboxes: replace the full mailboxIds map (move, trash)
 //   - archive:   file into Archive with the user's year/month auto-foldering
 //   - destroy:   permanently delete the message
 //
-// Because each primitive assigns the *whole* target state rather than a delta,
-// replaying it is safe regardless of the server's current state, so we can
-// coalesce repeated edits to the same message (last-write-wins) and retry on a
-// flaky connection without corrupting anything.
+// Because each primitive assigns a target state rather than a delta, replaying
+// it is safe regardless of the server's current state, so we can coalesce
+// repeated edits to the same message (last-write-wins) and retry on a flaky
+// connection without corrupting anything. Keyword ops name only the keywords
+// the user changed, so replay never touches ones another client set meanwhile.
 //
 // When the device is online and nothing is already queued for a message, the
 // op runs immediately (preserving today's behaviour, including surfacing real
@@ -25,8 +26,9 @@ import { isTransientNetworkError, isAuthError } from '../lib/network-error';
 import { useNetworkStore } from './network-store';
 import { jmapClient } from '../api/jmap-client';
 import {
-  setEmailKeywords, setEmailMailboxes, destroyEmails, archiveEmails, unprefixMailboxId,
+  patchKeywordsForEmails, setEmailMailboxes, destroyEmails, archiveEmails, unprefixMailboxId,
 } from '../api/email';
+import type { KeywordPatch } from '../lib/keyword-patch';
 import type { ArchiveMode } from './settings-store';
 
 const KEY_PREFIX = 'webmail:outbox:v1:';
@@ -47,7 +49,7 @@ function storageKey(accountId: string): string {
 // user's own mail (the client's primary account); set when the message belongs
 // to a shared/group account, so replay after a reconnect still targets it.
 export type OutboxOp =
-  | { kind: 'keywords'; emailId: string; accountId?: string; keywords: Record<string, boolean> }
+  | { kind: 'keywords'; emailId: string; accountId?: string; patch: KeywordPatch }
   | { kind: 'mailboxes'; emailId: string; accountId?: string; mailboxIds: Record<string, boolean> }
   | {
       /**
@@ -111,12 +113,30 @@ function persistFailed(accountId: string, failed: OutboxEntry[]): void {
   });
 }
 
+// Keyword ops queued by earlier builds carried the message's whole keyword
+// map, which the server took as a replacement. That map can't tell which
+// keyword the user changed, so it replays as a patch that only sets the
+// keywords it holds (clearing the other half of the exclusive `$junk` /
+// `$notjunk` pair) and clears nothing else: an unread or unstar queued back
+// then is lost, but no star or tag another client set gets erased.
+type LegacyKeywordsOp = { kind: 'keywords'; emailId: string; accountId?: string; keywords: Record<string, boolean> };
+
+function upgradeEntry(entry: OutboxEntry): OutboxEntry {
+  const op = entry.op as OutboxOp | LegacyKeywordsOp;
+  if (op.kind !== 'keywords' || !('keywords' in op)) return entry;
+  const patch: KeywordPatch = {};
+  for (const [keyword, on] of Object.entries(op.keywords ?? {})) if (on) patch[keyword] = true;
+  if (patch.$junk && !patch.$notjunk) patch.$notjunk = null;
+  if (patch.$notjunk && !patch.$junk) patch.$junk = null;
+  return { ...entry, op: { kind: 'keywords', emailId: op.emailId, accountId: op.accountId, patch } };
+}
+
 async function load(accountId: string, suffix = ''): Promise<OutboxEntry[]> {
   try {
     const raw = await AsyncStorage.getItem(storageKey(accountId) + suffix);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed as OutboxEntry[];
+      if (Array.isArray(parsed)) return (parsed as OutboxEntry[]).map(upgradeEntry);
     }
   } catch (err) {
     console.warn('[outbox] hydrate failed', err);
@@ -127,7 +147,7 @@ async function load(accountId: string, suffix = ''): Promise<OutboxEntry[]> {
 async function runOp(op: OutboxOp): Promise<void> {
   switch (op.kind) {
     case 'keywords':
-      return setEmailKeywords(op.emailId, op.keywords, op.accountId);
+      return patchKeywordsForEmails([op.emailId], op.patch, op.accountId);
     case 'mailboxes':
       return setEmailMailboxes(op.emailId, op.mailboxIds, op.accountId);
     case 'archive': {
@@ -251,11 +271,16 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       // A queued destroy wins; further edits to a doomed message are pointless.
       if (entries.some((e) => sameMessage(e.op) && e.op.kind === 'destroy')) return;
       // Coalesce: replace any pending op of the same family for this message
-      // (full-state replace makes the latest one authoritative). Keep its
+      // (full-state replace makes the latest one authoritative; keyword
+      // patches merge, the later value winning per keyword). Keep its
       // position so creation order is preserved for replay.
       const idx = entries.findIndex((e) => sameMessage(e.op) && opFamily(e.op) === opFamily(op));
       if (idx >= 0) {
-        entries[idx] = { ...entries[idx], op, attempts: 0, lastError: undefined };
+        const prev = entries[idx].op;
+        const merged: OutboxOp = prev.kind === 'keywords' && op.kind === 'keywords'
+          ? { ...op, patch: { ...prev.patch, ...op.patch } }
+          : op;
+        entries[idx] = { ...entries[idx], op: merged, attempts: 0, lastError: undefined };
       } else {
         entries.push({ id: generateUUID(), op, createdAt: Date.now(), attempts: 0 });
       }

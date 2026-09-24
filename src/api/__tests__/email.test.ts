@@ -21,7 +21,8 @@ import {
   getEmails,
   getFullEmail,
   getThread,
-  setEmailKeywords,
+  patchKeywordsForEmails,
+  patchKeywordsPerEmail,
   moveEmail,
   deleteEmail,
   searchEmails,
@@ -257,14 +258,40 @@ describe('email operations', () => {
     });
   });
 
-  describe('setEmailKeywords', () => {
-    it('should update email keywords', async () => {
-      mockRequest.mockResolvedValue({ methodResponses: [['Email/set', { updated: {} }, '0']] });
+  describe('keyword patches', () => {
+    // A whole `keywords` map on update replaces it and erased stars and tags
+    // the local copy didn't have; only per-keyword pointers may go out.
+    it('patches only the named keywords, clearing with null', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['Email/set', { updated: { e1: null, e2: null } }, '0']] });
 
-      await setEmailKeywords('e1', { $seen: true, $flagged: true });
+      await patchKeywordsForEmails(['e1', 'e2'], { $seen: true, $flagged: false, '$label:work/clients': null }, 'grp-1');
 
-      const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].update).toEqual({ e1: { keywords: { $seen: true, $flagged: true } } });
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      expect(mockRequest.mock.calls[0][0]).toEqual([['Email/set', {
+        accountId: 'grp-1',
+        update: {
+          e1: { 'keywords/$seen': true, 'keywords/$flagged': null, 'keywords/$label:work~1clients': null },
+          e2: { 'keywords/$seen': true, 'keywords/$flagged': null, 'keywords/$label:work~1clients': null },
+        },
+      }, '0']]);
+    });
+
+    it('applies a separate patch to each message in one Email/set', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['Email/set', { updated: { e1: null, e2: null } }, '0']] });
+
+      await patchKeywordsPerEmail([
+        { id: 'e1', patch: { $junk: null, $notjunk: true } },
+        { id: 'e2', patch: { $junk: null, $notjunk: null } },
+      ]);
+
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      expect(mockRequest.mock.calls[0][0]).toEqual([['Email/set', {
+        accountId: 'acc-1',
+        update: {
+          e1: { 'keywords/$junk': null, 'keywords/$notjunk': true },
+          e2: { 'keywords/$junk': null, 'keywords/$notjunk': null },
+        },
+      }, '0']]);
     });
   });
 

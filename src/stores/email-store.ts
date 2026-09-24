@@ -16,8 +16,8 @@ import {
   getEmailChanges,
   getFullEmail,
   importEmailBlob,
-  setEmailKeywords,
-  setKeywordsForEmails,
+  patchKeywordsForEmails,
+  patchKeywordsPerEmail,
   moveEmail,
   moveEmails as apiMoveEmails,
   archiveEmails as apiArchiveEmails,
@@ -37,6 +37,7 @@ import { toWildcardQuery } from '../lib/search-utils';
 import { orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
+import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
 import { t } from './locale-store';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
@@ -78,7 +79,7 @@ const provisionRetried = new Set<string>();
 // re-opening a message while offline shows the change. Fire-and-forget.
 function patchCache(
   id: string,
-  changes: { keywords?: Record<string, boolean>; mailboxIds?: Record<string, boolean> },
+  changes: { keywords?: KeywordPatch; mailboxIds?: Record<string, boolean> },
   accountId?: string,
 ): void {
   void useOfflineCacheStore.getState().patch(id, changes, accountId);
@@ -222,6 +223,12 @@ export interface UndoEntry {
   createdAt: number;
   /** JMAP account the messages live under; unset for the user's own mail. */
   accountId?: string;
+  /**
+   * Keywords the action also changed (spam / not spam flip
+   * `$junk`/`$notjunk`). Undo puts just these back to each item's
+   * `originalKeywords`.
+   */
+  keywordPatch?: KeywordPatch;
   /**
    * Each item is one email's pre-action mailboxIds, used to restore it.
    * `originalKeywords` is set when the action also changed keywords
@@ -963,70 +970,67 @@ export const useEmailStore = create<EmailState>()(
   markRead: async (emailId, accountId) => {
     const state = get();
     const email = state.emails.find((e) => e.id === emailId);
-    const nextKeywords = { ...(email?.keywords ?? {}), $seen: true };
+    // Only `$seen` goes to the server: the message may not be in the list at
+    // all, and a whole keyword map would erase its stars and tags.
+    const patch = { $seen: true };
     // A group/shared message opened from the unified inbox lives under another
     // JMAP account and isn't in the active list/cache or the (account-scoped)
     // offline queue — mark it read directly against its owning account.
     if (accountId && !email) {
-      await setEmailKeywords(emailId, nextKeywords, accountId);
+      await patchKeywordsForEmails([emailId], patch, accountId);
       return;
     }
     const owner = accountId ?? currentAccountId(state);
-    await applyOrQueue({ kind: 'keywords', emailId, accountId: owner, keywords: nextKeywords });
+    await applyOrQueue({ kind: 'keywords', emailId, accountId: owner, patch });
     set({
       emails: get().emails.map((e) =>
-        e.id === emailId ? { ...e, keywords: nextKeywords } : e,
+        e.id === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
       ...(state.filters.isUnread === true ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
     });
-    patchCache(emailId, { keywords: nextKeywords }, owner);
+    patchCache(emailId, { keywords: patch }, owner);
   },
 
   markUnread: async (emailId) => {
     const state = get();
     const email = state.emails.find((e) => e.id === emailId);
     if (!email) return;
-    const { $seen, ...rest } = email.keywords;
+    const patch = { $seen: null };
     await applyOrQueue({
       kind: 'keywords',
       emailId,
       accountId: currentAccountId(state),
-      keywords: rest,
+      patch,
     });
     set({
       emails: get().emails.map((e) =>
-        e.id === emailId ? { ...e, keywords: rest } : e,
+        e.id === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
       ...(state.filters.isUnread === false ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
     });
-    patchCache(emailId, { keywords: rest }, currentAccountId(state));
+    patchCache(emailId, { keywords: patch }, currentAccountId(state));
   },
 
   toggleStar: async (emailId, starred) => {
     const state = get();
     const email = state.emails.find((e) => e.id === emailId);
     if (!email) return;
-    const keywords = { ...email.keywords };
-    if (starred) {
-      keywords.$flagged = true;
-    } else {
-      delete keywords.$flagged;
-    }
+    const patch = { $flagged: starred ? true : null };
     await applyOrQueue({
       kind: 'keywords',
       emailId,
       accountId: currentAccountId(state),
-      keywords,
+      patch,
     });
     set({
       emails: get().emails.map((e) =>
-        e.id === emailId ? { ...e, keywords } : e,
+        e.id === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
       ...(state.filters.isStarred !== undefined && state.filters.isStarred !== starred
         ? { retainedIds: retain(get().retainedIds, [emailId]) }
         : {}),
     });
-    patchCache(emailId, { keywords }, currentAccountId(state));
+    patchCache(emailId, { keywords: patch }, currentAccountId(state));
   },
 
   togglePin: async (emailId, pinned) => {
@@ -1035,24 +1039,19 @@ export const useEmailStore = create<EmailState>()(
     if (!email) return;
     // `$pinned` is what the webmail reads and writes; a pin set as
     // `$important` was invisible to it (and vice versa).
-    const keywords = { ...email.keywords };
-    if (pinned) {
-      keywords.$pinned = true;
-    } else {
-      delete keywords.$pinned;
-    }
+    const patch = { $pinned: pinned ? true : null };
     await applyOrQueue({
       kind: 'keywords',
       emailId,
       accountId: currentAccountId(state),
-      keywords,
+      patch,
     });
     set({
       emails: get().emails.map((e) =>
-        e.id === emailId ? { ...e, keywords } : e,
+        e.id === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
     });
-    patchCache(emailId, { keywords }, currentAccountId(state));
+    patchCache(emailId, { keywords: patch }, currentAccountId(state));
   },
 
   markSpam: async (emailIds) => {
@@ -1068,10 +1067,7 @@ export const useEmailStore = create<EmailState>()(
     const junk = refFor(state.mailboxes, junkMailbox.id);
     const markRead = useSettingsStore.getState().deleteAction === 'trash-and-read';
     const junkTarget = { [junk.id]: true };
-    const nextKeywords = new Map(targets.map((e) => {
-      const { $notjunk: _drop, ...rest } = e.keywords ?? {};
-      return [e.id, { ...rest, $junk: true, ...(markRead ? { $seen: true } : {}) }];
-    }));
+    const keywordPatch: KeywordPatch = { $junk: true, $notjunk: null, ...(markRead ? { $seen: true } : {}) };
     const items = targets.map((e) => ({
       email: e,
       originalMailboxIds: { ...e.mailboxIds },
@@ -1081,7 +1077,7 @@ export const useEmailStore = create<EmailState>()(
     await applyOrQueueBatch(
       targets.flatMap((e): OutboxOp[] => [
         { kind: 'mailboxes', emailId: e.id, accountId: junk.accountId, mailboxIds: junkTarget },
-        { kind: 'keywords', emailId: e.id, accountId: junk.accountId, keywords: nextKeywords.get(e.id)! },
+        { kind: 'keywords', emailId: e.id, accountId: junk.accountId, patch: keywordPatch },
       ]),
       () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead }),
     );
@@ -1096,10 +1092,11 @@ export const useEmailStore = create<EmailState>()(
           : t('email_list.marked_as_spam_count', `${targets.length} emails marked as spam`, { count: targets.length }),
         createdAt: Date.now(),
         accountId: junk.accountId,
+        keywordPatch,
         items,
       },
     });
-    for (const e of targets) patchCache(e.id, { mailboxIds: junkTarget, keywords: nextKeywords.get(e.id) }, junk.accountId);
+    for (const e of targets) patchCache(e.id, { mailboxIds: junkTarget, keywords: keywordPatch }, junk.accountId);
   },
 
   unmarkSpam: async (emailIds) => {
@@ -1111,10 +1108,7 @@ export const useEmailStore = create<EmailState>()(
     if (!inboxMailbox) return;
     const inbox = refFor(state.mailboxes, inboxMailbox.id);
     const inboxTarget = { [inbox.id]: true };
-    const nextKeywords = new Map(targets.map((e) => {
-      const { $junk: _drop, ...rest } = e.keywords ?? {};
-      return [e.id, { ...rest, $notjunk: true }];
-    }));
+    const keywordPatch: KeywordPatch = { $junk: null, $notjunk: true };
     const items = targets.map((e) => ({
       email: e,
       originalMailboxIds: { ...e.mailboxIds },
@@ -1124,7 +1118,7 @@ export const useEmailStore = create<EmailState>()(
     await applyOrQueueBatch(
       targets.flatMap((e): OutboxOp[] => [
         { kind: 'mailboxes', emailId: e.id, accountId: inbox.accountId, mailboxIds: inboxTarget },
-        { kind: 'keywords', emailId: e.id, accountId: inbox.accountId, keywords: nextKeywords.get(e.id)! },
+        { kind: 'keywords', emailId: e.id, accountId: inbox.accountId, patch: keywordPatch },
       ]),
       () => apiUndoSpam(targets.map((e) => e.id), inbox.id, inbox.accountId),
     );
@@ -1139,10 +1133,11 @@ export const useEmailStore = create<EmailState>()(
           : t('email_list.marked_not_spam_count', `${targets.length} emails marked as not spam`, { count: targets.length }),
         createdAt: Date.now(),
         accountId: inbox.accountId,
+        keywordPatch,
         items,
       },
     });
-    for (const e of targets) patchCache(e.id, { mailboxIds: inboxTarget, keywords: nextKeywords.get(e.id) }, inbox.accountId);
+    for (const e of targets) patchCache(e.id, { mailboxIds: inboxTarget, keywords: keywordPatch }, inbox.accountId);
   },
 
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId) => {
@@ -1290,14 +1285,14 @@ export const useEmailStore = create<EmailState>()(
       // "Move to Trash and mark as read" (#323): when the user picked that
       // delete action, also clear unread state for messages moved to trash.
       if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
-        const nextKeywords = { ...email.keywords, $seen: true };
+        const patch = { $seen: true };
         await applyOrQueue({
           kind: 'keywords',
           emailId,
           accountId: source.accountId,
-          keywords: nextKeywords,
+          patch,
         });
-        patchCache(emailId, { mailboxIds: target, keywords: nextKeywords }, source.accountId);
+        patchCache(emailId, { mailboxIds: target, keywords: patch }, source.accountId);
       } else {
         patchCache(emailId, { mailboxIds: target }, source.accountId);
       }
@@ -1462,9 +1457,8 @@ export const useEmailStore = create<EmailState>()(
       settings.deleteAction === 'trash-and-read'
         ? toTrash.filter((e) => !e.keywords?.$seen)
         : [];
-    const markReadKeywords = new Map(
-      toMarkRead.map((e) => [e.id, { ...e.keywords, $seen: true }]),
-    );
+    const markReadIds = new Set(toMarkRead.map((e) => e.id));
+    const markReadPatch = { $seen: true };
 
     const ops: OutboxOp[] = [
       ...toDestroy.map((e): OutboxOp => ({
@@ -1482,7 +1476,7 @@ export const useEmailStore = create<EmailState>()(
         kind: 'keywords',
         emailId: e.id,
         accountId: source.accountId,
-        keywords: markReadKeywords.get(e.id)!,
+        patch: markReadPatch,
       })),
     ];
     await applyOrQueueBatch(ops, async () => {
@@ -1493,10 +1487,7 @@ export const useEmailStore = create<EmailState>()(
         await apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId);
       }
       if (toMarkRead.length > 0) {
-        await setKeywordsForEmails(
-          toMarkRead.map((e) => ({ id: e.id, keywords: markReadKeywords.get(e.id)! })),
-          source.accountId,
-        );
+        await patchKeywordsForEmails([...markReadIds], markReadPatch, source.accountId);
       }
     });
 
@@ -1504,7 +1495,7 @@ export const useEmailStore = create<EmailState>()(
     for (const e of toTrash) {
       patchCache(e.id, {
         mailboxIds: mailboxesAfterMove(e.mailboxIds, source.id, trash.id),
-        ...(markReadKeywords.has(e.id) ? { keywords: markReadKeywords.get(e.id) } : {}),
+        ...(markReadIds.has(e.id) ? { keywords: markReadPatch } : {}),
       }, source.accountId);
     }
 
@@ -1532,32 +1523,28 @@ export const useEmailStore = create<EmailState>()(
     const targets = state.emails.filter((e) => emailIds.includes(e.id));
     if (targets.length === 0) return;
     const owner = currentAccountId(state);
-    const updates = targets.map((e) => {
-      const keywords = { ...e.keywords };
-      if (on) keywords[token] = true;
-      else delete keywords[token];
-      return { id: e.id, keywords };
-    });
+    const ids = targets.map((e) => e.id);
+    const patch = { [token]: on ? true : null };
     await applyOrQueueBatch(
-      updates.map((u): OutboxOp => ({
+      ids.map((id): OutboxOp => ({
         kind: 'keywords',
-        emailId: u.id,
+        emailId: id,
         accountId: owner,
-        keywords: u.keywords,
+        patch,
       })),
-      () => setKeywordsForEmails(updates, owner),
+      () => patchKeywordsForEmails(ids, patch, owner),
     );
-    const byId = new Map(updates.map((u) => [u.id, u.keywords]));
+    const touched = new Set(ids);
     set({
       emails: get().emails.map((e) =>
-        byId.has(e.id) ? { ...e, keywords: byId.get(e.id)! } : e,
+        touched.has(e.id) ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
       // Untagging inside that tag's view keeps the rows until it's re-opened.
       ...(!on && state.filters.keyword === token
-        ? { retainedIds: retain(get().retainedIds, updates.map((u) => u.id)) }
+        ? { retainedIds: retain(get().retainedIds, ids) }
         : {}),
     });
-    for (const u of updates) patchCache(u.id, { keywords: u.keywords }, owner);
+    for (const id of ids) patchCache(id, { keywords: patch }, owner);
   },
 
   undoLast: async () => {
@@ -1579,26 +1566,28 @@ export const useEmailStore = create<EmailState>()(
         ),
       );
       // Spam / not-spam also flipped `$junk`/`$notjunk` (and maybe `$seen`):
-      // put the keywords back as they were.
-      const withKeywords = entry.items.filter((it) => it.originalKeywords);
-      if (withKeywords.length > 0) {
+      // put those keywords back as they were, leaving the rest alone.
+      const keywordPatch = entry.keywordPatch;
+      const keywordUndo = keywordPatch
+        ? entry.items.map((it) => ({ id: it.email.id, patch: revertKeywordPatch(keywordPatch, it.originalKeywords) }))
+        : [];
+      if (keywordUndo.length > 0) {
         await applyOrQueueBatch(
-          withKeywords.map((it): OutboxOp => ({
+          keywordUndo.map((u): OutboxOp => ({
             kind: 'keywords',
-            emailId: it.email.id,
+            emailId: u.id,
             accountId: entry.accountId,
-            keywords: it.originalKeywords!,
+            patch: u.patch,
           })),
-          () => setKeywordsForEmails(
-            withKeywords.map((it) => ({ id: it.email.id, keywords: it.originalKeywords! })),
-            entry.accountId,
-          ),
+          () => patchKeywordsPerEmail(keywordUndo, entry.accountId),
         );
       }
+      const undoById = new Map(keywordUndo.map((u) => [u.id, u.patch]));
       for (const it of entry.items) {
+        const patch = undoById.get(it.email.id);
         patchCache(it.email.id, {
           mailboxIds: it.originalMailboxIds,
-          ...(it.originalKeywords ? { keywords: it.originalKeywords } : {}),
+          ...(patch ? { keywords: patch } : {}),
         }, entry.accountId);
       }
     } catch (err) {

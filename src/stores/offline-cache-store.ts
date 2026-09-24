@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Email } from '../api/types';
+import { applyKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
 
 const INDEX_KEY_PREFIX = 'webmail:offline-cache:index:v2:';
 const ENTRY_KEY_PREFIX = 'webmail:offline-cache:entry:v2:';
@@ -78,10 +79,15 @@ interface OfflineCacheState {
   has: (id: string, jmapAccountId?: string) => boolean;
   get: (id: string, jmapAccountId?: string) => Promise<Email | null>;
   put: (email: Email, approxBytes: number, jmapAccountId?: string) => Promise<void>;
-  // Shallow-merge a change into a cached email (no-op when not cached). Used to
-  // keep the cached body consistent with an optimistic/queued mutation so a
-  // re-open while offline reflects the new keywords / mailboxIds.
-  patch: (id: string, changes: Partial<Pick<Email, 'keywords' | 'mailboxIds'>>, jmapAccountId?: string) => Promise<void>;
+  // Apply a change to a cached email (no-op when not cached). Used to keep the
+  // cached body consistent with an optimistic/queued mutation so a re-open
+  // while offline reflects the new keywords / mailboxIds. `keywords` is a
+  // patch (only the keywords it names change); `mailboxIds` replaces the map.
+  patch: (
+    id: string,
+    changes: { keywords?: KeywordPatch; mailboxIds?: Record<string, boolean> },
+    jmapAccountId?: string,
+  ) => Promise<void>;
   remove: (ids: string[], jmapAccountId?: string) => Promise<void>;
   // Evict oldest-received entries until the cache fits within maxBytes. Keeps
   // the persisted cache from growing without bound on a noisy account.
@@ -227,7 +233,11 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
       const raw = await AsyncStorage.getItem(entryKey(accountId, key));
       if (!raw) return;
       const email = JSON.parse(raw) as Email;
-      const updated: Email = { ...email, ...changes };
+      const updated: Email = {
+        ...email,
+        ...(changes.mailboxIds ? { mailboxIds: changes.mailboxIds } : {}),
+        ...(changes.keywords ? { keywords: applyKeywordPatch(email.keywords, changes.keywords) } : {}),
+      };
       if (get().activeAccountId !== accountId) return;
       await AsyncStorage.setItem(entryKey(accountId, key), JSON.stringify(updated));
     } catch (err) {
