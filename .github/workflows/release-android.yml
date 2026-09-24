@@ -57,7 +57,12 @@ jobs:
           java-version: 17
           cache: gradle
 
+      # The action installs the legacy `tools` package by default, which the
+      # runner's cmdline-tools 16 no longer carries ("Failed to find package
+      # 'tools'"). Gradle fetches the platforms and build-tools it needs.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Cache Android NDK / CMake
         uses: actions/cache@v4
