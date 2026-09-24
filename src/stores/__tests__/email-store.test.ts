@@ -236,6 +236,36 @@ describe('email-store', () => {
       expect(useEmailStore.getState().emailStates).toEqual({ 'mb-empty': 'em-state-0' });
       expect(mockGetEmails).not.toHaveBeenCalled();
     });
+
+    it('drops the search and browses the folder with "clear search when switching folders"', async () => {
+      useSettingsStore.getState().updateSetting('clearSearchOnFolderChange', true);
+      try {
+        useEmailStore.setState({
+          currentMailboxId: 'mb-1',
+          mailboxes: [
+            { id: 'mb-1', name: 'Inbox', isShared: false } as any,
+            { id: 'mb-2', name: 'Receipts', isShared: false } as any,
+          ],
+          searchQuery: 'invoice',
+          filters: { isUnread: true },
+          emails: [{ id: 'hit' } as any],
+        });
+        mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+
+        await useEmailStore.getState().selectMailbox('mb-2');
+
+        const state = useEmailStore.getState();
+        expect(state.searchQuery).toBe('');
+        expect(state.filters).toEqual({});
+        // The search hits neither stay on screen nor become Inbox's snapshot.
+        expect(state.emails).toEqual([]);
+        expect(state.mailboxSnapshots['mb-1']).toBeUndefined();
+        expect(mockQueryEmails.mock.calls[0][0]).toBe('mb-2');
+        expect(mockQueryEmails.mock.calls[0][1].filter).toBeUndefined();
+      } finally {
+        useSettingsStore.getState().updateSetting('clearSearchOnFolderChange', false);
+      }
+    });
   });
 
   describe('loadMoreEmails', () => {

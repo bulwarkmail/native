@@ -197,6 +197,9 @@ interface PersistedSettings {
   showAvatarsInJunk: boolean;
   // Show the "/ total" part of the folder counts in the drawer (#498).
   showFolderTotalCount: boolean;
+  // Opening a folder drops an active search and filters and browses it,
+  // instead of re-running the search there (#553, the default).
+  clearSearchOnFolderChange: boolean;
   // Unified views span every logged-in account instead of just the active
   // one (own + its shared/group folders). Off by default like the webmail.
   unifiedCrossAccount: boolean;
@@ -366,6 +369,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   messageListOrderScope: 'inbox',
   showAvatarsInJunk: false,
   showFolderTotalCount: true,
+  clearSearchOnFolderChange: false,
   unifiedCrossAccount: false,
   mailAttachmentAction: 'preview',
   attachmentPosition: 'beside-sender',

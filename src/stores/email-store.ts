@@ -752,6 +752,11 @@ export const useEmailStore = create<EmailState>()(
       };
     }
 
+    // "Clear search when switching folders": drop the query and filters and
+    // browse the folder, instead of re-running the search there.
+    const clearSearch = !baseView && useSettingsStore.getState().clearSearchOnFolderChange;
+    const browse = baseView || clearSearch;
+
     const incoming = mailboxSnapshots[mailboxId];
     // Swap to the new mailbox's cached view immediately. If there's no
     // snapshot, fall through to the offline cache as a second-best seed;
@@ -759,11 +764,11 @@ export const useEmailStore = create<EmailState>()(
     // a blank list — better than the previous flash to "Loading…".
     // With a search/filter active the search is kept and re-run in the new
     // folder (#553), so the current results stay on screen until it lands.
-    let seededEmails: Email[] = baseView ? incoming?.emails ?? [] : state.emails;
-    let seededTotal = baseView ? incoming?.total ?? 0 : state.totalEmails;
-    const seededQueryState = baseView ? incoming?.queryState : undefined;
+    let seededEmails: Email[] = browse ? incoming?.emails ?? [] : state.emails;
+    let seededTotal = browse ? incoming?.total ?? 0 : state.totalEmails;
+    const seededQueryState = browse ? incoming?.queryState : undefined;
 
-    if (baseView && seededEmails.length === 0) {
+    if (browse && seededEmails.length === 0) {
       const cacheStore = useOfflineCacheStore.getState();
       if (!cacheStore.hydrated) await cacheStore.hydrate();
       if (cacheStore.totalCount() > 0) {
@@ -786,6 +791,7 @@ export const useEmailStore = create<EmailState>()(
     }
 
     set({
+      ...(clearSearch ? { searchQuery: '', filters: {} } : {}),
       currentMailboxId: mailboxId,
       emails: seededEmails,
       totalEmails: seededTotal,
