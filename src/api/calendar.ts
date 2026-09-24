@@ -448,15 +448,30 @@ export async function createEvent(
   return normalizeRecurrenceProperties({ ...payload, ...created } as CalendarEvent);
 }
 
-// Batch-create many events in one CalendarEvent/set. Returns the number
-// created; throws when the server refused every one of them, so a refusal
-// doesn't read as "nothing new to import".
+/** A JMAP /set error as one line: its description, else its type and the properties it names. */
+export function describeSetError(
+  err: { type?: string; description?: string; properties?: string[] } | null | undefined,
+): string {
+  if (err?.description) return err.description;
+  const type = err?.type || 'unknown error';
+  return err?.properties?.length ? `${type} (${err.properties.join(', ')})` : type;
+}
+
+export interface BatchCreateResult {
+  created: number;
+  /** The events the server refused, by their index in the submitted list. */
+  refused: { index: number; reason: string }[];
+}
+
+// Batch-create many events in one CalendarEvent/set. Per-event refusals come
+// back in `refused` so the caller can report them; a method-level error
+// (unknown calendar, missing capability) throws.
 export async function batchCreateEvents(
   events: Partial<CalendarEvent>[],
   calendarId: string,
   targetAccountId?: string,
-): Promise<number> {
-  if (events.length === 0) return 0;
+): Promise<BatchCreateResult> {
+  if (events.length === 0) return { created: 0, refused: [] };
   const accountId = targetAccountId || jmapClient.accountId;
   const create: Record<string, Partial<CalendarEvent>> = {};
   events.forEach((e, i) => {
@@ -470,11 +485,14 @@ export async function batchCreateEvents(
   );
   const result = methodResult<{
     created?: Record<string, unknown>;
-    notCreated?: Record<string, { description?: string; type?: string }>;
+    notCreated?: Record<string, { description?: string; type?: string; properties?: string[] }>;
   }>(res);
-  const count = result.created ? Object.keys(result.created).length : 0;
-  if (count === 0) assertSetResult(result, undefined, 'event');
-  return count;
+  const refused: BatchCreateResult['refused'] = [];
+  events.forEach((_, i) => {
+    const err = result.notCreated?.[`evt-${i}`];
+    if (err) refused.push({ index: i, reason: describeSetError(err) });
+  });
+  return { created: result.created ? Object.keys(result.created).length : 0, refused };
 }
 
 export async function updateEvent(

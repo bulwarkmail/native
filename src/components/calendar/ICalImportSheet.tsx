@@ -13,6 +13,8 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { getCalendarColor } from '../../lib/calendar-utils';
 import { isWritableCalendar } from '../../lib/calendar-editability';
+import { ImportRefusedError, type ImportResult } from '../../stores/calendar-store';
+import { useLocaleStore } from '../../stores/locale-store';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen / ContactImportSheet flow).
@@ -32,8 +34,11 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   calendars: Calendar[];
-  /** Imports the selected events into the chosen calendar; returns count. */
-  onImport: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<number>;
+  /**
+   * Imports the selected events into the chosen calendar; resolves with what
+   * got in and what the server refused (see calendar-store importEvents).
+   */
+  onImport: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<ImportResult>;
   onImported?: (count: number) => void;
 }
 
@@ -48,6 +53,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
+  const t = useLocaleStore((s) => s.t);
 
   const writable = React.useMemo(
     () => calendars.filter((cal) => isWritableCalendar(cal)),
@@ -60,7 +66,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
-  const [result, setResult] = React.useState<number | null>(null);
+  const [result, setResult] = React.useState<ImportResult | null>(null);
 
   const slideY = React.useRef(new Animated.Value(900)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -154,11 +160,13 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
     if (toImport.length === 0) return;
     setImporting(true);
     try {
-      const count = await onImport(toImport, calendarId);
-      setResult(count);
-      onImported?.(count);
+      const outcome = await onImport(toImport, calendarId);
+      setResult(outcome);
+      onImported?.(outcome.imported);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Import failed.');
+      // Everything was refused: list what and why, like a partial import.
+      if (e instanceof ImportRefusedError) setResult({ imported: 0, refused: e.refused });
+      else setError(e instanceof Error ? e.message : 'Import failed.');
     } finally {
       setImporting(false);
     }
@@ -178,13 +186,59 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
             </Pressable>
           </View>
 
-          {result !== null ? (
+          {result !== null && result.refused.length > 0 ? (
+            <>
+              <View style={styles.reportHead}>
+                {result.imported > 0 ? (
+                  <View style={styles.successBadgeSmall}>
+                    <Check size={18} color={c.primaryForeground} />
+                  </View>
+                ) : (
+                  <View style={styles.failBadgeSmall}>
+                    <AlertTriangle size={18} color={c.error} />
+                  </View>
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {result.imported > 0 && (
+                    <Text style={styles.successText}>
+                      Imported {result.imported} event{result.imported === 1 ? '' : 's'}.
+                    </Text>
+                  )}
+                  <Text style={styles.refusedTitle}>
+                    {t(
+                      'calendar.import.refused_count',
+                      '{count, plural, one {# event could not be imported:} other {# events could not be imported:}}',
+                      { count: result.refused.length },
+                    )}
+                  </Text>
+                </View>
+              </View>
+              <ScrollView style={{ flex: 1 }}>
+                {result.refused.map(({ event, reason }, idx) => {
+                  const date = eventDateLabel(event);
+                  return (
+                    <View key={idx} style={styles.row}>
+                      <AlertTriangle size={16} color={c.error} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.rowName} numberOfLines={1}>{event.title || 'Untitled event'}</Text>
+                        {!!date && <Text style={styles.rowDate} numberOfLines={1}>{date}</Text>}
+                        <Text style={styles.refusedReason} numberOfLines={3}>{reason}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+              <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+                <Button variant="outline" onPress={onClose}>Done</Button>
+              </View>
+            </>
+          ) : result !== null ? (
             <View style={styles.center}>
               <View style={styles.successBadge}>
                 <Check size={26} color={c.primaryForeground} />
               </View>
               <Text style={styles.successText}>
-                Imported {result} event{result === 1 ? '' : 's'}.
+                Imported {result.imported} event{result.imported === 1 ? '' : 's'}.
               </Text>
               <Button variant="outline" size="sm" onPress={onClose}>Done</Button>
             </View>
@@ -325,6 +379,25 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
     },
     successText: { ...typography.bodyMedium, color: c.text },
+    reportHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    successBadgeSmall: {
+      width: 36, height: 36, borderRadius: radius.full,
+      backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
+    },
+    failBadgeSmall: {
+      width: 36, height: 36, borderRadius: radius.full,
+      backgroundColor: c.errorBg, alignItems: 'center', justifyContent: 'center',
+    },
+    refusedTitle: { ...typography.body, color: c.text },
+    refusedReason: { ...typography.caption, color: c.error, marginTop: 2 },
     calChips: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
     calChip: {
       flexDirection: 'row',

@@ -214,9 +214,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     setBusy(true);
     setNotice(null);
     try {
-      const count = await importEvents([event], targetCalendar.id);
+      const { imported } = await importEvents([event], targetCalendar.id);
       setNotice(
-        count > 0
+        imported > 0
           ? t('calendar.invitation.added', 'Added to calendar')
           : t('calendar.invitation.already_in_calendar', 'Already in your calendar'),
       );

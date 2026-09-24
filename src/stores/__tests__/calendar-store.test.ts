@@ -36,6 +36,7 @@ import {
   useCalendarStore,
   selectVisibleCalendars,
   selectVisibleEvents,
+  ImportRefusedError,
 } from '../calendar-store';
 
 const mockGetCalendars = calendarApi.getCalendars as ReturnType<typeof vi.fn>;
@@ -554,9 +555,9 @@ describe('calendar-store', () => {
       ]);
       mockUpdateEvent.mockResolvedValue(undefined);
       const batch = calendarApi.batchCreateEvents as ReturnType<typeof vi.fn>;
-      batch.mockResolvedValue(1);
+      batch.mockResolvedValue({ created: 1, refused: [] });
 
-      const count = await useCalendarStore.getState().importEvents(
+      const { imported: count, refused } = await useCalendarStore.getState().importEvents(
         [
           { uid: 'uid-elsewhere', title: 'Linked', start: '2026-03-02T09:00:00' },
           { uid: 'uid-here', title: 'Dup', start: '2026-03-02T09:00:00' },
@@ -572,12 +573,105 @@ describe('calendar-store', () => {
       // The UID in cal-1 is linked into cal-2; the one already in cal-2 is skipped.
       expect(mockUpdateEvent).toHaveBeenCalledWith('e1', { calendarIds: { 'cal-1': true, 'cal-2': true } }, undefined, undefined);
       expect(count).toBe(2);
+      expect(refused).toEqual([]);
       const created = batch.mock.calls[0][0][0];
       expect(created.duration).toBe('P1D');
       expect(created.timeZone).toBeUndefined();
       expect(created.utcStart).toBeUndefined();
       expect(created.participants.p.calendarAddress).toBe('mailto:x@y');
       expect(created.participants.p.sendTo).toBeUndefined();
+    });
+  });
+
+  describe('importEvents refusals', () => {
+    const batch = () => calendarApi.batchCreateEvents as ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      useCalendarStore.setState({
+        calendars: [{ id: 'cal-1' }, { id: 'cal-2' }] as any,
+        loadedRange: { after: '2026-03-01T00:00:00Z', before: '2026-03-31T00:00:00Z' },
+      });
+    });
+
+    it('lists the events the server refused next to the imported count', async () => {
+      mockQueryEvents.mockResolvedValue([]);
+      batch().mockResolvedValue({
+        created: 1,
+        refused: [{ index: 1, reason: 'invalidProperties (participants)' }],
+      });
+
+      const result = await useCalendarStore.getState().importEvents(
+        [
+          { uid: 'a', title: 'Fine', start: '2026-03-02T09:00:00' },
+          { uid: 'b', title: 'Broken', start: '2026-03-03T09:00:00' },
+        ],
+        'cal-1',
+      );
+
+      expect(result.imported).toBe(1);
+      expect(result.refused).toEqual([
+        { event: expect.objectContaining({ title: 'Broken' }), reason: 'invalidProperties (participants)' },
+      ]);
+    });
+
+    it('maps refusals in a later chunk back to the right event', async () => {
+      mockQueryEvents.mockResolvedValue([]);
+      batch()
+        .mockResolvedValueOnce({ created: 50, refused: [] })
+        .mockResolvedValueOnce({ created: 1, refused: [{ index: 1, reason: 'forbidden' }] });
+      const events = Array.from({ length: 52 }, (_, i) => ({
+        uid: `u${i}`, title: `E${i}`, start: '2026-03-02T09:00:00',
+      }));
+
+      const result = await useCalendarStore.getState().importEvents(events, 'cal-1');
+
+      expect(result.imported).toBe(51);
+      expect(result.refused.map((r) => r.event.title)).toEqual(['E51']);
+    });
+
+    it('reports a link into the target calendar that the server refused', async () => {
+      mockQueryEvents.mockResolvedValue(['e1']);
+      mockGetEvents.mockResolvedValue([{ id: 'e1', uid: 'shared', calendarIds: { 'cal-1': true } }]);
+      mockUpdateEvent.mockRejectedValue(new Error('forbidden'));
+
+      await expect(
+        useCalendarStore.getState().importEvents([{ uid: 'shared', title: 'Linked' }], 'cal-2'),
+      ).rejects.toMatchObject({
+        name: 'ImportRefusedError',
+        refused: [{ event: expect.objectContaining({ title: 'Linked' }), reason: 'forbidden' }],
+      });
+    });
+
+    it('rejects with every refusal when nothing got in, so callers never read it as a duplicate', async () => {
+      mockQueryEvents.mockResolvedValue([]);
+      batch().mockRejectedValue(new Error('unknown calendar'));
+
+      const promise = useCalendarStore.getState().importEvents(
+        [
+          { uid: 'a', title: 'One', start: '2026-03-02T09:00:00' },
+          { uid: 'b', title: 'Two', start: '2026-03-03T09:00:00' },
+        ],
+        'cal-1',
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(ImportRefusedError);
+      await expect(promise).rejects.toThrow('2 events could not be imported: unknown calendar');
+      await expect(promise).rejects.toMatchObject({
+        refused: [
+          { event: expect.objectContaining({ title: 'One' }), reason: 'unknown calendar' },
+          { event: expect.objectContaining({ title: 'Two' }), reason: 'unknown calendar' },
+        ],
+      });
+    });
+
+    it('resolves with nothing imported and nothing refused when every event is already there', async () => {
+      mockQueryEvents.mockResolvedValue(['e1']);
+      mockGetEvents.mockResolvedValue([{ id: 'e1', uid: 'dup', calendarIds: { 'cal-1': true } }]);
+
+      await expect(
+        useCalendarStore.getState().importEvents([{ uid: 'dup', title: 'Dup' }], 'cal-1'),
+      ).resolves.toEqual({ imported: 0, refused: [] });
+      expect(batch()).not.toHaveBeenCalled();
     });
   });
 

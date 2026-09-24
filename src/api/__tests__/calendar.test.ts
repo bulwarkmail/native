@@ -402,25 +402,45 @@ describe('calendar operations', () => {
   });
 
   describe('batchCreateEvents', () => {
-    it('returns how many were created when only some were refused', async () => {
+    it('reports the refused events by index with the reason', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/set', {
           created: { 'evt-0': { id: 'a' } },
-          notCreated: { 'evt-1': { type: 'invalidProperties' } },
+          notCreated: {
+            'evt-1': { type: 'invalidProperties', properties: ['participants'] },
+            'evt-2': { type: 'forbidden', description: 'UID already exists' },
+          },
         }, '0']],
       });
 
-      expect(await batchCreateEvents([{ title: 'A' }, { title: 'B' }], 'cal-1')).toBe(1);
+      expect(await batchCreateEvents([{ title: 'A' }, { title: 'B' }, { title: 'C' }], 'cal-1')).toEqual({
+        created: 1,
+        refused: [
+          { index: 1, reason: 'invalidProperties (participants)' },
+          { index: 2, reason: 'UID already exists' },
+        ],
+      });
     });
 
-    it('throws when the server refused every event (B24)', async () => {
+    it('reports every event when the server refused them all (B24)', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [['CalendarEvent/set', {
           notCreated: { 'evt-0': { type: 'invalidProperties', properties: ['participants'] } },
         }, '0']],
       });
 
-      await expect(batchCreateEvents([{ title: 'A' }], 'cal-1')).rejects.toThrow(/invalidProperties/);
+      expect(await batchCreateEvents([{ title: 'A' }], 'cal-1')).toEqual({
+        created: 0,
+        refused: [{ index: 0, reason: 'invalidProperties (participants)' }],
+      });
+    });
+
+    it('throws on a method-level error', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['error', { type: 'invalidArguments', description: 'unknown calendar' }, '0']],
+      });
+
+      await expect(batchCreateEvents([{ title: 'A' }], 'cal-1')).rejects.toThrow(/unknown calendar/);
     });
   });
 

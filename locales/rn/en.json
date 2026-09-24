@@ -32,6 +32,9 @@
       "location_placeholder": "Place or address",
       "time": "Time"
     },
+    "import": {
+      "refused_count": "{count, plural, one {# event could not be imported:} other {# events could not be imported:}}"
+    },
     "invitation": {
       "accept": "Yes",
       "add_error": "Could not add the event",

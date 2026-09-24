@@ -136,6 +136,37 @@ export function prepareImportedEvent(event: Partial<CalendarEvent>): Partial<Cal
   return data as Partial<CalendarEvent>;
 }
 
+/** An event the server wouldn't import, with its reason. */
+export interface RefusedImport {
+  event: Partial<CalendarEvent>;
+  reason: string;
+}
+
+export interface ImportResult {
+  /** Events created in (or linked into) the target calendar. */
+  imported: number;
+  refused: RefusedImport[];
+}
+
+/** Nothing was imported: the server refused every event that was new. */
+export class ImportRefusedError extends Error {
+  refused: RefusedImport[];
+  constructor(refused: RefusedImport[]) {
+    const first = refused[0]?.reason ?? 'unknown error';
+    super(
+      refused.length === 1
+        ? `The event could not be imported: ${first}`
+        : `${refused.length} events could not be imported: ${first}`,
+    );
+    this.name = 'ImportRefusedError';
+    this.refused = refused;
+  }
+}
+
+function errorReason(err: unknown): string {
+  return err instanceof Error && err.message ? err.message : 'unknown error';
+}
+
 export interface LoadedRange {
   after: string;
   before: string;
@@ -193,7 +224,9 @@ export interface CalendarState {
     // The event itself, for one that isn't in the loaded window.
     event?: CalendarEvent,
   ) => Promise<void>;
-  importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<number>;
+  // Resolves with what got in and what the server refused; rejects with an
+  // ImportRefusedError when nothing got in because everything was refused.
+  importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<ImportResult>;
   createCalendar: (name: string, color?: string, description?: string) => Promise<Calendar>;
   updateCalendar: (id: string, updates: CalendarUpdates) => Promise<void>;
   removeCalendar: (id: string) => Promise<void>;
@@ -595,13 +628,14 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   importEvents: async (events, calendarId) => {
-    if (events.length === 0) return 0;
+    if (events.length === 0) return { imported: 0, refused: [] };
     // Shared calendars live in the owner's account and carry a namespaced
     // store id — resolve the raw server id + owning account so dedup and
     // create target the right place.
     const cal = get().calendars.find((c) => c.id === calendarId);
     const accountId = cal?.accountId;
     const serverCalendarId = cal?.originalId || calendarId;
+    const refused: RefusedImport[] = [];
     // Stalwart enforces UID uniqueness across calendars (#113):
     // - UID already in the target calendar -> skip (true duplicate)
     // - UID in another calendar -> link it to the target via calendarIds
@@ -629,8 +663,9 @@ export const useCalendarStore = create<CalendarState>()(
             accountId,
           );
           linked++;
-        } catch {
-          // Leave it where it is; the import of the rest continues.
+        } catch (err) {
+          // Leave it where it is and say so; the import of the rest continues.
+          refused.push({ event: e, reason: errorReason(err) });
         }
       }
       toCreate = fresh;
@@ -642,13 +677,25 @@ export const useCalendarStore = create<CalendarState>()(
     try {
       // Batch in chunks of 50 to avoid oversized requests.
       for (let i = 0; i < prepared.length; i += 50) {
-        count += await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
+        try {
+          const result = await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
+          count += result.created;
+          for (const { index, reason } of result.refused) {
+            refused.push({ event: toCreate[i + index], reason });
+          }
+        } catch (err) {
+          // A method-level error (unknown calendar, lost connection) would
+          // refuse the later chunks the same way: report them all.
+          for (const event of toCreate.slice(i)) refused.push({ event, reason: errorReason(err) });
+          break;
+        }
       }
     } finally {
-      // Also when a later chunk was refused: show what did get in.
+      // Also when a chunk was refused: show what did get in.
       if (count > 0 || linked > 0) await get().refresh();
     }
-    return count + linked;
+    if (count + linked === 0 && refused.length > 0) throw new ImportRefusedError(refused);
+    return { imported: count + linked, refused };
   },
 
   createCalendar: async (name, color, description) => {
