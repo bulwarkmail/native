@@ -65,7 +65,10 @@ vi.mock('expo-file-system', () => {
   return {
     File,
     Directory,
-    Paths: { cache: { uri: 'file:///cache/' }, document: { uri: 'file:///documents/' } },
+    Paths: {
+      cache: { uri: 'file:///cache/', list: () => fsState.listings.get('file:///cache/') ?? [] },
+      document: { uri: 'file:///documents/' },
+    },
   };
 });
 
@@ -97,6 +100,7 @@ vi.mock('../../api/jmap-client', () => ({
 
 vi.mock('../../api/blob', () => ({
   getDownloadUrl: vi.fn((blobId: string, name: string) => `https://mail.example.com/${blobId}/${name}`),
+  isStaleUploadCopy: (name: string) => name.startsWith('upload-old-'),
 }));
 
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -355,5 +359,20 @@ describe('sweepStaleExportFiles', () => {
       `${handedOff.uri}photo.jpg`,
       handedOff.uri,
     ]);
+  });
+
+  it('removes the upload copies an earlier run left in the cache', async () => {
+    vi.resetModules();
+    const fsMod = await import('expo-file-system');
+    const { sweepStaleExportFiles } = await import('../email-export');
+    fsState.deleted.length = 0;
+    fsState.listings.clear();
+    const cache = { uri: 'file:///cache/' };
+    fsState.listings.set(cache.uri, ['upload-old-1', 'upload-current-2', 'image-cache.png']
+      .map((name) => new fsMod.File(cache as never, name)));
+
+    await sweepStaleExportFiles();
+
+    expect(fsState.deleted).toEqual(['file:///cache/upload-old-1']);
   });
 });

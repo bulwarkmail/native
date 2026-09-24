@@ -107,6 +107,18 @@ export async function uploadBlob(
 }
 
 let cacheCopySeq = 0;
+const UPLOAD_COPY_NAME = /^upload-(\d+)-\d+$/;
+const loadedAt = Date.now();
+
+/**
+ * Whether a cache file is an upload copy (see below) made by an earlier run
+ * of the app: one killed mid-upload never deleted it. Copies of this run may
+ * still be uploading and are left alone.
+ */
+export function isStaleUploadCopy(name: string): boolean {
+  const match = UPLOAD_COPY_NAME.exec(name);
+  return !!match && Number(match[1]) < loadedAt;
+}
 
 // The native upload task reads from a file path, but files shared into the
 // app from another app arrive as Android `content://` URIs with nothing on

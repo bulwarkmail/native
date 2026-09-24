@@ -3,7 +3,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { jmapClient } from '../api/jmap-client';
-import { getDownloadUrl } from '../api/blob';
+import { getDownloadUrl, isStaleUploadCopy } from '../api/blob';
 import type { Attachment, Email } from '../api/types';
 import { useSettingsStore } from '../stores/settings-store';
 import {
@@ -89,13 +89,20 @@ function deleteStaleFiles(dir: Directory, now: number, maxAgeMs: number): void {
  * Remove temp files older than a day. Files shared into other apps could not
  * always be deleted right after the share sheet closed (the receiving app may
  * still be reading them), so anything that slipped through is collected here,
- * including preview folders whose file went to another app. Runs once per
- * process, lazily before the first export, and is also safe to call at launch.
+ * including preview folders whose file went to another app. Also removes the
+ * cache copies of shared files that an earlier run was killed while uploading
+ * (`api/blob`). Runs once per process, lazily before the first export, and is
+ * also safe to call at launch.
  */
 let sweptThisProcess = false;
 export async function sweepStaleExportFiles(maxAgeMs = STALE_EXPORT_MS): Promise<void> {
   if (sweptThisProcess) return;
   sweptThisProcess = true;
+  try {
+    for (const entry of Paths.cache.list()) {
+      if (entry instanceof File && isStaleUploadCopy(entry.name)) deleteQuietly(entry);
+    }
+  } catch { /* housekeeping only */ }
   try {
     const dir = exportsDir();
     if (!dir.exists) return;

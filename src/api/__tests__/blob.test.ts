@@ -40,7 +40,7 @@ vi.mock('../jmap-client', () => ({
   },
 }));
 
-import { getDownloadUrl, uploadBlob } from '../blob';
+import { getDownloadUrl, isStaleUploadCopy, uploadBlob } from '../blob';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -163,5 +163,25 @@ describe('uploadBlob', () => {
     copyAsync.mockRejectedValueOnce(new Error('Permission Denial'));
     await expect(uploadBlob('content://com.example.provider/doc/8', 'image/jpeg')).rejects.toThrow(/Permission Denial/);
     expect(createUploadTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('isStaleUploadCopy', () => {
+  it('flags upload copies an earlier run of the app left behind', () => {
+    expect(isStaleUploadCopy('upload-1700000000000-3')).toBe(true);
+  });
+
+  it("leaves this run's copies alone, since they may still be uploading", async () => {
+    uploadTask.uploadAsync.mockResolvedValueOnce({ status: 200, body: JSON.stringify({ blobId: 'b' }) });
+    await uploadBlob('content://com.example.provider/doc/9', 'image/png');
+    const name = copyAsync.mock.calls[0][0].to.replace('file:///cache/', '');
+
+    expect(isStaleUploadCopy(name)).toBe(false);
+  });
+
+  it('ignores other cache files', () => {
+    expect(isStaleUploadCopy('upload-notes.txt')).toBe(false);
+    expect(isStaleUploadCopy('bulwark-exports')).toBe(false);
+    expect(isStaleUploadCopy('x-upload-1700000000000-3')).toBe(false);
   });
 });
