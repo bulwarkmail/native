@@ -86,6 +86,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
   const [conditions, setConditions] = useState<FilterCondition[]>(() => seedConditions(rule));
   const [actions, setActions] = useState<FilterAction[]>(() => seedActions(rule));
   const [stopProcessing, setStopProcessing] = useState(rule?.stopProcessing ?? false);
+  const [includeSpam, setIncludeSpam] = useState(rule?.includeSpam ?? false);
 
   // The Modal stays mounted between opens, so re-seed every field whenever it
   // is (re)opened for a different rule - otherwise "Add Rule" after editing
@@ -98,6 +99,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     setConditions(seedConditions(rule));
     setActions(seedActions(rule));
     setStopProcessing(rule?.stopProcessing ?? false);
+    setIncludeSpam(rule?.includeSpam ?? false);
   }, [visible, rule]);
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
@@ -217,8 +219,11 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       conditions: validConditions,
       actions: validActions,
       stopProcessing,
+      // Only folder moves are kept out of Junk, so the opt-in only means
+      // something (and is only stored) while the rule has one.
+      ...(includeSpam && validActions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) ? { includeSpam: true } : {}),
     });
-  }, [name, conditions, actions, matchType, stopProcessing, rule, onSave, t, mailboxTargets]);
+  }, [name, conditions, actions, matchType, stopProcessing, includeSpam, rule, onSave, t, mailboxTargets]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -443,6 +448,16 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
               </Text>
               <ToggleSwitch checked={stopProcessing} onChange={setStopProcessing} />
             </View>
+
+            {/* Folder rules skip spam unless the rule opts in (webmail 6241ed61). */}
+            {actions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) && (
+              <View style={styles.stopRow}>
+                <Text style={styles.stopLabel}>
+                  {t('settings.filters.include_spam', 'Also move messages marked as spam')}
+                </Text>
+                <ToggleSwitch checked={includeSpam} onChange={setIncludeSpam} />
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
 

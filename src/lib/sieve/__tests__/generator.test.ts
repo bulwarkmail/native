@@ -306,6 +306,40 @@ describe('generateScript', () => {
     });
   });
 
+  describe('spam guard', () => {
+    const exts = ['fileinto', 'relational', 'spamtest', 'spamtestplus'];
+    const guard = 'not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50"';
+
+    it('keeps spam out of folder moves', () => {
+      const script = generateScript([makeRule()], undefined, { extensions: exts });
+      expect(script).toContain(`if allof(header :contains "From" "test@example.com", ${guard}) {`);
+      expect(script).toContain('require ["comparator-i;ascii-numeric", "fileinto", "relational", "spamtestplus"];');
+    });
+
+    it('extends an allof and wraps an anyof', () => {
+      const conditions = [
+        { field: 'from' as const, comparator: 'contains' as const, value: 'a' },
+        { field: 'subject' as const, comparator: 'contains' as const, value: 'b' },
+      ];
+      const all = generateScript([makeRule({ conditions })], undefined, { extensions: exts });
+      expect(all).toContain(`if allof(header :contains "From" "a", header :contains "Subject" "b", ${guard}) {`);
+      const any = generateScript([makeRule({ conditions, matchType: 'any' })], undefined, { extensions: exts });
+      expect(any).toContain(`if allof(anyof(header :contains "From" "a", header :contains "Subject" "b"), ${guard}) {`);
+    });
+
+    it('leaves keep rules, opted-in rules and servers without spamtestplus alone', () => {
+      const keep = makeRule({ actions: [{ type: 'keep' }] });
+      const optIn = makeRule({ id: 'r2', name: 'Opt in', includeSpam: true });
+      expect(generateScript([keep, optIn], undefined, { extensions: exts })).not.toContain('spamtest');
+      expect(generateScript([makeRule()], undefined, { extensions: ['fileinto'] })).not.toContain('spamtest');
+    });
+
+    it('round-trips the opt-in', () => {
+      const parsed = parseScript(generateScript([makeRule({ includeSpam: true })], undefined, { extensions: exts }));
+      expect(parsed.rules[0].includeSpam).toBe(true);
+    });
+  });
+
   describe('vacation include', () => {
     it('includes the server vacation script before the rules', () => {
       const script = generateScript([makeRule()], undefined, { includeVacation: true });

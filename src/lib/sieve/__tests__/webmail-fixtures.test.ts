@@ -1,44 +1,34 @@
 // Scripts written by the webmail must survive a save on the phone: parsing
 // them into rules and generating the script again has to give back the same
-// rules and the same Sieve, or saving filters on the phone would silently
-// change what the server does (switch the auto-reply off, drop folder ids,
-// let spam into folders...).
-//
-// The fixtures in fixtures/webmail/ were written by the webmail's own
-// generator (jmap-webmail lib/sieve/generator.ts at e33ab899), run on the
-// rules in each file's metadata for a server listing `extensions`.
+// rules and the same Sieve the webmail would write, or saving filters on the
+// phone would silently change what the server does (switch the auto-reply
+// off, drop folder ids, let spam into folders...). See
+// fixtures/webmail/index.ts for where the scripts come from.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { generateScript } from '../generator';
 import { parseScript } from '../parser';
-
-interface WebmailFixture {
-  file: string;
-  /** The server's sieveExtensions the webmail generated the script for. */
-  extensions?: string[];
-}
-
-const FIXTURES: WebmailFixture[] = [
-  { file: 'vacation-include.sieve' },
-  { file: 'folder-targets.sieve', extensions: ['fileinto', 'copy', 'imap4flags', 'mailbox', 'mailboxid'] },
-];
-
-function readFixture(file: string): string {
-  // Git may check the fixture out with CRLF line ends on Windows.
-  return readFileSync(join(__dirname, 'fixtures', 'webmail', file), 'utf-8').replace(/\r\n/g, '\n');
-}
+import { readWebmailFixture, readWebmailResave, WEBMAIL_FIXTURES } from './fixtures/webmail';
 
 function metadataRules(script: string): unknown[] {
   const match = script.match(/@metadata:begin\n(.*)\n@metadata:end/);
   return JSON.parse(match![1]).rules;
 }
 
+// Blank lines carry no meaning in Sieve.
+function withoutBlankLines(script: string): string {
+  return script.split('\n').filter((line) => line.trim() !== '').join('\n');
+}
+
 describe('scripts written by the webmail', () => {
-  for (const { file, extensions } of FIXTURES) {
+  for (const { file, extensions } of WEBMAIL_FIXTURES) {
     describe(file, () => {
-      const script = readFixture(file);
+      const script = readWebmailFixture(file);
       const parsed = parseScript(script);
+      const regenerated = generateScript(parsed.rules, parsed.vacation, {
+        externalRequires: parsed.externalRequires,
+        includeVacation: parsed.includeVacation,
+        extensions,
+      });
 
       it('parses into the rules the webmail stored', () => {
         expect(parsed.isOpaque).toBe(false);
@@ -46,13 +36,14 @@ describe('scripts written by the webmail', () => {
         expect(bulwark).toEqual(metadataRules(script));
       });
 
-      it('saves back unchanged', () => {
-        const regenerated = generateScript(parsed.rules, parsed.vacation, {
-          externalRequires: parsed.externalRequires,
-          includeVacation: parsed.includeVacation,
-          extensions,
-        });
-        expect(regenerated).toBe(script);
+      it('saves back what the webmail would save', () => {
+        expect(regenerated).toBe(readWebmailResave(file));
+      });
+
+      it('saves back the same script', () => {
+        expect(withoutBlankLines(regenerated)).toBe(withoutBlankLines(script));
+        expect(parseScript(regenerated).rules).toEqual(parsed.rules.map((r) =>
+          r.rawBlock ? { ...r, rawBlock: expect.any(String) } : r));
       });
     });
   }

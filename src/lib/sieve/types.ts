@@ -79,6 +79,11 @@ export interface FilterRule {
   conditions: FilterCondition[];
   actions: FilterAction[];
   stopProcessing: boolean;
+  /**
+   * Also move/copy messages the server marked as spam. Off by default, so a
+   * folder rule does not pull spam out of Junk.
+   */
+  includeSpam?: boolean;
   origin?: FilterOrigin;
   originLabel?: string;
   rawBlock?: string;

@@ -148,7 +148,8 @@ function generateActions(actions: FilterAction[], useMailboxId: boolean): string
         // A bare `keep;` delivers to the "default place", which on Stalwart is
         // Junk for a message its spam filter has already classified, so an
         // allow-list rule made with "Keep" would change nothing. An explicit
-        // `fileinto "INBOX"` is honored over the spam verdict (#1027).
+        // `fileinto "INBOX"` is honored over the spam verdict (#1027), but
+        // only from Stalwart 0.16.22; older versions still move it to Junk.
         return 'fileinto "INBOX";';
       case 'stop':
         return 'stop;';
@@ -156,7 +157,32 @@ function generateActions(actions: FilterAction[], useMailboxId: boolean): string
   });
 }
 
-function computeRequires(rules: FilterRule[], vacation: VacationSieveConfig | undefined, useMailboxId: boolean): string[] {
+// Stalwart maps its spam verdict to 100 % (0.16.0) or to a graded value where
+// 50 % is the spam threshold (0.16.19+), so ">= 50" matches "is spam" on both.
+const SPAM_GUARD = 'not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50"';
+const SPAM_GUARD_REQUIRES = ['spamtestplus', 'relational', 'comparator-i;ascii-numeric'];
+
+function supportsSpamGuard(extensions: string[] | undefined): boolean {
+  return ['spamtestplus', 'relational'].every(e => extensions?.includes(e));
+}
+
+/**
+ * A folder move takes a message out of the Junk folder the server would have
+ * put it in, so move/copy rules skip spam unless the rule opts in. "Keep"
+ * rules are allow-lists and stay unguarded.
+ */
+function needsSpamGuard(rule: FilterRule, extensions: string[] | undefined): boolean {
+  return !rule.includeSpam &&
+    rule.actions.some(a => a.type === 'move' || a.type === 'copy') &&
+    supportsSpamGuard(extensions);
+}
+
+function computeRequires(
+  rules: FilterRule[],
+  vacation: VacationSieveConfig | undefined,
+  useMailboxId: boolean,
+  serverExtensions: string[] | undefined,
+): string[] {
   const extensions = new Set<string>();
   const enabledRules = rules.filter(r => r.enabled);
 
@@ -165,6 +191,9 @@ function computeRequires(rules: FilterRule[], vacation: VacationSieveConfig | un
   }
 
   for (const rule of enabledRules) {
+    if (needsSpamGuard(rule, serverExtensions)) {
+      for (const e of SPAM_GUARD_REQUIRES) extensions.add(e);
+    }
     for (const condition of rule.conditions) {
       if (condition.field === 'body') extensions.add('body');
       if (condition.field === 'attachment') extensions.add('mime');
@@ -211,6 +240,7 @@ function stripRuleForMetadata(r: FilterRule): Omit<FilterRule, 'origin' | 'origi
     conditions: r.conditions,
     actions: r.actions,
     stopProcessing: r.stopProcessing,
+    ...(r.includeSpam ? { includeSpam: true } : {}),
   };
 }
 
@@ -269,7 +299,7 @@ export function generateScript(
   lines.push('');
 
   const useMailboxId = options.extensions?.includes('mailboxid') ?? false;
-  const bulwarkRequires = computeRequires(bulwarkRules, vacation, useMailboxId);
+  const bulwarkRequires = computeRequires(bulwarkRules, vacation, useMailboxId, options.extensions);
   if (options.includeVacation) bulwarkRequires.push('include');
   const externalRequires = options.externalRequires ?? [];
   const allRequires = [...new Set([...bulwarkRequires, ...externalRequires])].sort();
@@ -318,6 +348,12 @@ export function generateScript(
     } else {
       const wrapper = rule.matchType === 'all' ? 'allof' : 'anyof';
       conditionStr = `${wrapper}(${conditions.join(', ')})`;
+    }
+
+    if (needsSpamGuard(rule, options.extensions)) {
+      conditionStr = conditions.length > 1 && rule.matchType === 'all'
+        ? `allof(${conditions.join(', ')}, ${SPAM_GUARD})`
+        : `allof(${conditionStr}, ${SPAM_GUARD})`;
     }
 
     const actionLines = generateActions(rule.actions, useMailboxId);

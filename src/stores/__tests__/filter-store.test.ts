@@ -11,11 +11,14 @@ vi.mock('../../api/sieve', () => ({
   validateSieveScript: vi.fn(async () => ({ isValid: true })),
 }));
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import * as sieve from '../../api/sieve';
 import { generateScript } from '../../lib/sieve/generator';
 import type { FilterRule } from '../../lib/sieve/types';
+import {
+  readWebmailFixture as webmailFixture,
+  readWebmailResave as webmailResave,
+  STALWART_EXTENSIONS,
+} from '../../lib/sieve/__tests__/fixtures/webmail';
 import { isVacationIncludedInFilters, syncVacationWithFilters, useFilterStore } from '../filter-store';
 
 const api = vi.mocked(sieve);
@@ -36,11 +39,6 @@ function makeRule(overrides: Partial<FilterRule> = {}): FilterRule {
 function serveScript(rules: FilterRule[]) {
   api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
   api.getSieveScriptContent.mockResolvedValue(generateScript(rules));
-}
-
-function webmailFixture(file: string): string {
-  return readFileSync(join(__dirname, '../../lib/sieve/__tests__/fixtures/webmail', file), 'utf-8')
-    .replace(/\r\n/g, '\n');
 }
 
 const WITH_INCLUDE = {
@@ -228,5 +226,36 @@ describe('saving scripts the webmail wrote', () => {
     await useFilterStore.getState().selectAccount(null);
     await useFilterStore.getState().saveFilters();
     expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+
+  it('keeps the spam guard, its opt-in, the vacation include and external rules', async () => {
+    const script = webmailFixture('stalwart-full.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: true },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: false },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    expect(useFilterStore.getState().rules.find((r) => r.id === 'spam')?.includeSpam).toBe(true);
+
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', webmailResave('stalwart-full.sieve'), true, 'own');
+  });
+
+  it('keeps the rule data through an edit on the phone', async () => {
+    const script = webmailFixture('stalwart-full.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    useFilterStore.getState().toggleRule('big');
+    useFilterStore.getState().toggleRule('big');
+    useFilterStore.getState().reorderRules(['vip', 'invoices', 'fwd', 'spam', 'big']);
+    useFilterStore.getState().reorderRules(['invoices', 'vip', 'fwd', 'spam', 'big']);
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript.mock.calls[0][1]).toBe(webmailResave('stalwart-full.sieve'));
   });
 });
