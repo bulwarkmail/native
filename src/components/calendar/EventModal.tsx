@@ -228,6 +228,10 @@ export function EventModal({
   const [showEndTime, setShowEndTime] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
+  // Reset the form when the editor opens or switches to another event only.
+  // `calendars` and `currentUserEmails` get new identities when a calendar
+  // push or the alias lookup lands, which used to wipe what the user typed.
+  const formKey = visible ? event?.id ?? 'new' : null;
   React.useEffect(() => {
     if (!visible) return;
     if (event) {
@@ -270,7 +274,13 @@ export function EventModal({
       setLocation('');
       setVideoUrl('');
     }
-  }, [visible, event, defaultDate, fallbackCalendarId, calendars, currentUserEmails]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formKey]);
+
+  // The calendars can arrive after a new-event form opened.
+  React.useEffect(() => {
+    if (visible && !calendarId && fallbackCalendarId) setCalendarId(fallbackCalendarId);
+  }, [visible, calendarId, fallbackCalendarId]);
 
   React.useEffect(() => {
     if (allDay) {
