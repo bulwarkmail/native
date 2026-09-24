@@ -256,6 +256,102 @@ describe('JMAPClient', () => {
     });
   });
 
+  describe('account-level mail and submission limits (#57)', () => {
+    // Stalwart's shape: the session-level mail/submission objects are empty,
+    // the limits and SMTP extensions live under the account.
+    const STALWART_SESSION: JMAPSession = {
+      ...MOCK_SESSION,
+      primaryAccounts: {
+        'urn:ietf:params:jmap:mail': 'acc-1',
+        'urn:ietf:params:jmap:submission': 'acc-1',
+      },
+      accounts: {
+        'acc-1': {
+          name: 'user@example.com',
+          isPersonal: true,
+          isReadOnly: false,
+          accountCapabilities: {
+            'urn:ietf:params:jmap:mail': { maxSizeAttachmentsPerEmail: 50_000_000, maxMailboxDepth: 10 },
+            'urn:ietf:params:jmap:submission': {
+              maxDelayedSend: 2_592_000,
+              submissionExtensions: { FUTURERELEASE: [], SIZE: [], DSN: [] },
+            },
+            'urn:stalwart:jmap': {},
+          },
+        },
+        'shared-no-send': {
+          name: 'Team',
+          isPersonal: false,
+          isReadOnly: false,
+          accountCapabilities: { 'urn:ietf:params:jmap:mail': {} },
+        },
+        'shared-no-hold': {
+          name: 'Support',
+          isPersonal: false,
+          isReadOnly: false,
+          accountCapabilities: {
+            'urn:ietf:params:jmap:submission': { maxDelayedSend: 0, submissionExtensions: {} },
+          },
+        },
+      },
+      capabilities: {
+        'urn:ietf:params:jmap:core': { maxSizeUpload: 50_000_000 },
+        'urn:ietf:params:jmap:mail': {},
+        'urn:ietf:params:jmap:submission': {},
+      },
+    };
+
+    it('reads scheduled-send support from the account, not the empty session object', async () => {
+      global.fetch = mockFetch([{ status: 200, json: STALWART_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+
+      expect(client.hasDelayedSend()).toBe(true);
+      expect(client.getMaxDelayedSend()).toBe(2_592_000);
+      expect(client.getMaxSizeAttachmentsPerEmail()).toBe(50_000_000);
+      expect(client.getMaxSizeUpload()).toBe(50_000_000);
+    });
+
+    it('uses the capability of the account that sends', async () => {
+      global.fetch = mockFetch([{ status: 200, json: STALWART_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+
+      // Its own submission capability says no.
+      expect(client.hasDelayedSend('shared-no-hold')).toBe(false);
+      expect(client.getMaxDelayedSend('shared-no-hold')).toBe(0);
+      // No submission capability of its own: the primary submission account's applies.
+      expect(client.hasDelayedSend('shared-no-send')).toBe(true);
+      expect(client.getMaxSizeAttachmentsPerEmail('shared-no-send')).toBe(0);
+    });
+
+    it('falls back to the session-level objects when the account has none', async () => {
+      const session: JMAPSession = {
+        ...MOCK_SESSION,
+        capabilities: {
+          ...MOCK_SESSION.capabilities,
+          'urn:ietf:params:jmap:mail': { maxSizeAttachmentsPerEmail: 1000 },
+          'urn:ietf:params:jmap:submission': {
+            maxDelayedSend: 3600,
+            submissionExtensions: { futurerelease: ['3600', '2026-01-01T00:00:00Z'] },
+          },
+        },
+      };
+      global.fetch = mockFetch([{ status: 200, json: session }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+
+      expect(client.hasDelayedSend()).toBe(true);
+      expect(client.getMaxDelayedSend()).toBe(3600);
+      expect(client.getMaxSizeAttachmentsPerEmail()).toBe(1000);
+    });
+
+    it('reports no scheduled send without FUTURERELEASE', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+
+      expect(client.hasDelayedSend()).toBe(false);
+      expect(client.getMaxDelayedSend()).toBe(0);
+    });
+  });
+
   describe('accountId resolution', () => {
     it('should fall back to core account', async () => {
       const session = {

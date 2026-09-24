@@ -889,6 +889,20 @@ export class JMAPClient {
     return this.hasCapability(urn);
   }
 
+  /**
+   * The value of a capability for an account (RFC 8620 §2
+   * `accountCapabilities`), falling back to the session-level object. RFC
+   * 8621 puts the mail and submission limits (`maxSizeAttachmentsPerEmail`,
+   * `maxDelayedSend`, `submissionExtensions`) under the account; Stalwart
+   * advertises an empty `{}` for them at session level.
+   */
+  getAccountCapability(urn: string, accountId?: string): unknown {
+    const id = accountId ?? this._accountId;
+    const accountCaps = id ? this.session?.accounts?.[id]?.accountCapabilities : undefined;
+    if (accountCaps && urn in accountCaps) return accountCaps[urn];
+    return this.session?.capabilities?.[urn];
+  }
+
   private get coreCapability():
     | { maxObjectsInGet?: number; maxObjectsInSet?: number; maxCallsInRequest?: number; maxSizeUpload?: number; maxSizeRequest?: number }
     | undefined {
@@ -916,8 +930,8 @@ export class JMAPClient {
   }
 
   /** Per-message attachment total ceiling in bytes (0 = unknown). */
-  getMaxSizeAttachmentsPerEmail(): number {
-    const mail = this.session?.capabilities?.[CAPABILITIES.MAIL] as
+  getMaxSizeAttachmentsPerEmail(accountId?: string): number {
+    const mail = this.getAccountCapability(CAPABILITIES.MAIL, accountId) as
       | { maxSizeAttachmentsPerEmail?: number }
       | undefined;
     const max = mail?.maxSizeAttachmentsPerEmail;
@@ -967,24 +981,38 @@ export class JMAPClient {
   // ── Scheduled send (FUTURERELEASE) ────────────────────
   // The JMAP submission capability advertises `maxDelayedSend` (max hold in
   // seconds) and a `submissionExtensions` map; FUTURERELEASE support is what
-  // lets us defer delivery via the SMTP HOLDFOR parameter. Mirrors the webmail
-  // implementation so behaviour stays in sync across platforms.
+  // lets us defer delivery via the SMTP HOLDFOR parameter. Both are account
+  // capabilities (RFC 8621 §1.3.2) - Stalwart only advertises them in
+  // `accountCapabilities`, so a session-level read found nothing and turned
+  // scheduled send, the undo-send delay and the Scheduled view off (#57).
+  // Mirrors the webmail implementation so behaviour stays in sync.
 
-  private get submissionCapability():
+  /**
+   * The account whose submission capability applies to a send from
+   * `accountId` (default: the primary). An account that doesn't advertise
+   * submission itself falls back to the session's primary submission account.
+   */
+  private submissionAccountId(accountId?: string): string | undefined {
+    const id = accountId ?? this._accountId ?? undefined;
+    if (id && this.session?.accounts?.[id]?.accountCapabilities?.[CAPABILITIES.SUBMISSION]) return id;
+    return this.session?.primaryAccounts?.[CAPABILITIES.SUBMISSION] || id;
+  }
+
+  private submissionCapability(accountId?: string):
     | { maxDelayedSend?: number; submissionExtensions?: unknown }
     | undefined {
-    return this.session?.capabilities?.[CAPABILITIES.SUBMISSION] as
+    return this.getAccountCapability(CAPABILITIES.SUBMISSION, this.submissionAccountId(accountId)) as
       | { maxDelayedSend?: number; submissionExtensions?: unknown }
       | undefined;
   }
 
-  getMaxDelayedSend(): number {
-    const max = this.submissionCapability?.maxDelayedSend;
+  getMaxDelayedSend(accountId?: string): number {
+    const max = this.submissionCapability(accountId)?.maxDelayedSend;
     return typeof max === 'number' ? max : 0;
   }
 
-  hasDelayedSend(): boolean {
-    const cap = this.submissionCapability;
+  hasDelayedSend(accountId?: string): boolean {
+    const cap = this.submissionCapability(accountId);
     if (!cap) return false;
     const ext = cap.submissionExtensions;
     // submissionExtensions is a map of extension name → params. FUTURERELEASE
@@ -995,7 +1023,7 @@ export class JMAPClient {
       Object.keys(ext as Record<string, unknown>).some(
         (k) => k.toUpperCase() === 'FUTURERELEASE',
       );
-    return hasFutureRelease && this.getMaxDelayedSend() > 0;
+    return hasFutureRelease && this.getMaxDelayedSend(accountId) > 0;
   }
 
   // ── Stored credentials (per-account) ──────────────────

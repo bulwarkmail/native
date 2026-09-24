@@ -91,6 +91,15 @@ live('live Stalwart', () => {
       expect(client.hasCapability('urn:stalwart:jmap')).toBe(false);
     });
 
+    it('finds scheduled send in the account submission capability (#57)', () => {
+      const session = client.currentSession!;
+      const sessionLevel = session.capabilities?.['urn:ietf:params:jmap:submission'] as Record<string, unknown> | undefined;
+      expect(sessionLevel?.maxDelayedSend).toBeUndefined();
+      expect(client.hasDelayedSend()).toBe(true);
+      expect(client.getMaxDelayedSend()).toBeGreaterThan(0);
+      expect(client.getMaxSizeAttachmentsPerEmail()).toBeGreaterThan(0);
+    });
+
     it('reads the advertised request limits', () => {
       expect(client.getMaxObjectsInGet()).toBeGreaterThan(0);
       expect(client.getMaxObjectsInSet()).toBeGreaterThan(0);

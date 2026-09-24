@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
+import { jmapClient } from '../../api/jmap-client';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
@@ -89,7 +90,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         },
         identity.id,
         sent.originalId ?? sent.id,
-        sendDelaySeconds > 0 ? sendDelaySeconds : undefined,
+        sendDelaySeconds > 0 && jmapClient.hasDelayedSend(jmapAccountId) ? sendDelaySeconds : undefined,
         { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
       );
       try {
