@@ -17,6 +17,7 @@ import {
   startCalendarNotificationSync,
   startCalendarReminderTapHandling,
 } from './src/lib/calendar-notifications';
+import { startLivenessMonitor } from './src/lib/connection-liveness';
 import {
   setPendingCalendarOpen,
   type CalendarReminderTarget,
@@ -627,6 +628,23 @@ export default function App() {
       void useOutboxStore.getState().flush();
     };
 
+    // Foreground liveness for the per-account connection dot: the open
+    // stream's pings, or a `Core/echo` every 30 s while there is none (see
+    // startLivenessMonitor). NetInfo cannot tell an unreachable server.
+    const liveness = startLivenessMonitor({
+      ping: () => jmapClient.ping(),
+      streamHealthy: () => handle?.healthy ?? false,
+      isActive: () => appActive,
+      isOnline: () => useNetworkStore.getState().online,
+      onConnected: (connected) => {
+        if (!mounted || !activeAccountId) return;
+        const account = useAccountStore.getState().getAccountById(activeAccountId);
+        if (account && account.isConnected !== connected) {
+          useAccountStore.getState().updateAccount(activeAccountId, { isConnected: connected });
+        }
+      },
+    });
+
     void start();
 
     const subscription = AppState.addEventListener('change', (state) => {
@@ -638,19 +656,12 @@ export default function App() {
         handle = null;
         return;
       }
-      // Coming back: verify the session is still alive before trusting the
-      // stream, then reconnect and catch up on what was missed.
-      void (async () => {
-        const alive = await jmapClient.ping().catch(() => false);
-        if (!mounted) return;
-        if (!alive && useNetworkStore.getState().online) {
-          const ok = await useAuthStore.getState().retrySession().catch(() => false);
-          if (!ok || !mounted) return;
-        }
-        if (!handle) await start();
-        else handle.reconnect();
-        refreshAfterResume();
-      })();
+      // Coming back: reconnect and catch up on what was missed at once;
+      // one echo alongside checks the server for the connection dot.
+      if (!handle) void start();
+      else handle.reconnect();
+      refreshAfterResume();
+      void liveness.check();
     });
 
     // Reconnect when the network comes back while foregrounded.
@@ -665,38 +676,11 @@ export default function App() {
       mounted = false;
       subscription.remove();
       unsubscribeNetwork();
+      liveness.stop();
       handle?.close();
       handle = null;
     };
   }, [client, isAuthenticated, haveLiveSession, activeAccountId]);
-
-  // Foreground keep-alive: a `Core/echo` every 30 s tells us when the server
-  // is unreachable even though the device is online (NetInfo cannot), and
-  // drives the per-account connection dot.
-  React.useEffect(() => {
-    if (!isAuthenticated || !haveLiveSession || !activeAccountId) return;
-    let cancelled = false;
-    let failures = 0;
-    const timer = setInterval(() => {
-      if (AppState.currentState !== 'active') return;
-      if (!useNetworkStore.getState().online) return;
-      void jmapClient.ping().then((ok) => {
-        if (cancelled) return;
-        failures = ok ? 0 : failures + 1;
-        const account = useAccountStore.getState().getAccountById(activeAccountId);
-        if (!account) return;
-        // One missed echo can be a blip; two in a row is a lost connection.
-        const connected = failures < 2;
-        if (account.isConnected !== connected) {
-          useAccountStore.getState().updateAccount(activeAccountId, { isConnected: connected });
-        }
-      }).catch(() => undefined);
-    }, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [isAuthenticated, haveLiveSession, activeAccountId]);
 
   // Skip the "Restoring session" flash for returning users: if we already
   // have a persisted active account, render the main UI immediately with

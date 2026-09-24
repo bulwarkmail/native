@@ -73,6 +73,11 @@ export interface LiveUpdatesHandle {
   reconnect: () => void;
   /** 'sse' | 'polling' | 'closed' */
   readonly mode: 'sse' | 'polling' | 'closed';
+  /**
+   * True while the event stream is open and its pings keep arriving (the
+   * watchdog drops it after three missed ones): the server is reachable.
+   */
+  readonly healthy: boolean;
 }
 
 function buildEventSourceUrl(template: string): string {
@@ -168,6 +173,7 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
   let recycleTimer: ReturnType<typeof setTimeout> | null = null;
   let consecutiveFailures = 0;
   let closed = false;
+  let streamOpen = false;
   let unsubscribeTokenRefresh: (() => void) | null = null;
 
   const session = jmapClient.currentSession;
@@ -181,6 +187,7 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
   };
 
   const dropStream = () => {
+    streamOpen = false;
     if (es) {
       for (const [type, handler] of esHandlers) {
         try { es.removeEventListener(type, handler); } catch { /* ignore */ }
@@ -269,6 +276,7 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
 
     on('open', () => {
       consecutiveFailures = 0;
+      streamOpen = es === source;
       armWatchdog();
       if (recycleTimer) clearTimeout(recycleTimer);
       recycleTimer = setTimeout(() => {
@@ -351,6 +359,9 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
   return {
     get mode() {
       return mode;
+    },
+    get healthy() {
+      return mode === 'sse' && streamOpen;
     },
     close: () => {
       closed = true;
