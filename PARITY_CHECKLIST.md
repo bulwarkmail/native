@@ -81,8 +81,8 @@ The native audit of 2026-09-22 ([docs/audit-2026-09.md](docs/audit-2026-09.md))
 spot-checked this list and found 14 ticks that were broken or overstated and 11
 open items that were already done. The 2026-09-24 fix pass fixed 13 of the 14
 (their ticks now also name the fixing commit; the date-locale item is open
-again), dropped three obsolete items and ticked what it completed: 379 of 415
-items are done, 36 open. What still needs a device check or a decision is in
+again), dropped three obsolete items and ticked what it completed: 380 of 415
+items are done, 35 open. What still needs a device check or a decision is in
 the audit's "Fix pass, 2026-09-24" section.
 
 ## Areas
@@ -96,9 +96,9 @@ the audit's "Fix pass, 2026-09-24" section.
 | 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 50 | 43 | 7 | 5 | 20 | 25 |
 | 06 | Contacts and address books | [docs/parity/06-contacts.md](docs/parity/06-contacts.md) | 50 | 46 | 4 | 1 | 18 | 31 |
 | 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 32 | 29 | 3 | 3 | 8 | 21 |
-| 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 46 | 37 | 9 | 0 | 14 | 32 |
+| 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 46 | 38 | 8 | 0 | 14 | 32 |
 | 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 56 | 54 | 2 | 7 | 23 | 26 |
-| | **Total** | | **415** | **379** | **36** | **32** | **138** | **244** |
+| | **Total** | | **415** | **380** | **35** | **32** | **138** | **244** |
 
 Counts are of the `- [ ]` and `- [x]` items per file as of 2026-09-24. Done and
 Open split them by tick; the P columns count the priority tags on those items
