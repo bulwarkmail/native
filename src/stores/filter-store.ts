@@ -152,13 +152,17 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     try {
       const {
         isOpaque, rawScript, rules, activeScriptId, vacationSettings, externalRequires, includeVacation,
-        selectedAccountId,
+        selectedAccountId, sieveCapabilities,
       } = get();
       const accountId = selectedAccountId ?? undefined;
 
       const content = isOpaque
         ? rawScript
-        : generateScript(rules, vacationSettings || undefined, { externalRequires, includeVacation });
+        : generateScript(rules, vacationSettings || undefined, {
+          externalRequires,
+          includeVacation,
+          extensions: sieveCapabilities?.sieveExtensions,
+        });
 
       if (activeScriptId) {
         await updateSieveScript(activeScriptId, content, true, accountId);
@@ -292,7 +296,8 @@ export async function isVacationIncludedInFilters(accountId?: string): Promise<b
  */
 export async function syncVacationWithFilters(enabled: boolean, accountId?: string): Promise<void> {
   const sieveAccountId = accountId ?? getSieveAccountId();
-  if (enabled && !supportsInclude(getSieveCapabilities(sieveAccountId))) return;
+  const capabilities = getSieveCapabilities(sieveAccountId);
+  if (enabled && !supportsInclude(capabilities)) return;
 
   const { vacationScript, target, parsed } = await loadManagedScript(sieveAccountId);
   if (!target || !parsed) return;
@@ -307,6 +312,7 @@ export async function syncVacationWithFilters(enabled: boolean, accountId?: stri
   const content = generateScript(parsed.rules, parsed.vacation, {
     externalRequires: parsed.externalRequires,
     includeVacation: enabled,
+    extensions: capabilities?.sieveExtensions,
   });
   await updateSieveScript(target.id, content, enabled || target.isActive, sieveAccountId);
 

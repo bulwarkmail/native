@@ -529,8 +529,21 @@ function parseAction(raw: string): FilterAction | null {
   m = /^fileinto\s+"((?:[^"\\]|\\.)*)"$/.exec(s);
   if (m) return { type: 'move', value: unescapeSieveString(m[1]) };
 
-  m = /^redirect\s+"((?:[^"\\]|\\.)*)"$/.exec(s);
-  if (m) return { type: 'forward', value: unescapeSieveString(m[1]) };
+  m = /^fileinto\s+(:copy\s+)?:mailboxid\s+"((?:[^"\\]|\\.)*)"\s+"((?:[^"\\]|\\.)*)"$/.exec(s);
+  if (m) {
+    return {
+      type: m[1] ? 'copy' : 'move',
+      value: unescapeSieveString(m[3]),
+      mailboxId: unescapeSieveString(m[2]),
+    };
+  }
+
+  m = /^redirect\s+(:copy\s+)?"((?:[^"\\]|\\.)*)"$/.exec(s);
+  if (m) {
+    const action: FilterAction = { type: 'forward', value: unescapeSieveString(m[2]) };
+    if (m[1]) action.keepCopy = true;
+    return action;
+  }
 
   m = /^addflag\s+"((?:[^"\\]|\\.)*)"$/.exec(s);
   if (m) {

@@ -12,7 +12,6 @@ import Input from '../Input';
 import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useKeywordsStore } from '../../stores/keywords-store';
-import { buildMailboxTree, type MailboxNode } from '../../lib/mailbox-tree';
 import { generateUUID } from '../../lib/uuid';
 import {
   inputStringToValue,
@@ -20,6 +19,15 @@ import {
   isHasAnyCondition,
   valueToInputString,
 } from '../../lib/sieve/condition-value';
+import {
+  ACTIONS_WITH_MAILBOX,
+  ACTIONS_WITH_VALUE,
+  buildMailboxTargets,
+  mailboxIdFor,
+  selectMailboxTarget,
+  updateFilterAction,
+  withMailboxTarget,
+} from '../../lib/sieve/rule-actions';
 import type { Mailbox } from '../../api/types';
 import type {
   FilterRule,
@@ -51,9 +59,6 @@ function seedActions(rule?: FilterRule): FilterAction[] {
 }
 const ALL_ACTION_TYPES: FilterActionType[] = ['move', 'copy', 'forward', 'mark_read', 'star', 'add_label', 'discard', 'reject', 'keep', 'stop'];
 
-const ACTIONS_WITH_VALUE = new Set<FilterActionType>(['move', 'copy', 'forward', 'reject', 'add_label']);
-const ACTIONS_WITH_MAILBOX = new Set<FilterActionType>(['move', 'copy']);
-
 function makeEmptyCondition(): FilterCondition {
   return { field: 'from', comparator: 'contains', value: '' };
 }
@@ -67,23 +72,6 @@ interface FilterRuleModalProps {
   mailboxes: Mailbox[];
   onSave: (rule: FilterRule) => void;
   onClose: () => void;
-}
-
-// Flatten the mailbox tree into pickable options, building the Sieve-canonical
-// folder path for each (inbox -> "INBOX", not the localized display name).
-function buildMailboxOptions(mailboxes: Mailbox[]): { value: string; label: string }[] {
-  const tree = buildMailboxTree(mailboxes);
-  const options: { value: string; label: string }[] = [];
-  const walk = (nodes: MailboxNode[], parentPath: string) => {
-    for (const node of nodes) {
-      const segment = node.role === 'inbox' ? 'INBOX' : node.name;
-      const fullPath = parentPath ? `${parentPath}/${segment}` : segment;
-      options.push({ value: fullPath, label: `${' '.repeat(node.depth * 3)}${node.name}` });
-      if (node.children.length > 0) walk(node.children, fullPath);
-    }
-  };
-  walk(tree, '');
-  return options;
 }
 
 export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: FilterRuleModalProps) {
@@ -112,7 +100,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     setStopProcessing(rule?.stopProcessing ?? false);
   }, [visible, rule]);
 
-  const mailboxOptions = useMemo(() => buildMailboxOptions(mailboxes), [mailboxes]);
+  const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
 
   const fieldOptions = useMemo(
     () => ALL_FIELDS.map((f) => ({ value: f, label: t(`settings.filters.condition_fields.${f}`, f) })),
@@ -165,18 +153,26 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
 
   const updateAction = (index: number, updates: Partial<FilterAction>) => {
     setActions((prev) =>
-      prev.map((act, i) => {
-        if (i !== index) return act;
-        const updated = { ...act, ...updates };
-        if (updates.type && !ACTIONS_WITH_VALUE.has(updates.type)) {
-          delete updated.value;
-        }
-        if (updates.type && ACTIONS_WITH_MAILBOX.has(updates.type) && !updated.value) {
-          updated.value = mailboxOptions[0]?.value ?? '';
-        }
-        return updated;
-      }),
+      prev.map((act, i) => (i === index ? updateFilterAction(act, updates, mailboxTargets) : act)),
     );
+  };
+
+  const selectFolder = (index: number, id: string) => {
+    setActions((prev) =>
+      prev.map((act, i) => (i === index ? selectMailboxTarget(act, id, mailboxTargets) : act)),
+    );
+  };
+
+  // Folder picker rows for an action. A folder the rule points at that isn't
+  // listed (deleted, or its account's folders not loaded) stays selectable
+  // under its path, so saving doesn't silently retarget the rule.
+  const folderOptions = (action: FilterAction) => {
+    const options = mailboxTargets.map((target) => ({ value: target.id, label: target.label }));
+    const selected = mailboxIdFor(action, mailboxTargets);
+    if (!options.some((o) => o.value === selected) && (selected || action.value)) {
+      options.unshift({ value: selected, label: action.value || selected });
+    }
+    return options;
   };
 
   const removeAction = (index: number) => {
@@ -206,7 +202,9 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       Alert.alert(t('settings.filters.validation_empty_conditions', 'At least one condition with a value is required'));
       return;
     }
-    const validActions = actions.filter((a) => !ACTIONS_WITH_VALUE.has(a.type) || a.value?.trim());
+    const validActions = actions
+      .map((a) => withMailboxTarget(a, mailboxTargets))
+      .filter((a) => !ACTIONS_WITH_VALUE.has(a.type) || a.value?.trim());
     if (validActions.length === 0) {
       Alert.alert(t('settings.filters.validation_empty_actions', 'At least one action is required'));
       return;
@@ -220,7 +218,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       actions: validActions,
       stopProcessing,
     });
-  }, [name, conditions, actions, matchType, stopProcessing, rule, onSave, t]);
+  }, [name, conditions, actions, matchType, stopProcessing, rule, onSave, t, mailboxTargets]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -364,30 +362,42 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                     </View>
 
                     {ACTIONS_WITH_MAILBOX.has(action.type) && (
-                      mailboxOptions.length > 0 ? (
+                      mailboxTargets.length > 0 ? (
                         <Select
-                          value={action.value || ''}
-                          onChange={(v) => updateAction(index, { value: v })}
-                          options={mailboxOptions}
+                          value={mailboxIdFor(action, mailboxTargets)}
+                          onChange={(id) => selectFolder(index, id)}
+                          options={folderOptions(action)}
                           style={{ alignSelf: 'stretch' }}
                         />
                       ) : (
+                        // Typing a path by hand drops the folder id it replaces.
                         <Input
                           value={action.value || ''}
-                          onChangeText={(v) => updateAction(index, { value: v })}
+                          onChangeText={(v) => updateAction(index, { value: v, mailboxId: undefined })}
                           placeholder={t('settings.filters.move_to_folder', 'Select folder')}
                         />
                       )
                     )}
 
                     {action.type === 'forward' && (
-                      <Input
-                        value={action.value || ''}
-                        onChangeText={(v) => updateAction(index, { value: v })}
-                        placeholder={t('settings.filters.forward_placeholder', 'email@example.com')}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                      />
+                      <>
+                        <Input
+                          value={action.value || ''}
+                          onChangeText={(v) => updateAction(index, { value: v })}
+                          placeholder={t('settings.filters.forward_placeholder', 'email@example.com')}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                        <View style={styles.optionRow}>
+                          <Text style={styles.optionLabel}>
+                            {t('settings.filters.forward_keep_copy', 'Keep a copy')}
+                          </Text>
+                          <ToggleSwitch
+                            checked={!!action.keepCopy}
+                            onChange={(v) => updateAction(index, { keepCopy: v || undefined })}
+                          />
+                        </View>
+                      </>
                     )}
 
                     {action.type === 'reject' && (
@@ -504,6 +514,14 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.md,
     },
     stopLabel: { ...typography.body, color: c.text, flex: 1 },
+
+    optionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    optionLabel: { ...typography.body, color: c.text, flex: 1 },
 
     footer: {
       flexDirection: 'row',

@@ -214,3 +214,19 @@ describe('filter-store and the server vacation script', () => {
     });
   });
 });
+
+describe('saving scripts the webmail wrote', () => {
+  it('keeps folder ids, forward copies and the flag order', async () => {
+    const script = webmailFixture('folder-targets.sieve');
+    api.getSieveCapabilities.mockReturnValue({
+      ...WITH_INCLUDE,
+      sieveExtensions: ['fileinto', 'copy', 'imap4flags', 'mailbox', 'mailboxid'],
+    });
+    api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+});

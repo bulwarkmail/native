@@ -109,15 +109,31 @@ function generateCondition(condition: FilterCondition): string {
   }
 }
 
-function generateActions(actions: FilterAction[]): string[] {
-  return actions.map(action => {
+const FLAG_ACTIONS = new Set<FilterAction['type']>(['mark_read', 'star', 'add_label']);
+
+function fileintoTarget(action: FilterAction, useMailboxId: boolean): string {
+  const path = `"${escapeString(action.value || '')}"`;
+  // RFC 9042: the path is the fallback when the id no longer exists.
+  return useMailboxId && action.mailboxId
+    ? `:mailboxid "${escapeString(action.mailboxId)}" ${path}`
+    : path;
+}
+
+function generateActions(actions: FilterAction[], useMailboxId: boolean): string[] {
+  // fileinto (and the implicit keep) store the flags set at that moment, so a
+  // flag action placed after a move in the UI would be lost. Set flags first.
+  const ordered = [
+    ...actions.filter(a => FLAG_ACTIONS.has(a.type)),
+    ...actions.filter(a => !FLAG_ACTIONS.has(a.type)),
+  ];
+  return ordered.map(action => {
     switch (action.type) {
       case 'move':
-        return `fileinto "${escapeString(action.value || '')}";`;
+        return `fileinto ${fileintoTarget(action, useMailboxId)};`;
       case 'copy':
-        return `fileinto :copy "${escapeString(action.value || '')}";`;
+        return `fileinto :copy ${fileintoTarget(action, useMailboxId)};`;
       case 'forward':
-        return `redirect "${escapeString(action.value || '')}";`;
+        return `redirect ${action.keepCopy ? ':copy ' : ''}"${escapeString(action.value || '')}";`;
       case 'mark_read':
         return 'addflag "\\\\Seen";';
       case 'star':
@@ -140,7 +156,7 @@ function generateActions(actions: FilterAction[]): string[] {
   });
 }
 
-function computeRequires(rules: FilterRule[], vacation?: VacationSieveConfig): string[] {
+function computeRequires(rules: FilterRule[], vacation: VacationSieveConfig | undefined, useMailboxId: boolean): string[] {
   const extensions = new Set<string>();
   const enabledRules = rules.filter(r => r.enabled);
 
@@ -156,12 +172,20 @@ function computeRequires(rules: FilterRule[], vacation?: VacationSieveConfig): s
     for (const action of rule.actions) {
       switch (action.type) {
         case 'move':
+        case 'copy':
+          extensions.add('fileinto');
+          if (action.type === 'copy') extensions.add('copy');
+          if (useMailboxId && action.mailboxId) {
+            // Stalwart rejects :mailboxid unless "mailbox" is declared too.
+            extensions.add('mailbox');
+            extensions.add('mailboxid');
+          }
+          break;
         case 'keep':
           extensions.add('fileinto');
           break;
-        case 'copy':
-          extensions.add('fileinto');
-          extensions.add('copy');
+        case 'forward':
+          if (action.keepCopy) extensions.add('copy');
           break;
         case 'mark_read':
         case 'star':
@@ -203,6 +227,11 @@ export interface GenerateOptions {
    * while the filters stay active.
    */
   includeVacation?: boolean;
+  /**
+   * The server's `sieveExtensions`. Folder moves use `:mailboxid` when it
+   * lists "mailboxid"; without it they target the folder path only.
+   */
+  extensions?: string[];
 }
 
 /** Name of the script a server builds for VacationResponse (RFC 9661). */
@@ -239,7 +268,8 @@ export function generateScript(
   lines.push('@metadata:end */');
   lines.push('');
 
-  const bulwarkRequires = computeRequires(bulwarkRules, vacation);
+  const useMailboxId = options.extensions?.includes('mailboxid') ?? false;
+  const bulwarkRequires = computeRequires(bulwarkRules, vacation, useMailboxId);
   if (options.includeVacation) bulwarkRequires.push('include');
   const externalRequires = options.externalRequires ?? [];
   const allRequires = [...new Set([...bulwarkRequires, ...externalRequires])].sort();
@@ -290,7 +320,7 @@ export function generateScript(
       conditionStr = `${wrapper}(${conditions.join(', ')})`;
     }
 
-    const actionLines = generateActions(rule.actions);
+    const actionLines = generateActions(rule.actions, useMailboxId);
 
     if (rule.stopProcessing) {
       const lastAction = rule.actions[rule.actions.length - 1];

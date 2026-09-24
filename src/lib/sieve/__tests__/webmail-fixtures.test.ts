@@ -6,7 +6,7 @@
 //
 // The fixtures in fixtures/webmail/ were written by the webmail's own
 // generator (jmap-webmail lib/sieve/generator.ts at e33ab899), run on the
-// rules in each file's metadata.
+// rules in each file's metadata for a server listing `extensions`.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,10 +15,13 @@ import { parseScript } from '../parser';
 
 interface WebmailFixture {
   file: string;
+  /** The server's sieveExtensions the webmail generated the script for. */
+  extensions?: string[];
 }
 
 const FIXTURES: WebmailFixture[] = [
   { file: 'vacation-include.sieve' },
+  { file: 'folder-targets.sieve', extensions: ['fileinto', 'copy', 'imap4flags', 'mailbox', 'mailboxid'] },
 ];
 
 function readFixture(file: string): string {
@@ -32,7 +35,7 @@ function metadataRules(script: string): unknown[] {
 }
 
 describe('scripts written by the webmail', () => {
-  for (const { file } of FIXTURES) {
+  for (const { file, extensions } of FIXTURES) {
     describe(file, () => {
       const script = readFixture(file);
       const parsed = parseScript(script);
@@ -47,6 +50,7 @@ describe('scripts written by the webmail', () => {
         const regenerated = generateScript(parsed.rules, parsed.vacation, {
           externalRequires: parsed.externalRequires,
           includeVacation: parsed.includeVacation,
+          extensions,
         });
         expect(regenerated).toBe(script);
       });

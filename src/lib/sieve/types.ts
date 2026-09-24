@@ -16,6 +16,8 @@ export interface SieveCapabilities {
   sieveExtensions: string[];
   notificationMethods: string[];
   externalLists: string[];
+  /** RFC 9661: redirects run per message; extra ones are skipped silently. */
+  maxNumberRedirects?: number | null;
 }
 
 export type FilterConditionField =
@@ -58,6 +60,13 @@ export interface FilterCondition {
 export interface FilterAction {
   type: FilterActionType;
   value?: string;
+  /**
+   * move/copy: JMAP id of the target folder. `value` keeps the path as the
+   * fallback; the id keeps the rule working after the folder is renamed.
+   */
+  mailboxId?: string;
+  /** forward: also keep the message (`redirect :copy`). */
+  keepCopy?: boolean;
 }
 
 export type FilterOrigin = 'bulwark' | 'external' | 'opaque';
