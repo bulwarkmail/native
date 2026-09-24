@@ -226,6 +226,8 @@
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
     "format_plain_text": "Switch to plain text",
     "format_rich_text": "Switch to rich text (HTML)",
+    "from_options": "Sender options",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identity unavailable",
     "image_load_failed": "Could not load image",
     "no_recipient": "(no recipient)",
@@ -236,6 +238,7 @@
     "recipient_copy": "Copy address",
     "recipient_move_to": "Move to {field}",
     "recipient_remove": "Remove",
+    "remove_attachment": "Remove attachment",
     "save_draft": "Save Draft",
     "save_failed_no_drafts": "There is no Drafts folder to save this draft to.",
     "save_failed_no_identity": "Your sender identities could not be loaded, so this draft cannot be saved. Check your connection, or copy your text before closing.",
@@ -260,7 +263,9 @@
       "remove_background_color": "Remove background color"
     },
     "undo_send_label": "Sending in {seconds}s…",
+    "upload_failed_short": "Upload failed",
     "uploading": "Uploading...",
+    "uploading_pct": "Uploading {pct}%",
     "validation": {
       "subject_required": "Add a subject"
     }

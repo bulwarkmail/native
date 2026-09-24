@@ -192,8 +192,12 @@ function RecipientChip({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   const label = recipient.group
-    ? `${recipient.name || 'Group'} (${recipient.group.members.length})`
+    ? t('email_composer.group_chip', '{name} ({count})', {
+      name: recipient.name || t('contacts.group', 'Group'),
+      count: recipient.group.members.length,
+    })
     : recipient.name || recipient.email;
   return (
     <Pressable onLongPress={onLongPress} delayLongPress={350} style={[styles.chip, invalid && styles.chipInvalid]}>
@@ -201,7 +205,12 @@ function RecipientChip({
       <Text style={[styles.chipText, invalid && styles.chipTextInvalid]} numberOfLines={1}>
         {label}
       </Text>
-      <Pressable onPress={onRemove} hitSlop={8}>
+      <Pressable
+        onPress={onRemove}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t('email_composer.recipient_remove', 'Remove')}
+      >
         <X size={12} color={invalid ? c.error : c.textMuted} />
       </Pressable>
     </Pressable>
@@ -225,6 +234,7 @@ function SuggestionList({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   return (
     <View style={styles.suggestionBox}>
       {suggestions.map((s, i) => (
@@ -244,7 +254,9 @@ function SuggestionList({
               {s.name || s.email}
             </Text>
             {s.group ? (
-              <Text style={styles.suggestionEmail} numberOfLines={1}>{`${s.group.memberCount} ✉`}</Text>
+              <Text style={styles.suggestionEmail} numberOfLines={1}>
+                {t('contacts.groups.member_count', '{count, plural, =0 {No members} one {1 member} other {# members}}', { count: s.group.memberCount })}
+              </Text>
             ) : !!s.name && (
               <Text style={styles.suggestionEmail} numberOfLines={1}>{s.email}</Text>
             )}
@@ -256,16 +268,15 @@ function SuggestionList({
 }
 
 function AttachmentChip({
-  attachment, onRemove, onPress, uploadingLabel, cancelLabel,
+  attachment, onRemove, onPress,
 }: {
   attachment: AttachmentEntry;
   onRemove: () => void;
   onPress: () => void;
-  uploadingLabel: string;
-  cancelLabel: string;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   const pct = attachment.progress != null ? Math.round(attachment.progress * 100) : null;
   return (
     <Pressable onPress={onPress} style={styles.attachmentChip} disabled={attachment.uploading}>
@@ -286,7 +297,9 @@ function AttachmentChip({
           {attachment.error
             ? attachment.error
             : attachment.uploading
-              ? pct != null ? `${uploadingLabel} ${pct}%` : uploadingLabel
+              ? pct != null
+                ? t('email_composer.uploading_pct', 'Uploading {pct}%', { pct })
+                : t('email_composer.uploading', 'Uploading...')
               : formatBytes(attachment.size)}
         </Text>
         {attachment.uploading && pct != null && (
@@ -299,7 +312,10 @@ function AttachmentChip({
         onPress={onRemove}
         hitSlop={8}
         style={styles.attachmentRemove}
-        accessibilityLabel={attachment.uploading ? cancelLabel : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={attachment.uploading
+          ? t('email_composer.upload_cancel', 'Cancel upload')
+          : t('email_composer.remove_attachment', 'Remove attachment')}
       >
         <X size={14} color={c.textMuted} />
       </Pressable>
@@ -789,7 +805,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           if (!cancelled) {
             updateAttachment(localId, {
               uploading: false,
-              error: e instanceof Error ? e.message : 'Upload failed',
+              error: e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed'),
             });
           }
         }
@@ -1543,7 +1559,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       });
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return; // removed by the user
-      const message = e instanceof Error ? e.message : 'Upload failed';
+      const message = e instanceof Error ? e.message : t('email_composer.upload_failed_short', 'Upload failed');
       updateAttachment(entry.localId, { uploading: false, progress: undefined, error: message });
       Alert.alert(
         t('email_composer.upload_failed', 'Failed to upload {filename}', { filename: entry.name }),
@@ -2177,7 +2193,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       }
       Alert.alert(
         t('email_composer.send_failed', 'Send failed'),
-        e instanceof Error ? e.message : 'Failed to send email',
+        e instanceof Error ? e.message : t('notifications.error_sending', 'Failed to send email'),
       );
     } finally {
       setSending(false);
@@ -2280,7 +2296,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={onClose} style={styles.headerBtn} disabled={savingDraft}>
+        <Pressable
+          onPress={onClose}
+          style={styles.headerBtn}
+          disabled={savingDraft}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close', 'Close')}
+        >
           {savingDraft ? <ActivityIndicator size="small" color={c.text} /> : <X size={22} color={c.text} />}
         </Pressable>
         <View style={styles.headerTitleWrap}>
@@ -2296,6 +2318,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
             onPress={() => setAttachMenuOpen(true)}
             style={styles.headerBtn}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_composer.attach', 'Attach')}
           >
             <Paperclip size={20} color={c.text} />
           </Pressable>
@@ -2306,6 +2330,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
               style={styles.headerBtn}
               hitSlop={8}
               disabled={!canSend}
+              accessibilityRole="button"
+              accessibilityLabel={t('email_composer.schedule_send', 'Schedule send')}
             >
               <Clock size={20} color={canSend ? c.text : c.textMuted} />
             </Pressable>
@@ -2352,7 +2378,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
               {identities.length > 1 && <ChevronDown size={14} color={c.textMuted} />}
             </Pressable>
             {!!primaryIdentity && (
-              <Pressable onPress={openFromOptions} hitSlop={8} style={styles.fromOptionsBtn}>
+              <Pressable
+                onPress={openFromOptions}
+                hitSlop={8}
+                style={styles.fromOptionsBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('email_composer.from_options', 'Sender options')}
+              >
                 <Tag size={16} color={subAddressTag || fromOverride ? c.primary : c.textMuted} />
               </Pressable>
             )}
@@ -2381,8 +2413,6 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   attachment={a}
                   onRemove={() => removeAttachment(a.localId)}
                   onPress={() => { void previewAttachment(a); }}
-                  uploadingLabel={t('email_composer.uploading', 'Uploading...')}
-                  cancelLabel={t('email_composer.upload_cancel', 'Cancel upload')}
                 />
               ))}
             </View>
@@ -2790,7 +2820,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             )}
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t('email_composer.from_override.toggle_off', 'Override')}</Text>
-              <Switch value={overrideEnabled} onValueChange={setOverrideEnabled} />
+              <Switch
+                value={overrideEnabled}
+                onValueChange={setOverrideEnabled}
+                accessibilityLabel={t('email_composer.from_override.toggle_off', 'Override')}
+              />
             </View>
             {overrideEnabled && (
               <>
