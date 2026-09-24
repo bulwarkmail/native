@@ -282,7 +282,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       if (!payload) {
         setNotice({
           title: t('login.mobile.notice_bad_qr', "That code isn't a Bulwark sign-in code"),
-          detail: t('login.mobile.notice_bad_qr_detail', 'Open Bulwark on the web, then Settings → Security → Link device to show one.'),
+          detail: t('login.mobile.notice_bad_qr_detail', 'Open Bulwark on the web, then Settings → Security → Link Mobile App to show one.'),
         });
         return;
       }
