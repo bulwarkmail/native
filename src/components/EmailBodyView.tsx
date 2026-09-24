@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Linking, Platform, Text, Pressable } from 'react-native';
+import { View, StyleSheet, Linking, Platform, Text, Pressable, useWindowDimensions } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,6 +9,7 @@ import { extractCidRefs } from '../lib/email-html';
 import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
 import { buildQuoteCollapseScript } from '../lib/quote-collapse';
 import { bodyDocument } from '../lib/email-body-document';
+import { estimateBodyHeight, lastBodyHeight, rememberBodyHeight } from '../lib/body-heights';
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted } from '../lib/trusted-senders';
@@ -45,6 +46,11 @@ interface EmailBodyViewProps {
   bodyOverride?: { html?: string | null; text?: string | null } | null;
   /** Called once the body has loaded and reported its height (it is on screen). */
   onSettled?: () => void;
+  /**
+   * Until its height is known, take the space the parent leaves (the whole
+   * page below the header) rather than a guessed height.
+   */
+  fill?: boolean;
 }
 
 // Dark-mode re-inversion, mirroring the webmail's handleIframeLoad pass. The
@@ -511,7 +517,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled,
+  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
 }: EmailBodyViewProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -575,13 +581,22 @@ export default function EmailBodyView({
     !allowOnce &&
     externalContentPolicy !== 'allow';
 
-  const [height, setHeight] = React.useState(120);
+  // The WebView's height: what the page reported, else the height this body
+  // had the last time it was shown, else (see `fill`) an estimate. Never a
+  // fixed strip that then grows in steps.
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const heightKey = `${jmapAccountId ?? ''}|${email.id}`;
+  const [measured, setMeasured] = React.useState<{ key: string; height: number } | null>(null);
+  const knownHeight = measured?.key === heightKey
+    ? measured.height
+    : lastBodyHeight(heightKey, windowWidth);
+  // A pinch-zoomed page reports its scaled height; that is not one to keep.
+  const zoomedRef = React.useRef(false);
   const [cidMap, setCidMap] = React.useState<Record<string, string>>({});
   const webviewRef = React.useRef<WebView>(null);
   const settledRef = React.useRef(false);
 
   React.useEffect(() => {
-    setHeight(120);
     // Keep the empty map it started with: a new object would rebuild the
     // document (sanitise the body) a second time on every mount.
     setCidMap((prev) => (Object.keys(prev).length === 0 ? prev : {}));
@@ -674,6 +689,7 @@ export default function EmailBodyView({
         if (msg.type === 'swipe' && (msg.dir === 'prev' || msg.dir === 'next')) {
           onSwipe?.(msg.dir);
         } else if (msg.type === 'zoom') {
+          zoomedRef.current = !!msg.pinching || (typeof msg.scale === 'number' && msg.scale > 1.01);
           onZoomChange?.({
             pinching: !!msg.pinching,
             zoomed: typeof msg.scale === 'number' && msg.scale > 1.01,
@@ -684,12 +700,23 @@ export default function EmailBodyView({
     }
     const parsed = parseInt(data, 10);
     if (Number.isNaN(parsed) || parsed <= 0) return;
-    setHeight((prev) => (Math.abs(parsed - prev) < 2 ? prev : parsed));
+    setMeasured((prev) => (
+      prev?.key === heightKey && Math.abs(parsed - prev.height) < 2 ? prev : { key: heightKey, height: parsed }
+    ));
+    if (!zoomedRef.current) rememberBodyHeight(heightKey, windowWidth, parsed);
     if (!settledRef.current) {
       settledRef.current = true;
       onSettled?.();
     }
   };
+
+  const estimate = React.useMemo(
+    () => estimateBodyHeight({ isHtml: prepared.isHtml, text: text ?? email.preview, width: windowWidth, windowHeight }),
+    [prepared.isHtml, text, email.preview, windowWidth, windowHeight],
+  );
+  const containerSize = knownHeight !== undefined
+    ? { height: knownHeight }
+    : fill ? styles.webContainerFill : { height: estimate };
 
   const onLoadImages = () => setAllowOnce(true);
   const onTrustSender = () => {
@@ -720,7 +747,7 @@ export default function EmailBodyView({
   };
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, fill && styles.wrapperFill]}>
       {showBanner && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -750,7 +777,7 @@ export default function EmailBodyView({
         </View>
       )}
 
-      <View style={[styles.webContainer, { height }]}>
+      <View style={[styles.webContainer, containerSize]}>
         <WebView
           ref={webviewRef}
           originWhitelist={['about:blank']}
@@ -762,6 +789,7 @@ export default function EmailBodyView({
             // A (re)load resets the page's zoom state to 1 — drop any host-side
             // scroll locks so they can't go stale (e.g. cid images arriving
             // reload the source mid-zoom).
+            zoomedRef.current = false;
             onZoomChange?.({ pinching: false, zoomed: false });
             // Re-inject after load to cover Android cases where
             // `injectedJavaScript` runs too early to see the final layout. Every
@@ -815,6 +843,7 @@ export default function EmailBodyView({
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   wrapper: { width: '100%' },
+  wrapperFill: { flexGrow: 1 },
   banner: {
     gap: spacing.xs,
     paddingHorizontal: spacing.lg,
@@ -848,6 +877,7 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: 'transparent',
     overflow: 'hidden',
   },
+  webContainerFill: { flexGrow: 1, minHeight: 120 },
   webview: {
     backgroundColor: 'transparent',
     flex: 1,

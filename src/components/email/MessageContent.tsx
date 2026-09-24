@@ -38,6 +38,11 @@ export interface MessageContentProps {
   deferBody?: boolean;
   /** The body loaded and reported its height. */
   onBodySettled?: () => void;
+  /**
+   * Stretch to the space the parent leaves (a page showing one message), so
+   * the body starts at the full page height instead of growing into it.
+   */
+  fill?: boolean;
 }
 
 /**
@@ -48,7 +53,7 @@ export interface MessageContentProps {
  */
 export function MessageContent({
   email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
-  onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled,
+  onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled, fill,
 }: MessageContentProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -70,7 +75,7 @@ export function MessageContent({
   );
 
   return (
-    <View>
+    <View style={fill ? styles.fill : undefined}>
       <View style={styles.headerBlock}>
         <MessageHeader
           email={email}
@@ -105,9 +110,9 @@ export function MessageContent({
 
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
 
-      <View style={styles.body}>
+      <View style={[styles.body, fill && styles.fill]}>
         {deferBody ? (
-          <BodyPlaceholder styles={styles} />
+          <BodyPlaceholder styles={styles} fill={fill} />
         ) : unwrap.loading ? (
           <View style={styles.loading}><ActivityIndicator color={c.primary} /></View>
         ) : (
@@ -120,6 +125,7 @@ export function MessageContent({
             themeOverride={themeOverride}
             bodyOverride={unwrap.override}
             onSettled={onBodySettled}
+            fill={fill}
           />
         )}
       </View>
@@ -130,9 +136,9 @@ export function MessageContent({
 const PLACEHOLDER_LINE_WIDTHS = ['92%', '100%', '85%', '96%', '60%', '88%', '74%', '40%'] as const;
 
 // Static bones where the body will be: cheap enough for off-screen pages.
-function BodyPlaceholder({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+function BodyPlaceholder({ styles, fill }: { styles: ReturnType<typeof makeStyles>; fill?: boolean }) {
   return (
-    <View style={styles.placeholder}>
+    <View style={[styles.placeholder, fill && styles.fill]}>
       {PLACEHOLDER_LINE_WIDTHS.map((w, i) => (
         <View key={i} style={[styles.placeholderLine, { width: w }]} />
       ))}
@@ -152,6 +158,7 @@ function makeStyles(c: ThemePalette) {
       borderBottomColor: c.border,
     },
     body: { backgroundColor: c.background },
+    fill: { flexGrow: 1 },
     loading: { padding: spacing.xl, alignItems: 'center' },
     placeholder: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.sm },
     placeholderLine: { height: 12, borderRadius: radius.xs, backgroundColor: c.surfaceHover },

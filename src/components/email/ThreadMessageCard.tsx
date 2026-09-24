@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Paperclip, Reply, ReplyAll, Forward, Star } from 'lucide-react-native';
 import type { Email } from '../../api/types';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -13,10 +13,16 @@ import { singleLine } from '../../lib/single-line';
 
 interface Props extends MessageContentProps {
   expanded: boolean;
-  /** Opened, with its body still on the way: the summary row with a spinner. */
-  loading?: boolean;
   onToggleExpanded: () => void;
   onReply: (mode: 'reply' | 'replyAll' | 'forward', email: Email) => void;
+  /**
+   * The message is not part of a conversation: just its content, without the
+   * card's collapse handle, reply buttons and header star. Rendered through
+   * the card so the content survives a conversation arriving around it.
+   */
+  bare?: boolean;
+  /** The full message is here (not only its header), so it can be replied to. */
+  replyable?: boolean;
 }
 
 /**
@@ -24,7 +30,9 @@ interface Props extends MessageContentProps {
  * preview) that expands into the full message with its own reply / forward
  * actions - the webmail's thread-conversation-view cards.
  */
-export function ThreadMessageCard({ expanded, loading, onToggleExpanded, onReply, ...content }: Props) {
+export function ThreadMessageCard({
+  expanded, onToggleExpanded, onReply, bare, replyable = true, ...content
+}: Props) {
   const { email, onToggleStar } = content;
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -50,29 +58,53 @@ export function ThreadMessageCard({ expanded, loading, onToggleExpanded, onReply
           </View>
           <Text style={styles.collapsedPreview} numberOfLines={1}>{singleLine(email.preview)}</Text>
         </View>
-        {loading && <ActivityIndicator size="small" color={c.textMuted} />}
         {starred && <Star size={14} color={c.starred} fill={c.starred} />}
       </Pressable>
     );
   }
 
+  // The content keeps its place among the children whether bare or not, so
+  // it (and its WebView) is not remounted when a conversation arrives.
+  const reply = (mode: 'reply' | 'replyAll' | 'forward') => (replyable ? () => onReply(mode, email) : undefined);
   return (
-    <View style={styles.expanded}>
-      <Pressable onPress={onToggleExpanded} style={styles.collapseHandle} hitSlop={6} accessibilityLabel={t('threads.collapse', 'Collapse conversation')} />
-      <MessageContent {...content} compact={false} onToggleStar={onToggleStar} />
-      <View style={styles.actions}>
-        <Pressable style={styles.actionBtn} onPress={() => onReply('reply', email)} hitSlop={4}>
-          <Reply size={16} color={c.textSecondary} />
-          <Text style={styles.actionLabel}>{t('email_viewer.reply', 'Reply')}</Text>
-        </Pressable>
-        <Pressable style={styles.actionBtn} onPress={() => onReply('replyAll', email)} hitSlop={4}>
-          <ReplyAll size={16} color={c.textSecondary} />
-          <Text style={styles.actionLabel}>{t('email_viewer.reply_all', 'Reply All')}</Text>
-        </Pressable>
-        <Pressable style={styles.actionBtn} onPress={() => onReply('forward', email)} hitSlop={4}>
-          <Forward size={16} color={c.textSecondary} />
-          <Text style={styles.actionLabel}>{t('email_viewer.forward', 'Forward')}</Text>
-        </Pressable>
+    <View style={bare ? (content.fill ? styles.bareFill : undefined) : styles.expanded}>
+      {!bare && (
+        <Pressable onPress={onToggleExpanded} style={styles.collapseHandle} hitSlop={6} accessibilityLabel={t('threads.collapse', 'Collapse conversation')} />
+      )}
+      <MessageContent {...content} compact={false} onToggleStar={bare ? undefined : onToggleStar} />
+      {!bare && (
+        <View style={[styles.actions, !replyable && styles.actionsDisabled]}>
+          <Pressable style={styles.actionBtn} onPress={reply('reply')} hitSlop={4}>
+            <Reply size={16} color={c.textSecondary} />
+            <Text style={styles.actionLabel}>{t('email_viewer.reply', 'Reply')}</Text>
+          </Pressable>
+          <Pressable style={styles.actionBtn} onPress={reply('replyAll')} hitSlop={4}>
+            <ReplyAll size={16} color={c.textSecondary} />
+            <Text style={styles.actionLabel}>{t('email_viewer.reply_all', 'Reply All')}</Text>
+          </Pressable>
+          <Pressable style={styles.actionBtn} onPress={reply('forward')} hitSlop={4}>
+            <Forward size={16} color={c.textSecondary} />
+            <Text style={styles.actionLabel}>{t('email_viewer.forward', 'Forward')}</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Stands in for a collapsed card while a conversation's headers load, at the
+ * same height, so the opened message does not move when they arrive.
+ */
+export function ThreadCardPlaceholder() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  return (
+    <View style={styles.collapsed}>
+      <View style={styles.placeholderAvatar} />
+      <View style={styles.collapsedInfo}>
+        <Text style={styles.collapsedName}> </Text>
+        <Text style={styles.collapsedPreview}> </Text>
       </View>
     </View>
   );
@@ -102,6 +134,14 @@ function makeStyles(c: ThemePalette) {
       borderBottomWidth: 1,
       borderBottomColor: c.border,
     },
+    bareFill: { flexGrow: 1 },
+    placeholderAvatar: {
+      width: componentSizes.avatarSm,
+      height: componentSizes.avatarSm,
+      borderRadius: radius.full,
+      backgroundColor: c.surfaceHover,
+    },
+    actionsDisabled: { opacity: 0.4 },
     collapseHandle: {
       height: 6,
       backgroundColor: c.surfaceHover,

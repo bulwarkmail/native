@@ -15,8 +15,7 @@ import {
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
-import { MessageContent } from '../components/email/MessageContent';
-import { ThreadMessageCard } from '../components/email/ThreadMessageCard';
+import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
 import { ToastHost } from '../components/ToastHost';
@@ -208,6 +207,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (view) return view.ids;
     return failedThreads.has(threadId) ? [] : null;
   }, [ownerAccountId, failedThreads]);
+  // The conversation's size as the open folder's list knows it (only when
+  // that list is the message's account: thread ids are per account).
+  const threadSizeOf = React.useCallback(
+    (threadId: string): number | undefined => (listAccountId === ownerAccountId
+      ? useEmailStore.getState().threadCounts[threadId]
+      : undefined),
+    [listAccountId, ownerAccountId],
+  );
   const memberOf = React.useCallback(
     (threadId: string, id: string): Email | undefined =>
       peekDetail(id, ownerAccountId) ?? peekThread(threadId, ownerAccountId)?.headers.get(id),
@@ -749,6 +756,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                       : null
                   }
                   memberOf={memberOf}
+                  threadSizeHint={!disableThreading ? threadSizeOf(item.threadId) : undefined}
                   threading={!disableThreading}
                   jmapAccountId={ownerAccountId}
                   currentMailboxRole={currentMailboxRole}
@@ -898,6 +906,8 @@ interface EmailPaneProps {
   threadIds: string[] | null;
   /** A conversation member: its full copy when held, else its header. */
   memberOf: (threadId: string, id: string) => Email | undefined;
+  /** How many messages the list says the conversation has, when it knows. */
+  threadSizeHint?: number;
   threading: boolean;
   jmapAccountId?: string;
   currentMailboxRole: string | null;
@@ -923,8 +933,8 @@ interface EmailPaneProps {
 // swipe slides ready content into view. A conversation is listed from its
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
-  id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threading,
-  jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
+  id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
+  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
   ensureThread, scheduleMarkRead, styles, bottomBarHeight, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
@@ -1002,23 +1012,49 @@ function EmailPane({
   const conversation = threading && threadId && threadIds && threadIds.length > 1
     ? threadIds.map((mid) => memberOf(threadId, mid)).filter((m): m is Email => !!m)
     : null;
+  const threadLoading = threading && !!threadId && !threadIds;
+  // While the conversation loads, the size the list knows for it holds the
+  // older cards' places, so the opened message does not move when they come.
+  const pendingCards = !conversation && threadLoading && threadSizeHint && threadSizeHint > 1
+    ? threadSizeHint - 1
+    : 0;
+  const asConversation = !!conversation || pendingCards > 0;
+  // A single message goes through the same card list (bare), so its content
+  // and WebView stay mounted when a conversation arrives around it.
+  const members = conversation ?? [shown];
   const newest = conversation ? conversation[conversation.length - 1] : email;
   // The quick reply quotes the message, so it waits for the newest one's body.
   const newestLoaded = !!newest && !!peekDetail(newest.id, jmapAccountId);
+  const onPaneZoom = (z: { pinching: boolean; zoomed: boolean }) => {
+    setPinching(z.pinching);
+    onZoomChange(z);
+  };
 
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={{ paddingBottom: bottomBarHeight + spacing.lg }}
+      // At least a page tall: a single message's body takes the space below
+      // its header, and the quick reply stays at the bottom however the body
+      // grows or shrinks once it has measured itself.
+      contentContainerStyle={[styles.paneContent, { paddingBottom: bottomBarHeight + spacing.lg }]}
       scrollEnabled={!pinching}
     >
       {/* Subject block */}
       <View style={styles.subjectBlock}>
         <View style={styles.subjectRow}>
           <Text style={styles.subjectText}>{subject}</Text>
-          {conversation ? (
+          {/* In the row, so the page does not shift when the conversation arrives. */}
+          {threadLoading && (
+            <ActivityIndicator
+              size="small"
+              color={c.textMuted}
+              style={styles.subjectSpinner}
+              accessibilityLabel={t('threads.loading', 'Loading conversation...')}
+            />
+          )}
+          {asConversation ? (
             <View style={styles.threadCount}>
-              <Text style={styles.threadCountText}>{conversation.length}</Text>
+              <Text style={styles.threadCountText}>{conversation ? conversation.length : threadSizeHint}</Text>
             </View>
           ) : (
             <Pressable
@@ -1036,24 +1072,22 @@ function EmailPane({
         </View>
       </View>
 
-      {threading && threadId && !threadIds && (
-        <View style={styles.threadLoading}>
-          <ActivityIndicator size="small" color={c.textMuted} />
-          <Text style={styles.threadLoadingText}>{t('threads.loading', 'Loading conversation...')}</Text>
-        </View>
-      )}
-
-      {conversation ? (
-        conversation.map((m) => {
-          const open = expanded?.has(m.id) ?? m.id === id;
-          // An open card shows its header until its body has arrived.
-          const full = open ? peekDetail(m.id, jmapAccountId) : undefined;
+      <View style={asConversation ? undefined : styles.paneFill}>
+        {Array.from({ length: pendingCards }, (_, i) => <ThreadCardPlaceholder key={`pending-${i}`} />)}
+        {members.map((m) => {
+          const open = !asConversation || (expanded?.has(m.id) ?? m.id === id);
+          // An open card without its body yet shows its header over placeholder lines.
+          const full = peekDetail(m.id, jmapAccountId);
           return (
             <ThreadMessageCard
               key={m.id}
+              bare={!asConversation}
+              fill={!asConversation}
               email={full ?? m}
-              expanded={!!full}
-              loading={open && !full}
+              expanded={open}
+              replyable={!!full}
+              deferBody={!full || !bodyEnabled}
+              onBodySettled={onBodySettled}
               onToggleExpanded={() => toggleCard(m.id)}
               onReply={onReply}
               jmapAccountId={jmapAccountId}
@@ -1061,41 +1095,26 @@ function EmailPane({
               currentMailboxRole={currentMailboxRole}
               active={active}
               themeOverride={themeOverrides[m.id] ?? null}
-              deferBody={!bodyEnabled}
-              onBodySettled={onBodySettled}
               onSwipe={onSwipe}
-              onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
+              onZoomChange={onPaneZoom}
               onToggleStar={onToggleStar}
               onAddressPress={onAddressPress}
               onEmailPatched={onEmailPatched}
             />
           );
-        })
-      ) : (
-        <MessageContent
-          email={shown}
-          deferBody={!email || !bodyEnabled}
-          onBodySettled={onBodySettled}
-          jmapAccountId={jmapAccountId}
-          identities={identities}
-          currentMailboxRole={currentMailboxRole}
-          active={active}
-          themeOverride={themeOverrides[shown.id] ?? null}
-          onSwipe={onSwipe}
-          onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
-          onAddressPress={onAddressPress}
-          onEmailPatched={onEmailPatched}
-        />
-      )}
+        })}
+      </View>
 
-      {newest && newestLoaded && (
-        <QuickReplyBox
-          email={newest}
-          jmapAccountId={jmapAccountId}
-          onMoreOptions={() => onReply('reply', newest)}
-          onSent={onEmailPatched}
-        />
-      )}
+      <View style={styles.quickReplySlot}>
+        {newest && newestLoaded && (
+          <QuickReplyBox
+            email={newest}
+            jmapAccountId={jmapAccountId}
+            onMoreOptions={() => onReply('reply', newest)}
+            onSent={onEmailPatched}
+          />
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -1529,14 +1548,10 @@ function makeStyles(c: ThemePalette) {
     marginTop: 2,
   },
   threadCountText: { ...typography.small, color: c.textSecondary, fontWeight: '600' },
-  threadLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  threadLoadingText: { ...typography.caption, color: c.textMuted },
+  subjectSpinner: { marginTop: 6 },
+  paneContent: { flexGrow: 1 },
+  paneFill: { flexGrow: 1 },
+  quickReplySlot: { marginTop: 'auto' },
 
   // Loading skeleton
   skeletonBone: {
