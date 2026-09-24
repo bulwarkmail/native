@@ -12,6 +12,7 @@ import { useCalendarStore } from '../../stores/calendar-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { getEventColor } from '../../lib/calendar-utils';
 import { hasCalendarCapability } from '../../lib/capabilities';
+import { singleLine } from '../../lib/single-line';
 import SenderAvatar from '../SenderAvatar';
 import { radius, spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -202,6 +203,7 @@ export function ContactActivity({ contact }: Props) {
             emails.map((email) => {
               const sender = email.from?.[0];
               const senderName = sender?.name || sender?.email || 'Unknown';
+              const preview = singleLine(email.preview);
               return (
                 <Pressable
                   key={email.id}
@@ -221,10 +223,10 @@ export function ContactActivity({ contact }: Props) {
                       <Text style={styles.rowDate}>{formatRelativeDate(email.receivedAt)}</Text>
                     </View>
                     <Text style={styles.rowSubject} numberOfLines={1}>
-                      {email.subject || t('contacts.activity.no_subject', '(No subject)')}
+                      {singleLine(email.subject) || t('contacts.activity.no_subject', '(No subject)')}
                     </Text>
-                    {email.preview ? (
-                      <Text style={styles.rowPreview} numberOfLines={1}>{email.preview}</Text>
+                    {preview ? (
+                      <Text style={styles.rowPreview} numberOfLines={1}>{preview}</Text>
                     ) : null}
                   </View>
                 </Pressable>
