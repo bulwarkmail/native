@@ -31,10 +31,27 @@ const SCHEDULED = {
   to: [{ email: 'to@example.com' }],
 };
 
+const LOOKUP = {
+  methodResponses: [
+    ['EmailSubmission/get', {
+      list: [{ id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] } }],
+    }, '0'],
+    ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'to@example.com' }] }] }, '1'],
+  ],
+};
 const REPLACED = [['EmailSubmission/set', {
-  updated: { 'sub-1': null },
   created: { replacement: { id: 'sub-2', sendAt: '2026-09-25T08:00:00Z' } },
 }, '0']];
+const set = (body: Record<string, unknown>) => ({ methodResponses: [['EmailSubmission/set', body, '0']] });
+const CANCELLED = set({ updated: { 'sub-1': null } });
+/** The EmailSubmission/set calls made, as [create ids, update ids]. */
+const setCalls = () => mockRequest.mock.calls
+  .map((c) => c[0][0])
+  .filter(([method]: [string]) => method === 'EmailSubmission/set')
+  .map(([, args]: [string, { create?: object; update?: Record<string, unknown> }]) => [
+    Object.keys(args.create ?? {}),
+    Object.keys(args.update ?? {}),
+  ]);
 
 describe('rescheduleScheduledSend', () => {
   it('keeps Cc, Bcc and the envelope sender of the held submission (B19)', async () => {
@@ -57,7 +74,8 @@ describe('rescheduleScheduledSend', () => {
           ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'to@example.com' }], cc: [{ email: 'cc@example.com' }] }] }, '1'],
         ],
       })
-      .mockResolvedValueOnce({ methodResponses: REPLACED });
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockResolvedValueOnce(CANCELLED);
 
     const result = await rescheduleScheduledSend(SCHEDULED, 7200);
 
@@ -65,7 +83,6 @@ describe('rescheduleScheduledSend', () => {
     const [lookup] = mockRequest.mock.calls[0][0];
     expect(lookup).toEqual(['EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope'] }, '0']);
     const args = mockRequest.mock.calls[1][0][0][1];
-    expect(args.update).toEqual({ 'sub-1': { undoStatus: 'canceled' } });
     expect(args.create.replacement.envelope).toEqual({
       mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '7200' } },
       rcptTo: [{ email: 'to@example.com' }, { email: 'cc@example.com' }, { email: 'bcc@example.com' }],
@@ -87,7 +104,8 @@ describe('rescheduleScheduledSend', () => {
           }, '1'],
         ],
       })
-      .mockResolvedValueOnce({ methodResponses: REPLACED });
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockResolvedValueOnce(CANCELLED);
 
     await rescheduleScheduledSend(SCHEDULED, 60);
 
@@ -97,13 +115,84 @@ describe('rescheduleScheduledSend', () => {
     });
   });
 
-  it('sends now without a lookup and lets the server derive the envelope', async () => {
-    mockRequest.mockResolvedValueOnce({ methodResponses: REPLACED });
+  it('creates the replacement before cancelling the original', async () => {
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockResolvedValueOnce(CANCELLED);
+
+    await rescheduleScheduledSend(SCHEDULED, 7200);
+
+    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']]]);
+    expect(mockRequest.mock.calls[2][0][0][1].update).toEqual({ 'sub-1': { undoStatus: 'canceled' } });
+  });
+
+  it('sends now as a 1-second hold, so the replacement can still be withdrawn', async () => {
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockResolvedValueOnce(CANCELLED);
 
     await rescheduleScheduledSend(SCHEDULED, 0);
 
-    expect(mockRequest).toHaveBeenCalledTimes(1);
-    expect(mockRequest.mock.calls[0][0][0][1].create.replacement).toEqual({ emailId: 'e-1', identityId: 'id-1' });
+    const replacement = mockRequest.mock.calls[1][0][0][1].create.replacement;
+    expect(replacement.envelope).toEqual({
+      mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '1' } },
+      rcptTo: [{ email: 'to@example.com' }],
+    });
+    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']]]);
+  });
+
+  it('leaves the original scheduled when the replacement is refused', async () => {
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce(set({ notCreated: { replacement: { type: 'forbiddenToSend', description: 'Quota exceeded' } } }));
+
+    await expect(rescheduleScheduledSend(SCHEDULED, 7200)).rejects.toThrow('Quota exceeded');
+    // No cancel went out.
+    expect(setCalls()).toEqual([[['replacement'], []]]);
+  });
+
+  it('withdraws the replacement when the original has already gone out', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockResolvedValueOnce(set({ notUpdated: { 'sub-1': { type: 'cannotUnsend', description: 'Already sent' } } }))
+      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'final' }] }, '0']] })
+      .mockResolvedValueOnce(set({ updated: { 'sub-2': null } }));
+
+    await expect(rescheduleScheduledSend(SCHEDULED, 0)).rejects.toThrow('Failed to cancel the previous schedule: Already sent');
+    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']], [[], ['sub-2']]]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('still reports the failure when the replacement cannot be withdrawn either', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockResolvedValueOnce(set({ notUpdated: { 'sub-1': { type: 'cannotUnsend' } } }))
+      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'final' }] }, '0']] })
+      .mockResolvedValueOnce(set({ notUpdated: { 'sub-2': { type: 'cannotUnsend' } } }));
+
+    await expect(rescheduleScheduledSend(SCHEDULED, 0)).rejects.toThrow('Failed to cancel the previous schedule');
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('keeps the replacement when a cancel whose answer got lost did go through', async () => {
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce({ methodResponses: REPLACED })
+      .mockRejectedValueOnce(new Error('Network request failed'))
+      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'canceled' }] }, '0']] });
+
+    const result = await rescheduleScheduledSend(SCHEDULED, 7200);
+
+    expect(result.emailSubmissionId).toBe('sub-2');
+    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']]]);
   });
 });
 
@@ -216,13 +305,15 @@ describe('hold-limit rejections', () => {
         ],
       })
       .mockResolvedValueOnce({
-        methodResponses: [['EmailSubmission/set', { updated: { 'sub-1': null }, notCreated: { replacement: HOLD_REJECTED } }, '0']],
+        methodResponses: [['EmailSubmission/set', { notCreated: { replacement: HOLD_REJECTED } }, '0']],
       });
 
     const err = await rescheduleScheduledSend(SCHEDULED, 5 * 24 * 3600).catch((e) => e);
 
     expect(err).toBeInstanceOf(ScheduleTooLateError);
     expect(jmapClient.learnHoldLimit).toHaveBeenCalledWith(172_800);
+    // The original stays scheduled.
+    expect(setCalls()).toEqual([[['replacement'], []]]);
   });
 });
 
@@ -301,13 +392,11 @@ describe('scheduled sends in shared accounts (webmail #874)', () => {
     await cancelScheduledSend('s-grp', 'grp-1');
     expect(mockRequest.mock.calls[0][0][0][1].accountId).toBe('grp-1');
 
-    mockRequest.mockResolvedValueOnce({
-      methodResponses: [['EmailSubmission/set', {
-        updated: { 's-grp': null },
-        created: { replacement: { id: 's-new', sendAt: FUTURE } },
-      }, '0']],
-    });
+    mockRequest
+      .mockResolvedValueOnce(LOOKUP)
+      .mockResolvedValueOnce(set({ created: { replacement: { id: 's-new', sendAt: FUTURE } } }))
+      .mockResolvedValueOnce(set({ updated: { 's-grp': null } }));
     await rescheduleScheduledSend({ ...SCHEDULED, emailSubmissionId: 's-grp', accountId: 'grp-1' }, 0);
-    expect(mockRequest.mock.calls[1][0][0][1].accountId).toBe('grp-1');
+    expect(mockRequest.mock.calls.slice(1).map((c) => c[0][0][1].accountId)).toEqual(['grp-1', 'grp-1', 'grp-1']);
   });
 });

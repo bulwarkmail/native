@@ -1531,10 +1531,16 @@ export async function cancelScheduledSend(emailSubmissionId: string, accountIdOv
 }
 
 /**
- * Change when a scheduled message goes out (or send it now with `holdForSeconds`
- * = 0): cancel the pending submission and create a replacement for the same
- * Email with the held envelope and a fresh HOLDFOR, in one request. Returns the new
- * submission id and resolved send time.
+ * Change when a scheduled message goes out, or send it now with
+ * `holdForSeconds` = 0. A replacement submission for the same Email, with the
+ * held envelope and a fresh HOLDFOR, is created first, and the original is
+ * cancelled only once the replacement exists (webmail parity). Both used to
+ * go in one /set, whose create and update the server applies independently:
+ * a refused replacement still cancelled the original, so the message never
+ * went out, and a refused cancel (the original had just gone out) still let
+ * the replacement go, so it was sent twice. Now a refused replacement leaves
+ * the original alone, and a replacement whose original can't be cancelled is
+ * withdrawn again. Returns the new submission id and send time.
  */
 export async function rescheduleScheduledSend(
   scheduled: {
@@ -1550,49 +1556,79 @@ export async function rescheduleScheduledSend(
   recipients?: EmailAddress[],
 ): Promise<{ emailSubmissionId?: string; sendAt?: string }> {
   const accountId = scheduled.accountId ?? jmapClient.accountId;
-  const create: Record<string, unknown> = { emailId: scheduled.emailId, identityId: scheduled.identityId };
-  if (holdForSeconds > 0) {
-    // Reuse the held submission's envelope: it names every recipient,
-    // Cc and Bcc included, and the envelope sender a catch-all From went
-    // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
-    // The Email's To/Cc/Bcc are the fallback when the server has none.
-    const lookup = await jmapClient.request(
-      [
-        ['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0'],
-        ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
-      ],
-      [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
-    );
-    const envelope = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
-      envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
-    }> | undefined)?.[0]?.envelope;
-    const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
-    const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
-    const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
-    const rcpt = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
-    create.envelope = {
+  // "Send now" is a 1-second hold, so the replacement can still be withdrawn.
+  const holdFor = Math.max(1, Math.ceil(holdForSeconds));
+  // Reuse the held submission's envelope: it names every recipient,
+  // Cc and Bcc included, and the envelope sender a catch-all From went
+  // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
+  // The Email's To/Cc/Bcc are the fallback when the server has none.
+  const lookup = await jmapClient.request(
+    [
+      ['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0'],
+      ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
+    ],
+    [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
+  );
+  const envelope = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
+    envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
+  }> | undefined)?.[0]?.envelope;
+  const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
+  const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
+  const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
+  const rcpt = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
+  const create = {
+    emailId: scheduled.emailId,
+    identityId: scheduled.identityId,
+    envelope: {
       mailFrom: {
         email: envelope?.mailFrom?.email || scheduled.from?.[0]?.email,
-        parameters: { HOLDFOR: String(Math.ceil(holdForSeconds)) },
+        parameters: { HOLDFOR: String(holdFor) },
       },
       rcptTo: rcpt,
-    };
-  }
+    },
+  };
+
   const res = await jmapClient.request(
-    [['EmailSubmission/set', {
-      accountId,
-      update: { [scheduled.emailSubmissionId]: { undoStatus: 'canceled' } },
-      create: { replacement: create },
-    }, '0']],
+    [['EmailSubmission/set', { accountId, create: { replacement: create } }, '0']],
     [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
   const body = requireMethodResult(res, '0', 'EmailSubmission/set');
-  const notUpdated = body.notUpdated?.[scheduled.emailSubmissionId] as { description?: string; type?: string } | undefined;
-  if (notUpdated) throw new Error(notUpdated.description ?? notUpdated.type ?? 'Failed to cancel the previous schedule');
   const notCreated = body.notCreated?.replacement as { description?: string; type?: string } | undefined;
   if (notCreated) throw submissionError(notCreated, 'Failed to reschedule');
   const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
-  return { emailSubmissionId: created?.id, sendAt: created?.sendAt };
+  if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
+
+  try {
+    await cancelScheduledSend(scheduled.emailSubmissionId, accountId);
+  } catch (err) {
+    // A cancel whose answer got lost may still have gone through. Otherwise
+    // the original is still due or has just gone out, and the replacement
+    // must not go as well.
+    if ((await submissionUndoStatus(scheduled.emailSubmissionId, accountId)) !== 'canceled') {
+      try {
+        await cancelScheduledSend(created.id, accountId);
+      } catch (withdrawErr) {
+        console.warn('[email] could not withdraw the replacement scheduled send:', withdrawErr);
+      }
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to cancel the previous schedule: ${reason}`);
+    }
+  }
+  return { emailSubmissionId: created.id, sendAt: created.sendAt };
+}
+
+/** A submission's `undoStatus`, or undefined when it can't be read. */
+async function submissionUndoStatus(emailSubmissionId: string, accountId: string): Promise<string | undefined> {
+  try {
+    const res = await jmapClient.request(
+      [['EmailSubmission/get', { accountId, ids: [emailSubmissionId], properties: ['undoStatus'] }, '0']],
+      [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
+    );
+    const list = requireMethodResult(res, '0', 'EmailSubmission/get').list as Array<{ undoStatus?: string }> | undefined;
+    return list?.[0]?.undoStatus;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
