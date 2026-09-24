@@ -10,7 +10,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { getEmailFlags, getFullEmailsWithState, getThreadHeaders } from '../email';
+import { getEmailFlags, getFullEmailsWithState, getThreadsHeaders } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -19,21 +19,30 @@ beforeEach(() => {
 });
 
 describe('viewer fetches', () => {
-  it('lists a conversation from headers only, in thread order, without bodies', async () => {
+  it('lists conversations from headers only, in thread order, without bodies, in one request', async () => {
     mockRequest.mockResolvedValue({
       methodResponses: [
-        ['Thread/get', { list: [{ id: 't1', emailIds: ['a', 'gone', 'b'] }] }, '0'],
-        ['Email/get', { state: 's9', list: [{ id: 'b', subject: 'Re: hi' }, { id: 'a', subject: 'hi' }] }, '1'],
+        ['Thread/get', {
+          list: [{ id: 't1', emailIds: ['a', 'gone', 'b'] }, { id: 't2', emailIds: ['c'] }],
+          notFound: ['t3'],
+        }, '0'],
+        ['Email/get', {
+          state: 's9',
+          list: [{ id: 'b', subject: 'Re: hi' }, { id: 'c', subject: 'other' }, { id: 'a', subject: 'hi' }],
+        }, '1'],
       ],
     });
 
-    const res = await getThreadHeaders('t1', 'group-1');
+    const res = await getThreadsHeaders(['t1', 't2', 't3', 't1'], 'group-1');
 
-    expect(res.emailIds).toEqual(['a', 'b']);
-    expect(res.list.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(res.threads.t1.emailIds).toEqual(['a', 'b']);
+    expect(res.threads.t1.list.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(res.threads.t2.list.map((e) => e.id)).toEqual(['c']);
+    expect(res.notFound).toEqual(['t3']);
     expect(res.state).toBe('s9');
+    expect(mockRequest).toHaveBeenCalledTimes(1);
     const [calls] = mockRequest.mock.calls[0];
-    expect(calls[0]).toEqual(['Thread/get', { accountId: 'group-1', ids: ['t1'] }, '0']);
+    expect(calls[0]).toEqual(['Thread/get', { accountId: 'group-1', ids: ['t1', 't2', 't3'] }, '0']);
     const args = calls[1][1];
     expect(args.accountId).toBe('group-1');
     expect(args['#ids']).toEqual({ resultOf: '0', name: 'Thread/get', path: '/list/*/emailIds' });

@@ -7,11 +7,11 @@ vi.mock('../../api/jmap-client', () => ({
 vi.mock('../../api/email', () => ({
   getFullEmailsWithState: vi.fn(),
   getEmailFlags: vi.fn(),
-  getThreadHeaders: vi.fn(),
+  getThreadsHeaders: vi.fn(),
 }));
 
 import type { Email } from '../../api/types';
-import { getEmailFlags, getFullEmailsWithState, getThreadHeaders } from '../../api/email';
+import { getEmailFlags, getFullEmailsWithState, getThreadsHeaders } from '../../api/email';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { dispatchStateChange } from '../state-change-bus';
 import {
@@ -21,7 +21,12 @@ import {
 
 const fullGet = getFullEmailsWithState as ReturnType<typeof vi.fn>;
 const flagsGet = getEmailFlags as ReturnType<typeof vi.fn>;
-const threadGet = getThreadHeaders as ReturnType<typeof vi.fn>;
+const threadGet = getThreadsHeaders as ReturnType<typeof vi.fn>;
+
+// A Thread/get response carrying one conversation.
+function threadResponse(threadId: string, list: Array<Partial<Email> & { id: string }>, state = 's1') {
+  return { threads: { [threadId]: { emailIds: list.map((e) => e.id), list } }, notFound: [], state };
+}
 
 function full(id: string, keywords: Record<string, boolean> = {}): Email {
   return {
@@ -234,7 +239,7 @@ describe('loading a conversation', () => {
   const headers = (ids: string[]) => ids.map((id) => ({ id, threadId: 't1', keywords: {}, mailboxIds: {} }));
 
   it('fetches member headers once for concurrent loads and keeps them', async () => {
-    threadGet.mockResolvedValue({ emailIds: ['m1', 'm2'], list: headers(['m1', 'm2']), state: 's1' });
+    threadGet.mockResolvedValue(threadResponse('t1', headers(['m1', 'm2'])));
 
     const [a, b] = await Promise.all([loadThread('t1'), loadThread('t1')]);
 
@@ -247,7 +252,7 @@ describe('loading a conversation', () => {
   });
 
   it('refetches a conversation once the state moved on, keeping it if that fails', async () => {
-    threadGet.mockResolvedValueOnce({ emailIds: ['m1'], list: headers(['m1']), state: 's1' });
+    threadGet.mockResolvedValueOnce(threadResponse('t1', headers(['m1'])));
     await loadThread('t1');
     noteEmailState(undefined, 's2');
     threadGet.mockRejectedValueOnce(new Error('offline'));
@@ -261,11 +266,9 @@ describe('loading a conversation', () => {
   it('brings a member copy held from an earlier open up to date with the headers', async () => {
     fullGet.mockResolvedValue(fullResponse([full('m1', { $seen: true })], 's1'));
     const held = await loadDetail('m1');
-    threadGet.mockResolvedValue({
-      emailIds: ['m1'],
-      list: [{ id: 'm1', threadId: 't1', keywords: {}, mailboxIds: { inbox: true } }],
-      state: 's2',
-    });
+    threadGet.mockResolvedValue(
+      threadResponse('t1', [{ id: 'm1', threadId: 't1', keywords: {}, mailboxIds: { inbox: true } }], 's2'),
+    );
 
     await loadThread('t1');
 
@@ -273,8 +276,41 @@ describe('loading a conversation', () => {
     expect(peekDetail('m1')?.bodyValues).toBe(held.bodyValues);
   });
 
+  it('asks for conversations wanted in the same tick in one request', async () => {
+    threadGet.mockResolvedValue({
+      threads: {
+        tA: { emailIds: ['a1', 'a2'], list: headers(['a1', 'a2']) },
+        tB: { emailIds: ['b1'], list: headers(['b1']) },
+      },
+      notFound: ['tC'],
+      state: 's1',
+    });
+
+    const [a, b, c] = await Promise.allSettled([loadThread('tA'), loadThread('tB'), loadThread('tC')]);
+
+    expect(threadGet).toHaveBeenCalledTimes(1);
+    expect(threadGet).toHaveBeenCalledWith(['tA', 'tB', 'tC'], undefined);
+    expect(a.status === 'fulfilled' && a.value.ids).toEqual(['a1', 'a2']);
+    expect(b.status === 'fulfilled' && b.value.ids).toEqual(['b1']);
+    expect(c.status).toBe('rejected');
+  });
+
+  it('asks each account separately', async () => {
+    threadGet.mockImplementation(async (ids: string[]) => ({
+      threads: Object.fromEntries(ids.map((id) => [id, { emailIds: ['m'], list: headers(['m']) }])),
+      notFound: [],
+      state: 's1',
+    }));
+
+    await Promise.all([loadThread('t1'), loadThread('t1', 'group')]);
+
+    expect(threadGet).toHaveBeenCalledTimes(2);
+    expect(threadGet).toHaveBeenCalledWith(['t1'], undefined);
+    expect(threadGet).toHaveBeenCalledWith(['t1'], 'group');
+  });
+
   it('applies local keyword changes to the conversation headers too', async () => {
-    threadGet.mockResolvedValue({ emailIds: ['m1'], list: headers(['m1']), state: 's1' });
+    threadGet.mockResolvedValue(threadResponse('t1', headers(['m1'])));
     await loadThread('t1');
 
     patchDetail('m1', undefined, { keywords: { $seen: true } });
@@ -286,7 +322,7 @@ describe('loading a conversation', () => {
 describe('prefetchMessage', () => {
   it('starts the body and the conversation so the viewer joins them', async () => {
     fullGet.mockResolvedValue(fullResponse([full('e1')], 's1'));
-    threadGet.mockResolvedValue({ emailIds: ['e1'], list: headers1(), state: 's1' });
+    threadGet.mockResolvedValue(threadResponse('t-e1', headers1()));
 
     prefetchMessage({ id: 'e1', threadId: 't-e1', keywords: {}, mailboxIds: { inbox: true } });
     await Promise.all([loadDetail('e1'), loadThread('t-e1')]);

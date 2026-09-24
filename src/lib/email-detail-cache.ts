@@ -14,7 +14,7 @@
 import { AppState } from 'react-native';
 import type { Email } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
-import { getEmailFlags, getFullEmailsWithState, getThreadHeaders } from '../api/email';
+import { getEmailFlags, getFullEmailsWithState, getThreadsHeaders } from '../api/email';
 import { useOfflineCacheStore } from '../stores/offline-cache-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { onStateChangeType } from './state-change-bus';
@@ -214,6 +214,7 @@ export function clearEmailDetailCache(): void {
   rows.clear();
   pendingDetails.clear();
   pendingThreads.clear();
+  threadBatches.clear();
   latestStates.clear();
   detailChars = 0;
 }
@@ -421,7 +422,9 @@ export function loadDetail(id: string, accountId?: string, hint?: FlagsHint): Pr
 /**
  * A conversation's members without bodies, cache first. A held conversation
  * resolves at once while the account's Email state says it is current; it is
- * otherwise refetched (one request) and, if that fails, still returned.
+ * otherwise refetched and, if that fails, still returned. Conversations asked
+ * for in the same tick (the pages on both sides of the open one) share one
+ * `Thread/get` request.
  */
 export function loadThread(threadId: string, accountId?: string): Promise<ThreadView> {
   wire();
@@ -431,20 +434,60 @@ export function loadThread(threadId: string, accountId?: string): Promise<Thread
   if (held && held.state && held.state === latest) return Promise.resolve(held);
   const pending = pendingThreads.get(key);
   if (pending) return pending;
+
+  const d = deferred<ThreadView>();
+  pendingThreads.set(key, d.promise);
+  const done = () => { if (pendingThreads.get(key) === d.promise) pendingThreads.delete(key); };
+  d.promise.then(done, done);
+
+  const batchKey = accountKey(accountId);
+  let batch = threadBatches.get(batchKey);
+  if (!batch) {
+    batch = { accountId, waiting: new Map() };
+    threadBatches.set(batchKey, batch);
+    const queued = batch;
+    void Promise.resolve().then(() => {
+      if (threadBatches.get(batchKey) === queued) threadBatches.delete(batchKey);
+      void fetchThreads(queued);
+    });
+  }
+  batch.waiting.set(threadId, d);
+  return d.promise;
+}
+
+interface ThreadBatch {
+  accountId: string | undefined;
+  waiting: Map<string, Deferred<ThreadView>>;
+}
+
+// Conversations asked for in the current tick, per account, not yet requested.
+const threadBatches = new Map<string, ThreadBatch>();
+
+async function fetchThreads({ accountId, waiting }: ThreadBatch): Promise<void> {
   const gen = generation;
-  const p = getThreadHeaders(threadId, accountId)
-    .then((res) => {
-      if (gen !== generation) throw new Error('cleared');
-      noteEmailState(accountId, res.state);
+  // What was held when the load started: shown again if the refetch fails.
+  const fallback = (threadId: string) => (gen === generation ? threads.get(keyOf(threadId, accountId)) : undefined);
+  try {
+    const res = await getThreadsHeaders(Array.from(waiting.keys()), accountId);
+    if (gen !== generation) throw new Error('cleared');
+    noteEmailState(accountId, res.state);
+    for (const [threadId, d] of waiting) {
+      const found = res.threads[threadId];
+      if (!found) {
+        const held = fallback(threadId);
+        if (held) d.resolve(held);
+        else d.reject(new Error(`Thread ${threadId} not found`));
+        continue;
+      }
       const entry: ThreadEntry = {
-        ids: res.emailIds,
-        headers: new Map(res.list.map((e) => [e.id, e])),
+        ids: found.emailIds,
+        headers: new Map(found.list.map((e) => [e.id, e])),
         state: res.state,
       };
-      putThread(key, entry);
+      putThread(keyOf(threadId, accountId), entry);
       // The headers were just read: a member's copy held from an earlier
       // open takes their keywords and folders, which may have changed since.
-      for (const header of res.list) {
+      for (const header of found.list) {
         const memberKey = keyOf(header.id, accountId);
         const held = details.get(memberKey);
         if (!held) continue;
@@ -457,16 +500,16 @@ export function loadThread(threadId: string, accountId?: string): Promise<Thread
           state: res.state,
         });
       }
-      emit();
-      return entry as ThreadView;
-    })
-    .catch((err) => {
-      if (held && gen === generation) return held as ThreadView;
-      throw err;
-    })
-    .finally(() => { if (pendingThreads.get(key) === p) pendingThreads.delete(key); });
-  pendingThreads.set(key, p);
-  return p;
+      d.resolve(entry);
+    }
+    emit();
+  } catch (err) {
+    for (const [threadId, d] of waiting) {
+      const held = fallback(threadId);
+      if (held) d.resolve(held);
+      else d.reject(err);
+    }
+  }
 }
 
 /** Keep list rows the viewer may page over; see {@link peekRow}. */

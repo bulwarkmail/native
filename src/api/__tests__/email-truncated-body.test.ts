@@ -10,7 +10,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { getFullEmail, getFullEmails, getThreadEmails } from '../email';
+import { getFullEmail, getFullEmails } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -83,13 +83,10 @@ describe('truncated body refetch (#884)', () => {
     warn.mockRestore();
   });
 
-  it('refetches a thread in one batched call', async () => {
+  it('refetches every truncated body of a batch in one call', async () => {
     mockRequest
       .mockResolvedValueOnce({
-        methodResponses: [
-          ['Thread/get', { list: [{ id: 't1', emailIds: ['e1', 'e2', 'e3'] }] }, '0'],
-          ['Email/get', { list: [report('e1', true), report('e2', false), report('e3', true)] }, '1'],
-        ],
+        methodResponses: [['Email/get', { list: [report('e1', true), report('e2', false), report('e3', true)] }, '0']],
       })
       .mockResolvedValueOnce({
         methodResponses: [['Email/get', {
@@ -97,7 +94,7 @@ describe('truncated body refetch (#884)', () => {
         }, '0']],
       });
 
-    const emails = await getThreadEmails('t1');
+    const emails = await getFullEmails(['e1', 'e2', 'e3']);
 
     expect(mockRequest).toHaveBeenCalledTimes(2);
     expect(mockRequest.mock.calls[1][0][0][1].ids).toEqual(['e1', 'e3']);

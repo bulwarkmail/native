@@ -20,7 +20,7 @@ import {
   queryEmails,
   queryEmailPage,
   getFullEmails,
-  getThreadEmails,
+  getThreadsHeaders,
   createDraft,
   sendEmail,
   markAsSpam,
@@ -152,7 +152,8 @@ live('live Stalwart', () => {
       const { ids } = await queryEmails(inbox, { limit: 20 });
       const emails = await getFullEmails(ids);
       const reply = emails.find((e) => (e.subject ?? '').startsWith('Re: '))!;
-      const thread = await getThreadEmails(reply.threadId);
+      const { threads } = await getThreadsHeaders([reply.threadId]);
+      const thread = threads[reply.threadId].list;
       expect(thread.length).toBeGreaterThanOrEqual(2);
       const times = thread.map((e) => new Date(e.receivedAt).getTime());
       expect([...times].sort((a, b) => a - b)).toEqual(times);

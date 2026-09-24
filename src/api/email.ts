@@ -913,33 +913,44 @@ export async function getEmailFlags(
 // What a collapsed conversation card shows; `sentAt` is the date it prints.
 export const THREAD_HEADER_PROPERTIES = [...EMAIL_LIST_PROPERTIES, 'sentAt'];
 
+/** A conversation's members, oldest first, without bodies. */
+export interface ThreadHeaders {
+  emailIds: string[];
+  list: Email[];
+}
+
 /**
- * The messages of a thread without their bodies, oldest first, in one
- * back-referenced Thread/get → Email/get. The viewer lists a conversation from
- * these and downloads bodies only for the cards it opens.
+ * The messages of several threads without their bodies, oldest first, in one
+ * back-referenced Thread/get → Email/get. The viewer lists conversations from
+ * these and downloads bodies only for the cards it opens. Threads the server
+ * does not know are in `notFound`.
  */
-export async function getThreadHeaders(
-  threadId: string,
+export async function getThreadsHeaders(
+  threadIds: string[],
   accountIdOverride?: string,
-): Promise<{ emailIds: string[]; list: Email[]; state?: string }> {
+): Promise<{ threads: Record<string, ThreadHeaders>; notFound: string[]; state?: string }> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
+  const ids = Array.from(new Set(threadIds));
   const res = await jmapClient.request([
-    ['Thread/get', { accountId, ids: [threadId] }, '0'],
+    ['Thread/get', { accountId, ids }, '0'],
     ['Email/get', {
       accountId,
       '#ids': { resultOf: '0', name: 'Thread/get', path: '/list/*/emailIds' },
       properties: THREAD_HEADER_PROPERTIES,
     }, '1'],
   ]);
-  const thread = (requireMethodResult(res, '0', 'Thread/get').list as Thread[] | undefined)?.[0];
-  if (!thread) throw new Error(`Thread ${threadId} not found`);
+  const found = (requireMethodResult(res, '0', 'Thread/get').list as Thread[] | undefined) ?? [];
   const body = requireMethodResult(res, '1', 'Email/get');
   const byId = new Map(((body.list as Email[]) ?? []).map((e) => [e.id, e]));
-  // Members the server did not return (no access to them) are left out.
-  const emailIds = thread.emailIds.filter((id) => byId.has(id));
+  const threads: Record<string, ThreadHeaders> = {};
+  for (const thread of found) {
+    // Members the server did not return (no access to them) are left out.
+    const emailIds = thread.emailIds.filter((id) => byId.has(id));
+    threads[thread.id] = { emailIds, list: emailIds.map((id) => byId.get(id)!) };
+  }
   return {
-    emailIds,
-    list: emailIds.map((id) => byId.get(id)!),
+    threads,
+    notFound: ids.filter((id) => !threads[id]),
     state: body.state as string | undefined,
   };
 }
@@ -994,28 +1005,6 @@ export async function getThreads(threadIds: string[], accountIdOverride?: string
     out.push(...((requireMethodResult(res, '0', 'Thread/get').list as Thread[]) ?? []));
   }
   return out;
-}
-
-/**
- * Every message of a thread with full bodies, oldest first, via a
- * back-referenced Thread/get → Email/get. Powers the conversation view.
- */
-export async function getThreadEmails(threadId: string, accountIdOverride?: string): Promise<Email[]> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const res = await jmapClient.request([
-    ['Thread/get', { accountId, ids: [threadId] }, '0'],
-    ['Email/get', {
-      accountId,
-      '#ids': { resultOf: '0', name: 'Thread/get', path: '/list/*/emailIds' },
-      ...FULL_BODY_ARGS,
-    }, '1'],
-  ]);
-  const thread = (requireMethodResult(res, '0', 'Thread/get').list as Thread[] | undefined)?.[0];
-  const emails = (requireMethodResult(res, '1', 'Email/get').list as Email[]) ?? [];
-  await refetchTruncatedBodyValues(emails, accountId);
-  if (!thread) return emails;
-  const order = new Map(thread.emailIds.map((id, i) => [id, i]));
-  return emails.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 // One `keywords/<name>` pointer per changed keyword. Never send the whole

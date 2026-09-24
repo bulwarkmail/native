@@ -207,7 +207,8 @@ function EmailViewer({ route, navigation }: Props) {
   }, [ownerAccountId]);
 
   // The conversation's members without bodies; the cards fetch bodies only
-  // when opened (ensureDetails).
+  // when opened (ensureDetails). The neighbouring pages ask in the same tick
+  // once they are let go, which the cache sends as one Thread/get.
   const ensureThread = React.useCallback((threadId: string): void => {
     void loadThread(threadId, ownerAccountId).catch((err) => {
       console.warn('[thread] fetch failed', err);
