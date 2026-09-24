@@ -13,6 +13,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { getEventColor } from '../../lib/calendar-utils';
 import { hasCalendarCapability } from '../../lib/capabilities';
 import { singleLine } from '../../lib/single-line';
+import { prefetchMessage } from '../../lib/email-detail-cache';
 import SenderAvatar from '../SenderAvatar';
 import { radius, spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -207,13 +208,14 @@ export function ContactActivity({ contact }: Props) {
               return (
                 <Pressable
                   key={email.id}
-                  onPress={() =>
+                  onPress={() => {
+                    prefetchMessage(email);
                     navigation.navigate('EmailThread', {
                       emailId: email.id,
                       threadId: email.threadId,
                       subject: email.subject ?? undefined,
-                    })
-                  }
+                    });
+                  }}
                   style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                 >
                   <SenderAvatar name={senderName} email={sender?.email} size={32} />

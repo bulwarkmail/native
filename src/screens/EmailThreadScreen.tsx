@@ -30,7 +30,7 @@ import {
 } from '../stores/settings-store';
 import { patchKeywordsForEmails } from '../api/email';
 import {
-  loadDetail, loadDetails, loadThread, patchDetail, peekDetail, peekThread, subscribeEmailCache,
+  loadDetail, loadDetails, loadThread, patchDetail, peekDetail, peekRow, peekThread, subscribeEmailCache,
   type FlagsHint,
 } from '../lib/email-detail-cache';
 import { shareEmailEml } from '../lib/email-export';
@@ -103,6 +103,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // viewer opens: new mail or a refresh must not shift the page under the
   // user while the toolbar acts on `activeEmailId` (B5). Delete, archive,
   // move and spam leave the screen, so no page outlives its message here.
+  // A page handed over by id takes the row its list left in the cache (the
+  // Unified Inbox's, a tapped one), so its header can be painted too.
   const [emails] = React.useState<Email[]>(() => viewerPages({
     emailId: route.params.emailId,
     threadId: route.params.threadId,
@@ -110,7 +112,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     list: useEmailStore.getState().emails,
     listIsMessageAccount: listAccountId === ownerAccountId,
     threading: !disableThreading,
-  }));
+  }).map((page) => (page.receivedAt ? page : peekRow(page.id, ownerAccountId) ?? page)));
 
   const currentMailboxRole = React.useMemo(
     () => (currentMailboxId ? mailboxes.find((m) => m.id === currentMailboxId)?.role ?? null : null),

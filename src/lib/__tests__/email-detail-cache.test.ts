@@ -16,7 +16,7 @@ import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { dispatchStateChange } from '../state-change-bus';
 import {
   clearEmailDetailCache, loadDetail, loadDetails, loadThread, needsRevalidation, noteEmailState,
-  patchDetail, peekDetail, peekThread, prefetchMessage, subscribeEmailCache,
+  patchDetail, peekDetail, peekRow, peekThread, prefetchMessage, rememberRows, subscribeEmailCache,
 } from '../email-detail-cache';
 
 const fullGet = getFullEmailsWithState as ReturnType<typeof vi.fn>;
@@ -293,6 +293,23 @@ describe('prefetchMessage', () => {
 
     expect(fullGet).toHaveBeenCalledTimes(1);
     expect(threadGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('remembers the tapped row so the viewer can paint its header', () => {
+    fullGet.mockReturnValue(new Promise(() => undefined));
+    threadGet.mockReturnValue(new Promise(() => undefined));
+    const row = { ...full('e1'), subject: 'Lunch?', bodyValues: undefined } as Email;
+
+    prefetchMessage(row, 'group');
+
+    expect(peekRow('e1', 'group')?.subject).toBe('Lunch?');
+    expect(peekRow('e1')).toBeUndefined();
+  });
+
+  it('does not remember a bare id as a row', () => {
+    fullGet.mockReturnValue(new Promise(() => undefined));
+    rememberRows([{ id: 'e9', threadId: 't9' } as Email]);
+    expect(peekRow('e9')).toBeUndefined();
   });
 
   function headers1() {

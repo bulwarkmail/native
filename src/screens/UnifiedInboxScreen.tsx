@@ -22,6 +22,7 @@ import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -159,17 +160,20 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           }
           // Page over the rows of the same account the user is looking at
           // (ids are only unique per JMAP account, so never mix accounts).
-          const emailIds = emails
-            .filter((e) => e.sourceAccountId === email.sourceAccountId && e.jmapAccountId === email.jmapAccountId)
-            .map((e) => e.id);
+          const pages = emails
+            .filter((e) => e.sourceAccountId === email.sourceAccountId && e.jmapAccountId === email.jmapAccountId);
+          // Group/shared messages live under another JMAP account in the
+          // same session; pass it so the thread opens against the right one.
+          const jmapAccountId = email.isShared ? email.jmapAccountId : undefined;
+          // The viewer paints these rows' headers, and starts on the body now.
+          rememberRows(pages, jmapAccountId);
+          prefetchMessage(email, jmapAccountId);
           navigation.navigate('EmailThread', {
             emailId: email.id,
             threadId: email.threadId,
             subject: email.subject,
-            // Group/shared messages live under another JMAP account in the
-            // same session; pass it so the thread opens against the right one.
-            jmapAccountId: email.isShared ? email.jmapAccountId : undefined,
-            emailIds,
+            jmapAccountId,
+            emailIds: pages.map((e) => e.id),
           });
         } finally {
           setOpening(false);

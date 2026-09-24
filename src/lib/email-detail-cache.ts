@@ -47,9 +47,13 @@ export interface ThreadView {
 const MAX_DETAILS = 40;
 const MAX_DETAIL_CHARS = 8_000_000;
 const MAX_THREADS = 60;
+// List rows handed to the viewer by screens whose list it cannot read (the
+// Unified Inbox, contact activity), so it can paint their headers too.
+const MAX_ROWS = 500;
 
 const details = new Map<string, DetailEntry>();
 const threads = new Map<string, ThreadEntry>();
+const rows = new Map<string, Email>();
 const pendingDetails = new Map<string, Promise<Email>>();
 const pendingThreads = new Map<string, Promise<ThreadView>>();
 // The newest Email state heard of per account, from push and our own reads.
@@ -201,6 +205,7 @@ export function patchDetail(id: string, accountId: string | undefined, patch: Fl
 export function clearEmailDetailCache(): void {
   details.clear();
   threads.clear();
+  rows.clear();
   pendingDetails.clear();
   pendingThreads.clear();
   latestStates.clear();
@@ -450,17 +455,35 @@ export function loadThread(threadId: string, accountId?: string): Promise<Thread
   return p;
 }
 
+/** Keep list rows the viewer may page over; see {@link peekRow}. */
+export function rememberRows(list: Email[], accountId?: string): void {
+  for (const row of list) {
+    if (!row.receivedAt) continue;
+    const key = keyOf(row.id, accountId);
+    rows.delete(key);
+    rows.set(key, row);
+  }
+  while (rows.size > MAX_ROWS) rows.delete(rows.keys().next().value as string);
+}
+
+/** A list row remembered for the message, if any. */
+export function peekRow(id: string, accountId?: string): Email | undefined {
+  return rows.get(keyOf(id, accountId));
+}
+
 /**
  * Start loading a message the user is about to open (the list row was
  * tapped), and its conversation when threading is on, so the viewer finds the
- * requests in flight or done.
+ * requests in flight or done. On a phone this runs on the tap, not on
+ * press-in: a touch that starts a scroll presses rows too.
  */
 export function prefetchMessage(
-  email: Pick<Email, 'id' | 'threadId'> & FlagsHint,
+  email: Pick<Email, 'id' | 'threadId'> & Partial<Email>,
   accountId?: string,
 ): void {
-  void loadDetail(email.id, accountId, { keywords: email.keywords, mailboxIds: email.mailboxIds })
-    .catch(() => undefined);
+  rememberRows([email as Email], accountId);
+  const hint = email.keywords ? { keywords: email.keywords, mailboxIds: email.mailboxIds } : undefined;
+  void loadDetail(email.id, accountId, hint).catch(() => undefined);
   if (email.threadId && !useSettingsStore.getState().disableThreading) {
     void loadThread(email.threadId, accountId).catch(() => undefined);
   }

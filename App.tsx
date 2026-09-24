@@ -55,6 +55,7 @@ import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore, viewerParamsForRow } from './src/stores/email-store';
 import { mailboxAccountId } from './src/lib/mailbox-tree';
+import { prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
@@ -93,6 +94,7 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
     if (useAuthStore.getState().activeAccountId !== payload.accountId) return;
   }
 
+  prefetchMessage({ id: payload.emailId, threadId: payload.threadId });
   navigationRef.navigate('EmailThread', {
     emailId: payload.emailId,
     threadId: payload.threadId,
@@ -222,14 +224,19 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
               // The list holds the open folder's mail: name its account so the
               // viewer never has to guess it from whatever folder is open.
               const { mailboxes: all, currentMailboxId } = useEmailStore.getState();
-              navigation.navigate('EmailThread', {
-                emailId: email.id,
-                threadId: email.threadId,
-                subject: email.subject,
+              const target = {
                 jmapAccountId: mailboxAccountId(all, currentMailboxId),
                 // A row of an "All folders" list or a tag view names its own
                 // account instead, and pages over that account's rows.
                 ...viewerParamsForRow(email),
+              };
+              // Start on the body now: mounting the viewer takes a while.
+              prefetchMessage(email, target.jmapAccountId);
+              navigation.navigate('EmailThread', {
+                emailId: email.id,
+                threadId: email.threadId,
+                subject: email.subject,
+                ...target,
               });
             }}
           />
