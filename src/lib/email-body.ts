@@ -63,6 +63,24 @@ export function pickEmailBody(
 }
 
 /**
+ * True when a part the viewer shows (the first HTML or text body part) came
+ * back cut off at `maxBodyValueBytes`. Truncated text/* attachments, which
+ * `fetchAllBodyValues` also returns, don't count. (#884)
+ */
+export function hasTruncatedDisplayedBody(
+  email: Pick<Email, 'htmlBody' | 'textBody' | 'bodyValues'>,
+): boolean {
+  const values = email.bodyValues;
+  if (!values) return false;
+  const htmlPartId = email.htmlBody?.[0]?.partId;
+  const textPartId = email.textBody?.[0]?.partId;
+  return Boolean(
+    (htmlPartId && values[htmlPartId]?.isTruncated)
+    || (textPartId && values[textPartId]?.isTruncated),
+  );
+}
+
+/**
  * Which alternative to render: the HTML part unless it is a minimal
  * auto-generated wrapper around the text alternative (which would collapse
  * newlines) - the webmail's `hasMeaningfulHtmlBody` preference.

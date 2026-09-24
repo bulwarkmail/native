@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickEmailBody, selectRenderableHtml, plainTextBody } from '../email-body';
+import { pickEmailBody, selectRenderableHtml, plainTextBody, hasTruncatedDisplayedBody } from '../email-body';
 
 describe('pickEmailBody', () => {
   it('does not treat the same part as a text alternative (HTML-only, native #46)', () => {
@@ -49,5 +49,31 @@ describe('pickEmailBody', () => {
       bodyValues: { '1': { value: 'line1\nline2' }, '2': { value: '<div>line1 line2</div>' } },
     });
     expect(selectRenderableHtml(picked)).toBeNull();
+  });
+});
+
+describe('hasTruncatedDisplayedBody', () => {
+  const parts = {
+    htmlBody: [{ partId: '1', type: 'text/html' }],
+    textBody: [{ partId: '2', type: 'text/plain' }],
+  };
+
+  it('flags a truncated HTML or text body part (#884)', () => {
+    expect(hasTruncatedDisplayedBody({
+      ...parts,
+      bodyValues: { '1': { value: '<h1>Report</h1>', isTruncated: true }, '2': { value: 'Report' } },
+    })).toBe(true);
+    expect(hasTruncatedDisplayedBody({
+      ...parts,
+      bodyValues: { '1': { value: '<h1>Report</h1>' }, '2': { value: 'Rep', isTruncated: true } },
+    })).toBe(true);
+  });
+
+  it('ignores truncated attachment parts and complete bodies', () => {
+    expect(hasTruncatedDisplayedBody({
+      ...parts,
+      bodyValues: { '1': { value: 'x' }, '2': { value: 'x' }, '3': { value: 'a,b', isTruncated: true } },
+    })).toBe(false);
+    expect(hasTruncatedDisplayedBody({ ...parts })).toBe(false);
   });
 });

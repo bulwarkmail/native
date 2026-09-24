@@ -7,6 +7,7 @@ import { toWildcardQuery } from '../lib/search-utils';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
+import { hasTruncatedDisplayedBody } from '../lib/email-body';
 
 export const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -498,6 +499,46 @@ const FULL_BODY_ARGS = {
   maxBodyValueBytes: 512000,
 };
 
+// A displayed part over that cap comes back cut off, often mid-tag, so a
+// large HTML report rendered as a heading and a stub (#884). Those parts are
+// fetched once more with this far larger, still bounded cap.
+const TRUNCATED_BODY_REFETCH_MAX_BYTES = 8_000_000;
+
+/**
+ * Refetch, in place and batched across the list, the HTML and text body
+ * values of messages whose displayed part came back truncated. Other parts'
+ * values are kept. A failure leaves the truncated values in place (the viewer
+ * says the message isn't shown in full) instead of failing the open.
+ */
+async function refetchTruncatedBodyValues(emails: Email[], accountId: string): Promise<void> {
+  const truncated = emails.filter(hasTruncatedDisplayedBody);
+  if (truncated.length === 0) return;
+  try {
+    const refetched = new Map<string, Email['bodyValues']>();
+    for (const slice of batched(truncated.map((e) => e.id), maxInGet())) {
+      const res = await jmapClient.request([
+        ['Email/get', {
+          accountId,
+          ids: slice,
+          properties: ['id', 'bodyValues'],
+          fetchHTMLBodyValues: true,
+          fetchTextBodyValues: true,
+          maxBodyValueBytes: TRUNCATED_BODY_REFETCH_MAX_BYTES,
+        }, '0'],
+      ]);
+      for (const e of (requireMethodResult(res, '0', 'Email/get').list as Email[] | undefined) ?? []) {
+        refetched.set(e.id, e.bodyValues);
+      }
+    }
+    for (const email of truncated) {
+      const values = refetched.get(email.id);
+      if (values) email.bodyValues = { ...email.bodyValues, ...values };
+    }
+  } catch (err) {
+    console.warn('[email] refetching truncated bodies failed', err);
+  }
+}
+
 export async function getFullEmail(id: string, accountIdOverride?: string): Promise<Email> {
   // `accountIdOverride` lets the unified inbox open a message that lives under
   // a group/shared account in the same session instead of the user's own.
@@ -508,6 +549,7 @@ export async function getFullEmail(id: string, accountIdOverride?: string): Prom
   const body = requireMethodResult(res, '0', 'Email/get');
   const email = (body.list as Email[] | undefined)?.[0];
   if (!email) throw new Error(`Email ${id} not found`);
+  await refetchTruncatedBodyValues([email], accountId);
   return email;
 }
 
@@ -523,6 +565,7 @@ export async function getFullEmails(ids: string[], accountIdOverride?: string): 
     ]);
     out.push(...((requireMethodResult(res, '0', 'Email/get').list as Email[]) ?? []));
   }
+  await refetchTruncatedBodyValues(out, accountId);
   return out;
 }
 
@@ -594,6 +637,7 @@ export async function getThreadEmails(threadId: string, accountIdOverride?: stri
   ]);
   const thread = (requireMethodResult(res, '0', 'Thread/get').list as Thread[] | undefined)?.[0];
   const emails = (requireMethodResult(res, '1', 'Email/get').list as Email[]) ?? [];
+  await refetchTruncatedBodyValues(emails, accountId);
   if (!thread) return emails;
   const order = new Map(thread.emailIds.map((id, i) => [id, i]));
   return emails.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));

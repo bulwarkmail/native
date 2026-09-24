@@ -8,7 +8,7 @@ import type { Email } from '../api/types';
 import {
   prepareEmailHtml, wrapPlainTextEmail, plainTextToSafeHtml, extractCidRefs,
 } from '../lib/email-html';
-import { pickEmailBody, selectRenderableHtml } from '../lib/email-body';
+import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
 import { buildQuoteCollapseScript, collapsePlainTextQuotes } from '../lib/quote-collapse';
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
@@ -667,6 +667,8 @@ export default function EmailBodyView({
 
   const source = React.useMemo(() => ({ html: prepared.html }), [prepared.html]);
   const showBanner = shouldBlock && prepared.blockedExternal;
+  // Still cut off after the API's larger refetch (or the refetch failed).
+  const showTruncated = !bodyOverride && hasTruncatedDisplayedBody(email);
 
   // Inversion is applied for HTML bodies in dark mode unless the email ships
   // its own dark-mode CSS - decided once by prepareEmailHtml on the same
@@ -751,6 +753,13 @@ export default function EmailBodyView({
               </Pressable>
             ) : null}
           </View>
+        </View>
+      )}
+      {showTruncated && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>
+            {t('email_viewer.body_truncated', 'This message is too large to show in full.')}
+          </Text>
         </View>
       )}
 

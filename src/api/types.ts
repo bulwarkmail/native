@@ -88,7 +88,7 @@ export interface Email {
   headers?: Array<{ name: string; value: string }>;
   textBody?: BodyPart[];
   htmlBody?: BodyPart[];
-  bodyValues?: Record<string, { value: string; isEncodingProblem?: boolean }>;
+  bodyValues?: Record<string, { value: string; isEncodingProblem?: boolean; isTruncated?: boolean }>;
   attachments?: Attachment[];
   blobId?: string;
   bodyStructure?: BodyPart;

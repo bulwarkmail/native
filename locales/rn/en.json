@@ -190,6 +190,7 @@
     "authentication": {
       "spoof_warning": "The sender address could not be verified - this message may be spoofed."
     },
+    "body_truncated": "This message is too large to show in full.",
     "bundle_too_large": "The attachments are too large to bundle.",
     "color_tag": {
       "blue": "Blue",
