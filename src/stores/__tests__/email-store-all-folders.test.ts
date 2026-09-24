@@ -405,3 +405,105 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
     expect(deleteDestroysAcrossAccounts(['o4'])).toBeNull();
   });
 });
+
+// #1038: a tag is set on messages in the own and in the team account alike,
+// but the tag view only asked the account of the open folder: 2 own and 2
+// team messages tagged Red showed 2 or the other 2, depending on the folder.
+describe('tag view across the own and the team account (#1038)', () => {
+  const RED = '$label:red';
+
+  beforeEach(() => {
+    server.current = createFakeJmap({
+      c: [
+        mail('o1', 'inbox', 20, 'own red 1', { keywords: { [RED]: true } }),
+        mail('o2', 'archive', 10, 'own red 2', { keywords: { [RED]: true, $seen: true } }),
+        mail('o3', 'inbox', 21, 'own plain'),
+      ],
+      team: [
+        mail('m1', 't-inbox', 22, 'team red 1', { keywords: { [RED]: true } }),
+        mail('m2', 't-inbox', 15, 'team red 2', { keywords: { [RED]: true } }),
+        mail('m3', 't-inbox', 23, 'team plain'),
+      ],
+    });
+  });
+
+  async function openTag(folder: string) {
+    useEmailStore.setState({ currentMailboxId: folder });
+    useEmailStore.getState().setFilters({ keyword: RED });
+    await vi.waitFor(() => expect(useEmailStore.getState().loading).toBe(false));
+  }
+
+  it('lists the tagged mail of both accounts while a team folder is open', async () => {
+    await openTag('team:t-inbox');
+
+    expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
+    expect(server.current!.requests).toHaveLength(1);
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
+      ['c', { hasKeyword: RED }],
+      ['team', { hasKeyword: RED }],
+    ]);
+  });
+
+  it('lists the same set while an own folder is open', async () => {
+    await openTag('inbox');
+
+    expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
+    expect(useEmailStore.getState().emails.map((e) => e.jmapAccountId)).toEqual(['team', 'c', 'team', 'c']);
+  });
+
+  it('narrows the tag with a search across both accounts', async () => {
+    await openTag('inbox');
+    useEmailStore.getState().setSearchQuery('red 2');
+    await vi.waitFor(() => expect(ids()).toEqual(['m2', 'o2']));
+
+    const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
+    expect(last.map(([, a]) => a.filter)).toEqual([
+      { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] },
+      { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] },
+    ]);
+  });
+
+  it('untags a team row in the team account and keeps it in view', async () => {
+    await openTag('inbox');
+    await useEmailStore.getState().setKeywordForEmails(['m2'], RED, false);
+
+    expect(server.current!.callsOf('Email/set')[0][1]).toEqual({
+      accountId: 'team', update: { m2: { 'keywords/$label:red': null } },
+    });
+    expect(ids()).toContain('m2');
+    expect(useEmailStore.getState().retainedIds).toEqual(['m2']);
+  });
+
+  it('pages each account on from its own rows', async () => {
+    settings.emailsPerPage = 1;
+    await openTag('inbox');
+    expect(ids()).toEqual(['m1', 'o1']);
+
+    await useEmailStore.getState().loadMoreEmails();
+
+    const page2 = server.current!.requests[1].filter(([n]) => n === 'Email/query');
+    expect(page2.map(([, a]) => [a.accountId, a.position])).toEqual([['c', 1], ['team', 1]]);
+    expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
+  });
+
+  it('refreshes when only the team account reports a change', async () => {
+    await openTag('inbox');
+    server.current!.accounts.team[2].keywords = { [RED]: true };
+
+    await useEmailStore.getState().handleStateChange({
+      '@type': 'StateChange', changed: { team: { Email: 's2' } },
+    } as never);
+
+    expect(ids()).toEqual(['m3', 'm1', 'o1', 'm2', 'o2']);
+  });
+
+  it('still lists only the open folder when no tag is selected', async () => {
+    useEmailStore.setState({ currentMailboxId: 'team:t-inbox' });
+    await useEmailStore.getState().refreshEmails();
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox' } });
+  });
+});

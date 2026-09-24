@@ -15,7 +15,7 @@ import {
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
-import { useEmailStore } from '../stores/email-store';
+import { useEmailStore, spannedAccounts } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -429,19 +429,23 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     onClose();
   }, [setFilters, onClose]);
 
-  // Tag counts: one query pair per tag, refreshed each time the drawer opens
-  // with the section expanded.
+  // Tag counts: one query pair per tag and account, refreshed each time the
+  // drawer opens with the section expanded. A tag view lists the tagged mail
+  // of the own and the shared accounts, so its badge counts all of them
+  // (#1038).
+  const tagAccountsKey = React.useMemo(() => spannedAccounts(mailboxes).join('|'), [mailboxes]);
   React.useEffect(() => {
     if (!visible || !tagsExpanded || keywordDefs.length === 0 || !jmapClient.isConnected) return;
     let cancelled = false;
-    fetchTagCounts(keywordDefs.map((k) => k.id))
+    const accounts = tagAccountsKey.split('|').map((id) => id || undefined);
+    fetchTagCounts(keywordDefs.map((k) => k.id), accounts)
       .then((counts) => {
         if (cancelled) return;
         setTagCounts(new Map(counts.map((tc) => [tc.id, tc])));
       })
       .catch(() => { /* counts are decoration */ });
     return () => { cancelled = true; };
-  }, [visible, tagsExpanded, keywordDefs]);
+  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey]);
 
   // ── Folder actions (long-press) ───────────────────────────────────────
   const refFor = (mb: Mailbox) => ({

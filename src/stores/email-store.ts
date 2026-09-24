@@ -360,8 +360,8 @@ export interface EmailState {
    */
   threadCounts: Record<string, number>;
   /**
-   * Accounts an "All folders" list could not reach, by JMAP account id → the
-   * error. The other accounts' messages still show.
+   * Accounts an "All folders" list or a tag view could not reach, by JMAP
+   * account id → the error. The other accounts' messages still show.
    */
   accountErrors: Record<string, string>;
 
@@ -521,18 +521,24 @@ function isUnsupportedSort(err: unknown): boolean {
 // ── Lists that span accounts ───────────────────────────────────────────
 // "All folders" covers every folder of the user's own account AND of the
 // shared (group) accounts whose folders are in the sidebar (#1082, webmail
-// `searchAcrossAccounts`). Each account is asked for its own page, the pages
-// are merged under the list order and every row is stamped with its JMAP
-// account (`Email.jmapAccountId`), so opening and acting on a row reach the
-// account it lives in. A search scoped to one folder stays in its account.
+// `searchAcrossAccounts`), and so does a tag view: the same tag keyword sits
+// on messages in all of them (#1038, webmail `fetchTagEmails`). Each account
+// is asked for its own page, the pages are merged under the list order and
+// every row is stamped with its JMAP account (`Email.jmapAccountId`), so
+// opening and acting on a row reach the account it lives in. A search scoped
+// to one folder stays in its account.
 
 /** Whether the list on screen spans the own and the shared accounts. */
 export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>): boolean {
-  return effectiveFolderScope(state.searchQuery, state.filters) === 'all' && !state.filters.keyword;
+  return effectiveFolderScope(state.searchQuery, state.filters) === 'all';
 }
 
-// The JMAP accounts such a list covers; undefined = the user's own.
-function listAccounts(mailboxes: Mailbox[]): Array<string | undefined> {
+/**
+ * The JMAP accounts a list spanning accounts covers, and a tag badge counts:
+ * the user's own (undefined) and every shared account with folders in the
+ * sidebar.
+ */
+export function spannedAccounts(mailboxes: Mailbox[]): Array<string | undefined> {
   const out: Array<string | undefined> = [undefined];
   for (const m of mailboxes) {
     if (m.isShared && m.accountId && m.accountId !== jmapClient.accountId && !out.includes(m.accountId)) {
@@ -616,7 +622,7 @@ async function fetchSpanningPage(
     }))),
     { limit, filter, threads },
   );
-  let pages = await run(listAccounts(state.mailboxes));
+  let pages = await run(spannedAccounts(state.mailboxes));
   const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
   if (refused.length > 0) {
     for (const p of refused) markKeywordSortUnsupported(p.accountId ?? primary);
@@ -1147,7 +1153,8 @@ export const useEmailStore = create<EmailState>()(
         ? refFor(state.mailboxes, state.currentMailboxId).accountId ?? primaryId
         : primaryId;
     const known = new Set([primaryId, ...jmapClient.getSharedMailAccounts().map((a) => a.id)]);
-    // An "All folders" list shows every account's mail (#1082).
+    // An "All folders" list or a tag view shows every account's mail
+    // (#1082, #1038).
     const spanning = spansAccounts(state);
 
     let mailboxChanged = false;
