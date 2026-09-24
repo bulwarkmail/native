@@ -272,15 +272,16 @@ export function findTrashMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
   });
 }
 
+/**
+ * The Archive folder: the `archive` role, else a role-less folder named
+ * exactly "Archive" (any case), as the webmail matches it. Whatever offers
+ * the archive action must resolve through this, like the store's archive
+ * actions do: a looser list-only match used to offer archiving into e.g.
+ * "Archives", which the store then silently ignored. (#578)
+ */
 export function findArchiveMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
-  const roleMatch = mailboxes.find((m) => m.role === 'archive');
-  if (roleMatch) return roleMatch;
-
-  const names = ['archive', 'archives', 'archived'];
-  return mailboxes.find((m) => {
-    const lower = m.name.toLowerCase();
-    return names.includes(lower) || names.some((n) => lower.includes(n));
-  });
+  return mailboxes.find((m) => m.role === 'archive')
+    ?? mailboxes.find((m) => m.name.toLowerCase() === 'archive');
 }
 
 export function findJunkMailbox(mailboxes: Mailbox[]): Mailbox | undefined {

@@ -34,7 +34,7 @@ import {
 } from '../api/email';
 import { useNetworkStore } from './network-store';
 import { JMAPMethodError } from '../api/jmap-result';
-import { mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox } from '../lib/mailbox-tree';
+import { mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox } from '../lib/mailbox-tree';
 import { toWildcardQuery } from '../lib/search-utils';
 import { orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
@@ -1251,9 +1251,7 @@ export const useEmailStore = create<EmailState>()(
     // Archive into the *same account's* Archive folder — a shared mailbox's
     // messages can't be filed into the user's own.
     const scoped = actionMailboxes(state, viewed);
-    const archiveMailbox = scoped.find(
-      (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
-    );
+    const archiveMailbox = findArchiveMailbox(scoped);
     if (!archiveMailbox) return;
     const archive = refFor(state.mailboxes, archiveMailbox.id);
     if (email.mailboxIds?.[archive.id]) return;
@@ -1379,9 +1377,7 @@ export const useEmailStore = create<EmailState>()(
   archiveEmailsBatch: async (emailIds) => {
     const state = get();
     const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
-    const archiveMailbox = scoped.find(
-      (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
-    );
+    const archiveMailbox = findArchiveMailbox(scoped);
     if (!archiveMailbox) return;
     const archive = refFor(state.mailboxes, archiveMailbox.id);
     const targets = state.emails.filter(

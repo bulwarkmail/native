@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildMailboxTree,
+  findArchiveMailbox,
   flattenVisible,
   mailboxAccountId,
   mailboxesForSiblingOf,
@@ -203,5 +204,30 @@ describe('role-folder deduplication (#771)', () => {
     ]);
     expect(tree.map((n) => n.id)).toEqual(['inbox', 'sent', 'inbox-dup', 'proj']);
     expect(tree.find((n) => n.id === 'proj')?.children.map((n) => n.id)).toEqual(['proj-sent']);
+  });
+});
+
+describe('findArchiveMailbox (#578)', () => {
+  it('prefers the archive role over a folder named Archive', () => {
+    const found = findArchiveMailbox([
+      own('named', 'Archive'),
+      own('role', 'Old mail', { role: 'archive' }),
+    ]);
+    expect(found?.id).toBe('role');
+  });
+
+  it('falls back to a role-less folder named exactly "Archive", any case', () => {
+    expect(findArchiveMailbox([own('inbox', 'Inbox', { role: 'inbox' }), own('a', 'ARCHIVE')])?.id)
+      .toBe('a');
+  });
+
+  it('does not treat "Archives" or folders merely containing "archive" as the Archive', () => {
+    // The store's archive actions only file into a folder this resolver
+    // returns; a looser match here offered an archive that did nothing.
+    expect(findArchiveMailbox([
+      own('plural', 'Archives'),
+      own('past', 'Archived'),
+      own('proj', 'Project archive 2019'),
+    ])).toBeUndefined();
   });
 });
