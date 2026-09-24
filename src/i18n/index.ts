@@ -8,33 +8,9 @@ import { I18nManager } from 'react-native';
 import { getLocales } from 'expo-localization';
 import { formatMessage, type MessageParams } from './format';
 
-import ar from '../../locales/ar/common.json';
-import ca from '../../locales/ca/common.json';
-import cs from '../../locales/cs/common.json';
-import da from '../../locales/da/common.json';
-import de from '../../locales/de/common.json';
+// English is the fallback for every lookup, so it is loaded eagerly. The other
+// catalogs are loaded on first use; see CATALOG_LOADERS below.
 import en from '../../locales/en/common.json';
-import es from '../../locales/es/common.json';
-import fa from '../../locales/fa/common.json';
-import fr from '../../locales/fr/common.json';
-import he from '../../locales/he/common.json';
-import hu from '../../locales/hu/common.json';
-import it from '../../locales/it/common.json';
-import ja from '../../locales/ja/common.json';
-import ko from '../../locales/ko/common.json';
-import lv from '../../locales/lv/common.json';
-import mn from '../../locales/mn/common.json';
-import nb from '../../locales/nb/common.json';
-import nl from '../../locales/nl/common.json';
-import pl from '../../locales/pl/common.json';
-import pt from '../../locales/pt/common.json';
-import ro from '../../locales/ro/common.json';
-import ru from '../../locales/ru/common.json';
-import sk from '../../locales/sk/common.json';
-import tr from '../../locales/tr/common.json';
-import uk from '../../locales/uk/common.json';
-import zh from '../../locales/zh/common.json';
-import zhTW from '../../locales/zh-TW/common.json';
 
 // Keys the native app needs that the webmail catalog does not carry. Only an
 // English overlay exists today; other languages fall through to it via the
@@ -99,21 +75,58 @@ const RN_OVERLAYS: Partial<Record<LocaleCode, Dictionary>> = {
   en: rnEn as Dictionary,
 };
 
-const BASE_DICTIONARIES: Record<LocaleCode, Dictionary> = {
-  ar, ca, cs, da, de, en, es, fa, fr, he, hu, it, ja, ko, lv, mn, nb, nl, pl,
-  pt, ro, ru, sk, tr, uk, zh, 'zh-TW': zhTW,
+// A catalog is a few hundred KB of JSON. Metro only evaluates a module when it
+// is first required, so keeping each require inside its loader means startup
+// builds English plus the active language instead of all 27, and switching
+// language loads the new catalog synchronously on the next t() call. The
+// require paths must stay string literals for Metro to bundle them.
+const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
+  ar: () => require('../../locales/ar/common.json'),
+  ca: () => require('../../locales/ca/common.json'),
+  cs: () => require('../../locales/cs/common.json'),
+  da: () => require('../../locales/da/common.json'),
+  de: () => require('../../locales/de/common.json'),
+  en: () => en as Dictionary,
+  es: () => require('../../locales/es/common.json'),
+  fa: () => require('../../locales/fa/common.json'),
+  fr: () => require('../../locales/fr/common.json'),
+  he: () => require('../../locales/he/common.json'),
+  hu: () => require('../../locales/hu/common.json'),
+  it: () => require('../../locales/it/common.json'),
+  ja: () => require('../../locales/ja/common.json'),
+  ko: () => require('../../locales/ko/common.json'),
+  lv: () => require('../../locales/lv/common.json'),
+  mn: () => require('../../locales/mn/common.json'),
+  nb: () => require('../../locales/nb/common.json'),
+  nl: () => require('../../locales/nl/common.json'),
+  pl: () => require('../../locales/pl/common.json'),
+  pt: () => require('../../locales/pt/common.json'),
+  ro: () => require('../../locales/ro/common.json'),
+  ru: () => require('../../locales/ru/common.json'),
+  sk: () => require('../../locales/sk/common.json'),
+  tr: () => require('../../locales/tr/common.json'),
+  uk: () => require('../../locales/uk/common.json'),
+  zh: () => require('../../locales/zh/common.json'),
+  'zh-TW': () => require('../../locales/zh-TW/common.json'),
 };
 
-const dictionaries: Record<LocaleCode, Dictionary> = Object.fromEntries(
-  (Object.keys(BASE_DICTIONARIES) as LocaleCode[]).map((code) => {
-    const overlay = RN_OVERLAYS[code];
-    return [code, overlay ? deepMerge(BASE_DICTIONARIES[code], overlay) : BASE_DICTIONARIES[code]];
-  }),
-) as Record<LocaleCode, Dictionary>;
+const dictionaries: Partial<Record<LocaleCode, Dictionary>> = {};
 
-// Test/tooling hook: the fully merged catalog for a locale.
+/** The merged catalog (vendored + RN overlay) for a locale, loaded on first use. */
 export function getDictionary(locale: LocaleCode): Dictionary {
-  return dictionaries[locale];
+  let dict = dictionaries[locale];
+  if (!dict) {
+    const base = CATALOG_LOADERS[locale]();
+    const overlay = RN_OVERLAYS[locale];
+    dict = overlay ? deepMerge(base, overlay) : base;
+    dictionaries[locale] = dict;
+  }
+  return dict;
+}
+
+/** Which catalogs have been loaded so far (for tests). */
+export function loadedLocales(): LocaleCode[] {
+  return Object.keys(dictionaries) as LocaleCode[];
 }
 
 export function isSupportedLocale(code: string): code is LocaleCode {
@@ -192,8 +205,8 @@ export function translate(
   fallback?: string,
   params?: MessageParams,
 ): string {
-  const message = lookup(dictionaries[locale], key)
-    ?? lookup(dictionaries.en, key)
+  const message = lookup(getDictionary(locale), key)
+    ?? lookup(getDictionary('en'), key)
     ?? fallback
     ?? key;
   return formatMessage(message, params, locale);

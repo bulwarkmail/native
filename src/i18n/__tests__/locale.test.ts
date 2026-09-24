@@ -57,3 +57,23 @@ describe('translate', () => {
     expect(translate('fr', 'email_list.no_trash_folder')).toContain('Trash');
   });
 });
+
+describe('catalog loading', () => {
+  it('builds only the catalogs that are used, on first use', async () => {
+    vi.resetModules();
+    const i18n = await import('../index');
+    expect(i18n.loadedLocales()).toEqual([]);
+
+    expect(i18n.translate('de', 'settings.title')).not.toBe('settings.title');
+    expect(i18n.loadedLocales().sort()).toEqual(['de']);
+
+    // A key German lacks falls through to English, which is built then.
+    i18n.translate('de', 'email_list.no_trash_folder');
+    expect(i18n.loadedLocales().sort()).toEqual(['de', 'en']);
+
+    // Switching language loads the new catalog synchronously.
+    const title = i18n.translate('ja', 'settings.title');
+    expect(i18n.loadedLocales().sort()).toEqual(['de', 'en', 'ja']);
+    expect(title).toBe((i18n.getDictionary('ja') as { settings: { title: string } }).settings.title);
+  });
+});
