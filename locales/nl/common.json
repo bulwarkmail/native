@@ -225,6 +225,10 @@
     "and_others": "en {count} anderen",
     "draft": "Concept",
     "starred": "Met ster",
+    "pinned": "Vastgezet",
+    "replied": "Beantwoord",
+    "forwarded": "Doorgestuurd",
+    "has_attachment": "Met bijlage",
     "conversations_count": "{count} van {total} gesprekken",
     "conversations_count_plus": "{count}+ gesprekken",
     "conversations_count_simple": "{count} gesprekken",
@@ -292,6 +296,7 @@
     "forward": "Doorsturen",
     "delete": "Verwijderen",
     "archive": "Archiveren",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "Ster toevoegen",
     "unstar": "Ster verwijderen",
     "mark_unread": "Markeren als ongelezen",
@@ -303,12 +308,10 @@
     "move": "Verplaatsen",
     "print": "Afdrukken",
     "view_source": "Bron bekijken",
-
     "fullscreen": "Volledig scherm",
-
     "exit_fullscreen": "Volledig scherm sluiten",
     "export_email": "Exporteren als .eml",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "Doorsturen als bijlage",
     "import_email": ".eml of .zip importeren",
     "keyboard_shortcuts": "Sneltoetsen (?)",
     "email_source": "E-mailbron",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Leesbevestiging aangevraagd (klik om uit te schakelen)",
     "read_receipt_off": "Leesbevestiging aanvragen",
+    "dsn_on": "Bezorgmelding aangevraagd (klik om uit te schakelen)",
+    "dsn_off": "Bezorgmelding aanvragen",
+    "format_plain_text": "Overschakelen naar platte tekst",
+    "format_rich_text": "Overschakelen naar opgemaakte tekst (HTML)",
+    "require_tls_on": "Versleutelde bezorging vereist (klik om uit te schakelen)",
+    "require_tls_off": "Versleutelde bezorging vereisen (TLS)",
     "new_message": "Nieuw bericht",
     "signature_edit_hint": "Dubbelklik om de handtekening te bewerken",
     "reply": "Beantwoorden",
@@ -631,11 +640,12 @@
     "from_override": {
       "toggle_off": "Overschrijven",
       "toggle_on": "Overschrijven annuleren",
-      "toggle_tooltip": "Bewerk de naam en het adres van de afzender vrij. E-mail wordt nog steeds via je identiteit verzonden - alleen de zichtbare Van-koptekst verandert.",
+      "toggle_tooltip": "Bewerk de naam en het adres van de afzender vrij. E-mail wordt nog steeds via je identiteit verzonden.",
       "name_label": "Afzendernaam",
       "name_placeholder": "Naam",
       "email_label": "E-mailadres afzender",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "Als je server dit adres niet accepteert als envelopafzender, wordt daar {identity} gebruikt, en ontvangers kunnen dat zien in de Return-Path-header."
     },
     "use_template": "Sjabloon",
     "save_as_template": "Opslaan als sjabloon",
@@ -648,6 +658,8 @@
     "upload_progress": "Uploaden {uploaded} / {total}",
     "upload_cancel": "Upload annuleren",
     "upload_failed": "Uploaden van {filename} mislukt",
+    "attachment_too_large": "\"{name}\" is groter dan de server toestaat ({max} per bestand)",
+    "attachments_total_too_large": "De bijlagen zouden de serverlimiet van {max} per bericht overschrijden",
     "send_failed": "E-mail verzenden mislukt",
     "smime_sign_on": "S/MIME-ondertekening ingeschakeld",
     "smime_sign_off": "S/MIME-ondertekening uitgeschakeld",
@@ -726,7 +738,11 @@
       "delete_column": "Kolom verwijderen",
       "toggle_header_row": "Koprij aan/uit",
       "delete_table": "Tabel verwijderen",
-      "pick_size": "Grootte kiezen"
+      "pick_size": "Grootte kiezen",
+      "font_size": "Lettergrootte",
+      "font_size_default": "Standaard",
+      "background_color": "Achtergrondkleur",
+      "remove_background_color": "Achtergrondkleur verwijderen"
     },
     "send_filing_warning": "Verzonden - maar het opruimen daarna is mislukt, mogelijk blijft een oud concept staan."
   },
@@ -765,6 +781,10 @@
     "email_sent": "E-mail succesvol verzonden",
     "email_deleted": "E-mail verwijderd",
     "email_archived": "E-mail gearchiveerd",
+    "emails_deleted": "{count, plural, one {# e-mail verwijderd} other {# e-mails verwijderd}}",
+    "emails_archived": "{count, plural, one {# e-mail gearchiveerd} other {# e-mails gearchiveerd}}",
+    "error_archiving": "E-mail kon niet worden gearchiveerd",
+    "error_updating": "E-mail kon niet worden bijgewerkt",
     "email_starred": "Ster toegevoegd aan e-mail",
     "email_unstarred": "Ster verwijderd van e-mail",
     "email_marked_read": "E-mail gemarkeerd als gelezen",
@@ -1143,7 +1163,9 @@
         "enabled": "E-mailmeldingen",
         "enabled_desc": "Meldingen tonen wanneer nieuwe e-mails binnenkomen",
         "sound": "Meldingsgeluid",
-        "sound_desc": "Een geluid afspelen wanneer nieuwe e-mails binnenkomen"
+        "sound_desc": "Een geluid afspelen wanneer nieuwe e-mails binnenkomen",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Agendameldingen",
@@ -1172,6 +1194,7 @@
         "status_busy": "Bezig…",
         "status_inactive": "Niet ingeschakeld op dit apparaat",
         "status_unsupported": "Deze browser ondersteunt geen Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "title": "Achtergrondmeldingen",
         "devices_title": "Geregistreerde apparaten",
         "devices_desc": "Alle apparaten die achtergrondmeldingen voor dit account ontvangen. Trek je er een in, dan stopt de ontvangst meteen.",
@@ -1238,6 +1261,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Zoekopdracht wissen bij wisselen van map",
+        "description": "Op een map klikken (Postvak IN, Verzonden…) wist de actieve zoekopdracht en toont die map. Uitgeschakeld blijft de zoekopdracht staan en wordt opnieuw uitgevoerd in de gekozen map."
+      },
       "request_read_receipt": {
         "label": "Standaard om leesbevestiging vragen",
         "description": "De aanvraag voor een leesbevestiging vooraf inschakelen bij het opstellen van een nieuw bericht."
@@ -1315,6 +1342,12 @@
       "auto_select_reply_identity": {
         "label": "Antwoordadres automatisch selecteren",
         "description": "Schakel bij het beantwoorden automatisch het Van-adres om naar de identiteit die het oorspronkelijke bericht ontving"
+      },
+      "reply_identity_match": {
+        "label": "Overeenkomst van ontvangstadres",
+        "description": "Welke ontvangstadressen als de uwe gelden. „Alleen exact adres“ kiest uitsluitend een van uw ingestelde identiteiten; „zelfde domein“ behandelt ook elk ander adres op uw identiteitsdomeinen als catch-all-alias en herschrijft de Van-header ernaar. Kies exact adres als die adressen distributielijsten zijn.",
+        "exact": "Alleen exact adres",
+        "domain": "Elk adres op mijn domeinen"
       },
       "signature_position": {
         "label": "Positie van handtekening",
@@ -1746,7 +1779,9 @@
       "warnings": {
         "end_before_start": "De einddatum moet na de startdatum liggen",
         "start_in_past": "De startdatum ligt in het verleden",
-        "empty_body": "De berichttekst is leeg - ontvangers krijgen een leeg antwoord"
+        "empty_body": "De berichttekst is leeg - ontvangers krijgen een leeg antwoord",
+        "subject_too_long": "Het onderwerp is te lang voor de server (maximaal {max} bytes).",
+        "body_too_long": "Het bericht is te lang voor de server (maximaal {max} bytes, inclusief opmaak)."
       }
     },
     "folders": {
@@ -1763,6 +1798,8 @@
       "role_trash": "Prullenbak",
       "role_junk": "Spam / Ongewenst",
       "role_archive": "Archief",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "Geen",
       "create_folder": "Map maken",
       "create_subfolder": "Submap maken",
@@ -1882,7 +1919,9 @@
       "categories_description": "Contactcategorieën hernoemen",
       "no_categories": "Geen categorieën gevonden",
       "group_by_letter_description": "Toon alfabetische sectiekoppen in de contactenlijst",
-      "group_by_letter_label": "Groeperen op eerste letter"
+      "group_by_letter_label": "Groeperen op eerste letter",
+      "sort_by_last_name_label": "Sorteren op achternaam",
+      "sort_by_last_name_description": "Sorteer de contactenlijst op achternaam zodat gezinsleden bij elkaar staan"
     },
     "downloads": {
       "title": "Downloads",
@@ -1963,6 +2002,7 @@
       "actions": "Acties",
       "add_action": "Actie toevoegen",
       "stop_processing": "Verwerking van volgende regels stoppen",
+      "include_spam": "Ook berichten verplaatsen die als spam zijn gemarkeerd",
       "attachment_type_placeholder": "bijv. pdf, doc, jpg",
       "value_placeholder_multi": "Waarde (meerdere met komma's gescheiden)",
       "condition_fields": {
@@ -2004,6 +2044,8 @@
       "copy_to_folder": "Map selecteren",
       "forward_to": "Doorsturen naar e-mailadres",
       "forward_placeholder": "email@voorbeeld.nl",
+      "forward_keep_copy": "Kopie bewaren",
+      "forward_limit": "Maximaal aantal doorsturingen per bericht op deze server: {count}. Extra doorsturingen worden overgeslagen.",
       "reject_message": "Afwijzingsbericht",
       "reject_placeholder": "Uw e-mail is afgewezen",
       "label_name": "Labelnaam",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "Nieuwe submap...",
     "new_folder": "Nieuwe map...",
     "rename": "Hernoemen...",
+    "share": "Delen...",
     "import_email": ".eml of .zip importeren...",
     "empty_folder": "Map leegmaken",
     "empty_folder_generic": "Map leegmaken",
@@ -2234,6 +2277,9 @@
     "toast_error_delete": "Map verwijderen mislukt",
     "toast_error_delete_has_children": "Map bevat submappen. Verwijder deze eerst.",
     "toast_error_delete_has_email": "Map is niet leeg. Maak deze eerst leeg.",
+    "delete_with_contents_title": "Map is niet leeg",
+    "delete_with_contents_message": "De map \"{name}\" bevat nog {count, plural, one {1 bericht} other {# berichten}}. De map en al haar berichten verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "delete_with_contents_confirm": "Map en berichten verwijderen",
     "placeholder_folder_name": "Mapnaam",
     "create": "Aanmaken",
     "rename_confirm": "Hernoemen"
@@ -2270,7 +2316,8 @@
       "search": "Focus op zoeken",
       "help": "Sneltoetsen tonen",
       "refresh": "E-mails vernieuwen",
-      "select_all": "Alles selecteren"
+      "select_all": "Alles selecteren",
+      "global_search": "Alles doorzoeken"
     },
     "threads": {
       "expand_collapse": "Gesprek uitklappen/inklappen"
@@ -2721,7 +2768,10 @@
       "any_month": "Elke maand",
       "has_email": "Met e-mail",
       "has_phone": "Met telefoon",
-      "has_photo": "Met foto"
+      "has_photo": "Met foto",
+      "sort_by": "Sorteren op",
+      "sort_first_name": "Voornaam",
+      "sort_last_name": "Achternaam"
     },
     "open_categories": "Categorieën openen"
   },
@@ -2758,6 +2808,10 @@
       "duplicate": "Dupliceren",
       "today_header": "Vandaag",
       "tomorrow_header": "Morgen",
+      "agenda_show_earlier": "Eerdere afspraken tonen",
+      "agenda_loading": "Laden…",
+      "agenda_range_start": "Afspraken vanaf {date}",
+      "agenda_range_end": "Afspraken tot {date}",
       "export_ics": "Exporteren als .ics",
       "copy_title": "Titel kopiëren",
       "copy_link": "Vergaderlink kopiëren",
@@ -2793,6 +2847,14 @@
       "color": "Kleur"
     },
     "participants": {
+      "availability": {
+        "title": "Beschikbaarheid",
+        "free": "Beschikbaar",
+        "busy": "Bezet",
+        "tentative": "Voorlopig",
+        "unknown": "Geen gebruiker op deze server",
+        "checking": "Controleren…"
+      },
       "title": "Deelnemers",
       "add": "Deelnemer toevoegen",
       "organizer": "Organisator",
@@ -2867,7 +2929,10 @@
       "all_events": "Alle evenementen",
       "cancel": "Annuleren",
       "save": "Opslaan",
-      "delete": "Verwijderen"
+      "delete": "Verwijderen",
+      "rsvp_title": "Reageren op terugkerend evenement",
+      "rsvp_description": "Dit is een terugkerend evenement. Voor welke evenementen geldt uw reactie?",
+      "respond": "Reageren"
     },
     "alerts": {
       "title": "Herinnering",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "Evenementtijden weergeven in de maandkalenderweergave",
       "show_week_numbers": "Weeknummers weergeven",
       "show_week_numbers_desc": "Weeknummers weergeven in de minikalender",
+      "calendar_free_scroll": "Vrij scrollen",
+      "calendar_free_scroll_desc": "Doorlopend door maanden, weken en dagen scrollen in plaats van één periode tegelijk",
       "enable_tasks": "Taken inschakelen",
       "enable_tasks_desc": "Een takenweergave in de agenda tonen om to-do's te beheren",
       "show_tasks_on_calendar": "Taken in agenda tonen",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "1 seconde vertraging",
       "hover_preview_delay_2s": "2 seconden vertraging",
       "hover_preview_off": "Uitgeschakeld",
+      "organizer_identity": "Uitnodigingen organiseren als",
+      "organizer_identity_desc": "Het agenda-adres dat als organisator wordt gebruikt wanneer je mensen uitnodigt voor afspraken.",
+      "organizer_identity_failed": "Kon het organisatoradres niet wijzigen",
       "show_birthday_calendar": "Verjaardagskalender",
       "show_birthday_calendar_desc": "Toon een virtuele kalender met verjaardagen van je contacten"
     },
@@ -2947,6 +3017,9 @@
       "alert_now": "Begint nu",
       "alert_in_minutes": "Over {count} min",
       "invitation_sent": "Uitnodigingen verzonden",
+      "invitations_denied_title": "Uitnodigingen kunnen niet worden verzonden",
+      "invitations_denied": "De server weigerde de uitnodigingen te verzenden: {reason}. Het evenement opslaan zonder ze te verzenden?",
+      "save_without_invitations": "Opslaan zonder uitnodigingen",
       "rsvp_updated": "Reactie bijgewerkt",
       "rsvp_error": "Reactie kon niet worden bijgewerkt",
       "event_duplicated": "Evenement gedupliceerd",
@@ -2975,7 +3048,7 @@
       "supported_formats": "iCalendar (.ics) bestanden worden ondersteund",
       "url_description": "Voer de URL in van een externe iCalendar (.ics) feed om evenementen te importeren.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "Ondersteunt CalDAV en iCalendar (.ics) URLs",
+      "url_hint": "Ondersteunt iCalendar (.ics) URLs",
       "fetch": "Ophalen",
       "invalid_url": "Voer een geldige URL in",
       "url_fetch_failed": "Kan agenda niet ophalen van URL",
@@ -3164,6 +3237,8 @@
     "has_attachment": "Bijlagen",
     "date_after": "Na",
     "date_before": "Voor",
+    "size_min": "Groter dan (KB)",
+    "size_max": "Kleiner dan (KB)",
     "starred": "Met ster",
     "unread": "Ongelezen",
     "read": "Gelezen",
@@ -3205,6 +3280,10 @@
     "hint": "Klik links op een e-mail om te beginnen, of start de tour."
   },
   "files": {
+    "office_edit": "Document bewerken",
+    "office_loading": "Documenteditor wordt geopend…",
+    "office_error": "De documenteditor kon niet worden geopend.",
+    "office_close": "Editor sluiten",
     "open_in_new_tab": "Openen in nieuw tabblad",
     "title": "Bestanden",
     "search_placeholder": "Bestanden zoeken...",
@@ -3217,6 +3296,8 @@
     "rename": "Hernoemen",
     "rename_title": "Hernoemen",
     "new_name": "Nieuwe naam",
+    "name_forbidden_chars": "De server staat deze tekens niet toe in namen: {chars}",
+    "name_reserved": "Deze naam is gereserveerd op de server.",
     "delete": "Verwijderen",
     "delete_confirm_title": "Bron verwijderen",
     "delete_confirm_message": "Weet u zeker dat u \"{name}\" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
@@ -3451,6 +3532,25 @@
   "unified_mailbox": {
     "search_unavailable": "Zoeken is niet beschikbaar in de gecombineerde weergave"
   },
+  "calendar_event_notifications": {
+    "someone": "Iemand",
+    "invited": "{name} heeft je uitgenodigd voor \"{title}\"",
+    "updated": "{name} heeft \"{title}\" bijgewerkt",
+    "cancelled": "{name} heeft \"{title}\" geannuleerd",
+    "untitled": "Afspraak zonder titel"
+  },
+  "share_notifications": {
+    "someone": "Iemand",
+    "shared": "{name} heeft {kind} \"{object}\" met je gedeeld",
+    "changed": "{name} heeft je toegang tot {kind} \"{object}\" gewijzigd",
+    "revoked": "{name} heeft je toegang tot {kind} \"{object}\" ingetrokken",
+    "object": {
+      "folder": "de map",
+      "calendar": "de agenda",
+      "address_book": "het adresboek",
+      "files": "de bestandsmap"
+    }
+  },
   "sharing": {
     "title": "\"{name}\" delen",
     "description": "Geef andere gebruikers of groepen op deze server toegang. Wijzigingen zijn direct van kracht.",
@@ -3501,5 +3601,45 @@
     "copy_event": "Link naar afspraak kopiëren",
     "copied": "Link gekopieerd",
     "copy_failed": "Kon de link niet kopiëren"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Autorisatie voltooien…",
+      "completing_message": "Even geduld terwijl de verbinding tot stand wordt gebracht.",
+      "received_title": "Autorisatie ontvangen",
+      "received_message": "Je kunt terugkeren naar het tabblad waar je de verbinding bent gestart.",
+      "failed_title": "Autorisatie mislukt",
+      "denied": "Autorisatie geweigerd.",
+      "failed_detail": "Autorisatie mislukt: {error}",
+      "missing_params": "Autorisatiecode of status ontbreekt.",
+      "delivery_failed": "Het autorisatieresultaat kon niet worden afgeleverd bij het app-tabblad. Sluit dit venster en probeer het opnieuw."
+    }
+  },
+  "global_search": {
+    "title": "Alles doorzoeken",
+    "placeholder": "Zoek in mail, contacten, agenda, bestanden...",
+    "scope_label": "Zoeken in",
+    "account_label": "Account",
+    "scope_all": "Alles",
+    "scope_mail": "E-mail",
+    "scope_contacts": "Contacten",
+    "scope_calendar": "Agenda",
+    "scope_files": "Bestanden",
+    "all_accounts": "Alle accounts",
+    "show_all": "Alle resultaten tonen",
+    "no_results": "Geen resultaten voor “{query}”",
+    "server_hint": "Volledige woorden doorzoeken de server; woorddelen vinden al geladen items",
+    "searching": "Zoeken...",
+    "account_error": "Kon niet zoeken in {account}",
+    "recent_searches": "Recente zoekopdrachten",
+    "recurring": "Terugkerend",
+    "no_subject": "(no subject)",
+    "empty_hint": "Doorzoek mail, contacten, afspraken en bestanden van alle accounts. Probeer from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "Plat op datum",
+    "grouped": "Gegroepeerd",
+    "load_more": "Meer laden",
+    "preview_empty": "Selecteer een resultaat voor een voorbeeld",
+    "open_full": "Openen",
+    "view_label": "Weergave"
   }
 }

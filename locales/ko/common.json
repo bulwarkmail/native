@@ -225,6 +225,10 @@
     "and_others": "외 {count}명",
     "draft": "임시보관",
     "starred": "별표 표시됨",
+    "pinned": "고정됨",
+    "replied": "답장함",
+    "forwarded": "전달함",
+    "has_attachment": "첨부 파일 있음",
     "conversations_count": "전체 {total}개 중 {count}개의 대화",
     "conversations_count_plus": "{count}개 이상의 대화",
     "conversations_count_simple": "{count}개의 대화",
@@ -292,6 +296,7 @@
     "forward": "전달",
     "delete": "삭제",
     "archive": "보관",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "별표 달기",
     "unstar": "별표 해제",
     "mark_unread": "읽지 않은 상태로 표시",
@@ -303,12 +308,10 @@
     "move": "이동",
     "print": "인쇄",
     "view_source": "원본 보기",
-
     "fullscreen": "전체 화면",
-
     "exit_fullscreen": "전체 화면 종료",
     "export_email": ".eml 파일로 내보내기",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "첨부 파일로 전달",
     "import_email": ".eml 또는 .zip 가져오기",
     "keyboard_shortcuts": "단축키 (?)",
     "email_source": "메일 원본",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "읽음 확인 요청됨 (클릭하여 해제)",
     "read_receipt_off": "읽음 확인 요청",
+    "dsn_on": "배달 알림 요청됨 (클릭하여 해제)",
+    "dsn_off": "배달 알림 요청",
+    "format_plain_text": "일반 텍스트로 전환",
+    "format_rich_text": "서식 있는 텍스트(HTML)로 전환",
+    "require_tls_on": "암호화 전송 필수 (클릭하여 해제)",
+    "require_tls_off": "암호화 전송 필수 (TLS)",
     "new_message": "새 메시지",
     "signature_edit_hint": "서명을 편집하려면 두 번 클릭하세요",
     "reply": "답장",
@@ -631,11 +640,12 @@
     "from_override": {
       "toggle_off": "재정의",
       "toggle_on": "재정의 취소",
-      "toggle_tooltip": "보낸 사람 이름과 주소를 자유롭게 편집하세요. 메일은 여전히 사용자의 ID를 통해 전송되며 - 표시되는 보낸 사람 헤더만 변경됩니다.",
+      "toggle_tooltip": "보낸 사람 이름과 주소를 자유롭게 편집하세요. 메일은 여전히 사용자의 ID를 통해 전송됩니다.",
       "name_label": "보낸 사람 이름",
       "name_placeholder": "이름",
       "email_label": "보낸 사람 이메일 주소",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "서버가 이 주소를 봉투 발신자로 허용하지 않으면 대신 {identity}이(가) 사용되며, 수신자는 Return-Path 헤더에서 이 주소를 볼 수 있습니다."
     },
     "use_template": "템플릿",
     "save_as_template": "템플릿으로 저장",
@@ -648,6 +658,8 @@
     "upload_progress": "{uploaded} / {total} 업로드 중",
     "upload_cancel": "업로드 취소",
     "upload_failed": "{filename} 파일 업로드에 실패했어요",
+    "attachment_too_large": "\"{name}\"이(가) 서버 허용 크기보다 커요(파일당 {max})",
+    "attachments_total_too_large": "첨부 파일이 서버의 메시지당 한도({max})를 넘어요",
     "drop_files": "첨부할 파일을 여기에 놓아주세요",
     "show_less": "간략히 보기",
     "send_failed": "메일 전송에 실패했어요",
@@ -726,7 +738,11 @@
       "delete_column": "열 삭제",
       "toggle_header_row": "머리글 행 전환",
       "delete_table": "표 삭제",
-      "pick_size": "크기 선택"
+      "pick_size": "크기 선택",
+      "font_size": "글자 크기",
+      "font_size_default": "기본값",
+      "background_color": "배경색",
+      "remove_background_color": "배경색 제거"
     },
     "send_filing_warning": "보냈지만 전송 후 정리에 실패했습니다. 오래된 임시 보관 메일이 남아 있을 수 있습니다."
   },
@@ -765,6 +781,10 @@
     "email_sent": "메일이 전송되었어요",
     "email_deleted": "메일이 삭제되었어요",
     "email_archived": "메일이 보관되었어요",
+    "emails_deleted": "{count, plural, other {이메일 #개 삭제됨}}",
+    "emails_archived": "{count, plural, other {이메일 #개 보관됨}}",
+    "error_archiving": "이메일을 보관하지 못했습니다",
+    "error_updating": "이메일을 업데이트하지 못했습니다",
     "email_starred": "별표가 추가되었어요",
     "email_unstarred": "별표가 해제되었어요",
     "email_marked_read": "읽은 상태로 변경되었어요",
@@ -1143,7 +1163,9 @@
         "enabled": "이메일 알림",
         "enabled_desc": "새 이메일이 도착하면 알림을 보여줘요",
         "sound": "알림음",
-        "sound_desc": "새 이메일이 도착하면 소리로 알려줘요"
+        "sound_desc": "새 이메일이 도착하면 소리로 알려줘요",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "캘린더 알림",
@@ -1172,6 +1194,7 @@
         "status_busy": "처리 중…",
         "status_inactive": "이 기기에서 활성화되지 않음",
         "status_unsupported": "이 브라우저는 Web Push를 지원하지 않습니다",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "title": "백그라운드 알림",
         "devices_title": "등록된 기기",
         "devices_desc": "이 계정의 백그라운드 알림을 받도록 등록된 모든 기기입니다. 해지하면 해당 기기는 즉시 수신을 멈추니다.",
@@ -1238,6 +1261,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "폴더 전환 시 검색 지우기",
+        "description": "폴더(받은편지함, 보낸편지함 등)를 클릭하면 활성 검색을 지우고 해당 폴더를 표시합니다. 꺼져 있으면 검색이 유지되고 이동한 폴더에서 다시 실행됩니다."
+      },
       "request_read_receipt": {
         "label": "기본적으로 읽음 확인 요청",
         "description": "새 메시지를 작성할 때 읽음 확인 요청을 미리 켭니다."
@@ -1320,6 +1347,12 @@
       "auto_select_reply_identity": {
         "label": "답장 시 보내는 사람 자동 선택",
         "description": "답장할 때 메일을 받았던 주소로 보내는 사람을 자동으로 변경해요"
+      },
+      "reply_identity_match": {
+        "label": "수신 주소 일치 방식",
+        "description": "어떤 수신 주소를 내 주소로 간주할지 정합니다. '정확한 주소만'은 설정된 ID 중에서만 선택합니다. '같은 도메인'은 ID 도메인의 다른 주소도 캐치올 별칭으로 간주하여 보낸 사람 헤더를 해당 주소로 바꿉니다. 해당 주소가 배포 목록이라면 정확한 주소를 선택하세요.",
+        "exact": "정확한 주소만",
+        "domain": "내 도메인의 모든 주소"
       },
       "signature_position": {
         "label": "서명 위치",
@@ -1746,7 +1779,9 @@
       "warnings": {
         "end_before_start": "종료일은 시작일보다 나중이어야 해요",
         "start_in_past": "시작일이 이미 지났어요",
-        "empty_body": "메시지 내용이 비어있어요. 상대방에게 빈 메일이 가게 돼요"
+        "empty_body": "메시지 내용이 비어있어요. 상대방에게 빈 메일이 가게 돼요",
+        "subject_too_long": "제목이 서버에 비해 너무 깁니다(최대 {max}바이트).",
+        "body_too_long": "메시지가 서버에 비해 너무 깁니다(서식 포함 최대 {max}바이트)."
       }
     },
     "folders": {
@@ -1763,6 +1798,8 @@
       "role_trash": "휴지통",
       "role_junk": "스팸/정크함",
       "role_archive": "보관함",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "없음",
       "create_folder": "폴더 만들기",
       "create_subfolder": "하위 폴더 만들기",
@@ -1882,7 +1919,9 @@
       "categories_description": "연락처 카테고리 이름 변경",
       "no_categories": "카테고리를 찾을 수 없음",
       "group_by_letter_description": "연락처 목록에 알파벳순 섹션 헤더 표시",
-      "group_by_letter_label": "첫 글자로 그룹화"
+      "group_by_letter_label": "첫 글자로 그룹화",
+      "sort_by_last_name_label": "성으로 정렬",
+      "sort_by_last_name_description": "가족 구성원이 함께 표시되도록 연락처 목록을 성 기준으로 정렬합니다"
     },
     "downloads": {
       "title": "다운로드",
@@ -1963,6 +2002,7 @@
       "actions": "동작",
       "add_action": "동작 추가",
       "stop_processing": "이후 규칙 무시하기",
+      "include_spam": "스팸으로 표시된 메시지도 이동",
       "attachment_type_placeholder": "예: pdf, doc, jpg",
       "value_placeholder_multi": "값 (쉼표로 여러 개 구분)",
       "condition_fields": {
@@ -2004,6 +2044,8 @@
       "copy_to_folder": "폴더 선택",
       "forward_to": "전달할 이메일 주소",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "사본 보관",
+      "forward_limit": "이 서버의 메시지당 전달 한도: {count}. 초과된 전달은 건너뜁니다.",
       "reject_message": "거부 메시지",
       "reject_placeholder": "메일 수신이 거부되었습니다",
       "label_name": "태그 이름",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "새 하위 폴더...",
     "new_folder": "새 폴더...",
     "rename": "이름 바꾸기...",
+    "share": "공유...",
     "import_email": ".eml 또는 .zip 가져오기...",
     "empty_folder": "폴더 비우기",
     "empty_folder_generic": "폴더 비우기",
@@ -2234,6 +2277,9 @@
     "toast_error_delete": "폴더를 삭제하지 못했습니다",
     "toast_error_delete_has_children": "폴더에 하위 폴더가 있습니다. 먼저 제거하세요.",
     "toast_error_delete_has_email": "폴더가 비어 있지 않습니다. 먼저 비우세요.",
+    "delete_with_contents_title": "폴더가 비어 있지 않습니다",
+    "delete_with_contents_message": "\"{name}\" 폴더에 아직 {count}개의 메시지가 있습니다. 폴더와 모든 메시지를 삭제할까요? 이 작업은 취소할 수 없습니다.",
+    "delete_with_contents_confirm": "폴더와 메시지 삭제",
     "placeholder_folder_name": "폴더 이름",
     "create": "만들기",
     "rename_confirm": "이름 바꾸기"
@@ -2270,7 +2316,8 @@
       "search": "검색창 이동",
       "help": "단축키 보기",
       "refresh": "메일 새로고침",
-      "select_all": "모두 선택"
+      "select_all": "모두 선택",
+      "global_search": "전체 검색"
     },
     "threads": {
       "expand_collapse": "대화 펼치기/접기"
@@ -2721,7 +2768,10 @@
       "any_month": "모든 달",
       "has_email": "이메일 있음",
       "has_phone": "전화번호 있음",
-      "has_photo": "사진 있음"
+      "has_photo": "사진 있음",
+      "sort_by": "정렬 기준",
+      "sort_first_name": "이름",
+      "sort_last_name": "성"
     },
     "open_categories": "카테고리 열기"
   },
@@ -2758,6 +2808,10 @@
       "duplicate": "복제",
       "today_header": "오늘",
       "tomorrow_header": "내일",
+      "agenda_show_earlier": "이전 일정 보기",
+      "agenda_loading": "불러오는 중…",
+      "agenda_range_start": "{date}부터의 일정",
+      "agenda_range_end": "{date}까지의 일정",
       "export_ics": ".ics로 내보내기",
       "copy_title": "제목 복사",
       "copy_link": "회의 링크 복사",
@@ -2793,6 +2847,14 @@
       "color": "색상"
     },
     "participants": {
+      "availability": {
+        "title": "일정 상태",
+        "free": "가능",
+        "busy": "바쁨",
+        "tentative": "미정",
+        "unknown": "이 서버의 사용자가 아님",
+        "checking": "확인 중…"
+      },
       "title": "참석자",
       "add": "참석자 추가",
       "organizer": "주최자",
@@ -2867,7 +2929,10 @@
       "all_events": "모든 일정",
       "cancel": "취소",
       "save": "저장",
-      "delete": "삭제"
+      "delete": "삭제",
+      "rsvp_title": "반복 일정에 응답",
+      "rsvp_description": "반복되는 일정이에요. 어떤 일정에 응답할까요?",
+      "respond": "응답"
     },
     "alerts": {
       "title": "알림",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "월간 캘린더에서도 일정 시간을 표시해요",
       "show_week_numbers": "주 차 번호 표시",
       "show_week_numbers_desc": "미니 캘린더에 1년 중 몇 주 차인지 표시해요",
+      "calendar_free_scroll": "자유 스크롤",
+      "calendar_free_scroll_desc": "한 번에 한 기간씩 보는 대신 월, 주, 일을 연속으로 스크롤합니다",
       "enable_tasks": "할 일 사용",
       "enable_tasks_desc": "캘린더에 할 일을 관리할 수 있는 메뉴를 추가해요",
       "show_tasks_on_calendar": "캘린더에 할 일 표시",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "1초 지연",
       "hover_preview_delay_2s": "2초 지연",
       "hover_preview_off": "사용 안 함",
+      "organizer_identity": "초대 주최자 주소",
+      "organizer_identity_desc": "이벤트에 사람들을 초대할 때 주최자로 사용되는 캘린더 주소입니다.",
+      "organizer_identity_failed": "주최자 주소를 변경하지 못했습니다",
       "show_birthday_calendar": "연락처 생일 캘린더",
       "show_birthday_calendar_desc": "연락처에 등록된 생일을 가상 캘린더로 보여줘요"
     },
@@ -2947,6 +3017,9 @@
       "alert_now": "지금 시작해요",
       "alert_in_minutes": "{count}분 후 시작",
       "invitation_sent": "초대장이 전송되었어요",
+      "invitations_denied_title": "초대장을 보낼 수 없어요",
+      "invitations_denied": "서버가 초대장 발송을 거부했어요: {reason}. 초대장 없이 일정을 저장할까요?",
+      "save_without_invitations": "초대장 없이 저장",
       "rsvp_updated": "응답이 업데이트되었어요",
       "rsvp_error": "응답을 업데이트하지 못했어요",
       "event_duplicated": "일정이 복제되었어요",
@@ -2975,7 +3048,7 @@
       "supported_formats": "iCalendar (.ics) 파일을 지원해요",
       "url_description": "외부 iCalendar (.ics) 피드의 URL을 입력해서 일정을 가져와요.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "CalDAV 및 iCalendar (.ics) URL을 지원해요",
+      "url_hint": "iCalendar (.ics) URL을 지원해요",
       "fetch": "가져오기",
       "invalid_url": "올바른 URL을 입력해 주세요",
       "url_fetch_failed": "URL에서 캘린더를 가져오지 못했어요",
@@ -3164,6 +3237,8 @@
     "has_attachment": "첨부파일 있음",
     "date_after": "이후",
     "date_before": "이전",
+    "size_min": "다음 크기 이상 (KB)",
+    "size_max": "다음 크기 미만 (KB)",
     "starred": "별표 있음",
     "unread": "읽지 않음",
     "read": "읽음",
@@ -3205,6 +3280,10 @@
     "hint": "왼쪽에서 메일을 클릭해서 시작하거나, 아래의 둘러보기를 클릭해 보세요."
   },
   "files": {
+    "office_edit": "문서 편집",
+    "office_loading": "문서 편집기를 여는 중…",
+    "office_error": "문서 편집기를 열 수 없습니다.",
+    "office_close": "편집기 닫기",
     "open_in_new_tab": "새 탭에서 열기",
     "title": "파일",
     "search_placeholder": "파일 검색...",
@@ -3217,6 +3296,8 @@
     "rename": "이름 바꾸기",
     "rename_title": "이름 바꾸기",
     "new_name": "새 이름",
+    "name_forbidden_chars": "서버에서 이름에 다음 문자를 허용하지 않습니다: {chars}",
+    "name_reserved": "이 이름은 서버에서 예약되어 있습니다.",
     "delete": "삭제",
     "delete_confirm_title": "항목 삭제",
     "delete_confirm_message": "정말 \"{name}\"을(를) 삭제할까요? 이 작업은 되돌릴 수 없어요.",
@@ -3451,6 +3532,25 @@
   "unified_mailbox": {
     "search_unavailable": "통합 보기에서는 검색을 사용할 수 없습니다"
   },
+  "calendar_event_notifications": {
+    "someone": "누군가",
+    "invited": "{name}님이 \"{title}\"에 초대했습니다",
+    "updated": "{name}님이 \"{title}\"을(를) 업데이트했습니다",
+    "cancelled": "{name}님이 \"{title}\"을(를) 취소했습니다",
+    "untitled": "제목 없는 일정"
+  },
+  "share_notifications": {
+    "someone": "누군가",
+    "shared": "{name}님이 {kind} \"{object}\"을(를) 공유했습니다",
+    "changed": "{name}님이 {kind} \"{object}\"에 대한 접근 권한을 변경했습니다",
+    "revoked": "{name}님이 {kind} \"{object}\"에 대한 접근 권한을 제거했습니다",
+    "object": {
+      "folder": "폴더",
+      "calendar": "캘린더",
+      "address_book": "주소록",
+      "files": "파일 폴더"
+    }
+  },
   "sharing": {
     "title": "\"{name}\" 공유",
     "description": "이 서버의 다른 사용자나 그룹에 액세스 권한을 부여합니다. 변경 사항은 즉시 적용됩니다.",
@@ -3501,5 +3601,45 @@
     "copy_event": "일정 링크 복사",
     "copied": "링크가 복사되었습니다",
     "copy_failed": "링크를 복사하지 못했습니다"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "인증 완료 중…",
+      "completing_message": "연결이 설정되는 동안 잠시 기다려 주세요.",
+      "received_title": "인증 수신됨",
+      "received_message": "연결을 시작했던 탭으로 돌아갈 수 있습니다.",
+      "failed_title": "인증 실패",
+      "denied": "인증이 거부되었습니다.",
+      "failed_detail": "인증 실패: {error}",
+      "missing_params": "인증 코드 또는 상태가 누락되었습니다.",
+      "delivery_failed": "인증 결과를 앱 탭에 전달하지 못했습니다. 이 창을 닫고 다시 시도해 주세요."
+    }
+  },
+  "global_search": {
+    "title": "전체 검색",
+    "placeholder": "메일, 연락처, 캘린더, 파일 검색...",
+    "scope_label": "검색 범위",
+    "account_label": "계정",
+    "scope_all": "전체",
+    "scope_mail": "메일",
+    "scope_contacts": "연락처",
+    "scope_calendar": "캘린더",
+    "scope_files": "파일",
+    "all_accounts": "모든 계정",
+    "show_all": "모든 결과 보기",
+    "no_results": "“{query}”에 대한 결과가 없습니다",
+    "server_hint": "완전한 단어는 서버에서 검색되며, 단어 일부는 이미 불러온 항목과 일치합니다",
+    "searching": "검색 중...",
+    "account_error": "{account}을(를) 검색할 수 없습니다",
+    "recent_searches": "최근 검색",
+    "recurring": "반복",
+    "no_subject": "(no subject)",
+    "empty_hint": "모든 계정의 메일, 연락처, 일정, 파일을 검색하세요. from:, subject:, has:attachment, after:2026-01-01 도 사용할 수 있습니다.",
+    "flat_by_date": "날짜순 평뱀 보기",
+    "grouped": "그룹 보기",
+    "load_more": "더 불러오기",
+    "preview_empty": "미리 볼 결과를 선택하세요",
+    "open_full": "열기",
+    "view_label": "보기"
   }
 }

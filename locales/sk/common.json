@@ -225,6 +225,10 @@
     "and_others": "a {count} ďalších",
     "draft": "Koncept",
     "starred": "S hviezdičkou",
+    "pinned": "Pripnuté",
+    "replied": "Zodpovedané",
+    "forwarded": "Preposlané",
+    "has_attachment": "Obsahuje prílohu",
     "conversations_count": "{count} z {total} konverzácií",
     "conversations_count_plus": "{count}+ konverzácií",
     "conversations_count_simple": "{count} konverzácií",
@@ -292,6 +296,7 @@
     "forward": "Preposlať",
     "delete": "Odstrániť",
     "archive": "Archivovať",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "Označiť hviezdičkou",
     "unstar": "Odstrániť hviezdičku",
     "mark_unread": "Označiť ako neprečítané",
@@ -303,12 +308,10 @@
     "move": "Presunúť",
     "print": "Tlačiť",
     "view_source": "Zobraziť zdrojový kód",
-
     "fullscreen": "Celá obrazovka",
-
     "exit_fullscreen": "Ukončiť režim celej obrazovky",
     "export_email": "Exportovať ako .eml",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "Preposlať ako prílohu",
     "import_email": "Importovať .eml alebo .zip",
     "keyboard_shortcuts": "Klávesové skratky (?)",
     "email_source": "Zdrojový kód e-mailu",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Potvrdenie o prečítaní požiadané (kliknutím vypnete)",
     "read_receipt_off": "Požiadať o potvrdenie o prečítaní",
+    "dsn_on": "Oznámenie o doručení vyžiadané (kliknutím vypnete)",
+    "dsn_off": "Vyžiadať oznámenie o doručení",
+    "format_plain_text": "Prepnúť na obyčajný text",
+    "format_rich_text": "Prepnúť na formátovaný text (HTML)",
+    "require_tls_on": "Šifrované doručenie vyžadované (kliknutím vypnete)",
+    "require_tls_off": "Vyžadovať šifrované doručenie (TLS)",
     "new_message": "Nová správa",
     "signature_edit_hint": "Dvojklikom upravíte podpis",
     "reply": "Odpovedať",
@@ -638,7 +647,8 @@
       "name_label": "Meno odosielateľa",
       "name_placeholder": "Meno",
       "email_label": "E-mailová adresa odosielateľa",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "Ak váš server túto adresu neprijme ako odosielateľa obálky, použije sa namiesto nej {identity} a príjemcovia ju uvidia v hlavičke Return-Path."
     },
     "use_template": "Šablóna",
     "save_as_template": "Uložiť ako šablónu",
@@ -651,6 +661,8 @@
     "upload_progress": "Nahrávanie {uploaded} / {total}",
     "upload_cancel": "Zrušiť nahrávanie",
     "upload_failed": "Súbor {filename} sa nepodarilo nahrať",
+    "attachment_too_large": "„{name}“ je väčší, než server povoľuje ({max} na súbor)",
+    "attachments_total_too_large": "Prílohy by prekročili limit servera {max} na správu",
     "drop_files": "Presuňte súbory sem na priloženie",
     "show_less": "Zobraziť menej",
     "send_failed": "Odoslanie e-mailu zlyhalo",
@@ -726,7 +738,11 @@
       "delete_column": "Odstrániť stĺpec",
       "toggle_header_row": "Prepnúť riadok záhlavia",
       "delete_table": "Odstrániť tabuľku",
-      "pick_size": "Vybrať veľkosť"
+      "pick_size": "Vybrať veľkosť",
+      "font_size": "Veľkosť písma",
+      "font_size_default": "Predvolené",
+      "background_color": "Farba pozadia",
+      "remove_background_color": "Odstrániť farbu pozadia"
     },
     "send_filing_warning": "Odoslané - ale následné upratovanie zlyhalo, môže zostať zastaraný koncept."
   },
@@ -765,6 +781,10 @@
     "email_sent": "E-mail bol úspešne odoslaný",
     "email_deleted": "E-mail bol odstránený",
     "email_archived": "E-mail bol archivovaný",
+    "emails_deleted": "{count, plural, one {# e-mail odstránený} few {# e-maily odstránené} other {# e-mailov odstránených}}",
+    "emails_archived": "{count, plural, one {# e-mail archivovaný} few {# e-maily archivované} other {# e-mailov archivovaných}}",
+    "error_archiving": "E-mail sa nepodarilo archivovať",
+    "error_updating": "E-mail sa nepodarilo aktualizovať",
     "email_starred": "E-mail bol označený hviezdičkou",
     "email_unstarred": "Hviezdička bola odstránená",
     "email_marked_read": "E-mail bol označený ako prečítaný",
@@ -1146,7 +1166,9 @@
         "enabled": "E-mailové oznámenia",
         "enabled_desc": "Zobrazovať oznámenia pri príchode nových e-mailov",
         "sound": "Zvuk oznámenia",
-        "sound_desc": "Prehrať zvukové upozornenie pri príchode nových e-mailov"
+        "sound_desc": "Prehrať zvukové upozornenie pri príchode nových e-mailov",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Oznámenia kalendára",
@@ -1168,6 +1190,7 @@
         "status_active": "Aktívne na tomto zariadení",
         "status_inactive": "Nie je povolené na tomto zariadení",
         "status_unsupported": "Tento prehliadač nepodporuje Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "status_busy": "Pracujem…",
         "enable": "Povoliť",
         "reenable": "Znovu zaregistrovať",
@@ -1241,6 +1264,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Vymazať hľadanie pri prepnutí priečinka",
+        "description": "Kliknutie na priečinok (Doručená pošta, Odoslaná…) vymaže aktívne hľadanie a zobrazí priečinok. Keď je vypnuté, hľadanie zostáva a spustí sa znova vo zvolenom priečinku."
+      },
       "title": "Správanie e-mailov",
       "description": "Nakonfigurujte spôsob spracovania e-mailov",
       "request_read_receipt": {
@@ -1323,6 +1350,12 @@
       "auto_select_reply_identity": {
         "label": "Odpovedať z prijatej adresy",
         "description": "Pri odpovedaní automaticky prepnúť adresu odosielateľa na identitu, ktorá pôvodne prijala správu"
+      },
+      "reply_identity_match": {
+        "label": "Porovnávanie prijímacej adresy",
+        "description": "Ktoré prijímacie adresy sa považujú za vaše. „Iba presná adresa“ vyberie len jednu z vašich nastavených identít; „rovnaká doména“ navyše považuje akúkoľvek inú adresu na doménach vašich identít za catch-all alias a prepíše na ňu hlavičku Od. Ak sú tieto adresy distribučné zoznamy, zvoľte presnú adresu.",
+        "exact": "Iba presná adresa",
+        "domain": "Akákoľvek adresa na mojich doménach"
       },
       "signature_position": {
         "label": "Pozícia podpisu",
@@ -1753,7 +1786,9 @@
       "warnings": {
         "end_before_start": "Dátum ukončenia musí byť po dátume začiatku",
         "start_in_past": "Dátum začiatku je v minulosti",
-        "empty_body": "Telo správy je prázdne – príjemcovia dostanú prázdnu odpoveď"
+        "empty_body": "Telo správy je prázdne – príjemcovia dostanú prázdnu odpoveď",
+        "subject_too_long": "Predmet je pre server príliš dlhý (najviac {max} bajtov).",
+        "body_too_long": "Správa je pre server príliš dlhá (najviac {max} bajtov vrátane formátovania)."
       }
     },
     "folders": {
@@ -1770,6 +1805,8 @@
       "role_trash": "Kôš",
       "role_junk": "Spam / Nevyžiadaná pošta",
       "role_archive": "Archív",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "Žiadna",
       "create_folder": "Vytvoriť priečinok",
       "create_subfolder": "Vytvoriť podpriečinok",
@@ -1879,6 +1916,8 @@
       "title": "Kontakty",
       "description": "Import a export kontaktov",
       "group_by_letter_label": "Zoskupiť podľa prvého písmena",
+      "sort_by_last_name_label": "Zoradiť podľa priezviska",
+      "sort_by_last_name_description": "Zoradiť zoznam kontaktov podľa priezviska, aby členovia rodiny boli pri sebe",
       "group_by_letter_description": "Zobraziť abecedné záhlavia sekcií v zozname kontaktov",
       "import_label": "Importovať kontakty",
       "import_description": "Importovať kontakty zo súboru vCard (.vcf)",
@@ -1970,6 +2009,7 @@
       "actions": "Akcie",
       "add_action": "Pridať akciu",
       "stop_processing": "Zastaviť spracovanie ďalších pravidiel",
+      "include_spam": "Presúvať aj správy označené ako spam",
       "attachment_type_placeholder": "napr. pdf, doc, jpg",
       "value_placeholder_multi": "Hodnota (viac oddelených čiarkami)",
       "condition_fields": {
@@ -2011,6 +2051,8 @@
       "copy_to_folder": "Vybrať priečinok",
       "forward_to": "Preposlať na e-mailovú adresu",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "Ponechať kópiu",
+      "forward_limit": "Limit preposlaní na správu na tomto serveri: {count}. Ďalšie preposlania sa preskočia.",
       "reject_message": "Správa o odmietnutí",
       "reject_placeholder": "Váš e-mail bol odmietnutý",
       "label_name": "Názov štítku",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "Nový podpriečinok...",
     "new_folder": "Nový priečinok...",
     "rename": "Premenovať...",
+    "share": "Zdieľať...",
     "import_email": "Importovať .eml alebo .zip...",
     "empty_folder": "Vyprázdniť priečinok",
     "empty_folder_generic": "Vyprázdniť priečinok",
@@ -2236,7 +2279,10 @@
     "toast_error_rename": "Nepodarilo sa premenovať priečinok",
     "toast_error_delete": "Nepodarilo sa zmazať priečinok",
     "toast_error_delete_has_children": "Priečinok obsahuje podpriečinky. Najprv ich odstráňte.",
-    "toast_error_delete_has_email": "Priečinok nie je prázdny. Najprv ho vyprázdnite."
+    "toast_error_delete_has_email": "Priečinok nie je prázdny. Najprv ho vyprázdnite.",
+    "delete_with_contents_title": "Priečinok nie je prázdny",
+    "delete_with_contents_message": "Priečinok „{name}“ stále obsahuje {count, plural, one {1 správu} few {# správy} other {# správ}}. Odstrániť priečinok aj všetky jeho správy? Túto akciu nie je možné vrátiť späť.",
+    "delete_with_contents_confirm": "Odstrániť priečinok a správy"
   },
   "shortcuts": {
     "title": "Klávesové skratky",
@@ -2270,7 +2316,8 @@
       "search": "Prejsť na hľadanie",
       "help": "Zobraziť skratky",
       "refresh": "Obnoviť e-maily",
-      "select_all": "Vybrať všetko"
+      "select_all": "Vybrať všetko",
+      "global_search": "Hľadať všade"
     },
     "threads": {
       "expand_collapse": "Rozbaliť/zbaliť vlákno"
@@ -2722,7 +2769,10 @@
       "any_month": "Ktorýkoľvek mesiac",
       "has_email": "Má e-mail",
       "has_phone": "Má telefón",
-      "has_photo": "Má fotku"
+      "has_photo": "Má fotku",
+      "sort_by": "Zoradiť podľa",
+      "sort_first_name": "Meno",
+      "sort_last_name": "Priezvisko"
     }
   },
   "calendar": {
@@ -2758,6 +2808,10 @@
       "duplicate": "Duplikovať",
       "today_header": "Dnes",
       "tomorrow_header": "Zajtra",
+      "agenda_show_earlier": "Zobraziť skoršie udalosti",
+      "agenda_loading": "Načítava sa…",
+      "agenda_range_start": "Udalosti od {date}",
+      "agenda_range_end": "Udalosti do {date}",
       "export_ics": "Exportovať ako .ics",
       "copy_title": "Kopírovať názov",
       "copy_link": "Kopírovať odkaz na stretnutie",
@@ -2793,6 +2847,14 @@
       "color": "Farba"
     },
     "participants": {
+      "availability": {
+        "title": "Dostupnosť",
+        "free": "Voľný",
+        "busy": "Zaneprázdnený",
+        "tentative": "Predbežne",
+        "unknown": "Nie je používateľom tohto servera",
+        "checking": "Overuje sa…"
+      },
       "title": "Účastníci",
       "add": "Pridať účastníka",
       "organizer": "Organizátor",
@@ -2867,7 +2929,10 @@
       "all_events": "Všetky udalosti",
       "cancel": "Zrušiť",
       "save": "Uložiť",
-      "delete": "Odstrániť"
+      "delete": "Odstrániť",
+      "rsvp_title": "Odpovedať na opakujúcu sa udalosť",
+      "rsvp_description": "Toto je opakujúca sa udalosť. Na ktoré udalosti sa vzťahuje vaša odpoveď?",
+      "respond": "Odpovedať"
     },
     "alerts": {
       "title": "Pripomenutia",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "Zobrazovať časy udalostí v mesačnom zobrazení kalendára",
       "show_week_numbers": "Zobraziť čísla týždňov",
       "show_week_numbers_desc": "Zobrazovať čísla týždňov v minikalendári",
+      "calendar_free_scroll": "Voľné posúvanie",
+      "calendar_free_scroll_desc": "Plynulo prechádzať mesiace, týždne a dni namiesto jedného obdobia naraz",
       "enable_tasks": "Povoliť úlohy",
       "enable_tasks_desc": "Zobrazovať zobrazenie úloh v kalendári",
       "show_tasks_on_calendar": "Zobraziť úlohy v kalendári",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "Oneskorenie 1 sekunda",
       "hover_preview_delay_2s": "Oneskorenie 2 sekundy",
       "hover_preview_off": "Vypnuté",
+      "organizer_identity": "Organizovať pozvánky ako",
+      "organizer_identity_desc": "Adresa kalendára použitá ako organizátor, keď pozývate ľudí na udalosti.",
+      "organizer_identity_failed": "Nepodarilo sa zmeniť adresu organizátora",
       "show_birthday_calendar": "Kalendár narodenín",
       "show_birthday_calendar_desc": "Zobrazovať virtuálny kalendár s narodeninami z vašich kontaktov"
     },
@@ -2973,6 +3043,9 @@
       "alert_now": "Začína teraz",
       "alert_in_minutes": "Za {count} min",
       "invitation_sent": "Pozvánky boli odoslané",
+      "invitations_denied_title": "Pozvánky nie je možné odoslať",
+      "invitations_denied": "Server odmietol odoslať pozvánky: {reason}. Uložiť udalosť bez ich odoslania?",
+      "save_without_invitations": "Uložiť bez pozvánok",
       "rsvp_updated": "Odpoveď bola aktualizovaná",
       "rsvp_error": "Aktualizácia odpovede zlyhala",
       "event_duplicated": "Udalosť bola duplikovaná",
@@ -3002,7 +3075,7 @@
       "supported_formats": "Podporuje súbory iCalendar (.ics)",
       "url_description": "Zadajte URL adresu externého zdroja iCalendar (.ics) na import udalostí.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "Podporuje URL adresy CalDAV a iCalendar (.ics)",
+      "url_hint": "Podporuje URL adresy iCalendar (.ics)",
       "fetch": "Načítať",
       "invalid_url": "Zadajte platnú URL adresu",
       "url_fetch_failed": "Načítanie kalendára z URL adresy zlyhalo",
@@ -3149,6 +3222,25 @@
       "overdue": "Po termíne"
     }
   },
+  "calendar_event_notifications": {
+    "someone": "Niekto",
+    "invited": "{name} vás pozval(a) na „{title}“",
+    "updated": "{name} aktualizoval(a) „{title}“",
+    "cancelled": "{name} zrušil(a) „{title}“",
+    "untitled": "Udalosť bez názvu"
+  },
+  "share_notifications": {
+    "someone": "Niekto",
+    "shared": "{name} s vami zdieľa {kind} „{object}“",
+    "changed": "{name} zmenil(a) váš prístup k {kind} „{object}“",
+    "revoked": "{name} odobral(a) váš prístup k {kind} „{object}“",
+    "object": {
+      "folder": "priečinok",
+      "calendar": "kalendár",
+      "address_book": "adresár",
+      "files": "priečinok súborov"
+    }
+  },
   "sharing": {
     "title": "Zdieľať \"{name}\"",
     "description": "Udeľte prístup ďalším používateľom alebo skupinám na tomto serveri. Zmeny sa prejavia okamžite.",
@@ -3187,6 +3279,8 @@
     "has_attachment": "Prílohy",
     "date_after": "Po",
     "date_before": "Pred",
+    "size_min": "Väčšie ako (KB)",
+    "size_max": "Menšie ako (KB)",
     "starred": "S hviezdičkou",
     "unread": "Neprečítané",
     "read": "Prečítané",
@@ -3228,6 +3322,10 @@
     "hint": "Kliknite na ľubovoľný e-mail vľavo na začiatok alebo využite sprievodcu nižšie."
   },
   "files": {
+    "office_edit": "Upraviť dokument",
+    "office_loading": "Otvára sa editor dokumentov…",
+    "office_error": "Editor dokumentov sa nepodarilo otvoriť.",
+    "office_close": "Zavrieť editor",
     "open_in_new_tab": "Otvoriť v novej karte",
     "title": "Súbory",
     "search_placeholder": "Hľadať súbory...",
@@ -3240,6 +3338,8 @@
     "rename": "Premenovať",
     "rename_title": "Premenovať",
     "new_name": "Nový názov",
+    "name_forbidden_chars": "Server nepovoľuje v názvoch tieto znaky: {chars}",
+    "name_reserved": "Tento názov je na serveri vyhradený.",
     "delete": "Odstrániť",
     "delete_confirm_title": "Odstrániť položku",
     "delete_confirm_message": "Naozaj chcete odstrániť \"{name}\"? Túto akciu nie je možné vrátiť.",
@@ -3501,5 +3601,45 @@
     "copy_event": "Kopírovať odkaz na udalosť",
     "copied": "Odkaz skopírovaný",
     "copy_failed": "Odkaz sa nepodarilo skopírovať"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Dokončovanie autorizácie…",
+      "completing_message": "Počkajte, kým sa vytvorí spojenie.",
+      "received_title": "Autorizácia prijatá",
+      "received_message": "Môžete sa vrátiť na kartu, kde ste začali pripájanie.",
+      "failed_title": "Autorizácia zlyhala",
+      "denied": "Autorizácia bola zamietnutá.",
+      "failed_detail": "Autorizácia zlyhala: {error}",
+      "missing_params": "Chýba autorizačný kód alebo stav.",
+      "delivery_failed": "Výsledok autorizácie sa nepodarilo odovzdať karte aplikácie. Zavrite toto okno a skúste to znova."
+    }
+  },
+  "global_search": {
+    "title": "Hľadať všade",
+    "placeholder": "Hľadať v pošte, kontaktoch, kalendári, súboroch...",
+    "scope_label": "Hľadať v",
+    "account_label": "Účet",
+    "scope_all": "Všetko",
+    "scope_mail": "Pošta",
+    "scope_contacts": "Kontakty",
+    "scope_calendar": "Kalendár",
+    "scope_files": "Súbory",
+    "all_accounts": "Všetky účty",
+    "show_all": "Zobraziť všetky výsledky",
+    "no_results": "Žiadne výsledky pre „{query}“",
+    "server_hint": "Celé slová prehľadávajú server; časti slov zodpovedajú už načítaným položkám",
+    "searching": "Hľadá sa...",
+    "account_error": "Nepodarilo sa prehľadať {account}",
+    "recent_searches": "Nedávne hľadania",
+    "recurring": "Opakovaná",
+    "no_subject": "(no subject)",
+    "empty_hint": "Hľadajte poštu, kontakty, udalosti a súbory vo všetkých účtoch. Skúste from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "Plocho podľa dátumu",
+    "grouped": "Zoskupené",
+    "load_more": "Načítať ďalšie",
+    "preview_empty": "Vyberte výsledok pre náhľad",
+    "open_full": "Otvoriť",
+    "view_label": "Zobrazenie"
   }
 }

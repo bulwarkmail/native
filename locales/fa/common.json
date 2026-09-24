@@ -225,6 +225,10 @@
     "and_others": "و {count} نفر دیگر",
     "draft": "پیش‌نویس",
     "starred": "ستاره‌دار",
+    "pinned": "سنجاق‌شده",
+    "replied": "پاسخ داده شده",
+    "forwarded": "بازارسال شده",
+    "has_attachment": "دارای پیوست",
     "conversations_count": "{count} از {total} مکالمه",
     "conversations_count_plus": "+{count} مکالمه",
     "conversations_count_simple": "{count} مکالمه",
@@ -292,6 +296,7 @@
     "forward": "ارسال مجدد",
     "delete": "حذف",
     "archive": "بایگانی",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "ستاره‌دار کردن",
     "unstar": "حذف ستاره",
     "mark_unread": "علامت‌گذاری خوانده نشده",
@@ -303,12 +308,10 @@
     "move": "انتقال",
     "print": "چاپ",
     "view_source": "مشاهده منبع",
-
     "fullscreen": "تمام‌صفحه",
-
     "exit_fullscreen": "خروج از تمام‌صفحه",
     "export_email": "خروجی .eml",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "ارسال به‌عنوان پیوست",
     "import_email": "وارد کردن .eml یا .zip",
     "keyboard_shortcuts": "میانبرهای صفحه کلید (?)",
     "email_source": "منبع ایمیل",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "درخواست تأیید خواندن فعال (کلیک برای غیرفعال کردن)",
     "read_receipt_off": "درخواست تأیید خواندن",
+    "dsn_on": "اعلان تحویل درخواست شد (برای غیرفعال کردن کلیک کنید)",
+    "dsn_off": "درخواست اعلان تحویل",
+    "format_plain_text": "تغییر به متن ساده",
+    "format_rich_text": "تغییر به متن غنی (HTML)",
+    "require_tls_on": "تحویل رمزگذاری‌شده الزامی است (برای غیرفعال کردن کلیک کنید)",
+    "require_tls_off": "الزام تحویل رمزگذاری‌شده (TLS)",
     "new_message": "پیام جدید",
     "signature_edit_hint": "برای ویرایش امضا دوبار کلیک کنید",
     "reply": "پاسخ",
@@ -638,7 +647,8 @@
       "name_label": "نام فرستنده",
       "name_placeholder": "نام",
       "email_label": "آدرس ایمیل فرستنده",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "اگر سرور شما این آدرس را به‌عنوان فرستندهٔ پاکت نپذیرد، به‌جای آن {identity} استفاده می‌شود و گیرندگان می‌توانند آن را در سرآیند Return-Path ببینند."
     },
     "use_template": "قالب",
     "save_as_template": "ذخیره به عنوان قالب",
@@ -651,6 +661,8 @@
     "upload_progress": "در حال بارگذاری {uploaded} / {total}",
     "upload_cancel": "لغو بارگذاری",
     "upload_failed": "بارگذاری {filename} ناموفق بود",
+    "attachment_too_large": "«{name}» بزرگ‌تر از حدی است که سرور اجازه می‌دهد ({max} برای هر فایل)",
+    "attachments_total_too_large": "پیوست‌ها از سقف {max} سرور برای هر پیام بیشتر می‌شوند",
     "drop_files": "فایل‌ها را اینجا رها کنید",
     "show_less": "نمایش کمتر",
     "send_failed": "ارسال ایمیل ناموفق بود",
@@ -726,7 +738,11 @@
       "delete_column": "حذف ستون",
       "toggle_header_row": "تغییر وضعیت ردیف سرصفحه",
       "delete_table": "حذف جدول",
-      "pick_size": "انتخاب اندازه"
+      "pick_size": "انتخاب اندازه",
+      "font_size": "اندازه فونت",
+      "font_size_default": "پیش‌فرض",
+      "background_color": "رنگ پس‌زمینه",
+      "remove_background_color": "حذف رنگ پس‌زمینه"
     },
     "send_filing_warning": "ارسال شد - اما پاک‌سازی پس از ارسال ناموفق بود، ممکن است پیش‌نویس قدیمی باقی بماند."
   },
@@ -765,6 +781,10 @@
     "email_sent": "ایمیل با موفقیت ارسال شد",
     "email_deleted": "ایمیل حذف شد",
     "email_archived": "ایمیل بایگانی شد",
+    "emails_deleted": "{count, plural, other {# ایمیل حذف شد}}",
+    "emails_archived": "{count, plural, other {# ایمیل بایگانی شد}}",
+    "error_archiving": "بایگانی ایمیل ناموفق بود",
+    "error_updating": "به‌روزرسانی ایمیل ناموفق بود",
     "email_starred": "ایمیل ستاره‌دار شد",
     "email_unstarred": "ستاره ایمیل برداشته شد",
     "email_marked_read": "ایمیل خوانده شده علامت‌گذاری شد",
@@ -1144,6 +1164,7 @@
         "status_active": "فعال روی این دستگاه",
         "status_inactive": "فعال نشده",
         "status_unsupported": "مرورگر پشتیبانی نمی‌کند",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "status_busy": "در حال کار…",
         "enable": "فعال کردن",
         "reenable": "ثبت مجدد",
@@ -1181,7 +1202,9 @@
         "enabled": "اعلان‌های ایمیل",
         "enabled_desc": "نمایش اعلان هنگام ایمیل جدید",
         "sound": "صدای اعلان",
-        "sound_desc": "پخش هشدار صوتی"
+        "sound_desc": "پخش هشدار صوتی",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "اعلان‌های تقویم",
@@ -1241,6 +1264,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "پاک کردن جستجو هنگام تغییر پوشه",
+        "description": "کلیک روی یک پوشه (صندوق ورودی، ارسال‌شده…) جستجوی فعال را پاک می‌کند و آن پوشه را نشان می‌دهد. وقتی خاموش باشد، جستجو باقی می‌ماند و در پوشهٔ جدید دوباره اجرا می‌شود."
+      },
       "request_read_receipt": {
         "label": "درخواست تأیید خواندن",
         "description": "پیش‌فعال کردن تأیید خواندن"
@@ -1323,6 +1350,12 @@
       "auto_select_reply_identity": {
         "label": "پاسخ از آدرس دریافتی",
         "description": "ارسال با آدرس دریافت شده"
+      },
+      "reply_identity_match": {
+        "label": "تطبیق نشانی دریافت",
+        "description": "کدام نشانی‌های دریافت به‌عنوان نشانی شما در نظر گرفته شوند. «فقط نشانی دقیق» تنها یکی از هویت‌های پیکربندی‌شدهٔ شما را انتخاب می‌کند؛ «همان دامنه» هر نشانی دیگری در دامنه‌های هویت شما را نیز نام مستعار catch-all در نظر می‌گیرد و سرآیند فرستنده را با آن بازنویسی می‌کند. اگر این نشانی‌ها فهرست توزیع هستند، نشانی دقیق را انتخاب کنید.",
+        "exact": "فقط نشانی دقیق",
+        "domain": "هر نشانی در دامنه‌های من"
       },
       "signature_position": {
         "label": "موقعیت امضا",
@@ -1753,7 +1786,9 @@
       "warnings": {
         "end_before_start": "تاریخ پایان باید بعد از تاریخ شروع باشد",
         "start_in_past": "تاریخ شروع در گذشته است",
-        "empty_body": "بدنه پیام خالی است - گیرندگان پاسخ خالی دریافت می‌کنند"
+        "empty_body": "بدنه پیام خالی است - گیرندگان پاسخ خالی دریافت می‌کنند",
+        "subject_too_long": "موضوع برای سرور بیش از حد طولانی است (حداکثر {max} بایت).",
+        "body_too_long": "پیام برای سرور بیش از حد طولانی است (حداکثر {max} بایت، همراه با قالب‌بندی)."
       }
     },
     "folders": {
@@ -1770,6 +1805,8 @@
       "role_trash": "زباله‌دان",
       "role_junk": "هرزنامه",
       "role_archive": "بایگانی",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "هیچکدام",
       "create_folder": "ایجاد پوشه",
       "create_subfolder": "ایجاد زیرپوشه",
@@ -1879,6 +1916,8 @@
       "title": "مخاطبین",
       "description": "وارد کردن و خروجی مخاطبین",
       "group_by_letter_label": "گروه‌بندی بر اساس حرف اول",
+      "sort_by_last_name_label": "مرتب‌سازی بر اساس نام خانوادگی",
+      "sort_by_last_name_description": "لیست مخاطبین را بر اساس نام خانوادگی مرتب کنید تا اعضای خانواده کنار هم نمایش داده شوند",
       "group_by_letter_description": "نمایش هدرهای الفبایی در لیست مخاطبین",
       "import_label": "وارد کردن مخاطبین",
       "import_description": "وارد کردن مخاطبین از فایل vCard (.vcf)",
@@ -1970,6 +2009,7 @@
       "actions": "عملیات‌ها",
       "add_action": "افزودن عملیات",
       "stop_processing": "توقف پردازش قوانین بعدی",
+      "include_spam": "پیام‌های علامت‌خورده به‌عنوان هرزنامه هم منتقل شوند",
       "attachment_type_placeholder": "مثال: pdf, doc, jpg",
       "value_placeholder_multi": "مقدار (چندتا با کاما جدا شوند)",
       "condition_fields": {
@@ -2011,6 +2051,8 @@
       "copy_to_folder": "انتخاب پوشه",
       "forward_to": "ارسال به آدرس ایمیل",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "نگه‌داشتن یک نسخه",
+      "forward_limit": "سقف بازارسال برای هر پیام در این سرور: {count}. بازارسال‌های اضافه نادیده گرفته می‌شوند.",
       "reject_message": "پیام رد",
       "reject_placeholder": "ایمیل شما رد شد",
       "label_name": "نام برچسب",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "زیرپوشه جدید...",
     "new_folder": "پوشه جدید...",
     "rename": "تغییر نام...",
+    "share": "اشتراک‌گذاری...",
     "import_email": "وارد کردن .eml/.zip...",
     "empty_folder": "خالی کردن پوشه",
     "empty_folder_generic": "خالی کردن پوشه",
@@ -2236,7 +2279,10 @@
     "toast_error_rename": "خطای تغییر نام",
     "toast_error_delete": "خطای حذف",
     "toast_error_delete_has_children": "زیرپوشه دارد",
-    "toast_error_delete_has_email": "خالی نیست"
+    "toast_error_delete_has_email": "خالی نیست",
+    "delete_with_contents_title": "پوشه خالی نیست",
+    "delete_with_contents_message": "پوشه «{name}» هنوز شامل {count, plural, one {۱ پیام} other {# پیام}} است. پوشه و همه پیام‌های آن حذف شود؟ این عمل قابل بازگشت نیست.",
+    "delete_with_contents_confirm": "حذف پوشه و پیام‌ها"
   },
   "shortcuts": {
     "title": "میانبرهای صفحه کلید",
@@ -2270,7 +2316,8 @@
       "search": "تمرکز جستجو",
       "help": "نمایش میانبرها",
       "refresh": "بازنشانی ایمیل‌ها",
-      "select_all": "انتخاب همه"
+      "select_all": "انتخاب همه",
+      "global_search": "جستجو در همه جا"
     },
     "threads": {
       "expand_collapse": "باز/بسته کردن رشته"
@@ -2722,7 +2769,10 @@
       "any_month": "هر ماه",
       "has_email": "دارای ایمیل",
       "has_phone": "دارای تلفن",
-      "has_photo": "دارای عکس"
+      "has_photo": "دارای عکس",
+      "sort_by": "مرتب‌سازی بر اساس",
+      "sort_first_name": "نام",
+      "sort_last_name": "نام خانوادگی"
     }
   },
   "calendar": {
@@ -2758,6 +2808,10 @@
       "duplicate": "کپی",
       "today_header": "امروز",
       "tomorrow_header": "فردا",
+      "agenda_show_earlier": "نمایش رویدادهای قبلی",
+      "agenda_loading": "در حال بارگذاری…",
+      "agenda_range_start": "رویدادها از {date}",
+      "agenda_range_end": "رویدادها تا {date}",
       "export_ics": "خروجی .ics",
       "copy_title": "کپی عنوان",
       "copy_link": "کپی لینک جلسه",
@@ -2793,6 +2847,14 @@
       "color": "رنگ"
     },
     "participants": {
+      "availability": {
+        "title": "در دسترس بودن",
+        "free": "در دسترس",
+        "busy": "مشغول",
+        "tentative": "احتمالی",
+        "unknown": "کاربر این سرور نیست",
+        "checking": "در حال بررسی…"
+      },
       "title": "شرکت‌کنندگان",
       "add": "افزودن شرکت‌کننده",
       "organizer": "برگزارکننده",
@@ -2867,7 +2929,10 @@
       "all_events": "همه رویدادها",
       "cancel": "انصراف",
       "save": "ذخیره",
-      "delete": "حذف"
+      "delete": "حذف",
+      "rsvp_title": "پاسخ به رویداد تکراری",
+      "rsvp_description": "این یک رویداد تکراری است. پاسخ شما برای کدام رویدادها اعمال شود؟",
+      "respond": "پاسخ"
     },
     "alerts": {
       "title": "یادآورها",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "نمایش زمان رویدادها در نمای ماه تقویم",
       "show_week_numbers": "نمایش شماره هفته",
       "show_week_numbers_desc": "نمایش شماره هفته در تقویم کوچک",
+      "calendar_free_scroll": "پیمایش آزاد",
+      "calendar_free_scroll_desc": "پیمایش پیوسته در ماه‌ها، هفته‌ها و روزها به جای یک بازه در هر بار",
       "enable_tasks": "فعال کردن وظایف",
       "enable_tasks_desc": "نمایش نمای وظایف در تقویم برای مدیریت کارها",
       "show_tasks_on_calendar": "نمایش وظایف روی تقویم",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "تأخیر ۱ ثانیه",
       "hover_preview_delay_2s": "تأخیر ۲ ثانیه",
       "hover_preview_off": "غیرفعال",
+      "organizer_identity": "سازمان‌دهی دعوت‌ها به‌عنوان",
+      "organizer_identity_desc": "آدرس تقویمی که هنگام دعوت افراد به رویدادها به‌عنوان برگزارکننده استفاده می‌شود.",
+      "organizer_identity_failed": "تغییر آدرس برگزارکننده ناموفق بود",
       "show_birthday_calendar": "تقویم تولد مخاطبین",
       "show_birthday_calendar_desc": "نمایش تقویم مجازی با تولدهای مخاطبین"
     },
@@ -2973,6 +3043,9 @@
       "alert_now": "همین الان شروع می‌شود",
       "alert_in_minutes": "{count} دقیقه دیگر",
       "invitation_sent": "دعوت‌نامه‌ها ارسال شد",
+      "invitations_denied_title": "ارسال دعوت‌نامه‌ها ممکن نیست",
+      "invitations_denied": "سرور از ارسال دعوت‌نامه‌ها خودداری کرد: {reason}. رویداد بدون ارسال آن‌ها ذخیره شود؟",
+      "save_without_invitations": "ذخیره بدون دعوت‌نامه",
       "rsvp_updated": "پاسخ به‌روزرسانی شد",
       "rsvp_error": "به‌روزرسانی پاسخ ناموفق بود",
       "event_duplicated": "رویداد کپی شد",
@@ -3002,7 +3075,7 @@
       "supported_formats": "پشتیبانی از فایل‌های iCalendar (.ics)",
       "url_description": "آدرس فید خارجی iCalendar (.ics) را برای وارد کردن رویدادها وارد کنید.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "پشتیبانی از آدرس‌های CalDAV و iCalendar (.ics)",
+      "url_hint": "پشتیبانی از آدرس‌های iCalendar (.ics)",
       "fetch": "دریافت",
       "invalid_url": "لطفاً یک آدرس معتبر وارد کنید",
       "url_fetch_failed": "دریافت تقویم از آدرس ناموفق بود",
@@ -3149,6 +3222,25 @@
       "overdue": "عقب‌افتاده"
     }
   },
+  "calendar_event_notifications": {
+    "someone": "کسی",
+    "invited": "{name} شما را به «{title}» دعوت کرد",
+    "updated": "{name} «{title}» را به‌روزرسانی کرد",
+    "cancelled": "{name} «{title}» را لغو کرد",
+    "untitled": "رویداد بدون عنوان"
+  },
+  "share_notifications": {
+    "someone": "کسی",
+    "shared": "{name} {kind} «{object}» را با شما به اشتراک گذاشت",
+    "changed": "{name} دسترسی شما به {kind} «{object}» را تغییر داد",
+    "revoked": "{name} دسترسی شما به {kind} «{object}» را حذف کرد",
+    "object": {
+      "folder": "پوشه",
+      "calendar": "تقویم",
+      "address_book": "دفترچه آدرس",
+      "files": "پوشه فایل"
+    }
+  },
   "sharing": {
     "title": "اشتراک‌گذاری \"{name}\"",
     "description": "دسترسی به سایر کاربران یا گروه‌های این سرور را فراهم کنید.",
@@ -3187,6 +3279,8 @@
     "has_attachment": "پیوست",
     "date_after": "بعد از",
     "date_before": "قبل از",
+    "size_min": "بزرگ‌تر از (کیلوبایت)",
+    "size_max": "کوچک‌تر از (کیلوبایت)",
     "starred": "ستاره‌دار",
     "unread": "خوانده نشده",
     "read": "خوانده شده",
@@ -3228,6 +3322,10 @@
     "hint": "روی هر ایمیل در سمت چپ کلیک کنید یا تور را ببینید."
   },
   "files": {
+    "office_edit": "ویرایش سند",
+    "office_loading": "در حال باز کردن ویرایشگر سند…",
+    "office_error": "ویرایشگر سند باز نشد.",
+    "office_close": "بستن ویرایشگر",
     "open_in_new_tab": "باز کردن در تب جدید",
     "title": "فایل‌ها",
     "search_placeholder": "جستجوی فایل‌ها...",
@@ -3240,6 +3338,8 @@
     "rename": "تغییر نام",
     "rename_title": "تغییر نام",
     "new_name": "نام جدید",
+    "name_forbidden_chars": "سرور این نویسه‌ها را در نام‌ها مجاز نمی‌داند: {chars}",
+    "name_reserved": "این نام در سرور رزرو شده است.",
     "delete": "حذف",
     "delete_confirm_title": "حذف منبع",
     "delete_confirm_message": "آیا از حذف \"{name}\" اطمینان دارید؟ این عملیات قابل بازگشت نیست.",
@@ -3501,5 +3601,45 @@
     "copy_event": "کپی پیوند رویداد",
     "copied": "پیوند کپی شد",
     "copy_failed": "کپی پیوند ممکن نشد"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "در حال تکمیل احراز هویت…",
+      "completing_message": "لطفاً تا برقراری اتصال منتظر بمانید.",
+      "received_title": "احراز هویت دریافت شد",
+      "received_message": "می‌توانید به برگه‌ای که اتصال را در آن آغاز کردید بازگردید.",
+      "failed_title": "احراز هویت ناموفق بود",
+      "denied": "احراز هویت رد شد.",
+      "failed_detail": "احراز هویت ناموفق بود: {error}",
+      "missing_params": "کد احراز هویت یا حالت وجود ندارد.",
+      "delivery_failed": "نتیجه احراز هویت به برگه برنامه ارسال نشد. لطفاً این پنجره را ببندید و دوباره تلاش کنید."
+    }
+  },
+  "global_search": {
+    "title": "جستجو در همه جا",
+    "placeholder": "جستجو در ایمیل، مخاطبین، تقویم، فایل‌ها...",
+    "scope_label": "جستجو در",
+    "account_label": "حساب",
+    "scope_all": "همه",
+    "scope_mail": "ایمیل",
+    "scope_contacts": "مخاطبین",
+    "scope_calendar": "تقویم",
+    "scope_files": "فایل‌ها",
+    "all_accounts": "همه حساب‌ها",
+    "show_all": "نمایش همه نتایج",
+    "no_results": "نتیجه‌ای برای “{query}” یافت نشد",
+    "server_hint": "کلمات کامل در سرور جستجو می‌شوند؛ بخشی از کلمات با موارد بارگذاری‌شده مطابقت دارد",
+    "searching": "در حال جستجو...",
+    "account_error": "جستجو در {account} ممکن نشد",
+    "recent_searches": "جستجوهای اخیر",
+    "recurring": "تکرارشونده",
+    "no_subject": "(no subject)",
+    "empty_hint": "در ایمیل، مخاطبین، رویدادها و فایل‌های همه حساب‌ها جستجو کنید. امتحان کنید: from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "تخت بر اساس تاریخ",
+    "grouped": "گروه‌بندی‌شده",
+    "load_more": "بارگذاری بیشتر",
+    "preview_empty": "برای پیش‌نمایش یک نتیجه انتخاب کنید",
+    "open_full": "باز کردن",
+    "view_label": "نما"
   }
 }

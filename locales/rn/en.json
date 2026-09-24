@@ -10,6 +10,9 @@
       "days_clear": "The next {count} days are clear.",
       "no_upcoming": "No upcoming events"
     },
+    "alerts": {
+      "unit_minutes_after": "minutes after"
+    },
     "drawer": {
       "my_calendars": "My calendars",
       "no_calendars": "No calendars yet.",
@@ -20,6 +23,8 @@
       "participant_placeholder": "Add participant by email"
     },
     "events": {
+      "copy_link_short": "Link",
+      "export_ics_short": ".ics",
       "tap_to_create": "Tap + to create one"
     },
     "form": {
@@ -71,6 +76,10 @@
       "search_placeholder": "Search by name or email",
       "shared_with": "Shared with",
       "title": "Share"
+    },
+    "tasks": {
+      "add_placeholder": "Add a task…",
+      "add_time": "Add time"
     }
   },
   "common": {
@@ -120,7 +129,6 @@
     "schedule_unsupported_title": "Scheduling unavailable",
     "scheduled_body": "Your message will be sent at {time}.",
     "scheduled_title": "Scheduled",
-    "send_failed": "Failed to send",
     "send_now": "Send now",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
@@ -221,7 +229,15 @@
     "view_light_mode": "View in light mode"
   },
   "files": {
+    "delete_cascade_hint": "Folders are deleted along with everything inside them. This can't be undone.",
+    "delete_item_title": "Delete this item?",
+    "delete_items_title": "Delete {count} items?",
     "done": "Done",
+    "folder_empty": "This folder is empty",
+    "invalid_name": "Invalid name",
+    "invalid_name_slash": "Names cannot contain \"/\".",
+    "move_to": "Move to…",
+    "selected_count": "{count} selected",
     "share_add_people": "Add people",
     "share_empty": "Not shared with anyone yet",
     "share_error": "Failed to update sharing",
@@ -231,7 +247,9 @@
     "share_remove": "Remove access",
     "share_role_custom": "Custom",
     "share_search_placeholder": "Search by name or email",
-    "shared_with": "Shared with"
+    "shared_with": "Shared with",
+    "sharing_access": "Sharing & access",
+    "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads."
   },
   "identities": {
     "badge": {

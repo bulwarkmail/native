@@ -202,6 +202,9 @@
     "delete_confirm": "您確定要刪除「{name}」嗎？",
     "no_apps": "尚未新增任何應用程式",
     "no_apps_hint": "在側邊欄新增自訂應用程式與連結",
+    "managed_title": "由您的管理員提供",
+    "managed_description": "這些應用程式為所有人統一設定，無法變更。",
+    "managed_badge": "受管理",
     "search_icons": "搜尋圖示…",
     "show_popular": "熱門",
     "show_all": "全部",
@@ -222,6 +225,10 @@
     "and_others": "另有 {count} 人",
     "draft": "草稿",
     "starred": "已加星號",
+    "pinned": "已釘選",
+    "replied": "已回覆",
+    "forwarded": "已轉寄",
+    "has_attachment": "有附件",
     "conversations_count": "顯示 {count} 個對話串，共 {total} 個",
     "conversations_count_plus": "{count}+ 個對話串",
     "conversations_count_simple": "{count} 個對話串",
@@ -289,6 +296,7 @@
     "forward": "轉寄",
     "delete": "刪除",
     "archive": "封存",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "加上星號",
     "unstar": "移除星號",
     "mark_unread": "標示為未讀",
@@ -303,7 +311,7 @@
     "fullscreen": "全螢幕",
     "exit_fullscreen": "離開全螢幕",
     "export_email": "匯出為 .eml",
-    "forward_as_attachment": "以附件轉寄",
+    "forward_as_attachment": "以附件形式轉寄",
     "import_email": "匯入 .eml 或 .zip",
     "keyboard_shortcuts": "鍵盤快速鍵 (?)",
     "email_source": "郵件原始碼",
@@ -575,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "已要求傳送已讀回執（點擊以停用）",
     "read_receipt_off": "請求已讀回執",
+    "dsn_on": "已要求遞送通知（點擊停用）",
+    "dsn_off": "要求遞送通知",
+    "format_plain_text": "切換為純文字",
+    "format_rich_text": "切換為 HTML 格式文字",
+    "require_tls_on": "已要求加密遞送（點擊停用）",
+    "require_tls_off": "要求加密遞送 (TLS)",
     "new_message": "新郵件",
     "signature_edit_hint": "點兩下即可編輯簽名檔",
     "reply": "回覆",
@@ -629,11 +643,12 @@
     "from_override": {
       "toggle_off": "覆寫",
       "toggle_on": "取消覆寫",
-      "toggle_tooltip": "自由編輯寄件者名稱與電子郵件地址。郵件仍會透過您的寄件身分傳送，只有顯示的 From 標頭會變更。",
+      "toggle_tooltip": "自由編輯寄件者名稱與電子郵件地址。郵件仍會透過您的寄件身分傳送。",
       "name_label": "寄件者姓名",
       "name_placeholder": "姓名",
       "email_label": "寄件者電子郵件地址",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "如果您的伺服器不接受此地址作為信封寄件者，將改用 {identity}，收件者可以在 Return-Path 標頭中看到它。"
     },
     "use_template": "範本",
     "save_as_template": "儲存為範本",
@@ -646,6 +661,8 @@
     "upload_progress": "正在上傳 {uploaded} / {total}",
     "upload_cancel": "取消上傳",
     "upload_failed": "無法上傳 {filename}",
+    "attachment_too_large": "「{name}」超過伺服器允許的大小（每個檔案 {max}）",
+    "attachments_total_too_large": "附件將超過伺服器每封郵件 {max} 的上限",
     "drop_files": "拖放要附加的檔案",
     "show_less": "顯示較少",
     "send_failed": "傳送郵件失敗",
@@ -721,7 +738,11 @@
       "delete_column": "刪除欄",
       "toggle_header_row": "切換標題列",
       "delete_table": "刪除表格",
-      "pick_size": "選取大小"
+      "pick_size": "選取大小",
+      "font_size": "字型大小",
+      "font_size_default": "預設",
+      "background_color": "背景顏色",
+      "remove_background_color": "移除背景顏色"
     },
     "send_filing_warning": "郵件已傳送，但寄送後清理失敗，可能仍保留舊草稿。"
   },
@@ -760,6 +781,10 @@
     "email_sent": "郵件傳送成功",
     "email_deleted": "郵件已刪除",
     "email_archived": "郵件已封存",
+    "emails_deleted": "{count, plural, other {已刪除 # 封郵件}}",
+    "emails_archived": "{count, plural, other {已封存 # 封郵件}}",
+    "error_archiving": "封存郵件失敗",
+    "error_updating": "更新郵件失敗",
     "email_starred": "郵件已加上星號",
     "email_unstarred": "郵件已移除星號",
     "email_marked_read": "郵件已標示為已讀",
@@ -1139,6 +1164,7 @@
         "status_active": "已在此裝置上啟用",
         "status_inactive": "在此裝置上未啟用",
         "status_unsupported": "此瀏覽器不支援 Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "status_busy": "工作中…",
         "enable": "啟用",
         "reenable": "重新註冊",
@@ -1176,7 +1202,9 @@
         "enabled": "郵件通知",
         "enabled_desc": "新郵件到達時顯示通知",
         "sound": "通知聲音",
-        "sound_desc": "新郵件到達時播放音訊提醒"
+        "sound_desc": "新郵件到達時播放音訊提醒",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "行事曆通知",
@@ -1236,6 +1264,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "切換資料夾時清除搜尋",
+        "description": "點擊資料夾（收件匣、寄件備份等）會清除目前的搜尋並瀏覽該資料夾。關閉時，搜尋會保留並在切換到的資料夾中重新執行。"
+      },
       "request_read_receipt": {
         "label": "預設請求已讀回執",
         "description": "撰寫新郵件時預先啟用已讀回執請求。"
@@ -1318,6 +1350,12 @@
       "auto_select_reply_identity": {
         "label": "使用收件地址回覆",
         "description": "回覆時，使用原始郵件的收件地址寄送。系統會先比對寄件身分；若是網域 catch-all 收件，則透過主要寄件身分傳送，但將 From 標頭改寫為別名地址。"
+      },
+      "reply_identity_match": {
+        "label": "接收地址比對",
+        "description": "哪些接收地址算作您的地址。「僅精確地址」只從已設定的身分中選擇；「相同網域」還會將身分網域下的其他任何地址視為 catch-all 別名，並將寄件者標頭改寫為該地址。如果這些地址是通訊群組清單，請選擇精確地址。",
+        "exact": "僅精確地址",
+        "domain": "我的網域下的任意地址"
       },
       "signature_position": {
         "label": "簽名檔位置",
@@ -1748,7 +1786,9 @@
       "warnings": {
         "end_before_start": "結束日期必須晚於開始日期",
         "start_in_past": "開始日期已在過去",
-        "empty_body": "郵件內文為空 — 收件者將收到空白回覆"
+        "empty_body": "郵件內文為空 — 收件者將收到空白回覆",
+        "subject_too_long": "主旨對伺服器來說太長（最多 {max} 位元組）。",
+        "body_too_long": "訊息對伺服器來說太長（含格式最多 {max} 位元組）。"
       }
     },
     "folders": {
@@ -1765,6 +1805,8 @@
       "role_trash": "垃圾桶",
       "role_junk": "垃圾郵件",
       "role_archive": "封存",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "無",
       "create_folder": "建立信件匣",
       "create_subfolder": "建立子信件匣",
@@ -1865,6 +1907,8 @@
       "description": "管理側邊欄中的自訂應用程式與連結",
       "keep_loaded": "保持應用程式載入",
       "keep_loaded_description": "切換內嵌應用程式時，讓其在背景繼續執行，以避免重新載入",
+      "managed_title": "由您的管理員提供",
+      "managed_description": "這些應用程式為所有人統一設定，無法變更。",
       "manage_title": "自訂應用程式",
       "manage_description": "在側邊欄新增、編輯或移除自訂應用程式"
     },
@@ -1872,6 +1916,8 @@
       "title": "聯絡人",
       "description": "匯入與匯出聯絡人",
       "group_by_letter_label": "依首字分組",
+      "sort_by_last_name_label": "依姓氏排序",
+      "sort_by_last_name_description": "依姓氏排列聯絡人清單，讓家庭成員顯示在一起",
       "group_by_letter_description": "在聯絡人清單中顯示依字母排列的分節標題",
       "import_label": "匯入聯絡人",
       "import_description": "從 vCard（.vcf）檔案匯入聯絡人",
@@ -1963,6 +2009,7 @@
       "actions": "動作",
       "add_action": "新增動作",
       "stop_processing": "停止處理後續規則",
+      "include_spam": "同時移動被標記為垃圾郵件的郵件",
       "attachment_type_placeholder": "例如：pdf、doc、jpg",
       "value_placeholder_multi": "值（多個用逗號分隔）",
       "condition_fields": {
@@ -2004,6 +2051,8 @@
       "copy_to_folder": "選取信件匣",
       "forward_to": "轉寄至電子郵件地址",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "保留副本",
+      "forward_limit": "此伺服器每封郵件的轉寄上限：{count}。多餘的轉寄將被略過。",
       "reject_message": "拒絕留言",
       "reject_placeholder": "您的郵件已被拒絕",
       "label_name": "標籤名稱",
@@ -2200,6 +2249,7 @@
     "new_subfolder": "新增子信件匣…",
     "new_folder": "新增信件匣…",
     "rename": "重新命名…",
+    "share": "共用...",
     "import_email": "匯入 .eml 或 .zip…",
     "empty_folder": "清空信件匣",
     "empty_folder_generic": "清空信件匣",
@@ -2229,7 +2279,10 @@
     "toast_error_rename": "無法重新命名信件匣",
     "toast_error_delete": "無法刪除信件匣",
     "toast_error_delete_has_children": "信件匣內有子信件匣，請先移除。",
-    "toast_error_delete_has_email": "信件匣不是空的，請先清空。"
+    "toast_error_delete_has_email": "信件匣不是空的，請先清空。",
+    "delete_with_contents_title": "資料夾不是空的",
+    "delete_with_contents_message": "資料夾「{name}」中仍有 {count} 封郵件。要刪除該資料夾及其所有郵件嗎？此操作無法復原。",
+    "delete_with_contents_confirm": "刪除資料夾和郵件"
   },
   "shortcuts": {
     "title": "鍵盤快速鍵",
@@ -2263,7 +2316,8 @@
       "search": "將焦點移至搜尋框",
       "help": "顯示快速鍵",
       "refresh": "重新整理郵件",
-      "select_all": "全部選取"
+      "select_all": "全部選取",
+      "global_search": "全域搜尋"
     },
     "threads": {
       "expand_collapse": "展開／收合對話串"
@@ -2715,7 +2769,10 @@
       "any_month": "任何月份",
       "has_email": "有電子郵件地址",
       "has_phone": "有電話",
-      "has_photo": "有照片"
+      "has_photo": "有照片",
+      "sort_by": "排序方式",
+      "sort_first_name": "名",
+      "sort_last_name": "姓"
     }
   },
   "calendar": {
@@ -2751,6 +2808,10 @@
       "duplicate": "建立副本",
       "today_header": "今天",
       "tomorrow_header": "明天",
+      "agenda_show_earlier": "顯示更早的行程",
+      "agenda_loading": "載入中…",
+      "agenda_range_start": "顯示 {date} 起的行程",
+      "agenda_range_end": "顯示至 {date} 的行程",
       "export_ics": "匯出為 .ics",
       "copy_title": "複製標題",
       "copy_link": "複製會議連結",
@@ -2786,6 +2847,14 @@
       "color": "顏色"
     },
     "participants": {
+      "availability": {
+        "title": "空閒狀態",
+        "free": "有空",
+        "busy": "忙碌",
+        "tentative": "暫定",
+        "unknown": "不是此伺服器上的使用者",
+        "checking": "檢查中…"
+      },
       "title": "參與者",
       "add": "新增參與者",
       "organizer": "主辦人",
@@ -2860,7 +2929,10 @@
       "all_events": "所有活動",
       "cancel": "取消",
       "save": "儲存",
-      "delete": "刪除"
+      "delete": "刪除",
+      "rsvp_title": "回覆重複活動",
+      "rsvp_description": "這是重複活動。您的回覆適用於哪些活動？",
+      "respond": "回覆"
     },
     "alerts": {
       "title": "提醒",
@@ -2898,6 +2970,8 @@
       "show_time_in_month_view_desc": "在月檢視中顯示活動時間。小螢幕會顯示完整活動項目，而不只是圓點。",
       "show_week_numbers": "顯示週數",
       "show_week_numbers_desc": "在迷你行事曆中顯示週數",
+      "calendar_free_scroll": "自由捲動",
+      "calendar_free_scroll_desc": "連續捲動瀏覽月、週和日，而不是一次只顯示一個時段",
       "enable_tasks": "啟用任務",
       "enable_tasks_desc": "在行事曆中顯示任務檢視以管理待辦事項",
       "show_tasks_on_calendar": "在行事曆上顯示任務",
@@ -2909,6 +2983,9 @@
       "hover_preview_delay_1s": "延遲 1 秒",
       "hover_preview_delay_2s": "延遲 2 秒",
       "hover_preview_off": "停用",
+      "organizer_identity": "以此身分發送邀請",
+      "organizer_identity_desc": "邀請他人參加活動時用作主辦者的行事曆地址。",
+      "organizer_identity_failed": "無法變更主辦者地址",
       "show_birthday_calendar": "聯絡人生日行事曆",
       "show_birthday_calendar_desc": "顯示包含聯絡人生日的虛擬行事曆"
     },
@@ -2966,6 +3043,9 @@
       "alert_now": "現在開始",
       "alert_in_minutes": "{count} 分鐘後",
       "invitation_sent": "已傳送邀請",
+      "invitations_denied_title": "無法傳送邀請",
+      "invitations_denied": "伺服器拒絕傳送邀請：{reason}。是否不傳送邀請直接儲存活動？",
+      "save_without_invitations": "不傳送邀請並儲存",
       "rsvp_updated": "回覆已更新",
       "rsvp_error": "無法更新回覆",
       "event_duplicated": "已建立活動副本",
@@ -2995,7 +3075,7 @@
       "supported_formats": "支援 iCalendar (.ics) 檔案",
       "url_description": "輸入外部 iCalendar（.ics）資料來源的 URL，以匯入活動。",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "支援 CalDAV 與 iCalendar（.ics）URL",
+      "url_hint": "支援 iCalendar（.ics）URL",
       "fetch": "取得",
       "invalid_url": "請輸入有效的 URL",
       "url_fetch_failed": "無法從 URL 取得行事曆",
@@ -3142,6 +3222,25 @@
       "overdue": "逾期"
     }
   },
+  "calendar_event_notifications": {
+    "someone": "有人",
+    "invited": "{name} 邀請您參加「{title}」",
+    "updated": "{name} 更新了「{title}」",
+    "cancelled": "{name} 取消了「{title}」",
+    "untitled": "未命名活動"
+  },
+  "share_notifications": {
+    "someone": "有人",
+    "shared": "{name} 與您共用了{kind}「{object}」",
+    "changed": "{name} 變更了您對{kind}「{object}」的存取權限",
+    "revoked": "{name} 移除了您對{kind}「{object}」的存取權限",
+    "object": {
+      "folder": "資料夾",
+      "calendar": "行事曆",
+      "address_book": "通訊錄",
+      "files": "檔案資料夾"
+    }
+  },
   "sharing": {
     "title": "分享「{name}」",
     "description": "授予此伺服器上的其他使用者或群組存取權。變更會立即生效。",
@@ -3180,6 +3279,8 @@
     "has_attachment": "附件",
     "date_after": "後",
     "date_before": "前",
+    "size_min": "大於 (KB)",
+    "size_max": "小於 (KB)",
     "starred": "已加星號",
     "unread": "未讀",
     "read": "已讀",
@@ -3221,6 +3322,10 @@
     "hint": "點擊左側任一郵件即可開始，或進行下方的功能導覽。"
   },
   "files": {
+    "office_edit": "編輯文件",
+    "office_loading": "正在開啟文件編輯器…",
+    "office_error": "無法開啟文件編輯器。",
+    "office_close": "關閉編輯器",
     "open_in_new_tab": "在新分頁開啟",
     "title": "檔案",
     "search_placeholder": "搜尋檔案…",
@@ -3233,6 +3338,8 @@
     "rename": "重新命名",
     "rename_title": "重新命名",
     "new_name": "新名稱",
+    "name_forbidden_chars": "伺服器不允許名稱中包含這些字元：{chars}",
+    "name_reserved": "此名稱已被伺服器保留。",
     "delete": "刪除",
     "delete_confirm_title": "刪除項目",
     "delete_confirm_message": "您確定要刪除「{name}」嗎？此動作無法復原。",
@@ -3494,5 +3601,45 @@
     "copy_event": "複製活動連結",
     "copied": "連結已複製",
     "copy_failed": "無法複製連結"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "正在完成授權…",
+      "completing_message": "請稍候，正在建立連線。",
+      "received_title": "已收到授權",
+      "received_message": "您可以返回開始連線的分頁。",
+      "failed_title": "授權失敗",
+      "denied": "授權被拒絕。",
+      "failed_detail": "授權失敗：{error}",
+      "missing_params": "缺少授權碼或狀態。",
+      "delivery_failed": "無法將授權結果傳遞至應用程式分頁。請關閉此視窗並再試一次。"
+    }
+  },
+  "global_search": {
+    "title": "全域搜尋",
+    "placeholder": "搜尋郵件、聯絡人、行事曆、檔案...",
+    "scope_label": "搜尋範圍",
+    "account_label": "帳戶",
+    "scope_all": "全部",
+    "scope_mail": "郵件",
+    "scope_contacts": "聯絡人",
+    "scope_calendar": "行事曆",
+    "scope_files": "檔案",
+    "all_accounts": "所有帳戶",
+    "show_all": "顯示所有結果",
+    "no_results": "找不到「{query}」的結果",
+    "server_hint": "完整單字會搜尋伺服器；部分單字則比對已載入的項目",
+    "searching": "搜尋中...",
+    "account_error": "無法搜尋 {account}",
+    "recent_searches": "最近搜尋",
+    "recurring": "重複",
+    "no_subject": "(no subject)",
+    "empty_hint": "在所有帳戶中搜尋郵件、聯絡人、行事和檔案。可試試 from:、subject:、has:attachment、after:2026-01-01。",
+    "flat_by_date": "依日期平列",
+    "grouped": "分組",
+    "load_more": "載入更多",
+    "preview_empty": "選擇結果以預覽",
+    "open_full": "開啟",
+    "view_label": "檢視"
   }
 }

@@ -225,6 +225,10 @@
     "and_others": "и ещё {count}",
     "draft": "Черновик",
     "starred": "Помечено",
+    "pinned": "Закреплено",
+    "replied": "Отвечено",
+    "forwarded": "Переслано",
+    "has_attachment": "С вложением",
     "conversations_count": "{count} из {total} бесед",
     "conversations_count_plus": "{count}+ бесед",
     "conversations_count_simple": "{count} бесед",
@@ -292,6 +296,7 @@
     "forward": "Переслать",
     "delete": "Удалить",
     "archive": "Архивировать",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "Пометить",
     "unstar": "Снять пометку",
     "mark_unread": "Отметить непрочитанным",
@@ -303,12 +308,10 @@
     "move": "Переместить",
     "print": "Распечатать",
     "view_source": "Просмотреть исходный код",
-
     "fullscreen": "Во весь экран",
-
     "exit_fullscreen": "Выйти из полноэкранного режима",
     "export_email": "Экспортировать как .eml",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "Переслать как вложение",
     "import_email": "Импортировать .eml или .zip",
     "keyboard_shortcuts": "Сочетания клавиш (?)",
     "email_source": "Исходный код письма",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Запрошено уведомление о прочтении (нажмите, чтобы отключить)",
     "read_receipt_off": "Запросить уведомление о прочтении",
+    "dsn_on": "Запрошено уведомление о доставке (нажмите, чтобы отключить)",
+    "dsn_off": "Запросить уведомление о доставке",
+    "format_plain_text": "Переключить на простой текст",
+    "format_rich_text": "Переключить на форматированный текст (HTML)",
+    "require_tls_on": "Требуется зашифрованная доставка (нажмите, чтобы отключить)",
+    "require_tls_off": "Требовать зашифрованную доставку (TLS)",
     "new_message": "Новое письмо",
     "signature_edit_hint": "Дважды щёлкните, чтобы изменить подпись",
     "reply": "Ответить",
@@ -631,11 +640,12 @@
     "from_override": {
       "toggle_off": "Переопределить",
       "toggle_on": "Отменить переопределение",
-      "toggle_tooltip": "Свободно редактируйте имя и адрес отправителя. Письмо по-прежнему отправляется через вашу учётную запись - меняется только видимый заголовок От.",
+      "toggle_tooltip": "Свободно редактируйте имя и адрес отправителя. Письмо по-прежнему отправляется через вашу учётную запись.",
       "name_label": "Имя отправителя",
       "name_placeholder": "Имя",
       "email_label": "Email отправителя",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "Если ваш сервер не принимает этот адрес как отправителя конверта, вместо него используется {identity}, и получатели увидят его в заголовке Return-Path."
     },
     "use_template": "Шаблон",
     "save_as_template": "Сохранить как шаблон",
@@ -648,6 +658,8 @@
     "upload_progress": "Загрузка {uploaded} / {total}",
     "upload_cancel": "Отменить загрузку",
     "upload_failed": "Не удалось загрузить {filename}",
+    "attachment_too_large": "«{name}» больше, чем разрешает сервер ({max} на файл)",
+    "attachments_total_too_large": "Вложения превысят лимит сервера в {max} на письмо",
     "drop_files": "Перетащите файлы для прикрепления",
     "show_less": "Свернуть",
     "send_failed": "Не удалось отправить письмо",
@@ -726,7 +738,11 @@
       "delete_column": "Удалить столбец",
       "toggle_header_row": "Переключить строку заголовка",
       "delete_table": "Удалить таблицу",
-      "pick_size": "Выбрать размер"
+      "pick_size": "Выбрать размер",
+      "font_size": "Размер шрифта",
+      "font_size_default": "По умолчанию",
+      "background_color": "Цвет фона",
+      "remove_background_color": "Убрать цвет фона"
     },
     "send_filing_warning": "Отправлено - но последующая очистка не удалась, может остаться устаревший черновик."
   },
@@ -765,6 +781,10 @@
     "email_sent": "Письмо успешно отправлено",
     "email_deleted": "Письмо удалено",
     "email_archived": "Письмо архивировано",
+    "emails_deleted": "{count, plural, one {# письмо удалено} few {# письма удалены} many {# писем удалено} other {# письма удалено}}",
+    "emails_archived": "{count, plural, one {# письмо архивировано} few {# письма архивированы} many {# писем архивировано} other {# письма архивировано}}",
+    "error_archiving": "Не удалось архивировать письмо",
+    "error_updating": "Не удалось обновить письмо",
     "email_starred": "Письмо помечено",
     "email_unstarred": "Пометка снята",
     "email_marked_read": "Письмо отмечено прочитанным",
@@ -1055,8 +1075,8 @@
         "description": "Показывает общее количество сообщений рядом с папками и метками, наряду с количеством непрочитанных. Отключите, чтобы показывать только непрочитанные."
       },
       "favicon_unread_badge": {
-        "label": "Unread Count on Tab Icon",
-        "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
+        "label": "Счётчик непрочитанных на иконке вкладки и приложения",
+        "description": "Показывает количество непрочитанных писем значком на иконке вкладки браузера и, если поддерживается, на иконке установленного приложения — чтобы новая почта была видна без переключения на вкладку. Отключите, чтобы обе иконки оставались без значка."
       },
       "pro_interface": {
         "label": "Pro-интерфейс (экспериментальный)",
@@ -1143,7 +1163,9 @@
         "enabled": "Уведомления о почте",
         "enabled_desc": "Показывать уведомления при получении новых писем",
         "sound": "Звук уведомления",
-        "sound_desc": "Воспроизводить звуковой сигнал при получении новых писем"
+        "sound_desc": "Воспроизводить звуковой сигнал при получении новых писем",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Уведомления календаря",
@@ -1172,6 +1194,7 @@
         "status_busy": "Выполняется…",
         "status_inactive": "Не включено на этом устройстве",
         "status_unsupported": "Этот браузер не поддерживает Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "title": "Фоновые уведомления",
         "devices_title": "Зарегистрированные устройства",
         "devices_desc": "Все устройства, зарегистрированные для получения фоновых уведомлений этой учётной записи. После отзыва устройство сразу перестаёт их получать.",
@@ -1238,6 +1261,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Очищать поиск при переходе между папками",
+        "description": "Щелчок по папке («Входящие», «Отправленные»…) очищает активный поиск и открывает эту папку. Если выключено, поиск сохраняется и выполняется заново в выбранной папке."
+      },
       "request_read_receipt": {
         "label": "Запрашивать уведомления о прочтении по умолчанию",
         "description": "Заранее включать запрос уведомления о прочтении при создании нового сообщения."
@@ -1315,6 +1342,12 @@
       "auto_select_reply_identity": {
         "label": "Автоматически выбирать адрес для ответа",
         "description": "При ответе автоматически переключать адрес отправителя на ту учетную запись, которая получила исходное сообщение"
+      },
+      "reply_identity_match": {
+        "label": "Сопоставление адреса получения",
+        "description": "Какие адреса получения считать вашими. «Только точный адрес» выбирает исключительно одну из настроенных личностей; «тот же домен» также считает любой другой адрес на доменах ваших личностей catch-all-псевдонимом и подставляет его в заголовок «От». Выберите точный адрес, если такие адреса являются списками рассылки.",
+        "exact": "Только точный адрес",
+        "domain": "Любой адрес на моих доменах"
       },
       "signature_position": {
         "label": "Положение подписи",
@@ -1746,7 +1779,9 @@
       "warnings": {
         "end_before_start": "Дата окончания должна быть позже даты начала",
         "start_in_past": "Дата начала в прошлом",
-        "empty_body": "Текст сообщения пуст - получатели получат пустой ответ"
+        "empty_body": "Текст сообщения пуст - получатели получат пустой ответ",
+        "subject_too_long": "Тема слишком длинная для сервера (не более {max} байт).",
+        "body_too_long": "Сообщение слишком длинное для сервера (не более {max} байт с учётом форматирования)."
       }
     },
     "folders": {
@@ -1763,6 +1798,8 @@
       "role_trash": "Корзина",
       "role_junk": "Спам",
       "role_archive": "Архив",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "Нет",
       "create_folder": "Создать папку",
       "create_subfolder": "Создать подпапку",
@@ -1882,7 +1919,9 @@
       "categories_description": "Переименование категорий контактов",
       "no_categories": "Категории не найдены",
       "group_by_letter_description": "Показывать алфавитные заголовки разделов в списке контактов",
-      "group_by_letter_label": "Группировать по первой букве"
+      "group_by_letter_label": "Группировать по первой букве",
+      "sort_by_last_name_label": "Сортировать по фамилии",
+      "sort_by_last_name_description": "Упорядочить список контактов по фамилии, чтобы члены семьи шли подряд"
     },
     "downloads": {
       "title": "Загрузки",
@@ -1963,6 +2002,7 @@
       "actions": "Действия",
       "add_action": "Добавить действие",
       "stop_processing": "Прекратить обработку последующих правил",
+      "include_spam": "Перемещать также письма, помеченные как спам",
       "attachment_type_placeholder": "напр. pdf, doc, jpg",
       "value_placeholder_multi": "Значение (несколько через запятую)",
       "condition_fields": {
@@ -2004,6 +2044,8 @@
       "copy_to_folder": "Выбрать папку",
       "forward_to": "Переслать на адрес электронной почты",
       "forward_placeholder": "user@пример.рф",
+      "forward_keep_copy": "Сохранить копию",
+      "forward_limit": "Лимит пересылок на одно письмо на этом сервере: {count}. Лишние пересылки пропускаются.",
       "reject_message": "Сообщение об отклонении",
       "reject_placeholder": "Ваше письмо было отклонено",
       "label_name": "Название тега",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "Новая вложенная папка...",
     "new_folder": "Новая папка...",
     "rename": "Переименовать...",
+    "share": "Поделиться...",
     "import_email": "Импортировать .eml или .zip...",
     "empty_folder": "Очистить папку",
     "empty_folder_generic": "Очистить папку",
@@ -2234,6 +2277,9 @@
     "toast_error_delete": "Не удалось удалить папку",
     "toast_error_delete_has_children": "Папка содержит вложенные папки. Сначала удалите их.",
     "toast_error_delete_has_email": "Папка не пуста. Сначала очистите её.",
+    "delete_with_contents_title": "Папка не пуста",
+    "delete_with_contents_message": "Папка «{name}» всё ещё содержит {count, plural, one {# сообщение} few {# сообщения} other {# сообщений}}. Удалить папку вместе со всеми сообщениями? Это действие нельзя отменить.",
+    "delete_with_contents_confirm": "Удалить папку и сообщения",
     "placeholder_folder_name": "Имя папки",
     "create": "Создать",
     "rename_confirm": "Переименовать"
@@ -2270,7 +2316,8 @@
       "search": "Перейти к поиску",
       "help": "Показать сочетания клавиш",
       "refresh": "Обновить письма",
-      "select_all": "Выбрать все"
+      "select_all": "Выбрать все",
+      "global_search": "Искать везде"
     },
     "threads": {
       "expand_collapse": "Развернуть/свернуть цепочку"
@@ -2721,7 +2768,10 @@
       "any_month": "Любой месяц",
       "has_email": "С эл. почтой",
       "has_phone": "С телефоном",
-      "has_photo": "С фото"
+      "has_photo": "С фото",
+      "sort_by": "Сортировать по",
+      "sort_first_name": "Имя",
+      "sort_last_name": "Фамилия"
     },
     "open_categories": "Открыть категории"
   },
@@ -2758,6 +2808,10 @@
       "duplicate": "Дублировать",
       "today_header": "Сегодня",
       "tomorrow_header": "Завтра",
+      "agenda_show_earlier": "Показать более ранние события",
+      "agenda_loading": "Загрузка…",
+      "agenda_range_start": "События с {date}",
+      "agenda_range_end": "События до {date}",
       "export_ics": "Экспорт в .ics",
       "copy_title": "Скопировать название",
       "copy_link": "Скопировать ссылку встречи",
@@ -2793,6 +2847,14 @@
       "color": "Цвет"
     },
     "participants": {
+      "availability": {
+        "title": "Доступность",
+        "free": "Свободен",
+        "busy": "Занят",
+        "tentative": "Предварительно",
+        "unknown": "Не пользователь этого сервера",
+        "checking": "Проверка…"
+      },
       "title": "Участники",
       "add": "Добавить участника",
       "organizer": "Организатор",
@@ -2867,7 +2929,10 @@
       "all_events": "Все события",
       "cancel": "Отмена",
       "save": "Сохранить",
-      "delete": "Удалить"
+      "delete": "Удалить",
+      "rsvp_title": "Ответить на повторяющееся событие",
+      "rsvp_description": "Это повторяющееся событие. К каким событиям относится ваш ответ?",
+      "respond": "Ответить"
     },
     "alerts": {
       "title": "Напоминание",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "Отображать время события в виде месячного календаря",
       "show_week_numbers": "Показывать номера недель",
       "show_week_numbers_desc": "Отображать номера недель в мини-календаре",
+      "calendar_free_scroll": "Свободная прокрутка",
+      "calendar_free_scroll_desc": "Непрерывно прокручивать месяцы, недели и дни вместо одного периода за раз",
       "enable_tasks": "Включить задачи",
       "enable_tasks_desc": "Показывать представление задач в календаре для управления делами",
       "show_tasks_on_calendar": "Показывать задачи в календаре",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "Задержка 1 секунда",
       "hover_preview_delay_2s": "Задержка 2 секунды",
       "hover_preview_off": "Отключено",
+      "organizer_identity": "Организовывать приглашения как",
+      "organizer_identity_desc": "Адрес календаря, используемый как организатор при приглашении людей на события.",
+      "organizer_identity_failed": "Не удалось изменить адрес организатора",
       "show_birthday_calendar": "Календарь дней рождения",
       "show_birthday_calendar_desc": "Показать виртуальный календарь с днями рождения из ваших контактов"
     },
@@ -2947,6 +3017,9 @@
       "alert_now": "Начинается сейчас",
       "alert_in_minutes": "Через {count} мин",
       "invitation_sent": "Приглашения отправлены",
+      "invitations_denied_title": "Не удаётся отправить приглашения",
+      "invitations_denied": "Сервер отказался отправить приглашения: {reason}. Сохранить событие без их отправки?",
+      "save_without_invitations": "Сохранить без приглашений",
       "rsvp_updated": "Ответ обновлён",
       "rsvp_error": "Не удалось обновить ответ",
       "event_duplicated": "Событие дублировано",
@@ -2975,7 +3048,7 @@
       "supported_formats": "Поддерживает файлы iCalendar (.ics)",
       "url_description": "Введите URL внешней ленты iCalendar (.ics) для импорта событий.",
       "url_placeholder": "https://пример.рф/календарь.ics",
-      "url_hint": "Поддерживает URL CalDAV и iCalendar (.ics)",
+      "url_hint": "Поддерживает URL iCalendar (.ics)",
       "fetch": "Получить",
       "invalid_url": "Введите корректный URL",
       "url_fetch_failed": "Не удалось получить календарь по URL",
@@ -3164,6 +3237,8 @@
     "has_attachment": "Вложения",
     "date_after": "После",
     "date_before": "До",
+    "size_min": "Больше чем (КБ)",
+    "size_max": "Меньше чем (КБ)",
     "starred": "Со звёздочкой",
     "unread": "Непрочитанные",
     "read": "Прочитанные",
@@ -3205,6 +3280,10 @@
     "hint": "Нажмите на любое письмо слева, чтобы начать, или пройдите тур ниже."
   },
   "files": {
+    "office_edit": "Редактировать документ",
+    "office_loading": "Открытие редактора документов…",
+    "office_error": "Не удалось открыть редактор документов.",
+    "office_close": "Закрыть редактор",
     "open_in_new_tab": "Открыть в новой вкладке",
     "title": "Файлы",
     "search_placeholder": "Поиск файлов...",
@@ -3217,6 +3296,8 @@
     "rename": "Переименовать",
     "rename_title": "Переименовать",
     "new_name": "Новое название",
+    "name_forbidden_chars": "Сервер не допускает эти символы в именах: {chars}",
+    "name_reserved": "Это имя зарезервировано на сервере.",
     "delete": "Удалить",
     "delete_confirm_title": "Удалить ресурс",
     "delete_confirm_message": "Вы уверены, что хотите удалить «{name}»? Это действие нельзя отменить.",
@@ -3451,6 +3532,25 @@
   "unified_mailbox": {
     "search_unavailable": "Поиск недоступен в объединённом представлении"
   },
+  "calendar_event_notifications": {
+    "someone": "Кто-то",
+    "invited": "{name} пригласил(а) вас на «{title}»",
+    "updated": "{name} обновил(а) «{title}»",
+    "cancelled": "{name} отменил(а) «{title}»",
+    "untitled": "Событие без названия"
+  },
+  "share_notifications": {
+    "someone": "Кто-то",
+    "shared": "{name} поделился(ась) с вами {kind} «{object}»",
+    "changed": "{name} изменил(а) ваш доступ к {kind} «{object}»",
+    "revoked": "{name} отозвал(а) ваш доступ к {kind} «{object}»",
+    "object": {
+      "folder": "папкой",
+      "calendar": "календарём",
+      "address_book": "адресной книгой",
+      "files": "папкой файлов"
+    }
+  },
   "sharing": {
     "title": "Поделиться «{name}»",
     "description": "Предоставьте доступ другим пользователям или группам на этом сервере. Изменения вступают в силу немедленно.",
@@ -3501,5 +3601,45 @@
     "copy_event": "Скопировать ссылку на событие",
     "copied": "Ссылка скопирована",
     "copy_failed": "Не удалось скопировать ссылку"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Завершение авторизации…",
+      "completing_message": "Пожалуйста, подождите, пока устанавливается соединение.",
+      "received_title": "Авторизация получена",
+      "received_message": "Вы можете вернуться на вкладку, где начали подключение.",
+      "failed_title": "Ошибка авторизации",
+      "denied": "В авторизации отказано.",
+      "failed_detail": "Ошибка авторизации: {error}",
+      "missing_params": "Отсутствует код авторизации или состояние.",
+      "delivery_failed": "Не удалось передать результат авторизации на вкладку приложения. Закройте это окно и попробуйте снова."
+    }
+  },
+  "global_search": {
+    "title": "Искать везде",
+    "placeholder": "Поиск по почте, контактам, календарю, файлам...",
+    "scope_label": "Искать в",
+    "account_label": "Аккаунт",
+    "scope_all": "Всё",
+    "scope_mail": "Почта",
+    "scope_contacts": "Контакты",
+    "scope_calendar": "Календарь",
+    "scope_files": "Файлы",
+    "all_accounts": "Все аккаунты",
+    "show_all": "Показать все результаты",
+    "no_results": "Ничего не найдено по запросу «{query}»",
+    "server_hint": "Целые слова ищутся на сервере; части слов — среди уже загруженного",
+    "searching": "Поиск...",
+    "account_error": "Не удалось выполнить поиск в {account}",
+    "recent_searches": "Недавние запросы",
+    "recurring": "Повторяющееся",
+    "no_subject": "(no subject)",
+    "empty_hint": "Ищите почту, контакты, события и файлы во всех аккаунтах. Попробуйте from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "Списком по дате",
+    "grouped": "По группам",
+    "load_more": "Загрузить ещё",
+    "preview_empty": "Выберите результат для предпросмотра",
+    "open_full": "Открыть",
+    "view_label": "Вид"
   }
 }

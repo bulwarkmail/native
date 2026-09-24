@@ -225,6 +225,10 @@
     "and_others": "i {count} innych",
     "draft": "Szkic",
     "starred": "Oznaczone gwiazdką",
+    "pinned": "Przypięte",
+    "replied": "Odpowiedziano",
+    "forwarded": "Przekazano",
+    "has_attachment": "Z załącznikiem",
     "conversations_count": "{count} z {total} konwersacji",
     "conversations_count_plus": "{count}+ konwersacji",
     "conversations_count_simple": "{count} konwersacji",
@@ -292,6 +296,7 @@
     "forward": "Przekaż dalej",
     "delete": "Usuń",
     "archive": "Archiwizuj",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "Oznacz gwiazdką",
     "unstar": "Usuń gwiazdkę",
     "mark_unread": "Oznacz jako nieprzeczytane",
@@ -303,12 +308,10 @@
     "move": "Przenieś",
     "print": "Drukuj",
     "view_source": "Pokaż źródło",
-
     "fullscreen": "Pełny ekran",
-
     "exit_fullscreen": "Zamknij pełny ekran",
     "export_email": "Eksportuj jako .eml",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "Prześlij dalej jako załącznik",
     "import_email": "Importuj .eml lub .zip",
     "keyboard_shortcuts": "Skróty klawiszowe (?)",
     "email_source": "Źródło wiadomości",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Zażądano potwierdzenia przeczytania (kliknij, aby wyłączyć)",
     "read_receipt_off": "Zażądaj potwierdzenia przeczytania",
+    "dsn_on": "Zażądano powiadomienia o dostarczeniu (kliknij, aby wyłączyć)",
+    "dsn_off": "Zażądaj powiadomienia o dostarczeniu",
+    "format_plain_text": "Przełącz na zwykły tekst",
+    "format_rich_text": "Przełącz na tekst sformatowany (HTML)",
+    "require_tls_on": "Wymagane szyfrowane dostarczenie (kliknij, aby wyłączyć)",
+    "require_tls_off": "Wymagaj szyfrowanego dostarczenia (TLS)",
     "new_message": "Nowa wiadomość",
     "signature_edit_hint": "Kliknij dwukrotnie, aby edytować podpis",
     "reply": "Odpowiedz",
@@ -631,11 +640,12 @@
     "from_override": {
       "toggle_off": "Zastąp",
       "toggle_on": "Anuluj zastąpienie",
-      "toggle_tooltip": "Swobodnie edytuj nazwę i adres nadawcy. Poczta jest nadal wysyłana przez twoją tożsamość - zmienia się tylko widoczny nagłówek Od.",
+      "toggle_tooltip": "Swobodnie edytuj nazwę i adres nadawcy. Poczta jest nadal wysyłana przez twoją tożsamość.",
       "name_label": "Nazwa nadawcy",
       "name_placeholder": "Nazwa",
       "email_label": "Adres e-mail nadawcy",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "Jeśli twój serwer nie akceptuje tego adresu jako nadawcy koperty, zostanie użyty {identity}, a odbiorcy zobaczą go w nagłówku Return-Path."
     },
     "use_template": "Szablon",
     "save_as_template": "Zapisz jako szablon",
@@ -648,6 +658,8 @@
     "upload_progress": "Przesyłanie {uploaded} / {total}",
     "upload_cancel": "Anuluj przesyłanie",
     "upload_failed": "Nie udało się przesłać {filename}",
+    "attachment_too_large": "„{name}” jest większy, niż pozwala serwer ({max} na plik)",
+    "attachments_total_too_large": "Załączniki przekroczyłyby limit serwera {max} na wiadomość",
     "drop_files": "Upuść pliki, aby załączyć",
     "show_less": "Pokaż mniej",
     "send_failed": "Nie udało się wysłać wiadomości",
@@ -726,7 +738,11 @@
       "delete_column": "Usuń kolumnę",
       "toggle_header_row": "Przełącz wiersz nagłówka",
       "delete_table": "Usuń tabelę",
-      "pick_size": "Wybierz rozmiar"
+      "pick_size": "Wybierz rozmiar",
+      "font_size": "Rozmiar czcionki",
+      "font_size_default": "Domyślny",
+      "background_color": "Kolor tła",
+      "remove_background_color": "Usuń kolor tła"
     },
     "send_filing_warning": "Wysłano - ale późniejsze porządkowanie nie powiodło się, może pozostać nieaktualna wersja robocza."
   },
@@ -765,6 +781,10 @@
     "email_sent": "Wiadomość wysłana pomyślnie",
     "email_deleted": "Wiadomość usunięta",
     "email_archived": "Wiadomość zarchiwizowana",
+    "emails_deleted": "{count, plural, one {# wiadomość usunięta} few {# wiadomości usunięte} many {# wiadomości usuniętych} other {# wiadomości usuniętych}}",
+    "emails_archived": "{count, plural, one {# wiadomość zarchiwizowana} few {# wiadomości zarchiwizowane} many {# wiadomości zarchiwizowanych} other {# wiadomości zarchiwizowanych}}",
+    "error_archiving": "Nie udało się zarchiwizować wiadomości",
+    "error_updating": "Nie udało się zaktualizować wiadomości",
     "email_starred": "Wiadomość oznaczona gwiazdką",
     "email_unstarred": "Gwiazdka usunięta",
     "email_marked_read": "Wiadomość oznaczona jako przeczytana",
@@ -1143,7 +1163,9 @@
         "enabled": "Powiadomienia e-mail",
         "enabled_desc": "Pokazuj powiadomienia po nadejściu nowych wiadomości e-mail",
         "sound": "Dźwięk powiadomienia",
-        "sound_desc": "Odtwarzaj sygnał dźwiękowy po nadejściu nowych wiadomości e-mail"
+        "sound_desc": "Odtwarzaj sygnał dźwiękowy po nadejściu nowych wiadomości e-mail",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Powiadomienia kalendarza",
@@ -1172,6 +1194,7 @@
         "status_busy": "Przetwarzanie…",
         "status_inactive": "Niewłączone na tym urządzeniu",
         "status_unsupported": "Ta przeglądarka nie obsługuje Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "title": "Powiadomienia w tle",
         "devices_title": "Zarejestrowane urządzenia",
         "devices_desc": "Wszystkie urządzenia zarejestrowane do odbioru powiadomień w tle dla tego konta. Unieważnienie natychmiast wstrzymuje ich odbiór.",
@@ -1238,6 +1261,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Czyść wyszukiwanie przy zmianie folderu",
+        "description": "Kliknięcie folderu (Odebrane, Wysłane…) czyści aktywne wyszukiwanie i otwiera ten folder. Gdy wyłączone, wyszukiwanie pozostaje i jest ponawiane w wybranym folderze."
+      },
       "request_read_receipt": {
         "label": "Domyślnie żądaj potwierdzeń przeczytania",
         "description": "Włącz wcześniej żądanie potwierdzenia przeczytania podczas tworzenia nowej wiadomości."
@@ -1320,6 +1347,12 @@
       "auto_select_reply_identity": {
         "label": "Automatycznie wybieraj adres odpowiedzi",
         "description": "Podczas odpowiadania automatycznie przełączaj adres nadawcy na tożsamość, która pierwotnie otrzymała wiadomość"
+      },
+      "reply_identity_match": {
+        "label": "Dopasowanie adresu odbioru",
+        "description": "Które adresy odbioru są uznawane za Twoje. „Tylko dokładny adres” wybiera wyłącznie jedną ze skonfigurowanych tożsamości; „ta sama domena” traktuje dodatkowo każdy inny adres w domenach Twoich tożsamości jako alias catch-all i przepisuje na niego nagłówek Od. Wybierz dokładny adres, jeśli te adresy to listy dystrybucyjne.",
+        "exact": "Tylko dokładny adres",
+        "domain": "Dowolny adres w moich domenach"
       },
       "signature_position": {
         "label": "Pozycja podpisu",
@@ -1746,7 +1779,9 @@
       "warnings": {
         "end_before_start": "Data zakończenia musi być późniejsza niż data rozpoczęcia",
         "start_in_past": "Data rozpoczęcia jest w przeszłości",
-        "empty_body": "Treść wiadomości jest pusta - odbiorcy otrzymają pustą odpowiedź"
+        "empty_body": "Treść wiadomości jest pusta - odbiorcy otrzymają pustą odpowiedź",
+        "subject_too_long": "Temat jest za długi dla serwera (maksymalnie {max} bajtów).",
+        "body_too_long": "Wiadomość jest za długa dla serwera (maksymalnie {max} bajtów wraz z formatowaniem)."
       }
     },
     "folders": {
@@ -1763,6 +1798,8 @@
       "role_trash": "Kosz",
       "role_junk": "Spam / Niechciane",
       "role_archive": "Archiwum",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "Brak",
       "create_folder": "Utwórz folder",
       "create_subfolder": "Utwórz podfolder",
@@ -1882,7 +1919,9 @@
       "categories_description": "Zmień nazwy kategorii kontaktów",
       "no_categories": "Nie znaleziono kategorii",
       "group_by_letter_description": "Pokaż alfabetyczne nagłówki sekcji na liście kontaktów",
-      "group_by_letter_label": "Grupuj według pierwszej litery"
+      "group_by_letter_label": "Grupuj według pierwszej litery",
+      "sort_by_last_name_label": "Sortuj według nazwiska",
+      "sort_by_last_name_description": "Uporządkuj listę kontaktów według nazwiska, aby członkowie rodziny byli obok siebie"
     },
     "downloads": {
       "title": "Pobrane",
@@ -1963,6 +2002,7 @@
       "actions": "Akcje",
       "add_action": "Dodaj akcję",
       "stop_processing": "Zatrzymaj przetwarzanie kolejnych reguł",
+      "include_spam": "Przenoś również wiadomości oznaczone jako spam",
       "attachment_type_placeholder": "np. pdf, doc, jpg",
       "value_placeholder_multi": "Wartość (kilka oddzielonych przecinkami)",
       "condition_fields": {
@@ -2004,6 +2044,8 @@
       "copy_to_folder": "Wybierz folder",
       "forward_to": "Prześlij dalej na adres e-mail",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "Zachowaj kopię",
+      "forward_limit": "Limit przekazań na wiadomość na tym serwerze: {count}. Dodatkowe przekazania są pomijane.",
       "reject_message": "Wiadomość odrzucenia",
       "reject_placeholder": "Twoja wiadomość e-mail została odrzucona",
       "label_name": "Nazwa etykiety",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "Nowy podfolder...",
     "new_folder": "Nowy folder...",
     "rename": "Zmień nazwę...",
+    "share": "Udostępnij...",
     "import_email": "Importuj .eml lub .zip...",
     "empty_folder": "Opróżnij folder",
     "empty_folder_generic": "Opróżnij folder",
@@ -2234,6 +2277,9 @@
     "toast_error_delete": "Nie udało się usunąć folderu",
     "toast_error_delete_has_children": "Folder zawiera podfoldery. Najpierw je usuń.",
     "toast_error_delete_has_email": "Folder nie jest pusty. Najpierw go opróżnij.",
+    "delete_with_contents_title": "Folder nie jest pusty",
+    "delete_with_contents_message": "Folder „{name}” nadal zawiera {count, plural, one {1 wiadomość} few {# wiadomości} other {# wiadomości}}. Usunąć folder wraz ze wszystkimi wiadomościami? Tej operacji nie można cofnąć.",
+    "delete_with_contents_confirm": "Usuń folder i wiadomości",
     "placeholder_folder_name": "Nazwa folderu",
     "create": "Utwórz",
     "rename_confirm": "Zmień nazwę"
@@ -2270,7 +2316,8 @@
       "search": "Przejdź do wyszukiwania",
       "help": "Pokaż skróty",
       "refresh": "Odśwież wiadomości",
-      "select_all": "Zaznacz wszystko"
+      "select_all": "Zaznacz wszystko",
+      "global_search": "Szukaj wszędzie"
     },
     "threads": {
       "expand_collapse": "Rozwiń/zwiń wątek"
@@ -2721,7 +2768,10 @@
       "any_month": "Dowolny miesiąc",
       "has_email": "Z e-mailem",
       "has_phone": "Z telefonem",
-      "has_photo": "Ze zdjęciem"
+      "has_photo": "Ze zdjęciem",
+      "sort_by": "Sortuj według",
+      "sort_first_name": "Imię",
+      "sort_last_name": "Nazwisko"
     },
     "open_categories": "Otwórz kategorie"
   },
@@ -2758,6 +2808,10 @@
       "duplicate": "Duplikuj",
       "today_header": "Dzisiaj",
       "tomorrow_header": "Jutro",
+      "agenda_show_earlier": "Pokaż wcześniejsze wydarzenia",
+      "agenda_loading": "Ładowanie…",
+      "agenda_range_start": "Wydarzenia od {date}",
+      "agenda_range_end": "Wydarzenia do {date}",
       "export_ics": "Eksportuj jako .ics",
       "copy_title": "Kopiuj tytuł",
       "copy_link": "Kopiuj link do spotkania",
@@ -2793,6 +2847,14 @@
       "color": "Kolor"
     },
     "participants": {
+      "availability": {
+        "title": "Dostępność",
+        "free": "Dostępny",
+        "busy": "Zajęty",
+        "tentative": "Wstępnie",
+        "unknown": "Nie jest użytkownikiem tego serwera",
+        "checking": "Sprawdzanie…"
+      },
       "title": "Uczestnicy",
       "add": "Dodaj uczestnika",
       "organizer": "Organizator",
@@ -2867,7 +2929,10 @@
       "all_events": "Wszystkie wydarzenia",
       "cancel": "Anuluj",
       "save": "Zapisz",
-      "delete": "Usuń"
+      "delete": "Usuń",
+      "rsvp_title": "Odpowiedz na wydarzenie cykliczne",
+      "rsvp_description": "To jest wydarzenie cykliczne. Których wydarzeń dotyczy Twoja odpowiedź?",
+      "respond": "Odpowiedz"
     },
     "alerts": {
       "title": "Przypomnienie",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "Wyświetlaj godziny wydarzeń w miesięcznym widoku kalendarza",
       "show_week_numbers": "Pokaż numery tygodni",
       "show_week_numbers_desc": "Wyświetlaj numery tygodni w mini-kalendarzu",
+      "calendar_free_scroll": "Swobodne przewijanie",
+      "calendar_free_scroll_desc": "Przewijaj płynnie miesiące, tygodnie i dni zamiast jednego okresu naraz",
       "enable_tasks": "Włącz zadania",
       "enable_tasks_desc": "Pokaż widok zadań w kalendarzu do zarządzania zadaniami",
       "show_tasks_on_calendar": "Pokaż zadania w kalendarzu",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "Opóźnienie 1 sekundy",
       "hover_preview_delay_2s": "Opóźnienie 2 sekund",
       "hover_preview_off": "Wyłączono",
+      "organizer_identity": "Organizuj zaproszenia jako",
+      "organizer_identity_desc": "Adres kalendarza używany jako organizator, gdy zapraszasz osoby na wydarzenia.",
+      "organizer_identity_failed": "Nie udało się zmienić adresu organizatora",
       "show_birthday_calendar": "Kalendarz urodzin kontaktów",
       "show_birthday_calendar_desc": "Pokaż wirtualny kalendarz z urodzinami z kontaktów"
     },
@@ -2947,6 +3017,9 @@
       "alert_now": "Zaczyna się teraz",
       "alert_in_minutes": "Za {count} min",
       "invitation_sent": "Zaproszenia wysłano",
+      "invitations_denied_title": "Nie można wysłać zaproszeń",
+      "invitations_denied": "Serwer odmówił wysłania zaproszeń: {reason}. Zapisać wydarzenie bez ich wysyłania?",
+      "save_without_invitations": "Zapisz bez zaproszeń",
       "rsvp_updated": "Odpowiedź zaktualizowano",
       "rsvp_error": "Nie udało się zaktualizować odpowiedzi",
       "event_duplicated": "Wydarzenie zduplikowano",
@@ -2975,7 +3048,7 @@
       "supported_formats": "Obsługuje pliki iCalendar (.ics)",
       "url_description": "Wprowadź adres URL zewnętrznego kanału iCalendar (.ics), aby zaimportować wydarzenia.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "Obsługuje adresy URL CalDAV i iCalendar (.ics)",
+      "url_hint": "Obsługuje adresy URL iCalendar (.ics)",
       "fetch": "Pobierz",
       "invalid_url": "Wprowadź prawidłowy adres URL",
       "url_fetch_failed": "Nie udało się pobrać kalendarza z adresu URL",
@@ -3164,6 +3237,8 @@
     "has_attachment": "Załączniki",
     "date_after": "Po",
     "date_before": "Przed",
+    "size_min": "Większe niż (KB)",
+    "size_max": "Mniejsze niż (KB)",
     "starred": "Z gwiazdką",
     "unread": "Nieprzeczytane",
     "read": "Przeczytane",
@@ -3205,6 +3280,10 @@
     "hint": "Kliknij dowolną wiadomość po lewej, aby zacząć, albo skorzystaj z przewodnika poniżej."
   },
   "files": {
+    "office_edit": "Edytuj dokument",
+    "office_loading": "Otwieranie edytora dokumentów…",
+    "office_error": "Nie udało się otworzyć edytora dokumentów.",
+    "office_close": "Zamknij edytor",
     "open_in_new_tab": "Otwórz w nowej karcie",
     "title": "Pliki",
     "search_placeholder": "Szukaj plików...",
@@ -3217,6 +3296,8 @@
     "rename": "Zmień nazwę",
     "rename_title": "Zmień nazwę",
     "new_name": "Nowa nazwa",
+    "name_forbidden_chars": "Serwer nie zezwala na te znaki w nazwach: {chars}",
+    "name_reserved": "Ta nazwa jest zarezerwowana na serwerze.",
     "delete": "Usuń",
     "delete_confirm_title": "Usuń zasób",
     "delete_confirm_message": "Czy na pewno chcesz usunąć \"{name}\"? Tej operacji nie można cofnąć.",
@@ -3451,6 +3532,25 @@
   "unified_mailbox": {
     "search_unavailable": "Wyszukiwanie jest niedostępne w widoku ujednoliconym"
   },
+  "calendar_event_notifications": {
+    "someone": "Ktoś",
+    "invited": "{name} zaprosił(a) Cię na „{title}”",
+    "updated": "{name} zaktualizował(a) „{title}”",
+    "cancelled": "{name} odwołał(a) „{title}”",
+    "untitled": "Wydarzenie bez tytułu"
+  },
+  "share_notifications": {
+    "someone": "Ktoś",
+    "shared": "{name} udostępnił(a) Ci {kind} „{object}”",
+    "changed": "{name} zmienił(a) Twój dostęp do {kind} „{object}”",
+    "revoked": "{name} odebrał(a) Ci dostęp do {kind} „{object}”",
+    "object": {
+      "folder": "folder",
+      "calendar": "kalendarz",
+      "address_book": "książkę adresową",
+      "files": "folder plików"
+    }
+  },
   "sharing": {
     "title": "Udostępnij „{name}\"",
     "description": "Udziel dostępu innym użytkownikom lub grupom na tym serwerze. Zmiany są natychmiastowe.",
@@ -3501,5 +3601,45 @@
     "copy_event": "Kopiuj link do wydarzenia",
     "copied": "Link skopiowany",
     "copy_failed": "Nie udało się skopiować linku"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Kończenie autoryzacji…",
+      "completing_message": "Proszę czekać na nawiązanie połączenia.",
+      "received_title": "Otrzymano autoryzację",
+      "received_message": "Możesz wrócić do karty, w której rozpoczęto nawiązywanie połączenia.",
+      "failed_title": "Autoryzacja nie powiodła się",
+      "denied": "Autoryzacja została odrzucona.",
+      "failed_detail": "Autoryzacja nie powiodła się: {error}",
+      "missing_params": "Brak kodu autoryzacji lub stanu.",
+      "delivery_failed": "Nie udało się przekazać wyniku autoryzacji do karty aplikacji. Zamknij to okno i spróbuj ponownie."
+    }
+  },
+  "global_search": {
+    "title": "Szukaj wszędzie",
+    "placeholder": "Szukaj w poczcie, kontaktach, kalendarzu, plikach...",
+    "scope_label": "Szukaj w",
+    "account_label": "Konto",
+    "scope_all": "Wszystko",
+    "scope_mail": "Poczta",
+    "scope_contacts": "Kontakty",
+    "scope_calendar": "Kalendarz",
+    "scope_files": "Pliki",
+    "all_accounts": "Wszystkie konta",
+    "show_all": "Pokaż wszystkie wyniki",
+    "no_results": "Brak wyników dla „{query}”",
+    "server_hint": "Całe słowa przeszukują serwer; części słów pasują do już wczytanych elementów",
+    "searching": "Szukanie...",
+    "account_error": "Nie udało się przeszukać {account}",
+    "recent_searches": "Ostatnie wyszukiwania",
+    "recurring": "Cykliczne",
+    "no_subject": "(no subject)",
+    "empty_hint": "Szukaj poczty, kontaktów, wydarzeń i plików na wszystkich kontach. Wypróbuj from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "Płasko według daty",
+    "grouped": "Pogrupowane",
+    "load_more": "Wczytaj więcej",
+    "preview_empty": "Wybierz wynik, aby zobaczyć podgląd",
+    "open_full": "Otwórz",
+    "view_label": "Widok"
   }
 }

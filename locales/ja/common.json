@@ -225,6 +225,10 @@
     "and_others": "他{count}人",
     "draft": "下書き",
     "starred": "スター付き",
+    "pinned": "ピン留め",
+    "replied": "返信済み",
+    "forwarded": "転送済み",
+    "has_attachment": "添付ファイルあり",
     "conversations_count": "{total}件中{count}件の会話",
     "conversations_count_plus": "{count}件以上の会話",
     "conversations_count_simple": "{count}件の会話",
@@ -292,6 +296,7 @@
     "forward": "転送",
     "delete": "削除",
     "archive": "アーカイブ",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "スターを付ける",
     "unstar": "スターを外す",
     "mark_unread": "未読にする",
@@ -303,12 +308,10 @@
     "move": "移動",
     "print": "印刷",
     "view_source": "ソースを表示",
-
     "fullscreen": "全画面表示",
-
     "exit_fullscreen": "全画面表示を終了",
     "export_email": ".emlとしてエクスポート",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "添付ファイルとして転送",
     "import_email": ".eml または .zip をインポート",
     "keyboard_shortcuts": "キーボードショートカット (?)",
     "email_source": "メールソース",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "開封確認を要求中（クリックで無効化）",
     "read_receipt_off": "開封確認を要求する",
+    "dsn_on": "配信通知を要求中（クリックで解除）",
+    "dsn_off": "配信通知を要求する",
+    "format_plain_text": "プレーンテキストに切り替え",
+    "format_rich_text": "リッチテキスト (HTML) に切り替え",
+    "require_tls_on": "暗号化配信を必須にしています（クリックで解除）",
+    "require_tls_off": "暗号化配信を必須にする（TLS）",
     "new_message": "新規メッセージ",
     "signature_edit_hint": "ダブルクリックで署名を編集",
     "reply": "返信",
@@ -631,11 +640,12 @@
     "from_override": {
       "toggle_off": "上書き",
       "toggle_on": "上書きを取り消す",
-      "toggle_tooltip": "差出人名とアドレスを自由に編集できます。メールは引き続きあなたのアイデンティティ経由で送信されます - 表示される差出人ヘッダーのみが変更されます。",
+      "toggle_tooltip": "差出人名とアドレスを自由に編集できます。メールは引き続きあなたのアイデンティティ経由で送信されます。",
       "name_label": "差出人名",
       "name_placeholder": "名前",
       "email_label": "差出人メールアドレス",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "サーバーがこのアドレスをエンベロープ送信者として受け付けない場合は、代わりに {identity} が使われ、受信者は Return-Path ヘッダーでそのアドレスを確認できます。"
     },
     "use_template": "テンプレート",
     "save_as_template": "テンプレートとして保存",
@@ -648,6 +658,8 @@
     "upload_progress": "アップロード中 {uploaded} / {total}",
     "upload_cancel": "アップロードをキャンセル",
     "upload_failed": "{filename} のアップロードに失敗しました",
+    "attachment_too_large": "「{name}」はサーバーの上限を超えています（1 ファイルあたり {max}）",
+    "attachments_total_too_large": "添付ファイルがサーバーの上限（1 通あたり {max}）を超えます",
     "send_failed": "メールの送信に失敗しました",
     "smime_sign_on": "S/MIME 署名を有効化しました",
     "smime_sign_off": "S/MIME 署名を無効化しました",
@@ -726,7 +738,11 @@
       "delete_column": "列を削除",
       "toggle_header_row": "ヘッダー行の切り替え",
       "delete_table": "表を削除",
-      "pick_size": "サイズを選択"
+      "pick_size": "サイズを選択",
+      "font_size": "文字サイズ",
+      "font_size_default": "デフォルト",
+      "background_color": "背景色",
+      "remove_background_color": "背景色を削除"
     },
     "send_filing_warning": "送信されましたが、送信後の整理に失敗しました。古い下書きが残る場合があります。"
   },
@@ -765,6 +781,10 @@
     "email_sent": "メールを送信しました",
     "email_deleted": "メールを削除しました",
     "email_archived": "メールをアーカイブしました",
+    "emails_deleted": "{count, plural, other {#件のメールを削除しました}}",
+    "emails_archived": "{count, plural, other {#件のメールをアーカイブしました}}",
+    "error_archiving": "メールをアーカイブできませんでした",
+    "error_updating": "メールを更新できませんでした",
     "email_starred": "スターを付けました",
     "email_unstarred": "スターを外しました",
     "email_marked_read": "既読にしました",
@@ -1143,7 +1163,9 @@
         "enabled": "メール通知",
         "enabled_desc": "新しいメールが届いたときに通知を表示",
         "sound": "通知音",
-        "sound_desc": "新しいメールが届いたときに音を鳴らす"
+        "sound_desc": "新しいメールが届いたときに音を鳴らす",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "カレンダー通知",
@@ -1172,6 +1194,7 @@
         "status_busy": "処理中…",
         "status_inactive": "このデバイスでは有効になっていません",
         "status_unsupported": "このブラウザは Web Push をサポートしていません",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "title": "バックグラウンド通知",
         "devices_title": "登録済みのデバイス",
         "devices_desc": "このアカウントのバックグラウンド通知を受け取るよう登録されているデバイスの一覧です。取り消すと、そのデバイスはすぐに受信を停止します。",
@@ -1238,6 +1261,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "フォルダー切り替え時に検索をクリア",
+        "description": "フォルダー（受信トレイ、送信済みなど）をクリックすると、有効な検索をクリアしてそのフォルダーを表示します。オフの場合、検索は保持され、切り替え先のフォルダーで再実行されます。"
+      },
       "request_read_receipt": {
         "label": "既定で開封確認を要求する",
         "description": "新しいメッセージの作成時に、開封確認の要求をあらかじめ有効にします。"
@@ -1315,6 +1342,12 @@
       "auto_select_reply_identity": {
         "label": "返信元アドレスを自動選択",
         "description": "返信時に、元のメッセージを受信したIDへ差出人アドレスを自動的に切り替えます"
+      },
+      "reply_identity_match": {
+        "label": "受信アドレスの照合",
+        "description": "どの受信アドレスを自分のものとみなすか。「完全一致のみ」は設定済みのアイデンティティからのみ選択します。「同じドメイン」はアイデンティティのドメイン上の他のアドレスもキャッチオールのエイリアスとして扱い、From ヘッダーをそのアドレスに書き換えます。それらのアドレスが配布リストの場合は完全一致を選択してください。",
+        "exact": "完全一致のみ",
+        "domain": "自分のドメイン上の任意のアドレス"
       },
       "signature_position": {
         "label": "署名の位置",
@@ -1746,7 +1779,9 @@
       "warnings": {
         "end_before_start": "終了日は開始日より後に設定してください",
         "start_in_past": "開始日が過去の日付です",
-        "empty_body": "メッセージ本文が空です - 受信者には空の返信が届きます"
+        "empty_body": "メッセージ本文が空です - 受信者には空の返信が届きます",
+        "subject_too_long": "件名がサーバーの上限を超えています（最大 {max} バイト）。",
+        "body_too_long": "メッセージがサーバーの上限を超えています（書式を含めて最大 {max} バイト）。"
       }
     },
     "folders": {
@@ -1763,6 +1798,8 @@
       "role_trash": "ゴミ箱",
       "role_junk": "迷惑メール",
       "role_archive": "アーカイブ",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "なし",
       "create_folder": "フォルダーを作成",
       "create_subfolder": "サブフォルダーを作成",
@@ -1882,7 +1919,9 @@
       "categories_description": "連絡先カテゴリの名前を変更",
       "no_categories": "カテゴリが見つかりません",
       "group_by_letter_description": "連絡先リストにアルファベット順のセクション見出しを表示",
-      "group_by_letter_label": "頭文字でグループ化"
+      "group_by_letter_label": "頭文字でグループ化",
+      "sort_by_last_name_label": "姓で並べ替え",
+      "sort_by_last_name_description": "家族が並んで表示されるように、連絡先一覧を姓の順に並べ替えます"
     },
     "downloads": {
       "title": "ダウンロード",
@@ -1963,6 +2002,7 @@
       "actions": "アクション",
       "add_action": "アクションを追加",
       "stop_processing": "以降のルールの処理を停止",
+      "include_spam": "迷惑メールと判定されたメッセージも移動する",
       "attachment_type_placeholder": "例: pdf, doc, jpg",
       "value_placeholder_multi": "値（カンマで複数指定可）",
       "condition_fields": {
@@ -2004,6 +2044,8 @@
       "copy_to_folder": "フォルダーを選択",
       "forward_to": "転送先メールアドレス",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "コピーを残す",
+      "forward_limit": "このサーバーでの1通あたりの転送上限: {count}。それを超える転送はスキップされます。",
       "reject_message": "拒否メッセージ",
       "reject_placeholder": "あなたのメールは拒否されました",
       "label_name": "ラベル名",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "新しいサブフォルダー...",
     "new_folder": "新しいフォルダー...",
     "rename": "名前を変更...",
+    "share": "共有...",
     "import_email": ".eml または .zip をインポート...",
     "empty_folder": "フォルダーを空にする",
     "empty_folder_generic": "フォルダーを空にする",
@@ -2234,6 +2277,9 @@
     "toast_error_delete": "フォルダーを削除できませんでした",
     "toast_error_delete_has_children": "フォルダーにサブフォルダーがあります。先に削除してください。",
     "toast_error_delete_has_email": "フォルダーが空ではありません。先に空にしてください。",
+    "delete_with_contents_title": "フォルダーが空ではありません",
+    "delete_with_contents_message": "フォルダー「{name}」にはまだ {count} 件のメッセージがあります。フォルダーとすべてのメッセージを削除しますか？この操作は元に戻せません。",
+    "delete_with_contents_confirm": "フォルダーとメッセージを削除",
     "placeholder_folder_name": "フォルダー名",
     "create": "作成",
     "rename_confirm": "名前を変更"
@@ -2270,7 +2316,8 @@
       "search": "検索にフォーカス",
       "help": "ショートカットを表示",
       "refresh": "メールを更新",
-      "select_all": "すべて選択"
+      "select_all": "すべて選択",
+      "global_search": "すべてを検索"
     },
     "threads": {
       "expand_collapse": "スレッドの展開/折りたたみ"
@@ -2721,7 +2768,10 @@
       "any_month": "すべての月",
       "has_email": "メールあり",
       "has_phone": "電話あり",
-      "has_photo": "写真あり"
+      "has_photo": "写真あり",
+      "sort_by": "並べ替え",
+      "sort_first_name": "名",
+      "sort_last_name": "姓"
     },
     "open_categories": "カテゴリを開く"
   },
@@ -2758,6 +2808,10 @@
       "duplicate": "複製",
       "today_header": "今日",
       "tomorrow_header": "明日",
+      "agenda_show_earlier": "以前の予定を表示",
+      "agenda_loading": "読み込み中…",
+      "agenda_range_start": "{date}以降の予定",
+      "agenda_range_end": "{date}までの予定",
       "export_ics": ".icsとしてエクスポート",
       "copy_title": "タイトルをコピー",
       "copy_link": "会議リンクをコピー",
@@ -2793,6 +2847,14 @@
       "color": "色"
     },
     "participants": {
+      "availability": {
+        "title": "空き状況",
+        "free": "空き",
+        "busy": "予定あり",
+        "tentative": "仮",
+        "unknown": "このサーバーのユーザーではありません",
+        "checking": "確認中…"
+      },
       "title": "参加者",
       "add": "参加者を追加",
       "organizer": "主催者",
@@ -2867,7 +2929,10 @@
       "all_events": "すべてのイベント",
       "cancel": "キャンセル",
       "save": "保存",
-      "delete": "削除"
+      "delete": "削除",
+      "rsvp_title": "繰り返しイベントに返信",
+      "rsvp_description": "これは繰り返しイベントです。どのイベントに返信しますか？",
+      "respond": "返信"
     },
     "alerts": {
       "title": "リマインダー",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "月カレンダー表示でイベントの時刻を表示する",
       "show_week_numbers": "週番号を表示",
       "show_week_numbers_desc": "ミニカレンダーに週番号を表示する",
+      "calendar_free_scroll": "自由スクロール",
+      "calendar_free_scroll_desc": "1つの期間ずつではなく、月・週・日を連続してスクロールします",
       "enable_tasks": "タスクを有効化",
       "enable_tasks_desc": "カレンダーにタスク表示を追加して、ToDoを管理します",
       "show_tasks_on_calendar": "カレンダーにタスクを表示",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "1秒遅延",
       "hover_preview_delay_2s": "2秒遅延",
       "hover_preview_off": "無効",
+      "organizer_identity": "招待の主催者アドレス",
+      "organizer_identity_desc": "イベントに人を招待する際に主催者として使用するカレンダーアドレスです。",
+      "organizer_identity_failed": "主催者アドレスを変更できませんでした",
       "show_birthday_calendar": "誕生日カレンダー",
       "show_birthday_calendar_desc": "連絡先の誕生日を表示する仮想カレンダーを表示します"
     },
@@ -2947,6 +3017,9 @@
       "alert_now": "まもなく開始",
       "alert_in_minutes": "{count}分後",
       "invitation_sent": "招待を送信しました",
+      "invitations_denied_title": "招待状を送信できません",
+      "invitations_denied": "サーバーが招待状の送信を拒否しました: {reason}。招待状を送らずに予定を保存しますか？",
+      "save_without_invitations": "招待状なしで保存",
       "rsvp_updated": "回答を更新しました",
       "rsvp_error": "回答の更新に失敗しました",
       "event_duplicated": "予定を複製しました",
@@ -2975,7 +3048,7 @@
       "supported_formats": "iCalendar (.ics) ファイルに対応",
       "url_description": "外部のiCalendar (.ics) フィードのURLを入力してイベントをインポートします。",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "CalDAVおよびiCalendar (.ics) URLに対応",
+      "url_hint": "iCalendar (.ics) URLに対応",
       "fetch": "取得",
       "invalid_url": "有効なURLを入力してください",
       "url_fetch_failed": "URLからカレンダーを取得できませんでした",
@@ -3164,6 +3237,8 @@
     "has_attachment": "添付ファイル",
     "date_after": "以降",
     "date_before": "以前",
+    "size_min": "次のサイズ以上 (KB)",
+    "size_max": "次のサイズ未満 (KB)",
     "starred": "スター付き",
     "unread": "未読",
     "read": "既読",
@@ -3205,6 +3280,10 @@
     "hint": "左のメールをクリックして始めるか、ツアーを開始してください。"
   },
   "files": {
+    "office_edit": "ドキュメントを編集",
+    "office_loading": "ドキュメントエディターを開いています…",
+    "office_error": "ドキュメントエディターを開けませんでした。",
+    "office_close": "エディターを閉じる",
     "open_in_new_tab": "新しいタブで開く",
     "title": "ファイル",
     "search_placeholder": "ファイルを検索...",
@@ -3217,6 +3296,8 @@
     "rename": "名前を変更",
     "rename_title": "名前を変更",
     "new_name": "新しい名前",
+    "name_forbidden_chars": "サーバーでは名前に次の文字を使用できません: {chars}",
+    "name_reserved": "この名前はサーバーで予約されています。",
     "delete": "削除",
     "delete_confirm_title": "リソースを削除",
     "delete_confirm_message": "\"{name}\"を削除してもよろしいですか？この操作は元に戻せません。",
@@ -3451,6 +3532,25 @@
   "unified_mailbox": {
     "search_unavailable": "統合ビューでは検索を利用できません"
   },
+  "calendar_event_notifications": {
+    "someone": "誰か",
+    "invited": "{name} さんが「{title}」に招待しました",
+    "updated": "{name} さんが「{title}」を更新しました",
+    "cancelled": "{name} さんが「{title}」をキャンセルしました",
+    "untitled": "無題の予定"
+  },
+  "share_notifications": {
+    "someone": "誰か",
+    "shared": "{name} さんが{kind}「{object}」を共有しました",
+    "changed": "{name} さんが{kind}「{object}」へのアクセス権を変更しました",
+    "revoked": "{name} さんが{kind}「{object}」へのアクセス権を削除しました",
+    "object": {
+      "folder": "フォルダー",
+      "calendar": "カレンダー",
+      "address_book": "アドレス帳",
+      "files": "ファイルフォルダー"
+    }
+  },
   "sharing": {
     "title": "「{name}」を共有",
     "description": "このサーバー上の他のユーザーまたはグループにアクセス権を付与します。変更はすぐに反映されます。",
@@ -3501,5 +3601,45 @@
     "copy_event": "予定のリンクをコピー",
     "copied": "リンクをコピーしました",
     "copy_failed": "リンクをコピーできませんでした"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "認証を完了しています…",
+      "completing_message": "接続が確立されるまでお待ちください。",
+      "received_title": "認証を受信しました",
+      "received_message": "接続を開始したタブに戻ることができます。",
+      "failed_title": "認証に失敗しました",
+      "denied": "認証が拒否されました。",
+      "failed_detail": "認証に失敗しました: {error}",
+      "missing_params": "認証コードまたはステートがありません。",
+      "delivery_failed": "認証結果をアプリのタブに渡せませんでした。このウィンドウを閉じて、もう一度お試しください。"
+    }
+  },
+  "global_search": {
+    "title": "すべてを検索",
+    "placeholder": "メール、連絡先、カレンダー、ファイルを検索...",
+    "scope_label": "検索対象",
+    "account_label": "アカウント",
+    "scope_all": "すべて",
+    "scope_mail": "メール",
+    "scope_contacts": "連絡先",
+    "scope_calendar": "カレンダー",
+    "scope_files": "ファイル",
+    "all_accounts": "すべてのアカウント",
+    "show_all": "すべての結果を表示",
+    "no_results": "「{query}」に一致する結果はありません",
+    "server_hint": "完全な単語はサーバーを検索します。部分一致は読み込み済みの項目に適用されます",
+    "searching": "検索中...",
+    "account_error": "{account} を検索できませんでした",
+    "recent_searches": "最近の検索",
+    "recurring": "繰り返し",
+    "no_subject": "(no subject)",
+    "empty_hint": "すべてのアカウントのメール、連絡先、予定、ファイルを検索できます。from:、subject:、has:attachment、after:2026-01-01 なども試せます。",
+    "flat_by_date": "日付順のフラット表示",
+    "grouped": "グループ表示",
+    "load_more": "さらに読み込む",
+    "preview_empty": "プレビューする結果を選択してください",
+    "open_full": "開く",
+    "view_label": "表示"
   }
 }

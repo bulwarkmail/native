@@ -225,6 +225,10 @@
     "and_others": "та {count} інші",
     "draft": "Чернетка",
     "starred": "Позначено зірочкою",
+    "pinned": "Закріплено",
+    "replied": "Відповіли",
+    "forwarded": "Переслано",
+    "has_attachment": "З вкладенням",
     "conversations_count": "{count} з {total} розмов",
     "conversations_count_plus": "{count}+ розмов",
     "conversations_count_simple": "{count} розмов",
@@ -292,6 +296,7 @@
     "forward": "вперед",
     "delete": "Видалити",
     "archive": "Архів",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "зірка",
     "unstar": "Зняти зірочку",
     "mark_unread": "Позначити як непрочитане",
@@ -303,12 +308,10 @@
     "move": "Перенести",
     "print": "Роздрукувати",
     "view_source": "Переглянути джерело",
-
     "fullscreen": "На весь екран",
-
     "exit_fullscreen": "Вийти з повноекранного режиму",
     "export_email": "Експортувати як .eml",
-    "forward_as_attachment": "Forward as attachment",
+    "forward_as_attachment": "Переслати як вкладення",
     "import_email": "Імпорт .eml або .zip",
     "keyboard_shortcuts": "Комбінації клавіш (?)",
     "email_source": "Джерело електронної пошти",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Запитано сповіщення про прочитання (натисніть, щоб вимкнути)",
     "read_receipt_off": "Запитати сповіщення про прочитання",
+    "dsn_on": "Запитано сповіщення про доставку (натисніть, щоб вимкнути)",
+    "dsn_off": "Запитати сповіщення про доставку",
+    "format_plain_text": "Перемкнути на простий текст",
+    "format_rich_text": "Перемкнути на форматований текст (HTML)",
+    "require_tls_on": "Потрібна зашифрована доставка (натисніть, щоб вимкнути)",
+    "require_tls_off": "Вимагати зашифровану доставку (TLS)",
     "new_message": "Нове повідомлення",
     "signature_edit_hint": "Двічі клацніть, щоб редагувати підпис",
     "reply": "Відповісти",
@@ -631,11 +640,12 @@
     "from_override": {
       "toggle_off": "Замінити",
       "toggle_on": "Скасувати заміну",
-      "toggle_tooltip": "Вільно редагуйте ім'я та адресу відправника. Пошта все ще надсилається через вашу ідентичність - змінюється лише видимий заголовок Від.",
+      "toggle_tooltip": "Вільно редагуйте ім'я та адресу відправника. Пошта все ще надсилається через вашу ідентичність.",
       "name_label": "Ім'я відправника",
       "name_placeholder": "Ім'я",
       "email_label": "Електронна адреса відправника",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "Якщо ваш сервер не приймає цю адресу як відправника конверта, замість неї використовується {identity}, і одержувачі бачитимуть її в заголовку Return-Path."
     },
     "use_template": "Шаблон",
     "save_as_template": "Зберегти як шаблон",
@@ -648,6 +658,8 @@
     "upload_progress": "Завантаження {uploaded} / {total}",
     "upload_cancel": "Скасувати завантаження",
     "upload_failed": "Не вдалося завантажити {filename}",
+    "attachment_too_large": "«{name}» більший, ніж дозволяє сервер ({max} на файл)",
+    "attachments_total_too_large": "Вкладення перевищать ліміт сервера {max} на лист",
     "drop_files": "Перетягніть файли, щоб прикріпити",
     "show_less": "Показувати менше",
     "send_failed": "Не вдалося надіслати електронний лист",
@@ -726,7 +738,11 @@
       "delete_column": "Видалити стовпець",
       "toggle_header_row": "Переключити рядок заголовка",
       "delete_table": "Видалити таблицю",
-      "pick_size": "Вибрати розмір"
+      "pick_size": "Вибрати розмір",
+      "font_size": "Розмір шрифту",
+      "font_size_default": "За замовчуванням",
+      "background_color": "Колір фону",
+      "remove_background_color": "Прибрати колір фону"
     },
     "send_filing_warning": "Надіслано - але подальше очищення не вдалося, може залишитися застаріла чернетка."
   },
@@ -765,6 +781,10 @@
     "email_sent": "Електронна пошта успішно надіслана",
     "email_deleted": "Електронну пошту видалено",
     "email_archived": "Електронний лист заархівовано",
+    "emails_deleted": "{count, plural, one {# лист видалено} few {# листи видалено} many {# листів видалено} other {# листа видалено}}",
+    "emails_archived": "{count, plural, one {# лист архівовано} few {# листи архівовано} many {# листів архівовано} other {# листа архівовано}}",
+    "error_archiving": "Не вдалося архівувати лист",
+    "error_updating": "Не вдалося оновити лист",
     "email_starred": "Електронна пошта позначена зірочкою",
     "email_unstarred": "З електронної пошти знято зірочку",
     "email_marked_read": "Електронна пошта позначена як прочитана",
@@ -1143,7 +1163,9 @@
         "enabled": "Сповіщення електронною поштою",
         "enabled_desc": "Показувати сповіщення про надходження нових електронних листів",
         "sound": "Звук сповіщення",
-        "sound_desc": "Відтворення звукового сповіщення про надходження нових електронних листів"
+        "sound_desc": "Відтворення звукового сповіщення про надходження нових електронних листів",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Сповіщення календаря",
@@ -1172,6 +1194,7 @@
         "status_busy": "Виконується…",
         "status_inactive": "Не ввімкнено на цьому пристрої",
         "status_unsupported": "Цей браузер не підтримує Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "title": "Фонові сповіщення",
         "devices_title": "Зареєстровані пристрої",
         "devices_desc": "Усі пристрої, зареєстровані для отримання фонових сповіщень цього облікового запису. Після відкликання пристрій одразу перестає їх отримувати.",
@@ -1238,6 +1261,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Очищати пошук під час перемикання тек",
+        "description": "Клацання теки («Вхідні», «Надіслані»…) очищає активний пошук і відкриває цю теку. Якщо вимкнено, пошук лишається й повторюється у вибраній теці."
+      },
       "request_read_receipt": {
         "label": "Запитувати сповіщення про прочитання за замовчуванням",
         "description": "Заздалегідь вмикати запит сповіщення про прочитання під час створення нового повідомлення."
@@ -1320,6 +1347,12 @@
       "auto_select_reply_identity": {
         "label": "Автоматичний вибір адреси для відповіді",
         "description": "Під час відповіді автоматично змінюйте адресу відправника на особу, яка спочатку отримала повідомлення"
+      },
+      "reply_identity_match": {
+        "label": "Зіставлення адреси отримання",
+        "description": "Які адреси отримання вважати вашими. «Лише точна адреса» вибирає виключно одну з налаштованих ідентичностей; «той самий домен» також вважає будь-яку іншу адресу на доменах ваших ідентичностей catch-all-псевдонімом і підставляє її в заголовок «Від». Виберіть точну адресу, якщо такі адреси є списками розсилки.",
+        "exact": "Лише точна адреса",
+        "domain": "Будь-яка адреса на моїх доменах"
       },
       "signature_position": {
         "label": "Розташування підпису",
@@ -1746,7 +1779,9 @@
       "warnings": {
         "end_before_start": "Дата завершення має бути після дати початку",
         "start_in_past": "Дата початку в минулому",
-        "empty_body": "Тіло повідомлення порожнє - одержувачі отримають порожню відповідь"
+        "empty_body": "Тіло повідомлення порожнє - одержувачі отримають порожню відповідь",
+        "subject_too_long": "Тема задовга для сервера (не більше {max} байтів).",
+        "body_too_long": "Повідомлення задовге для сервера (не більше {max} байтів разом із форматуванням)."
       }
     },
     "folders": {
@@ -1763,6 +1798,8 @@
       "role_trash": "сміття",
       "role_junk": "Спам/сміття",
       "role_archive": "Архів",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "Жодного",
       "create_folder": "Створити папку",
       "create_subfolder": "Створити вкладену папку",
@@ -1882,7 +1919,9 @@
       "categories_description": "Перейменувати категорії контактів",
       "no_categories": "Категорії не знайдено",
       "group_by_letter_description": "Показувати алфавітні заголовки розділів у списку контактів",
-      "group_by_letter_label": "Групувати за першою літерою"
+      "group_by_letter_label": "Групувати за першою літерою",
+      "sort_by_last_name_label": "Сортувати за прізвищем",
+      "sort_by_last_name_description": "Упорядкувати список контактів за прізвищем, щоб члени родини були поруч"
     },
     "downloads": {
       "title": "Завантаження",
@@ -1963,6 +2002,7 @@
       "actions": "Дії",
       "add_action": "Додати дію",
       "stop_processing": "Зупинити обробку наступних правил",
+      "include_spam": "Переміщувати також листи, позначені як спам",
       "attachment_type_placeholder": "напр. pdf, doc, jpg",
       "value_placeholder_multi": "Значення (декілька через кому)",
       "condition_fields": {
@@ -2004,6 +2044,8 @@
       "copy_to_folder": "Виберіть папку",
       "forward_to": "Переслати на електронну адресу",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "Зберегти копію",
+      "forward_limit": "Ліміт пересилань на один лист на цьому сервері: {count}. Зайві пересилання пропускаються.",
       "reject_message": "Повідомлення про відмову",
       "reject_placeholder": "Ваш лист було відхилено",
       "label_name": "Назва мітки",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "Нова вкладена папка...",
     "new_folder": "Нова папка...",
     "rename": "Перейменувати...",
+    "share": "Поділитися...",
     "import_email": "Імпортувати .eml або .zip...",
     "empty_folder": "Очистити папку",
     "empty_folder_generic": "Очистити папку",
@@ -2234,6 +2277,9 @@
     "toast_error_delete": "Не вдалося видалити папку",
     "toast_error_delete_has_children": "Папка містить вкладені папки. Спочатку видаліть їх.",
     "toast_error_delete_has_email": "Папка не порожня. Спочатку очистіть її.",
+    "delete_with_contents_title": "Тека не порожня",
+    "delete_with_contents_message": "Тека «{name}» досі містить {count, plural, one {# повідомлення} few {# повідомлення} other {# повідомлень}}. Видалити теку разом з усіма повідомленнями? Цю дію не можна скасувати.",
+    "delete_with_contents_confirm": "Видалити теку та повідомлення",
     "placeholder_folder_name": "Ім'я папки",
     "create": "Створити",
     "rename_confirm": "Перейменувати"
@@ -2270,7 +2316,8 @@
       "search": "Пошук по фокусу",
       "help": "Показати ярлики",
       "refresh": "Оновити електронні листи",
-      "select_all": "Вибрати все"
+      "select_all": "Вибрати все",
+      "global_search": "Шукати скрізь"
     },
     "threads": {
       "expand_collapse": "Розгорнути/згорнути ланцюжок"
@@ -2721,7 +2768,10 @@
       "any_month": "Будь-який місяць",
       "has_email": "З ел. поштою",
       "has_phone": "З телефоном",
-      "has_photo": "З фото"
+      "has_photo": "З фото",
+      "sort_by": "Сортувати за",
+      "sort_first_name": "Ім'я",
+      "sort_last_name": "Прізвище"
     },
     "open_categories": "Відкрити категорії"
   },
@@ -2758,6 +2808,10 @@
       "duplicate": "дублікат",
       "today_header": "Сьогодні",
       "tomorrow_header": "завтра",
+      "agenda_show_earlier": "Показати попередні події",
+      "agenda_loading": "Завантаження…",
+      "agenda_range_start": "Події з {date}",
+      "agenda_range_end": "Події до {date}",
       "export_ics": "Експортувати як .ics",
       "copy_title": "Скопіювати назву",
       "copy_link": "Скопіювати посилання зустрічі",
@@ -2793,6 +2847,14 @@
       "color": "колір"
     },
     "participants": {
+      "availability": {
+        "title": "Доступність",
+        "free": "Вільний",
+        "busy": "Зайнятий",
+        "tentative": "Попередньо",
+        "unknown": "Не користувач цього сервера",
+        "checking": "Перевірка…"
+      },
       "title": "Учасники",
       "add": "Додати учасника",
       "organizer": "Організатор",
@@ -2867,7 +2929,10 @@
       "all_events": "Всі події",
       "cancel": "Скасувати",
       "save": "зберегти",
-      "delete": "Видалити"
+      "delete": "Видалити",
+      "rsvp_title": "Відповісти на повторювану подію",
+      "rsvp_description": "Це повторювана подія. До яких подій стосується ваша відповідь?",
+      "respond": "Відповісти"
     },
     "alerts": {
       "title": "Нагадування",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "Відображення часу подій у місячному календарі",
       "show_week_numbers": "Показати номери тижнів",
       "show_week_numbers_desc": "Відображення номерів тижнів у міні-календарі",
+      "calendar_free_scroll": "Вільне прокручування",
+      "calendar_free_scroll_desc": "Безперервно прокручувати місяці, тижні та дні замість одного періоду за раз",
       "enable_tasks": "Увімкнути завдання",
       "enable_tasks_desc": "Показати перегляд завдань у календарі для керування справами",
       "show_tasks_on_calendar": "Показати завдання в календарі",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "1-секундна затримка",
       "hover_preview_delay_2s": "2-секундна затримка",
       "hover_preview_off": "Вимкнено",
+      "organizer_identity": "Організовувати запрошення як",
+      "organizer_identity_desc": "Адреса календаря, що використовується як організатор, коли ви запрошуєте людей на події.",
+      "organizer_identity_failed": "Не вдалося змінити адресу організатора",
       "show_birthday_calendar": "Контактний календар днів народження",
       "show_birthday_calendar_desc": "Показати віртуальний календар із днями народження ваших контактів"
     },
@@ -2947,6 +3017,9 @@
       "alert_now": "Починаючи зараз",
       "alert_in_minutes": "Через {count} хв",
       "invitation_sent": "Запрошення надіслано",
+      "invitations_denied_title": "Не вдається надіслати запрошення",
+      "invitations_denied": "Сервер відмовився надіслати запрошення: {reason}. Зберегти подію без їх надсилання?",
+      "save_without_invitations": "Зберегти без запрошень",
       "rsvp_updated": "Відповідь оновлено",
       "rsvp_error": "Не вдалося оновити відповідь",
       "event_duplicated": "Подія дублюється",
@@ -2975,7 +3048,7 @@
       "supported_formats": "Підтримує файли iCalendar (.ics).",
       "url_description": "Введіть URL-адресу зовнішнього каналу iCalendar (.ics), щоб імпортувати події.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "Підтримує URL-адреси CalDAV та iCalendar (.ics).",
+      "url_hint": "Підтримує URL-адреси iCalendar (.ics).",
       "fetch": "Принести",
       "invalid_url": "Введіть дійсну URL-адресу",
       "url_fetch_failed": "Не вдалося отримати календар з URL-адреси",
@@ -3164,6 +3237,8 @@
     "has_attachment": "Додатки",
     "date_after": "Після",
     "date_before": "Раніше",
+    "size_min": "Більше ніж (КБ)",
+    "size_max": "Менше ніж (КБ)",
     "starred": "Позначено зірочкою",
     "unread": "Непрочитаний",
     "read": "Прочитайте",
@@ -3205,6 +3280,10 @@
     "hint": "Натисніть будь-яку електронну пошту ліворуч, щоб розпочати, або перегляньте огляд нижче."
   },
   "files": {
+    "office_edit": "Редагувати документ",
+    "office_loading": "Відкриття редактора документів…",
+    "office_error": "Не вдалося відкрити редактор документів.",
+    "office_close": "Закрити редактор",
     "open_in_new_tab": "Відкрити в новій вкладці",
     "title": "Файли",
     "search_placeholder": "Пошук файлів...",
@@ -3217,6 +3296,8 @@
     "rename": "Перейменувати",
     "rename_title": "Перейменувати",
     "new_name": "Нова назва",
+    "name_forbidden_chars": "Сервер не дозволяє ці символи в назвах: {chars}",
+    "name_reserved": "Ця назва зарезервована на сервері.",
     "delete": "Видалити",
     "delete_confirm_title": "Видалити ресурс",
     "delete_confirm_message": "Ви впевнені, що хочете видалити \"{name}\"? Це неможливо скасувати.",
@@ -3451,6 +3532,25 @@
   "unified_mailbox": {
     "search_unavailable": "Пошук недоступний в об'єднаному перегляді"
   },
+  "calendar_event_notifications": {
+    "someone": "Хтось",
+    "invited": "{name} запросив(ла) вас на «{title}»",
+    "updated": "{name} оновив(ла) «{title}»",
+    "cancelled": "{name} скасував(ла) «{title}»",
+    "untitled": "Подія без назви"
+  },
+  "share_notifications": {
+    "someone": "Хтось",
+    "shared": "{name} поділився(лася) з вами {kind} «{object}»",
+    "changed": "{name} змінив(ла) ваш доступ до {kind} «{object}»",
+    "revoked": "{name} скасував(ла) ваш доступ до {kind} «{object}»",
+    "object": {
+      "folder": "текою",
+      "calendar": "календарем",
+      "address_book": "адресною книгою",
+      "files": "текою файлів"
+    }
+  },
   "sharing": {
     "title": "Поділитися «{name}»",
     "description": "Надайте доступ іншим користувачам або групам на цьому сервері. Зміни набувають чинності негайно.",
@@ -3501,5 +3601,45 @@
     "copy_event": "Скопіювати посилання на подію",
     "copied": "Посилання скопійовано",
     "copy_failed": "Не вдалося скопіювати посилання"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Завершення авторизації…",
+      "completing_message": "Зачекайте, поки встановлюється з'єднання.",
+      "received_title": "Авторизацію отримано",
+      "received_message": "Ви можете повернутися на вкладку, де розпочали підключення.",
+      "failed_title": "Не вдалося виконати авторизацію",
+      "denied": "В авторизації відмовлено.",
+      "failed_detail": "Не вдалося виконати авторизацію: {error}",
+      "missing_params": "Відсутній код авторизації або стан.",
+      "delivery_failed": "Не вдалося передати результат авторизації на вкладку програми. Закрийте це вікно та спробуйте ще раз."
+    }
+  },
+  "global_search": {
+    "title": "Шукати скрізь",
+    "placeholder": "Пошук у пошті, контактах, календарі, файлах...",
+    "scope_label": "Шукати в",
+    "account_label": "Обліковий запис",
+    "scope_all": "Усе",
+    "scope_mail": "Пошта",
+    "scope_contacts": "Контакти",
+    "scope_calendar": "Календар",
+    "scope_files": "Файли",
+    "all_accounts": "Усі облікові записи",
+    "show_all": "Показати всі результати",
+    "no_results": "Нічого не знайдено за запитом «{query}»",
+    "server_hint": "Цілі слова шукаються на сервері; частини слів — серед уже завантаженого",
+    "searching": "Пошук...",
+    "account_error": "Не вдалося виконати пошук у {account}",
+    "recent_searches": "Останні запити",
+    "recurring": "Повторювана",
+    "no_subject": "(no subject)",
+    "empty_hint": "Шукайте пошту, контакти, події та файли в усіх облікових записах. Спробуйте from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "Списком за датою",
+    "grouped": "За групами",
+    "load_more": "Завантажити ще",
+    "preview_empty": "Виберіть результат для перегляду",
+    "open_full": "Відкрити",
+    "view_label": "Вигляд"
   }
 }

@@ -225,6 +225,10 @@
     "and_others": "and {count} others",
     "draft": "Draft",
     "starred": "Starred",
+    "pinned": "Pinned",
+    "replied": "Replied",
+    "forwarded": "Forwarded",
+    "has_attachment": "Has attachment",
     "conversations_count": "{count} of {total} conversations",
     "conversations_count_plus": "{count}+ conversations",
     "conversations_count_simple": "{count} conversations",
@@ -292,6 +296,7 @@
     "forward": "Forward",
     "delete": "Delete",
     "archive": "Archive",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "Star",
     "unstar": "Unstar",
     "mark_unread": "Mark as unread",
@@ -578,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Read receipt requested (click to disable)",
     "read_receipt_off": "Request a read receipt",
+    "dsn_on": "Delivery notification requested (click to disable)",
+    "dsn_off": "Request a delivery notification",
+    "format_plain_text": "Switch to plain text",
+    "format_rich_text": "Switch to rich text (HTML)",
+    "require_tls_on": "Encrypted delivery required (click to disable)",
+    "require_tls_off": "Require encrypted delivery (TLS)",
     "new_message": "New Message",
     "signature_edit_hint": "Double-click to edit the signature",
     "reply": "Reply",
@@ -632,11 +643,12 @@
     "from_override": {
       "toggle_off": "Override",
       "toggle_on": "Cancel override",
-      "toggle_tooltip": "Edit the From name and address freely. Mail is still sent through your identity - only the visible From header changes.",
+      "toggle_tooltip": "Edit the From name and address freely. Mail is still sent through your identity.",
       "name_label": "From name",
       "name_placeholder": "Name",
       "email_label": "From email address",
-      "email_placeholder": "alias@example.com"
+      "email_placeholder": "alias@example.com",
+      "envelope_notice": "If your server doesn't accept this address as the envelope sender, {identity} is used there instead, and recipients can see it in the Return-Path header."
     },
     "use_template": "Template",
     "save_as_template": "Save as Template",
@@ -649,6 +661,8 @@
     "upload_progress": "Uploading {uploaded} / {total}",
     "upload_cancel": "Cancel upload",
     "upload_failed": "Failed to upload {filename}",
+    "attachment_too_large": "\"{name}\" is larger than the server allows ({max} per file)",
+    "attachments_total_too_large": "The attachments would exceed the server's limit of {max} per message",
     "drop_files": "Drop files to attach",
     "show_less": "Show less",
     "send_failed": "Failed to send email",
@@ -724,7 +738,11 @@
       "delete_column": "Delete column",
       "toggle_header_row": "Toggle header row",
       "delete_table": "Delete table",
-      "pick_size": "Pick size"
+      "pick_size": "Pick size",
+      "font_size": "Font size",
+      "font_size_default": "Default",
+      "background_color": "Background color",
+      "remove_background_color": "Remove background color"
     },
     "send_filing_warning": "Sent - but the post-send cleanup failed, a stale draft may remain."
   },
@@ -763,6 +781,10 @@
     "email_sent": "Email sent successfully",
     "email_deleted": "Email deleted",
     "email_archived": "Email archived",
+    "emails_deleted": "{count, plural, one {# email deleted} other {# emails deleted}}",
+    "emails_archived": "{count, plural, one {# email archived} other {# emails archived}}",
+    "error_archiving": "Failed to archive email",
+    "error_updating": "Failed to update email",
     "email_starred": "Email starred",
     "email_unstarred": "Email unstarred",
     "email_marked_read": "Email marked as read",
@@ -1027,7 +1049,7 @@
       },
       "unified_mailbox": {
         "label": "Unified Mailbox",
-        "description": "Show combined folders (Inbox, Sent, etc.) for the active account and its shared folders.",
+        "description": "Show combined folders (Inbox, Sent, etc.) for the active account and its shared folders. Needs more than one connected account (or a group inbox included below) before any folders appear here - with just one account, this only adds the section header. The All mail / Unread / Starred entries below are separate, admin-gated options that won't show up until your admin turns them on.",
         "cross_account": {
           "label": "Across all accounts",
           "description": "Merge the unified mailbox across every connected account instead of staying within the active account."
@@ -1056,8 +1078,8 @@
         "description": "Show the total message count next to folders and tags, alongside the unread count. Disable to show only unread counts."
       },
       "favicon_unread_badge": {
-        "label": "Unread Count on Tab Icon",
-        "description": "Show the inbox unread count as a badge on the browser tab icon, so new mail is visible when the tab is not focused. Disable to keep the icon unbadged."
+        "label": "Unread Count on Tab and App Icon",
+        "description": "Show the inbox unread count as a badge on the browser tab icon, and on the installed app icon where supported, so new mail is visible when the tab is not focused. Disable to keep both icons unbadged."
       },
       "pro_interface": {
         "label": "Pro Interface (Experimental)",
@@ -1142,6 +1164,7 @@
         "status_active": "Active on this device",
         "status_inactive": "Not enabled on this device",
         "status_unsupported": "This browser does not support Web Push",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "status_busy": "Working…",
         "enable": "Enable",
         "reenable": "Re-register",
@@ -1179,7 +1202,9 @@
         "enabled": "Email notifications",
         "enabled_desc": "Show notifications when new emails arrive",
         "sound": "Notification sound",
-        "sound_desc": "Play an audio alert when new emails arrive"
+        "sound_desc": "Play an audio alert when new emails arrive",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Calendar Notifications",
@@ -1239,6 +1264,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Clear search when switching folders",
+        "description": "Clicking a folder (Inbox, Sent, …) clears the active search and browses that folder. When off, the search stays applied and re-runs in the folder you switch to."
+      },
       "request_read_receipt": {
         "label": "Request read receipts by default",
         "description": "Pre-enable the read-receipt request when composing a new message."
@@ -1320,7 +1349,13 @@
       },
       "auto_select_reply_identity": {
         "label": "Reply From Received Address",
-        "description": "When replying, send from the address the message was originally sent to. Matches identities first; for domain catch-all deliveries, rewrites the From header to the alias while sending through your primary identity."
+        "description": "When replying, send from the address the message was originally sent to. Your configured identities always match; whether other addresses on your domains count too (catch-all) is set by “Received Address Matching” below."
+      },
+      "reply_identity_match": {
+        "label": "Received Address Matching",
+        "description": "Which received addresses count as yours. Exact address only picks one of your configured identities. Same domain also treats any other address on one of your identity domains as a catch-all alias and rewrites the From header to it. Choose exact address if those addresses are distribution lists rather than aliases.",
+        "exact": "Exact address only",
+        "domain": "Any address on my domains"
       },
       "signature_position": {
         "label": "Signature Position",
@@ -1751,7 +1786,9 @@
       "warnings": {
         "end_before_start": "End date must be after start date",
         "start_in_past": "Start date is in the past",
-        "empty_body": "Message body is empty - recipients will receive a blank reply"
+        "empty_body": "Message body is empty - recipients will receive a blank reply",
+        "subject_too_long": "The subject is too long for the server (at most {max} bytes).",
+        "body_too_long": "The message is too long for the server (at most {max} bytes, formatting included)."
       }
     },
     "folders": {
@@ -1768,6 +1805,8 @@
       "role_trash": "Trash",
       "role_junk": "Spam / Junk",
       "role_archive": "Archive",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "None",
       "create_folder": "Create Folder",
       "create_subfolder": "Create Subfolder",
@@ -1878,6 +1917,8 @@
       "description": "Import and export your contacts",
       "group_by_letter_label": "Group by first letter",
       "group_by_letter_description": "Show alphabetical section headers in the contact list",
+      "sort_by_last_name_label": "Sort by last name",
+      "sort_by_last_name_description": "Order the contact list by surname so family members appear together",
       "import_label": "Import Contacts",
       "import_description": "Import contacts from a vCard (.vcf) file",
       "export_label": "Export Contacts",
@@ -1968,6 +2009,7 @@
       "actions": "Actions",
       "add_action": "Add Action",
       "stop_processing": "Stop processing subsequent rules",
+      "include_spam": "Also move messages marked as spam",
       "attachment_type_placeholder": "e.g. pdf, doc, jpg",
       "value_placeholder_multi": "Value (multiple separated by commas)",
       "condition_fields": {
@@ -2009,6 +2051,8 @@
       "copy_to_folder": "Select folder",
       "forward_to": "Forward to email address",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "Keep a copy",
+      "forward_limit": "Forward limit per message on this server: {count}. Extra forwards are skipped.",
       "reject_message": "Rejection message",
       "reject_placeholder": "Your email has been rejected",
       "label_name": "Tag name",
@@ -2205,6 +2249,7 @@
     "new_subfolder": "New subfolder...",
     "new_folder": "New folder...",
     "rename": "Rename...",
+    "share": "Share...",
     "import_email": "Import .eml or .zip...",
     "empty_folder": "Empty folder",
     "empty_folder_generic": "Empty folder",
@@ -2234,7 +2279,10 @@
     "toast_error_rename": "Failed to rename folder",
     "toast_error_delete": "Failed to delete folder",
     "toast_error_delete_has_children": "Folder has subfolders. Remove them first.",
-    "toast_error_delete_has_email": "Folder is not empty. Empty it first."
+    "toast_error_delete_has_email": "Folder is not empty. Empty it first.",
+    "delete_with_contents_title": "Folder is not empty",
+    "delete_with_contents_message": "The folder \"{name}\" still contains {count, plural, one {1 message} other {# messages}}. Delete the folder and all of its messages? This cannot be undone.",
+    "delete_with_contents_confirm": "Delete folder and messages"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
@@ -2268,7 +2316,8 @@
       "search": "Focus search",
       "help": "Show shortcuts",
       "refresh": "Refresh emails",
-      "select_all": "Select all"
+      "select_all": "Select all",
+      "global_search": "Search everything"
     },
     "threads": {
       "expand_collapse": "Expand/collapse thread"
@@ -2720,7 +2769,10 @@
       "any_month": "Any month",
       "has_email": "Has email",
       "has_phone": "Has phone",
-      "has_photo": "Has photo"
+      "has_photo": "Has photo",
+      "sort_by": "Sort by",
+      "sort_first_name": "First name",
+      "sort_last_name": "Last name"
     }
   },
   "calendar": {
@@ -2756,16 +2808,17 @@
       "duplicate": "Duplicate",
       "today_header": "Today",
       "tomorrow_header": "Tomorrow",
+      "agenda_show_earlier": "Show earlier events",
+      "agenda_loading": "Loading…",
+      "agenda_range_start": "Showing events from {date}",
+      "agenda_range_end": "Showing events until {date}",
       "export_ics": "Export as .ics",
       "copy_title": "Copy title",
       "copy_link": "Copy meeting link",
       "new_event": "New event",
       "new_all_day_event": "New all-day event",
       "new_task": "New task",
-      "go_to_today": "Go to today",
-      "tap_to_create": "Tap + to create one",
-      "export_ics_short": ".ics",
-      "copy_link_short": "Link"
+      "go_to_today": "Go to today"
     },
     "detail": {
       "add_note": "Add a note...",
@@ -2791,12 +2844,17 @@
       "save": "Save",
       "cancel": "Cancel",
       "delete_confirm": "Are you sure you want to delete this event?",
-      "color": "Color",
-      "time": "Time",
-      "location_placeholder": "Place or address",
-      "description_placeholder": "Notes, agenda…"
+      "color": "Color"
     },
     "participants": {
+      "availability": {
+        "title": "Availability",
+        "free": "Available",
+        "busy": "Busy",
+        "tentative": "Tentative",
+        "unknown": "Not a user on this server",
+        "checking": "Checking…"
+      },
       "title": "Participants",
       "add": "Add participant",
       "organizer": "Organizer",
@@ -2871,7 +2929,10 @@
       "all_events": "All events",
       "cancel": "Cancel",
       "save": "Save",
-      "delete": "Delete"
+      "delete": "Delete",
+      "rsvp_title": "Respond to recurring event",
+      "rsvp_description": "This is a recurring event. Which events does your response apply to?",
+      "respond": "Respond"
     },
     "alerts": {
       "title": "Reminders",
@@ -2888,8 +2949,7 @@
       "add": "Add reminder",
       "remove": "Remove reminder",
       "amount": "Reminder amount",
-      "unit": "Reminder unit",
-      "unit_minutes_after": "minutes after"
+      "unit": "Reminder unit"
     },
     "settings": {
       "title": "Calendar settings",
@@ -2910,6 +2970,8 @@
       "show_time_in_month_view_desc": "Display event times in the month calendar view. On small screens this shows full event entries instead of dots.",
       "show_week_numbers": "Show week numbers",
       "show_week_numbers_desc": "Display week numbers in the mini-calendar",
+      "calendar_free_scroll": "Free scrolling",
+      "calendar_free_scroll_desc": "Scroll continuously through months, weeks and days instead of one period at a time",
       "enable_tasks": "Enable tasks",
       "enable_tasks_desc": "Show a tasks view in the calendar for managing to-dos",
       "show_tasks_on_calendar": "Show tasks on calendar",
@@ -2921,12 +2983,11 @@
       "hover_preview_delay_1s": "1-second delay",
       "hover_preview_delay_2s": "2-second delay",
       "hover_preview_off": "Disabled",
+      "organizer_identity": "Organize invitations as",
+      "organizer_identity_desc": "The calendar address used as organizer when you invite people to events.",
+      "organizer_identity_failed": "Failed to change the organizer address",
       "show_birthday_calendar": "Contact birthday calendar",
-      "show_birthday_calendar_desc": "Show a virtual calendar with birthdays from your contacts",
-      "time_zone": "Time zone",
-      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone.",
-      "time_zone_auto": "Device time zone",
-      "show_week_numbers_mobile_desc": "Display week numbers in the month view."
+      "show_birthday_calendar_desc": "Show a virtual calendar with birthdays from your contacts"
     },
     "days": {
       "monday": "Monday",
@@ -2982,6 +3043,9 @@
       "alert_now": "Starting now",
       "alert_in_minutes": "In {count} min",
       "invitation_sent": "Invitations sent",
+      "invitations_denied_title": "Invitations can't be sent",
+      "invitations_denied": "The server refused to send the invitations: {reason}. Save the event without sending them?",
+      "save_without_invitations": "Save without invitations",
       "rsvp_updated": "Response updated",
       "rsvp_error": "Failed to update response",
       "event_duplicated": "Event duplicated",
@@ -3011,7 +3075,7 @@
       "supported_formats": "Supports iCalendar (.ics) files",
       "url_description": "Enter the URL of an external iCalendar (.ics) feed to import events.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "Supports CalDAV and iCalendar (.ics) URLs",
+      "url_hint": "Supports iCalendar (.ics) URLs",
       "fetch": "Fetch",
       "invalid_url": "Please enter a valid URL",
       "url_fetch_failed": "Failed to fetch calendar from URL",
@@ -3076,15 +3140,7 @@
       "kind_events": "Events",
       "kind_tasks": "Tasks",
       "kind_both": "Events and tasks",
-      "kind_hint": "Decides which apps see this calendar when it is synced over CalDAV. It cannot be changed later.",
-      "new_calendar": "New calendar",
-      "edit_calendar": "Edit calendar",
-      "description_placeholder": "Optional",
-      "clear_title": "Remove all events?",
-      "clear_description": "Every event in this calendar will be deleted. Events that also belong to another calendar are only unlinked.",
-      "clear_confirm": "Remove all",
-      "delete_title": "Delete calendar?",
-      "delete_description": "The calendar and all of its events will be deleted. This cannot be undone."
+      "kind_hint": "Decides which apps see this calendar when it is synced over CalDAV. It cannot be changed later."
     },
     "subscription": {
       "title": "iCal Subscription",
@@ -3163,59 +3219,26 @@
       "quick_add_placeholder": "Add a task...",
       "due_today": "Today",
       "due_tomorrow": "Tomorrow",
-      "overdue": "Overdue",
-      "add_placeholder": "Add a task…",
-      "add_time": "Add time"
-    },
-    "agenda": {
-      "no_upcoming": "No upcoming events",
-      "days_clear": "The next {count} days are clear."
-    },
-    "drawer": {
-      "no_calendars": "No calendars yet.",
-      "my_calendars": "My calendars",
-      "shared_with_me": "Shared with me",
-      "subscribed": "Subscribed"
-    },
-    "share": {
-      "title": "Share",
-      "shared_with": "Shared with",
-      "add_people": "Add people",
-      "search_placeholder": "Search by name or email",
-      "no_principals": "Sharing is not available on this server.",
-      "no_matches": "No matches",
-      "role_free_busy": "Free/busy",
-      "role_viewer": "Viewer",
-      "role_editor": "Editor",
-      "role_manager": "Manager",
-      "role_custom": "Custom",
-      "error": "Failed to update sharing"
-    },
-    "invitation": {
-      "reading": "Reading invitation…",
-      "title": "Calendar invitation",
-      "cancelled": "This event was cancelled",
-      "reply": "A participant replied to this invitation",
-      "organizer": "Organizer",
-      "join_video": "Join video call",
-      "already_in_calendar": "Already in your calendar",
-      "added": "Added to calendar",
-      "add_error": "Could not add the event",
-      "response_sent": "Response sent",
-      "response_error": "Could not send your response",
-      "add_to_calendar": "Add to calendar",
-      "no_writable_calendar": "No writable calendar available",
-      "accept": "Yes",
-      "tentative": "Maybe",
-      "decline": "No",
-      "trust_verified": "Sender verified",
-      "trust_sender_mismatch_unverified": "The sender does not match the organizer and the message is not authenticated.",
-      "trust_authentication_failed": "This message failed sender authentication (SPF/DKIM/DMARC).",
-      "trust_sender_mismatch": "The sender differs from the event organizer.",
-      "trust_authentication_missing": "The sender could not be verified."
-    },
-    "event_modal": {
-      "participant_placeholder": "Add participant by email"
+      "overdue": "Overdue"
+    }
+  },
+  "calendar_event_notifications": {
+    "someone": "Someone",
+    "invited": "{name} invited you to \"{title}\"",
+    "updated": "{name} updated \"{title}\"",
+    "cancelled": "{name} cancelled \"{title}\"",
+    "untitled": "Untitled event"
+  },
+  "share_notifications": {
+    "someone": "Someone",
+    "shared": "{name} shared the {kind} \"{object}\" with you",
+    "changed": "{name} changed your access to the {kind} \"{object}\"",
+    "revoked": "{name} removed your access to the {kind} \"{object}\"",
+    "object": {
+      "folder": "folder",
+      "calendar": "calendar",
+      "address_book": "address book",
+      "files": "file folder"
     }
   },
   "sharing": {
@@ -3256,6 +3279,8 @@
     "has_attachment": "Attachments",
     "date_after": "After",
     "date_before": "Before",
+    "size_min": "Larger than (KB)",
+    "size_max": "Smaller than (KB)",
     "starred": "Starred",
     "unread": "Unread",
     "read": "Read",
@@ -3297,6 +3322,10 @@
     "hint": "Click any email on the left to get started, or take the tour below."
   },
   "files": {
+    "office_edit": "Edit document",
+    "office_loading": "Opening document editor…",
+    "office_error": "The document editor could not be opened.",
+    "office_close": "Close editor",
     "open_in_new_tab": "Open in new tab",
     "title": "Files",
     "search_placeholder": "Search files...",
@@ -3309,6 +3338,8 @@
     "rename": "Rename",
     "rename_title": "Rename",
     "new_name": "New name",
+    "name_forbidden_chars": "The server does not allow these characters in names: {chars}",
+    "name_reserved": "This name is reserved on the server.",
     "delete": "Delete",
     "delete_confirm_title": "Delete resource",
     "delete_confirm_message": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
@@ -3409,31 +3440,7 @@
     "disabled_description": "Large file uploads via WebDAV can cause Stalwart/RocksDB instability, including out-of-memory crashes and unrecoverable disk usage. Deleted files may not be immediately purged from blob storage. This feature is not recommended for production environments.",
     "stability_warning": "Large file uploads can cause server instability. Deleted files may not be immediately purged from storage. Use with caution.",
     "migration_title": "Updating your files…",
-    "migration_description": "Organising folders and files into their proper structure. This happens only once.",
-    "move_to": "Move to…",
-    "sharing_access": "Sharing & access",
-    "shared_with": "Shared with",
-    "share_add_people": "Add people",
-    "share_search_placeholder": "Search by name or email",
-    "share_no_users": "No other users found",
-    "share_no_matches": "No matches",
-    "share_folder_hint": "Sharing a folder shares everything inside it.",
-    "share_error": "Failed to update sharing",
-    "share_remove": "Remove access",
-    "share_empty": "Not shared with anyone yet",
-    "share_role_viewer": "Viewer",
-    "share_role_editor": "Editor",
-    "share_role_manager": "Manager",
-    "share_role_custom": "Custom",
-    "done": "Done",
-    "invalid_name": "Invalid name",
-    "invalid_name_slash": "Names cannot contain \"/\".",
-    "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
-    "selected_count": "{count} selected",
-    "folder_empty": "This folder is empty",
-    "delete_item_title": "Delete this item?",
-    "delete_items_title": "Delete {count} items?",
-    "delete_cascade_hint": "Folders are deleted along with everything inside them. This can't be undone."
+    "migration_description": "Organising folders and files into their proper structure. This happens only once."
   },
   "smime": {
     "your_certificates": "Your Certificates",
@@ -3594,5 +3601,45 @@
     "copy_event": "Copy link to event",
     "copied": "Link copied",
     "copy_failed": "Couldn't copy the link"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Completing authorization…",
+      "completing_message": "Please wait while the connection is established.",
+      "received_title": "Authorization received",
+      "received_message": "You can return to the tab where you started the connection.",
+      "failed_title": "Authorization failed",
+      "denied": "Authorization was denied.",
+      "failed_detail": "Authorization failed: {error}",
+      "missing_params": "Missing authorization code or state.",
+      "delivery_failed": "The authorization result could not be delivered to the app tab. Please close this window and try again."
+    }
+  },
+  "global_search": {
+    "title": "Search everything",
+    "placeholder": "Search mail, contacts, calendar, files...",
+    "scope_label": "Search in",
+    "account_label": "Account",
+    "scope_all": "All",
+    "scope_mail": "Mail",
+    "scope_contacts": "Contacts",
+    "scope_calendar": "Calendar",
+    "scope_files": "Files",
+    "all_accounts": "All accounts",
+    "show_all": "Show all results",
+    "no_results": "No results for “{query}”",
+    "server_hint": "Complete words search the server; partial words match already-loaded items",
+    "searching": "Searching...",
+    "account_error": "Couldn't search {account}",
+    "recent_searches": "Recent searches",
+    "recurring": "Recurring",
+    "no_subject": "(no subject)",
+    "empty_hint": "Search mail, contacts, events and files across all accounts. Try from:, subject:, has:attachment, after:2026-01-01.",
+    "flat_by_date": "Flat by date",
+    "grouped": "Grouped",
+    "load_more": "Load more",
+    "preview_empty": "Select a result to preview it",
+    "open_full": "Open",
+    "view_label": "View"
   }
 }

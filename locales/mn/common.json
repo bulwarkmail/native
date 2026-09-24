@@ -225,6 +225,10 @@
     "and_others": "болон {count} бусад",
     "draft": "Ноорог",
     "starred": "Одтой",
+    "pinned": "Бэхэлсэн",
+    "replied": "Хариулсан",
+    "forwarded": "Дамжуулсан",
+    "has_attachment": "Хавсралттай",
     "conversations_count": "{total} харилцан ярианы {count}",
     "conversations_count_plus": "{count}+ харилцан яриа",
     "conversations_count_simple": "{count} харилцан яриа",
@@ -292,6 +296,7 @@
     "forward": "Урагшаа",
     "delete": "Устгах",
     "archive": "Архив",
+    "archive_mailbox_not_found": "Archive mailbox not found - cannot archive email",
     "star": "од",
     "unstar": "Одгүй болгох",
     "mark_unread": "Уншаагүй гэж тэмдэглэх",
@@ -303,9 +308,7 @@
     "move": "Хөдөлгөөн",
     "print": "Хэвлэх",
     "view_source": "Эх сурвалжийг харах",
-
     "fullscreen": "Бүтэн дэлгэц",
-
     "exit_fullscreen": "Бүтэн дэлгэцээс гарах",
     "export_email": ".eml",
     "forward_as_attachment": "Хавсралт болгон дамжуулах",
@@ -580,6 +583,12 @@
   "email_composer": {
     "read_receipt_on": "Уншсан баримт хүссэн (идэвхгүй болгохын тулд дарна уу)",
     "read_receipt_off": "Уншсан баримт хүсэх",
+    "dsn_on": "Хүргэлтийн мэдэгдэл хүссэн (идэвхгүй болгох бол дарна уу)",
+    "dsn_off": "Хүргэлтийн мэдэгдэл хүсэх",
+    "format_plain_text": "Энгийн текст рүү шилжих",
+    "format_rich_text": "Форматтай текст (HTML) рүү шилжих",
+    "require_tls_on": "Шифрлэгдсэн хүргэлт шаардлагатай (идэвхгүй болгох бол дарна уу)",
+    "require_tls_off": "Шифрлэгдсэн хүргэлт шаардах (TLS)",
     "new_message": "Шинэ мессеж",
     "signature_edit_hint": "Гарын үсгийг засахын тулд давхар товшино уу",
     "reply": "Хариулах",
@@ -634,11 +643,12 @@
     "from_override": {
       "toggle_off": "Дараах",
       "toggle_on": "Дараахыг цуцлах",
-      "toggle_tooltip": "From нэр хаягийг чөлөөтэй засварлана. Таны хувийн мэдээллээр шуудан илгээгдсэн хэвээр байна - зөвхөн харагдах \"From\" гарчиг өөрчлөгдөнө.",
+      "toggle_tooltip": "From нэр хаягийг чөлөөтэй засварлана. Таны хувийн мэдээллээр шуудан илгээгдсэн хэвээр байна.",
       "name_label": "Нэрнээс",
       "name_placeholder": "Нэр",
       "email_label": "Имэйл хаягаас",
-      "email_placeholder": "user@example.com"
+      "email_placeholder": "user@example.com",
+      "envelope_notice": "Хэрэв таны сервер энэ хаягийг дугтуйн илгээгчээр хүлээн авахгүй бол оронд нь {identity} ашиглагдах бөгөөд хүлээн авагчид үүнийг Return-Path гарчигт харж болно."
     },
     "use_template": "Загвар",
     "save_as_template": "Загвар болгон хадгалах",
@@ -651,6 +661,8 @@
     "upload_progress": "{uploaded} / {total}",
     "upload_cancel": "Байршуулалтыг цуцлах",
     "upload_failed": "{filename}",
+    "attachment_too_large": "\"{name}\" сервер зөвшөөрөхөөс том байна (нэг файлд {max})",
+    "attachments_total_too_large": "Хавсралтууд серверийн нэг захидалд ногдох {max} хязгаараас хэтэрнэ",
     "drop_files": "Файлуудыг хавсаргах",
     "show_less": "Бага харуулах",
     "send_failed": "Имэйл илгээж чадсангүй",
@@ -726,7 +738,11 @@
       "delete_column": "Баганыг устгах",
       "toggle_header_row": "Толгойн мөрийг сэлгэх",
       "delete_table": "Хүснэгт устгах",
-      "pick_size": "Хэмжээ сонгох"
+      "pick_size": "Хэмжээ сонгох",
+      "font_size": "Фонтын хэмжээ",
+      "font_size_default": "Үндсэн",
+      "background_color": "Дэвсгэр өнгө",
+      "remove_background_color": "Дэвсгэр өнгийг арилгах"
     },
     "send_filing_warning": "Илгээсэн - гэхдээ илгээсний дараах цэвэрлэгээ амжилтгүй болсон тул хуучирсан ноорог үлдэж болзошгүй."
   },
@@ -765,6 +781,10 @@
     "email_sent": "Имэйл амжилттай илгээгдсэн",
     "email_deleted": "Имэйл устгасан",
     "email_archived": "Имэйл архивлагдсан",
+    "emails_deleted": "{count, plural, other {# имэйл устгагдлаа}}",
+    "emails_archived": "{count, plural, other {# имэйл архивлагдлаа}}",
+    "error_archiving": "Имэйлийг архивлаж чадсангүй",
+    "error_updating": "Имэйлийг шинэчилж чадсангүй",
     "email_starred": "И-мэйл одоор тэмдэглэгдсэн",
     "email_unstarred": "И-мэйл одыг арилгасан",
     "email_marked_read": "И-мэйл уншсан гэж тэмдэглэсэн",
@@ -1144,6 +1164,7 @@
         "status_active": "Энэ төхөөрөмжид идэвхтэй байна",
         "status_inactive": "Энэ төхөөрөмж дээр идэвхжээгүй",
         "status_unsupported": "Энэ хөтөч Web Push-ийг дэмждэггүй",
+        "status_lite": "Web Push is not available in Bulwark Lite; it needs the Bulwark server.",
         "status_busy": "Ажиллаж байна…",
         "enable": "Идэвхжүүлэх",
         "reenable": "Дахин бүртгүүлэх",
@@ -1181,7 +1202,9 @@
         "enabled": "И-мэйл мэдэгдэл",
         "enabled_desc": "Шинэ имэйл ирэх үед мэдэгдлийг харуулах",
         "sound": "Мэдэгдэлийн дуу",
-        "sound_desc": "Шинэ имэйл ирэх үед аудио дохиог тоглуулах"
+        "sound_desc": "Шинэ имэйл ирэх үед аудио дохиог тоглуулах",
+        "inbox_only": "Inbox only",
+        "inbox_only_desc": "Only notify for mail that lands in the Inbox; skip mail a filter files into another folder"
       },
       "calendar": {
         "title": "Календарийн мэдэгдэл",
@@ -1241,6 +1264,10 @@
       }
     },
     "email_behavior": {
+      "clear_search_on_folder_change": {
+        "label": "Хавтас солих үед хайлтыг арилгах",
+        "description": "Хавтас дээр дарахад (Ирсэн, Илгээсэн…) идэвхтэй хайлт арилж, тухайн хавтас нээгдэнэ. Унтраасан үед хайлт хадгалагдаж, шилжсэн хавтаст дахин ажиллана."
+      },
       "request_read_receipt": {
         "label": "Анхдагчаар уншсан баримтыг хүсэх",
         "description": "Шинэ мессеж бичихдээ уншсан хүлээн авах хүсэлтийг урьдчилан идэвхжүүлнэ."
@@ -1323,6 +1350,12 @@
       "auto_select_reply_identity": {
         "label": "Хүлээн авсан хаягаас хариу бичих",
         "description": "Хариу бичихдээ мессежийг анх илгээсэн хаягаар нь илгээнэ үү. Эхлээд таних тэмдэгтэй таарах; Домэйн бүх хүргэлтийн хувьд, таны үндсэн таниулбараар дамжуулан илгээхдээ From толгой хэсгийг өөр нэр рүү дахин бичнэ."
+      },
+      "reply_identity_match": {
+        "label": "Хүлээн авах хаягийн тохирол",
+        "description": "Хүлээн авах ямар хаягуудыг таных гэж үзэх. „Зөвхөн яг таарах хаяг“ нь зөвхөн таны тохируулсан identity-уудаас сонгоно; „ижил домэйн“ нь таны identity-ийн домэйн дээрх бусад хаягийг ч catch-all нэр болгон үзэж, Илгээгч толгойг тэр хаягаар солино. Эдгээр хаяг нь түгээлтийн жагсаалт бол яг таарах хаягийг сонгоно уу.",
+        "exact": "Зөвхөн яг таарах хаяг",
+        "domain": "Миний домэйн дээрх дурын хаяг"
       },
       "signature_position": {
         "label": "Гарын үсэг зурах албан тушаал",
@@ -1753,7 +1786,9 @@
       "warnings": {
         "end_before_start": "Төгсгөлийн огноо нь эхлэх огнооноос хойш байх ёстой",
         "start_in_past": "Эхлэх огноо өнгөрсөн байна",
-        "empty_body": "Зурвасны хэсэг хоосон байна - хүлээн авагчид хоосон хариу ирэх болно"
+        "empty_body": "Зурвасны хэсэг хоосон байна - хүлээн авагчид хоосон хариу ирэх болно",
+        "subject_too_long": "Гарчиг сервертэй харьцуулахад хэт урт байна (дээд тал нь {max} байт).",
+        "body_too_long": "Захидал сервертэй харьцуулахад хэт урт байна (форматыг оруулаад дээд тал нь {max} байт)."
       }
     },
     "folders": {
@@ -1770,6 +1805,8 @@
       "role_trash": "Хогийн сав",
       "role_junk": "Спам / Хог",
       "role_archive": "Архив",
+      "role_scheduled": "Scheduled",
+      "role_snoozed": "Snoozed",
       "role_none": "Байхгүй",
       "create_folder": "Хавтас үүсгэх",
       "create_subfolder": "Дэд хавтас үүсгэх",
@@ -1879,6 +1916,8 @@
       "title": "Харилцах утас",
       "description": "Харилцагчаа импортлох, экспортлох",
       "group_by_letter_label": "Эхний үсгээр бүлэглэх",
+      "sort_by_last_name_label": "Овгоор эрэмбэлэх",
+      "sort_by_last_name_description": "Гэр бүлийн гишүүд хамт харагдахаар харилцах хүмүүсийн жагсаалтыг овгоор эрэмбэлэх",
       "group_by_letter_description": "Харилцах хүмүүсийн жагсаалтад цагаан толгойн үсгийн дарааллаар хэсгийн толгойг харуулах",
       "import_label": "Харилцагчдыг импортлох",
       "import_description": "vCard (.vcf) файлаас харилцагчдыг импортлох",
@@ -1970,6 +2009,7 @@
       "actions": "Үйлдэл",
       "add_action": "Үйлдэл нэмэх",
       "stop_processing": "Дараагийн дүрмийг боловсруулахаа зогсоох",
+      "include_spam": "Спам гэж тэмдэглэсэн захидлыг мөн зөөх",
       "attachment_type_placeholder": "жишээ нь pdf, doc, jpg",
       "value_placeholder_multi": "Утга (олон тоог таслалаар тусгаарласан)",
       "condition_fields": {
@@ -2011,6 +2051,8 @@
       "copy_to_folder": "Фолдер сонгох",
       "forward_to": "Имэйл хаяг руу шилжүүлэх",
       "forward_placeholder": "email@example.com",
+      "forward_keep_copy": "Хуулбар хадгалах",
+      "forward_limit": "Энэ сервер дээрх нэг захидлын дамжуулах хязгаар: {count}. Илүү дамжуулалтыг алгасна.",
       "reject_message": "Татгалзсан мессеж",
       "reject_placeholder": "Таны имэйл татгалзсан байна",
       "label_name": "Тагийн нэр",
@@ -2207,6 +2249,7 @@
     "new_subfolder": "Шинэ дэд хавтас...",
     "new_folder": "Шинэ хавтас...",
     "rename": "Нэр өөрчлөх...",
+    "share": "Хуваалцах...",
     "import_email": "Импорт .eml эсвэл .zip...",
     "empty_folder": "Хоосон хавтас",
     "empty_folder_generic": "Хоосон хавтас",
@@ -2236,7 +2279,10 @@
     "toast_error_rename": "Хавтсын нэрийг өөрчилж чадсангүй",
     "toast_error_delete": "Хавтсыг устгаж чадсангүй",
     "toast_error_delete_has_children": "Хавтас дэд хавтастай байна. Эхлээд тэдгээрийг устгана уу.",
-    "toast_error_delete_has_email": "Хавтас хоосон биш байна. Эхлээд үүнийг хоосло."
+    "toast_error_delete_has_email": "Хавтас хоосон биш байна. Эхлээд үүнийг хоосло.",
+    "delete_with_contents_title": "Хавтас хоосон биш байна",
+    "delete_with_contents_message": "\"{name}\" хавтсанд одоо ч {count} зурвас байна. Хавтас болон бүх зурвасыг устгах уу? Үүнийг буцаах боломжгүй.",
+    "delete_with_contents_confirm": "Хавтас болон зурвасыг устгах"
   },
   "shortcuts": {
     "title": "Гарын товчлол",
@@ -2270,7 +2316,8 @@
       "search": "Хайлт руу шилжих",
       "help": "Товчлол харуулах",
       "refresh": "Имэйл сэргээх",
-      "select_all": "Бүгдийг сонго"
+      "select_all": "Бүгдийг сонго",
+      "global_search": "Бүгдийг хайх"
     },
     "threads": {
       "expand_collapse": "Хэлхээсийг дэлгэх/хумих"
@@ -2722,7 +2769,10 @@
       "any_month": "Ямар ч сар",
       "has_email": "Имэйл хаягтай",
       "has_phone": "Утастай",
-      "has_photo": "Зурагтай"
+      "has_photo": "Зурагтай",
+      "sort_by": "Эрэмбэлэх",
+      "sort_first_name": "Нэр",
+      "sort_last_name": "Овог"
     }
   },
   "calendar": {
@@ -2758,6 +2808,10 @@
       "duplicate": "Давхардсан",
       "today_header": "Өнөөдөр",
       "tomorrow_header": "Маргааш",
+      "agenda_show_earlier": "Өмнөх үйл явдлуудыг харуулах",
+      "agenda_loading": "Ачаалж байна…",
+      "agenda_range_start": "{date}-с хойшхи үйл явдлууд",
+      "agenda_range_end": "{date} хүртэлх үйл явдлууд",
       "export_ics": ".ics",
       "copy_title": "Гарчиг хуулах",
       "copy_link": "Уулзалтын холбоосыг хуулах",
@@ -2793,6 +2847,14 @@
       "color": "Өнгө"
     },
     "participants": {
+      "availability": {
+        "title": "Боломжтой эсэх",
+        "free": "Боломжтой",
+        "busy": "Завгүй",
+        "tentative": "Урьдчилсан",
+        "unknown": "Энэ серверийн хэрэглэгч биш",
+        "checking": "Шалгаж байна…"
+      },
       "title": "Оролцогчид",
       "add": "Оролцогч нэмэх",
       "organizer": "Зохион байгуулагч",
@@ -2867,7 +2929,10 @@
       "all_events": "Бүх арга хэмжээ",
       "cancel": "Цуцлах",
       "save": "Хадгалах",
-      "delete": "Устгах"
+      "delete": "Устгах",
+      "rsvp_title": "Давтагдах үйл явдалд хариулах",
+      "rsvp_description": "Энэ бол давтагдах үйл явдал. Таны хариу аль үйл явдлуудад хамаарах вэ?",
+      "respond": "Хариулах"
     },
     "alerts": {
       "title": "Сануулгууд",
@@ -2905,6 +2970,8 @@
       "show_time_in_month_view_desc": "Сарын хуанлийн харагдац дээр үйл явдлын цагийг харуулах. Жижиг дэлгэц дээр энэ нь цэгийн оронд үйл явдлын бүрэн оруулгуудыг харуулдаг.",
       "show_week_numbers": "Долоо хоногийн дугаарыг харуулах",
       "show_week_numbers_desc": "Ми-календарт долоо хоногийн тоог харуулах",
+      "calendar_free_scroll": "Чөлөөт гүйлгэлт",
+      "calendar_free_scroll_desc": "Нэг үеийг харуулахын оронд сар, долоо хоног, өдрүүдийг тасралтгүй гүйлгэх",
       "enable_tasks": "Даалгавруудыг идэвхжүүлэх",
       "enable_tasks_desc": "Хийх ажлуудыг удирдахын тулд календарьт ажлын харагдах байдлыг харуулах",
       "show_tasks_on_calendar": "Хуанли дээр даалгавруудыг харуулах",
@@ -2916,6 +2983,9 @@
       "hover_preview_delay_1s": "1 секундын саатал",
       "hover_preview_delay_2s": "2 секундын саатал",
       "hover_preview_off": "Хөгжлийн бэрхшээлтэй",
+      "organizer_identity": "Урилгыг зохион байгуулагч",
+      "organizer_identity_desc": "Хүмүүсийг арга хэмжээнд урихад зохион байгуулагчаар ашиглах хуанлийн хаяг.",
+      "organizer_identity_failed": "Зохион байгуулагчийн хаягийг өөрчилж чадсангүй",
       "show_birthday_calendar": "Холбоо барих төрсөн өдрийн хуанли",
       "show_birthday_calendar_desc": "Харилцагчдаас төрсөн өдөр бүхий виртуал хуанли харуулах"
     },
@@ -2973,6 +3043,9 @@
       "alert_now": "Одооноос эхлэн",
       "alert_in_minutes": "{count} мин",
       "invitation_sent": "Урилга илгээсэн",
+      "invitations_denied_title": "Урилга илгээх боломжгүй",
+      "invitations_denied": "Сервер урилга илгээхээс татгалзлаа: {reason}. Урилга илгээхгүйгээр үйл явдлыг хадгалах уу?",
+      "save_without_invitations": "Урилгагүйгээр хадгалах",
       "rsvp_updated": "Хариулт шинэчлэгдсэн",
       "rsvp_error": "Хариултыг шинэчилж чадсангүй",
       "event_duplicated": "Үйл явдал давхардсан",
@@ -3002,7 +3075,7 @@
       "supported_formats": "iCalendar (.ics) файлуудыг дэмждэг",
       "url_description": "Арга хэмжээг импортлохын тулд гадаад iCalendar (.ics) хангамжийн URL хаягийг оруулна уу.",
       "url_placeholder": "https://example.com/calendar.ics",
-      "url_hint": "CalDAV болон iCalendar (.ics) URL-г дэмждэг",
+      "url_hint": "iCalendar (.ics) URL-г дэмждэг",
       "fetch": "Авах",
       "invalid_url": "Хүчинтэй URL оруулна уу",
       "url_fetch_failed": "URL",
@@ -3149,6 +3222,25 @@
       "overdue": "Хугацаа хэтэрсэн"
     }
   },
+  "calendar_event_notifications": {
+    "someone": "Хэн нэгэн",
+    "invited": "{name} таныг \"{title}\"-д урилаа",
+    "updated": "{name} \"{title}\"-г шинэчиллээ",
+    "cancelled": "{name} \"{title}\"-г цуцаллаа",
+    "untitled": "Нэргүй арга хэмжээ"
+  },
+  "share_notifications": {
+    "someone": "Хэн нэгэн",
+    "shared": "{name} танд {kind} \"{object}\"-г хуваалцлаа",
+    "changed": "{name} таны {kind} \"{object}\"-д хандах эрхийг өөрчиллөө",
+    "revoked": "{name} таны {kind} \"{object}\"-д хандах эрхийг хаслаа",
+    "object": {
+      "folder": "хавтас",
+      "calendar": "хуанли",
+      "address_book": "хаягийн дэвтэр",
+      "files": "файлын хавтас"
+    }
+  },
   "sharing": {
     "title": "\"{name}\"-г хуваалцаарай",
     "description": "Энэ сервер дээрх бусад хэрэглэгчид эсвэл бүлгүүдэд хандах эрх олгох. Өөрчлөлтүүд шууд хүчин төгөлдөр болно.",
@@ -3187,6 +3279,8 @@
     "has_attachment": "Хавсралт",
     "date_after": "Дараа",
     "date_before": "Өмнө нь",
+    "size_min": "Ихээс (KB)",
+    "size_max": "Багаас (KB)",
     "starred": "Одтой",
     "unread": "Уншаагүй",
     "read": "унших",
@@ -3228,6 +3322,10 @@
     "hint": "Эхлэхийн тулд зүүн талд байгаа дурын имэйл дээр дарж эсвэл доорх аялалд хамрагдаарай."
   },
   "files": {
+    "office_edit": "Баримт засах",
+    "office_loading": "Баримтын засварлагчийг нээж байна…",
+    "office_error": "Баримтын засварлагчийг нээж чадсангүй.",
+    "office_close": "Засварлагчийг хаах",
     "open_in_new_tab": "Шинэ табаар нээх",
     "title": "Файл",
     "search_placeholder": "Файл хайх...",
@@ -3240,6 +3338,8 @@
     "rename": "Нэрээ өөрчлөх",
     "rename_title": "Нэрээ өөрчлөх",
     "new_name": "Шинэ нэр",
+    "name_forbidden_chars": "Сервер нэрэнд эдгээр тэмдэгтийг зөвшөөрдөггүй: {chars}",
+    "name_reserved": "Энэ нэр сервер дээр нөөцлөгдсөн.",
     "delete": "Устгах",
     "delete_confirm_title": "Нөөцийг устгах",
     "delete_confirm_message": "Та \"{name}\"-г устгахдаа итгэлтэй байна уу? Үүнийг буцаах боломжгүй.",
@@ -3501,5 +3601,45 @@
     "copy_event": "Арга хэмжээний холбоосыг хуулах",
     "copied": "Холбоос хуулагдлаа",
     "copy_failed": "Холбоосыг хуулж чадсангүй"
+  },
+  "plugins": {
+    "oauth_callback": {
+      "completing": "Зөвшөөрлийг дуусгаж байна…",
+      "completing_message": "Холболт үүсэх хүртэл түр хүлээнэ үү.",
+      "received_title": "Зөвшөөрөл хүлээн авсан",
+      "received_message": "Та холболт эхлүүлсэн таб руугаа буцаж болно.",
+      "failed_title": "Зөвшөөрөл амжилтгүй болсон",
+      "denied": "Зөвшөөрөл олгохыг татгалзсан.",
+      "failed_detail": "Зөвшөөрөл амжилтгүй болсон: {error}",
+      "missing_params": "Зөвшөөрлийн код эсвэл төлөв байхгүй байна.",
+      "delivery_failed": "Зөвшөөрлийн үр дүнг аппын таб руу дамжуулж чадсангүй. Энэ цонхыг хаагаад дахин оролдоно уу."
+    }
+  },
+  "global_search": {
+    "title": "Бүгдийг хайх",
+    "placeholder": "Шуудан, харилцагч, хуанли, файлаас хайх...",
+    "scope_label": "Хайх хүрээ",
+    "account_label": "Бүртгэл",
+    "scope_all": "Бүгд",
+    "scope_mail": "Мэйл",
+    "scope_contacts": "Харилцах утас",
+    "scope_calendar": "Хуанли",
+    "scope_files": "Файл",
+    "all_accounts": "Бүх бүртгэл",
+    "show_all": "Бүх үр дүнг харуулах",
+    "no_results": "“{query}”-д үр дүн олдсонгүй",
+    "server_hint": "Бүтэн үгс серверээс хайна; үгийн хэсэг ачаалагдсан зүйлстэй таарна",
+    "searching": "Хайж байна...",
+    "account_error": "{account}-аас хайж чадсангүй",
+    "recent_searches": "Сүүлийн хайлтууд",
+    "recurring": "Давтагдах",
+    "no_subject": "(no subject)",
+    "empty_hint": "Бүх бүртгэлийн шуудан, харилцагч, үйл явдал, файлаас хайгаарай. from:, subject:, has:attachment, after:2026-01-01 гэж туршиж үзээрэй.",
+    "flat_by_date": "Огноогоор жагсаах",
+    "grouped": "Бүлэглэсэн",
+    "load_more": "Цааш ачаалах",
+    "preview_empty": "Урьдчилан харах үр дүнгээ сонгоно уу",
+    "open_full": "Нээх",
+    "view_label": "Харагдац"
   }
 }
