@@ -6,6 +6,13 @@
     "not_starred": "بدون ستاره"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# دقیقه بعد} other {# دقیقه بعد}}"
+    },
+    "colors": {
+      "indigo": "نیلی",
+      "teal": "سبزآبی"
+    },
     "drawer": {
       "my_calendars": "تقویم‌های من",
       "no_calendars": "هنوز تقویمی نیست.",
@@ -25,6 +32,18 @@
       "location_placeholder": "مکان یا نشانی",
       "time": "زمان"
     },
+    "import": {
+      "file_too_large_max": "این فایل بیش از حد بزرگ است (حداکثر {size} مگابایت).",
+      "imported_count": "{count, plural, one {# رویداد وارد شد.} other {# رویداد وارد شد.}}",
+      "no_calendar": "پیش از وارد کردن رویدادها یک تقویم بسازید.",
+      "no_calendar_title": "تقویمی وجود ندارد",
+      "picker_error": "باز کردن انتخابگر فایل ممکن نشد",
+      "picker_unavailable": "انتخابگر فایل در این نسخه نصب نشده است. برای فعال کردن وارد کردن، برنامه را دوباره بسازید.",
+      "picker_unavailable_title": "وارد کردن در دسترس نیست",
+      "refused_count": "{count, plural, one {# رویداد وارد نشد:} other {# رویداد وارد نشد:}}",
+      "refused_message": "{count, plural, =1 {رویداد وارد نشد: {reason}} one {# رویداد وارد نشد: {reason}} other {# رویداد وارد نشد: {reason}}}",
+      "selected_count": "{count} انتخاب شده"
+    },
     "invitation": {
       "accept": "بله",
       "add_error": "افزودن رویداد ممکن نشد",
@@ -42,6 +61,10 @@
       "response_sent": "پاسخ ارسال شد",
       "tentative": "شاید",
       "title": "دعوت‌نامه تقویم",
+      "trust_authentication_failed": "این پیام در احراز هویت فرستنده رد شد (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "تأیید فرستنده ممکن نشد.",
+      "trust_sender_mismatch": "فرستنده با برگزارکننده رویداد متفاوت است.",
+      "trust_sender_mismatch_unverified": "فرستنده با برگزارکننده مطابقت ندارد و پیام احراز هویت نشده است.",
       "trust_verified": "فرستنده تأیید شد"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "ویرایش تقویم",
       "new_calendar": "تقویم جدید"
     },
+    "notifications": {
+      "channel_name": "یادآورهای تقویم",
+      "starts_in_days": "{count, plural, one {# روز دیگر شروع می‌شود} other {# روز دیگر شروع می‌شود}}",
+      "starts_in_hours": "{count, plural, one {# ساعت دیگر شروع می‌شود} other {# ساعت دیگر شروع می‌شود}}",
+      "starts_in_minutes": "{count, plural, one {# دقیقه دیگر شروع می‌شود} other {# دقیقه دیگر شروع می‌شود}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {بار} other {بار}}",
+      "every_count_days": "{count, plural, one {هر # روز} other {هر # روز}}",
+      "every_count_months": "{count, plural, one {هر # ماه} other {هر # ماه}}",
+      "every_count_weeks": "{count, plural, one {هر # هفته} other {هر # هفته}}",
+      "every_count_years": "{count, plural, one {هر # سال} other {هر # سال}}",
+      "occurrence_count": "{count, plural, one {# بار} other {# بار}}",
+      "until_date": "تا {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "نمایش شماره هفته‌ها در نمای ماه.",
       "time_zone": "منطقه زمانی",
       "time_zone_auto": "منطقه زمانی دستگاه",
+      "time_zone_auto_zone": "منطقه زمانی دستگاه ({zone})",
       "time_zone_desc": "منطقه‌ای که برای رویدادهای جدید و تفسیر تقویم استفاده می‌شود. «منطقه زمانی دستگاه» از تنظیمات تلفن پیروی می‌کند."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "جستجو با نام یا ایمیل",
       "shared_with": "به اشتراک گذاشته شده با"
     },
+    "subscription": {
+      "add_feed": "افزودن فید",
+      "feed_too_large": "فید بیش از حد بزرگ است",
+      "fetch_failed": "دریافت فید ممکن نشد (HTTP {status})",
+      "name_and_url_required": "یک نام و آدرس فید وارد کنید.",
+      "not_a_feed": "این آدرس فید iCalendar برنگرداند",
+      "not_synced": "هنوز همگام‌سازی نشده",
+      "url_scheme_invalid": "آدرس باید با https://، http://، webcal:// یا webcals:// شروع شود",
+      "your_subscriptions": "اشتراک‌های شما"
+    },
     "tasks": {
       "add_placeholder": "افزودن وظیفه…",
       "add_time": "افزودن زمان",
+      "clear_due_date": "پاک کردن موعد",
       "delete_error": "حذف وظیفه ناموفق بود",
+      "not_found": "این وظیفه دیگر در دسترس نیست.",
+      "save_error": "ذخیره وظیفه ناموفق بود",
       "update_error": "به‌روزرسانی وظیفه ناموفق بود"
     }
   },
@@ -82,10 +134,116 @@
     "create": "ایجاد",
     "dismiss": "بستن",
     "done": "انجام شد",
+    "open": "باز کردن",
+    "open_link_message": "این کار {host} را خارج از برنامه باز می‌کند.",
+    "open_link_title": "پیوند باز شود؟",
     "remove": "حذف",
     "retry": "تلاش مجدد",
     "undo": "واگرد",
     "update": "به‌روزرسانی"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {«{name}» حذف شود؟ این کار قابل بازگشت نیست.} one {«{name}» حذف شود؟ # مخاطب آن هم همراهش حذف می‌شود. این کار قابل بازگشت نیست.} other {«{name}» حذف شود؟ # مخاطب آن هم همراهش حذف می‌شوند. این کار قابل بازگشت نیست.}}"
+    },
+    "all_contacts": "همه مخاطبین",
+    "bulk": {
+      "add_tag": "افزودن برچسب",
+      "delete_confirm_mobile": "{count, plural, one {# مخاطب حذف شود؟ این کار قابل بازگشت نیست.} other {# مخاطب حذف شوند؟ این کار قابل بازگشت نیست.}}",
+      "move_to_address_book": "انتقال به دفترچه آدرس",
+      "tag_failed": "برچسب‌گذاری ناموفق بود"
+    },
+    "contact": "مخاطب",
+    "create_hint_mobile": "برای ساختن گروه به‌جای آن، انگشت خود را نگه دارید",
+    "detail": {
+      "add_to_group_failed": "افزودن به گروه ناموفق بود",
+      "copy_name": "{name} (کپی)",
+      "created_on": "ایجاد شده: {date}",
+      "duplicate_failed": "ساخت نسخه تکراری ناموفق بود",
+      "duplicate_no_book": "بدون دفترچه آدرس نمی‌توان نسخه تکراری ساخت.",
+      "no_address_book": "دفترچه آدرسی وجود ندارد",
+      "not_found": "مخاطب پیدا نشد",
+      "open_dialer_failed": "باز کردن شماره‌گیر ممکن نشد",
+      "open_link_failed": "باز کردن پیوند ممکن نشد",
+      "open_maps_failed": "باز کردن نقشه ممکن نشد",
+      "open_sms_failed": "باز کردن برنامه پیام‌رسان ممکن نشد",
+      "share": "اشتراک‌گذاری",
+      "share_title": "اشتراک‌گذاری {name}",
+      "sms": "پیامک",
+      "timezone_value": "منطقه زمانی: {zone}",
+      "updated_on": "به‌روزرسانی شده: {date}"
+    },
+    "empty_state_hint_mobile": "برای افزودن روی + ضربه بزنید",
+    "export": {
+      "failed": "خروجی گرفتن ناموفق بود"
+    },
+    "form": {
+      "add_nickname": "افزودن نام مستعار",
+      "add_note": "افزودن یادداشت",
+      "add_organization": "افزودن سازمان",
+      "address_book_required": "برای ذخیره این مخاطب، یک دفترچه آدرس انتخاب کنید.",
+      "categories_placeholder_mobile": "برچسب را بنویسید و Enter را بزنید",
+      "context_none": "هیچ",
+      "date_placeholder": "YYYY-MM-DD، YYYY-MM، YYYY یا --MM-DD",
+      "display_name_optional": "نام نمایشی (اختیاری)",
+      "display_name_placeholder": "نام نمایشی سفارشی",
+      "edit_named": "ویرایش {name}",
+      "gender_unspecified": "مشخص نشده",
+      "grammatical_gender": "جنس دستوری",
+      "invalid_date_message": "«{date}» تاریخ نیست. از YYYY-MM-DD، YYYY-MM، YYYY یا --MM-DD استفاده کنید.",
+      "invalid_date_title": "تاریخ نامعتبر",
+      "invalid_email_message": "«{address}» نشانی ایمیل معتبری نیست.",
+      "invalid_email_title": "ایمیل نامعتبر",
+      "label": "برچسب",
+      "label_placeholder": "کاری، شخصی، …",
+      "missing_address_book": "دفترچه آدرس انتخاب نشده",
+      "missing_info": "اطلاعات ناقص",
+      "name_or_email_required": "یک نام یا دست‌کم یک ایمیل اضافه کنید.",
+      "new_organization": "سازمان جدید",
+      "org_name_required": "نام سازمان را اضافه کنید.",
+      "photo_hint_mobile": "برای انتخاب تصویر روی عکس ضربه بزنید",
+      "photo_permission_message": "برای انتخاب عکس مخاطب، اجازه دسترسی به گالری عکس را بدهید.",
+      "photo_permission_title": "دسترسی به عکس‌ها لازم است",
+      "pick_date": "انتخاب تاریخ",
+      "pronouns": "ضمایر",
+      "pronouns_placeholder": "they/them",
+      "url": "نشانی وب"
+    },
+    "group": "گروه",
+    "groups": {
+      "add_member": "افزودن عضو",
+      "add_members": "افزودن اعضا",
+      "add_members_failed": "افزودن اعضا ناموفق بود",
+      "create_ellipsis": "گروه جدید…",
+      "delete_confirm_named": "«{name}» حذف شود؟ اعضا حذف نمی‌شوند.",
+      "delete_failed": "حذف گروه ناموفق بود",
+      "email_all": "ایمیل به همه",
+      "members_with_count": "اعضا ({count})",
+      "no_emails": "نشانی ایمیلی نیست",
+      "no_members_hint": "برای شروع روی «افزودن عضو» ضربه بزنید",
+      "not_found": "گروه پیدا نشد",
+      "remove_member": "حذف عضو",
+      "remove_member_confirm": "«{name}» از این گروه حذف شود؟",
+      "remove_member_failed": "حذف عضو ناموفق بود"
+    },
+    "import": {
+      "change_target": "تغییر",
+      "choose_file_mobile": "انتخاب فایل vCard",
+      "failed_count": "{count, plural, one {# مخاطب وارد نشد.} other {# مخاطب وارد نشد.}}",
+      "import_count": "وارد کردن ({count})",
+      "into_address_book": "وارد کردن به دفترچه آدرس",
+      "into_named": "وارد کردن به {name}",
+      "no_address_book": "پیش از وارد کردن مخاطبین، یک دفترچه آدرس بسازید.",
+      "picker_failed": "باز کردن انتخابگر فایل ممکن نشد"
+    },
+    "no_tags_hint": "هنوز برچسبی نیست. یکی را در بالا بنویسید.",
+    "picker": {
+      "add_count": "{count, plural, =0 {افزودن} one {افزودن (#)} other {افزودن (#)}}",
+      "title": "افزودن مخاطب"
+    },
+    "rename_tag_hint_mobile": "برای تغییر نام برچسب، انگشت خود را روی آن نگه دارید",
+    "tag_name_placeholder": "نام جدید برچسب",
+    "unnamed": "بدون نام"
   },
   "context_menu": {
     "color_tag": "برچسب",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "پیوست را فراموش کرده‌اید؟",
     "attachments_too_large_total": "پیوست‌ها از سقف {max} که این سرور برای هر پیام مجاز می‌داند بیشتر می‌شوند.",
     "editor_unavailable": "خواندن محتوای پیام ممکن نشد. متن خود را کپی کنید، سپس ویرایشگر را ببندید و دوباره باز کنید.",
+    "from_options": "گزینه‌های فرستنده",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "هویت در دسترس نیست",
     "image_load_failed": "بارگذاری تصویر ممکن نشد",
     "no_recipient": "(بدون گیرنده)",
@@ -107,6 +267,7 @@
     "recipient_copy": "کپی نشانی",
     "recipient_move_to": "انتقال به {field}",
     "recipient_remove": "حذف",
+    "remove_attachment": "حذف پیوست",
     "save_draft": "ذخیره پیش‌نویس",
     "save_failed_no_drafts": "پوشه پیش‌نویس‌ها برای ذخیره این پیش‌نویس وجود ندارد.",
     "save_failed_no_identity": "هویت‌های فرستنده بارگذاری نشدند، بنابراین این پیش‌نویس ذخیره نمی‌شود. اتصال خود را بررسی کنید یا پیش از بستن، متن را کپی کنید.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "ممکن است پیام قبلاً ارسال شده باشد. پیش از ارسال دوباره، پوشه ارسال شده را بررسی کنید.",
     "send_timeout_title": "پاسخی از سرور نیامد",
     "undo_send_label": "ارسال تا {seconds} ثانیه دیگر…",
+    "upload_failed_short": "بارگذاری ناموفق بود",
     "uploading": "در حال بارگذاری...",
+    "uploading_pct": "در حال بارگذاری {pct}%",
     "validation": {
       "subject_required": "موضوعی اضافه کنید"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# ایمیل بایگانی شد} other {# ایمیل بایگانی شد}}",
     "emails_moved_to": "{count, plural, one {# ایمیل} other {# ایمیل}} به {mailbox} منتقل شد",
     "error": "خطا",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "فیلتر ایمیل‌ها",
+    "folder_counts": "کل: {total} · خوانده‌نشده: {unread}",
+    "import": {
+      "none": "هیچ پیامی وارد نشد.",
+      "partial": "{imported} مورد وارد شد، {failed} مورد ناموفق بود.",
+      "success": "{count, plural, one {# پیام وارد شد.} other {# پیام وارد شد.}}",
+      "title": "وارد کردن"
+    },
     "marked_as_spam": "به‌عنوان هرزنامه علامت‌گذاری شد",
     "marked_as_spam_count": "{count, plural, one {# ایمیل به‌عنوان هرزنامه علامت‌گذاری شد} other {# ایمیل به‌عنوان هرزنامه علامت‌گذاری شد}}",
     "marked_not_spam": "به‌عنوان غیرهرزنامه علامت‌گذاری شد",
@@ -156,10 +328,12 @@
     "outbox_discard": "دور انداختن",
     "outbox_failed": "{count, plural, one {# تغییر در سرور ذخیره نشد.} other {# تغییر در سرور ذخیره نشد.}}",
     "recent_searches": "جستجوهای اخیر",
+    "remove_filter": "حذف فیلتر {label}",
     "scope_all_folders": "همه پوشه‌ها",
     "scope_this_folder": "این پوشه",
     "search_placeholder": "جستجوی ایمیل...",
     "showing_cached": "نمایش ایمیل‌های کش‌شده",
+    "sort_toggle_hint": "ترتیب مرتب‌سازی ایمیل‌ها را برعکس می‌کند",
     "swipe_move": "انتقال",
     "swipe_spam": "هرزنامه",
     "total": "کل",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "این پیام برای همیشه حذف می‌شود و قابل بازیابی نیست.",
     "delete_permanently_title": "برای همیشه حذف شود؟",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# فایل} other {# فایل}} · {size}",
+      "received_after_delay": "{date} · زمان تحویل {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "خروجی گرفتن ناموفق بود",
     "forwarded": "بازارسال شده",
     "load_failed": "بارگذاری ایمیل ناموفق بود",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "پوشه‌ها همراه با همه محتوایشان حذف می‌شوند. این کار قابل بازگشت نیست.",
     "delete_item_title": "این مورد حذف شود؟",
+    "delete_items_title": "{count, plural, one {# مورد حذف شود؟} other {# مورد حذف شوند؟}}",
     "done": "انجام شد",
+    "download_failed_status": "دانلود ناموفق بود (HTTP {status})",
     "folder_empty": "این پوشه خالی است",
     "invalid_name": "نام نامعتبر",
     "invalid_name_slash": "نام‌ها نمی‌توانند شامل \"/\" باشند.",
@@ -234,6 +415,7 @@
     "open_error": "باز کردن فایل ممکن نشد",
     "open_with": "باز کردن با…",
     "preview_too_large": "این فایل برای پیش‌نمایش بیش از حد بزرگ است.",
+    "selected_count": "{count, plural, one {# انتخاب شده} other {# انتخاب شده}}",
     "share_add_people": "افزودن افراد",
     "share_empty": "هنوز با کسی به اشتراک گذاشته نشده",
     "share_error": "به‌روزرسانی اشتراک‌گذاری ناموفق بود",
@@ -244,9 +426,11 @@
     "share_remove": "حذف دسترسی",
     "share_role_custom": "سفارشی",
     "share_search_placeholder": "جستجو با نام یا ایمیل",
+    "share_unavailable": "اشتراک‌گذاری در این دستگاه در دسترس نیست",
     "shared_with": "به اشتراک گذاشته شده با",
     "sharing_access": "اشتراک‌گذاری و دسترسی",
-    "upload_unavailable": "انتخابگر فایل در این نسخه نصب نشده است. برای فعال کردن بارگذاری، برنامه را دوباره بسازید."
+    "upload_unavailable": "انتخابگر فایل در این نسخه نصب نشده است. برای فعال کردن بارگذاری، برنامه را دوباره بسازید.",
+    "uploading_progress": "در حال بارگذاری {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "شما آفلاین هستید",
-    "queued_changes": "{count, plural, one {# تغییر پس از اتصال دوباره همگام‌سازی می‌شود} other {# تغییر پس از اتصال دوباره همگام‌سازی می‌شود}}"
+    "queued_changes": "{count, plural, one {# تغییر پس از اتصال دوباره همگام‌سازی می‌شود} other {# تغییر پس از اتصال دوباره همگام‌سازی می‌شود}}",
+    "sync": {
+      "cached_count": "{count, plural, one {# پیام جدید کش شد} other {# پیام جدید کش شد}} • {size}",
+      "cancelled": "همگام‌سازی لغو شد",
+      "failed": "همگام‌سازی آفلاین ناموفق بود",
+      "processed": "{completed}/{total} پردازش شد",
+      "ready": "ایمیل آفلاین آماده است",
+      "syncing": "در حال همگام‌سازی ایمیل آفلاین",
+      "title": "همگام‌سازی آفلاین",
+      "unable_to_download": "دانلود ممکن نشد",
+      "up_to_date": "از قبل به‌روز است"
+    }
   },
   "push_prompt": {
     "body": "اعلان‌های پس‌زمینه را روشن کنید تا پیام‌های جدید حتی وقتی برنامه بسته است به دستتان برسد.",
@@ -399,6 +594,15 @@
       "not_implemented": "پیاده‌سازی نشده",
       "unavailable": "در دسترس نیست"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# مخاطب} other {# مخاطب}}",
+      "default_book": "دفترچه آدرس پیش‌فرض",
+      "description_mobile": "تنظیمات نمایش و ابزارهای دفترچه آدرس.",
+      "export_description_count": "{count, plural, one {خروجی گرفتن از # مخاطب در قالب یک فایل vCard.} other {خروجی گرفتن از # مخاطب در قالب یک فایل vCard.}}",
+      "export_empty": "مخاطبی برای خروجی گرفتن نیست",
+      "import_description_mobile": "وارد کردن مخاطبین از فایل vCard (.vcf) با تشخیص موارد تکراری.",
+      "manage_description_mobile": "دفترچه‌های آدرسی را که مخاطبین شما را سازمان‌دهی می‌کنند ایجاد، تغییر نام و حذف کنید."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "الگویی که هنگام ذخیره یا اشتراک‌گذاری پیوست استفاده می‌شود."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "پاسخ‌ها همیشه از هویتی ارسال می‌شوند که پیام به آن فرستاده شده است. با روشن کردن این گزینه، پاسخ به نشانی دیگری در دامنه‌های شما (نام مستعار catch-all) نیز از همان نشانی ارسال می‌شود."
       },
+      "content_senders_description_mobile": "نحوه مدیریت منابع خارجی و پیکسل‌های ردیابی را کنترل کنید.",
+      "external_content": {
+        "allow_mobile": "مجاز",
+        "ask_mobile": "بپرس",
+        "block_mobile": "مسدود"
+      },
       "plain_text_mode": {
         "description_mobile": "نوشتن و خواندن فقط به‌صورت متن ساده."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "عملی که هنگام کشیدن یک ردیف از لبه چپ آن به سمت راست انجام می‌شود.",
         "label_mobile": "کشیدن به راست (از چپ به راست)"
+      },
+      "trusted_senders": {
+        "description_mobile": "محتوای خارجی برای فرستندگان این فهرست همیشه بارگذاری می‌شود.",
+        "description_synced_mobile": "محتوای خارجی برای فرستندگان این فهرست همیشه بارگذاری می‌شود. همگام‌شده از طریق دفترچه آدرس: {count}.",
+        "sync_add_failed": "همگام‌سازی با دفترچه آدرس ممکن نشد",
+        "sync_remove_failed": "حذف از دفترچه آدرس ممکن نشد",
+        "synced_badge": "همگام‌شده از طریق دفترچه آدرس"
       }
     },
     "experimental": {
       "title": "قابلیت آزمایشی"
+    },
+    "filters": {
+      "remove_action": "حذف اقدام",
+      "remove_condition": "حذف شرط",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# خط} other {# خط}}"
+      }
     },
     "folders": {
       "account": "حساب",
@@ -476,6 +700,7 @@
       "delete_title": "حذف هویت",
       "description_mobile": "نام‌های فرستنده، نشانی‌های ایمیل و امضاها را مدیریت کنید. برای ویرایش روی ردیف ضربه بزنید.",
       "display_name": "نام نمایشی",
+      "display_name_placeholder": "Jane Doe",
       "edit": "ویرایش هویت",
       "email_address": "نشانی ایمیل",
       "email_locked": "JMAP اجازه تغییر ایمیل هویت را نمی‌دهد؛ به‌جای آن هویت جدیدی بسازید.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "نمایش تعداد کل پیام‌ها روی پوشه‌ها",
       "show_folder_total_count_description": "نمایش تعداد کل کنار تعداد خوانده‌نشده‌ها در فهرست پوشه‌ها.",
       "swipe_mode": {
+        "description": "«فوری» (کشیدن از آستانه، اقدام را اجرا می‌کند) یا «نمایش» (کشیدن، نوار اقدام‌ها را نشان می‌دهد و سپس برای تأیید ضربه می‌زنید) را انتخاب کنید.",
         "instant": "فوری (کشیدن = اقدام)",
+        "label": "رفتار کشیدن",
         "reveal": "نمایش (کشیدن، سپس ضربه)"
       },
       "unified_cross_account": "نماهای یکپارچه در همه حساب‌ها",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "این دستگاه دیگر هشدار ایمیل جدید این حساب را دریافت نمی‌کند.",
         "description_mobile": "وقتی برنامه بسته است، برای ایمیل جدید اعلان سیستم دریافت کنید. تحویل از طریق رله push در Bulwark انجام می‌شود؛ رله هرگز محتوای ایمیل را نمی‌بیند.",
+        "err_android_only": "اعلان‌های push فقط در Android در دسترس است.",
+        "err_fcm_empty": "Firebase توکن دستگاه خالی برگرداند.",
+        "err_fcm_token": "Firebase نتوانست توکن دستگاه صادر کند ({detail}). push از طریق FCM به سرویس‌های Google Play روی این دستگاه نیاز دارد.",
+        "err_fcm_token_up": "Firebase نتوانست توکن دستگاه صادر کند ({detail}). push از طریق FCM به سرویس‌های Google Play روی این دستگاه نیاز دارد. روی این دستگاه یک توزیع‌کننده UnifiedPush نصب است - به‌جای آن روش تحویل را به UnifiedPush تغییر دهید.",
+        "err_jmap_refused": "سرور ایمیل اشتراک push را رد کرد: {detail}",
+        "err_no_account": "هیچ حسابی بارگذاری نشده است - راه‌اندازی push ممکن نیست.",
+        "err_permission": "مجوز اعلان داده نشد.",
+        "err_relay_https": "نشانی رله باید از https:// استفاده کند.",
+        "err_relay_rejected": "رله push ثبت را رد کرد: {detail}",
+        "err_relay_unreachable": "دسترسی به رله push در {url} ممکن نشد ({detail}).",
+        "err_up_android_only": "UnifiedPush فقط در Android در دسترس است.",
+        "err_verify_rejected": "سرور ایمیل کد تأیید را رد کرد: {detail}",
+        "err_verify_relay": "رله هرگز کد تأیید را از سرور ایمیل دریافت نکرد (آخرین پاسخ رله: {detail}).",
+        "err_verify_timeout": "سرور ایمیل ظرف 75 ثانیه کد تأیید را به رله نفرستاد. بررسی کنید که سرور به نشانی رله دسترسی داشته باشد.",
         "phase_account": "حساب",
         "phase_distributor": "توزیع‌کننده UnifiedPush",
         "phase_jmap": "اشتراک در سرور ایمیل",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME هنوز در برنامه موبایل در دسترس نیست. کلیدها و گواهی‌ها را در ایمیل تحت وب مدیریت کنید؛ پیام‌های امضاشده اینجا بدون تأیید نمایش داده می‌شوند."
     },
     "tabs": {
-      "plugins": "افزونه‌ها"
+      "plugins": "افزونه‌ها",
+      "themes": "تم‌ها",
+      "updates": "به‌روزرسانی‌ها"
     },
     "templates": {
-      "delete_title": "حذف قالب"
+      "delete_confirm": "«{name}» برای همیشه حذف شود؟",
+      "delete_title": "حذف قالب",
+      "description_mobile": "قطعه‌متن‌های قابل استفاده مجدد برای پاسخ‌های رایج. برای ویرایش روی یکی ضربه بزنید؛ برای حذف، انگشت خود را نگه دارید.",
+      "export_failed": "خروجی گرفتن ناموفق بود",
+      "import_failed": "وارد کردن ناموفق بود",
+      "imported": "وارد شد",
+      "imported_count": "{count, plural, one {# قالب اضافه شد.} other {# قالب اضافه شد.}}",
+      "is_html": "متن به‌صورت HTML است",
+      "placeholders_hint": "متغیرهای جایگزین: {{recipient_name}}، {{company}}، {{date}}، {{day_of_week}}، {{sender_name}}",
+      "share_unavailable": "اشتراک‌گذاری ممکن نیست"
     },
     "themes": {
       "default_description": "پالت‌های روشن و تاریک پیش‌فرض.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "برای حذف این حساب، انگشت خود را نگه دارید",
     "remove_account_message": "خروج از {account} روی این دستگاه. ایمیل‌های شما روی سرور باقی می‌مانند.",
     "remove_account_title": "حساب حذف شود؟",
-    "show_unread": "نمایش خوانده‌نشده‌ها"
+    "show_unread": "نمایش خوانده‌نشده‌ها",
+    "tab_unavailable": "{name} (در دسترس نیست)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# حساب بارگذاری نشد} other {# حساب بارگذاری نشد}}"
   },
   "updates": {
     "advisory": "اطلاعیه امنیتی",

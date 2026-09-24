@@ -6,6 +6,13 @@
     "not_starred": "Ikke stjernemerket"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minutt etter} other {# minutter etter}}"
+    },
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Blågrønn"
+    },
     "drawer": {
       "my_calendars": "Mine kalendere",
       "no_calendars": "Ingen kalendere ennå.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Sted eller adresse",
       "time": "Klokkeslett"
     },
+    "import": {
+      "file_too_large_max": "Filen er for stor (maks. {size} MB).",
+      "imported_count": "{count, plural, one {# hendelse ble importert.} other {# hendelser ble importert.}}",
+      "no_calendar": "Opprett en kalender før du importerer hendelser.",
+      "no_calendar_title": "Ingen kalender",
+      "picker_error": "Kunne ikke åpne filvelgeren",
+      "picker_unavailable": "Filvelgeren er ikke installert i denne versjonen. Bygg appen på nytt for å aktivere import.",
+      "picker_unavailable_title": "Import er ikke tilgjengelig",
+      "refused_count": "{count, plural, one {# hendelse kunne ikke importeres:} other {# hendelser kunne ikke importeres:}}",
+      "refused_message": "{count, plural, =1 {Hendelsen kunne ikke importeres: {reason}} one {# hendelse kunne ikke importeres: {reason}} other {# hendelser kunne ikke importeres: {reason}}}",
+      "selected_count": "{count, plural, one {# valgt} other {# valgte}}"
+    },
     "invitation": {
       "accept": "Ja",
       "add_error": "Kunne ikke legge til hendelsen",
@@ -42,6 +61,10 @@
       "response_sent": "Svar sendt",
       "tentative": "Kanskje",
       "title": "Kalenderinvitasjon",
+      "trust_authentication_failed": "Denne meldingen besto ikke avsenderautentiseringen (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Avsenderen kunne ikke bekreftes.",
+      "trust_sender_mismatch": "Avsenderen er ikke arrangøren av hendelsen.",
+      "trust_sender_mismatch_unverified": "Avsenderen samsvarer ikke med arrangøren, og meldingen er ikke autentisert.",
       "trust_verified": "Avsender bekreftet"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Rediger kalender",
       "new_calendar": "Ny kalender"
     },
+    "notifications": {
+      "channel_name": "Kalenderpåminnelser",
+      "starts_in_days": "{count, plural, one {Starter om # dag} other {Starter om # dager}}",
+      "starts_in_hours": "{count, plural, one {Starter om # time} other {Starter om # timer}}",
+      "starts_in_minutes": "{count, plural, one {Starter om # minutt} other {Starter om # minutter}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {forekomst} other {forekomster}}",
+      "every_count_days": "{count, plural, one {Hver dag} other {Hver #. dag}}",
+      "every_count_months": "{count, plural, one {Hver måned} other {Hver #. måned}}",
+      "every_count_weeks": "{count, plural, one {Hver uke} other {Hver #. uke}}",
+      "every_count_years": "{count, plural, one {Hvert år} other {Hvert #. år}}",
+      "occurrence_count": "{count, plural, one {# forekomst} other {# forekomster}}",
+      "until_date": "Til {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Vis ukenummer i månedsvisningen.",
       "time_zone": "Tidssone",
       "time_zone_auto": "Enhetens tidssone",
+      "time_zone_auto_zone": "Enhetens tidssone ({zone})",
       "time_zone_desc": "Tidssonen som brukes for nye hendelser og for visning av kalenderen. «Enhetens tidssone» følger telefonen."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Søk etter navn eller e-postadresse",
       "shared_with": "Delt med"
     },
+    "subscription": {
+      "add_feed": "Legg til en strøm",
+      "feed_too_large": "Strømmen er for stor",
+      "fetch_failed": "Kunne ikke hente strømmen (HTTP {status})",
+      "name_and_url_required": "Skriv inn et navn og URL-en til strømmen.",
+      "not_a_feed": "Den URL-en returnerte ingen iCalendar-strøm",
+      "not_synced": "Ikke synkronisert ennå",
+      "url_scheme_invalid": "URL-en må starte med https://, http://, webcal:// eller webcals://",
+      "your_subscriptions": "Abonnementene dine"
+    },
     "tasks": {
       "add_placeholder": "Legg til en oppgave…",
       "add_time": "Legg til klokkeslett",
+      "clear_due_date": "Fjern forfallsdato",
       "delete_error": "Kunne ikke slette oppgaven",
+      "not_found": "Denne oppgaven er ikke lenger tilgjengelig.",
+      "save_error": "Kunne ikke lagre oppgaven",
       "update_error": "Kunne ikke oppdatere oppgaven"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Opprett",
     "dismiss": "Lukk",
     "done": "Ferdig",
+    "open": "Åpne",
+    "open_link_message": "Dette åpner {host} utenfor appen.",
+    "open_link_title": "Vil du åpne lenken?",
     "remove": "Fjern",
     "retry": "Prøv på nytt",
     "undo": "Angre",
     "update": "Oppdater"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Vil du slette «{name}»? Dette kan ikke angres.} one {Vil du slette «{name}»? # kontakt i adresseboken slettes også. Dette kan ikke angres.} other {Vil du slette «{name}»? # kontakter i adresseboken slettes også. Dette kan ikke angres.}}"
+    },
+    "all_contacts": "Alle kontakter",
+    "bulk": {
+      "add_tag": "Legg til kategori",
+      "delete_confirm_mobile": "{count, plural, one {Vil du slette # kontakt? Dette kan ikke angres.} other {Vil du slette # kontakter? Dette kan ikke angres.}}",
+      "move_to_address_book": "Flytt til adressebok",
+      "tag_failed": "Kunne ikke legge til kategorien"
+    },
+    "contact": "Kontakt",
+    "create_hint_mobile": "Trykk lenge for å opprette en gruppe i stedet",
+    "detail": {
+      "add_to_group_failed": "Kunne ikke legge til i gruppen",
+      "copy_name": "{name} (kopi)",
+      "created_on": "Opprettet {date}",
+      "duplicate_failed": "Kunne ikke duplisere",
+      "duplicate_no_book": "Kan ikke duplisere uten en adressebok.",
+      "no_address_book": "Ingen adressebok",
+      "not_found": "Fant ikke kontakten",
+      "open_dialer_failed": "Kan ikke åpne telefonappen",
+      "open_link_failed": "Kan ikke åpne lenken",
+      "open_maps_failed": "Kan ikke åpne kartappen",
+      "open_sms_failed": "Kan ikke åpne meldingsappen",
+      "share": "Del",
+      "share_title": "Del {name}",
+      "sms": "SMS",
+      "timezone_value": "Tidssone: {zone}",
+      "updated_on": "Oppdatert {date}"
+    },
+    "empty_state_hint_mobile": "Trykk på + for å legge til en",
+    "export": {
+      "failed": "Eksporten mislyktes"
+    },
+    "form": {
+      "add_nickname": "Legg til kallenavn",
+      "add_note": "Legg til notat",
+      "add_organization": "Legg til organisasjon",
+      "address_book_required": "Velg en adressebok for å lagre denne kontakten.",
+      "categories_placeholder_mobile": "Legg til kategori og trykk på Enter",
+      "context_none": "Ingen",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY eller --MM-DD",
+      "display_name_optional": "Visningsnavn (valgfritt)",
+      "display_name_placeholder": "Egendefinert visningsnavn",
+      "edit_named": "Rediger {name}",
+      "gender_unspecified": "Ikke oppgitt",
+      "grammatical_gender": "Grammatisk kjønn",
+      "invalid_date_message": "«{date}» er ikke en dato. Bruk YYYY-MM-DD, YYYY-MM, YYYY eller --MM-DD.",
+      "invalid_date_title": "Ugyldig dato",
+      "invalid_email_message": "«{address}» er ikke en gyldig e-postadresse.",
+      "invalid_email_title": "Ugyldig e-postadresse",
+      "label": "Betegnelse",
+      "label_placeholder": "Jobb, Privat, …",
+      "missing_address_book": "Adressebok mangler",
+      "missing_info": "Mangler opplysninger",
+      "name_or_email_required": "Legg til et navn eller minst én e-postadresse.",
+      "new_organization": "Ny organisasjon",
+      "org_name_required": "Legg til navnet på organisasjonen.",
+      "photo_hint_mobile": "Trykk på bildet for å velge et bilde",
+      "photo_permission_message": "Gi tilgang til bildebiblioteket for å velge et kontaktbilde.",
+      "photo_permission_title": "Trenger tilgang til bilder",
+      "pick_date": "Velg en dato",
+      "pronouns": "Pronomen",
+      "pronouns_placeholder": "hen/hen",
+      "url": "URL"
+    },
+    "group": "Gruppe",
+    "groups": {
+      "add_member": "Legg til medlem",
+      "add_members": "Legg til medlemmer",
+      "add_members_failed": "Kunne ikke legge til medlemmer",
+      "create_ellipsis": "Ny gruppe…",
+      "delete_confirm_named": "Vil du slette «{name}»? Medlemmene slettes ikke.",
+      "delete_failed": "Kunne ikke slette gruppen",
+      "email_all": "Send e-post til alle",
+      "members_with_count": "Medlemmer ({count})",
+      "no_emails": "Ingen e-postadresser",
+      "no_members_hint": "Trykk på «Legg til medlem» for å komme i gang",
+      "not_found": "Fant ikke gruppen",
+      "remove_member": "Fjern medlem",
+      "remove_member_confirm": "Vil du fjerne «{name}» fra denne gruppen?",
+      "remove_member_failed": "Kunne ikke fjerne medlemmet"
+    },
+    "import": {
+      "change_target": "Endre",
+      "choose_file_mobile": "Velg en vCard-fil",
+      "failed_count": "{count, plural, one {# kontakt kunne ikke importeres.} other {# kontakter kunne ikke importeres.}}",
+      "import_count": "Importer {count}",
+      "into_address_book": "Importer til adressebok",
+      "into_named": "Importer til {name}",
+      "no_address_book": "Opprett en adressebok før du importerer kontakter.",
+      "picker_failed": "Kunne ikke åpne filvelgeren"
+    },
+    "no_tags_hint": "Ingen kategorier ennå. Skriv inn en ovenfor.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Legg til} other {Legg til (#)}}",
+      "title": "Legg til kontakt"
+    },
+    "rename_tag_hint_mobile": "Trykk lenge på en kategori for å gi den nytt navn",
+    "tag_name_placeholder": "Navn på ny kategori",
+    "unnamed": "Uten navn"
   },
   "context_menu": {
     "color_tag": "Etikett",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Glemt et vedlegg?",
     "attachments_too_large_total": "Vedleggene ville overskride grensen på {max} per melding som denne serveren tillater.",
     "editor_unavailable": "Kunne ikke lese innholdet i meldingen. Kopier teksten din, og lukk og åpne skrivevinduet på nytt.",
+    "from_options": "Avsenderalternativer",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identiteten er ikke tilgjengelig",
     "image_load_failed": "Kunne ikke laste inn bildet",
     "no_recipient": "(ingen mottaker)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Kopier adressen",
     "recipient_move_to": "Flytt til {field}",
     "recipient_remove": "Fjern",
+    "remove_attachment": "Fjern vedlegget",
     "save_draft": "Lagre utkast",
     "save_failed_no_drafts": "Det finnes ingen Utkast-mappe å lagre dette utkastet i.",
     "save_failed_no_identity": "Avsenderidentitetene dine kunne ikke lastes inn, så dette utkastet kan ikke lagres. Sjekk tilkoblingen, eller kopier teksten før du lukker.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Meldingen kan allerede ha blitt sendt. Sjekk Sendt-mappen før du sender den på nytt.",
     "send_timeout_title": "Ingen svar fra serveren",
     "undo_send_label": "Sender om {seconds} s…",
+    "upload_failed_short": "Opplastingen mislyktes",
     "uploading": "Laster opp...",
+    "uploading_pct": "Laster opp {pct} %",
     "validation": {
       "subject_required": "Legg til et emne"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-post} other {# e-poster}} arkivert",
     "emails_moved_to": "{count, plural, one {# e-post} other {# e-poster}} flyttet til {mailbox}",
     "error": "Feil",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtrer e-post",
+    "folder_counts": "{total} totalt · {unread} uleste",
+    "import": {
+      "none": "Ingen meldinger ble importert.",
+      "partial": "{imported} importert, {failed} mislyktes.",
+      "success": "{count, plural, one {# melding ble importert.} other {# meldinger ble importert.}}",
+      "title": "Import"
+    },
     "marked_as_spam": "Merket som søppelpost",
     "marked_as_spam_count": "{count, plural, one {# e-post} other {# e-poster}} merket som søppelpost",
     "marked_not_spam": "Merket som ikke søppelpost",
@@ -156,10 +328,12 @@
     "outbox_discard": "Forkast",
     "outbox_failed": "{count} endringer kunne ikke lagres på serveren.",
     "recent_searches": "Nylige søk",
+    "remove_filter": "Fjern filteret {label}",
     "scope_all_folders": "Alle mapper",
     "scope_this_folder": "Denne mappen",
     "search_placeholder": "Søk i e-post...",
     "showing_cached": "Viser e-post fra hurtigbufferen",
+    "sort_toggle_hint": "Snur sorteringsrekkefølgen for e-post",
     "swipe_move": "Flytt",
     "swipe_spam": "Søppelpost",
     "total": "totalt",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Denne meldingen slettes permanent og kan ikke gjenopprettes.",
     "delete_permanently_title": "Vil du slette permanent?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fil} other {# filer}} · {size}",
+      "received_after_delay": "{date} · leveringstid {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Eksporten mislyktes",
     "forwarded": "Videresendt",
     "load_failed": "Kunne ikke laste inn e-posten",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Mapper slettes sammen med alt innholdet. Dette kan ikke angres.",
     "delete_item_title": "Vil du slette dette elementet?",
+    "delete_items_title": "{count, plural, one {Vil du slette # element?} other {Vil du slette # elementer?}}",
     "done": "Ferdig",
+    "download_failed_status": "Nedlastingen mislyktes (HTTP {status})",
     "folder_empty": "Denne mappen er tom",
     "invalid_name": "Ugyldig navn",
     "invalid_name_slash": "Navn kan ikke inneholde «/».",
@@ -234,6 +415,7 @@
     "open_error": "Kunne ikke åpne filen",
     "open_with": "Åpne med…",
     "preview_too_large": "Denne filen er for stor til å forhåndsvises.",
+    "selected_count": "{count, plural, one {# valgt} other {# valgte}}",
     "share_add_people": "Legg til personer",
     "share_empty": "Ikke delt med noen ennå",
     "share_error": "Kunne ikke oppdatere deling",
@@ -244,9 +426,11 @@
     "share_remove": "Fjern tilgang",
     "share_role_custom": "Egendefinert",
     "share_search_placeholder": "Søk etter navn eller e-postadresse",
+    "share_unavailable": "Deling er ikke tilgjengelig på denne enheten",
     "shared_with": "Delt med",
     "sharing_access": "Deling og tilgang",
-    "upload_unavailable": "Filvelgeren er ikke installert i denne versjonen. Bygg appen på nytt for å aktivere opplasting."
+    "upload_unavailable": "Filvelgeren er ikke installert i denne versjonen. Bygg appen på nytt for å aktivere opplasting.",
+    "uploading_progress": "Laster opp {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Du er uten nett",
-    "queued_changes": "{count, plural, one {# endring} other {# endringer}} synkroniseres når du er på nett igjen"
+    "queued_changes": "{count, plural, one {# endring} other {# endringer}} synkroniseres når du er på nett igjen",
+    "sync": {
+      "cached_count": "{count, plural, one {# ny melding bufret} other {# nye meldinger bufret}} • {size}",
+      "cancelled": "Synkroniseringen ble avbrutt",
+      "failed": "Synkronisering for bruk uten nett mislyktes",
+      "processed": "{completed}/{total} behandlet",
+      "ready": "E-post uten nett er klar",
+      "syncing": "Synkroniserer e-post for bruk uten nett",
+      "title": "Synkronisering uten nett",
+      "unable_to_download": "Kan ikke laste ned",
+      "up_to_date": "Allerede oppdatert"
+    }
   },
   "push_prompt": {
     "body": "Slå på bakgrunnsvarsler, slik at nye meldinger når deg mens appen er lukket.",
@@ -399,6 +594,15 @@
       "not_implemented": "Ikke implementert",
       "unavailable": "Ikke tilgjengelig"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# kontakt} other {# kontakter}}",
+      "default_book": "Standardadressebok",
+      "description_mobile": "Visningsvalg og verktøy for adressebøker.",
+      "export_description_count": "{count, plural, one {Eksporter # kontakt som én vCard-fil.} other {Eksporter # kontakter som én vCard-fil.}}",
+      "export_empty": "Ingen kontakter å eksportere",
+      "import_description_mobile": "Importer kontakter fra en vCard-fil (.vcf) med gjenkjenning av duplikater.",
+      "manage_description_mobile": "Opprett, gi nytt navn til og fjern adressebøkene som organiserer kontaktene dine."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Malen som brukes når et vedlegg lagres eller deles."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Svar sendes alltid fra identiteten meldingen ble sendt til. Når dette er på, sendes også svar til en annen adresse på domenene dine (et oppsamlingsalias) fra den adressen."
       },
+      "content_senders_description_mobile": "Velg hvordan eksterne ressurser og sporingspiksler skal håndteres.",
+      "external_content": {
+        "allow_mobile": "Tillat",
+        "ask_mobile": "Spør",
+        "block_mobile": "Blokker"
+      },
       "plain_text_mode": {
         "description_mobile": "Skriv og les bare ren tekst."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Handling når du drar en rad fra venstre kant mot høyre.",
         "label_mobile": "Sveip mot høyre (venstre → høyre)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Eksternt innhold lastes alltid inn for avsendere på denne listen.",
+        "description_synced_mobile": "Eksternt innhold lastes alltid inn for avsendere på denne listen. {count} synkronisert via adresseboken din.",
+        "sync_add_failed": "Kunne ikke synkronisere til adresseboken",
+        "sync_remove_failed": "Kunne ikke fjerne fra adresseboken",
+        "synced_badge": "Synkronisert via adresseboken"
       }
     },
     "experimental": {
       "title": "Eksperimentell funksjon"
+    },
+    "filters": {
+      "remove_action": "Fjern handling",
+      "remove_condition": "Fjern vilkår",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# linje} other {# linjer}}"
+      }
     },
     "folders": {
       "account": "Konto",
@@ -476,6 +700,7 @@
       "delete_title": "Slett identitet",
       "description_mobile": "Administrer avsendernavn, e-postadresser og signaturer. Trykk på en rad for å redigere.",
       "display_name": "Visningsnavn",
+      "display_name_placeholder": "Ola Nordmann",
       "edit": "Rediger identitet",
       "email_address": "E-postadresse",
       "email_locked": "JMAP tillater ikke at e-postadressen til en identitet endres. Opprett en ny i stedet.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Vis totalt antall meldinger for mapper",
       "show_folder_total_count_description": "Vis totalen ved siden av antall uleste i mappelisten.",
       "swipe_mode": {
+        "description": "Velg Umiddelbar (sveip forbi terskelen for å utføre handlingen) eller Vis (sveip for å vise et handlingsfelt, og trykk deretter for å bekrefte).",
         "instant": "Umiddelbar (sveip = handling)",
+        "label": "Sveipeatferd",
         "reveal": "Vis (sveip, og trykk deretter)"
       },
       "unified_cross_account": "Samlede visninger på tvers av kontoer",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Denne enheten slutter å motta varsler om ny e-post for denne kontoen.",
         "description_mobile": "Motta systemvarsler om ny e-post når appen er lukket. Leveres via Bulwarks push-relé; reléet ser aldri innholdet i e-postene.",
+        "err_android_only": "Push-varsler er bare tilgjengelige på Android.",
+        "err_fcm_empty": "Firebase returnerte et tomt enhetstoken.",
+        "err_fcm_token": "Firebase kunne ikke utstede et enhetstoken ({detail}). Push via FCM krever Google Play-tjenester på denne enheten.",
+        "err_fcm_token_up": "Firebase kunne ikke utstede et enhetstoken ({detail}). Push via FCM krever Google Play-tjenester på denne enheten. Denne enheten har en UnifiedPush-distributør installert – bytt leveringsmetode til UnifiedPush i stedet.",
+        "err_jmap_refused": "E-postserveren avviste push-abonnementet: {detail}",
+        "err_no_account": "Ingen konto er lastet inn – kan ikke sette opp push.",
+        "err_permission": "Tillatelse til varsler ble ikke gitt.",
+        "err_relay_https": "Relé-URL-en må bruke https://.",
+        "err_relay_rejected": "Push-reléet avviste registreringen: {detail}",
+        "err_relay_unreachable": "Kunne ikke nå push-reléet på {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush er bare tilgjengelig på Android.",
+        "err_verify_rejected": "E-postserveren avviste bekreftelseskoden: {detail}",
+        "err_verify_relay": "Reléet mottok aldri bekreftelseskoden fra e-postserveren (siste svar fra reléet: {detail}).",
+        "err_verify_timeout": "E-postserveren sendte ingen bekreftelseskode til reléet innen 75 s. Sjekk at serveren kan nå relé-URL-en.",
         "phase_account": "Konto",
         "phase_distributor": "UnifiedPush-distributør",
         "phase_jmap": "Abonnement på e-postserveren",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME er ikke tilgjengelig i mobilappen ennå. Administrer nøkler og sertifikater i nettposten; signerte meldinger vises her uten bekreftelse."
     },
     "tabs": {
-      "plugins": "Programtillegg"
+      "plugins": "Programtillegg",
+      "themes": "Temaer",
+      "updates": "Oppdateringer"
     },
     "templates": {
-      "delete_title": "Slett mal"
+      "delete_confirm": "Vil du slette «{name}» permanent?",
+      "delete_title": "Slett mal",
+      "description_mobile": "Gjenbrukbare tekstbiter for vanlige svar. Trykk på en for å redigere; trykk lenge for å slette.",
+      "export_failed": "Eksporten mislyktes",
+      "import_failed": "Importen mislyktes",
+      "imported": "Importert",
+      "imported_count": "{count, plural, one {# mal} other {# maler}} lagt til.",
+      "is_html": "Meldingsteksten er HTML",
+      "placeholders_hint": "Plassholdere: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Kan ikke dele"
     },
     "themes": {
       "default_description": "Standardpalettene for lyst og mørkt.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Trykk lenge for å fjerne denne kontoen",
     "remove_account_message": "Logg ut av {account} på denne enheten. E-posten din blir liggende på serveren.",
     "remove_account_title": "Vil du fjerne kontoen?",
-    "show_unread": "Vis uleste"
+    "show_unread": "Vis uleste",
+    "tab_unavailable": "{name} (ikke tilgjengelig)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# konto kunne ikke lastes inn} other {# kontoer kunne ikke lastes inn}}"
   },
   "updates": {
     "advisory": "Sikkerhetsvarsel",

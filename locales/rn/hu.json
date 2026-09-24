@@ -6,6 +6,13 @@
     "not_starred": "Nem csillagozott"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# perccel utána} other {# perccel utána}}"
+    },
+    "colors": {
+      "indigo": "Indigó",
+      "teal": "Kékeszöld"
+    },
     "drawer": {
       "my_calendars": "Saját naptárak",
       "no_calendars": "Még nincsenek naptárak.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Hely vagy cím",
       "time": "Idő"
     },
+    "import": {
+      "file_too_large_max": "A fájl túl nagy (max. {size} MB).",
+      "imported_count": "{count, plural, one {# esemény importálva.} other {# esemény importálva.}}",
+      "no_calendar": "Események importálása előtt hozz létre egy naptárt.",
+      "no_calendar_title": "Nincs naptár",
+      "picker_error": "Nem sikerült megnyitni a fájlválasztót",
+      "picker_unavailable": "A fájlválasztó nincs telepítve ebben a buildben. Az importálás engedélyezéséhez fordítsd újra az alkalmazást.",
+      "picker_unavailable_title": "Az importálás nem érhető el",
+      "refused_count": "{count, plural, one {# eseményt nem sikerült importálni:} other {# eseményt nem sikerült importálni:}}",
+      "refused_message": "{count, plural, =1 {Az eseményt nem sikerült importálni: {reason}} one {# eseményt nem sikerült importálni: {reason}} other {# eseményt nem sikerült importálni: {reason}}}",
+      "selected_count": "Kijelölve: {count}"
+    },
     "invitation": {
       "accept": "Igen",
       "add_error": "Nem sikerült hozzáadni az eseményt",
@@ -42,6 +61,10 @@
       "response_sent": "Válasz elküldve",
       "tentative": "Talán",
       "title": "Naptár meghívó",
+      "trust_authentication_failed": "Ez az üzenet nem ment át a feladó hitelesítésén (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "A feladót nem sikerült ellenőrizni.",
+      "trust_sender_mismatch": "A feladó nem azonos az esemény szervezőjével.",
+      "trust_sender_mismatch_unverified": "A feladó nem egyezik a szervezővel, és az üzenet nincs hitelesítve.",
       "trust_verified": "Feladó ellenőrizve"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Naptár szerkesztése",
       "new_calendar": "Új naptár"
     },
+    "notifications": {
+      "channel_name": "Naptáremlékeztetők",
+      "starts_in_days": "{count, plural, one {# nap múlva kezdődik} other {# nap múlva kezdődik}}",
+      "starts_in_hours": "{count, plural, one {# óra múlva kezdődik} other {# óra múlva kezdődik}}",
+      "starts_in_minutes": "{count, plural, one {# perc múlva kezdődik} other {# perc múlva kezdődik}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {alkalom} other {alkalom}}",
+      "every_count_days": "{count, plural, one {Naponta} other {# naponta}}",
+      "every_count_months": "{count, plural, one {Havonta} other {# havonta}}",
+      "every_count_weeks": "{count, plural, one {Hetente} other {# hetente}}",
+      "every_count_years": "{count, plural, one {Évente} other {# évente}}",
+      "occurrence_count": "{count, plural, one {# alkalom} other {# alkalom}}",
+      "until_date": "Eddig: {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Hétszámok megjelenítése a havi nézetben.",
       "time_zone": "Időzóna",
       "time_zone_auto": "Eszköz időzónája",
+      "time_zone_auto_zone": "Eszköz időzónája ({zone})",
       "time_zone_desc": "Az új eseményekhez és a naptár megjelenítéséhez használt zóna. Az „Eszköz időzónája” a telefont követi."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Keresés név vagy e-mail alapján",
       "shared_with": "Megosztva a következőkkel"
     },
+    "subscription": {
+      "add_feed": "Feed hozzáadása",
+      "feed_too_large": "A feed túl nagy",
+      "fetch_failed": "Nem sikerült letölteni a feedet (HTTP {status})",
+      "name_and_url_required": "Adj meg egy nevet és egy feed URL-t.",
+      "not_a_feed": "Ez az URL nem iCalendar feedet adott vissza",
+      "not_synced": "Még nincs szinkronizálva",
+      "url_scheme_invalid": "Az URL elején https://, http://, webcal:// vagy webcals:// kell legyen",
+      "your_subscriptions": "Feliratkozásaid"
+    },
     "tasks": {
       "add_placeholder": "Feladat hozzáadása…",
       "add_time": "Időpont hozzáadása",
+      "clear_due_date": "Határidő törlése",
       "delete_error": "Nem sikerült törölni a feladatot",
+      "not_found": "Ez a feladat már nem érhető el.",
+      "save_error": "Nem sikerült menteni a feladatot",
       "update_error": "Nem sikerült frissíteni a feladatot"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Létrehozás",
     "dismiss": "Elutasítás",
     "done": "Kész",
+    "open": "Megnyitás",
+    "open_link_message": "Ez a link az alkalmazáson kívül nyílik meg: {host}.",
+    "open_link_title": "Megnyitod a linket?",
     "remove": "Eltávolítás",
     "retry": "Újra",
     "undo": "Visszavonás",
     "update": "Frissítés"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Törlöd ezt: „{name}”? Ez nem vonható vissza.} one {Törlöd ezt: „{name}”? A benne lévő # névjegy is törlődik. Ez nem vonható vissza.} other {Törlöd ezt: „{name}”? A benne lévő # névjegy is törlődik. Ez nem vonható vissza.}}"
+    },
+    "all_contacts": "Összes névjegy",
+    "bulk": {
+      "add_tag": "Címke hozzáadása",
+      "delete_confirm_mobile": "{count, plural, one {Törlöd a kijelölt # névjegyet? Ez nem vonható vissza.} other {Törlöd a kijelölt # névjegyet? Ez nem vonható vissza.}}",
+      "move_to_address_book": "Áthelyezés címjegyzékbe",
+      "tag_failed": "Nem sikerült a címkézés"
+    },
+    "contact": "Névjegy",
+    "create_hint_mobile": "Nyomd hosszan, ha inkább csoportot hoznál létre",
+    "detail": {
+      "add_to_group_failed": "Nem sikerült hozzáadni a csoporthoz",
+      "copy_name": "{name} (másolat)",
+      "created_on": "Létrehozva: {date}",
+      "duplicate_failed": "Nem sikerült a duplikálás",
+      "duplicate_no_book": "Címjegyzék nélkül nem duplikálható.",
+      "no_address_book": "Nincs címjegyzék",
+      "not_found": "A névjegy nem található",
+      "open_dialer_failed": "Nem nyitható meg a tárcsázó",
+      "open_link_failed": "Nem nyitható meg a link",
+      "open_maps_failed": "Nem nyitható meg a térkép",
+      "open_sms_failed": "Nem nyitható meg az üzenetküldő alkalmazás",
+      "share": "Megosztás",
+      "share_title": "Megosztás: {name}",
+      "sms": "SMS",
+      "timezone_value": "Időzóna: {zone}",
+      "updated_on": "Frissítve: {date}"
+    },
+    "empty_state_hint_mobile": "Új névjegyhez koppints a + gombra",
+    "export": {
+      "failed": "Nem sikerült az exportálás"
+    },
+    "form": {
+      "add_nickname": "Becenév hozzáadása",
+      "add_note": "Megjegyzés hozzáadása",
+      "add_organization": "Szervezet hozzáadása",
+      "address_book_required": "A névjegy mentéséhez válassz egy címjegyzéket.",
+      "categories_placeholder_mobile": "Írj be egy címkét, és nyomj Entert",
+      "context_none": "Nincs",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY vagy --MM-DD",
+      "display_name_optional": "Megjelenített név (opcionális)",
+      "display_name_placeholder": "Egyéni megjelenített név",
+      "edit_named": "Szerkesztés: {name}",
+      "gender_unspecified": "Nincs megadva",
+      "grammatical_gender": "Nyelvtani nem",
+      "invalid_date_message": "Ez nem dátum: „{date}”. Használd ezt a formátumot: YYYY-MM-DD, YYYY-MM, YYYY vagy --MM-DD.",
+      "invalid_date_title": "Érvénytelen dátum",
+      "invalid_email_message": "Ez nem érvényes e-mail-cím: „{address}”.",
+      "invalid_email_title": "Érvénytelen e-mail",
+      "label": "Megnevezés",
+      "label_placeholder": "Munka, Személyes, …",
+      "missing_address_book": "Hiányzó címjegyzék",
+      "missing_info": "Hiányzó adatok",
+      "name_or_email_required": "Adj meg egy nevet vagy legalább egy e-mail-címet.",
+      "new_organization": "Új szervezet",
+      "org_name_required": "Add meg a szervezet nevét.",
+      "photo_hint_mobile": "Kép kiválasztásához koppints a fotóra",
+      "photo_permission_message": "A névjegyfotó kiválasztásához engedélyezd a hozzáférést a fotókhoz.",
+      "photo_permission_title": "Hozzáférés szükséges a fotókhoz",
+      "pick_date": "Dátum kiválasztása",
+      "pronouns": "Névmások",
+      "pronouns_placeholder": "ő/őt",
+      "url": "URL"
+    },
+    "group": "Csoport",
+    "groups": {
+      "add_member": "Tag hozzáadása",
+      "add_members": "Tagok hozzáadása",
+      "add_members_failed": "Nem sikerült hozzáadni a tagokat",
+      "create_ellipsis": "Új csoport…",
+      "delete_confirm_named": "Törlöd ezt: „{name}”? A tagok nem törlődnek.",
+      "delete_failed": "Nem sikerült törölni a csoportot",
+      "email_all": "E-mail mindenkinek",
+      "members_with_count": "Tagok ({count})",
+      "no_emails": "Nincsenek e-mail-címek",
+      "no_members_hint": "Kezdéshez koppints a „Tag hozzáadása” gombra",
+      "not_found": "A csoport nem található",
+      "remove_member": "Tag eltávolítása",
+      "remove_member_confirm": "Eltávolítod a csoportból: „{name}”?",
+      "remove_member_failed": "Nem sikerült eltávolítani a tagot"
+    },
+    "import": {
+      "change_target": "Módosítás",
+      "choose_file_mobile": "Válassz egy vCard-fájlt",
+      "failed_count": "{count, plural, one {# névjegyet nem sikerült importálni.} other {# névjegyet nem sikerült importálni.}}",
+      "import_count": "Importálás ({count})",
+      "into_address_book": "Importálás címjegyzékbe",
+      "into_named": "Importálás ide: {name}",
+      "no_address_book": "Névjegyek importálása előtt hozz létre egy címjegyzéket.",
+      "picker_failed": "Nem sikerült megnyitni a fájlválasztót"
+    },
+    "no_tags_hint": "Még nincsenek címkék. Írj be egyet fent.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Hozzáadás} one {Hozzáadás (#)} other {Hozzáadás (#)}}",
+      "title": "Névjegy hozzáadása"
+    },
+    "rename_tag_hint_mobile": "Átnevezéshez nyomj hosszan egy címkét",
+    "tag_name_placeholder": "Új címke neve",
+    "unnamed": "Névtelen"
   },
   "context_menu": {
     "color_tag": "Címke",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Elfelejtetted a csatolmányt?",
     "attachments_too_large_total": "A csatolmányok túllépnék a szerver által üzenetenként engedélyezett méretet ({max}).",
     "editor_unavailable": "Nem sikerült beolvasni az üzenet tartalmát. Másold ki a szöveget, majd zárd be és nyisd meg újra a szerkesztőt.",
+    "from_options": "Feladó beállításai",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Az azonosság nem érhető el",
     "image_load_failed": "Nem sikerült betölteni a képet",
     "no_recipient": "(nincs címzett)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Cím másolása",
     "recipient_move_to": "Áthelyezés ide: {field}",
     "recipient_remove": "Eltávolítás",
+    "remove_attachment": "Csatolmány eltávolítása",
     "save_draft": "Piszkozat mentése",
     "save_failed_no_drafts": "Nincs Piszkozatok mappa, ahová ezt a piszkozatot menteni lehetne.",
     "save_failed_no_identity": "Nem sikerült betölteni a feladói azonosságaidat, ezért ez a piszkozat nem menthető. Ellenőrizd a kapcsolatot, vagy bezárás előtt másold ki a szöveget.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Lehet, hogy az üzenet már elment. Mielőtt újra elküldenéd, nézd meg az Elküldött mappát.",
     "send_timeout_title": "Nem érkezett válasz a szervertől",
     "undo_send_label": "Küldés {seconds} mp múlva…",
+    "upload_failed_short": "Sikertelen feltöltés",
     "uploading": "Feltöltés...",
+    "uploading_pct": "Feltöltés: {pct}%",
     "validation": {
       "subject_required": "Adj meg tárgyat"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-mail archiválva} other {# e-mail archiválva}}",
     "emails_moved_to": "{count, plural, one {# e-mail áthelyezve} other {# e-mail áthelyezve}} ide: {mailbox}",
     "error": "Hiba",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "E-mailek szűrése",
+    "folder_counts": "Összesen: {total} · olvasatlan: {unread}",
+    "import": {
+      "none": "Egy üzenet sem lett importálva.",
+      "partial": "Importálva: {imported}, sikertelen: {failed}.",
+      "success": "{count, plural, one {# üzenet importálva.} other {# üzenet importálva.}}",
+      "title": "Importálás"
+    },
     "marked_as_spam": "Megjelölve spamként",
     "marked_as_spam_count": "{count, plural, one {# e-mail megjelölve spamként} other {# e-mail megjelölve spamként}}",
     "marked_not_spam": "Megjelölve nem spamként",
@@ -156,10 +328,12 @@
     "outbox_discard": "Elvetés",
     "outbox_failed": "Ennyi módosítást nem sikerült a szerverre menteni: {count}.",
     "recent_searches": "Legutóbbi keresések",
+    "remove_filter": "Szűrő eltávolítása: {label}",
     "scope_all_folders": "Minden mappa",
     "scope_this_folder": "Ez a mappa",
     "search_placeholder": "Keresés a levelekben...",
     "showing_cached": "Gyorsítótárazott levelek megjelenítése",
+    "sort_toggle_hint": "Megfordítja a levelek rendezési sorrendjét",
     "swipe_move": "Áthelyezés",
     "swipe_spam": "Spam",
     "total": "összesen",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Ez az üzenet véglegesen törlődik, és nem állítható vissza.",
     "delete_permanently_title": "Végleges törlés?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fájl} other {# fájl}} · {size}",
+      "received_after_delay": "{date} · kézbesítési idő: {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Az exportálás sikertelen",
     "forwarded": "Továbbítva",
     "load_failed": "Nem sikerült betölteni az e-mailt",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "A mappák a teljes tartalmukkal együtt törlődnek. Ez nem vonható vissza.",
     "delete_item_title": "Törlöd ezt az elemet?",
+    "delete_items_title": "{count, plural, one {Törlöd a kijelölt # elemet?} other {Törlöd a kijelölt # elemet?}}",
     "done": "Kész",
+    "download_failed_status": "Sikertelen letöltés (HTTP {status})",
     "folder_empty": "Ez a mappa üres",
     "invalid_name": "Érvénytelen név",
     "invalid_name_slash": "A nevek nem tartalmazhatnak „/” karaktert.",
@@ -234,6 +415,7 @@
     "open_error": "Nem sikerült megnyitni a fájlt",
     "open_with": "Megnyitás ezzel…",
     "preview_too_large": "Ez a fájl túl nagy az előnézethez.",
+    "selected_count": "{count, plural, one {# kijelölve} other {# kijelölve}}",
     "share_add_people": "Személyek hozzáadása",
     "share_empty": "Még nincs megosztva senkivel",
     "share_error": "Nem sikerült frissíteni a megosztást",
@@ -244,9 +426,11 @@
     "share_remove": "Hozzáférés eltávolítása",
     "share_role_custom": "Egyéni",
     "share_search_placeholder": "Keresés név vagy e-mail alapján",
+    "share_unavailable": "A megosztás nem érhető el ezen az eszközön",
     "shared_with": "Megosztva a következőkkel",
     "sharing_access": "Megosztás és hozzáférés",
-    "upload_unavailable": "A fájlválasztó nincs telepítve ebben a buildben. A feltöltés engedélyezéséhez fordítsd újra az alkalmazást."
+    "upload_unavailable": "A fájlválasztó nincs telepítve ebben a buildben. A feltöltés engedélyezéséhez fordítsd újra az alkalmazást.",
+    "uploading_progress": "Feltöltés: {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Offline vagy",
-    "queued_changes": "{count, plural, one {# módosítás szinkronizálódik} other {# módosítás szinkronizálódik}}, amint újra csatlakozol"
+    "queued_changes": "{count, plural, one {# módosítás szinkronizálódik} other {# módosítás szinkronizálódik}}, amint újra csatlakozol",
+    "sync": {
+      "cached_count": "{count, plural, one {# új üzenet letöltve} other {# új üzenet letöltve}} • {size}",
+      "cancelled": "Szinkronizálás megszakítva",
+      "failed": "Sikertelen offline szinkronizálás",
+      "processed": "{completed}/{total} feldolgozva",
+      "ready": "Az offline levelek elérhetők",
+      "syncing": "Offline levelek szinkronizálása",
+      "title": "Offline szinkronizálás",
+      "unable_to_download": "Nem sikerült letölteni",
+      "up_to_date": "Már minden naprakész"
+    }
   },
   "push_prompt": {
     "body": "Kapcsold be a háttérértesítéseket, hogy az új üzenetekről akkor is értesülj, amikor az alkalmazás be van zárva.",
@@ -399,6 +594,15 @@
       "not_implemented": "Nincs megvalósítva",
       "unavailable": "Nem érhető el"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# névjegy} other {# névjegy}}",
+      "default_book": "Alapértelmezett címjegyzék",
+      "description_mobile": "Megjelenítési beállítások és címjegyzék-eszközök.",
+      "export_description_count": "{count, plural, one {# névjegy exportálása egyetlen vCard-fájlba.} other {# névjegy exportálása egyetlen vCard-fájlba.}}",
+      "export_empty": "Nincs exportálható névjegy",
+      "import_description_mobile": "Névjegyek importálása vCard (.vcf) fájlból, a duplikátumok felismerésével.",
+      "manage_description_mobile": "Itt hozhatod létre, nevezheted át és távolíthatod el a névjegyeidet rendező címjegyzékeket."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Csatolmány mentésekor vagy megosztásakor használt sablon."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "A válaszok mindig arról az azonosságról mennek ki, amelyre az üzenet érkezett. Ha ez be van kapcsolva, a domainjeid egy másik címére (catch-all alias) érkezett levélre adott válasz is erről a címről megy ki."
       },
+      "content_senders_description_mobile": "Itt szabhatod meg, hogyan kezelje az alkalmazás a külső erőforrásokat és a követőpixeleket.",
+      "external_content": {
+        "allow_mobile": "Engedélyezés",
+        "ask_mobile": "Rákérdezés",
+        "block_mobile": "Blokkolás"
+      },
       "plain_text_mode": {
         "description_mobile": "Írás és olvasás csak egyszerű szövegként."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Művelet, amikor egy sort a bal szélétől jobbra húzol.",
         "label_mobile": "Jobbra húzás (balról → jobbra)"
+      },
+      "trusted_senders": {
+        "description_mobile": "A listán szereplő feladóknál a külső tartalom mindig betöltődik.",
+        "description_synced_mobile": "A listán szereplő feladóknál a külső tartalom mindig betöltődik. A címjegyzéken keresztül szinkronizálva: {count}.",
+        "sync_add_failed": "Nem sikerült szinkronizálni a címjegyzékkel",
+        "sync_remove_failed": "Nem sikerült eltávolítani a címjegyzékből",
+        "synced_badge": "A címjegyzéken keresztül szinkronizálva"
       }
     },
     "experimental": {
       "title": "Kísérleti funkció"
+    },
+    "filters": {
+      "remove_action": "Művelet eltávolítása",
+      "remove_condition": "Feltétel eltávolítása",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# sor} other {# sor}}"
+      }
     },
     "folders": {
       "account": "Fiók",
@@ -476,6 +700,7 @@
       "delete_title": "Azonosság törlése",
       "description_mobile": "Feladónevek, e-mail-címek és aláírások kezelése. Szerkesztéshez koppints egy sorra.",
       "display_name": "Megjelenített név",
+      "display_name_placeholder": "Kovács Anna",
       "edit": "Azonosság szerkesztése",
       "email_address": "E-mail-cím",
       "email_locked": "A JMAP nem teszi lehetővé egy azonosság e-mail-címének módosítását; hozz létre helyette újat.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Összes üzenet számának megjelenítése a mappáknál",
       "show_folder_total_count_description": "Az összes üzenet száma az olvasatlanok száma mellett a mappalistában.",
       "swipe_mode": {
+        "description": "Válassz az azonnali mód (a küszöbön túlhúzva végrehajtódik a művelet) és a felfedés (a húzás egy műveletsávot fed fel, majd koppintással megerősíted) között.",
         "instant": "Azonnali (húzás = művelet)",
+        "label": "Húzás működése",
         "reveal": "Felfedés (húzás, majd koppintás)"
       },
       "unified_cross_account": "Egységes nézetek az összes fiókra",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Ez az eszköz nem kap több értesítést az új levelekről ennél a fióknál.",
         "description_mobile": "Rendszerértesítések fogadása új levelekről, amikor az alkalmazás be van zárva. A Bulwark push relén keresztül kézbesítve; a relé soha nem látja a levelek tartalmát.",
+        "err_android_only": "A push-értesítések csak Androidon érhetők el.",
+        "err_fcm_empty": "A Firebase üres eszköztokent adott vissza.",
+        "err_fcm_token": "A Firebase nem tudott eszköztokent kiadni ({detail}). Az FCM-en keresztüli pushhoz Google Play-szolgáltatások kellenek ezen az eszközön.",
+        "err_fcm_token_up": "A Firebase nem tudott eszköztokent kiadni ({detail}). Az FCM-en keresztüli pushhoz Google Play-szolgáltatások kellenek ezen az eszközön. Ezen az eszközön telepítve van egy UnifiedPush-disztribútor – válts inkább UnifiedPush kézbesítési módra.",
+        "err_jmap_refused": "A levelezőszerver elutasította a push-feliratkozást: {detail}",
+        "err_no_account": "Nincs betöltött fiók – a push nem állítható be.",
+        "err_permission": "Az értesítési engedélyt nem adtad meg.",
+        "err_relay_https": "A relé URL-jének https://-t kell használnia.",
+        "err_relay_rejected": "A push relé elutasította a regisztrációt: {detail}",
+        "err_relay_unreachable": "A push relé nem érhető el itt: {url} ({detail}).",
+        "err_up_android_only": "A UnifiedPush csak Androidon érhető el.",
+        "err_verify_rejected": "A levelezőszerver elutasította az ellenőrző kódot: {detail}",
+        "err_verify_relay": "A relé nem kapta meg az ellenőrző kódot a levelezőszervertől (a relé utolsó válasza: {detail}).",
+        "err_verify_timeout": "A levelezőszerver 75 mp-en belül nem küldött ellenőrző kódot a relének. Ellenőrizd, hogy a szerver eléri-e a relé URL-jét.",
         "phase_account": "Fiók",
         "phase_distributor": "UnifiedPush-disztribútor",
         "phase_jmap": "Levelezőszerver-feliratkozás",
@@ -700,10 +941,21 @@
       "mobile_explainer": "Az S/MIME még nem érhető el a mobilalkalmazásban. A kulcsokat és tanúsítványokat a webmailben kezelheted; az aláírt üzenetek itt ellenőrzés nélkül jelennek meg."
     },
     "tabs": {
-      "plugins": "Bővítmények"
+      "plugins": "Bővítmények",
+      "themes": "Témák",
+      "updates": "Frissítések"
     },
     "templates": {
-      "delete_title": "Sablon törlése"
+      "delete_confirm": "Véglegesen törlöd ezt: „{name}”?",
+      "delete_title": "Sablon törlése",
+      "description_mobile": "Újrafelhasználható szövegrészek gyakori válaszokhoz. Szerkesztéshez koppints egyre, törléshez nyomd hosszan.",
+      "export_failed": "Sikertelen exportálás",
+      "import_failed": "Sikertelen importálás",
+      "imported": "Importálva",
+      "imported_count": "{count, plural, one {# sablon hozzáadva.} other {# sablon hozzáadva.}}",
+      "is_html": "A törzs HTML",
+      "placeholders_hint": "Helyettesítők: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Nem sikerült megosztani"
     },
     "themes": {
       "default_description": "Az alapértelmezett világos és sötét paletták.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Nyomd hosszan a fiók eltávolításához",
     "remove_account_message": "Kijelentkezés erről a fiókról ezen az eszközön: {account}. A leveleid a szerveren maradnak.",
     "remove_account_title": "Eltávolítod a fiókot?",
-    "show_unread": "Olvasatlanok megjelenítése"
+    "show_unread": "Olvasatlanok megjelenítése",
+    "tab_unavailable": "{name} (nem érhető el)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# fiókot nem sikerült betölteni} other {# fiókot nem sikerült betölteni}}"
   },
   "updates": {
     "advisory": "Biztonsági közlemény",

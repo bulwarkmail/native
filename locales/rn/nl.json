@@ -6,6 +6,13 @@
     "not_starred": "Zonder ster"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minuut erna} other {# minuten erna}}"
+    },
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Blauwgroen"
+    },
     "drawer": {
       "my_calendars": "Mijn agenda's",
       "no_calendars": "Nog geen agenda's.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Plaats of adres",
       "time": "Tijd"
     },
+    "import": {
+      "file_too_large_max": "Dat bestand is te groot (max. {size} MB).",
+      "imported_count": "{count, plural, one {# evenement geïmporteerd.} other {# evenementen geïmporteerd.}}",
+      "no_calendar": "Maak een agenda aan voordat u evenementen importeert.",
+      "no_calendar_title": "Geen agenda",
+      "picker_error": "Kon de bestandskiezer niet openen",
+      "picker_unavailable": "De bestandskiezer is niet geïnstalleerd in deze build. Bouw de app opnieuw om importeren mogelijk te maken.",
+      "picker_unavailable_title": "Importeren niet beschikbaar",
+      "refused_count": "{count, plural, one {# evenement kon niet worden geïmporteerd:} other {# evenementen konden niet worden geïmporteerd:}}",
+      "refused_message": "{count, plural, =1 {Het evenement kon niet worden geïmporteerd: {reason}} one {# evenement kon niet worden geïmporteerd: {reason}} other {# evenementen konden niet worden geïmporteerd: {reason}}}",
+      "selected_count": "{count} geselecteerd"
+    },
     "invitation": {
       "accept": "Ja",
       "add_error": "Kon het evenement niet toevoegen",
@@ -42,6 +61,10 @@
       "response_sent": "Reactie verzonden",
       "tentative": "Misschien",
       "title": "Agenda-uitnodiging",
+      "trust_authentication_failed": "Dit bericht is niet geslaagd voor de afzenderauthenticatie (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "De afzender kon niet worden geverifieerd.",
+      "trust_sender_mismatch": "De afzender is niet de organisator van het evenement.",
+      "trust_sender_mismatch_unverified": "De afzender komt niet overeen met de organisator en het bericht is niet geauthenticeerd.",
       "trust_verified": "Afzender geverifieerd"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Agenda bewerken",
       "new_calendar": "Nieuwe agenda"
     },
+    "notifications": {
+      "channel_name": "Agendaherinneringen",
+      "starts_in_days": "{count, plural, one {Begint over # dag} other {Begint over # dagen}}",
+      "starts_in_hours": "{count, plural, one {Begint over # uur} other {Begint over # uur}}",
+      "starts_in_minutes": "{count, plural, one {Begint over # minuut} other {Begint over # minuten}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {herhaling} other {herhalingen}}",
+      "every_count_days": "{count, plural, one {Elke dag} other {Elke # dagen}}",
+      "every_count_months": "{count, plural, one {Elke maand} other {Elke # maanden}}",
+      "every_count_weeks": "{count, plural, one {Elke week} other {Elke # weken}}",
+      "every_count_years": "{count, plural, one {Elk jaar} other {Elke # jaar}}",
+      "occurrence_count": "{count, plural, one {# herhaling} other {# herhalingen}}",
+      "until_date": "Tot {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Weeknummers weergeven in de maandweergave.",
       "time_zone": "Tijdzone",
       "time_zone_auto": "Tijdzone van apparaat",
+      "time_zone_auto_zone": "Tijdzone van apparaat ({zone})",
       "time_zone_desc": "Tijdzone voor nieuwe afspraken en voor het weergeven van de agenda. \"Tijdzone van apparaat\" volgt de telefoon."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Zoeken op naam of e-mail",
       "shared_with": "Gedeeld met"
     },
+    "subscription": {
+      "add_feed": "Feed toevoegen",
+      "feed_too_large": "Feed is te groot",
+      "fetch_failed": "Kon feed niet ophalen (HTTP {status})",
+      "name_and_url_required": "Voer een naam en een feed-URL in.",
+      "not_a_feed": "Die URL leverde geen iCalendar-feed op",
+      "not_synced": "Nog niet gesynchroniseerd",
+      "url_scheme_invalid": "De URL moet beginnen met https://, http://, webcal:// of webcals://",
+      "your_subscriptions": "Uw abonnementen"
+    },
     "tasks": {
       "add_placeholder": "Taak toevoegen…",
       "add_time": "Tijd toevoegen",
+      "clear_due_date": "Vervaldatum wissen",
       "delete_error": "Taak verwijderen mislukt",
+      "not_found": "Deze taak is niet meer beschikbaar.",
+      "save_error": "Taak opslaan mislukt",
       "update_error": "Taak bijwerken mislukt"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Aanmaken",
     "dismiss": "Sluiten",
     "done": "Klaar",
+    "open": "Openen",
+    "open_link_message": "Hiermee wordt {host} buiten de app geopend.",
+    "open_link_title": "Link openen?",
     "remove": "Verwijderen",
     "retry": "Opnieuw proberen",
     "undo": "Ongedaan maken",
     "update": "Bijwerken"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {\"{name}\" verwijderen? Dit kan niet ongedaan worden gemaakt.} one {\"{name}\" verwijderen? # contact in dit adresboek wordt ook verwijderd. Dit kan niet ongedaan worden gemaakt.} other {\"{name}\" verwijderen? # contacten in dit adresboek worden ook verwijderd. Dit kan niet ongedaan worden gemaakt.}}"
+    },
+    "all_contacts": "Alle contacten",
+    "bulk": {
+      "add_tag": "Categorie toevoegen",
+      "delete_confirm_mobile": "{count, plural, one {# contact verwijderen? Dit kan niet ongedaan worden gemaakt.} other {# contacten verwijderen? Dit kan niet ongedaan worden gemaakt.}}",
+      "move_to_address_book": "Verplaatsen naar adresboek",
+      "tag_failed": "Categorie toewijzen mislukt"
+    },
+    "contact": "Contact",
+    "create_hint_mobile": "Lang drukken om in plaats daarvan een groep te maken",
+    "detail": {
+      "add_to_group_failed": "Toevoegen aan groep mislukt",
+      "copy_name": "{name} (kopie)",
+      "created_on": "Aangemaakt op {date}",
+      "duplicate_failed": "Dupliceren mislukt",
+      "duplicate_no_book": "Kan niet dupliceren zonder adresboek.",
+      "no_address_book": "Geen adresboek",
+      "not_found": "Contact niet gevonden",
+      "open_dialer_failed": "Kan telefoon-app niet openen",
+      "open_link_failed": "Kan link niet openen",
+      "open_maps_failed": "Kan kaarten-app niet openen",
+      "open_sms_failed": "Kan berichten-app niet openen",
+      "share": "Delen",
+      "share_title": "{name} delen",
+      "sms": "SMS",
+      "timezone_value": "Tijdzone: {zone}",
+      "updated_on": "Bijgewerkt op {date}"
+    },
+    "empty_state_hint_mobile": "Tik op + om er een toe te voegen",
+    "export": {
+      "failed": "Exporteren mislukt"
+    },
+    "form": {
+      "add_nickname": "Bijnaam toevoegen",
+      "add_note": "Notitie toevoegen",
+      "add_organization": "Organisatie toevoegen",
+      "address_book_required": "Selecteer een adresboek om dit contact op te slaan.",
+      "categories_placeholder_mobile": "Voeg een categorie toe en druk op Enter",
+      "context_none": "Geen",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY of --MM-DD",
+      "display_name_optional": "Weergavenaam (optioneel)",
+      "display_name_placeholder": "Aangepaste weergavenaam",
+      "edit_named": "{name} bewerken",
+      "gender_unspecified": "Niet opgegeven",
+      "grammatical_gender": "Grammaticaal geslacht",
+      "invalid_date_message": "\"{date}\" is geen datum. Gebruik YYYY-MM-DD, YYYY-MM, YYYY of --MM-DD.",
+      "invalid_date_title": "Ongeldige datum",
+      "invalid_email_message": "\"{address}\" is geen geldig e-mailadres.",
+      "invalid_email_title": "Ongeldig e-mailadres",
+      "label": "Label",
+      "label_placeholder": "Werk, Persoonlijk, …",
+      "missing_address_book": "Adresboek ontbreekt",
+      "missing_info": "Gegevens ontbreken",
+      "name_or_email_required": "Voeg een naam of minstens één e-mailadres toe.",
+      "new_organization": "Nieuwe organisatie",
+      "org_name_required": "Voeg de naam van de organisatie toe.",
+      "photo_hint_mobile": "Tik op de foto om een afbeelding te kiezen",
+      "photo_permission_message": "Geef toegang tot de fotobibliotheek om een contactfoto te kiezen.",
+      "photo_permission_title": "Toegang tot foto's nodig",
+      "pick_date": "Kies een datum",
+      "pronouns": "Voornaamwoorden",
+      "pronouns_placeholder": "hen/hun",
+      "url": "URL"
+    },
+    "group": "Groep",
+    "groups": {
+      "add_member": "Lid toevoegen",
+      "add_members": "Leden toevoegen",
+      "add_members_failed": "Leden toevoegen mislukt",
+      "create_ellipsis": "Nieuwe groep…",
+      "delete_confirm_named": "\"{name}\" verwijderen? De leden worden niet verwijderd.",
+      "delete_failed": "Groep verwijderen mislukt",
+      "email_all": "Iedereen mailen",
+      "members_with_count": "Leden ({count})",
+      "no_emails": "Geen e-mailadressen",
+      "no_members_hint": "Tik op \"Lid toevoegen\" om te beginnen",
+      "not_found": "Groep niet gevonden",
+      "remove_member": "Lid verwijderen",
+      "remove_member_confirm": "\"{name}\" uit deze groep verwijderen?",
+      "remove_member_failed": "Lid verwijderen mislukt"
+    },
+    "import": {
+      "change_target": "Wijzigen",
+      "choose_file_mobile": "Kies een vCard-bestand",
+      "failed_count": "{count, plural, one {# contact kon niet worden geïmporteerd.} other {# contacten konden niet worden geïmporteerd.}}",
+      "import_count": "{count} importeren",
+      "into_address_book": "Importeren in adresboek",
+      "into_named": "Importeren in {name}",
+      "no_address_book": "Maak een adresboek aan voordat u contacten importeert.",
+      "picker_failed": "Kon de bestandskiezer niet openen"
+    },
+    "no_tags_hint": "Nog geen categorieën. Typ er hierboven een.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Toevoegen} other {Toevoegen (#)}}",
+      "title": "Contact toevoegen"
+    },
+    "rename_tag_hint_mobile": "Druk lang op een categorie om deze te hernoemen",
+    "tag_name_placeholder": "Naam nieuwe categorie",
+    "unnamed": "Naamloos"
   },
   "context_menu": {
     "color_tag": "Label",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Bijlage vergeten?",
     "attachments_too_large_total": "De bijlagen zouden de {max} overschrijden die deze server per bericht toestaat.",
     "editor_unavailable": "Kon de inhoud van het bericht niet lezen. Kopieer uw tekst en sluit en open daarna het opstelvenster opnieuw.",
+    "from_options": "Afzenderopties",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identiteit niet beschikbaar",
     "image_load_failed": "Kon afbeelding niet laden",
     "no_recipient": "(geen ontvanger)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Adres kopiëren",
     "recipient_move_to": "Verplaatsen naar {field}",
     "recipient_remove": "Verwijderen",
+    "remove_attachment": "Bijlage verwijderen",
     "save_draft": "Concept opslaan",
     "save_failed_no_drafts": "Er is geen map Concepten om dit concept in op te slaan.",
     "save_failed_no_identity": "Uw afzenderidentiteiten konden niet worden geladen, dus dit concept kan niet worden opgeslagen. Controleer uw verbinding of kopieer uw tekst voordat u sluit.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Het bericht is mogelijk al verzonden. Controleer uw map Verzonden voordat u het opnieuw verstuurt.",
     "send_timeout_title": "Geen antwoord van de server",
     "undo_send_label": "Verzenden over {seconds} s…",
+    "upload_failed_short": "Uploaden mislukt",
     "uploading": "Uploaden...",
+    "uploading_pct": "Uploaden {pct}%",
     "validation": {
       "subject_required": "Voeg een onderwerp toe"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-mail} other {# e-mails}} gearchiveerd",
     "emails_moved_to": "{count, plural, one {# e-mail} other {# e-mails}} verplaatst naar {mailbox}",
     "error": "Fout",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "E-mails filteren",
+    "folder_counts": "{total} totaal · {unread} ongelezen",
+    "import": {
+      "none": "Er zijn geen berichten geïmporteerd.",
+      "partial": "{imported} geïmporteerd, {failed} mislukt.",
+      "success": "{count, plural, one {# bericht geïmporteerd.} other {# berichten geïmporteerd.}}",
+      "title": "Importeren"
+    },
     "marked_as_spam": "Gemarkeerd als spam",
     "marked_as_spam_count": "{count, plural, one {# e-mail} other {# e-mails}} gemarkeerd als spam",
     "marked_not_spam": "Gemarkeerd als geen spam",
@@ -156,10 +328,12 @@
     "outbox_discard": "Verwijderen",
     "outbox_failed": "{count} wijzigingen konden niet op de server worden opgeslagen.",
     "recent_searches": "Recente zoekopdrachten",
+    "remove_filter": "Filter {label} verwijderen",
     "scope_all_folders": "Alle mappen",
     "scope_this_folder": "Deze map",
     "search_placeholder": "Zoeken in e-mail...",
     "showing_cached": "E-mail uit de cache wordt weergegeven",
+    "sort_toggle_hint": "Keert de sorteervolgorde van de e-mail om",
     "swipe_move": "Verplaatsen",
     "swipe_spam": "Spam",
     "total": "totaal",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Dit bericht wordt definitief verwijderd en kan niet worden hersteld.",
     "delete_permanently_title": "Definitief verwijderen?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# bestand} other {# bestanden}} · {size}",
+      "received_after_delay": "{date} · bezorgtijd {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Exporteren mislukt",
     "forwarded": "Doorgestuurd",
     "load_failed": "E-mail laden mislukt",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Mappen worden samen met alles erin verwijderd. Dit kan niet ongedaan worden gemaakt.",
     "delete_item_title": "Dit item verwijderen?",
+    "delete_items_title": "{count, plural, one {# item verwijderen?} other {# items verwijderen?}}",
     "done": "Klaar",
+    "download_failed_status": "Downloaden mislukt (HTTP {status})",
     "folder_empty": "Deze map is leeg",
     "invalid_name": "Ongeldige naam",
     "invalid_name_slash": "Namen mogen geen \"/\" bevatten.",
@@ -234,6 +415,7 @@
     "open_error": "Kon het bestand niet openen",
     "open_with": "Openen met…",
     "preview_too_large": "Dit bestand is te groot voor een voorbeeld.",
+    "selected_count": "{count, plural, one {# geselecteerd} other {# geselecteerd}}",
     "share_add_people": "Personen toevoegen",
     "share_empty": "Nog met niemand gedeeld",
     "share_error": "Delen kon niet worden bijgewerkt",
@@ -244,9 +426,11 @@
     "share_remove": "Toegang intrekken",
     "share_role_custom": "Aangepast",
     "share_search_placeholder": "Zoeken op naam of e-mail",
+    "share_unavailable": "Delen is niet beschikbaar op dit apparaat",
     "shared_with": "Gedeeld met",
     "sharing_access": "Delen en toegang",
-    "upload_unavailable": "De bestandskiezer is niet geïnstalleerd in deze build. Bouw de app opnieuw om uploaden mogelijk te maken."
+    "upload_unavailable": "De bestandskiezer is niet geïnstalleerd in deze build. Bouw de app opnieuw om uploaden mogelijk te maken.",
+    "uploading_progress": "Uploaden {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "U bent offline",
-    "queued_changes": "{count, plural, one {# wijziging wordt} other {# wijzigingen worden}} gesynchroniseerd zodra u weer verbinding hebt"
+    "queued_changes": "{count, plural, one {# wijziging wordt} other {# wijzigingen worden}} gesynchroniseerd zodra u weer verbinding hebt",
+    "sync": {
+      "cached_count": "{count, plural, one {# nieuw bericht in de cache opgeslagen} other {# nieuwe berichten in de cache opgeslagen}} • {size}",
+      "cancelled": "Synchronisatie geannuleerd",
+      "failed": "Offline synchronisatie mislukt",
+      "processed": "{completed}/{total} verwerkt",
+      "ready": "Offline e-mail is klaar",
+      "syncing": "Offline e-mail synchroniseren",
+      "title": "Offline synchronisatie",
+      "unable_to_download": "Downloaden niet mogelijk",
+      "up_to_date": "Al up-to-date"
+    }
   },
   "push_prompt": {
     "body": "Schakel achtergrondmeldingen in zodat nieuwe berichten u bereiken terwijl de app gesloten is.",
@@ -399,6 +594,15 @@
       "not_implemented": "Niet geïmplementeerd",
       "unavailable": "Niet beschikbaar"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# contact} other {# contacten}}",
+      "default_book": "Standaardadresboek",
+      "description_mobile": "Weergavevoorkeuren en hulpmiddelen voor adresboeken.",
+      "export_description_count": "{count, plural, one {# contact exporteren als één vCard-bestand.} other {# contacten exporteren als één vCard-bestand.}}",
+      "export_empty": "Geen contacten om te exporteren",
+      "import_description_mobile": "Contacten importeren uit een vCard-bestand (.vcf) met detectie van duplicaten.",
+      "manage_description_mobile": "Maak, hernoem en verwijder de adresboeken waarin uw contacten zijn ingedeeld."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Sjabloon voor het opslaan of delen van een bijlage."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Antwoorden worden altijd verzonden vanaf de identiteit waaraan een bericht is gestuurd. Als dit aanstaat, wordt een antwoord op een ander adres op uw domeinen (een catch-all-alias) ook vanaf dat adres verzonden."
       },
+      "content_senders_description_mobile": "Bepaal hoe externe bronnen en trackingpixels worden behandeld.",
+      "external_content": {
+        "allow_mobile": "Toestaan",
+        "ask_mobile": "Vragen",
+        "block_mobile": "Blokkeren"
+      },
       "plain_text_mode": {
         "description_mobile": "Alleen in platte tekst opstellen en lezen."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Actie wanneer u een rij vanaf de linkerrand naar rechts sleept.",
         "label_mobile": "Naar rechts vegen (links → rechts)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Externe inhoud wordt altijd geladen voor afzenders op deze lijst.",
+        "description_synced_mobile": "Externe inhoud wordt altijd geladen voor afzenders op deze lijst. {count} gesynchroniseerd via uw adresboek.",
+        "sync_add_failed": "Kon niet synchroniseren met het adresboek",
+        "sync_remove_failed": "Kon niet verwijderen uit het adresboek",
+        "synced_badge": "Gesynchroniseerd via adresboek"
       }
     },
     "experimental": {
       "title": "Experimentele functie"
+    },
+    "filters": {
+      "remove_action": "Actie verwijderen",
+      "remove_condition": "Voorwaarde verwijderen",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# regel} other {# regels}}"
+      }
     },
     "folders": {
       "account": "Account",
@@ -476,6 +700,7 @@
       "delete_title": "Identiteit verwijderen",
       "description_mobile": "Beheer afzendernamen, e-mailadressen en handtekeningen. Tik op een rij om deze te bewerken.",
       "display_name": "Weergavenaam",
+      "display_name_placeholder": "Jan Jansen",
       "edit": "Identiteit bewerken",
       "email_address": "E-mailadres",
       "email_locked": "JMAP staat niet toe dat het e-mailadres van een identiteit wordt gewijzigd; maak in plaats daarvan een nieuwe aan.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Totaal aantal berichten bij mappen tonen",
       "show_folder_total_count_description": "Het totaal naast het aantal ongelezen berichten in de mappenlijst tonen.",
       "swipe_mode": {
+        "description": "Kies Direct (voorbij de drempel vegen voert de actie uit) of Tonen (vegen toont een actiebalk, daarna tikken om te bevestigen).",
         "instant": "Direct (vegen = actie)",
+        "label": "Veeggedrag",
         "reveal": "Tonen (vegen, dan tikken)"
       },
       "unified_cross_account": "Gecombineerde weergaven over alle accounts",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Dit apparaat ontvangt voor dit account geen meldingen van nieuwe e-mail meer.",
         "description_mobile": "Ontvang systeemmeldingen voor nieuwe e-mail wanneer de app gesloten is. Bezorgd via de Bulwark-push-relay; de relay ziet nooit de inhoud van e-mails.",
+        "err_android_only": "Pushmeldingen zijn alleen beschikbaar op Android.",
+        "err_fcm_empty": "Firebase gaf een leeg apparaattoken terug.",
+        "err_fcm_token": "Firebase kon geen apparaattoken uitgeven ({detail}). Push via FCM vereist Google Play-services op dit apparaat.",
+        "err_fcm_token_up": "Firebase kon geen apparaattoken uitgeven ({detail}). Push via FCM vereist Google Play-services op dit apparaat. Op dit apparaat is een UnifiedPush-distributor geïnstalleerd - zet de bezorgmethode in plaats daarvan op UnifiedPush.",
+        "err_jmap_refused": "De mailserver weigerde het push-abonnement: {detail}",
+        "err_no_account": "Geen account geladen - kan push niet instellen.",
+        "err_permission": "Toestemming voor meldingen is niet verleend.",
+        "err_relay_https": "De relay-URL moet https:// gebruiken.",
+        "err_relay_rejected": "De push-relay weigerde de registratie: {detail}",
+        "err_relay_unreachable": "Kon de push-relay op {url} niet bereiken ({detail}).",
+        "err_up_android_only": "UnifiedPush is alleen beschikbaar op Android.",
+        "err_verify_rejected": "De mailserver weigerde de verificatiecode: {detail}",
+        "err_verify_relay": "De relay heeft de verificatiecode van de mailserver nooit ontvangen (laatste antwoord van de relay: {detail}).",
+        "err_verify_timeout": "De mailserver heeft binnen 75 s geen verificatiecode naar de relay gestuurd. Controleer of de server de relay-URL kan bereiken.",
         "phase_account": "Account",
         "phase_distributor": "UnifiedPush-distributor",
         "phase_jmap": "Abonnement op mailserver",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME is nog niet beschikbaar in de mobiele app. Beheer sleutels en certificaten in de webmail; ondertekende berichten worden hier zonder verificatie getoond."
     },
     "tabs": {
-      "plugins": "Plug-ins"
+      "plugins": "Plug-ins",
+      "themes": "Thema's",
+      "updates": "Updates"
     },
     "templates": {
-      "delete_title": "Sjabloon verwijderen"
+      "delete_confirm": "\"{name}\" definitief verwijderen?",
+      "delete_title": "Sjabloon verwijderen",
+      "description_mobile": "Herbruikbare tekstblokken voor veelgebruikte antwoorden. Tik om te bewerken; druk lang om te verwijderen.",
+      "export_failed": "Exporteren mislukt",
+      "import_failed": "Importeren mislukt",
+      "imported": "Geïmporteerd",
+      "imported_count": "{count, plural, one {# sjabloon} other {# sjablonen}} toegevoegd.",
+      "is_html": "Inhoud is HTML",
+      "placeholders_hint": "Plaatshouders: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Delen niet mogelijk"
     },
     "themes": {
       "default_description": "De standaard lichte en donkere paletten.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Lang drukken om dit account te verwijderen",
     "remove_account_message": "Uitloggen van {account} op dit apparaat. Uw e-mail blijft op de server.",
     "remove_account_title": "Account verwijderen?",
-    "show_unread": "Ongelezen tonen"
+    "show_unread": "Ongelezen tonen",
+    "tab_unavailable": "{name} (niet beschikbaar)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# account kon niet worden geladen} other {# accounts konden niet worden geladen}}"
   },
   "updates": {
     "advisory": "Beveiligingsadvies",

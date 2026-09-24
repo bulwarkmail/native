@@ -6,6 +6,13 @@
     "not_starred": "スターなし"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, other {#分後}}"
+    },
+    "colors": {
+      "indigo": "藍色",
+      "teal": "青緑"
+    },
     "drawer": {
       "my_calendars": "マイカレンダー",
       "no_calendars": "カレンダーはまだありません。",
@@ -25,6 +32,18 @@
       "location_placeholder": "場所または住所",
       "time": "時刻"
     },
+    "import": {
+      "file_too_large_max": "ファイルが大きすぎます（最大 {size} MB）。",
+      "imported_count": "{count, plural, other {#件の予定をインポートしました。}}",
+      "no_calendar": "予定をインポートする前に、カレンダーを作成してください。",
+      "no_calendar_title": "カレンダーがありません",
+      "picker_error": "ファイルピッカーを開けませんでした",
+      "picker_unavailable": "このビルドにはファイルピッカーが含まれていません。インポートを有効にするには、アプリを再ビルドしてください。",
+      "picker_unavailable_title": "インポートを利用できません",
+      "refused_count": "{count, plural, other {#件の予定をインポートできませんでした：}}",
+      "refused_message": "{count, plural, =1 {予定をインポートできませんでした：{reason}} other {#件の予定をインポートできませんでした：{reason}}}",
+      "selected_count": "{count}件選択中"
+    },
     "invitation": {
       "accept": "はい",
       "add_error": "予定を追加できませんでした",
@@ -42,6 +61,10 @@
       "response_sent": "回答を送信しました",
       "tentative": "未定",
       "title": "カレンダー招待",
+      "trust_authentication_failed": "このメッセージは送信者認証（SPF/DKIM/DMARC）に失敗しました。",
+      "trust_authentication_missing": "送信者を確認できませんでした。",
+      "trust_sender_mismatch": "送信者が予定の主催者と異なります。",
+      "trust_sender_mismatch_unverified": "送信者が主催者と一致せず、メッセージも認証されていません。",
       "trust_verified": "送信者を確認済み"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "カレンダーを編集",
       "new_calendar": "新しいカレンダー"
     },
+    "notifications": {
+      "channel_name": "カレンダーのリマインダー",
+      "starts_in_days": "{count, plural, other {#日後に開始}}",
+      "starts_in_hours": "{count, plural, other {#時間後に開始}}",
+      "starts_in_minutes": "{count, plural, other {#分後に開始}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, other {回}}",
+      "every_count_days": "{count, plural, other {#日ごと}}",
+      "every_count_months": "{count, plural, other {#か月ごと}}",
+      "every_count_weeks": "{count, plural, other {#週間ごと}}",
+      "every_count_years": "{count, plural, other {#年ごと}}",
+      "occurrence_count": "{count, plural, other {#回}}",
+      "until_date": "{date}まで"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "月表示に週番号を表示する",
       "time_zone": "タイムゾーン",
       "time_zone_auto": "デバイスのタイムゾーン",
+      "time_zone_auto_zone": "デバイスのタイムゾーン（{zone}）",
       "time_zone_desc": "新しい予定の作成とカレンダーの表示に使うタイムゾーンです。「デバイス」を選ぶとスマートフォンの設定に従います。"
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "名前またはメールで検索",
       "shared_with": "共有先"
     },
+    "subscription": {
+      "add_feed": "フィードを追加",
+      "feed_too_large": "フィードが大きすぎます",
+      "fetch_failed": "フィードを取得できませんでした（HTTP {status}）",
+      "name_and_url_required": "名前とフィードの URL を入力してください。",
+      "not_a_feed": "この URL は iCalendar フィードを返しませんでした",
+      "not_synced": "未同期",
+      "url_scheme_invalid": "URL は https://、http://、webcal://、webcals:// のいずれかで始まる必要があります",
+      "your_subscriptions": "購読中のフィード"
+    },
     "tasks": {
       "add_placeholder": "タスクを追加…",
       "add_time": "時刻を追加",
+      "clear_due_date": "期限日をクリア",
       "delete_error": "タスクの削除に失敗しました",
+      "not_found": "このタスクは利用できなくなりました。",
+      "save_error": "タスクの保存に失敗しました",
       "update_error": "タスクの更新に失敗しました"
     }
   },
@@ -82,10 +134,116 @@
     "create": "作成",
     "dismiss": "閉じる",
     "done": "完了",
+    "open": "開く",
+    "open_link_message": "{host}をアプリの外で開きます。",
+    "open_link_title": "リンクを開きますか？",
     "remove": "削除",
     "retry": "再試行",
     "undo": "元に戻す",
     "update": "更新"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {「{name}」を削除しますか？この操作は元に戻せません。} other {「{name}」を削除しますか？含まれる#件の連絡先も削除されます。この操作は元に戻せません。}}"
+    },
+    "all_contacts": "すべての連絡先",
+    "bulk": {
+      "add_tag": "タグを追加",
+      "delete_confirm_mobile": "{count, plural, other {#件の連絡先を削除しますか？この操作は元に戻せません。}}",
+      "move_to_address_book": "アドレス帳に移動",
+      "tag_failed": "タグを設定できませんでした"
+    },
+    "contact": "連絡先",
+    "create_hint_mobile": "長押しするとグループを作成できます",
+    "detail": {
+      "add_to_group_failed": "グループへの追加に失敗しました",
+      "copy_name": "{name}（コピー）",
+      "created_on": "作成日：{date}",
+      "duplicate_failed": "複製に失敗しました",
+      "duplicate_no_book": "アドレス帳がないため複製できません。",
+      "no_address_book": "アドレス帳なし",
+      "not_found": "連絡先が見つかりません",
+      "open_dialer_failed": "電話アプリを開けません",
+      "open_link_failed": "リンクを開けません",
+      "open_maps_failed": "地図アプリを開けません",
+      "open_sms_failed": "メッセージアプリを開けません",
+      "share": "共有",
+      "share_title": "{name}を共有",
+      "sms": "SMS",
+      "timezone_value": "タイムゾーン：{zone}",
+      "updated_on": "更新日：{date}"
+    },
+    "empty_state_hint_mobile": "+ をタップして追加",
+    "export": {
+      "failed": "エクスポートに失敗しました"
+    },
+    "form": {
+      "add_nickname": "ニックネームを追加",
+      "add_note": "メモを追加",
+      "add_organization": "組織を追加",
+      "address_book_required": "この連絡先を保存するアドレス帳を選択してください。",
+      "categories_placeholder_mobile": "タグを入力して Enter",
+      "context_none": "なし",
+      "date_placeholder": "YYYY-MM-DD、YYYY-MM、YYYY または --MM-DD",
+      "display_name_optional": "表示名（任意）",
+      "display_name_placeholder": "カスタム表示名",
+      "edit_named": "{name}を編集",
+      "gender_unspecified": "未指定",
+      "grammatical_gender": "文法上の性",
+      "invalid_date_message": "「{date}」は日付ではありません。YYYY-MM-DD、YYYY-MM、YYYY または --MM-DD の形式で入力してください。",
+      "invalid_date_title": "無効な日付",
+      "invalid_email_message": "「{address}」は有効なメールアドレスではありません。",
+      "invalid_email_title": "無効なメールアドレス",
+      "label": "ラベル",
+      "label_placeholder": "仕事、個人…",
+      "missing_address_book": "アドレス帳が選択されていません",
+      "missing_info": "情報が不足しています",
+      "name_or_email_required": "名前または1つ以上のメールアドレスを入力してください。",
+      "new_organization": "新しい組織",
+      "org_name_required": "組織名を入力してください。",
+      "photo_hint_mobile": "写真をタップして画像を選択",
+      "photo_permission_message": "連絡先の写真を選択するには、写真ライブラリへのアクセスを許可してください。",
+      "photo_permission_title": "写真へのアクセスが必要です",
+      "pick_date": "日付を選択",
+      "pronouns": "代名詞",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "グループ",
+    "groups": {
+      "add_member": "メンバーを追加",
+      "add_members": "メンバーを追加",
+      "add_members_failed": "メンバーの追加に失敗しました",
+      "create_ellipsis": "新しいグループ…",
+      "delete_confirm_named": "「{name}」を削除しますか？メンバーは削除されません。",
+      "delete_failed": "グループの削除に失敗しました",
+      "email_all": "全員にメール",
+      "members_with_count": "メンバー（{count}）",
+      "no_emails": "メールアドレスがありません",
+      "no_members_hint": "「メンバーを追加」をタップして始めてください",
+      "not_found": "グループが見つかりません",
+      "remove_member": "メンバーを削除",
+      "remove_member_confirm": "「{name}」をこのグループから削除しますか？",
+      "remove_member_failed": "メンバーの削除に失敗しました"
+    },
+    "import": {
+      "change_target": "変更",
+      "choose_file_mobile": "vCard ファイルを選択",
+      "failed_count": "{count, plural, other {#件の連絡先をインポートできませんでした。}}",
+      "import_count": "{count}件をインポート",
+      "into_address_book": "インポート先のアドレス帳",
+      "into_named": "{name}にインポート",
+      "no_address_book": "連絡先をインポートする前に、アドレス帳を作成してください。",
+      "picker_failed": "ファイルピッカーを開けませんでした"
+    },
+    "no_tags_hint": "タグはまだありません。上に入力してください。",
+    "picker": {
+      "add_count": "{count, plural, =0 {追加} other {追加（#）}}",
+      "title": "連絡先を追加"
+    },
+    "rename_tag_hint_mobile": "タグを長押しすると名前を変更できます",
+    "tag_name_placeholder": "新しいタグ名",
+    "unnamed": "名前なし"
   },
   "context_menu": {
     "color_tag": "ラベル",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "添付ファイルを忘れていませんか？",
     "attachments_too_large_total": "添付ファイルがサーバーの上限（1 通あたり {max}）を超えます。",
     "editor_unavailable": "メッセージの内容を読み取れませんでした。テキストをコピーしてから、作成画面を閉じて開き直してください。",
+    "from_options": "送信者のオプション",
+    "group_chip": "{name}（{count}）",
     "identity_unavailable": "送信者情報を利用できません",
     "image_load_failed": "画像を読み込めませんでした",
     "no_recipient": "（宛先なし）",
@@ -107,6 +267,7 @@
     "recipient_copy": "アドレスをコピー",
     "recipient_move_to": "{field}に移動",
     "recipient_remove": "削除",
+    "remove_attachment": "添付ファイルを削除",
     "save_draft": "下書きを保存",
     "save_failed_no_drafts": "この下書きを保存する下書きフォルダーがありません。",
     "save_failed_no_identity": "送信者情報を読み込めなかったため、この下書きを保存できません。接続を確認するか、閉じる前にテキストをコピーしてください。",
@@ -127,7 +288,9 @@
     "send_timeout_body": "メッセージはすでに送信されている可能性があります。再送信する前に送信済みフォルダーを確認してください。",
     "send_timeout_title": "サーバーから応答がありません",
     "undo_send_label": "{seconds}秒後に送信…",
+    "upload_failed_short": "アップロードに失敗しました",
     "uploading": "アップロード中...",
+    "uploading_pct": "アップロード中 {pct}%",
     "validation": {
       "subject_required": "件名を追加してください"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, other {#件のメール}}をアーカイブしました",
     "emails_moved_to": "{count, plural, other {#件のメール}}を{mailbox}に移動しました",
     "error": "エラー",
+    "filter_chip": "{field}：{value}",
+    "filter_title": "メールを絞り込む",
+    "folder_counts": "合計 {total}件 · 未読 {unread}件",
+    "import": {
+      "none": "インポートされたメッセージはありません。",
+      "partial": "{imported}件をインポートしました。{failed}件は失敗しました。",
+      "success": "{count, plural, other {#件のメッセージをインポートしました。}}",
+      "title": "インポート"
+    },
     "marked_as_spam": "迷惑メールに設定しました",
     "marked_as_spam_count": "{count, plural, other {#件のメール}}を迷惑メールに設定しました",
     "marked_not_spam": "迷惑メールではないとマークしました",
@@ -156,10 +328,12 @@
     "outbox_discard": "破棄",
     "outbox_failed": "{count}件の変更をサーバーに保存できませんでした。",
     "recent_searches": "最近の検索",
+    "remove_filter": "フィルター「{label}」を解除",
     "scope_all_folders": "すべてのフォルダー",
     "scope_this_folder": "このフォルダー",
     "search_placeholder": "メールを検索...",
     "showing_cached": "キャッシュされたメールを表示中",
+    "sort_toggle_hint": "メールの並び順を逆にします",
     "swipe_move": "移動",
     "swipe_spam": "迷惑メール",
     "total": "合計",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "このメッセージは完全に削除され、復元できません。",
     "delete_permanently_title": "完全に削除しますか？",
+    "details": {
+      "attachment_count_size": "{count, plural, other {#個のファイル}} · {size}",
+      "received_after_delay": "{date} · 配信時間 {delay}",
+      "spam_score_value": "{score}（{status}）"
+    },
     "export_failed": "エクスポートに失敗しました",
     "forwarded": "転送済み",
     "load_failed": "メールの読み込みに失敗しました",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "フォルダーは中身ごと削除されます。この操作は元に戻せません。",
     "delete_item_title": "この項目を削除しますか？",
+    "delete_items_title": "{count, plural, other {#件の項目を削除しますか？}}",
     "done": "完了",
+    "download_failed_status": "ダウンロードに失敗しました（HTTP {status}）",
     "folder_empty": "このフォルダーは空です",
     "invalid_name": "無効な名前",
     "invalid_name_slash": "名前に「/」は使用できません。",
@@ -234,6 +415,7 @@
     "open_error": "ファイルを開けませんでした",
     "open_with": "別のアプリで開く…",
     "preview_too_large": "このファイルは大きすぎるため、プレビューできません。",
+    "selected_count": "{count, plural, other {#件選択中}}",
     "share_add_people": "ユーザーを追加",
     "share_empty": "まだ誰にも共有されていません",
     "share_error": "共有の更新に失敗しました",
@@ -244,9 +426,11 @@
     "share_remove": "アクセス権を削除",
     "share_role_custom": "カスタム",
     "share_search_placeholder": "名前またはメールで検索",
+    "share_unavailable": "このデバイスでは共有を利用できません",
     "shared_with": "共有先",
     "sharing_access": "共有とアクセス",
-    "upload_unavailable": "このビルドにはファイルピッカーが含まれていません。アップロードを有効にするには、アプリを再ビルドしてください。"
+    "upload_unavailable": "このビルドにはファイルピッカーが含まれていません。アップロードを有効にするには、アプリを再ビルドしてください。",
+    "uploading_progress": "アップロード中 {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "オフラインです",
-    "queued_changes": "{count, plural, other {#件の変更}}は再接続時に同期されます"
+    "queued_changes": "{count, plural, other {#件の変更}}は再接続時に同期されます",
+    "sync": {
+      "cached_count": "{count, plural, other {#件の新着メッセージをキャッシュしました}} • {size}",
+      "cancelled": "同期をキャンセルしました",
+      "failed": "オフライン同期に失敗しました",
+      "processed": "{completed}/{total}件を処理済み",
+      "ready": "オフラインメールの準備ができました",
+      "syncing": "オフラインメールを同期中",
+      "title": "オフライン同期",
+      "unable_to_download": "ダウンロードできません",
+      "up_to_date": "すでに最新です"
+    }
   },
   "push_prompt": {
     "body": "バックグラウンド通知をオンにすると、アプリを閉じていても新着メッセージを受け取れます。",
@@ -399,6 +594,15 @@
       "not_implemented": "未実装",
       "unavailable": "利用不可"
     },
+    "contacts": {
+      "book_count": "{count, plural, other {#件の連絡先}}",
+      "default_book": "デフォルトのアドレス帳",
+      "description_mobile": "表示設定とアドレス帳のツールです。",
+      "export_description_count": "{count, plural, other {#件の連絡先を1つの vCard ファイルとしてエクスポートします。}}",
+      "export_empty": "エクスポートする連絡先がありません",
+      "import_description_mobile": "重複を検出しながら、vCard（.vcf）ファイルから連絡先をインポートします。",
+      "manage_description_mobile": "連絡先を整理するアドレス帳の作成、名前変更、削除ができます。"
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "添付ファイルを保存または共有するときに使用するテンプレートです。"
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "返信は常に、メッセージの宛先となった送信者情報から送信されます。オンにすると、ドメイン内の別のアドレス（キャッチオールエイリアス）宛てのメッセージへの返信も、そのアドレスから送信されます。"
       },
+      "content_senders_description_mobile": "外部リソースとトラッキングピクセルの扱いを設定します。",
+      "external_content": {
+        "allow_mobile": "許可",
+        "ask_mobile": "確認",
+        "block_mobile": "ブロック"
+      },
       "plain_text_mode": {
         "description_mobile": "プレーンテキストのみで作成・閲覧します。"
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "行を左端から右へドラッグしたときの操作です。",
         "label_mobile": "右スワイプ（左 → 右）"
+      },
+      "trusted_senders": {
+        "description_mobile": "このリストの送信者からのメールでは、外部コンテンツが常に読み込まれます。",
+        "description_synced_mobile": "このリストの送信者からのメールでは、外部コンテンツが常に読み込まれます。うち{count}件はアドレス帳から同期されています。",
+        "sync_add_failed": "アドレス帳と同期できませんでした",
+        "sync_remove_failed": "アドレス帳から削除できませんでした",
+        "synced_badge": "アドレス帳で同期済み"
       }
     },
     "experimental": {
       "title": "試験運用機能"
+    },
+    "filters": {
+      "remove_action": "アクションを削除",
+      "remove_condition": "条件を削除",
+      "sieve_editor": {
+        "line_count": "{count, plural, other {#行}}"
+      }
     },
     "folders": {
       "account": "アカウント",
@@ -476,6 +700,7 @@
       "delete_title": "送信者情報を削除",
       "description_mobile": "送信者名、メールアドレス、署名を管理します。行をタップすると編集できます。",
       "display_name": "表示名",
+      "display_name_placeholder": "山田 花子",
       "edit": "送信者情報を編集",
       "email_address": "メールアドレス",
       "email_locked": "JMAP では送信者情報のメールアドレスを変更できません。代わりに新しい送信者情報を作成してください。",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "フォルダーにメッセージの総数を表示",
       "show_folder_total_count_description": "フォルダー一覧で、未読数の横に総数を表示します。",
       "swipe_mode": {
+        "description": "「即時」（しきい値を超えてスワイプすると操作を実行）か「表示」（スワイプで操作ボタンを表示し、タップして確定）を選択します。",
         "instant": "即時（スワイプ＝操作）",
+        "label": "スワイプの動作",
         "reveal": "表示（スワイプしてからタップ）"
       },
       "unified_cross_account": "アカウントをまたいだ統合ビュー",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "このデバイスはこのアカウントの新着メール通知を受信しなくなります。",
         "description_mobile": "アプリが閉じているときに新着メールのシステム通知を受信します。Bulwark プッシュリレー経由で配信され、リレーがメール内容を見ることはありません。",
+        "err_android_only": "プッシュ通知は Android でのみ利用できます。",
+        "err_fcm_empty": "Firebase が空のデバイストークンを返しました。",
+        "err_fcm_token": "Firebase がデバイストークンを発行できませんでした（{detail}）。FCM によるプッシュには、このデバイスに Google Play 開発者サービスが必要です。",
+        "err_fcm_token_up": "Firebase がデバイストークンを発行できませんでした（{detail}）。FCM によるプッシュには、このデバイスに Google Play 開発者サービスが必要です。このデバイスには UnifiedPush ディストリビューターがインストールされているため、代わりに配信方法を UnifiedPush に切り替えてください。",
+        "err_jmap_refused": "メールサーバーがプッシュの購読を拒否しました：{detail}",
+        "err_no_account": "アカウントが読み込まれていないため、プッシュを設定できません。",
+        "err_permission": "通知が許可されませんでした。",
+        "err_relay_https": "リレーの URL には https:// を使用する必要があります。",
+        "err_relay_rejected": "プッシュリレーが登録を拒否しました：{detail}",
+        "err_relay_unreachable": "{url} のプッシュリレーに接続できませんでした（{detail}）。",
+        "err_up_android_only": "UnifiedPush は Android でのみ利用できます。",
+        "err_verify_rejected": "メールサーバーが検証コードを拒否しました：{detail}",
+        "err_verify_relay": "リレーがメールサーバーから検証コードを受信しませんでした（最後のリレー応答：{detail}）。",
+        "err_verify_timeout": "メールサーバーが75秒以内にリレーへ検証コードを送信しませんでした。サーバーからリレーの URL に接続できるか確認してください。",
         "phase_account": "アカウント",
         "phase_distributor": "UnifiedPush ディストリビューター",
         "phase_jmap": "メールサーバーの購読",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME はまだモバイルアプリでは利用できません。鍵と証明書はウェブメールで管理してください。署名付きメッセージは、ここでは検証されずに表示されます。"
     },
     "tabs": {
-      "plugins": "プラグイン"
+      "plugins": "プラグイン",
+      "themes": "テーマ",
+      "updates": "アップデート"
     },
     "templates": {
-      "delete_title": "テンプレートを削除"
+      "delete_confirm": "「{name}」を完全に削除しますか？",
+      "delete_title": "テンプレートを削除",
+      "description_mobile": "よく使う返信を再利用できるテンプレートです。タップで編集、長押しで削除できます。",
+      "export_failed": "エクスポートに失敗しました",
+      "import_failed": "インポートに失敗しました",
+      "imported": "インポートしました",
+      "imported_count": "{count, plural, other {#件のテンプレート}}を追加しました。",
+      "is_html": "本文は HTML 形式",
+      "placeholders_hint": "プレースホルダー：{{recipient_name}}、{{company}}、{{date}}、{{day_of_week}}、{{sender_name}}",
+      "share_unavailable": "共有できません"
     },
     "themes": {
       "default_description": "デフォルトのライト／ダークパレットです。",
@@ -722,7 +974,11 @@
     "remove_account_hint": "長押しするとこのアカウントを削除できます",
     "remove_account_message": "このデバイスで{account}からサインアウトします。メールはサーバーに残ります。",
     "remove_account_title": "アカウントを削除しますか？",
-    "show_unread": "未読を表示"
+    "show_unread": "未読を表示",
+    "tab_unavailable": "{name}（利用不可）"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, other {#件のアカウントを読み込めませんでした}}"
   },
   "updates": {
     "advisory": "セキュリティアドバイザリ",

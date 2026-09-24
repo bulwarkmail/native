@@ -6,6 +6,13 @@
     "not_starred": "ללא כוכב"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {דקה אחת אחרי} two {שתי דקות אחרי} other {# דקות אחרי}}"
+    },
+    "colors": {
+      "indigo": "אינדיגו",
+      "teal": "טורקיז"
+    },
     "drawer": {
       "my_calendars": "לוחות השנה שלי",
       "no_calendars": "אין עדיין לוחות שנה.",
@@ -25,6 +32,18 @@
       "location_placeholder": "מקום או כתובת",
       "time": "שעה"
     },
+    "import": {
+      "file_too_large_max": "הקובץ גדול מדי (עד {size} MB).",
+      "imported_count": "{count, plural, one {יובא אירוע אחד.} two {יובאו שני אירועים.} other {יובאו # אירועים.}}",
+      "no_calendar": "צור לוח שנה לפני ייבוא אירועים.",
+      "no_calendar_title": "אין לוח שנה",
+      "picker_error": "לא ניתן היה לפתוח את בורר הקבצים",
+      "picker_unavailable": "בורר הקבצים אינו מותקן בגרסה זו. בנה מחדש את האפליקציה כדי לאפשר ייבוא.",
+      "picker_unavailable_title": "הייבוא אינו זמין",
+      "refused_count": "{count, plural, one {לא ניתן היה לייבא אירוע אחד:} two {לא ניתן היה לייבא שני אירועים:} other {לא ניתן היה לייבא # אירועים:}}",
+      "refused_message": "{count, plural, =1 {לא ניתן היה לייבא את האירוע: {reason}} one {לא ניתן היה לייבא אירוע אחד: {reason}} two {לא ניתן היה לייבא שני אירועים: {reason}} other {לא ניתן היה לייבא # אירועים: {reason}}}",
+      "selected_count": "נבחרו: {count}"
+    },
     "invitation": {
       "accept": "כן",
       "add_error": "לא ניתן היה להוסיף את האירוע",
@@ -42,6 +61,10 @@
       "response_sent": "התשובה נשלחה",
       "tentative": "אולי",
       "title": "הזמנה ללוח שנה",
+      "trust_authentication_failed": "הודעה זו נכשלה באימות השולח (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "לא ניתן היה לאמת את השולח.",
+      "trust_sender_mismatch": "השולח שונה ממארגן האירוע.",
+      "trust_sender_mismatch_unverified": "השולח אינו תואם למארגן וההודעה אינה מאומתת.",
       "trust_verified": "השולח אומת"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "עריכת לוח שנה",
       "new_calendar": "לוח שנה חדש"
     },
+    "notifications": {
+      "channel_name": "תזכורות לוח שנה",
+      "starts_in_days": "{count, plural, one {מתחיל בעוד יום} two {מתחיל בעוד יומיים} other {מתחיל בעוד # ימים}}",
+      "starts_in_hours": "{count, plural, one {מתחיל בעוד שעה} two {מתחיל בעוד שעתיים} other {מתחיל בעוד # שעות}}",
+      "starts_in_minutes": "{count, plural, one {מתחיל בעוד דקה} two {מתחיל בעוד שתי דקות} other {מתחיל בעוד # דקות}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {מופע} two {מופעים} other {מופעים}}",
+      "every_count_days": "{count, plural, one {כל יום} two {כל יומיים} other {כל # ימים}}",
+      "every_count_months": "{count, plural, one {כל חודש} two {כל חודשיים} other {כל # חודשים}}",
+      "every_count_weeks": "{count, plural, one {כל שבוע} two {כל שבועיים} other {כל # שבועות}}",
+      "every_count_years": "{count, plural, one {כל שנה} two {כל שנתיים} other {כל # שנים}}",
+      "occurrence_count": "{count, plural, one {מופע אחד} two {שני מופעים} other {# מופעים}}",
+      "until_date": "עד {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "הצג מספרי שבועות בתצוגת החודש.",
       "time_zone": "אזור זמן",
       "time_zone_auto": "אזור הזמן של המכשיר",
+      "time_zone_auto_zone": "אזור הזמן של המכשיר ({zone})",
       "time_zone_desc": "האזור המשמש לאירועים חדשים ולפירוש לוח השנה. \"אזור הזמן של המכשיר\" פועל לפי הגדרות הטלפון."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "חפש לפי שם או אימייל",
       "shared_with": "משותף עם"
     },
+    "subscription": {
+      "add_feed": "הוסף פיד",
+      "feed_too_large": "הפיד גדול מדי",
+      "fetch_failed": "לא ניתן היה לטעון את הפיד (HTTP {status})",
+      "name_and_url_required": "הזן שם וכתובת URL של הפיד.",
+      "not_a_feed": "כתובת ה-URL הזו לא החזירה פיד iCalendar",
+      "not_synced": "עדיין לא סונכרן",
+      "url_scheme_invalid": "כתובת ה-URL חייבת להתחיל ב-https://, http://, webcal:// או webcals://",
+      "your_subscriptions": "המינויים שלך"
+    },
     "tasks": {
       "add_placeholder": "הוסף משימה…",
       "add_time": "הוסף שעה",
+      "clear_due_date": "נקה תאריך יעד",
       "delete_error": "מחיקת המשימה נכשלה",
+      "not_found": "המשימה הזו אינה זמינה עוד.",
+      "save_error": "שמירת המשימה נכשלה",
       "update_error": "עדכון המשימה נכשל"
     }
   },
@@ -82,10 +134,116 @@
     "create": "יצירה",
     "dismiss": "סגירה",
     "done": "סיום",
+    "open": "פתיחה",
+    "open_link_message": "פעולה זו תפתח את {host} מחוץ לאפליקציה.",
+    "open_link_title": "לפתוח את הקישור?",
     "remove": "הסרה",
     "retry": "ניסיון חוזר",
     "undo": "ביטול",
     "update": "עדכון"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {למחוק את \"{name}\"? לא ניתן לבטל פעולה זו.} one {למחוק את \"{name}\"? יחד איתו יימחק איש קשר אחד. לא ניתן לבטל פעולה זו.} two {למחוק את \"{name}\"? יחד איתו יימחקו שני אנשי קשר. לא ניתן לבטל פעולה זו.} other {למחוק את \"{name}\"? יחד איתו יימחקו # אנשי קשר. לא ניתן לבטל פעולה זו.}}"
+    },
+    "all_contacts": "כל אנשי הקשר",
+    "bulk": {
+      "add_tag": "הוסף תג",
+      "delete_confirm_mobile": "{count, plural, one {למחוק איש קשר אחד? לא ניתן לבטל פעולה זו.} two {למחוק שני אנשי קשר? לא ניתן לבטל פעולה זו.} other {למחוק # אנשי קשר? לא ניתן לבטל פעולה זו.}}",
+      "move_to_address_book": "העבר לספר כתובות",
+      "tag_failed": "התיוג נכשל"
+    },
+    "contact": "איש קשר",
+    "create_hint_mobile": "לחיצה ארוכה ליצירת קבוצה במקום זאת",
+    "detail": {
+      "add_to_group_failed": "ההוספה לקבוצה נכשלה",
+      "copy_name": "{name} (עותק)",
+      "created_on": "נוצר: {date}",
+      "duplicate_failed": "השכפול נכשל",
+      "duplicate_no_book": "לא ניתן לשכפל ללא ספר כתובות.",
+      "no_address_book": "אין ספר כתובות",
+      "not_found": "איש הקשר לא נמצא",
+      "open_dialer_failed": "לא ניתן לפתוח את החייגן",
+      "open_link_failed": "לא ניתן לפתוח את הקישור",
+      "open_maps_failed": "לא ניתן לפתוח את המפות",
+      "open_sms_failed": "לא ניתן לפתוח את אפליקציית ההודעות",
+      "share": "שיתוף",
+      "share_title": "שיתוף {name}",
+      "sms": "SMS",
+      "timezone_value": "אזור זמן: {zone}",
+      "updated_on": "עודכן: {date}"
+    },
+    "empty_state_hint_mobile": "הקש על + כדי להוסיף",
+    "export": {
+      "failed": "הייצוא נכשל"
+    },
+    "form": {
+      "add_nickname": "הוסף כינוי",
+      "add_note": "הוסף הערה",
+      "add_organization": "הוסף ארגון",
+      "address_book_required": "בחר ספר כתובות כדי לשמור את איש הקשר.",
+      "categories_placeholder_mobile": "הוסף תג והקש Enter",
+      "context_none": "ללא",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY או --MM-DD",
+      "display_name_optional": "שם תצוגה (אופציונלי)",
+      "display_name_placeholder": "שם תצוגה מותאם אישית",
+      "edit_named": "עריכת {name}",
+      "gender_unspecified": "לא צוין",
+      "grammatical_gender": "מין דקדוקי",
+      "invalid_date_message": "\"{date}\" אינו תאריך. השתמש ב-YYYY-MM-DD, YYYY-MM, YYYY או --MM-DD.",
+      "invalid_date_title": "תאריך לא תקין",
+      "invalid_email_message": "\"{address}\" אינה כתובת אימייל תקינה.",
+      "invalid_email_title": "אימייל לא תקין",
+      "label": "תווית",
+      "label_placeholder": "עבודה, אישי, …",
+      "missing_address_book": "חסר ספר כתובות",
+      "missing_info": "חסר מידע",
+      "name_or_email_required": "הוסף שם או לפחות כתובת אימייל אחת.",
+      "new_organization": "ארגון חדש",
+      "org_name_required": "הוסף את שם הארגון.",
+      "photo_hint_mobile": "הקש על התמונה כדי לבחור תמונה",
+      "photo_permission_message": "הענק הרשאה לספריית התמונות כדי לבחור תמונה לאיש הקשר.",
+      "photo_permission_title": "נדרשת גישה לתמונות",
+      "pick_date": "בחר תאריך",
+      "pronouns": "כינויי גוף",
+      "pronouns_placeholder": "they/them",
+      "url": "כתובת אתר"
+    },
+    "group": "קבוצה",
+    "groups": {
+      "add_member": "הוסף חבר",
+      "add_members": "הוסף חברים",
+      "add_members_failed": "הוספת החברים נכשלה",
+      "create_ellipsis": "קבוצה חדשה…",
+      "delete_confirm_named": "למחוק את \"{name}\"? החברים לא יימחקו.",
+      "delete_failed": "מחיקת הקבוצה נכשלה",
+      "email_all": "שלח אימייל לכולם",
+      "members_with_count": "חברים ({count})",
+      "no_emails": "אין כתובות אימייל",
+      "no_members_hint": "הקש על \"הוסף חבר\" כדי להתחיל",
+      "not_found": "הקבוצה לא נמצאה",
+      "remove_member": "הסר חבר",
+      "remove_member_confirm": "להסיר את \"{name}\" מהקבוצה הזו?",
+      "remove_member_failed": "הסרת החבר נכשלה"
+    },
+    "import": {
+      "change_target": "שינוי",
+      "choose_file_mobile": "בחר קובץ vCard",
+      "failed_count": "{count, plural, one {לא ניתן היה לייבא איש קשר אחד.} two {לא ניתן היה לייבא שני אנשי קשר.} other {לא ניתן היה לייבא # אנשי קשר.}}",
+      "import_count": "ייבוא ({count})",
+      "into_address_book": "ייבוא לספר כתובות",
+      "into_named": "ייבוא אל {name}",
+      "no_address_book": "צור ספר כתובות לפני ייבוא אנשי קשר.",
+      "picker_failed": "לא ניתן היה לפתוח את בורר הקבצים"
+    },
+    "no_tags_hint": "אין עדיין תגים. הקלד תג למעלה.",
+    "picker": {
+      "add_count": "{count, plural, =0 {הוספה} one {הוספה (#)} two {הוספה (#)} other {הוספה (#)}}",
+      "title": "הוספת איש קשר"
+    },
+    "rename_tag_hint_mobile": "לחיצה ארוכה על תג לשינוי שמו",
+    "tag_name_placeholder": "שם התג החדש",
+    "unnamed": "ללא שם"
   },
   "context_menu": {
     "color_tag": "תג",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "שכחת קובץ מצורף?",
     "attachments_too_large_total": "הקבצים המצורפים יחרגו מהמגבלה של {max} להודעה שהשרת הזה מאפשר.",
     "editor_unavailable": "לא ניתן היה לקרוא את תוכן ההודעה. העתק את הטקסט, ואז סגור ופתח מחדש את חלון הכתיבה.",
+    "from_options": "אפשרויות שולח",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "הזהות אינה זמינה",
     "image_load_failed": "טעינת התמונה נכשלה",
     "no_recipient": "(אין נמען)",
@@ -107,6 +267,7 @@
     "recipient_copy": "העתק כתובת",
     "recipient_move_to": "העבר אל {field}",
     "recipient_remove": "הסר",
+    "remove_attachment": "הסר קובץ מצורף",
     "save_draft": "שמור טיוטה",
     "save_failed_no_drafts": "אין תיקיית טיוטות לשמירת הטיוטה הזו.",
     "save_failed_no_identity": "לא ניתן היה לטעון את זהויות השולח שלך, ולכן לא ניתן לשמור את הטיוטה. בדוק את החיבור, או העתק את הטקסט לפני הסגירה.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "ייתכן שההודעה כבר נשלחה. בדוק את תיקיית \"נשלח\" לפני שתשלח אותה שוב.",
     "send_timeout_title": "אין תשובה מהשרת",
     "undo_send_label": "שולח בעוד {seconds} שנ׳…",
+    "upload_failed_short": "ההעלאה נכשלה",
     "uploading": "מעלה...",
+    "uploading_pct": "מעלה {pct}%",
     "validation": {
       "subject_required": "הוסף נושא"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {הודעה אחת הועברה לארכיון} two {שתי הודעות הועברו לארכיון} other {# הודעות הועברו לארכיון}}",
     "emails_moved_to": "{count, plural, one {הודעה אחת הועברה} two {שתי הודעות הועברו} other {# הודעות הועברו}} אל {mailbox}",
     "error": "שגיאה",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "סינון הודעות",
+    "folder_counts": "סה״כ {total} · {unread} לא נקראו",
+    "import": {
+      "none": "לא יובאו הודעות.",
+      "partial": "יובאו {imported}, נכשלו {failed}.",
+      "success": "{count, plural, one {יובאה הודעה אחת.} two {יובאו שתי הודעות.} other {יובאו # הודעות.}}",
+      "title": "ייבוא"
+    },
     "marked_as_spam": "סומן כספאם",
     "marked_as_spam_count": "{count, plural, one {הודעה אחת סומנה כספאם} two {שתי הודעות סומנו כספאם} other {# הודעות סומנו כספאם}}",
     "marked_not_spam": "סומן כלא ספאם",
@@ -156,10 +328,12 @@
     "outbox_discard": "בטל",
     "outbox_failed": "{count, plural, one {שינוי אחד לא נשמר בשרת.} two {שני שינויים לא נשמרו בשרת.} other {# שינויים לא נשמרו בשרת.}}",
     "recent_searches": "חיפושים אחרונים",
+    "remove_filter": "הסר את המסנן {label}",
     "scope_all_folders": "כל התיקיות",
     "scope_this_folder": "תיקייה זו",
     "search_placeholder": "חפש בדואר...",
     "showing_cached": "מוצג דואר מהמטמון",
+    "sort_toggle_hint": "הופך את סדר המיון של ההודעות",
     "swipe_move": "העבר",
     "swipe_spam": "ספאם",
     "total": "סה״כ",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "ההודעה תימחק לצמיתות ולא ניתן יהיה לשחזר אותה.",
     "delete_permanently_title": "למחוק לצמיתות?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {קובץ אחד} two {שני קבצים} other {# קבצים}} · {size}",
+      "received_after_delay": "{date} · זמן מסירה {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "הייצוא נכשל",
     "forwarded": "הועבר",
     "load_failed": "טעינת ההודעה נכשלה",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "תיקיות נמחקות יחד עם כל מה שבתוכן. לא ניתן לבטל פעולה זו.",
     "delete_item_title": "למחוק פריט זה?",
+    "delete_items_title": "{count, plural, one {למחוק פריט אחד?} two {למחוק שני פריטים?} other {למחוק # פריטים?}}",
     "done": "סיום",
+    "download_failed_status": "ההורדה נכשלה (HTTP {status})",
     "folder_empty": "התיקייה ריקה",
     "invalid_name": "שם לא חוקי",
     "invalid_name_slash": "שמות לא יכולים להכיל \"/\".",
@@ -234,6 +415,7 @@
     "open_error": "לא ניתן היה לפתוח את הקובץ",
     "open_with": "פתח באמצעות…",
     "preview_too_large": "הקובץ גדול מכדי להציג תצוגה מקדימה.",
+    "selected_count": "{count, plural, one {נבחר פריט אחד} two {נבחרו שני פריטים} other {נבחרו # פריטים}}",
     "share_add_people": "הוסף אנשים",
     "share_empty": "עדיין לא משותף עם אף אחד",
     "share_error": "עדכון השיתוף נכשל",
@@ -244,9 +426,11 @@
     "share_remove": "הסר גישה",
     "share_role_custom": "מותאם אישית",
     "share_search_placeholder": "חפש לפי שם או אימייל",
+    "share_unavailable": "שיתוף אינו זמין במכשיר זה",
     "shared_with": "משותף עם",
     "sharing_access": "שיתוף וגישה",
-    "upload_unavailable": "בורר הקבצים אינו מותקן בגרסה זו. בנה מחדש את האפליקציה כדי לאפשר העלאות."
+    "upload_unavailable": "בורר הקבצים אינו מותקן בגרסה זו. בנה מחדש את האפליקציה כדי לאפשר העלאות.",
+    "uploading_progress": "מעלה {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "אתה במצב לא מקוון",
-    "queued_changes": "{count, plural, one {שינוי אחד יסונכרן כשתתחבר מחדש} two {שני שינויים יסונכרנו כשתתחבר מחדש} other {# שינויים יסונכרנו כשתתחבר מחדש}}"
+    "queued_changes": "{count, plural, one {שינוי אחד יסונכרן כשתתחבר מחדש} two {שני שינויים יסונכרנו כשתתחבר מחדש} other {# שינויים יסונכרנו כשתתחבר מחדש}}",
+    "sync": {
+      "cached_count": "{count, plural, one {הודעה חדשה אחת נשמרה במטמון} two {שתי הודעות חדשות נשמרו במטמון} other {# הודעות חדשות נשמרו במטמון}} • {size}",
+      "cancelled": "הסנכרון בוטל",
+      "failed": "הסנכרון הלא מקוון נכשל",
+      "processed": "עובדו {completed}/{total}",
+      "ready": "הדואר הלא מקוון מוכן",
+      "syncing": "מסנכרן דואר לשימוש לא מקוון",
+      "title": "סנכרון לא מקוון",
+      "unable_to_download": "לא ניתן להוריד",
+      "up_to_date": "כבר מעודכן"
+    }
   },
   "push_prompt": {
     "body": "הפעל התראות ברקע כדי שהודעות חדשות יגיעו אליך גם כשהאפליקציה סגורה.",
@@ -399,6 +594,15 @@
       "not_implemented": "לא מומש",
       "unavailable": "לא זמין"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {איש קשר אחד} two {שני אנשי קשר} other {# אנשי קשר}}",
+      "default_book": "ספר כתובות ברירת מחדל",
+      "description_mobile": "העדפות תצוגה וכלים לספרי כתובות.",
+      "export_description_count": "{count, plural, one {ייצוא איש קשר אחד כקובץ vCard יחיד.} two {ייצוא שני אנשי קשר כקובץ vCard יחיד.} other {ייצוא # אנשי קשר כקובץ vCard יחיד.}}",
+      "export_empty": "אין אנשי קשר לייצוא",
+      "import_description_mobile": "ייבוא אנשי קשר מקובץ vCard (.vcf) עם זיהוי כפילויות.",
+      "manage_description_mobile": "צור, שנה שם והסר את ספרי הכתובות שמארגנים את אנשי הקשר שלך."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "התבנית שמשמשת בעת שמירה או שיתוף של קובץ מצורף."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "תשובות נשלחות תמיד מהזהות שאליה נשלחה ההודעה. כשאפשרות זו פעילה, גם תשובה להודעה שנשלחה לכתובת אחרת בדומיינים שלך (כינוי catch-all) תישלח מאותה כתובת."
       },
+      "content_senders_description_mobile": "קבע כיצד לטפל במשאבים חיצוניים ובפיקסלי מעקב.",
+      "external_content": {
+        "allow_mobile": "אפשר",
+        "ask_mobile": "שאל",
+        "block_mobile": "חסום"
+      },
       "plain_text_mode": {
         "description_mobile": "כתיבה וקריאה בטקסט רגיל בלבד."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "הפעולה כשגוררים שורה מהקצה השמאלי שלה ימינה.",
         "label_mobile": "החלקה ימינה (משמאל לימין)"
+      },
+      "trusted_senders": {
+        "description_mobile": "תוכן חיצוני נטען תמיד עבור שולחים ברשימה זו.",
+        "description_synced_mobile": "תוכן חיצוני נטען תמיד עבור שולחים ברשימה זו. מסונכרנים דרך ספר הכתובות: {count}.",
+        "sync_add_failed": "לא ניתן היה לסנכרן לספר הכתובות",
+        "sync_remove_failed": "לא ניתן היה להסיר מספר הכתובות",
+        "synced_badge": "מסונכרן דרך ספר הכתובות"
       }
     },
     "experimental": {
       "title": "תכונה ניסיונית"
+    },
+    "filters": {
+      "remove_action": "הסר פעולה",
+      "remove_condition": "הסר תנאי",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {שורה אחת} two {שתי שורות} other {# שורות}}"
+      }
     },
     "folders": {
       "account": "חשבון",
@@ -476,6 +700,7 @@
       "delete_title": "מחיקת זהות",
       "description_mobile": "נהל שמות שולח, כתובות אימייל וחתימות. הקש על שורה כדי לערוך.",
       "display_name": "שם תצוגה",
+      "display_name_placeholder": "Jane Doe",
       "edit": "עריכת זהות",
       "email_address": "כתובת אימייל",
       "email_locked": "JMAP אינו מאפשר לשנות את האימייל של זהות; צור זהות חדשה במקום.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "הצג את מספר ההודעות הכולל בתיקיות",
       "show_folder_total_count_description": "הצג את הסך הכולל לצד מספר ההודעות שלא נקראו ברשימת התיקיות.",
       "swipe_mode": {
+        "description": "בחר מיידי (החלקה מעבר לסף מפעילה את הפעולה) או חשיפה (החלקה חושפת פס פעולות, ואז הקשה לאישור).",
         "instant": "מיידי (החלקה = פעולה)",
+        "label": "התנהגות החלקה",
         "reveal": "חשיפה (החלקה ואז הקשה)"
       },
       "unified_cross_account": "תצוגות מאוחדות בין חשבונות",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "המכשיר הזה יפסיק לקבל התראות על דואר חדש בחשבון זה.",
         "description_mobile": "קבל התראות מערכת על דואר חדש כשהאפליקציה סגורה. נמסרות דרך ממסר הדחיפה של Bulwark; הממסר אף פעם לא רואה את תוכן הדואר.",
+        "err_android_only": "התראות Push זמינות ב-Android בלבד.",
+        "err_fcm_empty": "Firebase החזיר אסימון מכשיר ריק.",
+        "err_fcm_token": "Firebase לא הצליח להנפיק אסימון מכשיר ({detail}). Push דרך FCM דורש את שירותי Google Play במכשיר זה.",
+        "err_fcm_token_up": "Firebase לא הצליח להנפיק אסימון מכשיר ({detail}). Push דרך FCM דורש את שירותי Google Play במכשיר זה. במכשיר זה מותקן מפיץ UnifiedPush - החלף את שיטת המסירה ל-UnifiedPush.",
+        "err_jmap_refused": "שרת הדואר דחה את מינוי ה-Push: {detail}",
+        "err_no_account": "לא נטען חשבון - לא ניתן להגדיר Push.",
+        "err_permission": "הרשאת ההתראות לא ניתנה.",
+        "err_relay_https": "כתובת ה-URL של הממסר חייבת להשתמש ב-https://.",
+        "err_relay_rejected": "ממסר הדחיפה דחה את הרישום: {detail}",
+        "err_relay_unreachable": "לא ניתן היה להתחבר לממסר הדחיפה בכתובת {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush זמין ב-Android בלבד.",
+        "err_verify_rejected": "שרת הדואר דחה את קוד האימות: {detail}",
+        "err_verify_relay": "הממסר לא קיבל את קוד האימות משרת הדואר (תגובת הממסר האחרונה: {detail}).",
+        "err_verify_timeout": "שרת הדואר לא שלח קוד אימות לממסר תוך 75 שניות. ודא שהשרת יכול להגיע לכתובת ה-URL של הממסר.",
         "phase_account": "חשבון",
         "phase_distributor": "מפיץ UnifiedPush",
         "phase_jmap": "מינוי בשרת הדואר",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME עדיין אינו זמין באפליקציה לנייד. נהל מפתחות ותעודות בדואר האינטרנט; הודעות חתומות מוצגות כאן ללא אימות."
     },
     "tabs": {
-      "plugins": "תוספים"
+      "plugins": "תוספים",
+      "themes": "ערכות נושא",
+      "updates": "עדכונים"
     },
     "templates": {
-      "delete_title": "מחיקת תבנית"
+      "delete_confirm": "למחוק את \"{name}\" לצמיתות?",
+      "delete_title": "מחיקת תבנית",
+      "description_mobile": "קטעים לשימוש חוזר לתשובות נפוצות. הקש כדי לערוך; לחיצה ארוכה למחיקה.",
+      "export_failed": "הייצוא נכשל",
+      "import_failed": "הייבוא נכשל",
+      "imported": "יובא",
+      "imported_count": "{count, plural, one {נוספה תבנית אחת.} two {נוספו שתי תבניות.} other {נוספו # תבניות.}}",
+      "is_html": "גוף ההודעה בפורמט HTML",
+      "placeholders_hint": "משתנים: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "לא ניתן לשתף"
     },
     "themes": {
       "default_description": "ערכות הצבעים הבהירה והכהה המוגדרות כברירת מחדל.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "לחיצה ארוכה להסרת החשבון הזה",
     "remove_account_message": "התנתק מ-{account} במכשיר זה. הדואר שלך נשאר בשרת.",
     "remove_account_title": "להסיר את החשבון?",
-    "show_unread": "הצג הודעות שלא נקראו"
+    "show_unread": "הצג הודעות שלא נקראו",
+    "tab_unavailable": "{name} (לא זמין)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {לא ניתן היה לטעון חשבון אחד} two {לא ניתן היה לטעון שני חשבונות} other {לא ניתן היה לטעון # חשבונות}}"
   },
   "updates": {
     "advisory": "הודעת אבטחה",

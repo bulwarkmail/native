@@ -6,6 +6,13 @@
     "not_starred": "Без пометки"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {Через # минуту} few {Через # минуты} many {Через # минут} other {Через # минуты}}"
+    },
+    "colors": {
+      "indigo": "Индиго",
+      "teal": "Бирюзовый"
+    },
     "drawer": {
       "my_calendars": "Мои календари",
       "no_calendars": "Календарей пока нет.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Место или адрес",
       "time": "Время"
     },
+    "import": {
+      "file_too_large_max": "Файл слишком большой (макс. {size} МБ).",
+      "imported_count": "{count, plural, one {Импортировано # событие.} few {Импортировано # события.} many {Импортировано # событий.} other {Импортировано # события.}}",
+      "no_calendar": "Создайте календарь, прежде чем импортировать события.",
+      "no_calendar_title": "Нет календаря",
+      "picker_error": "Не удалось открыть выбор файлов",
+      "picker_unavailable": "В этой сборке нет модуля выбора файлов. Пересоберите приложение, чтобы включить импорт.",
+      "picker_unavailable_title": "Импорт недоступен",
+      "refused_count": "{count, plural, one {Не удалось импортировать # событие:} few {Не удалось импортировать # события:} many {Не удалось импортировать # событий:} other {Не удалось импортировать # события:}}",
+      "refused_message": "{count, plural, =1 {Не удалось импортировать событие: {reason}} one {Не удалось импортировать # событие: {reason}} few {Не удалось импортировать # события: {reason}} many {Не удалось импортировать # событий: {reason}} other {Не удалось импортировать # события: {reason}}}",
+      "selected_count": "Выбрано: {count}"
+    },
     "invitation": {
       "accept": "Да",
       "add_error": "Не удалось добавить событие",
@@ -42,6 +61,10 @@
       "response_sent": "Ответ отправлен",
       "tentative": "Возможно",
       "title": "Приглашение в календарь",
+      "trust_authentication_failed": "Это письмо не прошло проверку подлинности отправителя (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Не удалось подтвердить отправителя.",
+      "trust_sender_mismatch": "Отправитель не совпадает с организатором события.",
+      "trust_sender_mismatch_unverified": "Отправитель не совпадает с организатором, и письмо не прошло проверку подлинности.",
       "trust_verified": "Отправитель подтверждён"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Редактировать календарь",
       "new_calendar": "Новый календарь"
     },
+    "notifications": {
+      "channel_name": "Напоминания календаря",
+      "starts_in_days": "{count, plural, one {Начнётся через # день} few {Начнётся через # дня} many {Начнётся через # дней} other {Начнётся через # дня}}",
+      "starts_in_hours": "{count, plural, one {Начнётся через # час} few {Начнётся через # часа} many {Начнётся через # часов} other {Начнётся через # часа}}",
+      "starts_in_minutes": "{count, plural, one {Начнётся через # минуту} few {Начнётся через # минуты} many {Начнётся через # минут} other {Начнётся через # минуты}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {повторение} few {повторения} many {повторений} other {повторения}}",
+      "every_count_days": "{count, plural, one {Каждый # день} few {Каждые # дня} many {Каждые # дней} other {Каждые # дня}}",
+      "every_count_months": "{count, plural, one {Каждый # месяц} few {Каждые # месяца} many {Каждые # месяцев} other {Каждые # месяца}}",
+      "every_count_weeks": "{count, plural, one {Каждую # неделю} few {Каждые # недели} many {Каждые # недель} other {Каждые # недели}}",
+      "every_count_years": "{count, plural, one {Каждый # год} few {Каждые # года} many {Каждые # лет} other {Каждые # года}}",
+      "occurrence_count": "{count, plural, one {# повторение} few {# повторения} many {# повторений} other {# повторения}}",
+      "until_date": "До {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Показывать номера недель в представлении «Месяц».",
       "time_zone": "Часовой пояс",
       "time_zone_auto": "Часовой пояс устройства",
+      "time_zone_auto_zone": "Часовой пояс устройства ({zone})",
       "time_zone_desc": "Пояс для новых событий и отображения календаря. «Часовой пояс устройства» берётся из настроек телефона."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Искать по имени или email",
       "shared_with": "Доступ имеют"
     },
+    "subscription": {
+      "add_feed": "Добавить ленту",
+      "feed_too_large": "Лента слишком большая",
+      "fetch_failed": "Не удалось получить ленту (HTTP {status})",
+      "name_and_url_required": "Введите название и URL ленты.",
+      "not_a_feed": "По этому URL нет ленты iCalendar",
+      "not_synced": "Ещё не синхронизировано",
+      "url_scheme_invalid": "URL должен начинаться с https://, http://, webcal:// или webcals://",
+      "your_subscriptions": "Ваши подписки"
+    },
     "tasks": {
       "add_placeholder": "Добавить задачу…",
       "add_time": "Добавить время",
+      "clear_due_date": "Убрать срок выполнения",
       "delete_error": "Не удалось удалить задачу",
+      "not_found": "Эта задача больше недоступна.",
+      "save_error": "Не удалось сохранить задачу",
       "update_error": "Не удалось обновить задачу"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Создать",
     "dismiss": "Закрыть",
     "done": "Готово",
+    "open": "Открыть",
+    "open_link_message": "{host} откроется вне приложения.",
+    "open_link_title": "Открыть ссылку?",
     "remove": "Удалить",
     "retry": "Повторить",
     "undo": "Отменить",
     "update": "Обновить"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Удалить «{name}»? Это действие нельзя отменить.} one {Удалить «{name}»? Вместе с ней будет удалён # контакт. Это действие нельзя отменить.} few {Удалить «{name}»? Вместе с ней будут удалены # контакта. Это действие нельзя отменить.} many {Удалить «{name}»? Вместе с ней будет удалено # контактов. Это действие нельзя отменить.} other {Удалить «{name}»? Вместе с ней будет удалено # контакта. Это действие нельзя отменить.}}"
+    },
+    "all_contacts": "Все контакты",
+    "bulk": {
+      "add_tag": "Добавить тег",
+      "delete_confirm_mobile": "{count, plural, one {Удалить # контакт? Это действие нельзя отменить.} few {Удалить # контакта? Это действие нельзя отменить.} many {Удалить # контактов? Это действие нельзя отменить.} other {Удалить # контакта? Это действие нельзя отменить.}}",
+      "move_to_address_book": "Переместить в адресную книгу",
+      "tag_failed": "Не удалось добавить тег"
+    },
+    "contact": "Контакт",
+    "create_hint_mobile": "Удерживайте, чтобы создать группу",
+    "detail": {
+      "add_to_group_failed": "Не удалось добавить в группу",
+      "copy_name": "{name} (копия)",
+      "created_on": "Создано: {date}",
+      "duplicate_failed": "Не удалось создать копию",
+      "duplicate_no_book": "Нельзя создать копию без адресной книги.",
+      "no_address_book": "Нет адресной книги",
+      "not_found": "Контакт не найден",
+      "open_dialer_failed": "Не удалось открыть набор номера",
+      "open_link_failed": "Не удалось открыть ссылку",
+      "open_maps_failed": "Не удалось открыть карты",
+      "open_sms_failed": "Не удалось открыть приложение для сообщений",
+      "share": "Поделиться",
+      "share_title": "Поделиться: {name}",
+      "sms": "SMS",
+      "timezone_value": "Часовой пояс: {zone}",
+      "updated_on": "Изменено: {date}"
+    },
+    "empty_state_hint_mobile": "Нажмите +, чтобы добавить",
+    "export": {
+      "failed": "Не удалось экспортировать"
+    },
+    "form": {
+      "add_nickname": "Добавить псевдоним",
+      "add_note": "Добавить заметку",
+      "add_organization": "Добавить организацию",
+      "address_book_required": "Выберите адресную книгу, чтобы сохранить этот контакт.",
+      "categories_placeholder_mobile": "Введите тег и нажмите Enter",
+      "context_none": "Нет",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY или --MM-DD",
+      "display_name_optional": "Отображаемое имя (необязательно)",
+      "display_name_placeholder": "Своё отображаемое имя",
+      "edit_named": "Редактировать: {name}",
+      "gender_unspecified": "Не указан",
+      "grammatical_gender": "Грамматический род",
+      "invalid_date_message": "«{date}» — не дата. Используйте YYYY-MM-DD, YYYY-MM, YYYY или --MM-DD.",
+      "invalid_date_title": "Неверная дата",
+      "invalid_email_message": "«{address}» — недействительный адрес электронной почты.",
+      "invalid_email_title": "Недопустимый адрес",
+      "label": "Метка",
+      "label_placeholder": "Работа, Личное, …",
+      "missing_address_book": "Не выбрана адресная книга",
+      "missing_info": "Недостаточно данных",
+      "name_or_email_required": "Добавьте имя или хотя бы один адрес электронной почты.",
+      "new_organization": "Новая организация",
+      "org_name_required": "Добавьте название организации.",
+      "photo_hint_mobile": "Нажмите на фото, чтобы выбрать изображение",
+      "photo_permission_message": "Разрешите доступ к фотогалерее, чтобы выбрать фото контакта.",
+      "photo_permission_title": "Нужен доступ к фото",
+      "pick_date": "Выберите дату",
+      "pronouns": "Местоимения",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "Группа",
+    "groups": {
+      "add_member": "Добавить участника",
+      "add_members": "Добавить участников",
+      "add_members_failed": "Не удалось добавить участников",
+      "create_ellipsis": "Новая группа…",
+      "delete_confirm_named": "Удалить «{name}»? Участники не будут удалены.",
+      "delete_failed": "Не удалось удалить группу",
+      "email_all": "Написать всем",
+      "members_with_count": "Участники ({count})",
+      "no_emails": "Нет адресов",
+      "no_members_hint": "Нажмите «Добавить участника», чтобы начать",
+      "not_found": "Группа не найдена",
+      "remove_member": "Удалить участника",
+      "remove_member_confirm": "Удалить «{name}» из этой группы?",
+      "remove_member_failed": "Не удалось удалить участника"
+    },
+    "import": {
+      "change_target": "Изменить",
+      "choose_file_mobile": "Выберите файл vCard",
+      "failed_count": "{count, plural, one {Не удалось импортировать # контакт.} few {Не удалось импортировать # контакта.} many {Не удалось импортировать # контактов.} other {Не удалось импортировать # контакта.}}",
+      "import_count": "Импортировать ({count})",
+      "into_address_book": "Импорт в адресную книгу",
+      "into_named": "Импорт в «{name}»",
+      "no_address_book": "Создайте адресную книгу, прежде чем импортировать контакты.",
+      "picker_failed": "Не удалось открыть выбор файлов"
+    },
+    "no_tags_hint": "Тегов пока нет. Введите тег выше.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Добавить} one {Добавить (#)} few {Добавить (#)} many {Добавить (#)} other {Добавить (#)}}",
+      "title": "Добавить контакт"
+    },
+    "rename_tag_hint_mobile": "Удерживайте тег, чтобы переименовать его",
+    "tag_name_placeholder": "Новое название тега",
+    "unnamed": "Без имени"
   },
   "context_menu": {
     "color_tag": "Тег",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Забыли вложение?",
     "attachments_too_large_total": "Вложения превысят лимит {max} на одно письмо, установленный этим сервером.",
     "editor_unavailable": "Не удалось прочитать содержимое письма. Скопируйте текст, затем закройте и снова откройте редактор.",
+    "from_options": "Параметры отправителя",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Удостоверение недоступно",
     "image_load_failed": "Не удалось загрузить изображение",
     "no_recipient": "(нет получателя)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Копировать адрес",
     "recipient_move_to": "Переместить в «{field}»",
     "recipient_remove": "Удалить",
+    "remove_attachment": "Удалить вложение",
     "save_draft": "Сохранить черновик",
     "save_failed_no_drafts": "Нет папки «Черновики», в которую можно сохранить этот черновик.",
     "save_failed_no_identity": "Не удалось загрузить удостоверения отправителя, поэтому черновик нельзя сохранить. Проверьте подключение или скопируйте текст перед закрытием.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Возможно, письмо уже отправлено. Проверьте папку «Отправленные», прежде чем отправлять его снова.",
     "send_timeout_title": "Сервер не отвечает",
     "undo_send_label": "Отправка через {seconds} с…",
+    "upload_failed_short": "Ошибка загрузки",
     "uploading": "Загрузка...",
+    "uploading_pct": "Загрузка {pct}%",
     "validation": {
       "subject_required": "Добавьте тему"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# письмо архивировано} few {# письма архивированы} many {# писем архивировано} other {# письма архивировано}}",
     "emails_moved_to": "{count, plural, one {# письмо перемещено} few {# письма перемещены} many {# писем перемещено} other {# письма перемещено}} в папку «{mailbox}»",
     "error": "Ошибка",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Фильтр писем",
+    "folder_counts": "Всего: {total} · непрочитанных: {unread}",
+    "import": {
+      "none": "Ни одно письмо не импортировано.",
+      "partial": "Импортировано: {imported}, с ошибкой: {failed}.",
+      "success": "{count, plural, one {Импортировано # письмо.} few {Импортировано # письма.} many {Импортировано # писем.} other {Импортировано # письма.}}",
+      "title": "Импорт"
+    },
     "marked_as_spam": "Отмечено как спам",
     "marked_as_spam_count": "{count, plural, one {# письмо отмечено как спам} few {# письма отмечены как спам} many {# писем отмечено как спам} other {# письма отмечено как спам}}",
     "marked_not_spam": "Отмечено как не спам",
@@ -156,10 +328,12 @@
     "outbox_discard": "Отменить",
     "outbox_failed": "{count, plural, one {# изменение не удалось сохранить} few {# изменения не удалось сохранить} many {# изменений не удалось сохранить} other {# изменения не удалось сохранить}} на сервере.",
     "recent_searches": "Недавние запросы",
+    "remove_filter": "Убрать фильтр «{label}»",
     "scope_all_folders": "Все папки",
     "scope_this_folder": "Эта папка",
     "search_placeholder": "Поиск почты...",
     "showing_cached": "Показана почта из кэша",
+    "sort_toggle_hint": "Меняет порядок сортировки писем на обратный",
     "swipe_move": "Переместить",
     "swipe_spam": "Спам",
     "total": "всего",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Это письмо будет удалено навсегда без возможности восстановления.",
     "delete_permanently_title": "Удалить навсегда?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# файл} few {# файла} many {# файлов} other {# файла}} · {size}",
+      "received_after_delay": "{date} · время доставки {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Не удалось экспортировать",
     "forwarded": "Переслано",
     "load_failed": "Не удалось загрузить письмо",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Папки удаляются вместе со всем содержимым. Это действие нельзя отменить.",
     "delete_item_title": "Удалить этот объект?",
+    "delete_items_title": "{count, plural, one {Удалить # объект?} few {Удалить # объекта?} many {Удалить # объектов?} other {Удалить # объекта?}}",
     "done": "Готово",
+    "download_failed_status": "Не удалось скачать (HTTP {status})",
     "folder_empty": "Эта папка пуста",
     "invalid_name": "Недопустимое имя",
     "invalid_name_slash": "Имена не могут содержать \"/\".",
@@ -234,6 +415,7 @@
     "open_error": "Не удалось открыть файл",
     "open_with": "Открыть с помощью…",
     "preview_too_large": "Файл слишком большой для предпросмотра.",
+    "selected_count": "{count, plural, one {Выбрано: #} few {Выбрано: #} many {Выбрано: #} other {Выбрано: #}}",
     "share_add_people": "Добавить людей",
     "share_empty": "Пока никому не предоставлен доступ",
     "share_error": "Не удалось обновить общий доступ",
@@ -244,9 +426,11 @@
     "share_remove": "Отозвать доступ",
     "share_role_custom": "Пользовательский",
     "share_search_placeholder": "Искать по имени или email",
+    "share_unavailable": "На этом устройстве нельзя поделиться файлом",
     "shared_with": "Доступ имеют",
     "sharing_access": "Общий доступ",
-    "upload_unavailable": "В этой сборке нет модуля выбора файлов. Пересоберите приложение, чтобы включить загрузку."
+    "upload_unavailable": "В этой сборке нет модуля выбора файлов. Пересоберите приложение, чтобы включить загрузку.",
+    "uploading_progress": "Загрузка {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Вы не в сети",
-    "queued_changes": "{count, plural, one {# изменение будет синхронизировано} few {# изменения будут синхронизированы} many {# изменений будет синхронизировано} other {# изменения будет синхронизировано}} после подключения к сети"
+    "queued_changes": "{count, plural, one {# изменение будет синхронизировано} few {# изменения будут синхронизированы} many {# изменений будет синхронизировано} other {# изменения будет синхронизировано}} после подключения к сети",
+    "sync": {
+      "cached_count": "{count, plural, one {В кэш сохранено # новое письмо} few {В кэш сохранено # новых письма} many {В кэш сохранено # новых писем} other {В кэш сохранено # нового письма}} • {size}",
+      "cancelled": "Синхронизация отменена",
+      "failed": "Не удалось синхронизировать офлайн-почту",
+      "processed": "Обработано: {completed}/{total}",
+      "ready": "Офлайн-почта готова",
+      "syncing": "Синхронизация офлайн-почты",
+      "title": "Офлайн-синхронизация",
+      "unable_to_download": "Не удалось загрузить",
+      "up_to_date": "Всё уже актуально"
+    }
   },
   "push_prompt": {
     "body": "Включите фоновые уведомления, чтобы узнавать о новых письмах, даже когда приложение закрыто.",
@@ -399,6 +594,15 @@
       "not_implemented": "Не реализовано",
       "unavailable": "Недоступно"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# контакт} few {# контакта} many {# контактов} other {# контакта}}",
+      "default_book": "Адресная книга по умолчанию",
+      "description_mobile": "Параметры отображения и инструменты адресных книг.",
+      "export_description_count": "{count, plural, one {Экспортировать # контакт в один файл vCard.} few {Экспортировать # контакта в один файл vCard.} many {Экспортировать # контактов в один файл vCard.} other {Экспортировать # контакта в один файл vCard.}}",
+      "export_empty": "Нет контактов для экспорта",
+      "import_description_mobile": "Импорт контактов из файла vCard (.vcf) с поиском дубликатов.",
+      "manage_description_mobile": "Создавайте, переименовывайте и удаляйте адресные книги, в которых хранятся ваши контакты."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Шаблон имени при сохранении вложения или при отправке его в другое приложение."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Ответ всегда отправляется с удостоверения, на адрес которого пришло письмо. Если включено, ответ на другой адрес в ваших доменах (catch-all-псевдоним) тоже отправляется с этого адреса."
       },
+      "content_senders_description_mobile": "Управляйте обработкой внешних ресурсов и пикселей отслеживания.",
+      "external_content": {
+        "allow_mobile": "Разрешать",
+        "ask_mobile": "Спрашивать",
+        "block_mobile": "Блокировать"
+      },
       "plain_text_mode": {
         "description_mobile": "Писать и читать письма только в виде простого текста."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Действие при перетаскивании строки от левого края вправо.",
         "label_mobile": "Свайп вправо (слева → направо)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Для отправителей из этого списка внешнее содержимое загружается всегда.",
+        "description_synced_mobile": "Для отправителей из этого списка внешнее содержимое загружается всегда. Синхронизировано через адресную книгу: {count}.",
+        "sync_add_failed": "Не удалось синхронизировать с адресной книгой",
+        "sync_remove_failed": "Не удалось удалить из адресной книги",
+        "synced_badge": "Синхронизировано через адресную книгу"
       }
     },
     "experimental": {
       "title": "Экспериментальная функция"
+    },
+    "filters": {
+      "remove_action": "Удалить действие",
+      "remove_condition": "Удалить условие",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# строка} few {# строки} many {# строк} other {# строки}}"
+      }
     },
     "folders": {
       "account": "Аккаунт",
@@ -476,6 +700,7 @@
       "delete_title": "Удалить удостоверение",
       "description_mobile": "Управляйте именами отправителя, адресами электронной почты и подписями. Нажмите на строку, чтобы изменить её.",
       "display_name": "Отображаемое имя",
+      "display_name_placeholder": "Jane Doe",
       "edit": "Редактировать удостоверение",
       "email_address": "Адрес электронной почты",
       "email_locked": "JMAP не позволяет менять адрес удостоверения — создайте новое.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Общее число писем в папках",
       "show_folder_total_count_description": "Показывать общее количество рядом с числом непрочитанных в списке папок.",
       "swipe_mode": {
+        "description": "Выберите «Сразу» (свайп дальше порога сразу выполняет действие) или «С кнопками» (свайп открывает полосу действий, затем нажмите для подтверждения).",
         "instant": "Сразу (свайп = действие)",
+        "label": "Поведение свайпа",
         "reveal": "С кнопками (свайп, затем нажатие)"
       },
       "unified_cross_account": "Общие представления для всех аккаунтов",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Это устройство перестанет получать уведомления о новой почте для этого аккаунта.",
         "description_mobile": "Получайте системные уведомления о новых письмах, когда приложение закрыто. Доставляются через push-релей Bulwark; релей никогда не видит содержимое писем.",
+        "err_android_only": "Push-уведомления доступны только на Android.",
+        "err_fcm_empty": "Firebase вернул пустой токен устройства.",
+        "err_fcm_token": "Firebase не смог выдать токен устройства ({detail}). Для push через FCM на этом устройстве нужны сервисы Google Play.",
+        "err_fcm_token_up": "Firebase не смог выдать токен устройства ({detail}). Для push через FCM на этом устройстве нужны сервисы Google Play. На этом устройстве установлен дистрибьютор UnifiedPush — выберите способ доставки UnifiedPush.",
+        "err_jmap_refused": "Почтовый сервер отклонил push-подписку: {detail}",
+        "err_no_account": "Аккаунт не загружен — невозможно настроить push.",
+        "err_permission": "Разрешение на уведомления не предоставлено.",
+        "err_relay_https": "URL релея должен использовать https://.",
+        "err_relay_rejected": "Push-релей отклонил регистрацию: {detail}",
+        "err_relay_unreachable": "Не удалось связаться с push-релеем по адресу {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush доступен только на Android.",
+        "err_verify_rejected": "Почтовый сервер отклонил код подтверждения: {detail}",
+        "err_verify_relay": "Релей так и не получил код подтверждения от почтового сервера (последний ответ релея: {detail}).",
+        "err_verify_timeout": "Почтовый сервер не отправил релею код подтверждения в течение 75 с. Проверьте, что сервер может связаться с URL релея.",
         "phase_account": "Аккаунт",
         "phase_distributor": "Дистрибьютор UnifiedPush",
         "phase_jmap": "Подписка на почтовом сервере",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME пока недоступен в мобильном приложении. Управляйте ключами и сертификатами в веб-почте; подписанные письма показываются здесь без проверки подписи."
     },
     "tabs": {
-      "plugins": "Плагины"
+      "plugins": "Плагины",
+      "themes": "Темы",
+      "updates": "Обновления"
     },
     "templates": {
-      "delete_title": "Удалить шаблон"
+      "delete_confirm": "Удалить «{name}» навсегда?",
+      "delete_title": "Удалить шаблон",
+      "description_mobile": "Готовые фрагменты для частых ответов. Нажмите, чтобы изменить; удерживайте, чтобы удалить.",
+      "export_failed": "Не удалось экспортировать",
+      "import_failed": "Не удалось импортировать",
+      "imported": "Импортировано",
+      "imported_count": "{count, plural, one {Добавлен # шаблон.} few {Добавлено # шаблона.} many {Добавлено # шаблонов.} other {Добавлено # шаблона.}}",
+      "is_html": "Текст в формате HTML",
+      "placeholders_hint": "Заполнители: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Не удалось поделиться"
     },
     "themes": {
       "default_description": "Стандартные светлая и тёмная палитры.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Удерживайте, чтобы удалить этот аккаунт",
     "remove_account_message": "Выйти из {account} на этом устройстве. Ваша почта останется на сервере.",
     "remove_account_title": "Удалить аккаунт?",
-    "show_unread": "Показать непрочитанные"
+    "show_unread": "Показать непрочитанные",
+    "tab_unavailable": "{name} (недоступно)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {Не удалось загрузить # аккаунт} few {Не удалось загрузить # аккаунта} many {Не удалось загрузить # аккаунтов} other {Не удалось загрузить # аккаунта}}"
   },
   "updates": {
     "advisory": "Бюллетень безопасности",

@@ -6,6 +6,13 @@
     "not_starred": "غير مميزة بنجمة"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, zero {بعد # دقيقة} one {بعد دقيقة واحدة} two {بعد دقيقتين} few {بعد # دقائق} many {بعد # دقيقة} other {بعد # دقيقة}}"
+    },
+    "colors": {
+      "indigo": "نيلي",
+      "teal": "أزرق مخضر"
+    },
     "drawer": {
       "my_calendars": "تقويماتي",
       "no_calendars": "لا توجد تقويمات بعد.",
@@ -25,6 +32,18 @@
       "location_placeholder": "المكان أو العنوان",
       "time": "الوقت"
     },
+    "import": {
+      "file_too_large_max": "هذا الملف كبير جدًا (الحد الأقصى {size} ميغابايت).",
+      "imported_count": "{count, plural, zero {لم يتم استيراد أي حدث.} one {تم استيراد حدث واحد.} two {تم استيراد حدثين.} few {تم استيراد # أحداث.} many {تم استيراد # حدثًا.} other {تم استيراد # حدث.}}",
+      "no_calendar": "أنشئ تقويمًا قبل استيراد الأحداث.",
+      "no_calendar_title": "لا يوجد تقويم",
+      "picker_error": "تعذّر فتح أداة اختيار الملفات",
+      "picker_unavailable": "أداة اختيار الملفات غير مثبتة في هذا الإصدار. أعد بناء التطبيق لتفعيل الاستيراد.",
+      "picker_unavailable_title": "الاستيراد غير متاح",
+      "refused_count": "{count, plural, zero {تعذّر استيراد # حدث:} one {تعذّر استيراد حدث واحد:} two {تعذّر استيراد حدثين:} few {تعذّر استيراد # أحداث:} many {تعذّر استيراد # حدثًا:} other {تعذّر استيراد # حدث:}}",
+      "refused_message": "{count, plural, =1 {تعذّر استيراد الحدث: {reason}} zero {تعذّر استيراد # حدث: {reason}} one {تعذّر استيراد حدث واحد: {reason}} two {تعذّر استيراد حدثين: {reason}} few {تعذّر استيراد # أحداث: {reason}} many {تعذّر استيراد # حدثًا: {reason}} other {تعذّر استيراد # حدث: {reason}}}",
+      "selected_count": "المحدد: {count}"
+    },
     "invitation": {
       "accept": "نعم",
       "add_error": "تعذّر إضافة الحدث",
@@ -42,6 +61,10 @@
       "response_sent": "تم إرسال الرد",
       "tentative": "ربما",
       "title": "دعوة تقويم",
+      "trust_authentication_failed": "فشلت مصادقة مرسل هذه الرسالة (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "تعذّر التحقق من المرسل.",
+      "trust_sender_mismatch": "المرسل مختلف عن منظّم الحدث.",
+      "trust_sender_mismatch_unverified": "المرسل لا يطابق المنظّم والرسالة غير مصادق عليها.",
       "trust_verified": "تم التحقق من المرسل"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "تعديل التقويم",
       "new_calendar": "تقويم جديد"
     },
+    "notifications": {
+      "channel_name": "تذكيرات التقويم",
+      "starts_in_days": "{count, plural, zero {يبدأ بعد # يوم} one {يبدأ بعد يوم واحد} two {يبدأ بعد يومين} few {يبدأ بعد # أيام} many {يبدأ بعد # يومًا} other {يبدأ بعد # يوم}}",
+      "starts_in_hours": "{count, plural, zero {يبدأ بعد # ساعة} one {يبدأ بعد ساعة واحدة} two {يبدأ بعد ساعتين} few {يبدأ بعد # ساعات} many {يبدأ بعد # ساعة} other {يبدأ بعد # ساعة}}",
+      "starts_in_minutes": "{count, plural, zero {يبدأ بعد # دقيقة} one {يبدأ بعد دقيقة واحدة} two {يبدأ بعد دقيقتين} few {يبدأ بعد # دقائق} many {يبدأ بعد # دقيقة} other {يبدأ بعد # دقيقة}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, zero {مرة} one {مرة} two {مرات} few {مرات} many {مرة} other {مرة}}",
+      "every_count_days": "{count, plural, zero {كل # يوم} one {كل يوم} two {كل يومين} few {كل # أيام} many {كل # يومًا} other {كل # يوم}}",
+      "every_count_months": "{count, plural, zero {كل # شهر} one {كل شهر} two {كل شهرين} few {كل # أشهر} many {كل # شهرًا} other {كل # شهر}}",
+      "every_count_weeks": "{count, plural, zero {كل # أسبوع} one {كل أسبوع} two {كل أسبوعين} few {كل # أسابيع} many {كل # أسبوعًا} other {كل # أسبوع}}",
+      "every_count_years": "{count, plural, zero {كل # سنة} one {كل سنة} two {كل سنتين} few {كل # سنوات} many {كل # سنة} other {كل # سنة}}",
+      "occurrence_count": "{count, plural, zero {# مرة} one {مرة واحدة} two {مرتان} few {# مرات} many {# مرة} other {# مرة}}",
+      "until_date": "حتى {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "عرض أرقام الأسابيع في عرض الشهر.",
       "time_zone": "المنطقة الزمنية",
       "time_zone_auto": "المنطقة الزمنية للجهاز",
+      "time_zone_auto_zone": "المنطقة الزمنية للجهاز ({zone})",
       "time_zone_desc": "المنطقة المستخدمة للأحداث الجديدة ولتفسير التقويم. خيار \"المنطقة الزمنية للجهاز\" يتبع إعداد الهاتف."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "البحث بالاسم أو البريد الإلكتروني",
       "shared_with": "تمت المشاركة مع"
     },
+    "subscription": {
+      "add_feed": "إضافة تغذية",
+      "feed_too_large": "التغذية كبيرة جدًا",
+      "fetch_failed": "تعذّر جلب التغذية (HTTP {status})",
+      "name_and_url_required": "أدخل اسمًا ورابط التغذية.",
+      "not_a_feed": "لم يُرجع هذا الرابط تغذية iCalendar",
+      "not_synced": "لم تتم المزامنة بعد",
+      "url_scheme_invalid": "يجب أن يبدأ الرابط بـ https:// أو http:// أو webcal:// أو webcals://",
+      "your_subscriptions": "اشتراكاتك"
+    },
     "tasks": {
       "add_placeholder": "إضافة مهمة…",
       "add_time": "إضافة وقت",
+      "clear_due_date": "مسح تاريخ الاستحقاق",
       "delete_error": "فشل حذف المهمة",
+      "not_found": "لم تعد هذه المهمة متاحة.",
+      "save_error": "فشل حفظ المهمة",
       "update_error": "فشل تحديث المهمة"
     }
   },
@@ -82,10 +134,116 @@
     "create": "إنشاء",
     "dismiss": "إغلاق",
     "done": "تم",
+    "open": "فتح",
+    "open_link_message": "سيؤدي هذا إلى فتح {host} خارج التطبيق.",
+    "open_link_title": "فتح الرابط؟",
     "remove": "إزالة",
     "retry": "إعادة المحاولة",
     "undo": "تراجع",
     "update": "تحديث"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {حذف \"{name}\"؟ لا يمكن التراجع عن ذلك.} zero {حذف \"{name}\"؟ لا يمكن التراجع عن ذلك.} one {حذف \"{name}\"؟ ستُحذف معه جهة اتصال واحدة. لا يمكن التراجع عن ذلك.} two {حذف \"{name}\"؟ ستُحذف معه جهتا اتصال. لا يمكن التراجع عن ذلك.} few {حذف \"{name}\"؟ ستُحذف معه # جهات اتصال. لا يمكن التراجع عن ذلك.} many {حذف \"{name}\"؟ ستُحذف معه # جهة اتصال. لا يمكن التراجع عن ذلك.} other {حذف \"{name}\"؟ ستُحذف معه # جهة اتصال. لا يمكن التراجع عن ذلك.}}"
+    },
+    "all_contacts": "كل جهات الاتصال",
+    "bulk": {
+      "add_tag": "إضافة وسم",
+      "delete_confirm_mobile": "{count, plural, zero {حذف # جهة اتصال؟ لا يمكن التراجع عن ذلك.} one {حذف جهة اتصال واحدة؟ لا يمكن التراجع عن ذلك.} two {حذف جهتي اتصال؟ لا يمكن التراجع عن ذلك.} few {حذف # جهات اتصال؟ لا يمكن التراجع عن ذلك.} many {حذف # جهة اتصال؟ لا يمكن التراجع عن ذلك.} other {حذف # جهة اتصال؟ لا يمكن التراجع عن ذلك.}}",
+      "move_to_address_book": "نقل إلى دفتر عناوين",
+      "tag_failed": "فشل إضافة الوسم"
+    },
+    "contact": "جهة اتصال",
+    "create_hint_mobile": "اضغط مطولًا لإنشاء مجموعة بدلًا من ذلك",
+    "detail": {
+      "add_to_group_failed": "فشلت الإضافة إلى المجموعة",
+      "copy_name": "{name} (نسخة)",
+      "created_on": "تاريخ الإنشاء: {date}",
+      "duplicate_failed": "فشل إنشاء نسخة",
+      "duplicate_no_book": "لا يمكن إنشاء نسخة دون دفتر عناوين.",
+      "no_address_book": "لا يوجد دفتر عناوين",
+      "not_found": "لم يتم العثور على جهة الاتصال",
+      "open_dialer_failed": "تعذّر فتح تطبيق الاتصال",
+      "open_link_failed": "تعذّر فتح الرابط",
+      "open_maps_failed": "تعذّر فتح الخرائط",
+      "open_sms_failed": "تعذّر فتح تطبيق الرسائل",
+      "share": "مشاركة",
+      "share_title": "مشاركة {name}",
+      "sms": "رسالة نصية",
+      "timezone_value": "المنطقة الزمنية: {zone}",
+      "updated_on": "آخر تحديث: {date}"
+    },
+    "empty_state_hint_mobile": "اضغط + لإضافة جهة اتصال",
+    "export": {
+      "failed": "فشل التصدير"
+    },
+    "form": {
+      "add_nickname": "إضافة اسم مستعار",
+      "add_note": "إضافة ملاحظة",
+      "add_organization": "إضافة مؤسسة",
+      "address_book_required": "اختر دفتر عناوين لحفظ جهة الاتصال هذه.",
+      "categories_placeholder_mobile": "أضف وسمًا واضغط Enter",
+      "context_none": "بلا",
+      "date_placeholder": "YYYY-MM-DD أو YYYY-MM أو YYYY أو --MM-DD",
+      "display_name_optional": "الاسم المعروض (اختياري)",
+      "display_name_placeholder": "اسم معروض مخصص",
+      "edit_named": "تعديل {name}",
+      "gender_unspecified": "غير محدد",
+      "grammatical_gender": "الجنس النحوي",
+      "invalid_date_message": "\"{date}\" ليس تاريخًا. استخدم YYYY-MM-DD أو YYYY-MM أو YYYY أو --MM-DD.",
+      "invalid_date_title": "تاريخ غير صالح",
+      "invalid_email_message": "\"{address}\" ليس عنوان بريد إلكتروني صالحًا.",
+      "invalid_email_title": "بريد إلكتروني غير صالح",
+      "label": "التسمية",
+      "label_placeholder": "العمل، شخصي، …",
+      "missing_address_book": "دفتر العناوين غير محدد",
+      "missing_info": "معلومات ناقصة",
+      "name_or_email_required": "أضف اسمًا أو بريدًا إلكترونيًا واحدًا على الأقل.",
+      "new_organization": "مؤسسة جديدة",
+      "org_name_required": "أضف اسم المؤسسة.",
+      "photo_hint_mobile": "اضغط على الصورة لاختيار صورة",
+      "photo_permission_message": "امنح إذن الوصول إلى مكتبة الصور لاختيار صورة جهة الاتصال.",
+      "photo_permission_title": "يلزم الوصول إلى الصور",
+      "pick_date": "اختر تاريخًا",
+      "pronouns": "الضمائر",
+      "pronouns_placeholder": "they/them",
+      "url": "رابط"
+    },
+    "group": "مجموعة",
+    "groups": {
+      "add_member": "إضافة عضو",
+      "add_members": "إضافة أعضاء",
+      "add_members_failed": "فشلت إضافة الأعضاء",
+      "create_ellipsis": "مجموعة جديدة…",
+      "delete_confirm_named": "حذف \"{name}\"؟ لن يتم حذف الأعضاء.",
+      "delete_failed": "فشل حذف المجموعة",
+      "email_all": "مراسلة الجميع",
+      "members_with_count": "الأعضاء ({count})",
+      "no_emails": "لا توجد عناوين بريد",
+      "no_members_hint": "اضغط \"إضافة عضو\" للبدء",
+      "not_found": "لم يتم العثور على المجموعة",
+      "remove_member": "إزالة العضو",
+      "remove_member_confirm": "إزالة \"{name}\" من هذه المجموعة؟",
+      "remove_member_failed": "فشلت إزالة العضو"
+    },
+    "import": {
+      "change_target": "تغيير",
+      "choose_file_mobile": "اختر ملف vCard",
+      "failed_count": "{count, plural, zero {تعذّر استيراد # جهة اتصال.} one {تعذّر استيراد جهة اتصال واحدة.} two {تعذّر استيراد جهتي اتصال.} few {تعذّر استيراد # جهات اتصال.} many {تعذّر استيراد # جهة اتصال.} other {تعذّر استيراد # جهة اتصال.}}",
+      "import_count": "استيراد ({count})",
+      "into_address_book": "استيراد إلى دفتر العناوين",
+      "into_named": "استيراد إلى {name}",
+      "no_address_book": "أنشئ دفتر عناوين قبل استيراد جهات الاتصال.",
+      "picker_failed": "تعذّر فتح أداة اختيار الملفات"
+    },
+    "no_tags_hint": "لا توجد وسوم بعد. اكتب وسمًا في الأعلى.",
+    "picker": {
+      "add_count": "{count, plural, =0 {إضافة} zero {إضافة (#)} one {إضافة (#)} two {إضافة (#)} few {إضافة (#)} many {إضافة (#)} other {إضافة (#)}}",
+      "title": "إضافة جهة اتصال"
+    },
+    "rename_tag_hint_mobile": "اضغط مطولًا على وسم لإعادة تسميته",
+    "tag_name_placeholder": "اسم الوسم الجديد",
+    "unnamed": "بلا اسم"
   },
   "context_menu": {
     "color_tag": "وسم",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "هل نسيت إرفاق ملف؟",
     "attachments_too_large_total": "ستتجاوز المرفقات الحد {max} الذي يسمح به هذا الخادم لكل رسالة.",
     "editor_unavailable": "تعذّرت قراءة محتوى الرسالة. انسخ النص، ثم أغلق نافذة الإنشاء وأعد فتحها.",
+    "from_options": "خيارات المرسل",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "الهوية غير متاحة",
     "image_load_failed": "تعذّر تحميل الصورة",
     "no_recipient": "(بلا مستلم)",
@@ -107,6 +267,7 @@
     "recipient_copy": "نسخ العنوان",
     "recipient_move_to": "نقل إلى {field}",
     "recipient_remove": "إزالة",
+    "remove_attachment": "إزالة المرفق",
     "save_draft": "حفظ المسودة",
     "save_failed_no_drafts": "لا يوجد مجلد مسودات لحفظ هذه المسودة فيه.",
     "save_failed_no_identity": "تعذّر تحميل هويات الإرسال، لذا لا يمكن حفظ هذه المسودة. تحقق من اتصالك، أو انسخ النص قبل الإغلاق.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "ربما تم إرسال الرسالة بالفعل. تحقق من مجلد المرسل قبل إرسالها مرة أخرى.",
     "send_timeout_title": "لا يوجد رد من الخادم",
     "undo_send_label": "الإرسال خلال {seconds} ث…",
+    "upload_failed_short": "فشل الرفع",
     "uploading": "جارٍ الرفع...",
+    "uploading_pct": "جارٍ الرفع {pct}%",
     "validation": {
       "subject_required": "أضف موضوعًا"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, zero {تمت أرشفة # رسالة} one {تمت أرشفة رسالة واحدة} two {تمت أرشفة رسالتين} few {تمت أرشفة # رسائل} many {تمت أرشفة # رسالة} other {تمت أرشفة # رسالة}}",
     "emails_moved_to": "{count, plural, zero {تم نقل # رسالة} one {تم نقل رسالة واحدة} two {تم نقل رسالتين} few {تم نقل # رسائل} many {تم نقل # رسالة} other {تم نقل # رسالة}} إلى {mailbox}",
     "error": "خطأ",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "تصفية الرسائل",
+    "folder_counts": "الإجمالي: {total} · غير المقروءة: {unread}",
+    "import": {
+      "none": "لم يتم استيراد أي رسائل.",
+      "partial": "تم استيراد {imported}، وفشل {failed}.",
+      "success": "{count, plural, zero {تم استيراد # رسالة.} one {تم استيراد رسالة واحدة.} two {تم استيراد رسالتين.} few {تم استيراد # رسائل.} many {تم استيراد # رسالة.} other {تم استيراد # رسالة.}}",
+      "title": "استيراد"
+    },
     "marked_as_spam": "تم التمييز كبريد مزعج",
     "marked_as_spam_count": "{count, plural, zero {تم تمييز # رسالة كبريد مزعج} one {تم تمييز رسالة واحدة كبريد مزعج} two {تم تمييز رسالتين كبريد مزعج} few {تم تمييز # رسائل كبريد مزعج} many {تم تمييز # رسالة كبريد مزعج} other {تم تمييز # رسالة كبريد مزعج}}",
     "marked_not_spam": "تم التمييز كبريد غير مزعج",
@@ -156,10 +328,12 @@
     "outbox_discard": "تجاهل",
     "outbox_failed": "{count, plural, zero {تعذّر حفظ # تغيير على الخادم.} one {تعذّر حفظ تغيير واحد على الخادم.} two {تعذّر حفظ تغييرين على الخادم.} few {تعذّر حفظ # تغييرات على الخادم.} many {تعذّر حفظ # تغييرًا على الخادم.} other {تعذّر حفظ # تغيير على الخادم.}}",
     "recent_searches": "عمليات البحث الأخيرة",
+    "remove_filter": "إزالة عامل التصفية {label}",
     "scope_all_folders": "كل المجلدات",
     "scope_this_folder": "هذا المجلد",
     "search_placeholder": "بحث في البريد...",
     "showing_cached": "عرض البريد المخزّن مؤقتًا",
+    "sort_toggle_hint": "يعكس ترتيب فرز الرسائل",
     "swipe_move": "نقل",
     "swipe_spam": "مزعج",
     "total": "إجمالًا",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "سيتم حذف هذه الرسالة نهائيًا ولا يمكن استعادتها.",
     "delete_permanently_title": "حذف نهائيًا؟",
+    "details": {
+      "attachment_count_size": "{count, plural, zero {# ملف} one {ملف واحد} two {ملفان} few {# ملفات} many {# ملفًا} other {# ملف}} · {size}",
+      "received_after_delay": "{date} · مدة التسليم {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "فشل التصدير",
     "forwarded": "تمت إعادة توجيهها",
     "load_failed": "فشل تحميل الرسالة",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "تُحذف المجلدات مع كل ما بداخلها. لا يمكن التراجع عن ذلك.",
     "delete_item_title": "حذف هذا العنصر؟",
+    "delete_items_title": "{count, plural, zero {حذف # عنصر؟} one {حذف عنصر واحد؟} two {حذف عنصرين؟} few {حذف # عناصر؟} many {حذف # عنصرًا؟} other {حذف # عنصر؟}}",
     "done": "تم",
+    "download_failed_status": "فشل التنزيل (HTTP {status})",
     "folder_empty": "هذا المجلد فارغ",
     "invalid_name": "اسم غير صالح",
     "invalid_name_slash": "لا يمكن أن تحتوي الأسماء على \"/\".",
@@ -234,6 +415,7 @@
     "open_error": "تعذّر فتح الملف",
     "open_with": "فتح باستخدام…",
     "preview_too_large": "هذا الملف كبير جدًا بحيث لا يمكن معاينته.",
+    "selected_count": "{count, plural, zero {تم تحديد #} one {تم تحديد عنصر واحد} two {تم تحديد عنصرين} few {تم تحديد # عناصر} many {تم تحديد # عنصرًا} other {تم تحديد # عنصر}}",
     "share_add_people": "إضافة أشخاص",
     "share_empty": "لم تتم المشاركة مع أي شخص بعد",
     "share_error": "فشل تحديث المشاركة",
@@ -244,9 +426,11 @@
     "share_remove": "إزالة الوصول",
     "share_role_custom": "مخصص",
     "share_search_placeholder": "البحث بالاسم أو البريد الإلكتروني",
+    "share_unavailable": "المشاركة غير متاحة على هذا الجهاز",
     "shared_with": "تمت المشاركة مع",
     "sharing_access": "المشاركة والوصول",
-    "upload_unavailable": "أداة اختيار الملفات غير مثبتة في هذا الإصدار. أعد بناء التطبيق لتفعيل الرفع."
+    "upload_unavailable": "أداة اختيار الملفات غير مثبتة في هذا الإصدار. أعد بناء التطبيق لتفعيل الرفع.",
+    "uploading_progress": "جارٍ الرفع {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "أنت غير متصل بالإنترنت",
-    "queued_changes": "{count, plural, zero {ستتم مزامنة # تغيير عند إعادة الاتصال} one {ستتم مزامنة تغيير واحد عند إعادة الاتصال} two {ستتم مزامنة تغييرين عند إعادة الاتصال} few {ستتم مزامنة # تغييرات عند إعادة الاتصال} many {ستتم مزامنة # تغييرًا عند إعادة الاتصال} other {ستتم مزامنة # تغيير عند إعادة الاتصال}}"
+    "queued_changes": "{count, plural, zero {ستتم مزامنة # تغيير عند إعادة الاتصال} one {ستتم مزامنة تغيير واحد عند إعادة الاتصال} two {ستتم مزامنة تغييرين عند إعادة الاتصال} few {ستتم مزامنة # تغييرات عند إعادة الاتصال} many {ستتم مزامنة # تغييرًا عند إعادة الاتصال} other {ستتم مزامنة # تغيير عند إعادة الاتصال}}",
+    "sync": {
+      "cached_count": "{count, plural, zero {تم تخزين # رسالة جديدة مؤقتًا} one {تم تخزين رسالة جديدة واحدة مؤقتًا} two {تم تخزين رسالتين جديدتين مؤقتًا} few {تم تخزين # رسائل جديدة مؤقتًا} many {تم تخزين # رسالة جديدة مؤقتًا} other {تم تخزين # رسالة جديدة مؤقتًا}} • {size}",
+      "cancelled": "تم إلغاء المزامنة",
+      "failed": "فشلت المزامنة دون اتصال",
+      "processed": "تمت معالجة {completed}/{total}",
+      "ready": "البريد المتاح دون اتصال جاهز",
+      "syncing": "جارٍ مزامنة البريد للاستخدام دون اتصال",
+      "title": "المزامنة دون اتصال",
+      "unable_to_download": "تعذّر التنزيل",
+      "up_to_date": "محدّث بالفعل"
+    }
   },
   "push_prompt": {
     "body": "فعّل الإشعارات في الخلفية لتصلك الرسائل الجديدة حتى عندما يكون التطبيق مغلقًا.",
@@ -399,6 +594,15 @@
       "not_implemented": "غير منفّذ",
       "unavailable": "غير متاح"
     },
+    "contacts": {
+      "book_count": "{count, plural, zero {# جهة اتصال} one {جهة اتصال واحدة} two {جهتا اتصال} few {# جهات اتصال} many {# جهة اتصال} other {# جهة اتصال}}",
+      "default_book": "دفتر العناوين الافتراضي",
+      "description_mobile": "تفضيلات العرض وأدوات دفاتر العناوين.",
+      "export_description_count": "{count, plural, zero {تصدير # جهة اتصال في ملف vCard واحد.} one {تصدير جهة اتصال واحدة في ملف vCard واحد.} two {تصدير جهتي اتصال في ملف vCard واحد.} few {تصدير # جهات اتصال في ملف vCard واحد.} many {تصدير # جهة اتصال في ملف vCard واحد.} other {تصدير # جهة اتصال في ملف vCard واحد.}}",
+      "export_empty": "لا توجد جهات اتصال للتصدير",
+      "import_description_mobile": "استيراد جهات الاتصال من ملف vCard (.vcf) مع اكتشاف التكرارات.",
+      "manage_description_mobile": "أنشئ دفاتر العناوين التي تنظّم جهات اتصالك، وأعد تسميتها، واحذفها."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "القالب المستخدم عند حفظ مرفق أو مشاركته."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "تُرسَل الردود دائمًا من الهوية التي أُرسلت إليها الرسالة. عند تفعيل هذا الخيار، يُرسَل الرد على عنوان آخر ضمن نطاقاتك (اسم مستعار شامل catch-all) من ذلك العنوان أيضًا."
       },
+      "content_senders_description_mobile": "تحكّم في كيفية التعامل مع الموارد الخارجية وبكسلات التتبع.",
+      "external_content": {
+        "allow_mobile": "السماح",
+        "ask_mobile": "السؤال",
+        "block_mobile": "الحظر"
+      },
       "plain_text_mode": {
         "description_mobile": "الكتابة والقراءة بنص عادي فقط."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "الإجراء عند سحب صف من حافته اليسرى نحو اليمين.",
         "label_mobile": "السحب لليمين (من اليسار إلى اليمين)"
+      },
+      "trusted_senders": {
+        "description_mobile": "يُحمَّل المحتوى الخارجي دائمًا للمرسلين في هذه القائمة.",
+        "description_synced_mobile": "يُحمَّل المحتوى الخارجي دائمًا للمرسلين في هذه القائمة. المتزامن عبر دفتر العناوين: {count}.",
+        "sync_add_failed": "تعذّرت المزامنة مع دفتر العناوين",
+        "sync_remove_failed": "تعذّرت الإزالة من دفتر العناوين",
+        "synced_badge": "متزامن عبر دفتر العناوين"
       }
     },
     "experimental": {
       "title": "ميزة تجريبية"
+    },
+    "filters": {
+      "remove_action": "إزالة الإجراء",
+      "remove_condition": "إزالة الشرط",
+      "sieve_editor": {
+        "line_count": "{count, plural, zero {# سطر} one {سطر واحد} two {سطران} few {# أسطر} many {# سطرًا} other {# سطر}}"
+      }
     },
     "folders": {
       "account": "الحساب",
@@ -476,6 +700,7 @@
       "delete_title": "حذف الهوية",
       "description_mobile": "أدِر أسماء المرسلين وعناوين البريد الإلكتروني والتوقيعات. اضغط على صف لتعديله.",
       "display_name": "الاسم المعروض",
+      "display_name_placeholder": "Jane Doe",
       "edit": "تعديل الهوية",
       "email_address": "عنوان البريد الإلكتروني",
       "email_locked": "لا يسمح JMAP بتغيير البريد الإلكتروني للهوية؛ أنشئ هوية جديدة بدلًا من ذلك.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "إظهار العدد الإجمالي للرسائل على المجلدات",
       "show_folder_total_count_description": "إظهار الإجمالي بجانب عدد غير المقروءة في قائمة المجلدات.",
       "swipe_mode": {
+        "description": "اختر فوري (اسحب متجاوزًا الحد لتنفيذ الإجراء) أو كشف (اسحب لإظهار شريط الإجراءات، ثم اضغط للتأكيد).",
         "instant": "فوري (السحب = الإجراء)",
+        "label": "سلوك السحب",
         "reveal": "كشف (اسحب ثم اضغط)"
       },
       "unified_cross_account": "العروض الموحّدة عبر الحسابات",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "سيتوقف هذا الجهاز عن تلقي تنبيهات البريد الجديد لهذا الحساب.",
         "description_mobile": "تلقَّ إشعارات النظام للبريد الجديد عندما يكون التطبيق مغلقًا. تُسلَّم عبر خادم ترحيل Bulwark، ولا يطّلع خادم الترحيل على محتوى البريد أبدًا.",
+        "err_android_only": "الإشعارات الفورية متاحة على Android فقط.",
+        "err_fcm_empty": "أعاد Firebase رمز جهاز فارغًا.",
+        "err_fcm_token": "تعذّر على Firebase إصدار رمز الجهاز ({detail}). يتطلب الإشعار عبر FCM خدمات Google Play على هذا الجهاز.",
+        "err_fcm_token_up": "تعذّر على Firebase إصدار رمز الجهاز ({detail}). يتطلب الإشعار عبر FCM خدمات Google Play على هذا الجهاز. يوجد موزّع UnifiedPush مثبت على هذا الجهاز - غيّر طريقة التسليم إلى UnifiedPush بدلًا من ذلك.",
+        "err_jmap_refused": "رفض خادم البريد اشتراك الإشعارات: {detail}",
+        "err_no_account": "لم يتم تحميل أي حساب - لا يمكن إعداد الإشعارات.",
+        "err_permission": "لم يُمنح إذن الإشعارات.",
+        "err_relay_https": "يجب أن يستخدم رابط خادم الترحيل https://.",
+        "err_relay_rejected": "رفض خادم ترحيل الإشعارات التسجيل: {detail}",
+        "err_relay_unreachable": "تعذّر الوصول إلى خادم ترحيل الإشعارات على {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush متاح على Android فقط.",
+        "err_verify_rejected": "رفض خادم البريد رمز التحقق: {detail}",
+        "err_verify_relay": "لم يتلقَّ خادم الترحيل رمز التحقق من خادم البريد (آخر رد من خادم الترحيل: {detail}).",
+        "err_verify_timeout": "لم يرسل خادم البريد رمز التحقق إلى خادم الترحيل خلال 75 ثانية. تأكد من أن الخادم يمكنه الوصول إلى رابط خادم الترحيل.",
         "phase_account": "الحساب",
         "phase_distributor": "موزّع UnifiedPush",
         "phase_jmap": "الاشتراك في خادم البريد",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME غير متاح في تطبيق الجوال بعد. أدِر المفاتيح والشهادات في بريد الويب؛ تُعرض الرسائل الموقّعة هنا دون تحقق."
     },
     "tabs": {
-      "plugins": "الإضافات"
+      "plugins": "الإضافات",
+      "themes": "السمات",
+      "updates": "التحديثات"
     },
     "templates": {
-      "delete_title": "حذف القالب"
+      "delete_confirm": "حذف \"{name}\" نهائيًا؟",
+      "delete_title": "حذف القالب",
+      "description_mobile": "مقتطفات قابلة لإعادة الاستخدام للردود الشائعة. اضغط على أحدها لتعديله، واضغط مطولًا لحذفه.",
+      "export_failed": "فشل التصدير",
+      "import_failed": "فشل الاستيراد",
+      "imported": "تم الاستيراد",
+      "imported_count": "{count, plural, zero {تمت إضافة # قالب.} one {تمت إضافة قالب واحد.} two {تمت إضافة قالبين.} few {تمت إضافة # قوالب.} many {تمت إضافة # قالبًا.} other {تمت إضافة # قالب.}}",
+      "is_html": "النص بتنسيق HTML",
+      "placeholders_hint": "المتغيرات النائبة: {{recipient_name}}، {{company}}، {{date}}، {{day_of_week}}، {{sender_name}}",
+      "share_unavailable": "تتعذّر المشاركة"
     },
     "themes": {
       "default_description": "لوحات الألوان الفاتحة والداكنة الافتراضية.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "اضغط مطولًا لإزالة هذا الحساب",
     "remove_account_message": "تسجيل الخروج من {account} على هذا الجهاز. يبقى بريدك على الخادم.",
     "remove_account_title": "إزالة الحساب؟",
-    "show_unread": "إظهار غير المقروءة"
+    "show_unread": "إظهار غير المقروءة",
+    "tab_unavailable": "{name} (غير متاح)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, zero {تعذّر تحميل # حساب} one {تعذّر تحميل حساب واحد} two {تعذّر تحميل حسابين} few {تعذّر تحميل # حسابات} many {تعذّر تحميل # حسابًا} other {تعذّر تحميل # حساب}}"
   },
   "updates": {
     "advisory": "نشرة أمنية",

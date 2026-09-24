@@ -6,6 +6,13 @@
     "not_starred": "Ikke stjernemarkerede"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minut efter} other {# minutter efter}}"
+    },
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Blågrøn"
+    },
     "drawer": {
       "my_calendars": "Mine kalendere",
       "no_calendars": "Ingen kalendere endnu.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Sted eller adresse",
       "time": "Tid"
     },
+    "import": {
+      "file_too_large_max": "Filen er for stor (maks. {size} MB).",
+      "imported_count": "{count, plural, one {# begivenhed importeret.} other {# begivenheder importeret.}}",
+      "no_calendar": "Opret en kalender, før du importerer begivenheder.",
+      "no_calendar_title": "Ingen kalender",
+      "picker_error": "Kunne ikke åbne filvælgeren",
+      "picker_unavailable": "Filvælgeren er ikke installeret i denne build. Byg appen igen for at aktivere import.",
+      "picker_unavailable_title": "Import ikke tilgængelig",
+      "refused_count": "{count, plural, one {# begivenhed kunne ikke importeres:} other {# begivenheder kunne ikke importeres:}}",
+      "refused_message": "{count, plural, =1 {Begivenheden kunne ikke importeres: {reason}} one {# begivenhed kunne ikke importeres: {reason}} other {# begivenheder kunne ikke importeres: {reason}}}",
+      "selected_count": "{count, plural, one {# valgt} other {# valgte}}"
+    },
     "invitation": {
       "accept": "Ja",
       "add_error": "Kunne ikke tilføje begivenheden",
@@ -42,6 +61,10 @@
       "response_sent": "Svar sendt",
       "tentative": "Måske",
       "title": "Kalenderinvitation",
+      "trust_authentication_failed": "Denne besked bestod ikke afsendergodkendelsen (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Afsenderen kunne ikke bekræftes.",
+      "trust_sender_mismatch": "Afsenderen er ikke begivenhedens arrangør.",
+      "trust_sender_mismatch_unverified": "Afsenderen matcher ikke arrangøren, og beskeden er ikke godkendt.",
       "trust_verified": "Afsender bekræftet"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Redigér kalender",
       "new_calendar": "Ny kalender"
     },
+    "notifications": {
+      "channel_name": "Kalenderpåmindelser",
+      "starts_in_days": "{count, plural, one {Starter om # dag} other {Starter om # dage}}",
+      "starts_in_hours": "{count, plural, one {Starter om # time} other {Starter om # timer}}",
+      "starts_in_minutes": "{count, plural, one {Starter om # minut} other {Starter om # minutter}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {gentagelse} other {gentagelser}}",
+      "every_count_days": "{count, plural, one {Hver dag} other {Hver #. dag}}",
+      "every_count_months": "{count, plural, one {Hver måned} other {Hver #. måned}}",
+      "every_count_weeks": "{count, plural, one {Hver uge} other {Hver #. uge}}",
+      "every_count_years": "{count, plural, one {Hvert år} other {Hvert #. år}}",
+      "occurrence_count": "{count, plural, one {# forekomst} other {# forekomster}}",
+      "until_date": "Indtil {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Vis ugenumre i månedsvisningen.",
       "time_zone": "Tidszone",
       "time_zone_auto": "Enhedens tidszone",
+      "time_zone_auto_zone": "Enhedens tidszone ({zone})",
       "time_zone_desc": "Tidszone til nye begivenheder og til visning af kalenderen. \"Enhedens tidszone\" følger telefonen."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Søg efter navn eller e-mail",
       "shared_with": "Delt med"
     },
+    "subscription": {
+      "add_feed": "Tilføj et feed",
+      "feed_too_large": "Feedet er for stort",
+      "fetch_failed": "Kunne ikke hente feedet (HTTP {status})",
+      "name_and_url_required": "Indtast et navn og en feed-URL.",
+      "not_a_feed": "URL'en returnerede ikke et iCalendar-feed",
+      "not_synced": "Ikke synkroniseret endnu",
+      "url_scheme_invalid": "URL'en skal starte med https://, http://, webcal:// eller webcals://",
+      "your_subscriptions": "Dine abonnementer"
+    },
     "tasks": {
       "add_placeholder": "Tilføj en opgave…",
       "add_time": "Tilføj tidspunkt",
+      "clear_due_date": "Ryd forfaldsdato",
       "delete_error": "Kunne ikke slette opgaven",
+      "not_found": "Denne opgave er ikke længere tilgængelig.",
+      "save_error": "Kunne ikke gemme opgaven",
       "update_error": "Kunne ikke opdatere opgaven"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Opret",
     "dismiss": "Afvis",
     "done": "Færdig",
+    "open": "Åbn",
+    "open_link_message": "Dette åbner {host} uden for appen.",
+    "open_link_title": "Åbn link?",
     "remove": "Fjern",
     "retry": "Prøv igen",
     "undo": "Fortryd",
     "update": "Opdater"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Slet \"{name}\"? Dette kan ikke fortrydes.} one {Slet \"{name}\"? # kontakt i adressebogen slettes også. Dette kan ikke fortrydes.} other {Slet \"{name}\"? # kontakter i adressebogen slettes også. Dette kan ikke fortrydes.}}"
+    },
+    "all_contacts": "Alle kontakter",
+    "bulk": {
+      "add_tag": "Tilføj kategori",
+      "delete_confirm_mobile": "{count, plural, one {Slet # kontakt? Dette kan ikke fortrydes.} other {Slet # kontakter? Dette kan ikke fortrydes.}}",
+      "move_to_address_book": "Flyt til adressebog",
+      "tag_failed": "Kunne ikke tildele kategori"
+    },
+    "contact": "Kontakt",
+    "create_hint_mobile": "Tryk længe for at oprette en gruppe i stedet",
+    "detail": {
+      "add_to_group_failed": "Kunne ikke tilføje til gruppe",
+      "copy_name": "{name} (kopi)",
+      "created_on": "Oprettet {date}",
+      "duplicate_failed": "Kunne ikke duplikere",
+      "duplicate_no_book": "Kan ikke duplikere uden en adressebog.",
+      "no_address_book": "Ingen adressebog",
+      "not_found": "Kontakten blev ikke fundet",
+      "open_dialer_failed": "Kan ikke åbne telefonappen",
+      "open_link_failed": "Kan ikke åbne linket",
+      "open_maps_failed": "Kan ikke åbne kortappen",
+      "open_sms_failed": "Kan ikke åbne beskedappen",
+      "share": "Del",
+      "share_title": "Del {name}",
+      "sms": "SMS",
+      "timezone_value": "Tidszone: {zone}",
+      "updated_on": "Opdateret {date}"
+    },
+    "empty_state_hint_mobile": "Tryk på + for at tilføje en",
+    "export": {
+      "failed": "Eksport mislykkedes"
+    },
+    "form": {
+      "add_nickname": "Tilføj kaldenavn",
+      "add_note": "Tilføj note",
+      "add_organization": "Tilføj organisation",
+      "address_book_required": "Vælg en adressebog for at gemme denne kontakt.",
+      "categories_placeholder_mobile": "Tilføj kategori, og tryk på Enter",
+      "context_none": "Ingen",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY eller --MM-DD",
+      "display_name_optional": "Visningsnavn (valgfrit)",
+      "display_name_placeholder": "Brugerdefineret visningsnavn",
+      "edit_named": "Redigér {name}",
+      "gender_unspecified": "Ikke angivet",
+      "grammatical_gender": "Grammatisk køn",
+      "invalid_date_message": "\"{date}\" er ikke en dato. Brug YYYY-MM-DD, YYYY-MM, YYYY eller --MM-DD.",
+      "invalid_date_title": "Ugyldig dato",
+      "invalid_email_message": "\"{address}\" er ikke en gyldig e-mailadresse.",
+      "invalid_email_title": "Ugyldig e-mail",
+      "label": "Etiket",
+      "label_placeholder": "Arbejde, Privat, …",
+      "missing_address_book": "Adressebog mangler",
+      "missing_info": "Manglende oplysninger",
+      "name_or_email_required": "Tilføj et navn eller mindst én e-mail.",
+      "new_organization": "Ny organisation",
+      "org_name_required": "Tilføj organisationens navn.",
+      "photo_hint_mobile": "Tryk på billedet for at vælge et billede",
+      "photo_permission_message": "Giv adgang til fotobiblioteket for at vælge et kontaktbillede.",
+      "photo_permission_title": "Adgang til fotos påkrævet",
+      "pick_date": "Vælg en dato",
+      "pronouns": "Pronominer",
+      "pronouns_placeholder": "de/dem",
+      "url": "URL"
+    },
+    "group": "Gruppe",
+    "groups": {
+      "add_member": "Tilføj medlem",
+      "add_members": "Tilføj medlemmer",
+      "add_members_failed": "Kunne ikke tilføje medlemmer",
+      "create_ellipsis": "Ny gruppe…",
+      "delete_confirm_named": "Slet \"{name}\"? Medlemmerne slettes ikke.",
+      "delete_failed": "Kunne ikke slette gruppen",
+      "email_all": "Send e-mail til alle",
+      "members_with_count": "Medlemmer ({count})",
+      "no_emails": "Ingen e-mailadresser",
+      "no_members_hint": "Tryk på \"Tilføj medlem\" for at komme i gang",
+      "not_found": "Gruppen blev ikke fundet",
+      "remove_member": "Fjern medlem",
+      "remove_member_confirm": "Fjern \"{name}\" fra denne gruppe?",
+      "remove_member_failed": "Kunne ikke fjerne medlemmet"
+    },
+    "import": {
+      "change_target": "Skift",
+      "choose_file_mobile": "Vælg en vCard-fil",
+      "failed_count": "{count, plural, one {# kontakt kunne ikke importeres.} other {# kontakter kunne ikke importeres.}}",
+      "import_count": "Importér {count}",
+      "into_address_book": "Importér til adressebog",
+      "into_named": "Importér til {name}",
+      "no_address_book": "Opret en adressebog, før du importerer kontakter.",
+      "picker_failed": "Kunne ikke åbne filvælgeren"
+    },
+    "no_tags_hint": "Ingen kategorier endnu. Skriv en ovenfor.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Tilføj} other {Tilføj (#)}}",
+      "title": "Tilføj kontakt"
+    },
+    "rename_tag_hint_mobile": "Tryk længe på en kategori for at omdøbe den",
+    "tag_name_placeholder": "Navn på ny kategori",
+    "unnamed": "Unavngivet"
   },
   "context_menu": {
     "color_tag": "Tag",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Glemt en vedhæftning?",
     "attachments_too_large_total": "Vedhæftningerne ville overskride de {max}, som denne server tillader pr. besked.",
     "editor_unavailable": "Beskedens indhold kunne ikke læses. Kopiér din tekst, og luk og genåbn derefter editoren.",
+    "from_options": "Afsenderindstillinger",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitet ikke tilgængelig",
     "image_load_failed": "Kunne ikke indlæse billede",
     "no_recipient": "(ingen modtager)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Kopiér adresse",
     "recipient_move_to": "Flyt til {field}",
     "recipient_remove": "Fjern",
+    "remove_attachment": "Fjern vedhæftning",
     "save_draft": "Gem kladde",
     "save_failed_no_drafts": "Der er ingen Kladder-mappe at gemme denne kladde i.",
     "save_failed_no_identity": "Dine afsenderidentiteter kunne ikke indlæses, så denne kladde kan ikke gemmes. Tjek din forbindelse, eller kopiér din tekst, før du lukker.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Beskeden er muligvis allerede sendt. Tjek din Sendt-mappe, før du sender den igen.",
     "send_timeout_title": "Intet svar fra serveren",
     "undo_send_label": "Sender om {seconds} s…",
+    "upload_failed_short": "Upload mislykkedes",
     "uploading": "Uploader...",
+    "uploading_pct": "Uploader {pct} %",
     "validation": {
       "subject_required": "Tilføj et emne"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-mail} other {# e-mails}} arkiveret",
     "emails_moved_to": "{count, plural, one {# e-mail} other {# e-mails}} flyttet til {mailbox}",
     "error": "Fejl",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtrér e-mails",
+    "folder_counts": "{total} i alt · {unread} ulæste",
+    "import": {
+      "none": "Ingen beskeder blev importeret.",
+      "partial": "{imported} importeret, {failed} mislykkedes.",
+      "success": "{count, plural, one {# besked importeret.} other {# beskeder importeret.}}",
+      "title": "Import"
+    },
     "marked_as_spam": "Markeret som spam",
     "marked_as_spam_count": "{count, plural, one {# e-mail} other {# e-mails}} markeret som spam",
     "marked_not_spam": "Markeret som ikke spam",
@@ -156,10 +328,12 @@
     "outbox_discard": "Kassér",
     "outbox_failed": "{count} ændringer kunne ikke gemmes på serveren.",
     "recent_searches": "Seneste søgninger",
+    "remove_filter": "Fjern filteret {label}",
     "scope_all_folders": "Alle mapper",
     "scope_this_folder": "Denne mappe",
     "search_placeholder": "Søg i mail...",
     "showing_cached": "Viser mail fra cachen",
+    "sort_toggle_hint": "Vender sorteringsrækkefølgen for mails om",
     "swipe_move": "Flyt",
     "swipe_spam": "Spam",
     "total": "i alt",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Denne besked slettes permanent og kan ikke gendannes.",
     "delete_permanently_title": "Slet permanent?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fil} other {# filer}} · {size}",
+      "received_after_delay": "{date} · leveringstid {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Eksport mislykkedes",
     "forwarded": "Videresendt",
     "load_failed": "Kunne ikke indlæse e-mail",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Mapper slettes sammen med alt deres indhold. Dette kan ikke fortrydes.",
     "delete_item_title": "Slet dette element?",
+    "delete_items_title": "{count, plural, one {Slet # element?} other {Slet # elementer?}}",
     "done": "Færdig",
+    "download_failed_status": "Download mislykkedes (HTTP {status})",
     "folder_empty": "Denne mappe er tom",
     "invalid_name": "Ugyldigt navn",
     "invalid_name_slash": "Navne må ikke indeholde \"/\".",
@@ -234,6 +415,7 @@
     "open_error": "Kunne ikke åbne filen",
     "open_with": "Åbn med…",
     "preview_too_large": "Denne fil er for stor til forhåndsvisning.",
+    "selected_count": "{count, plural, one {# valgt} other {# valgte}}",
     "share_add_people": "Tilføj personer",
     "share_empty": "Ikke delt med nogen endnu",
     "share_error": "Kunne ikke opdatere deling",
@@ -244,9 +426,11 @@
     "share_remove": "Fjern adgang",
     "share_role_custom": "Tilpasset",
     "share_search_placeholder": "Søg efter navn eller e-mail",
+    "share_unavailable": "Deling er ikke tilgængelig på denne enhed",
     "shared_with": "Delt med",
     "sharing_access": "Deling og adgang",
-    "upload_unavailable": "Filvælgeren er ikke installeret i denne build. Byg appen igen for at aktivere upload."
+    "upload_unavailable": "Filvælgeren er ikke installeret i denne build. Byg appen igen for at aktivere upload.",
+    "uploading_progress": "Uploader {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Du er offline",
-    "queued_changes": "{count, plural, one {# ændring} other {# ændringer}} synkroniseres, når du har forbindelse igen"
+    "queued_changes": "{count, plural, one {# ændring} other {# ændringer}} synkroniseres, når du har forbindelse igen",
+    "sync": {
+      "cached_count": "{count, plural, one {# ny besked gemt i cachen} other {# nye beskeder gemt i cachen}} • {size}",
+      "cancelled": "Synkronisering annulleret",
+      "failed": "Offlinesynkronisering mislykkedes",
+      "processed": "{completed}/{total} behandlet",
+      "ready": "Offlinemail er klar",
+      "syncing": "Synkroniserer offlinemail",
+      "title": "Offlinesynkronisering",
+      "unable_to_download": "Kan ikke downloade",
+      "up_to_date": "Allerede opdateret"
+    }
   },
   "push_prompt": {
     "body": "Slå baggrundsnotifikationer til, så nye beskeder når frem til dig, mens appen er lukket.",
@@ -399,6 +594,15 @@
       "not_implemented": "Ikke implementeret",
       "unavailable": "Ikke tilgængelig"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# kontakt} other {# kontakter}}",
+      "default_book": "Standardadressebog",
+      "description_mobile": "Visningsindstillinger og værktøjer til adressebøger.",
+      "export_description_count": "{count, plural, one {Eksportér # kontakt som én vCard-fil.} other {Eksportér # kontakter som én vCard-fil.}}",
+      "export_empty": "Ingen kontakter at eksportere",
+      "import_description_mobile": "Importér kontakter fra en vCard-fil (.vcf) med registrering af dubletter.",
+      "manage_description_mobile": "Opret, omdøb og fjern de adressebøger, der organiserer dine kontakter."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Skabelon, der bruges, når en vedhæftning gemmes eller deles."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Svar sendes altid fra den identitet, som en besked blev sendt til. Når dette er slået til, sendes et svar til en anden adresse på dine domæner (et catch-all-alias) også fra den adresse."
       },
+      "content_senders_description_mobile": "Styr, hvordan eksterne ressourcer og sporingspixels håndteres.",
+      "external_content": {
+        "allow_mobile": "Tillad",
+        "ask_mobile": "Spørg",
+        "block_mobile": "Blokér"
+      },
       "plain_text_mode": {
         "description_mobile": "Skriv og læs kun i ren tekst."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Handling, når du trækker en række fra dens venstre kant mod højre.",
         "label_mobile": "Stryg til højre (venstre → højre)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Eksternt indhold indlæses altid for afsendere på denne liste.",
+        "description_synced_mobile": "Eksternt indhold indlæses altid for afsendere på denne liste. {count} synkroniseret via din adressebog.",
+        "sync_add_failed": "Kunne ikke synkronisere til adressebogen",
+        "sync_remove_failed": "Kunne ikke fjerne fra adressebogen",
+        "synced_badge": "Synkroniseret via adressebog"
       }
     },
     "experimental": {
       "title": "Eksperimentel funktion"
+    },
+    "filters": {
+      "remove_action": "Fjern handling",
+      "remove_condition": "Fjern betingelse",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# linje} other {# linjer}}"
+      }
     },
     "folders": {
       "account": "Konto",
@@ -476,6 +700,7 @@
       "delete_title": "Slet identitet",
       "description_mobile": "Administrér afsendernavne, e-mailadresser og signaturer. Tryk på en række for at redigere.",
       "display_name": "Visningsnavn",
+      "display_name_placeholder": "Jens Hansen",
       "edit": "Redigér identitet",
       "email_address": "E-mailadresse",
       "email_locked": "JMAP tillader ikke, at en identitets e-mailadresse ændres; opret i stedet en ny.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Vis samlet antal beskeder ved mapper",
       "show_folder_total_count_description": "Vis det samlede antal ved siden af antallet af ulæste i mappelisten.",
       "swipe_mode": {
+        "description": "Vælg Øjeblikkelig (stryg forbi tærsklen for at udføre handlingen) eller Vis (stryg for at vise en handlingsbjælke, og tryk så for at bekræfte).",
         "instant": "Øjeblikkelig (stryg = handling)",
+        "label": "Strygeadfærd",
         "reveal": "Vis (stryg, og tryk så)"
       },
       "unified_cross_account": "Samlede visninger på tværs af konti",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Denne enhed stopper med at modtage notifikationer om ny mail for denne konto.",
         "description_mobile": "Modtag systemnotifikationer om ny mail, når appen er lukket. Leveres via Bulwark-push-relæet; relæet ser aldrig mailindhold.",
+        "err_android_only": "Pushnotifikationer er kun tilgængelige på Android.",
+        "err_fcm_empty": "Firebase returnerede et tomt enhedstoken.",
+        "err_fcm_token": "Firebase kunne ikke udstede et enhedstoken ({detail}). Push via FCM kræver Google Play-tjenester på denne enhed.",
+        "err_fcm_token_up": "Firebase kunne ikke udstede et enhedstoken ({detail}). Push via FCM kræver Google Play-tjenester på denne enhed. Denne enhed har en UnifiedPush-distributør installeret - skift leveringsmetoden til UnifiedPush i stedet.",
+        "err_jmap_refused": "Mailserveren afviste pushabonnementet: {detail}",
+        "err_no_account": "Ingen konto indlæst - kan ikke konfigurere push.",
+        "err_permission": "Tilladelse til notifikationer blev ikke givet.",
+        "err_relay_https": "Relæets URL skal bruge https://.",
+        "err_relay_rejected": "Push-relæet afviste registreringen: {detail}",
+        "err_relay_unreachable": "Kunne ikke nå push-relæet på {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush er kun tilgængelig på Android.",
+        "err_verify_rejected": "Mailserveren afviste bekræftelseskoden: {detail}",
+        "err_verify_relay": "Relæet modtog aldrig bekræftelseskoden fra mailserveren (seneste svar fra relæet: {detail}).",
+        "err_verify_timeout": "Mailserveren sendte ikke en bekræftelseskode til relæet inden for 75 s. Tjek, at serveren kan nå relæets URL.",
         "phase_account": "Konto",
         "phase_distributor": "UnifiedPush-distributør",
         "phase_jmap": "Abonnement på mailserver",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME er endnu ikke tilgængelig i mobilappen. Administrér nøgler og certifikater i webmailen; signerede beskeder vises her uden verifikation."
     },
     "tabs": {
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "themes": "Temaer",
+      "updates": "Opdateringer"
     },
     "templates": {
-      "delete_title": "Slet skabelon"
+      "delete_confirm": "Slet \"{name}\" permanent?",
+      "delete_title": "Slet skabelon",
+      "description_mobile": "Genanvendelige tekststykker til almindelige svar. Tryk på et for at redigere; tryk længe for at slette.",
+      "export_failed": "Eksport mislykkedes",
+      "import_failed": "Import mislykkedes",
+      "imported": "Importeret",
+      "imported_count": "{count, plural, one {# skabelon} other {# skabeloner}} tilføjet.",
+      "is_html": "Brødteksten er HTML",
+      "placeholders_hint": "Pladsholdere: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Kan ikke dele"
     },
     "themes": {
       "default_description": "Standardpaletterne til lys og mørk.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Tryk længe for at fjerne denne konto",
     "remove_account_message": "Log ud af {account} på denne enhed. Din mail bliver på serveren.",
     "remove_account_title": "Fjern konto?",
-    "show_unread": "Vis ulæste"
+    "show_unread": "Vis ulæste",
+    "tab_unavailable": "{name} (ikke tilgængelig)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# konto kunne ikke indlæses} other {# konti kunne ikke indlæses}}"
   },
   "updates": {
     "advisory": "Sikkerhedsmeddelelse",

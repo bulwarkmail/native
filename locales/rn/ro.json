@@ -6,6 +6,13 @@
     "not_starred": "Fără stea"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minut după} few {# minute după} other {# de minute după}}"
+    },
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Turcoaz"
+    },
     "drawer": {
       "my_calendars": "Calendarele mele",
       "no_calendars": "Niciun calendar încă.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Loc sau adresă",
       "time": "Ora"
     },
+    "import": {
+      "file_too_large_max": "Fișierul este prea mare (max. {size} MB).",
+      "imported_count": "{count, plural, one {A fost importat # eveniment.} few {Au fost importate # evenimente.} other {Au fost importate # de evenimente.}}",
+      "no_calendar": "Creați un calendar înainte de a importa evenimente.",
+      "no_calendar_title": "Niciun calendar",
+      "picker_error": "Selectorul de fișiere nu a putut fi deschis",
+      "picker_unavailable": "Selectorul de fișiere nu este instalat în această versiune. Recompilați aplicația pentru a activa importul.",
+      "picker_unavailable_title": "Import indisponibil",
+      "refused_count": "{count, plural, one {# eveniment nu a putut fi importat:} few {# evenimente nu au putut fi importate:} other {# de evenimente nu au putut fi importate:}}",
+      "refused_message": "{count, plural, =1 {Evenimentul nu a putut fi importat: {reason}} one {# eveniment nu a putut fi importat: {reason}} few {# evenimente nu au putut fi importate: {reason}} other {# de evenimente nu au putut fi importate: {reason}}}",
+      "selected_count": "{count, plural, one {# eveniment selectat} few {# evenimente selectate} other {# de evenimente selectate}}"
+    },
     "invitation": {
       "accept": "Da",
       "add_error": "Evenimentul nu a putut fi adăugat",
@@ -42,6 +61,10 @@
       "response_sent": "Răspuns trimis",
       "tentative": "Poate",
       "title": "Invitație în calendar",
+      "trust_authentication_failed": "Acest mesaj nu a trecut de autentificarea expeditorului (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Expeditorul nu a putut fi verificat.",
+      "trust_sender_mismatch": "Expeditorul diferă de organizatorul evenimentului.",
+      "trust_sender_mismatch_unverified": "Expeditorul nu corespunde organizatorului, iar mesajul nu este autentificat.",
       "trust_verified": "Expeditor verificat"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Editați calendarul",
       "new_calendar": "Calendar nou"
     },
+    "notifications": {
+      "channel_name": "Mementouri din calendar",
+      "starts_in_days": "{count, plural, one {Începe peste # zi} few {Începe peste # zile} other {Începe peste # de zile}}",
+      "starts_in_hours": "{count, plural, one {Începe peste # oră} few {Începe peste # ore} other {Începe peste # de ore}}",
+      "starts_in_minutes": "{count, plural, one {Începe peste # minut} few {Începe peste # minute} other {Începe peste # de minute}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {ocurență} few {ocurențe} other {de ocurențe}}",
+      "every_count_days": "{count, plural, one {În fiecare zi} few {La fiecare # zile} other {La fiecare # de zile}}",
+      "every_count_months": "{count, plural, one {În fiecare lună} few {La fiecare # luni} other {La fiecare # de luni}}",
+      "every_count_weeks": "{count, plural, one {În fiecare săptămână} few {La fiecare # săptămâni} other {La fiecare # de săptămâni}}",
+      "every_count_years": "{count, plural, one {În fiecare an} few {La fiecare # ani} other {La fiecare # de ani}}",
+      "occurrence_count": "{count, plural, one {# ocurență} few {# ocurențe} other {# de ocurențe}}",
+      "until_date": "Până la {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Afișați numerele săptămânilor în vizualizarea lunară.",
       "time_zone": "Fus orar",
       "time_zone_auto": "Fusul orar al dispozitivului",
+      "time_zone_auto_zone": "Fusul orar al dispozitivului ({zone})",
       "time_zone_desc": "Fusul folosit pentru evenimentele noi și pentru interpretarea calendarului. „Dispozitiv” urmează fusul telefonului."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Căutați după nume sau adresă de e-mail",
       "shared_with": "Partajat cu"
     },
+    "subscription": {
+      "add_feed": "Adăugați un flux",
+      "feed_too_large": "Fluxul este prea mare",
+      "fetch_failed": "Fluxul nu a putut fi preluat (HTTP {status})",
+      "name_and_url_required": "Introduceți un nume și adresa URL a fluxului.",
+      "not_a_feed": "Adresa URL nu a returnat un flux iCalendar",
+      "not_synced": "Nesincronizat încă",
+      "url_scheme_invalid": "Adresa URL trebuie să înceapă cu https://, http://, webcal:// sau webcals://",
+      "your_subscriptions": "Abonamentele dvs."
+    },
     "tasks": {
       "add_placeholder": "Adăugați o sarcină…",
       "add_time": "Adăugați ora",
+      "clear_due_date": "Ștergeți termenul limită",
       "delete_error": "Sarcina nu a putut fi ștearsă",
+      "not_found": "Această sarcină nu mai este disponibilă.",
+      "save_error": "Sarcina nu a putut fi salvată",
       "update_error": "Sarcina nu a putut fi actualizată"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Creați",
     "dismiss": "Ignoră",
     "done": "Gata",
+    "open": "Deschide",
+    "open_link_message": "{host} se va deschide în afara aplicației.",
+    "open_link_title": "Deschideți linkul?",
     "remove": "Eliminați",
     "retry": "Reîncearcă",
     "undo": "Anulează",
     "update": "Actualizare"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Ștergeți „{name}”? Această acțiune nu poate fi anulată.} one {Ștergeți „{name}”? Conține # contact, care va fi șters și el. Această acțiune nu poate fi anulată.} few {Ștergeți „{name}”? Conține # contacte, care vor fi șterse și ele. Această acțiune nu poate fi anulată.} other {Ștergeți „{name}”? Conține # de contacte, care vor fi șterse și ele. Această acțiune nu poate fi anulată.}}"
+    },
+    "all_contacts": "Toate contactele",
+    "bulk": {
+      "add_tag": "Adăugați etichetă",
+      "delete_confirm_mobile": "{count, plural, one {Ștergeți # contact? Această acțiune nu poate fi anulată.} few {Ștergeți # contacte? Această acțiune nu poate fi anulată.} other {Ștergeți # de contacte? Această acțiune nu poate fi anulată.}}",
+      "move_to_address_book": "Mutați în agendă",
+      "tag_failed": "Etichetarea a eșuat"
+    },
+    "contact": "Contact",
+    "create_hint_mobile": "Apăsați lung pentru a crea un grup",
+    "detail": {
+      "add_to_group_failed": "Adăugarea în grup a eșuat",
+      "copy_name": "{name} (copie)",
+      "created_on": "Creat la {date}",
+      "duplicate_failed": "Duplicarea a eșuat",
+      "duplicate_no_book": "Nu se poate duplica fără o agendă.",
+      "no_address_book": "Nicio agendă",
+      "not_found": "Contactul nu a fost găsit",
+      "open_dialer_failed": "Aplicația de apelare nu poate fi deschisă",
+      "open_link_failed": "Linkul nu poate fi deschis",
+      "open_maps_failed": "Aplicația de hărți nu poate fi deschisă",
+      "open_sms_failed": "Aplicația de mesagerie nu poate fi deschisă",
+      "share": "Partajare",
+      "share_title": "Partajați {name}",
+      "sms": "SMS",
+      "timezone_value": "Fus orar: {zone}",
+      "updated_on": "Actualizat la {date}"
+    },
+    "empty_state_hint_mobile": "Atingeți + pentru a adăuga unul",
+    "export": {
+      "failed": "Exportul a eșuat"
+    },
+    "form": {
+      "add_nickname": "Adăugați pseudonim",
+      "add_note": "Adăugați notă",
+      "add_organization": "Adăugați organizație",
+      "address_book_required": "Selectați o agendă pentru a salva acest contact.",
+      "categories_placeholder_mobile": "Adăugați o etichetă și apăsați Enter",
+      "context_none": "Niciunul",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY sau --MM-DD",
+      "display_name_optional": "Nume afișat (opțional)",
+      "display_name_placeholder": "Nume afișat personalizat",
+      "edit_named": "Editați {name}",
+      "gender_unspecified": "Nespecificat",
+      "grammatical_gender": "Gen gramatical",
+      "invalid_date_message": "„{date}” nu este o dată. Folosiți YYYY-MM-DD, YYYY-MM, YYYY sau --MM-DD.",
+      "invalid_date_title": "Dată invalidă",
+      "invalid_email_message": "„{address}” nu este o adresă de e-mail validă.",
+      "invalid_email_title": "Adresă de e-mail invalidă",
+      "label": "Etichetă",
+      "label_placeholder": "Serviciu, Personal, …",
+      "missing_address_book": "Lipsește agenda",
+      "missing_info": "Informații lipsă",
+      "name_or_email_required": "Adăugați un nume sau cel puțin o adresă de e-mail.",
+      "new_organization": "Organizație nouă",
+      "org_name_required": "Adăugați numele organizației.",
+      "photo_hint_mobile": "Atingeți fotografia pentru a alege o imagine",
+      "photo_permission_message": "Acordați permisiunea pentru galeria foto pentru a alege o fotografie de contact.",
+      "photo_permission_title": "Este necesar accesul la fotografii",
+      "pick_date": "Alegeți o dată",
+      "pronouns": "Pronume",
+      "pronouns_placeholder": "ea/el",
+      "url": "URL"
+    },
+    "group": "Grup",
+    "groups": {
+      "add_member": "Adăugați membru",
+      "add_members": "Adăugați membri",
+      "add_members_failed": "Membrii nu au putut fi adăugați",
+      "create_ellipsis": "Grup nou…",
+      "delete_confirm_named": "Ștergeți „{name}”? Membrii nu vor fi șterși.",
+      "delete_failed": "Grupul nu a putut fi șters",
+      "email_all": "Trimiteți e-mail tuturor",
+      "members_with_count": "Membri ({count})",
+      "no_emails": "Nicio adresă de e-mail",
+      "no_members_hint": "Atingeți „Adăugați membru” pentru a începe",
+      "not_found": "Grupul nu a fost găsit",
+      "remove_member": "Eliminați membrul",
+      "remove_member_confirm": "Eliminați „{name}” din acest grup?",
+      "remove_member_failed": "Membrul nu a putut fi eliminat"
+    },
+    "import": {
+      "change_target": "Modificați",
+      "choose_file_mobile": "Alegeți un fișier vCard",
+      "failed_count": "{count, plural, one {# contact nu a putut fi importat.} few {# contacte nu au putut fi importate.} other {# de contacte nu au putut fi importate.}}",
+      "import_count": "Importați {count}",
+      "into_address_book": "Importați în agendă",
+      "into_named": "Importați în {name}",
+      "no_address_book": "Creați o agendă înainte de a importa contacte.",
+      "picker_failed": "Selectorul de fișiere nu a putut fi deschis"
+    },
+    "no_tags_hint": "Nu există încă etichete. Introduceți una mai sus.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Adăugați} other {Adăugați (#)}}",
+      "title": "Adăugați contact"
+    },
+    "rename_tag_hint_mobile": "Apăsați lung o etichetă pentru a o redenumi",
+    "tag_name_placeholder": "Numele noii etichete",
+    "unnamed": "Fără nume"
   },
   "context_menu": {
     "color_tag": "Etichetă",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Ați uitat un atașament?",
     "attachments_too_large_total": "Atașamentele ar depăși limita de {max} per mesaj permisă de acest server.",
     "editor_unavailable": "Conținutul mesajului nu a putut fi citit. Copiați textul, apoi închideți și redeschideți editorul.",
+    "from_options": "Opțiuni expeditor",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitate indisponibilă",
     "image_load_failed": "Imaginea nu a putut fi încărcată",
     "no_recipient": "(fără destinatar)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Copiați adresa",
     "recipient_move_to": "Mutați la {field}",
     "recipient_remove": "Eliminați",
+    "remove_attachment": "Eliminați atașamentul",
     "save_draft": "Salvați ciorna",
     "save_failed_no_drafts": "Nu există un folder Ciorne în care să fie salvată această ciornă.",
     "save_failed_no_identity": "Identitățile dvs. de expeditor nu au putut fi încărcate, așa că această ciornă nu poate fi salvată. Verificați conexiunea sau copiați textul înainte de a închide.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Este posibil ca mesajul să fi fost deja trimis. Verificați folderul Trimise înainte de a-l trimite din nou.",
     "send_timeout_title": "Serverul nu răspunde",
     "undo_send_label": "Se trimite în {seconds} s…",
+    "upload_failed_short": "Încărcarea a eșuat",
     "uploading": "Se încarcă...",
+    "uploading_pct": "Se încarcă {pct}%",
     "validation": {
       "subject_required": "Adăugați un subiect"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-mail arhivat} few {# e-mailuri arhivate} other {# de e-mailuri arhivate}}",
     "emails_moved_to": "{count, plural, one {# e-mail mutat} few {# e-mailuri mutate} other {# de e-mailuri mutate}} în {mailbox}",
     "error": "Eroare",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtrați e-mailurile",
+    "folder_counts": "Total: {total} · Necitite: {unread}",
+    "import": {
+      "none": "Niciun mesaj nu a fost importat.",
+      "partial": "Importate: {imported}. Eșuate: {failed}.",
+      "success": "{count, plural, one {A fost importat # mesaj.} few {Au fost importate # mesaje.} other {Au fost importate # de mesaje.}}",
+      "title": "Import"
+    },
     "marked_as_spam": "Marcat ca spam",
     "marked_as_spam_count": "{count, plural, one {# e-mail marcat} few {# e-mailuri marcate} other {# de e-mailuri marcate}} ca spam",
     "marked_not_spam": "Marcat ca nefiind spam",
@@ -156,10 +328,12 @@
     "outbox_discard": "Ignorați",
     "outbox_failed": "{count, plural, one {# modificare nu a putut fi salvată} few {# modificări nu au putut fi salvate} other {# de modificări nu au putut fi salvate}} pe server.",
     "recent_searches": "Căutări recente",
+    "remove_filter": "Eliminați filtrul {label}",
     "scope_all_folders": "Toate folderele",
     "scope_this_folder": "Acest folder",
     "search_placeholder": "Căutare în e-mail...",
     "showing_cached": "Se afișează e-mailurile din cache",
+    "sort_toggle_hint": "Inversează ordinea de sortare a e-mailurilor",
     "swipe_move": "Mutare",
     "swipe_spam": "Spam",
     "total": "în total",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Acest mesaj va fi șters definitiv și nu va mai putea fi recuperat.",
     "delete_permanently_title": "Ștergeți definitiv?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fișier} few {# fișiere} other {# de fișiere}} · {size}",
+      "received_after_delay": "{date} · livrare în {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Exportul a eșuat",
     "forwarded": "Redirecționat",
     "load_failed": "E-mailul nu a putut fi încărcat",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Folderele sunt șterse împreună cu tot conținutul lor. Această acțiune nu poate fi anulată.",
     "delete_item_title": "Ștergeți acest element?",
+    "delete_items_title": "{count, plural, one {Ștergeți # element?} few {Ștergeți # elemente?} other {Ștergeți # de elemente?}}",
     "done": "Gata",
+    "download_failed_status": "Descărcarea a eșuat (HTTP {status})",
     "folder_empty": "Acest folder este gol",
     "invalid_name": "Nume invalid",
     "invalid_name_slash": "Numele nu pot conține „/”.",
@@ -234,6 +415,7 @@
     "open_error": "Fișierul nu a putut fi deschis",
     "open_with": "Deschideți cu…",
     "preview_too_large": "Acest fișier este prea mare pentru previzualizare.",
+    "selected_count": "{count, plural, one {# element selectat} few {# elemente selectate} other {# de elemente selectate}}",
     "share_add_people": "Adăugați persoane",
     "share_empty": "Nu a fost partajat încă cu nimeni",
     "share_error": "Nu s-a putut actualiza partajarea",
@@ -244,9 +426,11 @@
     "share_remove": "Eliminați accesul",
     "share_role_custom": "Personalizat",
     "share_search_placeholder": "Căutați după nume sau adresă de e-mail",
+    "share_unavailable": "Partajarea nu este disponibilă pe acest dispozitiv",
     "shared_with": "Partajat cu",
     "sharing_access": "Partajare și acces",
-    "upload_unavailable": "Selectorul de fișiere nu este instalat în această versiune. Recompilați aplicația pentru a activa încărcările."
+    "upload_unavailable": "Selectorul de fișiere nu este instalat în această versiune. Recompilați aplicația pentru a activa încărcările.",
+    "uploading_progress": "Se încarcă {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Sunteți offline",
-    "queued_changes": "{count, plural, one {# modificare va fi sincronizată} few {# modificări vor fi sincronizate} other {# de modificări vor fi sincronizate}} când vă reconectați"
+    "queued_changes": "{count, plural, one {# modificare va fi sincronizată} few {# modificări vor fi sincronizate} other {# de modificări vor fi sincronizate}} când vă reconectați",
+    "sync": {
+      "cached_count": "{count, plural, one {# mesaj nou salvat în cache} few {# mesaje noi salvate în cache} other {# de mesaje noi salvate în cache}} • {size}",
+      "cancelled": "Sincronizare anulată",
+      "failed": "Sincronizarea offline a eșuat",
+      "processed": "Procesate: {completed}/{total}",
+      "ready": "E-mailurile offline sunt pregătite",
+      "syncing": "Se sincronizează e-mailurile offline",
+      "title": "Sincronizare offline",
+      "unable_to_download": "Descărcarea nu a fost posibilă",
+      "up_to_date": "Deja actualizat"
+    }
   },
   "push_prompt": {
     "body": "Activați notificările în fundal pentru a primi mesajele noi chiar și când aplicația este închisă.",
@@ -399,6 +594,15 @@
       "not_implemented": "Neimplementat",
       "unavailable": "Indisponibil"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# contact} few {# contacte} other {# de contacte}}",
+      "default_book": "Agendă implicită",
+      "description_mobile": "Preferințe de afișare și instrumente pentru agende.",
+      "export_description_count": "{count, plural, one {Exportă # contact ca un singur fișier vCard.} few {Exportă # contacte ca un singur fișier vCard.} other {Exportă # de contacte ca un singur fișier vCard.}}",
+      "export_empty": "Nu există contacte de exportat",
+      "import_description_mobile": "Importă contacte dintr-un fișier vCard (.vcf), cu detectarea duplicatelor.",
+      "manage_description_mobile": "Creați, redenumiți și eliminați agendele care vă organizează contactele."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Șablon utilizat la salvarea sau partajarea unui atașament."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Răspunsurile sunt trimise întotdeauna de la identitatea la care a fost trimis mesajul. Cu această opțiune activată, un răspuns către o altă adresă din domeniile dvs. (un alias „catch-all”) este trimis tot de la acea adresă."
       },
+      "content_senders_description_mobile": "Controlați modul în care sunt gestionate resursele externe și pixelii de urmărire.",
+      "external_content": {
+        "allow_mobile": "Permiteți",
+        "ask_mobile": "Întrebați",
+        "block_mobile": "Blocați"
+      },
       "plain_text_mode": {
         "description_mobile": "Scrieți și citiți numai în text simplu."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Acțiunea la glisarea unui rând de la marginea stângă spre dreapta.",
         "label_mobile": "Glisare spre dreapta (stânga → dreapta)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Conținutul extern se încarcă întotdeauna pentru expeditorii din această listă.",
+        "description_synced_mobile": "Conținutul extern se încarcă întotdeauna pentru expeditorii din această listă. {count, plural, one {# expeditor sincronizat} few {# expeditori sincronizați} other {# de expeditori sincronizați}} prin agenda dvs.",
+        "sync_add_failed": "Nu s-a putut sincroniza cu agenda",
+        "sync_remove_failed": "Nu s-a putut elimina din agendă",
+        "synced_badge": "Sincronizat prin agendă"
       }
     },
     "experimental": {
       "title": "Funcție experimentală"
+    },
+    "filters": {
+      "remove_action": "Eliminați acțiunea",
+      "remove_condition": "Eliminați condiția",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# linie} few {# linii} other {# de linii}}"
+      }
     },
     "folders": {
       "account": "Cont",
@@ -476,6 +700,7 @@
       "delete_title": "Ștergeți identitatea",
       "description_mobile": "Gestionați numele expeditorilor, adresele de e-mail și semnăturile. Atingeți un rând pentru a-l edita.",
       "display_name": "Nume afișat",
+      "display_name_placeholder": "Jane Doe",
       "edit": "Editați identitatea",
       "email_address": "Adresă de e-mail",
       "email_locked": "JMAP nu permite schimbarea adresei de e-mail a unei identități; creați în schimb una nouă.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Afișați numărul total de mesaje în foldere",
       "show_folder_total_count_description": "Afișează totalul lângă numărul de mesaje necitite în lista de foldere.",
       "swipe_mode": {
+        "description": "Alegeți instantaneu (glisați dincolo de prag pentru a declanșa acțiunea) sau dezvăluire (glisați pentru a afișa o bandă de acțiuni, apoi atingeți pentru a confirma).",
         "instant": "Instantaneu (glisare = acțiune)",
+        "label": "Comportament la glisare",
         "reveal": "Dezvăluire (glisați, apoi atingeți)"
       },
       "unified_cross_account": "Vizualizări unificate între conturi",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Acest dispozitiv nu va mai primi alerte pentru e-mailurile noi din acest cont.",
         "description_mobile": "Primiți notificări de sistem pentru e-mailurile noi când aplicația este închisă. Notificările sunt transmise prin relay-ul push Bulwark; relay-ul nu vede niciodată conținutul e-mailurilor.",
+        "err_android_only": "Notificările push sunt disponibile doar pe Android.",
+        "err_fcm_empty": "Firebase a returnat un token de dispozitiv gol.",
+        "err_fcm_token": "Firebase nu a putut emite un token de dispozitiv ({detail}). Notificările push prin FCM necesită serviciile Google Play pe acest dispozitiv.",
+        "err_fcm_token_up": "Firebase nu a putut emite un token de dispozitiv ({detail}). Notificările push prin FCM necesită serviciile Google Play pe acest dispozitiv. Pe acest dispozitiv este instalat un distribuitor UnifiedPush - schimbați metoda de livrare la UnifiedPush.",
+        "err_jmap_refused": "Serverul de e-mail a refuzat abonarea push: {detail}",
+        "err_no_account": "Niciun cont încărcat - notificările push nu pot fi configurate.",
+        "err_permission": "Permisiunea pentru notificări nu a fost acordată.",
+        "err_relay_https": "Adresa URL a relay-ului trebuie să folosească https://.",
+        "err_relay_rejected": "Relay-ul push a respins înregistrarea: {detail}",
+        "err_relay_unreachable": "Relay-ul push de la {url} nu a putut fi contactat ({detail}).",
+        "err_up_android_only": "UnifiedPush este disponibil doar pe Android.",
+        "err_verify_rejected": "Serverul de e-mail a respins codul de verificare: {detail}",
+        "err_verify_relay": "Relay-ul nu a primit niciodată codul de verificare de la serverul de e-mail (ultimul răspuns al relay-ului: {detail}).",
+        "err_verify_timeout": "Serverul de e-mail nu a trimis un cod de verificare către relay în 75 s. Verificați dacă serverul poate accesa adresa URL a relay-ului.",
         "phase_account": "Cont",
         "phase_distributor": "Distribuitor UnifiedPush",
         "phase_jmap": "Abonare la serverul de e-mail",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME nu este încă disponibil în aplicația mobilă. Gestionați cheile și certificatele în webmail; aici, mesajele semnate sunt afișate fără verificare."
     },
     "tabs": {
-      "plugins": "Pluginuri"
+      "plugins": "Pluginuri",
+      "themes": "Teme",
+      "updates": "Actualizări"
     },
     "templates": {
-      "delete_title": "Ștergeți șablonul"
+      "delete_confirm": "Ștergeți definitiv „{name}”?",
+      "delete_title": "Ștergeți șablonul",
+      "description_mobile": "Fragmente reutilizabile pentru răspunsuri frecvente. Atingeți unul pentru a-l edita; apăsați lung pentru a-l șterge.",
+      "export_failed": "Exportul a eșuat",
+      "import_failed": "Importul a eșuat",
+      "imported": "Import finalizat",
+      "imported_count": "{count, plural, one {A fost adăugat # șablon.} few {Au fost adăugate # șabloane.} other {Au fost adăugate # de șabloane.}}",
+      "is_html": "Corpul este HTML",
+      "placeholders_hint": "Câmpuri de substituție: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Nu se poate partaja"
     },
     "themes": {
       "default_description": "Paletele implicite, luminoasă și întunecată.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Apăsați lung pentru a elimina acest cont",
     "remove_account_message": "Deconectați {account} de pe acest dispozitiv. E-mailurile rămân pe server.",
     "remove_account_title": "Eliminați contul?",
-    "show_unread": "Afișați necitite"
+    "show_unread": "Afișați necitite",
+    "tab_unavailable": "{name} (indisponibil)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# cont nu a putut fi încărcat} few {# conturi nu au putut fi încărcate} other {# de conturi nu au putut fi încărcate}}"
   },
   "updates": {
     "advisory": "Aviz de securitate",

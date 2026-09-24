@@ -6,6 +6,13 @@
     "not_starred": "Non suivis"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minute après} other {# minutes après}}"
+    },
+    "colors": {
+      "indigo": "Indigo",
+      "teal": "Bleu canard"
+    },
     "drawer": {
       "my_calendars": "Mes calendriers",
       "no_calendars": "Aucun calendrier pour le moment.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Lieu ou adresse",
       "time": "Heure"
     },
+    "import": {
+      "file_too_large_max": "Ce fichier est trop volumineux (max. {size} Mo).",
+      "imported_count": "{count, plural, one {# événement importé.} other {# événements importés.}}",
+      "no_calendar": "Créez un calendrier avant d'importer des événements.",
+      "no_calendar_title": "Aucun calendrier",
+      "picker_error": "Impossible d'ouvrir le sélecteur de fichiers",
+      "picker_unavailable": "Le sélecteur de fichiers n'est pas installé dans cette version. Recompilez l'application pour activer l'importation.",
+      "picker_unavailable_title": "Importation indisponible",
+      "refused_count": "{count, plural, one {# événement n'a pas pu être importé :} other {# événements n'ont pas pu être importés :}}",
+      "refused_message": "{count, plural, =1 {L'événement n'a pas pu être importé : {reason}} one {# événement n'a pas pu être importé : {reason}} other {# événements n'ont pas pu être importés : {reason}}}",
+      "selected_count": "{count, plural, one {# sélectionné} other {# sélectionnés}}"
+    },
     "invitation": {
       "accept": "Oui",
       "add_error": "Impossible d'ajouter l'événement",
@@ -42,6 +61,10 @@
       "response_sent": "Réponse envoyée",
       "tentative": "Peut-être",
       "title": "Invitation calendrier",
+      "trust_authentication_failed": "Ce message a échoué à l'authentification de l'expéditeur (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "L'expéditeur n'a pas pu être vérifié.",
+      "trust_sender_mismatch": "L'expéditeur est différent de l'organisateur de l'événement.",
+      "trust_sender_mismatch_unverified": "L'expéditeur ne correspond pas à l'organisateur et le message n'est pas authentifié.",
       "trust_verified": "Expéditeur vérifié"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Modifier le calendrier",
       "new_calendar": "Nouveau calendrier"
     },
+    "notifications": {
+      "channel_name": "Rappels du calendrier",
+      "starts_in_days": "{count, plural, one {Commence dans # jour} other {Commence dans # jours}}",
+      "starts_in_hours": "{count, plural, one {Commence dans # heure} other {Commence dans # heures}}",
+      "starts_in_minutes": "{count, plural, one {Commence dans # minute} other {Commence dans # minutes}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",
+      "every_count_days": "{count, plural, one {Tous les jours} other {Tous les # jours}}",
+      "every_count_months": "{count, plural, one {Tous les mois} other {Tous les # mois}}",
+      "every_count_weeks": "{count, plural, one {Toutes les semaines} other {Toutes les # semaines}}",
+      "every_count_years": "{count, plural, one {Tous les ans} other {Tous les # ans}}",
+      "occurrence_count": "{count, plural, one {# occurrence} other {# occurrences}}",
+      "until_date": "Jusqu'au {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Afficher les numéros de semaine dans la vue mensuelle.",
       "time_zone": "Fuseau horaire",
       "time_zone_auto": "Fuseau horaire de l'appareil",
+      "time_zone_auto_zone": "Fuseau horaire de l'appareil ({zone})",
       "time_zone_desc": "Fuseau utilisé pour les nouveaux événements et pour l'affichage du calendrier. « Fuseau horaire de l'appareil » suit le téléphone."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Rechercher par nom ou e-mail",
       "shared_with": "Partagé avec"
     },
+    "subscription": {
+      "add_feed": "Ajouter un flux",
+      "feed_too_large": "Le flux est trop volumineux",
+      "fetch_failed": "Impossible de récupérer le flux (HTTP {status})",
+      "name_and_url_required": "Saisissez un nom et l'URL du flux.",
+      "not_a_feed": "Cette URL n'a pas renvoyé de flux iCalendar",
+      "not_synced": "Pas encore synchronisé",
+      "url_scheme_invalid": "L'URL doit commencer par https://, http://, webcal:// ou webcals://",
+      "your_subscriptions": "Vos abonnements"
+    },
     "tasks": {
       "add_placeholder": "Ajouter une tâche…",
       "add_time": "Ajouter une heure",
+      "clear_due_date": "Effacer la date d'échéance",
       "delete_error": "Échec de la suppression de la tâche",
+      "not_found": "Cette tâche n'est plus disponible.",
+      "save_error": "Échec de l'enregistrement de la tâche",
       "update_error": "Échec de la mise à jour de la tâche"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Créer",
     "dismiss": "Fermer",
     "done": "Terminé",
+    "open": "Ouvrir",
+    "open_link_message": "{host} va s'ouvrir en dehors de l'application.",
+    "open_link_title": "Ouvrir le lien ?",
     "remove": "Supprimer",
     "retry": "Réessayer",
     "undo": "Annuler",
     "update": "Mettre à jour"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Supprimer « {name} » ? Cette action est irréversible.} one {Supprimer « {name} » ? Il contient # contact, qui sera également supprimé. Cette action est irréversible.} other {Supprimer « {name} » ? Il contient # contacts, qui seront également supprimés. Cette action est irréversible.}}"
+    },
+    "all_contacts": "Tous les contacts",
+    "bulk": {
+      "add_tag": "Ajouter une catégorie",
+      "delete_confirm_mobile": "{count, plural, one {Supprimer # contact ? Cette action est irréversible.} other {Supprimer # contacts ? Cette action est irréversible.}}",
+      "move_to_address_book": "Déplacer vers un carnet d'adresses",
+      "tag_failed": "Échec de l'ajout de la catégorie"
+    },
+    "contact": "Contact",
+    "create_hint_mobile": "Appuyez longuement pour créer plutôt un groupe",
+    "detail": {
+      "add_to_group_failed": "Échec de l'ajout au groupe",
+      "copy_name": "{name} (copie)",
+      "created_on": "Créé le {date}",
+      "duplicate_failed": "Échec de la duplication",
+      "duplicate_no_book": "Impossible de dupliquer sans carnet d'adresses.",
+      "no_address_book": "Aucun carnet d'adresses",
+      "not_found": "Contact introuvable",
+      "open_dialer_failed": "Impossible d'ouvrir l'application Téléphone",
+      "open_link_failed": "Impossible d'ouvrir le lien",
+      "open_maps_failed": "Impossible d'ouvrir l'application de cartes",
+      "open_sms_failed": "Impossible d'ouvrir l'application SMS",
+      "share": "Partager",
+      "share_title": "Partager {name}",
+      "sms": "SMS",
+      "timezone_value": "Fuseau horaire : {zone}",
+      "updated_on": "Mis à jour le {date}"
+    },
+    "empty_state_hint_mobile": "Appuyez sur + pour en ajouter un",
+    "export": {
+      "failed": "Échec de l'exportation"
+    },
+    "form": {
+      "add_nickname": "Ajouter un surnom",
+      "add_note": "Ajouter une note",
+      "add_organization": "Ajouter une organisation",
+      "address_book_required": "Sélectionnez un carnet d'adresses pour enregistrer ce contact.",
+      "categories_placeholder_mobile": "Ajoutez une catégorie et appuyez sur Entrée",
+      "context_none": "Aucun",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY ou --MM-DD",
+      "display_name_optional": "Nom d'affichage (facultatif)",
+      "display_name_placeholder": "Nom d'affichage personnalisé",
+      "edit_named": "Modifier {name}",
+      "gender_unspecified": "Non précisé",
+      "grammatical_gender": "Genre grammatical",
+      "invalid_date_message": "« {date} » n'est pas une date. Utilisez YYYY-MM-DD, YYYY-MM, YYYY ou --MM-DD.",
+      "invalid_date_title": "Date non valide",
+      "invalid_email_message": "« {address} » n'est pas une adresse e-mail valide.",
+      "invalid_email_title": "E-mail non valide",
+      "label": "Libellé",
+      "label_placeholder": "Travail, Personnel, …",
+      "missing_address_book": "Carnet d'adresses manquant",
+      "missing_info": "Informations manquantes",
+      "name_or_email_required": "Ajoutez un nom ou au moins une adresse e-mail.",
+      "new_organization": "Nouvelle organisation",
+      "org_name_required": "Ajoutez le nom de l'organisation.",
+      "photo_hint_mobile": "Appuyez sur la photo pour choisir une image",
+      "photo_permission_message": "Autorisez l'accès à la photothèque pour choisir une photo de contact.",
+      "photo_permission_title": "Accès aux photos requis",
+      "pick_date": "Choisir une date",
+      "pronouns": "Pronoms",
+      "pronouns_placeholder": "iel/iels",
+      "url": "URL"
+    },
+    "group": "Groupe",
+    "groups": {
+      "add_member": "Ajouter un membre",
+      "add_members": "Ajouter des membres",
+      "add_members_failed": "Échec de l'ajout des membres",
+      "create_ellipsis": "Nouveau groupe…",
+      "delete_confirm_named": "Supprimer « {name} » ? Les membres ne seront pas supprimés.",
+      "delete_failed": "Échec de la suppression du groupe",
+      "email_all": "Écrire à tous",
+      "members_with_count": "Membres ({count})",
+      "no_emails": "Aucune adresse e-mail",
+      "no_members_hint": "Appuyez sur « Ajouter un membre » pour commencer",
+      "not_found": "Groupe introuvable",
+      "remove_member": "Retirer le membre",
+      "remove_member_confirm": "Retirer « {name} » de ce groupe ?",
+      "remove_member_failed": "Échec du retrait du membre"
+    },
+    "import": {
+      "change_target": "Modifier",
+      "choose_file_mobile": "Choisir un fichier vCard",
+      "failed_count": "{count, plural, one {# contact n'a pas pu être importé.} other {# contacts n'ont pas pu être importés.}}",
+      "import_count": "Importer {count}",
+      "into_address_book": "Importer dans un carnet d'adresses",
+      "into_named": "Importer dans {name}",
+      "no_address_book": "Créez un carnet d'adresses avant d'importer des contacts.",
+      "picker_failed": "Impossible d'ouvrir le sélecteur de fichiers"
+    },
+    "no_tags_hint": "Aucune catégorie pour l'instant. Saisissez-en une ci-dessus.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Ajouter} other {Ajouter (#)}}",
+      "title": "Ajouter un contact"
+    },
+    "rename_tag_hint_mobile": "Appuyez longuement sur une catégorie pour la renommer",
+    "tag_name_placeholder": "Nom de la nouvelle catégorie",
+    "unnamed": "Sans nom"
   },
   "context_menu": {
     "color_tag": "Étiquette",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Pièce jointe oubliée ?",
     "attachments_too_large_total": "Les pièces jointes dépasseraient les {max} autorisés par ce serveur pour un message.",
     "editor_unavailable": "Impossible de lire le contenu du message. Copiez votre texte, puis fermez et rouvrez l'éditeur.",
+    "from_options": "Options d'expéditeur",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identité indisponible",
     "image_load_failed": "Impossible de charger l'image",
     "no_recipient": "(aucun destinataire)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Copier l'adresse",
     "recipient_move_to": "Déplacer vers {field}",
     "recipient_remove": "Retirer",
+    "remove_attachment": "Retirer la pièce jointe",
     "save_draft": "Enregistrer le brouillon",
     "save_failed_no_drafts": "Il n'y a aucun dossier Brouillons où enregistrer ce brouillon.",
     "save_failed_no_identity": "Vos identités d'expéditeur n'ont pas pu être chargées, ce brouillon ne peut donc pas être enregistré. Vérifiez votre connexion ou copiez votre texte avant de fermer.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Le message est peut-être déjà parti. Vérifiez votre dossier Envoyés avant de le renvoyer.",
     "send_timeout_title": "Aucune réponse du serveur",
     "undo_send_label": "Envoi dans {seconds} s…",
+    "upload_failed_short": "Échec du téléversement",
     "uploading": "Téléversement en cours...",
+    "uploading_pct": "Téléversement {pct} %",
     "validation": {
       "subject_required": "Ajoutez un objet"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-mail archivé} other {# e-mails archivés}}",
     "emails_moved_to": "{count, plural, one {# e-mail déplacé} other {# e-mails déplacés}} vers {mailbox}",
     "error": "Erreur",
+    "filter_chip": "{field} : {value}",
+    "filter_title": "Filtrer les e-mails",
+    "folder_counts": "{total} au total · {unread} non lus",
+    "import": {
+      "none": "Aucun message n'a été importé.",
+      "partial": "Importés : {imported}, échecs : {failed}.",
+      "success": "{count, plural, one {# message importé.} other {# messages importés.}}",
+      "title": "Importation"
+    },
     "marked_as_spam": "Marqué comme spam",
     "marked_as_spam_count": "{count, plural, one {# e-mail marqué} other {# e-mails marqués}} comme spam",
     "marked_not_spam": "Marqué comme non spam",
@@ -156,10 +328,12 @@
     "outbox_discard": "Supprimer",
     "outbox_failed": "{count} modifications n'ont pas pu être enregistrées sur le serveur.",
     "recent_searches": "Recherches récentes",
+    "remove_filter": "Supprimer le filtre {label}",
     "scope_all_folders": "Tous les dossiers",
     "scope_this_folder": "Ce dossier",
     "search_placeholder": "Rechercher un email...",
     "showing_cached": "Affichage des e-mails en cache",
+    "sort_toggle_hint": "Inverse l'ordre de tri des e-mails",
     "swipe_move": "Déplacer",
     "swipe_spam": "Spam",
     "total": "au total",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Ce message sera supprimé définitivement et ne pourra pas être récupéré.",
     "delete_permanently_title": "Supprimer définitivement ?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fichier} other {# fichiers}} · {size}",
+      "received_after_delay": "{date} · délai de livraison {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Échec de l'exportation",
     "forwarded": "Transféré",
     "load_failed": "Échec du chargement de l'e-mail",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Les dossiers sont supprimés avec tout leur contenu. Cette action est irréversible.",
     "delete_item_title": "Supprimer cet élément ?",
+    "delete_items_title": "{count, plural, one {Supprimer # élément ?} other {Supprimer # éléments ?}}",
     "done": "Terminé",
+    "download_failed_status": "Échec du téléchargement (HTTP {status})",
     "folder_empty": "Ce dossier est vide",
     "invalid_name": "Nom non valide",
     "invalid_name_slash": "Les noms ne peuvent pas contenir « / ».",
@@ -234,6 +415,7 @@
     "open_error": "Impossible d'ouvrir le fichier",
     "open_with": "Ouvrir avec…",
     "preview_too_large": "Ce fichier est trop volumineux pour être prévisualisé.",
+    "selected_count": "{count, plural, one {# sélectionné} other {# sélectionnés}}",
     "share_add_people": "Ajouter des personnes",
     "share_empty": "Pas encore partagé",
     "share_error": "Échec de la mise à jour du partage",
@@ -244,9 +426,11 @@
     "share_remove": "Révoquer l'accès",
     "share_role_custom": "Personnalisé",
     "share_search_placeholder": "Rechercher par nom ou e-mail",
+    "share_unavailable": "Le partage n'est pas disponible sur cet appareil",
     "shared_with": "Partagé avec",
     "sharing_access": "Partage et accès",
-    "upload_unavailable": "Le sélecteur de fichiers n'est pas installé dans cette version. Recompilez l'application pour activer le téléversement."
+    "upload_unavailable": "Le sélecteur de fichiers n'est pas installé dans cette version. Recompilez l'application pour activer le téléversement.",
+    "uploading_progress": "Téléversement {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Vous êtes hors ligne",
-    "queued_changes": "{count, plural, one {# modification sera synchronisée} other {# modifications seront synchronisées}} à la reconnexion"
+    "queued_changes": "{count, plural, one {# modification sera synchronisée} other {# modifications seront synchronisées}} à la reconnexion",
+    "sync": {
+      "cached_count": "{count, plural, one {# nouveau message mis en cache} other {# nouveaux messages mis en cache}} • {size}",
+      "cancelled": "Synchronisation annulée",
+      "failed": "Échec de la synchronisation hors ligne",
+      "processed": "{completed}/{total} traités",
+      "ready": "E-mails hors ligne prêts",
+      "syncing": "Synchronisation des e-mails hors ligne",
+      "title": "Synchronisation hors ligne",
+      "unable_to_download": "Téléchargement impossible",
+      "up_to_date": "Déjà à jour"
+    }
   },
   "push_prompt": {
     "body": "Activez les notifications en arrière-plan pour recevoir les nouveaux messages même lorsque l'application est fermée.",
@@ -399,6 +594,15 @@
       "not_implemented": "Non implémenté",
       "unavailable": "Indisponible"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# contact} other {# contacts}}",
+      "default_book": "Carnet d'adresses par défaut",
+      "description_mobile": "Préférences d'affichage et outils pour les carnets d'adresses.",
+      "export_description_count": "{count, plural, one {Exporter # contact dans un seul fichier vCard.} other {Exporter # contacts dans un seul fichier vCard.}}",
+      "export_empty": "Aucun contact à exporter",
+      "import_description_mobile": "Importer des contacts depuis un fichier vCard (.vcf) avec détection des doublons.",
+      "manage_description_mobile": "Créez, renommez et supprimez les carnets d'adresses qui organisent vos contacts."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Modèle utilisé pour enregistrer ou partager une pièce jointe."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Les réponses partent toujours de l'identité à laquelle le message a été envoyé. Si cette option est activée, une réponse à une autre adresse de vos domaines (un alias catch-all) est aussi envoyée depuis cette adresse."
       },
+      "content_senders_description_mobile": "Contrôlez la gestion des ressources externes et des pixels de suivi.",
+      "external_content": {
+        "allow_mobile": "Autoriser",
+        "ask_mobile": "Demander",
+        "block_mobile": "Bloquer"
+      },
       "plain_text_mode": {
         "description_mobile": "Rédiger et lire uniquement en texte brut."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Action lorsque vous faites glisser une ligne depuis son bord gauche vers la droite.",
         "label_mobile": "Balayer vers la droite (gauche → droite)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Le contenu externe est toujours chargé pour les expéditeurs de cette liste.",
+        "description_synced_mobile": "Le contenu externe est toujours chargé pour les expéditeurs de cette liste. {count} synchronisés via votre carnet d'adresses.",
+        "sync_add_failed": "Impossible de synchroniser avec le carnet d'adresses",
+        "sync_remove_failed": "Impossible de retirer du carnet d'adresses",
+        "synced_badge": "Synchronisé via le carnet d'adresses"
       }
     },
     "experimental": {
       "title": "Fonctionnalité expérimentale"
+    },
+    "filters": {
+      "remove_action": "Supprimer l'action",
+      "remove_condition": "Supprimer la condition",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# ligne} other {# lignes}}"
+      }
     },
     "folders": {
       "account": "Compte",
@@ -476,6 +700,7 @@
       "delete_title": "Supprimer l'identité",
       "description_mobile": "Gérez les noms d'expéditeur, les adresses e-mail et les signatures. Appuyez sur une ligne pour la modifier.",
       "display_name": "Nom d'affichage",
+      "display_name_placeholder": "Jean Dupont",
       "edit": "Modifier l'identité",
       "email_address": "Adresse e-mail",
       "email_locked": "JMAP ne permet pas de modifier l'adresse e-mail d'une identité. Créez-en plutôt une nouvelle.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Afficher le nombre total de messages des dossiers",
       "show_folder_total_count_description": "Afficher le total à côté du nombre de non lus dans la liste des dossiers.",
       "swipe_mode": {
+        "description": "Choisissez Immédiat (balayer au-delà du seuil déclenche l'action) ou Afficher (balayer fait apparaître une bande d'actions, puis appuyer pour confirmer).",
         "instant": "Immédiat (balayage = action)",
+        "label": "Comportement du balayage",
         "reveal": "Afficher (balayer, puis appuyer)"
       },
       "unified_cross_account": "Vues unifiées sur tous les comptes",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Cet appareil ne recevra plus d'alertes de nouveaux e-mails pour ce compte.",
         "description_mobile": "Recevez des notifications système pour les nouveaux e-mails lorsque l'application est fermée. Elles sont distribuées via le relais push Bulwark, qui ne voit jamais le contenu des e-mails.",
+        "err_android_only": "Les notifications push ne sont disponibles que sur Android.",
+        "err_fcm_empty": "Firebase a renvoyé un jeton d'appareil vide.",
+        "err_fcm_token": "Firebase n'a pas pu émettre de jeton d'appareil ({detail}). Le push via FCM nécessite les services Google Play sur cet appareil.",
+        "err_fcm_token_up": "Firebase n'a pas pu émettre de jeton d'appareil ({detail}). Le push via FCM nécessite les services Google Play sur cet appareil. Un distributeur UnifiedPush est installé sur cet appareil - choisissez plutôt UnifiedPush comme mode de distribution.",
+        "err_jmap_refused": "Le serveur de messagerie a refusé l'abonnement push : {detail}",
+        "err_no_account": "Aucun compte chargé - impossible de configurer le push.",
+        "err_permission": "L'autorisation des notifications n'a pas été accordée.",
+        "err_relay_https": "L'URL du relais doit utiliser https://.",
+        "err_relay_rejected": "Le relais push a refusé l'enregistrement : {detail}",
+        "err_relay_unreachable": "Impossible de joindre le relais push à l'adresse {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush n'est disponible que sur Android.",
+        "err_verify_rejected": "Le serveur de messagerie a refusé le code de vérification : {detail}",
+        "err_verify_relay": "Le relais n'a jamais reçu le code de vérification du serveur de messagerie (dernière réponse du relais : {detail}).",
+        "err_verify_timeout": "Le serveur de messagerie n'a pas envoyé de code de vérification au relais dans les 75 s. Vérifiez que le serveur peut joindre l'URL du relais.",
         "phase_account": "Compte",
         "phase_distributor": "Distributeur UnifiedPush",
         "phase_jmap": "Abonnement au serveur de messagerie",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME n'est pas encore disponible dans l'application mobile. Gérez les clés et certificats dans le webmail. Les messages signés sont affichés ici sans vérification."
     },
     "tabs": {
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "themes": "Thèmes",
+      "updates": "Mises à jour"
     },
     "templates": {
-      "delete_title": "Supprimer le modèle"
+      "delete_confirm": "Supprimer définitivement « {name} » ?",
+      "delete_title": "Supprimer le modèle",
+      "description_mobile": "Extraits réutilisables pour les réponses courantes. Appuyez pour modifier ; appuyez longuement pour supprimer.",
+      "export_failed": "Échec de l'exportation",
+      "import_failed": "Échec de l'importation",
+      "imported": "Importé",
+      "imported_count": "{count, plural, one {# modèle ajouté} other {# modèles ajoutés}}.",
+      "is_html": "Le corps est en HTML",
+      "placeholders_hint": "Variables : {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Partage impossible"
     },
     "themes": {
       "default_description": "Les palettes claire et sombre par défaut.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Appuyez longuement pour supprimer ce compte",
     "remove_account_message": "Se déconnecter de {account} sur cet appareil. Vos e-mails restent sur le serveur.",
     "remove_account_title": "Supprimer le compte ?",
-    "show_unread": "Afficher les non lus"
+    "show_unread": "Afficher les non lus",
+    "tab_unavailable": "{name} (indisponible)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# compte n'a pas pu être chargé} other {# comptes n'ont pas pu être chargés}}"
   },
   "updates": {
     "advisory": "Avis de sécurité",

@@ -6,6 +6,13 @@
     "not_starred": "Одгүй"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# минутын дараа} other {# минутын дараа}}"
+    },
+    "colors": {
+      "indigo": "Индиго",
+      "teal": "Хөх ногоон"
+    },
     "drawer": {
       "my_calendars": "Миний хуанлиуд",
       "no_calendars": "Одоогоор хуанли алга.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Газар эсвэл хаяг",
       "time": "Цаг"
     },
+    "import": {
+      "file_too_large_max": "Файл хэт том байна (дээд хэмжээ {size} МБ).",
+      "imported_count": "{count, plural, one {# үйл явдлыг импортлосон.} other {# үйл явдлыг импортлосон.}}",
+      "no_calendar": "Үйл явдал импортлохоос өмнө хуанли үүсгэнэ үү.",
+      "no_calendar_title": "Хуанли алга",
+      "picker_error": "Файл сонгогчийг нээж чадсангүй",
+      "picker_unavailable": "Энэ хувилбарт файл сонгогч суулгаагүй байна. Импортыг идэвхжүүлэхийн тулд аппыг дахин бүтээнэ үү.",
+      "picker_unavailable_title": "Импорт боломжгүй",
+      "refused_count": "{count, plural, one {# үйл явдлыг импортлож чадсангүй:} other {# үйл явдлыг импортлож чадсангүй:}}",
+      "refused_message": "{count, plural, =1 {Үйл явдлыг импортлож чадсангүй: {reason}} one {# үйл явдлыг импортлож чадсангүй: {reason}} other {# үйл явдлыг импортлож чадсангүй: {reason}}}",
+      "selected_count": "Сонгосон: {count}"
+    },
     "invitation": {
       "accept": "Тийм",
       "add_error": "Үйл явдлыг нэмж чадсангүй",
@@ -42,6 +61,10 @@
       "response_sent": "Хариулт илгээсэн",
       "tentative": "Магадгүй",
       "title": "Хуанлийн урилга",
+      "trust_authentication_failed": "Энэ имэйл илгээгчийн баталгаажуулалтыг давсангүй (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Илгээгчийг баталгаажуулж чадсангүй.",
+      "trust_sender_mismatch": "Илгээгч нь үйл явдлын зохион байгуулагчаас өөр байна.",
+      "trust_sender_mismatch_unverified": "Илгээгч зохион байгуулагчтай таарахгүй бөгөөд имэйл баталгаажаагүй байна.",
       "trust_verified": "Илгээгч баталгаажсан"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Хуанли засах",
       "new_calendar": "Шинэ хуанли"
     },
+    "notifications": {
+      "channel_name": "Хуанлийн сануулга",
+      "starts_in_days": "{count, plural, one {# өдрийн дараа эхэлнэ} other {# өдрийн дараа эхэлнэ}}",
+      "starts_in_hours": "{count, plural, one {# цагийн дараа эхэлнэ} other {# цагийн дараа эхэлнэ}}",
+      "starts_in_minutes": "{count, plural, one {# минутын дараа эхэлнэ} other {# минутын дараа эхэлнэ}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {удаа} other {удаа}}",
+      "every_count_days": "{count, plural, one {# өдөр бүр} other {# өдөр бүр}}",
+      "every_count_months": "{count, plural, one {# сар бүр} other {# сар бүр}}",
+      "every_count_weeks": "{count, plural, one {# долоо хоног бүр} other {# долоо хоног бүр}}",
+      "every_count_years": "{count, plural, one {# жил бүр} other {# жил бүр}}",
+      "occurrence_count": "{count, plural, one {# удаа} other {# удаа}}",
+      "until_date": "{date} хүртэл"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Сарын харагдацад долоо хоногийн дугаарыг харуулах.",
       "time_zone": "Цагийн бүс",
       "time_zone_auto": "Төхөөрөмжийн цагийн бүс",
+      "time_zone_auto_zone": "Төхөөрөмжийн цагийн бүс ({zone})",
       "time_zone_desc": "Шинэ үйл явдал болон хуанлийг харуулахад ашиглах бүс. \"Төхөөрөмжийн цагийн бүс\" нь утасны тохиргоог дагана."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Нэр эсвэл имэйлээр хайх",
       "shared_with": "Хандах эрхтэй хүмүүс"
     },
+    "subscription": {
+      "add_feed": "Хангамж нэмэх",
+      "feed_too_large": "Хангамж хэт том байна",
+      "fetch_failed": "Хангамжийг татаж чадсангүй (HTTP {status})",
+      "name_and_url_required": "Нэр болон хангамжийн URL оруулна уу.",
+      "not_a_feed": "Энэ URL iCalendar хангамж буцаасангүй",
+      "not_synced": "Одоохондоо синк хийгдээгүй",
+      "url_scheme_invalid": "URL нь https://, http://, webcal:// эсвэл webcals://-ээр эхлэх ёстой",
+      "your_subscriptions": "Таны захиалгууд"
+    },
     "tasks": {
       "add_placeholder": "Даалгавар нэмэх…",
       "add_time": "Цаг нэмэх",
+      "clear_due_date": "Дуусах хугацааг арилгах",
       "delete_error": "Даалгаврыг устгаж чадсангүй",
+      "not_found": "Энэ даалгавар байхгүй болсон.",
+      "save_error": "Даалгаврыг хадгалж чадсангүй",
       "update_error": "Даалгаврыг шинэчилж чадсангүй"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Үүсгэх",
     "dismiss": "Хаах",
     "done": "Болсон",
+    "open": "Нээх",
+    "open_link_message": "Энэ нь {host} хаягийг аппын гадна нээнэ.",
+    "open_link_title": "Холбоосыг нээх үү?",
     "remove": "Хасах",
     "retry": "Дахин оролдох",
     "undo": "Буцаах",
     "update": "Шинэчлэх"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {\"{name}\"-г устгах уу? Үүнийг буцаах боломжгүй.} one {\"{name}\"-г устгах уу? Доторх # харилцагч хамт устгагдана. Үүнийг буцаах боломжгүй.} other {\"{name}\"-г устгах уу? Доторх # харилцагч хамт устгагдана. Үүнийг буцаах боломжгүй.}}"
+    },
+    "all_contacts": "Бүх харилцагч",
+    "bulk": {
+      "add_tag": "Таг нэмэх",
+      "delete_confirm_mobile": "{count, plural, one {# харилцагчийг устгах уу? Үүнийг буцаах боломжгүй.} other {# харилцагчийг устгах уу? Үүнийг буцаах боломжгүй.}}",
+      "move_to_address_book": "Хаягийн дэвтэр рүү зөөх",
+      "tag_failed": "Таг нэмж чадсангүй"
+    },
+    "contact": "Харилцагч",
+    "create_hint_mobile": "Оронд нь бүлэг үүсгэхийн тулд удаан дарна уу",
+    "detail": {
+      "add_to_group_failed": "Бүлэгт нэмж чадсангүй",
+      "copy_name": "{name} (хуулбар)",
+      "created_on": "Үүсгэсэн: {date}",
+      "duplicate_failed": "Хуулбар үүсгэж чадсангүй",
+      "duplicate_no_book": "Хаягийн дэвтэргүйгээр хуулбар үүсгэх боломжгүй.",
+      "no_address_book": "Хаягийн дэвтэр алга",
+      "not_found": "Харилцагч олдсонгүй",
+      "open_dialer_failed": "Дугаар залгагчийг нээж чадсангүй",
+      "open_link_failed": "Холбоосыг нээж чадсангүй",
+      "open_maps_failed": "Газрын зургийг нээж чадсангүй",
+      "open_sms_failed": "Мессежийн аппыг нээж чадсангүй",
+      "share": "Хуваалцах",
+      "share_title": "Хуваалцах: {name}",
+      "sms": "SMS",
+      "timezone_value": "Цагийн бүс: {zone}",
+      "updated_on": "Шинэчилсэн: {date}"
+    },
+    "empty_state_hint_mobile": "Нэмэхийн тулд + дарна уу",
+    "export": {
+      "failed": "Экспортлож чадсангүй"
+    },
+    "form": {
+      "add_nickname": "Хоч нэмэх",
+      "add_note": "Тэмдэглэл нэмэх",
+      "add_organization": "Байгууллага нэмэх",
+      "address_book_required": "Энэ харилцагчийг хадгалахын тулд хаягийн дэвтэр сонгоно уу.",
+      "categories_placeholder_mobile": "Таг бичээд Enter дарна уу",
+      "context_none": "Байхгүй",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY эсвэл --MM-DD",
+      "display_name_optional": "Дэлгэцийн нэр (заавал биш)",
+      "display_name_placeholder": "Өөрийн дэлгэцийн нэр",
+      "edit_named": "Засах: {name}",
+      "gender_unspecified": "Заагаагүй",
+      "grammatical_gender": "Хэлзүйн хүйс",
+      "invalid_date_message": "\"{date}\" огноо биш байна. YYYY-MM-DD, YYYY-MM, YYYY эсвэл --MM-DD хэлбэрийг ашиглана уу.",
+      "invalid_date_title": "Буруу огноо",
+      "invalid_email_message": "\"{address}\" хүчинтэй имэйл хаяг биш байна.",
+      "invalid_email_title": "Буруу имэйл",
+      "label": "Шошго",
+      "label_placeholder": "Ажил, Хувийн, …",
+      "missing_address_book": "Хаягийн дэвтэр сонгоогүй",
+      "missing_info": "Мэдээлэл дутуу",
+      "name_or_email_required": "Нэр эсвэл дор хаяж нэг имэйл нэмнэ үү.",
+      "new_organization": "Шинэ байгууллага",
+      "org_name_required": "Байгууллагын нэрийг нэмнэ үү.",
+      "photo_hint_mobile": "Зураг сонгохын тулд зураг дээр товшино уу",
+      "photo_permission_message": "Харилцагчийн зураг сонгохын тулд зургийн сангийн зөвшөөрөл олгоно уу.",
+      "photo_permission_title": "Зургийн хандалт шаардлагатай",
+      "pick_date": "Огноо сонгох",
+      "pronouns": "Төлөөний үг",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "Бүлэг",
+    "groups": {
+      "add_member": "Гишүүн нэмэх",
+      "add_members": "Гишүүд нэмэх",
+      "add_members_failed": "Гишүүдийг нэмж чадсангүй",
+      "create_ellipsis": "Шинэ бүлэг…",
+      "delete_confirm_named": "\"{name}\"-г устгах уу? Гишүүд устгагдахгүй.",
+      "delete_failed": "Бүлгийг устгаж чадсангүй",
+      "email_all": "Бүгдэд имэйл илгээх",
+      "members_with_count": "Гишүүд ({count})",
+      "no_emails": "Имэйл хаяг алга",
+      "no_members_hint": "Эхлэхийн тулд \"Гишүүн нэмэх\" дээр дарна уу",
+      "not_found": "Бүлэг олдсонгүй",
+      "remove_member": "Гишүүнийг хасах",
+      "remove_member_confirm": "\"{name}\"-г энэ бүлгээс хасах уу?",
+      "remove_member_failed": "Гишүүнийг хасаж чадсангүй"
+    },
+    "import": {
+      "change_target": "Өөрчлөх",
+      "choose_file_mobile": "vCard файл сонгох",
+      "failed_count": "{count, plural, one {# харилцагчийг импортлож чадсангүй.} other {# харилцагчийг импортлож чадсангүй.}}",
+      "import_count": "Импортлох ({count})",
+      "into_address_book": "Хаягийн дэвтэрт импортлох",
+      "into_named": "\"{name}\" руу импортлох",
+      "no_address_book": "Харилцагч импортлохоос өмнө хаягийн дэвтэр үүсгэнэ үү.",
+      "picker_failed": "Файл сонгогчийг нээж чадсангүй"
+    },
+    "no_tags_hint": "Одоохондоо таг алга. Дээр нэгийг бичнэ үү.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Нэмэх} one {Нэмэх (#)} other {Нэмэх (#)}}",
+      "title": "Харилцагч нэмэх"
+    },
+    "rename_tag_hint_mobile": "Тагийн нэрийг өөрчлөхийн тулд түүн дээр удаан дарна уу",
+    "tag_name_placeholder": "Тагийн шинэ нэр",
+    "unnamed": "Нэргүй"
   },
   "context_menu": {
     "color_tag": "Таг",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Хавсралтаа мартсан уу?",
     "attachments_too_large_total": "Хавсралтууд энэ серверийн нэг имэйлд зөвшөөрөх {max} хэмжээнээс хэтэрнэ.",
     "editor_unavailable": "Имэйлийн агуулгыг уншиж чадсангүй. Текстээ хуулаад засварлагчийг хааж, дахин нээнэ үү.",
+    "from_options": "Илгээгчийн сонголтууд",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Таниулбар боломжгүй",
     "image_load_failed": "Зургийг ачаалж чадсангүй",
     "no_recipient": "(хүлээн авагчгүй)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Хаягийг хуулах",
     "recipient_move_to": "\"{field}\" талбар руу зөөх",
     "recipient_remove": "Хасах",
+    "remove_attachment": "Хавсралтыг хасах",
     "save_draft": "Ноорог хадгалах",
     "save_failed_no_drafts": "Энэ ноорогийг хадгалах Ноорог хавтас алга.",
     "save_failed_no_identity": "Илгээгчийн таниулбаруудыг ачаалж чадаагүй тул энэ ноорогийг хадгалах боломжгүй. Холболтоо шалгах эсвэл хаахаасаа өмнө текстээ хуулна уу.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Имэйл аль хэдийн илгээгдсэн байж магадгүй. Дахин илгээхээсээ өмнө Илгээсэн хавтсаа шалгана уу.",
     "send_timeout_title": "Серверээс хариу алга",
     "undo_send_label": "{seconds} секундын дараа илгээнэ…",
+    "upload_failed_short": "Байршуулж чадсангүй",
     "uploading": "Байршуулж байна...",
+    "uploading_pct": "Байршуулж байна {pct}%",
     "validation": {
       "subject_required": "Сэдэв нэмнэ үү"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# имэйлийг архивласан} other {# имэйлийг архивласан}}",
     "emails_moved_to": "{count, plural, one {# имэйлийг} other {# имэйлийг}} \"{mailbox}\" руу зөөсөн",
     "error": "Алдаа",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Имэйл шүүх",
+    "folder_counts": "Нийт {total} · уншаагүй {unread}",
+    "import": {
+      "none": "Нэг ч имэйл импортлогдсонгүй.",
+      "partial": "Импортлосон: {imported}, амжилтгүй: {failed}.",
+      "success": "{count, plural, one {# имэйлийг импортлосон.} other {# имэйлийг импортлосон.}}",
+      "title": "Импорт"
+    },
     "marked_as_spam": "Спам гэж тэмдэглэсэн",
     "marked_as_spam_count": "{count, plural, one {# имэйлийг спам гэж тэмдэглэсэн} other {# имэйлийг спам гэж тэмдэглэсэн}}",
     "marked_not_spam": "Спам биш гэж тэмдэглэсэн",
@@ -156,10 +328,12 @@
     "outbox_discard": "Цуцлах",
     "outbox_failed": "{count, plural, one {# өөрчлөлтийг сервер дээр хадгалж чадсангүй.} other {# өөрчлөлтийг сервер дээр хадгалж чадсангүй.}}",
     "recent_searches": "Сүүлийн хайлтууд",
+    "remove_filter": "\"{label}\" шүүлтүүрийг хасах",
     "scope_all_folders": "Бүх хавтас",
     "scope_this_folder": "Энэ хавтас",
     "search_placeholder": "Мэйл хайх...",
     "showing_cached": "Кэшлэгдсэн имэйлийг харуулж байна",
+    "sort_toggle_hint": "Имэйлийн эрэмбийн дарааллыг урвуулна",
     "swipe_move": "Зөөх",
     "swipe_spam": "Спам",
     "total": "нийт",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Энэ имэйл бүрмөсөн устах бөгөөд сэргээх боломжгүй.",
     "delete_permanently_title": "Бүрмөсөн устгах уу?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# файл} other {# файл}} · {size}",
+      "received_after_delay": "{date} · хүргэлтийн хугацаа {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Экспорт хийж чадсангүй",
     "forwarded": "Дамжуулсан",
     "load_failed": "Имэйлийг ачаалж чадсангүй",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Хавтсыг доторх бүх зүйлийн хамт устгана. Үүнийг буцаах боломжгүй.",
     "delete_item_title": "Энэ зүйлийг устгах уу?",
+    "delete_items_title": "{count, plural, one {# зүйлийг устгах уу?} other {# зүйлийг устгах уу?}}",
     "done": "Болсон",
+    "download_failed_status": "Татаж чадсангүй (HTTP {status})",
     "folder_empty": "Энэ хавтас хоосон",
     "invalid_name": "Буруу нэр",
     "invalid_name_slash": "Нэрэнд \"/\" тэмдэгт байж болохгүй.",
@@ -234,6 +415,7 @@
     "open_error": "Файлыг нээж чадсангүй",
     "open_with": "Өөр аппаар нээх…",
     "preview_too_large": "Энэ файл урьдчилан харахад хэт том байна.",
+    "selected_count": "{count, plural, one {Сонгосон: #} other {Сонгосон: #}}",
     "share_add_people": "Хүн нэмэх",
     "share_empty": "Одоохондоо хэнтэй ч хуваалцаагүй",
     "share_error": "Хуваалцалтыг шинэчилж чадсангүй",
@@ -244,9 +426,11 @@
     "share_remove": "Хандалтыг арилгах",
     "share_role_custom": "Захиалгат",
     "share_search_placeholder": "Нэр эсвэл имэйлээр хайх",
+    "share_unavailable": "Энэ төхөөрөмж дээр хуваалцах боломжгүй",
     "shared_with": "Хандах эрхтэй хүмүүс",
     "sharing_access": "Хуваалцах ба хандалт",
-    "upload_unavailable": "Энэ хувилбарт файл сонгогч суулгаагүй байна. Байршуулалтыг идэвхжүүлэхийн тулд аппыг дахин бүтээнэ үү."
+    "upload_unavailable": "Энэ хувилбарт файл сонгогч суулгаагүй байна. Байршуулалтыг идэвхжүүлэхийн тулд аппыг дахин бүтээнэ үү.",
+    "uploading_progress": "Байршуулж байна {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Та офлайн байна",
-    "queued_changes": "{count, plural, one {# өөрчлөлт дахин холбогдоход синк хийгдэнэ} other {# өөрчлөлт дахин холбогдоход синк хийгдэнэ}}"
+    "queued_changes": "{count, plural, one {# өөрчлөлт дахин холбогдоход синк хийгдэнэ} other {# өөрчлөлт дахин холбогдоход синк хийгдэнэ}}",
+    "sync": {
+      "cached_count": "{count, plural, one {# шинэ имэйл кэшлэгдлээ} other {# шинэ имэйл кэшлэгдлээ}} • {size}",
+      "cancelled": "Синк цуцлагдлаа",
+      "failed": "Офлайн синк амжилтгүй боллоо",
+      "processed": "Боловсруулсан: {completed}/{total}",
+      "ready": "Офлайн имэйл бэлэн боллоо",
+      "syncing": "Офлайн имэйлийг синк хийж байна",
+      "title": "Офлайн синк",
+      "unable_to_download": "Татаж чадсангүй",
+      "up_to_date": "Аль хэдийн шинэчлэгдсэн"
+    }
   },
   "push_prompt": {
     "body": "Апп хаалттай үед ч шинэ имэйлийн мэдэгдэл авахын тулд арын мэдэгдлийг асаана уу.",
@@ -399,6 +594,15 @@
       "not_implemented": "Хэрэгжүүлээгүй",
       "unavailable": "Боломжгүй"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# харилцагч} other {# харилцагч}}",
+      "default_book": "Өгөгдмөл хаягийн дэвтэр",
+      "description_mobile": "Харагдах байдлын тохиргоо болон хаягийн дэвтрийн хэрэгслүүд.",
+      "export_description_count": "{count, plural, one {# харилцагчийг нэг vCard файл болгон экспортлох.} other {# харилцагчийг нэг vCard файл болгон экспортлох.}}",
+      "export_empty": "Экспортлох харилцагч алга",
+      "import_description_mobile": "vCard (.vcf) файлаас давхардлыг илрүүлэн харилцагчдыг импортлох.",
+      "manage_description_mobile": "Харилцагчдаа цэгцлэх хаягийн дэвтрүүдийг үүсгэх, нэрийг нь өөрчлөх, устгах."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Хавсралтыг хадгалах эсвэл хуваалцахад ашиглах загвар."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Хариулт үргэлж имэйл ирсэн таниулбараас илгээгдэнэ. Үүнийг асаавал таны домэйн дээрх өөр хаяг (catch-all alias) руу ирсэн имэйлийн хариуг мөн тэр хаягаас илгээнэ."
       },
+      "content_senders_description_mobile": "Гадаад нөөц болон хянах пикселийг хэрхэн боловсруулахыг удирдах.",
+      "external_content": {
+        "allow_mobile": "Зөвшөөрөх",
+        "ask_mobile": "Асуух",
+        "block_mobile": "Блоклох"
+      },
       "plain_text_mode": {
         "description_mobile": "Зөвхөн энгийн текстээр бичих, унших."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Мөрийг зүүн захаас нь баруун тийш чирэхэд хийх үйлдэл.",
         "label_mobile": "Баруун тийш шудрах (зүүн → баруун)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Энэ жагсаалтад байгаа илгээгчдийн гадаад контент үргэлж ачаалагдана.",
+        "description_synced_mobile": "Энэ жагсаалтад байгаа илгээгчдийн гадаад контент үргэлж ачаалагдана. Хаягийн дэвтрээр синк хийсэн: {count}.",
+        "sync_add_failed": "Хаягийн дэвтэртэй синк хийж чадсангүй",
+        "sync_remove_failed": "Хаягийн дэвтрээс хасаж чадсангүй",
+        "synced_badge": "Хаягийн дэвтрээр синк хийсэн"
       }
     },
     "experimental": {
       "title": "Туршилтын функц"
+    },
+    "filters": {
+      "remove_action": "Үйлдлийг хасах",
+      "remove_condition": "Нөхцөлийг хасах",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# мөр} other {# мөр}}"
+      }
     },
     "folders": {
       "account": "Бүртгэл",
@@ -476,6 +700,7 @@
       "delete_title": "Таниулбар устгах",
       "description_mobile": "Илгээгчийн нэр, имэйл хаяг, гарын үсгээ удирдана уу. Засахын тулд мөрийг товшино уу.",
       "display_name": "Дэлгэцийн нэр",
+      "display_name_placeholder": "Jane Doe",
       "edit": "Таниулбар засах",
       "email_address": "Имэйл хаяг",
       "email_locked": "JMAP нь таниулбарын имэйлийг өөрчлөхийг зөвшөөрдөггүй; оронд нь шинийг үүсгэнэ үү.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Хавтсан дээр нийт имэйлийн тоог харуулах",
       "show_folder_total_count_description": "Хавтасны жагсаалтад уншаагүй тооны хажууд нийт тоог харуулах.",
       "swipe_mode": {
+        "description": "\"Шууд\" (босгыг давтал шудрахад үйлдэл хийгдэнэ) эсвэл \"Товч гаргах\" (шудрахад үйлдлийн мөр гарч ирэх ба баталгаажуулахын тулд товшино)-г сонгоно уу.",
         "instant": "Шууд (шудрах = үйлдэл)",
+        "label": "Шудрах үйлдэл",
         "reveal": "Товч гаргах (шудраад товших)"
       },
       "unified_cross_account": "Бүртгэл хоорондын нэгдсэн харагдац",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Энэ төхөөрөмж энэ бүртгэлийн шинэ имэйлийн мэдэгдэл хүлээн авахаа болино.",
         "description_mobile": "Апп хаалттай үед шинэ имэйлийн системийн мэдэгдэл хүлээн авах. Bulwark түлхэх релеэр дамжин хүргэгдэх бөгөөд реле имэйлийн агуулгыг хэзээ ч хардаггүй.",
+        "err_android_only": "Push мэдэгдэл зөвхөн Android дээр боломжтой.",
+        "err_fcm_empty": "Firebase хоосон төхөөрөмжийн токен буцаалаа.",
+        "err_fcm_token": "Firebase төхөөрөмжийн токен олгож чадсангүй ({detail}). FCM-ээр push хүлээн авахад энэ төхөөрөмжид Google Play үйлчилгээ шаардлагатай.",
+        "err_fcm_token_up": "Firebase төхөөрөмжийн токен олгож чадсангүй ({detail}). FCM-ээр push хүлээн авахад энэ төхөөрөмжид Google Play үйлчилгээ шаардлагатай. Энэ төхөөрөмжид UnifiedPush түгээгч суулгасан байна - оронд нь хүргэх аргыг UnifiedPush болгож солино уу.",
+        "err_jmap_refused": "Мэйл сервер push захиалгаас татгалзлаа: {detail}",
+        "err_no_account": "Бүртгэл ачаалагдаагүй - push тохируулах боломжгүй.",
+        "err_permission": "Мэдэгдлийн зөвшөөрөл олгогдоогүй.",
+        "err_relay_https": "Релейн URL нь https:// ашиглах ёстой.",
+        "err_relay_rejected": "Түлхэх реле бүртгэлийг татгалзлаа: {detail}",
+        "err_relay_unreachable": "{url} дахь түлхэх релед холбогдож чадсангүй ({detail}).",
+        "err_up_android_only": "UnifiedPush зөвхөн Android дээр боломжтой.",
+        "err_verify_rejected": "Мэйл сервер баталгаажуулах кодыг татгалзлаа: {detail}",
+        "err_verify_relay": "Реле мэйл серверээс баталгаажуулах кодыг хүлээн аваагүй (релейн сүүлийн хариу: {detail}).",
+        "err_verify_timeout": "Мэйл сервер 75 секундын дотор релед баталгаажуулах код илгээсэнгүй. Сервер релейн URL-д хандаж чадаж байгаа эсэхийг шалгана уу.",
         "phase_account": "Бүртгэл",
         "phase_distributor": "UnifiedPush түгээгч",
         "phase_jmap": "Мэйл серверийн захиалга",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME мобайл апп-д одоогоор боломжгүй. Түлхүүр, гэрчилгээгээ вэбмэйлд удирдана уу; гарын үсэгтэй имэйлүүд энд баталгаажуулалтгүй харагдана."
     },
     "tabs": {
-      "plugins": "Плагинууд"
+      "plugins": "Плагинууд",
+      "themes": "Өнгөний загварууд",
+      "updates": "Шинэчлэлт"
     },
     "templates": {
-      "delete_title": "Загвар устгах"
+      "delete_confirm": "\"{name}\"-г бүрмөсөн устгах уу?",
+      "delete_title": "Загвар устгах",
+      "description_mobile": "Түгээмэл хариултад зориулсан дахин ашиглах хэсгүүд. Засахын тулд товшино уу; устгахын тулд удаан дарна уу.",
+      "export_failed": "Экспортлож чадсангүй",
+      "import_failed": "Импортлож чадсангүй",
+      "imported": "Импортлосон",
+      "imported_count": "{count, plural, one {# загвар нэмэгдлээ.} other {# загвар нэмэгдлээ.}}",
+      "is_html": "Үндсэн текст нь HTML",
+      "placeholders_hint": "Орлуулагчууд: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Хуваалцах боломжгүй"
     },
     "themes": {
       "default_description": "Өгөгдмөл цайвар ба харанхуй палитр.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Энэ бүртгэлийг хасахын тулд удаан дарна уу",
     "remove_account_message": "Энэ төхөөрөмж дээр дараах бүртгэлээс гарна: {account}. Таны имэйл сервер дээр үлдэнэ.",
     "remove_account_title": "Бүртгэлийг хасах уу?",
-    "show_unread": "Уншаагүйг харуулах"
+    "show_unread": "Уншаагүйг харуулах",
+    "tab_unavailable": "{name} (боломжгүй)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# бүртгэлийг ачаалж чадсангүй} other {# бүртгэлийг ачаалж чадсангүй}}"
   },
   "updates": {
     "advisory": "Аюулгүй байдлын зөвлөмж",

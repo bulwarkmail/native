@@ -6,6 +6,13 @@
     "not_starred": "No destacat"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minut després} other {# minuts després}}"
+    },
+    "colors": {
+      "indigo": "Índigo",
+      "teal": "Verd blavós"
+    },
     "drawer": {
       "my_calendars": "Els meus calendaris",
       "no_calendars": "Encara no hi ha cap calendari.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Lloc o adreça",
       "time": "Hora"
     },
+    "import": {
+      "file_too_large_max": "Aquest fitxer és massa gran (màxim {size} MB).",
+      "imported_count": "{count, plural, one {S'ha importat # esdeveniment.} other {S'han importat # esdeveniments.}}",
+      "no_calendar": "Creeu un calendari abans d'importar esdeveniments.",
+      "no_calendar_title": "Cap calendari",
+      "picker_error": "No s'ha pogut obrir el selector de fitxers",
+      "picker_unavailable": "El selector de fitxers no està inclòs en aquesta compilació. Torneu a compilar l'aplicació per activar la importació.",
+      "picker_unavailable_title": "Importació no disponible",
+      "refused_count": "{count, plural, one {No s'ha pogut importar # esdeveniment:} other {No s'han pogut importar # esdeveniments:}}",
+      "refused_message": "{count, plural, =1 {No s'ha pogut importar l'esdeveniment: {reason}} one {No s'ha pogut importar # esdeveniment: {reason}} other {No s'han pogut importar # esdeveniments: {reason}}}",
+      "selected_count": "{count, plural, one {# seleccionat} other {# seleccionats}}"
+    },
     "invitation": {
       "accept": "Sí",
       "add_error": "No s'ha pogut afegir l'esdeveniment",
@@ -42,6 +61,10 @@
       "response_sent": "Resposta enviada",
       "tentative": "Potser",
       "title": "Invitació de calendari",
+      "trust_authentication_failed": "Aquest missatge no ha superat l'autenticació del remitent (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "No s'ha pogut verificar el remitent.",
+      "trust_sender_mismatch": "El remitent no coincideix amb l'organitzador de l'esdeveniment.",
+      "trust_sender_mismatch_unverified": "El remitent no coincideix amb l'organitzador i el missatge no està autenticat.",
       "trust_verified": "Remitent verificat"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Edita el calendari",
       "new_calendar": "Calendari nou"
     },
+    "notifications": {
+      "channel_name": "Recordatoris del calendari",
+      "starts_in_days": "{count, plural, one {Comença d'aquí a # dia} other {Comença d'aquí a # dies}}",
+      "starts_in_hours": "{count, plural, one {Comença d'aquí a # hora} other {Comença d'aquí a # hores}}",
+      "starts_in_minutes": "{count, plural, one {Comença d'aquí a # minut} other {Comença d'aquí a # minuts}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {repetició} other {repeticions}}",
+      "every_count_days": "{count, plural, one {Cada dia} other {Cada # dies}}",
+      "every_count_months": "{count, plural, one {Cada mes} other {Cada # mesos}}",
+      "every_count_weeks": "{count, plural, one {Cada setmana} other {Cada # setmanes}}",
+      "every_count_years": "{count, plural, one {Cada any} other {Cada # anys}}",
+      "occurrence_count": "{count, plural, one {# repetició} other {# repeticions}}",
+      "until_date": "Fins al {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Mostra els números de setmana a la vista de mes.",
       "time_zone": "Zona horària",
       "time_zone_auto": "Zona horària del dispositiu",
+      "time_zone_auto_zone": "Zona horària del dispositiu ({zone})",
       "time_zone_desc": "Zona que s'utilitza per als esdeveniments nous i per interpretar el calendari. «Dispositiu» segueix la del telèfon."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Cerca per nom o correu electrònic",
       "shared_with": "Compartit amb"
     },
+    "subscription": {
+      "add_feed": "Afegeix un canal",
+      "feed_too_large": "El canal és massa gran",
+      "fetch_failed": "No s'ha pogut obtenir el canal (HTTP {status})",
+      "name_and_url_required": "Introduïu un nom i l'URL del canal.",
+      "not_a_feed": "Aquest URL no ha retornat cap canal iCalendar",
+      "not_synced": "Encara no s'ha sincronitzat",
+      "url_scheme_invalid": "L'URL ha de començar per https://, http://, webcal:// o webcals://",
+      "your_subscriptions": "Les vostres subscripcions"
+    },
     "tasks": {
       "add_placeholder": "Afegiu una tasca…",
       "add_time": "Afegeix l'hora",
+      "clear_due_date": "Esborra la data de venciment",
       "delete_error": "No s'ha pogut suprimir la tasca",
+      "not_found": "Aquesta tasca ja no està disponible.",
+      "save_error": "No s'ha pogut desar la tasca",
       "update_error": "No s'ha pogut actualitzar la tasca"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Crea",
     "dismiss": "Descarta",
     "done": "Fet",
+    "open": "Obre",
+    "open_link_message": "S'obrirà {host} fora de l'aplicació.",
+    "open_link_title": "Voleu obrir l'enllaç?",
     "remove": "Elimina",
     "retry": "Reintenta",
     "undo": "Desfés",
     "update": "Actualitza"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Voleu suprimir «{name}»? Això no es pot desfer.} one {Voleu suprimir «{name}»? Conté # contacte, que també se suprimirà. Això no es pot desfer.} other {Voleu suprimir «{name}»? Conté # contactes, que també se suprimiran. Això no es pot desfer.}}"
+    },
+    "all_contacts": "Tots els contactes",
+    "bulk": {
+      "add_tag": "Afegeix una etiqueta",
+      "delete_confirm_mobile": "{count, plural, one {Voleu suprimir # contacte? Això no es pot desfer.} other {Voleu suprimir # contactes? Això no es pot desfer.}}",
+      "move_to_address_book": "Mou a una llibreta d'adreces",
+      "tag_failed": "No s'ha pogut etiquetar"
+    },
+    "contact": "Contacte",
+    "create_hint_mobile": "Manteniu premut per crear un grup",
+    "detail": {
+      "add_to_group_failed": "No s'ha pogut afegir al grup",
+      "copy_name": "{name} (còpia)",
+      "created_on": "Creat el {date}",
+      "duplicate_failed": "No s'ha pogut duplicar",
+      "duplicate_no_book": "No es pot duplicar sense una llibreta d'adreces.",
+      "no_address_book": "Cap llibreta d'adreces",
+      "not_found": "No s'ha trobat el contacte",
+      "open_dialer_failed": "No es pot obrir el marcador",
+      "open_link_failed": "No es pot obrir l'enllaç",
+      "open_maps_failed": "No es pot obrir l'aplicació de mapes",
+      "open_sms_failed": "No es pot obrir l'aplicació de missatges",
+      "share": "Comparteix",
+      "share_title": "Comparteix {name}",
+      "sms": "SMS",
+      "timezone_value": "Fus horari: {zone}",
+      "updated_on": "Actualitzat el {date}"
+    },
+    "empty_state_hint_mobile": "Toqueu + per afegir-ne un",
+    "export": {
+      "failed": "No s'ha pogut exportar"
+    },
+    "form": {
+      "add_nickname": "Afegeix un sobrenom",
+      "add_note": "Afegeix una nota",
+      "add_organization": "Afegeix una organització",
+      "address_book_required": "Seleccioneu una llibreta d'adreces per desar aquest contacte.",
+      "categories_placeholder_mobile": "Afegiu una etiqueta i premeu Retorn",
+      "context_none": "Cap",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY o --MM-DD",
+      "display_name_optional": "Nom mostrat (opcional)",
+      "display_name_placeholder": "Nom mostrat personalitzat",
+      "edit_named": "Edita {name}",
+      "gender_unspecified": "Sense especificar",
+      "grammatical_gender": "Gènere gramatical",
+      "invalid_date_message": "«{date}» no és una data. Feu servir YYYY-MM-DD, YYYY-MM, YYYY o --MM-DD.",
+      "invalid_date_title": "Data no vàlida",
+      "invalid_email_message": "«{address}» no és una adreça electrònica vàlida.",
+      "invalid_email_title": "Adreça electrònica no vàlida",
+      "label": "Etiqueta",
+      "label_placeholder": "Feina, Personal, …",
+      "missing_address_book": "Falta la llibreta d'adreces",
+      "missing_info": "Falta informació",
+      "name_or_email_required": "Afegiu un nom o almenys una adreça electrònica.",
+      "new_organization": "Organització nova",
+      "org_name_required": "Afegiu el nom de l'organització.",
+      "photo_hint_mobile": "Toqueu la foto per triar una imatge",
+      "photo_permission_message": "Concediu permís per a la galeria de fotos per triar una foto de contacte.",
+      "photo_permission_title": "Cal accés a les fotos",
+      "pick_date": "Tria una data",
+      "pronouns": "Pronoms",
+      "pronouns_placeholder": "ella/ell",
+      "url": "URL"
+    },
+    "group": "Grup",
+    "groups": {
+      "add_member": "Afegeix un membre",
+      "add_members": "Afegeix membres",
+      "add_members_failed": "No s'han pogut afegir els membres",
+      "create_ellipsis": "Grup nou…",
+      "delete_confirm_named": "Voleu suprimir «{name}»? Els membres no se suprimiran.",
+      "delete_failed": "No s'ha pogut suprimir el grup",
+      "email_all": "Envia un correu a tots",
+      "members_with_count": "Membres ({count})",
+      "no_emails": "Cap adreça electrònica",
+      "no_members_hint": "Toqueu «Afegeix un membre» per començar",
+      "not_found": "No s'ha trobat el grup",
+      "remove_member": "Treu el membre",
+      "remove_member_confirm": "Voleu treure «{name}» d'aquest grup?",
+      "remove_member_failed": "No s'ha pogut treure el membre"
+    },
+    "import": {
+      "change_target": "Canvia",
+      "choose_file_mobile": "Tria un fitxer vCard",
+      "failed_count": "{count, plural, one {No s'ha pogut importar # contacte.} other {No s'han pogut importar # contactes.}}",
+      "import_count": "Importa {count}",
+      "into_address_book": "Importa a la llibreta d'adreces",
+      "into_named": "Importa a {name}",
+      "no_address_book": "Creeu una llibreta d'adreces abans d'importar contactes.",
+      "picker_failed": "No s'ha pogut obrir el selector de fitxers"
+    },
+    "no_tags_hint": "Encara no hi ha etiquetes. Escriviu-ne una a dalt.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Afegeix} other {Afegeix (#)}}",
+      "title": "Afegeix un contacte"
+    },
+    "rename_tag_hint_mobile": "Manteniu premuda una etiqueta per canviar-ne el nom",
+    "tag_name_placeholder": "Nom de l'etiqueta nova",
+    "unnamed": "Sense nom"
   },
   "context_menu": {
     "color_tag": "Etiqueta",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Us heu oblidat d'un fitxer adjunt?",
     "attachments_too_large_total": "Els fitxers adjunts superarien els {max} que aquest servidor permet per missatge.",
     "editor_unavailable": "No s'ha pogut llegir el contingut del missatge. Copieu el text i, després, tanqueu i torneu a obrir el redactor.",
+    "from_options": "Opcions del remitent",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identitat no disponible",
     "image_load_failed": "No s'ha pogut carregar la imatge",
     "no_recipient": "(sense destinatari)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Copia l'adreça",
     "recipient_move_to": "Mou a {field}",
     "recipient_remove": "Elimina",
+    "remove_attachment": "Elimina el fitxer adjunt",
     "save_draft": "Desa l'esborrany",
     "save_failed_no_drafts": "No hi ha cap carpeta Esborranys on desar aquest esborrany.",
     "save_failed_no_identity": "No s'han pogut carregar les vostres identitats de remitent, per tant no es pot desar aquest esborrany. Comproveu la connexió o copieu el text abans de tancar.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "És possible que el missatge ja s'hagi enviat. Comproveu la carpeta Enviats abans de tornar-lo a enviar.",
     "send_timeout_title": "El servidor no respon",
     "undo_send_label": "S'envia d'aquí a {seconds} s…",
+    "upload_failed_short": "No s'ha pogut pujar",
     "uploading": "Pujant...",
+    "uploading_pct": "S'està pujant {pct}%",
     "validation": {
       "subject_required": "Afegiu un assumpte"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {S'ha arxivat # correu} other {S'han arxivat # correus}}",
     "emails_moved_to": "{count, plural, one {S'ha mogut # correu} other {S'han mogut # correus}} a {mailbox}",
     "error": "Error",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtra els correus",
+    "folder_counts": "{total} en total · {unread} sense llegir",
+    "import": {
+      "none": "No s'ha importat cap missatge.",
+      "partial": "Importats: {imported}. Amb errors: {failed}.",
+      "success": "{count, plural, one {S'ha importat # missatge.} other {S'han importat # missatges.}}",
+      "title": "Importació"
+    },
     "marked_as_spam": "S'ha marcat com a correu brossa",
     "marked_as_spam_count": "{count, plural, one {S'ha marcat # correu} other {S'han marcat # correus}} com a correu brossa",
     "marked_not_spam": "S'ha marcat com a no brossa",
@@ -156,10 +328,12 @@
     "outbox_discard": "Descarta",
     "outbox_failed": "No s'han pogut desar {count} canvis al servidor.",
     "recent_searches": "Cerques recents",
+    "remove_filter": "Elimina el filtre {label}",
     "scope_all_folders": "Totes les carpetes",
     "scope_this_folder": "Aquesta carpeta",
     "search_placeholder": "Cerca al correu...",
     "showing_cached": "Es mostra el correu de la memòria cau",
+    "sort_toggle_hint": "Inverteix l'ordre dels correus",
     "swipe_move": "Mou",
     "swipe_spam": "Brossa",
     "total": "en total",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Aquest missatge se suprimirà permanentment i no es podrà recuperar.",
     "delete_permanently_title": "Voleu suprimir-lo permanentment?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# fitxer} other {# fitxers}} · {size}",
+      "received_after_delay": "{date} · lliurament en {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "No s'ha pogut exportar",
     "forwarded": "Reenviat",
     "load_failed": "No s'ha pogut carregar el correu",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Les carpetes se suprimeixen amb tot el que contenen. Això no es pot desfer.",
     "delete_item_title": "Voleu suprimir aquest element?",
+    "delete_items_title": "{count, plural, one {Voleu suprimir # element?} other {Voleu suprimir # elements?}}",
     "done": "Fet",
+    "download_failed_status": "No s'ha pogut baixar (HTTP {status})",
     "folder_empty": "Aquesta carpeta és buida",
     "invalid_name": "Nom no vàlid",
     "invalid_name_slash": "Els noms no poden contenir «/».",
@@ -234,6 +415,7 @@
     "open_error": "No s'ha pogut obrir el fitxer",
     "open_with": "Obre amb…",
     "preview_too_large": "Aquest fitxer és massa gran per previsualitzar-lo.",
+    "selected_count": "{count, plural, one {# seleccionat} other {# seleccionats}}",
     "share_add_people": "Afegeix persones",
     "share_empty": "Encara no s'ha compartit amb ningú",
     "share_error": "No s'ha pogut actualitzar la compartició",
@@ -244,9 +426,11 @@
     "share_remove": "Elimina l'accés",
     "share_role_custom": "Personalitzat",
     "share_search_placeholder": "Cerca per nom o correu electrònic",
+    "share_unavailable": "La compartició no està disponible en aquest dispositiu",
     "shared_with": "Compartit amb",
     "sharing_access": "Compartició i accés",
-    "upload_unavailable": "El selector de fitxers no està inclòs en aquesta compilació. Torneu a compilar l'aplicació per activar les pujades."
+    "upload_unavailable": "El selector de fitxers no està inclòs en aquesta compilació. Torneu a compilar l'aplicació per activar les pujades.",
+    "uploading_progress": "S'està pujant {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "No teniu connexió",
-    "queued_changes": "{count, plural, one {# canvi es sincronitzarà} other {# canvis se sincronitzaran}} quan us torneu a connectar"
+    "queued_changes": "{count, plural, one {# canvi es sincronitzarà} other {# canvis se sincronitzaran}} quan us torneu a connectar",
+    "sync": {
+      "cached_count": "{count, plural, one {# missatge nou a la memòria cau} other {# missatges nous a la memòria cau}} • {size}",
+      "cancelled": "S'ha cancel·lat la sincronització",
+      "failed": "Ha fallat la sincronització sense connexió",
+      "processed": "{completed}/{total} processats",
+      "ready": "El correu sense connexió és a punt",
+      "syncing": "S'està sincronitzant el correu sense connexió",
+      "title": "Sincronització sense connexió",
+      "unable_to_download": "No s'ha pogut baixar",
+      "up_to_date": "Ja està al dia"
+    }
   },
   "push_prompt": {
     "body": "Activeu les notificacions en segon pla perquè els missatges nous us arribin amb l'aplicació tancada.",
@@ -399,6 +594,15 @@
       "not_implemented": "No implementat",
       "unavailable": "No disponible"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# contacte} other {# contactes}}",
+      "default_book": "Llibreta d'adreces predeterminada",
+      "description_mobile": "Preferències de visualització i eines de la llibreta d'adreces.",
+      "export_description_count": "{count, plural, one {Exporta # contacte com un únic fitxer vCard.} other {Exporta # contactes com un únic fitxer vCard.}}",
+      "export_empty": "No hi ha contactes per exportar",
+      "import_description_mobile": "Importa contactes des d'un fitxer vCard (.vcf) amb detecció de duplicats.",
+      "manage_description_mobile": "Creeu, canvieu el nom i suprimiu les llibretes d'adreces que organitzen els contactes."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Plantilla utilitzada en desar o compartir un fitxer adjunt."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Les respostes sempre s'envien des de la identitat a la qual es va enviar el missatge. Amb aquesta opció activada, una resposta a una altra adreça dels vostres dominis (un àlies de captura general) també s'envia des d'aquesta adreça."
       },
+      "content_senders_description_mobile": "Controleu com es gestionen els recursos externs i els píxels de seguiment.",
+      "external_content": {
+        "allow_mobile": "Permet",
+        "ask_mobile": "Pregunta",
+        "block_mobile": "Bloqueja"
+      },
       "plain_text_mode": {
         "description_mobile": "Redacta i llegeix només en text sense format."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Acció en arrossegar una fila des de la vora esquerra cap a la dreta.",
         "label_mobile": "Llisca a la dreta (esquerra → dreta)"
+      },
+      "trusted_senders": {
+        "description_mobile": "El contingut extern sempre es carrega per als remitents d'aquesta llista.",
+        "description_synced_mobile": "El contingut extern sempre es carrega per als remitents d'aquesta llista. {count, plural, one {# sincronitzat} other {# sincronitzats}} mitjançant la llibreta d'adreces.",
+        "sync_add_failed": "No s'ha pogut sincronitzar amb la llibreta d'adreces",
+        "sync_remove_failed": "No s'ha pogut eliminar de la llibreta d'adreces",
+        "synced_badge": "Sincronitzat mitjançant la llibreta d'adreces"
       }
     },
     "experimental": {
       "title": "Funció experimental"
+    },
+    "filters": {
+      "remove_action": "Elimina l'acció",
+      "remove_condition": "Elimina la condició",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# línia} other {# línies}}"
+      }
     },
     "folders": {
       "account": "Compte",
@@ -476,6 +700,7 @@
       "delete_title": "Suprimeix la identitat",
       "description_mobile": "Gestioneu els noms de remitent, les adreces electròniques i les signatures. Toqueu una fila per editar-la.",
       "display_name": "Nom mostrat",
+      "display_name_placeholder": "Jane Doe",
       "edit": "Edita la identitat",
       "email_address": "Adreça electrònica",
       "email_locked": "JMAP no permet canviar l'adreça electrònica d'una identitat; creeu-ne una de nova.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Mostra el nombre total de missatges a les carpetes",
       "show_folder_total_count_description": "Mostra el total al costat del nombre de no llegits a la llista de carpetes.",
       "swipe_mode": {
+        "description": "Trieu immediat (llisqueu més enllà del llindar per executar l'acció) o revela (llisqueu per mostrar una franja d'accions i després toqueu per confirmar).",
         "instant": "Immediat (lliscar = acció)",
+        "label": "Comportament en lliscar",
         "reveal": "Revela (llisca i després toca)"
       },
       "unified_cross_account": "Vistes unificades entre comptes",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Aquest dispositiu deixarà de rebre avisos de correu nou per a aquest compte.",
         "description_mobile": "Rebeu notificacions del sistema per al correu nou quan l'aplicació estigui tancada. S'entreguen mitjançant el repetidor push del Bulwark; el repetidor mai no veu el contingut del correu.",
+        "err_android_only": "Les notificacions push només estan disponibles a Android.",
+        "err_fcm_empty": "El Firebase ha retornat un testimoni de dispositiu buit.",
+        "err_fcm_token": "El Firebase no ha pogut emetre un testimoni de dispositiu ({detail}). Les notificacions push per FCM necessiten els serveis de Google Play en aquest dispositiu.",
+        "err_fcm_token_up": "El Firebase no ha pogut emetre un testimoni de dispositiu ({detail}). Les notificacions push per FCM necessiten els serveis de Google Play en aquest dispositiu. Aquest dispositiu té instal·lat un distribuïdor d'UnifiedPush: canvieu el mètode de lliurament a UnifiedPush.",
+        "err_jmap_refused": "El servidor de correu ha rebutjat la subscripció push: {detail}",
+        "err_no_account": "No hi ha cap compte carregat: no es poden configurar les notificacions push.",
+        "err_permission": "No s'ha concedit el permís de notificacions.",
+        "err_relay_https": "L'URL del repetidor ha d'utilitzar https://.",
+        "err_relay_rejected": "El repetidor push ha rebutjat el registre: {detail}",
+        "err_relay_unreachable": "No s'ha pogut contactar amb el repetidor push a {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush només està disponible a Android.",
+        "err_verify_rejected": "El servidor de correu ha rebutjat el codi de verificació: {detail}",
+        "err_verify_relay": "El repetidor no ha rebut mai el codi de verificació del servidor de correu (última resposta del repetidor: {detail}).",
+        "err_verify_timeout": "El servidor de correu no ha enviat cap codi de verificació al repetidor en 75 s. Comproveu que el servidor pugui accedir a l'URL del repetidor.",
         "phase_account": "Compte",
         "phase_distributor": "Distribuïdor UnifiedPush",
         "phase_jmap": "Subscripció al servidor de correu",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME encara no està disponible a l'aplicació mòbil. Gestioneu les claus i els certificats al webmail; aquí els missatges signats es mostren sense verificar."
     },
     "tabs": {
-      "plugins": "Connectors"
+      "plugins": "Connectors",
+      "themes": "Temes",
+      "updates": "Actualitzacions"
     },
     "templates": {
-      "delete_title": "Suprimeix la plantilla"
+      "delete_confirm": "Voleu suprimir «{name}» permanentment?",
+      "delete_title": "Suprimeix la plantilla",
+      "description_mobile": "Fragments reutilitzables per a respostes habituals. Toqueu-ne un per editar-lo; manteniu-lo premut per suprimir-lo.",
+      "export_failed": "No s'ha pogut exportar",
+      "import_failed": "No s'ha pogut importar",
+      "imported": "Importació completada",
+      "imported_count": "{count, plural, one {S'ha afegit # plantilla.} other {S'han afegit # plantilles.}}",
+      "is_html": "El cos és HTML",
+      "placeholders_hint": "Variables: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "No es pot compartir"
     },
     "themes": {
       "default_description": "Les paletes clara i fosca per defecte.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Manteniu premut per eliminar aquest compte",
     "remove_account_message": "Tanca la sessió de {account} en aquest dispositiu. El correu es queda al servidor.",
     "remove_account_title": "Voleu eliminar el compte?",
-    "show_unread": "Mostra els no llegits"
+    "show_unread": "Mostra els no llegits",
+    "tab_unavailable": "{name} (no disponible)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {No s'ha pogut carregar # compte} other {No s'han pogut carregar # comptes}}"
   },
   "updates": {
     "advisory": "Avís de seguretat",

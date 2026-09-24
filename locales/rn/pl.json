@@ -6,6 +6,13 @@
     "not_starred": "Bez gwiazdki"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minutę po} few {# minuty po} many {# minut po} other {# minuty po}}"
+    },
+    "colors": {
+      "indigo": "Indygo",
+      "teal": "Morski"
+    },
     "drawer": {
       "my_calendars": "Moje kalendarze",
       "no_calendars": "Brak kalendarzy.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Miejsce lub adres",
       "time": "Godzina"
     },
+    "import": {
+      "file_too_large_max": "Ten plik jest za duży (maks. {size} MB).",
+      "imported_count": "{count, plural, one {Zaimportowano # wydarzenie.} few {Zaimportowano # wydarzenia.} many {Zaimportowano # wydarzeń.} other {Zaimportowano # wydarzenia.}}",
+      "no_calendar": "Utwórz kalendarz przed zaimportowaniem wydarzeń.",
+      "no_calendar_title": "Brak kalendarza",
+      "picker_error": "Nie udało się otworzyć selektora plików",
+      "picker_unavailable": "Selektor plików nie jest zainstalowany w tej wersji aplikacji. Przebuduj aplikację, aby włączyć importowanie.",
+      "picker_unavailable_title": "Import niedostępny",
+      "refused_count": "{count, plural, one {Nie udało się zaimportować # wydarzenia:} few {Nie udało się zaimportować # wydarzeń:} many {Nie udało się zaimportować # wydarzeń:} other {Nie udało się zaimportować # wydarzenia:}}",
+      "refused_message": "{count, plural, =1 {Nie udało się zaimportować wydarzenia: {reason}} one {Nie udało się zaimportować # wydarzenia: {reason}} few {Nie udało się zaimportować # wydarzeń: {reason}} many {Nie udało się zaimportować # wydarzeń: {reason}} other {Nie udało się zaimportować # wydarzenia: {reason}}}",
+      "selected_count": "Zaznaczono: {count}"
+    },
     "invitation": {
       "accept": "Tak",
       "add_error": "Nie udało się dodać wydarzenia",
@@ -42,6 +61,10 @@
       "response_sent": "Odpowiedź wysłana",
       "tentative": "Może",
       "title": "Zaproszenie kalendarza",
+      "trust_authentication_failed": "Ta wiadomość nie przeszła uwierzytelnienia nadawcy (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Nie udało się zweryfikować nadawcy.",
+      "trust_sender_mismatch": "Nadawca różni się od organizatora wydarzenia.",
+      "trust_sender_mismatch_unverified": "Nadawca nie jest organizatorem, a wiadomość nie jest uwierzytelniona.",
       "trust_verified": "Nadawca zweryfikowany"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Edytuj kalendarz",
       "new_calendar": "Nowy kalendarz"
     },
+    "notifications": {
+      "channel_name": "Przypomnienia kalendarza",
+      "starts_in_days": "{count, plural, one {Zaczyna się za # dzień} few {Zaczyna się za # dni} many {Zaczyna się za # dni} other {Zaczyna się za # dnia}}",
+      "starts_in_hours": "{count, plural, one {Zaczyna się za # godzinę} few {Zaczyna się za # godziny} many {Zaczyna się za # godzin} other {Zaczyna się za # godziny}}",
+      "starts_in_minutes": "{count, plural, one {Zaczyna się za # minutę} few {Zaczyna się za # minuty} many {Zaczyna się za # minut} other {Zaczyna się za # minuty}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {wystąpieniu} few {wystąpieniach} many {wystąpieniach} other {wystąpienia}}",
+      "every_count_days": "{count, plural, one {Codziennie} few {Co # dni} many {Co # dni} other {Co # dnia}}",
+      "every_count_months": "{count, plural, one {Co miesiąc} few {Co # miesiące} many {Co # miesięcy} other {Co # miesiąca}}",
+      "every_count_weeks": "{count, plural, one {Co tydzień} few {Co # tygodnie} many {Co # tygodni} other {Co # tygodnia}}",
+      "every_count_years": "{count, plural, one {Co rok} few {Co # lata} many {Co # lat} other {Co # roku}}",
+      "occurrence_count": "{count, plural, one {# wystąpienie} few {# wystąpienia} many {# wystąpień} other {# wystąpienia}}",
+      "until_date": "Do {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Wyświetlaj numery tygodni w widoku miesiąca.",
       "time_zone": "Strefa czasowa",
       "time_zone_auto": "Strefa czasowa urządzenia",
+      "time_zone_auto_zone": "Strefa czasowa urządzenia ({zone})",
       "time_zone_desc": "Strefa używana dla nowych wydarzeń i do odczytu kalendarza. „Strefa czasowa urządzenia” podąża za telefonem."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Szukaj po imieniu lub e-mailu",
       "shared_with": "Osoby z dostępem"
     },
+    "subscription": {
+      "add_feed": "Dodaj kanał",
+      "feed_too_large": "Kanał jest za duży",
+      "fetch_failed": "Nie udało się pobrać kanału (HTTP {status})",
+      "name_and_url_required": "Podaj nazwę i adres URL kanału.",
+      "not_a_feed": "Ten adres URL nie zwrócił kanału iCalendar",
+      "not_synced": "Jeszcze nie zsynchronizowano",
+      "url_scheme_invalid": "Adres URL musi zaczynać się od https://, http://, webcal:// lub webcals://",
+      "your_subscriptions": "Twoje subskrypcje"
+    },
     "tasks": {
       "add_placeholder": "Dodaj zadanie…",
       "add_time": "Dodaj godzinę",
+      "clear_due_date": "Usuń termin",
       "delete_error": "Nie udało się usunąć zadania",
+      "not_found": "To zadanie nie jest już dostępne.",
+      "save_error": "Nie udało się zapisać zadania",
       "update_error": "Nie udało się zaktualizować zadania"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Utwórz",
     "dismiss": "Zamknij",
     "done": "Gotowe",
+    "open": "Otwórz",
+    "open_link_message": "Adres {host} zostanie otwarty poza aplikacją.",
+    "open_link_title": "Otworzyć link?",
     "remove": "Usuń",
     "retry": "Ponów",
     "undo": "Cofnij",
     "update": "Zaktualizuj"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Usunąć „{name}”? Tej operacji nie można cofnąć.} one {Usunąć „{name}”? Razem z nią zostanie usunięty # kontakt. Tej operacji nie można cofnąć.} few {Usunąć „{name}”? Razem z nią zostaną usunięte # kontakty. Tej operacji nie można cofnąć.} many {Usunąć „{name}”? Razem z nią zostanie usuniętych # kontaktów. Tej operacji nie można cofnąć.} other {Usunąć „{name}”? Razem z nią zostanie usunięte # kontaktu. Tej operacji nie można cofnąć.}}"
+    },
+    "all_contacts": "Wszystkie kontakty",
+    "bulk": {
+      "add_tag": "Dodaj etykietę",
+      "delete_confirm_mobile": "{count, plural, one {Usunąć # kontakt? Tej operacji nie można cofnąć.} few {Usunąć # kontakty? Tej operacji nie można cofnąć.} many {Usunąć # kontaktów? Tej operacji nie można cofnąć.} other {Usunąć # kontaktu? Tej operacji nie można cofnąć.}}",
+      "move_to_address_book": "Przenieś do książki adresowej",
+      "tag_failed": "Nie udało się dodać etykiety"
+    },
+    "contact": "Kontakt",
+    "create_hint_mobile": "Przytrzymaj, aby zamiast tego utworzyć grupę",
+    "detail": {
+      "add_to_group_failed": "Nie udało się dodać do grupy",
+      "copy_name": "{name} (kopia)",
+      "created_on": "Utworzono {date}",
+      "duplicate_failed": "Nie udało się zduplikować",
+      "duplicate_no_book": "Nie można zduplikować kontaktu bez książki adresowej.",
+      "no_address_book": "Brak książki adresowej",
+      "not_found": "Nie znaleziono kontaktu",
+      "open_dialer_failed": "Nie można otworzyć aplikacji telefonu",
+      "open_link_failed": "Nie można otworzyć linku",
+      "open_maps_failed": "Nie można otworzyć map",
+      "open_sms_failed": "Nie można otworzyć aplikacji do wiadomości",
+      "share": "Udostępnij",
+      "share_title": "Udostępnij: {name}",
+      "sms": "SMS",
+      "timezone_value": "Strefa czasowa: {zone}",
+      "updated_on": "Zaktualizowano {date}"
+    },
+    "empty_state_hint_mobile": "Stuknij +, aby dodać kontakt",
+    "export": {
+      "failed": "Eksport nie powiódł się"
+    },
+    "form": {
+      "add_nickname": "Dodaj pseudonim",
+      "add_note": "Dodaj notatkę",
+      "add_organization": "Dodaj organizację",
+      "address_book_required": "Wybierz książkę adresową, aby zapisać ten kontakt.",
+      "categories_placeholder_mobile": "Dodaj etykietę i naciśnij Enter",
+      "context_none": "Brak",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY lub --MM-DD",
+      "display_name_optional": "Wyświetlana nazwa (opcjonalnie)",
+      "display_name_placeholder": "Własna wyświetlana nazwa",
+      "edit_named": "Edytuj: {name}",
+      "gender_unspecified": "Nieokreślona",
+      "grammatical_gender": "Rodzaj gramatyczny",
+      "invalid_date_message": "„{date}” nie jest datą. Użyj formatu YYYY-MM-DD, YYYY-MM, YYYY lub --MM-DD.",
+      "invalid_date_title": "Nieprawidłowa data",
+      "invalid_email_message": "„{address}” nie jest prawidłowym adresem e-mail.",
+      "invalid_email_title": "Nieprawidłowy e-mail",
+      "label": "Opis",
+      "label_placeholder": "Praca, Prywatne, …",
+      "missing_address_book": "Brak książki adresowej",
+      "missing_info": "Brak danych",
+      "name_or_email_required": "Dodaj imię i nazwisko lub co najmniej jeden adres e-mail.",
+      "new_organization": "Nowa organizacja",
+      "org_name_required": "Dodaj nazwę organizacji.",
+      "photo_hint_mobile": "Stuknij zdjęcie, aby wybrać obraz",
+      "photo_permission_message": "Zezwól na dostęp do galerii zdjęć, aby wybrać zdjęcie kontaktu.",
+      "photo_permission_title": "Wymagany dostęp do zdjęć",
+      "pick_date": "Wybierz datę",
+      "pronouns": "Zaimki",
+      "pronouns_placeholder": "ona/jej",
+      "url": "URL"
+    },
+    "group": "Grupa",
+    "groups": {
+      "add_member": "Dodaj członka",
+      "add_members": "Dodaj członków",
+      "add_members_failed": "Nie udało się dodać członków",
+      "create_ellipsis": "Nowa grupa…",
+      "delete_confirm_named": "Usunąć „{name}”? Członkowie nie zostaną usunięci.",
+      "delete_failed": "Nie udało się usunąć grupy",
+      "email_all": "Napisz do wszystkich",
+      "members_with_count": "Członkowie ({count})",
+      "no_emails": "Brak adresów e-mail",
+      "no_members_hint": "Stuknij „Dodaj członka”, aby zacząć",
+      "not_found": "Nie znaleziono grupy",
+      "remove_member": "Usuń członka",
+      "remove_member_confirm": "Usunąć „{name}” z tej grupy?",
+      "remove_member_failed": "Nie udało się usunąć członka"
+    },
+    "import": {
+      "change_target": "Zmień",
+      "choose_file_mobile": "Wybierz plik vCard",
+      "failed_count": "{count, plural, one {Nie udało się zaimportować # kontaktu.} few {Nie udało się zaimportować # kontaktów.} many {Nie udało się zaimportować # kontaktów.} other {Nie udało się zaimportować # kontaktu.}}",
+      "import_count": "Importuj ({count})",
+      "into_address_book": "Importuj do książki adresowej",
+      "into_named": "Importuj do: {name}",
+      "no_address_book": "Utwórz książkę adresową przed zaimportowaniem kontaktów.",
+      "picker_failed": "Nie udało się otworzyć selektora plików"
+    },
+    "no_tags_hint": "Brak etykiet. Wpisz nową powyżej.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Dodaj} one {Dodaj (#)} few {Dodaj (#)} many {Dodaj (#)} other {Dodaj (#)}}",
+      "title": "Dodaj kontakt"
+    },
+    "rename_tag_hint_mobile": "Przytrzymaj etykietę, aby zmienić jej nazwę",
+    "tag_name_placeholder": "Nazwa nowej etykiety",
+    "unnamed": "Bez nazwy"
   },
   "context_menu": {
     "color_tag": "Etykieta",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Zapomniano o załączniku?",
     "attachments_too_large_total": "Załączniki przekroczyłyby limit {max} na wiadomość obowiązujący na tym serwerze.",
     "editor_unavailable": "Nie można odczytać treści wiadomości. Skopiuj tekst, a następnie zamknij i ponownie otwórz edytor.",
+    "from_options": "Opcje nadawcy",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Tożsamość niedostępna",
     "image_load_failed": "Nie udało się wczytać obrazu",
     "no_recipient": "(brak odbiorcy)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Kopiuj adres",
     "recipient_move_to": "Przenieś do pola {field}",
     "recipient_remove": "Usuń",
+    "remove_attachment": "Usuń załącznik",
     "save_draft": "Zapisz szkic",
     "save_failed_no_drafts": "Brak folderu Szkice, w którym można zapisać ten szkic.",
     "save_failed_no_identity": "Nie udało się wczytać Twoich tożsamości nadawcy, więc nie można zapisać tego szkicu. Sprawdź połączenie lub skopiuj tekst przed zamknięciem.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Wiadomość mogła już zostać wysłana. Zanim wyślesz ją ponownie, sprawdź folder Wysłane.",
     "send_timeout_title": "Brak odpowiedzi serwera",
     "undo_send_label": "Wysyłanie za {seconds} s…",
+    "upload_failed_short": "Przesyłanie nie powiodło się",
     "uploading": "Przesyłanie...",
+    "uploading_pct": "Przesyłanie {pct}%",
     "validation": {
       "subject_required": "Dodaj temat"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {Zarchiwizowano # wiadomość} few {Zarchiwizowano # wiadomości} many {Zarchiwizowano # wiadomości} other {Zarchiwizowano # wiadomości}}",
     "emails_moved_to": "{count, plural, one {Przeniesiono # wiadomość} few {Przeniesiono # wiadomości} many {Przeniesiono # wiadomości} other {Przeniesiono # wiadomości}} do folderu {mailbox}",
     "error": "Błąd",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtruj wiadomości",
+    "folder_counts": "Łącznie: {total} · nieprzeczytane: {unread}",
+    "import": {
+      "none": "Nie zaimportowano żadnych wiadomości.",
+      "partial": "Zaimportowano: {imported}, nieudane: {failed}.",
+      "success": "{count, plural, one {Zaimportowano # wiadomość.} few {Zaimportowano # wiadomości.} many {Zaimportowano # wiadomości.} other {Zaimportowano # wiadomości.}}",
+      "title": "Import"
+    },
     "marked_as_spam": "Oznaczono jako spam",
     "marked_as_spam_count": "{count, plural, one {Oznaczono # wiadomość jako spam} few {Oznaczono # wiadomości jako spam} many {Oznaczono # wiadomości jako spam} other {Oznaczono # wiadomości jako spam}}",
     "marked_not_spam": "Oznaczono jako nie spam",
@@ -156,10 +328,12 @@
     "outbox_discard": "Odrzuć",
     "outbox_failed": "Nie udało się zapisać zmian na serwerze: {count}.",
     "recent_searches": "Ostatnie wyszukiwania",
+    "remove_filter": "Usuń filtr: {label}",
     "scope_all_folders": "Wszystkie foldery",
     "scope_this_folder": "Ten folder",
     "search_placeholder": "Szukaj poczty...",
     "showing_cached": "Wyświetlanie poczty z pamięci podręcznej",
+    "sort_toggle_hint": "Odwraca kolejność sortowania poczty",
     "swipe_move": "Przenieś",
     "swipe_spam": "Spam",
     "total": "łącznie",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Ta wiadomość zostanie trwale usunięta i nie będzie można jej odzyskać.",
     "delete_permanently_title": "Usunąć trwale?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# plik} few {# pliki} many {# plików} other {# pliku}} · {size}",
+      "received_after_delay": "{date} · czas dostarczenia: {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Eksport nie powiódł się",
     "forwarded": "Przekazano",
     "load_failed": "Nie udało się wczytać wiadomości",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Foldery są usuwane wraz z całą zawartością. Tej operacji nie można cofnąć.",
     "delete_item_title": "Usunąć ten element?",
+    "delete_items_title": "{count, plural, one {Usunąć # element?} few {Usunąć # elementy?} many {Usunąć # elementów?} other {Usunąć # elementu?}}",
     "done": "Gotowe",
+    "download_failed_status": "Pobieranie nie powiodło się (HTTP {status})",
     "folder_empty": "Ten folder jest pusty",
     "invalid_name": "Nieprawidłowa nazwa",
     "invalid_name_slash": "Nazwy nie mogą zawierać znaku „/”.",
@@ -234,6 +415,7 @@
     "open_error": "Nie udało się otworzyć pliku",
     "open_with": "Otwórz za pomocą…",
     "preview_too_large": "Ten plik jest zbyt duży, aby wyświetlić podgląd.",
+    "selected_count": "{count, plural, one {# zaznaczony} few {# zaznaczone} many {# zaznaczonych} other {# zaznaczonego}}",
     "share_add_people": "Dodaj osoby",
     "share_empty": "Jeszcze nikomu nie udostępniono",
     "share_error": "Nie udało się zaktualizować udostępniania",
@@ -244,9 +426,11 @@
     "share_remove": "Usuń dostęp",
     "share_role_custom": "Niestandardowe",
     "share_search_placeholder": "Szukaj po imieniu lub e-mailu",
+    "share_unavailable": "Udostępnianie nie jest dostępne na tym urządzeniu",
     "shared_with": "Osoby z dostępem",
     "sharing_access": "Udostępnianie i dostęp",
-    "upload_unavailable": "Selektor plików nie jest zainstalowany w tej wersji aplikacji. Przebuduj aplikację, aby włączyć przesyłanie."
+    "upload_unavailable": "Selektor plików nie jest zainstalowany w tej wersji aplikacji. Przebuduj aplikację, aby włączyć przesyłanie.",
+    "uploading_progress": "Przesyłanie {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Jesteś offline",
-    "queued_changes": "{count, plural, one {# zmiana zostanie zsynchronizowana} few {# zmiany zostaną zsynchronizowane} many {# zmian zostanie zsynchronizowanych} other {# zmiany zostanie zsynchronizowane}} po ponownym połączeniu"
+    "queued_changes": "{count, plural, one {# zmiana zostanie zsynchronizowana} few {# zmiany zostaną zsynchronizowane} many {# zmian zostanie zsynchronizowanych} other {# zmiany zostanie zsynchronizowane}} po ponownym połączeniu",
+    "sync": {
+      "cached_count": "{count, plural, one {Pobrano # nową wiadomość} few {Pobrano # nowe wiadomości} many {Pobrano # nowych wiadomości} other {Pobrano # nowej wiadomości}} • {size}",
+      "cancelled": "Synchronizacja anulowana",
+      "failed": "Synchronizacja offline nie powiodła się",
+      "processed": "Przetworzono {completed}/{total}",
+      "ready": "Poczta offline gotowa",
+      "syncing": "Synchronizowanie poczty offline",
+      "title": "Synchronizacja offline",
+      "unable_to_download": "Nie można pobrać",
+      "up_to_date": "Wszystko jest aktualne"
+    }
   },
   "push_prompt": {
     "body": "Włącz powiadomienia w tle, aby nowe wiadomości docierały do Ciebie, gdy aplikacja jest zamknięta.",
@@ -399,6 +594,15 @@
       "not_implemented": "Niezaimplementowane",
       "unavailable": "Niedostępne"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# kontakt} few {# kontakty} many {# kontaktów} other {# kontaktu}}",
+      "default_book": "Domyślna książka adresowa",
+      "description_mobile": "Preferencje wyświetlania i narzędzia książek adresowych.",
+      "export_description_count": "{count, plural, one {Eksportuj # kontakt jako jeden plik vCard.} few {Eksportuj # kontakty jako jeden plik vCard.} many {Eksportuj # kontaktów jako jeden plik vCard.} other {Eksportuj # kontaktu jako jeden plik vCard.}}",
+      "export_empty": "Brak kontaktów do eksportu",
+      "import_description_mobile": "Importuj kontakty z pliku vCard (.vcf) z wykrywaniem duplikatów.",
+      "manage_description_mobile": "Twórz, zmieniaj nazwy i usuwaj książki adresowe, w których porządkujesz kontakty."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Szablon używany przy zapisywaniu lub udostępnianiu załącznika."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Odpowiedzi zawsze są wysyłane z tożsamości, na którą przyszła wiadomość. Gdy ta opcja jest włączona, odpowiedź na inny adres w Twoich domenach (alias catch-all) również jest wysyłana z tego adresu."
       },
+      "content_senders_description_mobile": "Określ, jak obsługiwać zasoby zewnętrzne i piksele śledzące.",
+      "external_content": {
+        "allow_mobile": "Zezwalaj",
+        "ask_mobile": "Pytaj",
+        "block_mobile": "Blokuj"
+      },
       "plain_text_mode": {
         "description_mobile": "Twórz i czytaj wiadomości tylko jako zwykły tekst."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Akcja po przeciągnięciu wiersza od lewej krawędzi w prawo.",
         "label_mobile": "Przesunięcie w prawo (lewo → prawo)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Treści zewnętrzne zawsze ładują się dla nadawców z tej listy.",
+        "description_synced_mobile": "Treści zewnętrzne zawsze ładują się dla nadawców z tej listy. Synchronizowani przez książkę adresową: {count}.",
+        "sync_add_failed": "Nie udało się zsynchronizować z książką adresową",
+        "sync_remove_failed": "Nie udało się usunąć z książki adresowej",
+        "synced_badge": "Synchronizowany przez książkę adresową"
       }
     },
     "experimental": {
       "title": "Funkcja eksperymentalna"
+    },
+    "filters": {
+      "remove_action": "Usuń akcję",
+      "remove_condition": "Usuń warunek",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}}"
+      }
     },
     "folders": {
       "account": "Konto",
@@ -476,6 +700,7 @@
       "delete_title": "Usuń tożsamość",
       "description_mobile": "Zarządzaj nazwami nadawcy, adresami e-mail i podpisami. Stuknij wiersz, aby edytować.",
       "display_name": "Wyświetlana nazwa",
+      "display_name_placeholder": "Jan Kowalski",
       "edit": "Edytuj tożsamość",
       "email_address": "Adres e-mail",
       "email_locked": "JMAP nie pozwala zmienić adresu e-mail tożsamości; zamiast tego utwórz nową.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Pokazuj łączną liczbę wiadomości w folderach",
       "show_folder_total_count_description": "Pokazuj łączną liczbę obok liczby nieprzeczytanych na liście folderów.",
       "swipe_mode": {
+        "description": "Wybierz tryb natychmiastowy (przesuń poza próg, aby wykonać akcję) lub odsłanianie (przesuń, aby odsłonić pasek akcji, a potem stuknij, aby potwierdzić).",
         "instant": "Natychmiastowy (przesunięcie = akcja)",
+        "label": "Zachowanie przesuwania",
         "reveal": "Odsłanianie (przesuń, potem stuknij)"
       },
       "unified_cross_account": "Wspólne widoki dla wszystkich kont",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "To urządzenie przestanie otrzymywać powiadomienia o nowej poczcie dla tego konta.",
         "description_mobile": "Otrzymuj powiadomienia systemowe o nowej poczcie, gdy aplikacja jest zamknięta. Dostarczane przez przekaźnik push Bulwark; przekaźnik nigdy nie widzi treści wiadomości.",
+        "err_android_only": "Powiadomienia push są dostępne tylko na Androidzie.",
+        "err_fcm_empty": "Firebase zwrócił pusty token urządzenia.",
+        "err_fcm_token": "Firebase nie mógł wydać tokenu urządzenia ({detail}). Push przez FCM wymaga Usług Google Play na tym urządzeniu.",
+        "err_fcm_token_up": "Firebase nie mógł wydać tokenu urządzenia ({detail}). Push przez FCM wymaga Usług Google Play na tym urządzeniu. Na tym urządzeniu jest zainstalowany dystrybutor UnifiedPush – zmień metodę dostarczania na UnifiedPush.",
+        "err_jmap_refused": "Serwer poczty odrzucił subskrypcję push: {detail}",
+        "err_no_account": "Nie wczytano konta – nie można skonfigurować push.",
+        "err_permission": "Nie przyznano uprawnienia do powiadomień.",
+        "err_relay_https": "Adres URL przekaźnika musi używać https://.",
+        "err_relay_rejected": "Przekaźnik push odrzucił rejestrację: {detail}",
+        "err_relay_unreachable": "Nie udało się połączyć z przekaźnikiem push pod adresem {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush jest dostępny tylko na Androidzie.",
+        "err_verify_rejected": "Serwer poczty odrzucił kod weryfikacyjny: {detail}",
+        "err_verify_relay": "Przekaźnik nie otrzymał kodu weryfikacyjnego od serwera poczty (ostatnia odpowiedź przekaźnika: {detail}).",
+        "err_verify_timeout": "Serwer poczty nie wysłał kodu weryfikacyjnego do przekaźnika w ciągu 75 s. Sprawdź, czy serwer ma dostęp do adresu URL przekaźnika.",
         "phase_account": "Konto",
         "phase_distributor": "Dystrybutor UnifiedPush",
         "phase_jmap": "Subskrypcja serwera poczty",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME nie jest jeszcze dostępne w aplikacji mobilnej. Zarządzaj kluczami i certyfikatami w webmailu; podpisane wiadomości są tu wyświetlane bez weryfikacji."
     },
     "tabs": {
-      "plugins": "Wtyczki"
+      "plugins": "Wtyczki",
+      "themes": "Motywy",
+      "updates": "Aktualizacje"
     },
     "templates": {
-      "delete_title": "Usuń szablon"
+      "delete_confirm": "Trwale usunąć „{name}”?",
+      "delete_title": "Usuń szablon",
+      "description_mobile": "Gotowe fragmenty do częstych odpowiedzi. Stuknij, aby edytować; przytrzymaj, aby usunąć.",
+      "export_failed": "Eksport nie powiódł się",
+      "import_failed": "Import nie powiódł się",
+      "imported": "Zaimportowano",
+      "imported_count": "{count, plural, one {Dodano # szablon.} few {Dodano # szablony.} many {Dodano # szablonów.} other {Dodano # szablonu.}}",
+      "is_html": "Treść w HTML",
+      "placeholders_hint": "Zmienne: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Nie można udostępnić"
     },
     "themes": {
       "default_description": "Domyślne jasne i ciemne palety kolorów.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Przytrzymaj, aby usunąć to konto",
     "remove_account_message": "Wyloguj konto {account} na tym urządzeniu. Twoja poczta pozostanie na serwerze.",
     "remove_account_title": "Usunąć konto?",
-    "show_unread": "Pokaż nieprzeczytane"
+    "show_unread": "Pokaż nieprzeczytane",
+    "tab_unavailable": "{name} (niedostępne)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {Nie udało się wczytać # konta} few {Nie udało się wczytać # kont} many {Nie udało się wczytać # kont} other {Nie udało się wczytać # konta}}"
   },
   "updates": {
     "advisory": "Biuletyn bezpieczeństwa",

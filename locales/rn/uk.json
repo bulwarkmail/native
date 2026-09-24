@@ -6,6 +6,13 @@
     "not_starred": "Без зірочки"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# хвилина після} few {# хвилини після} many {# хвилин після} other {# хвилини після}}"
+    },
+    "colors": {
+      "indigo": "Індиго",
+      "teal": "Бірюзовий"
+    },
     "drawer": {
       "my_calendars": "Мої календарі",
       "no_calendars": "Календарів ще немає.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Місце або адреса",
       "time": "Час"
     },
+    "import": {
+      "file_too_large_max": "Файл завеликий (макс. {size} МБ).",
+      "imported_count": "{count, plural, one {Імпортовано # подію.} few {Імпортовано # події.} many {Імпортовано # подій.} other {Імпортовано # події.}}",
+      "no_calendar": "Створіть календар, перш ніж імпортувати події.",
+      "no_calendar_title": "Немає календаря",
+      "picker_error": "Не вдалося відкрити вибір файлів",
+      "picker_unavailable": "У цій збірці немає модуля вибору файлів. Перезберіть застосунок, щоб увімкнути імпорт.",
+      "picker_unavailable_title": "Імпорт недоступний",
+      "refused_count": "{count, plural, one {Не вдалося імпортувати # подію:} few {Не вдалося імпортувати # події:} many {Не вдалося імпортувати # подій:} other {Не вдалося імпортувати # події:}}",
+      "refused_message": "{count, plural, =1 {Не вдалося імпортувати подію: {reason}} one {Не вдалося імпортувати # подію: {reason}} few {Не вдалося імпортувати # події: {reason}} many {Не вдалося імпортувати # подій: {reason}} other {Не вдалося імпортувати # події: {reason}}}",
+      "selected_count": "Вибрано: {count}"
+    },
     "invitation": {
       "accept": "Так",
       "add_error": "Не вдалося додати подію",
@@ -42,6 +61,10 @@
       "response_sent": "Відповідь надіслано",
       "tentative": "Можливо",
       "title": "Запрошення до календаря",
+      "trust_authentication_failed": "Цей лист не пройшов перевірку автентичності відправника (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Не вдалося перевірити відправника.",
+      "trust_sender_mismatch": "Відправник не збігається з організатором події.",
+      "trust_sender_mismatch_unverified": "Відправник не збігається з організатором, і лист не пройшов перевірку автентичності.",
       "trust_verified": "Відправника перевірено"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Редагувати календар",
       "new_calendar": "Новий календар"
     },
+    "notifications": {
+      "channel_name": "Нагадування календаря",
+      "starts_in_days": "{count, plural, one {Почнеться через # день} few {Почнеться через # дні} many {Почнеться через # днів} other {Почнеться через # дня}}",
+      "starts_in_hours": "{count, plural, one {Почнеться через # годину} few {Почнеться через # години} many {Почнеться через # годин} other {Почнеться через # години}}",
+      "starts_in_minutes": "{count, plural, one {Почнеться через # хвилину} few {Почнеться через # хвилини} many {Почнеться через # хвилин} other {Почнеться через # хвилини}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {повторення} few {повторення} many {повторень} other {повторення}}",
+      "every_count_days": "{count, plural, one {Кожен # день} few {Кожні # дні} many {Кожні # днів} other {Кожні # дня}}",
+      "every_count_months": "{count, plural, one {Кожен # місяць} few {Кожні # місяці} many {Кожні # місяців} other {Кожні # місяця}}",
+      "every_count_weeks": "{count, plural, one {Кожен # тиждень} few {Кожні # тижні} many {Кожні # тижнів} other {Кожні # тижня}}",
+      "every_count_years": "{count, plural, one {Кожен # рік} few {Кожні # роки} many {Кожні # років} other {Кожні # року}}",
+      "occurrence_count": "{count, plural, one {# повторення} few {# повторення} many {# повторень} other {# повторення}}",
+      "until_date": "До {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Показувати номери тижнів у поданні «Місяць».",
       "time_zone": "Часовий пояс",
       "time_zone_auto": "Часовий пояс пристрою",
+      "time_zone_auto_zone": "Часовий пояс пристрою ({zone})",
       "time_zone_desc": "Пояс для нових подій і відображення календаря. «Часовий пояс пристрою» береться з налаштувань телефона."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Шукати за іменем або email",
       "shared_with": "Доступ мають"
     },
+    "subscription": {
+      "add_feed": "Додати канал",
+      "feed_too_large": "Канал завеликий",
+      "fetch_failed": "Не вдалося отримати канал (HTTP {status})",
+      "name_and_url_required": "Введіть назву та URL-адресу каналу.",
+      "not_a_feed": "За цією URL-адресою немає каналу iCalendar",
+      "not_synced": "Ще не синхронізовано",
+      "url_scheme_invalid": "URL-адреса має починатися з https://, http://, webcal:// або webcals://",
+      "your_subscriptions": "Ваші підписки"
+    },
     "tasks": {
       "add_placeholder": "Додати завдання…",
       "add_time": "Додати час",
+      "clear_due_date": "Прибрати термін виконання",
       "delete_error": "Не вдалося видалити завдання",
+      "not_found": "Це завдання більше недоступне.",
+      "save_error": "Не вдалося зберегти завдання",
       "update_error": "Не вдалося оновити завдання"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Створити",
     "dismiss": "Закрити",
     "done": "Готово",
+    "open": "Відкрити",
+    "open_link_message": "{host} відкриється поза застосунком.",
+    "open_link_title": "Відкрити посилання?",
     "remove": "Видалити",
     "retry": "Повторити",
     "undo": "Скасувати",
     "update": "Оновити"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Видалити «{name}»? Цю дію не можна скасувати.} one {Видалити «{name}»? Разом із нею буде видалено # контакт. Цю дію не можна скасувати.} few {Видалити «{name}»? Разом із нею буде видалено # контакти. Цю дію не можна скасувати.} many {Видалити «{name}»? Разом із нею буде видалено # контактів. Цю дію не можна скасувати.} other {Видалити «{name}»? Разом із нею буде видалено # контакту. Цю дію не можна скасувати.}}"
+    },
+    "all_contacts": "Усі контакти",
+    "bulk": {
+      "add_tag": "Додати тег",
+      "delete_confirm_mobile": "{count, plural, one {Видалити # контакт? Цю дію не можна скасувати.} few {Видалити # контакти? Цю дію не можна скасувати.} many {Видалити # контактів? Цю дію не можна скасувати.} other {Видалити # контакту? Цю дію не можна скасувати.}}",
+      "move_to_address_book": "Перемістити до адресної книги",
+      "tag_failed": "Не вдалося додати тег"
+    },
+    "contact": "Контакт",
+    "create_hint_mobile": "Утримуйте, щоб створити групу",
+    "detail": {
+      "add_to_group_failed": "Не вдалося додати до групи",
+      "copy_name": "{name} (копія)",
+      "created_on": "Створено: {date}",
+      "duplicate_failed": "Не вдалося створити копію",
+      "duplicate_no_book": "Неможливо створити копію без адресної книги.",
+      "no_address_book": "Немає адресної книги",
+      "not_found": "Контакт не знайдено",
+      "open_dialer_failed": "Не вдалося відкрити набір номера",
+      "open_link_failed": "Не вдалося відкрити посилання",
+      "open_maps_failed": "Не вдалося відкрити карти",
+      "open_sms_failed": "Не вдалося відкрити застосунок для повідомлень",
+      "share": "Поділитися",
+      "share_title": "Поділитися: {name}",
+      "sms": "SMS",
+      "timezone_value": "Часовий пояс: {zone}",
+      "updated_on": "Оновлено: {date}"
+    },
+    "empty_state_hint_mobile": "Натисніть +, щоб додати",
+    "export": {
+      "failed": "Не вдалося експортувати"
+    },
+    "form": {
+      "add_nickname": "Додати псевдонім",
+      "add_note": "Додати примітку",
+      "add_organization": "Додати організацію",
+      "address_book_required": "Виберіть адресну книгу, щоб зберегти цей контакт.",
+      "categories_placeholder_mobile": "Введіть тег і натисніть Enter",
+      "context_none": "Немає",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY або --MM-DD",
+      "display_name_optional": "Відображуване ім'я (необов'язково)",
+      "display_name_placeholder": "Власне відображуване ім'я",
+      "edit_named": "Редагувати: {name}",
+      "gender_unspecified": "Не вказано",
+      "grammatical_gender": "Граматичний рід",
+      "invalid_date_message": "«{date}» — не дата. Використовуйте YYYY-MM-DD, YYYY-MM, YYYY або --MM-DD.",
+      "invalid_date_title": "Неправильна дата",
+      "invalid_email_message": "«{address}» — недійсна адреса електронної пошти.",
+      "invalid_email_title": "Неприпустима адреса",
+      "label": "Мітка",
+      "label_placeholder": "Робота, Особисте, …",
+      "missing_address_book": "Не вибрано адресну книгу",
+      "missing_info": "Бракує даних",
+      "name_or_email_required": "Додайте ім'я або хоча б одну адресу електронної пошти.",
+      "new_organization": "Нова організація",
+      "org_name_required": "Додайте назву організації.",
+      "photo_hint_mobile": "Торкніться фото, щоб вибрати зображення",
+      "photo_permission_message": "Надайте доступ до фотогалереї, щоб вибрати фото контакту.",
+      "photo_permission_title": "Потрібен доступ до фото",
+      "pick_date": "Виберіть дату",
+      "pronouns": "Займенники",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "Група",
+    "groups": {
+      "add_member": "Додати учасника",
+      "add_members": "Додати учасників",
+      "add_members_failed": "Не вдалося додати учасників",
+      "create_ellipsis": "Нова група…",
+      "delete_confirm_named": "Видалити «{name}»? Учасників не буде видалено.",
+      "delete_failed": "Не вдалося видалити групу",
+      "email_all": "Написати всім",
+      "members_with_count": "Учасники ({count})",
+      "no_emails": "Немає адрес",
+      "no_members_hint": "Натисніть «Додати учасника», щоб почати",
+      "not_found": "Групу не знайдено",
+      "remove_member": "Видалити учасника",
+      "remove_member_confirm": "Видалити «{name}» з цієї групи?",
+      "remove_member_failed": "Не вдалося видалити учасника"
+    },
+    "import": {
+      "change_target": "Змінити",
+      "choose_file_mobile": "Виберіть файл vCard",
+      "failed_count": "{count, plural, one {Не вдалося імпортувати # контакт.} few {Не вдалося імпортувати # контакти.} many {Не вдалося імпортувати # контактів.} other {Не вдалося імпортувати # контакту.}}",
+      "import_count": "Імпортувати ({count})",
+      "into_address_book": "Імпорт до адресної книги",
+      "into_named": "Імпорт до «{name}»",
+      "no_address_book": "Створіть адресну книгу, перш ніж імпортувати контакти.",
+      "picker_failed": "Не вдалося відкрити вибір файлів"
+    },
+    "no_tags_hint": "Тегів ще немає. Введіть тег вище.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Додати} one {Додати (#)} few {Додати (#)} many {Додати (#)} other {Додати (#)}}",
+      "title": "Додати контакт"
+    },
+    "rename_tag_hint_mobile": "Утримуйте тег, щоб перейменувати його",
+    "tag_name_placeholder": "Нова назва тегу",
+    "unnamed": "Без імені"
   },
   "context_menu": {
     "color_tag": "Тег",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Забули вкладення?",
     "attachments_too_large_total": "Вкладення перевищать ліміт {max} на один лист, встановлений цим сервером.",
     "editor_unavailable": "Не вдалося прочитати вміст листа. Скопіюйте текст, потім закрийте й знову відкрийте редактор.",
+    "from_options": "Параметри відправника",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Ідентичність недоступна",
     "image_load_failed": "Не вдалося завантажити зображення",
     "no_recipient": "(немає одержувача)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Копіювати адресу",
     "recipient_move_to": "Перемістити в «{field}»",
     "recipient_remove": "Видалити",
+    "remove_attachment": "Видалити вкладення",
     "save_draft": "Зберегти чернетку",
     "save_failed_no_drafts": "Немає папки «Чернетки», щоб зберегти цю чернетку.",
     "save_failed_no_identity": "Не вдалося завантажити ідентичності відправника, тому цю чернетку не можна зберегти. Перевірте з'єднання або скопіюйте текст перед закриттям.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Можливо, лист уже надіслано. Перевірте папку «Надіслані», перш ніж надсилати його знову.",
     "send_timeout_title": "Сервер не відповідає",
     "undo_send_label": "Надсилання через {seconds} с…",
+    "upload_failed_short": "Помилка завантаження",
     "uploading": "Завантаження...",
+    "uploading_pct": "Завантаження {pct}%",
     "validation": {
       "subject_required": "Додайте тему"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# лист заархівовано} few {# листи заархівовано} many {# листів заархівовано} other {# листа заархівовано}}",
     "emails_moved_to": "{count, plural, one {# лист переміщено} few {# листи переміщено} many {# листів переміщено} other {# листа переміщено}} до папки «{mailbox}»",
     "error": "Помилка",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Фільтр листів",
+    "folder_counts": "Усього: {total} · непрочитаних: {unread}",
+    "import": {
+      "none": "Жодного листа не імпортовано.",
+      "partial": "Імпортовано: {imported}, з помилкою: {failed}.",
+      "success": "{count, plural, one {Імпортовано # лист.} few {Імпортовано # листи.} many {Імпортовано # листів.} other {Імпортовано # листа.}}",
+      "title": "Імпорт"
+    },
     "marked_as_spam": "Позначено як спам",
     "marked_as_spam_count": "{count, plural, one {# лист позначено як спам} few {# листи позначено як спам} many {# листів позначено як спам} other {# листа позначено як спам}}",
     "marked_not_spam": "Позначено як не спам",
@@ -156,10 +328,12 @@
     "outbox_discard": "Скасувати",
     "outbox_failed": "{count, plural, one {# зміну не вдалося зберегти} few {# зміни не вдалося зберегти} many {# змін не вдалося зберегти} other {# зміни не вдалося зберегти}} на сервері.",
     "recent_searches": "Недавні пошуки",
+    "remove_filter": "Прибрати фільтр «{label}»",
     "scope_all_folders": "Усі папки",
     "scope_this_folder": "Ця папка",
     "search_placeholder": "Пошук пошти...",
     "showing_cached": "Показано пошту з кешу",
+    "sort_toggle_hint": "Змінює порядок сортування листів на зворотний",
     "swipe_move": "Перемістити",
     "swipe_spam": "Спам",
     "total": "усього",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Цей лист буде видалено назавжди без можливості відновлення.",
     "delete_permanently_title": "Видалити назавжди?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# файл} few {# файли} many {# файлів} other {# файлу}} · {size}",
+      "received_after_delay": "{date} · час доставки {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Не вдалося експортувати",
     "forwarded": "Переслано",
     "load_failed": "Не вдалося завантажити лист",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Папки видаляються разом з усім вмістом. Цю дію не можна скасувати.",
     "delete_item_title": "Видалити цей об'єкт?",
+    "delete_items_title": "{count, plural, one {Видалити # об'єкт?} few {Видалити # об'єкти?} many {Видалити # об'єктів?} other {Видалити # об'єкта?}}",
     "done": "Готово",
+    "download_failed_status": "Не вдалося завантажити (HTTP {status})",
     "folder_empty": "Ця папка порожня",
     "invalid_name": "Неприпустима назва",
     "invalid_name_slash": "Назви не можуть містити \"/\".",
@@ -234,6 +415,7 @@
     "open_error": "Не вдалося відкрити файл",
     "open_with": "Відкрити за допомогою…",
     "preview_too_large": "Файл завеликий для попереднього перегляду.",
+    "selected_count": "{count, plural, one {Вибрано: #} few {Вибрано: #} many {Вибрано: #} other {Вибрано: #}}",
     "share_add_people": "Додати людей",
     "share_empty": "Поки що ні з ким не поділено",
     "share_error": "Не вдалося оновити спільний доступ",
@@ -244,9 +426,11 @@
     "share_remove": "Видалити доступ",
     "share_role_custom": "Власне",
     "share_search_placeholder": "Шукати за іменем або email",
+    "share_unavailable": "На цьому пристрої не можна поділитися файлом",
     "shared_with": "Доступ мають",
     "sharing_access": "Спільний доступ",
-    "upload_unavailable": "У цій збірці немає модуля вибору файлів. Перезберіть застосунок, щоб увімкнути завантаження файлів."
+    "upload_unavailable": "У цій збірці немає модуля вибору файлів. Перезберіть застосунок, щоб увімкнути завантаження файлів.",
+    "uploading_progress": "Завантаження {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Ви не в мережі",
-    "queued_changes": "{count, plural, one {# зміну буде синхронізовано} few {# зміни буде синхронізовано} many {# змін буде синхронізовано} other {# зміни буде синхронізовано}} після підключення до мережі"
+    "queued_changes": "{count, plural, one {# зміну буде синхронізовано} few {# зміни буде синхронізовано} many {# змін буде синхронізовано} other {# зміни буде синхронізовано}} після підключення до мережі",
+    "sync": {
+      "cached_count": "{count, plural, one {У кеш збережено # новий лист} few {У кеш збережено # нові листи} many {У кеш збережено # нових листів} other {У кеш збережено # нового листа}} • {size}",
+      "cancelled": "Синхронізацію скасовано",
+      "failed": "Не вдалося синхронізувати офлайн-пошту",
+      "processed": "Оброблено: {completed}/{total}",
+      "ready": "Офлайн-пошта готова",
+      "syncing": "Синхронізація офлайн-пошти",
+      "title": "Офлайн-синхронізація",
+      "unable_to_download": "Не вдалося завантажити",
+      "up_to_date": "Усе вже актуально"
+    }
   },
   "push_prompt": {
     "body": "Увімкніть фонові сповіщення, щоб дізнаватися про нові листи, навіть коли застосунок закрито.",
@@ -399,6 +594,15 @@
       "not_implemented": "Не реалізовано",
       "unavailable": "Недоступно"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# контакт} few {# контакти} many {# контактів} other {# контакту}}",
+      "default_book": "Адресна книга за замовчуванням",
+      "description_mobile": "Параметри відображення та інструменти адресних книг.",
+      "export_description_count": "{count, plural, one {Експортувати # контакт в один файл vCard.} few {Експортувати # контакти в один файл vCard.} many {Експортувати # контактів в один файл vCard.} other {Експортувати # контакту в один файл vCard.}}",
+      "export_empty": "Немає контактів для експорту",
+      "import_description_mobile": "Імпорт контактів із файлу vCard (.vcf) з виявленням дублікатів.",
+      "manage_description_mobile": "Створюйте, перейменовуйте та видаляйте адресні книги, у яких зберігаються ваші контакти."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Шаблон назви під час збереження вкладення або передавання його в інший застосунок."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Відповідь завжди надсилається з ідентичності, на адресу якої прийшов лист. Якщо ввімкнено, відповідь на іншу адресу у ваших доменах (catch-all-псевдонім) теж надсилається з цієї адреси."
       },
+      "content_senders_description_mobile": "Керуйте обробкою зовнішніх ресурсів і пікселів відстеження.",
+      "external_content": {
+        "allow_mobile": "Дозволяти",
+        "ask_mobile": "Питати",
+        "block_mobile": "Блокувати"
+      },
       "plain_text_mode": {
         "description_mobile": "Писати й читати листи лише як простий текст."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Дія, коли ви тягнете рядок від лівого краю праворуч.",
         "label_mobile": "Свайп праворуч (зліва → праворуч)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Для відправників із цього списку зовнішній вміст завантажується завжди.",
+        "description_synced_mobile": "Для відправників із цього списку зовнішній вміст завантажується завжди. Синхронізовано через адресну книгу: {count}.",
+        "sync_add_failed": "Не вдалося синхронізувати з адресною книгою",
+        "sync_remove_failed": "Не вдалося видалити з адресної книги",
+        "synced_badge": "Синхронізовано через адресну книгу"
       }
     },
     "experimental": {
       "title": "Експериментальна функція"
+    },
+    "filters": {
+      "remove_action": "Видалити дію",
+      "remove_condition": "Видалити умову",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# рядок} few {# рядки} many {# рядків} other {# рядка}}"
+      }
     },
     "folders": {
       "account": "Обліковий запис",
@@ -476,6 +700,7 @@
       "delete_title": "Видалити ідентичність",
       "description_mobile": "Керуйте іменами відправника, адресами електронної пошти та підписами. Торкніться рядка, щоб редагувати.",
       "display_name": "Відображуване ім'я",
+      "display_name_placeholder": "Jane Doe",
       "edit": "Редагувати ідентичність",
       "email_address": "Адреса електронної пошти",
       "email_locked": "JMAP не дозволяє змінювати адресу ідентичності — створіть нову.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Загальна кількість листів у папках",
       "show_folder_total_count_description": "Показувати загальну кількість поруч із кількістю непрочитаних у списку папок.",
       "swipe_mode": {
+        "description": "Виберіть «Одразу» (свайп за поріг одразу виконує дію) або «З кнопками» (свайп відкриває смугу дій, потім торкніться для підтвердження).",
         "instant": "Одразу (свайп = дія)",
+        "label": "Поведінка свайпу",
         "reveal": "З кнопками (свайп, потім дотик)"
       },
       "unified_cross_account": "Спільні подання для всіх облікових записів",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Цей пристрій перестане отримувати сповіщення про нову пошту для цього облікового запису.",
         "description_mobile": "Отримуйте системні сповіщення про нові листи, коли застосунок закрито. Доставляються через push-реле Bulwark; реле ніколи не бачить вмісту листів.",
+        "err_android_only": "Push-сповіщення доступні лише на Android.",
+        "err_fcm_empty": "Firebase повернув порожній токен пристрою.",
+        "err_fcm_token": "Firebase не зміг видати токен пристрою ({detail}). Для push через FCM на цьому пристрої потрібні сервіси Google Play.",
+        "err_fcm_token_up": "Firebase не зміг видати токен пристрою ({detail}). Для push через FCM на цьому пристрої потрібні сервіси Google Play. На цьому пристрої встановлено дистриб'ютор UnifiedPush — виберіть спосіб доставки UnifiedPush.",
+        "err_jmap_refused": "Поштовий сервер відхилив push-підписку: {detail}",
+        "err_no_account": "Обліковий запис не завантажено — неможливо налаштувати push.",
+        "err_permission": "Дозвіл на сповіщення не надано.",
+        "err_relay_https": "URL реле має використовувати https://.",
+        "err_relay_rejected": "Push-реле відхилило реєстрацію: {detail}",
+        "err_relay_unreachable": "Не вдалося зв'язатися з push-реле за адресою {url} ({detail}).",
+        "err_up_android_only": "UnifiedPush доступний лише на Android.",
+        "err_verify_rejected": "Поштовий сервер відхилив код підтвердження: {detail}",
+        "err_verify_relay": "Реле так і не отримало код підтвердження від поштового сервера (остання відповідь реле: {detail}).",
+        "err_verify_timeout": "Поштовий сервер не надіслав код підтвердження до реле протягом 75 с. Перевірте, чи сервер може зв'язатися з URL реле.",
         "phase_account": "Обліковий запис",
         "phase_distributor": "Дистриб'ютор UnifiedPush",
         "phase_jmap": "Підписка на поштовому сервері",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME поки недоступний у мобільному застосунку. Керуйте ключами й сертифікатами у веб-пошті; підписані листи показуються тут без перевірки підпису."
     },
     "tabs": {
-      "plugins": "Плагіни"
+      "plugins": "Плагіни",
+      "themes": "Теми",
+      "updates": "Оновлення"
     },
     "templates": {
-      "delete_title": "Видалити шаблон"
+      "delete_confirm": "Видалити «{name}» назавжди?",
+      "delete_title": "Видалити шаблон",
+      "description_mobile": "Готові фрагменти для частих відповідей. Торкніться, щоб редагувати; утримуйте, щоб видалити.",
+      "export_failed": "Не вдалося експортувати",
+      "import_failed": "Не вдалося імпортувати",
+      "imported": "Імпортовано",
+      "imported_count": "{count, plural, one {Додано # шаблон.} few {Додано # шаблони.} many {Додано # шаблонів.} other {Додано # шаблону.}}",
+      "is_html": "Текст у форматі HTML",
+      "placeholders_hint": "Заповнювачі: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Не вдалося поділитися"
     },
     "themes": {
       "default_description": "Стандартні світла й темна палітри.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Утримуйте, щоб видалити цей обліковий запис",
     "remove_account_message": "Вийти з {account} на цьому пристрої. Ваша пошта залишиться на сервері.",
     "remove_account_title": "Видалити обліковий запис?",
-    "show_unread": "Показати непрочитані"
+    "show_unread": "Показати непрочитані",
+    "tab_unavailable": "{name} (недоступно)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {Не вдалося завантажити # обліковий запис} few {Не вдалося завантажити # облікові записи} many {Не вдалося завантажити # облікових записів} other {Не вдалося завантажити # облікового запису}}"
   },
   "updates": {
     "advisory": "Бюлетень безпеки",

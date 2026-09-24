@@ -6,6 +6,13 @@
     "not_starred": "无星标"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, other {开始后 # 分钟}}"
+    },
+    "colors": {
+      "indigo": "靛蓝色",
+      "teal": "蓝绿色"
+    },
     "drawer": {
       "my_calendars": "我的日历",
       "no_calendars": "还没有日历。",
@@ -25,6 +32,18 @@
       "location_placeholder": "地点或地址",
       "time": "时间"
     },
+    "import": {
+      "file_too_large_max": "文件过大（最大 {size} MB）。",
+      "imported_count": "{count, plural, other {已导入 # 个活动。}}",
+      "no_calendar": "导入活动前，请先创建日历。",
+      "no_calendar_title": "没有日历",
+      "picker_error": "无法打开文件选择器",
+      "picker_unavailable": "此版本未安装文件选择器。请重新构建应用以启用导入。",
+      "picker_unavailable_title": "无法导入",
+      "refused_count": "{count, plural, other {有 # 个活动无法导入：}}",
+      "refused_message": "{count, plural, =1 {无法导入该活动：{reason}} other {有 # 个活动无法导入：{reason}}}",
+      "selected_count": "已选择 {count} 项"
+    },
     "invitation": {
       "accept": "是",
       "add_error": "无法添加活动",
@@ -42,6 +61,10 @@
       "response_sent": "回复已发送",
       "tentative": "暂定",
       "title": "日历邀请",
+      "trust_authentication_failed": "此邮件未通过发件人身份验证（SPF/DKIM/DMARC）。",
+      "trust_authentication_missing": "无法验证发件人。",
+      "trust_sender_mismatch": "发件人与活动组织者不同。",
+      "trust_sender_mismatch_unverified": "发件人与组织者不一致，且此邮件未经身份验证。",
       "trust_verified": "发件人已验证"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "编辑日历",
       "new_calendar": "新建日历"
     },
+    "notifications": {
+      "channel_name": "日历提醒",
+      "starts_in_days": "{count, plural, other {# 天后开始}}",
+      "starts_in_hours": "{count, plural, other {# 小时后开始}}",
+      "starts_in_minutes": "{count, plural, other {# 分钟后开始}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, other {次}}",
+      "every_count_days": "{count, plural, other {每 # 天}}",
+      "every_count_months": "{count, plural, other {每 # 个月}}",
+      "every_count_weeks": "{count, plural, other {每 # 周}}",
+      "every_count_years": "{count, plural, other {每 # 年}}",
+      "occurrence_count": "{count, plural, other {共 # 次}}",
+      "until_date": "直到 {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "在月视图中显示周数",
       "time_zone": "时区",
       "time_zone_auto": "设备时区",
+      "time_zone_auto_zone": "设备时区（{zone}）",
       "time_zone_desc": "用于新建活动和显示日历的时区。“设备”将跟随手机设置。"
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "按姓名或邮箱搜索",
       "shared_with": "共享对象"
     },
+    "subscription": {
+      "add_feed": "添加订阅源",
+      "feed_too_large": "订阅源过大",
+      "fetch_failed": "无法获取订阅源（HTTP {status}）",
+      "name_and_url_required": "请输入名称和订阅源 URL。",
+      "not_a_feed": "该 URL 未返回 iCalendar 订阅源",
+      "not_synced": "尚未同步",
+      "url_scheme_invalid": "URL 必须以 https://、http://、webcal:// 或 webcals:// 开头",
+      "your_subscriptions": "您的订阅"
+    },
     "tasks": {
       "add_placeholder": "添加任务…",
       "add_time": "添加时间",
+      "clear_due_date": "清除到期日",
       "delete_error": "删除任务失败",
+      "not_found": "此任务已不存在。",
+      "save_error": "保存任务失败",
       "update_error": "更新任务失败"
     }
   },
@@ -82,10 +134,116 @@
     "create": "创建",
     "dismiss": "关闭",
     "done": "完成",
+    "open": "打开",
+    "open_link_message": "将在应用外打开 {host}。",
+    "open_link_title": "打开链接？",
     "remove": "移除",
     "retry": "重试",
     "undo": "撤销",
     "update": "更新"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {删除“{name}”？此操作无法撤销。} other {删除“{name}”？其中的 # 位联系人也将一并删除。此操作无法撤销。}}"
+    },
+    "all_contacts": "所有联系人",
+    "bulk": {
+      "add_tag": "添加标签",
+      "delete_confirm_mobile": "{count, plural, other {删除 # 位联系人？此操作无法撤销。}}",
+      "move_to_address_book": "移至通讯录",
+      "tag_failed": "添加标签失败"
+    },
+    "contact": "联系人",
+    "create_hint_mobile": "长按可改为创建群组",
+    "detail": {
+      "add_to_group_failed": "添加到群组失败",
+      "copy_name": "{name}（副本）",
+      "created_on": "创建于 {date}",
+      "duplicate_failed": "创建副本失败",
+      "duplicate_no_book": "没有通讯录，无法创建副本。",
+      "no_address_book": "无通讯录",
+      "not_found": "未找到联系人",
+      "open_dialer_failed": "无法打开拨号程序",
+      "open_link_failed": "无法打开链接",
+      "open_maps_failed": "无法打开地图",
+      "open_sms_failed": "无法打开短信应用",
+      "share": "分享",
+      "share_title": "分享 {name}",
+      "sms": "短信",
+      "timezone_value": "时区：{zone}",
+      "updated_on": "更新于 {date}"
+    },
+    "empty_state_hint_mobile": "点按 + 添加",
+    "export": {
+      "failed": "导出失败"
+    },
+    "form": {
+      "add_nickname": "添加昵称",
+      "add_note": "添加备注",
+      "add_organization": "添加组织",
+      "address_book_required": "请选择用于保存此联系人的通讯录。",
+      "categories_placeholder_mobile": "输入标签后按回车键",
+      "context_none": "无",
+      "date_placeholder": "YYYY-MM-DD、YYYY-MM、YYYY 或 --MM-DD",
+      "display_name_optional": "显示名称（可选）",
+      "display_name_placeholder": "自定义显示名称",
+      "edit_named": "编辑 {name}",
+      "gender_unspecified": "未指定",
+      "grammatical_gender": "语法性别",
+      "invalid_date_message": "“{date}”不是日期。请使用 YYYY-MM-DD、YYYY-MM、YYYY 或 --MM-DD 格式。",
+      "invalid_date_title": "日期无效",
+      "invalid_email_message": "“{address}”不是有效的邮箱地址。",
+      "invalid_email_title": "邮箱地址无效",
+      "label": "标签",
+      "label_placeholder": "工作、个人…",
+      "missing_address_book": "未选择通讯录",
+      "missing_info": "信息不完整",
+      "name_or_email_required": "请添加姓名或至少一个邮箱地址。",
+      "new_organization": "新组织",
+      "org_name_required": "请添加组织名称。",
+      "photo_hint_mobile": "点按照片以选择图片",
+      "photo_permission_message": "请授予相册权限以选择联系人照片。",
+      "photo_permission_title": "需要相册访问权限",
+      "pick_date": "选择日期",
+      "pronouns": "人称代词",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "群组",
+    "groups": {
+      "add_member": "添加成员",
+      "add_members": "添加成员",
+      "add_members_failed": "添加成员失败",
+      "create_ellipsis": "新建群组…",
+      "delete_confirm_named": "删除“{name}”？成员不会被删除。",
+      "delete_failed": "删除群组失败",
+      "email_all": "给所有人发邮件",
+      "members_with_count": "成员（{count}）",
+      "no_emails": "没有邮箱地址",
+      "no_members_hint": "点按“添加成员”开始",
+      "not_found": "未找到群组",
+      "remove_member": "移除成员",
+      "remove_member_confirm": "将“{name}”从此群组中移除？",
+      "remove_member_failed": "移除成员失败"
+    },
+    "import": {
+      "change_target": "更改",
+      "choose_file_mobile": "选择 vCard 文件",
+      "failed_count": "{count, plural, other {有 # 位联系人无法导入。}}",
+      "import_count": "导入 {count} 位联系人",
+      "into_address_book": "导入到通讯录",
+      "into_named": "导入到 {name}",
+      "no_address_book": "导入联系人前，请先创建通讯录。",
+      "picker_failed": "无法打开文件选择器"
+    },
+    "no_tags_hint": "还没有标签。请在上方输入。",
+    "picker": {
+      "add_count": "{count, plural, =0 {添加} other {添加（#）}}",
+      "title": "添加联系人"
+    },
+    "rename_tag_hint_mobile": "长按标签可重命名",
+    "tag_name_placeholder": "新标签名称",
+    "unnamed": "未命名"
   },
   "context_menu": {
     "color_tag": "标签",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "忘记添加附件了吗？",
     "attachments_too_large_total": "附件将超过此服务器每封邮件 {max} 的上限。",
     "editor_unavailable": "无法读取邮件内容。请复制您的文本，然后关闭并重新打开撰写窗口。",
+    "from_options": "发件人选项",
+    "group_chip": "{name}（{count}）",
     "identity_unavailable": "身份不可用",
     "image_load_failed": "无法加载图片",
     "no_recipient": "（无收件人）",
@@ -107,6 +267,7 @@
     "recipient_copy": "复制地址",
     "recipient_move_to": "移至{field}",
     "recipient_remove": "移除",
+    "remove_attachment": "移除附件",
     "save_draft": "保存草稿",
     "save_failed_no_drafts": "没有可用于保存此草稿的“草稿”文件夹。",
     "save_failed_no_identity": "无法加载您的发件身份，因此无法保存此草稿。请检查网络连接，或在关闭前复制您的文本。",
@@ -127,7 +288,9 @@
     "send_timeout_body": "邮件可能已经发出。再次发送前，请检查“已发送”文件夹。",
     "send_timeout_title": "服务器无响应",
     "undo_send_label": "{seconds} 秒后发送…",
+    "upload_failed_short": "上传失败",
     "uploading": "正在上传…",
+    "uploading_pct": "正在上传 {pct}%",
     "validation": {
       "subject_required": "请添加主题"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, other {已归档 # 封邮件}}",
     "emails_moved_to": "{count, plural, other {# 封邮件}}已移至 {mailbox}",
     "error": "错误",
+    "filter_chip": "{field}：{value}",
+    "filter_title": "筛选邮件",
+    "folder_counts": "共 {total} 封 · {unread} 封未读",
+    "import": {
+      "none": "未导入任何邮件。",
+      "partial": "已导入 {imported} 封，{failed} 封失败。",
+      "success": "{count, plural, other {已导入 # 封邮件。}}",
+      "title": "导入"
+    },
     "marked_as_spam": "已标记为垃圾邮件",
     "marked_as_spam_count": "{count, plural, other {# 封邮件}}已标记为垃圾邮件",
     "marked_not_spam": "已标记为非垃圾邮件",
@@ -156,10 +328,12 @@
     "outbox_discard": "丢弃",
     "outbox_failed": "有 {count} 项更改无法保存到服务器。",
     "recent_searches": "最近搜索",
+    "remove_filter": "移除筛选条件：{label}",
     "scope_all_folders": "所有文件夹",
     "scope_this_folder": "此文件夹",
     "search_placeholder": "搜索邮件...",
     "showing_cached": "正在显示缓存的邮件",
+    "sort_toggle_hint": "反转邮件排序顺序",
     "swipe_move": "移动",
     "swipe_spam": "垃圾邮件",
     "total": "总计",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "此邮件将被永久删除，且无法恢复。",
     "delete_permanently_title": "永久删除？",
+    "details": {
+      "attachment_count_size": "{count, plural, other {# 个文件}} · {size}",
+      "received_after_delay": "{date} · 送达耗时 {delay}",
+      "spam_score_value": "{score}（{status}）"
+    },
     "export_failed": "导出失败",
     "forwarded": "已转发",
     "load_failed": "加载邮件失败",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "文件夹将连同其中的所有内容一起删除。此操作无法撤销。",
     "delete_item_title": "删除此项目？",
+    "delete_items_title": "{count, plural, other {删除 # 个项目？}}",
     "done": "完成",
+    "download_failed_status": "下载失败（HTTP {status}）",
     "folder_empty": "此文件夹为空",
     "invalid_name": "名称无效",
     "invalid_name_slash": "名称不能包含“/”。",
@@ -234,6 +415,7 @@
     "open_error": "无法打开文件",
     "open_with": "打开方式…",
     "preview_too_large": "此文件过大，无法预览。",
+    "selected_count": "{count, plural, other {已选择 # 项}}",
     "share_add_people": "添加用户",
     "share_empty": "尚未与任何人共享",
     "share_error": "更新共享失败",
@@ -244,9 +426,11 @@
     "share_remove": "取消访问",
     "share_role_custom": "自定义",
     "share_search_placeholder": "按姓名或邮箱搜索",
+    "share_unavailable": "此设备不支持分享",
     "shared_with": "共享对象",
     "sharing_access": "共享与访问",
-    "upload_unavailable": "此版本未安装文件选择器。请重新构建应用以启用上传。"
+    "upload_unavailable": "此版本未安装文件选择器。请重新构建应用以启用上传。",
+    "uploading_progress": "正在上传 {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "您已离线",
-    "queued_changes": "{count, plural, other {# 项更改}}将在重新连接后同步"
+    "queued_changes": "{count, plural, other {# 项更改}}将在重新连接后同步",
+    "sync": {
+      "cached_count": "{count, plural, other {已缓存 # 封新邮件}} • {size}",
+      "cancelled": "同步已取消",
+      "failed": "离线同步失败",
+      "processed": "已处理 {completed}/{total}",
+      "ready": "离线邮件已就绪",
+      "syncing": "正在同步离线邮件",
+      "title": "离线同步",
+      "unable_to_download": "无法下载",
+      "up_to_date": "已是最新"
+    }
   },
   "push_prompt": {
     "body": "开启后台通知，即使应用已关闭也能收到新邮件。",
@@ -399,6 +594,15 @@
       "not_implemented": "未实现",
       "unavailable": "不可用"
     },
+    "contacts": {
+      "book_count": "{count, plural, other {# 位联系人}}",
+      "default_book": "默认通讯录",
+      "description_mobile": "显示偏好设置和通讯录工具。",
+      "export_description_count": "{count, plural, other {将 # 位联系人导出为单个 vCard 文件。}}",
+      "export_empty": "没有可导出的联系人",
+      "import_description_mobile": "从 vCard (.vcf) 文件导入联系人，并检测重复项。",
+      "manage_description_mobile": "创建、重命名和删除用于整理联系人的通讯录。"
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "保存或分享附件时使用的模板。"
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "回复始终从邮件的收件身份发送。开启后，发往您域名下其他地址（catch-all 别名）的邮件，其回复也会从该地址发送。"
       },
+      "content_senders_description_mobile": "控制如何处理外部资源和跟踪像素。",
+      "external_content": {
+        "allow_mobile": "允许",
+        "ask_mobile": "询问",
+        "block_mobile": "阻止"
+      },
       "plain_text_mode": {
         "description_mobile": "仅以纯文本撰写和阅读。"
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "从左边缘向右拖动某一行时执行的操作。",
         "label_mobile": "右滑（左 → 右）"
+      },
+      "trusted_senders": {
+        "description_mobile": "此列表中发件人的外部内容始终会加载。",
+        "description_synced_mobile": "此列表中发件人的外部内容始终会加载。其中 {count} 位通过通讯录同步。",
+        "sync_add_failed": "无法同步到通讯录",
+        "sync_remove_failed": "无法从通讯录中移除",
+        "synced_badge": "已通过通讯录同步"
       }
     },
     "experimental": {
       "title": "实验性功能"
+    },
+    "filters": {
+      "remove_action": "移除操作",
+      "remove_condition": "移除条件",
+      "sieve_editor": {
+        "line_count": "{count, plural, other {# 行}}"
+      }
     },
     "folders": {
       "account": "账户",
@@ -476,6 +700,7 @@
       "delete_title": "删除身份",
       "description_mobile": "管理发件人名称、邮箱地址和签名。点按某一行即可编辑。",
       "display_name": "显示名称",
+      "display_name_placeholder": "张三",
       "edit": "编辑身份",
       "email_address": "邮箱地址",
       "email_locked": "JMAP 不允许更改身份的邮箱地址，请改为创建一个新身份。",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "在文件夹上显示邮件总数",
       "show_folder_total_count_description": "在文件夹列表中的未读数量旁显示总数。",
       "swipe_mode": {
+        "description": "选择“即时”（滑动超过阈值即执行操作）或“显示”（滑动后显示操作栏，再点按确认）。",
         "instant": "即时（滑动 = 操作）",
+        "label": "滑动方式",
         "reveal": "显示（滑动后点按）"
       },
       "unified_cross_account": "跨账户统一视图",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "此设备将停止接收此账户的新邮件提醒。",
         "description_mobile": "在应用关闭时接收新邮件的系统通知。通过 Bulwark 推送中继传送；中继永远不会看到邮件内容。",
+        "err_android_only": "推送通知仅在 Android 上可用。",
+        "err_fcm_empty": "Firebase 返回了空的设备令牌。",
+        "err_fcm_token": "Firebase 无法签发设备令牌（{detail}）。通过 FCM 推送需要此设备安装 Google Play 服务。",
+        "err_fcm_token_up": "Firebase 无法签发设备令牌（{detail}）。通过 FCM 推送需要此设备安装 Google Play 服务。此设备已安装 UnifiedPush 分发器，请改为将推送方式切换为 UnifiedPush。",
+        "err_jmap_refused": "邮件服务器拒绝了推送订阅：{detail}",
+        "err_no_account": "未加载任何账户，无法设置推送。",
+        "err_permission": "未授予通知权限。",
+        "err_relay_https": "中继 URL 必须使用 https://。",
+        "err_relay_rejected": "推送中继拒绝了注册：{detail}",
+        "err_relay_unreachable": "无法连接到位于 {url} 的推送中继（{detail}）。",
+        "err_up_android_only": "UnifiedPush 仅在 Android 上可用。",
+        "err_verify_rejected": "邮件服务器拒绝了验证码：{detail}",
+        "err_verify_relay": "中继始终未收到邮件服务器发送的验证码（中继最后一次响应：{detail}）。",
+        "err_verify_timeout": "邮件服务器未在 75 秒内向中继发送验证码。请检查服务器能否访问中继 URL。",
         "phase_account": "账户",
         "phase_distributor": "UnifiedPush 分发器",
         "phase_jmap": "邮件服务器订阅",
@@ -700,10 +941,21 @@
       "mobile_explainer": "移动应用暂不支持 S/MIME。请在网页邮箱中管理密钥和证书；已签名的邮件在此显示时不会进行验证。"
     },
     "tabs": {
-      "plugins": "插件"
+      "plugins": "插件",
+      "themes": "主题",
+      "updates": "更新"
     },
     "templates": {
-      "delete_title": "删除模板"
+      "delete_confirm": "永久删除“{name}”？",
+      "delete_title": "删除模板",
+      "description_mobile": "用于常见回复的可重用模板。点按即可编辑，长按即可删除。",
+      "export_failed": "导出失败",
+      "import_failed": "导入失败",
+      "imported": "已导入",
+      "imported_count": "已添加 {count, plural, other {# 个模板}}。",
+      "is_html": "正文为 HTML",
+      "placeholders_hint": "占位符：{{recipient_name}}、{{company}}、{{date}}、{{day_of_week}}、{{sender_name}}",
+      "share_unavailable": "无法分享"
     },
     "themes": {
       "default_description": "默认的浅色和深色配色。",
@@ -722,7 +974,11 @@
     "remove_account_hint": "长按可移除此账户",
     "remove_account_message": "在此设备上退出 {account}。您的邮件仍保留在服务器上。",
     "remove_account_title": "移除账户？",
-    "show_unread": "显示未读"
+    "show_unread": "显示未读",
+    "tab_unavailable": "{name}（不可用）"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, other {有 # 个账户无法加载}}"
   },
   "updates": {
     "advisory": "安全公告",

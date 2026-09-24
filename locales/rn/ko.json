@@ -6,6 +6,13 @@
     "not_starred": "별표 없음"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, other {#분 후}}"
+    },
+    "colors": {
+      "indigo": "남색",
+      "teal": "청록"
+    },
     "drawer": {
       "my_calendars": "내 캘린더",
       "no_calendars": "아직 캘린더가 없어요.",
@@ -25,6 +32,18 @@
       "location_placeholder": "장소 또는 주소",
       "time": "시간"
     },
+    "import": {
+      "file_too_large_max": "파일이 너무 커요(최대 {size}MB).",
+      "imported_count": "{count, plural, other {일정 #개를 가져왔어요.}}",
+      "no_calendar": "일정을 가져오기 전에 캘린더를 만들어 주세요.",
+      "no_calendar_title": "캘린더 없음",
+      "picker_error": "파일 선택기를 열 수 없어요",
+      "picker_unavailable": "이 빌드에는 파일 선택기가 설치되어 있지 않아요. 가져오기를 사용하려면 앱을 다시 빌드해 주세요.",
+      "picker_unavailable_title": "가져오기를 사용할 수 없어요",
+      "refused_count": "{count, plural, other {일정 #개를 가져올 수 없어요:}}",
+      "refused_message": "{count, plural, =1 {일정을 가져올 수 없어요: {reason}} other {일정 #개를 가져올 수 없어요: {reason}}}",
+      "selected_count": "{count}개 선택됨"
+    },
     "invitation": {
       "accept": "예",
       "add_error": "일정을 추가할 수 없어요",
@@ -42,6 +61,10 @@
       "response_sent": "응답이 전송되었어요",
       "tentative": "미정",
       "title": "캘린더 초대",
+      "trust_authentication_failed": "이 메시지는 보낸 사람 인증(SPF/DKIM/DMARC)에 실패했어요.",
+      "trust_authentication_missing": "보낸 사람을 확인할 수 없어요.",
+      "trust_sender_mismatch": "보낸 사람이 일정 주최자와 달라요.",
+      "trust_sender_mismatch_unverified": "보낸 사람이 주최자와 일치하지 않고, 메시지도 인증되지 않았어요.",
       "trust_verified": "보낸 사람 확인됨"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "캘린더 수정",
       "new_calendar": "새 캘린더"
     },
+    "notifications": {
+      "channel_name": "캘린더 알림",
+      "starts_in_days": "{count, plural, other {#일 후 시작}}",
+      "starts_in_hours": "{count, plural, other {#시간 후 시작}}",
+      "starts_in_minutes": "{count, plural, other {#분 후 시작}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, other {회}}",
+      "every_count_days": "{count, plural, other {#일마다}}",
+      "every_count_months": "{count, plural, other {#개월마다}}",
+      "every_count_weeks": "{count, plural, other {#주마다}}",
+      "every_count_years": "{count, plural, other {#년마다}}",
+      "occurrence_count": "{count, plural, other {#회}}",
+      "until_date": "{date}까지"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "월간 보기에 주 차 번호를 표시해요.",
       "time_zone": "시간대",
       "time_zone_auto": "기기 시간대",
+      "time_zone_auto_zone": "기기 시간대({zone})",
       "time_zone_desc": "새 일정과 캘린더 표시에 사용하는 시간대예요. \"기기\"를 선택하면 휴대폰 설정을 따라요."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "이름 또는 이메일로 검색",
       "shared_with": "공유 대상"
     },
+    "subscription": {
+      "add_feed": "피드 추가",
+      "feed_too_large": "피드가 너무 커요",
+      "fetch_failed": "피드를 가져올 수 없어요(HTTP {status})",
+      "name_and_url_required": "이름과 피드 URL을 입력해 주세요.",
+      "not_a_feed": "이 URL은 iCalendar 피드를 반환하지 않았어요",
+      "not_synced": "아직 동기화되지 않음",
+      "url_scheme_invalid": "URL은 https://, http://, webcal:// 또는 webcals://로 시작해야 해요",
+      "your_subscriptions": "내 구독"
+    },
     "tasks": {
       "add_placeholder": "할 일 추가…",
       "add_time": "시간 추가",
+      "clear_due_date": "마감일 지우기",
       "delete_error": "할 일을 삭제하지 못했어요",
+      "not_found": "이 할 일을 더 이상 찾을 수 없어요.",
+      "save_error": "할 일을 저장하지 못했어요",
       "update_error": "할 일을 업데이트하지 못했어요"
     }
   },
@@ -82,10 +134,116 @@
     "create": "만들기",
     "dismiss": "닫기",
     "done": "완료",
+    "open": "열기",
+    "open_link_message": "앱 밖에서 {host}을(를) 열어요.",
+    "open_link_title": "링크를 열까요?",
     "remove": "제거",
     "retry": "다시 시도",
     "undo": "실행 취소",
     "update": "업데이트"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {\"{name}\"을(를) 삭제할까요? 이 작업은 되돌릴 수 없어요.} other {\"{name}\"을(를) 삭제할까요? 안에 있는 연락처 #개도 함께 삭제돼요. 이 작업은 되돌릴 수 없어요.}}"
+    },
+    "all_contacts": "모든 연락처",
+    "bulk": {
+      "add_tag": "태그 추가",
+      "delete_confirm_mobile": "{count, plural, other {연락처 #개를 삭제할까요? 이 작업은 되돌릴 수 없어요.}}",
+      "move_to_address_book": "주소록으로 이동",
+      "tag_failed": "태그를 지정하지 못했어요"
+    },
+    "contact": "연락처",
+    "create_hint_mobile": "길게 누르면 대신 그룹을 만들 수 있어요",
+    "detail": {
+      "add_to_group_failed": "그룹에 추가하지 못했어요",
+      "copy_name": "{name} (사본)",
+      "created_on": "생성일: {date}",
+      "duplicate_failed": "복제하지 못했어요",
+      "duplicate_no_book": "주소록이 없어서 복제할 수 없어요.",
+      "no_address_book": "주소록 없음",
+      "not_found": "연락처를 찾을 수 없어요",
+      "open_dialer_failed": "전화 앱을 열 수 없어요",
+      "open_link_failed": "링크를 열 수 없어요",
+      "open_maps_failed": "지도 앱을 열 수 없어요",
+      "open_sms_failed": "메시지 앱을 열 수 없어요",
+      "share": "공유",
+      "share_title": "{name} 공유",
+      "sms": "문자",
+      "timezone_value": "시간대: {zone}",
+      "updated_on": "수정일: {date}"
+    },
+    "empty_state_hint_mobile": "+를 눌러 추가해 보세요",
+    "export": {
+      "failed": "내보내기에 실패했어요"
+    },
+    "form": {
+      "add_nickname": "별명 추가",
+      "add_note": "메모 추가",
+      "add_organization": "조직 추가",
+      "address_book_required": "이 연락처를 저장할 주소록을 선택해 주세요.",
+      "categories_placeholder_mobile": "태그 입력 후 Enter",
+      "context_none": "없음",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY 또는 --MM-DD",
+      "display_name_optional": "표시 이름 (선택 사항)",
+      "display_name_placeholder": "사용자 지정 표시 이름",
+      "edit_named": "{name} 편집",
+      "gender_unspecified": "지정 안 함",
+      "grammatical_gender": "문법적 성별",
+      "invalid_date_message": "\"{date}\"은(는) 날짜가 아니에요. YYYY-MM-DD, YYYY-MM, YYYY 또는 --MM-DD 형식을 사용해 주세요.",
+      "invalid_date_title": "잘못된 날짜",
+      "invalid_email_message": "\"{address}\"은(는) 올바른 이메일 주소가 아니에요.",
+      "invalid_email_title": "잘못된 이메일",
+      "label": "라벨",
+      "label_placeholder": "직장, 개인, …",
+      "missing_address_book": "주소록을 선택하지 않았어요",
+      "missing_info": "정보가 부족해요",
+      "name_or_email_required": "이름이나 이메일 주소를 하나 이상 추가해 주세요.",
+      "new_organization": "새 조직",
+      "org_name_required": "조직 이름을 추가해 주세요.",
+      "photo_hint_mobile": "사진을 탭하여 이미지 선택",
+      "photo_permission_message": "연락처 사진을 선택하려면 사진 보관함 권한을 허용해 주세요.",
+      "photo_permission_title": "사진 접근 권한 필요",
+      "pick_date": "날짜 선택",
+      "pronouns": "인칭 대명사",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "그룹",
+    "groups": {
+      "add_member": "멤버 추가",
+      "add_members": "멤버 추가",
+      "add_members_failed": "멤버를 추가하지 못했어요",
+      "create_ellipsis": "새 그룹…",
+      "delete_confirm_named": "\"{name}\"을(를) 삭제할까요? 멤버는 삭제되지 않아요.",
+      "delete_failed": "그룹을 삭제하지 못했어요",
+      "email_all": "모두에게 메일 보내기",
+      "members_with_count": "멤버({count})",
+      "no_emails": "이메일 주소 없음",
+      "no_members_hint": "\"멤버 추가\"를 눌러 시작해 보세요",
+      "not_found": "그룹을 찾을 수 없어요",
+      "remove_member": "멤버 제거",
+      "remove_member_confirm": "\"{name}\"을(를) 이 그룹에서 제거할까요?",
+      "remove_member_failed": "멤버를 제거하지 못했어요"
+    },
+    "import": {
+      "change_target": "변경",
+      "choose_file_mobile": "vCard 파일 선택",
+      "failed_count": "{count, plural, other {연락처 #개를 가져오지 못했어요.}}",
+      "import_count": "{count}개 가져오기",
+      "into_address_book": "가져올 주소록",
+      "into_named": "{name}(으)로 가져오기",
+      "no_address_book": "연락처를 가져오기 전에 주소록을 만들어 주세요.",
+      "picker_failed": "파일 선택기를 열 수 없어요"
+    },
+    "no_tags_hint": "아직 태그가 없어요. 위에 입력해 보세요.",
+    "picker": {
+      "add_count": "{count, plural, =0 {추가} other {추가(#)}}",
+      "title": "연락처 추가"
+    },
+    "rename_tag_hint_mobile": "태그를 길게 누르면 이름을 바꿀 수 있어요",
+    "tag_name_placeholder": "새 태그 이름",
+    "unnamed": "이름 없음"
   },
   "context_menu": {
     "color_tag": "태그",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "첨부 파일을 잊으셨나요?",
     "attachments_too_large_total": "첨부 파일이 이 서버의 메시지당 한도({max})를 넘어요.",
     "editor_unavailable": "메시지 내용을 읽을 수 없어요. 텍스트를 복사한 다음 작성 화면을 닫았다가 다시 열어 주세요.",
+    "from_options": "보내는 사람 옵션",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "보내는 사람을 사용할 수 없어요",
     "image_load_failed": "이미지를 불러올 수 없어요",
     "no_recipient": "(받는 사람 없음)",
@@ -107,6 +267,7 @@
     "recipient_copy": "주소 복사",
     "recipient_move_to": "{field}(으)로 이동",
     "recipient_remove": "제거",
+    "remove_attachment": "첨부 파일 제거",
     "save_draft": "임시 저장",
     "save_failed_no_drafts": "이 메일을 저장할 임시보관함이 없어요.",
     "save_failed_no_identity": "보내는 사람 정보를 불러올 수 없어 이 메일을 임시 저장할 수 없어요. 연결 상태를 확인하거나, 닫기 전에 텍스트를 복사해 두세요.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "메시지가 이미 발송되었을 수 있어요. 다시 보내기 전에 보낸편지함을 확인해 주세요.",
     "send_timeout_title": "서버에서 응답이 없어요",
     "undo_send_label": "{seconds}초 후 전송…",
+    "upload_failed_short": "업로드 실패",
     "uploading": "업로드 중...",
+    "uploading_pct": "업로드 중 {pct}%",
     "validation": {
       "subject_required": "제목을 추가해 주세요"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, other {메일 #개}}를 보관했어요",
     "emails_moved_to": "{count, plural, other {메일 #개}}를 {mailbox}(으)로 이동했어요",
     "error": "오류",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "메일 필터",
+    "folder_counts": "전체 {total}개 · 읽지 않음 {unread}개",
+    "import": {
+      "none": "가져온 메시지가 없어요.",
+      "partial": "{imported}개를 가져왔고 {failed}개는 실패했어요.",
+      "success": "{count, plural, other {메시지 #개를 가져왔어요.}}",
+      "title": "가져오기"
+    },
     "marked_as_spam": "스팸으로 표시했어요",
     "marked_as_spam_count": "{count, plural, other {메일 #개}}를 스팸으로 표시했어요",
     "marked_not_spam": "스팸 아님으로 표시했어요",
@@ -156,10 +328,12 @@
     "outbox_discard": "삭제",
     "outbox_failed": "변경 사항 {count}개를 서버에 저장할 수 없어요.",
     "recent_searches": "최근 검색",
+    "remove_filter": "{label} 필터 제거",
     "scope_all_folders": "모든 폴더",
     "scope_this_folder": "이 폴더",
     "search_placeholder": "메일 검색...",
     "showing_cached": "캐시된 메일을 표시하는 중",
+    "sort_toggle_hint": "메일 정렬 순서를 반대로 바꿔요",
     "swipe_move": "이동",
     "swipe_spam": "스팸",
     "total": "전체",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "이 메시지는 영구적으로 삭제되며, 다시 복구할 수 없어요.",
     "delete_permanently_title": "영구 삭제할까요?",
+    "details": {
+      "attachment_count_size": "{count, plural, other {파일 #개}} · {size}",
+      "received_after_delay": "{date} · 전달 시간 {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "내보내기에 실패했어요",
     "forwarded": "전달함",
     "load_failed": "메일을 불러오지 못했어요",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "폴더를 삭제하면 안에 있는 모든 항목도 함께 삭제돼요. 이 작업은 되돌릴 수 없어요.",
     "delete_item_title": "이 항목을 삭제할까요?",
+    "delete_items_title": "{count, plural, other {항목 #개를 삭제할까요?}}",
     "done": "완료",
+    "download_failed_status": "다운로드 실패(HTTP {status})",
     "folder_empty": "이 폴더는 비어 있어요",
     "invalid_name": "잘못된 이름",
     "invalid_name_slash": "이름에 \"/\"를 사용할 수 없어요.",
@@ -234,6 +415,7 @@
     "open_error": "파일을 열 수 없어요",
     "open_with": "다른 앱으로 열기…",
     "preview_too_large": "파일이 너무 커서 미리볼 수 없어요.",
+    "selected_count": "{count, plural, other {#개 선택됨}}",
     "share_add_people": "사용자 추가",
     "share_empty": "아직 아무와도 공유하지 않았어요",
     "share_error": "공유 업데이트에 실패했어요",
@@ -244,9 +426,11 @@
     "share_remove": "액세스 권한 제거",
     "share_role_custom": "사용자 지정",
     "share_search_placeholder": "이름 또는 이메일로 검색",
+    "share_unavailable": "이 기기에서는 공유를 사용할 수 없어요",
     "shared_with": "공유 대상",
     "sharing_access": "공유 및 액세스",
-    "upload_unavailable": "이 빌드에는 파일 선택기가 설치되어 있지 않아요. 업로드를 사용하려면 앱을 다시 빌드해 주세요."
+    "upload_unavailable": "이 빌드에는 파일 선택기가 설치되어 있지 않아요. 업로드를 사용하려면 앱을 다시 빌드해 주세요.",
+    "uploading_progress": "업로드 중 {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "오프라인 상태예요",
-    "queued_changes": "{count, plural, other {변경 사항 #개}}는 다시 연결되면 동기화돼요"
+    "queued_changes": "{count, plural, other {변경 사항 #개}}는 다시 연결되면 동기화돼요",
+    "sync": {
+      "cached_count": "{count, plural, other {새 메시지 #개를 캐시했어요}} • {size}",
+      "cancelled": "동기화가 취소되었어요",
+      "failed": "오프라인 동기화에 실패했어요",
+      "processed": "{completed}/{total}개 처리됨",
+      "ready": "오프라인 메일 준비 완료",
+      "syncing": "오프라인 메일 동기화 중",
+      "title": "오프라인 동기화",
+      "unable_to_download": "다운로드할 수 없어요",
+      "up_to_date": "이미 최신 상태예요"
+    }
   },
   "push_prompt": {
     "body": "백그라운드 알림을 켜면 앱이 닫혀 있어도 새 메시지를 받을 수 있어요.",
@@ -399,6 +594,15 @@
       "not_implemented": "미구현",
       "unavailable": "사용 불가"
     },
+    "contacts": {
+      "book_count": "{count, plural, other {연락처 #개}}",
+      "default_book": "기본 주소록",
+      "description_mobile": "표시 설정과 주소록 도구예요.",
+      "export_description_count": "{count, plural, other {연락처 #개를 하나의 vCard 파일로 내보내요.}}",
+      "export_empty": "내보낼 연락처가 없어요",
+      "import_description_mobile": "vCard(.vcf) 파일에서 연락처를 가져오고 중복을 감지해요.",
+      "manage_description_mobile": "연락처를 정리하는 주소록을 만들고, 이름을 바꾸고, 삭제할 수 있어요."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "첨부 파일을 저장하거나 공유할 때 사용하는 템플릿이에요."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "답장은 항상 메시지를 받은 보내는 사람 주소로 전송돼요. 이 옵션을 켜면 내 도메인의 다른 주소(catch-all 별칭)로 받은 메시지에 대한 답장도 해당 주소에서 전송돼요."
       },
+      "content_senders_description_mobile": "외부 리소스와 추적 픽셀을 처리하는 방식을 설정해요.",
+      "external_content": {
+        "allow_mobile": "허용",
+        "ask_mobile": "묻기",
+        "block_mobile": "차단"
+      },
       "plain_text_mode": {
         "description_mobile": "일반 텍스트로만 작성하고 읽어요."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "행을 왼쪽 끝에서 오른쪽으로 끌었을 때의 동작이에요.",
         "label_mobile": "오른쪽으로 스와이프 (왼쪽 → 오른쪽)"
+      },
+      "trusted_senders": {
+        "description_mobile": "이 목록에 있는 보낸 사람의 외부 콘텐츠는 항상 불러와요.",
+        "description_synced_mobile": "이 목록에 있는 보낸 사람의 외부 콘텐츠는 항상 불러와요. {count}명은 주소록을 통해 동기화돼요.",
+        "sync_add_failed": "주소록에 동기화할 수 없어요",
+        "sync_remove_failed": "주소록에서 삭제할 수 없어요",
+        "synced_badge": "주소록으로 동기화됨"
       }
     },
     "experimental": {
       "title": "실험적 기능"
+    },
+    "filters": {
+      "remove_action": "동작 제거",
+      "remove_condition": "조건 제거",
+      "sieve_editor": {
+        "line_count": "{count, plural, other {#줄}}"
+      }
     },
     "folders": {
       "account": "계정",
@@ -476,6 +700,7 @@
       "delete_title": "보내는 사람 삭제",
       "description_mobile": "보내는 사람 이름, 이메일 주소, 서명을 관리해요. 항목을 탭하면 편집할 수 있어요.",
       "display_name": "표시 이름",
+      "display_name_placeholder": "홍길동",
       "edit": "보내는 사람 수정",
       "email_address": "이메일 주소",
       "email_locked": "JMAP에서는 보내는 사람의 이메일 주소를 변경할 수 없어요. 대신 새로 만들어 주세요.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "폴더에 전체 메시지 수 표시",
       "show_folder_total_count_description": "폴더 목록에서 읽지 않은 수 옆에 전체 수를 표시해요.",
       "swipe_mode": {
+        "description": "즉시(기준점을 넘겨 스와이프하면 동작 실행) 또는 표시(스와이프하면 동작 버튼이 나타나고, 탭해서 확인) 중에서 선택해요.",
         "instant": "즉시 (스와이프 = 동작)",
+        "label": "스와이프 동작 방식",
         "reveal": "표시 (스와이프 후 탭)"
       },
       "unified_cross_account": "계정 간 통합 보기",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "이 기기에서 이 계정의 새 메일 알림을 더 이상 받지 않아요.",
         "description_mobile": "앱이 닫혀 있을 때 새 메일에 대한 시스템 알림을 받아요. Bulwark 푸시 릴레이를 통해 전달되며, 릴레이는 메일 내용을 절대 보지 않아요.",
+        "err_android_only": "푸시 알림은 Android에서만 사용할 수 있어요.",
+        "err_fcm_empty": "Firebase에서 빈 기기 토큰을 반환했어요.",
+        "err_fcm_token": "Firebase에서 기기 토큰을 발급하지 못했어요({detail}). FCM으로 푸시를 받으려면 이 기기에 Google Play 서비스가 필요해요.",
+        "err_fcm_token_up": "Firebase에서 기기 토큰을 발급하지 못했어요({detail}). FCM으로 푸시를 받으려면 이 기기에 Google Play 서비스가 필요해요. 이 기기에는 UnifiedPush 배포자가 설치되어 있으니, 대신 전달 방식을 UnifiedPush로 바꿔 주세요.",
+        "err_jmap_refused": "메일 서버에서 푸시 구독을 거부했어요: {detail}",
+        "err_no_account": "불러온 계정이 없어서 푸시를 설정할 수 없어요.",
+        "err_permission": "알림 권한이 허용되지 않았어요.",
+        "err_relay_https": "릴레이 URL은 https://를 사용해야 해요.",
+        "err_relay_rejected": "푸시 릴레이에서 등록을 거부했어요: {detail}",
+        "err_relay_unreachable": "{url}의 푸시 릴레이에 연결할 수 없어요({detail}).",
+        "err_up_android_only": "UnifiedPush는 Android에서만 사용할 수 있어요.",
+        "err_verify_rejected": "메일 서버에서 확인 코드를 거부했어요: {detail}",
+        "err_verify_relay": "릴레이가 메일 서버로부터 확인 코드를 받지 못했어요(마지막 릴레이 응답: {detail}).",
+        "err_verify_timeout": "메일 서버가 75초 안에 릴레이로 확인 코드를 보내지 않았어요. 서버에서 릴레이 URL에 연결할 수 있는지 확인해 주세요.",
         "phase_account": "계정",
         "phase_distributor": "UnifiedPush 배포자",
         "phase_jmap": "메일 서버 구독",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME는 아직 모바일 앱에서 사용할 수 없어요. 키와 인증서는 웹메일에서 관리해 주세요. 서명된 메시지는 여기에서 검증 없이 표시돼요."
     },
     "tabs": {
-      "plugins": "플러그인"
+      "plugins": "플러그인",
+      "themes": "테마",
+      "updates": "업데이트"
     },
     "templates": {
-      "delete_title": "템플릿 삭제"
+      "delete_confirm": "\"{name}\"을(를) 영구 삭제할까요?",
+      "delete_title": "템플릿 삭제",
+      "description_mobile": "자주 쓰는 답장을 위한 재사용 템플릿이에요. 탭하면 편집하고, 길게 누르면 삭제해요.",
+      "export_failed": "내보내기에 실패했어요",
+      "import_failed": "가져오기에 실패했어요",
+      "imported": "가져오기 완료",
+      "imported_count": "{count, plural, other {템플릿 #개}}를 추가했어요.",
+      "is_html": "본문은 HTML 형식",
+      "placeholders_hint": "자리 표시자: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "공유할 수 없어요"
     },
     "themes": {
       "default_description": "기본 라이트 및 다크 팔레트예요.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "길게 눌러 이 계정 삭제",
     "remove_account_message": "이 기기에서 {account} 계정에서 로그아웃해요. 메일은 서버에 그대로 남아요.",
     "remove_account_title": "계정을 삭제할까요?",
-    "show_unread": "읽지 않음 표시"
+    "show_unread": "읽지 않음 표시",
+    "tab_unavailable": "{name} (사용 불가)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, other {계정 #개를 불러올 수 없어요}}"
   },
   "updates": {
     "advisory": "보안 권고",

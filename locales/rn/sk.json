@@ -6,6 +6,13 @@
     "not_starred": "Bez hviezdičky"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# minútu po} few {# minúty po} many {# minúty po} other {# minút po}}"
+    },
+    "colors": {
+      "indigo": "Indigová",
+      "teal": "Modrozelená"
+    },
     "drawer": {
       "my_calendars": "Moje kalendáre",
       "no_calendars": "Zatiaľ žiadne kalendáre.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Miesto alebo adresa",
       "time": "Čas"
     },
+    "import": {
+      "file_too_large_max": "Súbor je príliš veľký (max. {size} MB).",
+      "imported_count": "{count, plural, one {Importovaná # udalosť.} few {Importované # udalosti.} many {Importovaných # udalosti.} other {Importovaných # udalostí.}}",
+      "no_calendar": "Pred importom udalostí vytvorte kalendár.",
+      "no_calendar_title": "Žiadny kalendár",
+      "picker_error": "Výber súborov sa nepodarilo otvoriť",
+      "picker_unavailable": "Výber súborov nie je v tejto zostave nainštalovaný. Ak chcete povoliť import, zostavte aplikáciu znova.",
+      "picker_unavailable_title": "Import nie je k dispozícii",
+      "refused_count": "{count, plural, one {# udalosť sa nepodarilo importovať:} few {# udalosti sa nepodarilo importovať:} many {# udalosti sa nepodarilo importovať:} other {# udalostí sa nepodarilo importovať:}}",
+      "refused_message": "{count, plural, =1 {Udalosť sa nepodarilo importovať: {reason}} one {# udalosť sa nepodarilo importovať: {reason}} few {# udalosti sa nepodarilo importovať: {reason}} many {# udalosti sa nepodarilo importovať: {reason}} other {# udalostí sa nepodarilo importovať: {reason}}}",
+      "selected_count": "Vybrané: {count}"
+    },
     "invitation": {
       "accept": "Áno",
       "add_error": "Udalosť sa nepodarilo pridať",
@@ -42,6 +61,10 @@
       "response_sent": "Odpoveď odoslaná",
       "tentative": "Možno",
       "title": "Pozvánka do kalendára",
+      "trust_authentication_failed": "Táto správa neprešla overením odosielateľa (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Odosielateľa sa nepodarilo overiť.",
+      "trust_sender_mismatch": "Odosielateľ sa líši od organizátora udalosti.",
+      "trust_sender_mismatch_unverified": "Odosielateľ sa nezhoduje s organizátorom a správa nie je overená.",
       "trust_verified": "Odosielateľ overený"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Upraviť kalendár",
       "new_calendar": "Nový kalendár"
     },
+    "notifications": {
+      "channel_name": "Pripomenutia kalendára",
+      "starts_in_days": "{count, plural, one {Začína o # deň} few {Začína o # dni} many {Začína o # dňa} other {Začína o # dní}}",
+      "starts_in_hours": "{count, plural, one {Začína o # hodinu} few {Začína o # hodiny} many {Začína o # hodiny} other {Začína o # hodín}}",
+      "starts_in_minutes": "{count, plural, one {Začína o # minútu} few {Začína o # minúty} many {Začína o # minúty} other {Začína o # minút}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {opakovaní} few {opakovaniach} many {opakovania} other {opakovaniach}}",
+      "every_count_days": "{count, plural, one {Každý deň} few {Každé # dni} many {Každých # dňa} other {Každých # dní}}",
+      "every_count_months": "{count, plural, one {Každý mesiac} few {Každé # mesiace} many {Každých # mesiaca} other {Každých # mesiacov}}",
+      "every_count_weeks": "{count, plural, one {Každý týždeň} few {Každé # týždne} many {Každých # týždňa} other {Každých # týždňov}}",
+      "every_count_years": "{count, plural, one {Každý rok} few {Každé # roky} many {Každých # roka} other {Každých # rokov}}",
+      "occurrence_count": "{count, plural, one {# opakovanie} few {# opakovania} many {# opakovania} other {# opakovaní}}",
+      "until_date": "Do {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Zobrazovať čísla týždňov v mesačnom zobrazení.",
       "time_zone": "Časové pásmo",
       "time_zone_auto": "Časové pásmo zariadenia",
+      "time_zone_auto_zone": "Časové pásmo zariadenia ({zone})",
       "time_zone_desc": "Pásmo pre nové udalosti a na zobrazenie kalendára. „Časové pásmo zariadenia“ sa riadi telefónom."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Hľadať podľa mena alebo e-mailu",
       "shared_with": "Zdieľané s"
     },
+    "subscription": {
+      "add_feed": "Pridať zdroj",
+      "feed_too_large": "Zdroj je príliš veľký",
+      "fetch_failed": "Zdroj sa nepodarilo načítať (HTTP {status})",
+      "name_and_url_required": "Zadajte názov a URL zdroja.",
+      "not_a_feed": "Táto URL nevrátila zdroj iCalendar",
+      "not_synced": "Zatiaľ nesynchronizované",
+      "url_scheme_invalid": "URL musí začínať https://, http://, webcal:// alebo webcals://",
+      "your_subscriptions": "Vaše odbery"
+    },
     "tasks": {
       "add_placeholder": "Pridať úlohu…",
       "add_time": "Pridať čas",
+      "clear_due_date": "Zrušiť termín",
       "delete_error": "Úlohu sa nepodarilo odstrániť",
+      "not_found": "Táto úloha už nie je k dispozícii.",
+      "save_error": "Úlohu sa nepodarilo uložiť",
       "update_error": "Úlohu sa nepodarilo aktualizovať"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Vytvoriť",
     "dismiss": "Zavrieť",
     "done": "Hotovo",
+    "open": "Otvoriť",
+    "open_link_message": "Adresa {host} sa otvorí mimo aplikácie.",
+    "open_link_title": "Otvoriť odkaz?",
     "remove": "Odstrániť",
     "retry": "Opakovať",
     "undo": "Späť",
     "update": "Aktualizovať"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {Odstrániť „{name}“? Túto akciu nie je možné vrátiť späť.} one {Odstrániť „{name}“? Odstráni sa aj # kontakt v ňom. Túto akciu nie je možné vrátiť späť.} few {Odstrániť „{name}“? Odstránia sa aj # kontakty v ňom. Túto akciu nie je možné vrátiť späť.} many {Odstrániť „{name}“? Odstráni sa aj # kontaktu v ňom. Túto akciu nie je možné vrátiť späť.} other {Odstrániť „{name}“? Odstráni sa aj # kontaktov v ňom. Túto akciu nie je možné vrátiť späť.}}"
+    },
+    "all_contacts": "Všetky kontakty",
+    "bulk": {
+      "add_tag": "Pridať štítok",
+      "delete_confirm_mobile": "{count, plural, one {Odstrániť # kontakt? Túto akciu nie je možné vrátiť späť.} few {Odstrániť # kontakty? Túto akciu nie je možné vrátiť späť.} many {Odstrániť # kontaktu? Túto akciu nie je možné vrátiť späť.} other {Odstrániť # kontaktov? Túto akciu nie je možné vrátiť späť.}}",
+      "move_to_address_book": "Presunúť do adresára",
+      "tag_failed": "Štítok sa nepodarilo pridať"
+    },
+    "contact": "Kontakt",
+    "create_hint_mobile": "Dlhým stlačením vytvoríte skupinu",
+    "detail": {
+      "add_to_group_failed": "Pridanie do skupiny zlyhalo",
+      "copy_name": "{name} (kópia)",
+      "created_on": "Vytvorené {date}",
+      "duplicate_failed": "Duplikovanie zlyhalo",
+      "duplicate_no_book": "Bez adresára nie je možné kontakt duplikovať.",
+      "no_address_book": "Žiadny adresár",
+      "not_found": "Kontakt sa nenašiel",
+      "open_dialer_failed": "Nie je možné otvoriť vytáčanie",
+      "open_link_failed": "Nie je možné otvoriť odkaz",
+      "open_maps_failed": "Nie je možné otvoriť mapy",
+      "open_sms_failed": "Nie je možné otvoriť aplikáciu na správy",
+      "share": "Zdieľať",
+      "share_title": "Zdieľať: {name}",
+      "sms": "SMS",
+      "timezone_value": "Časové pásmo: {zone}",
+      "updated_on": "Aktualizované {date}"
+    },
+    "empty_state_hint_mobile": "Kontakt pridáte klepnutím na +",
+    "export": {
+      "failed": "Export zlyhal"
+    },
+    "form": {
+      "add_nickname": "Pridať prezývku",
+      "add_note": "Pridať poznámku",
+      "add_organization": "Pridať organizáciu",
+      "address_book_required": "Na uloženie kontaktu vyberte adresár.",
+      "categories_placeholder_mobile": "Zadajte štítok a stlačte Enter",
+      "context_none": "Žiadny",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY alebo --MM-DD",
+      "display_name_optional": "Zobrazované meno (voliteľné)",
+      "display_name_placeholder": "Vlastné zobrazované meno",
+      "edit_named": "Upraviť: {name}",
+      "gender_unspecified": "Neuvedené",
+      "grammatical_gender": "Gramatický rod",
+      "invalid_date_message": "„{date}“ nie je dátum. Použite YYYY-MM-DD, YYYY-MM, YYYY alebo --MM-DD.",
+      "invalid_date_title": "Neplatný dátum",
+      "invalid_email_message": "„{address}“ nie je platná e-mailová adresa.",
+      "invalid_email_title": "Neplatný e-mail",
+      "label": "Označenie",
+      "label_placeholder": "Pracovné, Osobné, …",
+      "missing_address_book": "Chýba adresár",
+      "missing_info": "Chýbajúce údaje",
+      "name_or_email_required": "Zadajte meno alebo aspoň jeden e-mail.",
+      "new_organization": "Nová organizácia",
+      "org_name_required": "Zadajte názov organizácie.",
+      "photo_hint_mobile": "Klepnutím na fotku vyberiete obrázok",
+      "photo_permission_message": "Na výber fotky kontaktu povoľte prístup ku knižnici fotiek.",
+      "photo_permission_title": "Vyžaduje sa prístup k fotkám",
+      "pick_date": "Vybrať dátum",
+      "pronouns": "Zámená",
+      "pronouns_placeholder": "ona/jej",
+      "url": "URL"
+    },
+    "group": "Skupina",
+    "groups": {
+      "add_member": "Pridať člena",
+      "add_members": "Pridať členov",
+      "add_members_failed": "Členov sa nepodarilo pridať",
+      "create_ellipsis": "Nová skupina…",
+      "delete_confirm_named": "Odstrániť „{name}“? Členovia sa neodstránia.",
+      "delete_failed": "Skupinu sa nepodarilo odstrániť",
+      "email_all": "Napísať všetkým",
+      "members_with_count": "Členovia ({count})",
+      "no_emails": "Žiadne e-mailové adresy",
+      "no_members_hint": "Začnite klepnutím na „Pridať člena“",
+      "not_found": "Skupina sa nenašla",
+      "remove_member": "Odobrať člena",
+      "remove_member_confirm": "Odobrať „{name}“ z tejto skupiny?",
+      "remove_member_failed": "Člena sa nepodarilo odobrať"
+    },
+    "import": {
+      "change_target": "Zmeniť",
+      "choose_file_mobile": "Vyberte súbor vCard",
+      "failed_count": "{count, plural, one {# kontakt sa nepodarilo importovať.} few {# kontakty sa nepodarilo importovať.} many {# kontaktu sa nepodarilo importovať.} other {# kontaktov sa nepodarilo importovať.}}",
+      "import_count": "Importovať ({count})",
+      "into_address_book": "Importovať do adresára",
+      "into_named": "Importovať do: {name}",
+      "no_address_book": "Pred importom kontaktov vytvorte adresár.",
+      "picker_failed": "Výber súborov sa nepodarilo otvoriť"
+    },
+    "no_tags_hint": "Zatiaľ žiadne štítky. Zadajte nový vyššie.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Pridať} one {Pridať (#)} few {Pridať (#)} many {Pridať (#)} other {Pridať (#)}}",
+      "title": "Pridať kontakt"
+    },
+    "rename_tag_hint_mobile": "Štítok premenujete dlhým stlačením",
+    "tag_name_placeholder": "Názov nového štítka",
+    "unnamed": "Bez mena"
   },
   "context_menu": {
     "color_tag": "Štítok",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Nezabudli ste prílohu?",
     "attachments_too_large_total": "Prílohy by prekročili limit {max}, ktorý tento server povoľuje na jednu správu.",
     "editor_unavailable": "Obsah správy sa nepodarilo načítať. Skopírujte si text a potom editor zatvorte a znova otvorte.",
+    "from_options": "Možnosti odosielateľa",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Identita nie je k dispozícii",
     "image_load_failed": "Obrázok sa nepodarilo načítať",
     "no_recipient": "(bez príjemcu)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Kopírovať adresu",
     "recipient_move_to": "Presunúť do poľa {field}",
     "recipient_remove": "Odstrániť",
+    "remove_attachment": "Odstrániť prílohu",
     "save_draft": "Uložiť koncept",
     "save_failed_no_drafts": "Chýba priečinok Koncepty, do ktorého by sa dal koncept uložiť.",
     "save_failed_no_identity": "Vaše identity odosielateľa sa nepodarilo načítať, preto tento koncept nemožno uložiť. Skontrolujte pripojenie alebo si pred zatvorením skopírujte text.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "Správa už možno odišla. Skôr ako ju odošlete znova, skontrolujte priečinok Odoslané.",
     "send_timeout_title": "Server neodpovedá",
     "undo_send_label": "Odoslanie o {seconds} s…",
+    "upload_failed_short": "Nahrávanie zlyhalo",
     "uploading": "Nahrávanie...",
+    "uploading_pct": "Nahrávanie {pct} %",
     "validation": {
       "subject_required": "Doplňte predmet"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {Archivovaný # e-mail} few {Archivované # e-maily} many {Archivované # e-mailu} other {Archivovaných # e-mailov}}",
     "emails_moved_to": "{count, plural, one {Presunutý # e-mail} few {Presunuté # e-maily} many {Presunuté # e-mailu} other {Presunutých # e-mailov}} do priečinka {mailbox}",
     "error": "Chyba",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "Filtrovať e-maily",
+    "folder_counts": "Spolu: {total} · neprečítané: {unread}",
+    "import": {
+      "none": "Neboli importované žiadne správy.",
+      "partial": "Importované: {imported}, zlyhalo: {failed}.",
+      "success": "{count, plural, one {Importovaná # správa.} few {Importované # správy.} many {Importovaných # správy.} other {Importovaných # správ.}}",
+      "title": "Import"
+    },
     "marked_as_spam": "Označené ako spam",
     "marked_as_spam_count": "{count, plural, one {# e-mail označený ako spam} few {# e-maily označené ako spam} many {# e-mailu označené ako spam} other {# e-mailov označených ako spam}}",
     "marked_not_spam": "Označené ako ne-spam",
@@ -156,10 +328,12 @@
     "outbox_discard": "Zahodiť",
     "outbox_failed": "Počet zmien, ktoré sa nepodarilo uložiť na server: {count}.",
     "recent_searches": "Nedávne vyhľadávania",
+    "remove_filter": "Odstrániť filter: {label}",
     "scope_all_folders": "Všetky priečinky",
     "scope_this_folder": "Tento priečinok",
     "search_placeholder": "Hľadať poštu...",
     "showing_cached": "Zobrazuje sa pošta z vyrovnávacej pamäte",
+    "sort_toggle_hint": "Obráti poradie triedenia pošty",
     "swipe_move": "Presunúť",
     "swipe_spam": "Spam",
     "total": "celkom",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Táto správa bude natrvalo odstránená a nebude ju možné obnoviť.",
     "delete_permanently_title": "Odstrániť natrvalo?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# súbor} few {# súbory} many {# súboru} other {# súborov}} · {size}",
+      "received_after_delay": "{date} · čas doručenia: {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Export zlyhal",
     "forwarded": "Preposlané",
     "load_failed": "E-mail sa nepodarilo načítať",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Priečinky sa odstránia spolu so všetkým obsahom. Túto akciu nie je možné vrátiť späť.",
     "delete_item_title": "Odstrániť túto položku?",
+    "delete_items_title": "{count, plural, one {Odstrániť # položku?} few {Odstrániť # položky?} many {Odstrániť # položky?} other {Odstrániť # položiek?}}",
     "done": "Hotovo",
+    "download_failed_status": "Sťahovanie zlyhalo (HTTP {status})",
     "folder_empty": "Tento priečinok je prázdny",
     "invalid_name": "Neplatný názov",
     "invalid_name_slash": "Názvy nesmú obsahovať „/“.",
@@ -234,6 +415,7 @@
     "open_error": "Súbor sa nepodarilo otvoriť",
     "open_with": "Otvoriť pomocou…",
     "preview_too_large": "Tento súbor je príliš veľký na náhľad.",
+    "selected_count": "{count, plural, one {# vybraná} few {# vybrané} many {# vybranej} other {# vybraných}}",
     "share_add_people": "Pridať osoby",
     "share_empty": "Zatiaľ nikomu nezdieľané",
     "share_error": "Aktualizácia zdieľania zlyhala",
@@ -244,9 +426,11 @@
     "share_remove": "Odstrániť prístup",
     "share_role_custom": "Vlastné",
     "share_search_placeholder": "Hľadať podľa mena alebo e-mailu",
+    "share_unavailable": "Zdieľanie nie je na tomto zariadení k dispozícii",
     "shared_with": "Zdieľané s",
     "sharing_access": "Zdieľanie a prístup",
-    "upload_unavailable": "Výber súborov nie je v tejto zostave nainštalovaný. Ak chcete povoliť nahrávanie, zostavte aplikáciu znova."
+    "upload_unavailable": "Výber súborov nie je v tejto zostave nainštalovaný. Ak chcete povoliť nahrávanie, zostavte aplikáciu znova.",
+    "uploading_progress": "Nahrávanie {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Ste offline",
-    "queued_changes": "{count, plural, one {# zmena sa zosynchronizuje} few {# zmeny sa zosynchronizujú} many {# zmeny sa zosynchronizuje} other {# zmien sa zosynchronizuje}} po obnovení pripojenia"
+    "queued_changes": "{count, plural, one {# zmena sa zosynchronizuje} few {# zmeny sa zosynchronizujú} many {# zmeny sa zosynchronizuje} other {# zmien sa zosynchronizuje}} po obnovení pripojenia",
+    "sync": {
+      "cached_count": "{count, plural, one {Stiahnutá # nová správa} few {Stiahnuté # nové správy} many {Stiahnutých # novej správy} other {Stiahnutých # nových správ}} • {size}",
+      "cancelled": "Synchronizácia zrušená",
+      "failed": "Offline synchronizácia zlyhala",
+      "processed": "Spracované {completed}/{total}",
+      "ready": "Pošta offline je pripravená",
+      "syncing": "Synchronizácia pošty offline",
+      "title": "Offline synchronizácia",
+      "unable_to_download": "Nie je možné stiahnuť",
+      "up_to_date": "Všetko je aktuálne"
+    }
   },
   "push_prompt": {
     "body": "Zapnite oznámenia na pozadí, aby vám nové správy chodili, aj keď je aplikácia zatvorená.",
@@ -399,6 +594,15 @@
       "not_implemented": "Neimplementované",
       "unavailable": "Nedostupné"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# kontakt} few {# kontakty} many {# kontaktu} other {# kontaktov}}",
+      "default_book": "Predvolený adresár",
+      "description_mobile": "Predvoľby zobrazenia a nástroje pre adresáre.",
+      "export_description_count": "{count, plural, one {Exportovať # kontakt do jedného súboru vCard.} few {Exportovať # kontakty do jedného súboru vCard.} many {Exportovať # kontaktu do jedného súboru vCard.} other {Exportovať # kontaktov do jedného súboru vCard.}}",
+      "export_empty": "Žiadne kontakty na export",
+      "import_description_mobile": "Importovať kontakty zo súboru vCard (.vcf) s rozpoznaním duplicít.",
+      "manage_description_mobile": "Vytvárajte, premenúvajte a odstraňujte adresáre, v ktorých máte kontakty usporiadané."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Šablóna použitá pri ukladaní alebo zdieľaní prílohy."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Odpovede sa vždy odosielajú z identity, na ktorú správa prišla. Ak je táto voľba zapnutá, odpoveď na inú adresu vo vašich doménach (catch-all alias) sa odošle tiež z tejto adresy."
       },
+      "content_senders_description_mobile": "Určte, ako sa zaobchádza s externými zdrojmi a sledovacími pixelmi.",
+      "external_content": {
+        "allow_mobile": "Povoliť",
+        "ask_mobile": "Pýtať sa",
+        "block_mobile": "Blokovať"
+      },
       "plain_text_mode": {
         "description_mobile": "Písať a čítať iba v obyčajnom texte."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Akcia pri potiahnutí riadka od ľavého okraja doprava.",
         "label_mobile": "Potiahnutie doprava (vľavo → vpravo)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Pri odosielateľoch z tohto zoznamu sa externý obsah načíta vždy.",
+        "description_synced_mobile": "Pri odosielateľoch z tohto zoznamu sa externý obsah načíta vždy. Synchronizované cez adresár: {count}.",
+        "sync_add_failed": "Synchronizácia do adresára zlyhala",
+        "sync_remove_failed": "Odstránenie z adresára zlyhalo",
+        "synced_badge": "Synchronizované cez adresár"
       }
     },
     "experimental": {
       "title": "Experimentálna funkcia"
+    },
+    "filters": {
+      "remove_action": "Odstrániť akciu",
+      "remove_condition": "Odstrániť podmienku",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# riadok} few {# riadky} many {# riadka} other {# riadkov}}"
+      }
     },
     "folders": {
       "account": "Účet",
@@ -476,6 +700,7 @@
       "delete_title": "Odstrániť identitu",
       "description_mobile": "Spravujte mená odosielateľa, e-mailové adresy a podpisy. Klepnutím na riadok ho upravíte.",
       "display_name": "Zobrazené meno",
+      "display_name_placeholder": "Ján Novák",
       "edit": "Upraviť identitu",
       "email_address": "E-mailová adresa",
       "email_locked": "JMAP neumožňuje zmeniť e-mail identity; namiesto toho vytvorte novú.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Zobrazovať celkový počet správ pri priečinkoch",
       "show_folder_total_count_description": "Zobrazovať celkový počet vedľa počtu neprečítaných v zozname priečinkov.",
       "swipe_mode": {
+        "description": "Zvoľte okamžitý režim (potiahnutím za hranicu sa akcia vykoná) alebo odkrytie (potiahnutím sa odkryje pás akcií, klepnutím akciu potvrdíte).",
         "instant": "Okamžite (potiahnutie = akcia)",
+        "label": "Správanie potiahnutia",
         "reveal": "Odkryť (potiahnutie, potom klepnutie)"
       },
       "unified_cross_account": "Zjednotené zobrazenia naprieč účtami",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Toto zariadenie prestane dostávať upozornenia na novú poštu pre tento účet.",
         "description_mobile": "Prijímať systémové oznámenia o novej pošte, keď je aplikácia zatvorená. Doručované cez push relay Bulwark; relay nikdy nevidí obsah pošty.",
+        "err_android_only": "Push oznámenia sú dostupné iba v Androide.",
+        "err_fcm_empty": "Firebase vrátil prázdny token zariadenia.",
+        "err_fcm_token": "Firebase nemohol vydať token zariadenia ({detail}). Push cez FCM vyžaduje v tomto zariadení služby Google Play.",
+        "err_fcm_token_up": "Firebase nemohol vydať token zariadenia ({detail}). Push cez FCM vyžaduje v tomto zariadení služby Google Play. V tomto zariadení je nainštalovaný distribútor UnifiedPush – prepnite spôsob doručenia na UnifiedPush.",
+        "err_jmap_refused": "Poštový server odmietol odber push: {detail}",
+        "err_no_account": "Nie je načítaný žiadny účet – push nie je možné nastaviť.",
+        "err_permission": "Povolenie oznámení nebolo udelené.",
+        "err_relay_https": "URL relay musí používať https://.",
+        "err_relay_rejected": "Push relay odmietol registráciu: {detail}",
+        "err_relay_unreachable": "Push relay na adrese {url} nie je dostupný ({detail}).",
+        "err_up_android_only": "UnifiedPush je dostupný iba v Androide.",
+        "err_verify_rejected": "Poštový server odmietol overovací kód: {detail}",
+        "err_verify_relay": "Relay nikdy nedostal overovací kód od poštového servera (posledná odpoveď relay: {detail}).",
+        "err_verify_timeout": "Poštový server neposlal relay overovací kód do 75 s. Skontrolujte, či sa server dostane na URL relay.",
         "phase_account": "Účet",
         "phase_distributor": "Distribútor UnifiedPush",
         "phase_jmap": "Odber na poštovom serveri",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME zatiaľ v mobilnej aplikácii nie je k dispozícii. Kľúče a certifikáty spravujte vo webmaile; podpísané správy sa tu zobrazujú bez overenia."
     },
     "tabs": {
-      "plugins": "Pluginy"
+      "plugins": "Pluginy",
+      "themes": "Témy",
+      "updates": "Aktualizácie"
     },
     "templates": {
-      "delete_title": "Odstrániť šablónu"
+      "delete_confirm": "Natrvalo odstrániť „{name}“?",
+      "delete_title": "Odstrániť šablónu",
+      "description_mobile": "Opakovane použiteľné úryvky pre časté odpovede. Klepnutím upravíte, dlhým stlačením odstránite.",
+      "export_failed": "Export zlyhal",
+      "import_failed": "Import zlyhal",
+      "imported": "Importované",
+      "imported_count": "{count, plural, one {Pridaná # šablóna.} few {Pridané # šablóny.} many {Pridaných # šablóny.} other {Pridaných # šablón.}}",
+      "is_html": "Telo je HTML",
+      "placeholders_hint": "Zástupné symboly: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Nie je možné zdieľať"
     },
     "themes": {
       "default_description": "Predvolené svetlé a tmavé palety.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Dlhým stlačením odstránite tento účet",
     "remove_account_message": "Odhlásiť účet {account} v tomto zariadení. Vaša pošta zostane na serveri.",
     "remove_account_title": "Odstrániť účet?",
-    "show_unread": "Zobraziť neprečítané"
+    "show_unread": "Zobraziť neprečítané",
+    "tab_unavailable": "{name} (nedostupné)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# účet sa nepodarilo načítať} few {# účty sa nepodarilo načítať} many {# účtu sa nepodarilo načítať} other {# účtov sa nepodarilo načítať}}"
   },
   "updates": {
     "advisory": "Bezpečnostné upozornenie",

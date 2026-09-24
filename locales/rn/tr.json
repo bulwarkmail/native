@@ -6,6 +6,13 @@
     "not_starred": "Yıldızsız"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, one {# dakika sonra} other {# dakika sonra}}"
+    },
+    "colors": {
+      "indigo": "Çivit mavisi",
+      "teal": "Petrol mavisi"
+    },
     "drawer": {
       "my_calendars": "Takvimlerim",
       "no_calendars": "Henüz takvim yok.",
@@ -25,6 +32,18 @@
       "location_placeholder": "Yer veya adres",
       "time": "Saat"
     },
+    "import": {
+      "file_too_large_max": "Bu dosya çok büyük (en fazla {size} MB).",
+      "imported_count": "{count, plural, one {# etkinlik içe aktarıldı.} other {# etkinlik içe aktarıldı.}}",
+      "no_calendar": "Etkinlikleri içe aktarmadan önce bir takvim oluşturun.",
+      "no_calendar_title": "Takvim yok",
+      "picker_error": "Dosya seçici açılamadı",
+      "picker_unavailable": "Bu derlemede dosya seçici yüklü değil. İçe aktarmayı etkinleştirmek için uygulamayı yeniden derleyin.",
+      "picker_unavailable_title": "İçe aktarma kullanılamıyor",
+      "refused_count": "{count, plural, one {# etkinlik içe aktarılamadı:} other {# etkinlik içe aktarılamadı:}}",
+      "refused_message": "{count, plural, =1 {Etkinlik içe aktarılamadı: {reason}} one {# etkinlik içe aktarılamadı: {reason}} other {# etkinlik içe aktarılamadı: {reason}}}",
+      "selected_count": "{count} seçildi"
+    },
     "invitation": {
       "accept": "Evet",
       "add_error": "Etkinlik eklenemedi",
@@ -42,6 +61,10 @@
       "response_sent": "Yanıt gönderildi",
       "tentative": "Belki",
       "title": "Takvim daveti",
+      "trust_authentication_failed": "Bu ileti gönderen kimlik doğrulamasından geçemedi (SPF/DKIM/DMARC).",
+      "trust_authentication_missing": "Gönderen doğrulanamadı.",
+      "trust_sender_mismatch": "Gönderen, etkinlik organizatöründen farklı.",
+      "trust_sender_mismatch_unverified": "Gönderen organizatörle eşleşmiyor ve iletinin kimliği doğrulanmamış.",
       "trust_verified": "Gönderen doğrulandı"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "Takvimi düzenle",
       "new_calendar": "Yeni takvim"
     },
+    "notifications": {
+      "channel_name": "Takvim hatırlatıcıları",
+      "starts_in_days": "{count, plural, one {# gün sonra başlıyor} other {# gün sonra başlıyor}}",
+      "starts_in_hours": "{count, plural, one {# saat sonra başlıyor} other {# saat sonra başlıyor}}",
+      "starts_in_minutes": "{count, plural, one {# dakika sonra başlıyor} other {# dakika sonra başlıyor}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, one {tekrar} other {tekrar}}",
+      "every_count_days": "{count, plural, one {Her gün} other {Her # günde bir}}",
+      "every_count_months": "{count, plural, one {Her ay} other {Her # ayda bir}}",
+      "every_count_weeks": "{count, plural, one {Her hafta} other {Her # haftada bir}}",
+      "every_count_years": "{count, plural, one {Her yıl} other {Her # yılda bir}}",
+      "occurrence_count": "{count, plural, one {# tekrar} other {# tekrar}}",
+      "until_date": "{date} tarihine kadar"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "Ay görünümünde hafta numaralarını göster.",
       "time_zone": "Saat dilimi",
       "time_zone_auto": "Cihaz saat dilimi",
+      "time_zone_auto_zone": "Cihaz saat dilimi ({zone})",
       "time_zone_desc": "Yeni etkinlikler ve takvimin yorumlanması için kullanılan saat dilimi. \"Cihaz saat dilimi\" telefonu izler."
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "Ad veya e-posta ile arayın",
       "shared_with": "Paylaşılanlar"
     },
+    "subscription": {
+      "add_feed": "Akış ekle",
+      "feed_too_large": "Akış çok büyük",
+      "fetch_failed": "Akış alınamadı (HTTP {status})",
+      "name_and_url_required": "Bir ad ve akış URL'si girin.",
+      "not_a_feed": "Bu URL bir iCalendar akışı döndürmedi",
+      "not_synced": "Henüz senkronize edilmedi",
+      "url_scheme_invalid": "URL https://, http://, webcal:// veya webcals:// ile başlamalıdır",
+      "your_subscriptions": "Abonelikleriniz"
+    },
     "tasks": {
       "add_placeholder": "Görev ekle…",
       "add_time": "Saat ekle",
+      "clear_due_date": "Son tarihi temizle",
       "delete_error": "Görev silinemedi",
+      "not_found": "Bu görev artık kullanılamıyor.",
+      "save_error": "Görev kaydedilemedi",
       "update_error": "Görev güncellenemedi"
     }
   },
@@ -82,10 +134,116 @@
     "create": "Oluştur",
     "dismiss": "Kapat",
     "done": "Tamam",
+    "open": "Aç",
+    "open_link_message": "Bu işlem {host} adresini uygulamanın dışında açacak.",
+    "open_link_title": "Bağlantı açılsın mı?",
     "remove": "Kaldır",
     "retry": "Yeniden dene",
     "undo": "Geri al",
     "update": "Güncelle"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {\"{name}\" silinsin mi? Bu geri alınamaz.} one {\"{name}\" silinsin mi? İçindeki # kişi de silinecek. Bu geri alınamaz.} other {\"{name}\" silinsin mi? İçindeki # kişi de silinecek. Bu geri alınamaz.}}"
+    },
+    "all_contacts": "Tüm Kişiler",
+    "bulk": {
+      "add_tag": "Etiket ekle",
+      "delete_confirm_mobile": "{count, plural, one {# kişi silinsin mi? Bu geri alınamaz.} other {# kişi silinsin mi? Bu geri alınamaz.}}",
+      "move_to_address_book": "Adres defterine taşı",
+      "tag_failed": "Etiketleme başarısız oldu"
+    },
+    "contact": "Kişi",
+    "create_hint_mobile": "Bunun yerine grup oluşturmak için uzun basın",
+    "detail": {
+      "add_to_group_failed": "Gruba eklenemedi",
+      "copy_name": "{name} (Kopya)",
+      "created_on": "Oluşturulma: {date}",
+      "duplicate_failed": "Çoğaltılamadı",
+      "duplicate_no_book": "Adres defteri olmadan çoğaltılamaz.",
+      "no_address_book": "Adres defteri yok",
+      "not_found": "Kişi bulunamadı",
+      "open_dialer_failed": "Telefon uygulaması açılamıyor",
+      "open_link_failed": "Bağlantı açılamıyor",
+      "open_maps_failed": "Harita açılamıyor",
+      "open_sms_failed": "Mesajlaşma uygulaması açılamıyor",
+      "share": "Paylaş",
+      "share_title": "Paylaş: {name}",
+      "sms": "SMS",
+      "timezone_value": "Saat dilimi: {zone}",
+      "updated_on": "Güncellenme: {date}"
+    },
+    "empty_state_hint_mobile": "Kişi eklemek için + simgesine dokunun",
+    "export": {
+      "failed": "Dışa aktarma başarısız oldu"
+    },
+    "form": {
+      "add_nickname": "Takma ad ekle",
+      "add_note": "Not ekle",
+      "add_organization": "Kuruluş ekle",
+      "address_book_required": "Bu kişiyi kaydetmek için bir adres defteri seçin.",
+      "categories_placeholder_mobile": "Etiket yazıp Enter'a basın",
+      "context_none": "Yok",
+      "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY veya --MM-DD",
+      "display_name_optional": "Görünen ad (isteğe bağlı)",
+      "display_name_placeholder": "Özel görünen ad",
+      "edit_named": "Düzenle: {name}",
+      "gender_unspecified": "Belirtilmemiş",
+      "grammatical_gender": "Dilbilgisel cinsiyet",
+      "invalid_date_message": "\"{date}\" bir tarih değil. YYYY-MM-DD, YYYY-MM, YYYY veya --MM-DD kullanın.",
+      "invalid_date_title": "Geçersiz tarih",
+      "invalid_email_message": "\"{address}\" geçerli bir e-posta adresi değil.",
+      "invalid_email_title": "Geçersiz e-posta",
+      "label": "Açıklama",
+      "label_placeholder": "İş, Kişisel, …",
+      "missing_address_book": "Adres defteri eksik",
+      "missing_info": "Eksik bilgi",
+      "name_or_email_required": "Bir ad veya en az bir e-posta adresi ekleyin.",
+      "new_organization": "Yeni kuruluş",
+      "org_name_required": "Kuruluş adını ekleyin.",
+      "photo_hint_mobile": "Görsel seçmek için fotoğrafa dokunun",
+      "photo_permission_message": "Kişi fotoğrafı seçmek için fotoğraf arşivi izni verin.",
+      "photo_permission_title": "Fotoğraf erişimi gerekli",
+      "pick_date": "Tarih seçin",
+      "pronouns": "Zamirler",
+      "pronouns_placeholder": "o/onu",
+      "url": "URL"
+    },
+    "group": "Grup",
+    "groups": {
+      "add_member": "Üye ekle",
+      "add_members": "Üyeleri ekle",
+      "add_members_failed": "Üyeler eklenemedi",
+      "create_ellipsis": "Yeni grup…",
+      "delete_confirm_named": "\"{name}\" silinsin mi? Üyeler silinmeyecek.",
+      "delete_failed": "Grup silinemedi",
+      "email_all": "Tümüne e-posta gönder",
+      "members_with_count": "Üyeler ({count})",
+      "no_emails": "E-posta adresi yok",
+      "no_members_hint": "Başlamak için \"Üye ekle\" düğmesine dokunun",
+      "not_found": "Grup bulunamadı",
+      "remove_member": "Üyeyi kaldır",
+      "remove_member_confirm": "\"{name}\" bu gruptan kaldırılsın mı?",
+      "remove_member_failed": "Üye kaldırılamadı"
+    },
+    "import": {
+      "change_target": "Değiştir",
+      "choose_file_mobile": "Bir vCard dosyası seçin",
+      "failed_count": "{count, plural, one {# kişi içe aktarılamadı.} other {# kişi içe aktarılamadı.}}",
+      "import_count": "İçe aktar ({count})",
+      "into_address_book": "Adres defterine içe aktar",
+      "into_named": "Şuraya içe aktar: {name}",
+      "no_address_book": "Kişileri içe aktarmadan önce bir adres defteri oluşturun.",
+      "picker_failed": "Dosya seçici açılamadı"
+    },
+    "no_tags_hint": "Henüz etiket yok. Yukarıya bir tane yazın.",
+    "picker": {
+      "add_count": "{count, plural, =0 {Ekle} one {Ekle (#)} other {Ekle (#)}}",
+      "title": "Kişi Ekle"
+    },
+    "rename_tag_hint_mobile": "Yeniden adlandırmak için bir etikete uzun basın",
+    "tag_name_placeholder": "Yeni etiket adı",
+    "unnamed": "Adsız"
   },
   "context_menu": {
     "color_tag": "Etiket",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "Ek eklemeyi mi unuttunuz?",
     "attachments_too_large_total": "Ekler, bu sunucunun ileti başına izin verdiği {max} sınırını aşacak.",
     "editor_unavailable": "İleti içeriği okunamadı. Metninizi kopyalayın, ardından düzenleyiciyi kapatıp yeniden açın.",
+    "from_options": "Gönderen seçenekleri",
+    "group_chip": "{name} ({count})",
     "identity_unavailable": "Kimlik kullanılamıyor",
     "image_load_failed": "Görsel yüklenemedi",
     "no_recipient": "(alıcı yok)",
@@ -107,6 +267,7 @@
     "recipient_copy": "Adresi kopyala",
     "recipient_move_to": "{field} alanına taşı",
     "recipient_remove": "Kaldır",
+    "remove_attachment": "Eki kaldır",
     "save_draft": "Taslağı kaydet",
     "save_failed_no_drafts": "Bu taslağın kaydedileceği bir Taslaklar klasörü yok.",
     "save_failed_no_identity": "Gönderen kimlikleriniz yüklenemediği için bu taslak kaydedilemiyor. Bağlantınızı kontrol edin veya kapatmadan önce metninizi kopyalayın.",
@@ -127,7 +288,9 @@
     "send_timeout_body": "İleti zaten gönderilmiş olabilir. Yeniden göndermeden önce Gönderilenler klasörünü kontrol edin.",
     "send_timeout_title": "Sunucudan yanıt yok",
     "undo_send_label": "{seconds} sn içinde gönderiliyor…",
+    "upload_failed_short": "Yükleme başarısız",
     "uploading": "Yükleniyor...",
+    "uploading_pct": "Yükleniyor %{pct}",
     "validation": {
       "subject_required": "Konu ekleyin"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, one {# e-posta arşivlendi} other {# e-posta arşivlendi}}",
     "emails_moved_to": "{count, plural, one {# e-posta} other {# e-posta}} {mailbox} klasörüne taşındı",
     "error": "Hata",
+    "filter_chip": "{field}: {value}",
+    "filter_title": "E-postaları filtrele",
+    "folder_counts": "Toplam {total} · {unread} okunmamış",
+    "import": {
+      "none": "Hiçbir ileti içe aktarılmadı.",
+      "partial": "{imported} içe aktarıldı, {failed} başarısız.",
+      "success": "{count, plural, one {# ileti içe aktarıldı.} other {# ileti içe aktarıldı.}}",
+      "title": "İçe Aktarma"
+    },
     "marked_as_spam": "Spam olarak işaretlendi",
     "marked_as_spam_count": "{count, plural, one {# e-posta spam olarak işaretlendi} other {# e-posta spam olarak işaretlendi}}",
     "marked_not_spam": "Spam değil olarak işaretlendi",
@@ -156,10 +328,12 @@
     "outbox_discard": "Vazgeç",
     "outbox_failed": "Sunucuya kaydedilemeyen değişiklik sayısı: {count}.",
     "recent_searches": "Son aramalar",
+    "remove_filter": "Filtreyi kaldır: {label}",
     "scope_all_folders": "Tüm klasörler",
     "scope_this_folder": "Bu klasör",
     "search_placeholder": "Posta ara...",
     "showing_cached": "Önbellekteki posta gösteriliyor",
+    "sort_toggle_hint": "Posta sıralama düzenini tersine çevirir",
     "swipe_move": "Taşı",
     "swipe_spam": "Spam",
     "total": "toplam",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "Bu ileti kalıcı olarak silinecek ve kurtarılamayacak.",
     "delete_permanently_title": "Kalıcı olarak silinsin mi?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# dosya} other {# dosya}} · {size}",
+      "received_after_delay": "{date} · teslim süresi: {delay}",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Dışa aktarma başarısız",
     "forwarded": "İletildi",
     "load_failed": "E-posta yüklenemedi",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "Klasörler, içindeki her şeyle birlikte silinir. Bu işlem geri alınamaz.",
     "delete_item_title": "Bu öge silinsin mi?",
+    "delete_items_title": "{count, plural, one {# öge silinsin mi?} other {# öge silinsin mi?}}",
     "done": "Tamam",
+    "download_failed_status": "İndirme başarısız oldu (HTTP {status})",
     "folder_empty": "Bu klasör boş",
     "invalid_name": "Geçersiz ad",
     "invalid_name_slash": "Adlar \"/\" içeremez.",
@@ -234,6 +415,7 @@
     "open_error": "Dosya açılamadı",
     "open_with": "Birlikte aç…",
     "preview_too_large": "Bu dosya, önizleme için çok büyük.",
+    "selected_count": "{count, plural, one {# seçildi} other {# seçildi}}",
     "share_add_people": "Kişi ekle",
     "share_empty": "Henüz kimseyle paylaşılmadı",
     "share_error": "Paylaşım güncellenemedi",
@@ -244,9 +426,11 @@
     "share_remove": "Erişimi kaldır",
     "share_role_custom": "Özel",
     "share_search_placeholder": "Ad veya e-posta ile arayın",
+    "share_unavailable": "Bu cihazda paylaşım kullanılamıyor",
     "shared_with": "Paylaşılanlar",
     "sharing_access": "Paylaşım ve erişim",
-    "upload_unavailable": "Bu derlemede dosya seçici yüklü değil. Yüklemeleri etkinleştirmek için uygulamayı yeniden derleyin."
+    "upload_unavailable": "Bu derlemede dosya seçici yüklü değil. Yüklemeleri etkinleştirmek için uygulamayı yeniden derleyin.",
+    "uploading_progress": "Yükleniyor {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "Çevrimdışısınız",
-    "queued_changes": "{count, plural, one {# değişiklik} other {# değişiklik}} yeniden bağlandığınızda senkronize edilecek"
+    "queued_changes": "{count, plural, one {# değişiklik} other {# değişiklik}} yeniden bağlandığınızda senkronize edilecek",
+    "sync": {
+      "cached_count": "{count, plural, one {# yeni ileti önbelleğe alındı} other {# yeni ileti önbelleğe alındı}} • {size}",
+      "cancelled": "Senkronizasyon iptal edildi",
+      "failed": "Çevrimdışı senkronizasyon başarısız oldu",
+      "processed": "{completed}/{total} işlendi",
+      "ready": "Çevrimdışı posta hazır",
+      "syncing": "Çevrimdışı posta senkronize ediliyor",
+      "title": "Çevrimdışı senkronizasyon",
+      "unable_to_download": "İndirilemiyor",
+      "up_to_date": "Zaten güncel"
+    }
   },
   "push_prompt": {
     "body": "Uygulama kapalıyken de yeni iletilerden haberdar olmak için arka plan bildirimlerini açın.",
@@ -399,6 +594,15 @@
       "not_implemented": "Uygulanmadı",
       "unavailable": "Kullanılamıyor"
     },
+    "contacts": {
+      "book_count": "{count, plural, one {# kişi} other {# kişi}}",
+      "default_book": "Varsayılan adres defteri",
+      "description_mobile": "Görüntüleme tercihleri ve adres defteri araçları.",
+      "export_description_count": "{count, plural, one {# kişiyi tek bir vCard dosyası olarak dışa aktarın.} other {# kişiyi tek bir vCard dosyası olarak dışa aktarın.}}",
+      "export_empty": "Dışa aktarılacak kişi yok",
+      "import_description_mobile": "Kişileri, yinelenenleri algılayarak bir vCard (.vcf) dosyasından içe aktarın.",
+      "manage_description_mobile": "Kişilerinizi düzenleyen adres defterlerini oluşturun, yeniden adlandırın ve kaldırın."
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "Bir eki kaydederken veya paylaşırken kullanılan şablon."
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "Yanıtlar her zaman iletinin gönderildiği kimlikten gider. Bu açıkken, alan adlarınızdaki başka bir adrese (catch-all takma adı) gelen iletiye verilen yanıt da o adresten gönderilir."
       },
+      "content_senders_description_mobile": "Harici kaynakların ve izleme piksellerinin nasıl işleneceğini belirleyin.",
+      "external_content": {
+        "allow_mobile": "İzin ver",
+        "ask_mobile": "Sor",
+        "block_mobile": "Engelle"
+      },
       "plain_text_mode": {
         "description_mobile": "Yalnızca düz metin olarak yazın ve okuyun."
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "Bir satırı sol kenarından sağa doğru sürüklediğinizde yapılacak eylem.",
         "label_mobile": "Sağa kaydırma (sol → sağ)"
+      },
+      "trusted_senders": {
+        "description_mobile": "Bu listedeki göndericiler için harici içerik her zaman yüklenir.",
+        "description_synced_mobile": "Bu listedeki göndericiler için harici içerik her zaman yüklenir. Adres defteriniz aracılığıyla senkronize edilen: {count}.",
+        "sync_add_failed": "Adres defteriyle senkronize edilemedi",
+        "sync_remove_failed": "Adres defterinden kaldırılamadı",
+        "synced_badge": "Adres defteri aracılığıyla senkronize edildi"
       }
     },
     "experimental": {
       "title": "Deneysel özellik"
+    },
+    "filters": {
+      "remove_action": "İşlemi kaldır",
+      "remove_condition": "Koşulu kaldır",
+      "sieve_editor": {
+        "line_count": "{count, plural, one {# satır} other {# satır}}"
+      }
     },
     "folders": {
       "account": "Hesap",
@@ -476,6 +700,7 @@
       "delete_title": "Kimliği sil",
       "description_mobile": "Gönderen adlarını, e-posta adreslerini ve imzaları yönetin. Düzenlemek için bir satıra dokunun.",
       "display_name": "Görünen ad",
+      "display_name_placeholder": "Ayşe Yılmaz",
       "edit": "Kimliği düzenle",
       "email_address": "E-posta adresi",
       "email_locked": "JMAP bir kimliğin e-posta adresinin değiştirilmesine izin vermez; bunun yerine yeni bir kimlik oluşturun.",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "Klasörlerde toplam ileti sayısını göster",
       "show_folder_total_count_description": "Klasör listesinde okunmamış sayısının yanında toplamı göster.",
       "swipe_mode": {
+        "description": "Anında modu (eşiği geçecek kadar kaydırınca eylem gerçekleşir) veya gösterme modunu (kaydırınca bir eylem şeridi açılır, onaylamak için dokunursunuz) seçin.",
         "instant": "Anında (kaydırma = eylem)",
+        "label": "Kaydırma davranışı",
         "reveal": "Göster (kaydır, sonra dokun)"
       },
       "unified_cross_account": "Hesaplar arası birleşik görünümler",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "Bu cihaz, bu hesap için yeni posta uyarılarını almayı bırakacak.",
         "description_mobile": "Uygulama kapalıyken yeni postalar için sistem bildirimleri alın. Bulwark push röle aracılığıyla iletilir; röle posta içeriğini asla görmez.",
+        "err_android_only": "Push bildirimleri yalnızca Android'de kullanılabilir.",
+        "err_fcm_empty": "Firebase boş bir cihaz belirteci döndürdü.",
+        "err_fcm_token": "Firebase cihaz belirteci veremedi ({detail}). FCM üzerinden push için bu cihazda Google Play hizmetleri gerekir.",
+        "err_fcm_token_up": "Firebase cihaz belirteci veremedi ({detail}). FCM üzerinden push için bu cihazda Google Play hizmetleri gerekir. Bu cihazda bir UnifiedPush dağıtıcısı yüklü - bunun yerine teslimat yöntemini UnifiedPush olarak değiştirin.",
+        "err_jmap_refused": "Posta sunucusu push aboneliğini reddetti: {detail}",
+        "err_no_account": "Hesap yüklenmedi - push ayarlanamıyor.",
+        "err_permission": "Bildirim izni verilmedi.",
+        "err_relay_https": "Röle URL'si https:// kullanmalıdır.",
+        "err_relay_rejected": "Push röle kaydı reddetti: {detail}",
+        "err_relay_unreachable": "{url} adresindeki push röleye ulaşılamadı ({detail}).",
+        "err_up_android_only": "UnifiedPush yalnızca Android'de kullanılabilir.",
+        "err_verify_rejected": "Posta sunucusu doğrulama kodunu reddetti: {detail}",
+        "err_verify_relay": "Röle, posta sunucusundan doğrulama kodunu hiç almadı (son röle yanıtı: {detail}).",
+        "err_verify_timeout": "Posta sunucusu 75 sn içinde röleye doğrulama kodu göndermedi. Sunucunun röle URL'sine erişebildiğini kontrol edin.",
         "phase_account": "Hesap",
         "phase_distributor": "UnifiedPush dağıtıcısı",
         "phase_jmap": "Posta sunucusu aboneliği",
@@ -700,10 +941,21 @@
       "mobile_explainer": "S/MIME henüz mobil uygulamada kullanılamıyor. Anahtarları ve sertifikaları webmail'de yönetin; imzalı iletiler burada doğrulama olmadan gösterilir."
     },
     "tabs": {
-      "plugins": "Eklentiler"
+      "plugins": "Eklentiler",
+      "themes": "Temalar",
+      "updates": "Güncellemeler"
     },
     "templates": {
-      "delete_title": "Şablonu sil"
+      "delete_confirm": "\"{name}\" kalıcı olarak silinsin mi?",
+      "delete_title": "Şablonu sil",
+      "description_mobile": "Sık kullanılan yanıtlar için yeniden kullanılabilir metin parçaları. Düzenlemek için dokunun; silmek için uzun basın.",
+      "export_failed": "Dışa aktarma başarısız oldu",
+      "import_failed": "İçe aktarma başarısız oldu",
+      "imported": "İçe aktarıldı",
+      "imported_count": "{count, plural, one {# şablon eklendi.} other {# şablon eklendi.}}",
+      "is_html": "Gövde HTML",
+      "placeholders_hint": "Yer tutucular: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Paylaşılamıyor"
     },
     "themes": {
       "default_description": "Varsayılan açık ve koyu paletler.",
@@ -722,7 +974,11 @@
     "remove_account_hint": "Bu hesabı kaldırmak için uzun basın",
     "remove_account_message": "Bu cihazda {account} hesabından çıkış yapın. Postanız sunucuda kalır.",
     "remove_account_title": "Hesap kaldırılsın mı?",
-    "show_unread": "Okunmamışları göster"
+    "show_unread": "Okunmamışları göster",
+    "tab_unavailable": "{name} (kullanılamıyor)"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, one {# hesap yüklenemedi} other {# hesap yüklenemedi}}"
   },
   "updates": {
     "advisory": "Güvenlik duyurusu",

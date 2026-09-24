@@ -6,6 +6,13 @@
     "not_starred": "未加星號"
   },
   "calendar": {
+    "alerts": {
+      "minutes_after": "{count, plural, other {開始後 # 分鐘}}"
+    },
+    "colors": {
+      "indigo": "靛藍色",
+      "teal": "藍綠色"
+    },
     "drawer": {
       "my_calendars": "我的行事曆",
       "no_calendars": "尚無行事曆。",
@@ -25,6 +32,18 @@
       "location_placeholder": "地點或地址",
       "time": "時間"
     },
+    "import": {
+      "file_too_large_max": "檔案太大（上限 {size} MB）。",
+      "imported_count": "{count, plural, other {已匯入 # 個活動。}}",
+      "no_calendar": "匯入活動前，請先建立行事曆。",
+      "no_calendar_title": "沒有行事曆",
+      "picker_error": "無法開啟檔案選擇器",
+      "picker_unavailable": "此版本未安裝檔案選擇器。請重新建置應用程式以啟用匯入功能。",
+      "picker_unavailable_title": "無法使用匯入功能",
+      "refused_count": "{count, plural, other {有 # 個活動無法匯入：}}",
+      "refused_message": "{count, plural, =1 {無法匯入此活動：{reason}} other {有 # 個活動無法匯入：{reason}}}",
+      "selected_count": "已選取 {count} 項"
+    },
     "invitation": {
       "accept": "是",
       "add_error": "無法新增活動",
@@ -42,6 +61,10 @@
       "response_sent": "回覆已傳送",
       "tentative": "暫定",
       "title": "行事曆邀請",
+      "trust_authentication_failed": "這封郵件未通過寄件者驗證（SPF/DKIM/DMARC）。",
+      "trust_authentication_missing": "無法驗證寄件者。",
+      "trust_sender_mismatch": "寄件者與活動主辦人不同。",
+      "trust_sender_mismatch_unverified": "寄件者與主辦人不符，且這封郵件未經驗證。",
       "trust_verified": "寄件者已驗證"
     },
     "management": {
@@ -54,10 +77,26 @@
       "edit_calendar": "編輯行事曆",
       "new_calendar": "新增行事曆"
     },
+    "notifications": {
+      "channel_name": "行事曆提醒",
+      "starts_in_days": "{count, plural, other {# 天後開始}}",
+      "starts_in_hours": "{count, plural, other {# 小時後開始}}",
+      "starts_in_minutes": "{count, plural, other {# 分鐘後開始}}"
+    },
+    "recurrence": {
+      "editor_occurrences_count": "{count, plural, other {次後}}",
+      "every_count_days": "{count, plural, other {每 # 天}}",
+      "every_count_months": "{count, plural, other {每 # 個月}}",
+      "every_count_weeks": "{count, plural, other {每 # 週}}",
+      "every_count_years": "{count, plural, other {每 # 年}}",
+      "occurrence_count": "{count, plural, other {共 # 次}}",
+      "until_date": "直到 {date}"
+    },
     "settings": {
       "show_week_numbers_mobile_desc": "在月檢視中顯示週數",
       "time_zone": "時區",
       "time_zone_auto": "裝置時區",
+      "time_zone_auto_zone": "裝置時區（{zone}）",
       "time_zone_desc": "用於新增活動與顯示行事曆的時區。選擇「裝置」時會依照手機的設定。"
     },
     "share": {
@@ -68,10 +107,23 @@
       "search_placeholder": "依姓名或電子郵件地址搜尋",
       "shared_with": "分享對象"
     },
+    "subscription": {
+      "add_feed": "新增資料來源",
+      "feed_too_large": "資料來源太大",
+      "fetch_failed": "無法取得資料來源（HTTP {status}）",
+      "name_and_url_required": "請輸入名稱與資料來源 URL。",
+      "not_a_feed": "此 URL 未傳回 iCalendar 資料來源",
+      "not_synced": "尚未同步",
+      "url_scheme_invalid": "URL 必須以 https://、http://、webcal:// 或 webcals:// 開頭",
+      "your_subscriptions": "您的訂閱"
+    },
     "tasks": {
       "add_placeholder": "新增任務…",
       "add_time": "新增時間",
+      "clear_due_date": "清除到期日",
       "delete_error": "刪除任務失敗",
+      "not_found": "此任務已不存在。",
+      "save_error": "儲存任務失敗",
       "update_error": "更新任務失敗"
     }
   },
@@ -82,10 +134,116 @@
     "create": "建立",
     "dismiss": "關閉",
     "done": "完成",
+    "open": "開啟",
+    "open_link_message": "將在應用程式外開啟 {host}。",
+    "open_link_title": "要開啟連結嗎？",
     "remove": "移除",
     "retry": "重試",
     "undo": "撤銷",
     "update": "更新"
+  },
+  "contacts": {
+    "address_books": {
+      "confirm_delete_count": "{count, plural, =0 {要刪除「{name}」嗎？此動作無法復原。} other {要刪除「{name}」嗎？其中的 # 位聯絡人也會一併刪除。此動作無法復原。}}"
+    },
+    "all_contacts": "所有聯絡人",
+    "bulk": {
+      "add_tag": "新增標籤",
+      "delete_confirm_mobile": "{count, plural, other {要刪除 # 位聯絡人嗎？此動作無法復原。}}",
+      "move_to_address_book": "移至通訊錄",
+      "tag_failed": "新增標籤失敗"
+    },
+    "contact": "聯絡人",
+    "create_hint_mobile": "長按即可改為建立群組",
+    "detail": {
+      "add_to_group_failed": "新增至群組失敗",
+      "copy_name": "{name}（副本）",
+      "created_on": "建立於 {date}",
+      "duplicate_failed": "建立副本失敗",
+      "duplicate_no_book": "沒有通訊錄，無法建立副本。",
+      "no_address_book": "無通訊錄",
+      "not_found": "找不到聯絡人",
+      "open_dialer_failed": "無法開啟撥號程式",
+      "open_link_failed": "無法開啟連結",
+      "open_maps_failed": "無法開啟地圖",
+      "open_sms_failed": "無法開啟簡訊應用程式",
+      "share": "分享",
+      "share_title": "分享 {name}",
+      "sms": "簡訊",
+      "timezone_value": "時區：{zone}",
+      "updated_on": "更新於 {date}"
+    },
+    "empty_state_hint_mobile": "點選 + 即可新增",
+    "export": {
+      "failed": "匯出失敗"
+    },
+    "form": {
+      "add_nickname": "新增暱稱",
+      "add_note": "新增備註",
+      "add_organization": "新增組織",
+      "address_book_required": "請選擇要儲存此聯絡人的通訊錄。",
+      "categories_placeholder_mobile": "輸入標籤後按 Enter",
+      "context_none": "無",
+      "date_placeholder": "YYYY-MM-DD、YYYY-MM、YYYY 或 --MM-DD",
+      "display_name_optional": "顯示名稱（選填）",
+      "display_name_placeholder": "自訂顯示名稱",
+      "edit_named": "編輯 {name}",
+      "gender_unspecified": "未指定",
+      "grammatical_gender": "語法性別",
+      "invalid_date_message": "「{date}」不是日期。請使用 YYYY-MM-DD、YYYY-MM、YYYY 或 --MM-DD 格式。",
+      "invalid_date_title": "日期無效",
+      "invalid_email_message": "「{address}」不是有效的電子郵件地址。",
+      "invalid_email_title": "電子郵件地址無效",
+      "label": "標籤",
+      "label_placeholder": "工作、個人…",
+      "missing_address_book": "未選擇通訊錄",
+      "missing_info": "資訊不完整",
+      "name_or_email_required": "請新增姓名或至少一個電子郵件地址。",
+      "new_organization": "新組織",
+      "org_name_required": "請新增組織名稱。",
+      "photo_hint_mobile": "點選相片以選擇圖片",
+      "photo_permission_message": "請授予相片圖庫權限，以選擇聯絡人相片。",
+      "photo_permission_title": "需要相片存取權",
+      "pick_date": "選擇日期",
+      "pronouns": "人稱代名詞",
+      "pronouns_placeholder": "they/them",
+      "url": "URL"
+    },
+    "group": "群組",
+    "groups": {
+      "add_member": "新增成員",
+      "add_members": "新增成員",
+      "add_members_failed": "新增成員失敗",
+      "create_ellipsis": "新增群組…",
+      "delete_confirm_named": "要刪除「{name}」嗎？成員不會被刪除。",
+      "delete_failed": "刪除群組失敗",
+      "email_all": "寄信給所有人",
+      "members_with_count": "成員（{count}）",
+      "no_emails": "沒有電子郵件地址",
+      "no_members_hint": "點選「新增成員」即可開始",
+      "not_found": "找不到群組",
+      "remove_member": "移除成員",
+      "remove_member_confirm": "要將「{name}」從此群組中移除嗎？",
+      "remove_member_failed": "移除成員失敗"
+    },
+    "import": {
+      "change_target": "變更",
+      "choose_file_mobile": "選擇 vCard 檔案",
+      "failed_count": "{count, plural, other {有 # 位聯絡人無法匯入。}}",
+      "import_count": "匯入 {count} 位聯絡人",
+      "into_address_book": "匯入至通訊錄",
+      "into_named": "匯入至 {name}",
+      "no_address_book": "匯入聯絡人前，請先建立通訊錄。",
+      "picker_failed": "無法開啟檔案選擇器"
+    },
+    "no_tags_hint": "尚無標籤。請在上方輸入。",
+    "picker": {
+      "add_count": "{count, plural, =0 {新增} other {新增（#）}}",
+      "title": "新增聯絡人"
+    },
+    "rename_tag_hint_mobile": "長按標籤即可重新命名",
+    "tag_name_placeholder": "新標籤名稱",
+    "unnamed": "未命名"
   },
   "context_menu": {
     "color_tag": "標籤",
@@ -97,6 +255,8 @@
     "attachment_reminder_title": "忘記新增附件了嗎？",
     "attachments_too_large_total": "附件將超過此伺服器每封郵件 {max} 的上限。",
     "editor_unavailable": "無法讀取郵件內容。請先複製您的文字，再關閉並重新開啟撰寫畫面。",
+    "from_options": "寄件者選項",
+    "group_chip": "{name}（{count}）",
     "identity_unavailable": "寄件身分無法使用",
     "image_load_failed": "無法載入圖片",
     "no_recipient": "（無收件者）",
@@ -107,6 +267,7 @@
     "recipient_copy": "複製地址",
     "recipient_move_to": "移至{field}",
     "recipient_remove": "移除",
+    "remove_attachment": "移除附件",
     "save_draft": "儲存草稿",
     "save_failed_no_drafts": "沒有可儲存這份草稿的草稿信件匣。",
     "save_failed_no_identity": "無法載入您的寄件身分，因此無法儲存這份草稿。請檢查連線，或在關閉前先複製您的文字。",
@@ -127,7 +288,9 @@
     "send_timeout_body": "郵件可能已經寄出。再次傳送前，請先檢查「寄件備份」信件匣。",
     "send_timeout_title": "伺服器沒有回應",
     "undo_send_label": "{seconds} 秒後傳送…",
+    "upload_failed_short": "上傳失敗",
     "uploading": "正在上傳…",
+    "uploading_pct": "正在上傳 {pct}%",
     "validation": {
       "subject_required": "請新增主題"
     }
@@ -137,6 +300,15 @@
     "emails_archived_count": "{count, plural, other {已封存 # 封郵件}}",
     "emails_moved_to": "{count, plural, other {# 封郵件}}已移至 {mailbox}",
     "error": "錯誤",
+    "filter_chip": "{field}：{value}",
+    "filter_title": "篩選郵件",
+    "folder_counts": "共 {total} 封 · {unread} 封未讀",
+    "import": {
+      "none": "未匯入任何郵件。",
+      "partial": "已匯入 {imported} 封，{failed} 封失敗。",
+      "success": "{count, plural, other {已匯入 # 封郵件。}}",
+      "title": "匯入"
+    },
     "marked_as_spam": "已標示為垃圾郵件",
     "marked_as_spam_count": "{count, plural, other {# 封郵件}}已標示為垃圾郵件",
     "marked_not_spam": "已標示為非垃圾郵件",
@@ -156,10 +328,12 @@
     "outbox_discard": "捨棄",
     "outbox_failed": "有 {count} 項變更無法儲存到伺服器。",
     "recent_searches": "最近搜尋",
+    "remove_filter": "移除篩選條件：{label}",
     "scope_all_folders": "所有信件匣",
     "scope_this_folder": "此信件匣",
     "search_placeholder": "搜尋郵件…",
     "showing_cached": "正在顯示快取的郵件",
+    "sort_toggle_hint": "反轉郵件排序順序",
     "swipe_move": "移動",
     "swipe_spam": "垃圾郵件",
     "total": "總計",
@@ -199,6 +373,11 @@
     },
     "delete_permanently_message": "這封郵件將永久刪除，且無法復原。",
     "delete_permanently_title": "要永久刪除嗎？",
+    "details": {
+      "attachment_count_size": "{count, plural, other {# 個檔案}} · {size}",
+      "received_after_delay": "{date} · 送達時間 {delay}",
+      "spam_score_value": "{score}（{status}）"
+    },
     "export_failed": "匯出失敗",
     "forwarded": "已轉寄",
     "load_failed": "載入郵件失敗",
@@ -226,7 +405,9 @@
   "files": {
     "delete_cascade_hint": "資料夾會連同其中的所有內容一併刪除。此動作無法復原。",
     "delete_item_title": "要刪除此項目嗎？",
+    "delete_items_title": "{count, plural, other {要刪除 # 個項目嗎？}}",
     "done": "完成",
+    "download_failed_status": "下載失敗（HTTP {status}）",
     "folder_empty": "此資料夾是空的",
     "invalid_name": "名稱無效",
     "invalid_name_slash": "名稱不能包含「/」。",
@@ -234,6 +415,7 @@
     "open_error": "無法開啟檔案",
     "open_with": "以其他應用程式開啟…",
     "preview_too_large": "此檔案太大，無法預覽。",
+    "selected_count": "{count, plural, other {已選取 # 項}}",
     "share_add_people": "新增使用者",
     "share_empty": "尚未與任何人分享",
     "share_error": "無法更新分享設定",
@@ -244,9 +426,11 @@
     "share_remove": "移除存取權",
     "share_role_custom": "自訂",
     "share_search_placeholder": "依姓名或電子郵件地址搜尋",
+    "share_unavailable": "此裝置無法使用分享功能",
     "shared_with": "分享對象",
     "sharing_access": "分享與存取",
-    "upload_unavailable": "此版本未安裝檔案選擇器。請重新建置應用程式以啟用上傳功能。"
+    "upload_unavailable": "此版本未安裝檔案選擇器。請重新建置應用程式以啟用上傳功能。",
+    "uploading_progress": "正在上傳 {current}/{total} · {name}"
   },
   "identities": {
     "badge": {
@@ -343,7 +527,18 @@
   },
   "offline": {
     "banner": "您目前處於離線狀態",
-    "queued_changes": "{count, plural, other {# 項變更}}將在重新連線後同步"
+    "queued_changes": "{count, plural, other {# 項變更}}將在重新連線後同步",
+    "sync": {
+      "cached_count": "{count, plural, other {已快取 # 封新郵件}} • {size}",
+      "cancelled": "同步已取消",
+      "failed": "離線同步失敗",
+      "processed": "已處理 {completed}/{total}",
+      "ready": "離線郵件已就緒",
+      "syncing": "正在同步離線郵件",
+      "title": "離線同步",
+      "unable_to_download": "無法下載",
+      "up_to_date": "已是最新狀態"
+    }
   },
   "push_prompt": {
     "body": "開啟背景通知，即使應用程式已關閉也能收到新郵件。",
@@ -399,6 +594,15 @@
       "not_implemented": "尚未實作",
       "unavailable": "無法使用"
     },
+    "contacts": {
+      "book_count": "{count, plural, other {# 位聯絡人}}",
+      "default_book": "預設通訊錄",
+      "description_mobile": "顯示偏好設定與通訊錄工具。",
+      "export_description_count": "{count, plural, other {將 # 位聯絡人匯出為單一 vCard 檔案。}}",
+      "export_empty": "沒有可匯出的聯絡人",
+      "import_description_mobile": "從 vCard（.vcf）檔案匯入聯絡人，並偵測重複項目。",
+      "manage_description_mobile": "建立、重新命名及移除用來整理聯絡人的通訊錄。"
+    },
     "downloads": {
       "attachment_template": {
         "description_mobile": "儲存或分享附件時使用的範本。"
@@ -424,6 +628,12 @@
       "auto_select_reply_identity": {
         "description_mobile": "回覆一律從郵件原本寄達的寄件身分傳送。開啟後，寄到您網域中其他地址（catch-all 別名）的郵件，回覆時也會從該地址傳送。"
       },
+      "content_senders_description_mobile": "控制如何處理外部資源與追蹤像素。",
+      "external_content": {
+        "allow_mobile": "允許",
+        "ask_mobile": "詢問",
+        "block_mobile": "封鎖"
+      },
       "plain_text_mode": {
         "description_mobile": "僅以純文字撰寫與閱讀。"
       },
@@ -441,10 +651,24 @@
       "swipe_right_action": {
         "description_mobile": "從左側邊緣向右拖曳某一列時執行的動作。",
         "label_mobile": "向右滑動（左 → 右）"
+      },
+      "trusted_senders": {
+        "description_mobile": "此清單中寄件者的外部內容一律會載入。",
+        "description_synced_mobile": "此清單中寄件者的外部內容一律會載入。其中 {count} 位透過通訊錄同步。",
+        "sync_add_failed": "無法同步至通訊錄",
+        "sync_remove_failed": "無法從通訊錄移除",
+        "synced_badge": "已透過通訊錄同步"
       }
     },
     "experimental": {
       "title": "實驗性功能"
+    },
+    "filters": {
+      "remove_action": "移除動作",
+      "remove_condition": "移除條件",
+      "sieve_editor": {
+        "line_count": "{count, plural, other {# 行}}"
+      }
     },
     "folders": {
       "account": "帳號",
@@ -476,6 +700,7 @@
       "delete_title": "刪除寄件身分",
       "description_mobile": "管理寄件者名稱、電子郵件地址與簽名檔。點選任一列即可編輯。",
       "display_name": "顯示名稱",
+      "display_name_placeholder": "王小明",
       "edit": "編輯寄件身分",
       "email_address": "電子郵件地址",
       "email_locked": "JMAP 不允許變更寄件身分的電子郵件地址，請改為建立新的寄件身分。",
@@ -517,7 +742,9 @@
       "show_folder_total_count": "在信件匣上顯示郵件總數",
       "show_folder_total_count_description": "在信件匣清單中的未讀數量旁顯示總數。",
       "swipe_mode": {
+        "description": "選擇「立即」（滑動超過臨界值即執行動作）或「顯示」（滑動後顯示動作列，再點選確認）。",
         "instant": "立即（滑動 = 動作）",
+        "label": "滑動方式",
         "reveal": "顯示（滑動後點選）"
       },
       "unified_cross_account": "跨帳號整合檢視",
@@ -545,6 +772,20 @@
       "push": {
         "confirm_disable_message_mobile": "此裝置將停止接收此帳號的新郵件通知。",
         "description_mobile": "應用程式關閉時仍可接收新郵件的系統通知。通知會透過 Bulwark 推送中繼傳送；中繼不會看到郵件內容。",
+        "err_android_only": "推送通知僅適用於 Android。",
+        "err_fcm_empty": "Firebase 傳回了空白的裝置權杖。",
+        "err_fcm_token": "Firebase 無法核發裝置權杖（{detail}）。透過 FCM 推送需要此裝置具備 Google Play 服務。",
+        "err_fcm_token_up": "Firebase 無法核發裝置權杖（{detail}）。透過 FCM 推送需要此裝置具備 Google Play 服務。此裝置已安裝 UnifiedPush 分發器，請改將傳送方式切換為 UnifiedPush。",
+        "err_jmap_refused": "郵件伺服器拒絕了推送訂閱：{detail}",
+        "err_no_account": "尚未載入任何帳號，無法設定推送。",
+        "err_permission": "未授予通知權限。",
+        "err_relay_https": "中繼 URL 必須使用 https://。",
+        "err_relay_rejected": "推送中繼拒絕了註冊：{detail}",
+        "err_relay_unreachable": "無法連線至位於 {url} 的推送中繼（{detail}）。",
+        "err_up_android_only": "UnifiedPush 僅適用於 Android。",
+        "err_verify_rejected": "郵件伺服器拒絕了驗證碼：{detail}",
+        "err_verify_relay": "中繼始終未收到郵件伺服器傳來的驗證碼（中繼最後一次回應：{detail}）。",
+        "err_verify_timeout": "郵件伺服器未在 75 秒內將驗證碼傳送至中繼。請確認伺服器能否連線至中繼 URL。",
         "phase_account": "帳號",
         "phase_distributor": "UnifiedPush 分發器",
         "phase_jmap": "郵件伺服器訂閱",
@@ -700,10 +941,21 @@
       "mobile_explainer": "行動應用程式尚不支援 S/MIME。請在網頁郵件中管理金鑰與憑證；已簽署的郵件在此顯示時不會進行驗證。"
     },
     "tabs": {
-      "plugins": "外掛程式"
+      "plugins": "外掛程式",
+      "themes": "主題",
+      "updates": "更新"
     },
     "templates": {
-      "delete_title": "刪除範本"
+      "delete_confirm": "要永久刪除「{name}」嗎？",
+      "delete_title": "刪除範本",
+      "description_mobile": "用於常見回覆的可重複使用範本。點選即可編輯，長按即可刪除。",
+      "export_failed": "匯出失敗",
+      "import_failed": "匯入失敗",
+      "imported": "已匯入",
+      "imported_count": "已新增 {count, plural, other {# 個範本}}。",
+      "is_html": "內文為 HTML",
+      "placeholders_hint": "預留位置：{{recipient_name}}、{{company}}、{{date}}、{{day_of_week}}、{{sender_name}}",
+      "share_unavailable": "無法分享"
     },
     "themes": {
       "default_description": "預設的淺色與深色配色。",
@@ -722,7 +974,11 @@
     "remove_account_hint": "長按即可移除此帳號",
     "remove_account_message": "在此裝置上登出 {account}。您的郵件仍會保留在伺服器上。",
     "remove_account_title": "要移除帳號嗎？",
-    "show_unread": "顯示未讀"
+    "show_unread": "顯示未讀",
+    "tab_unavailable": "{name}（無法使用）"
+  },
+  "unified_mailbox": {
+    "accounts_failed": "{count, plural, other {有 # 個帳號無法載入}}"
   },
   "updates": {
     "advisory": "安全性公告",
