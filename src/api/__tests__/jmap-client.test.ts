@@ -409,6 +409,17 @@ describe('JMAPClient', () => {
         expect(client.undoSendHold(30)).toBeUndefined();
       });
 
+      it('gives the latest time a send can be held until, for the date pickers', async () => {
+        global.fetch = mockFetch([{ status: 200, json: withSubmission(2_592_000, true) }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        const now = Date.UTC(2026, 8, 24, 12, 0, 0);
+        expect(client.latestHoldDate(undefined, now)?.toISOString()).toBe('2026-10-01T12:00:00.000Z');
+
+        global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        expect(client.latestHoldDate(undefined, now)).toBeUndefined();
+      });
+
       it('parses only hold-limit rejections', () => {
         expect(parseHoldLimit('Server rejected MAIL-FROM: 501 5.5.4 Requested hold time exceeds maximum of 604800 seconds.')).toBe(604_800);
         expect(parseHoldLimit('Server rejected MAIL-FROM: 550 nope')).toBeNull();

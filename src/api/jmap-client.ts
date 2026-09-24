@@ -1088,6 +1088,15 @@ export class JMAPClient {
   }
 
   /**
+   * The latest time a send from `accountId` can be held until, or undefined
+   * when it can't be held. Caps the "Pick date & time" pickers.
+   */
+  latestHoldDate(accountId?: string, now = Date.now()): Date | undefined {
+    if (!this.hasDelayedSend(accountId)) return undefined;
+    return new Date(now + this.getMaxDelayedSend(accountId) * 1000);
+  }
+
+  /**
    * Remember the hold limit a rejected submission named, so the pickers only
    * offer times the server accepts for the rest of the session.
    */

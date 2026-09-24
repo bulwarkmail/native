@@ -201,7 +201,9 @@ export default function ScheduledScreen({ navigation }: Props) {
   }, [t, rescheduleFor]);
 
   const startCustomPicker = () => {
-    customDraftRef.current = new Date(Date.now() + 3600 * 1000);
+    // An hour ahead, or the latest time the server can hold it if sooner.
+    const latest = jmapClient.latestHoldDate(rescheduleFor?.accountId)?.getTime() ?? Infinity;
+    customDraftRef.current = new Date(Math.min(Date.now() + 3600 * 1000, latest));
     setCustomStage(Platform.OS === 'ios' ? 'datetime' : 'date');
   };
 
@@ -375,6 +377,7 @@ export default function ScheduledScreen({ navigation }: Props) {
                 mode="datetime"
                 display="spinner"
                 minimumDate={new Date()}
+                maximumDate={jmapClient.latestHoldDate(rescheduleFor?.accountId)}
                 onChange={onCustomPickerChange}
               />
               <View style={styles.cardActions}>
@@ -396,6 +399,7 @@ export default function ScheduledScreen({ navigation }: Props) {
           mode={customStage === 'time' ? 'time' : 'date'}
           display="default"
           minimumDate={customStage === 'date' ? new Date() : undefined}
+          maximumDate={customStage === 'date' ? jmapClient.latestHoldDate(rescheduleFor?.accountId) : undefined}
           onChange={onCustomPickerChange}
         />
       )}

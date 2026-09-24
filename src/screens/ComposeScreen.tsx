@@ -1895,7 +1895,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, [t, scheduleSheetOpen]);
 
   const startCustomPicker = () => {
-    customDraftRef.current = new Date(Date.now() + 3600 * 1000);
+    // An hour ahead, or the latest time the server can hold it if sooner.
+    const latest = jmapClient.latestHoldDate()?.getTime() ?? Infinity;
+    customDraftRef.current = new Date(Math.min(Date.now() + 3600 * 1000, latest));
     setScheduleSheetOpen(false);
     setCustomStage(Platform.OS === 'ios' ? 'datetime' : 'date');
   };
@@ -2516,6 +2518,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 mode="datetime"
                 display="spinner"
                 minimumDate={new Date()}
+                maximumDate={jmapClient.latestHoldDate()}
                 onChange={onCustomPickerChange}
               />
               <View style={styles.modalActions}>
@@ -2542,6 +2545,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           mode={customStage === 'time' ? 'time' : 'date'}
           display="default"
           minimumDate={customStage === 'date' ? new Date() : undefined}
+          maximumDate={customStage === 'date' ? jmapClient.latestHoldDate() : undefined}
           onChange={onCustomPickerChange}
         />
       )}
