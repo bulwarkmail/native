@@ -8,6 +8,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
 import { sendReadReceipt, patchKeywordsForEmails } from '../../api/email';
+import { jmapClient } from '../../api/jmap-client';
 import { findReceivingIdentity } from '../../lib/email-headers';
 import { mailboxesForSiblingOf } from '../../lib/mailbox-tree';
 
@@ -18,9 +19,16 @@ interface Props {
   jmapAccountId?: string;
   /** Role of the folder the message was opened from (receipts only in received folders). */
   currentMailboxRole?: string | null;
+  /** The message is on screen, not in a neighbour page the pager pre-renders. */
+  active: boolean;
   /** Reflect `$mdnsent` in the caller's cache. */
   onHandled: (email: Email) => void;
 }
+
+// Messages "always" mode has already tried to answer this session, keyed by
+// account and id. One attempt each: a failed send is not retried, and a page
+// the pager unmounts and mounts again does not send a second time.
+const autoAttempted = new Set<string>();
 
 /**
  * Read-receipt (MDN, RFC 8098) request banner: Send / Ignore, or auto-send
@@ -28,7 +36,7 @@ interface Props {
  * the request is suppressed in every client, not just here. Never offered
  * for the user's own copies, trash or spam.
  */
-export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMailboxRole, onHandled }: Props) {
+export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMailboxRole, active, onHandled }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -39,7 +47,6 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const [busy, setBusy] = React.useState(false);
   const [handledLocally, setHandledLocally] = React.useState(false);
-  const autoRef = React.useRef<string | null>(null);
 
   React.useEffect(() => { setHandledLocally(false); }, [email.id]);
   React.useEffect(() => { if (identities.length === 0) void fetchIdentities(); }, [identities.length, fetchIdentities]);
@@ -88,17 +95,17 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
     await flagSent();
   }, [identity, mailboxes, currentMailboxId, requestedBy, jmapAccountId, email.messageId, email.subject, t, flagSent]);
 
-  // "always" mode: auto-send once when the message is opened.
+  // "always" mode: auto-send once when the message is actually displayed.
   React.useEffect(() => {
-    if (readReceiptResponse !== 'always' || !shouldOffer) return;
-    if (autoRef.current === email.id) return;
-    autoRef.current = email.id;
+    if (readReceiptResponse !== 'always' || !shouldOffer || !active) return;
+    const key = `${jmapAccountId ?? jmapClient.accountId}:${email.id}`;
+    if (autoAttempted.has(key)) return;
+    autoAttempted.add(key);
     setHandledLocally(true);
     send(true).catch((err) => {
       console.warn('[mdn] auto-send failed', err);
-      autoRef.current = null;
     });
-  }, [readReceiptResponse, shouldOffer, email.id, send]);
+  }, [readReceiptResponse, shouldOffer, active, jmapAccountId, email.id, send]);
 
   if (!shouldOffer || readReceiptResponse === 'always') return null;
 

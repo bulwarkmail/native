@@ -1450,8 +1450,9 @@ export interface SendReadReceiptOptions extends MdnOptions {
  * Send an RFC 8098 read receipt (MDN). JMAP has no MDN primitive, so the
  * multipart/report is built client-side (`lib/mdn.ts`), uploaded as a blob,
  * imported into Sent and submitted with an explicit envelope - mirrors the
- * webmail's `client.sendReadReceipt`. The caller flags the original
- * `$mdnsent` afterwards.
+ * webmail's `client.sendReadReceipt`. When the submission fails the imported
+ * copy is destroyed again, so a refused receipt does not sit in Sent as if
+ * it had gone out. The caller flags the original `$mdnsent` afterwards.
  */
 export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<string> {
   const accountId = opts.accountId ?? jmapClient.accountId;
@@ -1462,25 +1463,32 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
   const { uploadBytes } = await import('./blob');
   const upload = await uploadBytes(bytes, 'message/rfc822', accountId);
   const emailId = await importEmailBlob(upload.blobId, opts.sentMailboxId, { $seen: true }, accountId);
-  const res = await jmapClient.request(
-    [
-      ['EmailSubmission/set', {
-        accountId,
-        create: {
-          mdn: {
-            emailId,
-            identityId: opts.identityId,
-            envelope: {
-              mailFrom: { email: opts.fromEmail },
-              rcptTo: [{ email: opts.to }],
+  try {
+    const res = await jmapClient.request(
+      [
+        ['EmailSubmission/set', {
+          accountId,
+          create: {
+            mdn: {
+              emailId,
+              identityId: opts.identityId,
+              envelope: {
+                mailFrom: { email: opts.fromEmail },
+                rcptTo: [{ email: opts.to }],
+              },
             },
           },
-        },
-      }, '0'],
-    ],
-    SUBMISSION_USING,
-  );
-  const body = requireMethodResult(res, '0', 'EmailSubmission/set');
-  assertSetResult(body, ['mdn'], 'read receipt');
+        }, '0'],
+      ],
+      SUBMISSION_USING,
+    );
+    const body = requireMethodResult(res, '0', 'EmailSubmission/set');
+    assertSetResult(body, ['mdn'], 'read receipt');
+  } catch (err) {
+    await destroyEmails([emailId], accountId).catch((cleanupErr) => {
+      console.warn('[mdn] failed to remove the unsent receipt from Sent:', cleanupErr);
+    });
+    throw err;
+  }
   return emailId;
 }

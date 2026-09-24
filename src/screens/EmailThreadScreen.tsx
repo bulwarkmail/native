@@ -648,6 +648,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
               <View style={{ width: windowWidth }}>
                 <EmailPane
                   id={item.id}
+                  active={item.id === activeEmailId}
                   threadIdHint={item.threadId}
                   email={detailCache.get(item.id) ?? null}
                   detailCache={detailCache}
@@ -787,6 +788,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
 
 interface EmailPaneProps {
   id: string;
+  /** The page on screen; its neighbours are only pre-rendered. */
+  active: boolean;
   threadIdHint?: string;
   email: Email | null;
   detailCache: Map<string, Email>;
@@ -815,7 +818,7 @@ interface EmailPaneProps {
 // expand). The pager keeps three of these mounted (prev, current, next) so a
 // swipe slides ready content into view.
 function EmailPane({
-  id, threadIdHint, email, detailCache, threadIds, threading, jmapAccountId, currentMailboxRole,
+  id, active, threadIdHint, email, detailCache, threadIds, threading, jmapAccountId, currentMailboxRole,
   identities, themeOverrides, ensureDetail, ensureThread, scheduleMarkRead, styles, bottomBarHeight,
   onToggleStar, onAddressPress, onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
@@ -923,6 +926,7 @@ function EmailPane({
             jmapAccountId={jmapAccountId}
             identities={identities}
             currentMailboxRole={currentMailboxRole}
+            active={active}
             themeOverride={themeOverrides[m.id] ?? null}
             onSwipe={onSwipe}
             onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
@@ -937,6 +941,7 @@ function EmailPane({
           jmapAccountId={jmapAccountId}
           identities={identities}
           currentMailboxRole={currentMailboxRole}
+          active={active}
           themeOverride={themeOverrides[email.id] ?? null}
           onSwipe={onSwipe}
           onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}

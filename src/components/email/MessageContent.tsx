@@ -19,6 +19,8 @@ export interface MessageContentProps {
   jmapAccountId?: string;
   identities: Identity[];
   currentMailboxRole?: string | null;
+  /** On screen rather than pre-rendered by the pager (gates auto-sent read receipts). */
+  active: boolean;
   themeOverride?: 'light' | 'dark' | null;
   onSwipe?: (direction: 'prev' | 'next') => void;
   onZoomChange?: (zoom: { pinching: boolean; zoomed: boolean }) => void;
@@ -37,7 +39,7 @@ export interface MessageContentProps {
  * cards.
  */
 export function MessageContent({
-  email, jmapAccountId, identities, currentMailboxRole, themeOverride, onSwipe, onZoomChange,
+  email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
   onToggleStar, onAddressPress, onEmailPatched, compact,
 }: MessageContentProps) {
   const c = useColors();
@@ -80,6 +82,7 @@ export function MessageContent({
           requestedBy={headerInfo.readReceiptRequestedBy}
           jmapAccountId={jmapAccountId}
           currentMailboxRole={currentMailboxRole}
+          active={active}
           onHandled={onEmailPatched}
         />
       )}
