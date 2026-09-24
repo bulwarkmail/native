@@ -1,4 +1,4 @@
-import type { Attachment } from '../api/types';
+import type { Attachment, Email } from '../api/types';
 
 /**
  * Attachment chips for message-list rows (webmail 0e1c34cd, #1089).
@@ -50,8 +50,11 @@ type Listener = (attachments: Attachment[]) => void;
 /** Fetches the parts of a batch of emails from one account. */
 export type FetchListAttachments = (emailIds: string[]) => Promise<Map<string, Attachment[]>>;
 
-/** Loader handed to list rows: starts a lazy fetch, returns its cancel. */
-export type LoadListAttachments = (emailId: string, onLoad: Listener) => () => void;
+/**
+ * Loader handed to list rows: starts a lazy fetch of the row's parts from the
+ * account it lives in, returns its cancel.
+ */
+export type LoadListAttachments = (email: Email, onLoad: Listener) => () => void;
 
 interface Queue {
   /** Waiting for the next flush, by email id. */

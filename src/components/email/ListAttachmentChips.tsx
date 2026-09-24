@@ -9,6 +9,8 @@ import { useTypography } from '../../theme/dynamic';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useAuthStore } from '../../stores/auth-store';
+import { accountIdOfRow } from '../../stores/email-store';
+import { accountScopedId } from '../../lib/thread-utils';
 import {
   attachmentKind, realAttachments, requestListAttachments, shortAttachmentName,
   type AttachmentKind, type LoadListAttachments,
@@ -45,20 +47,21 @@ function iconColor(kind: AttachmentKind, c: ThemePalette): string {
  * opened before), else loaded lazily when it has a paperclip.
  */
 function useListAttachments(email: Email, load?: LoadListAttachments): Attachment[] | undefined {
-  const [loaded, setLoaded] = React.useState<{ id: string; attachments: Attachment[] } | null>(null);
+  const [loaded, setLoaded] = React.useState<{ key: string; attachments: Attachment[] } | null>(null);
   const needsLoad = !!load && !!email.hasAttachment && !email.attachments;
+  // Rows of a list spanning accounts can share an id (#1082).
+  const key = accountScopedId(email, email.id);
 
   React.useEffect(() => {
     if (!needsLoad || !load) return undefined;
-    const id = email.id;
-    return load(id, (attachments) => setLoaded({ id, attachments }));
+    return load(email, (attachments) => setLoaded({ key, attachments }));
     // The row's email object is replaced on every keyword change; only a
     // different message needs a different answer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsLoad, load, email.id]);
+  }, [needsLoad, load, key]);
 
   if (email.attachments) return email.attachments;
-  return loaded?.id === email.id ? loaded.attachments : undefined;
+  return loaded?.key === key ? loaded.attachments : undefined;
 }
 
 interface ChipsProps {
@@ -227,8 +230,11 @@ export function useListRowAttachments(mailboxes: readonly Mailbox[], currentMail
   const jmapAccountId = current?.isShared ? current.accountId : undefined;
   const openerRef = React.useRef<ListAttachmentOpenerHandle>(null);
 
-  const loadAttachments = React.useCallback<LoadListAttachments>((emailId, onLoad) => {
-    const scope = `${localAccountId ?? ''}\u0000${jmapAccountId ?? ''}`;
+  const loadAttachments = React.useCallback<LoadListAttachments>((email, onLoad) => {
+    // A row of an "All folders" list or a tag view lives in its own account,
+    // whatever folder is open (#1082, #1038).
+    const accountId = email.jmapAccountId ? accountIdOfRow(email) : jmapAccountId;
+    const scope = `${localAccountId ?? ''}\u0000${accountId ?? ''}`;
     return requestListAttachments(scope, async (ids) => {
       // The request goes out through the active account's client: if the
       // user switched accounts meanwhile, fail (and don't cache) instead of
@@ -236,12 +242,12 @@ export function useListRowAttachments(mailboxes: readonly Mailbox[], currentMail
       if (useAuthStore.getState().activeAccountId !== localAccountId) {
         throw new Error('Account switched');
       }
-      return getEmailAttachments(ids, jmapAccountId);
-    }, emailId, onLoad);
+      return getEmailAttachments(ids, accountId);
+    }, email.id, onLoad);
   }, [localAccountId, jmapAccountId]);
 
   const openAttachment = React.useCallback((email: Email, attachment: Attachment) => {
-    openerRef.current?.open(email, attachment, jmapAccountId);
+    openerRef.current?.open(email, attachment, email.jmapAccountId ? accountIdOfRow(email) : jmapAccountId);
   }, [jmapAccountId]);
 
   return { loadAttachments, openAttachment, openerRef };
