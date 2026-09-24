@@ -866,7 +866,16 @@
       "plugins": "Plugins"
     },
     "templates": {
-      "delete_title": "Delete template"
+      "delete_confirm": "Permanently delete \"{name}\"?",
+      "delete_title": "Delete template",
+      "description_mobile": "Reusable snippets for common replies. Tap one to edit; long-press to delete.",
+      "export_failed": "Export failed",
+      "import_failed": "Import failed",
+      "imported": "Imported",
+      "imported_count": "{count, plural, one {# template} other {# templates}} added.",
+      "is_html": "Body is HTML",
+      "placeholders_hint": "Placeholders: {{recipient_name}}, {{company}}, {{date}}, {{day_of_week}}, {{sender_name}}",
+      "share_unavailable": "Unable to share"
     },
     "themes": {
       "default_description": "The default light and dark palettes.",

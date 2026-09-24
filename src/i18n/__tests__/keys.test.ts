@@ -34,10 +34,10 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-// Literal keys: t('a.b.c', …). Template-literal keys (`settings.tabs.${id}`)
-// are checked by prefix below.
-const LITERAL_KEY_RE = /\bt\(\s*'([^']+)'/g;
-const TEMPLATE_KEY_RE = /\bt\(\s*`([^`$]+)\$\{/g;
+// Literal keys: t('a.b.c', …), or tr(…) where `t` is taken. Template-literal
+// keys (`settings.tabs.${id}`) are checked by prefix below.
+const LITERAL_KEY_RE = /\btr?\(\s*'([^']+)'/g;
+const TEMPLATE_KEY_RE = /\btr?\(\s*`([^`$]+)\$\{/g;
 
 // Walking and reading all of src/ synchronously takes under a second on its
 // own, but went past the 5 s default (16.8 s) while gradle was building.

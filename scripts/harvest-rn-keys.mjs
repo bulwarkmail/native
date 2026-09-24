@@ -61,9 +61,10 @@ const overlayFlat = flatten(overlay);
 
 // t('key', 'fallback') / t('key', "fallback") / t('key', `fallback`) - the
 // fallback may span lines; keep it simple: single-quoted or double-quoted,
-// non-nested strings.
-const CALL_RE = /\bt\(\s*'([^']+)'\s*,\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g;
-const KEY_ONLY_RE = /\bt\(\s*'([^']+)'/g;
+// non-nested strings. `tr` is the same function where `t` is taken (a
+// template or timer variable).
+const CALL_RE = /\btr?\(\s*'([^']+)'\s*,\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g;
+const KEY_ONLY_RE = /\btr?\(\s*'([^']+)'/g;
 
 const added = [];
 const missingNoFallback = [];
