@@ -354,7 +354,11 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
               const editIdx = editableIds.indexOf(rule.id);
 
               if (readonly) {
-                const label = rule.originLabel || t('settings.filters.origin_external', 'External');
+                // The parser names known tools (product names) and falls back
+                // to "External", which is shown in the app language.
+                const label = rule.originLabel && rule.originLabel !== 'External'
+                  ? rule.originLabel
+                  : t('settings.filters.origin_external', 'External');
                 const hasStructured = rule.origin === 'external' && rule.conditions.length > 0 && rule.actions.length > 0;
                 return (
                   <View key={rule.id} style={styles.ruleRow}>

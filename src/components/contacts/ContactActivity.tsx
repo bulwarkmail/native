@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Mail as MailIcon, CalendarDays } from 'lucide-react-native';
-import { format, isAfter, parseISO } from 'date-fns';
+import { format, isAfter, parseISO, type Locale } from 'date-fns';
 import type { ContactCard, Email, CalendarEvent } from '../../api/types';
 import type { RootStackParamList } from '../../navigation/types';
 import { getEmails, queryEmailsByFilter } from '../../api/email';
@@ -11,6 +11,7 @@ import { getEvents, queryEvents } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
 import { getEventColor } from '../../lib/calendar-utils';
+import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { hasCalendarCapability } from '../../lib/capabilities';
 import { singleLine } from '../../lib/single-line';
 import { prefetchMessage } from '../../lib/email-detail-cache';
@@ -64,13 +65,13 @@ function eventInvolvesContact(event: CalendarEvent, addresses: Set<string>): boo
   return false;
 }
 
-function formatRelativeDate(iso: string): string {
+function formatRelativeDate(iso: string, locale: Locale): string {
   try {
     const d = parseISO(iso);
     const now = new Date();
     return d.getFullYear() === now.getFullYear()
-      ? format(d, 'MMM d')
-      : format(d, 'MMM d, yyyy');
+      ? format(d, 'MMM d', { locale })
+      : format(d, 'MMM d, yyyy', { locale });
   } catch {
     return '';
   }
@@ -94,6 +95,7 @@ export function ContactActivity({ contact }: Props) {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const t = useLocaleStore((s) => s.t);
+  const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
   const calendarEvents = useCalendarStore((s) => s.events);
   const calendars = useCalendarStore((s) => s.calendars);
 
@@ -222,7 +224,7 @@ export function ContactActivity({ contact }: Props) {
                   <View style={styles.rowContent}>
                     <View style={styles.rowTop}>
                       <Text style={styles.rowSender} numberOfLines={1}>{senderName}</Text>
-                      <Text style={styles.rowDate}>{formatRelativeDate(email.receivedAt)}</Text>
+                      <Text style={styles.rowDate}>{formatRelativeDate(email.receivedAt, dateLocale)}</Text>
                     </View>
                     <Text style={styles.rowSubject} numberOfLines={1}>
                       {singleLine(email.subject) || t('contacts.activity.no_subject', '(No subject)')}
@@ -260,7 +262,7 @@ export function ContactActivity({ contact }: Props) {
                     {event.title || t('contacts.activity.no_title', '(No title)')}
                   </Text>
                   <Text style={styles.eventDate}>
-                    {formatRelativeDate(event.utcStart || event.start)}
+                    {formatRelativeDate(event.utcStart || event.start, dateLocale)}
                   </Text>
                 </View>
               </View>

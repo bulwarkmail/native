@@ -6,6 +6,7 @@ import { jmapClient } from '../api/jmap-client';
 import { getDownloadUrl, isStaleUploadCopy } from '../api/blob';
 import type { Attachment, Email } from '../api/types';
 import { useSettingsStore } from '../stores/settings-store';
+import { t } from '../stores/locale-store';
 import {
   attachmentDownloadFilename,
   emailExportFilename,
@@ -197,7 +198,7 @@ async function downloadInto(
       headers: { Authorization: jmapClient.authHeader },
     });
     if (!response.ok) {
-      throw new Error(`Download failed: ${response.status}`);
+      throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: response.status }));
     }
     if (dest.exists) dest.delete();
     const buffer = await response.arrayBuffer();
@@ -249,7 +250,7 @@ export async function shareAttachment(
     return;
   }
   if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device');
+    throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   try {
     await Sharing.shareAsync(downloaded.uri, {
@@ -287,7 +288,7 @@ export async function downloadAttachment(
 
 async function offerSavedFile(file: File, filename: string, mimeType: string): Promise<void> {
   if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device');
+    throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   await Sharing.shareAsync(file.uri, {
     mimeType,
@@ -399,7 +400,7 @@ export async function shareLocalFile(
 ): Promise<void> {
   if (!opts.forceSheet && Platform.OS === 'android' && (await openWithViewer(file, mimeType))) return;
   if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device');
+    throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   try {
     await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: dialogTitle ?? file.name });
@@ -441,7 +442,7 @@ async function authedBlobFetch(url: string): Promise<Response> {
   if (r.status === 401 && (await jmapClient.forceRefreshToken())) {
     r = await secureFetch(url, { headers: { Authorization: jmapClient.authHeader } });
   }
-  if (!r.ok) throw new Error(`Download failed: ${r.status}`);
+  if (!r.ok) throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: r.status }));
   return r;
 }
 
@@ -534,7 +535,7 @@ export async function shareEmailEml(
     : safeFilename(subjectFallback);
   const downloaded = await cacheBlobFile(blobId, filename, RFC822, accountId);
   if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device');
+    throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
   }
   try {
     await Sharing.shareAsync(downloaded.uri, {

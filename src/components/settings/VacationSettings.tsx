@@ -278,10 +278,10 @@ export function VacationSettings() {
         {htmlEnabled && (
           <View style={styles.editorBlock}>
             <View style={styles.editorToolbar}>
-              <ToolbarButton c={c} onPress={() => editorRef.current?.exec('bold')}><Bold size={16} color={c.text} /></ToolbarButton>
-              <ToolbarButton c={c} onPress={() => editorRef.current?.exec('italic')}><Italic size={16} color={c.text} /></ToolbarButton>
-              <ToolbarButton c={c} onPress={() => editorRef.current?.exec('underline')}><Underline size={16} color={c.text} /></ToolbarButton>
-              <ToolbarButton c={c} onPress={() => editorRef.current?.exec('insertUnorderedList')}><ListIcon size={16} color={c.text} /></ToolbarButton>
+              <ToolbarButton c={c} label={t('email_composer.toolbar.bold', 'Bold')} onPress={() => editorRef.current?.exec('bold')}><Bold size={16} color={c.text} /></ToolbarButton>
+              <ToolbarButton c={c} label={t('email_composer.toolbar.italic', 'Italic')} onPress={() => editorRef.current?.exec('italic')}><Italic size={16} color={c.text} /></ToolbarButton>
+              <ToolbarButton c={c} label={t('email_composer.toolbar.underline', 'Underline')} onPress={() => editorRef.current?.exec('underline')}><Underline size={16} color={c.text} /></ToolbarButton>
+              <ToolbarButton c={c} label={t('email_composer.toolbar.bullet_list', 'Bullet list')} onPress={() => editorRef.current?.exec('insertUnorderedList')}><ListIcon size={16} color={c.text} /></ToolbarButton>
             </View>
             <View style={styles.editorFrame}>
               <RichTextEditor
@@ -359,11 +359,15 @@ export function VacationSettings() {
   );
 }
 
-function ToolbarButton({ c, onPress, children }: { c: ThemePalette; onPress: () => void; children: React.ReactNode }) {
+function ToolbarButton({
+  c, label, onPress, children,
+}: { c: ThemePalette; label: string; onPress: () => void; children: React.ReactNode }) {
   return (
     <Pressable
       onPress={onPress}
       hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={({ pressed }) => ({
         width: 32, height: 32, borderRadius: radius.sm,
         alignItems: 'center', justifyContent: 'center',

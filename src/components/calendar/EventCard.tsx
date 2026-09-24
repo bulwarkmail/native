@@ -80,7 +80,7 @@ export function EventCard({ event, calendars, timeFormat, onPress, onLongPress }
           <View style={styles.detailRow}>
             <Users size={12} color={c.textMuted} />
             <Text style={styles.detailText}>
-              {count} {t('calendar.participants.title', 'Participants').toLowerCase()}
+              {t('calendar.participants.count', '{count, plural, one {# participant} other {# participants}}', { count })}
             </Text>
           </View>
         )}

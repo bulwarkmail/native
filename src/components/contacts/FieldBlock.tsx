@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Plus, X } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useLocaleStore } from '../../stores/locale-store';
 
 export type CategoryAccent = 'contact' | 'work' | 'location' | 'personal' | 'digital' | 'calendar' | 'notes';
 
@@ -59,11 +60,18 @@ interface FieldRowProps {
 export function FieldRow({ onRemove, children }: FieldRowProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   return (
     <View style={styles.row}>
       <View style={{ flex: 1 }}>{children}</View>
       {onRemove && (
-        <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
+        <Pressable
+          onPress={onRemove}
+          hitSlop={8}
+          style={styles.removeBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.remove', 'Remove')}
+        >
           <X size={14} color={c.textMuted} />
         </Pressable>
       )}

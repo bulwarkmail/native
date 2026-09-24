@@ -417,6 +417,7 @@
     "delete_item_title": "Delete this item?",
     "delete_items_title": "{count, plural, one {Delete # item?} other {Delete # items?}}",
     "done": "Done",
+    "download_failed_status": "Download failed (HTTP {status})",
     "folder_empty": "This folder is empty",
     "invalid_name": "Invalid name",
     "invalid_name_slash": "Names cannot contain \"/\".",

@@ -340,7 +340,7 @@ export function EventDetailSheet({
                 <View style={styles.participantsHeader}>
                   <Users size={16} color={c.textMuted} />
                   <Text style={styles.participantsHeaderText}>
-                    {participants.length} {t('calendar.participants.title', 'Participants').toLowerCase()}
+                    {t('calendar.participants.count', '{count, plural, one {# participant} other {# participants}}', { count: participants.length })}
                   </Text>
                 </View>
                 {participants.map((p) => (
