@@ -129,9 +129,12 @@ function LoadingScreen({ message }: { message: string }) {
 
 function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParamList, 'MainTabs'>) {
   const c = useColors();
-  const mailboxes = useEmailStore((state) => state.mailboxes);
+  // Select the count, not the list: every mailbox fetch sets a new array, and
+  // re-rendering here re-renders the mail list with it.
+  const inboxUnreadCount = useEmailStore(
+    (state) => state.mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0,
+  );
   const logout = useAuthStore((state) => state.logout);
-  const inboxUnreadCount = mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0;
   const hasCalendar = useHasCalendar();
   const hasContacts = useHasContacts();
   const hasFiles = useHasFiles();
@@ -146,6 +149,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        // Tabs out of view stop re-rendering until they are shown again.
+        freezeOnBlur: true,
         tabBarActiveTintColor: c.text,
         tabBarInactiveTintColor: c.textSecondary,
         tabBarStyle: {
@@ -651,7 +656,9 @@ export default function App() {
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme}>
       <StatusBar style={statusBarStyle} />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {/* On Fabric, native-stack keeps the screen right below the top live and
+          freezes the ones further down. */}
+      <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }}>
         <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
         <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
         <Stack.Screen name="EmailSource" component={EmailSourceScreen} />
