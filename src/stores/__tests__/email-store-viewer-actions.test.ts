@@ -95,11 +95,14 @@ vi.mock('../../api/jmap-client', () => ({
 
 import * as emailApi from '../../api/email';
 import { useEmailStore, type ViewedEmail } from '../email-store';
+import { useSettingsStore } from '../settings-store';
 import type { Email, Mailbox } from '../../api/types';
 
 const mockDeleteEmail = emailApi.deleteEmail as ReturnType<typeof vi.fn>;
 const mockMoveEmail = emailApi.moveEmail as ReturnType<typeof vi.fn>;
 const mockRestore = emailApi.restoreEmailMailboxes as ReturnType<typeof vi.fn>;
+const mockMarkAsSpam = emailApi.markAsSpam as ReturnType<typeof vi.fn>;
+const mockUndoSpam = emailApi.undoSpam as ReturnType<typeof vi.fn>;
 
 function own(id: string, role: string): Mailbox {
   return { id, name: role, role, accountId: 'acc-1', isShared: false } as Mailbox;
@@ -109,8 +112,8 @@ function team(rawId: string, role: string): Mailbox {
 }
 
 const MAILBOXES = [
-  own('a', 'inbox'), own('t', 'trash'), own('x', 'archive'),
-  team('a', 'inbox'), team('t', 'trash'), team('x', 'archive'),
+  own('a', 'inbox'), own('t', 'trash'), own('x', 'archive'), own('j', 'junk'),
+  team('a', 'inbox'), team('t', 'trash'), team('x', 'archive'), team('j', 'junk'),
 ];
 // The user's own "Security audit #18" and the team's message share the id.
 const OWN_ROW = { id: 'e1', subject: 'Security audit #18', keywords: {}, mailboxIds: { a: true } } as unknown as Email;
@@ -186,5 +189,39 @@ describe('viewer actions on another account\'s message (B3)', () => {
 
     expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', undefined);
     expect(useEmailStore.getState().emails).toEqual([]);
+  });
+});
+
+describe('viewer Spam takes the list and swipe path (#695)', () => {
+  it('files a team message into the team Junk flipping $junk/$notjunk, and leaves the list alone', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+
+    await useEmailStore.getState().markSpam(['e1'], TEAM_VIEWED);
+
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', 'grp-1', { markRead: false });
+    expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+    const undo = useEmailStore.getState().pendingUndo!;
+    expect(undo).toMatchObject({ kind: 'spam', accountId: 'grp-1', keywordPatch: { $junk: true, $notjunk: null } });
+    expect(undo.items[0].originalMailboxIds).toEqual({ a: true });
+  });
+
+  it('honours trash-and-read for a message the list does not hold', async () => {
+    useSettingsStore.getState().updateSetting('deleteAction', 'trash-and-read');
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [] });
+
+    await useEmailStore.getState().markSpam(['e1'], { email: OWN_ROW, accountId: undefined });
+
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', undefined, { markRead: true });
+    useSettingsStore.getState().updateSetting('deleteAction', 'trash');
+  });
+
+  it('files a team message back into the team Inbox with $notjunk', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+    const junked = { ...TEAM_MESSAGE, keywords: { $junk: true }, mailboxIds: { j: true } } as unknown as Email;
+
+    await useEmailStore.getState().unmarkSpam(['e1'], { email: junked, accountId: 'grp-1' });
+
+    expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'a', 'grp-1');
+    expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
   });
 });

@@ -61,6 +61,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
   const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
+  const markSpam = useEmailStore((s) => s.markSpam);
+  const unmarkSpam = useEmailStore((s) => s.unmarkSpam);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
@@ -318,6 +320,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // offered for mail of that account.
   const canArchive = !!archiveMailbox && listAccountId === ownerAccountId
     && sourceMailbox?.id !== archiveMailbox.id;
+  // Not spam files back into the Inbox, so it needs one.
+  const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
 
   const onToggleKeyword = (token: string) => {
     if (!email) return;
@@ -397,18 +401,15 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     navigation.goBack();
   };
 
+  // The same store path as the list and swipe actions: files into the
+  // message's own Junk or Inbox, flips `$junk`/`$notjunk` and honours
+  // trash-and-read (#695).
   const onToggleSpam = () => {
-    if (!email || !sourceMailbox) return;
+    if (!email || !canToggleSpam) return;
     setMoreMenuOpen(false);
     const viewed = { email, accountId: ownerAccountId };
-    if (isInJunk) {
-      const target = inboxMailbox ?? scopedMailboxes.find((m) => m.id !== sourceMailbox.id);
-      if (!target) return;
-      void moveToMailbox(email.id, sourceMailbox.id, target.id, viewed);
-    } else {
-      if (!junkMailbox) return;
-      void moveToMailbox(email.id, sourceMailbox.id, junkMailbox.id, viewed);
-    }
+    if (isInJunk) void unmarkSpam([email.id], viewed);
+    else void markSpam([email.id], viewed);
     navigation.goBack();
   };
 
@@ -544,7 +545,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       icon: (s, col) =>
         isInJunk ? <ShieldCheck size={s} color={c.success} /> : <ShieldAlert size={s} color={col} />,
       onPress: onToggleSpam,
-      available: !!junkMailbox && !!sourceMailbox,
+      available: canToggleSpam,
     },
     tag: {
       label: t('email_viewer.tag', 'Tag'),
@@ -721,7 +722,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         canArchive={canArchive}
         canMarkUnread={true}
         canMove={!!sourceMailbox}
-        showSpam={!!junkMailbox && !!sourceMailbox}
+        showSpam={canToggleSpam}
         isInJunk={isInJunk}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}

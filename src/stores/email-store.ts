@@ -34,7 +34,7 @@ import {
 } from '../api/email';
 import { useNetworkStore } from './network-store';
 import { JMAPMethodError } from '../api/jmap-result';
-import { mailboxesForSiblingOf, findJunkMailbox } from '../lib/mailbox-tree';
+import { mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox } from '../lib/mailbox-tree';
 import { toWildcardQuery } from '../lib/search-utils';
 import { orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
@@ -154,6 +154,25 @@ function actionTarget(
   const listed = !viewed || viewed.accountId === currentAccountId(state);
   const row = listed ? state.emails.find((e) => e.id === emailId) : undefined;
   return { email: row ?? viewed?.email, listed };
+}
+
+// actionTarget for the selection actions: the viewer only acts on its one message.
+function actionTargets(
+  state: EmailState,
+  emailIds: string[],
+  viewed?: ViewedEmail,
+): { targets: Email[]; listed: boolean } {
+  if (!viewed) return { targets: state.emails.filter((e) => emailIds.includes(e.id)), listed: true };
+  const { email, listed } = actionTarget(state, viewed.email.id, viewed);
+  return { targets: email ? [email] : [], listed };
+}
+
+// Where an action looks up Junk, Inbox or Archive: the viewed message's
+// account, otherwise the open folder's.
+function actionMailboxes(state: EmailState, viewed?: ViewedEmail): Mailbox[] {
+  return viewed
+    ? mailboxesOfAccount(state.mailboxes, viewed.accountId)
+    : mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
 }
 
 // Refuse a viewer action aimed at folders outside the message's account:
@@ -354,11 +373,12 @@ export interface EmailState {
   /**
    * File messages into the current account's Junk and flip `$junk`/`$notjunk`
    * (#850); honours the "trash-and-read" delete action by also marking read.
-   * Works for one id or a selection; offers undo.
+   * Works for one id or a selection; offers undo. With `viewed`, the viewer's
+   * message goes to its own account's Junk (#695).
    */
-  markSpam: (emailIds: string[]) => Promise<void>;
+  markSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
   /** Inverse of markSpam: back to Inbox with `$notjunk`. */
-  unmarkSpam: (emailIds: string[]) => Promise<void>;
+  unmarkSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
   // ── Batch (multi-select) actions ──────────────────────────────
   archiveEmailsBatch: (emailIds: string[]) => Promise<void>;
   moveEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
@@ -1088,11 +1108,11 @@ export const useEmailStore = create<EmailState>()(
     patchCache(emailId, { keywords: patch }, currentAccountId(state));
   },
 
-  markSpam: async (emailIds) => {
+  markSpam: async (emailIds, viewed) => {
     const state = get();
-    const targets = state.emails.filter((e) => emailIds.includes(e.id));
+    const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
-    const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
+    const scoped = actionMailboxes(state, viewed);
     const junkMailbox = findJunkMailbox(scoped);
     if (!junkMailbox) {
       set({ error: t('email_list.no_junk_folder', 'Could not find a Spam/Junk folder on the server.') });
@@ -1116,7 +1136,7 @@ export const useEmailStore = create<EmailState>()(
       () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead }),
     );
 
-    const removed = new Set(targets.map((e) => e.id));
+    const removed = new Set(listed ? targets.map((e) => e.id) : []);
     set({
       emails: get().emails.filter((e) => !removed.has(e.id)),
       pendingUndo: {
@@ -1133,11 +1153,11 @@ export const useEmailStore = create<EmailState>()(
     for (const e of targets) patchCache(e.id, { mailboxIds: junkTarget, keywords: keywordPatch }, junk.accountId);
   },
 
-  unmarkSpam: async (emailIds) => {
+  unmarkSpam: async (emailIds, viewed) => {
     const state = get();
-    const targets = state.emails.filter((e) => emailIds.includes(e.id));
+    const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
-    const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
+    const scoped = actionMailboxes(state, viewed);
     const inboxMailbox = scoped.find((m) => m.role === 'inbox');
     if (!inboxMailbox) return;
     const inbox = refFor(state.mailboxes, inboxMailbox.id);
@@ -1157,7 +1177,7 @@ export const useEmailStore = create<EmailState>()(
       () => apiUndoSpam(targets.map((e) => e.id), inbox.id, inbox.accountId),
     );
 
-    const removed = new Set(targets.map((e) => e.id));
+    const removed = new Set(listed ? targets.map((e) => e.id) : []);
     set({
       emails: get().emails.filter((e) => !removed.has(e.id)),
       pendingUndo: {
