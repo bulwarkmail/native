@@ -37,7 +37,9 @@ import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
-import { findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail } from '../lib/mailbox-tree';
+import {
+  findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
+} from '../lib/mailbox-tree';
 import { pickEmailBody, plainTextBody } from '../lib/email-body';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
@@ -321,8 +323,10 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     () => mailboxesOfAccount(mailboxes, ownerAccountId),
     [mailboxes, ownerAccountId],
   );
+  // The store's rule (role, else a folder named exactly "Archive"), so the
+  // button is offered exactly when the archive action can file the message.
   const archiveMailbox = React.useMemo(
-    () => scopedMailboxes.find((m) => m.role === 'archive'),
+    () => findArchiveMailbox(scopedMailboxes),
     [scopedMailboxes],
   );
   const junkMailbox = React.useMemo(
