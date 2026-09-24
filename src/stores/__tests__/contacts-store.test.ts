@@ -51,6 +51,7 @@ import {
   normalizeSuggestions,
   selectVisibleContacts,
   selectGroupMembers,
+  sortContactsByName,
 } from '../contacts-store';
 import type { ContactCard } from '../../api/types';
 
@@ -499,5 +500,30 @@ describe('helpers', () => {
       card('acc-team:c9', { originalId: 'c9', isShared: true }),
     ];
     expect(selectGroupMembers({ contacts }, 'g1').map((c) => c.id)).toEqual(['acc-team:c9']);
+  });
+});
+
+describe('sortContactsByName (#963)', () => {
+  const person = (id: string, given: string, surname: string) =>
+    card(id, { name: { components: [{ kind: 'given', value: given }, { kind: 'surname', value: surname }], isOrdered: true } });
+  const contacts = [
+    person('zoe', 'Zoe', 'Adams'),
+    person('alice', 'Alice', 'Smith'),
+    person('bob', 'bob', 'Smith'),
+    card('acme', { organizations: { o1: { name: 'Acme Corp' } } }),
+  ];
+
+  it('orders by display name by default', () => {
+    expect(sortContactsByName(contacts, false).map((c) => c.id)).toEqual(['acme', 'alice', 'bob', 'zoe']);
+  });
+
+  it('puts the surname first with byLastName, keeping families together', () => {
+    expect(sortContactsByName(contacts, true).map((c) => c.id)).toEqual(['acme', 'zoe', 'alice', 'bob']);
+  });
+
+  it('does not reorder its input', () => {
+    const input = [...contacts];
+    sortContactsByName(input, true);
+    expect(input.map((c) => c.id)).toEqual(['zoe', 'alice', 'bob', 'acme']);
   });
 });

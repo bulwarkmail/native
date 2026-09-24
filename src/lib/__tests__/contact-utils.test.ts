@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   deriveFullName,
   getContactDisplayName,
+  getContactSortName,
   getCustomFullName,
   getContactPhotoUri,
   normalizeContactPhotoUri,
@@ -120,5 +121,50 @@ describe('name.full for the vCard FN (#430)', () => {
     const org = person('Acme Corp', []);
     expect(getCustomFullName(org, 'Acme Corp')).toBe('');
     expect(getCustomFullName(org, 'Acme Inc')).toBe('Acme Corp');
+  });
+});
+
+describe('getContactSortName (#963)', () => {
+  const make = (overrides: Partial<ContactCard>): ContactCard => ({ id: 'c1', addressBookIds: {}, ...overrides });
+  const structured = make({
+    name: {
+      components: [
+        { kind: 'given', value: 'Alice' },
+        { kind: 'middle', value: 'Jane' },
+        { kind: 'surname', value: 'Smith' },
+      ],
+      isOrdered: true,
+    },
+  });
+
+  it('returns the display name when not sorting by last name', () => {
+    expect(getContactSortName(structured, false)).toBe('Alice Smith');
+  });
+
+  it('leads with the surname when sorting by last name', () => {
+    expect(getContactSortName(structured, true)).toBe('Smith, Alice Jane');
+  });
+
+  it('returns just the surname when no given name exists', () => {
+    const c = make({ name: { components: [{ kind: 'surname', value: 'Smith' }], isOrdered: true } });
+    expect(getContactSortName(c, true)).toBe('Smith');
+  });
+
+  it('uses the last word of name.full when there are no components', () => {
+    expect(getContactSortName(make({ name: { full: 'Jean Pierre Dupont' } }), true)).toBe('Dupont, Jean Pierre');
+  });
+
+  it('keeps a single-word name.full as-is', () => {
+    expect(getContactSortName(make({ name: { full: 'Madonna' } }), true)).toBe('Madonna');
+  });
+
+  it('does not split organization or email fallbacks into a surname', () => {
+    expect(getContactSortName(make({ organizations: { o1: { name: 'Acme Corp' } } }), true)).toBe('Acme Corp');
+    expect(getContactSortName(make({ emails: { e0: { address: 'someone@example.com' } } }), true)).toBe('someone@example.com');
+  });
+
+  it('falls back to the display name for a given-only name (e.g. a group)', () => {
+    const c = make({ kind: 'group', name: { components: [{ kind: 'given', value: 'Team' }], isOrdered: true } });
+    expect(getContactSortName(c, true)).toBe('Team');
   });
 });

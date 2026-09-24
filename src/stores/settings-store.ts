@@ -139,6 +139,9 @@ interface PersistedSettings {
 
   // Contacts
   groupContactsByLetter: boolean;
+  // Sort (and group) the contact list by surname instead of given name so
+  // family members sit together (#963).
+  sortContactsByLastName: boolean;
 
   // Appearance
   theme: ThemeMode;
@@ -292,6 +295,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   hideInlineImageAttachments: true,
 
   groupContactsByLetter: true,
+  sortContactsByLastName: false,
 
   theme: 'system',
   fontSize: 'medium',

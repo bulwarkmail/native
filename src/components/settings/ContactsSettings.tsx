@@ -10,6 +10,7 @@ import Button from '../Button';
 import Dialog from '../Dialog';
 import { ContactImportSheet, AddressBookPickerSheet } from '../contacts';
 import { useSettingsStore } from '../../stores/settings-store';
+import { useLocaleStore } from '../../stores/locale-store';
 import { useContactsStore, selectAddressBooksWithCount } from '../../stores/contacts-store';
 import { contactsToVCard } from '../../lib/vcard';
 import { isGroup } from '../../lib/contact-utils';
@@ -21,6 +22,9 @@ export function ContactsSettings() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
   const setGroupByLetter = useSettingsStore((s) => s.setGroupContactsByLetter);
+  const sortByLastName = useSettingsStore((s) => s.sortContactsByLastName);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const t = useLocaleStore((s) => s.t);
   const contacts = useContactsStore((s) => s.contacts);
   const addressBooks = useContactsStore((s) => s.addressBooks);
   // Derive in a memo from stable store fields. Subscribing with
@@ -152,6 +156,19 @@ export function ContactsSettings() {
           description="Show alphabetical section headers in the contacts list."
         >
           <ToggleSwitch checked={groupByLetter} onChange={setGroupByLetter} />
+        </SettingItem>
+
+        <SettingItem
+          label={t('settings.contacts.sort_by_last_name_label', 'Sort by last name')}
+          description={t(
+            'settings.contacts.sort_by_last_name_description',
+            'Order the contact list by surname so family members appear together',
+          )}
+        >
+          <ToggleSwitch
+            checked={sortByLastName}
+            onChange={(checked) => updateSetting('sortContactsByLastName', checked)}
+          />
         </SettingItem>
 
         <SettingItem

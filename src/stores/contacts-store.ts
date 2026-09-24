@@ -28,6 +28,7 @@ import {
   getContactDisplayName,
   getContactKeywords,
   getContactPrimaryEmail,
+  getContactSortName,
   isGroup,
   matchesContactSearch,
 } from '../lib/contact-utils';
@@ -924,7 +925,12 @@ export function selectVisibleContacts(
 }
 
 export function sortContactsByDisplayName(contacts: ContactCard[]): ContactCard[] {
+  return sortContactsByName(contacts, false);
+}
+
+/** Contact list order: by display name, or surname first with `byLastName` (#963). */
+export function sortContactsByName(contacts: ContactCard[], byLastName: boolean): ContactCard[] {
   return [...contacts].sort((a, b) =>
-    getContactDisplayName(a).localeCompare(getContactDisplayName(b), undefined, { sensitivity: 'base' }),
+    getContactSortName(a, byLastName).localeCompare(getContactSortName(b, byLastName), undefined, { sensitivity: 'base' }),
   );
 }

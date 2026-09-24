@@ -24,12 +24,12 @@ import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
 import {
   useContactsStore,
-  sortContactsByDisplayName,
+  sortContactsByName,
   selectGroupMembers,
   selectUncategorized,
   type ContactCategory,
 } from '../stores/contacts-store';
-import { getContactDisplayName, isGroup, matchesContactSearch } from '../lib/contact-utils';
+import { getContactDisplayName, getContactSortName, isGroup, matchesContactSearch } from '../lib/contact-utils';
 import { contactsToVCard } from '../lib/vcard';
 import {
   ContactListRow,
@@ -50,11 +50,13 @@ interface Section {
   data: ContactCard[];
 }
 
-function groupContacts(contacts: ContactCard[]): Section[] {
-  const sorted = sortContactsByDisplayName(contacts);
+function groupContacts(contacts: ContactCard[], byLastName: boolean): Section[] {
+  const sorted = sortContactsByName(contacts, byLastName);
   const groups: Record<string, ContactCard[]> = {};
   for (const c of sorted) {
-    const name = getContactDisplayName(c).trim();
+    // Sections follow the sort name, so with "sort by last name" Alice Smith
+    // files under S.
+    const name = getContactSortName(c, byLastName).trim();
     // Any letter (Ä, É, Ł, 王…) gets its own section like the webmail; only
     // digits and symbols fall into "#". Hermes supports Unicode property escapes.
     const first = Array.from(name)[0] || '#';
@@ -110,6 +112,7 @@ export default function ContactsScreen() {
   const setSelectedCategory = useContactsStore((s) => s.setSelectedCategory);
   const getDefaultAddressBookId = useContactsStore((s) => s.getDefaultAddressBookId);
   const groupByLetter = useSettingsStore((s) => s.groupContactsByLetter);
+  const sortByLastName = useSettingsStore((s) => s.sortContactsByLastName);
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [searchActive, setSearchActive] = React.useState(false);
@@ -164,10 +167,10 @@ export default function ContactsScreen() {
   }, [contacts, individuals, selectedCategory, searchQuery]);
 
   const sections = React.useMemo<Section[]>(() => {
-    if (groupByLetter) return groupContacts(visible);
+    if (groupByLetter) return groupContacts(visible, sortByLastName);
     // Flat list - single unnamed section keeps SectionList rendering simple.
-    return [{ title: '', data: sortContactsByDisplayName(visible) }];
-  }, [visible, groupByLetter]);
+    return [{ title: '', data: sortContactsByName(visible, sortByLastName) }];
+  }, [visible, groupByLetter, sortByLastName]);
 
   const selectionMode = selection.size > 0;
   const toggleSelect = (id: string) => {
