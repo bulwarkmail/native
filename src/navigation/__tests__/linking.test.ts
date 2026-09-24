@@ -56,6 +56,24 @@ describe('parseDeepLink', () => {
     });
   });
 
+  it('opens the composer for a mailto: with a sub-address', () => {
+    expect(parseDeepLink('mailto:alice+news@partner.example?subject=a+b')).toMatchObject({
+      kind: 'compose',
+      to: [{ email: 'alice+news@partner.example' }],
+      subject: 'a+b',
+    });
+  });
+
+  it('parses app compose links once per recipient, with form-encoded spaces', () => {
+    expect(parseDeepLink('bulwarkmobile://compose?to=alice%2Bnews@partner.example&subject=Hello+World&body=1%2B1')).toEqual({
+      kind: 'compose',
+      to: [{ email: 'alice+news@partner.example' }],
+      cc: [],
+      subject: 'Hello World',
+      body: '1+1',
+    });
+  });
+
   it('rejects unknown links', () => {
     expect(parseDeepLink('bulwarkmobile://whatever')).toBeNull();
     expect(parseDeepLink('garbage')).toBeNull();
@@ -144,5 +162,8 @@ describe('shareToDeepLink', () => {
       kind: 'compose', to: [{ email: 'a@b.co' }], cc: [], subject: undefined,
     });
     expect(shareToDeepLink({ text: 'mailto:a@b.co?subject=x' })).toMatchObject({ kind: 'compose', subject: 'x' });
+    expect(shareToDeepLink({ text: 'alice+news@partner.example' })).toEqual({
+      kind: 'compose', to: [{ email: 'alice+news@partner.example' }], cc: [], subject: undefined,
+    });
   });
 });

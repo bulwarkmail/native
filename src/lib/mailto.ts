@@ -16,9 +16,11 @@ export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
 }
 
+// RFC 6068 only percent-encodes: a `+` is a literal plus (sub-addresses such
+// as `alice+news@…`, "a+b" in a subject), not the form-encoding for a space.
 function decode(value: string): string {
   try {
-    return decodeURIComponent(value.replace(/\+/g, '%20'));
+    return decodeURIComponent(value);
   } catch {
     return value;
   }

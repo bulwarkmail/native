@@ -102,7 +102,11 @@ export function parseDeepLink(url: string): DeepLink | null {
       return { kind: 'settings', tab: kind ? decodeSegment(kind) : undefined };
     case 'compose': {
       const to = search.get('to');
-      const parsed = to ? parseMailtoUrl(`mailto:${to}?${search.toString()}`) : null;
+      // URLSearchParams has already decoded the values; re-encode them for
+      // the mailto parser, which keeps `+` literal (toString() would write
+      // spaces as `+`). The recipients come from the `to=` param alone.
+      const query = Array.from(search, ([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+      const parsed = to ? parseMailtoUrl(`mailto:?${query}`) : null;
       return {
         kind: 'compose',
         to: toAddresses(parsed?.to ?? []),
