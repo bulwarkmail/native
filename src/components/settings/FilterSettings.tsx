@@ -142,7 +142,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const vacationEnabled = useVacationStore((s) => s.accountId === null && s.isEnabled);
 
   const {
-    rules, isLoading, isSaving, error, isSupported, isOpaque, rawScript, vacationSettings,
+    rules, isLoading, isSaving, error, isSupported, isOpaque, rawScript, vacationSettings, includeVacation,
     selectAccount, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
@@ -163,7 +163,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   }, [managedAccountId, selectAccount]);
 
   const showVacationBanner =
-    !managedAccountId && ((vacationEnabled || vacationSettings?.isEnabled) ?? false);
+    !managedAccountId && ((vacationEnabled || vacationSettings?.isEnabled || includeVacation) ?? false);
 
   // Editable (Bulwark-managed) rules, in order, for reorder math.
   const editableIds = useMemo(

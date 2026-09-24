@@ -197,7 +197,16 @@ export interface GenerateOptions {
    * own requires are deduplicated.
    */
   externalRequires?: string[];
+  /**
+   * Run the server-managed "vacation" script (VacationResponse) from this
+   * one. Only one script can be active, so this keeps the auto-reply working
+   * while the filters stay active.
+   */
+  includeVacation?: boolean;
 }
+
+/** Name of the script a server builds for VacationResponse (RFC 9661). */
+export const VACATION_SCRIPT_NAME = 'vacation';
 
 export function generateScript(
   rules: FilterRule[],
@@ -219,6 +228,9 @@ export function generateScript(
   if (vacation?.isEnabled) {
     metadata.vacation = vacation;
   }
+  if (options.includeVacation) {
+    metadata.includeVacation = true;
+  }
   const metadataJson = JSON.stringify(metadata);
   const lines: string[] = [];
 
@@ -228,11 +240,20 @@ export function generateScript(
   lines.push('');
 
   const bulwarkRequires = computeRequires(bulwarkRules, vacation);
+  if (options.includeVacation) bulwarkRequires.push('include');
   const externalRequires = options.externalRequires ?? [];
   const allRequires = [...new Set([...bulwarkRequires, ...externalRequires])].sort();
 
   if (allRequires.length > 0) {
     lines.push(`require [${allRequires.map(r => `"${r}"`).join(', ')}];`);
+  }
+
+  if (options.includeVacation) {
+    // The "# Vacation auto-reply" comment marks the block as Bulwark's, so
+    // the parser does not re-import it as an external rule.
+    lines.push('');
+    lines.push('# Vacation auto-reply');
+    lines.push(`include :personal :optional "${VACATION_SCRIPT_NAME}";`);
   }
 
   if (vacation?.isEnabled) {

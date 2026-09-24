@@ -5,6 +5,8 @@ import {
   isVacationSupported,
   type VacationResponse,
 } from '../api/vacation';
+import { isSieveSupported } from '../api/sieve';
+import { isVacationIncludedInFilters, syncVacationWithFilters } from './filter-store';
 
 export interface VacationState {
   isEnabled: boolean;
@@ -55,8 +57,15 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     try {
       const vacation = await getVacationResponse(accountId);
       if (stale()) return;
+      let isEnabled = vacation.isEnabled;
+      if (!isEnabled && isSieveSupported(accountId)) {
+        // Running from the filters script leaves the vacation script itself
+        // inactive, so VacationResponse reports it as off.
+        isEnabled = await isVacationIncludedInFilters(accountId).catch(() => false);
+        if (stale()) return;
+      }
       set({
-        isEnabled: vacation.isEnabled,
+        isEnabled,
         fromDate: vacation.fromDate,
         toDate: vacation.toDate,
         subject: vacation.subject ?? '',
@@ -78,7 +87,15 @@ export const useVacationStore = create<VacationState>((set, get) => ({
   save: async (updates) => {
     set({ isSaving: true, error: null });
     try {
-      await setVacationResponse(updates, get().accountId ?? undefined);
+      const accountId = get().accountId ?? undefined;
+      await setVacationResponse(updates, accountId);
+      if (updates.isEnabled !== undefined && isSieveSupported(accountId)) {
+        try {
+          await syncVacationWithFilters(updates.isEnabled, accountId);
+        } catch (err) {
+          console.warn('[vacation] Failed to keep filters active next to the vacation response:', err);
+        }
+      }
       set((s) => ({
         ...s,
         ...updates,

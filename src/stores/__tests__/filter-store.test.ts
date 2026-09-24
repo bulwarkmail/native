@@ -11,10 +11,12 @@ vi.mock('../../api/sieve', () => ({
   validateSieveScript: vi.fn(async () => ({ isValid: true })),
 }));
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as sieve from '../../api/sieve';
 import { generateScript } from '../../lib/sieve/generator';
 import type { FilterRule } from '../../lib/sieve/types';
-import { useFilterStore } from '../filter-store';
+import { isVacationIncludedInFilters, syncVacationWithFilters, useFilterStore } from '../filter-store';
 
 const api = vi.mocked(sieve);
 
@@ -36,10 +38,21 @@ function serveScript(rules: FilterRule[]) {
   api.getSieveScriptContent.mockResolvedValue(generateScript(rules));
 }
 
+function webmailFixture(file: string): string {
+  return readFileSync(join(__dirname, '../../lib/sieve/__tests__/fixtures/webmail', file), 'utf-8')
+    .replace(/\r\n/g, '\n');
+}
+
+const WITH_INCLUDE = {
+  implementation: 'test', maxSizeScript: 100000, sieveExtensions: ['fileinto', 'include'],
+  notificationMethods: [], externalLists: [],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   api.getSieveAccountId.mockReturnValue('own');
   api.isSieveSupported.mockReturnValue(true);
+  api.getSieveCapabilities.mockReturnValue(null);
   useFilterStore.getState().clearState();
 });
 
@@ -116,5 +129,88 @@ describe('filter-store account selection', () => {
     expect(s.selectedAccountId).toBe('own');
     expect(s.activeScriptId).toBeNull();
     expect(api.getSieveScriptContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('filter-store and the server vacation script', () => {
+  it('keeps an active server vacation script by including it', async () => {
+    api.getSieveCapabilities.mockReturnValue(WITH_INCLUDE);
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: false },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: true },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(generateScript([makeRule()]));
+
+    await useFilterStore.getState().selectAccount(null);
+    expect(useFilterStore.getState().activeScriptId).toBe('s1');
+    expect(useFilterStore.getState().includeVacation).toBe(true);
+
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript.mock.calls[0][1]).toContain('include :personal :optional "vacation";');
+  });
+
+  it('saves a webmail script that includes the vacation script unchanged', async () => {
+    const script = webmailFixture('vacation-include.sieve');
+    api.getSieveCapabilities.mockReturnValue(WITH_INCLUDE);
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: true },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: false },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+
+  describe('syncVacationWithFilters', () => {
+    function serve(vacationActive: boolean, filtersActive: boolean, includeVacation = false) {
+      api.getSieveCapabilities.mockReturnValue(WITH_INCLUDE);
+      api.getSieveScripts.mockResolvedValue([
+        { id: 's1', name: 'filters', blobId: 'b1', isActive: filtersActive },
+        { id: 'v1', name: 'vacation', blobId: 'bv', isActive: vacationActive },
+      ]);
+      api.getSieveScriptContent.mockResolvedValue(generateScript([makeRule()], undefined, { includeVacation }));
+    }
+
+    it('re-activates the filters with an include when the vacation script took over', async () => {
+      serve(true, false);
+      await syncVacationWithFilters(true);
+      expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
+      const [id, content, activate, accountId] = api.updateSieveScript.mock.calls[0];
+      expect(id).toBe('s1');
+      expect(content).toContain('include :personal :optional "vacation";');
+      expect(activate).toBe(true);
+      expect(accountId).toBe('own');
+    });
+
+    it('drops the include when the auto-reply is turned off', async () => {
+      serve(false, true, true);
+      await syncVacationWithFilters(false, 'team');
+      expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
+      expect(api.updateSieveScript.mock.calls[0][1]).not.toContain('include');
+      expect(api.updateSieveScript.mock.calls[0][3]).toBe('team');
+    });
+
+    it('leaves the scripts alone when the filters are still active', async () => {
+      serve(false, true);
+      await syncVacationWithFilters(true);
+      await syncVacationWithFilters(false);
+      expect(api.updateSieveScript).not.toHaveBeenCalled();
+    });
+
+    it('does nothing on servers without the include extension', async () => {
+      serve(true, false);
+      api.getSieveCapabilities.mockReturnValue(null);
+      await syncVacationWithFilters(true);
+      expect(api.updateSieveScript).not.toHaveBeenCalled();
+    });
+
+    it('reports the auto-reply as on while the filters include it', async () => {
+      serve(false, true, true);
+      expect(await isVacationIncludedInFilters()).toBe(true);
+      serve(false, true);
+      expect(await isVacationIncludedInFilters()).toBe(false);
+    });
   });
 });

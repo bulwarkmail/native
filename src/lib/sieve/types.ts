@@ -85,4 +85,10 @@ export interface FilterMetadata {
   version: 1;
   rules: FilterRule[];
   vacation?: VacationSieveConfig;
+  /**
+   * The script runs the server-managed "vacation" script via `include`.
+   * Servers like Stalwart keep one active script, so a VacationResponse
+   * that activates its own script would otherwise switch the filters off.
+   */
+  includeVacation?: boolean;
 }

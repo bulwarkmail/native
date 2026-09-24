@@ -260,6 +260,27 @@ describe('generateScript', () => {
     });
   });
 
+  describe('vacation include', () => {
+    it('includes the server vacation script before the rules', () => {
+      const script = generateScript([makeRule()], undefined, { includeVacation: true });
+      expect(script).toContain('require ["fileinto", "include"];');
+      const include = script.indexOf('include :personal :optional "vacation";');
+      expect(include).toBeGreaterThan(-1);
+      expect(include).toBeLessThan(script.indexOf('# Rule: Test Rule'));
+    });
+
+    it('round-trips the flag and drops "include" once it is turned off', () => {
+      const parsed = parseScript(generateScript([makeRule()], undefined, { includeVacation: true }));
+      expect(parsed.includeVacation).toBe(true);
+      expect(parsed.rules).toHaveLength(1);
+      expect(parsed.externalRequires).not.toContain('include');
+
+      const off = generateScript(parsed.rules, parsed.vacation, { externalRequires: parsed.externalRequires });
+      expect(off).not.toContain('include');
+      expect(parseScript(off).includeVacation).toBeUndefined();
+    });
+  });
+
   describe('disabled rules', () => {
     it('excludes disabled rules from Sieve code', () => {
       const script = generateScript([makeRule({ enabled: false, name: 'Hidden' })]);
