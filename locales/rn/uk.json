@@ -6,10 +6,6 @@
     "not_starred": "Без зірочки"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "У найближчі {count} дн. подій немає.",
-      "no_upcoming": "Немає майбутніх подій"
-    },
     "alerts": {
       "unit_minutes_after": "хвилин після"
     },

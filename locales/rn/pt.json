@@ -6,10 +6,6 @@
     "not_starred": "Sem estrela"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Os próximos {count} dias estão livres.",
-      "no_upcoming": "Nenhum evento próximo"
-    },
     "alerts": {
       "unit_minutes_after": "minutos depois"
     },

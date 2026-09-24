@@ -6,10 +6,6 @@
     "not_starred": "Bez zvaigznītes"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Nākamās {count} dienas ir brīvas.",
-      "no_upcoming": "Nav gaidāmo notikumu"
-    },
     "alerts": {
       "unit_minutes_after": "min pēc sākuma"
     },

@@ -6,10 +6,6 @@
     "not_starred": "بدون ستاره"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "در {count} روز آینده رویدادی نیست.",
-      "no_upcoming": "رویداد پیش‌رویی وجود ندارد"
-    },
     "alerts": {
       "unit_minutes_after": "دقیقه بعد"
     },

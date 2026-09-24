@@ -6,10 +6,6 @@
     "not_starred": "Bez hvězdičky"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Příštích {count} dní je volných.",
-      "no_upcoming": "Žádné nadcházející události"
-    },
     "alerts": {
       "unit_minutes_after": "min po"
     },

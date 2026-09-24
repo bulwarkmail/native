@@ -6,10 +6,6 @@
     "not_starred": "未加星號"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "未來 {count} 天沒有活動。",
-      "no_upcoming": "沒有即將開始的活動"
-    },
     "alerts": {
       "unit_minutes_after": "分鐘後"
     },

@@ -6,10 +6,6 @@
     "not_starred": "Zonder ster"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "De komende {count} dagen zijn vrij.",
-      "no_upcoming": "Geen komende afspraken"
-    },
     "alerts": {
       "unit_minutes_after": "minuten erna"
     },

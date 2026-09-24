@@ -6,10 +6,6 @@
     "not_starred": "Nem csillagozott"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "A következő {count} nap szabad.",
-      "no_upcoming": "Nincsenek közelgő események"
-    },
     "alerts": {
       "unit_minutes_after": "perccel utána"
     },

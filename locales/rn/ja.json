@@ -6,10 +6,6 @@
     "not_starred": "スターなし"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "今後{count}日間は予定がありません。",
-      "no_upcoming": "今後の予定はありません"
-    },
     "alerts": {
       "unit_minutes_after": "分後"
     },

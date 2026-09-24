@@ -4,10 +4,13 @@
 //   node scripts/rn-missing-translations.mjs        count per language
 //   node scripts/rn-missing-translations.mjs de     the missing keys with their
 //                                                   English text, as nested JSON
+//   node scripts/rn-missing-translations.mjs --prune
+//                                                   drop translated keys English
+//                                                   no longer has
 //
 // Keys the vendored webmail catalog of that language already carries are not
 // listed: they are translated there.
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,12 +43,26 @@ function missingFor(lang, en) {
 
 const en = flatten(readJson(join(RN, 'en.json')));
 const lang = process.argv[2];
+const langs = readdirSync(RN).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.slice(0, -5));
 
-if (lang) {
+if (lang === '--prune') {
+  for (const l of langs.sort()) {
+    const path = join(RN, `${l}.json`);
+    const kept = {};
+    let dropped = 0;
+    for (const [key, value] of flatten(readJson(path))) {
+      if (en.has(key)) setDeep(kept, key, value);
+      else dropped++;
+    }
+    if (dropped) {
+      writeFileSync(path, `${JSON.stringify(kept, null, 2)}\n`);
+      console.log(`${l.padEnd(6)} dropped ${dropped}`);
+    }
+  }
+} else if (lang) {
   const out = {};
   for (const [key, value] of missingFor(lang, en)) setDeep(out, key, value);
   console.log(JSON.stringify(out, null, 2));
 } else {
-  const langs = readdirSync(RN).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.slice(0, -5));
   for (const l of langs.sort()) console.log(`${l.padEnd(6)} ${missingFor(l, en).length} of ${en.size} missing`);
 }

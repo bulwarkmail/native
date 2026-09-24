@@ -6,10 +6,6 @@
     "not_starred": "ללא כוכב"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "אין אירועים ב-{count} הימים הקרובים.",
-      "no_upcoming": "אין אירועים קרובים"
-    },
     "alerts": {
       "unit_minutes_after": "דקות אחרי"
     },

@@ -6,10 +6,6 @@
     "not_starred": "별표 없음"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "앞으로 {count}일 동안 일정이 없어요.",
-      "no_upcoming": "다가오는 일정이 없어요"
-    },
     "alerts": {
       "unit_minutes_after": "분 후"
     },

@@ -6,10 +6,6 @@
     "not_starred": "غير مميزة بنجمة"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "لا أحداث في الأيام الـ{count} القادمة.",
-      "no_upcoming": "لا توجد أحداث قادمة"
-    },
     "alerts": {
       "unit_minutes_after": "دقائق بعد"
     },

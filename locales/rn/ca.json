@@ -6,10 +6,6 @@
     "not_starred": "No destacat"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Els propers {count} dies són lliures.",
-      "no_upcoming": "Cap esdeveniment proper"
-    },
     "alerts": {
       "unit_minutes_after": "minuts després"
     },

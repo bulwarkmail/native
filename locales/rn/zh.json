@@ -6,10 +6,6 @@
     "not_starred": "无星标"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "未来 {count} 天没有活动。",
-      "no_upcoming": "没有即将举行的活动"
-    },
     "alerts": {
       "unit_minutes_after": "分钟后"
     },

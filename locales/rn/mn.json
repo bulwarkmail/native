@@ -6,10 +6,6 @@
     "not_starred": "Одгүй"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Дараагийн {count} өдөр үйл явдал байхгүй.",
-      "no_upcoming": "Удахгүй болох үйл явдал байхгүй"
-    },
     "alerts": {
       "unit_minutes_after": "минутын дараа"
     },

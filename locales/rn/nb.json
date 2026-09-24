@@ -6,10 +6,6 @@
     "not_starred": "Ikke stjernemerket"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "De neste {count} dagene er ledige.",
-      "no_upcoming": "Ingen kommende hendelser"
-    },
     "alerts": {
       "unit_minutes_after": "minutter etter"
     },

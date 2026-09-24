@@ -6,10 +6,6 @@
     "not_starred": "Yıldızsız"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Önümüzdeki {count} gün boş.",
-      "no_upcoming": "Yaklaşan etkinlik yok"
-    },
     "alerts": {
       "unit_minutes_after": "dakika sonra"
     },

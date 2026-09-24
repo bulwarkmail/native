@@ -6,10 +6,6 @@
     "not_starred": "Fără stea"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "Următoarele {count} de zile sunt libere.",
-      "no_upcoming": "Nu există evenimente viitoare"
-    },
     "alerts": {
       "unit_minutes_after": "minute după"
     },

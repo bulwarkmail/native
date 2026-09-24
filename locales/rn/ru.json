@@ -6,10 +6,6 @@
     "not_starred": "Без пометки"
   },
   "calendar": {
-    "agenda": {
-      "days_clear": "В ближайшие {count} дн. событий нет.",
-      "no_upcoming": "Нет предстоящих событий"
-    },
     "alerts": {
       "unit_minutes_after": "минут после"
     },
