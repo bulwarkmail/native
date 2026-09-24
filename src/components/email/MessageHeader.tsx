@@ -61,13 +61,16 @@ function authTone(result?: string): 'ok' | 'warn' | 'bad' | 'none' {
 }
 
 function AuthChip({ label, result, styles, c }: { label: string; result?: string; styles: ReturnType<typeof makeStyles>; c: ThemePalette }) {
+  const t = useLocaleStore((s) => s.t);
   const tone = authTone(result);
   const color = tone === 'ok' ? c.success : tone === 'bad' ? c.error : tone === 'warn' ? c.warning : c.textMuted;
   const Icon = tone === 'ok' ? ShieldCheck : tone === 'bad' ? ShieldAlert : ShieldQuestion;
   return (
     <View style={[styles.chip, { borderColor: color }]}>
       <Icon size={12} color={color} />
-      <Text style={[styles.chipText, { color }]}>{label} {result ?? '-'}</Text>
+      <Text style={[styles.chipText, { color }]}>
+        {label} {result ? t(`email_viewer.authentication.result.${result}`, result) : '-'}
+      </Text>
     </View>
   );
 }
@@ -131,13 +134,22 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
   const auth: AuthenticationResults | undefined = info.auth;
   const hasAuth = !!(auth && (auth.spf || auth.dkim || auth.dmarc || auth.iprev));
   const attachmentsSummary = email.attachments?.length
-    ? `${email.attachments.length} · ${formatSize(email.attachments.reduce((n, a) => n + (a.size ?? 0), 0))}`
+    ? t('email_viewer.details.attachment_count_size', '{count, plural, one {# file} other {# files}} · {size}', {
+      count: email.attachments.length,
+      size: formatSize(email.attachments.reduce((n, a) => n + (a.size ?? 0), 0)),
+    })
     : null;
+  const receivedAt = formatFullDateTime(email.receivedAt, timeFormat, locale);
 
   return (
     <View style={styles.block}>
       <View style={styles.row}>
-        <Pressable onPress={from ? () => onAddressPress(from) : undefined} hitSlop={4}>
+        <Pressable
+          onPress={from ? () => onAddressPress(from) : undefined}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel={from?.name || from?.email || t('email_viewer.unknown_sender', 'Unknown')}
+        >
           <SenderAvatar name={from?.name} email={from?.email} size={compact ? componentSizes.avatarSm : componentSizes.avatarMd} />
         </Pressable>
         <View style={styles.info}>
@@ -165,7 +177,13 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
             {!compact && email.size > 0 ? ` · ${formatSize(email.size)}` : ''}
           </Text>
           {onToggleStar && (
-            <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.star}>
+            <Pressable
+              onPress={() => onToggleStar(email)}
+              hitSlop={8}
+              style={styles.star}
+              accessibilityRole="button"
+              accessibilityLabel={starred ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star')}
+            >
               <Star size={16} color={starred ? c.starred : c.textMuted} fill={starred ? c.starred : 'transparent'} />
             </Pressable>
           )}
@@ -237,7 +255,9 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
           <DetailRow label={t('email_viewer.details.sent', 'Sent')} value={formatFullDateTime(email.sentAt, timeFormat, locale)} styles={styles} />
           <DetailRow
             label={t('email_viewer.details.received', 'Received')}
-            value={`${formatFullDateTime(email.receivedAt, timeFormat, locale)}${delta !== null && delta > 60000 ? ` · ${formatDelta(delta)} ${t('email_viewer.details.delivery_time', 'Delivery time').toLowerCase()}` : ''}`}
+            value={delta !== null && delta > 60000
+              ? t('email_viewer.details.received_after_delay', '{date} · {delay} delivery time', { date: receivedAt, delay: formatDelta(delta) })
+              : receivedAt}
             styles={styles}
           />
 
@@ -258,7 +278,9 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
               <DetailRow label={t('email_viewer.authentication.policy', 'Policy')} value={auth?.dmarc?.policy} styles={styles} />
               <DetailRow
                 label={t('email_viewer.authentication.spam_score', 'Spam Score')}
-                value={info.spamScore ? `${info.spamScore.score} (${info.spamScore.status})` : undefined}
+                value={info.spamScore
+                  ? t('email_viewer.details.spam_score_value', '{score} ({status})', { score: info.spamScore.score, status: info.spamScore.status })
+                  : undefined}
                 styles={styles}
               />
               <DetailRow

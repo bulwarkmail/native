@@ -27,6 +27,7 @@ import {
 import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
+import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { useCalendarSubscriptionsStore } from '../../stores/calendar-subscriptions-store';
 
 type BannerState = 'loading' | 'parsed' | 'done' | 'error';
@@ -63,6 +64,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
   const enabled = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const calendars = useCalendarStore((s) => s.calendars);
@@ -173,8 +175,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const startDate = startStr ? parseISO(startStr) : null;
   const dateLabel = startDate && !isNaN(startDate.getTime())
     ? (event.showWithoutTime
-        ? format(startDate, 'EEEE, MMM d, yyyy')
-        : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`))
+        ? format(startDate, 'EEEE, MMM d, yyyy', { locale: dateLocale })
+        : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale }))
     : null;
   const organizer = getOrganizerName(event);
   const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;

@@ -351,6 +351,11 @@
     },
     "delete_permanently_message": "This message will be deleted permanently and cannot be recovered.",
     "delete_permanently_title": "Delete permanently?",
+    "details": {
+      "attachment_count_size": "{count, plural, one {# file} other {# files}} · {size}",
+      "received_after_delay": "{date} · {delay} delivery time",
+      "spam_score_value": "{score} ({status})"
+    },
     "export_failed": "Export failed",
     "forwarded": "Forwarded",
     "load_failed": "Failed to load email",

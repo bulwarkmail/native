@@ -676,7 +676,13 @@ function EmailViewer({ route, navigation }: Props) {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Toolbar */}
       <View style={styles.toolbar}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.toolbarBack} hitSlop={8}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.toolbarBack}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
         <View style={styles.toolbarActions}>
@@ -1077,6 +1083,8 @@ function EmailPane({
               onPress={email ? () => onToggleStar(email) : undefined}
               hitSlop={8}
               style={styles.subjectStar}
+              accessibilityRole="button"
+              accessibilityLabel={shown.keywords?.$flagged ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star')}
             >
               <Star
                 size={18}
@@ -1246,7 +1254,13 @@ function MoreMenuSheet({
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('email_viewer.more_actions', 'More actions')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.sheetClose}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>
@@ -1389,7 +1403,13 @@ function TagMenuSheet({ visible, onClose, keywords, activeKeywords, onToggle }: 
           </View>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{t('email_viewer.tag', 'Tag')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={styles.sheetClose}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={18} color={c.textSecondary} />
             </Pressable>
           </View>

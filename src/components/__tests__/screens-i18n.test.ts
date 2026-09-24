@@ -47,6 +47,14 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/email/ListAttachmentChips.tsx': [],
   'components/email/ReadReceiptBanner.tsx': [],
   'components/email/UnsubscribeBanner.tsx': [],
+  'screens/EmailThreadScreen.tsx': [],
+  // Protocol names on the authentication chips.
+  'components/email/MessageHeader.tsx': ['SPF', 'DKIM', 'DMARC'],
+  'components/email/MessageContent.tsx': [],
+  'components/email/ThreadMessageCard.tsx': [],
+  'components/email/QuickReplyBox.tsx': [],
+  'components/email/AttachmentChips.tsx': [],
+  'components/email/AttachmentPreviewModal.tsx': [],
 };
 
 describe('translated screens', () => {

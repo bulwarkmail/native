@@ -19,7 +19,8 @@ import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-ut
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { mailboxesOfAccount } from '../../lib/mailbox-tree';
-import { emailDisplayDate, formatFullDateTime } from '../../lib/email-date';
+import { emailDisplayDate } from '../../lib/email-date';
+import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
 
 interface Props {
   email: Email;
@@ -87,7 +88,15 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       const picked = pickEmailBody(email);
       const original = picked.text ?? (picked.html ? htmlToPlainText(picked.html) : plainTextBody(email));
       const quoted = original.split('\n').map((l) => `> ${l}`).join('\n');
-      const header = `${formatFullDateTime(emailDisplayDate(email), timeFormat, locale)}, ${from.name ? `${from.name} <${from.email}>` : from.email}:`;
+      // The header the composer puts above a quoted reply ("On …, X wrote:").
+      const header = buildQuoteHeader({
+        mode: 'reply',
+        email: { from, subject: email.subject, receivedAt: emailDisplayDate(email) },
+        timeFormat,
+        locale,
+        unknownLabel: t('common.unknown', 'Unknown'),
+        labels: quoteHeaderLabels(t),
+      });
       const threading = computeReplyThreadingHeaders(email);
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
       const result = await sendEmail(
@@ -98,7 +107,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
           // Signed as the composer signs a plain-text reply; an alias without a
           // signature of its own carries the primary identity's.
-          textBody: signPlainTextReply(body, `${header}\n${quoted}`, signatureIdentityFor(identity, identities), {
+          textBody: signPlainTextReply(body, `${header.text}${quoted}`, signatureIdentityFor(identity, identities), {
             position: signaturePosition,
             separator: signatureSeparatorEnabled,
           }),

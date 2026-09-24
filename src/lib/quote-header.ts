@@ -27,6 +27,20 @@ export const DEFAULT_QUOTE_HEADER_LABELS: QuoteHeaderLabels = {
   subjectLabel: 'Subject',
 };
 
+/**
+ * The labels in the app language. Shared by the composer and the quick reply
+ * box so a reply carries the same header whichever one sent it.
+ */
+export function quoteHeaderLabels(t: (key: string, fallback: string) => string): QuoteHeaderLabels {
+  return {
+    replyLine: t('quote_header.reply_line', 'On {date}, {from} wrote:'),
+    forwardedSeparator: t('quote_header.forwarded_separator', '---------- Forwarded message ----------'),
+    fromLabel: t('quote_header.from_label', 'From'),
+    dateLabel: t('quote_header.date_label', 'Date'),
+    subjectLabel: t('quote_header.subject_label', 'Subject'),
+  };
+}
+
 export interface QuoteHeader {
   html: string;
   text: string;

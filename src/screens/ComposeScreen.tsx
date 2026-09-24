@@ -51,7 +51,7 @@ import {
   rewriteCidImagesForEditor, replaceInlineImagePlaceholders, sniffImageMime, QUOTED_BLOCK_START,
 } from '../lib/compose-html';
 import { htmlComposeBodyToPlainText, initialPlainTextMode, plainComposeBodyToHtml } from '../lib/compose-format';
-import { buildQuoteHeader, formatQuoteDate, type QuoteHeaderLabels } from '../lib/quote-header';
+import { buildQuoteHeader, formatQuoteDate, quoteHeaderLabels, type QuoteHeaderLabels } from '../lib/quote-header';
 import {
   isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, type Recipient as ParsedRecipient,
 } from '../lib/recipients';
@@ -482,13 +482,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const trustedSendersAddressBook = useSettingsStore((s) => s.trustedSendersAddressBook);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
-  const quoteLabels = React.useMemo<QuoteHeaderLabels>(() => ({
-    replyLine: t('quote_header.reply_line', 'On {date}, {from} wrote:'),
-    forwardedSeparator: t('quote_header.forwarded_separator', '---------- Forwarded message ----------'),
-    fromLabel: t('quote_header.from_label', 'From'),
-    dateLabel: t('quote_header.date_label', 'Date'),
-    subjectLabel: t('quote_header.subject_label', 'Subject'),
-  }), [t]);
+  const quoteLabels = React.useMemo<QuoteHeaderLabels>(() => quoteHeaderLabels(t), [t]);
 
   // Every address that is "us": the login, the account's primary address and
   // every identity. Reply-all must not send the user a copy, and replying to
