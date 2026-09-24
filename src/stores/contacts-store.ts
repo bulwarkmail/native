@@ -874,6 +874,20 @@ export function selectAddressBooksWithCount(
   }));
 }
 
+/**
+ * The address book a contact created from the list should go into: the one
+ * being viewed (webmail 494adb9b), unless it is read-only. `undefined` lets
+ * the form fall back to the default book.
+ */
+export function selectCreateTargetBookId(
+  category: ContactCategory,
+  addressBooks: AddressBook[],
+): string | undefined {
+  if (category.type !== 'addressBook') return undefined;
+  const book = addressBooks.find((b) => b.id === category.addressBookId);
+  return book && book.myRights?.mayWrite !== false ? book.id : undefined;
+}
+
 export function selectGroupMembers(state: Pick<ContactsState, 'contacts'>, groupId: string): ContactCard[] {
   const group = state.contacts.find((c) => c.id === groupId);
   if (!group?.members) return [];

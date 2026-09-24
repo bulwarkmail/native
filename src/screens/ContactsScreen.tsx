@@ -25,6 +25,7 @@ import type { ContactCard } from '../api/types';
 import {
   useContactsStore,
   sortContactsByName,
+  selectCreateTargetBookId,
   selectGroupMembers,
   selectUncategorized,
   type ContactCategory,
@@ -247,9 +248,15 @@ export default function ContactsScreen() {
     }
   };
 
+  // A new contact lands in the address book being viewed, not the default one.
+  const createBookId = React.useMemo(
+    () => selectCreateTargetBookId(selectedCategory, addressBooks),
+    [selectedCategory, addressBooks],
+  );
+
   const openNewMenu = () => {
     Alert.alert('Create', undefined, [
-      { text: 'New contact', onPress: () => navigation.navigate('ContactForm', {}) },
+      { text: 'New contact', onPress: () => navigation.navigate('ContactForm', { addressBookId: createBookId }) },
       { text: 'New group', onPress: () => navigation.navigate('ContactForm', { asGroup: true }) },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -407,7 +414,7 @@ export default function ContactsScreen() {
                 <Upload size={20} color={c.text} />
               </Pressable>
               <Pressable
-                onPress={() => navigation.navigate('ContactForm', {})}
+                onPress={() => navigation.navigate('ContactForm', { addressBookId: createBookId })}
                 onLongPress={openNewMenu}
                 style={styles.addBtn}
                 hitSlop={8}

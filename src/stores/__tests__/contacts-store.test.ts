@@ -52,8 +52,9 @@ import {
   selectVisibleContacts,
   selectGroupMembers,
   sortContactsByName,
+  selectCreateTargetBookId,
 } from '../contacts-store';
-import type { ContactCard } from '../../api/types';
+import type { AddressBook, ContactCard } from '../../api/types';
 
 const mockGetAddressBooks = contactsApi.getAddressBooks as ReturnType<typeof vi.fn>;
 const mockGetAllAddressBooks = contactsApi.getAllAddressBooks as ReturnType<typeof vi.fn>;
@@ -531,5 +532,28 @@ describe('sortContactsByName (#963)', () => {
     const named = (id: string, full: string) => card(id, { name: { full } });
     const list = [named('z', 'Zed'), named('e2', 'emile'), named('e1', 'Émile'), named('a', 'Anna')];
     expect(sortContactsByName(list, false).map((c) => c.id)).toEqual(['a', 'e2', 'e1', 'z']);
+  });
+});
+
+describe('selectCreateTargetBookId', () => {
+  const books = [
+    { id: 'personal', name: 'Personal', isDefault: true },
+    { id: 'work', name: 'Work' },
+    { id: 'acc-team:shared', name: 'Team', myRights: { mayWrite: false } },
+  ] as AddressBook[];
+
+  it('creates in the address book being viewed', () => {
+    expect(selectCreateTargetBookId({ type: 'addressBook', addressBookId: 'work' }, books)).toBe('work');
+  });
+
+  it('leaves the default book to the form everywhere else', () => {
+    expect(selectCreateTargetBookId({ type: 'all' }, books)).toBeUndefined();
+    expect(selectCreateTargetBookId({ type: 'keyword', keyword: 'VIP' }, books)).toBeUndefined();
+    expect(selectCreateTargetBookId({ type: 'group', groupId: 'g1' }, books)).toBeUndefined();
+  });
+
+  it('never targets a read-only or vanished book', () => {
+    expect(selectCreateTargetBookId({ type: 'addressBook', addressBookId: 'acc-team:shared' }, books)).toBeUndefined();
+    expect(selectCreateTargetBookId({ type: 'addressBook', addressBookId: 'gone' }, books)).toBeUndefined();
   });
 });
