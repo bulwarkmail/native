@@ -21,6 +21,11 @@ function flatten(obj: Record<string, unknown>, prefix = '', out = new Set<string
   return out;
 }
 
+// src/ plus App.tsx next to it (the tab bar and loading screen).
+function sourceFiles(): string[] {
+  return [...walk(SRC_ROOT), join(SRC_ROOT, '..', 'App.tsx')];
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
@@ -48,7 +53,7 @@ describe('translation coverage', () => {
 
   it('every literal t() key in src exists in the English catalog', () => {
     const missing: string[] = [];
-    for (const file of walk(SRC_ROOT)) {
+    for (const file of sourceFiles()) {
       const text = readFileSync(file, 'utf8');
       for (const m of text.matchAll(LITERAL_KEY_RE)) {
         if (!en.has(m[1])) missing.push(`${m[1]}  (${relative(SRC_ROOT, file)})`);
@@ -59,7 +64,7 @@ describe('translation coverage', () => {
 
   it('every template t() key prefix has at least one English entry', () => {
     const missing: string[] = [];
-    for (const file of walk(SRC_ROOT)) {
+    for (const file of sourceFiles()) {
       const text = readFileSync(file, 'utf8');
       for (const m of text.matchAll(TEMPLATE_KEY_RE)) {
         const prefix = m[1];

@@ -1366,7 +1366,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       {unreachedAccounts.length > 0 && (
         <View style={[styles.emptyFolderBanner, { borderColor: c.error }]}>
           <Text style={styles.emptyFolderHint} numberOfLines={2}>
-            {t('unified_mailbox.accounts_failed', `${unreachedAccounts.length} account(s) could not be loaded`, { count: unreachedAccounts.length })}
+            {t('unified_mailbox.accounts_failed', '{count, plural, one {# account could not be loaded} other {# accounts could not be loaded}}', { count: unreachedAccounts.length })}
             {`: ${unreachedAccounts[0]}`}
           </Text>
         </View>

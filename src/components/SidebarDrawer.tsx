@@ -166,6 +166,7 @@ function SidebarRow({
 }: SidebarRowProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
   const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
   return (
     <Pressable
@@ -184,6 +185,9 @@ function SidebarRow({
             onPress={onToggleExpand}
             hitSlop={6}
             style={styles.chevron}
+            accessibilityRole="button"
+            accessibilityLabel={isExpanded ? t('sidebar.collapse', 'Collapse') : t('sidebar.expand', 'Expand')}
+            accessibilityState={{ expanded: isExpanded }}
           >
             {isExpanded ? (
               <ChevronDown size={12} color={c.textMuted} />
@@ -758,7 +762,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
           {/* Header: close + account switcher */}
           <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.headerClose} hitSlop={8}>
+            <Pressable
+              onPress={onClose}
+              style={styles.headerClose}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', 'Close')}
+            >
               <X size={20} color={c.text} />
             </Pressable>
             <Pressable
@@ -860,7 +870,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                         </View>
                       </View>
                       {!isActive && (
-                        <Pressable onPress={() => confirmRemoveAccount(acc)} hitSlop={8} style={styles.accountMenuRemove}>
+                        <Pressable
+                          onPress={() => confirmRemoveAccount(acc)}
+                          hitSlop={8}
+                          style={styles.accountMenuRemove}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('sidebar.remove_account', 'Remove account')}
+                        >
                           <UserMinus size={14} color={c.textMuted} />
                         </Pressable>
                       )}

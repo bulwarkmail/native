@@ -68,7 +68,8 @@ const KEY_ONLY_RE = /\btr?\(\s*'([^']+)'/g;
 
 const added = [];
 const missingNoFallback = [];
-for (const file of walk(SRC)) {
+// App.tsx (the tab bar and loading screen) sits next to src/.
+for (const file of [...walk(SRC), join(ROOT, 'App.tsx')]) {
   const text = readFileSync(file, 'utf8');
   const withFallback = new Map();
   for (const m of text.matchAll(CALL_RE)) {

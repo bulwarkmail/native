@@ -200,6 +200,16 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const hasContacts = useHasContacts();
   const hasFiles = useHasFiles();
   const disabledTabStyle = { opacity: 0.4 } as const;
+  const t = useLocaleStore((state) => state.t);
+  // The webmail's navigation names; a tab the server lacks says so.
+  const tabLabels = {
+    mail: t('sidebar.mail', 'Mail'),
+    calendar: t('sidebar.calendar', 'Calendar'),
+    contacts: t('sidebar.contacts', 'Contacts'),
+    files: t('sidebar.files', 'Files'),
+    settings: t('sidebar.settings', 'Settings'),
+  };
+  const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
@@ -231,6 +241,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <Tab.Screen
         name="Mail"
         options={{
+          title: tabLabels.mail,
           tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
           tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
           tabBarBadgeStyle: {
@@ -276,9 +287,10 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Calendar"
         component={CalendarScreen}
         options={{
+          title: tabLabels.calendar,
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
           tabBarItemStyle: hasCalendar ? undefined : disabledTabStyle,
-          tabBarAccessibilityLabel: hasCalendar ? 'Calendar' : 'Calendar (unavailable)',
+          tabBarAccessibilityLabel: hasCalendar ? tabLabels.calendar : unavailable(tabLabels.calendar),
         }}
         listeners={{
           tabPress: (e) => {
@@ -290,9 +302,10 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Contacts"
         component={ContactsScreen}
         options={{
+          title: tabLabels.contacts,
           tabBarIcon: ({ color, size }) => <BookUser size={size} color={color} />,
           tabBarItemStyle: hasContacts ? undefined : disabledTabStyle,
-          tabBarAccessibilityLabel: hasContacts ? 'Contacts' : 'Contacts (unavailable)',
+          tabBarAccessibilityLabel: hasContacts ? tabLabels.contacts : unavailable(tabLabels.contacts),
         }}
         listeners={{
           tabPress: (e) => {
@@ -304,9 +317,10 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         name="Files"
         component={FilesScreen}
         options={{
+          title: tabLabels.files,
           tabBarIcon: ({ color, size }) => <HardDrive size={size} color={color} />,
           tabBarItemStyle: hasFiles ? undefined : disabledTabStyle,
-          tabBarAccessibilityLabel: hasFiles ? 'Files' : 'Files (unavailable)',
+          tabBarAccessibilityLabel: hasFiles ? tabLabels.files : unavailable(tabLabels.files),
         }}
         listeners={{
           tabPress: (e) => {
@@ -317,6 +331,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <Tab.Screen
         name="Settings"
         options={{
+          title: tabLabels.settings,
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       >
@@ -332,6 +347,7 @@ export default function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const client = useAuthStore((state) => state.client);
   const restoreSession = useAuthStore((state) => state.restoreSession);
+  const t = useLocaleStore((state) => state.t);
 
   // Resolve the user's theme preference to a concrete light/dark style for the
   // system status bar. The rest of the app's colors are still hard-coded dark
@@ -700,7 +716,7 @@ export default function App() {
     return (
       <>
         <StatusBar style={statusBarStyle} />
-        <LoadingScreen message="Loading..." />
+        <LoadingScreen message={t('common.loading', 'Loading...')} />
       </>
     );
   }

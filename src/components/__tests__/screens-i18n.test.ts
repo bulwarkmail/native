@@ -55,6 +55,10 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/email/QuickReplyBox.tsx': [],
   'components/email/AttachmentChips.tsx': [],
   'components/email/AttachmentPreviewModal.tsx': [],
+  'screens/UnifiedInboxScreen.tsx': [],
+  'components/SidebarDrawer.tsx': [],
+  // The app shell (tab bar, loading screen), next to src/.
+  '../App.tsx': [],
 };
 
 describe('translated screens', () => {

@@ -33,12 +33,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'UnifiedInbox'>;
 
 const PAGE_SIZE = 25;
 
-function senderName(email: UnifiedEmail, showRecipient: boolean): string {
+function senderName(email: UnifiedEmail, showRecipient: boolean, unknown: string): string {
   if (showRecipient) {
     const to = email.to?.[0];
     if (to) return to.name || to.email;
   }
-  return email.from?.[0]?.name || email.from?.[0]?.email || 'Unknown';
+  return email.from?.[0]?.name || email.from?.[0]?.email || unknown;
 }
 
 function rowKey(e: UnifiedEmail): string {
@@ -330,7 +330,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           )}
           <View style={styles.avatarWrap}>
             <SenderAvatar
-              name={senderName(item, showRecipient)}
+              name={senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'))}
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
@@ -342,7 +342,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           <View style={styles.content}>
             <View style={styles.line}>
               <Text style={[styles.sender, unread && styles.bold]} numberOfLines={1}>
-                {senderName(item, showRecipient)}
+                {senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'))}
               </Text>
               {starred && <Star size={12} color={c.starred} fill={c.starred} />}
               {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
@@ -384,35 +384,79 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.container} edges={['top']}>
       {selectionMode ? (
         <View style={styles.header}>
-          <Pressable onPress={clearSelection} style={styles.headerBtn} hitSlop={8}>
+          <Pressable
+            onPress={clearSelection}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_list.batch_actions.clear_selection', 'Clear selection')}
+          >
             <X size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {t('context_menu.items_selected', `${selected.size} selected`, { count: selected.size })}
+            {t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selected.size })}
           </Text>
-          <Pressable onPress={() => { setStarred(selectedEmails, !allStarred); clearSelection(); }} style={styles.headerBtn} hitSlop={6}>
+          <Pressable
+            onPress={() => { setStarred(selectedEmails, !allStarred); clearSelection(); }}
+            style={styles.headerBtn}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={allStarred ? t('context_menu.unstar', 'Unstar') : t('context_menu.star', 'Star')}
+          >
             <Star size={20} color={allStarred ? c.starred : c.text} fill={allStarred ? c.starred : 'transparent'} />
           </Pressable>
-          <Pressable onPress={() => { setRead(selectedEmails, !allRead); clearSelection(); }} style={styles.headerBtn} hitSlop={6}>
+          <Pressable
+            onPress={() => { setRead(selectedEmails, !allRead); clearSelection(); }}
+            style={styles.headerBtn}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={allRead
+              ? t('email_list.batch_actions.mark_unread', 'Mark as unread')
+              : t('email_list.batch_actions.mark_read', 'Mark as read')}
+          >
             {allRead ? <MailIcon size={20} color={c.text} /> : <MailOpen size={20} color={c.text} />}
           </Pressable>
           {role !== 'sent' && role !== 'drafts' && (
-            <Pressable onPress={() => { spam(selectedEmails); clearSelection(); }} style={styles.headerBtn} hitSlop={6}>
+            <Pressable
+              onPress={() => { spam(selectedEmails); clearSelection(); }}
+              style={styles.headerBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={role === 'junk' ? t('context_menu.not_spam', 'Not spam') : t('context_menu.mark_as_spam', 'Report spam')}
+            >
               {role === 'junk' ? <ShieldCheck size={20} color={c.text} /> : <ShieldAlert size={20} color={c.text} />}
             </Pressable>
           )}
           {role !== 'archive' && (
-            <Pressable onPress={() => { archive(selectedEmails); clearSelection(); }} style={styles.headerBtn} hitSlop={6}>
+            <Pressable
+              onPress={() => { archive(selectedEmails); clearSelection(); }}
+              style={styles.headerBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('context_menu.archive', 'Archive')}
+            >
               <Archive size={20} color={c.text} />
             </Pressable>
           )}
-          <Pressable onPress={() => { void remove(selectedEmails).then(clearSelection); }} style={styles.headerBtn} hitSlop={6}>
+          <Pressable
+            onPress={() => { void remove(selectedEmails).then(clearSelection); }}
+            style={styles.headerBtn}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('email_list.batch_actions.delete', 'Delete')}
+          >
             <Trash2 size={20} color={c.text} />
           </Pressable>
         </View>
       ) : (
         <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back', 'Back')}
+          >
             <ArrowLeft size={22} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
@@ -436,7 +480,12 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           returnKeyType="search"
         />
         {searchInput.length > 0 && (
-          <Pressable onPress={() => { setSearchInput(''); setQuery(''); }} hitSlop={8}>
+          <Pressable
+            onPress={() => { setSearchInput(''); setQuery(''); }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('contacts.clear_search', 'Clear search')}
+          >
             <X size={14} color={c.textMuted} />
           </Pressable>
         )}
@@ -446,7 +495,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         <View style={styles.errorBanner}>
           <AlertTriangle size={14} color={c.error} />
           <Text style={styles.errorBannerText} numberOfLines={2}>
-            {t('unified_mailbox.accounts_failed', `${errorCount} account(s) could not be loaded`, { count: errorCount })}
+            {t('unified_mailbox.accounts_failed', '{count, plural, one {# account could not be loaded} other {# accounts could not be loaded}}', { count: errorCount })}
             {': '}
             {Object.values(errors)[0]}
           </Text>

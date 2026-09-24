@@ -988,10 +988,11 @@
     "remove_account_hint": "Long-press to remove this account",
     "remove_account_message": "Sign out of {account} on this device. Your mail stays on the server.",
     "remove_account_title": "Remove account?",
-    "show_unread": "Show unread"
+    "show_unread": "Show unread",
+    "tab_unavailable": "{name} (unavailable)"
   },
   "unified_mailbox": {
-    "accounts_failed": "{count} account(s) could not be loaded"
+    "accounts_failed": "{count, plural, one {# account could not be loaded} other {# accounts could not be loaded}}"
   },
   "updates": {
     "advisory": "Security advisory",
