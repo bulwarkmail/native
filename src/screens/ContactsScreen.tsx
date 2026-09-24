@@ -50,8 +50,8 @@ interface Section {
   data: ContactCard[];
 }
 
-function groupContacts(contacts: ContactCard[], byLastName: boolean): Section[] {
-  const sorted = sortContactsByName(contacts, byLastName);
+/** Letter sections for contacts already in `sortContactsByName` order. */
+function groupContacts(sorted: ContactCard[], byLastName: boolean): Section[] {
   const groups: Record<string, ContactCard[]> = {};
   for (const c of sorted) {
     // Sections follow the sort name, so with "sort by last name" Alice Smith
@@ -137,7 +137,7 @@ export default function ContactsScreen() {
   const groups = React.useMemo(() => contacts.filter(isGroup), [contacts]);
   const individuals = React.useMemo(() => contacts.filter((c) => !isGroup(c)), [contacts]);
 
-  const visible = React.useMemo(() => {
+  const categoryContacts = React.useMemo(() => {
     let filtered: ContactCard[];
     switch (selectedCategory.type) {
       case 'all':
@@ -162,14 +162,25 @@ export default function ContactsScreen() {
       default:
         filtered = individuals;
     }
-    if (!searchQuery) return filtered;
-    return filtered.filter((c) => matchesContactSearch(c, searchQuery));
-  }, [contacts, individuals, selectedCategory, searchQuery]);
+    return filtered;
+  }, [contacts, individuals, selectedCategory]);
+
+  // Sort once per list or order change; search only filters the sorted list,
+  // so typing never re-sorts the address book (PF10).
+  const sorted = React.useMemo(
+    () => sortContactsByName(categoryContacts, sortByLastName),
+    [categoryContacts, sortByLastName],
+  );
+
+  const visible = React.useMemo(() => {
+    if (!searchQuery) return sorted;
+    return sorted.filter((c) => matchesContactSearch(c, searchQuery));
+  }, [sorted, searchQuery]);
 
   const sections = React.useMemo<Section[]>(() => {
     if (groupByLetter) return groupContacts(visible, sortByLastName);
     // Flat list - single unnamed section keeps SectionList rendering simple.
-    return [{ title: '', data: sortContactsByName(visible, sortByLastName) }];
+    return [{ title: '', data: visible }];
   }, [visible, groupByLetter, sortByLastName]);
 
   const selectionMode = selection.size > 0;

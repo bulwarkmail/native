@@ -928,9 +928,14 @@ export function sortContactsByDisplayName(contacts: ContactCard[]): ContactCard[
   return sortContactsByName(contacts, false);
 }
 
+// One collator for every contact sort: `localeCompare` with options sets one
+// up per comparison, which made a large address book slow to sort (PF10).
+const contactNameCollator = new Intl.Collator(undefined, { sensitivity: 'base' });
+
 /** Contact list order: by display name, or surname first with `byLastName` (#963). */
 export function sortContactsByName(contacts: ContactCard[], byLastName: boolean): ContactCard[] {
-  return [...contacts].sort((a, b) =>
-    getContactSortName(a, byLastName).localeCompare(getContactSortName(b, byLastName), undefined, { sensitivity: 'base' }),
-  );
+  // Work out each sort name once instead of twice per comparison.
+  const keyed = contacts.map((contact) => ({ contact, key: getContactSortName(contact, byLastName) }));
+  keyed.sort((a, b) => contactNameCollator.compare(a.key, b.key));
+  return keyed.map((entry) => entry.contact);
 }

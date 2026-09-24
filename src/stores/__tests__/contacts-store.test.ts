@@ -526,4 +526,10 @@ describe('sortContactsByName (#963)', () => {
     sortContactsByName(input, true);
     expect(input.map((c) => c.id)).toEqual(['zoe', 'alice', 'bob', 'acme']);
   });
+
+  it('compares case- and accent-insensitively, keeping ties in list order (PF10)', () => {
+    const named = (id: string, full: string) => card(id, { name: { full } });
+    const list = [named('z', 'Zed'), named('e2', 'emile'), named('e1', 'Émile'), named('a', 'Anna')];
+    expect(sortContactsByName(list, false).map((c) => c.id)).toEqual(['a', 'e2', 'e1', 'z']);
+  });
 });
