@@ -767,7 +767,12 @@ export const useEmailStore = create<EmailState>()(
   loadMoreEmails: async () => {
     const state = get();
     const { currentMailboxId, emails, totalEmails, loading, searchQuery, filters, activeAccountId } = state;
-    if (!currentMailboxId || loading || emails.length >= totalEmails) return;
+    // Rows kept on screen after they stopped matching the query (read in the
+    // Unread view, unstarred in Starred, untagged in a tag view) are no longer
+    // part of the server's result; counting them would skip as many messages.
+    const retained = new Set(state.retainedIds);
+    const position = emails.filter((e) => !retained.has(e.id)).length;
+    if (!currentMailboxId || loading || position >= totalEmails) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
 
     set({ loading: true });
@@ -775,8 +780,8 @@ export const useEmailStore = create<EmailState>()(
       const scope = queryScope(state, refFor(state.mailboxes, currentMailboxId));
       const filter = buildJmapFilter(searchQuery, filters);
       const limit = useSettingsStore.getState().emailsPerPage;
-      const { ids } = await queryEmails(scope.mailboxId, {
-        position: emails.length,
+      const { ids, total } = await queryEmails(scope.mailboxId, {
+        position,
         limit,
         sort: await resolveSort(state, scope.accountId),
         filter,
@@ -790,13 +795,16 @@ export const useEmailStore = create<EmailState>()(
       const newEmails = fresh.length > 0 ? await fetchEmailsChunked(fresh, scope.accountId) : [];
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
       const merged = [...get().emails, ...newEmails];
-      const updates: Partial<EmailState> = { emails: merged, loading: false };
+      // The server's current count: a read in the Unread view has shrunk it
+      // since the list was loaded, and a stale total keeps load-more asking
+      // for a page that isn't there.
+      const updates: Partial<EmailState> = { emails: merged, totalEmails: total, loading: false };
       if (isBaseView(searchQuery, filters)) {
         updates.mailboxSnapshots = {
           ...get().mailboxSnapshots,
           [currentMailboxId]: {
             emails: merged,
-            total: get().totalEmails,
+            total,
             queryState: get().queryState,
           },
         };

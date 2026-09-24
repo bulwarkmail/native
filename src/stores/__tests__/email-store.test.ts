@@ -254,6 +254,52 @@ describe('email-store', () => {
 
       expect(mockQueryEmails).not.toHaveBeenCalled();
     });
+
+    // B20: a row read in the Unread view stays on screen but has left the
+    // server's result, so it must not count towards the next page's position.
+    it('pages from the server position, not counting rows kept after they stopped matching', async () => {
+      // e1 was just read (markRead keeps it in retainedIds).
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        filters: { isUnread: true },
+        retainedIds: ['e1'],
+        emails: [{ id: 'e1', keywords: { $seen: true } } as any, { id: 'e2', keywords: {} } as any, { id: 'e3', keywords: {} } as any],
+        totalEmails: 10,
+        loading: false,
+      });
+      mockQueryEmails.mockResolvedValue({ ids: ['e4', 'e5'], total: 9 });
+      mockGetEmails.mockResolvedValue([{ id: 'e4' }, { id: 'e5' }]);
+
+      await useEmailStore.getState().loadMoreEmails();
+
+      expect(mockQueryEmails).toHaveBeenCalledWith('mb-1', expect.objectContaining({
+        position: 2,
+        filter: { notKeyword: '$seen' },
+      }));
+      const state = useEmailStore.getState();
+      expect(state.emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
+      expect(state.totalEmails).toBe(9);
+    });
+
+    it('keeps loading when kept rows make the list look complete', async () => {
+      // After a refresh: e2..e4 are the query's first page of 4, and e1 is
+      // the row read earlier, kept in place.
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        filters: { isUnread: true },
+        retainedIds: ['e1'],
+        emails: ['e1', 'e2', 'e3', 'e4'].map((id) => ({ id, keywords: {} }) as any),
+        totalEmails: 4,
+        loading: false,
+      });
+      mockQueryEmails.mockResolvedValue({ ids: ['e5'], total: 4 });
+      mockGetEmails.mockResolvedValue([{ id: 'e5' }]);
+
+      await useEmailStore.getState().loadMoreEmails();
+
+      expect(mockQueryEmails).toHaveBeenCalledWith('mb-1', expect.objectContaining({ position: 3 }));
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
+    });
   });
 
   describe('markRead', () => {
