@@ -449,9 +449,20 @@ body {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
-img { max-width: 100% !important; height: auto !important; }
+/* Only force the cap on images and tables that set no max-width of their own:
+   an !important 100% also overrides a sender's inline max-width, so an image
+   sized by max-width + max-height + width:100% grows to the pane width while
+   its max-height still clamps the height (squashed), and a table with
+   max-width:300px spans the pane. Content wider than the pane is still
+   scaled to fit by the injected reporter. height stays !important so a fixed
+   inline height cannot squash an image. (#790) */
+img:not([style*="max-width"]) { max-width: 100% !important; }
+img[style*="max-width"] { max-width: 100%; }
+img { height: auto !important; }
 a { color: #1a73e8; }
-table { max-width: 100% !important; table-layout: auto; overflow-wrap: break-word; }
+table:not([style*="max-width"]) { max-width: 100% !important; }
+table[style*="max-width"] { max-width: 100%; }
+table { table-layout: auto; overflow-wrap: break-word; }
 td, th { overflow-wrap: break-word; }
 pre { white-space: pre-wrap; word-wrap: break-word; }
 `;

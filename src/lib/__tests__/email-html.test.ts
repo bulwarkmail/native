@@ -187,6 +187,24 @@ describe('prepareEmailHtml', () => {
   it('neutralises height:100% wrappers', () => {
     expect(prepareEmailHtml('<p>x</p>').html).toContain('[style*="height:100%"]');
   });
+
+  it('caps images and tables at the pane without overriding a sender max-width (#790)', () => {
+    const { html } = prepareEmailHtml(
+      '<img width="200" height="134" style="display:block; max-height:134px; max-width:200px; width:100%;">'
+      + '<table style="max-width:300px; width:100%"><tr><td>x</td></tr></table>',
+    );
+    // An unconditional !important cap would beat the inline max-width.
+    expect(html).not.toMatch(/(^|[\s}])img\s*\{[^}]*max-width:\s*100%\s*!important/);
+    expect(html).not.toMatch(/(^|[\s}])table\s*\{[^}]*max-width:\s*100%\s*!important/);
+    expect(html).toContain('img:not([style*="max-width"]) { max-width: 100% !important; }');
+    expect(html).toContain('img[style*="max-width"] { max-width: 100%; }');
+    expect(html).toContain('img { height: auto !important; }');
+    expect(html).toContain('table:not([style*="max-width"]) { max-width: 100% !important; }');
+    expect(html).toContain('table[style*="max-width"] { max-width: 100%; }');
+    // The sender's sizing reaches the document untouched.
+    expect(html).toContain('max-height:134px; max-width:200px; width:100%;');
+    expect(html).toContain('style="max-width:300px; width:100%"');
+  });
 });
 
 describe('wrapPlainTextEmail', () => {
