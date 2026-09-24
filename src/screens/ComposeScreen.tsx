@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Tag,
+  Users, Tag, Type,
 } from 'lucide-react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -50,6 +50,7 @@ import {
   buildInitialHtml, htmlToPlainText, rewriteInlineImages, extractUserAuthoredText,
   rewriteCidImagesForEditor, replaceInlineImagePlaceholders, sniffImageMime, QUOTED_BLOCK_START,
 } from '../lib/compose-html';
+import { htmlComposeBodyToPlainText, initialPlainTextMode, plainComposeBodyToHtml } from '../lib/compose-format';
 import { buildQuoteHeader, formatQuoteDate, type QuoteHeaderLabels } from '../lib/quote-header';
 import {
   isValidEmail, splitPastedRecipients, expandRecipients, parseRecipient, type Recipient as ParsedRecipient,
@@ -303,12 +304,13 @@ function AttachmentChip({
 }
 
 function ToolbarButton({
-  active, onPress, icon, disabled,
+  active, onPress, icon, disabled, label,
 }: {
   active?: boolean;
   onPress: () => void;
   icon: React.ReactNode;
   disabled?: boolean;
+  label?: string;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -317,6 +319,7 @@ function ToolbarButton({
       onPress={onPress}
       hitSlop={4}
       disabled={disabled}
+      accessibilityLabel={label}
       style={[styles.formatBtn, active && styles.formatBtnActive, disabled && styles.formatBtnDisabled]}
     >
       {icon}
@@ -441,7 +444,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
   const replyIdentityMatch = useSettingsStore((s) => s.replyIdentityMatch);
-  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
+  // Per-message format (#1022): seeded from the "plain text only" setting,
+  // or the format a reopened draft was written in, and switchable from the
+  // toolbar for just this message.
+  const plainTextSetting = useSettingsStore((s) => s.plainTextMode);
+  const [plainTextMode, setPlainTextMode] = React.useState(() => initialPlainTextMode(draft, plainTextSetting));
   const attachmentReminderEnabled = useSettingsStore((s) => s.attachmentReminderEnabled);
   const attachmentReminderKeywords = useSettingsStore((s) => s.attachmentReminderKeywords);
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
@@ -642,6 +649,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [bccInput, setBccInput] = React.useState('');
   const [subject, setSubject] = React.useState(initialSubject);
   const [bodyHtml, setBodyHtml] = React.useState(initialBodyHtml);
+  // What the editor page is built from when it mounts: the initial body, or
+  // the converted one after a switch from plain text.
+  const [editorSeedHtml, setEditorSeedHtml] = React.useState(initialBodyHtml);
   const [plainBody, setPlainBody] = React.useState(initialPlainBody);
   const plainSelectionRef = React.useRef<{ start: number; end: number } | null>(null);
   const [activeField, setActiveField] = React.useState<Field | null>(null);
@@ -1696,6 +1706,31 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // ── Format ───────────────────────────────────────────────────────────
+
+  // Switch this one message between rich and plain text (#1022). The body is
+  // converted in place and the embedded signature survives in the target
+  // format (lib/compose-format). Formatting is dropped going to plain text
+  // and doesn't come back on a second switch; images the user inserted stay
+  // on as ordinary attachments rather than silently not being sent.
+  const togglePlainTextMode = async () => {
+    const separator = signatureSeparatorEnabled;
+    if (plainTextMode) {
+      const next = plainComposeBodyToHtml(plainBody, signatureIdentity, { separator });
+      setBodyHtml(next);
+      setEditorSeedHtml(next);
+      setPlainTextMode(false);
+      return;
+    }
+    let html = latestRef.current.bodyHtml;
+    try {
+      html = (await editorRef.current?.getHtml()) ?? html;
+    } catch { /* the last change message is the best we have */ }
+    setPlainBody(htmlComposeBodyToPlainText(html, signatureIdentity, { separator }));
+    setAttachments((prev) => (prev.some((a) => a.inline) ? prev.map((a) => (a.inline ? { ...a, inline: false } : a)) : prev));
+    setPlainTextMode(true);
+  };
+
   // ── Link prompt (Modal) ──────────────────────────────────────────────
   const [linkPromptVisible, setLinkPromptVisible] = React.useState(false);
   const [linkPromptValue, setLinkPromptValue] = React.useState('');
@@ -2362,7 +2397,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           ) : (
             <RichTextEditor
               ref={editorRef}
-              initialHtml={initialBodyHtml}
+              initialHtml={editorSeedHtml}
               blockRemoteImages={blockRemoteImages}
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
@@ -2382,6 +2417,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
           <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
             icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
+          <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
+            label={plainTextMode
+              ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
+              : t('email_composer.format_plain_text', 'Switch to plain text')}
+            icon={<Type size={18} color={plainTextMode ? c.primary : c.textSecondary} />} />
 
           {!plainTextMode && (
             <>

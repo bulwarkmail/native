@@ -105,6 +105,8 @@
     "attachment_too_large": "This file is larger than the server allows ({size} > {max}).",
     "attachments_too_large_total": "The attachments would exceed the {max} this server allows per message.",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
+    "format_plain_text": "Switch to plain text",
+    "format_rich_text": "Switch to rich text (HTML)",
     "identity_unavailable": "Identity unavailable",
     "image_load_failed": "Could not load image",
     "no_recipient": "(no recipient)",
