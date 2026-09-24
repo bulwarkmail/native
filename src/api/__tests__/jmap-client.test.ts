@@ -352,6 +352,13 @@ describe('JMAPClient', () => {
       expect(client.getMaxDelayedSend()).toBe(0);
     });
 
+    it('lists every account that can hold submissions, primary first (webmail #874)', async () => {
+      global.fetch = mockFetch([{ status: 200, json: STALWART_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+
+      expect(client.getSubmissionAccountIds()).toEqual(['acc-1', 'shared-no-hold']);
+    });
+
     describe('hold limit', () => {
       const withSubmission = (maxDelayedSend: number, stalwart: boolean): JMAPSession => ({
         ...STALWART_SESSION,

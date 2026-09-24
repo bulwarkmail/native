@@ -1043,6 +1043,23 @@ export class JMAPClient {
     return this.session?.primaryAccounts?.[CAPABILITIES.SUBMISSION] || id;
   }
 
+  /**
+   * Every account whose scheduled sends this session can see: the primary
+   * submission account plus each shared/group account that advertises
+   * submission itself. A send from a shared identity is held in that
+   * account, so a lookup in the primary one alone never found it (webmail
+   * #874).
+   */
+  getSubmissionAccountIds(): string[] {
+    const ids: string[] = [];
+    const primary = this.submissionAccountId();
+    if (primary) ids.push(primary);
+    for (const [id, account] of Object.entries(this.session?.accounts ?? {})) {
+      if (!ids.includes(id) && account?.accountCapabilities?.[CAPABILITIES.SUBMISSION]) ids.push(id);
+    }
+    return ids;
+  }
+
   private submissionCapability(accountId?: string):
     | { maxDelayedSend?: number; submissionExtensions?: unknown }
     | undefined {

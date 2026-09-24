@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     request: vi.fn(),
     learnHoldLimit: vi.fn(),
+    getSubmissionAccountIds: vi.fn(() => ['acc-1']),
+    hasDelayedSend: vi.fn(() => true),
     getMaxCallsInRequest: vi.fn(() => 16),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
@@ -12,7 +14,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { rescheduleScheduledSend, sendEmail } from '../email';
+import { cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail } from '../email';
 import { ScheduleTooLateError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -221,5 +223,91 @@ describe('hold-limit rejections', () => {
 
     expect(err).toBeInstanceOf(ScheduleTooLateError);
     expect(jmapClient.learnHoldLimit).toHaveBeenCalledWith(172_800);
+  });
+});
+
+describe('scheduled sends in shared accounts (webmail #874)', () => {
+  const FUTURE = new Date(Date.now() + 3600_000).toISOString();
+  const LATER = new Date(Date.now() + 7200_000).toISOString();
+  const byAccount: Record<string, { submissions: unknown[]; emails: unknown[] } | Error> = {};
+
+  beforeEach(() => {
+    (jmapClient.getSubmissionAccountIds as ReturnType<typeof vi.fn>).mockReturnValue(['acc-1', 'grp-1', 'grp-2']);
+    // grp-2 advertises submission but can't hold mail.
+    (jmapClient.hasDelayedSend as ReturnType<typeof vi.fn>).mockImplementation((id: string) => id !== 'grp-2');
+    byAccount['acc-1'] = {
+      submissions: [{ id: 's-own', emailId: 'e-own', identityId: 'i-own', sendAt: LATER, undoStatus: 'pending' }],
+      emails: [{ id: 'e-own', subject: 'Own' }],
+    };
+    byAccount['grp-1'] = {
+      submissions: [
+        { id: 's-grp', emailId: 'e-grp', identityId: 'i-grp', sendAt: FUTURE, undoStatus: 'pending' },
+        { id: 's-done', emailId: 'e-done', identityId: 'i-grp', sendAt: FUTURE, undoStatus: 'final' },
+      ],
+      emails: [{ id: 'e-grp', subject: 'Team' }],
+    };
+    mockRequest.mockImplementation(async (calls: Array<[string, { accountId: string }, string]>) => {
+      const [method, args] = calls[0];
+      const data = byAccount[args.accountId];
+      if (data instanceof Error) throw data;
+      if (!data) throw new Error(`unexpected account ${args.accountId}`);
+      if (method === 'EmailSubmission/query') {
+        return { methodResponses: [[method, { ids: (data.submissions as Array<{ id: string }>).map((s) => s.id) }, '0']] };
+      }
+      if (method === 'EmailSubmission/get') return { methodResponses: [[method, { list: data.submissions }, '0']] };
+      if (method === 'Email/get') return { methodResponses: [[method, { list: data.emails }, '0']] };
+      throw new Error(`unexpected ${method}`);
+    });
+  });
+
+  afterEach(() => {
+    mockRequest.mockReset();
+    (jmapClient.getSubmissionAccountIds as ReturnType<typeof vi.fn>).mockReturnValue(['acc-1']);
+    (jmapClient.hasDelayedSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
+  });
+
+  it('lists the pending sends of every account that can hold mail, tagged with their account', async () => {
+    const list = await listScheduledEmails();
+
+    expect(list.map((s) => [s.accountId, s.emailSubmissionId, s.subject])).toEqual([
+      ['grp-1', 's-grp', 'Team'],
+      ['acc-1', 's-own', 'Own'],
+    ]);
+    const asked = mockRequest.mock.calls.map((c) => c[0][0][1].accountId);
+    expect(asked).not.toContain('grp-2');
+  });
+
+  it("keeps the user's own scheduled sends when a shared account fails", async () => {
+    byAccount['grp-1'] = new Error('forbidden');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const list = await listScheduledEmails();
+
+    expect(list.map((s) => s.emailSubmissionId)).toEqual(['s-own']);
+    warn.mockRestore();
+  });
+
+  it('still fails when the primary account fails', async () => {
+    byAccount['acc-1'] = new Error('server down');
+
+    await expect(listScheduledEmails()).rejects.toThrow('server down');
+  });
+
+  it('cancels and reschedules in the account holding the submission', async () => {
+    mockRequest.mockReset();
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['EmailSubmission/set', { updated: { 's-grp': null } }, '0']],
+    });
+    await cancelScheduledSend('s-grp', 'grp-1');
+    expect(mockRequest.mock.calls[0][0][0][1].accountId).toBe('grp-1');
+
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['EmailSubmission/set', {
+        updated: { 's-grp': null },
+        created: { replacement: { id: 's-new', sendAt: FUTURE } },
+      }, '0']],
+    });
+    await rescheduleScheduledSend({ ...SCHEDULED, emailSubmissionId: 's-grp', accountId: 'grp-1' }, 0);
+    expect(mockRequest.mock.calls[1][0][0][1].accountId).toBe('grp-1');
   });
 });

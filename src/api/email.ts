@@ -1331,6 +1331,8 @@ export async function createDraft(
 }
 
 export interface ScheduledEmail {
+  /** Account holding the submission: a shared account for a send from its identity. */
+  accountId: string;
   emailSubmissionId: string;
   emailId: string;
   identityId: string;
@@ -1345,10 +1347,27 @@ export interface ScheduledEmail {
 
 // List pending (not-yet-delivered, not cancelled) scheduled submissions whose
 // send time is still in the future, joined with a light Email/get so the UI
-// can show subject/recipients. Empty when the server lacks FUTURERELEASE.
+// can show subject/recipients. Covers every account that can hold mail: a
+// send from a shared identity is held in the shared account, where a
+// primary-only lookup never found it, so it could not be cancelled (webmail
+// #874). Empty when no account supports FUTURERELEASE.
 export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
-  if (!jmapClient.hasDelayedSend()) return [];
-  const accountId = jmapClient.accountId;
+  const accountIds = jmapClient.getSubmissionAccountIds().filter((id) => jmapClient.hasDelayedSend(id));
+  const out: ScheduledEmail[] = [];
+  for (const accountId of accountIds) {
+    try {
+      out.push(...(await listScheduledEmailsIn(accountId)));
+    } catch (err) {
+      // A shared account that can't answer (revoked access, server error)
+      // must not hide the user's own scheduled mail.
+      if (accountId === jmapClient.accountId) throw err;
+      console.warn(`[email] scheduled sends of account ${accountId} unavailable:`, err);
+    }
+  }
+  return out.sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime());
+}
+
+async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[]> {
   const now = Date.now();
 
   const queryRes = await jmapClient.request(
@@ -1406,6 +1425,7 @@ export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
       const e = emailById.get(s.emailId);
       if (!s.sendAt) return null;
       return {
+        accountId,
         emailSubmissionId: s.id,
         emailId: s.emailId,
         identityId: s.identityId,
@@ -1418,14 +1438,14 @@ export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
         preview: e?.preview,
       };
     })
-    .filter((s): s is ScheduledEmail => s !== null)
-    .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime());
+    .filter((s): s is ScheduledEmail => s !== null);
 }
 
 // Cancel a pending scheduled send. The held message copy stays in Sent; only
-// delivery is stopped (matches the webmail behaviour).
-export async function cancelScheduledSend(emailSubmissionId: string): Promise<void> {
-  const accountId = jmapClient.accountId;
+// delivery is stopped (matches the webmail behaviour). `accountIdOverride` is
+// the account holding the submission (see `ScheduledEmail.accountId`).
+export async function cancelScheduledSend(emailSubmissionId: string, accountIdOverride?: string): Promise<void> {
+  const accountId = accountIdOverride ?? jmapClient.accountId;
   const res = await jmapClient.request(
     [['EmailSubmission/set', {
       accountId,
@@ -1449,11 +1469,19 @@ export async function cancelScheduledSend(emailSubmissionId: string): Promise<vo
  * submission id and resolved send time.
  */
 export async function rescheduleScheduledSend(
-  scheduled: { emailSubmissionId: string; emailId: string; identityId: string; from?: EmailAddress[]; to?: EmailAddress[] },
+  scheduled: {
+    emailSubmissionId: string;
+    emailId: string;
+    identityId: string;
+    from?: EmailAddress[];
+    to?: EmailAddress[];
+    /** Account holding the submission; the replacement is created there too. */
+    accountId?: string;
+  },
   holdForSeconds: number,
   recipients?: EmailAddress[],
 ): Promise<{ emailSubmissionId?: string; sendAt?: string }> {
-  const accountId = jmapClient.accountId;
+  const accountId = scheduled.accountId ?? jmapClient.accountId;
   const create: Record<string, unknown> = { emailId: scheduled.emailId, identityId: scheduled.identityId };
   if (holdForSeconds > 0) {
     // Reuse the held submission's envelope: it names every recipient,

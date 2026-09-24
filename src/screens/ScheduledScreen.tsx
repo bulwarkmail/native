@@ -104,7 +104,7 @@ export default function ScheduledScreen({ navigation }: Props) {
           style: 'destructive',
           onPress: () => {
             void runAction(item, async () => {
-              await cancelScheduledSend(item.emailSubmissionId);
+              await cancelScheduledSend(item.emailSubmissionId, item.accountId);
               if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
                 useSendUndoStore.getState().clear();
               }
@@ -135,7 +135,7 @@ export default function ScheduledScreen({ navigation }: Props) {
       );
       return;
     }
-    const max = jmapClient.getMaxDelayedSend();
+    const max = jmapClient.getMaxDelayedSend(item.accountId);
     if (max > 0 && seconds > max) {
       Alert.alert(
         t('email_composer.schedule_too_late_title', 'Too far ahead'),
@@ -159,17 +159,28 @@ export default function ScheduledScreen({ navigation }: Props) {
   // the composer (webmail cancelScheduledEmailForEdit).
   const onEdit = (item: ScheduledEmail) => {
     void runAction(item, async () => {
-      await cancelScheduledSend(item.emailSubmissionId);
+      await cancelScheduledSend(item.emailSubmissionId, item.accountId);
       if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
         useSendUndoStore.getState().clear();
       }
-      const own = ownMailboxes(mailboxes);
-      const drafts = own.find((m) => m.role === 'drafts');
-      const sent = own.find((m) => m.role === 'sent');
-      if (drafts) await restoreEmailToDraft(item.emailId, drafts.id, sent?.id);
-      const email = await getFullEmail(item.emailId);
+      // A message held in a shared account goes back to that account's Drafts.
+      const shared = item.accountId !== jmapClient.accountId;
+      const scope = shared
+        ? mailboxes.filter((m) => m.isShared && m.accountId === item.accountId)
+        : ownMailboxes(mailboxes);
+      const drafts = scope.find((m) => m.role === 'drafts');
+      const sent = scope.find((m) => m.role === 'sent');
+      if (drafts) {
+        await restoreEmailToDraft(
+          item.emailId,
+          drafts.originalId ?? drafts.id,
+          sent ? (sent.originalId ?? sent.id) : undefined,
+          item.accountId,
+        );
+      }
+      const email = await getFullEmail(item.emailId, item.accountId);
       removeItem(item.emailSubmissionId);
-      navigation.replace('Compose', { draft: draftContextFromEmail(email) });
+      navigation.replace('Compose', { draft: draftContextFromEmail(email, shared ? item.accountId : undefined) });
     }, t('scheduled.edit_failed', 'Could not open the message for editing'));
   };
 
@@ -180,7 +191,7 @@ export default function ScheduledScreen({ navigation }: Props) {
     tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
     tomorrowMorning.setHours(8, 0, 0, 0);
     // Only offer times within the server's hold limit.
-    const maxMs = jmapClient.getMaxDelayedSend() * 1000;
+    const maxMs = jmapClient.getMaxDelayedSend(rescheduleFor?.accountId) * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
