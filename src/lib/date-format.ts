@@ -16,6 +16,50 @@ import type { DateFormat, TimeFormat } from '../stores/settings-store';
  */
 type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 
+type FormatName =
+  | 'time12' | 'time24' | 'full12' | 'full24' | 'weekday' | 'date' | 'monthDay' | 'monthDayYear';
+
+const FORMATS: Record<FormatName, Intl.DateTimeFormatOptions> = {
+  time12: { hour: '2-digit', minute: '2-digit', hour12: true },
+  time24: { hour: '2-digit', minute: '2-digit', hour12: false },
+  full12: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true },
+  full24: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false },
+  weekday: { weekday: 'short' },
+  date: { year: 'numeric', month: '2-digit', day: '2-digit' },
+  monthDay: { month: 'short', day: 'numeric' },
+  monthDayYear: { month: 'short', day: 'numeric', year: 'numeric' },
+};
+
+// Building an Intl formatter is the expensive part of formatting a date (on
+// Hermes it goes through ICU over JNI), and `toLocaleString`,
+// `toLocaleDateString` and `toLocaleTimeString` build a new one on every
+// call. The list formats a date in every row render, so keep one formatter
+// per locale and format. The output is the same: when the options name at
+// least one field, those methods format exactly as `Intl.DateTimeFormat`
+// does with the same options.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+// A formatter fixes the device time zone when it is built, where
+// `toLocale*String` picked it up on every call. Start over when the UTC offset
+// moves (travel, a DST switch) so a changed zone still shows.
+let formattersOffset: number | undefined;
+
+function syncFormatterZone(now: Date): void {
+  const offset = now.getTimezoneOffset();
+  if (offset === formattersOffset) return;
+  formatters.clear();
+  formattersOffset = offset;
+}
+
+function formatWith(d: Date, locale: string, name: FormatName): string {
+  const key = `${name}|${locale}`;
+  let formatter = formatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, FORMATS[name]);
+    formatters.set(key, formatter);
+  }
+  return formatter.format(d);
+}
+
 // Relative strings ("Just now", "5m ago") through the locale catalog when a
 // translate function is supplied; the compact English form otherwise.
 function relativeLabel(
@@ -35,6 +79,7 @@ export function formatListDate(
   const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) return '';
   const now = new Date();
+  syncFormatterZone(now);
 
   const { dateFormat, timeFormat } = opts;
   const localeRaw = opts.locale;
@@ -53,30 +98,15 @@ export function formatListDate(
     if (minutes < 60) return relativeLabel(opts.t, 'minute', minutes);
     if (hours < 24) return relativeLabel(opts.t, 'hour', hours);
     if (days < 7) return relativeLabel(opts.t, 'day', days);
-    return d.toLocaleDateString(intlLocale, {
-      month: 'short',
-      day: 'numeric',
-      year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-    });
+    return formatWith(d, intlLocale, d.getFullYear() !== now.getFullYear() ? 'monthDayYear' : 'monthDay');
   }
 
   if (dateFormat === 'full') {
-    return d.toLocaleString(intlLocale, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12,
-    });
+    return formatWith(d, intlLocale, hour12 ? 'full12' : 'full24');
   }
 
   // 'smart' (default)
-  const timeStr = d.toLocaleTimeString(intlLocale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12,
-  });
+  const timeStr = formatWith(d, intlLocale, hour12 ? 'time12' : 'time24');
 
   const isSameDay =
     d.getFullYear() === now.getFullYear() &&
@@ -88,15 +118,9 @@ export function formatListDate(
   if (daysAgo < 7) {
     // German Intl outputs "Fr." with a trailing dot for `weekday: 'short'`;
     // strip it so the result reads cleanly next to the time.
-    const weekday = d
-      .toLocaleDateString(intlLocale, { weekday: 'short' })
-      .replace(/\.$/, '');
+    const weekday = formatWith(d, intlLocale, 'weekday').replace(/\.$/, '');
     return `${weekday} ${timeStr}`;
   }
 
-  return d.toLocaleDateString(intlLocale, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  return formatWith(d, intlLocale, 'date');
 }
