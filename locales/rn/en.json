@@ -415,7 +415,7 @@
   "files": {
     "delete_cascade_hint": "Folders are deleted along with everything inside them. This can't be undone.",
     "delete_item_title": "Delete this item?",
-    "delete_items_title": "Delete {count} items?",
+    "delete_items_title": "{count, plural, one {Delete # item?} other {Delete # items?}}",
     "done": "Done",
     "folder_empty": "This folder is empty",
     "invalid_name": "Invalid name",
@@ -424,7 +424,7 @@
     "open_error": "Could not open the file",
     "open_with": "Open with…",
     "preview_too_large": "This file is too large to preview.",
-    "selected_count": "{count} selected",
+    "selected_count": "{count, plural, one {# selected} other {# selected}}",
     "share_add_people": "Add people",
     "share_empty": "Not shared with anyone yet",
     "share_error": "Failed to update sharing",
@@ -438,7 +438,8 @@
     "share_unavailable": "Sharing is not available on this device",
     "shared_with": "Shared with",
     "sharing_access": "Sharing & access",
-    "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads."
+    "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
+    "uploading_progress": "Uploading {current}/{total} · {name}"
   },
   "identities": {
     "badge": {

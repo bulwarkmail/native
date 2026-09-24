@@ -61,7 +61,7 @@ import {
   useSettingsStore, type FilesViewMode, type FilesSortKey, type FilesSortDir,
 } from '../stores/settings-store';
 import { useAuthStore } from '../stores/auth-store';
-import { useLocaleStore } from '../stores/locale-store';
+import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
@@ -71,13 +71,7 @@ interface FileRow extends FileNode {
   displayName: string;
 }
 
-type Translate = (key: string, fallback?: string) => string;
-
-// The locale strings use `{name}`-style placeholders; the RN `t` does no
-// interpolation, so substitute here.
-function fill(text: string, vars: Record<string, string | number>): string {
-  return text.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
-}
+type Translate = TranslateFn;
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 
@@ -591,7 +585,7 @@ export default function FilesScreen() {
       if (maxSize > 0 && size != null && size > maxSize) {
         Alert.alert(
           t('files.upload_error', 'Failed to upload file'),
-          fill(t('files.file_too_large', '"{name}" exceeds the maximum file size ({max})'), {
+          t('files.file_too_large', '"{name}" exceeds the maximum file size ({max})', {
             name: asset.name,
             max: formatFileSize(maxSize),
           }),
@@ -683,7 +677,7 @@ export default function FilesScreen() {
               <X size={22} color={c.text} />
             </Pressable>
             <Text style={styles.title}>
-              {fill(t('files.selected_count', '{count} selected'), { count: selection.size })}
+              {t('files.selected_count', '{count, plural, one {# selected} other {# selected}}', { count: selection.size })}
             </Text>
             <View style={styles.headerActions}>
               <Pressable
@@ -812,7 +806,11 @@ export default function FilesScreen() {
           <View style={styles.progressRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.progressText} numberOfLines={1}>
-                {t('files.uploading', 'Uploading...')} {uploadProgress.current}/{uploadProgress.total} · {uploadProgress.name}
+                {t('files.uploading_progress', 'Uploading {current}/{total} · {name}', {
+                  current: uploadProgress.current,
+                  total: uploadProgress.total,
+                  name: uploadProgress.name,
+                })}
               </Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressBar, { width: `${Math.round(uploadProgress.percent * 100)}%` }]} />
@@ -881,7 +879,7 @@ export default function FilesScreen() {
           <View style={styles.fileMetaRow}>
             {item.isShared && item.accountName ? (
               <Text style={styles.fileMeta} numberOfLines={1}>
-                {fill(t('files.shared_by', 'Shared by {name}'), { name: item.accountName })}
+                {t('files.shared_by', 'Shared by {name}', { name: item.accountName })}
               </Text>
             ) : null}
             {item.size != null && !isDir ? (
@@ -940,7 +938,7 @@ export default function FilesScreen() {
         </View>
         {item.isShared && item.accountName ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
-            {fill(t('files.shared_by', 'Shared by {name}'), { name: item.accountName })}
+            {t('files.shared_by', 'Shared by {name}', { name: item.accountName })}
           </Text>
         ) : item.size != null && !isDir ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
@@ -1120,7 +1118,7 @@ export default function FilesScreen() {
         visible={confirmDelete != null}
         title={
           confirmDelete && confirmDelete.rows.length > 1
-            ? fill(t('files.delete_items_title', 'Delete {count} items?'), { count: confirmDelete.rows.length })
+            ? t('files.delete_items_title', '{count, plural, one {Delete # item?} other {Delete # items?}}', { count: confirmDelete.rows.length })
             : t('files.delete_item_title', 'Delete this item?')
         }
         message={t('files.delete_cascade_hint', "Folders are deleted along with everything inside them. This can't be undone.")}
