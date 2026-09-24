@@ -87,7 +87,7 @@ export async function uploadBlob(
   const accountId = jmapClient.accountId;
   const uploadUrl = uploadUrlFor(accountId);
   const contentType = type || 'application/octet-stream';
-  const { onProgress, signal } = options;
+  const { signal } = options;
   if (signal?.aborted) throw abortError();
 
   const alias = await getClientCertAlias();
@@ -96,9 +96,49 @@ export async function uploadBlob(
   }
 
   const LegacyFileSystem = await loadLegacyFileSystem();
+  const cacheCopy = await copyContentUriToCache(LegacyFileSystem, uri);
+  try {
+    return await uploadFileStreamed(LegacyFileSystem, cacheCopy ?? uri, contentType, accountId, uploadUrl, options);
+  } finally {
+    if (cacheCopy) {
+      await LegacyFileSystem.deleteAsync(cacheCopy, { idempotent: true }).catch(() => undefined);
+    }
+  }
+}
+
+let cacheCopySeq = 0;
+
+// The native upload task reads from a file path, but files shared into the
+// app from another app arrive as Android `content://` URIs with nothing on
+// disk behind them. Stream those into the cache first; returns null when
+// `uri` is already a file.
+async function copyContentUriToCache(
+  LegacyFileSystem: LegacyFileSystemModule,
+  uri: string,
+): Promise<string | null> {
+  if (!uri.startsWith('content://')) return null;
+  const to = `${LegacyFileSystem.cacheDirectory}upload-${Date.now()}-${++cacheCopySeq}`;
+  try {
+    await LegacyFileSystem.copyAsync({ from: uri, to });
+  } catch (e) {
+    await LegacyFileSystem.deleteAsync(to, { idempotent: true }).catch(() => undefined);
+    throw e;
+  }
+  return to;
+}
+
+async function uploadFileStreamed(
+  LegacyFileSystem: LegacyFileSystemModule,
+  fileUri: string,
+  contentType: string,
+  accountId: string,
+  uploadUrl: string,
+  { onProgress, signal }: UploadBlobOptions,
+): Promise<UploadResult> {
+  if (signal?.aborted) throw abortError();
   const task = LegacyFileSystem.createUploadTask(
     uploadUrl,
-    uri,
+    fileUri,
     {
       httpMethod: 'POST',
       uploadType: LegacyFileSystem.FileSystemUploadType.BINARY_CONTENT,

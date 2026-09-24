@@ -1,8 +1,11 @@
 package com.anonymous.bulwarkmobile
 
+import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableMap
 
@@ -20,7 +23,7 @@ object ShareIntentStore {
         return value
     }
 
-    fun captureFromIntent(intent: Intent?): SharePayload? {
+    fun captureFromIntent(intent: Intent?, resolver: ContentResolver): SharePayload? {
         val action = intent?.action ?: return null
         if (action != Intent.ACTION_SEND && action != Intent.ACTION_SEND_MULTIPLE) return null
 
@@ -35,11 +38,14 @@ object ShareIntentStore {
         val type = intent.type
 
         if (text.isNullOrBlank() && uris.isEmpty()) return null
+        val files = uris.mapIndexed { i, uri -> describe(resolver, uri, type, i) }
         val payload = SharePayload(
             text = text,
             subject = subject,
             uris = uris.map { it.toString() },
-            mimeTypes = uris.map { type ?: "" },
+            mimeTypes = files.map { it.mimeType },
+            names = files.map { it.name },
+            sizes = files.map { it.size },
         )
         pending = payload
         // Clear so a later lifecycle event doesn't replay this share.
@@ -48,6 +54,46 @@ object ShareIntentStore {
         intent.removeExtra(Intent.EXTRA_STREAM)
         intent.action = Intent.ACTION_MAIN
         return payload
+    }
+
+    private class SharedFile(val name: String, val mimeType: String, val size: Double)
+
+    // Ask the provider for the file's real name, type and size: a MediaStore
+    // URI ends in a bare row id ("1000000027") and SEND_MULTIPLE only carries
+    // a wildcard type such as "image/*". Size is -1 when unknown.
+    private fun describe(resolver: ContentResolver, uri: Uri, intentType: String?, index: Int): SharedFile {
+        var displayName: String? = null
+        var size = -1.0
+        try {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameColumn = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameColumn >= 0 && !cursor.isNull(nameColumn)) displayName = cursor.getString(nameColumn)
+                    val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) size = cursor.getLong(sizeColumn).toDouble()
+                }
+            }
+        } catch (_: Exception) {
+            // Provider without OpenableColumns: fall back to the URI below.
+        }
+        val resolvedType = try {
+            resolver.getType(uri)
+        } catch (_: Exception) {
+            null
+        }
+        val mimeType = resolvedType ?: intentType?.takeUnless { it.contains('*') } ?: ""
+        val name = displayName?.takeIf { it.isNotBlank() } ?: fallbackName(uri, mimeType, index)
+        return SharedFile(name, mimeType, size)
+    }
+
+    // Last path segment plus an extension for the MIME type, so the
+    // recipient's mail client can still open the attachment.
+    private fun fallbackName(uri: Uri, mimeType: String, index: Int): String {
+        val base = uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+            ?: "shared-${index + 1}"
+        if (base.contains('.')) return base
+        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+        return if (extension.isNullOrEmpty()) base else "$base.$extension"
     }
 
     @Suppress("DEPRECATION")
@@ -71,12 +117,16 @@ object ShareIntentStore {
         val subject: String?,
         val uris: List<String>,
         val mimeTypes: List<String>,
+        val names: List<String>,
+        val sizes: List<Double>,
     ) {
         fun toMap(): WritableMap = Arguments.createMap().apply {
             if (text != null) putString("text", text)
             if (subject != null) putString("subject", subject)
             putArray("uris", Arguments.fromList(uris))
             putArray("mimeTypes", Arguments.fromList(mimeTypes))
+            putArray("names", Arguments.fromList(names))
+            putArray("sizes", Arguments.fromList(sizes))
         }
     }
 

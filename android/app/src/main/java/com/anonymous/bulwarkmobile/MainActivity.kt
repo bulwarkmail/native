@@ -19,13 +19,13 @@ class MainActivity : ReactActivity() {
     setTheme(R.style.AppTheme);
     super.onCreate(null)
     NotificationTapStore.captureFromIntent(intent)
-    ShareIntentStore.captureFromIntent(intent)
+    ShareIntentStore.captureFromIntent(intent, contentResolver)
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-    ShareIntentStore.captureFromIntent(intent)?.let { share ->
+    ShareIntentStore.captureFromIntent(intent, contentResolver)?.let { share ->
       BulwarkFcmModule.emit("app:share", share.toMap())
     }
     val payload = NotificationTapStore.captureFromIntent(intent) ?: return

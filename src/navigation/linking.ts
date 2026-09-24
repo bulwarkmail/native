@@ -181,9 +181,12 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
 export interface SharePayload {
   text?: string;
   subject?: string;
-  // content:// URIs of shared files, with their MIME types when known.
+  // content:// URIs of shared files, with their MIME types, display names
+  // and sizes (-1 when unknown) as reported by the providing app.
   uris?: string[];
   mimeTypes?: string[];
+  names?: string[];
+  sizes?: number[];
 }
 
 /**

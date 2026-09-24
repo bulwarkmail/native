@@ -34,17 +34,26 @@ export function addShareListener(listener: (payload: SharePayload) => void): () 
 /** Attachment descriptors for the composer's `prefillAttachments`. */
 export function shareAttachments(
   share: SharePayload,
-): Array<{ uri: string; name: string; type: string }> {
+): Array<{ uri: string; name: string; type: string; size?: number }> {
   const uris = share.uris ?? [];
   return uris.map((uri, i) => {
-    const last = uri.split('/').filter(Boolean).pop() ?? `shared-${i + 1}`;
-    let name: string;
-    try {
-      name = decodeURIComponent(last);
-    } catch {
-      name = last;
-    }
-    const type = share.mimeTypes?.[i] || 'application/octet-stream';
-    return { uri, name, type };
+    const mimeType = share.mimeTypes?.[i];
+    const type = mimeType && !mimeType.includes('*') ? mimeType : 'application/octet-stream';
+    const size = share.sizes?.[i];
+    return {
+      uri,
+      name: share.names?.[i]?.trim() || nameFromUri(uri, i),
+      type,
+      ...(typeof size === 'number' && size >= 0 ? { size } : {}),
+    };
   });
+}
+
+function nameFromUri(uri: string, i: number): string {
+  const last = uri.split('/').filter(Boolean).pop() ?? `shared-${i + 1}`;
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
 }

@@ -14,8 +14,13 @@ const uploadTask = {
   cancelAsync: vi.fn(async () => undefined),
 };
 const createUploadTask = vi.fn((..._args: unknown[]) => uploadTask);
+const copyAsync = vi.fn(async (_options: { from: string; to: string }) => undefined);
+const deleteAsync = vi.fn(async (_uri: string, _options?: unknown) => undefined);
 vi.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
   createUploadTask: (...args: unknown[]) => createUploadTask(...args),
+  copyAsync: (options: { from: string; to: string }) => copyAsync(options),
+  deleteAsync: (uri: string, options?: unknown) => deleteAsync(uri, options),
   FileSystemUploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
 }));
 
@@ -123,6 +128,40 @@ describe('uploadBlob', () => {
     await expect(
       uploadBlob('file:///tmp/a.bin', 'application/octet-stream', { signal: controller.signal }),
     ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(createUploadTask).not.toHaveBeenCalled();
+  });
+
+  it('uploads files on disk directly without copying them', async () => {
+    uploadTask.uploadAsync.mockResolvedValueOnce({ status: 200, body: JSON.stringify({ blobId: 'b' }) });
+    await uploadBlob('file:///tmp/a.pdf', 'application/pdf');
+    expect(copyAsync).not.toHaveBeenCalled();
+    expect(deleteAsync).not.toHaveBeenCalled();
+  });
+
+  it('copies a shared content:// URI into the cache, uploads the copy and deletes it', async () => {
+    uploadTask.uploadAsync.mockResolvedValueOnce({ status: 200, body: JSON.stringify({ blobId: 'blob-3' }) });
+    const shared = 'content://media/external/images/media/1000000027';
+
+    const result = await uploadBlob(shared, 'image/png');
+
+    expect(result.blobId).toBe('blob-3');
+    const { from, to } = copyAsync.mock.calls[0][0];
+    expect(from).toBe(shared);
+    expect(to).toMatch(/^file:\/\/\/cache\/upload-/);
+    expect(createUploadTask.mock.calls[0][1]).toBe(to);
+    expect(deleteAsync).toHaveBeenCalledWith(to, { idempotent: true });
+  });
+
+  it('deletes the cache copy when the upload fails', async () => {
+    uploadTask.uploadAsync.mockResolvedValueOnce({ status: 500, body: 'boom' });
+    await expect(uploadBlob('content://com.example.provider/doc/7', 'application/pdf')).rejects.toThrow(/500/);
+    const { to } = copyAsync.mock.calls[0][0];
+    expect(deleteAsync).toHaveBeenCalledWith(to, { idempotent: true });
+  });
+
+  it('does not upload when the shared file cannot be copied', async () => {
+    copyAsync.mockRejectedValueOnce(new Error('Permission Denial'));
+    await expect(uploadBlob('content://com.example.provider/doc/8', 'image/jpeg')).rejects.toThrow(/Permission Denial/);
     expect(createUploadTask).not.toHaveBeenCalled();
   });
 });
