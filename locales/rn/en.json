@@ -918,7 +918,9 @@
       "mobile_explainer": "S/MIME is not available in the mobile app yet. Manage keys and certificates in the webmail; signed messages are shown without verification here."
     },
     "tabs": {
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "themes": "Themes",
+      "updates": "Updates"
     },
     "templates": {
       "delete_confirm": "Permanently delete \"{name}\"?",
