@@ -12,7 +12,8 @@ import com.facebook.react.bridge.WritableMap
 // Process-wide holder for the most recent ACTION_SEND / ACTION_SEND_MULTIPLE
 // intent (the system share sheet). MainActivity fills this on onCreate /
 // onNewIntent; JS drains it via BulwarkFcm.getInitialShare or reacts to the
-// live "app:share" event and opens the composer.
+// live "app:share" event and opens the composer. `SENDTO mailto:` intents are
+// rewritten into `VIEW mailto:` links instead (see rewriteSendToAsView).
 object ShareIntentStore {
     @Volatile
     private var pending: SharePayload? = null
@@ -55,6 +56,40 @@ object ShareIntentStore {
         intent.action = Intent.ACTION_MAIN
         return payload
     }
+
+    // `SENDTO mailto:` is how most apps start an email, but React Native's
+    // Linking only forwards VIEW intents, so the app opened on the inbox.
+    // Turn it into the equivalent `VIEW mailto:` link, folding the recipient,
+    // subject and text extras into the URI, so it reaches JS like any other
+    // mailto link: Linking.getInitialURL on a cold start, the "url" event
+    // while running. Must run before the intent is handed to React Native.
+    fun rewriteSendToAsView(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != Intent.ACTION_SENDTO) return
+        val data = intent.data ?: return
+        if (!"mailto".equals(data.scheme, ignoreCase = true)) return
+
+        val params = mutableListOf<String>()
+        addressExtra(intent, Intent.EXTRA_EMAIL).forEach { params.add("to=${Uri.encode(it)}") }
+        addressExtra(intent, Intent.EXTRA_CC).forEach { params.add("cc=${Uri.encode(it)}") }
+        addressExtra(intent, Intent.EXTRA_BCC).forEach { params.add("bcc=${Uri.encode(it)}") }
+        intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.let {
+            params.add("subject=${Uri.encode(it.toString().take(512))}")
+        }
+        intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.let {
+            params.add("body=${Uri.encode(it.toString().take(MAX_TEXT))}")
+        }
+
+        val link = data.toString()
+        val separator = if (link.contains('?')) "&" else "?"
+        intent.action = Intent.ACTION_VIEW
+        intent.data = if (params.isEmpty()) data else Uri.parse(link + separator + params.joinToString("&"))
+    }
+
+    // EXTRA_EMAIL/CC/BCC are documented as String[], but some apps put a
+    // single String.
+    private fun addressExtra(intent: Intent, key: String): List<String> =
+        intent.getStringArrayExtra(key)?.filterNotNull() ?: listOfNotNull(intent.getStringExtra(key))
 
     private class SharedFile(val name: String, val mimeType: String, val size: Double)
 

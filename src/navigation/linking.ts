@@ -19,7 +19,7 @@ export type DeepLink =
   | { kind: 'contacts' }
   | { kind: 'files' }
   | { kind: 'settings'; tab?: string }
-  | { kind: 'compose'; to: EmailAddress[]; cc: EmailAddress[]; subject?: string; body?: string };
+  | { kind: 'compose'; to: EmailAddress[]; cc: EmailAddress[]; bcc?: EmailAddress[]; subject?: string; body?: string };
 
 function decodeSegment(value: string): string {
   try {
@@ -65,6 +65,7 @@ export function parseDeepLink(url: string): DeepLink | null {
       kind: 'compose',
       to: toAddresses(parsed.to),
       cc: toAddresses(parsed.cc),
+      bcc: toAddresses(parsed.bcc),
       subject: parsed.subject,
       body: parsed.body,
     };
@@ -168,6 +169,7 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       navigation.navigate('Compose', {
         prefillTo: link.to,
         prefillCc: link.cc.length > 0 ? link.cc : undefined,
+        prefillBcc: link.bcc?.length ? link.bcc : undefined,
         prefillSubject: link.subject,
         prefillBody: link.body,
       });

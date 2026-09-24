@@ -30,10 +30,30 @@ describe('parseDeepLink', () => {
       kind: 'compose',
       to: [{ email: 'a@b.co' }],
       cc: [{ email: 'c@d.co' }],
+      bcc: [],
       subject: 'Hi',
       body: undefined,
     });
     expect(parseDeepLink('mailto:nope')).toBeNull();
+  });
+
+  it('reads the link MainActivity builds from a SENDTO mailto: intent and its extras', () => {
+    // SENDTO mailto: + EXTRA_EMAIL/CC/BCC/SUBJECT/TEXT, each value Uri.encode()d.
+    expect(parseDeepLink(
+      'mailto:?to=bob%40partner.example&cc=carol%40partner.example&bcc=dave%40partner.example'
+      + '&subject=Hi%20there&body=Line%201%0ALine%202',
+    )).toEqual({
+      kind: 'compose',
+      to: [{ email: 'bob@partner.example' }],
+      cc: [{ email: 'carol@partner.example' }],
+      bcc: [{ email: 'dave@partner.example' }],
+      subject: 'Hi there',
+      body: 'Line 1\nLine 2',
+    });
+    // An address in the URI itself plus EXTRA_EMAIL.
+    expect(parseDeepLink('mailto:bob@partner.example?to=eve%40partner.example')).toMatchObject({
+      to: [{ email: 'bob@partner.example' }, { email: 'eve@partner.example' }],
+    });
   });
 
   it('rejects unknown links', () => {
@@ -92,6 +112,17 @@ describe('handleDeepLink', () => {
       prefillSubject: 'S',
       prefillBody: 'B',
     });
+  });
+
+  it('passes Bcc recipients through to the composer', async () => {
+    const navigation = nav();
+    await handleDeepLink(
+      { kind: 'compose', to: [{ email: 'a@b.co' }], cc: [], bcc: [{ email: 'c@d.co' }] },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    );
+    expect(navigation.navigate).toHaveBeenCalledWith('Compose', expect.objectContaining({
+      prefillBcc: [{ email: 'c@d.co' }],
+    }));
   });
 
   it('refuses when the linked account is not signed in', async () => {

@@ -17,12 +17,14 @@ class MainActivity : ReactActivity() {
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
+    ShareIntentStore.rewriteSendToAsView(intent)
     super.onCreate(null)
     NotificationTapStore.captureFromIntent(intent)
     ShareIntentStore.captureFromIntent(intent, contentResolver)
   }
 
   override fun onNewIntent(intent: Intent) {
+    ShareIntentStore.rewriteSendToAsView(intent)
     super.onNewIntent(intent)
     setIntent(intent)
     ShareIntentStore.captureFromIntent(intent, contentResolver)?.let { share ->
