@@ -15,6 +15,7 @@ import {
   CALENDAR_COLOR_PALETTE,
 } from '../calendar-utils';
 import type { CalendarEvent } from '../../api/types';
+import { useSettingsStore } from '../../stores/settings-store';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
   return {
@@ -81,9 +82,28 @@ describe('getTaskDueDate', () => {
     expect(winter?.toISOString()).toBe('2026-01-15T16:00:00.000Z');
   });
 
-  it('keeps floating, date-only and all-day dues in the device zone', () => {
+  it('reads a floating due in the calendar time zone, like a floating event', () => {
+    // Default setting: the device zone.
     expect(getTaskDueDate({ due: '2026-07-01T17:00:00' })?.getTime())
       .toBe(new Date('2026-07-01T17:00:00').getTime());
+    useSettingsStore.setState({ calendarTimeZone: 'America/New_York' });
+    try {
+      expect(getTaskDueDate({ due: '2026-07-01T17:00:00' })?.toISOString())
+        .toBe('2026-07-01T21:00:00.000Z');
+      expect(getTaskDueDate({ due: '2026-07-01T17:00:00', timeZone: null })?.toISOString())
+        .toBe('2026-07-01T21:00:00.000Z');
+      // A due with its own zone keeps it.
+      expect(getTaskDueDate({ due: '2026-07-01T17:00:00', timeZone: 'Europe/Berlin' })?.toISOString())
+        .toBe('2026-07-01T15:00:00.000Z');
+      // Dates stay dates.
+      expect(getTaskDueDate({ due: '2026-07-01T00:00:00', showWithoutTime: true })?.getTime())
+        .toBe(new Date('2026-07-01T00:00:00').getTime());
+    } finally {
+      useSettingsStore.setState({ calendarTimeZone: 'auto' });
+    }
+  });
+
+  it('keeps date-only and all-day dues as calendar dates', () => {
     expect(getTaskDueDate({ due: '2026-07-01', timeZone: 'Europe/Berlin' })?.getTime())
       .toBe(new Date('2026-07-01T00:00:00').getTime());
     expect(getTaskDueDate({ due: '2026-07-01T00:00:00', timeZone: 'Europe/Berlin', showWithoutTime: true })?.getTime())

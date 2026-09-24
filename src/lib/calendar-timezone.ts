@@ -13,13 +13,26 @@ import { useSettingsStore } from '../stores/settings-store';
 /** Sentinel for "follow the device" — the default. */
 export const AUTO_TIME_ZONE = 'auto';
 
+// Reading the device zone builds an Intl.DateTimeFormat, which is slow on
+// Hermes, and task sorting resolves a due per comparison. The zone only
+// changes when the user travels or changes it, so a short cache is enough.
+const DEVICE_ZONE_TTL_MS = 30_000;
+let deviceZoneCache: { zone: string; readAt: number } | null = null;
+
 /** The zone the device reports; `UTC` when detection fails. */
 export function getDeviceTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
+  const now = Date.now();
+  if (deviceZoneCache && now - deviceZoneCache.readAt < DEVICE_ZONE_TTL_MS) {
+    return deviceZoneCache.zone;
   }
+  let zone: string;
+  try {
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    zone = 'UTC';
+  }
+  deviceZoneCache = { zone, readAt: now };
+  return zone;
 }
 
 const validityCache = new Map<string, boolean>();
