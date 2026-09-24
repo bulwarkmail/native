@@ -18,6 +18,7 @@ import {
   getMailboxes,
   getSharedMailboxes,
   queryEmails,
+  queryEmailPage,
   getEmails,
   getFullEmail,
   getThread,
@@ -208,6 +209,101 @@ describe('email operations', () => {
         operator: 'AND',
         conditions: [{ inMailbox: 'mb-1' }, userFilter],
       });
+    });
+  });
+
+  describe('queryEmailPage', () => {
+    it('chains Email/query, Email/get and Thread/get in one request', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e2', 'e1'], total: 7, queryState: 'q-1' }, '0'],
+          // Email/get may answer in another order than the query's.
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }, { id: 'e2', threadId: 't1' }], state: 's-1' }, '1'],
+          ['Thread/get', { list: [{ id: 't1', emailIds: ['e1', 'e2', 'e3'] }] }, '2'],
+        ],
+      });
+
+      const result = await queryEmailPage('mb-1', { limit: 25, position: 50, threads: true });
+
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls).toEqual([
+        ['Email/query', expect.objectContaining({
+          accountId: 'acc-1', filter: { inMailbox: 'mb-1' }, position: 50, limit: 25, calculateTotal: true,
+        }), '0'],
+        ['Email/get', expect.objectContaining({
+          accountId: 'acc-1',
+          '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
+        }), '1'],
+        ['Thread/get', {
+          accountId: 'acc-1',
+          '#ids': { resultOf: '1', name: 'Email/get', path: '/list/*/threadId' },
+        }, '2'],
+      ]);
+      expect(calls[1][1].properties).toContain('preview');
+      expect(calls[1][1].properties).not.toContain('bodyStructure');
+      expect(result).toEqual({
+        ids: ['e2', 'e1'],
+        total: 7,
+        queryState: 'q-1',
+        list: [{ id: 'e2', threadId: 't1' }, { id: 'e1', threadId: 't1' }],
+        state: 's-1',
+        threads: [{ id: 't1', emailIds: ['e1', 'e2', 'e3'] }],
+      });
+    });
+
+    it('leaves Thread/get out unless asked, and targets a shared account', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: [], total: 0, queryState: 'q-1' }, '0'],
+          ['Email/get', { list: [], state: 's-1' }, '1'],
+        ],
+      });
+
+      const result = await queryEmailPage('mb-1', { accountId: 'grp-1' });
+
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls.map((c: unknown[]) => c[0])).toEqual(['Email/query', 'Email/get']);
+      expect(calls[0][1].accountId).toBe('grp-1');
+      expect(calls[1][1].accountId).toBe('grp-1');
+      // An empty page still reports the Email state.
+      expect(result).toMatchObject({ list: [], state: 's-1', threads: [] });
+    });
+
+    it('keeps the page when Thread/get fails, and fails with the query', async () => {
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+          ['error', { type: 'serverFail' }, '2'],
+        ],
+      });
+      const result = await queryEmailPage('mb-1', { threads: true });
+      expect(result.list).toEqual([{ id: 'e1', threadId: 't1' }]);
+      expect(result.threads).toEqual([]);
+
+      mockRequest.mockResolvedValueOnce({
+        methodResponses: [
+          ['error', { type: 'unsupportedSort' }, '0'],
+          ['error', { type: 'invalidResultReference' }, '1'],
+          ['error', { type: 'invalidResultReference' }, '2'],
+        ],
+      });
+      await expect(queryEmailPage('mb-1', { threads: true })).rejects.toMatchObject({ type: 'unsupportedSort' });
+    });
+
+    it('caps the page at the server\'s maxObjectsInGet', async () => {
+      (jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>).mockReturnValueOnce(100);
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: [], total: 0 }, '0'],
+          ['Email/get', { list: [], state: 's-1' }, '1'],
+        ],
+      });
+
+      await queryEmailPage('mb-1', { limit: 250 });
+
+      expect(mockRequest.mock.calls[0][0][0][1].limit).toBe(100);
     });
   });
 

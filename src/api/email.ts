@@ -345,18 +345,17 @@ function buildMailboxQueryFilter(
   return { ...inMailbox, ...userFilter };
 }
 
-export async function queryEmails(
-  mailboxId: string | undefined,
-  options?: {
-    position?: number;
-    limit?: number;
-    sort?: Array<{ property: string; isAscending: boolean; keyword?: string }>;
-    filter?: Record<string, unknown>;
-    /** Owning JMAP account when the mailbox belongs to a shared account. */
-    accountId?: string;
-    collapseThreads?: boolean;
-  },
-): Promise<{ ids: string[]; total: number; queryState?: string }> {
+interface EmailQueryOptions {
+  position?: number;
+  limit?: number;
+  sort?: Array<{ property: string; isAscending: boolean; keyword?: string }>;
+  filter?: Record<string, unknown>;
+  /** Owning JMAP account when the mailbox belongs to a shared account. */
+  accountId?: string;
+  collapseThreads?: boolean;
+}
+
+function emailQueryArgs(mailboxId: string | undefined, options?: EmailQueryOptions): Record<string, unknown> {
   const accountId = options?.accountId ?? jmapClient.accountId;
   const filter = buildMailboxQueryFilter(mailboxId, options?.filter);
   const args: Record<string, unknown> = {
@@ -368,12 +367,81 @@ export async function queryEmails(
     calculateTotal: true,
   };
   if (options?.collapseThreads) args.collapseThreads = true;
-  const res = await jmapClient.request([['Email/query', args, '0']]);
+  return args;
+}
+
+export async function queryEmails(
+  mailboxId: string | undefined,
+  options?: EmailQueryOptions,
+): Promise<{ ids: string[]; total: number; queryState?: string }> {
+  const res = await jmapClient.request([['Email/query', emailQueryArgs(mailboxId, options), '0']]);
   const body = requireMethodResult(res, '0', 'Email/query');
   return {
     ids: (body.ids as string[]) ?? [],
     total: (body.total as number) ?? 0,
     queryState: body.queryState as string | undefined,
+  };
+}
+
+/**
+ * One page of a message list in a single request: Email/query, Email/get of
+ * the ids it returns and, with `threads`, Thread/get of those messages'
+ * threads (for the conversation-size badges), chained with result references
+ * instead of three round trips. `state` is the Email state the rows were
+ * read at.
+ */
+export async function queryEmailPage(
+  mailboxId: string | undefined,
+  options?: EmailQueryOptions & { threads?: boolean },
+): Promise<{
+  ids: string[];
+  total: number;
+  queryState?: string;
+  list: Email[];
+  state?: string;
+  threads: Thread[];
+}> {
+  // The chained Email/get takes every id the query returns, so a page can't
+  // be larger than the server lets one /get fetch.
+  const args = emailQueryArgs(mailboxId, {
+    ...options,
+    limit: Math.min(options?.limit ?? 50, maxInGet()),
+  });
+  const accountId = args.accountId;
+  const calls: JMAPMethodCall[] = [
+    ['Email/query', args, '0'],
+    ['Email/get', {
+      accountId,
+      '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
+      properties: EMAIL_LIST_PROPERTIES,
+    }, '1'],
+  ];
+  if (options?.threads) {
+    calls.push(['Thread/get', {
+      accountId,
+      '#ids': { resultOf: '1', name: 'Email/get', path: '/list/*/threadId' },
+    }, '2']);
+  }
+  const res = await jmapClient.request(calls);
+  const query = requireMethodResult(res, '0', 'Email/query');
+  const got = requireMethodResult(res, '1', 'Email/get');
+  const ids = (query.ids as string[]) ?? [];
+  let threads: Thread[] = [];
+  if (options?.threads) {
+    // Thread sizes only decorate the rows: a failed Thread/get keeps the page.
+    try {
+      threads = (requireMethodResult(res, '2', 'Thread/get').list as Thread[]) ?? [];
+    } catch { /* the list falls back to the in-page count */ }
+  }
+  // Email/get may answer in any order; keep the query's.
+  const byId = new Map(((got.list as Email[]) ?? []).map((e) => [e.id, e]));
+  return {
+    ids,
+    total: (query.total as number) ?? 0,
+    queryState: query.queryState as string | undefined,
+    list: ids.flatMap((id) => byId.get(id) ?? []),
+    state: got.state as string | undefined,
+    threads,
   };
 }
 

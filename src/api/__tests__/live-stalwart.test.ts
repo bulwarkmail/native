@@ -18,6 +18,7 @@ import { JMAPClient } from '../jmap-client';
 import {
   getMailboxes,
   queryEmails,
+  queryEmailPage,
   getFullEmails,
   getThreadEmails,
   createDraft,
@@ -155,6 +156,19 @@ live('live Stalwart', () => {
       expect(thread.length).toBeGreaterThanOrEqual(2);
       const times = thread.map((e) => new Date(e.receivedAt).getTime());
       expect([...times].sort((a, b) => a - b)).toEqual(times);
+    }, 60_000);
+
+    it('loads a list page with its threads in one chained request (PF7)', async () => {
+      const page = await queryEmailPage(inbox, { limit: 20, threads: true });
+      const { ids, total } = await queryEmails(inbox, { limit: 20 });
+      expect(page.ids).toEqual(ids);
+      expect(page.total).toBe(total);
+      expect(page.list.map((e) => e.id)).toEqual(ids);
+      expect(page.state).toBeTruthy();
+      const threadIds = new Set(page.list.map((e) => e.threadId));
+      expect(new Set(page.threads.map((t) => t.id))).toEqual(threadIds);
+      const reply = page.list.find((e) => (e.subject ?? '').startsWith('Re: '))!;
+      expect(page.threads.find((t) => t.id === reply.threadId)!.emailIds.length).toBeGreaterThanOrEqual(2);
     }, 60_000);
 
     it('saves a draft into Drafts with $draft', async () => {

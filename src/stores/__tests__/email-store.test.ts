@@ -9,10 +9,14 @@ vi.mock('../../api/email', () => ({
   getMailboxesByIds: vi.fn(async () => ({ list: [], state: 'mb-state-0' })),
   getMailboxChanges: vi.fn(async () => null),
   queryEmails: vi.fn(),
+  // A list page: Email/query, Email/get and Thread/get in one request.
+  // beforeEach scripts it from the queryEmails / getEmailsWithState mocks.
+  queryEmailPage: vi.fn(),
   getEmailQueryChanges: vi.fn(async () => null),
   getEmails: vi.fn(),
   getEmailsWithState: vi.fn(async () => ({ list: [], state: 'em-state-0' })),
   getEmailChanges: vi.fn(async () => null),
+  getThreads: vi.fn(async () => []),
   getFullEmail: vi.fn(),
   importEmailBlob: vi.fn(async () => 'imported-1'),
   patchKeywordsForEmails: vi.fn(),
@@ -151,6 +155,8 @@ import { useSettingsStore } from '../settings-store';
 const mockGetMailboxesWithState = emailApi.getMailboxesWithState as ReturnType<typeof vi.fn>;
 const mockGetSharedMailboxes = emailApi.getSharedMailboxes as ReturnType<typeof vi.fn>;
 const mockQueryEmails = emailApi.queryEmails as ReturnType<typeof vi.fn>;
+const mockQueryEmailPage = emailApi.queryEmailPage as ReturnType<typeof vi.fn>;
+const mockGetThreads = emailApi.getThreads as ReturnType<typeof vi.fn>;
 const mockGetEmailQueryChanges = emailApi.getEmailQueryChanges as ReturnType<typeof vi.fn>;
 const mockGetEmails = emailApi.getEmails as ReturnType<typeof vi.fn>;
 const mockGetEmailsWithState = emailApi.getEmailsWithState as ReturnType<typeof vi.fn>;
@@ -168,6 +174,15 @@ beforeEach(() => {
   // doesn't short-circuit the tests.
   useEmailStore.setState({ activeAccountId: TEST_ACCOUNT_ID });
   useSettingsStore.getState().updateSetting('mailSortAscending', false);
+  // Most tests describe a list page as its query and its Email/get; the
+  // chained-request tests below script queryEmailPage directly.
+  mockQueryEmailPage.mockImplementation(async (mailboxId: string | undefined, opts?: { accountId?: string }) => {
+    const query = await emailApi.queryEmails(mailboxId, opts);
+    const got = query.ids.length > 0
+      ? await emailApi.getEmailsWithState(query.ids, opts?.accountId)
+      : { list: [], state: 'em-state-0' };
+    return { ...query, list: got.list, state: got.state, threads: [] };
+  });
 });
 
 describe('email-store', () => {
@@ -217,9 +232,8 @@ describe('email-store', () => {
       await useEmailStore.getState().selectMailbox('mb-empty');
 
       expect(useEmailStore.getState().emails).toEqual([]);
-      // First-time load with no ids hits getEmailsWithState only to prime
-      // emailState (with an empty ids array). It should NOT call legacy
-      // getEmails — that path is reserved for pagination/search.
+      // The page's chained Email/get still reports the folder's Email state.
+      expect(useEmailStore.getState().emailStates).toEqual({ 'mb-empty': 'em-state-0' });
       expect(mockGetEmails).not.toHaveBeenCalled();
     });
   });
@@ -234,8 +248,9 @@ describe('email-store', () => {
         loading: false,
       });
 
-      mockQueryEmails.mockResolvedValue({ ids: ['e2'], total: 2 });
-      mockGetEmails.mockResolvedValue([{ id: 'e2', subject: 'Email 2' }]);
+      mockQueryEmailPage.mockResolvedValue({
+        ids: ['e2'], total: 2, list: [{ id: 'e2', subject: 'Email 2' }], threads: [],
+      });
 
       await useEmailStore.getState().loadMoreEmails();
 
@@ -267,12 +282,13 @@ describe('email-store', () => {
         totalEmails: 10,
         loading: false,
       });
-      mockQueryEmails.mockResolvedValue({ ids: ['e4', 'e5'], total: 9 });
-      mockGetEmails.mockResolvedValue([{ id: 'e4' }, { id: 'e5' }]);
+      mockQueryEmailPage.mockResolvedValue({
+        ids: ['e4', 'e5'], total: 9, list: [{ id: 'e4' }, { id: 'e5' }], threads: [],
+      });
 
       await useEmailStore.getState().loadMoreEmails();
 
-      expect(mockQueryEmails).toHaveBeenCalledWith('mb-1', expect.objectContaining({
+      expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({
         position: 2,
         filter: { notKeyword: '$seen' },
       }));
@@ -292,12 +308,11 @@ describe('email-store', () => {
         totalEmails: 4,
         loading: false,
       });
-      mockQueryEmails.mockResolvedValue({ ids: ['e5'], total: 4 });
-      mockGetEmails.mockResolvedValue([{ id: 'e5' }]);
+      mockQueryEmailPage.mockResolvedValue({ ids: ['e5'], total: 4, list: [{ id: 'e5' }], threads: [] });
 
       await useEmailStore.getState().loadMoreEmails();
 
-      expect(mockQueryEmails).toHaveBeenCalledWith('mb-1', expect.objectContaining({ position: 3 }));
+      expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ position: 3 }));
       expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
     });
   });
@@ -709,12 +724,12 @@ describe('email-store', () => {
         emails: [{ id: 'e1' } as any, { id: 'e2' } as any],
         totalEmails: 10,
       });
-      mockQueryEmails.mockResolvedValue({ ids: ['e2', 'e3'], total: 10 });
-      mockGetEmails.mockResolvedValue([{ id: 'e3' }]);
+      mockQueryEmailPage.mockResolvedValue({
+        ids: ['e2', 'e3'], total: 10, list: [{ id: 'e2' }, { id: 'e3' }], threads: [],
+      });
 
       await useEmailStore.getState().loadMoreEmails();
 
-      expect(mockGetEmails).toHaveBeenCalledWith(['e3'], undefined);
       expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3']);
     });
 
@@ -984,11 +999,11 @@ describe('email-store', () => {
 
     it('an empty folder keeps both its own and the other lists\' Email state', async () => {
       openInbox({ emailStates: { 'mb-1': 'em-1', 'mb-empty': 'em-0' } });
-      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q-empty' });
+      // An empty result from a server that leaves `state` out of Email/get.
+      mockQueryEmailPage.mockResolvedValueOnce({ ids: [], total: 0, queryState: 'q-empty', list: [], threads: [] });
 
       await useEmailStore.getState().selectMailbox('mb-empty');
 
-      expect(mockGetEmailsWithState).not.toHaveBeenCalled();
       expect(useEmailStore.getState().emailStates).toEqual({ 'mb-1': 'em-1', 'mb-empty': 'em-0' });
 
       // Back in the Inbox, the refresh still runs Email/changes from the
@@ -1048,6 +1063,111 @@ describe('email-store', () => {
       await useEmailStore.getState().refreshEmails();
 
       expect(useEmailStore.getState().emailStates).toEqual({});
+    });
+  });
+
+  // PF7: a list page or search used to be Email/query, then Email/get, then a
+  // Thread/get the list screen fired after rendering.
+  describe('list page requests', () => {
+    const page = {
+      ids: ['e1', 'e2'], total: 2, queryState: 'q-1', state: 'em-1',
+      list: [{ id: 'e1', threadId: 't1', keywords: {} }, { id: 'e2', threadId: 't2', keywords: {} }],
+      threads: [{ id: 't1', emailIds: ['e1', 'x1', 'x2'] }, { id: 't2', emailIds: ['e2'] }],
+    };
+
+    it('loads a folder page with its messages and thread sizes in one request', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1' });
+      mockQueryEmailPage.mockResolvedValueOnce(page);
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockQueryEmailPage).toHaveBeenCalledTimes(1);
+      expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ limit: 25, threads: true }));
+      expect(mockQueryEmails).not.toHaveBeenCalled();
+      expect(mockGetEmailsWithState).not.toHaveBeenCalled();
+      expect(mockGetThreads).not.toHaveBeenCalled();
+      const state = useEmailStore.getState();
+      expect(state.emails.map((e) => e.id)).toEqual(['e1', 'e2']);
+      expect(state.threadCounts).toEqual({ t1: 3, t2: 1 });
+      expect(state.emailStates).toEqual({ 'mb-1': 'em-1' });
+    });
+
+    it('runs a search as the same single request', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1' });
+      mockQueryEmailPage.mockResolvedValue(page);
+
+      useEmailStore.getState().setSearchQuery('invoice');
+      await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ t1: 3, t2: 1 }));
+
+      expect(mockQueryEmailPage).toHaveBeenCalledTimes(1);
+      expect(mockQueryEmailPage.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice*' }, threads: true });
+      expect(mockGetThreads).not.toHaveBeenCalled();
+    });
+
+    it('leaves Thread/get out when threading is off', async () => {
+      useSettingsStore.getState().updateSetting('disableThreading', true);
+      try {
+        useEmailStore.setState({ currentMailboxId: 'mb-1' });
+        mockQueryEmailPage.mockResolvedValueOnce({ ...page, threads: [] });
+
+        await useEmailStore.getState().refreshEmails();
+
+        expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ threads: false }));
+      } finally {
+        useSettingsStore.getState().updateSetting('disableThreading', false);
+      }
+    });
+
+    it('load-more adds the next page\'s thread sizes', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e0', threadId: 't0' } as any],
+        totalEmails: 3,
+        threadCounts: { t0: 2 },
+      });
+      mockQueryEmailPage.mockResolvedValueOnce({ ...page, total: 3 });
+
+      await useEmailStore.getState().loadMoreEmails();
+
+      expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ position: 1, threads: true }));
+      expect(mockGetThreads).not.toHaveBeenCalled();
+      expect(useEmailStore.getState().threadCounts).toEqual({ t0: 2, t1: 3, t2: 1 });
+    });
+
+    it('fetches the thread sizes an incremental refresh has none for', async () => {
+      const mockGetEmailChanges = emailApi.getEmailChanges as ReturnType<typeof vi.fn>;
+      const rows = page.list as any[];
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: rows,
+        totalEmails: 2,
+        queryState: 'q-1',
+        emailStates: { 'mb-1': 'em-1' },
+        threadCounts: { t1: 3 },
+        mailboxSnapshots: { 'mb-1': { emails: rows, total: 2, queryState: 'q-1' } },
+      });
+      mockGetEmailQueryChanges.mockResolvedValue({
+        oldQueryState: 'q-1', newQueryState: 'q-2', total: 2, removed: [], added: [],
+      });
+      mockGetEmailChanges.mockResolvedValue({
+        oldState: 'em-1', newState: 'em-2', hasMoreChanges: false, created: [], updated: [], destroyed: [],
+      });
+      mockGetThreads.mockResolvedValueOnce([{ id: 't2', emailIds: ['e2', 'x3'] }]);
+
+      await useEmailStore.getState().refreshEmails();
+
+      await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ t1: 3, t2: 2 }));
+      expect(mockGetThreads).toHaveBeenCalledWith(['t2'], undefined);
+      expect(mockQueryEmailPage).not.toHaveBeenCalled();
+    });
+
+    it('drops the thread sizes when another folder opens', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1', threadCounts: { t1: 3 } });
+      mockQueryEmailPage.mockResolvedValueOnce({ ids: [], total: 0, list: [], threads: [] });
+
+      await useEmailStore.getState().selectMailbox('mb-2');
+
+      expect(useEmailStore.getState().threadCounts).toEqual({});
     });
   });
 

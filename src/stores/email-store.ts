@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage, memoizeSlice } from './persist-storage';
 import { boundEmailCache, type PersistedEmailCache } from './email-cache-persist';
-import type { Email, Mailbox, StateChange } from '../api/types';
+import type { Email, Mailbox, StateChange, Thread } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
 import {
   getMailboxes as fetchMailboxes,
@@ -10,11 +10,12 @@ import {
   getSharedMailboxes,
   getMailboxesByIds,
   getMailboxChanges,
-  queryEmails,
+  queryEmailPage,
   getEmailQueryChanges,
   getEmails as fetchEmails,
   getEmailsWithState,
   getEmailChanges,
+  getThreads,
   getFullEmail,
   importEmailBlob,
   patchKeywordsForEmails,
@@ -290,6 +291,12 @@ export interface EmailState {
    * `retainedInViewIds`).
    */
   retainedIds: string[];
+  /**
+   * Conversation sizes (Thread/get `emailIds.length`) for the loaded rows'
+   * threads, keyed by thread id: a thread's other messages may live in other
+   * folders. Cleared when the folder or account changes.
+   */
+  threadCounts: Record<string, number>;
 
   // ── Actions ────────────────────────────────────────────────────
   setActiveAccount: (accountId: string | null) => void;
@@ -524,22 +531,6 @@ function viewFromSnapshot(snap: AccountSnapshot | null): {
   };
 }
 
-// JMAP's maxObjectsInGet bounds how many ids we can pull in one Email/get.
-// Chunk to that ceiling (with a small safety fallback) so large change sets
-// don't trip 429/413 responses.
-async function fetchEmailsChunked(ids: string[], accountId?: string): Promise<Email[]> {
-  if (ids.length === 0) return [];
-  const cap = Math.max(1, jmapClient.getMaxObjectsInGet());
-  const chunk = Math.min(cap, 200);
-  if (ids.length <= chunk) return fetchEmails(ids, accountId);
-  const out: Email[] = [];
-  for (let i = 0; i < ids.length; i += chunk) {
-    const slice = await fetchEmails(ids.slice(i, i + chunk), accountId);
-    out.push(...slice);
-  }
-  return out;
-}
-
 // Merge a fresh batch of emails into an existing list keyed by id. New entries
 // replace stale ones (keywords/mailboxIds may have changed); destroyed ids are
 // dropped. Order is preserved according to the supplied id order — pass the
@@ -583,6 +574,7 @@ export const useEmailStore = create<EmailState>()(
   filters: {},
   pendingUndo: null,
   retainedIds: [],
+  threadCounts: {},
 
   // Swap which account's data is currently visible. The previous account's
   // view is tucked into accountSnapshots so a return-trip can restore it
@@ -610,6 +602,7 @@ export const useEmailStore = create<EmailState>()(
       filters: {},
       pendingUndo: null,
       retainedIds: [],
+      threadCounts: {},
       error: null,
       loading: false,
     });
@@ -750,6 +743,7 @@ export const useEmailStore = create<EmailState>()(
       error: null,
       pendingUndo: null,
       retainedIds: [],
+      threadCounts: {},
     });
 
     // Stop here if there's no live session OR jmapClient is mid-transition
@@ -780,25 +774,29 @@ export const useEmailStore = create<EmailState>()(
       const scope = queryScope(state, refFor(state.mailboxes, currentMailboxId));
       const filter = buildJmapFilter(searchQuery, filters);
       const limit = useSettingsStore.getState().emailsPerPage;
-      const { ids, total } = await queryEmails(scope.mailboxId, {
+      const { list, total, threads } = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
         sort: await resolveSort(state, scope.accountId),
         filter,
         accountId: scope.accountId,
+        threads: !useSettingsStore.getState().disableThreading,
       });
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
       // A message that arrived between pages shifts positions and would come
       // back a second time — drop ids we already show (duplicate keys).
       const existingIds = new Set(get().emails.map((e) => e.id));
-      const fresh = ids.filter((id) => !existingIds.has(id));
-      const newEmails = fresh.length > 0 ? await fetchEmailsChunked(fresh, scope.accountId) : [];
-      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      const newEmails = list.filter((e) => !existingIds.has(e.id));
       const merged = [...get().emails, ...newEmails];
       // The server's current count: a read in the Unread view has shrunk it
       // since the list was loaded, and a stale total keeps load-more asking
       // for a page that isn't there.
-      const updates: Partial<EmailState> = { emails: merged, totalEmails: total, loading: false };
+      const updates: Partial<EmailState> = {
+        emails: merged,
+        totalEmails: total,
+        threadCounts: withThreadCounts(get().threadCounts, threads),
+        loading: false,
+      };
       if (isBaseView(searchQuery, filters)) {
         updates.mailboxSnapshots = {
           ...get().mailboxSnapshots,
@@ -1649,6 +1647,7 @@ export const useEmailStore = create<EmailState>()(
     searchQuery: '',
     filters: {},
     retainedIds: [],
+    threadCounts: {},
   }),
     }),
     {
@@ -1894,6 +1893,34 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
   }
 }
 
+// Record Thread/get results as conversation sizes for the list's badges.
+function withThreadCounts(counts: Record<string, number>, threads: Thread[]): Record<string, number> {
+  if (threads.length === 0) return counts;
+  const next = { ...counts };
+  for (const th of threads) next[th.id] = th.emailIds.length;
+  return next;
+}
+
+// Conversation sizes for rows no list page brought any for: restored from a
+// snapshot, or added by Email/queryChanges. Fire-and-forget; the loaded-page
+// count stands in until they land (and if the request fails).
+async function fillThreadCounts(emails: Email[], accountId: string | undefined): Promise<void> {
+  if (useSettingsStore.getState().disableThreading) return;
+  const { threadCounts, currentMailboxId, activeAccountId } = useEmailStore.getState();
+  const missing = Array.from(new Set(
+    emails.map((e) => e.threadId).filter((id) => id && threadCounts[id] === undefined),
+  ));
+  if (missing.length === 0) return;
+  try {
+    const threads = await getThreads(missing, accountId);
+    const now = useEmailStore.getState();
+    if (now.currentMailboxId !== currentMailboxId || now.activeAccountId !== activeAccountId) return;
+    useEmailStore.setState({ threadCounts: withThreadCounts(now.threadCounts, threads) });
+  } catch {
+    /* keep the loaded-page count */
+  }
+}
+
 async function refreshEmailsImpl(): Promise<void> {
   const get = useEmailStore.getState;
   const set = useEmailStore.setState;
@@ -2053,6 +2080,7 @@ async function refreshEmailsImpl(): Promise<void> {
               },
             },
           });
+          void fillThreadCounts(trimmed, ref.accountId);
           return;
         }
         // queryChanges === null → cannotCalculateChanges. Drop our queryState
@@ -2062,41 +2090,43 @@ async function refreshEmailsImpl(): Promise<void> {
       // Full re-query path. Used when there's no prior queryState, when the
       // user has search/filters active (queryState only tracks the base
       // query), or when the server returned cannotCalculateChanges above.
-      let queryRes: Awaited<ReturnType<typeof queryEmails>>;
+      // One request carries the query, its messages and (for the
+      // conversation badges) their threads.
+      const threads = !useSettingsStore.getState().disableThreading;
+      let queryRes: Awaited<ReturnType<typeof queryEmailPage>>;
       try {
-        queryRes = await queryEmails(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId });
+        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads });
       } catch (err) {
         // The server refused a hasKeyword comparator (unsupportedSort): drop
         // the keyword levels for this account and re-run with the rest.
         if (!isUnsupportedSort(err)) throw err;
         markKeywordSortUnsupported(scope.accountId ?? jmapClient.accountId);
         sort = await resolveSort(state, scope.accountId);
-        queryRes = await queryEmails(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId });
+        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads });
       }
-      const fetched = queryRes.ids.length > 0
-        ? await getEmailsWithState(queryRes.ids, scope.accountId)
-        : { list: [], state: undefined as string | undefined };
 
       if (viewChanged()) return;
 
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
         // until the view is re-opened, instead of vanishing under them.
-        emails: baseView ? fetched.list : mergeRetainedRows(get().emails, fetched.list, get().retainedIds),
+        emails: baseView ? queryRes.list : mergeRetainedRows(get().emails, queryRes.list, get().retainedIds),
         totalEmails: queryRes.total,
+        threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
         loading: false,
       };
       if (baseView) {
         updates.queryState = queryRes.queryState;
-        // An empty result ran no Email/get, so it has no state to record:
-        // keep the list's previous one rather than dropping it.
-        if (fetched.state) {
-          updates.emailStates = withEmailState(get().emailStates, currentMailboxId, fetched.state);
+        // Email/get reports a state even for an empty result; should a
+        // server leave it out, keep the list's previous one rather than
+        // dropping it.
+        if (queryRes.state) {
+          updates.emailStates = withEmailState(get().emailStates, currentMailboxId, queryRes.state);
         }
         updates.mailboxSnapshots = {
           ...get().mailboxSnapshots,
           [currentMailboxId]: {
-            emails: fetched.list,
+            emails: queryRes.list,
             total: queryRes.total,
             queryState: queryRes.queryState,
           },

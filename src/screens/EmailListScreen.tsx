@@ -41,7 +41,7 @@ import {
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
-import { getThreads, getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
+import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import type { Email } from '../api/types';
 
@@ -334,35 +334,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   );
 
   // Real conversation sizes from Thread/get (a thread's other messages may
-  // live in other folders); the loaded-page count is the fallback until the
-  // response lands and for messages whose thread the server no longer knows.
-  const [serverThreadCounts, setServerThreadCounts] = React.useState<Map<string, number>>(new Map());
-  React.useEffect(() => {
-    if (disableThreading || visibleEmails.length === 0) return;
-    const ids = Array.from(new Set(visibleEmails.map((e) => e.threadId).filter(Boolean)));
-    const missing = ids.filter((id) => !serverThreadCounts.has(id));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    getThreads(missing, currentOwnerAccountId)
-      .then((threads) => {
-        if (cancelled) return;
-        setServerThreadCounts((prev) => {
-          const next = new Map(prev);
-          for (const th of threads) next.set(th.id, th.emailIds.length);
-          return next;
-        });
-      })
-      .catch(() => { /* fall back to the in-page count */ });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleEmails, disableThreading, currentOwnerAccountId]);
-  // Counts are per account and per snapshot; drop them on folder switch.
-  React.useEffect(() => { setServerThreadCounts(new Map()); }, [currentMailboxId, disableThreading]);
+  // live in other folders), fetched by the store together with each list
+  // page; the loaded-page count is the fallback until they land and for
+  // messages whose thread the server no longer knows.
+  const serverThreadCounts = useEmailStore((s) => s.threadCounts);
 
   const threadCountFor = React.useCallback((e: Email): number => {
     if (disableThreading) return 1;
     const local = threadGroups.get(threadKeyOf(e, false))?.length ?? 1;
-    const server = e.threadId ? serverThreadCounts.get(e.threadId) : undefined;
+    const server = e.threadId ? serverThreadCounts[e.threadId] : undefined;
     return Math.max(local, server ?? 1);
   }, [disableThreading, threadGroups, serverThreadCounts]);
 
