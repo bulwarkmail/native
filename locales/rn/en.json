@@ -375,6 +375,7 @@
     "share_remove": "Remove access",
     "share_role_custom": "Custom",
     "share_search_placeholder": "Search by name or email",
+    "share_unavailable": "Sharing is not available on this device",
     "shared_with": "Shared with",
     "sharing_access": "Sharing & access",
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads."

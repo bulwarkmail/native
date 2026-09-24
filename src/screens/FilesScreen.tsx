@@ -420,7 +420,7 @@ export default function FilesScreen() {
       dest.create();
       dest.write(bytes);
       if (!(await Sharing.isAvailableAsync())) {
-        throw new Error('Sharing is not available on this device');
+        throw new Error(t('files.share_unavailable', 'Sharing is not available on this device'));
       }
       await Sharing.shareAsync(dest.uri, { mimeType: 'application/zip', dialogTitle: dest.name });
     } catch (e) {
@@ -673,7 +673,13 @@ export default function FilesScreen() {
       return (
         <View style={styles.header}>
           <View style={styles.headerRow}>
-            <Pressable onPress={clearSelection} hitSlop={8} style={styles.headerBtn}>
+            <Pressable
+              onPress={clearSelection}
+              hitSlop={8}
+              style={styles.headerBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('email_list.batch_actions.clear_selection', 'Clear selection')}
+            >
               <X size={22} color={c.text} />
             </Pressable>
             <Text style={styles.title}>
@@ -711,7 +717,13 @@ export default function FilesScreen() {
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             {canBack ? (
-              <Pressable onPress={goBack} hitSlop={8} style={styles.headerBtn}>
+              <Pressable
+                onPress={goBack}
+                hitSlop={8}
+                style={styles.headerBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.back', 'Back')}
+              >
                 <ChevronLeft size={22} color={c.text} />
               </Pressable>
             ) : null}
@@ -890,6 +902,8 @@ export default function FilesScreen() {
             }}
             hitSlop={8}
             style={styles.rowMore}
+            accessibilityRole="button"
+            accessibilityLabel={t('files.context_menu', 'Actions')}
           >
             <MoreVertical size={18} color={c.textMuted} />
           </Pressable>

@@ -39,10 +39,11 @@ const FILE_PRESETS: Record<RolePreset, FileNodeRights> = {
   },
 };
 
+// The webmail's sharing presets (same rights, same names).
 const PRESET_LABEL_KEYS: Record<RolePreset, [string, string]> = {
-  read: ['files.share_role_viewer', 'Viewer'],
-  readWrite: ['files.share_role_editor', 'Editor'],
-  manager: ['files.share_role_manager', 'Manager'],
+  read: ['sharing.preset.read', 'Read only'],
+  readWrite: ['sharing.preset.readWrite', 'Read & write'],
+  manager: ['sharing.preset.manager', 'Manager'],
 };
 
 const PRESET_ORDER: RolePreset[] = ['read', 'readWrite', 'manager'];
@@ -159,7 +160,7 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
               <View style={styles.titleRow}>
                 <Icon size={18} color={c.textMuted} />
                 <Text style={styles.title} numberOfLines={1}>
-                  {t('files.share', 'Share')} “{node.name}”
+                  {t('sharing.title', 'Share "{name}"', { name: node.name })}
                 </Text>
               </View>
               {isFolder(node) ? (
@@ -188,6 +189,8 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
                                 onPress={() => void applyShare(principalId, FILE_PRESETS[p])}
                                 disabled={busy}
                                 style={[styles.chip, preset === p && styles.chipActive]}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: preset === p, disabled: busy }}
                               >
                                 <Text
                                   style={[styles.chipText, preset === p && styles.chipTextActive]}
