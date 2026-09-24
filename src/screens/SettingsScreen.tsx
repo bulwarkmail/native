@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, LogOut, Settings, ChevronRight,
@@ -44,6 +44,7 @@ import {
 } from '../lib/capabilities';
 import { supportsSideloadUpdates } from '../lib/platform-capabilities';
 import { usePendingSettingsTab } from '../navigation/pending-settings-tab';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
 
 type Tab =
   | 'account' | 'language' | 'notifications'
@@ -232,15 +233,13 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
     }));
   }, [locale, t, scopedTabs]);
 
-  useEffect(() => {
-    if (!selectedTab && !managedAccount) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (selectedTab) setSelectedTab(null);
-      else leaveScope();
-      return true;
-    });
-    return () => sub.remove();
-  }, [selectedTab, managedAccount, leaveScope]);
+  // Settings is a tab and stays mounted behind the other tabs, so hardware
+  // back is only claimed while it is the focused one.
+  const handleBack = React.useCallback(() => {
+    if (selectedTab) setSelectedTab(null);
+    else leaveScope();
+  }, [selectedTab, leaveScope]);
+  useBackWhileFocused(!!selectedTab || !!managedAccount, handleBack);
 
   const scopeBanner = managedAccount ? (
     <Pressable
