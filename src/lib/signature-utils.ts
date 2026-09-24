@@ -74,6 +74,22 @@ export function hasSignature(signature?: SignatureSource): boolean {
   return !!(signature?.htmlSignature?.trim() || signature?.textSignature?.trim());
 }
 
+/**
+ * The identity whose signature a message sent as `identity` carries: its own,
+ * or - for an alias or shared identity without one - the primary identity's
+ * (the first that can't be deleted, else the first). Null when neither has a
+ * signature.
+ */
+export function signatureIdentityFor<T extends { textSignature?: string; htmlSignature?: string; mayDelete?: boolean }>(
+  identity: T | null | undefined,
+  identities: T[],
+): T | null {
+  if (!identity) return null;
+  if (hasSignature(identity)) return identity;
+  const primary = identities.find((i) => !i.mayDelete) ?? identities[0];
+  return primary && hasSignature(primary) ? primary : null;
+}
+
 export function getPlainTextSignature(signature?: SignatureSource): string {
   if (signature?.textSignature?.trim()) {
     return normalizeSignatureLineBreaks(signature.textSignature);
@@ -98,6 +114,23 @@ export function appendPlainTextSignature(
 
   const sep = options.separator === false ? '\n\n' : '\n\n-- \n';
   return `${body}${sep}${plainTextSignature}`;
+}
+
+/**
+ * A plain-text reply signed the way the composer signs one: the signature
+ * between the reply and the quote (`above_quote`), or at the very end.
+ */
+export function signPlainTextReply(
+  reply: string,
+  quote: string,
+  signature: SignatureSource,
+  options: { position: 'above_quote' | 'below_quote'; separator: boolean },
+): string {
+  const quoted = quote ? `\n\n${quote}` : '';
+  if (options.position === 'above_quote') {
+    return `${appendPlainTextSignature(reply, signature, options)}${quoted}`;
+  }
+  return appendPlainTextSignature(`${reply}${quoted}`, signature, options);
 }
 
 /**

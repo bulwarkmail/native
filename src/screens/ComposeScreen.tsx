@@ -60,7 +60,7 @@ import {
 } from '../lib/reply-identity';
 import { shouldBlockEditorRemoteImages } from '../lib/editor-html';
 import {
-  hasSignature, buildEmbeddedSignatureHtml, containsEmbeddedSignature, spliceSignature,
+  signatureIdentityFor, buildEmbeddedSignatureHtml, containsEmbeddedSignature, spliceSignature,
   insertSignatureAboveQuote, getPlainTextSignature, appendPlainTextSignature,
   plainTextBodyHasSignature, plainTextBodyWithoutSignature, SIGNATURE_RANGE_MARKER,
 } from '../lib/signature-utils';
@@ -914,12 +914,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, [identities, selectedIdentityId]);
 
   // An alias without a signature falls back to the primary identity's.
-  const signatureIdentity = React.useMemo(() => {
-    if (!primaryIdentity) return null;
-    if (hasSignature(primaryIdentity)) return primaryIdentity;
-    const fallback = identities.find((i) => !i.mayDelete) ?? identities[0];
-    return fallback && hasSignature(fallback) ? fallback : null;
-  }, [primaryIdentity, identities]);
+  const signatureIdentity = React.useMemo(
+    () => signatureIdentityFor(primaryIdentity, identities),
+    [primaryIdentity, identities],
+  );
 
   const openIdentityPicker = () => {
     if (identities.length <= 1) return;

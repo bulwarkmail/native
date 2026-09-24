@@ -13,7 +13,8 @@ import { jmapClient } from '../../api/jmap-client';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
-import { findReceivingIdentity } from '../../lib/email-headers';
+import { resolveReplyIdentity } from '../../lib/reply-identity';
+import { signatureIdentityFor, signPlainTextReply } from '../../lib/signature-utils';
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { mailboxesOfAccount } from '../../lib/mailbox-tree';
@@ -41,6 +42,8 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const identities = useSettingsStore((s) => s.identities);
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
+  const signaturePosition = useSettingsStore((s) => s.signaturePosition);
+  const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
@@ -53,7 +56,14 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const send = async () => {
     const body = text.trim();
     if (!body || sending) return;
-    const identity = findReceivingIdentity(identities, email) ?? identities[0];
+    const ownEmails = identities.map((i) => i.email).filter(Boolean);
+    // The own identity the message was delivered to (or, for our own message,
+    // the one that sent it). Never the catch-all From rewrite: this box has no
+    // From row to show or correct it.
+    const resolved = resolveReplyIdentity(identities, {
+      from, to: email.to ?? undefined, cc: email.cc ?? undefined, bcc: email.bcc ?? undefined,
+    }, { ownEmails, catchAll: false });
+    const identity = identities.find((i) => i.id === resolved?.identityId) ?? identities[0];
     if (!identity) {
       Alert.alert(t('common.error', 'Error'), t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
       return;
@@ -68,7 +78,6 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
     }
     setSending(true);
     try {
-      const ownEmails = identities.map((i) => i.email).filter(Boolean);
       const recipients = buildReplyRecipients(
         { from: email.from, replyToAddresses: email.replyTo, to: email.to, cc: email.cc },
         'reply',
@@ -85,7 +94,12 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
           cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
           subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
-          textBody: `${body}\n\n${header}\n${quoted}`,
+          // Signed as the composer signs a plain-text reply; an alias without a
+          // signature of its own carries the primary identity's.
+          textBody: signPlainTextReply(body, `${header}\n${quoted}`, signatureIdentityFor(identity, identities), {
+            position: signaturePosition,
+            separator: signatureSeparatorEnabled,
+          }),
           inReplyTo: threading?.inReplyTo,
           references: threading?.references,
         },

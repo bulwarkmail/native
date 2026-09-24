@@ -10,6 +10,8 @@ import {
   spliceSignature,
   stripEmbeddedSignature,
   insertSignatureAboveQuote,
+  signatureIdentityFor,
+  signPlainTextReply,
 } from '../signature-utils';
 
 describe('sanitizeSignatureHtml', () => {
@@ -77,5 +79,39 @@ describe('embedded signature range', () => {
     const marker = '<div data-quoted-html="true">';
     expect(insertSignatureAboveQuote(`<p><br></p>${marker}q</div>`, sig, marker)).toBe(`<p><br></p>${sig}${marker}q</div>`);
     expect(insertSignatureAboveQuote('<p>x</p>', sig, marker)).toBe(`<p>x</p>${sig}`);
+  });
+});
+
+describe('signatureIdentityFor', () => {
+  const primary = { id: 'p', mayDelete: false, textSignature: 'Primary sig' };
+  const alias = { id: 'a', mayDelete: true };
+  const signedAlias = { id: 's', mayDelete: true, htmlSignature: '<b>Alias</b>' };
+
+  it('uses the identity\'s own signature, else the primary\'s', () => {
+    expect(signatureIdentityFor(signedAlias, [alias, primary, signedAlias])).toBe(signedAlias);
+    expect(signatureIdentityFor(alias, [alias, primary, signedAlias])).toBe(primary);
+  });
+
+  it('returns null when neither has one', () => {
+    expect(signatureIdentityFor(alias, [alias, { id: 'p', mayDelete: false }])).toBeNull();
+    expect(signatureIdentityFor(null, [primary])).toBeNull();
+  });
+});
+
+describe('signPlainTextReply', () => {
+  const sig = { textSignature: 'Jane' };
+
+  it('puts the signature between the reply and the quote above the quote', () => {
+    expect(signPlainTextReply('Thanks', 'Bob wrote:\n> hi', sig, { position: 'above_quote', separator: true }))
+      .toBe('Thanks\n\n-- \nJane\n\nBob wrote:\n> hi');
+  });
+
+  it('puts it at the very end below the quote', () => {
+    expect(signPlainTextReply('Thanks', 'Bob wrote:\n> hi', sig, { position: 'below_quote', separator: false }))
+      .toBe('Thanks\n\nBob wrote:\n> hi\n\nJane');
+  });
+
+  it('leaves the reply alone without a signature', () => {
+    expect(signPlainTextReply('Thanks', 'q', null, { position: 'above_quote', separator: true })).toBe('Thanks\n\nq');
   });
 });
