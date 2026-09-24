@@ -169,7 +169,9 @@ export const useAccountStore = create<AccountState>()(
     }),
     {
       name: 'account-registry',
-      storage: createPersistStorage(),
+      // Tiny, rarely written, and read straight from AsyncStorage by the
+      // headless push task, so it isn't held back like the caches.
+      storage: createPersistStorage({ writeDelayMs: 0 }),
       partialize: (state) => ({
         accounts: state.accounts,
         activeAccountId: state.activeAccountId,

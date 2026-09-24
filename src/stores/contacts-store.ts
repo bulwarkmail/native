@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createPersistStorage } from './persist-storage';
+import { createPersistStorage, memoizeSlice } from './persist-storage';
 import type { ContactCard, AddressBook, StateChange, EmailAddress } from '../api/types';
 import {
   getAddressBooks as fetchPrimaryAddressBooks,
@@ -822,13 +822,16 @@ export const useContactsStore = create<ContactsState>()(
       // ready and replaces the cached data.
       name: 'contacts-cache',
       storage: createPersistStorage(),
-      partialize: (state) => ({
-        addressBooks: state.addressBooks,
-        // Photos are inline base64 blobs; a few hundred of them blow past
-        // Android AsyncStorage's write cap and the cache silently stops
-        // updating. They are re-hydrated from the server on refresh.
-        contacts: state.contacts.map(({ media: _media, ...rest }) => rest),
-      }),
+      partialize: memoizeSlice(
+        (state: ContactsState) => [state.addressBooks, state.contacts],
+        (state) => ({
+          addressBooks: state.addressBooks,
+          // Photos are inline base64 blobs; a few hundred of them blow past
+          // Android AsyncStorage's write cap and the cache silently stops
+          // updating. They are re-hydrated from the server on refresh.
+          contacts: state.contacts.map(({ media: _media, ...rest }) => rest),
+        }),
+      ),
     },
   ),
 );

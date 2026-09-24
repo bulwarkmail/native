@@ -26,6 +26,12 @@ export const CACHE_STORAGE_KEYS = [
  * sessions are preserved.
  */
 export async function clearCachedData(): Promise<void> {
+  // Through the stores first: their storage drops any pending write and
+  // forgets what it last wrote, so the re-fetched data is written back even
+  // where it matches the old cache.
+  for (const store of [useEmailStore, useContactsStore, useCalendarStore]) {
+    store.persist.clearStorage();
+  }
   try {
     await AsyncStorage.multiRemove(CACHE_STORAGE_KEYS);
   } catch {

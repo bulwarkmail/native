@@ -8,6 +8,7 @@ import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { useFilterStore } from './filter-store';
+import { flushPersistedWrites } from './persist-storage';
 import { generateAccountId } from '../lib/account-utils';
 import { runWebmailHandoff, redeemPairingCode, HandoffCancelledError, HandoffError, type HandoffResult } from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
@@ -95,6 +96,8 @@ function clearAllFeatureStores(): void {
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
   useFilterStore.getState().clearState();
+  // Cache writes are held back briefly; get the signed-out data off disk now.
+  void flushPersistedWrites();
 }
 
 // Drop the named account from the email cache, then reset the (per-session,
@@ -113,6 +116,7 @@ function clearAccountFeatureStores(accountId: string | null): void {
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
   useFilterStore.getState().clearState();
+  void flushPersistedWrites();
 }
 
 function refetchFeatureStores(): void {

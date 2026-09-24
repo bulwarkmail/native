@@ -128,6 +128,13 @@ describe('email-store persistence', () => {
     expect(JSON.stringify(persisted).match(/"id":"live0"/g)).toHaveLength(1);
   });
 
+  it('hands the storage the same slice when only UI flags change', () => {
+    const state = viewState({ emails: rows('live', 3), mailboxSnapshots: {} });
+    const slice = partialize!(state);
+    expect(partialize!({ ...state, loading: true, error: 'offline' })).toBe(slice);
+    expect(partialize!({ ...state, emails: rows('live', 4) })).not.toBe(slice);
+  });
+
   it('keeps the base view, not search results, for the open folder', () => {
     const base = { emails: rows('base', 2), total: 2, queryState: 'q1' };
     const persisted = partialize!(viewState({

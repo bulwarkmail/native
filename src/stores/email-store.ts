@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { createPersistStorage } from './persist-storage';
+import { createPersistStorage, memoizeSlice } from './persist-storage';
 import { boundEmailCache, type PersistedEmailCache } from './email-cache-persist';
 import type { Email, Mailbox, StateChange } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
@@ -1714,12 +1714,21 @@ export const useEmailStore = create<EmailState>()(
       },
       // The active view is stored the way an account switch tucks it away,
       // so its folder is in the row once and `merge` rebuilds `emails` from
-      // it. Bounded so Android can still read the row back.
-      partialize: (state): PersistedEmailCache => boundEmailCache({
-        accountSnapshots: state.accountSnapshots,
-        activeAccountId: state.activeAccountId,
-        ...snapshotFromActive(state),
-      }),
+      // it. Bounded so Android can still read the row back. Memoised on
+      // everything `snapshotFromActive` reads, so a set() that only flips
+      // `loading` or `error` isn't written.
+      partialize: memoizeSlice(
+        (state: EmailState) => [
+          state.accountSnapshots, state.activeAccountId, state.mailboxes, state.mailboxState,
+          state.emailStates, state.currentMailboxId, state.mailboxSnapshots, state.emails,
+          state.totalEmails, state.queryState, state.searchQuery, state.filters,
+        ],
+        (state): PersistedEmailCache => boundEmailCache({
+          accountSnapshots: state.accountSnapshots,
+          activeAccountId: state.activeAccountId,
+          ...snapshotFromActive(state),
+        }),
+      ),
       merge: (persisted, current) => {
         if (!persisted) return current;
         const cache = persisted as PersistedEmailCache;

@@ -56,6 +56,7 @@ vi.mock('react-native', () => {
     },
     Linking: { openURL: async () => undefined },
     Appearance: { getColorScheme: () => 'dark', addChangeListener: () => ({ remove: () => undefined }) },
+    AppState: { currentState: 'active', addEventListener: () => ({ remove: () => undefined }) },
   };
 });
 

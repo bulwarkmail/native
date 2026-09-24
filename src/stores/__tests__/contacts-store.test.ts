@@ -450,6 +450,17 @@ describe('contacts-store', () => {
   });
 });
 
+describe('persistence', () => {
+  it('hands the storage the same slice while the cards are unchanged', () => {
+    const partialize = useContactsStore.persist.getOptions().partialize!;
+    useContactsStore.setState({ contacts: [card('c1', { media: { p: { kind: 'photo' } } } as never)] });
+
+    const slice = partialize(useContactsStore.getState()) as { contacts: ContactCard[] };
+    expect(slice.contacts[0]).not.toHaveProperty('media');
+    expect(partialize({ ...useContactsStore.getState(), loading: true })).toBe(slice);
+  });
+});
+
 describe('helpers', () => {
   it('cleanGroupMembers strips id, uid and urn:uuid variants', () => {
     const contacts = [
