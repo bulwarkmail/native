@@ -1,5 +1,5 @@
 import { jmapClient } from './jmap-client';
-import { CAPABILITIES } from './types';
+import { CAPABILITIES, type JMAPAccountInfo } from './types';
 
 export interface VacationResponse {
   id: string;
@@ -23,8 +23,12 @@ const DEFAULT: VacationResponse = {
   htmlBody: null,
 };
 
-export async function getVacationResponse(): Promise<VacationResponse> {
-  const accountId = jmapClient.accountId;
+// The calls take an optional accountId so a shared/group account's responder
+// can be managed too (webmail: "Shared with me" in Account settings). The
+// default is the user's own mail account.
+export async function getVacationResponse(
+  accountId: string = jmapClient.accountId,
+): Promise<VacationResponse> {
   const res = await jmapClient.request(
     [['VacationResponse/get', { accountId, ids: ['singleton'] }, '0']],
     VACATION_USING,
@@ -39,8 +43,8 @@ export async function getVacationResponse(): Promise<VacationResponse> {
 
 export async function setVacationResponse(
   updates: Partial<Omit<VacationResponse, 'id'>>,
+  accountId: string = jmapClient.accountId,
 ): Promise<void> {
-  const accountId = jmapClient.accountId;
   const res = await jmapClient.request(
     [['VacationResponse/set', {
       accountId,
@@ -59,9 +63,26 @@ export async function setVacationResponse(
   throw new Error('Unexpected response from VacationResponse/set');
 }
 
-export function isVacationSupported(): boolean {
+// Gate on the ACCOUNT capability: RFC 8621 advertises VacationResponse per
+// account, so the session can list it while a given account lacks it.
+// Stalwart doesn't always advertise capabilities on shared/group accounts, so
+// treat non-personal accounts as capable, as the webmail does. A server that
+// populates no accountCapabilities at all keeps the session-wide answer.
+export function accountSupportsVacation(
+  account: JMAPAccountInfo | undefined,
+  sessionCapabilities: Record<string, unknown> | undefined,
+): boolean {
+  if (!sessionCapabilities || !(CAPABILITIES.VACATION in sessionCapabilities)) return false;
+  if (!account) return false;
+  if (!account.isPersonal || !account.accountCapabilities) return true;
+  return CAPABILITIES.VACATION in account.accountCapabilities;
+}
+
+export function isVacationSupported(accountId?: string): boolean {
   const session = jmapClient.currentSession;
   if (!session) return false;
-  const caps = session.capabilities ?? {};
-  return CAPABILITIES.VACATION in caps;
+  return accountSupportsVacation(
+    session.accounts?.[accountId ?? jmapClient.accountId],
+    session.capabilities,
+  );
 }

@@ -12,6 +12,9 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useFilterStore } from '../../stores/filter-store';
 import { useVacationStore } from '../../stores/vacation-store';
 import { useEmailStore } from '../../stores/email-store';
+import { useManagedAccountStore } from '../../stores/managed-account-store';
+import { getMailboxes } from '../../api/email';
+import type { Mailbox } from '../../api/types';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
 import { FilterRuleModal } from '../filters/FilterRuleModal';
@@ -106,15 +109,41 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const expandedView = useSettingsStore((s) => s.filtersExpandedView);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
-  // Sieve rules run on the user's own account, so only own folders are
-  // valid "file into" targets.
+  // Scoped to a shared/group account when Settings is managing one.
+  const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
+
+  // Rules run in the account whose filters they are, so only that account's
+  // folders are valid "file into" targets: the user's own, or the managed
+  // account's. Those are fetched here and presented as own folders, since the
+  // rule editor's folder tree leaves shared folders out (webmail does the same).
   const allMailboxes = useEmailStore((s) => s.mailboxes);
-  const mailboxes = useMemo(() => ownMailboxes(allMailboxes), [allMailboxes]);
-  const vacationEnabled = useVacationStore((s) => s.isEnabled);
+  const [scopedMailboxes, setScopedMailboxes] = useState<Mailbox[]>([]);
+  useEffect(() => {
+    if (!managedAccountId) {
+      setScopedMailboxes([]);
+      return;
+    }
+    let cancelled = false;
+    getMailboxes(managedAccountId)
+      .then((list) => {
+        if (!cancelled) setScopedMailboxes(list.map((m) => ({ ...m, isShared: false })));
+      })
+      .catch(() => {
+        if (!cancelled) setScopedMailboxes([]);
+      });
+    return () => { cancelled = true; };
+  }, [managedAccountId]);
+  const mailboxes = useMemo(
+    () => (managedAccountId ? scopedMailboxes : ownMailboxes(allMailboxes)),
+    [managedAccountId, scopedMailboxes, allMailboxes],
+  );
+  // The responder the vacation store holds must be the user's own: the
+  // "active" banner is only about the own account's auto-reply.
+  const vacationEnabled = useVacationStore((s) => s.accountId === null && s.isEnabled);
 
   const {
     rules, isLoading, isSaving, error, isSupported, isOpaque, rawScript, vacationSettings,
-    fetchFilters, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
+    selectAccount, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
 
@@ -127,11 +156,14 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
 
+  // Always name the account (null = own) so leaving a shared account never
+  // keeps showing, or saving into, its script.
   useEffect(() => {
-    void fetchFilters();
-  }, [fetchFilters]);
+    void selectAccount(managedAccountId);
+  }, [managedAccountId, selectAccount]);
 
-  const showVacationBanner = (vacationEnabled || vacationSettings?.isEnabled) ?? false;
+  const showVacationBanner =
+    !managedAccountId && ((vacationEnabled || vacationSettings?.isEnabled) ?? false);
 
   // Editable (Bulwark-managed) rules, in order, for reorder math.
   const editableIds = useMemo(

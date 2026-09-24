@@ -370,7 +370,7 @@
         "limit": "Maximum of {count} accounts reached."
       },
       "shared_accounts": {
-        "description_mobile": "Group and shared accounts you can read through this account. Their filters and vacation responder are managed from the webmail."
+        "description_manage": "Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder."
       },
       "unknown": "Unknown"
     },

@@ -18,13 +18,16 @@ export interface VacationState {
   error: string | null;
   isSupported: boolean;
   hasLoaded: boolean;
+  /** Account the responder belongs to: null for the user's own, else a shared/group account. */
+  accountId: string | null;
 
-  fetch: () => Promise<void>;
+  fetch: (accountId?: string) => Promise<void>;
   save: (updates: Partial<Omit<VacationResponse, 'id'>>) => Promise<void>;
   reset: () => void;
 }
 
 const INITIAL = {
+  accountId: null,
   isEnabled: false,
   fromDate: null,
   toDate: null,
@@ -38,13 +41,20 @@ const INITIAL = {
   hasLoaded: false,
 };
 
-export const useVacationStore = create<VacationState>((set) => ({
+export const useVacationStore = create<VacationState>((set, get) => ({
   ...INITIAL,
 
-  fetch: async () => {
-    set({ isLoading: true, error: null, isSupported: isVacationSupported() });
+  fetch: async (accountId) => {
+    const target = accountId ?? null;
+    // Switching accounts starts from a blank form rather than showing (and
+    // letting the user save) the previous account's responder.
+    if (get().accountId !== target) set({ ...INITIAL, accountId: target });
+    set({ isLoading: true, error: null, isSupported: isVacationSupported(accountId) });
+    // A reply for an account the user already switched away from is dropped.
+    const stale = () => get().accountId !== target;
     try {
-      const vacation = await getVacationResponse();
+      const vacation = await getVacationResponse(accountId);
+      if (stale()) return;
       set({
         isEnabled: vacation.isEnabled,
         fromDate: vacation.fromDate,
@@ -56,6 +66,7 @@ export const useVacationStore = create<VacationState>((set) => ({
         hasLoaded: true,
       });
     } catch (err) {
+      if (stale()) return;
       set({
         isLoading: false,
         hasLoaded: true,
@@ -67,7 +78,7 @@ export const useVacationStore = create<VacationState>((set) => ({
   save: async (updates) => {
     set({ isSaving: true, error: null });
     try {
-      await setVacationResponse(updates);
+      await setVacationResponse(updates, get().accountId ?? undefined);
       set((s) => ({
         ...s,
         ...updates,

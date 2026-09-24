@@ -1,7 +1,9 @@
 import { CAPABILITIES } from '../api/types';
-import type { JMAPSession } from '../api/types';
+import type { JMAPAccountInfo, JMAPSession } from '../api/types';
 import { useAuthStore } from '../stores/auth-store';
 import { accountSupportsFiles } from '../api/files';
+import { accountSupportsSieve, isSieveSupported } from '../api/sieve';
+import { accountSupportsVacation, isVacationSupported } from '../api/vacation';
 
 // When the session is null (cold start, offline restore) we assume features
 // are available so they don't flicker off mid-restore. Once the live session
@@ -49,14 +51,42 @@ export function useHasFiles(): boolean {
   return useAuthStore((s) => sessionSupportsFiles(s.session));
 }
 
+// The account api/sieve.ts and api/vacation.ts target by default: the
+// capability's primary account, else the mail account jmapClient resolves.
+function primaryAccount(session: JMAPSession, capability: string): JMAPAccountInfo | undefined {
+  const id = session.primaryAccounts?.[capability]
+    ?? session.primaryAccounts?.[CAPABILITIES.MAIL]
+    ?? session.primaryAccounts?.[CAPABILITIES.CORE]
+    ?? Object.keys(session.accounts ?? {})[0];
+  return id ? session.accounts?.[id] : undefined;
+}
+
 // Settings tabs for Sieve filters and the vacation responder are gated on the
-// same session capabilities api/sieve.ts and api/vacation.ts check, so the
-// tab is disabled up front instead of opening onto a "not supported" screen.
+// same per-account checks api/sieve.ts and api/vacation.ts make, so the tab is
+// disabled up front instead of opening onto a "not supported" screen.
 export function useHasSieve(): boolean {
-  return useAuthStore((s) => (s.session ? CAPABILITIES.SIEVE in s.session.capabilities : true));
+  return useAuthStore((s) => (s.session
+    ? accountSupportsSieve(primaryAccount(s.session, CAPABILITIES.SIEVE), s.session.capabilities)
+    : true));
 }
 
 export function useHasVacation(): boolean {
-  return useAuthStore((s) => (s.session ? CAPABILITIES.VACATION in s.session.capabilities : true));
+  return useAuthStore((s) => (s.session
+    ? accountSupportsVacation(primaryAccount(s.session, CAPABILITIES.MAIL), s.session.capabilities)
+    : true));
+}
+
+export type SharedAccountSettingsTab = 'filters' | 'vacation';
+
+/**
+ * Settings panes a shared/group account can be managed in, the first one
+ * being where "Shared with me" lands. Mirrors the webmail's scoped settings
+ * tabs (its calendar and contacts panes aren't scoped on mobile).
+ */
+export function sharedAccountSettingsTabs(accountId: string): SharedAccountSettingsTab[] {
+  const tabs: SharedAccountSettingsTab[] = [];
+  if (isSieveSupported(accountId)) tabs.push('filters');
+  if (isVacationSupported(accountId)) tabs.push('vacation');
+  return tabs;
 }
 

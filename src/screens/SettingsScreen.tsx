@@ -37,7 +37,11 @@ import { ComposingSettings } from '../components/settings/ComposingSettings';
 import { LayoutSettings } from '../components/settings/LayoutSettings';
 import { DownloadsSettings } from '../components/settings/DownloadsSettings';
 import { useLocaleStore } from '../stores/locale-store';
-import { useHasCalendar, useHasContacts, useHasFiles, useHasSieve, useHasVacation } from '../lib/capabilities';
+import { useAuthStore } from '../stores/auth-store';
+import { useManagedAccountStore } from '../stores/managed-account-store';
+import {
+  sharedAccountSettingsTabs, useHasCalendar, useHasContacts, useHasFiles, useHasSieve, useHasVacation,
+} from '../lib/capabilities';
 import { supportsSideloadUpdates } from '../lib/platform-capabilities';
 import { usePendingSettingsTab } from '../navigation/pending-settings-tab';
 
@@ -150,11 +154,11 @@ const AVAILABLE_TABS: TabDef[] = TABS.filter(
   (t) => !t.hidden && (t.id !== 'updates' || supportsSideloadUpdates),
 );
 
-function groupTabs() {
+function groupTabs(only: ReadonlySet<Tab> | null) {
   return GROUP_ORDER.map(group => ({
     group,
     label: GROUP_LABELS[group],
-    items: AVAILABLE_TABS.filter(t => t.group === group),
+    items: AVAILABLE_TABS.filter(t => t.group === group && (!only || only.has(t.id))),
   })).filter(g => g.items.length > 0);
 }
 
@@ -176,25 +180,49 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const hasFiles = useHasFiles();
   const hasSieve = useHasSieve();
   const hasVacation = useHasVacation();
+
+  // A shared/group account picked under "Shared with me" scopes Settings to
+  // the panes that account can be managed in (webmail: scoped settings).
+  const managedAccount = useManagedAccountStore((s) => s.managedAccount);
+  const clearManagedAccount = useManagedAccountStore((s) => s.clear);
+  const session = useAuthStore((s) => s.session);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  const scopedTabs = React.useMemo<ReadonlySet<Tab> | null>(() => {
+    void session; // dependency: capabilities come from the live session
+    return managedAccount ? new Set<Tab>(sharedAccountSettingsTabs(managedAccount.id)) : null;
+  }, [managedAccount, session]);
+  // The scope belongs to one signed-in account and one visit to Settings.
+  useEffect(() => { clearManagedAccount(); }, [activeAccountId, clearManagedAccount]);
+  useEffect(() => () => clearManagedAccount(), [clearManagedAccount]);
+  const leaveScope = React.useCallback(() => {
+    clearManagedAccount();
+    setSelectedTab('account');
+  }, [clearManagedAccount]);
+
   const unavailableTabs = React.useMemo(() => {
     const set = new Set<Tab>();
+    if (scopedTabs) return set; // only the shared account's supported panes are listed
     if (!hasCalendar) set.add('calendar');
     if (!hasContacts) set.add('contacts');
     if (!hasFiles) set.add('files');
     if (!hasSieve) set.add('filters');
     if (!hasVacation) set.add('vacation');
     return set;
-  }, [hasCalendar, hasContacts, hasFiles, hasSieve, hasVacation]);
-  // A settings/<tab> deep link parks its target here; open it once.
+  }, [scopedTabs, hasCalendar, hasContacts, hasFiles, hasSieve, hasVacation]);
+  // A settings/<tab> deep link parks its target here; open it once. A tab the
+  // managed shared account has no pane for returns to the user's own account.
   const pendingTab = usePendingSettingsTab((s) => s.tab);
   useEffect(() => {
     if (!pendingTab) return;
     const tab = usePendingSettingsTab.getState().consume();
-    if (tab && TABS.some((t) => t.id === tab && t.implemented)) setSelectedTab(tab as Tab);
-  }, [pendingTab]);
+    if (!tab || !TABS.some((t) => t.id === tab && t.implemented)) return;
+    const scoped = useManagedAccountStore.getState().managedAccount;
+    if (scoped && !(sharedAccountSettingsTabs(scoped.id) as string[]).includes(tab)) clearManagedAccount();
+    setSelectedTab(tab as Tab);
+  }, [pendingTab, clearManagedAccount]);
   const groupedTabs = React.useMemo(() => {
     void locale; // dependency: re-translate on locale change
-    return groupTabs().map((g) => ({
+    return groupTabs(scopedTabs).map((g) => ({
       ...g,
       label: t(`settings.tab_groups.${g.group}`, g.label),
       items: g.items.map((tab) => ({
@@ -202,16 +230,31 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         label: t(`settings.tabs.${tab.id}`, tab.label),
       })),
     }));
-  }, [locale, t]);
+  }, [locale, t, scopedTabs]);
 
   useEffect(() => {
-    if (!selectedTab) return;
+    if (!selectedTab && !managedAccount) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setSelectedTab(null);
+      if (selectedTab) setSelectedTab(null);
+      else leaveScope();
       return true;
     });
     return () => sub.remove();
-  }, [selectedTab]);
+  }, [selectedTab, managedAccount, leaveScope]);
+
+  const scopeBanner = managedAccount ? (
+    <Pressable
+      onPress={leaveScope}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.scopeBanner, pressed && styles.scopeBannerPressed]}
+    >
+      <ArrowLeft size={16} color={c.mutedForeground} />
+      <Text style={styles.scopeBack}>{t('settings.scoped.back', 'Back to my account')}</Text>
+      <Text style={styles.scopeName} numberOfLines={1}>
+        {t('settings.scoped.managing', 'Managing: {name}', { name: managedAccount.name })}
+      </Text>
+    </Pressable>
+  ) : null;
 
   const handleTabPress = (tab: TabDef) => {
     if (!tab.implemented) return;
@@ -242,6 +285,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
         </View>
 
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.detailContent}>
+          {scopeBanner}
           {selectedTab === 'filters' ? (
             <FilterSettings
               onOpenVacation={hasVacation ? () => setSelectedTab('vacation') : undefined}
@@ -276,6 +320,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
       {/* Tab list - matches webmail mobile: flat grouped list, no cards */}
       <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+        {scopeBanner && <View style={styles.scopeBannerList}>{scopeBanner}</View>}
         <View style={styles.tabList}>
           {groupedTabs.map((group, groupIndex) => (
             <View key={group.group}>
@@ -376,6 +421,23 @@ function makeStyles(c: ThemePalette) {
     detailContent: { padding: spacing.lg, paddingBottom: 40 },
 
     tabList: { paddingVertical: spacing.sm },
+
+    scopeBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.lg,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.md,
+      backgroundColor: c.muted,
+    },
+    scopeBannerPressed: { opacity: 0.8 },
+    scopeBannerList: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+    scopeBack: { ...typography.body, color: c.mutedForeground },
+    scopeName: { ...typography.bodyMedium, color: c.text, flex: 1, textAlign: 'right' },
 
     groupDivider: {
       height: 1, backgroundColor: c.border,

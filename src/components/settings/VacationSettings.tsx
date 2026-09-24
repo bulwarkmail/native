@@ -10,6 +10,7 @@ import RichTextEditor, { type RichTextEditorHandle } from '../RichTextEditor';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useVacationStore } from '../../stores/vacation-store';
+import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { stripDangerousTags, escapeHtml } from '../../lib/email-html';
@@ -31,6 +32,8 @@ export function VacationSettings() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const store = useVacationStore();
+  // Scoped to a shared/group account when Settings is managing one.
+  const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
 
   const [enabled, setEnabled] = useState(store.isEnabled);
   const [fromDate, setFromDate] = useState(utcIsoToLocalInput(store.fromDate));
@@ -48,9 +51,10 @@ export function VacationSettings() {
   // initial fetch itself failed (that's the only case that blanks the form).
   const [fetchError, setFetchError] = useState<string | null>(null);
   useEffect(() => {
-    void store.fetch().then(() => setFetchError(useVacationStore.getState().error));
+    void store.fetch(managedAccountId ?? undefined)
+      .then(() => setFetchError(useVacationStore.getState().error));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [managedAccountId]);
 
   useEffect(() => {
     if (!store.hasLoaded) return;

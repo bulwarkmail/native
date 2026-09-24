@@ -4,6 +4,7 @@ import { parseScript } from '../lib/sieve/parser';
 import { generateScript } from '../lib/sieve/generator';
 import {
   createSieveScript,
+  getSieveAccountId,
   getSieveCapabilities,
   getSieveScriptContent,
   getSieveScripts,
@@ -14,7 +15,8 @@ import {
 
 // Ported from the webmail's stores/filter-store.ts. The mobile client is a
 // singleton (api/sieve drives `jmapClient` directly), so the actions drop the
-// `client` argument the web store threads through.
+// `client` argument the web store threads through. `selectedAccountId` is the
+// Sieve account being edited: the user's own, or a shared/group account.
 
 interface FilterStore {
   rules: FilterRule[];
@@ -28,8 +30,11 @@ interface FilterStore {
   rawScript: string;
   vacationSettings: VacationSieveConfig | null;
   externalRequires: string[];
+  selectedAccountId: string | null;
 
-  fetchFilters: () => Promise<void>;
+  fetchFilters: (accountId?: string) => Promise<void>;
+  /** Load another account's filters; null is the user's own Sieve account. */
+  selectAccount: (accountId: string | null) => Promise<void>;
   saveFilters: () => Promise<void>;
   validateScript: (content: string) => Promise<{ isValid: boolean; errors?: string[] }>;
   addRule: (rule: FilterRule) => void;
@@ -55,17 +60,24 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
   rawScript: '',
   vacationSettings: null,
   externalRequires: [],
+  selectedAccountId: null,
 
-  fetchFilters: async () => {
-    if (!isSieveSupported()) {
+  fetchFilters: async (accountId) => {
+    const requestedId = accountId || get().selectedAccountId || undefined;
+    if (!isSieveSupported(requestedId)) {
       set({ isSupported: false, isLoading: false });
       return;
     }
-    set({ isLoading: true, error: null, isSupported: true });
+    const resolvedId = requestedId ?? getSieveAccountId();
+    set({ isLoading: true, error: null, isSupported: true, selectedAccountId: resolvedId });
+    // A reply for an account the user already switched away from must not
+    // land in the store: the next save would write it into the other account.
+    const stale = () => get().selectedAccountId !== resolvedId;
     try {
-      set({ sieveCapabilities: getSieveCapabilities() });
+      set({ sieveCapabilities: getSieveCapabilities(resolvedId) });
 
-      const allScripts = await getSieveScripts();
+      const allScripts = await getSieveScripts(resolvedId);
+      if (stale()) return;
 
       // Skip the server-managed 'vacation' script (RFC 9661 §4) - it can only
       // be modified via VacationResponse/set, not SieveScript/set.
@@ -79,7 +91,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
 
       set({ activeScriptId: activeScript.id });
 
-      const content = await getSieveScriptContent(activeScript.blobId);
+      const content = await getSieveScriptContent(activeScript.blobId, resolvedId);
+      if (stale()) return;
       set({ rawScript: content });
 
       const result = parseScript(content);
@@ -92,6 +105,7 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
         externalRequires: result.externalRequires,
       });
     } catch (error) {
+      if (stale()) return;
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch filters',
@@ -99,19 +113,37 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     }
   },
 
+  selectAccount: async (accountId) => {
+    // Drop the previous account's script first so its rules never show (or
+    // get saved) under the newly selected account while the fetch runs.
+    set({
+      selectedAccountId: accountId,
+      rules: [],
+      rawScript: '',
+      activeScriptId: null,
+      isOpaque: false,
+      vacationSettings: null,
+      externalRequires: [],
+    });
+    await get().fetchFilters(accountId ?? undefined);
+  },
+
   saveFilters: async () => {
     set({ isSaving: true, error: null });
     try {
-      const { isOpaque, rawScript, rules, activeScriptId, vacationSettings, externalRequires } = get();
+      const {
+        isOpaque, rawScript, rules, activeScriptId, vacationSettings, externalRequires, selectedAccountId,
+      } = get();
+      const accountId = selectedAccountId ?? undefined;
 
       const content = isOpaque
         ? rawScript
         : generateScript(rules, vacationSettings || undefined, { externalRequires });
 
       if (activeScriptId) {
-        await updateSieveScript(activeScriptId, content, true);
+        await updateSieveScript(activeScriptId, content, true, accountId);
       } else {
-        const script = await createSieveScript('filters', content, true);
+        const script = await createSieveScript('filters', content, true, accountId);
         set({ activeScriptId: script.id });
       }
 
@@ -125,7 +157,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     }
   },
 
-  validateScript: async (content) => validateSieveScript(content),
+  validateScript: async (content) =>
+    validateSieveScript(content, get().selectedAccountId ?? undefined),
 
   addRule: (rule) => {
     // Insert new bulwark rules before external/opaque rules so Bulwark's
@@ -199,5 +232,6 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     rawScript: '',
     vacationSettings: null,
     externalRequires: [],
+    selectedAccountId: null,
   }),
 }));

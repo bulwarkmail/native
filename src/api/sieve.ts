@@ -1,5 +1,5 @@
 import { jmapClient } from './jmap-client';
-import { CAPABILITIES } from './types';
+import { CAPABILITIES, type JMAPAccountInfo } from './types';
 import { secureFetch } from '../lib/client-cert';
 import type { SieveScript, SieveCapabilities } from '../lib/sieve/types';
 
@@ -17,28 +17,49 @@ function requireSession() {
 
 // Sieve lives on its own JMAP account (RFC 9661). Fall back to the mail account
 // when the server does not advertise a dedicated one (Stalwart uses the same id).
+// Every call below takes an optional accountId so the filters of a shared/group
+// account can be managed too (webmail: "Shared with me" in Account settings).
 export function getSieveAccountId(): string {
   const session = jmapClient.currentSession;
   return session?.primaryAccounts?.[CAPABILITIES.SIEVE] ?? jmapClient.accountId;
 }
 
-export function isSieveSupported(): boolean {
-  const session = jmapClient.currentSession;
-  if (!session) return false;
-  return CAPABILITIES.SIEVE in (session.capabilities ?? {});
+// Gate on the ACCOUNT capability, not only the server-wide session capability:
+// RFC 9661 advertises Sieve per account, and an account without Sieve rights
+// fails every SieveScript call. Stalwart doesn't always advertise capabilities
+// on shared/group accounts, so treat non-personal accounts as capable - the
+// rule the webmail's getSharedAccounts() applies. A server that populates no
+// accountCapabilities at all keeps the session-wide answer.
+export function accountSupportsSieve(
+  account: JMAPAccountInfo | undefined,
+  sessionCapabilities: Record<string, unknown> | undefined,
+): boolean {
+  if (!sessionCapabilities || !(CAPABILITIES.SIEVE in sessionCapabilities)) return false;
+  if (!account) return false;
+  if (!account.isPersonal || !account.accountCapabilities) return true;
+  return CAPABILITIES.SIEVE in account.accountCapabilities;
 }
 
-export function getSieveCapabilities(): SieveCapabilities | null {
+export function isSieveSupported(accountId?: string): boolean {
+  const session = jmapClient.currentSession;
+  if (!session) return false;
+  return accountSupportsSieve(
+    session.accounts?.[accountId ?? getSieveAccountId()],
+    session.capabilities,
+  );
+}
+
+export function getSieveCapabilities(accountId?: string): SieveCapabilities | null {
   const session = jmapClient.currentSession;
   if (!session) return null;
-  const info = session.accounts?.[getSieveAccountId()];
+  const info = session.accounts?.[accountId ?? getSieveAccountId()];
   const caps = info?.accountCapabilities?.[CAPABILITIES.SIEVE];
   return (caps as SieveCapabilities) ?? null;
 }
 
-export async function getSieveScripts(): Promise<SieveScript[]> {
+export async function getSieveScripts(accountId: string = getSieveAccountId()): Promise<SieveScript[]> {
   const res = await jmapClient.request(
-    [['SieveScript/get', { accountId: getSieveAccountId() }, '0']],
+    [['SieveScript/get', { accountId }, '0']],
     SIEVE_USING,
   );
   const resp = res.methodResponses?.[0];
@@ -48,10 +69,15 @@ export async function getSieveScripts(): Promise<SieveScript[]> {
   throw new Error('Failed to fetch Sieve scripts');
 }
 
-export async function getSieveScriptContent(blobId: string): Promise<string> {
+export async function getSieveScriptContent(
+  blobId: string,
+  accountId: string = getSieveAccountId(),
+): Promise<string> {
   const session = requireSession();
+  // Blobs are scoped per account, so a shared account's script is downloaded
+  // against that account's id.
   const url = session.downloadUrl
-    .replace('{accountId}', encodeURIComponent(getSieveAccountId()))
+    .replace('{accountId}', encodeURIComponent(accountId))
     .replace('{blobId}', encodeURIComponent(blobId))
     .replace('{name}', encodeURIComponent('script.sieve'))
     .replace('{type}', encodeURIComponent('application/sieve'));
@@ -63,11 +89,11 @@ export async function getSieveScriptContent(blobId: string): Promise<string> {
   return response.text();
 }
 
-async function uploadSieveBlob(content: string): Promise<string> {
+async function uploadSieveBlob(content: string, accountId: string): Promise<string> {
   const session = requireSession();
   const uploadUrl = session.uploadUrl.replace(
     '{accountId}',
-    encodeURIComponent(getSieveAccountId()),
+    encodeURIComponent(accountId),
   );
 
   const response = await secureFetch(uploadUrl, {
@@ -89,7 +115,7 @@ async function uploadSieveBlob(content: string): Promise<string> {
   const raw = (await response.json()) as Record<string, unknown>;
   const direct = raw as { blobId?: string };
   if (typeof direct.blobId === 'string') return direct.blobId;
-  const nested = raw[getSieveAccountId()] as { blobId?: string } | undefined;
+  const nested = raw[accountId] as { blobId?: string } | undefined;
   if (nested?.blobId) return nested.blobId;
   throw new Error('Upload succeeded but response did not include a blobId');
 }
@@ -98,9 +124,9 @@ export async function createSieveScript(
   name: string,
   content: string,
   activate = true,
+  accountId: string = getSieveAccountId(),
 ): Promise<SieveScript> {
-  const blobId = await uploadSieveBlob(content);
-  const accountId = getSieveAccountId();
+  const blobId = await uploadSieveBlob(content, accountId);
 
   const setArgs: Record<string, unknown> = {
     accountId,
@@ -120,7 +146,7 @@ export async function createSieveScript(
     }
     const createdId = result.created?.['new-script']?.id;
     if (createdId) {
-      const scripts = await getSieveScripts();
+      const scripts = await getSieveScripts(accountId);
       const script = scripts.find((s) => s.id === createdId);
       if (script) return script;
     }
@@ -132,9 +158,9 @@ export async function updateSieveScript(
   scriptId: string,
   content: string,
   activate = true,
+  accountId: string = getSieveAccountId(),
 ): Promise<void> {
-  const blobId = await uploadSieveBlob(content);
-  const accountId = getSieveAccountId();
+  const blobId = await uploadSieveBlob(content, accountId);
 
   const setArgs: Record<string, unknown> = {
     accountId,
@@ -154,9 +180,12 @@ export async function updateSieveScript(
   throw new Error('Failed to update Sieve script');
 }
 
-export async function deleteSieveScript(scriptId: string): Promise<void> {
+export async function deleteSieveScript(
+  scriptId: string,
+  accountId: string = getSieveAccountId(),
+): Promise<void> {
   const res = await jmapClient.request(
-    [['SieveScript/set', { accountId: getSieveAccountId(), destroy: [scriptId] }, '0']],
+    [['SieveScript/set', { accountId, destroy: [scriptId] }, '0']],
     SIEVE_USING,
   );
   const resp = res.methodResponses?.[0];
@@ -172,10 +201,11 @@ export async function deleteSieveScript(scriptId: string): Promise<void> {
 
 export async function validateSieveScript(
   content: string,
+  accountId: string = getSieveAccountId(),
 ): Promise<{ isValid: boolean; errors?: string[] }> {
-  const blobId = await uploadSieveBlob(content);
+  const blobId = await uploadSieveBlob(content, accountId);
   const res = await jmapClient.request(
-    [['SieveScript/validate', { accountId: getSieveAccountId(), blobId }, '0']],
+    [['SieveScript/validate', { accountId, blobId }, '0']],
     SIEVE_USING,
   );
   const resp = res.methodResponses?.[0];

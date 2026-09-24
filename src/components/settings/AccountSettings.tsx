@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ArrowDown, ArrowUp, Check, Plus, Star, Trash2, Users } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, Check, ChevronRight, Plus, Star, Trash2, Users } from 'lucide-react-native';
 import { SettingsSection, SettingItem } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -10,6 +10,9 @@ import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useManagedAccountStore } from '../../stores/managed-account-store';
+import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
+import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
 import { fetchMailQuota, type MailQuota } from '../../api/quota';
 import { MAX_ACCOUNTS } from '../../lib/account-utils';
@@ -65,6 +68,14 @@ export function AccountSettings() {
   const percent = quota && quota.total > 0 ? Math.min(100, Math.round((quota.used / quota.total) * 100)) : 0;
   const sharedAccounts = session ? jmapClient.getSharedMailAccounts() : [];
   const [busyId, setBusyId] = useState<string | null>(null);
+  const setManagedAccount = useManagedAccountStore((s) => s.setManagedAccount);
+
+  // Manage a shared/group account's filters and vacation responder: scope
+  // Settings to it and open its first pane (webmail: "Shared with me").
+  const manageShared = (account: { id: string; name: string }, firstTab: string) => {
+    setManagedAccount(account);
+    setPendingSettingsTab(firstTab);
+  };
 
   const move = (id: string, delta: -1 | 1) => {
     const ids = accounts.map((a) => a.id);
@@ -244,20 +255,34 @@ export function AccountSettings() {
       {sharedAccounts.length > 0 && (
         <SettingsSection
           title={t('settings.account.shared_accounts.title', 'Shared with me')}
-          description={t('settings.account.shared_accounts.description_mobile', 'Group and shared accounts you can read through this account. Their filters and vacation responder are managed from the webmail.')}
+          description={t('settings.account.shared_accounts.description_manage', 'Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder.')}
         >
           <View style={styles.list}>
-            {sharedAccounts.map((s, index) => (
-              <View key={s.id} style={[styles.row, index > 0 && styles.rowBorder]}>
-                <View style={[styles.avatar, { backgroundColor: c.muted }]}>
-                  <Users size={14} color={c.mutedForeground} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
-                  <Text style={styles.rowSub}>{t('settings.account.shared_accounts.shared_label', 'Shared account')}</Text>
-                </View>
-              </View>
-            ))}
+            {sharedAccounts.map((s, index) => {
+              const firstTab = sharedAccountSettingsTabs(s.id)[0];
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={firstTab ? () => manageShared(s, firstTab) : undefined}
+                  disabled={!firstTab}
+                  accessibilityRole={firstTab ? 'button' : undefined}
+                  style={({ pressed }) => [
+                    styles.row,
+                    index > 0 && styles.rowBorder,
+                    pressed && firstTab && { backgroundColor: c.muted },
+                  ]}
+                >
+                  <View style={[styles.avatar, { backgroundColor: c.muted }]}>
+                    <Users size={14} color={c.mutedForeground} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
+                    <Text style={styles.rowSub}>{t('settings.account.shared_accounts.shared_label', 'Shared account')}</Text>
+                  </View>
+                  {firstTab && <ChevronRight size={16} color={c.mutedForeground} />}
+                </Pressable>
+              );
+            })}
           </View>
         </SettingsSection>
       )}
