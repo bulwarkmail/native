@@ -12,6 +12,7 @@ import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '
 import { buildQuoteCollapseScript, collapsePlainTextQuotes } from '../lib/quote-collapse';
 import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
+import { isSenderContentTrusted } from '../lib/trusted-senders';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -522,7 +523,6 @@ export default function EmailBodyView({
   const emailAlwaysLightMode = useSettingsStore((s) => s.emailAlwaysLightMode);
   const plainTextFont = useSettingsStore((s) => s.plainTextFont);
   const messageSpacing = useSettingsStore((s) => s.messageSpacing);
-  const contacts = useContactsStore((s) => s.contacts);
   const trustedSenderEmails = useContactsStore((s) => s.trustedSenderEmails);
   const trustedSendersLoaded = useContactsStore((s) => s.trustedSendersLoaded);
   const loadTrustedSendersBook = useContactsStore((s) => s.loadTrustedSendersBook);
@@ -533,21 +533,8 @@ export default function EmailBodyView({
   // entries (synced across devices) feed the external-content trust check. We
   // do not create the book here — it is created lazily when a sender is trusted.
   React.useEffect(() => {
-    if (!trustedSendersLoaded) void loadTrustedSendersBook(false);
-  }, [trustedSendersLoaded, loadTrustedSendersBook]);
-  // Index the address book once per render so the trusted-sender check below
-  // is O(1) per email. Only used when the matching setting is on.
-  const addressBookEmails = React.useMemo(() => {
-    if (!trustedSendersAddressBook) return null;
-    const out = new Set<string>();
-    for (const card of contacts) {
-      if (!card.emails) continue;
-      for (const e of Object.values(card.emails)) {
-        if (e?.address) out.add(e.address.toLowerCase());
-      }
-    }
-    return out;
-  }, [contacts, trustedSendersAddressBook]);
+    if (trustedSendersAddressBook && !trustedSendersLoaded) void loadTrustedSendersBook(false);
+  }, [trustedSendersAddressBook, trustedSendersLoaded, loadTrustedSendersBook]);
   // Most marketing email is authored against a white background, so dark-mode
   // inversion can wreck logos/banners. With this flag the user opts to render
   // emails on a light surface even while the rest of the app is dark; the
@@ -565,11 +552,11 @@ export default function EmailBodyView({
   }, [email, bodyOverride]);
   const rawHtml = React.useMemo(() => selectRenderableHtml(picked), [picked]);
   const text = picked.text;
-  const trusted = senderEmail
-    ? isSenderTrusted(senderEmail)
-      || trustedSenderEmails.includes(senderEmail.toLowerCase())
-      || (addressBookEmails?.has(senderEmail.toLowerCase()) ?? false)
-    : false;
+  const trusted = isSenderContentTrusted(senderEmail, {
+    isLocallyTrusted: isSenderTrusted,
+    syncEnabled: trustedSendersAddressBook,
+    trustedBookEmails: trustedSenderEmails,
+  });
 
   // One-time override: user tapped "Load images" for this email only.
   const [allowOnce, setAllowOnce] = React.useState(false);

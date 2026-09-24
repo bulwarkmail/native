@@ -47,15 +47,8 @@ export function ContentSendersSettings() {
 
   useEffect(() => { if (!hydrated) void hydrate(); }, [hydrated, hydrate]);
 
-  // Sync to the address book once the account proves it supports contacts;
-  // the toggle below lets the user opt out again. Mirrors the webmail, where
-  // the setting starts unset (null) and flips on with the first
-  // contacts-capable session.
-  useEffect(() => {
-    if (!hydrated || !hasContacts) return;
-    if (trustedSendersAddressBook === null) updateSetting('trustedSendersAddressBook', true);
-  }, [hydrated, hasContacts, trustedSendersAddressBook, updateSetting]);
-
+  // Sync stays off until the user turns it on below (null = never chosen):
+  // opening this pane must not change which senders the viewer trusts.
   const syncEnabled = !!trustedSendersAddressBook && hasContacts;
 
   useEffect(() => {

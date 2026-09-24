@@ -123,8 +123,8 @@ interface PersistedSettings {
   // Privacy & content
   externalContentPolicy: ExternalContentPolicy;
   trustedSenders: string[];
-  // null = not decided yet; flips to true automatically once the account
-  // proves it supports JMAP contacts (webmail parity), false = user opted out.
+  // null = not decided yet and treated as off; only the user's toggle in
+  // Content & Senders turns it on, false = user opted out.
   trustedSendersAddressBook: boolean | null;
   senderFavicons: boolean;
   hideInlineImageAttachments: boolean;
