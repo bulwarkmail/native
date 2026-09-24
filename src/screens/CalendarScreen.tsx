@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Alert,
   AppState,
+  I18nManager,
   View,
   Text,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Calendar1,
   CalendarDays,
   LayoutGrid,
   List as ListIcon,
@@ -26,6 +28,7 @@ import {
   startOfWeek,
   endOfWeek,
   addDays,
+  subDays,
   isToday,
   addMonths,
   subMonths,
@@ -42,6 +45,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { MonthView } from '../components/calendar/MonthView';
 import { MonthScrollView } from '../components/calendar/MonthScrollView';
 import { WeekView } from '../components/calendar/WeekView';
+import { TimeGridScrollView } from '../components/calendar/TimeGridScrollView';
 import { AgendaView } from '../components/calendar/AgendaView';
 import { EventCard } from '../components/calendar/EventCard';
 import { EventDetailSheet } from '../components/calendar/EventDetailSheet';
@@ -102,7 +106,7 @@ import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
 
-type ViewMode = 'month' | 'week' | 'agenda';
+type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 type PendingAction =
   | {
       kind: 'edit';
@@ -126,17 +130,21 @@ const RANGE_MARGIN_DAYS = 14;
 
 type WeekStart = 0 | 1 | 6;
 
+// `firstDay`: the scrolled week grid reports the first column in view; the
+// title then spans the seven days from there instead of the focused week.
 function headerTitle(
   viewMode: ViewMode,
   currentDate: Date,
   weekStartsOn: WeekStart,
   locale: Locale,
+  firstDay?: Date | null,
 ): string {
   if (viewMode === 'month') return format(currentDate, 'MMMM yyyy', { locale });
+  if (viewMode === 'day') return format(currentDate, 'EEE, MMM d, yyyy', { locale });
   if (viewMode === 'week') {
-    const start = startOfWeek(currentDate, { weekStartsOn });
-    const end = endOfWeek(currentDate, { weekStartsOn });
-    if (start.getMonth() === end.getMonth()) {
+    const start = firstDay ?? startOfWeek(currentDate, { weekStartsOn });
+    const end = firstDay ? addDays(firstDay, 6) : endOfWeek(currentDate, { weekStartsOn });
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
       return `${format(start, 'MMM d', { locale })} – ${format(end, 'd, yyyy', { locale })}`;
     }
     return `${format(start, 'MMM d', { locale })} – ${format(end, 'MMM d, yyyy', { locale })}`;
@@ -165,21 +173,18 @@ export default function CalendarScreen() {
   const contacts = useContactsStore((s) => s.contacts);
 
   const [selectedDate, setSelectedDate] = React.useState(() => new Date());
-  // Day view falls back to Agenda on mobile (we don't have a dedicated day
-  // grid yet, but the agenda already serves the same purpose).
   const initialViewMode: ViewMode =
-    calendarDefaultView === 'week' ? 'week'
-    : calendarDefaultView === 'day' || calendarDefaultView === 'agenda' ? 'agenda'
-    : 'month';
+    calendarDefaultView === 'week' || calendarDefaultView === 'day' || calendarDefaultView === 'agenda'
+      ? calendarDefaultView
+      : 'month';
   const [viewMode, setViewMode] = React.useState<ViewMode>(initialViewMode);
 
   // Scroll window (#759, webmail calendar-app): every view shows a window of
   // days around the day the user navigated to (the "focus"). With free
-  // scrolling (the default) the agenda and the month scroll continuously:
-  // reaching an edge widens that side and only the new days are fetched.
-  // Otherwise, and in the week view, a view shows exactly one period.
-  // Navigation moves the focus and, when that leaves the window, starts a
-  // fresh window there.
+  // scrolling (the default) the views scroll continuously: reaching an edge
+  // widens that side and only the new days are fetched. Otherwise a view
+  // shows exactly one period. Navigation moves the focus and, when that
+  // leaves the window, starts a fresh window there.
   const windowOptions = React.useMemo<ScrollWindowOptions>(
     () => ({ weekStartsOn: calendarFirstDayOfWeek }),
     [calendarFirstDayOfWeek],
@@ -190,7 +195,10 @@ export default function CalendarScreen() {
   const [windowState, setWindowState] = React.useState<ScrollWindowState>(
     () => freshScrollWindowState(initialViewMode, new Date()),
   );
-  const freeScroll = calendarFreeScroll && (viewMode === 'agenda' || viewMode === 'month');
+  // The sideways-scrolling week and day grids assume a left-to-right strip;
+  // right-to-left layouts keep them paged.
+  const freeScroll =
+    calendarFreeScroll && ((viewMode !== 'week' && viewMode !== 'day') || !I18nManager.isRTL);
   const focusKey = dayKey(focus.date);
   const activeWindowState = React.useMemo(
     () =>
@@ -458,12 +466,20 @@ export default function CalendarScreen() {
   // away from the focused day.
   const goPrev = React.useCallback(() => {
     const base = visibleDate ?? focus.date;
-    jumpTo(viewMode === 'week' ? subWeeks(base, 1) : subMonths(base, 1));
+    jumpTo(
+      viewMode === 'week' ? subWeeks(base, 1)
+      : viewMode === 'day' ? subDays(base, 1)
+      : subMonths(base, 1),
+    );
   }, [viewMode, visibleDate, focus.date, jumpTo]);
 
   const goNext = React.useCallback(() => {
     const base = visibleDate ?? focus.date;
-    jumpTo(viewMode === 'week' ? addWeeks(base, 1) : addMonths(base, 1));
+    jumpTo(
+      viewMode === 'week' ? addWeeks(base, 1)
+      : viewMode === 'day' ? addDays(base, 1)
+      : addMonths(base, 1),
+    );
   }, [viewMode, visibleDate, focus.date, jumpTo]);
 
   const goToday = React.useCallback(() => {
@@ -896,8 +912,15 @@ export default function CalendarScreen() {
           <Menu size={20} color={c.text} />
         </Pressable>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>
-            {headerTitle(viewMode, visibleDate ?? focus.date, calendarFirstDayOfWeek, locale)}
+          {/* Four view buttons leave less room: shrink a long title instead of wrapping it. */}
+          <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+            {headerTitle(
+              viewMode,
+              visibleDate ?? focus.date,
+              calendarFirstDayOfWeek,
+              locale,
+              viewMode === 'week' && freeScroll ? visibleDate : null,
+            )}
           </Text>
           <Text style={styles.headerSubtitle}>
             {isSelectedToday
@@ -916,9 +939,12 @@ export default function CalendarScreen() {
             </Pressable>
           )}
           <View style={styles.viewToggle}>
-            {(['month', 'week', 'agenda'] as ViewMode[]).map((mode) => {
+            {(['month', 'week', 'day', 'agenda'] as ViewMode[]).map((mode) => {
               const Icon =
-                mode === 'month' ? LayoutGrid : mode === 'week' ? CalendarDays : ListIcon;
+                mode === 'month' ? LayoutGrid
+                : mode === 'week' ? CalendarDays
+                : mode === 'day' ? Calendar1
+                : ListIcon;
               const active = viewMode === mode;
               return (
                 <Pressable
@@ -991,7 +1017,27 @@ export default function CalendarScreen() {
             onLongPressDate={openCreate}
           />
         )}
-        {viewMode === 'week' && (
+        {(viewMode === 'day' || (viewMode === 'week' && freeScroll)) && (
+          <TimeGridScrollView
+            key={windowKey}
+            mode={viewMode === 'day' ? 'day' : 'week'}
+            focus={focus}
+            window={scrollWindow}
+            onExtendStart={freeScroll && scrollWindow.canExtendStart ? extendWindowStart : undefined}
+            onExtendEnd={freeScroll && scrollWindow.canExtendEnd ? extendWindowEnd : undefined}
+            onVisibleDateChange={freeScroll ? setVisibleDate : undefined}
+            selectedDate={selectedDate}
+            events={events}
+            eventsByDay={eventsByDay}
+            calendars={calendars}
+            weekStartsOn={calendarFirstDayOfWeek}
+            timeFormat={calendarTimeFormat}
+            onSelectDate={handleSelectDate}
+            onSelectEvent={handleSelectEvent}
+            onCreateAtTime={openCreate}
+          />
+        )}
+        {viewMode === 'week' && !freeScroll && (
           <WeekView
             weekDate={focus.date}
             selectedDate={selectedDate}
@@ -1245,7 +1291,7 @@ function makeStyles(c: ThemePalette) {
     padding: 2,
   },
   viewToggleBtn: {
-    width: 32,
+    width: 30,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',

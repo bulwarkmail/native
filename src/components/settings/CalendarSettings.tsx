@@ -63,19 +63,16 @@ export function CalendarSettings() {
     ];
   }, [deviceZone, timeZone, t]);
 
-  // The mobile app has no dedicated day grid ("day" falls back to the
-  // agenda), so the option isn't offered; a synced "day" value shows as Agenda.
-  const effectiveView: CalendarView = viewMode === 'day' ? 'agenda' : viewMode;
-
   return (
     <SettingsSection title={t('calendar.settings.title', 'Calendar')}>
       <SettingItem label={t('calendar.settings.default_view', 'Default view')}>
         <Select
-          value={effectiveView}
+          value={viewMode}
           onChange={(v) => update('calendarDefaultView', v as CalendarView)}
           options={[
             { value: 'month', label: t('calendar.views.month', 'Month') },
             { value: 'week', label: t('calendar.views.week', 'Week') },
+            { value: 'day', label: t('calendar.views.day', 'Day') },
             { value: 'agenda', label: t('calendar.views.agenda', 'Agenda') },
           ]}
         />
