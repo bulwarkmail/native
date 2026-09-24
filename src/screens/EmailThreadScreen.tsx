@@ -68,6 +68,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const getEmailDetail = useEmailStore((s) => s.getEmailDetail);
   const markRead = useEmailStore((s) => s.markRead);
+  const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
   const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
@@ -256,6 +257,16 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     [listAccountId, ownerAccountId, markRead],
   );
 
+  // Star, tag and unread go through the store as well, which knows the
+  // message's account from `viewed`: offline they wait in the outbox, and the
+  // list row follows when the list holds that account (never a same-id row
+  // of another one).
+  const setKeyword = React.useCallback(
+    (target: Email, token: string, on: boolean) =>
+      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId }),
+    [setKeywordForEmails, ownerAccountId],
+  );
+
   // Mark a message read per the user's delay setting: -1 never, 0 instantly,
   // >0 after that many milliseconds. Returns a cancel function.
   const scheduleMarkRead = React.useCallback((target: Email): (() => void) => {
@@ -336,7 +347,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (next[token]) delete next[token];
     else next[token] = true;
     updateLocalKeywords(email.id, next);
-    patchKeywordsForEmails([email.id], { [token]: next[token] ?? null }, ownerAccountId).catch((err) => {
+    setKeyword(email, token, !!next[token]).catch((err) => {
       updateLocalKeywords(email.id, email.keywords);
       toastFailure(t('notifications.tag_failed', 'Tagging failed'), err);
     });
@@ -349,11 +360,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     if (next.$flagged) delete next.$flagged;
     else next.$flagged = true;
     updateLocalKeywords(target.id, next);
-    patchKeywordsForEmails([target.id], { $flagged: next.$flagged ?? null }, ownerAccountId).catch((err) => {
+    setKeyword(target, '$flagged', !!next.$flagged).catch((err) => {
       updateLocalKeywords(target.id, target.keywords);
       toastFailure(t('notifications.error_updating', 'Failed to update email'), err);
     });
-  }, [updateLocalKeywords, ownerAccountId, t]);
+  }, [updateLocalKeywords, setKeyword, t]);
 
   const onToggleStar = () => { if (email) toggleStarFor(email); };
 
@@ -370,7 +381,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       const next = { ...email.keywords };
       delete next.$seen;
       updateLocalKeywords(email.id, next);
-      patchKeywordsForEmails([email.id], { $seen: null }, ownerAccountId).catch(failed);
+      setKeyword(email, '$seen', false).catch(failed);
     }
   };
 

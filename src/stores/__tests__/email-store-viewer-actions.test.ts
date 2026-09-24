@@ -43,10 +43,10 @@ vi.mock('../locale-store', () => ({
 
 // Online with nothing queued: run the online runner straight away.
 vi.mock('../outbox-store', () => {
-  const applyOrQueueBatch = async (_ops: unknown[], onlineRun?: () => Promise<void>) => {
+  const applyOrQueueBatch = vi.fn(async (_ops: unknown[], onlineRun?: () => Promise<void>) => {
     if (onlineRun) await onlineRun();
     return { queued: false };
-  };
+  });
   return {
     applyOrQueueBatch,
     applyOrQueue: async (op: unknown, onlineRun?: () => Promise<void>) => applyOrQueueBatch([op], onlineRun),
@@ -94,6 +94,7 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import * as emailApi from '../../api/email';
+import { applyOrQueueBatch } from '../outbox-store';
 import { useEmailStore, type ViewedEmail } from '../email-store';
 import { useSettingsStore } from '../settings-store';
 import type { Email, Mailbox } from '../../api/types';
@@ -104,6 +105,8 @@ const mockRestore = emailApi.restoreEmailMailboxes as ReturnType<typeof vi.fn>;
 const mockMarkAsSpam = emailApi.markAsSpam as ReturnType<typeof vi.fn>;
 const mockUndoSpam = emailApi.undoSpam as ReturnType<typeof vi.fn>;
 const mockArchive = emailApi.archiveEmails as ReturnType<typeof vi.fn>;
+const mockPatchKeywords = emailApi.patchKeywordsForEmails as ReturnType<typeof vi.fn>;
+const mockApplyOrQueueBatch = applyOrQueueBatch as unknown as ReturnType<typeof vi.fn>;
 
 function own(id: string, role: string): Mailbox {
   return { id, name: role, role, accountId: 'acc-1', isShared: false } as Mailbox;
@@ -252,5 +255,49 @@ describe('viewer Archive of a message the list does not hold', () => {
     expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', teamRaw, 'grp-1');
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
     expect(useEmailStore.getState().pendingUndo?.accountId).toBe('grp-1');
+  });
+});
+
+describe('viewer star, tag and unread go through the store', () => {
+  it("stars a team message in the team account and leaves the open inbox's same-id row alone", async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$flagged', true, TEAM_VIEWED);
+
+    // Queued for the team account when offline, sent to it when online.
+    expect(mockApplyOrQueueBatch.mock.calls[0][0]).toEqual([
+      { kind: 'keywords', emailId: 'e1', accountId: 'grp-1', patch: { $flagged: true } },
+    ]);
+    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $flagged: true }, 'grp-1');
+    expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+  });
+
+  it("updates the list row when the list holds the message's account", async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$label1', true, { email: OWN_ROW, accountId: undefined });
+
+    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $label1: true }, undefined);
+    expect(useEmailStore.getState().emails[0].keywords).toEqual({ $label1: true });
+  });
+
+  it('keeps an unstarred row in the Starred view like the list does', async () => {
+    const starred = { ...OWN_ROW, keywords: { $flagged: true } } as Email;
+    useEmailStore.setState({
+      mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [starred], filters: { isStarred: true },
+    });
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$flagged', false, { email: starred, accountId: undefined });
+
+    expect(useEmailStore.getState().retainedIds).toEqual(['e1']);
+  });
+
+  it('still sends the change for a message the list does not show', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [] });
+
+    await useEmailStore.getState().setKeywordForEmails(['e1'], '$seen', false, { email: OWN_ROW, accountId: undefined });
+
+    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: null }, undefined);
+    expect(useEmailStore.getState().emails).toEqual([]);
   });
 });

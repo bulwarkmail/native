@@ -383,8 +383,12 @@ export interface EmailState {
   archiveEmailsBatch: (emailIds: string[]) => Promise<void>;
   moveEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
   deleteEmailsBatch: (emailIds: string[], trashMailboxId: string, currentMailboxId: string) => Promise<void>;
-  /** Set or clear one keyword (tag, `$seen`, `$flagged`) on a selection in one `Email/set`. */
-  setKeywordForEmails: (emailIds: string[], token: string, on: boolean) => Promise<void>;
+  /**
+   * Set or clear one keyword (tag, `$seen`, `$flagged`) on a selection in one
+   * `Email/set`. With `viewed`, on the viewer's message in its own account;
+   * the list row follows only when the list holds that account.
+   */
+  setKeywordForEmails: (emailIds: string[], token: string, on: boolean, viewed?: ViewedEmail) => Promise<void>;
   undoLast: () => Promise<void>;
   clearUndo: () => void;
   searchEmails: (query: string) => Promise<Email[]>;
@@ -1578,11 +1582,11 @@ export const useEmailStore = create<EmailState>()(
     }
   },
 
-  setKeywordForEmails: async (emailIds, token, on) => {
+  setKeywordForEmails: async (emailIds, token, on, viewed) => {
     const state = get();
-    const targets = state.emails.filter((e) => emailIds.includes(e.id));
+    const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
-    const owner = currentAccountId(state);
+    const owner = viewed ? viewed.accountId : currentAccountId(state);
     const ids = targets.map((e) => e.id);
     const patch = { [token]: on ? true : null };
     await applyOrQueueBatch(
@@ -1594,14 +1598,14 @@ export const useEmailStore = create<EmailState>()(
       })),
       () => patchKeywordsForEmails(ids, patch, owner),
     );
-    const touched = new Set(ids);
+    const touched = new Set(listed ? ids : []);
     set({
       emails: get().emails.map((e) =>
         touched.has(e.id) ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
       // Reading inside Unread, unstarring inside Starred or untagging inside
       // that tag's view keeps the rows until it's re-opened.
-      ...(leavesView(state.filters, token, on)
+      ...(listed && leavesView(state.filters, token, on)
         ? { retainedIds: retain(get().retainedIds, ids) }
         : {}),
     });
