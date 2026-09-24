@@ -16,6 +16,8 @@ import {
   createEvent,
   updateEvent,
   deleteEvents,
+  batchCreateEvents,
+  clearCalendarEvents,
   findEventsByUid,
   toLocalDateTime,
 } from '../calendar';
@@ -377,6 +379,63 @@ describe('calendar operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].destroy).toEqual(['ev1']);
+    });
+
+    it('throws when the server refuses to destroy (B24)', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', {
+          destroyed: [],
+          notDestroyed: { ev1: { type: 'forbidden', description: 'read-only calendar' } },
+        }, '0']],
+      });
+
+      await expect(deleteEvents(['ev1'])).rejects.toThrow(/destroy event ev1.*read-only calendar/);
+    });
+
+    it('throws on a method-level error', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['error', { type: 'accountNotFound' }, '0']],
+      });
+
+      await expect(deleteEvents(['ev1'])).rejects.toThrow('accountNotFound');
+    });
+  });
+
+  describe('batchCreateEvents', () => {
+    it('returns how many were created when only some were refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', {
+          created: { 'evt-0': { id: 'a' } },
+          notCreated: { 'evt-1': { type: 'invalidProperties' } },
+        }, '0']],
+      });
+
+      expect(await batchCreateEvents([{ title: 'A' }, { title: 'B' }], 'cal-1')).toBe(1);
+    });
+
+    it('throws when the server refused every event (B24)', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', {
+          notCreated: { 'evt-0': { type: 'invalidProperties', properties: ['participants'] } },
+        }, '0']],
+      });
+
+      await expect(batchCreateEvents([{ title: 'A' }], 'cal-1')).rejects.toThrow(/invalidProperties/);
+    });
+  });
+
+  describe('clearCalendarEvents', () => {
+    it('throws when the server refuses to destroy the events (B24)', async () => {
+      mockRequest
+        .mockResolvedValueOnce({ methodResponses: [['CalendarEvent/query', { ids: ['ev1'] }, '0']] })
+        .mockResolvedValueOnce({
+          methodResponses: [['CalendarEvent/get', { list: [{ id: 'ev1', calendarIds: { 'cal-1': true } }] }, '0']],
+        })
+        .mockResolvedValueOnce({
+          methodResponses: [['CalendarEvent/set', { notDestroyed: { ev1: { type: 'forbidden' } } }, '0']],
+        });
+
+      await expect(clearCalendarEvents('cal-1')).rejects.toThrow(/forbidden/);
     });
   });
 });

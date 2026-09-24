@@ -436,15 +436,25 @@ export default function CalendarScreen() {
     openEditDirect(event);
   }, [openEditDirect, isReadOnlyEvent]);
 
+  const reportError = React.useCallback(
+    (err: unknown) => {
+      Alert.alert(
+        t('calendar.notifications.event_error', 'Something went wrong'),
+        err instanceof Error ? err.message : undefined,
+      );
+    },
+    [t],
+  );
+
   const handleDeleteFromDetail = React.useCallback((event: CalendarEvent) => {
     if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
     setDetailEvent(null);
     if (isRecurringSeriesMember(event)) {
       setPendingAction({ kind: 'delete', event });
     } else {
-      void deleteEvent(event.id);
+      deleteEvent(event.id).catch(reportError);
     }
-  }, [deleteEvent, isReadOnlyEvent]);
+  }, [deleteEvent, isReadOnlyEvent, reportError]);
 
   // "This and following": end the master at the occurrence and hand back the
   // master plus its untouched rules so the caller can start a new series (or
@@ -588,9 +598,9 @@ export default function CalendarScreen() {
         setPendingAction({ kind: 'delete', event });
         return;
       }
-      await deleteEvent(event.id);
+      await deleteEvent(event.id).catch(reportError);
     },
-    [deleteEvent],
+    [deleteEvent, reportError],
   );
 
   const onRefresh = React.useCallback(async () => {
@@ -601,16 +611,6 @@ export default function CalendarScreen() {
       setRefreshing(false);
     }
   }, [refresh]);
-
-  const reportError = React.useCallback(
-    (err: unknown) => {
-      Alert.alert(
-        t('calendar.notifications.event_error', 'Something went wrong'),
-        err instanceof Error ? err.message : undefined,
-      );
-    },
-    [t],
-  );
 
   // The store flips the checkbox optimistically and reverts it when the
   // server refuses; say so instead of leaving the user guessing.
@@ -624,6 +624,18 @@ export default function CalendarScreen() {
       });
     },
     [toggleTaskComplete, t],
+  );
+
+  const handleDeleteTask = React.useCallback(
+    (id: string) => {
+      deleteTask(id).catch((err: unknown) => {
+        Alert.alert(
+          t('calendar.tasks.delete_error', 'Failed to delete task'),
+          err instanceof Error ? err.message : undefined,
+        );
+      });
+    },
+    [deleteTask, t],
   );
 
   // Clone the event one day later and open it in the editor (webmail's
@@ -960,7 +972,7 @@ export default function CalendarScreen() {
         onCreate={createTask}
         onUpdate={updateTask}
         onToggle={handleToggleTask}
-        onDelete={deleteTask}
+        onDelete={handleDeleteTask}
       />
 
       <ICalImportSheet

@@ -1,6 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
+import { assertSetResult } from './jmap-result';
 import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 
@@ -447,7 +448,9 @@ export async function createEvent(
   return normalizeRecurrenceProperties({ ...payload, ...created } as CalendarEvent);
 }
 
-// Batch-create many events in one CalendarEvent/set. Returns the number created.
+// Batch-create many events in one CalendarEvent/set. Returns the number
+// created; throws when the server refused every one of them, so a refusal
+// doesn't read as "nothing new to import".
 export async function batchCreateEvents(
   events: Partial<CalendarEvent>[],
   calendarId: string,
@@ -465,8 +468,13 @@ export async function batchCreateEvents(
     [['CalendarEvent/set', { accountId, create }, '0']],
     USING,
   );
-  const result = methodResult<{ created?: Record<string, unknown> }>(res);
-  return result.created ? Object.keys(result.created).length : 0;
+  const result = methodResult<{
+    created?: Record<string, unknown>;
+    notCreated?: Record<string, { description?: string; type?: string }>;
+  }>(res);
+  const count = result.created ? Object.keys(result.created).length : 0;
+  if (count === 0) assertSetResult(result, undefined, 'event');
+  return count;
 }
 
 export async function updateEvent(
@@ -493,10 +501,11 @@ export async function deleteEvents(
   targetAccountId?: string,
 ): Promise<void> {
   const accountId = targetAccountId || jmapClient.accountId;
-  await jmapClient.request(
+  const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, { destroy: ids }, sendSchedulingMessages), '0']],
     USING,
   );
+  assertSetResult(methodResult(res), ids, 'event');
 }
 
 // RSVP to an invitation: patch the participant's participationStatus via a JSON
@@ -722,7 +731,9 @@ export async function clearCalendarEvents(
         [['CalendarEvent/set', { accountId, destroy: toDestroy }, '0']],
         USING,
       );
-      removed += (methodResult<{ destroyed?: string[] }>(res).destroyed ?? []).length;
+      const result = methodResult<{ destroyed?: string[] }>(res);
+      assertSetResult(result, toDestroy, 'event');
+      removed += (result.destroyed ?? []).length;
     }
     if (toUnlink.length > 0) {
       const update: Record<string, unknown> = {};
@@ -731,7 +742,9 @@ export async function clearCalendarEvents(
         [['CalendarEvent/set', { accountId, update }, '0']],
         USING,
       );
-      removed += Object.keys(methodResult<{ updated?: Record<string, unknown> }>(res).updated ?? {}).length;
+      const result = methodResult<{ updated?: Record<string, unknown> }>(res);
+      assertSetResult(result, Object.keys(update), 'event');
+      removed += Object.keys(result.updated ?? {}).length;
     }
     if (toDestroy.length === 0 && toUnlink.length === 0) break;
     if (ids.length < 1000) break;

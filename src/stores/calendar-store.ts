@@ -639,11 +639,15 @@ export const useCalendarStore = create<CalendarState>()(
     }
     const prepared = toCreate.map(prepareImportedEvent);
     let count = 0;
-    // Batch in chunks of 50 to avoid oversized requests.
-    for (let i = 0; i < prepared.length; i += 50) {
-      count += await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
+    try {
+      // Batch in chunks of 50 to avoid oversized requests.
+      for (let i = 0; i < prepared.length; i += 50) {
+        count += await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
+      }
+    } finally {
+      // Also when a later chunk was refused: show what did get in.
+      if (count > 0 || linked > 0) await get().refresh();
     }
-    if (count > 0 || linked > 0) await get().refresh();
     return count + linked;
   },
 
@@ -674,9 +678,12 @@ export const useCalendarStore = create<CalendarState>()(
 
   clearCalendarEvents: async (id) => {
     const cal = get().calendars.find((c) => c.id === id);
-    const removed = await apiClearCalendarEvents(cal?.originalId || id, cal?.accountId);
-    await get().refresh();
-    return removed;
+    try {
+      return await apiClearCalendarEvents(cal?.originalId || id, cal?.accountId);
+    } finally {
+      // Also after a refused batch: earlier batches may have gone through.
+      await get().refresh();
+    }
   },
 
   shareCalendar: async (id, principalId, rights) => {
