@@ -31,7 +31,7 @@ import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
-import { findTrashMailbox, mailboxesForSiblingOf } from '../lib/mailbox-tree';
+import { findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail } from '../lib/mailbox-tree';
 import { pickEmailBody, plainTextBody } from '../lib/email-body';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
@@ -44,7 +44,11 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { t } = useLocaleStore();
-  const { jmapAccountId } = route.params;
+  // The JMAP account the message lives in, as the screen that opened it named
+  // it (undefined = the user's own). Never the open folder's: that may be
+  // another account holding a different message under the same id (B3).
+  // Fixed at open, since a later navigate() here only swaps route.params.
+  const [ownerAccountId] = React.useState(route.params.jmapAccountId);
   // The displayed email is tracked in local state (not a route param) so that
   // swiping / Prev-Next can switch messages in place without remounting the
   // screen — which is what produced the loading flash on every change.
@@ -72,6 +76,13 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const resolvedTheme = useResolvedTheme();
   React.useEffect(() => { if (identities.length === 0) void fetchIdentities(); }, [identities.length, fetchIdentities]);
 
+  // The account whose mail the store's list holds (the open folder's). Its
+  // rows only stand for this message when that is the message's account.
+  const listAccountId = React.useMemo(
+    () => mailboxAccountId(mailboxes, currentMailboxId),
+    [mailboxes, currentMailboxId],
+  );
+
   // The list the pager pages over. A message opened from the active folder
   // pages over that folder (collapsed to one page per thread when threading
   // is on, the opened message standing in for its thread); one opened from
@@ -81,17 +92,18 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // pager would render `emails[0]` while the toolbar acted on the tapped one.
   const emails = React.useMemo<Email[]>(() => {
     const { emailIds, emailId, threadId } = route.params;
+    const list = listAccountId === ownerAccountId ? storeEmails : [];
     if (emailIds && emailIds.length > 0) {
-      const byId = jmapAccountId ? null : new Map(storeEmails.map((e) => [e.id, e]));
-      return emailIds.map((id) => byId?.get(id) ?? ({ id, threadId } as Email));
+      const byId = new Map(list.map((e) => [e.id, e]));
+      return emailIds.map((id) => byId.get(id) ?? ({ id, threadId } as Email));
     }
-    const opened = jmapAccountId ? undefined : storeEmails.find((e) => e.id === emailId);
+    const opened = list.find((e) => e.id === emailId);
     if (opened) {
-      if (disableThreading) return storeEmails;
+      if (disableThreading) return list;
       const openedKey = opened.threadId || opened.id;
       const seen = new Set<string>();
       const out: Email[] = [];
-      for (const e of storeEmails) {
+      for (const e of list) {
         const key = e.threadId || e.id;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -100,18 +112,8 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       return out;
     }
     return [{ id: emailId, threadId } as Email];
-  }, [storeEmails, route.params, jmapAccountId, disableThreading]);
+  }, [storeEmails, route.params, listAccountId, ownerAccountId, disableThreading]);
 
-  // The JMAP account the open message belongs to: the route param when the
-  // unified inbox opened a group message, otherwise the account behind the
-  // folder it was opened from. Undefined means the user's own mail.
-  const ownerAccountId = React.useMemo(() => {
-    if (jmapAccountId) return jmapAccountId;
-    const current = currentMailboxId
-      ? mailboxes.find((m) => m.id === currentMailboxId)
-      : undefined;
-    return current?.isShared ? current.accountId : undefined;
-  }, [jmapAccountId, mailboxes, currentMailboxId]);
   const currentMailboxRole = React.useMemo(
     () => (currentMailboxId ? mailboxes.find((m) => m.id === currentMailboxId)?.role ?? null : null),
     [mailboxes, currentMailboxId],
@@ -250,13 +252,23 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     bumpCache();
   }, [detailCache, bumpCache]);
 
+  // Mark read through the store (its list row and offline queue) only when
+  // the list holds the message's account; the store would otherwise read the
+  // id as a row of the open folder's account (B3), so go to the server.
+  const markSeen = React.useCallback(
+    (id: string) => (listAccountId === ownerAccountId
+      ? markRead(id, ownerAccountId)
+      : patchKeywordsForEmails([id], { $seen: true }, ownerAccountId)),
+    [listAccountId, ownerAccountId, markRead],
+  );
+
   // Mark a message read per the user's delay setting: -1 never, 0 instantly,
   // >0 after that many milliseconds. Returns a cancel function.
   const scheduleMarkRead = React.useCallback((target: Email): (() => void) => {
     if (target.keywords?.$seen || markAsReadDelay === -1) return () => undefined;
     const apply = () => {
       updateLocalKeywords(target.id, { ...target.keywords, $seen: true });
-      void markRead(target.id, ownerAccountId);
+      void markSeen(target.id);
     };
     if (markAsReadDelay > 0) {
       const timer = setTimeout(apply, markAsReadDelay);
@@ -264,7 +276,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
     }
     apply();
     return () => undefined;
-  }, [markAsReadDelay, markRead, ownerAccountId, updateLocalKeywords]);
+  }, [markAsReadDelay, markSeen, updateLocalKeywords]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -290,11 +302,12 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const starred = !!email?.keywords?.$flagged;
   const unread = !!email && !email.keywords?.$seen;
 
-  // Move/archive/spam targets have to live in the same account as the folder
-  // the message was opened from.
+  // Move/archive/spam/trash targets have to live in the message's own account,
+  // whatever folder is open (B3). None are found while that account's folders
+  // are unknown, and the actions then refuse rather than guess.
   const scopedMailboxes = React.useMemo(
-    () => mailboxesForSiblingOf(mailboxes, currentMailboxId),
-    [mailboxes, currentMailboxId],
+    () => mailboxesOfAccount(mailboxes, ownerAccountId),
+    [mailboxes, ownerAccountId],
   );
   const archiveMailbox = React.useMemo(
     () => scopedMailboxes.find((m) => m.role === 'archive'),
@@ -312,7 +325,17 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   // folder's raw id rather than the sidebar key.
   const isInJunk = !!(junkMailbox && email?.mailboxIds?.[junkMailbox.originalId ?? junkMailbox.id]);
   const trashMailbox = React.useMemo(() => findTrashMailbox(scopedMailboxes), [scopedMailboxes]);
-  const isInTrash = !!(trashMailbox && currentMailboxId === trashMailbox.id);
+  // The folder the message is filed in (the one it was opened from, when
+  // that is one of its own): what delete and move take it out of.
+  const sourceMailbox = React.useMemo(
+    () => mailboxOfEmail(scopedMailboxes, email?.mailboxIds, currentMailboxId),
+    [scopedMailboxes, email, currentMailboxId],
+  );
+  const isInTrash = !!(trashMailbox && sourceMailbox?.id === trashMailbox.id);
+  // Archive still resolves its folder from the open one, so it is only
+  // offered for mail of that account.
+  const canArchive = !!archiveMailbox && listAccountId === ownerAccountId
+    && sourceMailbox?.id !== archiveMailbox.id;
 
   const onToggleKeyword = (token: string) => {
     if (!email) return;
@@ -338,7 +361,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const onToggleUnread = () => {
     if (!email) return;
     if (unread) {
-      void markRead(email.id, ownerAccountId);
+      void markSeen(email.id);
       updateLocalKeywords(email.id, { ...email.keywords, $seen: true });
     } else {
       const next = { ...email.keywords };
@@ -354,14 +377,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   }, [detailCache, bumpCache]);
 
   const performDelete = () => {
-    if (!email || !currentMailboxId || !trashMailbox) return;
-    void deleteEmail(email.id, trashMailbox.id, currentMailboxId);
+    if (!email || !sourceMailbox || !trashMailbox) return;
+    void deleteEmail(email.id, trashMailbox.id, sourceMailbox.id, { email, accountId: ownerAccountId });
     navigation.goBack();
   };
 
   const onDelete = () => {
-    if (!email || !currentMailboxId) return;
-    if (!trashMailbox) {
+    if (!email) return;
+    if (!trashMailbox || !sourceMailbox) {
       Alert.alert(
         t('email_list.error', 'Error'),
         t('email_list.no_trash_folder', 'Could not find a Trash folder on the server. Please check your mailbox configuration.'),
@@ -387,31 +410,31 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   };
 
   const onArchive = () => {
-    if (!email || !currentMailboxId || !archiveMailbox) return;
-    if (currentMailboxId === archiveMailbox.id) return;
+    if (!email || !canArchive) return;
     void archiveEmailAction(email.id);
     navigation.goBack();
   };
 
   const onToggleSpam = () => {
-    if (!email || !currentMailboxId) return;
+    if (!email || !sourceMailbox) return;
     setMoreMenuOpen(false);
+    const viewed = { email, accountId: ownerAccountId };
     if (isInJunk) {
-      const target = inboxMailbox ?? scopedMailboxes.find((m) => m.id !== currentMailboxId);
+      const target = inboxMailbox ?? scopedMailboxes.find((m) => m.id !== sourceMailbox.id);
       if (!target) return;
-      void moveToMailbox(email.id, currentMailboxId, target.id);
+      void moveToMailbox(email.id, sourceMailbox.id, target.id, viewed);
     } else {
       if (!junkMailbox) return;
-      void moveToMailbox(email.id, currentMailboxId, junkMailbox.id);
+      void moveToMailbox(email.id, sourceMailbox.id, junkMailbox.id, viewed);
     }
     navigation.goBack();
   };
 
   const onMoveToMailbox = (toId: string) => {
-    if (!email || !currentMailboxId || toId === currentMailboxId) return;
+    if (!email || !sourceMailbox || toId === sourceMailbox.id) return;
     setMoveMenuOpen(false);
     setMoreMenuOpen(false);
-    void moveToMailbox(email.id, currentMailboxId, toId);
+    void moveToMailbox(email.id, sourceMailbox.id, toId, { email, accountId: ownerAccountId });
     navigation.goBack();
   };
 
@@ -512,7 +535,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       label: t('email_viewer.archive', 'Archive'),
       icon: (s, col) => <Archive size={s} color={col} />,
       onPress: onArchive,
-      available: !!archiveMailbox && currentMailboxId !== archiveMailbox?.id,
+      available: canArchive,
     },
     markUnread: {
       label: unread ? t('email_viewer.read', 'Read') : t('email_viewer.unread', 'Unread'),
@@ -532,14 +555,14 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
       label: t('email_viewer.move', 'Move'),
       icon: (s, col) => <FolderInput size={s} color={col} />,
       onPress: () => setMoveMenuOpen(true),
-      available: mailboxes.length > 0,
+      available: !!sourceMailbox,
     },
     spam: {
       label: isInJunk ? t('email_viewer.not_spam_short', 'Not spam') : t('email_viewer.spam_short', 'Spam'),
       icon: (s, col) =>
         isInJunk ? <ShieldCheck size={s} color={c.success} /> : <ShieldAlert size={s} color={col} />,
       onPress: onToggleSpam,
-      available: !!junkMailbox || isInJunk,
+      available: !!junkMailbox && !!sourceMailbox,
     },
     tag: {
       label: t('email_viewer.tag', 'Tag'),
@@ -552,7 +575,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
   const bottomBarHeight = 60 + Math.max(insets.bottom, 4);
   // Drop optional toolbar buttons on narrow screens.
   const showMarkUnread = windowWidth >= 340;
-  const showArchive = windowWidth >= 400 && !!archiveMailbox;
+  const showArchive = windowWidth >= 400 && canArchive;
 
   // Current rendering mode of the active message, for the More sheet label.
   const activeRenderDark = email
@@ -713,10 +736,10 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         visible={moreMenuOpen}
         onClose={() => setMoreMenuOpen(false)}
         unread={unread}
-        canArchive={!!archiveMailbox && currentMailboxId !== archiveMailbox?.id}
+        canArchive={canArchive}
         canMarkUnread={true}
-        canMove={mailboxes.length > 0}
-        showSpam={!!junkMailbox || isInJunk}
+        canMove={!!sourceMailbox}
+        showSpam={!!junkMailbox && !!sourceMailbox}
         isInJunk={isInJunk}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
@@ -770,7 +793,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
         visible={moveMenuOpen}
         onClose={() => setMoveMenuOpen(false)}
         mailboxes={scopedMailboxes}
-        currentMailboxId={currentMailboxId}
+        currentMailboxId={sourceMailbox?.id ?? null}
         onPick={onMoveToMailbox}
       />
 

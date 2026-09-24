@@ -55,6 +55,11 @@ export type RootStackParamList = {
     emailId: string;
     threadId: string;
     subject?: string;
+    /**
+     * JMAP account the message lives in; unset for the user's own mail. The
+     * opener names it: the viewer never derives it from the open folder,
+     * whose account may hold another message under the same id.
+     */
     jmapAccountId?: string;
     /**
      * Ids to page over when the message was opened from a list other than

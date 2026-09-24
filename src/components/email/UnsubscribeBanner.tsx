@@ -13,7 +13,7 @@ import { sendEmail } from '../../api/email';
 import { isValidUnsubscribeUrl, parseMailtoUrl, isOneClickUnsubscribe } from '../../lib/unsubscribe';
 import type { ListHeaders } from '../../lib/email-headers';
 import { findReceivingIdentity } from '../../lib/email-headers';
-import { mailboxesForSiblingOf } from '../../lib/mailbox-tree';
+import { mailboxesOfAccount } from '../../lib/mailbox-tree';
 
 const DISMISSED_KEY = 'webmail:unsubscribe-dismissed:v1';
 const dismissed = new Set<string>();
@@ -57,7 +57,6 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
   const t = useLocaleStore((s) => s.t);
   const identities = useSettingsStore((s) => s.identities);
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const [hidden, setHidden] = React.useState(true);
   const [state, setState] = React.useState<'idle' | 'busy' | 'done' | 'error'>('idle');
 
@@ -102,7 +101,8 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
         if (!fields) throw new Error('invalid mailto');
         const identity = findReceivingIdentity(identities, email) ?? identities[0];
         if (!identity) throw new Error(t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
-        const scoped = mailboxesForSiblingOf(mailboxes, currentMailboxId);
+        // Sent/Drafts of the account the mail is submitted from: the message's.
+        const scoped = mailboxesOfAccount(mailboxes, jmapAccountId);
         const sent = scoped.find((m) => m.role === 'sent');
         const drafts = scoped.find((m) => m.role === 'drafts');
         if (!sent) throw new Error(t('email_composer.no_sent_folder', 'No Sent folder found'));

@@ -15,7 +15,7 @@ import { computeReplyThreadingHeaders } from '../../lib/email-threading';
 import { findReceivingIdentity } from '../../lib/email-headers';
 import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
-import { mailboxesForSiblingOf } from '../../lib/mailbox-tree';
+import { mailboxesOfAccount } from '../../lib/mailbox-tree';
 import { emailDisplayDate, formatFullDateTime } from '../../lib/email-date';
 
 interface Props {
@@ -41,7 +41,6 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const identities = useSettingsStore((s) => s.identities);
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
 
@@ -58,7 +57,8 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       Alert.alert(t('common.error', 'Error'), t('email_viewer.unsubscribe_banner.no_identity', 'No sending identity available'));
       return;
     }
-    const scoped = mailboxesForSiblingOf(mailboxes, currentMailboxId);
+    // Sent/Drafts of the account the reply is submitted from: the message's.
+    const scoped = mailboxesOfAccount(mailboxes, jmapAccountId);
     const sent = scoped.find((m) => m.role === 'sent');
     const drafts = scoped.find((m) => m.role === 'drafts');
     if (!sent) {

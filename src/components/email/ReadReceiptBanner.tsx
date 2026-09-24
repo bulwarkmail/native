@@ -10,7 +10,7 @@ import { useEmailStore } from '../../stores/email-store';
 import { sendReadReceipt, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { findReceivingIdentity } from '../../lib/email-headers';
-import { mailboxesForSiblingOf } from '../../lib/mailbox-tree';
+import { mailboxesOfAccount } from '../../lib/mailbox-tree';
 
 interface Props {
   email: Email;
@@ -44,7 +44,6 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
   const fetchIdentities = useSettingsStore((s) => s.fetchIdentities);
   const readReceiptResponse = useSettingsStore((s) => s.readReceiptResponse);
   const mailboxes = useEmailStore((s) => s.mailboxes);
-  const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const [busy, setBusy] = React.useState(false);
   const [handledLocally, setHandledLocally] = React.useState(false);
 
@@ -71,7 +70,8 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
 
   const send = React.useCallback(async (automatic: boolean) => {
     if (!identity) return;
-    const scoped = mailboxesForSiblingOf(mailboxes, currentMailboxId);
+    // Sent of the account the receipt is submitted from: the message's.
+    const scoped = mailboxesOfAccount(mailboxes, jmapAccountId);
     const sent = scoped.find((m) => m.role === 'sent');
     if (!sent) throw new Error(t('email_composer.no_sent_folder', 'No Sent folder found'));
     await sendReadReceipt({
@@ -93,7 +93,7 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
       ),
     });
     await flagSent();
-  }, [identity, mailboxes, currentMailboxId, requestedBy, jmapAccountId, email.messageId, email.subject, t, flagSent]);
+  }, [identity, mailboxes, requestedBy, jmapAccountId, email.messageId, email.subject, t, flagSent]);
 
   // "always" mode: auto-send once when the message is actually displayed.
   React.useEffect(() => {

@@ -32,6 +32,41 @@ export function mailboxesForSiblingOf(mailboxes: Mailbox[], mailboxId: string | 
   return mailboxes.filter((m) => m.isShared && m.accountId === current.accountId);
 }
 
+/** The JMAP account a folder lives in: its owner when shared, undefined for the user's own. */
+export function mailboxAccountId(mailboxes: Mailbox[], mailboxId: string | null): string | undefined {
+  const mailbox = mailboxId ? mailboxes.find((m) => m.id === mailboxId) : undefined;
+  return mailbox?.isShared ? mailbox.accountId : undefined;
+}
+
+/**
+ * Folders of one JMAP account: the user's own for `undefined`, else that
+ * shared account's. A message's role folders (trash, archive, junk…) must
+ * come from the account it lives in, not from whatever folder is open —
+ * ids are only unique per account. Empty when the account's folders are not
+ * loaded, so callers refuse instead of guessing.
+ */
+export function mailboxesOfAccount(mailboxes: Mailbox[], accountId: string | undefined): Mailbox[] {
+  if (!accountId) return ownMailboxes(mailboxes);
+  return mailboxes.filter((m) => m.isShared && m.accountId === accountId);
+}
+
+/**
+ * The folder a message is filed in among one account's `mailboxes`: the
+ * preferred one (the folder it was opened from) when the message is in it,
+ * otherwise the first of its folders that is known. `mailboxIds` comes from
+ * the server unprefixed, so it is matched on each folder's raw id.
+ */
+export function mailboxOfEmail(
+  mailboxes: Mailbox[],
+  mailboxIds: Record<string, boolean> | undefined,
+  preferredId?: string | null,
+): Mailbox | undefined {
+  const holds = (m: Mailbox) => !!mailboxIds?.[m.originalId ?? m.id];
+  const preferred = preferredId ? mailboxes.find((m) => m.id === preferredId) : undefined;
+  if (preferred && holds(preferred)) return preferred;
+  return mailboxes.find(holds);
+}
+
 // Matches `ROLE_PRIORITY` from [lib/utils.ts] in the webmail.
 const ROLE_PRIORITY: Record<string, number> = {
   inbox: 0,

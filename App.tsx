@@ -45,6 +45,7 @@ import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
 import { useContactsStore } from './src/stores/contacts-store';
 import { useEmailStore } from './src/stores/email-store';
+import { mailboxAccountId } from './src/lib/mailbox-tree';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
@@ -180,10 +181,14 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           <EmailListScreen
             onComposePress={() => navigation.navigate('Compose')}
             onEmailPress={(email) => {
+              // The list holds the open folder's mail: name its account so the
+              // viewer never has to guess it from whatever folder is open.
+              const { mailboxes: all, currentMailboxId } = useEmailStore.getState();
               navigation.navigate('EmailThread', {
                 emailId: email.id,
                 threadId: email.threadId,
                 subject: email.subject,
+                jmapAccountId: mailboxAccountId(all, currentMailboxId),
               });
             }}
           />

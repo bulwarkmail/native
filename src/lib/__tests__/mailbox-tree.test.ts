@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   buildMailboxTree,
   flattenVisible,
+  mailboxAccountId,
   mailboxesForSiblingOf,
+  mailboxesOfAccount,
+  mailboxOfEmail,
   ownMailboxes,
   SHARED_ACCOUNT_NODE_PREFIX,
 } from '../mailbox-tree';
@@ -138,6 +141,29 @@ describe('account scoping helpers', () => {
     expect(mailboxesForSiblingOf(all, 'inbox').map((m) => m.id)).toEqual(['inbox', 'trash']);
     expect(mailboxesForSiblingOf(all, 'gone').map((m) => m.id)).toEqual(['inbox', 'trash']);
     expect(mailboxesForSiblingOf(all, null).map((m) => m.id)).toEqual(['inbox', 'trash']);
+  });
+
+  it('names a folder\'s account: the owner when shared, none for the user\'s own', () => {
+    expect(mailboxAccountId(all, 'grp-1:inbox')).toBe('grp-1');
+    expect(mailboxAccountId(all, 'inbox')).toBeUndefined();
+    expect(mailboxAccountId(all, null)).toBeUndefined();
+  });
+
+  it('scopes to a message\'s account whatever folder is open (B3)', () => {
+    expect(mailboxesOfAccount(all, undefined).map((m) => m.id)).toEqual(['inbox', 'trash']);
+    expect(mailboxesOfAccount(all, 'grp-1').map((m) => m.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
+    // An account whose folders are not loaded has none: nothing to guess from.
+    expect(mailboxesOfAccount(all, 'grp-9')).toEqual([]);
+  });
+
+  it('finds the folder a message is filed in, preferring the one it was opened from', () => {
+    const grp = mailboxesOfAccount(all, 'grp-1');
+    // Raw ids: the team's "inbox" is not the user's own inbox.
+    expect(mailboxOfEmail(grp, { inbox: true })?.id).toBe('grp-1:inbox');
+    expect(mailboxOfEmail(grp, { inbox: true, trash: true }, 'grp-1:trash')?.id).toBe('grp-1:trash');
+    expect(mailboxOfEmail(grp, { inbox: true }, 'inbox')?.id).toBe('grp-1:inbox');
+    expect(mailboxOfEmail(grp, { elsewhere: true })).toBeUndefined();
+    expect(mailboxOfEmail(grp, undefined)).toBeUndefined();
   });
 });
 

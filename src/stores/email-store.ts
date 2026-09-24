@@ -132,6 +132,38 @@ function currentAccountId(state: EmailState): string | undefined {
   return refFor(state.mailboxes, state.currentMailboxId).accountId;
 }
 
+/**
+ * A message acted on from the viewer: the copy the viewer holds and the JMAP
+ * account it lives in (undefined = the user's own). The loaded list only
+ * holds the open folder's account and ids are only unique per account, so a
+ * row with the same id is another message unless the accounts match (B3).
+ */
+export interface ViewedEmail {
+  email: Email;
+  accountId?: string;
+}
+
+// The message an action works on, and whether the loaded list holds it: the
+// list's row, but for the viewer only when the list is the message's account;
+// otherwise the viewer's copy, and the list is left alone.
+function actionTarget(
+  state: EmailState,
+  emailId: string,
+  viewed?: ViewedEmail,
+): { email: Email | undefined; listed: boolean } {
+  const listed = !viewed || viewed.accountId === currentAccountId(state);
+  const row = listed ? state.emails.find((e) => e.id === emailId) : undefined;
+  return { email: row ?? viewed?.email, listed };
+}
+
+// Refuse a viewer action aimed at folders outside the message's account:
+// the same id there is another message.
+function assertViewedAccount(viewed: ViewedEmail | undefined, ...refs: MailboxRef[]): void {
+  if (viewed && refs.some((ref) => ref.accountId !== viewed.accountId)) {
+    throw new Error(t('email_list.move_same_account', 'Messages can only be moved within the same account'));
+  }
+}
+
 // Strip the shared-folder id prefix off a whole list. Server-side folder
 // matching (archive year/month auto-foldering) compares ids and parent links
 // against what Mailbox/set returns, which is always unprefixed.
@@ -316,9 +348,9 @@ export interface EmailState {
   markUnread: (emailId: string) => Promise<void>;
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
   togglePin: (emailId: string, pinned: boolean) => Promise<void>;
-  moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string) => Promise<void>;
+  moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
   archiveEmail: (emailId: string) => Promise<void>;
-  deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string) => Promise<void>;
+  deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
   /**
    * File messages into the current account's Junk and flip `$junk`/`$notjunk`
    * (#850); honours the "trash-and-read" delete action by also marking read.
@@ -1142,11 +1174,12 @@ export const useEmailStore = create<EmailState>()(
     for (const e of targets) patchCache(e.id, { mailboxIds: inboxTarget, keywords: keywordPatch }, inbox.accountId);
   },
 
-  moveToMailbox: async (emailId, fromMailboxId, toMailboxId) => {
+  moveToMailbox: async (emailId, fromMailboxId, toMailboxId, viewed) => {
     const state = get();
-    const email = state.emails.find((e) => e.id === emailId);
+    const { email, listed } = actionTarget(state, emailId, viewed);
     const from = refFor(state.mailboxes, fromMailboxId);
     const to = refFor(state.mailboxes, toMailboxId);
+    assertViewedAccount(viewed, from, to);
     // A single Email/set is scoped to one account: a move between the user's
     // own folders and a shared account's (or between two shared accounts) is
     // a copy-then-delete across accounts (webmail 1.7.2), online only.
@@ -1169,7 +1202,7 @@ export const useEmailStore = create<EmailState>()(
       { kind: 'mailboxes', emailId, accountId: from.accountId, mailboxIds: target },
       () => moveEmail(emailId, from.id, to.id, from.accountId),
     );
-    set({ emails: get().emails.filter((e) => e.id !== emailId) });
+    if (listed) set({ emails: get().emails.filter((e) => e.id !== emailId) });
     patchCache(emailId, { mailboxIds: target }, from.accountId);
 
     if (email && original) {
@@ -1247,13 +1280,14 @@ export const useEmailStore = create<EmailState>()(
     }
   },
 
-  deleteEmail: async (emailId, trashMailboxId, currentMailboxId) => {
+  deleteEmail: async (emailId, trashMailboxId, currentMailboxId, viewed) => {
     const state = get();
-    const email = state.emails.find((e) => e.id === emailId);
+    const { email, listed } = actionTarget(state, emailId, viewed);
     const original = email ? { ...email.mailboxIds } : null;
     const settings = useSettingsStore.getState();
     const trash = refFor(state.mailboxes, trashMailboxId);
     const source = refFor(state.mailboxes, currentMailboxId);
+    assertViewedAccount(viewed, trash, source);
     const junkMailbox = mailboxesForSiblingOf(state.mailboxes, currentMailboxId)
       .find((m) => m.role === 'junk' || m.role === 'spam');
     const junkId = junkMailbox ? rawMailboxId(state.mailboxes, junkMailbox.id) : null;
@@ -1299,7 +1333,7 @@ export const useEmailStore = create<EmailState>()(
         patchCache(emailId, { mailboxIds: target }, source.accountId);
       }
     }
-    set({ emails: get().emails.filter((e) => e.id !== emailId) });
+    if (listed) set({ emails: get().emails.filter((e) => e.id !== emailId) });
 
     // Permanent destroy can't be undone - skip the snackbar so we don't
     // promise an undo we can't deliver.
@@ -1600,9 +1634,10 @@ export const useEmailStore = create<EmailState>()(
 
     // Re-insert each restored email into the visible list if its original
     // mailboxIds include the current view. Server is the source of truth for
-    // ordering, but local re-insertion gives the user instant feedback.
+    // ordering, but local re-insertion gives the user instant feedback. Only
+    // into a list of the same account: mailbox ids repeat across accounts.
     const { currentMailboxId, emails, mailboxes } = get();
-    if (currentMailboxId) {
+    if (currentMailboxId && entry.accountId === currentAccountId(get())) {
       const currentRawId = rawMailboxId(mailboxes, currentMailboxId);
       const restored = entry.items
         .filter((it) => it.originalMailboxIds[currentRawId])
