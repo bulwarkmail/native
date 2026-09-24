@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { jmapClient, AuthenticationError, NetworkError } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
-import { getIdentities } from '../api/identity';
 import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-security';
 import { useAccountStore } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
+import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { flushPersistedWrites } from './persist-storage';
 import { generateAccountId } from '../lib/account-utils';
@@ -163,7 +163,10 @@ async function syncAccountDisplayName(accountId: string): Promise<void> {
     const entry = accountStore.getAccountById(accountId);
     if (!entry) return;
     const updates: { displayName?: string; email?: string } = {};
-    const identities = await getIdentities().catch(() => []);
+    // Through the settings store's cache: the first message open (quick
+    // reply, read receipts) then reuses this read instead of its own.
+    await useSettingsStore.getState().ensureIdentities();
+    const identities = useSettingsStore.getState().identities;
     const primary = identities.find((i) => i.email?.toLowerCase() === entry.email?.toLowerCase())
       ?? identities.find((i) => i.email?.toLowerCase() === entry.username?.toLowerCase())
       ?? identities[0];

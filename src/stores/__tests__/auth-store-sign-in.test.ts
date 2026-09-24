@@ -43,6 +43,7 @@ vi.mock('../../lib/push-notifications', () => ({
 import { useAuthStore } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useEmailStore } from '../email-store';
+import { useSettingsStore } from '../settings-store';
 
 describe('display name sync on sign-in', () => {
   it('reads the full name without asking for the principal', async () => {
@@ -54,6 +55,12 @@ describe('display name sync on sign-in', () => {
     const methods = request.mock.calls.flatMap(([calls]) => calls.map(([name]) => name));
     expect(methods).toContain('x:AccountSettings/get');
     expect(methods).not.toContain('x:Account/get');
+
+    // The first message open reuses the identities this read.
+    await useSettingsStore.getState().ensureIdentities();
+    const identityGets = request.mock.calls.filter(([calls]) => calls.some(([name]) => name === 'Identity/get'));
+    expect(identityGets).toHaveLength(1);
+    expect(useSettingsStore.getState().identities.map((i) => i.id)).toEqual(['i1']);
   });
 
   it('starts on the folder list at once, and the mail screen joins that load', async () => {
