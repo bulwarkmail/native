@@ -79,7 +79,8 @@
     },
     "tasks": {
       "add_placeholder": "Add a task…",
-      "add_time": "Add time"
+      "add_time": "Add time",
+      "update_error": "Failed to update task"
     }
   },
   "common": {

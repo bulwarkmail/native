@@ -609,6 +609,20 @@ export default function CalendarScreen() {
     [t],
   );
 
+  // The store flips the checkbox optimistically and reverts it when the
+  // server refuses; say so instead of leaving the user guessing.
+  const handleToggleTask = React.useCallback(
+    (id: string) => {
+      toggleTaskComplete(id).catch((err: unknown) => {
+        Alert.alert(
+          t('calendar.tasks.update_error', 'Failed to update task'),
+          err instanceof Error ? err.message : undefined,
+        );
+      });
+    },
+    [toggleTaskComplete, t],
+  );
+
   // Clone the event one day later and open it in the editor (webmail's
   // handleDuplicateFromDetail).
   const handleDuplicateFromDetail = React.useCallback(
@@ -942,7 +956,7 @@ export default function CalendarScreen() {
         onClose={() => { setTasksVisible(false); setTasksInitialId(null); }}
         onCreate={createTask}
         onUpdate={updateTask}
-        onToggle={toggleTaskComplete}
+        onToggle={handleToggleTask}
         onDelete={deleteTask}
       />
 

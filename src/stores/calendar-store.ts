@@ -712,12 +712,22 @@ export const useCalendarStore = create<CalendarState>()(
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
     const completed = task.progress === 'completed';
-    // Un-completing goes back to needs-action (not in-process), like webmail;
-    // progressUpdated records when the state changed (RFC 8984 §5.2.4).
+    // Un-completing goes back to needs-action (not in-process), like webmail.
+    // No progressUpdated: JSCalendar 2.0 dropped it and Stalwart rejects the
+    // whole update with invalidProperties (#958).
     const next: Partial<CalendarEvent> = completed
-      ? { progress: 'needs-action', percentComplete: 0, progressUpdated: new Date().toISOString() }
-      : { progress: 'completed', percentComplete: 100, progressUpdated: new Date().toISOString() };
-    await get().updateTask(id, next);
+      ? { progress: 'needs-action', percentComplete: 0 }
+      : { progress: 'completed', percentComplete: 100 };
+    // Flip the checkbox right away and put it back if the server refuses.
+    const patchTask = (changes: Partial<CalendarEvent>) =>
+      set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+    patchTask(next);
+    try {
+      await apiUpdateEvent(task.originalId || id, next, undefined, task.accountId);
+    } catch (err) {
+      patchTask({ progress: task.progress, percentComplete: task.percentComplete });
+      throw err;
+    }
   },
 
   deleteTask: async (id) => {

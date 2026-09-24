@@ -638,4 +638,58 @@ describe('calendar-store', () => {
       expect(mockGetEvents).not.toHaveBeenCalled();
     });
   });
+
+  describe('toggleTaskComplete', () => {
+    it('completes a task without sending progressUpdated, which Stalwart rejects (#958)', async () => {
+      useCalendarStore.setState({
+        tasks: [{ id: 't1', '@type': 'Task', progress: 'needs-action' } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('t1');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't1',
+        { progress: 'completed', percentComplete: 100 },
+        undefined,
+        undefined,
+      );
+      expect(useCalendarStore.getState().tasks[0].progress).toBe('completed');
+    });
+
+    it('reopens a completed task as needs-action on its owning account', async () => {
+      useCalendarStore.setState({
+        tasks: [{ id: 'acc-2:t1', originalId: 't1', accountId: 'acc-2', progress: 'completed' } as any],
+      });
+      mockUpdateEvent.mockResolvedValue(undefined);
+
+      await useCalendarStore.getState().toggleTaskComplete('acc-2:t1');
+
+      expect(mockUpdateEvent).toHaveBeenCalledWith(
+        't1',
+        { progress: 'needs-action', percentComplete: 0 },
+        undefined,
+        'acc-2',
+      );
+      expect(useCalendarStore.getState().tasks[0].progress).toBe('needs-action');
+    });
+
+    it('flips the task at once and reverts it when the server refuses', async () => {
+      useCalendarStore.setState({
+        tasks: [{ id: 't1', progress: 'needs-action', percentComplete: 20 } as any],
+      });
+      let reject!: (err: Error) => void;
+      mockUpdateEvent.mockReturnValue(new Promise((_, r) => { reject = r; }));
+
+      const pending = useCalendarStore.getState().toggleTaskComplete('t1');
+      expect(useCalendarStore.getState().tasks[0].progress).toBe('completed');
+
+      reject(new Error('invalidProperties'));
+      await expect(pending).rejects.toThrow('invalidProperties');
+      expect(useCalendarStore.getState().tasks[0]).toMatchObject({
+        progress: 'needs-action',
+        percentComplete: 20,
+      });
+    });
+  });
 });
