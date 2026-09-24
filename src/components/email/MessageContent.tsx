@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import type { Email, EmailAddress, Identity } from '../../api/types';
-import { spacing, type ThemePalette } from '../../theme/tokens';
+import { spacing, radius, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import EmailBodyView from '../EmailBodyView';
@@ -30,6 +30,11 @@ export interface MessageContentProps {
   onEmailPatched: (email: Email) => void;
   /** Compact header (thread cards). */
   compact?: boolean;
+  /**
+   * Show a placeholder where the body goes: `email` is the list row, painted
+   * while the message itself loads.
+   */
+  deferBody?: boolean;
 }
 
 /**
@@ -40,7 +45,7 @@ export interface MessageContentProps {
  */
 export function MessageContent({
   email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
-  onToggleStar, onAddressPress, onEmailPatched, compact,
+  onToggleStar, onAddressPress, onEmailPatched, compact, deferBody,
 }: MessageContentProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -98,7 +103,9 @@ export function MessageContent({
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
 
       <View style={styles.body}>
-        {unwrap.loading ? (
+        {deferBody ? (
+          <BodyPlaceholder styles={styles} />
+        ) : unwrap.loading ? (
           <View style={styles.loading}><ActivityIndicator color={c.primary} /></View>
         ) : (
           <EmailBodyView
@@ -116,6 +123,19 @@ export function MessageContent({
   );
 }
 
+const PLACEHOLDER_LINE_WIDTHS = ['92%', '100%', '85%', '96%', '60%', '88%', '74%', '40%'] as const;
+
+// Static bones where the body will be: cheap enough for off-screen pages.
+function BodyPlaceholder({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={styles.placeholder}>
+      {PLACEHOLDER_LINE_WIDTHS.map((w, i) => (
+        <View key={i} style={[styles.placeholderLine, { width: w }]} />
+      ))}
+    </View>
+  );
+}
+
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     headerBlock: {
@@ -129,5 +149,7 @@ function makeStyles(c: ThemePalette) {
     },
     body: { backgroundColor: c.background },
     loading: { padding: spacing.xl, alignItems: 'center' },
+    placeholder: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.sm },
+    placeholderLine: { height: 12, borderRadius: radius.xs, backgroundColor: c.surfaceHover },
   });
 }

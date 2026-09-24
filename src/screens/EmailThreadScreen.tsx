@@ -700,6 +700,7 @@ export default function EmailThreadScreen({ route, navigation }: Props) {
                   active={item.id === activeEmailId}
                   threadIdHint={item.threadId}
                   email={detailOf(item.id) ?? null}
+                  row={item}
                   threadIds={
                     !disableThreading
                       ? threadIdsOf(detailOf(item.id)?.threadId ?? item.threadId)
@@ -845,6 +846,8 @@ interface EmailPaneProps {
   active: boolean;
   threadIdHint?: string;
   email: Email | null;
+  /** The page as the pager lists it: a list row, or just the id for one handed over by id. */
+  row: Email;
   /** Ids of the whole conversation (oldest first) once fetched; null = not (yet) loaded. */
   threadIds: string[] | null;
   /** A conversation member: its full copy when held, else its header. */
@@ -874,7 +877,7 @@ interface EmailPaneProps {
 // swipe slides ready content into view. A conversation is listed from its
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
-  id, active, threadIdHint, email, threadIds, memberOf, threading, jmapAccountId, currentMailboxRole,
+  id, active, threadIdHint, email, row, threadIds, memberOf, threading, jmapAccountId, currentMailboxRole,
   identities, themeOverrides, ensureDetail, ensureDetails, ensureThread, scheduleMarkRead, styles,
   bottomBarHeight, onToggleStar, onAddressPress, onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
@@ -939,17 +942,21 @@ function EmailPane({
     });
   };
 
-  if (!email) {
+  // Until the message itself is here, its list row paints the subject and
+  // header (sender, date, avatar); only a page handed over by id alone
+  // (notification, deep link) starts as a skeleton.
+  const shown = email ?? (row.receivedAt ? row : null);
+  if (!shown) {
     return <EmailPaneSkeleton styles={styles} />;
   }
 
-  const subject = singleLine(email.subject) || t('email_viewer.no_subject', '(No Subject)');
+  const subject = singleLine(shown.subject) || t('email_viewer.no_subject', '(No Subject)');
   const conversation = threading && threadId && threadIds && threadIds.length > 1
     ? threadIds.map((mid) => memberOf(threadId, mid)).filter((m): m is Email => !!m)
     : null;
   const newest = conversation ? conversation[conversation.length - 1] : email;
   // The quick reply quotes the message, so it waits for the newest one's body.
-  const newestLoaded = !conversation || !!peekDetail(newest.id, jmapAccountId);
+  const newestLoaded = !!newest && !!peekDetail(newest.id, jmapAccountId);
 
   return (
     <ScrollView
@@ -966,11 +973,15 @@ function EmailPane({
               <Text style={styles.threadCountText}>{conversation.length}</Text>
             </View>
           ) : (
-            <Pressable onPress={() => onToggleStar(email)} hitSlop={8} style={styles.subjectStar}>
+            <Pressable
+              onPress={email ? () => onToggleStar(email) : undefined}
+              hitSlop={8}
+              style={styles.subjectStar}
+            >
               <Star
                 size={18}
-                color={email.keywords?.$flagged ? c.starred : c.textMuted}
-                fill={email.keywords?.$flagged ? c.starred : 'transparent'}
+                color={shown.keywords?.$flagged ? c.starred : c.textMuted}
+                fill={shown.keywords?.$flagged ? c.starred : 'transparent'}
               />
             </Pressable>
           )}
@@ -1012,12 +1023,13 @@ function EmailPane({
         })
       ) : (
         <MessageContent
-          email={email}
+          email={shown}
+          deferBody={!email}
           jmapAccountId={jmapAccountId}
           identities={identities}
           currentMailboxRole={currentMailboxRole}
           active={active}
-          themeOverride={themeOverrides[email.id] ?? null}
+          themeOverride={themeOverrides[shown.id] ?? null}
           onSwipe={onSwipe}
           onZoomChange={(z) => { setPinching(z.pinching); onZoomChange(z); }}
           onAddressPress={onAddressPress}
@@ -1025,7 +1037,7 @@ function EmailPane({
         />
       )}
 
-      {newestLoaded && (
+      {newest && newestLoaded && (
         <QuickReplyBox
           email={newest}
           jmapAccountId={jmapAccountId}
