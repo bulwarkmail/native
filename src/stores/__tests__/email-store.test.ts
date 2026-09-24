@@ -811,6 +811,45 @@ describe('email-store', () => {
     });
   });
 
+  describe('bulk keyword actions', () => {
+    const three = () => [
+      { id: 'e1', keywords: {} } as any,
+      { id: 'e2', keywords: { $flagged: true } } as any,
+      { id: 'e3', keywords: { $seen: true, $flagged: true } } as any,
+    ];
+
+    it('marks a whole selection read with one patch instead of a request per message', async () => {
+      useEmailStore.setState({ emails: three() });
+
+      await useEmailStore.getState().setKeywordForEmails(['e1', 'e2', 'e3'], '$seen', true);
+
+      expect(mockPatchKeywords).toHaveBeenCalledTimes(1);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1', 'e2', 'e3'], { $seen: true }, undefined);
+      expect(useEmailStore.getState().emails.map((e) => e.keywords)).toEqual([
+        { $seen: true },
+        { $flagged: true, $seen: true },
+        { $seen: true, $flagged: true },
+      ]);
+    });
+
+    it('keeps rows that leave the open Unread or Starred view, like the single actions', async () => {
+      useEmailStore.setState({ emails: three(), filters: { isUnread: true } });
+      await useEmailStore.getState().setKeywordForEmails(['e1', 'e2'], '$seen', true);
+      expect(useEmailStore.getState().retainedIds).toEqual(['e1', 'e2']);
+
+      useEmailStore.setState({ emails: three(), filters: { isStarred: true }, retainedIds: [] });
+      await useEmailStore.getState().setKeywordForEmails(['e2', 'e3'], '$flagged', true);
+      expect(useEmailStore.getState().retainedIds).toEqual([]);
+      await useEmailStore.getState().setKeywordForEmails(['e2', 'e3'], '$flagged', false);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e2', 'e3'], { $flagged: null }, undefined);
+      expect(useEmailStore.getState().retainedIds).toEqual(['e2', 'e3']);
+
+      useEmailStore.setState({ emails: three(), filters: { isUnread: false }, retainedIds: [] });
+      await useEmailStore.getState().setKeywordForEmails(['e3'], '$seen', false);
+      expect(useEmailStore.getState().retainedIds).toEqual(['e3']);
+    });
+  });
+
   describe('pin and spam keywords', () => {
     it('togglePin writes $pinned, not $important', async () => {
       useEmailStore.setState({ emails: [{ id: 'e1', keywords: {} } as any] });

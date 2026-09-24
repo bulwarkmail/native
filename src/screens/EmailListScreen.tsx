@@ -665,20 +665,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
   const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));
 
+  // One Email/set for the whole selection, not a request per message.
   const handleBulkMarkReadToggle = async () => {
-    const ids = selectedMessageIds;
-    if (allSelectedAreRead) {
-      await Promise.all(ids.map((id) => markUnread(id)));
-    } else {
-      await Promise.all(ids.map((id) => markRead(id)));
-    }
+    await setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead);
     clearSelection();
   };
 
   const handleBulkStar = async () => {
-    const ids = selectedMessageIds;
-    const next = !allSelectedAreStarred;
-    await Promise.all(ids.map((id) => toggleStar(id, next)));
+    await setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred);
     clearSelection();
   };
 

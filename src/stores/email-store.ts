@@ -329,6 +329,7 @@ export interface EmailState {
   archiveEmailsBatch: (emailIds: string[]) => Promise<void>;
   moveEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
   deleteEmailsBatch: (emailIds: string[], trashMailboxId: string, currentMailboxId: string) => Promise<void>;
+  /** Set or clear one keyword (tag, `$seen`, `$flagged`) on a selection in one `Email/set`. */
   setKeywordForEmails: (emailIds: string[], token: string, on: boolean) => Promise<void>;
   undoLast: () => Promise<void>;
   clearUndo: () => void;
@@ -1539,8 +1540,9 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.map((e) =>
         touched.has(e.id) ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
-      // Untagging inside that tag's view keeps the rows until it's re-opened.
-      ...(!on && state.filters.keyword === token
+      // Reading inside Unread, unstarring inside Starred or untagging inside
+      // that tag's view keeps the rows until it's re-opened.
+      ...(leavesView(state.filters, token, on)
         ? { retainedIds: retain(get().retainedIds, ids) }
         : {}),
     });
@@ -1752,6 +1754,15 @@ function retain(current: string[], ids: string[]): string[] {
   const set = new Set(current);
   for (const id of ids) set.add(id);
   return [...set];
+}
+
+// Whether setting `token` to `on` makes a row stop matching the open Unread,
+// Starred or tag view (the rows are then retained, like markRead/toggleStar).
+function leavesView(filters: EmailFilters, token: string, on: boolean): boolean {
+  if (!on && filters.keyword === token) return true;
+  if (token === '$seen') return filters.isUnread === on;
+  if (token === '$flagged') return filters.isStarred !== undefined && filters.isStarred !== on;
+  return false;
 }
 
 /** "Parent / Child" path of a folder for toasts, like the webmail (1.5.0). */
