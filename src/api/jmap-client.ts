@@ -7,7 +7,7 @@ import type {
 } from './types';
 import { CAPABILITIES } from './types';
 import { generateAccountId } from '../lib/account-utils';
-import { secureFetch } from '../lib/client-cert';
+import { secureFetch, mayFollowRedirect } from '../lib/client-cert';
 import {
   refreshOAuthAccessToken,
   TransientRefreshError,
@@ -110,6 +110,18 @@ function fetchSessionDescribes(session: unknown): session is JMAPSession {
   if (!session || typeof session !== 'object') return false;
   const s = session as Partial<JMAPSession>;
   return typeof s.apiUrl === 'string';
+}
+
+/**
+ * `url` with the scheme and host lowercased and a default port dropped, so a
+ * response's final URL can be compared with the requested one.
+ */
+function canonicalUrl(url: string): string {
+  const m = /^(https?):\/\/([^/?#]+)(.*)$/i.exec(url);
+  if (!m) return url;
+  const scheme = m[1].toLowerCase();
+  const host = m[2].toLowerCase().replace(scheme === 'https' ? /:443$/ : /:80$/, '');
+  return `${scheme}://${host}${m[3]}`;
 }
 
 // Shared response helpers live in ./jmap-result (dependency-free) and are
@@ -699,13 +711,38 @@ export class JMAPClient {
     // servers that don't serve /jmap/session (#39).
     const primary = `${baseUrl}/jmap/session`;
     const fallback = `${baseUrl}/.well-known/jmap`;
+    let requested = primary;
     const fetchSessionDoc = async () => {
       const r = await this.authenticatedFetch(primary, { headers: { Accept: 'application/json' } });
-      return r.status === 404
-        ? this.authenticatedFetch(fallback, { headers: { Accept: 'application/json' } })
-        : r;
+      if (r.status !== 404) return r;
+      requested = fallback;
+      return this.authenticatedFetch(fallback, { headers: { Accept: 'application/json' } });
     };
     let response = await fetchSessionDoc();
+
+    // A redirect the platform followed may have dropped the Authorization
+    // header (iOS NSURLSession does; OkHttp does for another scheme, host or
+    // port). The server then answers 401, or - Stalwart - 200 with an empty
+    // session, although the credentials are fine. RN's fetch never sets
+    // `response.redirected`, so also compare the final URL with the one
+    // requested, and refetch it with the header (webmail #892).
+    const finalUrl = canonicalUrl((response as { url?: string }).url || requested);
+    const redirected =
+      Boolean((response as { redirected?: boolean }).redirected) || finalUrl !== canonicalUrl(requested);
+    let refetched = false;
+    const refetchRedirected = async (): Promise<Response> => {
+      // Credentials only follow a redirect within the same host (or its
+      // https upgrade), the rule secureFetch applies. Anything else fails as
+      // a discovery error, not an auth one, so a stored account survives it.
+      if (!mayFollowRedirect(canonicalUrl(requested), finalUrl)) {
+        throw new Error(`Session discovery failed: redirected to ${finalUrl}`);
+      }
+      refetched = true;
+      return this.authenticatedFetch(finalUrl, { headers: { Accept: 'application/json' } });
+    };
+    if (redirected && response.status === 401) {
+      response = await refetchRedirected();
+    }
 
     if (response.status === 401) {
       throw new AuthenticationError('Invalid credentials');
@@ -730,18 +767,15 @@ export class JMAPClient {
 
     let session = (await response.json()) as JMAPSession;
 
-    // Stalwart 307-redirects /.well-known/jmap to /jmap/session. iOS
-    // NSURLSession (and some auth proxies) drop the Authorization header on
-    // the redirect, which yields a 200 with an empty session. Refetch the
-    // final URL with the header explicitly.
+    // Stalwart 307-redirects /.well-known/jmap to /jmap/session and answers
+    // the header-less redirected request with a 200 empty session.
     const redirectedEmpty =
-      (response as { redirected?: boolean }).redirected &&
+      redirected &&
+      !refetched &&
       (!session?.accounts || Object.keys(session.accounts).length === 0) &&
       !session?.username;
-    if (redirectedEmpty && (response as { url?: string }).url) {
-      response = await this.authenticatedFetch((response as { url: string }).url, {
-        headers: { Accept: 'application/json' },
-      });
+    if (redirectedEmpty) {
+      response = await refetchRedirected();
       if (response.status === 401) throw new AuthenticationError('Invalid credentials');
       if (!response.ok) {
         throw new Error(`Session discovery failed: ${response.status} ${response.statusText}`);

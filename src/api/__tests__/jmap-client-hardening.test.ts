@@ -208,6 +208,80 @@ describe('JMAPClient hardening', () => {
     expect(client.accountId).toBe('acc-1');
   });
 
+  describe('redirects that drop the Authorization header (B15, webmail #892)', () => {
+    // RN's fetch leaves `redirected` false; only `url` shows the redirect.
+    const authOf = (call: unknown[]) =>
+      ((call[1] as RequestInit | undefined)?.headers as Record<string, string> | undefined)?.Authorization;
+
+    it('refetches the final URL with credentials after a 401 behind an https upgrade', async () => {
+      const fetch = mockFetch([
+        { status: 401, url: 'https://mail.example.com/jmap/session' },
+        { status: 200, json: SESSION },
+      ]);
+      const client = new JMAPClient();
+      await client.connect('http://mail.example.com', 'user', 'pass');
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(fetch.mock.calls[1][0]).toBe('https://mail.example.com/jmap/session');
+      expect(authOf(fetch.mock.calls[1])).toMatch(/^Basic /);
+      expect(client.accountId).toBe('acc-1');
+    });
+
+    it('refetches when the redirect only shows in response.url and the session came back empty', async () => {
+      const fetch = mockFetch([
+        { status: 404, url: 'https://mail.example.com/jmap/session' },
+        { status: 200, json: { apiUrl: '/jmap/', accounts: {}, primaryAccounts: {} }, url: 'https://mail.example.com/jmap/session/' },
+        { status: 200, json: SESSION },
+      ]);
+      const client = new JMAPClient();
+      await client.connect('https://mail.example.com', 'user', 'pass');
+      expect(fetch.mock.calls.map((c) => c[0])).toEqual([
+        'https://mail.example.com/jmap/session',
+        'https://mail.example.com/.well-known/jmap',
+        'https://mail.example.com/jmap/session/',
+      ]);
+      expect(client.accountId).toBe('acc-1');
+    });
+
+    it('does not treat a canonicalised final URL as a redirect', async () => {
+      const fetch = mockFetch([{ status: 401, url: 'https://mail.example.com/jmap/session' }]);
+      const client = new JMAPClient();
+      const err = await client.connect('https://Mail.Example.com:443', 'user', 'bad').catch((e) => e);
+      expect(err).toBeInstanceOf(AuthenticationError);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('still reports bad credentials when the direct refetch is rejected too', async () => {
+      mockFetch([
+        { status: 401, url: 'https://mail.example.com/jmap/session' },
+        { status: 401, url: 'https://mail.example.com/jmap/session' },
+      ]);
+      const client = new JMAPClient();
+      const err = await client.connect('http://mail.example.com', 'user', 'bad').catch((e) => e);
+      expect(err).toBeInstanceOf(AuthenticationError);
+    });
+
+    it('keeps credentials off another host and fails without an auth error', async () => {
+      const fetch = mockFetch([{ status: 401, url: 'https://sso.example.net/jmap/session' }]);
+      const client = new JMAPClient();
+      const err = await client.connect('https://mail.example.com', 'user', 'pass').catch((e) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(AuthenticationError);
+      expect(String(err.message)).toContain('redirected to https://sso.example.net');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('surfaces a redirect it cannot follow as NetworkError on restore, so the account is kept', async () => {
+      const SecureStore = await import('expo-secure-store');
+      (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        JSON.stringify({ serverUrl: 'https://mail.example.com', username: 'user', password: 'pass' }),
+      );
+      mockFetch([{ status: 200, json: { apiUrl: '/jmap/', accounts: {}, primaryAccounts: {} }, url: 'https://sso.example.net/session' }]);
+      const client = new JMAPClient();
+      const err = await client.loadAccount('user@mail.example.com').catch((e) => e);
+      expect(err).toBeInstanceOf(NetworkError);
+    });
+  });
+
   it('throws TotpRequiredError on a 402 MFA challenge', async () => {
     mockFetch([{ status: 402, json: { title: 'MFA code required' } }]);
     const client = new JMAPClient();
