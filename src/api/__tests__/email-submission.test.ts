@@ -247,6 +247,65 @@ describe('sendEmail', () => {
     });
 
     await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb')).rejects.toThrow('Disk full');
+    // Nothing was created, so there is nothing to remove.
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a refused submission', () => {
+    const destroyCalls = () => mockRequest.mock.calls
+      .map((c) => c[0][0])
+      .filter(([method, args]: [string, { destroy?: string[] }]) => method === 'Email/set' && args.destroy)
+      .map(([, args]: [string, { accountId: string; destroy: string[] }]) => [args.accountId, args.destroy]);
+
+    it('removes the copy it created in Drafts, so a retry leaves no stray draft', async () => {
+      mockRequest
+        .mockResolvedValueOnce({
+          methodResponses: [
+            ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+            ['EmailSubmission/set', { notCreated: { 'sub-1': { type: 'forbiddenToSend', description: 'Quota exceeded' } } }, '1'],
+          ],
+        })
+        .mockResolvedValueOnce({ methodResponses: [['Email/set', { destroyed: ['e-new'] }, '0']] });
+
+      await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, {
+        draftsMailboxId: 'drafts-mb', draftId: 'old-draft', accountId: 'shared-1',
+      })).rejects.toThrow('Quota exceeded');
+
+      // Only the unsent copy goes; the previous draft version stays.
+      expect(destroyCalls()).toEqual([['shared-1', ['e-new']]]);
+    });
+
+    it('removes the copy when the submission call failed as a whole', async () => {
+      mockRequest
+        .mockResolvedValueOnce({
+          methodResponses: [
+            ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+            ['error', { type: 'invalidArguments', description: 'Invalid envelope' }, '1'],
+          ],
+        })
+        .mockResolvedValueOnce({ methodResponses: [['Email/set', { destroyed: ['e-new'] }, '0']] });
+
+      await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, { draftsMailboxId: 'drafts-mb' }))
+        .rejects.toThrow('Invalid envelope');
+      expect(destroyCalls()).toEqual([['acc-1', ['e-new']]]);
+    });
+
+    it('still reports the refusal when the copy cannot be removed', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      mockRequest
+        .mockResolvedValueOnce({
+          methodResponses: [
+            ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+            ['EmailSubmission/set', { notCreated: { 'sub-1': { type: 'forbiddenFrom', description: 'Not your address' } } }, '1'],
+          ],
+        })
+        .mockRejectedValueOnce(new Error('Network request failed'));
+
+      await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, { draftsMailboxId: 'drafts-mb' }))
+        .rejects.toThrow('Not your address');
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
   });
 });
 

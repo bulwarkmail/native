@@ -1264,8 +1264,8 @@ export interface SendEmailOptions {
   /**
    * Drafts folder id. When given, the message is created there with `$draft`
    * and moved to Sent by `onSuccessUpdateEmail` on the submission, so the
-   * SMTP send happens before it lands in Sent (#188) and a failed submission
-   * leaves it in Drafts instead of faking a sent copy.
+   * SMTP send happens before it lands in Sent (#188). A refused submission
+   * removes that copy again rather than leaving a stray draft.
    */
   draftsMailboxId?: string;
   /** Previous draft version to destroy once the submission succeeded (#849). */
@@ -1338,6 +1338,7 @@ export async function sendEmail(
   let emailSubmissionId: string | undefined;
   let sendAt: string | undefined;
   let filingWarning: string | undefined;
+  let failure: Error | undefined;
   for (const [methodName, result] of res.methodResponses) {
     if (methodName === 'error' || methodName.endsWith('/error')) {
       // Once the submission exists the message has left (or is held), so a
@@ -1349,7 +1350,8 @@ export async function sendEmail(
         filingWarning = filingWarning ?? (err.description || err.type || 'post-send filing failed');
         continue;
       }
-      throw new Error((result as { description?: string }).description ?? 'Send failed');
+      failure = new Error((result as { description?: string }).description ?? 'Send failed');
+      break;
     }
     if (methodName === 'Email/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string; properties?: string[] }> }).notCreated?.draft;
@@ -1374,11 +1376,29 @@ export async function sendEmail(
     }
     if (methodName === 'EmailSubmission/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
-      if (notCreated) throw submissionError(notCreated, 'Failed to submit message');
+      if (notCreated) {
+        failure = submissionError(notCreated, 'Failed to submit message');
+        break;
+      }
       const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
       emailSubmissionId = created?.id;
       sendAt = created?.sendAt;
     }
+  }
+
+  if (failure) {
+    // Nothing went out. A message created before the submission was refused
+    // must not stay behind: nobody tracked that copy, so a retry left a
+    // second one next to it. The caller still holds the message, and a
+    // previous draft version is untouched.
+    if (emailId) {
+      try {
+        await destroyEmails([emailId], accountId);
+      } catch (err) {
+        console.warn('[email] failed to remove the unsent copy:', err);
+      }
+    }
+    throw failure;
   }
 
   // The message is out (or scheduled) - now it is safe to drop the old draft.
