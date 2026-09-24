@@ -39,6 +39,10 @@ function walk(dir: string, out: string[] = []): string[] {
 const LITERAL_KEY_RE = /\bt\(\s*'([^']+)'/g;
 const TEMPLATE_KEY_RE = /\bt\(\s*`([^`$]+)\$\{/g;
 
+// Walking and reading all of src/ synchronously takes under a second on its
+// own, but went past the 5 s default (16.8 s) while gradle was building.
+const SRC_WALK_TIMEOUT = 30_000;
+
 describe('translation coverage', () => {
   const en = flatten(getDictionary('en'));
 
@@ -51,7 +55,7 @@ describe('translation coverage', () => {
       }
     }
     expect(missing, `keys missing from locales/en/common.json + locales/rn/en.json (run: npm run i18n:harvest):\n${missing.join('\n')}`).toEqual([]);
-  });
+  }, SRC_WALK_TIMEOUT);
 
   it('every template t() key prefix has at least one English entry', () => {
     const missing: string[] = [];
@@ -67,7 +71,7 @@ describe('translation coverage', () => {
       }
     }
     expect(missing).toEqual([]);
-  });
+  }, SRC_WALK_TIMEOUT);
 
   it('every other locale is a subset of English', () => {
     // The vendored webmail catalog, without the RN-only overlay (which only
