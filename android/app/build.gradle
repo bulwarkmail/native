@@ -8,6 +8,37 @@ def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 def appVersionName = file("${projectRoot}/VERSION").text.trim()
 
 /**
+ * Release signing. The key never lives in the repo: CI passes it as
+ * ORG_GRADLE_PROJECT_BULWARK_RELEASE_* environment variables, and a local
+ * release build can set the same names with -P, in ~/.gradle/gradle.properties
+ * or as plain environment variables. See docs/android-release.md.
+ *
+ * There is deliberately no automatic fallback to the debug key. It is the
+ * public React Native template key, so an APK signed with it can be replaced
+ * by an "update" anyone can sign.
+ */
+def releaseSigningNames = [
+    'BULWARK_RELEASE_STORE_FILE',
+    'BULWARK_RELEASE_STORE_PASSWORD',
+    'BULWARK_RELEASE_KEY_ALIAS',
+    'BULWARK_RELEASE_KEY_PASSWORD',
+]
+def releaseSigning = releaseSigningNames.collectEntries { name ->
+    [(name): (findProperty(name) ?: System.getenv(name))?.toString()]
+}
+def missingReleaseSigning = releaseSigningNames.findAll { !releaseSigning[it]?.trim() }
+def releaseSigningConfigured = missingReleaseSigning.isEmpty()
+def releaseStoreFile = releaseSigningConfigured ? file(releaseSigning.BULWARK_RELEASE_STORE_FILE.trim()) : null
+
+// Escape hatch for a local release build that never leaves the machine
+// (profiling, checking R8). It is refused whenever CI is set, so a stray flag
+// cannot turn a published build back into a debug-signed one.
+def ciEnv = System.getenv('CI')?.trim()?.toLowerCase()
+def onCi = ciEnv && !(ciEnv in ['false', '0'])
+def allowDebugSignedRelease = (findProperty('allowDebugSignedRelease') ?: 'false').toString().trim().toBoolean()
+def debugSignedRelease = !releaseSigningConfigured && allowDebugSignedRelease && !onCi
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
@@ -107,13 +138,12 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        if (project.hasProperty('BULWARK_RELEASE_STORE_FILE')
-                && project.property('BULWARK_RELEASE_STORE_FILE')?.trim()) {
+        if (releaseSigningConfigured) {
             release {
-                storeFile file(project.property('BULWARK_RELEASE_STORE_FILE'))
-                storePassword project.property('BULWARK_RELEASE_STORE_PASSWORD')
-                keyAlias project.property('BULWARK_RELEASE_KEY_ALIAS')
-                keyPassword project.property('BULWARK_RELEASE_KEY_PASSWORD')
+                storeFile releaseStoreFile
+                storePassword releaseSigning.BULWARK_RELEASE_STORE_PASSWORD
+                keyAlias releaseSigning.BULWARK_RELEASE_KEY_ALIAS
+                keyPassword releaseSigning.BULWARK_RELEASE_KEY_PASSWORD
             }
         }
     }
@@ -122,7 +152,13 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
+            // With neither a key nor the opt-in there is no signing config at
+            // all; checkReleaseSigning below stops the build before packaging.
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            } else if (debugSignedRelease) {
+                signingConfig signingConfigs.debug
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -139,6 +175,48 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+// Stop a release build that has no real key. This runs only when a release
+// variant is actually built, so `expo run:android`, assembleDebug and IDE sync
+// keep working with no key configured.
+def releaseSigningHelp = [
+    "Release signing is not configured (missing: ${missingReleaseSigning.join(', ')}).",
+    "",
+    "Release builds are never signed with the debug key: it is the public React Native",
+    "template key, so an APK signed with it can be replaced by anyone. Provide the release",
+    "key as gradle properties (-P or ~/.gradle/gradle.properties) or environment variables:",
+    "  BULWARK_RELEASE_STORE_FILE       path to the keystore",
+    "  BULWARK_RELEASE_STORE_PASSWORD",
+    "  BULWARK_RELEASE_KEY_ALIAS",
+    "  BULWARK_RELEASE_KEY_PASSWORD",
+    "",
+    onCi && allowDebugSignedRelease
+        ? "allowDebugSignedRelease is ignored because CI is set: published builds must use the release key."
+        : "For a local test build that is never installed anywhere else, pass -PallowDebugSignedRelease=true.",
+    "See docs/android-release.md.",
+].join('\n')
+
+def checkReleaseSigning = tasks.register('checkReleaseSigning') {
+    group = 'verification'
+    description = 'Fails a release build that has no release signing key.'
+    doLast {
+        if (releaseSigningConfigured) {
+            if (!releaseStoreFile.isFile()) {
+                throw new GradleException("BULWARK_RELEASE_STORE_FILE points to ${releaseStoreFile}, which does not exist.")
+            }
+        } else if (debugSignedRelease) {
+            logger.warn("WARNING: this release build is signed with the PUBLIC debug key " +
+                    "(allowDebugSignedRelease). Do not distribute it.")
+        } else {
+            throw new GradleException(releaseSigningHelp)
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name == 'preReleaseBuild') {
+        task.dependsOn(checkReleaseSigning)
     }
 }
 

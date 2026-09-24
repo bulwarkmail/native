@@ -10,6 +10,13 @@ on:
         required: false
         default: ""
 
+# Signing is described in docs/android-release.md.
+env:
+  # Certificate SHA-256 of android/app/debug.keystore, the stock React Native
+  # template key (CN=Android Debug, SHA-1 5E:8F:16:06:...:F6:25). It is public,
+  # so Android 9+ must never see it as the signer of a published build.
+  DEBUG_CERT_SHA256: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,6 +24,26 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Fail in seconds instead of after a 20-minute build. There is no
+      # unsigned or debug-signed fallback: anything signed with the debug key
+      # can be "updated" by anyone.
+      - name: Require the release signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE_BASE64" ] || missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -n "$KEYSTORE_PASSWORD" ] || missing="$missing ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || missing="$missing ANDROID_KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || missing="$missing ANDROID_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error title=Release signing is not configured::Missing repository secrets:$missing. Release APKs are never signed with the public debug key; see docs/android-release.md."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -66,29 +93,142 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
-      - name: Decode release keystore
-        id: keystore
+      # Checks the password and alias before the long build, and refuses a
+      # debug key that was uploaded as the release key by mistake.
+      - name: Decode and check the release key
+        id: key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
-            echo "path=$RUNNER_TEMP/release.keystore" >> "$GITHUB_OUTPUT"
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/release.keystore"
+          CERT="$RUNNER_TEMP/release-cert.der"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          if ! keytool -exportcert -keystore "$KEYSTORE" -alias "$KEY_ALIAS" \
+              -storepass:env KEYSTORE_PASSWORD -file "$CERT"; then
+            echo "::error title=Release key unreadable::Could not read alias ANDROID_KEY_ALIAS from ANDROID_KEYSTORE_BASE64 with ANDROID_KEYSTORE_PASSWORD."
+            exit 1
           fi
+          CERT_SHA256=$(sha256sum "$CERT" | cut -d' ' -f1)
+          OWNER=$(keytool -printcert -file "$CERT")
+          if [ "$CERT_SHA256" = "$DEBUG_CERT_SHA256" ] || [[ "$OWNER" == *"CN=Android Debug"* ]]; then
+            echo "::error title=Release key is a debug key::ANDROID_KEYSTORE_BASE64 holds an Android debug key. Generate a release key as described in docs/android-release.md."
+            exit 1
+          fi
+          echo "Release certificate SHA-256: $CERT_SHA256"
+          echo "store_file=$KEYSTORE" >> "$GITHUB_OUTPUT"
+          echo "cert_sha256=$CERT_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
         working-directory: android
         env:
-          ORG_GRADLE_PROJECT_BULWARK_RELEASE_STORE_FILE: ${{ steps.keystore.outputs.path }}
+          ORG_GRADLE_PROJECT_BULWARK_RELEASE_STORE_FILE: ${{ steps.key.outputs.store_file }}
           ORG_GRADLE_PROJECT_BULWARK_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ORG_GRADLE_PROJECT_BULWARK_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_BULWARK_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon
+
+      - name: Put apksigner on the PATH
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)
+          echo "Using $BUILD_TOOLS"
+          echo "$BUILD_TOOLS" >> "$GITHUB_PATH"
+
+      # Optional v3 key rotation away from the debug key that signed every
+      # release up to 0.1.62. Gradle signed the APK with the release key only,
+      # which existing installs reject as a different app. With a lineage the
+      # APK is re-signed so that Android 9+ sees the release key plus proof
+      # that the debug key handed over to it, while Android 7-8.1 (v2 only)
+      # still see the debug key. docs/android-release.md has the details.
+      - name: Apply the signing key rotation
+        id: rotation
+        env:
+          LINEAGE_BASE64: ${{ secrets.ANDROID_SIGNING_LINEAGE_BASE64 }}
+          KEYSTORE: ${{ steps.key.outputs.store_file }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          RELEASE_CERT_SHA256: ${{ steps.key.outputs.cert_sha256 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$LINEAGE_BASE64" ]; then
+            echo "No ANDROID_SIGNING_LINEAGE_BASE64: keeping the release-key-only signature."
+            echo "rotated=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LINEAGE="$RUNNER_TEMP/signing.lineage"
+          echo "$LINEAGE_BASE64" | base64 -d > "$LINEAGE"
+          apksigner lineage --in "$LINEAGE" --print-certs | tee "$RUNNER_TEMP/lineage.txt"
+
+          DIGESTS=$(sed -n 's/^Signer #[0-9]* in lineage certificate SHA-256 digest: //p' "$RUNNER_TEMP/lineage.txt")
+          if [ "$(sed -n '1p' <<< "$DIGESTS")" != "$DEBUG_CERT_SHA256" ] \
+              || [ "$(sed -n '$p' <<< "$DIGESTS")" != "$RELEASE_CERT_SHA256" ]; then
+            echo "::error title=Wrong signing lineage::ANDROID_SIGNING_LINEAGE_BASE64 must lead from the debug key to the key in ANDROID_KEYSTORE_BASE64."
+            exit 1
+          fi
+          # Rollback on an old signer lets anything signed with it take the app
+          # back after the rotation, which would undo the whole point.
+          PAST_ROLLBACK=$(grep 'Has rollback capability' "$RUNNER_TEMP/lineage.txt" | sed -e 's/.*: *//' -e '$d')
+          if [[ "$PAST_ROLLBACK" == *true* ]]; then
+            echo "::error title=Unsafe signing lineage::An old signer in the lineage has the rollback capability. Recreate it with --set-rollback false."
+            exit 1
+          fi
+
+          # Oldest signer first: apksigner uses it for v2, and the rotated key
+          # for v3 from API 28. Without --rotation-min-sdk-version it would
+          # only rotate on Android 13+ (v3.1) and leave 9-12L on the debug key.
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          apksigner sign \
+            --v4-signing-enabled false \
+            --ks android/app/debug.keystore --ks-key-alias androiddebugkey \
+            --ks-pass pass:android --key-pass pass:android \
+            --next-signer \
+            --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD \
+            --lineage "$LINEAGE" \
+            --rotation-min-sdk-version 28 \
+            --out "$RUNNER_TEMP/app-release-rotated.apk" \
+            "$APK"
+          mv "$RUNNER_TEMP/app-release-rotated.apk" "$APK"
+          echo "rotated=true" >> "$GITHUB_OUTPUT"
+
+      # The last gate before anything is uploaded.
+      - name: Verify the APK signature
+        env:
+          RELEASE_CERT_SHA256: ${{ steps.key.outputs.cert_sha256 }}
+          ROTATED: ${{ steps.rotation.outputs.rotated }}
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          apksigner verify --verbose --print-certs "$APK"
+          signers() {
+            apksigner verify --print-certs "$@" "$APK" \
+              | sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p'
+          }
+          MODERN=$(signers --min-sdk-version 28)
+          LEGACY=$(signers --max-sdk-version 27)
+          echo "Signer on Android 9+:    $MODERN"
+          echo "Signer on Android 7-8.1: $LEGACY"
+
+          if [[ "$MODERN" == *"$DEBUG_CERT_SHA256"* ]]; then
+            echo "::error title=APK is debug-signed::Android 9+ would see the public debug key as the signer."
+            exit 1
+          fi
+          if [ "$MODERN" != "$RELEASE_CERT_SHA256" ]; then
+            echo "::error title=Wrong APK signer::Android 9+ would see '$MODERN', expected only the release key $RELEASE_CERT_SHA256."
+            exit 1
+          fi
+          if [ "$ROTATED" = "true" ]; then
+            echo "::warning title=Android 7-8.1 still trust the debug key::The v2 signature is made with the debug key so that installs on Android 7-8.1 can update. Those devices remain exposed; see docs/android-release.md."
+          elif [ "$LEGACY" != "$RELEASE_CERT_SHA256" ]; then
+            echo "::error title=Wrong APK signer::Android 7-8.1 would see '$LEGACY', expected only the release key $RELEASE_CERT_SHA256."
+            exit 1
+          fi
+          aapt2 dump badging "$APK" | grep '^package:' || true
 
       - name: Rename APK with version
         id: artifact
