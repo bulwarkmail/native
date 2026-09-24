@@ -23,8 +23,6 @@ import {
 } from 'lucide-react-native';
 import {
   format,
-  startOfMonth,
-  endOfMonth,
   startOfWeek,
   endOfWeek,
   addDays,
@@ -58,8 +56,24 @@ import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSh
 import { CalendarEditSheet, type CalendarEditValues } from '../components/calendar/CalendarEditSheet';
 import { CalendarShareSheet } from '../components/calendar/CalendarShareSheet';
 import {
+  computeScrollWindow,
+  fixedScrollWindowState,
+  freshScrollWindowState,
+  growScrollWindow,
+  loadedPartOfWindow,
+  normalizeScrollWindowState,
+  parseDayKey,
+  scrollWindowLoadRange,
+  windowStateForJump,
+  type CalendarFocus,
+  type ScrollWindowOptions,
+  type ScrollWindowState,
+} from '../lib/calendar-scroll-window';
+import { coversRange, createRangeLoader } from '../lib/calendar-range-cache';
+import {
   applySharedCalendarColors,
   buildEventDayIndex,
+  dayKey,
   eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
@@ -105,31 +119,11 @@ type PendingAction =
     }
   | null;
 
-const AGENDA_DAYS = 30;
-const RANGE_BUFFER_DAYS = 14;
+// Events are loaded this many days past either end of the visible window, so
+// the next arrow press or edge usually finds them there already.
+const RANGE_MARGIN_DAYS = 14;
 
 type WeekStart = 0 | 1 | 6;
-
-function rangeForView(
-  viewMode: ViewMode,
-  currentDate: Date,
-  weekStartsOn: WeekStart,
-): { after: Date; before: Date } {
-  if (viewMode === 'month') {
-    const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn });
-    const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn });
-    return { after: addDays(start, -RANGE_BUFFER_DAYS), before: addDays(end, RANGE_BUFFER_DAYS) };
-  }
-  if (viewMode === 'week') {
-    const start = startOfWeek(currentDate, { weekStartsOn });
-    const end = endOfWeek(currentDate, { weekStartsOn });
-    return { after: addDays(start, -RANGE_BUFFER_DAYS), before: addDays(end, RANGE_BUFFER_DAYS) };
-  }
-  return {
-    after: addDays(currentDate, -1),
-    before: addDays(currentDate, AGENDA_DAYS + RANGE_BUFFER_DAYS),
-  };
-}
 
 function headerTitle(
   viewMode: ViewMode,
@@ -168,15 +162,52 @@ export default function CalendarScreen() {
   const removeSharedCalendarColor = useSettingsStore((s) => s.removeSharedCalendarColor);
   const contacts = useContactsStore((s) => s.contacts);
 
-  const [currentDate, setCurrentDate] = React.useState(new Date());
-  const [selectedDate, setSelectedDate] = React.useState(new Date());
+  const [selectedDate, setSelectedDate] = React.useState(() => new Date());
   // Day view falls back to Agenda on mobile (we don't have a dedicated day
-  // grid yet, but the agenda's 30-day view already serves the same purpose).
+  // grid yet, but the agenda already serves the same purpose).
   const initialViewMode: ViewMode =
     calendarDefaultView === 'week' ? 'week'
     : calendarDefaultView === 'day' || calendarDefaultView === 'agenda' ? 'agenda'
     : 'month';
   const [viewMode, setViewMode] = React.useState<ViewMode>(initialViewMode);
+
+  // Scroll window (#759, webmail calendar-app): every view shows a window of
+  // days around the day the user navigated to (the "focus"). The agenda
+  // scrolls freely: reaching an edge widens that side and only the new days
+  // are fetched. Month and week show exactly one period. Navigation moves the
+  // focus and, when that leaves the window, starts a fresh window there.
+  const windowOptions = React.useMemo<ScrollWindowOptions>(
+    () => ({ weekStartsOn: calendarFirstDayOfWeek }),
+    [calendarFirstDayOfWeek],
+  );
+  const [focus, setFocus] = React.useState<CalendarFocus>(() => ({ date: new Date(), nonce: 0 }));
+  // The day the scrolled view shows at its top, while it differs from the focus.
+  const [visibleDate, setVisibleDate] = React.useState<Date | null>(null);
+  const [windowState, setWindowState] = React.useState<ScrollWindowState>(
+    () => freshScrollWindowState(initialViewMode, new Date()),
+  );
+  const freeScroll = viewMode === 'agenda';
+  const focusKey = dayKey(focus.date);
+  const activeWindowState = React.useMemo(
+    () =>
+      freeScroll
+        ? normalizeScrollWindowState(windowState, viewMode, parseDayKey(focusKey))
+        : fixedScrollWindowState(viewMode, parseDayKey(focusKey)),
+    [freeScroll, windowState, viewMode, focusKey],
+  );
+  React.useEffect(() => {
+    if (freeScroll && activeWindowState !== windowState) setWindowState(activeWindowState);
+  }, [freeScroll, activeWindowState, windowState]);
+  const scrollWindow = React.useMemo(
+    () => computeScrollWindow(activeWindowState, windowOptions),
+    [activeWindowState, windowOptions],
+  );
+  // Changes whenever a fresh window starts; the views remount on it.
+  const windowKey = `${activeWindowState.mode}:${activeWindowState.anchorKey}`;
+  const loadRange = React.useMemo(() => {
+    const { after, before } = scrollWindowLoadRange(scrollWindow, RANGE_MARGIN_DAYS);
+    return { after: after.toISOString(), before: before.toISOString() };
+  }, [scrollWindow]);
 
   const [detailEvent, setDetailEvent] = React.useState<CalendarEvent | null>(null);
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
@@ -191,7 +222,6 @@ export default function CalendarScreen() {
 
   const hydrate = useCalendarStore((s) => s.hydrate);
   const fetchCalendarsAction = useCalendarStore((s) => s.fetchCalendars);
-  const ensureRange = useCalendarStore((s) => s.ensureRange);
   const refresh = useCalendarStore((s) => s.refresh);
   const createEvent = useCalendarStore((s) => s.createEvent);
   const updateEvent = useCalendarStore((s) => s.updateEvent);
@@ -230,15 +260,21 @@ export default function CalendarScreen() {
   const loading = useCalendarStore((s) => s.loading);
   const error = useCalendarStore((s) => s.error);
   const storeEvents = useCalendarStore((s) => s.events);
+  const loadedRange = useCalendarStore((s) => s.loadedRange);
+  // The days of the window whose events are in (the agenda lists no day it
+  // hasn't fetched).
+  const loadedWindow = React.useMemo(
+    () => loadedPartOfWindow(scrollWindow, loadedRange?.after, loadedRange?.before),
+    [scrollWindow, loadedRange],
+  );
 
   // The birthday calendar is a client-side virtual calendar: its events are
   // generated from contacts for the visible range and merged in alongside the
   // server calendars. Toggling it on/off is instant (no refetch).
   const birthdayEvents = React.useMemo(() => {
     if (!showBirthdayCalendar) return [];
-    const { after, before } = rangeForView(viewMode, currentDate, calendarFirstDayOfWeek);
-    return generateBirthdayEvents(contacts, after.toISOString(), before.toISOString());
-  }, [showBirthdayCalendar, contacts, viewMode, currentDate, calendarFirstDayOfWeek]);
+    return generateBirthdayEvents(contacts, loadRange.after, loadRange.before);
+  }, [showBirthdayCalendar, contacts, loadRange]);
 
   // Per-viewer recolor (#345): shared calendars get the viewer's local color
   // override applied before anything renders. Personal calendars pass through.
@@ -366,40 +402,92 @@ export default function CalendarScreen() {
     return () => sub.remove();
   }, [syncDueSubscriptions]);
 
+  // Load the window's events: one fetch at a time, and only the days not
+  // loaded yet (calendar-store extendRange). `loadingEdge` is the side an
+  // extension asked for, until the wider window is in.
+  const [rangeLoading, setRangeLoading] = React.useState(false);
+  const [loadingEdge, setLoadingEdge] = React.useState<'start' | 'end' | null>(null);
+  const loadingEdgeRef = React.useRef<'start' | 'end' | null>(null);
+  const [rangeLoader] = React.useState(() =>
+    createRangeLoader(
+      (range) => useCalendarStore.getState().extendRange(range.after, range.before),
+      (busy) => {
+        setRangeLoading(busy);
+        if (!busy) {
+          loadingEdgeRef.current = null;
+          setLoadingEdge(null);
+        }
+      },
+    ),
+  );
+  // Ask again whenever the loaded range changes without covering the
+  // window: a refresh that started before an extension landed writes the
+  // smaller range back. A failed extension is retried by the next refresh
+  // (pull, push, reconnect) or when calendars arrive after sign-in. A
+  // covered window costs nothing (extendRange returns at once).
   React.useEffect(() => {
-    const { after, before } = rangeForView(viewMode, currentDate, calendarFirstDayOfWeek);
-    void ensureRange(after.toISOString(), before.toISOString());
-  }, [viewMode, currentDate, ensureRange, calendarFirstDayOfWeek]);
+    if (coversRange(useCalendarStore.getState().loadedRange, loadRange) && !rangeLoader.isBusy()) return;
+    void rangeLoader.request(loadRange);
+  }, [rangeLoader, loadRange, loadedRange, storeCalendars]);
 
-  const goPrev = React.useCallback(() => {
-    setCurrentDate((d) => {
-      if (viewMode === 'month') return subMonths(d, 1);
-      if (viewMode === 'week') return subWeeks(d, 1);
-      return addDays(d, -AGENDA_DAYS);
-    });
-  }, [viewMode]);
-
-  const goNext = React.useCallback(() => {
-    setCurrentDate((d) => {
-      if (viewMode === 'month') return addMonths(d, 1);
-      if (viewMode === 'week') return addWeeks(d, 1);
-      return addDays(d, AGENDA_DAYS);
-    });
-  }, [viewMode]);
-
-  const goToday = React.useCallback(() => {
-    const today = new Date();
-    setCurrentDate(today);
-    setSelectedDate(today);
-  }, []);
-
-  const handleSelectDate = React.useCallback(
+  const jumpTo = React.useCallback(
     (date: Date) => {
       setSelectedDate(date);
-      if (viewMode === 'week') setCurrentDate(date);
+      setVisibleDate(null);
+      setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+      setWindowState((prev) => windowStateForJump(prev, viewMode, date, windowOptions));
     },
-    [viewMode],
+    [viewMode, windowOptions],
   );
+
+  const extendWindow = React.useCallback(
+    (side: 'before' | 'after') => {
+      if (loadingEdgeRef.current) return;
+      const edge = side === 'before' ? 'start' : 'end';
+      loadingEdgeRef.current = edge;
+      setLoadingEdge(edge);
+      setWindowState((prev) =>
+        growScrollWindow(normalizeScrollWindowState(prev, viewMode, focus.date), side),
+      );
+    },
+    [viewMode, focus.date],
+  );
+  const extendWindowStart = React.useCallback(() => extendWindow('before'), [extendWindow]);
+  const extendWindowEnd = React.useCallback(() => extendWindow('after'), [extendWindow]);
+
+  // The arrows step from what is on screen, which may have been scrolled
+  // away from the focused day.
+  const goPrev = React.useCallback(() => {
+    const base = visibleDate ?? focus.date;
+    jumpTo(viewMode === 'week' ? subWeeks(base, 1) : subMonths(base, 1));
+  }, [viewMode, visibleDate, focus.date, jumpTo]);
+
+  const goNext = React.useCallback(() => {
+    const base = visibleDate ?? focus.date;
+    jumpTo(viewMode === 'week' ? addWeeks(base, 1) : addMonths(base, 1));
+  }, [viewMode, visibleDate, focus.date, jumpTo]);
+
+  const goToday = React.useCallback(() => {
+    jumpTo(new Date());
+  }, [jumpTo]);
+
+  // Switching views keeps the period on screen in view.
+  const changeViewMode = React.useCallback(
+    (mode: ViewMode) => {
+      if (mode === viewMode) return;
+      const date = visibleDate ?? focus.date;
+      setViewMode(mode);
+      setVisibleDate(null);
+      setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+      setWindowState(freshScrollWindowState(mode, date));
+    },
+    [viewMode, visibleDate, focus.date],
+  );
+
+  // Picking a day only moves the selection; the view stays where it is.
+  const handleSelectDate = React.useCallback((date: Date) => {
+    setSelectedDate(date);
+  }, []);
 
   const openCreate = React.useCallback((date?: Date) => {
     setModalEvent(null);
@@ -810,7 +898,7 @@ export default function CalendarScreen() {
         </Pressable>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>
-            {headerTitle(viewMode, currentDate, calendarFirstDayOfWeek, locale)}
+            {headerTitle(viewMode, visibleDate ?? focus.date, calendarFirstDayOfWeek, locale)}
           </Text>
           <Text style={styles.headerSubtitle}>
             {isSelectedToday
@@ -837,7 +925,7 @@ export default function CalendarScreen() {
                 <Pressable
                   key={mode}
                   style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
-                  onPress={() => setViewMode(mode)}
+                  onPress={() => changeViewMode(mode)}
                 >
                   <Icon size={16} color={active ? c.primary : c.textMuted} />
                 </Pressable>
@@ -871,7 +959,7 @@ export default function CalendarScreen() {
       <View style={styles.content}>
         {viewMode === 'month' && (
           <MonthView
-            currentDate={currentDate}
+            currentDate={focus.date}
             selectedDate={selectedDate}
             events={events}
             eventsByDay={eventsByDay}
@@ -886,6 +974,7 @@ export default function CalendarScreen() {
         )}
         {viewMode === 'week' && (
           <WeekView
+            weekDate={focus.date}
             selectedDate={selectedDate}
             events={events}
             eventsByDay={eventsByDay}
@@ -899,8 +988,15 @@ export default function CalendarScreen() {
         )}
         {viewMode === 'agenda' && (
           <AgendaView
-            fromDate={currentDate}
-            daysAhead={AGENDA_DAYS}
+            key={windowKey}
+            focus={focus}
+            window={scrollWindow}
+            loaded={loadedWindow}
+            onExtendStart={scrollWindow.canExtendStart && freeScroll ? extendWindowStart : undefined}
+            onExtendEnd={scrollWindow.canExtendEnd && freeScroll ? extendWindowEnd : undefined}
+            loadingEdge={loadingEdge}
+            isLoading={rangeLoading}
+            onVisibleDateChange={setVisibleDate}
             events={events}
             eventsByDay={eventsByDay}
             calendars={calendars}

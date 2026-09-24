@@ -45,6 +45,13 @@ import {
   withNewOverrideDetails,
 } from '../lib/recurrence-instances';
 import { findTasksOnlyCalendarIds, isTaskLikeObject } from '../lib/calendar-component-detection';
+import { mergeRangeEvents, mergedSpanLimit, planRangeLoad, sameRange } from '../lib/calendar-range-cache';
+
+// extendRange merges up to twice the requested range (at least half a year,
+// at most about three years); past that it starts over with the request.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MIN_MERGED_RANGE_MS = 183 * DAY_MS;
+const MAX_MERGED_RANGE_MS = 3 * 366 * DAY_MS;
 
 // Does the event carry attendees the server should notify over iMIP? Used to
 // decide whether to set sendSchedulingMessages on create/update/delete.
@@ -211,6 +218,11 @@ export interface CalendarState {
   // tasks-only calendars; independent of the visible date range.
   fetchTasks: () => Promise<void>;
   ensureRange: (after: string, before: string) => Promise<void>;
+  // Grow the loaded window to [after, before]: only the parts outside it are
+  // fetched and merged in (the freely scrolling views, #759). A range that
+  // doesn't touch the loaded one, or would make it too large, is loaded
+  // afresh like ensureRange.
+  extendRange: (after: string, before: string) => Promise<void>;
   refresh: () => Promise<void>;
   handleStateChange: (change: StateChange) => Promise<void>;
   // `options.sendSchedulingMessages` overrides the default (send iMIP when
@@ -642,6 +654,51 @@ export const useCalendarStore = create<CalendarState>()(
     const needTasks = get().tasks.length === 0 && get().taskOnlyCalendarIds.length === 0;
     await get().fetchEvents(calendarIds, after, before);
     if (needTasks) void get().fetchTasks();
+  },
+
+  extendRange: async (after, before) => {
+    const loaded = get().loadedRange;
+    const requested = { after, before };
+    const plan = planRangeLoad(
+      loaded,
+      requested,
+      mergedSpanLimit(requested, MIN_MERGED_RANGE_MS, MAX_MERGED_RANGE_MS),
+    );
+    if (plan.kind === 'covered') return;
+    if (plan.kind === 'replace' || !loaded) {
+      await get().ensureRange(after, before);
+      return;
+    }
+    if (!jmapClient.isConnected) return;
+    // Calendars haven't loaded yet (cold start with a cached window): fetch
+    // them (deduped) first, like ensureRange.
+    if (get().calendars.length === 0) await get().fetchCalendars();
+    const calendars = get().calendars;
+    const calendarIds = calendars.map((c) => c.id);
+    if (calendarIds.length === 0) {
+      set({ loadedRange: plan.union });
+      return;
+    }
+    set({ loading: true, error: null });
+    try {
+      const incoming: CalendarEvent[] = [];
+      for (const piece of plan.pieces) {
+        incoming.push(...(await loadEventsInRange(calendars, calendarIds, piece.after, piece.before)));
+      }
+      // A jump elsewhere replaced the window meanwhile: these pieces no
+      // longer border it. (A refresh of the same window is fine.)
+      if (!sameRange(get().loadedRange, loaded)) {
+        set({ loading: false });
+        return;
+      }
+      set({
+        events: mergeRangeEvents(get().events, incoming),
+        loadedRange: plan.union,
+        loading: false,
+      });
+    } catch (err) {
+      set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
+    }
   },
 
   refresh: async () => {
