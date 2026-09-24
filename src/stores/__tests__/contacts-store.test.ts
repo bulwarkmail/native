@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/contacts', () => ({
   getAddressBooks: vi.fn(),
@@ -53,6 +53,7 @@ import {
   selectGroupMembers,
   sortContactsByName,
   selectCreateTargetBookId,
+  CONTACTS_STALE_MS,
 } from '../contacts-store';
 import type { AddressBook, ContactCard } from '../../api/types';
 
@@ -141,6 +142,51 @@ describe('contacts-store', () => {
       resolveBooks([]);
       await Promise.all([books, contacts]);
       expect(order).toEqual(['books-resolved', 'contacts']);
+    });
+  });
+
+  describe('fetchContactsIfStale (PF6)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('does not download the cards again while the last full fetch is fresh', async () => {
+      vi.useFakeTimers();
+      mockGetAllContacts.mockResolvedValue([card('c1')]);
+      await useContactsStore.getState().fetchContacts();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(CONTACTS_STALE_MS - 1000);
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(2000);
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(2);
+    });
+
+    it('fetches when nothing was loaded this session, after a reset or after a filtered load', async () => {
+      mockGetAllContacts.mockResolvedValue([card('c1')]);
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(1);
+
+      useContactsStore.getState().reset();
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(2);
+
+      mockQueryContacts.mockResolvedValue([]);
+      await useContactsStore.getState().fetchContacts({ text: 'x' });
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries on the next open when the last fetch failed', async () => {
+      mockGetAllContacts.mockRejectedValueOnce(new Error('offline')).mockResolvedValue([card('c1')]);
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(useContactsStore.getState().contactsFetchedAt).toBe(0);
+      await useContactsStore.getState().fetchContactsIfStale();
+      expect(mockGetAllContacts).toHaveBeenCalledTimes(2);
+      expect(useContactsStore.getState().contacts).toHaveLength(1);
     });
   });
 

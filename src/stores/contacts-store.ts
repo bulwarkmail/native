@@ -61,6 +61,8 @@ export interface ContactsState {
   loading: boolean;
   error: string | null;
   hydrated: boolean;
+  /** When `contacts` last got every card from the server (0 = not this session). */
+  contactsFetchedAt: number;
 
   // Trusted senders are stored as contacts in a dedicated JMAP address book so
   // the allow-list syncs across devices (matches the webmail behavior).
@@ -78,6 +80,8 @@ export interface ContactsState {
   hydrate: () => Promise<void>;
   fetchAddressBooks: () => Promise<void>;
   fetchContacts: (filter?: { text?: string; inAddressBook?: string }) => Promise<void>;
+  /** `fetchContacts()` unless every card was fetched within `CONTACTS_STALE_MS`. */
+  fetchContactsIfStale: () => Promise<void>;
   refresh: () => Promise<void>;
   handleStateChange: (change: StateChange) => Promise<void>;
 
@@ -225,6 +229,12 @@ let addressBooksPromise: Promise<void> | null = null;
 let contactsPromise: Promise<void> | null = null;
 let trustedSendersPromise: Promise<void> | null = null;
 
+// Startup fetches every card and live `ContactCard` state changes refetch
+// them, so opening Contacts only downloads the cards again once the last full
+// fetch is this old - it covers changes missed while the app was in the
+// background or live updates were down (PF6).
+export const CONTACTS_STALE_MS = 5 * 60_000;
+
 export const useContactsStore = create<ContactsState>()(
   persist(
     (set, get) => {
@@ -292,6 +302,7 @@ export const useContactsStore = create<ContactsState>()(
         loading: false,
         error: null,
         hydrated: false,
+        contactsFetchedAt: 0,
 
         trustedSendersBookId: null,
         trustedSenderEmails: [],
@@ -340,13 +351,15 @@ export const useContactsStore = create<ContactsState>()(
             set({ loading: true, error: null });
             try {
               let contacts: ContactCard[];
-              if (filter && Object.keys(filter).length > 0) {
+              const filtered = !!filter && Object.keys(filter).length > 0;
+              if (filtered) {
                 const ids = (await queryContacts(filter)) ?? [];
                 contacts = ids.length > 0 ? ((await fetchContactsByIds(ids)) ?? []) : [];
               } else {
                 contacts = (await fetchAllContacts()) ?? [];
               }
-              set({ contacts, loading: false });
+              // A filtered load leaves only some of the cards in state.
+              set({ contacts, loading: false, contactsFetchedAt: filtered ? 0 : Date.now() });
             } catch (err) {
               set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load contacts' });
             }
@@ -354,6 +367,12 @@ export const useContactsStore = create<ContactsState>()(
             contactsPromise = null;
           });
           return contactsPromise;
+        },
+
+        fetchContactsIfStale: async () => {
+          const fetchedAt = get().contactsFetchedAt;
+          if (fetchedAt > 0 && Date.now() - fetchedAt < CONTACTS_STALE_MS) return;
+          await get().fetchContacts();
         },
 
         refresh: async () => {
@@ -807,6 +826,7 @@ export const useContactsStore = create<ContactsState>()(
           selectedCategory: { type: 'all' },
           loading: false,
           error: null,
+          contactsFetchedAt: 0,
           trustedSendersBookId: null,
           trustedSenderEmails: [],
           trustedSendersLoaded: false,

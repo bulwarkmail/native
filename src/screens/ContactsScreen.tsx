@@ -106,6 +106,7 @@ export default function ContactsScreen() {
   const hydrated = useContactsStore((s) => s.hydrated);
   const fetchAddressBooks = useContactsStore((s) => s.fetchAddressBooks);
   const fetchContacts = useContactsStore((s) => s.fetchContacts);
+  const fetchContactsIfStale = useContactsStore((s) => s.fetchContactsIfStale);
   const hydrate = useContactsStore((s) => s.hydrate);
   const bulkDelete = useContactsStore((s) => s.bulkDelete);
   const moveContactsToAddressBook = useContactsStore((s) => s.moveContactsToAddressBook);
@@ -130,10 +131,12 @@ export default function ContactsScreen() {
     void hydrate();
   }, [hydrate]);
 
+  // The cards loaded at startup and follow live changes; only download them
+  // again when that copy is stale. Pull to refresh still forces a reload.
   React.useEffect(() => {
     void fetchAddressBooks();
-    void fetchContacts();
-  }, [fetchAddressBooks, fetchContacts]);
+    void fetchContactsIfStale();
+  }, [fetchAddressBooks, fetchContactsIfStale]);
 
   const groups = React.useMemo(() => contacts.filter(isGroup), [contacts]);
   const individuals = React.useMemo(() => contacts.filter((c) => !isGroup(c)), [contacts]);
