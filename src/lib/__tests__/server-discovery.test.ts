@@ -50,6 +50,21 @@ describe('normalizeServerUrl', () => {
     expect(normalizeServerUrl('mail.example.com/jmap')).toBe('https://mail.example.com');
   });
 
+  it('strips a pasted session URL with its query or fragment (#971)', () => {
+    expect(normalizeServerUrl('https://mail.example.com/jmap/session')).toBe('https://mail.example.com');
+    expect(normalizeServerUrl('mail.example.com/jmap/session/')).toBe('https://mail.example.com');
+    expect(normalizeServerUrl('https://mail.example.com/.well-known/jmap?x=1#top')).toBe(
+      'https://mail.example.com',
+    );
+    expect(normalizeServerUrl('https://mail.example.com/?x=1')).toBe('https://mail.example.com');
+  });
+
+  it('keeps a base path prefix in front of the session suffix', () => {
+    expect(normalizeServerUrl('https://example.com/mail/jmap/session')).toBe('https://example.com/mail');
+    expect(normalizeServerUrl('https://example.com/mail/.well-known/jmap')).toBe('https://example.com/mail');
+    expect(normalizeServerUrl('https://example.com/mail')).toBe('https://example.com/mail');
+  });
+
   it('keeps an explicit http scheme and port', () => {
     expect(normalizeServerUrl('http://localhost:8080')).toBe('http://localhost:8080');
   });

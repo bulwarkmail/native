@@ -34,8 +34,8 @@ const EMAIL_RE = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/;
 
 /**
  * Accept what people actually type — `mail.example.com`, `example.com/`,
- * `https://mail.example.com/.well-known/jmap` — and return the base URL the
- * JMAP client expects, or null if it can't be one.
+ * `https://mail.example.com/.well-known/jmap`, `…/jmap/session` — and return
+ * the base URL the JMAP client expects, or null if it can't be one.
  */
 export function normalizeServerUrl(input: string): string | null {
   let value = input.trim();
@@ -57,11 +57,12 @@ export function normalizeServerUrl(input: string): string | null {
   if (/^http:\/\//i.test(value) && !isLocalHost(value)) return null;
 
   // Someone pasting the endpoint they found in the webmail's settings gets the
-  // same result as someone typing the address they use in the browser.
+  // same result as someone typing the address they use in the browser. Only
+  // the session or API suffix goes, so a base path prefix survives (#971).
   value = value
+    .replace(/[?#].*$/, '')
     .replace(/\/+$/, '')
-    .replace(/\/\.well-known\/jmap$/i, '')
-    .replace(/\/jmap$/i, '')
+    .replace(/\/(?:jmap\/session|\.well-known\/jmap|jmap)$/i, '')
     .replace(/\/+$/, '');
 
   const host = value.slice(value.indexOf('://') + 3).split('/')[0];
