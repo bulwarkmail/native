@@ -11,7 +11,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { rescheduleScheduledSend } from '../email';
+import { rescheduleScheduledSend, sendEmail } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -100,5 +100,59 @@ describe('rescheduleScheduledSend', () => {
 
     expect(mockRequest).toHaveBeenCalledTimes(1);
     expect(mockRequest.mock.calls[0][0][0][1].create.replacement).toEqual({ emailId: 'e-1', identityId: 'id-1' });
+  });
+});
+
+describe('sendEmail', () => {
+  const OUTGOING = {
+    from: [{ email: 'me@example.com' }],
+    to: [{ email: 'you@example.com' }],
+    subject: 'Hello',
+    textBody: 'Hi',
+  };
+
+  it('reports a failed post-send filing as a warning, not a failed send (B23)', async () => {
+    // Stalwart answers the implicit onSuccessUpdateEmail Email/set with a
+    // method error after the submission was created: the mail went out.
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+        ['EmailSubmission/set', { created: { 'sub-1': { id: 's-1', sendAt: '2026-09-24T10:00:30Z' } } }, '1'],
+        ['error', { type: 'forbidden', description: 'You do not have access to this mailbox' }, '1'],
+      ],
+    });
+
+    const result = await sendEmail(OUTGOING, 'identity-1', 'sent-mb', 30, { draftsMailboxId: 'drafts-mb' });
+
+    expect(result).toMatchObject({
+      scheduled: true,
+      emailId: 'e-new',
+      emailSubmissionId: 's-1',
+      sendAt: '2026-09-24T10:00:30Z',
+      filingWarning: 'You do not have access to this mailbox',
+    });
+  });
+
+  it('still fails when the submission itself was refused', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+        ['error', { type: 'invalidArguments', description: 'Invalid envelope' }, '1'],
+      ],
+    });
+
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, { draftsMailboxId: 'drafts-mb' }))
+      .rejects.toThrow('Invalid envelope');
+  });
+
+  it('still fails when the message could not be created', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [
+        ['error', { type: 'serverFail', description: 'Disk full' }, '0'],
+        ['EmailSubmission/set', { notCreated: { 'sub-1': { type: 'invalidProperties' } } }, '1'],
+      ],
+    });
+
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb')).rejects.toThrow('Disk full');
   });
 });

@@ -1177,6 +1177,15 @@ export async function sendEmail(
   let filingWarning: string | undefined;
   for (const [methodName, result] of res.methodResponses) {
     if (methodName === 'error' || methodName.endsWith('/error')) {
+      // Once the submission exists the message has left (or is held), so a
+      // later error is the implicit `onSuccessUpdateEmail` Email/set that
+      // Stalwart appends failing to file it. Failing the send here made the
+      // user retry and send the message twice.
+      if (emailSubmissionId) {
+        const err = result as { description?: string; type?: string };
+        filingWarning = filingWarning ?? (err.description || err.type || 'post-send filing failed');
+        continue;
+      }
       throw new Error((result as { description?: string }).description ?? 'Send failed');
     }
     if (methodName === 'Email/set') {
