@@ -249,8 +249,15 @@ export default function CalendarScreen() {
   // Task to open in the tasks sheet when a task chip on the grid is tapped.
   const [tasksInitialId, setTasksInitialId] = React.useState<string | null>(null);
   // A tapped reminder notification opens its event or task here.
+  // Set to jumpTo below; a reminder resolves asynchronously.
+  const jumpToRef = React.useRef<(date: Date) => void>(() => {});
   useCalendarReminderOpen({
-    onEvent: setDetailEvent,
+    onEvent: (event) => {
+      setDetailEvent(event);
+      // Its day comes into view behind the sheet.
+      const start = getEventStartDate(event);
+      if (!isNaN(start.getTime())) jumpToRef.current(start);
+    },
     onTask: (id) => { setTasksInitialId(id); setTasksVisible(true); },
   });
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
@@ -447,6 +454,7 @@ export default function CalendarScreen() {
     },
     [viewMode, windowOptions],
   );
+  jumpToRef.current = jumpTo;
 
   // The grids add their rows for the wider window right away (the events
   // follow); the agenda waits for one extension to load before the next.
