@@ -251,7 +251,8 @@ export default function ContactsScreen() {
     }
   };
 
-  // A new contact lands in the address book being viewed, not the default one.
+  // A new contact or group lands in the address book being viewed, not the
+  // default one.
   const createBookId = React.useMemo(
     () => selectCreateTargetBookId(selectedCategory, addressBooks),
     [selectedCategory, addressBooks],
@@ -260,7 +261,7 @@ export default function ContactsScreen() {
   const openNewMenu = () => {
     Alert.alert('Create', undefined, [
       { text: 'New contact', onPress: () => navigation.navigate('ContactForm', { addressBookId: createBookId }) },
-      { text: 'New group', onPress: () => navigation.navigate('ContactForm', { asGroup: true }) },
+      { text: 'New group', onPress: () => navigation.navigate('ContactForm', { asGroup: true, addressBookId: createBookId }) },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };

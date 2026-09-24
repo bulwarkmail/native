@@ -11,7 +11,9 @@ import {
 import type { RootStackParamList } from '../../navigation/types';
 import type { AddressBook } from '../../api/types';
 import type { ContactCategory } from '../../stores/contacts-store';
-import { useContactsStore, selectGroupMembers, selectUncategorized } from '../../stores/contacts-store';
+import {
+  useContactsStore, selectCreateTargetBookId, selectGroupMembers, selectUncategorized,
+} from '../../stores/contacts-store';
 import { getContactDisplayName, getContactKeywords, isGroup } from '../../lib/contact-utils';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -223,7 +225,11 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
                 muted
                 onPress={() => {
                   onClose();
-                  navigation.navigate('ContactForm', { asGroup: true });
+                  // Into the address book being viewed, like a new contact.
+                  navigation.navigate('ContactForm', {
+                    asGroup: true,
+                    addressBookId: selectCreateTargetBookId(selectedCategory, addressBooks),
+                  });
                 }}
               />
             )}
