@@ -312,6 +312,11 @@ export async function saveLocalFileCopy(file: File, mimeType: string, filename =
 
 let previewSeq = 0;
 
+function newPreviewDir(): Directory {
+  previewSeq += 1;
+  return new Directory(exportsDir(), `${PREVIEW_DIR_PREFIX}${Date.now().toString(36)}-${previewSeq.toString(36)}`);
+}
+
 /**
  * Download a blob for the in-app preview. Every preview gets its own folder
  * in the exports cache, so the file keeps its real name for Share and Open
@@ -328,8 +333,7 @@ export async function cachePreviewFile(
   accountId?: string,
 ): Promise<File> {
   void sweepStaleExportFiles();
-  previewSeq += 1;
-  const dir = new Directory(exportsDir(), `${PREVIEW_DIR_PREFIX}${Date.now().toString(36)}-${previewSeq.toString(36)}`);
+  const dir = newPreviewDir();
   const filename = safeAttachmentName(name, type);
   const url = getDownloadUrl(blobId, filename, type || 'application/octet-stream', accountId);
   try {
@@ -342,7 +346,21 @@ export async function cachePreviewFile(
   }
 }
 
-/** Delete a file from {@link cachePreviewFile} together with its folder. */
+/**
+ * {@link cachePreviewFile} for bytes already in memory (parts unpacked on the
+ * device, e.g. from winmail.dat).
+ */
+export function writePreviewFile(bytes: Uint8Array, name: string | undefined, type: string | undefined): File {
+  void sweepStaleExportFiles();
+  const dir = newPreviewDir();
+  ensureDir(dir);
+  const file = new File(dir, safeAttachmentName(name, type));
+  file.create();
+  file.write(bytes);
+  return file;
+}
+
+/** Delete a file from {@link cachePreviewFile} or {@link writePreviewFile} together with its folder. */
 export function discardPreviewFile(file: File): void {
   try {
     const dir = file.parentDirectory;

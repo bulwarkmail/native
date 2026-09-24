@@ -109,7 +109,7 @@ import { File, Directory } from 'expo-file-system';
 import { getDownloadUrl } from '../../api/blob';
 import {
   shareAttachment, downloadAttachment, cachePreviewFile, discardPreviewFile, saveLocalFileCopy,
-  shareLocalFile,
+  shareLocalFile, writePreviewFile,
 } from '../email-export';
 
 const VIEW = 'android.intent.action.VIEW';
@@ -252,6 +252,26 @@ describe('cachePreviewFile (in-app preview)', () => {
     await expect(cachePreviewFile('blob-x', 'gone.txt', 'text/plain')).rejects.toThrow('404');
     expect(fsState.deleted).toHaveLength(1);
     expect(fsState.deleted[0]).toMatch(/\/bulwark-exports\/preview-[^/]+\/$/);
+  });
+});
+
+describe('writePreviewFile (parts unpacked on the device)', () => {
+  it('writes into a folder of its own, so two parts with one name get different paths', () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const a = writePreviewFile(bytes, 'image001.png', 'image/png');
+    const b = writePreviewFile(bytes, 'image001.png', 'image/png');
+
+    expect(a.name).toBe('image001.png');
+    expect(a.uri).toMatch(/^file:\/\/\/cache\/bulwark-exports\/preview-[^/]+\/image001\.png$/);
+    expect(a.uri).not.toBe(b.uri);
+  });
+
+  it('is removed with its folder like a downloaded preview', () => {
+    fsState.deleted.length = 0;
+    const file = writePreviewFile(new Uint8Array([1]), 'notes.txt', 'text/plain');
+    discardPreviewFile(file);
+
+    expect(fsState.deleted).toEqual([file.uri.replace(/notes\.txt$/, '')]);
   });
 });
 
