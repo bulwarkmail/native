@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Kunne ikke indlæse listen over brugere og grupper.",
+    "directory_not_browsable": "Din server lader dig ikke gennemse brugerkataloget.",
+    "directory_restricted": "Din server tillader ikke, at brugerkataloget gennemses, så kun dine grupper og personer, der har delt noget med dig, vises. En administrator kan slå katalogforespørgsler til i Stalwarts delingsindstillinger.",
+    "unknown_user": "Ukendt bruger"
+  },
   "sidebar": {
     "account_error": "Kræver handling",
     "remove_account_hint": "Tryk længe for at fjerne denne konto",

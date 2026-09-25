@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Die Liste der Benutzer und Gruppen konnte nicht geladen werden.",
+    "directory_not_browsable": "Ihr Server erlaubt Ihnen nicht, sein Benutzerverzeichnis zu durchsuchen.",
+    "directory_restricted": "Ihr Server erlaubt kein Durchsuchen seines Benutzerverzeichnisses, daher werden nur Ihre Gruppen und Personen aufgeführt, die etwas mit Ihnen geteilt haben. Ein Administrator kann Verzeichnisabfragen in den Freigabeeinstellungen von Stalwart aktivieren.",
+    "unknown_user": "Unbekannter Benutzer"
+  },
   "sidebar": {
     "account_error": "Aktion erforderlich",
     "remove_account_hint": "Lange drücken, um dieses Konto zu entfernen",

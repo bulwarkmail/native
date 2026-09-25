@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "ユーザーとグループの一覧を読み込めませんでした。",
+    "directory_not_browsable": "お使いのサーバーでは、ユーザーディレクトリを参照できません。",
+    "directory_restricted": "お使いのサーバーではユーザーディレクトリの参照が許可されていないため、所属グループと、あなたと共有しているユーザーのみが表示されます。管理者は Stalwart の共有設定でディレクトリクエリを有効にできます。",
+    "unknown_user": "不明なユーザー"
+  },
   "sidebar": {
     "account_error": "要確認",
     "remove_account_hint": "長押しするとこのアカウントを削除できます",

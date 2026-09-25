@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Seznam uživatelů a skupin se nepodařilo načíst.",
+    "directory_not_browsable": "Váš server vám neumožňuje procházet adresář uživatelů.",
+    "directory_restricted": "Váš server neumožňuje procházet adresář uživatelů, proto se zobrazují jen vaše skupiny a lidé, kteří s vámi něco sdíleli. Správce může dotazy na adresář zapnout v nastavení sdílení serveru Stalwart.",
+    "unknown_user": "Neznámý uživatel"
+  },
   "sidebar": {
     "account_error": "Vyžaduje pozornost",
     "remove_account_hint": "Dlouhým stisknutím tento účet odeberete",

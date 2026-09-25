@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "사용자 및 그룹 목록을 불러오지 못했습니다.",
+    "directory_not_browsable": "서버에서 사용자 디렉터리를 탐색할 수 없습니다.",
+    "directory_restricted": "서버에서 사용자 디렉터리 탐색을 허용하지 않아 내 그룹과 나와 공유한 사람만 표시됩니다. 관리자는 Stalwart의 공유 설정에서 디렉터리 쿼리를 켤 수 있습니다.",
+    "unknown_user": "알 수 없는 사용자"
+  },
   "sidebar": {
     "account_error": "확인 필요",
     "remove_account_hint": "길게 눌러 이 계정 삭제",

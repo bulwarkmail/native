@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Nie udało się wczytać listy użytkowników i grup.",
+    "directory_not_browsable": "Twój serwer nie pozwala Ci przeglądać katalogu użytkowników.",
+    "directory_restricted": "Twój serwer nie pozwala przeglądać katalogu użytkowników, dlatego widoczne są tylko Twoje grupy i osoby, które coś Ci udostępniły. Administrator może włączyć zapytania do katalogu w ustawieniach udostępniania Stalwart.",
+    "unknown_user": "Nieznany użytkownik"
+  },
   "sidebar": {
     "account_error": "Wymaga uwagi",
     "remove_account_hint": "Przytrzymaj, aby usunąć to konto",

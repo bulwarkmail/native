@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "No s'ha pogut carregar la llista d'usuaris i grups.",
+    "directory_not_browsable": "El vostre servidor no us permet explorar el directori d'usuaris.",
+    "directory_restricted": "El vostre servidor no permet explorar el directori d'usuaris, així que només es mostren els vostres grups i les persones que han compartit alguna cosa amb vós. Un administrador pot activar les consultes al directori a la configuració de compartició de Stalwart.",
+    "unknown_user": "Usuari desconegut"
+  },
   "sidebar": {
     "account_error": "Cal atenció",
     "remove_account_hint": "Manteniu premut per eliminar aquest compte",

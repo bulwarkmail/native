@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Kan de lijst met gebruikers en groepen niet laden.",
+    "directory_not_browsable": "Uw server staat u niet toe de gebruikersdirectory te doorbladeren.",
+    "directory_restricted": "Uw server staat het doorbladeren van de gebruikersdirectory niet toe, daarom worden alleen uw groepen en personen die iets met u hebben gedeeld weergegeven. Een beheerder kan directoryquery's inschakelen in de instellingen voor delen van Stalwart.",
+    "unknown_user": "Onbekende gebruiker"
+  },
   "sidebar": {
     "account_error": "Actie vereist",
     "remove_account_hint": "Lang drukken om dit account te verwijderen",

@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Kullanıcı ve grup listesi yüklenemedi.",
+    "directory_not_browsable": "Sunucunuz kullanıcı dizinine göz atmanıza izin vermiyor.",
+    "directory_restricted": "Sunucunuz kullanıcı dizinine göz atılmasına izin vermiyor, bu nedenle yalnızca gruplarınız ve sizinle bir şey paylaşmış kişiler listeleniyor. Bir yönetici, Stalwart'ın paylaşım ayarlarından dizin sorgularını açabilir.",
+    "unknown_user": "Bilinmeyen kullanıcı"
+  },
   "sidebar": {
     "account_error": "İlgilenmeniz gerekiyor",
     "remove_account_hint": "Bu hesabı kaldırmak için uzun basın",

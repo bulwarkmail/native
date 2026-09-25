@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "無法載入使用者和群組清單。",
+    "directory_not_browsable": "您的伺服器不允許您瀏覽使用者目錄。",
+    "directory_restricted": "您的伺服器不允許瀏覽使用者目錄，因此只會列出您所屬的群組，以及曾與您分享內容的使用者。管理員可以在 Stalwart 的分享設定中啟用目錄查詢。",
+    "unknown_user": "未知的使用者"
+  },
   "sidebar": {
     "account_error": "需要處理",
     "remove_account_hint": "長按即可移除此帳號",

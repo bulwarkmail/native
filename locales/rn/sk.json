@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Zoznam používateľov a skupín sa nepodarilo načítať.",
+    "directory_not_browsable": "Váš server vám nepovoľuje prehliadať adresár používateľov.",
+    "directory_restricted": "Váš server nepovoľuje prehliadať adresár používateľov, preto sa zobrazujú iba vaše skupiny a ľudia, ktorí s vami niečo zdieľali. Správca môže zapnúť dopyty na adresár v nastaveniach zdieľania servera Stalwart.",
+    "unknown_user": "Neznámy používateľ"
+  },
   "sidebar": {
     "account_error": "Vyžaduje pozornosť",
     "remove_account_hint": "Dlhým stlačením odstránite tento účet",

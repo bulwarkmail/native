@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Nem sikerült betölteni a felhasználók és csoportok listáját.",
+    "directory_not_browsable": "A szervered nem engedi, hogy böngészd a felhasználói címtárát.",
+    "directory_restricted": "A szervered nem engedi a felhasználói címtár böngészését, ezért csak a csoportjaid és azok jelennek meg, akik megosztottak veled valamit. Egy rendszergazda a Stalwart megosztási beállításaiban engedélyezheti a címtár-lekérdezéseket.",
+    "unknown_user": "Ismeretlen felhasználó"
+  },
   "sidebar": {
     "account_error": "Figyelmet igényel",
     "remove_account_hint": "Nyomd hosszan a fiók eltávolításához",

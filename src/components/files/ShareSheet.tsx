@@ -13,8 +13,9 @@ import {
 } from 'react-native';
 import { Folder, FileText, Trash2, UserPlus, Users } from 'lucide-react-native';
 
-import { getPrincipals, isFolder, ownPrincipalId, setFileNodeShare } from '../../api/files';
+import { isFolder, listPrincipals, ownPrincipalId, setFileNodeShare, type PrincipalListing } from '../../api/files';
 import type { FileNode, FileNodeRights, Principal } from '../../api/types';
+import { directoryNotice } from '../../lib/principal-directory';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -70,20 +71,27 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
   const t = useLocaleStore((s) => s.t);
 
   const [principals, setPrincipals] = useState<Principal[]>([]);
+  const [directory, setDirectory] = useState<Omit<PrincipalListing, 'principals'>>({ status: 'ok' });
   const [loadingPrincipals, setLoadingPrincipals] = useState(false);
   const [shares, setShares] = useState<Record<string, FileNodeRights>>({});
   const [search, setSearch] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!node) return;
+    if (!node) return undefined;
+    let cancelled = false;
     setShares(node.shareWith ?? {});
     setSearch('');
     setLoadingPrincipals(true);
-    getPrincipals()
-      .then(setPrincipals)
-      .catch(() => setPrincipals([]))
-      .finally(() => setLoadingPrincipals(false));
+    void listPrincipals().then(({ principals: list, ...listing }) => {
+      if (cancelled) return;
+      setPrincipals(list);
+      setDirectory(listing);
+      setLoadingPrincipals(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [node]);
 
   const principalsById = useMemo(() => {
@@ -135,16 +143,33 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
   if (!node) return null;
   const Icon = isFolder(node) ? Folder : FileText;
 
+  // The list below is partial or empty for a reason the user can't see
+  // otherwise; say so instead of "No other users found".
+  const notice = loadingPrincipals ? null : directoryNotice(directory);
+  const noticeText =
+    notice === 'failed' ? t('sharing.directory_failed', "Couldn't load the list of users and groups.")
+      : notice === 'restricted'
+        ? t(
+          'sharing.directory_restricted',
+          "Your server doesn't allow browsing its user directory, so only your groups and people who have shared with you are listed. An administrator can turn on directory queries in Stalwart's sharing settings.",
+        )
+        : notice === 'not_browsable'
+          ? t('sharing.directory_not_browsable', "Your server doesn't let you browse its user directory.")
+          : null;
+
   const renderPrincipalLabel = (principalId: string) => {
     const p = principalsById.get(principalId);
+    // Stalwart 1.0 with directory queries off hides every principal the user
+    // has no relationship with, so a sharee may have no name.
+    const unresolved = !p && !loadingPrincipals;
     return (
       <View style={styles.principalInfo}>
         <Text style={styles.principalName} numberOfLines={1}>
-          {p?.description || p?.name || principalId}
+          {p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId)}
         </Text>
-        {p?.email ? (
+        {p?.email || unresolved ? (
           <Text style={styles.principalEmail} numberOfLines={1}>
-            {p.email}
+            {p?.email || principalId}
           </Text>
         ) : null}
       </View>
@@ -236,6 +261,9 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
+                  {noticeText ? (
+                    <Text style={styles.noMatches} accessibilityLiveRegion="polite">{noticeText}</Text>
+                  ) : null}
                   {loadingPrincipals ? (
                     <ActivityIndicator
                       size="small"
@@ -243,11 +271,13 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
                       style={{ marginTop: spacing.sm }}
                     />
                   ) : candidates.length === 0 ? (
-                    <Text style={styles.noMatches}>
-                      {principals.length === 0
-                        ? t('files.share_no_users', 'No other users found')
-                        : t('files.share_no_matches', 'No matches')}
-                    </Text>
+                    notice && !search.trim() ? null : (
+                      <Text style={styles.noMatches}>
+                        {principals.length === 0 && !notice
+                          ? t('files.share_no_users', 'No other users found')
+                          : t('files.share_no_matches', 'No matches')}
+                      </Text>
+                    )
                   ) : (
                     candidates.map((p) => (
                       <Pressable

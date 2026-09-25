@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "无法加载用户和群组列表。",
+    "directory_not_browsable": "您的服务器不允许您浏览用户目录。",
+    "directory_restricted": "您的服务器不允许浏览用户目录，因此仅列出您所在的群组以及与您共享过内容的用户。管理员可以在 Stalwart 的共享设置中启用目录查询。",
+    "unknown_user": "未知用户"
+  },
   "sidebar": {
     "account_error": "需要处理",
     "remove_account_hint": "长按可移除此账户",

@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Impossibile caricare l'elenco di utenti e gruppi.",
+    "directory_not_browsable": "Il tuo server non ti consente di sfogliare la directory degli utenti.",
+    "directory_restricted": "Il tuo server non consente di sfogliare la directory degli utenti, quindi vengono elencati solo i tuoi gruppi e le persone che hanno condiviso qualcosa con te. Un amministratore può attivare le query sulla directory nelle impostazioni di condivisione di Stalwart.",
+    "unknown_user": "Utente sconosciuto"
+  },
   "sidebar": {
     "account_error": "Richiede attenzione",
     "remove_account_hint": "Tieni premuto per rimuovere questo account",

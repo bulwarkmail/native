@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Neizdevās ielādēt lietotāju un grupu sarakstu.",
+    "directory_not_browsable": "Jūsu serveris neļauj jums pārlūkot tā lietotāju direktoriju.",
+    "directory_restricted": "Jūsu serveris neļauj pārlūkot tā lietotāju direktoriju, tāpēc tiek parādītas tikai jūsu grupas un personas, kas ar jums kaut ko kopīgojušas. Administrators var ieslēgt direktorija vaicājumus Stalwart kopīgošanas iestatījumos.",
+    "unknown_user": "Nezināms lietotājs"
+  },
   "sidebar": {
     "account_error": "Nepieciešama uzmanība",
     "remove_account_hint": "Turiet nospiestu, lai noņemtu šo kontu",

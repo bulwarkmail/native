@@ -422,35 +422,119 @@ export async function setFileNodeShare(
 /** Safety bound on how many principals the share picker pages through. */
 const MAX_PRINCIPALS = 20_000;
 
-// List all principals visible to the user. Stalwart returns the full
-// directory regardless of `filter`, so callers filter client-side. Paged by
-// maxObjectsInGet: an unbounded query hands every id to the chained
-// Principal/get, which the server refuses with `requestTooLarge` once the
-// directory holds more than that (500), leaving the picker empty.
-export async function getPrincipals(): Promise<Principal[]> {
-  if (!supportsSharing()) return [];
+// The Principal properties the share sheets read. 0.16's default list is the
+// same; 1.0's adds `capabilities` for every principal and `accounts`, a whole
+// account object with every account capability.
+const PRINCIPAL_PROPERTIES = ['id', 'type', 'name', 'description', 'email'];
+
+// Stalwart 1.0's answer to Principal/query while the administrator keeps
+// directory queries off (the default).
+const DIRECTORY_QUERIES_OFF = 'The administrator has disabled directory queries.';
+
+/**
+ * How complete a principal listing is:
+ * - `ok`: the whole directory;
+ * - `restricted`: the server refused to list its directory (`forbidden`:
+ *   Stalwart 1.0 with directory queries off, or a role without the
+ *   permission). The principals are what Principal/get without ids still
+ *   returns, on 1.0 the user's own account, their groups and the accounts
+ *   that shared something with them;
+ * - `error`: the listing failed part-way; the principals are what arrived.
+ */
+export type PrincipalDirectoryStatus = 'ok' | 'restricted' | 'error';
+
+export interface PrincipalListing {
+  principals: Principal[];
+  status: PrincipalDirectoryStatus;
+  /**
+   * The refusal was Stalwart 1.0's own: an administrator can allow directory
+   * queries in its sharing settings.
+   */
+  directoryQueriesOff?: boolean;
+}
+
+function principalsUsing(): string[] {
+  return [CAPABILITIES.CORE, CAPABILITIES.PRINCIPALS];
+}
+
+// List all principals visible to the user, and how complete the list is.
+// Stalwart returns the full directory regardless of `filter`, so callers
+// filter client-side. Paged by maxObjectsInGet: an unbounded query hands every
+// id to the chained Principal/get, which the server refuses with
+// `requestTooLarge` once the directory holds more than that (500), leaving the
+// picker empty.
+export async function listPrincipals(): Promise<PrincipalListing> {
+  if (!supportsSharing()) return { principals: [], status: 'ok' };
   const accountId = jmapClient.accountId;
   const pageSize = jmapClient.getMaxObjectsInGet();
   const all: Principal[] = [];
-  for (let position = 0; position < MAX_PRINCIPALS;) {
-    const res = await jmapClient.request(
-      [
-        ['Principal/query', { accountId, position, limit: pageSize }, '0'],
-        ['Principal/get', {
-          accountId,
-          '#ids': { resultOf: '0', name: 'Principal/query', path: '/ids' },
-        }, '1'],
-      ],
-      [CAPABILITIES.CORE, CAPABILITIES.PRINCIPALS],
-    );
-    const ids = (res.methodResponses.find((r) => r[0] === 'Principal/query')?.[1].ids ?? []) as string[];
-    const getResp = res.methodResponses.find((r) => r[0] === 'Principal/get');
-    if (!getResp) break;
-    all.push(...((getResp[1].list ?? []) as Principal[]));
-    if (ids.length < pageSize) break;
-    position += ids.length;
+  try {
+    for (let position = 0; position < MAX_PRINCIPALS;) {
+      const res = await jmapClient.request(
+        [
+          ['Principal/query', { accountId, position, limit: pageSize }, '0'],
+          ['Principal/get', {
+            accountId,
+            '#ids': { resultOf: '0', name: 'Principal/query', path: '/ids' },
+            properties: PRINCIPAL_PROPERTIES,
+          }, '1'],
+        ],
+        principalsUsing(),
+      );
+      const responses = res.methodResponses ?? [];
+      const queryResp = responses.find((r) => r[0] === 'Principal/query');
+      const getResp = responses.find((r) => r[0] === 'Principal/get');
+      if (!queryResp || !getResp) {
+        // A refused query makes the chained get fail with
+        // invalidResultReference; only the query's own error says why.
+        const error = (responses.find((r) => r[0] === 'error' && r[2] === '0')
+          ?? responses.find((r) => r[0] === 'error'))?.[1] as { type?: string; description?: string } | undefined;
+        if (error?.type === 'forbidden') {
+          return {
+            principals: await getKnownPrincipals(accountId),
+            status: 'restricted',
+            directoryQueriesOff: error.description === DIRECTORY_QUERIES_OFF,
+          };
+        }
+        console.warn('[files] listing principals failed', error);
+        return { principals: all, status: 'error' };
+      }
+      const ids = (queryResp[1].ids ?? []) as string[];
+      all.push(...((getResp[1].list ?? []) as Principal[]));
+      if (ids.length < pageSize) break;
+      position += ids.length;
+    }
+    return { principals: all, status: 'ok' };
+  } catch (err) {
+    console.warn('[files] listing principals failed', err);
+    return { principals: all, status: 'error' };
   }
-  return all;
+}
+
+/**
+ * Principal/get without ids. When the directory can't be listed, Stalwart 1.0
+ * still returns the principals the user already knows: their own account,
+ * their groups and the accounts that shared something with them. Empty when
+ * that is refused too.
+ */
+async function getKnownPrincipals(accountId: string): Promise<Principal[]> {
+  try {
+    const res = await jmapClient.request(
+      [['Principal/get', { accountId, ids: null, properties: PRINCIPAL_PROPERTIES }, '0']],
+      principalsUsing(),
+    );
+    const [method, result] = res.methodResponses?.[0] ?? [];
+    if (method !== 'Principal/get') return [];
+    return (result.list ?? []) as Principal[];
+  } catch (err) {
+    console.warn('[files] reading known principals failed', err);
+    return [];
+  }
+}
+
+/** The principals of {@link listPrincipals}, without the status. */
+export async function getPrincipals(): Promise<Principal[]> {
+  return (await listPrincipals()).principals;
 }
 
 // The principal id that represents the logged-in user (excluded from the

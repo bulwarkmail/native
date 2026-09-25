@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Impossible de charger la liste des utilisateurs et des groupes.",
+    "directory_not_browsable": "Votre serveur ne vous permet pas de parcourir son annuaire d'utilisateurs.",
+    "directory_restricted": "Votre serveur ne permet pas de parcourir son annuaire d'utilisateurs, seuls vos groupes et les personnes ayant partagé quelque chose avec vous sont donc listés. Un administrateur peut activer les requêtes d'annuaire dans les paramètres de partage de Stalwart.",
+    "unknown_user": "Utilisateur inconnu"
+  },
   "sidebar": {
     "account_error": "Action requise",
     "remove_account_hint": "Appuyez longuement pour supprimer ce compte",

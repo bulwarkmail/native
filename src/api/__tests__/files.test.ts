@@ -36,11 +36,13 @@ import {
   getPrincipals,
   isCrossAccountId,
   isFolder,
+  listPrincipals,
   moveFileNode,
   renameFileNode,
   setFileNodeShare,
   supportsSharing,
 } from '../files';
+import { directoryNotice } from '../../lib/principal-directory';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
@@ -485,6 +487,88 @@ describe('getPrincipals', () => {
     expect(principals).toHaveLength(1203);
     expect(mockRequest.mock.calls.map(([calls]) => calls[0][1].position)).toEqual([0, 500, 1000]);
     for (const [calls] of mockRequest.mock.calls) expect(calls[0][1].limit).toBe(500);
+  });
+});
+
+describe('listPrincipals', () => {
+  // userc's view on the test servers (live-checked).
+  const DIRECTORY = [
+    { id: 'b', type: 'individual', name: 'admin@example.org', description: 'System administrator', email: 'admin@example.org' },
+    { id: 'c', type: 'group', name: 'team@example.org', description: 'Team (test group)', email: 'team@example.org' },
+    { id: 'd', type: 'individual', name: 'usera@example.org', description: 'User A', email: 'usera@example.org' },
+    { id: 'e', type: 'individual', name: 'userb@example.org', description: 'User B', email: 'userb@example.org' },
+    { id: 'f', type: 'individual', name: 'userc@example.org', description: 'User C', email: 'userc@example.org' },
+  ];
+  const OWN = [DIRECTORY[4]];
+  const PROPERTIES = ['id', 'type', 'name', 'description', 'email'];
+  // Stalwart 1.0 with allowDirectoryQueries off (the default).
+  const QUERIES_OFF = [
+    ['error', { type: 'forbidden', description: 'The administrator has disabled directory queries.' }, '0'],
+    ['error', { type: 'invalidResultReference', description: 'Result reference to 0#Principal/query not found.' }, '1'],
+  ];
+
+  it('lists the whole directory on Stalwart 0.16, asking only for the properties it shows', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['Principal/query', { accountId: 'acc-1', queryState: 'n', canCalculateChanges: true, position: 0, ids: ['b', 'c', 'd', 'e', 'f'] }, '0'],
+        ['Principal/get', { accountId: 'acc-1', state: 'n', list: DIRECTORY, notFound: [] }, '1'],
+      ],
+    });
+
+    expect(await listPrincipals()).toEqual({ principals: DIRECTORY, status: 'ok' });
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest.mock.calls[0][0][1][1].properties).toEqual(PROPERTIES);
+  });
+
+  it('falls back to the principals the user knows when Stalwart 1.0 keeps its directory closed', async () => {
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: QUERIES_OFF })
+      .mockResolvedValueOnce({
+        methodResponses: [['Principal/get', { accountId: 'acc-1', state: 'n', list: OWN, notFound: [] }, '0']],
+      });
+
+    expect(await listPrincipals()).toEqual({ principals: OWN, status: 'restricted', directoryQueriesOff: true });
+    const [calls, using] = mockRequest.mock.calls[1];
+    expect(calls).toEqual([['Principal/get', { accountId: 'acc-1', ids: null, properties: PROPERTIES }, '0']]);
+    expect(using).toEqual([CAPABILITIES.CORE, CAPABILITIES.PRINCIPALS]);
+  });
+
+  it('calls another forbidden answer restricted without claiming directory queries are off', async () => {
+    mockRequest
+      .mockResolvedValueOnce({
+        methodResponses: [
+          ['error', { type: 'forbidden', description: 'You do not have enough permissions to access this resource.' }, '0'],
+          ['error', { type: 'invalidResultReference' }, '1'],
+        ],
+      })
+      .mockResolvedValueOnce({ methodResponses: [['error', { type: 'forbidden' }, '0']] });
+
+    expect(await listPrincipals()).toEqual({ principals: [], status: 'restricted', directoryQueriesOff: false });
+  });
+
+  it('reports a failed listing with what arrived', async () => {
+    mockMaxObjectsInGet.mockReturnValue(2);
+    mockRequest
+      .mockResolvedValueOnce({
+        methodResponses: [
+          ['Principal/query', { ids: ['b', 'c'] }, '0'],
+          ['Principal/get', { list: DIRECTORY.slice(0, 2) }, '1'],
+        ],
+      })
+      .mockRejectedValueOnce(new Error('JMAP request failed: 503'));
+    expect(await listPrincipals()).toEqual({ principals: DIRECTORY.slice(0, 2), status: 'error' });
+
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['error', { type: 'serverFail' }, '0']] });
+    expect(await listPrincipals()).toEqual({ principals: [], status: 'error' });
+  });
+});
+
+describe('directoryNotice', () => {
+  it('uses the 1.0 wording only for Stalwart 1.0\'s own refusal', () => {
+    expect(directoryNotice({ status: 'ok' })).toBeNull();
+    expect(directoryNotice({ status: 'restricted', directoryQueriesOff: true })).toBe('restricted');
+    expect(directoryNotice({ status: 'restricted', directoryQueriesOff: false })).toBe('not_browsable');
+    expect(directoryNotice({ status: 'error' })).toBe('failed');
   });
 });
 

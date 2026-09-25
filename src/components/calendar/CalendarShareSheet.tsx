@@ -12,8 +12,9 @@ import {
   View,
 } from 'react-native';
 import { Trash2, UserPlus, Users } from 'lucide-react-native';
-import { getPrincipals, ownPrincipalId } from '../../api/files';
+import { listPrincipals, ownPrincipalId, type PrincipalListing } from '../../api/files';
 import type { Calendar, CalendarRights, Principal } from '../../api/types';
+import { directoryNotice } from '../../lib/principal-directory';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -74,20 +75,27 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
   const t = useLocaleStore((s) => s.t);
 
   const [principals, setPrincipals] = React.useState<Principal[]>([]);
+  const [directory, setDirectory] = React.useState<Omit<PrincipalListing, 'principals'>>({ status: 'ok' });
   const [loading, setLoading] = React.useState(false);
   const [shares, setShares] = React.useState<Record<string, CalendarRights>>({});
   const [search, setSearch] = React.useState('');
   const [savingId, setSavingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!calendar) return;
+    if (!calendar) return undefined;
+    let cancelled = false;
     setShares(calendar.shareWith ?? {});
     setSearch('');
     setLoading(true);
-    getPrincipals()
-      .then(setPrincipals)
-      .catch(() => setPrincipals([]))
-      .finally(() => setLoading(false));
+    void listPrincipals().then(({ principals: list, ...listing }) => {
+      if (cancelled) return;
+      setPrincipals(list);
+      setDirectory(listing);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [calendar]);
 
   const principalsById = React.useMemo(() => {
@@ -137,15 +145,32 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
 
   if (!calendar) return null;
 
+  // The list below is partial or empty for a reason the user can't see
+  // otherwise; "Sharing is not available on this server." would be wrong.
+  const notice = loading ? null : directoryNotice(directory);
+  const noticeText =
+    notice === 'failed' ? t('sharing.directory_failed', "Couldn't load the list of users and groups.")
+      : notice === 'restricted'
+        ? t(
+          'sharing.directory_restricted',
+          "Your server doesn't allow browsing its user directory, so only your groups and people who have shared with you are listed. An administrator can turn on directory queries in Stalwart's sharing settings.",
+        )
+        : notice === 'not_browsable'
+          ? t('sharing.directory_not_browsable', "Your server doesn't let you browse its user directory.")
+          : null;
+
   const renderPrincipalLabel = (principalId: string) => {
     const p = principalsById.get(principalId);
+    // Stalwart 1.0 with directory queries off hides every principal the user
+    // has no relationship with, so a sharee may have no name.
+    const unresolved = !p && !loading;
     return (
       <View style={styles.principalInfo}>
         <Text style={styles.principalName} numberOfLines={1}>
-          {p?.description || p?.name || principalId}
+          {p?.description || p?.name || (unresolved ? t('sharing.unknown_user', 'Unknown user') : principalId)}
         </Text>
-        {p?.email ? (
-          <Text style={styles.principalEmail} numberOfLines={1}>{p.email}</Text>
+        {p?.email || unresolved ? (
+          <Text style={styles.principalEmail} numberOfLines={1}>{p?.email || principalId}</Text>
         ) : null}
       </View>
     );
@@ -224,14 +249,19 @@ export function CalendarShareSheet({ calendar, onShare, onClose }: CalendarShare
                     autoCorrect={false}
                     style={styles.input}
                   />
+                  {noticeText ? (
+                    <Text style={styles.empty} accessibilityLiveRegion="polite">{noticeText}</Text>
+                  ) : null}
                   {loading ? (
                     <ActivityIndicator size="small" color={c.textMuted} style={{ marginTop: spacing.md }} />
                   ) : candidates.length === 0 ? (
-                    <Text style={styles.empty}>
-                      {principals.length === 0
-                        ? t('calendar.share.no_principals', 'Sharing is not available on this server.')
-                        : t('calendar.share.no_matches', 'No matches')}
-                    </Text>
+                    notice && !search.trim() ? null : (
+                      <Text style={styles.empty}>
+                        {principals.length === 0 && !notice
+                          ? t('calendar.share.no_principals', 'Sharing is not available on this server.')
+                          : t('calendar.share.no_matches', 'No matches')}
+                      </Text>
+                    )
                   ) : (
                     candidates.map((p) => (
                       <Pressable

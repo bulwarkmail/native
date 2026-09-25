@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Lista de utilizatori și grupuri nu a putut fi încărcată.",
+    "directory_not_browsable": "Serverul dvs. nu vă permite să răsfoiți directorul de utilizatori.",
+    "directory_restricted": "Serverul dvs. nu permite răsfoirea directorului de utilizatori, așa că sunt afișate doar grupurile dvs. și persoanele care au partajat ceva cu dvs. Un administrator poate activa interogările directorului în setările de partajare ale Stalwart.",
+    "unknown_user": "Utilizator necunoscut"
+  },
   "sidebar": {
     "account_error": "Necesită atenție",
     "remove_account_hint": "Apăsați lung pentru a elimina acest cont",

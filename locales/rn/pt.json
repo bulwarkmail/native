@@ -971,6 +971,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Não foi possível carregar a lista de usuários e grupos.",
+    "directory_not_browsable": "Seu servidor não permite que você navegue no diretório de usuários.",
+    "directory_restricted": "Seu servidor não permite navegar no diretório de usuários, então apenas seus grupos e as pessoas que compartilharam algo com você são listados. Um administrador pode ativar as consultas ao diretório nas configurações de compartilhamento do Stalwart.",
+    "unknown_user": "Usuário desconhecido"
+  },
   "sidebar": {
     "account_error": "Requer atenção",
     "remove_account_hint": "Toque e segure para remover esta conta",

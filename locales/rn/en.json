@@ -984,6 +984,12 @@
       }
     }
   },
+  "sharing": {
+    "directory_failed": "Couldn't load the list of users and groups.",
+    "directory_not_browsable": "Your server doesn't let you browse its user directory.",
+    "directory_restricted": "Your server doesn't allow browsing its user directory, so only your groups and people who have shared with you are listed. An administrator can turn on directory queries in Stalwart's sharing settings.",
+    "unknown_user": "Unknown user"
+  },
   "sidebar": {
     "account_error": "Needs attention",
     "remove_account_hint": "Long-press to remove this account",
