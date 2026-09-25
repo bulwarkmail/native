@@ -4,6 +4,7 @@ vi.mock('../../api/calendar', () => ({
   getCalendars: vi.fn(),
   queryEvents: vi.fn(),
   getEvents: vi.fn(),
+  getEventIdentities: vi.fn(),
   scanCalendarObjects: vi.fn(),
   isCalendarAccessDenied: vi.fn(() => false),
   noteCalendarAccessError: vi.fn(() => false),
@@ -46,6 +47,7 @@ import {
 const mockGetCalendars = calendarApi.getCalendars as ReturnType<typeof vi.fn>;
 const mockQueryEvents = calendarApi.queryEvents as ReturnType<typeof vi.fn>;
 const mockGetEvents = calendarApi.getEvents as ReturnType<typeof vi.fn>;
+const mockGetIdentities = calendarApi.getEventIdentities as ReturnType<typeof vi.fn>;
 const mockCreateEvent = calendarApi.createEvent as ReturnType<typeof vi.fn>;
 const mockUpdateEvent = calendarApi.updateEvent as ReturnType<typeof vi.fn>;
 const mockDeleteEvents = calendarApi.deleteEvents as ReturnType<typeof vi.fn>;
@@ -59,6 +61,7 @@ const mockHydrate = calendarApi.hydrateExpandedOccurrences as ReturnType<typeof 
 beforeEach(() => {
   vi.clearAllMocks();
   mockScan.mockResolvedValue([]);
+  mockGetIdentities.mockResolvedValue([]);
   useCalendarStore.setState({
     calendars: [],
     events: [],
@@ -595,7 +598,7 @@ describe('calendar-store', () => {
         loadedRange: { after: '2026-03-01T00:00:00Z', before: '2026-03-31T00:00:00Z' },
       });
       mockQueryEvents.mockResolvedValue(['e1', 'e2']);
-      mockGetEvents.mockResolvedValue([
+      mockGetIdentities.mockResolvedValue([
         { id: 'e1', uid: 'uid-elsewhere', calendarIds: { 'cal-1': true } },
         { id: 'e2', uid: 'uid-here', calendarIds: { 'cal-2': true } },
       ]);
@@ -677,7 +680,7 @@ describe('calendar-store', () => {
 
     it('reports a link into the target calendar that the server refused', async () => {
       mockQueryEvents.mockResolvedValue(['e1']);
-      mockGetEvents.mockResolvedValue([{ id: 'e1', uid: 'shared', calendarIds: { 'cal-1': true } }]);
+      mockGetIdentities.mockResolvedValue([{ id: 'e1', uid: 'shared', calendarIds: { 'cal-1': true } }]);
       mockUpdateEvent.mockRejectedValue(new Error('forbidden'));
 
       await expect(
@@ -712,7 +715,7 @@ describe('calendar-store', () => {
 
     it('resolves with nothing imported and nothing refused when every event is already there', async () => {
       mockQueryEvents.mockResolvedValue(['e1']);
-      mockGetEvents.mockResolvedValue([{ id: 'e1', uid: 'dup', calendarIds: { 'cal-1': true } }]);
+      mockGetIdentities.mockResolvedValue([{ id: 'e1', uid: 'dup', calendarIds: { 'cal-1': true } }]);
 
       await expect(
         useCalendarStore.getState().importEvents([{ uid: 'dup', title: 'Dup' }], 'cal-1'),

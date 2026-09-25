@@ -5,7 +5,7 @@ vi.mock('../../api/calendar', () => ({
   deleteCalendar: vi.fn(),
   parseCalendarBlob: vi.fn(),
   queryEvents: vi.fn(),
-  getEvents: vi.fn(),
+  getEventIdentities: vi.fn(),
   deleteEvents: vi.fn(),
   updateEvent: vi.fn(),
   updateCalendar: vi.fn(),

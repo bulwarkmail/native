@@ -7,7 +7,7 @@ import {
   deleteCalendar,
   parseCalendarBlob,
   queryEvents,
-  getEvents,
+  getEventIdentities,
   deleteEvents,
   updateEvent,
   updateCalendar,
@@ -128,7 +128,7 @@ async function syncFeedIntoCalendar(calendarId: string, url: string): Promise<vo
 
   try {
     const ids = await queryEvents([calendarId], '', '');
-    const existing = ids.length > 0 ? await getEvents(ids) : [];
+    const existing = await getEventIdentities(ids);
     const stale = existing.filter((e) => e.uid && !parsedUids.has(e.uid));
     const toDelete: string[] = [];
     for (const e of stale) {

@@ -7,6 +7,7 @@ import type { Calendar, CalendarEvent, CalendarRights, Participant, StateChange 
 import { normalizeAllDayDuration } from '../lib/calendar-utils';
 import {
   type CalendarUpdates,
+  type EventIdentityFields,
   updateCalendar as apiUpdateCalendar,
   deleteCalendar as apiDeleteCalendar,
   clearCalendarEvents as apiClearCalendarEvents,
@@ -14,6 +15,7 @@ import {
   getCalendars as fetchCalendars,
   queryEvents,
   getEvents as fetchEvents,
+  getEventIdentities,
   scanCalendarObjects,
   isCalendarAccessDenied,
   noteCalendarAccessError,
@@ -948,8 +950,8 @@ export const useCalendarStore = create<CalendarState>()(
     let linked = 0;
     try {
       const existingIds = await queryEvents([], '', '', accountId);
-      const existing = existingIds.length > 0 ? await fetchEvents(existingIds, accountId) : [];
-      const byUid = new Map<string, CalendarEvent>();
+      const existing = await getEventIdentities(existingIds, accountId);
+      const byUid = new Map<string, EventIdentityFields>();
       for (const e of existing) if (e.uid) byUid.set(e.uid, e);
       const fresh: Partial<CalendarEvent>[] = [];
       for (const e of events) {

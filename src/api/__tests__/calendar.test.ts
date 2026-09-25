@@ -40,6 +40,17 @@ describe('toLocalDateTime', () => {
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
+// A stored event is read with a second get for its overrides in the same
+// request (Stalwart 1.0 refuses them next to utcStart/utcEnd).
+function getAnswer(list: unknown[]) {
+  return {
+    methodResponses: [
+      ['CalendarEvent/get', { list }, '0'],
+      ['CalendarEvent/get', { list: [] }, '1'],
+    ],
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   resetSyntheticIdSupport();
@@ -182,7 +193,7 @@ describe('calendar operations', () => {
 
   describe('getEvents for expanded occurrences', () => {
     it('asks for the base event id only then', async () => {
-      mockRequest.mockResolvedValue({ methodResponses: [['CalendarEvent/get', { list: [] }, '0']] });
+      mockRequest.mockResolvedValue(getAnswer([]));
 
       await getEvents(['a'], undefined, { expanded: true });
       await getEvents(['a']);
@@ -294,9 +305,7 @@ describe('calendar operations', () => {
       // single object) — requesting the RFC 8984 plural form returns no
       // recurrence data and repeating events vanish from the grid (#13).
       const events = [{ id: 'ev1', title: 'Meeting', start: '2026-03-29T10:00:00' }];
-      mockRequest.mockResolvedValue({
-        methodResponses: [['CalendarEvent/get', { list: events }, '0']],
-      });
+      mockRequest.mockResolvedValue(getAnswer(events));
 
       const result = await getEvents(['ev1']);
       expect(result).toEqual(events);
@@ -318,9 +327,7 @@ describe('calendar operations', () => {
         recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'weekly', interval: 5 },
         excludedRecurrenceRule: { frequency: 'weekly', interval: 10 },
       }];
-      mockRequest.mockResolvedValue({
-        methodResponses: [['CalendarEvent/get', { list: events }, '0']],
-      });
+      mockRequest.mockResolvedValue(getAnswer(events));
 
       const [event] = await getEvents(['ev1']);
       expect(event.recurrenceRules).toEqual([
@@ -340,9 +347,7 @@ describe('calendar operations', () => {
         start: '2026-03-02T10:00:00',
         recurrenceRule: [{ frequency: 'weekly', interval: 2 }],
       }];
-      mockRequest.mockResolvedValue({
-        methodResponses: [['CalendarEvent/get', { list: events }, '0']],
-      });
+      mockRequest.mockResolvedValue(getAnswer(events));
 
       const [event] = await getEvents(['ev1']);
       expect(event.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 2 }]);
@@ -357,9 +362,7 @@ describe('calendar operations', () => {
         { id: 't5', progress: 'CANCELLED' },
         { id: 't6', progress: 'needs-action' },
       ];
-      mockRequest.mockResolvedValue({
-        methodResponses: [['CalendarEvent/get', { list }, '0']],
-      });
+      mockRequest.mockResolvedValue(getAnswer(list));
 
       const result = await getEvents(list.map((t) => t.id));
       expect(result.map((t) => t.progress)).toEqual([
@@ -381,9 +384,7 @@ describe('calendar operations', () => {
         { id: 't5', progress: null },
         { id: 'ev1', title: 'Event' },
       ];
-      mockRequest.mockResolvedValue({
-        methodResponses: [['CalendarEvent/get', { list }, '0']],
-      });
+      mockRequest.mockResolvedValue(getAnswer(list));
 
       const result = await getEvents(list.map((t) => t.id));
       expect(result.map((t) => t.progress as unknown)).toEqual([
@@ -481,9 +482,7 @@ describe('calendar operations', () => {
         .mockResolvedValueOnce({
           methodResponses: [['CalendarEvent/query', { ids: ['ev9'] }, '0']],
         })
-        .mockResolvedValueOnce({
-          methodResponses: [['CalendarEvent/get', { list: [{ id: 'ev9', uid: 'inv@example.com' }] }, '0']],
-        });
+        .mockResolvedValueOnce(getAnswer([{ id: 'ev9', uid: 'inv@example.com' }]));
 
       const found = await findEventsByUid('inv@example.com');
 

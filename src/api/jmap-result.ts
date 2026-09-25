@@ -21,6 +21,15 @@ export class JMAPMethodError extends Error {
 }
 
 /**
+ * The JMAP error type a thrown value carries: a method error, or a SetError
+ * thrown as a `JMAPMethodError`. Callers branch on it instead of the
+ * description, which differs between servers and Stalwart releases.
+ */
+export function jmapErrorType(err: unknown): string | undefined {
+  return err instanceof JMAPMethodError ? err.type : undefined;
+}
+
+/**
  * Pull the response body for `callId` (or the first response when omitted)
  * and throw a `JMAPMethodError` when the server answered with the error
  * envelope. Also verifies the method name when `expectMethod` is given.

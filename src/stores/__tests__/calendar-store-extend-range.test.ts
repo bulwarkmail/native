@@ -4,6 +4,7 @@ vi.mock('../../api/calendar', () => ({
   getCalendars: vi.fn(),
   queryEvents: vi.fn(),
   getEvents: vi.fn(),
+  getEventIdentities: vi.fn(async () => []),
   scanCalendarObjects: vi.fn(),
   isCalendarAccessDenied: vi.fn(() => false),
   noteCalendarAccessError: vi.fn(() => false),
