@@ -79,6 +79,7 @@ import {
   addDaysToLocalDateTime,
   applySharedCalendarColors,
   buildEventDayIndex,
+  changedCalendarFields,
   dayKey,
   eventsOnDayFromIndex,
   getEventStartDate,
@@ -858,11 +859,10 @@ export default function CalendarScreen() {
       if (calendarEditTarget.mode === 'create') {
         await createCalendar(values.name, values.color, values.description);
       } else {
-        await updateCalendar(calendarEditTarget.calendar.id, {
-          name: values.name,
-          color: values.color,
-          description: values.description || null,
-        });
+        // Only what the user changed: an untouched colour another client
+        // wrote may be one Stalwart 1.0 refuses.
+        const changes = changedCalendarFields(calendarEditTarget.calendar, values);
+        if (Object.keys(changes).length > 0) await updateCalendar(calendarEditTarget.calendar.id, changes);
       }
     },
     [calendarEditTarget, createCalendar, updateCalendar],

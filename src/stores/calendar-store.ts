@@ -31,6 +31,7 @@ import {
   queryExpandedEvents,
   hydrateExpandedOccurrences,
   resetSyntheticIdSupport,
+  resetTimeZoneChecks,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
@@ -1187,6 +1188,7 @@ export const useCalendarStore = create<CalendarState>()(
     // upgraded server.
     resetCalendarAccessDenied();
     resetSyntheticIdSupport();
+    resetTimeZoneChecks();
     syntheticIdRejected = false;
     overrideSeriesKeysRejected = false;
     knownMasters.clear();

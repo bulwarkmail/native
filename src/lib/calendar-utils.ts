@@ -536,6 +536,24 @@ export function getCalendarColor(calendar: Pick<Calendar, 'id' | 'color'> | unde
   return CALENDAR_PALETTE[hashString(calendar.id) % CALENDAR_PALETTE.length];
 }
 
+/**
+ * The fields of a calendar edit that differ from the calendar, and only
+ * those. Stalwart 1.0 accepts a colour only as #rgb, #rrggbb or a CSS name,
+ * so re-sending one another client wrote - Apple Calendar's 8-digit hex -
+ * failed every rename. The colour is compared with the one the editor
+ * started from (getCalendarColor).
+ */
+export function changedCalendarFields(
+  calendar: Pick<Calendar, 'id' | 'name' | 'color' | 'description'>,
+  values: { name: string; color: string; description: string },
+): { name?: string; color?: string; description?: string | null } {
+  const changes: { name?: string; color?: string; description?: string | null } = {};
+  if (values.name !== calendar.name) changes.name = values.name;
+  if (values.color.toLowerCase() !== getCalendarColor(calendar).toLowerCase()) changes.color = values.color;
+  if (values.description !== (calendar.description ?? '')) changes.description = values.description || null;
+  return changes;
+}
+
 export function getEventColor(
   event: Pick<CalendarEvent, 'calendarIds' | 'color'>,
   calendars: Calendar[],

@@ -16,12 +16,13 @@ const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
 
 /**
  * IANA time zone of the user — their calendar time-zone setting when set
- * (#755), otherwise the device's — sent as the `timeZone` argument on
- * CalendarEvent/query and CalendarEvent/get. Stalwart interprets LocalDateTime
- * filter values and computes utcStart/utcEnd for floating events in this zone,
- * defaulting to UTC when absent — which shifts range boundaries and
- * floating-event times for any user not in UTC. Stalwart ignores unparseable
- * values, so sending it is always safe.
+ * (#755), otherwise the device's. Stalwart interprets LocalDateTime filter
+ * values and computes utcStart/utcEnd for floating events in the `timeZone`
+ * argument of CalendarEvent/query and CalendarEvent/get, defaulting to UTC
+ * when absent — which shifts range boundaries and floating-event times for
+ * any user not in UTC. A zone the server's time zone database lacks is read
+ * as UTC by 0.16 and refused by 1.0, which fails the whole call;
+ * calendarTimeZone decides what is actually sent.
  */
 function getUserTimeZone(): string | undefined {
   try {
@@ -29,6 +30,95 @@ function getUserTimeZone(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+// ─── Time zone check ─────────────────────────────────────
+// Stalwart 1.0 answers a CalendarEvent/get or /query whose `timeZone` it
+// does not know with invalidArguments "Invalid timeZone \"X\"". Its database
+// holds the IANA names, matched case-sensitively, and no offsets, so a
+// "+01:00" or "europe/berlin" that Intl may accept is refused.
+
+const TIME_ZONE_PROBE_CALL_ID = 'time-zone-probe';
+// Per server and zone: the check of the zone, settled or in flight.
+const timeZoneProbes = new Map<string, Promise<void>>();
+// Per server and zone: refused by the server.
+const refusedTimeZones = new Set<string>();
+
+function timeZoneKey(timeZone: string): string {
+  return `${jmapClient.currentSession?.apiUrl ?? ''}|${timeZone}`;
+}
+
+function isTimeZoneRefusal(type: string | undefined, description: string | undefined): boolean {
+  return type === 'invalidArguments' && /invalid timeZone/i.test(description ?? '');
+}
+
+/** A get of no events, which the server only answers if it knows `timeZone`. */
+function timeZoneProbeCall(accountId: string, timeZone: string): [string, Record<string, unknown>, string] {
+  return ['CalendarEvent/get', { accountId, ids: [], properties: ['id'], timeZone }, TIME_ZONE_PROBE_CALL_ID];
+}
+
+function refuseTimeZone(key: string, timeZone: string): void {
+  if (refusedTimeZones.has(key)) return;
+  refusedTimeZones.add(key);
+  console.warn(
+    `[calendar] The server does not know the time zone "${timeZone}"; asking it for UTC times instead. `
+    + 'Events without a time zone of their own may show shifted.',
+  );
+}
+
+/**
+ * Take the verdict on `timeZone` from a response that carried its probe. A
+ * request that failed outright is not remembered, so the next calendar list
+ * checks again.
+ */
+function rememberTimeZoneProbe(key: string, timeZone: string, pending: Promise<any>): void {
+  const probe: Promise<void> = pending.then(
+    (res) => {
+      const entry = ((res?.methodResponses ?? []) as [string, any, string][]).find(
+        (r) => r[2] === TIME_ZONE_PROBE_CALL_ID,
+      );
+      if (entry?.[0] === 'error' && isTimeZoneRefusal(entry[1]?.type, entry[1]?.description)) {
+        refuseTimeZone(key, timeZone);
+      }
+    },
+    () => {
+      if (timeZoneProbes.get(key) === probe) timeZoneProbes.delete(key);
+    },
+  );
+  timeZoneProbes.set(key, probe);
+}
+
+/**
+ * The `timeZone` argument for CalendarEvent/get and /query: the user's zone,
+ * or UTC once the server refused it. The first calendar list checks the zone
+ * on the way (getCalendars); a read that starts without that answer sends
+ * the user's zone and is repeated in UTC if refused (withCalendarTimeZone).
+ */
+async function calendarTimeZone(): Promise<string | undefined> {
+  const timeZone = getUserTimeZone();
+  if (!timeZone) return undefined;
+  const key = timeZoneKey(timeZone);
+  await timeZoneProbes.get(key);
+  return refusedTimeZones.has(key) ? 'UTC' : timeZone;
+}
+
+/** Run a calendar read in calendarTimeZone, and once more in UTC when the server refuses that zone. */
+async function withCalendarTimeZone<T>(read: (timeZone: string | undefined) => Promise<T>): Promise<T> {
+  const timeZone = await calendarTimeZone();
+  try {
+    return await read(timeZone);
+  } catch (error) {
+    if (!timeZone || timeZone === 'UTC') throw error;
+    if (!isTimeZoneRefusal(jmapErrorType(error), error instanceof Error ? error.message : undefined)) throw error;
+    refuseTimeZone(timeZoneKey(timeZone), timeZone);
+    return read('UTC');
+  }
+}
+
+/** Forget the time zone checks: a new session may reach an upgraded server. */
+export function resetTimeZoneChecks(): void {
+  timeZoneProbes.clear();
+  refusedTimeZones.clear();
 }
 
 /**
@@ -333,8 +423,14 @@ export async function getCalendars(): Promise<Calendar[]> {
   const carriesProbe = !!probeKey && !syntheticIdSupport.has(probeKey);
   const methodCalls: [string, Record<string, unknown>, string][] = [['Calendar/get', { accountId }, '0']];
   if (carriesProbe) methodCalls.push(syntheticIdProbeCall(accountId));
+  // The user's time zone is checked on the way too (calendarTimeZone).
+  const timeZone = getUserTimeZone();
+  const zoneKey = timeZone && timeZone !== 'UTC' ? timeZoneKey(timeZone) : null;
+  const checksTimeZone = !!zoneKey && !timeZoneProbes.has(zoneKey);
+  if (checksTimeZone) methodCalls.push(timeZoneProbeCall(accountId, timeZone!));
   const pending = jmapClient.request(methodCalls, USING);
   if (carriesProbe) rememberSyntheticIdProbe(probeKey!, pending);
+  if (checksTimeZone) rememberTimeZoneProbe(zoneKey!, timeZone!, pending);
   const res = await pending;
   const own = methodResult<{ list: Calendar[] }>(res).list ?? [];
 
@@ -395,36 +491,37 @@ export async function queryEvents(
   accountId?: string,
 ): Promise<string[]> {
   const account = accountId || jmapClient.accountId;
-  const timeZone = getUserTimeZone();
-  const conditions: Record<string, unknown>[] = [];
-  if (calendarIds.length > 0) conditions.push(buildInCalendarFilter(calendarIds));
-  const range: Record<string, string> = {};
-  if (after) range.after = toLocalDateTime(after, timeZone);
-  if (before) range.before = toLocalDateTime(before, timeZone);
-  if (Object.keys(range).length > 0) conditions.push(range);
-  const filter = conditions.length === 1
-    ? conditions[0]
-    : conditions.length > 1
-      ? { operator: 'AND', conditions }
-      : undefined;
-  const ids: string[] = [];
-  for (let page = 0; page < QUERY_MAX_PAGES; page++) {
-    const args: Record<string, unknown> = {
-      accountId: account,
-      limit: QUERY_PAGE_SIZE,
-      position: ids.length,
-    };
-    if (timeZone) args.timeZone = timeZone;
-    if (filter) args.filter = filter;
-    const res = await jmapClient.request(
-      [['CalendarEvent/query', args, '0']],
-      USING,
-    );
-    const batch = methodResult<{ ids: string[] }>(res).ids ?? [];
-    ids.push(...batch);
-    if (batch.length < QUERY_PAGE_SIZE) break;
-  }
-  return ids;
+  return withCalendarTimeZone(async (timeZone) => {
+    const conditions: Record<string, unknown>[] = [];
+    if (calendarIds.length > 0) conditions.push(buildInCalendarFilter(calendarIds));
+    const range: Record<string, string> = {};
+    if (after) range.after = toLocalDateTime(after, timeZone);
+    if (before) range.before = toLocalDateTime(before, timeZone);
+    if (Object.keys(range).length > 0) conditions.push(range);
+    const filter = conditions.length === 1
+      ? conditions[0]
+      : conditions.length > 1
+        ? { operator: 'AND', conditions }
+        : undefined;
+    const ids: string[] = [];
+    for (let page = 0; page < QUERY_MAX_PAGES; page++) {
+      const args: Record<string, unknown> = {
+        accountId: account,
+        limit: QUERY_PAGE_SIZE,
+        position: ids.length,
+      };
+      if (timeZone) args.timeZone = timeZone;
+      if (filter) args.filter = filter;
+      const res = await jmapClient.request(
+        [['CalendarEvent/query', args, '0']],
+        USING,
+      );
+      const batch = methodResult<{ ids: string[] }>(res).ids ?? [];
+      ids.push(...batch);
+      if (batch.length < QUERY_PAGE_SIZE) break;
+    }
+    return ids;
+  });
 }
 
 // ─── Expanded ranges ─────────────────────────────────────
@@ -566,7 +663,16 @@ export async function queryExpandedEvents(
   accountId?: string,
 ): Promise<string[] | null> {
   const account = accountId || jmapClient.accountId;
-  const timeZone = getUserTimeZone();
+  return withCalendarTimeZone((timeZone) => queryExpandedEventsIn(account, after, before, timeZone));
+}
+
+/** queryExpandedEvents with the bounds and the request in `timeZone`. */
+async function queryExpandedEventsIn(
+  account: string,
+  after: string,
+  before: string,
+  timeZone: string | undefined,
+): Promise<string[] | null> {
   const bounds = { after: toLocalDateTime(after, timeZone), before: toLocalDateTime(before, timeZone) };
   const baseArgs: Record<string, unknown> = { accountId: account, expandRecurrences: true };
   if (timeZone) baseArgs.timeZone = timeZone;
@@ -670,9 +776,8 @@ export async function hydrateExpandedOccurrences(
   if (baseIds.length === 0) return events;
   const account = accountId || jmapClient.accountId;
   const bases = new Map<string, Partial<CalendarEvent>>();
-  const list = await fetchEventsById(account, baseIds, RECURRENCE_BASE_PROPERTIES, {
-    timeZone: getUserTimeZone(),
-  });
+  const list = await withCalendarTimeZone((timeZone) =>
+    fetchEventsById(account, baseIds, RECURRENCE_BASE_PROPERTIES, { timeZone }));
   for (const base of list as Partial<CalendarEvent>[]) {
     if (base.id) bases.set(base.id, normalizeRecurrenceProperties(base));
   }
@@ -768,12 +873,12 @@ export async function getEvents(
 ): Promise<CalendarEvent[]> {
   if (ids.length === 0) return [];
   const account = accountId || jmapClient.accountId;
-  const list = await fetchEventsById(
+  const list = await withCalendarTimeZone((timeZone) => fetchEventsById(
     account,
     ids,
     options?.expanded ? EXPANDED_EVENT_PROPERTIES : CALENDAR_EVENT_PROPERTIES,
-    { withOverrides: !options?.expanded, timeZone: getUserTimeZone() },
-  );
+    { withOverrides: !options?.expanded, timeZone },
+  ));
   return (list as unknown as CalendarEvent[]).map((e) => normalizeTaskProgress(normalizeRecurrenceProperties(e)));
 }
 

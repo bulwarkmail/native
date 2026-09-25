@@ -48,7 +48,7 @@ import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
   alertsToReminders,
-  remindersToAlerts,
+  reminderFieldsToSave,
   preservedAlerts,
   formatReminder,
   REMINDER_PRESETS,
@@ -314,6 +314,11 @@ export function EventModal({
             ? [customRule]
             : undefined
           : recurrenceFromOption(recurrence);
+      // The calendars' default alerts: a change of the reminders turns them
+      // off for the event, and its alerts must not take their ids.
+      const defaultAlertIds = calendars
+        .filter((cal) => cal.id === calendarId || !!event?.calendarIds?.[cal.id])
+        .flatMap((cal) => [...Object.keys(cal.defaultAlertsWithTime ?? {}), ...Object.keys(cal.defaultAlertsWithoutTime ?? {})]);
       const data: Partial<CalendarEvent> = {
         title: title.trim(),
         description: description.trim() || (isEdit && event?.description ? '' : undefined),
@@ -321,8 +326,9 @@ export function EventModal({
         // into the event's own zone and keeps untouched ones as stored.
         ...eventTimeFieldsToSave({ allDay, start, end }, event),
         recurrenceRules: clearedOr(recurrenceRules, 'recurrenceRules'),
-        alerts: clearedOr(remindersToAlerts(reminders, preserved), 'alerts'),
-        useDefaultAlerts: reminders.length > 0 ? false : undefined,
+        // Untouched reminders are not sent: an event on its calendar's
+        // default alerts keeps them.
+        ...reminderFieldsToSave(event, reminders, preserved, defaultAlertIds),
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };

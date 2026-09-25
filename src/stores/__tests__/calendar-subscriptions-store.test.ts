@@ -25,9 +25,11 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
+import * as calendarApi from '../../api/calendar';
 import {
   normalizeFeedUrl,
   selectAccountSubscriptions,
+  useCalendarSubscriptionsStore,
   type CalendarSubscription,
 } from '../calendar-subscriptions-store';
 
@@ -55,5 +57,20 @@ describe('selectAccountSubscriptions', () => {
   it('hides subscriptions that belong to another account, keeping legacy ones', () => {
     expect(selectAccountSubscriptions(subs, 'acc-1').map((s) => s.id)).toEqual(['a', 'legacy']);
     expect(selectAccountSubscriptions(subs, 'acc-2').map((s) => s.id)).toEqual(['b', 'legacy']);
+  });
+});
+
+describe('updateSubscription', () => {
+  it('renames the mirror calendar without re-sending a colour Stalwart 1.0 refuses', async () => {
+    const update = calendarApi.updateCalendar as ReturnType<typeof vi.fn>;
+    update.mockResolvedValue(undefined);
+    useCalendarSubscriptionsStore.setState({
+      subscriptions: [{ id: 's', name: 'Feed', url: 'https://example.com/f.ics', color: '#FF2968FF', calendarId: 'c9', lastSyncAt: null, lastError: null }],
+    });
+
+    await useCalendarSubscriptionsStore.getState().updateSubscription('s', { name: 'Holidays', color: '#FF2968FF' });
+
+    expect(update).toHaveBeenCalledWith('c9', { name: 'Holidays' });
+    expect(useCalendarSubscriptionsStore.getState().subscriptions[0].name).toBe('Holidays');
   });
 });

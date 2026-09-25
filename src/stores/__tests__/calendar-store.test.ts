@@ -19,6 +19,7 @@ vi.mock('../../api/calendar', () => ({
   queryExpandedEvents: vi.fn(),
   hydrateExpandedOccurrences: vi.fn(async (events: unknown[]) => events),
   resetSyntheticIdSupport: vi.fn(),
+  resetTimeZoneChecks: vi.fn(),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({

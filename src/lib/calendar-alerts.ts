@@ -107,6 +107,64 @@ export function remindersToAlerts(
   return alerts;
 }
 
+/**
+ * `alerts` under new ids (reminder-1, reminder-2, ...), none of them in
+ * `taken`. While `useDefaultAlerts` is on, Stalwart 1.0 shows the calendar's
+ * defaults in `alerts` under the default alerts' ids, and on save it drops
+ * every alert whose id is one of those: alerts that stay on after the
+ * defaults are turned off need ids of their own.
+ */
+export function withOwnAlertIds(alerts: Alert[], taken: Iterable<string>): Record<string, Alert> {
+  const used = new Set(taken);
+  const result: Record<string, Alert> = {};
+  let n = 0;
+  for (const alert of alerts) {
+    let id: string;
+    do id = `reminder-${++n}`; while (used.has(id));
+    result[id] = alert;
+  }
+  return result;
+}
+
+function reminderMinutes(reminders: Reminder[]): number[] {
+  return [...new Set(reminders.map((r) => r.minutesBefore))].sort((a, b) => b - a);
+}
+
+/**
+ * What an editor save writes for the reminders: nothing while they are the
+ * ones the event had, so an event that uses its calendar's default alerts
+ * keeps using them. Stalwart 1.0 fills those defaults into `alerts`, and
+ * writing them back with `useDefaultAlerts: false`, as every save did,
+ * froze today's defaults into the event.
+ *
+ * Changed reminders replace the event's alerts and turn the defaults off
+ * (a change would not stick while they are on). The alerts of an event that
+ * used the defaults then get ids of their own (withOwnAlertIds), away from
+ * the event's and the calendar's default ids (`reservedIds`). 0.16 stores
+ * the alerts either way.
+ */
+export function reminderFieldsToSave(
+  event: Pick<CalendarEvent, 'alerts' | 'useDefaultAlerts'> | null | undefined,
+  reminders: Reminder[],
+  preserved: Record<string, Alert>,
+  reservedIds: Iterable<string> = [],
+): Partial<Pick<CalendarEvent, 'alerts' | 'useDefaultAlerts'>> {
+  const before = reminderMinutes(alertsToReminders(event?.alerts));
+  const after = reminderMinutes(reminders);
+  if (before.length === after.length && before.every((minutes, i) => minutes === after[i])) return {};
+
+  const usesDefaults = !!event?.useDefaultAlerts;
+  let alerts = remindersToAlerts(reminders, preserved);
+  if (alerts && usesDefaults) {
+    alerts = withOwnAlertIds(Object.values(alerts), [...Object.keys(event?.alerts ?? {}), ...reservedIds]);
+  }
+  const fields: Partial<Pick<CalendarEvent, 'alerts' | 'useDefaultAlerts'>> = {};
+  if (alerts) fields.alerts = alerts;
+  else if (event?.alerts && Object.keys(event.alerts).length > 0) fields.alerts = null;
+  if (reminders.length > 0 || usesDefaults) fields.useDefaultAlerts = false;
+  return fields;
+}
+
 type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
 // Without a translator: the English text, plurals resolved.
 const plain: Translate = (key, fallback, params) => formatMessage(fallback ?? key, params, 'en');

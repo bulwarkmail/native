@@ -201,7 +201,12 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
         };
         if (next.name !== sub.name || next.color !== sub.color) {
           try {
-            await updateCalendar(sub.calendarId, { name: next.name, color: next.color });
+            // Only what changed: Stalwart 1.0 refuses a colour that is not
+            // #rgb, #rrggbb or a CSS name, which another client may have set.
+            await updateCalendar(sub.calendarId, {
+              ...(next.name !== sub.name ? { name: next.name } : {}),
+              ...(next.color !== sub.color ? { color: next.color } : {}),
+            });
             await useCalendarStore.getState().fetchCalendars();
           } catch {
             // The mirror calendar keeps its old name/colour; the sub still updates.

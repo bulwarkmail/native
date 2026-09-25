@@ -6,6 +6,7 @@ import {
   eventsOnDay,
   normalizeAllDayDuration,
   buildAllDayDuration,
+  changedCalendarFields,
   getCalendarColor,
   getEventStartDate,
   getEventEndDate,
@@ -276,5 +277,29 @@ describe('layoutOverlappingEvents', () => {
       ev({ id: 'all', showWithoutTime: true, duration: 'P1D' }),
     ];
     expect(layoutOverlappingEvents(events, day)).toHaveLength(0);
+  });
+});
+
+// Stalwart 1.0 accepts a calendar colour only as #rgb, #rrggbb or a CSS name
+// (groupware/src/calendar/color.rs). The edit sheet sent the colour with
+// every rename, so a calendar another client coloured with Apple's 8-digit
+// hex could not be renamed.
+describe('changedCalendarFields', () => {
+  const apple = { id: 'c1', name: 'Home', color: '#FF2968FF', description: 'Family' };
+
+  it('sends only the new name of a calendar whose colour came from another client', () => {
+    expect(changedCalendarFields(apple, { name: 'House', color: '#FF2968FF', description: 'Family' })).toEqual({ name: 'House' });
+  });
+
+  it('sends a colour the user picked, and clears an emptied description', () => {
+    expect(changedCalendarFields(apple, { name: 'Home', color: '#3b82f6', description: '' })).toEqual({
+      color: '#3b82f6',
+      description: null,
+    });
+  });
+
+  it('compares with the colour the editor showed for a calendar without one', () => {
+    const plain = { id: 'c2', name: 'Work' };
+    expect(changedCalendarFields(plain, { name: 'Work', color: getCalendarColor(plain).toUpperCase(), description: '' })).toEqual({});
   });
 });

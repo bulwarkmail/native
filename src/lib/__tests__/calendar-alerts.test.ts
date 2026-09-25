@@ -5,8 +5,12 @@ import {
   alertsToReminders,
   remindersToAlerts,
   formatReminder,
+  preservedAlerts,
+  reminderFieldsToSave,
+  withOwnAlertIds,
 } from '../calendar-alerts';
 import { translate, type MessageParams } from '../../i18n';
+import type { Alert } from '../../api/types';
 
 describe('calendar-alerts', () => {
   describe('offsetToMinutesBefore', () => {
@@ -86,5 +90,77 @@ describe('calendar-alerts', () => {
       expect(formatReminder(120, de)).toBe(translate('de', 'calendar.alerts.hours_before', '', { count: 2 }));
       expect(formatReminder(120, de)).not.toContain('hours');
     });
+  });
+});
+
+// While an event uses its calendar's default alerts, Stalwart 1.0 fills the
+// defaults into `alerts` under the default alerts' ids, and on save drops
+// every alert under one of those ids. The editor wrote the alerts back with
+// useDefaultAlerts: false on every save, freezing today's defaults into the
+// event.
+describe('reminderFieldsToSave', () => {
+  const offsetAlert = (offset: string) => ({
+    '@type': 'Alert', trigger: { '@type': 'OffsetTrigger', offset, relativeTo: 'start' }, action: 'display',
+  }) as Alert;
+  // What 1.0 returns for an event on its calendar's defaults.
+  const onDefaults = {
+    useDefaultAlerts: true,
+    alerts: { 'default-15': offsetAlert('-PT15M'), 'default-abs': { '@type': 'Alert', trigger: { '@type': 'AbsoluteTrigger', when: '2026-09-01T08:00:00Z' } } as Alert },
+  };
+
+  it('writes nothing while the reminders are the ones the event had, so the defaults stay on', () => {
+    const reminders = alertsToReminders(onDefaults.alerts);
+    expect(reminderFieldsToSave(onDefaults, reminders, preservedAlerts(onDefaults.alerts))).toEqual({});
+    // Order and repeats are no change.
+    expect(reminderFieldsToSave(
+      { alerts: { a: offsetAlert('-PT15M'), b: offsetAlert('-PT1H') } },
+      [{ minutesBefore: 60 }, { minutesBefore: 15 }, { minutesBefore: 15 }],
+      {},
+    )).toEqual({});
+  });
+
+  it('turns the defaults off for a changed event and gives its alerts ids of their own on Stalwart 1.0', () => {
+    const fields = reminderFieldsToSave(
+      onDefaults,
+      [{ minutesBefore: 15 }, { minutesBefore: 60 }],
+      preservedAlerts(onDefaults.alerts),
+      ['reminder-1'],
+    );
+
+    expect(fields.useDefaultAlerts).toBe(false);
+    const ids = Object.keys(fields.alerts ?? {});
+    expect(ids).toHaveLength(3);
+    for (const id of ids) expect(['default-15', 'default-abs', 'reminder-1']).not.toContain(id);
+    // The alert the editor cannot show stays, under its new id.
+    expect(Object.values(fields.alerts ?? {})).toContainEqual(onDefaults.alerts['default-abs']);
+  });
+
+  it('removes the alerts and the defaults when every reminder is removed', () => {
+    expect(reminderFieldsToSave(onDefaults, [], {})).toEqual({ alerts: null, useDefaultAlerts: false });
+  });
+
+  it('replaces the own alerts of an event without defaults, keeping what the editor cannot show', () => {
+    const own = { alerts: { a: offsetAlert('-PT15M'), abs: onDefaults.alerts['default-abs'] } };
+    const fields = reminderFieldsToSave(own, [{ minutesBefore: 30 }], preservedAlerts(own.alerts));
+
+    expect(fields).toEqual({
+      alerts: { abs: own.alerts.abs, 'reminder-1': offsetAlert('-PT30M') },
+      useDefaultAlerts: false,
+    });
+  });
+
+  it('gives a new event its reminders, and writes nothing without any', () => {
+    expect(reminderFieldsToSave(null, [{ minutesBefore: 10 }], {})).toEqual({
+      alerts: { 'reminder-1': offsetAlert('-PT10M') },
+      useDefaultAlerts: false,
+    });
+    expect(reminderFieldsToSave(null, [], {})).toEqual({});
+  });
+});
+
+describe('withOwnAlertIds', () => {
+  it('numbers the alerts past every id taken', () => {
+    const alert = { '@type': 'Alert', trigger: { '@type': 'OffsetTrigger', offset: '-PT5M' } } as Alert;
+    expect(Object.keys(withOwnAlertIds([alert, alert], ['reminder-1', 'reminder-3']))).toEqual(['reminder-2', 'reminder-4']);
   });
 });

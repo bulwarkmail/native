@@ -23,9 +23,11 @@ import {
   toLocalDateTime,
   supportsSyntheticCalendarIds,
   resetSyntheticIdSupport,
+  resetTimeZoneChecks,
   queryExpandedEvents,
   hydrateExpandedOccurrences,
 } from '../calendar';
+import { useSettingsStore } from '../../stores/settings-store';
 
 describe('toLocalDateTime', () => {
   it('renders an instant as wall-clock in the given zone', () => {
@@ -55,6 +57,10 @@ function getAnswer(list: unknown[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetSyntheticIdSupport();
+  resetTimeZoneChecks();
+  // In UTC the first calendar list carries no time zone check
+  // (calendar-time-zone.test.ts covers that).
+  useSettingsStore.setState({ calendarTimeZone: 'UTC' });
 });
 
 describe('calendar operations', () => {

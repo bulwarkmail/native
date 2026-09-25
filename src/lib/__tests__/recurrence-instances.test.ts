@@ -433,3 +433,50 @@ describe('overrides returned as PatchObjects', () => {
     }
   });
 });
+
+// A reply to one occurrence, as 0.16 stored it: an override with little more
+// than the attendee - no title, place or description. 1.0 builds that
+// occurrence from the override alone, and returns the override as a
+// PatchObject that removes what the series has and the stub lacks.
+describe('hydrateRecurrenceInstances with a reply stub', () => {
+  const series: Partial<CalendarEvent> = {
+    id: 'b', duration: 'PT1H', recurrenceRules: [{ frequency: 'daily' } as any],
+    title: 'Team sync', description: 'Agenda in the doc',
+    locations: { l1: { '@type': 'Location', name: 'Room 4' } } as any,
+  };
+  const stub = (): CalendarEvent => {
+    const occurrence: Partial<CalendarEvent> = ev({
+      id: 's1', baseEventId: 'b', recurrenceId: '2026-09-08T10:00:00', start: '2026-09-08T10:00:00', duration: 'PT1H',
+    });
+    delete occurrence.title;
+    return occurrence as CalendarEvent;
+  };
+  const withOverride = (override: Record<string, unknown>) => new Map<string, Partial<CalendarEvent>>([['b', {
+    ...series, recurrenceOverrides: { '2026-09-08T10:00:00': override as Partial<CalendarEvent> },
+  }]]);
+
+  it('takes the title, place and description from the series on Stalwart 1.0', () => {
+    const [out] = hydrateRecurrenceInstances([stub()], withOverride({
+      title: null, description: null, locations: null, 'participants/att/participationStatus': 'declined',
+    }));
+    expect(out.title).toBe('Team sync');
+    expect(out.locations).toEqual(series.locations);
+    expect(out.description).toBe('Agenda in the doc');
+  });
+
+  it('takes only the title from the series on 0.16, whose override is the stub itself', () => {
+    const [out] = hydrateRecurrenceInstances([stub()], withOverride({
+      participants: { att: { '@type': 'Participant', participationStatus: 'declined' } },
+    }));
+    expect(out.title).toBe('Team sync');
+    expect(out.locations).toBeUndefined();
+    expect(out.description).toBeUndefined();
+  });
+
+  it('keeps a title the override sets, even an empty one', () => {
+    const renamed = { ...stub(), title: 'Team sync (moved)' };
+    expect(hydrateRecurrenceInstances([renamed], withOverride({ title: 'Team sync (moved)' }))[0].title)
+      .toBe('Team sync (moved)');
+    expect(hydrateRecurrenceInstances([{ ...stub(), title: '' }], withOverride({ title: '' }))[0].title).toBe('');
+  });
+});

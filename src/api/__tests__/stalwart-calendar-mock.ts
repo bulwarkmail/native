@@ -46,6 +46,8 @@ export interface StalwartCalendarMockOptions {
   calendars?: Record<string, unknown>[];
   /** Whether CalendarEvent/set takes synthetic ids (the probe answers notFound). Default true. */
   syntheticIds?: boolean;
+  /** Zones missing from the server's time zone database: 1.0 refuses them, 0.16 reads them as UTC. */
+  unknownTimeZones?: string[];
   /** Answer a call yourself; return undefined for the default answer. */
   answer?: (call: RecordedCall) => MethodAnswer | undefined;
 }
@@ -98,6 +100,12 @@ export function createStalwartCalendarMock(options: StalwartCalendarMockOptions)
 
   const defaultAnswer = (call: RecordedCall): MethodAnswer => {
     const { method, args } = call;
+    // jmap-proto/src/object/calendar_event.rs, resolved_time_zone: checked
+    // before anything else in CalendarEvent/get and /query.
+    if (options.version === '1.0' && (method === 'CalendarEvent/get' || method === 'CalendarEvent/query')
+      && typeof args.timeZone === 'string' && options.unknownTimeZones?.includes(args.timeZone)) {
+      return ['error', { type: 'invalidArguments', description: `Invalid timeZone ${JSON.stringify(args.timeZone)}` }];
+    }
     if (method === 'Calendar/get') {
       return ['Calendar/get', { accountId: args.accountId, list: options.calendars ?? [{ id: 'cal', name: 'Personal', isDefault: true }], notFound: [] }];
     }

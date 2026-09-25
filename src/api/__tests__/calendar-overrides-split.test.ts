@@ -106,6 +106,8 @@ describe.each<StalwartVersion>(['0.16', '1.0'])('calendar reads on Stalwart %s',
     const hydration = server.gets()[1];
     expect(hydration.args.ids).toEqual(['b']);
     expect(hydration.args.properties).not.toContain('utcStart');
+    // The series' title, place and description fill reply stubs.
+    expect(hydration.args.properties).toEqual(expect.arrayContaining(['title', 'locations', 'description']));
   });
 
   it(`finds an invitation outside the loaded window by UID on Stalwart ${version}`, async () => {
