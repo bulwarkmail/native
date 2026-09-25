@@ -104,7 +104,10 @@ function stateWentBack(accountId: string, sinceState: string, newState: unknown)
  * Run one `Email/set` per `maxObjectsInSet`-sized slice of `update` /
  * `destroy`, checking every slice for `notUpdated` / `notDestroyed`. Over-limit
  * requests fail whole (RFC 8620 §3.6.1), so a long multi-select or a big
- * offline replay must be split before it is sent.
+ * offline replay must be split before it is sent. Every slice is sent before
+ * the first refusal is thrown: a refused message (Stalwart 1.0 refuses
+ * keywords over 128 bytes and more than 100 keywords on one message) must not
+ * leave the rest of a selection unchanged.
  */
 async function emailSetBatched(
   accountId: string,
@@ -113,21 +116,30 @@ async function emailSetBatched(
 ): Promise<{ updated: string[]; destroyed: string[] }> {
   const out = { updated: [] as string[], destroyed: [] as string[] };
   const size = maxInSet();
+  let refusal: unknown = null;
+  const check = (body: Record<string, any>, ids: string[]) => {
+    try {
+      assertSetResult(body, ids, what);
+    } catch (err) {
+      refusal ??= err;
+    }
+  };
   const updateEntries = Object.entries(args.update ?? {});
   for (const slice of batched(updateEntries, size)) {
     const res = await jmapClient.request([
       ['Email/set', { accountId, update: Object.fromEntries(slice) }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/set');
-    assertSetResult(body, slice.map(([id]) => id), what);
+    check(body, slice.map(([id]) => id));
     out.updated.push(...Object.keys(body.updated ?? {}));
   }
   for (const slice of batched(args.destroy ?? [], size)) {
     const res = await jmapClient.request([['Email/set', { accountId, destroy: slice }, '0']]);
     const body = requireMethodResult(res, '0', 'Email/set');
-    assertSetResult(body, slice, what);
+    check(body, slice);
     out.destroyed.push(...((body.destroyed as string[] | undefined) ?? []));
   }
+  if (refusal) throw refusal;
   return out;
 }
 
@@ -339,11 +351,17 @@ export async function emptyMailbox(mailboxId: string, accountIdOverride?: string
   return totalDestroyed;
 }
 
-/** Set `$seen` on every unread message in a folder. Returns the count. */
+/**
+ * Set `$seen` on every unread message in a folder. Returns the count. Throws
+ * the first refusal once the rest are marked: a refused message stays unread
+ * (a shared folder without the right to set it, a message at Stalwart 1.0's
+ * 100-keyword limit), and the folder would otherwise look done.
+ */
 export async function markMailboxAsRead(mailboxId: string, accountIdOverride?: string): Promise<number> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const pageSize = Math.min(500, maxInSet());
   let total = 0;
+  let refusal: unknown = null;
   for (;;) {
     const res = await jmapClient.request([
       ['Email/query', {
@@ -359,8 +377,15 @@ export async function markMailboxAsRead(mailboxId: string, accountIdOverride?: s
     const body = requireMethodResult(setRes, '0', 'Email/set');
     const marked = Object.keys(body.updated ?? {}).length;
     total += marked;
+    try {
+      assertSetResult(body, ids, 'email');
+    } catch (err) {
+      refusal ??= err;
+    }
+    // Refused messages come back in every page; stop once only they are left.
     if (marked === 0 || ids.length < pageSize) break;
   }
+  if (refusal) throw refusal;
   return total;
 }
 

@@ -9,6 +9,7 @@ import {
   type KeywordSortPolarity,
   type SortLevel,
 } from './message-list-order';
+import { sessionFingerprint } from './server-fingerprint';
 
 // Port of the webmail's JMAPClient.resolveKeywordSortPolarity /
 // probeKeywordSortPolarity / buildListSort (lib/jmap/client.ts). Stalwart
@@ -19,23 +20,30 @@ import {
 // (a server upgrade may change it), instead of probing on every start.
 
 const KEYWORD_SORT_PROBE_RETRY_MS = 5 * 60 * 1000;
-// Bump the version when the probe or what it decides changes.
-const STORAGE_KEY = 'keyword-sort-polarity:v1';
+// Bump the version when the probe, what it decides or the key changes. v2
+// keys verdicts by the server fingerprint too.
+const STORAGE_KEY = 'keyword-sort-polarity:v2';
+const OLD_STORAGE_KEY = 'keyword-sort-polarity:v1';
 const STORED_VERDICT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 type StoredVerdict = { verdict: KeywordSortPolarity | 'unsupported'; at: number };
 let stored: Record<string, StoredVerdict> = {};
 let hydration: Promise<void> | null = null;
 
-// Keyed by `<serverUrl>|<jmap account id>` so two logged-in accounts on the
-// same server, or the same id on two servers, never share a verdict.
+// Keyed by `<serverUrl>|<jmap account id>|<server fingerprint>` so two
+// logged-in accounts on the same server, or the same id on two servers, never
+// share a verdict, and a server replaced or upgraded at the same address
+// (Stalwart 1.0 follows the RFC where 0.16.8 to 0.16.22 invert) is probed
+// afresh. The session shows no version, so an upgrade that leaves the
+// capabilities alone (0.16.22 to 0.16.23) still waits out the week.
 const polarityCache = new Map<string, { value: KeywordSortPolarity | null; at: number }>();
 const probes = new Map<string, Promise<KeywordSortPolarity>>();
 // Accounts whose server refused a hasKeyword comparator with unsupportedSort.
 const unsupported = new Set<string>();
 
 function cacheKey(accountId: string): string {
-  return `${jmapClient.serverUrl ?? ''}|${accountId}`;
+  const session = jmapClient.currentSession;
+  return `${jmapClient.serverUrl ?? ''}|${accountId}|${session ? sessionFingerprint(session) : ''}`;
 }
 
 /** The server's advertised Email/query sort options, or null when unknown. */
@@ -83,6 +91,8 @@ function isStoredVerdict(value: unknown): value is StoredVerdict {
 // dropped and probed again.
 function hydrateStoredVerdicts(): Promise<void> {
   hydration ??= (async () => {
+    // Verdicts stored without a fingerprint can't be matched to a server.
+    void AsyncStorage.removeItem(OLD_STORAGE_KEY).catch(() => undefined);
     let raw: string | null = null;
     try {
       raw = await AsyncStorage.getItem(STORAGE_KEY);

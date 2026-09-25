@@ -36,6 +36,12 @@ describe('tag ids', () => {
     expect(tagIdFromKeyword('$seen')).toBeNull();
     expect(tagIdFromKeyword('$label:')).toBeNull();
   });
+
+  it('shows no tag for the attachment keywords of Stalwart 1.0', () => {
+    expect(getEmailTagIds({ $hasattachment: true, '$label:work': true })).toEqual(['work']);
+    expect(getEmailTagIds({ $hasnoattachment: true })).toEqual([]);
+    expect(tagIdFromKeyword('$hasattachment')).toBeNull();
+  });
 });
 
 describe('collapseThreads', () => {

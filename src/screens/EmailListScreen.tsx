@@ -35,6 +35,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
+import { toast } from '../stores/toast-store';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
@@ -50,6 +51,14 @@ import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import type { Attachment, Email } from '../api/types';
+
+// The server refuses keywords per message (a read-only shared folder;
+// Stalwart 1.0: over 128 bytes, or more than 100 on one message), and the
+// rows keep what they had. Say so rather than leaving the promise to drop it.
+function reportKeywordFailure(title: string, err: unknown): void {
+  console.warn('[email-list]', title, err);
+  toast.error(title, err instanceof Error ? err.message : undefined);
+}
 
 function getSenderName(email: Email, unknownLabel: string): string {
   return email.from?.[0]?.name || email.from?.[0]?.email || unknownLabel;
@@ -640,14 +649,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         }
         break;
       case 'read':
-        if (isUnread(email)) void markRead(id);
-        else void markUnread(id);
+        (isUnread(email) ? markRead(id) : markUnread(id))
+          .catch((err) => reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err));
         break;
       case 'star':
-        void toggleStar(id, !isStarred(email));
+        toggleStar(id, !isStarred(email))
+          .catch((err) => reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err));
         break;
       case 'pin':
-        void togglePin(id, !isPinned(email));
+        togglePin(id, !isPinned(email))
+          .catch((err) => reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err));
         break;
       case 'move':
         setPendingMoveId(id);
@@ -743,13 +754,21 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   // One Email/set for the whole selection, not a request per message.
   const handleBulkMarkReadToggle = async () => {
-    await setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead);
-    clearSelection();
+    try {
+      await setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead);
+      clearSelection();
+    } catch (err) {
+      reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err);
+    }
   };
 
   const handleBulkStar = async () => {
-    await setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred);
-    clearSelection();
+    try {
+      await setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred);
+      clearSelection();
+    } catch (err) {
+      reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err);
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -795,7 +814,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   };
 
   const handleBatchTagToggle = (token: string, on: boolean) => {
-    void setKeywordForEmails(selectedMessageIds, token, on);
+    setKeywordForEmails(selectedMessageIds, token, on).catch((err) =>
+      reportKeywordFailure(t('notifications.tag_failed', 'Tagging failed'), err));
   };
 
   // Local input state for uninterrupted typing. The search runs on submit,

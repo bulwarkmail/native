@@ -341,7 +341,13 @@ function EmailViewer({ route, navigation }: Props) {
       // The keywords as they are now: a star or tag set during the delay stays.
       const current = peekDetail(target.id, ownerAccountId) ?? target;
       updateLocalKeywords(target.id, { ...current.keywords, $seen: true });
-      void markSeen(target.id);
+      markSeen(target.id).catch((err) => {
+        // Refused (a shared folder without the right to set it; Stalwart 1.0
+        // with 100 keywords on the message): it stays unread.
+        console.warn('[viewer] mark as read failed', err);
+        const { $seen: _seen, ...rest } = (peekDetail(target.id, ownerAccountId) ?? current).keywords ?? {};
+        updateLocalKeywords(target.id, rest);
+      });
     };
     if (markAsReadDelay > 0) {
       const timer = setTimeout(apply, markAsReadDelay);

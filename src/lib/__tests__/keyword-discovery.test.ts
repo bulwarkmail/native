@@ -23,4 +23,14 @@ describe('keyword discovery (#658)', () => {
     expect(found[0].keyword).toBe('$label:work');
     expect(found[0].label).toBe('Work');
   });
+
+  it('never proposes the attachment keywords Stalwart 1.0 puts on every message', () => {
+    // 1.0 sets `$hasattachment` or `$hasnoattachment` on each message and
+    // derives hasAttachment from them; 0.16 never does. They are no tags.
+    const found = findUnrecognizedKeywords(
+      { $hasattachment: 40, $hasnoattachment: 60, $HasAttachment: 1, '$label:work': 3 },
+      [],
+    );
+    expect(found.map((f) => f.id)).toEqual(['work']);
+  });
 });

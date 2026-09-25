@@ -1,11 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const request = vi.fn();
+const { server } = vi.hoisted(() => ({ server: { session: { accounts: {} } as Record<string, unknown> } }));
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     serverUrl: 'https://mail.example.com',
-    currentSession: { accounts: {} },
+    get currentSession() {
+      return server.session;
+    },
     request: (...args: unknown[]) => request(...args),
   },
 }));
@@ -150,5 +153,58 @@ describe('stored verdicts', () => {
     const next = await relaunch();
     await next.resolveKeywordSortPolarity('acc-1');
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  describe('when the server at the address changes', () => {
+    const caps = (names: string[]) => Object.fromEntries(names.map((urn) => [urn, {}]));
+    const session = (version: '0.16.22' | '1.0') => {
+      const extra = version === '1.0' ? ['urn:ietf:params:jmap:metadata'] : [];
+      return {
+        apiUrl: 'https://mail.example.com/jmap/',
+        primaryAccounts: { 'urn:ietf:params:jmap:mail': 'acc-1' },
+        capabilities: caps(['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail', ...extra]),
+        accounts: {
+          'acc-1': {
+            name: 'user', isPersonal: true, isReadOnly: false,
+            accountCapabilities: caps([
+              'urn:ietf:params:jmap:mail', 'urn:stalwart:jmap',
+              ...extra, ...(version === '1.0' ? ['urn:ietf:params:jmap:principals:owner'] : []),
+            ]),
+          },
+        },
+      };
+    };
+
+    afterEach(() => {
+      server.session = { accounts: {} };
+    });
+
+    it('probes Stalwart 1.0 afresh instead of reusing the inverted verdict of 0.16.22', async () => {
+      server.session = session('0.16.22');
+      request.mockResolvedValue(probeResponse('a', 'b', true));
+      expect(await resolveKeywordSortPolarity('acc-1')).toBe('inverted');
+      await new Promise((r) => setTimeout(r, 0));
+
+      // Reinstalled as 1.0, which follows the RFC.
+      server.session = session('1.0');
+      const next = await relaunch();
+      request.mockResolvedValue(probeResponse('a', 'b', false));
+      expect(await next.resolveKeywordSortPolarity('acc-1')).toBe('rfc');
+      expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it('notices within one launch when the session changes', async () => {
+      server.session = session('0.16.22');
+      request.mockResolvedValue(probeResponse('a', 'b', true));
+      expect(await resolveKeywordSortPolarity('acc-1')).toBe('inverted');
+
+      server.session = session('1.0');
+      request.mockResolvedValue(probeResponse('a', 'b', false));
+      expect(await resolveKeywordSortPolarity('acc-1')).toBe('rfc');
+      // And back: the 0.16.22 verdict is still the one for that server.
+      server.session = session('0.16.22');
+      expect(await resolveKeywordSortPolarity('acc-1')).toBe('inverted');
+      expect(request).toHaveBeenCalledTimes(2);
+    });
   });
 });
