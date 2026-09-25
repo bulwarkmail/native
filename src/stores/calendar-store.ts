@@ -281,6 +281,12 @@ export interface CalendarState {
   deleteTask: (id: string) => Promise<void>;
   toggleCalendarVisibility: (id: string) => void;
   setCalendarHidden: (id: string, hidden: boolean) => void;
+  /**
+   * Show every calendar again. The hidden ids are kept for all accounts
+   * together, and a server that was replaced may have given one of them to
+   * another calendar (see lib/server-change).
+   */
+  forgetHiddenCalendars: () => Promise<void>;
   reset: () => void;
 }
 
@@ -1181,6 +1187,13 @@ export const useCalendarStore = create<CalendarState>()(
       : hiddenCalendarIds.filter((x) => x !== id);
     set({ hiddenCalendarIds: next });
     persistHidden(next);
+  },
+
+  forgetHiddenCalendars: async () => {
+    // A read of the stored list still under way would bring them back.
+    await get().hydrate();
+    set({ hiddenCalendarIds: [] });
+    persistHidden([]);
   },
 
   reset: () => {

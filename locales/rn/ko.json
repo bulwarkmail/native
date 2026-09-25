@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "오프라인 상태예요",
+    "discarded_changes": "메일 서버가 바뀌어 {count, plural, other {오프라인 변경 사항 #개가}} 폐기됐어요",
     "queued_changes": "{count, plural, other {변경 사항 #개}}는 다시 연결되면 동기화돼요",
     "sync": {
       "cached_count": "{count, plural, other {새 메시지 #개를 캐시했어요}} • {size}",

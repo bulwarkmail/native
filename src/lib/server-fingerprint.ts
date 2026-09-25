@@ -15,13 +15,17 @@ import { sha256Hex } from './sha256';
 // only costs a re-download.
 
 const STORAGE_PREFIX = 'server-fingerprint:v1:';
+// The JMAP id the recorded server gave the account's own data. Preferences
+// kept per JMAP account (the preferred sender identity, iCal subscriptions)
+// are found by it once that server is gone.
+const PRIMARY_PREFIX = 'server-primary-account:v1:';
 
 function storageKey(accountId: string): string {
   return STORAGE_PREFIX + accountId;
 }
 
 /** The session's primary account, picked the way JMAPClient picks it. */
-function primaryAccountId(session: JMAPSession): string {
+export function primaryAccountId(session: JMAPSession): string {
   return session.primaryAccounts?.[CAPABILITIES.MAIL]
     || session.primaryAccounts?.[CAPABILITIES.CORE]
     || Object.keys(session.accounts ?? {})[0]
@@ -53,6 +57,20 @@ export async function readServerFingerprint(accountId: string): Promise<string |
   }
 }
 
-export async function writeServerFingerprint(accountId: string, fingerprint: string): Promise<void> {
+/** The primary JMAP account id recorded with the fingerprint, if any. */
+export async function readServerPrimaryAccountId(accountId: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(PRIMARY_PREFIX + accountId);
+  } catch {
+    return null;
+  }
+}
+
+export async function writeServerFingerprint(
+  accountId: string,
+  fingerprint: string,
+  primaryAccount?: string,
+): Promise<void> {
+  if (primaryAccount) await AsyncStorage.setItem(PRIMARY_PREFIX + accountId, primaryAccount);
   await AsyncStorage.setItem(storageKey(accountId), fingerprint);
 }

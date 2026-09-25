@@ -545,6 +545,7 @@
   },
   "offline": {
     "banner": "You are offline",
+    "discarded_changes": "{count, plural, one {# offline change was} other {# offline changes were}} discarded because the mail server changed",
     "queued_changes": "{count, plural, one {# change} other {# changes}} will sync when you reconnect",
     "sync": {
       "cached_count": "{count, plural, one {# new message cached} other {# new messages cached}} • {size}",

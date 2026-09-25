@@ -116,9 +116,9 @@ interface OutboxState {
   /**
    * Drop an account's queued and failed ops, loaded or not. Every op names a
    * message by its server id, which a different server can have given to
-   * another message (see lib/server-change).
+   * another message (see lib/server-change). Resolves to how many went.
    */
-  clearAccount: (accountId: string) => Promise<void>;
+  clearAccount: (accountId: string) => Promise<number>;
 }
 
 function persist(accountId: string, entries: OutboxEntry[]): void {
@@ -447,14 +447,22 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   },
 
   clearAccount: async (accountId) => {
-    if (get().activeAccountId === accountId) {
+    const state = get();
+    const loaded = state.activeAccountId === accountId && state.hydrated;
+    let dropped = loaded ? state.entries.length + state.failed.length : 0;
+    if (state.activeAccountId === accountId) {
       clearRetry();
       // A read of the bucket still under way must not bring the ops back.
       loadEpoch += 1;
       set({ entries: [], failed: [], hydrated: true });
     }
+    if (!loaded) {
+      const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
+      dropped = entries.length + failed.length;
+    }
     await AsyncStorage.removeItem(storageKey(accountId)).catch(() => undefined);
     await AsyncStorage.removeItem(storageKey(accountId) + FAILED_SUFFIX).catch(() => undefined);
+    return dropped;
   },
 }));
 

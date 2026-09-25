@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Estás sin conexión",
+    "discarded_changes": "{count, plural, one {Se descartó # cambio sin conexión} other {Se descartaron # cambios sin conexión}} porque cambió el servidor de correo",
     "queued_changes": "{count, plural, one {# cambio se sincronizará} other {# cambios se sincronizarán}} cuando vuelvas a conectarte",
     "sync": {
       "cached_count": "{count, plural, one {# mensaje nuevo en caché} other {# mensajes nuevos en caché}} • {size}",

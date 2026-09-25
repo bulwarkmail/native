@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Çevrimdışısınız",
+    "discarded_changes": "{count, plural, one {Çevrimdışı yapılan # değişiklik} other {Çevrimdışı yapılan # değişiklik}} posta sunucusu değiştiği için silindi",
     "queued_changes": "{count, plural, one {# değişiklik} other {# değişiklik}} yeniden bağlandığınızda senkronize edilecek",
     "sync": {
       "cached_count": "{count, plural, one {# yeni ileti önbelleğe alındı} other {# yeni ileti önbelleğe alındı}} • {size}",

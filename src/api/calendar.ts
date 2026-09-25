@@ -1156,6 +1156,20 @@ export async function setDefaultCalendar(
   methodResult(res);
 }
 
+/**
+ * The name of the user's calendar `id`, or null when the account has no
+ * calendar by that id.
+ */
+export async function getCalendarName(id: string): Promise<string | null> {
+  const accountId = jmapClient.accountId;
+  const res = await jmapClient.request(
+    [['Calendar/get', { accountId, ids: [id], properties: ['id', 'name'] }, '0']],
+    USING,
+  );
+  const list = methodResult<{ list?: Calendar[] }>(res).list ?? [];
+  return list.find((cal) => cal.id === id)?.name ?? null;
+}
+
 // Destroy a calendar. `onDestroyRemoveEvents` removes its events too —
 // Stalwart otherwise refuses to delete a non-empty calendar.
 export async function deleteCalendar(id: string, targetAccountId?: string): Promise<void> {

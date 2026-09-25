@@ -72,6 +72,7 @@ import {
   setupPushNotifications,
   deviceClientIdKey,
   disablePushForAccount,
+  forgetPushServerState,
   isValidRelayUrl,
   mailAccountsWithoutPush,
   notificationTapJmapAccountId,
@@ -937,6 +938,8 @@ describe('resyncPushNotifications', () => {
     expect(result?.subscriptionId).toBe('existing');
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(createMock).not.toHaveBeenCalled();
+    // The expiry the server reported is what a later resync measures against.
+    expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(expires);
   });
 
   it('leaves an account alone after the user turned push off for it', async () => {
@@ -969,15 +972,31 @@ describe('resyncPushNotifications', () => {
     expect(createMock).not.toHaveBeenCalled();
   });
 
-  it('re-creates a subscription the server lost before it was due to expire (reinstalled at the same address)', async () => {
-    // A server reinstalled for Stalwart 1.0, or an upgrade that doesn't carry
-    // the subscriptions over, looks exactly like a revocation from elsewhere.
-    // The expiry record is what older builds took for proof of revocation.
+  it('does not re-register a subscription another device revoked', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
     await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
     await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
     listMock.mockResolvedValue([]);
 
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result).toBeNull();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    expect(await readPushAccountIds()).toEqual([]);
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
+  });
+
+  it('re-creates the subscription once the server behind the account was replaced (0.16.23 to 1.0)', async () => {
+    // A server reinstalled for Stalwart 1.0 holds none of the subscriptions,
+    // which looks exactly like a revocation from elsewhere; the fingerprint
+    // check tells them apart and forgets the recorded expiry.
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    listMock.mockResolvedValue([]);
+
+    await forgetPushServerState(ACCOUNT_ID);
     const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
 
     expect(result?.subscriptionId).toBe('new-server-id');
@@ -1053,6 +1072,7 @@ describe('resyncPushNotifications', () => {
     await setupPushNotifications({ relayBaseUrl: RELAY });
 
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+    expect(await AsyncStorage.getItem(EXPIRES_KEY)).not.toBeNull();
     vi.clearAllMocks();
     listMock.mockResolvedValue([
       { id: 'new-server-id', deviceClientId: OUR_DCID, expires: inDays(7), types: ['EmailDelivery'] },

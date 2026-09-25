@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "U bent offline",
+    "discarded_changes": "{count, plural, one {# offline wijziging is} other {# offline wijzigingen zijn}} verwijderd omdat de mailserver is gewijzigd",
     "queued_changes": "{count, plural, one {# wijziging wordt} other {# wijzigingen worden}} gesynchroniseerd zodra u weer verbinding hebt",
     "sync": {
       "cached_count": "{count, plural, one {# nieuw bericht in de cache opgeslagen} other {# nieuwe berichten in de cache opgeslagen}} • {size}",

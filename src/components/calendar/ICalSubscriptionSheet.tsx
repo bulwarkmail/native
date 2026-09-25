@@ -12,6 +12,7 @@ import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-ut
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
   DEFAULT_REFRESH_INTERVAL_MINUTES,
+  currentLocalAccountId,
   selectAccountSubscriptions,
   useCalendarSubscriptionsStore,
   type CalendarSubscription,
@@ -40,7 +41,11 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   // Only the signed-in account's feeds: a sub created under another account
   // mirrors into a calendar id that doesn't exist (or collides) here.
   const subscriptions = React.useMemo(
-    () => selectAccountSubscriptions(allSubscriptions, jmapClient.isConnected ? jmapClient.accountId : null),
+    () => selectAccountSubscriptions(
+      allSubscriptions,
+      jmapClient.isConnected ? jmapClient.accountId : null,
+      currentLocalAccountId(),
+    ),
     [allSubscriptions],
   );
   const syncing = useCalendarSubscriptionsStore((s) => s.syncing);

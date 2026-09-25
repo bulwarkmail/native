@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Ste offline",
+    "discarded_changes": "{count, plural, one {Zahodila sa # zmena urobená offline} few {Zahodili sa # zmeny urobené offline} many {Zahodilo sa # zmeny urobenej offline} other {Zahodilo sa # zmien urobených offline}}, pretože sa zmenil poštový server",
     "queued_changes": "{count, plural, one {# zmena sa zosynchronizuje} few {# zmeny sa zosynchronizujú} many {# zmeny sa zosynchronizuje} other {# zmien sa zosynchronizuje}} po obnovení pripojenia",
     "sync": {
       "cached_count": "{count, plural, one {Stiahnutá # nová správa} few {Stiahnuté # nové správy} many {Stiahnutých # novej správy} other {Stiahnutých # nových správ}} • {size}",

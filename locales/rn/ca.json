@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "No teniu connexió",
+    "discarded_changes": "{count, plural, one {S'ha descartat # canvi fet sense connexió} other {S'han descartat # canvis fets sense connexió}} perquè el servidor de correu ha canviat",
     "queued_changes": "{count, plural, one {# canvi es sincronitzarà} other {# canvis se sincronitzaran}} quan us torneu a connectar",
     "sync": {
       "cached_count": "{count, plural, one {# missatge nou a la memòria cau} other {# missatges nous a la memòria cau}} • {size}",

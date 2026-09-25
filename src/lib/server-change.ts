@@ -1,15 +1,25 @@
 import type { JMAPSession } from '../api/types';
 import { useCalendarStore } from '../stores/calendar-store';
+import { useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useEmailStore } from '../stores/email-store';
+import { t } from '../stores/locale-store';
 import { useOfflineCacheStore } from '../stores/offline-cache-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { flushPersistedWrites } from '../stores/persist-storage';
+import { useSettingsStore } from '../stores/settings-store';
+import { toast } from '../stores/toast-store';
 import { clearBodyHeights } from './body-heights';
 import { clearBodyDocuments } from './email-body-document';
 import { clearEmailDetailCache } from './email-detail-cache';
 import { forgetPushServerState } from './push-notifications';
-import { readServerFingerprint, sessionFingerprint, writeServerFingerprint } from './server-fingerprint';
+import {
+  primaryAccountId,
+  readServerFingerprint,
+  readServerPrimaryAccountId,
+  sessionFingerprint,
+  writeServerFingerprint,
+} from './server-fingerprint';
 
 // The app keeps a lot across launches that only means something on the
 // server it came from: JMAP states and query states, message ids in the
@@ -22,11 +32,26 @@ import { readServerFingerprint, sessionFingerprint, writeServerFingerprint } fro
 // derived from the old server is dropped before anything reads it.
 
 /**
- * Drop what the app derived from an account's server. Preferences, templates,
- * tags and iCal subscriptions stay: they are the user's, not the server's.
+ * The JMAP ids the replaced server and the new one gave the account's own
+ * data (null when not known). Preferences kept per JMAP account are found by
+ * them.
+ */
+export interface ServerAccountIds {
+  previous: string | null;
+  next: string | null;
+}
+
+/**
+ * Drop what the app derived from an account's server. Preferences, templates
+ * and tags stay: they are the user's, not the server's. So do the iCal
+ * subscriptions, without their mirror calendars. Preferences that name a
+ * server object go: the preferred sender identity and the hidden calendars.
  * Every step runs; the first failure is thrown afterwards.
  */
-export async function forgetServerDerivedState(accountId: string): Promise<void> {
+export async function forgetServerDerivedState(
+  accountId: string,
+  jmapAccountIds: ServerAccountIds = { previous: null, next: null },
+): Promise<void> {
   const failures: unknown[] = [];
   const step = async (run: () => unknown): Promise<void> => {
     try {
@@ -54,11 +79,31 @@ export async function forgetServerDerivedState(accountId: string): Promise<void>
   // that one. So the whole queue goes, failed ops too. Offline edits still
   // waiting are lost; a message the user wrote never is: the outbox holds no
   // sends (sending needs a connection, and drafts are saved to the server).
-  await step(() => useOutboxStore.getState().clearAccount(accountId));
+  let droppedOps = 0;
+  await step(async () => {
+    droppedOps = await useOutboxStore.getState().clearAccount(accountId);
+  });
   await step(() => forgetPushServerState(accountId));
+  // Calendar ids start over as well: a subscription's mirror id may name
+  // another calendar now, which its next sync would fill and "Remove" would
+  // destroy. Each gets a new mirror instead.
+  await step(() => useCalendarSubscriptionsStore.getState().unlinkAccount(accountId, jmapAccountIds));
+  await step(() => useCalendarStore.getState().forgetHiddenCalendars());
+  // Identity ids too (live: "b" is usera@ on 0.16.23, team@ on 1.0), and the
+  // preference would send from another address.
+  await step(() => useSettingsStore.getState().forgetPreferredIdentities(
+    [jmapAccountIds.previous, jmapAccountIds.next].filter((id): id is string => !!id),
+  ));
   // Get the emptied caches onto disk before the new fingerprint is.
   await step(() => flushPersistedWrites());
 
+  if (droppedOps > 0) {
+    toast.warning(t(
+      'offline.discarded_changes',
+      '{count, plural, one {# offline change was} other {# offline changes were}} discarded because the mail server changed',
+      { count: droppedOps },
+    ));
+  }
   if (failures.length > 0) throw failures[0];
 }
 
@@ -72,11 +117,21 @@ export async function forgetServerDerivedState(accountId: string): Promise<void>
 export async function reconcileServerFingerprint(accountId: string, session: JMAPSession): Promise<boolean> {
   const next = sessionFingerprint(session);
   const recorded = await readServerFingerprint(accountId);
-  if (recorded === next) return false;
+  const primary = primaryAccountId(session);
+  if (recorded === next) {
+    // Recorded by a build that kept no primary account id with it.
+    if (primary && (await readServerPrimaryAccountId(accountId)) === null) {
+      await writeServerFingerprint(accountId, next, primary);
+    }
+    return false;
+  }
   if (recorded !== null) {
     console.warn(`[server-change] ${accountId}: the server changed, dropping what was read from the old one`);
-    await forgetServerDerivedState(accountId);
+    await forgetServerDerivedState(accountId, {
+      previous: await readServerPrimaryAccountId(accountId),
+      next: primary || null,
+    });
   }
-  await writeServerFingerprint(accountId, next);
+  await writeServerFingerprint(accountId, next, primary);
   return recorded !== null;
 }

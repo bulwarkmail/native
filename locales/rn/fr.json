@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Vous êtes hors ligne",
+    "discarded_changes": "{count, plural, one {# modification hors ligne a été abandonnée} other {# modifications hors ligne ont été abandonnées}} car le serveur de messagerie a changé",
     "queued_changes": "{count, plural, one {# modification sera synchronisée} other {# modifications seront synchronisées}} à la reconnexion",
     "sync": {
       "cached_count": "{count, plural, one {# nouveau message mis en cache} other {# nouveaux messages mis en cache}} • {size}",

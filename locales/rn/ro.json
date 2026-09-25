@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Sunteți offline",
+    "discarded_changes": "{count, plural, one {# modificare offline a fost eliminată} few {# modificări offline au fost eliminate} other {# de modificări offline au fost eliminate}} deoarece serverul de e-mail s-a schimbat",
     "queued_changes": "{count, plural, one {# modificare va fi sincronizată} few {# modificări vor fi sincronizate} other {# de modificări vor fi sincronizate}} când vă reconectați",
     "sync": {
       "cached_count": "{count, plural, one {# mesaj nou salvat în cache} few {# mesaje noi salvate în cache} other {# de mesaje noi salvate în cache}} • {size}",

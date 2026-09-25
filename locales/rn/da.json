@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Du er offline",
+    "discarded_changes": "{count, plural, one {# ændring foretaget offline blev kasseret} other {# ændringer foretaget offline blev kasseret}}, fordi mailserveren er skiftet",
     "queued_changes": "{count, plural, one {# ændring} other {# ændringer}} synkroniseres, når du har forbindelse igen",
     "sync": {
       "cached_count": "{count, plural, one {# ny besked gemt i cachen} other {# nye beskeder gemt i cachen}} • {size}",

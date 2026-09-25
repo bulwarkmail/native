@@ -461,6 +461,12 @@ export interface SettingsState extends PersistedSettings {
    */
   ensureIdentities: () => Promise<void>;
   hydrate: () => Promise<void>;
+  /**
+   * Forget the preferred sender identity of these JMAP accounts: the id names
+   * an identity of a server that was replaced (lib/server-change), which the
+   * new one may have given to another address.
+   */
+  forgetPreferredIdentities: (jmapAccountIds: string[]) => Promise<void>;
 
   // Generic setter — preferred for new code.
   updateSetting: <K extends keyof PersistedSettings>(
@@ -755,6 +761,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSetting: (key, value) => {
     set({ [key]: value } as Partial<SettingsState>);
     persist(snapshot(get()));
+  },
+
+  forgetPreferredIdentities: async (jmapAccountIds) => {
+    // Written before the settings were read, the defaults would replace them.
+    await get().hydrate();
+    const current = get().preferredIdentityIds;
+    if (!jmapAccountIds.some((id) => id in current)) return;
+    const next = { ...current };
+    for (const id of jmapAccountIds) delete next[id];
+    get().updateSetting('preferredIdentityIds', next);
   },
 
   setExternalContentPolicy: (policy) => { set({ externalContentPolicy: policy }); persist(snapshot(get())); },

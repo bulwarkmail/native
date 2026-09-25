@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "您目前處於離線狀態",
+    "discarded_changes": "由於郵件伺服器已變更，{count, plural, other {# 項離線變更}}已被捨棄",
     "queued_changes": "{count, plural, other {# 項變更}}將在重新連線後同步",
     "sync": {
       "cached_count": "{count, plural, other {已快取 # 封新郵件}} • {size}",

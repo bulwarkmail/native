@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "オフラインです",
+    "discarded_changes": "メールサーバーが変わったため、{count, plural, other {オフラインでの変更#件}}を破棄しました",
     "queued_changes": "{count, plural, other {#件の変更}}は再接続時に同期されます",
     "sync": {
       "cached_count": "{count, plural, other {#件の新着メッセージをキャッシュしました}} • {size}",

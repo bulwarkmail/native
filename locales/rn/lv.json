@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Jūs esat bezsaistē",
+    "discarded_changes": "{count, plural, zero {# bezsaistes izmaiņas tika atmestas} one {# bezsaistes izmaiņa tika atmesta} other {# bezsaistes izmaiņas tika atmestas}}, jo mainījās pasta serveris",
     "queued_changes": "{count, plural, zero {# izmaiņas tiks sinhronizētas} one {# izmaiņa tiks sinhronizēta} other {# izmaiņas tiks sinhronizētas}}, kad atjaunosies savienojums",
     "sync": {
       "cached_count": "{count, plural, zero {Lejupielādēti # jauni ziņojumi} one {Lejupielādēts # jauns ziņojums} other {Lejupielādēti # jauni ziņojumi}} • {size}",

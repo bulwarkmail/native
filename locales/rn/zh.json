@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "您已离线",
+    "discarded_changes": "由于邮件服务器已更改，{count, plural, other {# 项离线更改}}已被丢弃",
     "queued_changes": "{count, plural, other {# 项更改}}将在重新连接后同步",
     "sync": {
       "cached_count": "{count, plural, other {已缓存 # 封新邮件}} • {size}",

@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Offline vagy",
+    "discarded_changes": "{count, plural, one {# offline módosítás törlődött} other {# offline módosítás törlődött}}, mert megváltozott a levelezőszerver",
     "queued_changes": "{count, plural, one {# módosítás szinkronizálódik} other {# módosítás szinkronizálódik}}, amint újra csatlakozol",
     "sync": {
       "cached_count": "{count, plural, one {# új üzenet letöltve} other {# új üzenet letöltve}} • {size}",

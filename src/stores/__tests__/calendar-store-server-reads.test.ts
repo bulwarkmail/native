@@ -166,6 +166,8 @@ describe.each<StalwartVersion>(['0.16', '1.0'])('calendar reads through the stor
 
   it(`removes what a subscribed feed dropped and adds only what is new on Stalwart ${version}`, async () => {
     serve({
+      // The mirror calendar, recognised by the subscription's name.
+      calendars: [...CALENDARS, { id: 'feed', name: 'Feed' }],
       objects: {
         old: { id: 'old', uid: 'old@feed', title: 'Gone upstream', start: '2026-09-02T09:00:00', calendarIds: { feed: true } },
         kept: { id: 'kept', uid: 'kept@feed', title: 'Still there', start: '2026-09-03T09:00:00', calendarIds: { feed: true } },

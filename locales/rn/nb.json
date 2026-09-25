@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Du er uten nett",
+    "discarded_changes": "{count, plural, one {# endring gjort uten nett ble forkastet} other {# endringer gjort uten nett ble forkastet}} fordi e-postserveren er byttet",
     "queued_changes": "{count, plural, one {# endring} other {# endringer}} synkroniseres når du er på nett igjen",
     "sync": {
       "cached_count": "{count, plural, one {# ny melding bufret} other {# nye meldinger bufret}} • {size}",

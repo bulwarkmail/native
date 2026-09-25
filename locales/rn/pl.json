@@ -538,6 +538,7 @@
   },
   "offline": {
     "banner": "Jesteś offline",
+    "discarded_changes": "{count, plural, one {Odrzucono # zmianę offline} few {Odrzucono # zmiany offline} many {Odrzucono # zmian offline} other {Odrzucono # zmiany offline}}, ponieważ zmienił się serwer poczty",
     "queued_changes": "{count, plural, one {# zmiana zostanie zsynchronizowana} few {# zmiany zostaną zsynchronizowane} many {# zmian zostanie zsynchronizowanych} other {# zmiany zostanie zsynchronizowane}} po ponownym połączeniu",
     "sync": {
       "cached_count": "{count, plural, one {Pobrano # nową wiadomość} few {Pobrano # nowe wiadomości} many {Pobrano # nowych wiadomości} other {Pobrano # nowej wiadomości}} • {size}",
