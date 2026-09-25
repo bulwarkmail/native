@@ -5,10 +5,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // session, and the server behind it is checked after that. An op queued for
 // one account must never reach another, nor a replaced server.
 
-const { client } = vi.hoisted(() => {
+const { client, SessionSupersededError } = vi.hoisted(() => {
   const A = 'usera@mail.example.org';
   const B = 'userb@mail.example.org';
-  const jmapIds: Record<string, string> = { [A]: 'd', [B]: 'e' };
+  const C = 'userc@mail.example.org';
+  const jmapIds: Record<string, string> = { [A]: 'd', [B]: 'e', [C]: 'f' };
   const session = (version: string, jmapId: string) => ({
     apiUrl: 'https://mail.example.org/jmap/',
     downloadUrl: '',
@@ -38,16 +39,31 @@ const { client } = vi.hoisted(() => {
     client: {
       A,
       B,
+      C,
       jmapIds,
       session,
       version: '1.0',
       // The local account (username@host) the client serves; null while it
       // serves none, as during loadAccount().
       served: null as string | null,
+      // Bumped by every load and restore, as JMAPClient's session epoch: a
+      // load that a later one overtook installs nothing.
+      epoch: 0,
+      // A client without that guard: an overtaken load's session lands anyway.
+      ignoreEpoch: false,
       // loadAccount() has the new session once this settles.
       loadGate: Promise.resolve() as Promise<unknown>,
+      // Per account, where two loads overlap.
+      gates: {} as Record<string, Promise<unknown>>,
       loadError: null as Error | null,
+      loadErrors: {} as Record<string, Error>,
       emailSets: [] as Array<{ served: string; args: Record<string, unknown> }>,
+    },
+    SessionSupersededError: class SessionSupersededError extends Error {
+      constructor() {
+        super('Another account was opened before this one finished loading');
+        this.name = 'SessionSupersededError';
+      }
     },
   };
 });
@@ -65,14 +81,20 @@ vi.mock('../../api/jmap-client', () => ({
     get username() { return client.served ? client.served.split('@')[0] : null; },
     get serverUrl() { return client.served ? 'https://mail.example.org' : null; },
     loadAccount: vi.fn(async (accountId: string) => {
+      const epoch = ++client.epoch;
       client.served = null;
-      await client.loadGate;
-      if (client.loadError) throw client.loadError;
+      await (client.gates[accountId] ?? client.loadGate);
+      if (epoch !== client.epoch && !client.ignoreEpoch) throw new SessionSupersededError();
+      const error = client.loadErrors[accountId] ?? client.loadError;
+      if (error) throw error;
       client.served = accountId;
       return true;
     }),
     snapshot: vi.fn(() => ({ served: client.served })),
-    restoreSnapshot: vi.fn((snap: { served: string | null }) => { client.served = snap.served; }),
+    restoreSnapshot: vi.fn((snap: { served: string | null }) => {
+      client.epoch += 1;
+      client.served = snap.served;
+    }),
     consumeLegacyCredentials: vi.fn(async () => null),
     clearAccountCredentials: vi.fn(async () => undefined),
     reset: vi.fn(),
@@ -103,6 +125,7 @@ vi.mock('../../api/jmap-client', () => ({
   },
   AuthenticationError: class AuthenticationError extends Error {},
   NetworkError: class NetworkError extends Error {},
+  SessionSupersededError,
 }));
 
 vi.mock('../../lib/push-notifications', () => ({
@@ -119,7 +142,7 @@ import { useAuthStore } from '../auth-store';
 import { useEmailStore } from '../email-store';
 import { applyOrQueue, useOutboxStore } from '../outbox-store';
 
-const { A, B } = client;
+const { A, B, C } = client;
 const fingerprint = (version: string, account: string) =>
   sessionFingerprint(client.session(version, client.jmapIds[account]) as unknown as JMAPSession);
 const queued = (emailId: string) => ({
@@ -143,15 +166,23 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   client.version = '1.0';
   client.loadGate = Promise.resolve();
+  client.gates = {};
   client.loadError = null;
+  client.loadErrors = {};
+  client.ignoreEpoch = false;
   client.emailSets.length = 0;
   const entry = (id: string, username: string) => ({
     id, serverUrl: 'https://mail.example.org', username, displayName: username, email: id,
     avatarColor: '#000', lastLoginAt: 0, isConnected: true, hasError: false, isDefault: id === A,
   });
-  useAccountStore.setState({ accounts: [entry(A, 'usera'), entry(B, 'userb')], activeAccountId: A, defaultAccountId: A });
+  useAccountStore.setState({
+    accounts: [entry(A, 'usera'), entry(B, 'userb'), entry(C, 'userc')],
+    activeAccountId: A,
+    defaultAccountId: A,
+  });
   await writeServerFingerprint(A, fingerprint('1.0', A));
   await writeServerFingerprint(B, fingerprint('1.0', B));
+  await writeServerFingerprint(C, fingerprint('1.0', C));
 
   // A is signed in and live; B has an edit queued from before.
   await AsyncStorage.setItem(`webmail:outbox:v1:${B}`, JSON.stringify([queued('m1')]));
@@ -239,5 +270,134 @@ describe('switching accounts with queued edits', () => {
     expect(client.emailSets).toEqual([{ served: A, args: { accountId: 'd', update: { a1: { 'keywords/$seen': true } } } }]);
     // B's queue stays for B.
     expect(JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${B}`))!)).toHaveLength(1);
+  });
+});
+
+// The account rows have no busy state and a notification tap switches too:
+// B can be tapped, then C, before B's session is up.
+describe('switches that overlap (Stalwart 1.0)', () => {
+  const where = () => ({
+    email: useEmailStore.getState().activeAccountId,
+    outbox: useOutboxStore.getState().activeAccountId,
+    resumed: useOutboxStore.getState().resumed,
+    auth: useAuthStore.getState().activeAccountId,
+    registry: useAccountStore.getState().activeAccountId,
+    client: client.served,
+  });
+  const on = (account: string) => ({
+    email: account, outbox: account, resumed: true, auth: account, registry: account, client: account,
+  });
+  // An edit the user makes in the list on screen.
+  const editOnScreen = () => applyOrQueue({ kind: 'keywords', emailId: 'x1', patch: { $seen: true } });
+  const sent = () => client.emailSets.map(({ served, args }) => [served, args.accountId, Object.keys((args.update ?? {}) as object)]);
+
+  it('lands on the account tapped last when the switch before it ends later', async () => {
+    const toB = deferred();
+    const toC = deferred();
+    client.gates = { [B]: toB.promise, [C]: toC.promise };
+
+    const switchingToB = useAuthStore.getState().switchAccount(B);
+    await settle();
+    const switchingToC = useAuthStore.getState().switchAccount(C);
+    await settle();
+    toC.open();
+    await switchingToC;
+    await settle();
+    toB.open();
+    await switchingToB;
+    await settle();
+
+    expect(where()).toEqual(on(C));
+    expect((await editOnScreen()).queued).toBe(false);
+    // Neither B's queue nor the edit went to B.
+    expect(sent()).toEqual([[C, 'f', ['x1']]]);
+    expect(JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${B}`))!)).toHaveLength(1);
+  });
+
+  it('keeps an edit on screen from the account an overtaken switch left in the client', async () => {
+    // As above, with a client that installs the overtaken load's session.
+    client.ignoreEpoch = true;
+    const toB = deferred();
+    const toC = deferred();
+    client.gates = { [B]: toB.promise, [C]: toC.promise };
+
+    const switchingToB = useAuthStore.getState().switchAccount(B);
+    await settle();
+    const switchingToC = useAuthStore.getState().switchAccount(C);
+    await settle();
+    toC.open();
+    await switchingToC;
+    toB.open();
+    await switchingToB;
+    await settle();
+
+    expect(client.served).toBe(B);
+    expect(useEmailStore.getState().activeAccountId).toBe(C);
+    expect((await editOnScreen()).queued).toBe(true);
+    expect(client.emailSets).toEqual([]);
+  });
+
+  it('does not put back the account left when an overtaken switch fails', async () => {
+    client.ignoreEpoch = true;
+    client.loadErrors = { [B]: new Error('Server unreachable') };
+    const toB = deferred();
+    const toC = deferred();
+    client.gates = { [B]: toB.promise, [C]: toC.promise };
+
+    const switchingToB = useAuthStore.getState().switchAccount(B);
+    await settle();
+    const switchingToC = useAuthStore.getState().switchAccount(C);
+    await settle();
+    toC.open();
+    await switchingToC;
+    toB.open();
+    await switchingToB;
+    await settle();
+
+    expect(where()).toEqual(on(C));
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('puts back the account the first switch left when the last one fails', async () => {
+    client.loadErrors = { [C]: new Error('Server unreachable') };
+    const toB = deferred();
+    const toC = deferred();
+    client.gates = { [B]: toB.promise, [C]: toC.promise };
+
+    const switchingToB = useAuthStore.getState().switchAccount(B);
+    await settle();
+    const switchingToC = useAuthStore.getState().switchAccount(C);
+    await settle();
+    toB.open();
+    await switchingToB;
+    toC.open();
+    await switchingToC;
+    await settle();
+
+    // Not the account-less client C's switch began with.
+    expect(where()).toEqual(on(A));
+    expect(useAuthStore.getState().error).toBe('Server unreachable');
+    expect((await editOnScreen()).queued).toBe(false);
+    expect(sent()).toEqual([[A, 'd', ['x1']]]);
+  });
+
+  it('goes straight back when the account left is tapped while a switch is under way', async () => {
+    const toB = deferred();
+    client.gates = { [B]: toB.promise };
+
+    const switchingToB = useAuthStore.getState().switchAccount(B);
+    await settle();
+    await useAuthStore.getState().switchAccount(A);
+    expect(useAuthStore.getState().isLoading).toBe(false);
+    await settle();
+
+    expect(where()).toEqual(on(A));
+    toB.open();
+    await switchingToB;
+    await settle();
+
+    expect(where()).toEqual(on(A));
+    expect((await editOnScreen()).queued).toBe(false);
+    expect(sent()).toEqual([[A, 'd', ['x1']]]);
   });
 });

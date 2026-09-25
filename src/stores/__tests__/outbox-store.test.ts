@@ -9,8 +9,15 @@ vi.mock('@react-native-community/netinfo', () => ({
   },
 }));
 
+// The account (username@host) the JMAP client serves; null while it serves
+// none, as while it loads another one.
+const client = vi.hoisted(() => ({ served: null as string | null }));
 vi.mock('../../api/jmap-client', () => ({
-  jmapClient: { isConnected: true },
+  jmapClient: {
+    get isConnected() { return client.served !== null; },
+    get username() { return client.served ? client.served.split('@')[0] : null; },
+    get serverUrl() { return client.served ? `https://${client.served.split('@')[1]}` : null; },
+  },
 }));
 
 const patchKeywordsForEmails = vi.fn(async (..._a: any[]) => undefined);
@@ -26,10 +33,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOutboxStore, applyOrQueue } from '../outbox-store';
 import { useNetworkStore } from '../network-store';
 
-const ACCOUNT = 'acc-1';
+const ACCOUNT = 'user1@mail.example.org';
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  client.served = ACCOUNT;
   useNetworkStore.setState({ online: true, connected: true });
   // Detach then attach a clean bucket (AsyncStorage is the in-memory mock).
   await useOutboxStore.getState().setAccount(null);
@@ -245,10 +253,13 @@ describe('failed ops and archive replay', () => {
 });
 
 describe('keyword ops queued by earlier builds', () => {
+  const LEGACY = 'legacy@mail.example.org';
+
   beforeEach(async () => {
     patchKeywordsForEmails.mockResolvedValue(undefined);
-    await AsyncStorage.removeItem('webmail:outbox:v1:acc-legacy');
-    await AsyncStorage.removeItem('webmail:outbox:v1:acc-legacy:failed');
+    await AsyncStorage.removeItem(`webmail:outbox:v1:${LEGACY}`);
+    await AsyncStorage.removeItem(`webmail:outbox:v1:${LEGACY}:failed`);
+    client.served = LEGACY;
   });
 
   it('replays a whole keyword map as a patch that sets its keywords and clears nothing else', async () => {
@@ -259,13 +270,13 @@ describe('keyword ops queued by earlier builds', () => {
       { id: 'b', createdAt: 2, attempts: 0, op: { kind: 'keywords', emailId: 'e2', accountId: 'grp-1', keywords: { $junk: true } } },
       { id: 'c', createdAt: 3, attempts: 0, op: { kind: 'mailboxes', emailId: 'e3', mailboxIds: { trash: true } } },
     ];
-    await AsyncStorage.setItem('webmail:outbox:v1:acc-legacy', JSON.stringify(legacy));
-    await useOutboxStore.getState().setAccount('acc-legacy');
+    await AsyncStorage.setItem(`webmail:outbox:v1:${LEGACY}`, JSON.stringify(legacy));
+    await useOutboxStore.getState().setAccount(LEGACY);
 
     expect(useOutboxStore.getState().entries[0].op).toEqual({
       kind: 'keywords', emailId: 'e1', accountId: undefined, patch: { $seen: true, '$label:work': true },
     });
-    await useOutboxStore.getState().resume('acc-legacy');
+    await useOutboxStore.getState().resume(LEGACY);
 
     expect(patchKeywordsForEmails).toHaveBeenNthCalledWith(1, ['e1'], { $seen: true, '$label:work': true }, undefined);
     // `$junk` and `$notjunk` exclude each other, so setting one clears the other.
@@ -278,8 +289,9 @@ describe('keyword ops queued by earlier builds', () => {
     const legacy = [
       { id: 'a', createdAt: 1, attempts: 5, op: { kind: 'keywords', emailId: 'e1', keywords: { $notjunk: true, $flagged: true } } },
     ];
-    await AsyncStorage.setItem('webmail:outbox:v1:acc-legacy:failed', JSON.stringify(legacy));
-    await useOutboxStore.getState().resume('acc-legacy');
+    await AsyncStorage.setItem(`webmail:outbox:v1:${LEGACY}:failed`, JSON.stringify(legacy));
+    await useOutboxStore.getState().setAccount(LEGACY);
+    await useOutboxStore.getState().resume(LEGACY);
 
     await useOutboxStore.getState().retryFailed();
 
@@ -289,7 +301,7 @@ describe('keyword ops queued by earlier builds', () => {
 });
 
 describe('waiting for the account session (resume)', () => {
-  const OTHER = 'acc-2';
+  const OTHER = 'user2@mail.example.org';
   const stored = (emailId: string) => ({
     id: `q-${emailId}`, createdAt: 1, attempts: 0, op: { kind: 'keywords', emailId, patch: { $seen: true } },
   });
@@ -308,6 +320,7 @@ describe('waiting for the account session (resume)', () => {
     await useOutboxStore.getState().flush();
     expect(patchKeywordsForEmails).not.toHaveBeenCalled();
 
+    client.served = OTHER;
     await useOutboxStore.getState().resume(OTHER);
 
     expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
@@ -316,7 +329,10 @@ describe('waiting for the account session (resume)', () => {
 
   it('replays nothing when another account was attached while the queue loaded', async () => {
     await AsyncStorage.setItem(`webmail:outbox:v1:${OTHER}`, JSON.stringify([stored('e1')]));
+    client.served = OTHER;
 
+    // The mail list shows OTHER, then ACCOUNT before OTHER's queue was read.
+    void useOutboxStore.getState().setAccount(OTHER);
     const resuming = useOutboxStore.getState().resume(OTHER);
     void useOutboxStore.getState().setAccount(ACCOUNT);
     await resuming;
@@ -324,6 +340,17 @@ describe('waiting for the account session (resume)', () => {
     expect(patchKeywordsForEmails).not.toHaveBeenCalled();
     expect(useOutboxStore.getState().activeAccountId).toBe(ACCOUNT);
     expect(useOutboxStore.getState().resumed).toBe(false);
+  });
+
+  it('does not take the queue over for an account the mail list does not show', async () => {
+    // A switch or sign-in that ends after the user moved on to another account.
+    await AsyncStorage.setItem(`webmail:outbox:v1:${OTHER}`, JSON.stringify([stored('e1')]));
+    client.served = OTHER;
+
+    await useOutboxStore.getState().resume(OTHER);
+
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().activeAccountId).toBe(ACCOUNT);
   });
 
   it('keeps a queue cleared while it was still loading cleared', async () => {
@@ -337,6 +364,7 @@ describe('waiting for the account session (resume)', () => {
 
     expect(useOutboxStore.getState().entries).toEqual([]);
     expect(await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`)).toBeNull();
+    client.served = OTHER;
     await useOutboxStore.getState().resume(OTHER);
     expect(patchKeywordsForEmails).not.toHaveBeenCalled();
   });
@@ -351,5 +379,59 @@ describe('waiting for the account session (resume)', () => {
     expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e1', 'e2']);
     const persisted = JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`))!) as Array<{ op: { emailId: string } }>;
     expect(persisted.map((e) => e.op.emailId)).toEqual(['e1', 'e2']);
+  });
+});
+
+describe('while the JMAP client serves another account', () => {
+  // Signing in to an account being added moves the client first; the queue
+  // follows once the new account is set up.
+  const ADDED = 'user3@mail.example.org';
+
+  beforeEach(() => {
+    patchKeywordsForEmails.mockResolvedValue(undefined);
+    useNetworkStore.setState({ online: false });
+  });
+
+  it('neither replays the queue nor runs an edit through it', async () => {
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
+    useNetworkStore.setState({ online: true });
+    client.served = ADDED;
+
+    await useOutboxStore.getState().flush();
+    const result = await applyOrQueue({ kind: 'keywords', emailId: 'e2', patch: { $seen: true } });
+
+    expect(result.queued).toBe(true);
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+    client.served = ACCOUNT;
+    await useOutboxStore.getState().flush();
+    expect(patchKeywordsForEmails.mock.calls.map(([ids]) => ids)).toEqual([['e1'], ['e2']]);
+  });
+
+  it('stops a replay under way once the client moved on', async () => {
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
+    useOutboxStore.getState().enqueue({ kind: 'mailboxes', emailId: 'e2', mailboxIds: { trash: true } });
+    useNetworkStore.setState({ online: true });
+    // The sign-in's session comes up while e1 is on its way.
+    patchKeywordsForEmails.mockImplementationOnce(async () => { client.served = ADDED; });
+
+    await useOutboxStore.getState().flush();
+
+    expect(patchKeywordsForEmails).toHaveBeenCalledTimes(1);
+    expect(setEmailMailboxes).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e2']);
+  });
+
+  it('holds the queue on suspend and names the account to resume', async () => {
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
+    useNetworkStore.setState({ online: true });
+
+    expect(useOutboxStore.getState().suspend()).toBe(ACCOUNT);
+    await useOutboxStore.getState().flush();
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+    // Held already: nothing to resume.
+    expect(useOutboxStore.getState().suspend()).toBeNull();
+
+    await useOutboxStore.getState().resume(ACCOUNT);
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
   });
 });

@@ -418,6 +418,38 @@ describe('JMAPClient hardening', () => {
     expect(client.authHeader).toBe('Bearer new');
   });
 
+  it('keeps tokens refreshed for the account being left with it, not with the one loaded meanwhile', async () => {
+    // B (OAuth, token about to expire) is tapped, then C before B is up.
+    const SecureStore = await import('expo-secure-store');
+    const keyOf = (accountId: string) => `jmap_credentials__${accountId.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const B_ID = 'b@example.com@mail.example.com';
+    const C_ID = 'c@example.com@mail.example.com';
+    const tokens = { tokenEndpoint: 'https://mail.example.com/auth/token', clientId: 'app' };
+    const stored: Record<string, string> = {
+      [keyOf(B_ID)]: JSON.stringify({
+        serverUrl: 'https://mail.example.com', username: 'b@example.com', password: '',
+        accessToken: 'b-old', refreshToken: 'b-r1', expiresAt: Date.now() + 10_000, ...tokens,
+      }),
+      [keyOf(C_ID)]: JSON.stringify({ serverUrl: 'https://mail.example.com', username: 'c@example.com', password: 'pw' }),
+    };
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key: string) => stored[key] ?? null);
+    vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key: string, value: string) => { stored[key] = value; });
+    let refreshed!: (value: unknown) => void;
+    mockRefresh.mockImplementationOnce(() => new Promise((resolve) => { refreshed = resolve; }));
+    mockFetch([{ status: 200, json: SESSION }]);
+    const client = new JMAPClient();
+
+    const toB = client.loadAccount(B_ID);
+    await vi.waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+    expect(await client.loadAccount(C_ID)).toBe(true);
+    refreshed({ accessToken: 'b-new', refreshToken: 'b-r2', expiresAt: Date.now() + 3_600_000, ...tokens });
+
+    await expect(toB).rejects.toThrow('Another account was opened');
+    expect(JSON.parse(stored[keyOf(B_ID)])).toMatchObject({ username: 'b@example.com', accessToken: 'b-new', refreshToken: 'b-r2' });
+    expect(JSON.parse(stored[keyOf(C_ID)])).toEqual({ serverUrl: 'https://mail.example.com', username: 'c@example.com', password: 'pw' });
+    expect(client.authHeader).toBe(`Basic ${btoa('c@example.com:pw')}`);
+  });
+
   it('updatePassword rewrites the stored credential', async () => {
     const SecureStore = await import('expo-secure-store');
     const client = await connected();

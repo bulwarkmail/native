@@ -8,7 +8,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 
 import * as SecureStore from 'expo-secure-store';
-import { JMAPClient, AuthenticationError, RateLimitError, parseHoldLimit } from '../jmap-client';
+import { JMAPClient, AuthenticationError, RateLimitError, SessionSupersededError, parseHoldLimit } from '../jmap-client';
 import type { JMAPSession } from '../types';
 
 const MOCK_SESSION: JMAPSession = {
@@ -280,6 +280,117 @@ describe('JMAPClient', () => {
       client.restoreSnapshot(previous);
       expect(client.isConnected).toBe(true);
       expect(client.accountId).toBe('acc-1');
+    });
+
+    describe('when loads overlap (B tapped, then C before B is up)', () => {
+      const sessionOf = (host: string, id: string): JMAPSession => ({
+        ...MOCK_SESSION,
+        apiUrl: `https://${host}/jmap/`,
+        primaryAccounts: { 'urn:ietf:params:jmap:mail': id },
+        accounts: { [id]: { name: id, isPersonal: true, isReadOnly: false } },
+      });
+      const B = { key: 'jmap_credentials__b_b.example.com', creds: { serverUrl: 'https://b.example.com', username: 'b', password: 'pw' } };
+      const C = { key: 'jmap_credentials__c_c.example.com', creds: { serverUrl: 'https://c.example.com', username: 'c', password: 'pw' } };
+
+      // Session requests wait for the test to answer them, per host; a host
+      // answered with null is unreachable from then on (the retry fails too).
+      let answer: (host: string, session: JMAPSession | null) => Promise<void>;
+      beforeEach(() => {
+        const waiting = new Map<string, (session: JMAPSession | null) => void>();
+        const unreachable = new Set<string>();
+        global.fetch = vi.fn((url: string) => new Promise((resolve, reject) => {
+          const host = new URL(url).host;
+          const respond = (session: JMAPSession | null) => (session
+            ? resolve({
+              ok: true, status: 200, statusText: 'OK', headers: { get: () => null },
+              json: async () => session, text: async () => JSON.stringify(session),
+            })
+            : reject(new TypeError('Network request failed')));
+          if (unreachable.has(host)) respond(null);
+          else waiting.set(host, respond);
+        })) as any;
+        answer = async (host, session) => {
+          await vi.waitFor(() => expect(waiting.has(host)).toBe(true));
+          const respond = waiting.get(host)!;
+          waiting.delete(host);
+          if (!session) unreachable.add(host);
+          respond(session);
+        };
+        (SecureStore.getItemAsync as any).mockImplementation(async (key: string) =>
+          ({ [B.key]: JSON.stringify(B.creds), [C.key]: JSON.stringify(C.creds) } as Record<string, string>)[key] ?? null);
+      });
+
+      afterEach(() => {
+        (SecureStore.getItemAsync as any).mockReset();
+      });
+
+      it('keeps the account loaded last when an earlier load answers after it', async () => {
+        const toB = client.loadAccount('b@b.example.com');
+        await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+        const toC = client.loadAccount('c@c.example.com');
+        await answer('c.example.com', sessionOf('c.example.com', 'acc-c'));
+        expect(await toC).toBe(true);
+
+        await answer('b.example.com', sessionOf('b.example.com', 'acc-b'));
+
+        await expect(toB).rejects.toBeInstanceOf(SessionSupersededError);
+        expect(client.accountId).toBe('acc-c');
+        expect(client.currentSession?.apiUrl).toBe('https://c.example.com/jmap/');
+        expect(client.username).toBe('c');
+      });
+
+      it('keeps the newer session up when an earlier load fails after it', async () => {
+        const toB = client.loadAccount('b@b.example.com');
+        await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+        const toC = client.loadAccount('c@c.example.com');
+        await answer('c.example.com', sessionOf('c.example.com', 'acc-c'));
+        await toC;
+
+        await answer('b.example.com', null);
+
+        await expect(toB).rejects.toBeInstanceOf(SessionSupersededError);
+        expect(client.isConnected).toBe(true);
+        expect(client.accountId).toBe('acc-c');
+      });
+
+      it('does not put in the credentials of a load whose read of them ended last', async () => {
+        let readB!: (value: string) => void;
+        (SecureStore.getItemAsync as any).mockImplementation((key: string) => (key === B.key
+          ? new Promise<string>((resolve) => { readB = resolve; })
+          : Promise.resolve(JSON.stringify(C.creds))));
+
+        const toB = client.loadAccount('b@b.example.com');
+        const toC = client.loadAccount('c@c.example.com');
+        await answer('c.example.com', sessionOf('c.example.com', 'acc-c'));
+        await toC;
+        readB(JSON.stringify(B.creds));
+
+        await expect(toB).rejects.toBeInstanceOf(SessionSupersededError);
+        expect(client.username).toBe('c');
+        expect((global.fetch as any).mock.calls.map(([url]: [string]) => new URL(url).host)).toEqual(['c.example.com']);
+      });
+
+      it('gives way to a snapshot put back meanwhile (a failed switch)', async () => {
+        global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+        const previous = client.snapshot();
+        let respond!: (session: JMAPSession) => void;
+        global.fetch = vi.fn(() => new Promise((resolve) => {
+          respond = (session) => resolve({
+            ok: true, status: 200, statusText: 'OK', headers: { get: () => null },
+            json: async () => session, text: async () => JSON.stringify(session),
+          });
+        })) as any;
+
+        const toB = client.loadAccount('b@b.example.com');
+        await vi.waitFor(() => expect(global.fetch).toHaveBeenCalled());
+        client.restoreSnapshot(previous);
+        respond(sessionOf('b.example.com', 'acc-b'));
+
+        await expect(toB).rejects.toBeInstanceOf(SessionSupersededError);
+        expect(client.accountId).toBe('acc-1');
+        expect(client.username).toBe('user');
+      });
     });
   });
 

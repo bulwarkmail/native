@@ -143,6 +143,13 @@ export class JMAPClient {
   private session: JMAPSession | null = null;
   private credentials: StoredCredentials | null = null;
   private _accountId: string | null = null;
+  /**
+   * Bumped whenever the client is handed to another account (a load, a
+   * sign-in, a snapshot put back, a reset). Account changes can overlap, and
+   * a load or sign-in whose session arrives after a newer one began must not
+   * install it (see SessionSupersededError).
+   */
+  private sessionEpoch = 0;
   private firstTouchGate = new FirstTouchGate();
   private rateLimitedUntil = 0;
   private authFailureListeners = new Set<(err: AuthenticationError) => void>();
@@ -251,23 +258,27 @@ export class JMAPClient {
     totp?: string,
   ): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
-    this.detachSession();
+    const epoch = this.detachSession();
     if (totp) {
-      return this.connectWithTotp(baseUrl, username, password, totp);
+      return this.connectWithTotp(baseUrl, username, password, totp, epoch);
     }
-    this.credentials = { serverUrl: baseUrl, username, password };
+    const credentials: StoredCredentials = { serverUrl: baseUrl, username, password };
+    this.credentials = credentials;
 
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
+    const fetched = await this.fetchSession(baseUrl);
+    this.assertCurrentSession(epoch);
+    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    this.session = session;
+    this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
 
     const accountId = generateAccountId(username, baseUrl);
     await SecureStore.setItemAsync(
       credentialsKey(accountId),
-      JSON.stringify(this.credentials),
+      JSON.stringify(credentials),
     );
 
-    return this.session;
+    return session;
   }
 
   /**
@@ -282,6 +293,7 @@ export class JMAPClient {
     username: string,
     password: string,
     totp: string,
+    epoch: number,
   ): Promise<JMAPSession> {
     const { exchangePasswordForTokens, LoginEndpointMissingError } = await import('../lib/totp-login');
     let tokens: OAuthTokens;
@@ -289,25 +301,31 @@ export class JMAPClient {
       tokens = await exchangePasswordForTokens(baseUrl, username, password, totp);
     } catch (err) {
       if (err instanceof LoginEndpointMissingError) {
+        this.assertCurrentSession(epoch);
         // Pre-0.16 Stalwart: TOTP rides along in the Basic password.
         return this.connect(baseUrl, username, `${password}$${totp}`);
       }
       throw err;
     }
+    // Signing in again would take the client back from a newer account change.
+    this.assertCurrentSession(epoch);
     const { session } = await this.connectWithOAuth(baseUrl, tokens, username);
     return session;
   }
 
   async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
-    this.detachSession();
+    const epoch = this.detachSession();
     this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
 
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
+    const fetched = await this.fetchSession(baseUrl);
+    this.assertCurrentSession(epoch);
+    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    this.session = session;
+    this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
 
-    return this.session;
+    return session;
   }
 
   // OAuth login via webmail handoff. The webmail did the OAuth dance against
@@ -321,7 +339,7 @@ export class JMAPClient {
     preferredUsername?: string,
   ): Promise<{ session: JMAPSession; username: string; accountId: string }> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
-    this.detachSession();
+    const epoch = this.detachSession();
     this.credentials = {
       serverUrl: baseUrl,
       username: '',
@@ -334,68 +352,95 @@ export class JMAPClient {
       tokenSource: tokens.source,
     };
 
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
+    const fetched = await this.fetchSession(baseUrl);
+    this.assertCurrentSession(epoch);
+    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    this.session = session;
+    this._accountId = this.resolveAccountId(session);
     this.firstTouchGate.reset();
 
     // The JMAP session document carries the authenticated user's identifier
     // — use it as the username so per-account storage keys are stable across
     // restarts and OAuth re-logins.
     const username =
-      preferredUsername || this.session.username || tokens.accessToken.slice(0, 8);
-    this.credentials.username = username;
+      preferredUsername || session.username || tokens.accessToken.slice(0, 8);
+    // Still this sign-in's, possibly with tokens refreshed during the fetch.
+    const credentials: StoredCredentials = { ...this.credentials!, username };
+    this.credentials = credentials;
 
     const accountId = generateAccountId(username, baseUrl);
     await SecureStore.setItemAsync(
       credentialsKey(accountId),
-      JSON.stringify(this.credentials),
+      JSON.stringify(credentials),
     );
 
-    return { session: this.session, username, accountId };
+    return { session, username, accountId };
   }
 
-  private async persistRefreshedTokens(next: OAuthTokens): Promise<void> {
-    if (!this.credentials) return;
-    if (this.credentials.accessToken === next.accessToken) return;
-    this.credentials = {
-      ...this.credentials,
+  /**
+   * Keep refreshed tokens with the account they were refreshed for
+   * (`refreshed`). The client may serve another account by the time the
+   * token endpoint answers (a switch while the account being left
+   * refreshed): the tokens then go to that account's stored credentials, if
+   * it still has any, and never into the ones in use. They used to, and were
+   * saved under the other account, which then signed in as this one.
+   */
+  private async persistRefreshedTokens(refreshed: StoredCredentials, next: OAuthTokens): Promise<void> {
+    const accountId = generateAccountId(refreshed.username, refreshed.serverUrl);
+    const current = this.credentials;
+    const inUse = !!current
+      && generateAccountId(current.username, current.serverUrl) === accountId;
+    let base: StoredCredentials;
+    if (inUse && current) {
+      base = current;
+    } else {
+      // Signed out meanwhile: nothing to keep.
+      const stored = await this.getStoredCredentials(accountId);
+      if (!stored) return;
+      base = stored;
+    }
+    if (base.accessToken === next.accessToken) return;
+    const updated: StoredCredentials = {
+      ...base,
       accessToken: next.accessToken,
       // Some IdPs rotate refresh tokens; others reuse. Fall back to the
       // existing one when the response omits it.
-      refreshToken: next.refreshToken ?? this.credentials.refreshToken,
+      refreshToken: next.refreshToken ?? base.refreshToken,
       expiresAt: next.expiresAt,
       tokenEndpoint: next.tokenEndpoint,
       clientId: next.clientId,
     };
-    const accountId = generateAccountId(
-      this.credentials.username,
-      this.credentials.serverUrl,
-    );
+    if (inUse) this.credentials = updated;
     await SecureStore.setItemAsync(
       credentialsKey(accountId),
-      JSON.stringify(this.credentials),
+      JSON.stringify(updated),
     );
+    if (!inUse) return;
     for (const l of this.tokenRefreshListeners) {
       try { l(); } catch { /* ignore */ }
     }
   }
 
-  private currentOAuthTokens(): OAuthTokens | null {
+  private currentOAuthTokens(): { credentials: StoredCredentials; tokens: OAuthTokens } | null {
+    const credentials = this.credentials;
     if (
-      !this.credentials?.accessToken ||
-      !this.credentials.refreshToken ||
-      !this.credentials.tokenEndpoint ||
-      !this.credentials.clientId
+      !credentials?.accessToken ||
+      !credentials.refreshToken ||
+      !credentials.tokenEndpoint ||
+      !credentials.clientId
     ) {
       return null;
     }
     return {
-      accessToken: this.credentials.accessToken,
-      refreshToken: this.credentials.refreshToken,
-      expiresAt: this.credentials.expiresAt,
-      tokenEndpoint: this.credentials.tokenEndpoint,
-      clientId: this.credentials.clientId,
-      source: this.credentials.tokenSource,
+      credentials,
+      tokens: {
+        accessToken: credentials.accessToken,
+        refreshToken: credentials.refreshToken,
+        expiresAt: credentials.expiresAt,
+        tokenEndpoint: credentials.tokenEndpoint,
+        clientId: credentials.clientId,
+        source: credentials.tokenSource,
+      },
     };
   }
 
@@ -418,13 +463,14 @@ export class JMAPClient {
   // consumers of `authHeader` (SSE stream, file downloads) can make sure the
   // header they capture is not about to expire.
   async ensureFreshToken(): Promise<void> {
-    const tokens = this.currentOAuthTokens();
-    if (!tokens) return;
+    const current = this.currentOAuthTokens();
+    if (!current) return;
+    const { credentials, tokens } = current;
     if (tokens.expiresAt == null) return;
     if (tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
     try {
       const next = await refreshOAuthAccessToken(tokens);
-      await this.persistRefreshedTokens(next);
+      await this.persistRefreshedTokens(credentials, next);
     } catch {
       // Surface as AuthenticationError on the next 401; refresh may be
       // temporarily failing (network) and the reactive retry path catches it.
@@ -437,11 +483,11 @@ export class JMAPClient {
   // the account instead of evicting it (webmail 1.7.6 "keep the session when
   // the auth server is briefly unreachable").
   async forceRefreshToken(): Promise<boolean> {
-    const tokens = this.currentOAuthTokens();
-    if (!tokens) return false;
+    const current = this.currentOAuthTokens();
+    if (!current) return false;
     try {
-      const next = await refreshOAuthAccessToken(tokens);
-      await this.persistRefreshedTokens(next);
+      const next = await refreshOAuthAccessToken(current.tokens);
+      await this.persistRefreshedTokens(current.credentials, next);
       return true;
     } catch (err) {
       if (err instanceof TransientRefreshError) {
@@ -492,8 +538,10 @@ export class JMAPClient {
   }
 
   async loadAccount(accountId: string): Promise<boolean> {
-    this.detachSession();
+    const epoch = this.detachSession();
     const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
+    // A newer load may have put its credentials in by now.
+    this.assertCurrentSession(epoch);
     if (!stored) return false;
 
     let creds: StoredCredentials;
@@ -509,12 +557,12 @@ export class JMAPClient {
     // avoid clearing credentials when the server is just unreachable.
     this.credentials = creds;
     this.firstTouchGate.reset();
+    let fetched: JMAPSession;
     try {
-      this.session = this.rewriteSessionUrls(
-        await this.fetchSession(creds.serverUrl),
-        creds.serverUrl,
-      );
+      fetched = await this.fetchSession(creds.serverUrl);
     } catch (err) {
+      // The client belongs to a newer account change, which may be up.
+      this.assertCurrentSession(epoch);
       // Don't leave a half-populated client behind; the caller needs to know
       // the session is unavailable. Credentials stay in memory so a retry
       // after the network comes back doesn't need a re-login.
@@ -528,7 +576,10 @@ export class JMAPClient {
         err instanceof Error ? err.message : 'Server unreachable',
       );
     }
-    this._accountId = this.resolveAccountId(this.session);
+    this.assertCurrentSession(epoch);
+    const session = this.rewriteSessionUrls(fetched, creds.serverUrl);
+    this.session = session;
+    this._accountId = this.resolveAccountId(session);
     return true;
   }
 
@@ -537,11 +588,24 @@ export class JMAPClient {
    * to the account being signed in first, and the old session would carry
    * the new credentials once they are swapped in: a request in between (an
    * outbox replay, a refresh) would reach the previous account. Callers that
-   * switch keep a snapshot() to put it back on failure.
+   * switch keep a snapshot() to put it back on failure. Resolves to the new
+   * epoch, which the load or sign-in checks once its session arrives.
    */
-  private detachSession(): void {
+  private detachSession(): number {
     this.session = null;
     this._accountId = null;
+    this.sessionEpoch += 1;
+    return this.sessionEpoch;
+  }
+
+  /**
+   * Throw SessionSupersededError when the client was handed to another
+   * account since `epoch`. Account changes overlap (B tapped, then C before
+   * B's session is up): the older one's session must not replace the newer
+   * one's, nor sit under its credentials.
+   */
+  private assertCurrentSession(epoch: number): void {
+    if (epoch !== this.sessionEpoch) throw new SessionSupersededError();
   }
 
   /**
@@ -557,6 +621,7 @@ export class JMAPClient {
   }
 
   restoreSnapshot(snap: ClientSnapshot): void {
+    this.sessionEpoch += 1;
     this.session = snap.session;
     this.credentials = snap.credentials;
     this._accountId = snap.accountId;
@@ -618,6 +683,7 @@ export class JMAPClient {
   // Reset in-memory state without touching persisted credentials (used on
   // account switch so the active account's stored creds remain available).
   reset(): void {
+    this.sessionEpoch += 1;
     this.session = null;
     this.credentials = null;
     this._accountId = null;
@@ -849,10 +915,14 @@ export class JMAPClient {
    */
   async refreshSession(): Promise<JMAPSession> {
     if (!this.credentials) throw new Error('No credentials');
+    const epoch = this.sessionEpoch;
     const baseUrl = this.credentials.serverUrl;
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
-    return this.session;
+    const fetched = await this.fetchSession(baseUrl);
+    this.assertCurrentSession(epoch);
+    const session = this.rewriteSessionUrls(fetched, baseUrl);
+    this.session = session;
+    this._accountId = this.resolveAccountId(session);
+    return session;
   }
 
   /**
@@ -1278,6 +1348,16 @@ export class TotpRequiredError extends AuthenticationError {
   constructor() {
     super('TOTP_REQUIRED');
     this.name = 'TotpRequiredError';
+  }
+}
+
+// A load or sign-in whose session arrived after a newer account change took
+// the client over (see JMAPClient.assertCurrentSession). Its session was not
+// installed; the caller leaves the client and the stores to the newer change.
+export class SessionSupersededError extends Error {
+  constructor() {
+    super('Another account was opened before this one finished loading');
+    this.name = 'SessionSupersededError';
   }
 }
 

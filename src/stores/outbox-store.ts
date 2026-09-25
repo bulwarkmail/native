@@ -23,6 +23,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '../lib/uuid';
+import { generateAccountId } from '../lib/account-utils';
 import { isTransientNetworkError, isAuthError } from '../lib/network-error';
 import { useNetworkStore } from './network-store';
 import { jmapClient } from '../api/jmap-client';
@@ -92,18 +93,26 @@ interface OutboxState {
   /**
    * False from attaching an account until the auth store calls resume() for
    * it, once the account's session is up and the server behind it was
-   * checked (lib/server-change). Until then ops queue and flush waits: the
-   * JMAP client may still serve the previous account, and a replaced server
-   * may have given the queued ids to other messages.
+   * checked (lib/server-change), and again while another account is being
+   * signed in (suspend). Until then ops queue and flush waits: the JMAP
+   * client may still serve the previous account, and a replaced server may
+   * have given the queued ids to other messages.
    */
   resumed: boolean;
 
   setAccount: (accountId: string | null) => Promise<void>;
   /**
-   * The account's session is up and its server was checked: attach and load
-   * its queue if needed, then replay it.
+   * The account's session is up and its server was checked: load its queue
+   * if needed, then replay it. Only for the account attached, which is the
+   * one the mail list shows (the email store attaches it).
    */
   resume: (accountId: string) => Promise<void>;
+  /**
+   * Hold the queue while the JMAP client signs in to another account (one
+   * being added). Returns the account it was resumed for, to resume should
+   * that sign-in fail.
+   */
+  suspend: () => string | null;
   hydrate: () => Promise<void>;
   enqueue: (op: OutboxOp) => void;
   count: () => number;
@@ -225,6 +234,18 @@ function scheduleRetry(): void {
   }, delay);
 }
 
+// Whether the JMAP client serves the account (username@host) whose queue it
+// is. The client moves to an account being added or switched to before the
+// auth store moves the queue, and it serves no account while it loads one.
+// An op replayed through another account's session names the message by an
+// id that account may use for another one: own-mail ops take the client's
+// primary account.
+function clientServes(accountId: string | null): boolean {
+  if (!accountId || !jmapClient.isConnected) return false;
+  const { username, serverUrl } = jmapClient;
+  return !!username && !!serverUrl && generateAccountId(username, serverUrl) === accountId;
+}
+
 // Revert the optimistic edit the dropped op stood for: re-read the list.
 async function refreshAfterDrop(): Promise<void> {
   try {
@@ -289,11 +310,21 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   },
 
   resume: async (accountId) => {
+    // An older sign-in or switch that ends after a newer one began must not
+    // take the queue over for the account it was after.
+    if (get().activeAccountId !== accountId) return;
     await get().setAccount(accountId);
     // Another account may have been attached while this one loaded.
     if (get().activeAccountId !== accountId) return;
     set({ resumed: true, paused: false });
     await get().flush();
+  },
+
+  suspend: () => {
+    const { activeAccountId, resumed } = get();
+    clearRetry();
+    set({ resumed: false });
+    return resumed ? activeAccountId : null;
   },
 
   hydrate: async () => {
@@ -357,7 +388,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     if (!accountId) return;
     if (get().entries.length === 0) return;
     // Need a live client that's actually serving this account, and a network.
-    if (!jmapClient.isConnected) return;
+    if (!clientServes(accountId)) return;
     if (!useNetworkStore.getState().online) return;
 
     set({ flushing: true });
@@ -371,8 +402,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
 
       for (const snapshot of ordered) {
         if (get().activeAccountId !== accountId) break;     // account switched
+        if (!get().resumed) break;                           // another account signing in
         if (!useNetworkStore.getState().online) break;       // went offline
-        if (!jmapClient.isConnected) break;
+        // The client can move on while an op is in flight: to an account
+        // being added, before the queue moves with it.
+        if (!clientServes(accountId)) break;
 
         const entry = get().entries.find((e) => e.id === snapshot.id);
         if (!entry) continue;                                // removed/coalesced
@@ -524,7 +558,11 @@ export async function applyOrQueueBatch(
   const store = useOutboxStore.getState();
   // Until the auth store resumes the queue, the client may still serve the
   // account being left, or a server not yet checked: queue, replay later.
-  const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused && store.resumed;
+  // And only through the account whose messages these are.
+  const online = useNetworkStore.getState().online
+    && clientServes(store.activeAccountId)
+    && !store.paused
+    && store.resumed;
   const hasQueued = ops.some((op) =>
     store.entries.some((e) => e.op.emailId === op.emailId),
   );
