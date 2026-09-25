@@ -92,7 +92,8 @@ beforeEach(() => {
 describe.each(['0.16.23', '1.0'])('a first change to one server occurrence on Stalwart %s', () => {
   it('writes the override as it stands, then sends the change to its re-read id', async () => {
     useCalendarStore.setState({ events: [serverOccurrence()] });
-    // The new override gives the occurrence another synthetic id.
+    // The new override gives the occurrence another synthetic id (positional
+    // ids, up to 0.16.20; 0.16.21 and 1.0 keep it, see below).
     mockQueryExpanded.mockResolvedValue(['s9', 'other']);
     mockGetEvents.mockImplementation(async (ids: string[]) => (ids.includes('s9')
       ? [
@@ -111,6 +112,18 @@ describe.each(['0.16.23', '1.0'])('a first change to one server occurrence on St
     ]);
     // Looked up around the occurrence, expanded.
     expect(mockGetEvents).toHaveBeenCalledWith(['s9', 'other'], undefined, { expanded: true });
+  });
+
+  it('sends the change to the same id when the override keeps it (recurrence-keyed ids, live)', async () => {
+    useCalendarStore.setState({ events: [serverOccurrence()] });
+    mockQueryExpanded.mockResolvedValue(['s1']);
+    mockGetEvents.mockResolvedValue([{ id: 's1', baseEventId: 'base', recurrenceId: RID, start: RID, duration: 'PT1H' } as CalendarEvent]);
+
+    await useCalendarStore.getState().updateEvent('s1', { title: 'Standup, room 2', participants } as Partial<CalendarEvent>, {
+      sendSchedulingMessages: true,
+    });
+
+    expect(mockUpdate.mock.calls.map(([id, , schedule]) => [id, schedule])).toEqual([['s1', false], ['s1', true]]);
   });
 
   it('sends the change once when it asks the attendees again (a move)', async () => {
@@ -142,15 +155,40 @@ describe.each(['0.16.23', '1.0'])('a first change to one server occurrence on St
     expect(mockUpdate.mock.calls.map(([id, , schedule]) => [id, schedule])).toEqual([['s1', false]]);
   });
 
-  it('sends the change to the old id when the occurrence cannot be found again', async () => {
+  // Up to 0.16.20 Stalwart's synthetic ids are positions in the series'
+  // expansion (calendar_event/mod.rs): after the new override "s1" can name
+  // the next occurrence, which must not get the change and its scheduling
+  // messages. 0.16.21 and 1.0 keep the id; the lookup finds it again there.
+  it.each([
+    ['is not listed', () => mockQueryExpanded.mockResolvedValue(null)],
+    ['cannot be read', () => mockQueryExpanded.mockRejectedValue(new Error('Network request failed'))],
+    ['is listed twice', () => {
+      mockQueryExpanded.mockResolvedValue(['s9', 's10']);
+      mockGetEvents.mockResolvedValue([
+        { id: 's9', baseEventId: 'base', recurrenceId: RID, start: RID } as CalendarEvent,
+        { id: 's10', baseEventId: 'base', recurrenceId: RID, start: RID } as CalendarEvent,
+      ]);
+    }],
+  ])('sends nothing more, and says so, when the occurrence %s after its quiet override', async (_what, arrange) => {
     useCalendarStore.setState({ events: [serverOccurrence()] });
-    mockQueryExpanded.mockResolvedValue(null);
+    arrange();
+    const refresh = vi.fn(async () => undefined);
+    const { refresh: storeRefresh } = useCalendarStore.getState();
+    useCalendarStore.setState({ refresh });
 
-    await useCalendarStore.getState().updateEvent('s1', { title: 'Standup, room 2', participants } as Partial<CalendarEvent>, {
-      sendSchedulingMessages: true,
-    });
+    try {
+      await expect(useCalendarStore.getState().updateEvent('s1', { title: 'Standup, room 2', participants } as Partial<CalendarEvent>, {
+        sendSchedulingMessages: true,
+      })).rejects.toThrow('The change was not saved: the occurrence could not be found again on the server. Please try again.');
+    } finally {
+      useCalendarStore.setState({ refresh: storeRefresh });
+    }
 
-    expect(mockUpdate.mock.calls.map(([id, , schedule]) => [id, schedule])).toEqual([['s1', false], ['s1', true]]);
+    // Only the override as the occurrence stands, which reaches no one.
+    expect(mockUpdate.mock.calls.map(([id, , schedule]) => [id, schedule])).toEqual([['s1', false]]);
+    // The ids in view may name other occurrences now: read them again.
+    expect(refresh).toHaveBeenCalled();
+    expect(useCalendarStore.getState().events[0].title).toBe('Standup');
   });
 });
 

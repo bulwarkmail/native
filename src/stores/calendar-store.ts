@@ -519,7 +519,8 @@ async function updateOccurrence(
 
 /**
  * The server occurrence of `instance`'s series at the same recurrence id, read
- * again: a new override can give an occurrence another synthetic id.
+ * again: a new override can give an occurrence another synthetic id. Null
+ * when the series lists none there, or more than one.
  */
 async function findServerOccurrence(
   instance: CalendarEvent,
@@ -531,7 +532,24 @@ async function findServerOccurrence(
   const ids = await queryExpandedEvents(new Date(at - DAY_MS).toISOString(), new Date(at + DAY_MS).toISOString(), accountId);
   if (!ids?.length) return null;
   const found = await fetchEvents(ids, accountId, { expanded: true });
-  return found.find((e) => e.baseEventId === instance.baseEventId && e.recurrenceId === instance.recurrenceId) ?? null;
+  const matches = found.filter((e) => e.baseEventId === instance.baseEventId && e.recurrenceId === instance.recurrenceId);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/**
+ * A first change to one occurrence could not be sent: after its quiet
+ * override was written, the occurrence was not found again (see
+ * updateOccurrenceInTwoSteps). That override changes nothing that shows, and
+ * a retry updates it, which reaches every attendee.
+ */
+export class OccurrenceNotFoundAgainError extends Error {
+  constructor() {
+    super(t(
+      'calendar.occurrence_not_found_again',
+      'The change was not saved: the occurrence could not be found again on the server. Please try again.',
+    ));
+    this.name = 'OccurrenceNotFoundAgainError';
+  }
 }
 
 /**
@@ -541,7 +559,12 @@ async function findServerOccurrence(
  * change; an update of an existing override reaches everyone. So the override
  * is written first as the occurrence stands, without scheduling, and the
  * change then goes out as an update of it. The occurrence is looked up again
- * in between: the new override can give it another synthetic id.
+ * in between: the new override can give it another synthetic id. When that
+ * fails, the change is not sent to the old id: up to 0.16.20 Stalwart's
+ * synthetic ids are positions in the series' expansion (calendar_event/
+ * mod.rs), and after the new override the old one can name the next
+ * occurrence, which would get the change and its scheduling messages.
+ * 0.16.21 and 1.0 key them by recurrence id, and the id stays (live).
  */
 async function updateOccurrenceInTwoSteps(
   instance: CalendarEvent,
@@ -552,7 +575,8 @@ async function updateOccurrenceInTwoSteps(
 ): Promise<void> {
   await updateOccurrence(instance, syntheticId, (options) => withNewOverrideDetails(instance, {}, options), false, accountId);
   const current = await findServerOccurrence(instance, accountId).catch(() => null);
-  await updateOccurrence(current ?? instance, current?.id ?? syntheticId, () => patch, sendSchedulingMessages, accountId);
+  if (!current) throw new OccurrenceNotFoundAgainError();
+  await updateOccurrence(current, current.id, () => patch, sendSchedulingMessages, accountId);
 }
 
 /**
@@ -945,7 +969,14 @@ export const useCalendarStore = create<CalendarState>()(
         await stopSeriesDefaultAlerts(storeEvent.baseEventId, accountId);
       }
       if (twoSteps) {
-        await updateOccurrenceInTwoSteps(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+        try {
+          await updateOccurrenceInTwoSteps(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+        } catch (err) {
+          // Its quiet override is on the server, and the series' occurrences
+          // may have other ids now: a retry must not go to the ones in view.
+          if (err instanceof OccurrenceNotFoundAgainError) await get().refresh().catch(() => undefined);
+          throw err;
+        }
       } else {
         await updateOccurrence(
           storeEvent,

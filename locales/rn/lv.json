@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, zero {Sākas pēc # stundām} one {Sākas pēc # stundas} other {Sākas pēc # stundām}}",
       "starts_in_minutes": "{count, plural, zero {Sākas pēc # minūtēm} one {Sākas pēc # minūtes} other {Sākas pēc # minūtēm}}"
     },
+    "occurrence_not_found_again": "Izmaiņas netika saglabātas: šo notikuma reizi serverī neizdevās atrast vēlreiz. Mēģiniet vēlreiz.",
     "participants": {
       "limit_warning": "Vairāk nekā {max, plural, one {# dalībnieks} other {# dalībnieki}}, ieskaitot organizatoru: serveris var atteikties saglabāt šo pasākumu. Administrators var palielināt ierobežojumu."
     },

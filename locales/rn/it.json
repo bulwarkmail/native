@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Inizia tra # ora} other {Inizia tra # ore}}",
       "starts_in_minutes": "{count, plural, one {Inizia tra # minuto} other {Inizia tra # minuti}}"
     },
+    "occurrence_not_found_again": "La modifica non è stata salvata: non è stato possibile ritrovare l'occorrenza sul server. Riprova.",
     "participants": {
       "limit_warning": "Più di {max, plural, one {# partecipante} other {# partecipanti}}, organizzatore incluso: il server potrebbe rifiutarsi di salvare questo evento. Un amministratore può aumentare il limite."
     },

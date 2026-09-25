@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {מתחיל בעוד שעה} two {מתחיל בעוד שעתיים} other {מתחיל בעוד # שעות}}",
       "starts_in_minutes": "{count, plural, one {מתחיל בעוד דקה} two {מתחיל בעוד שתי דקות} other {מתחיל בעוד # דקות}}"
     },
+    "occurrence_not_found_again": "השינוי לא נשמר: לא ניתן היה למצוא שוב את המופע בשרת. נסה שוב.",
     "participants": {
       "limit_warning": "יותר מ-{max, plural, one {# משתתף} other {# משתתפים}}, כולל המארגן: ייתכן שהשרת יסרב לשמור את האירוע. מנהל המערכת יכול להגדיל את המגבלה."
     },

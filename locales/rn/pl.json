@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Zaczyna się za # godzinę} few {Zaczyna się za # godziny} many {Zaczyna się za # godzin} other {Zaczyna się za # godziny}}",
       "starts_in_minutes": "{count, plural, one {Zaczyna się za # minutę} few {Zaczyna się za # minuty} many {Zaczyna się za # minut} other {Zaczyna się za # minuty}}"
     },
+    "occurrence_not_found_again": "Zmiana nie została zapisana: nie udało się ponownie znaleźć wystąpienia na serwerze. Spróbuj ponownie.",
     "participants": {
       "limit_warning": "Ponad {max, plural, one {# uczestnika} few {# uczestników} many {# uczestników} other {# uczestnika}} łącznie z organizatorem: serwer może odmówić zapisania tego wydarzenia. Administrator może zwiększyć limit."
     },

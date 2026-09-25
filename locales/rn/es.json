@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Comienza en # hora} other {Comienza en # horas}}",
       "starts_in_minutes": "{count, plural, one {Comienza en # minuto} other {Comienza en # minutos}}"
     },
+    "occurrence_not_found_again": "No se guardó el cambio: no se pudo volver a encontrar la repetición en el servidor. Inténtalo de nuevo.",
     "participants": {
       "limit_warning": "Más de {max, plural, one {# participante} other {# participantes}}, incluido el organizador: es posible que el servidor se niegue a guardar este evento. Un administrador puede aumentar el límite."
     },

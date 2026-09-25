@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {# óra múlva kezdődik} other {# óra múlva kezdődik}}",
       "starts_in_minutes": "{count, plural, one {# perc múlva kezdődik} other {# perc múlva kezdődik}}"
     },
+    "occurrence_not_found_again": "A módosítás nem lett mentve: az alkalmat nem sikerült újra megtalálni a szerveren. Próbáld újra.",
     "participants": {
       "limit_warning": "Több mint {max, plural, one {# résztvevő} other {# résztvevő}}, a szervezőt is beleértve: a szerver elutasíthatja az esemény mentését. A rendszergazda megemelheti a korlátot."
     },

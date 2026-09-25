@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Commence dans # heure} other {Commence dans # heures}}",
       "starts_in_minutes": "{count, plural, one {Commence dans # minute} other {Commence dans # minutes}}"
     },
+    "occurrence_not_found_again": "La modification n'a pas été enregistrée : l'occurrence n'a pas pu être retrouvée sur le serveur. Réessayez.",
     "participants": {
       "limit_warning": "Plus de {max, plural, one {# participant} other {# participants}}, organisateur compris : le serveur risque de refuser d'enregistrer cet événement. Un administrateur peut relever la limite."
     },

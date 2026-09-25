@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Starts in # hour} other {Starts in # hours}}",
       "starts_in_minutes": "{count, plural, one {Starts in # minute} other {Starts in # minutes}}"
     },
+    "occurrence_not_found_again": "The change was not saved: the occurrence could not be found again on the server. Please try again.",
     "participants": {
       "limit_warning": "More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit."
     },

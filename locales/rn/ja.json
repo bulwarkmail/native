@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, other {#時間後に開始}}",
       "starts_in_minutes": "{count, plural, other {#分後に開始}}"
     },
+    "occurrence_not_found_again": "変更は保存されませんでした：サーバーで対象の回をもう一度見つけられませんでした。もう一度お試しください。",
     "participants": {
       "limit_warning": "参加者が主催者を含めて{max, plural, other {#人}}を超えています。サーバーがこの予定の保存を拒否する可能性があります。管理者が上限を引き上げることができます。"
     },

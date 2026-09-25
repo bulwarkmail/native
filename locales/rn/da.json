@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Starter om # time} other {Starter om # timer}}",
       "starts_in_minutes": "{count, plural, one {Starter om # minut} other {Starter om # minutter}}"
     },
+    "occurrence_not_found_again": "Ændringen blev ikke gemt: forekomsten kunne ikke findes igen på serveren. Prøv igen.",
     "participants": {
       "limit_warning": "Mere end {max, plural, one {# deltager} other {# deltagere}}, arrangøren medregnet: serveren kan afvise at gemme denne begivenhed. En administrator kan hæve grænsen."
     },

@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Începe peste # oră} few {Începe peste # ore} other {Începe peste # de ore}}",
       "starts_in_minutes": "{count, plural, one {Începe peste # minut} few {Începe peste # minute} other {Începe peste # de minute}}"
     },
+    "occurrence_not_found_again": "Modificarea nu a fost salvată: ocurența nu a mai putut fi găsită pe server. Încercați din nou.",
     "participants": {
       "limit_warning": "Mai mult de {max, plural, one {# participant} few {# participanți} other {# de participanți}}, inclusiv organizatorul: serverul poate refuza salvarea acestui eveniment. Un administrator poate mări limita."
     },

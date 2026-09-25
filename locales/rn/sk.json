@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Začína o # hodinu} few {Začína o # hodiny} many {Začína o # hodiny} other {Začína o # hodín}}",
       "starts_in_minutes": "{count, plural, one {Začína o # minútu} few {Začína o # minúty} many {Začína o # minúty} other {Začína o # minút}}"
     },
+    "occurrence_not_found_again": "Zmena sa neuložila: opakovanie sa na serveri nepodarilo znova nájsť. Skúste to znova.",
     "participants": {
       "limit_warning": "Viac ako {max, plural, one {# účastník} few {# účastníci} many {# účastníka} other {# účastníkov}} vrátane organizátora: server môže odmietnuť uloženie tejto udalosti. Správca môže limit zvýšiť."
     },

@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, other {# 小時後開始}}",
       "starts_in_minutes": "{count, plural, other {# 分鐘後開始}}"
     },
+    "occurrence_not_found_again": "變更未儲存：無法在伺服器上再次找到這一次的活動。請再試一次。",
     "participants": {
       "limit_warning": "參與者（含主辦人）超過 {max, plural, other {# 位}}：伺服器可能會拒絕儲存此活動。管理員可以提高此限制。"
     },

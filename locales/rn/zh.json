@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, other {# 小时后开始}}",
       "starts_in_minutes": "{count, plural, other {# 分钟后开始}}"
     },
+    "occurrence_not_found_again": "更改未保存：无法在服务器上再次找到这一次的活动。请重试。",
     "participants": {
       "limit_warning": "参与者（含组织者）超过 {max, plural, other {# 位}}：服务器可能会拒绝保存此活动。管理员可以提高此限制。"
     },

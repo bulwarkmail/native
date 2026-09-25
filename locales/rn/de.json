@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Beginnt in # Stunde} other {Beginnt in # Stunden}}",
       "starts_in_minutes": "{count, plural, one {Beginnt in # Minute} other {Beginnt in # Minuten}}"
     },
+    "occurrence_not_found_again": "Die Änderung wurde nicht gespeichert: Der Termin konnte auf dem Server nicht wiedergefunden werden. Versuchen Sie es erneut.",
     "participants": {
       "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen."
     },

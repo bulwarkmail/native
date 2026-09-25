@@ -84,6 +84,7 @@
       "starts_in_hours": "{count, plural, one {Comença d'aquí a # hora} other {Comença d'aquí a # hores}}",
       "starts_in_minutes": "{count, plural, one {Comença d'aquí a # minut} other {Comença d'aquí a # minuts}}"
     },
+    "occurrence_not_found_again": "No s'ha desat el canvi: no s'ha pogut tornar a trobar la repetició al servidor. Torneu-ho a provar.",
     "participants": {
       "limit_warning": "Més de {max, plural, one {# participant} other {# participants}}, inclòs l'organitzador: és possible que el servidor es negui a desar aquest esdeveniment. Un administrador pot augmentar el límit."
     },
