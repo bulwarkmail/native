@@ -272,6 +272,9 @@
     "recipient_copy": "Копировать адрес",
     "recipient_move_to": "Переместить в «{field}»",
     "recipient_remove": "Удалить",
+    "recipients_partly_refused": "Сервер отклонил {recipients}. Остальные получатели получат письмо.",
+    "recipients_partly_refused_title": "Отправлено не всем",
+    "recipients_refused": "Не отправлено: сервер отклонил {recipients}.",
     "remove_attachment": "Удалить вложение",
     "save_draft": "Сохранить черновик",
     "save_failed_no_drafts": "Нет папки «Черновики», в которую можно сохранить этот черновик.",
@@ -402,6 +405,8 @@
     "show_less": "Свернуть",
     "smime_unsupported": "Подписано или зашифровано с помощью S/MIME — на мобильных устройствах не поддерживается",
     "source_too_large": "Письмо слишком большое для полного отображения. Вместо этого поделитесь полным исходным кодом.",
+    "still_scheduled": "Письмо по-прежнему запланировано.",
+    "still_scheduled_at": "Письмо по-прежнему запланировано на {date}.",
     "thread_loading": "Загрузка беседы...",
     "undo_send_failed": "Не удалось отменить отправку",
     "unsubscribe_banner": {

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { RequestTimeoutError } from '../../api/jmap-client';
 import {
-  JMAPMethodError, NoLongerScheduledError, ScheduleTooLateError, SubmissionQuotaError,
+  JMAPMethodError, NoLongerScheduledError, RecipientsRefusedError, ScheduleTooLateError, SubmissionQuotaError,
+  formatRefusedRecipients,
 } from '../../api/jmap-result';
-import { sendFailureMessage } from '../send-failure-message';
+import { partlyRefusedWarning, rescheduleFailureMessage, sendFailureMessage } from '../send-failure-message';
 
 // The English fallback stands in for the catalog.
 const t = (key: string, fallback?: string, params?: Record<string, unknown>) =>
@@ -46,5 +47,47 @@ describe('sendFailureMessage beyond Stalwart and around a reschedule', () => {
   it('says a rescheduled message already went out, or is no longer scheduled', () => {
     expect(sendFailureMessage(new NoLongerScheduledError(true), t)).toBe('This message was already sent.');
     expect(sendFailureMessage(new NoLongerScheduledError(false), t)).toBe('This message is no longer scheduled.');
+  });
+});
+
+// Stalwart 0.16 and 1.0 take the submission and refuse recipients at RCPT,
+// each with its own reply.
+describe('recipients the server refused', () => {
+  const refused = new RecipientsRefusedError([
+    { email: 'nobody@example.net', smtpReply: '550 5.1.2 Relay not allowed.' },
+    { email: 'busy@example.org', smtpReply: '452 4.4.5 Rate limit exceeded, try again later.' },
+  ]);
+
+  it('says the message was not sent and names every refused recipient with its reply', () => {
+    expect(sendFailureMessage(refused, t)).toBe(
+      'Not sent: the server refused nobody@example.net (550 5.1.2 Relay not allowed.), busy@example.org (452 4.4.5 Rate limit exceeded, try again later.).',
+    );
+  });
+
+  it('lists an address without its reply when the server gave none', () => {
+    expect(formatRefusedRecipients([{ email: 'a@example.net' }, { email: 'b@example.net', smtpReply: '550 5.1.1 No such user' }]))
+      .toBe('a@example.net, b@example.net (550 5.1.1 No such user)');
+  });
+
+  it('says the message is still scheduled when the server refused every recipient of a reschedule', () => {
+    const error = new RecipientsRefusedError([{ email: 'bob@example.org', smtpReply: '452 4.4.5 Rate limit exceeded, try again later.' }]);
+    expect(rescheduleFailureMessage(error, t, 'Sep 26, 10:00')).toBe(
+      'Not sent: the server refused bob@example.org (452 4.4.5 Rate limit exceeded, try again later.). The message is still scheduled for Sep 26, 10:00.',
+    );
+    expect(rescheduleFailureMessage(error, t)).toBe(
+      'Not sent: the server refused bob@example.org (452 4.4.5 Rate limit exceeded, try again later.). The message is still scheduled.',
+    );
+  });
+
+  it('leaves other reschedule failures as the send failure message', () => {
+    expect(rescheduleFailureMessage(new NoLongerScheduledError(true), t, 'Sep 26, 10:00')).toBe('This message was already sent.');
+    expect(rescheduleFailureMessage(new Error('Quota exceeded'), t)).toBe('Quota exceeded');
+  });
+
+  it('warns about the recipients refused while the others get the message', () => {
+    expect(partlyRefusedWarning([{ email: 'nobody@example.net', smtpReply: '550 5.1.2 Relay not allowed.' }], t)).toEqual({
+      title: 'Not sent to everyone',
+      message: 'The server refused nobody@example.net (550 5.1.2 Relay not allowed.). The other recipients get the message.',
+    });
   });
 });

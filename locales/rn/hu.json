@@ -272,6 +272,9 @@
     "recipient_copy": "Cím másolása",
     "recipient_move_to": "Áthelyezés ide: {field}",
     "recipient_remove": "Eltávolítás",
+    "recipients_partly_refused": "A kiszolgáló elutasította a következőt: {recipients}. A többi címzett megkapja az üzenetet.",
+    "recipients_partly_refused_title": "Nincs elküldve mindenkinek",
+    "recipients_refused": "Nincs elküldve: a kiszolgáló elutasította a következőt: {recipients}.",
     "remove_attachment": "Csatolmány eltávolítása",
     "save_draft": "Piszkozat mentése",
     "save_failed_no_drafts": "Nincs Piszkozatok mappa, ahová ezt a piszkozatot menteni lehetne.",
@@ -402,6 +405,8 @@
     "show_less": "Kevesebb megjelenítése",
     "smime_unsupported": "S/MIME-mal aláírva/titkosítva – mobilon nem támogatott",
     "source_too_large": "Az üzenet túl nagy ahhoz, hogy teljes egészében megjelenjen. Oszd meg inkább a teljes forrást.",
+    "still_scheduled": "Az üzenet továbbra is ütemezve van.",
+    "still_scheduled_at": "Az üzenet továbbra is ütemezve van: {date}.",
     "thread_loading": "Beszélgetés betöltése...",
     "undo_send_failed": "A küldést nem sikerült visszavonni",
     "unsubscribe_banner": {

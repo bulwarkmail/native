@@ -272,6 +272,9 @@
     "recipient_copy": "Kopēt adresi",
     "recipient_move_to": "Pārvietot uz lauku {field}",
     "recipient_remove": "Noņemt",
+    "recipients_partly_refused": "Serveris noraidīja {recipients}. Pārējie adresāti saņem ziņojumu.",
+    "recipients_partly_refused_title": "Nav nosūtīts visiem",
+    "recipients_refused": "Nav nosūtīts: serveris noraidīja {recipients}.",
     "remove_attachment": "Noņemt pielikumu",
     "save_draft": "Saglabāt melnrakstu",
     "save_failed_no_drafts": "Nav mapes Melnraksti, kurā saglabāt šo melnrakstu.",
@@ -402,6 +405,8 @@
     "show_less": "Rādīt mazāk",
     "smime_unsupported": "Parakstīts/šifrēts ar S/MIME – mobilajā lietotnē netiek atbalstīts",
     "source_too_large": "Ziņojums ir pārāk liels, lai to parādītu pilnībā. Tā vietā kopīgojiet pilno avotu.",
+    "still_scheduled": "Ziņojums joprojām ir ieplānots.",
+    "still_scheduled_at": "Ziņojums joprojām ir ieplānots uz {date}.",
     "thread_loading": "Ielādē sarunu...",
     "undo_send_failed": "Sūtīšanu neizdevās atsaukt",
     "unsubscribe_banner": {

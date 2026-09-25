@@ -272,6 +272,9 @@
     "recipient_copy": "주소 복사",
     "recipient_move_to": "{field}(으)로 이동",
     "recipient_remove": "제거",
+    "recipients_partly_refused": "서버가 {recipients}을(를) 거부했습니다. 다른 받는 사람에게는 메시지가 전달됩니다.",
+    "recipients_partly_refused_title": "일부 받는 사람에게 보내지 못했습니다",
+    "recipients_refused": "보내지 못했습니다: 서버가 {recipients}을(를) 거부했습니다.",
     "remove_attachment": "첨부 파일 제거",
     "save_draft": "임시 저장",
     "save_failed_no_drafts": "이 메일을 저장할 임시보관함이 없어요.",
@@ -402,6 +405,8 @@
     "show_less": "간략히 보기",
     "smime_unsupported": "S/MIME로 서명/암호화됨 - 모바일에서는 지원되지 않아요",
     "source_too_large": "메시지가 너무 커서 전체를 표시할 수 없어요. 대신 전체 원본을 공유해 주세요.",
+    "still_scheduled": "메시지는 여전히 예약되어 있습니다.",
+    "still_scheduled_at": "메시지는 여전히 {date}에 보내도록 예약되어 있습니다.",
     "thread_loading": "대화를 불러오는 중...",
     "undo_send_failed": "보내기를 취소하지 못했습니다",
     "unsubscribe_banner": {

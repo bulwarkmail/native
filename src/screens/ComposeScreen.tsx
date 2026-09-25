@@ -43,7 +43,7 @@ import {
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
 import { pruneEmailSubmissions } from '../api/submissions';
 import { uploadBlob, uploadBytes } from '../api/blob';
-import { sendFailureMessage } from '../lib/send-failure-message';
+import { partlyRefusedWarning, sendFailureMessage } from '../lib/send-failure-message';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
@@ -2122,6 +2122,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (result.filingWarning) {
         console.warn('[compose] post-send filing warning:', result.filingWarning);
       }
+      // The server refused some recipients outright while it took the others.
+      const refused = result.refusedRecipients ?? [];
+      if (refused.length > 0) {
+        const { title, message } = partlyRefusedWarning(refused, t);
+        toast.warning(title, { message, duration: 10_000 });
+      }
       // Flag the original so the list shows the reply/forward arrow; best
       // effort - the message already left.
       if (replyTo?.originalEmailId) {
@@ -2157,8 +2163,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
         });
-      } else {
-        // Held sends get the undo bar instead (webmail b03a0c1d).
+      } else if (refused.length === 0) {
+        // Held sends get the undo bar instead (webmail b03a0c1d), and refused
+        // recipients the warning above.
         toast.success(t('notifications.email_sent', 'Email sent successfully'));
       }
       allowLeaveRef.current = true;

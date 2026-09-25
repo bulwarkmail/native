@@ -13,7 +13,7 @@ import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { pruneEmailSubmissions } from '../../api/submissions';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
-import { sendFailureMessage } from '../../lib/send-failure-message';
+import { partlyRefusedWarning, sendFailureMessage } from '../../lib/send-failure-message';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
 import { resolveReplyIdentity } from '../../lib/reply-identity';
@@ -136,8 +136,14 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       setText('');
       // The keyboard would cover the undo bar or the toast.
       Keyboard.dismiss();
-      // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
-      if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
+      if (result.refusedRecipients?.length) {
+        // As in the composer: nothing else would say who never gets it.
+        const { title, message } = partlyRefusedWarning(result.refusedRecipients, t);
+        toast.warning(title, { message, duration: 10_000 });
+      } else if (!result.scheduled) {
+        // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
+        toast.success(t('notifications.email_sent', 'Email sent successfully'));
+      }
     } catch (err) {
       Alert.alert(t('email_composer.send_failed', 'Failed to send'), sendFailureMessage(err, t));
     } finally {

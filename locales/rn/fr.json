@@ -272,6 +272,9 @@
     "recipient_copy": "Copier l'adresse",
     "recipient_move_to": "Déplacer vers {field}",
     "recipient_remove": "Retirer",
+    "recipients_partly_refused": "Le serveur a refusé {recipients}. Les autres destinataires reçoivent le message.",
+    "recipients_partly_refused_title": "Non envoyé à tous",
+    "recipients_refused": "Non envoyé : le serveur a refusé {recipients}.",
     "remove_attachment": "Retirer la pièce jointe",
     "save_draft": "Enregistrer le brouillon",
     "save_failed_no_drafts": "Il n'y a aucun dossier Brouillons où enregistrer ce brouillon.",
@@ -402,6 +405,8 @@
     "show_less": "Afficher moins",
     "smime_unsupported": "Signé/chiffré avec S/MIME - non pris en charge sur mobile",
     "source_too_large": "Le message est trop volumineux pour être affiché en entier. Partagez plutôt la source complète.",
+    "still_scheduled": "Le message reste planifié.",
+    "still_scheduled_at": "Le message reste planifié pour le {date}.",
     "thread_loading": "Chargement de la conversation...",
     "undo_send_failed": "Impossible d’annuler l’envoi",
     "unsubscribe_banner": {

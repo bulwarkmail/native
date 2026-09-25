@@ -15,7 +15,7 @@ import { pruneEmailSubmissions } from '../api/submissions';
 import type { EmailAddress, Mailbox } from '../api/types';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { mailboxesOfAccount } from '../lib/mailbox-tree';
-import { sendFailureMessage } from '../lib/send-failure-message';
+import { partlyRefusedWarning, rescheduleFailureMessage } from '../lib/send-failure-message';
 import type { ComposeDraftContext } from '../navigation/types';
 import { t } from './locale-store';
 import { toast } from './toast-store';
@@ -107,7 +107,7 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
     if (!entry || get().busy) return false;
     set({ busy: true });
     try {
-      await rescheduleScheduledSend(
+      const result = await rescheduleScheduledSend(
         {
           emailSubmissionId: entry.emailSubmissionId,
           emailId: entry.emailId,
@@ -120,12 +120,19 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
       );
       set({ pending: null, busy: false });
       void pruneEmailSubmissions();
+      // The recipients are checked again for the release; the ones the
+      // server refused this time never get the message.
+      if (result.refusedRecipients?.length) {
+        const { title, message } = partlyRefusedWarning(result.refusedRecipients, t);
+        toast.warning(title, { message, duration: 10_000 });
+      }
       return true;
     } catch (err) {
       console.warn('[send-undo] send now failed', err);
       // The message stays held and goes out when the delay ends; say why it
-      // did not go now (a full submission quota, for one).
-      toast.error(t('scheduled.send_now_failed', 'Could not send now'), sendFailureMessage(err, t));
+      // did not go now: a full submission quota, say, or every recipient
+      // refused for the release.
+      toast.error(t('scheduled.send_now_failed', 'Could not send now'), rescheduleFailureMessage(err, t));
       // Making room for the release took long enough for the message to go
       // out, or be cancelled on another device: nothing is left to undo.
       set(err instanceof NoLongerScheduledError ? { pending: null, busy: false } : { busy: false });

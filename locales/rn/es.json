@@ -272,6 +272,9 @@
     "recipient_copy": "Copiar dirección",
     "recipient_move_to": "Mover a {field}",
     "recipient_remove": "Eliminar",
+    "recipients_partly_refused": "El servidor rechazó {recipients}. Los demás destinatarios reciben el mensaje.",
+    "recipients_partly_refused_title": "No enviado a todos",
+    "recipients_refused": "No enviado: el servidor rechazó {recipients}.",
     "remove_attachment": "Quitar adjunto",
     "save_draft": "Guardar borrador",
     "save_failed_no_drafts": "No hay ninguna carpeta Borradores donde guardar este borrador.",
@@ -402,6 +405,8 @@
     "show_less": "Mostrar menos",
     "smime_unsupported": "Firmado/cifrado con S/MIME: no compatible en el móvil",
     "source_too_large": "El mensaje es demasiado grande para mostrarlo completo. Comparte el código fuente completo en su lugar.",
+    "still_scheduled": "El mensaje sigue programado.",
+    "still_scheduled_at": "El mensaje sigue programado para el {date}.",
     "thread_loading": "Cargando conversación...",
     "undo_send_failed": "No se pudo deshacer el envío",
     "unsubscribe_banner": {

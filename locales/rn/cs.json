@@ -272,6 +272,9 @@
     "recipient_copy": "Kopírovat adresu",
     "recipient_move_to": "Přesunout do pole {field}",
     "recipient_remove": "Odstranit",
+    "recipients_partly_refused": "Server odmítl {recipients}. Ostatní příjemci zprávu dostanou.",
+    "recipients_partly_refused_title": "Neodesláno všem",
+    "recipients_refused": "Neodesláno: server odmítl {recipients}.",
     "remove_attachment": "Odebrat přílohu",
     "save_draft": "Uložit koncept",
     "save_failed_no_drafts": "Chybí složka Koncepty, do které by šlo koncept uložit.",
@@ -402,6 +405,8 @@
     "show_less": "Zobrazit méně",
     "smime_unsupported": "Podepsáno/zašifrováno pomocí S/MIME – v mobilní aplikaci není podporováno",
     "source_too_large": "Zpráva je příliš velká na zobrazení v celé délce. Místo toho sdílejte celý zdroj.",
+    "still_scheduled": "Zpráva je stále naplánována.",
+    "still_scheduled_at": "Zpráva je stále naplánována na {date}.",
     "thread_loading": "Načítání konverzace...",
     "undo_send_failed": "Odeslání se nepodařilo vrátit",
     "unsubscribe_banner": {

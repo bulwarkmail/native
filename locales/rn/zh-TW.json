@@ -272,6 +272,9 @@
     "recipient_copy": "複製地址",
     "recipient_move_to": "移至{field}",
     "recipient_remove": "移除",
+    "recipients_partly_refused": "伺服器拒絕了 {recipients}。其他收件者會收到此郵件。",
+    "recipients_partly_refused_title": "未傳送給所有收件者",
+    "recipients_refused": "未傳送：伺服器拒絕了 {recipients}。",
     "remove_attachment": "移除附件",
     "save_draft": "儲存草稿",
     "save_failed_no_drafts": "沒有可儲存這份草稿的草稿信件匣。",
@@ -402,6 +405,8 @@
     "show_less": "顯示較少",
     "smime_unsupported": "已使用 S/MIME 簽署／加密，行動裝置不支援",
     "source_too_large": "郵件太大，無法完整顯示。請改為分享完整原始碼。",
+    "still_scheduled": "郵件仍在排定傳送中。",
+    "still_scheduled_at": "郵件仍排定於 {date} 傳送。",
     "thread_loading": "正在載入對話串…",
     "undo_send_failed": "無法取消傳送",
     "unsubscribe_banner": {

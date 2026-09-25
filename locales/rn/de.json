@@ -272,6 +272,9 @@
     "recipient_copy": "Adresse kopieren",
     "recipient_move_to": "Verschieben nach {field}",
     "recipient_remove": "Entfernen",
+    "recipients_partly_refused": "Der Server hat {recipients} abgelehnt. Die anderen Empfänger erhalten die Nachricht.",
+    "recipients_partly_refused_title": "Nicht an alle gesendet",
+    "recipients_refused": "Nicht gesendet: Der Server hat {recipients} abgelehnt.",
     "remove_attachment": "Anhang entfernen",
     "save_draft": "Entwurf speichern",
     "save_failed_no_drafts": "Es gibt keinen Entwürfe-Ordner, in dem dieser Entwurf gespeichert werden kann.",
@@ -402,6 +405,8 @@
     "show_less": "Weniger anzeigen",
     "smime_unsupported": "Mit S/MIME signiert/verschlüsselt - auf Mobilgeräten nicht unterstützt",
     "source_too_large": "Die Nachricht ist zu groß, um vollständig angezeigt zu werden. Teilen Sie stattdessen den vollständigen Quelltext.",
+    "still_scheduled": "Die Nachricht ist weiterhin geplant.",
+    "still_scheduled_at": "Die Nachricht ist weiterhin für {date} geplant.",
     "thread_loading": "Unterhaltung wird geladen...",
     "undo_send_failed": "Senden konnte nicht rückgängig gemacht werden",
     "unsubscribe_banner": {

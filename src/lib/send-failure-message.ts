@@ -1,5 +1,8 @@
 import { RequestTimeoutError } from '../api/jmap-client';
-import { NoLongerScheduledError, ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-result';
+import {
+  NoLongerScheduledError, RecipientsRefusedError, ScheduleTooLateError, SubmissionQuotaError, formatRefusedRecipients,
+  type RefusedRecipient,
+} from '../api/jmap-result';
 import type { MessageParams } from '../i18n/format';
 
 type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
@@ -17,7 +20,10 @@ type Translate = (key: string, fallback?: string, params?: MessageParams) => str
  *   (#702);
  * - a hold beyond the server's limit;
  * - "Send now" or a reschedule that found the message gone out, or no longer
- *   scheduled, while it made room for the replacement.
+ *   scheduled, while it made room for the replacement;
+ * - every recipient refused: the server took the submission, so nothing
+ *   else would say that the message went nowhere. Its reply per address
+ *   goes with it.
  */
 export function sendFailureMessage(error: unknown, t: Translate): string {
   if (error instanceof SubmissionQuotaError) {
@@ -46,7 +52,44 @@ export function sendFailureMessage(error: unknown, t: Translate): string {
   if (error instanceof ScheduleTooLateError) {
     return t('email_composer.schedule_too_late_body', 'That is later than this server allows. Pick an earlier time.');
   }
+  if (error instanceof RecipientsRefusedError) {
+    return t('email_composer.recipients_refused', 'Not sent: the server refused {recipients}.', {
+      recipients: formatRefusedRecipients(error.recipients),
+    });
+  }
   return error instanceof Error && error.message
     ? error.message
     : t('notifications.error_sending', 'Failed to send email');
+}
+
+/**
+ * What to tell the user about a "Send now" or reschedule that failed. When
+ * the server refused every recipient of the replacement, the original was
+ * kept: it still goes out at its old time, `scheduledAt` (formatted) when
+ * known (webmail rescheduleFailureToast).
+ */
+export function rescheduleFailureMessage(error: unknown, t: Translate, scheduledAt?: string): string {
+  const message = sendFailureMessage(error, t);
+  if (!(error instanceof RecipientsRefusedError)) return message;
+  const stillScheduled = scheduledAt
+    ? t('email_viewer.still_scheduled_at', 'The message is still scheduled for {date}.', { date: scheduledAt })
+    : t('email_viewer.still_scheduled', 'The message is still scheduled.');
+  return `${message} ${stillScheduled}`;
+}
+
+/**
+ * The warning after a send that the server took for some recipients only:
+ * nothing else, not even a bounce, would tell the user who never gets it.
+ * The addresses and replies go in the message, which a toast shows on more
+ * lines than its title.
+ */
+export function partlyRefusedWarning(recipients: RefusedRecipient[], t: Translate): { title: string; message: string } {
+  return {
+    title: t('email_composer.recipients_partly_refused_title', 'Not sent to everyone'),
+    message: t(
+      'email_composer.recipients_partly_refused',
+      'The server refused {recipients}. The other recipients get the message.',
+      { recipients: formatRefusedRecipients(recipients) },
+    ),
+  };
 }

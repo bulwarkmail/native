@@ -272,6 +272,9 @@
     "recipient_copy": "Copiați adresa",
     "recipient_move_to": "Mutați la {field}",
     "recipient_remove": "Eliminați",
+    "recipients_partly_refused": "Serverul a respins {recipients}. Ceilalți destinatari primesc mesajul.",
+    "recipients_partly_refused_title": "Netrimis tuturor",
+    "recipients_refused": "Netrimis: serverul a respins {recipients}.",
     "remove_attachment": "Eliminați atașamentul",
     "save_draft": "Salvați ciorna",
     "save_failed_no_drafts": "Nu există un folder Ciorne în care să fie salvată această ciornă.",
@@ -402,6 +405,8 @@
     "show_less": "Afișați mai puțin",
     "smime_unsupported": "Semnat/criptat cu S/MIME - nu este acceptat pe mobil",
     "source_too_large": "Mesajul este prea mare pentru a fi afișat integral. Partajați în schimb sursa completă.",
+    "still_scheduled": "Mesajul este încă programat.",
+    "still_scheduled_at": "Mesajul este încă programat pentru {date}.",
     "thread_loading": "Se încarcă conversația...",
     "undo_send_failed": "Trimiterea nu a putut fi anulată",
     "unsubscribe_banner": {

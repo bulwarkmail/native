@@ -272,6 +272,9 @@
     "recipient_copy": "Kopiér adresse",
     "recipient_move_to": "Flyt til {field}",
     "recipient_remove": "Fjern",
+    "recipients_partly_refused": "Serveren afviste {recipients}. De øvrige modtagere får beskeden.",
+    "recipients_partly_refused_title": "Ikke sendt til alle",
+    "recipients_refused": "Ikke sendt: serveren afviste {recipients}.",
     "remove_attachment": "Fjern vedhæftning",
     "save_draft": "Gem kladde",
     "save_failed_no_drafts": "Der er ingen Kladder-mappe at gemme denne kladde i.",
@@ -402,6 +405,8 @@
     "show_less": "Vis færre",
     "smime_unsupported": "Signeret/krypteret med S/MIME - understøttes ikke på mobil",
     "source_too_large": "Beskeden er for stor til at blive vist i sin helhed. Del i stedet hele kilden.",
+    "still_scheduled": "Beskeden er stadig planlagt.",
+    "still_scheduled_at": "Beskeden er stadig planlagt til {date}.",
     "thread_loading": "Indlæser samtale...",
     "undo_send_failed": "Afsendelsen kunne ikke fortrydes",
     "unsubscribe_banner": {

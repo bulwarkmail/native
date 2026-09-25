@@ -272,6 +272,9 @@
     "recipient_copy": "Хаягийг хуулах",
     "recipient_move_to": "\"{field}\" талбар руу зөөх",
     "recipient_remove": "Хасах",
+    "recipients_partly_refused": "Сервер дараах хүлээн авагчдыг татгалзлаа: {recipients}. Бусад хүлээн авагчид мессежийг хүлээн авна.",
+    "recipients_partly_refused_title": "Бүх хүлээн авагчид илгээгдсэнгүй",
+    "recipients_refused": "Илгээгдсэнгүй: сервер дараах хүлээн авагчдыг татгалзлаа: {recipients}.",
     "remove_attachment": "Хавсралтыг хасах",
     "save_draft": "Ноорог хадгалах",
     "save_failed_no_drafts": "Энэ ноорогийг хадгалах Ноорог хавтас алга.",
@@ -402,6 +405,8 @@
     "show_less": "Хураах",
     "smime_unsupported": "S/MIME-ээр гарын үсэг зурсан/шифрлэсэн - гар утсанд дэмжигдэхгүй",
     "source_too_large": "Энэ имэйл хэт том тул бүрэн харуулах боломжгүй. Оронд нь бүрэн эх кодыг хуваалцана уу.",
+    "still_scheduled": "Мессеж товлогдсон хэвээр байна.",
+    "still_scheduled_at": "Мессеж {date}-нд илгээгдэхээр товлогдсон хэвээр байна.",
     "thread_loading": "Харилцан яриаг ачаалж байна...",
     "undo_send_failed": "Илгээхийг буцааж чадсангүй",
     "unsubscribe_banner": {

@@ -165,6 +165,32 @@ export class NoLongerScheduledError extends Error {
   }
 }
 
+/** A recipient the server refused to take a message for (EmailSubmission deliveryStatus `delivered: "no"`). */
+export interface RefusedRecipient {
+  email: string;
+  /** The server's SMTP reply, e.g. "550 5.1.2 Relay not allowed." */
+  smtpReply?: string;
+}
+
+/** "nobody@example.net (550 5.1.2 Relay not allowed.)", one per refused recipient. */
+export function formatRefusedRecipients(recipients: RefusedRecipient[]): string {
+  return recipients.map((r) => (r.smtpReply ? `${r.email} (${r.smtpReply})` : r.email)).join(', ');
+}
+
+/**
+ * The server took a submission but refused every one of its recipients, so
+ * nothing was queued: nothing goes out, and no bounce will say so. Stalwart
+ * answers this way to a relay it doesn't allow ("550 5.1.2 Relay not
+ * allowed.") and to a throttle that is used up ("452 4.4.5 Rate limit
+ * exceeded, try again later."), on 0.16 and 1.0 alike.
+ */
+export class RecipientsRefusedError extends Error {
+  constructor(readonly recipients: RefusedRecipient[]) {
+    super(`The server refused ${formatRefusedRecipients(recipients)}`);
+    this.name = 'RecipientsRefusedError';
+  }
+}
+
 /** A scheduled send later than the server's hold limit. */
 export class ScheduleTooLateError extends Error {
   maxSeconds?: number;

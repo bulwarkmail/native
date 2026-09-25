@@ -275,6 +275,9 @@
     "recipient_copy": "Copy address",
     "recipient_move_to": "Move to {field}",
     "recipient_remove": "Remove",
+    "recipients_partly_refused": "The server refused {recipients}. The other recipients get the message.",
+    "recipients_partly_refused_title": "Not sent to everyone",
+    "recipients_refused": "Not sent: the server refused {recipients}.",
     "remove_attachment": "Remove attachment",
     "save_draft": "Save Draft",
     "save_failed_no_drafts": "There is no Drafts folder to save this draft to.",
@@ -409,6 +412,8 @@
     "show_less": "Show less",
     "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
+    "still_scheduled": "The message is still scheduled.",
+    "still_scheduled_at": "The message is still scheduled for {date}.",
     "thread_loading": "Loading conversation...",
     "undo_send_failed": "Undo send failed",
     "unsubscribe_banner": {

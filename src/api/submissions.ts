@@ -8,9 +8,12 @@
 // any more are ever destroyed. Port of the webmail's client (48382170).
 
 import { jmapClient } from './jmap-client';
-import { SubmissionQuotaError, batched, requireMethodResult } from './jmap-result';
+import {
+  SubmissionQuotaError, batched, jmapErrorType, requireMethodResult, type RefusedRecipient,
+} from './jmap-result';
 import { CAPABILITIES } from './types';
 import type { JMAPMethodCall, JMAPResponseBody } from './types';
+import { debug } from '../lib/debug';
 
 /** `using` for EmailSubmission calls that neither read nor write an Email. */
 export const SUBMISSION_ONLY_USING = [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION];
@@ -29,15 +32,36 @@ export const SUBMISSION_SCAN_MAX_PAGES = 40;
 const prunedAt = new Map<string, number>();
 /** Accounts where making room found nothing to free, until when (epoch ms). */
 const roomRecheckAt = new Map<string, number>();
+/**
+ * Shared accounts that advertise EmailSubmission but refused this login's
+ * calls with `forbidden` (see pruneSubmissionAccount), keyed by server, login
+ * and account. Left out of submissionAccountIds while the app runs.
+ */
+const refusedAccounts = new Set<string>();
 
 function pruneKey(accountId: string): string {
   return `${jmapClient.serverUrl ?? ''}|${accountId}`;
+}
+
+/** Access is the login's: another login on the same server may be a member of the account. */
+function refusalKey(accountId: string): string {
+  return `${pruneKey(accountId)}|${jmapClient.username ?? ''}`;
 }
 
 /** Test hook. */
 export function resetSubmissionPrune(): void {
   prunedAt.clear();
   roomRecheckAt.clear();
+  refusedAccounts.clear();
+}
+
+/**
+ * The accounts whose submission records this login reaches: the primary
+ * submission account and every shared or group account advertising
+ * submission, except those that refused them.
+ */
+export function submissionAccountIds(): string[] {
+  return jmapClient.getSubmissionAccountIds().filter((id) => !refusedAccounts.has(refusalKey(id)));
 }
 
 /**
@@ -98,6 +122,39 @@ export function submissionCreateError(res: JMAPResponseBody, creationId: string)
     ?.find(([name]) => name === 'EmailSubmission/set')?.[1]?.notCreated?.[creationId];
 }
 
+/**
+ * EmailSubmission/get of the submission a /set creates in the same request,
+ * named by its creation id; a result reference into the /set answer does not
+ * resolve on 1.0. The server runs the SMTP RCPT stage while it creates the
+ * submission - for a held send as well, only the delivery waits - and
+ * records a refused recipient right away as `delivered: "no"` with its
+ * reply. The create's own answer carries no deliveryStatus (0.16 and 1.0).
+ */
+export function deliveryStatusCall(accountId: string, creationId: string, callId: string): JMAPMethodCall {
+  return ['EmailSubmission/get', { accountId, ids: [`#${creationId}`], properties: ['id', 'deliveryStatus'] }, callId];
+}
+
+/**
+ * The recipients the server refused for a new submission, from the answer to
+ * deliveryStatusCall, and whether it refused every one. Nothing is known when
+ * that get failed - it does whenever the create did - or the server keeps no
+ * delivery status.
+ */
+export function refusedRecipients(
+  answer: [string, Record<string, any>, string] | undefined,
+): { recipients: RefusedRecipient[]; all: boolean } {
+  const [name, body] = answer ?? [];
+  const status = name === 'EmailSubmission/get'
+    ? (body?.list?.[0] as { deliveryStatus?: Record<string, { delivered?: string; smtpReply?: string } | null> | null } | undefined)
+      ?.deliveryStatus
+    : undefined;
+  const entries = Object.entries(status ?? {});
+  const recipients = entries
+    .filter(([, delivery]) => delivery?.delivered === 'no')
+    .map(([email, delivery]) => ({ email, ...(delivery?.smtpReply ? { smtpReply: delivery.smtpReply } : {}) }));
+  return { recipients, all: recipients.length > 0 && recipients.length === entries.length };
+}
+
 export function submissionDestroyCall(ids: string[], accountId: string, callId: string): JMAPMethodCall {
   return ['EmailSubmission/set', { accountId, destroy: ids }, callId];
 }
@@ -143,9 +200,9 @@ export async function destroyEmailSubmissions(ids: string[], accountId: string):
 }
 
 /**
- * Destroy, in every submission account, the records that can no longer be
- * cancelled (see prunableSubmissionIds). That includes other devices' and
- * other group members' records: the limit is per account.
+ * Destroy, in every submission account (submissionAccountIds), the records
+ * that can no longer be cancelled (see prunableSubmissionIds). That includes
+ * other devices' and other group members' records: the limit is per account.
  * EmailSubmission/query only sees records whose sendAt is at most three days
  * back, so older ones are left to makeRoomForSubmission.
  *
@@ -160,8 +217,9 @@ export async function pruneEmailSubmissions(options: { force?: boolean } = {}): 
     // Without submission there are no records, and a request naming the
     // capability would be refused whole.
     if (!jmapClient.hasCapability(CAPABILITIES.SUBMISSION)) return 0;
-    for (const accountId of jmapClient.getSubmissionAccountIds()) {
-      destroyed += await pruneSubmissionAccount(accountId, options.force ?? false);
+    const [primary] = jmapClient.getSubmissionAccountIds();
+    for (const accountId of submissionAccountIds()) {
+      destroyed += await pruneSubmissionAccount(accountId, options.force ?? false, accountId === primary);
     }
   } catch (err) {
     console.warn('[submissions] prune failed:', err);
@@ -169,7 +227,7 @@ export async function pruneEmailSubmissions(options: { force?: boolean } = {}): 
   return destroyed;
 }
 
-async function pruneSubmissionAccount(accountId: string, force: boolean): Promise<number> {
+async function pruneSubmissionAccount(accountId: string, force: boolean, primary: boolean): Promise<number> {
   const now = Date.now();
   const key = pruneKey(accountId);
   const lastRun = prunedAt.get(key);
@@ -180,6 +238,15 @@ async function pruneSubmissionAccount(accountId: string, force: boolean): Promis
     if (prunable.length === 0) return 0;
     return (await destroyEmailSubmissions(prunable, accountId)).length;
   } catch (err) {
+    // Stalwart 0.16 lists an account that shared only an address book or a
+    // calendar with the submission capability, then refuses its records
+    // ("You are not an owner of account ..."). Nothing of this login's is
+    // there, so the account is left alone while the app runs.
+    if (jmapErrorType(err) === 'forbidden' && !primary) {
+      refusedAccounts.add(refusalKey(accountId));
+      debug.log('email', `[submissions] ${accountId} refuses this login's submissions; not asking again`);
+      return 0;
+    }
     console.warn(`[submissions] pruning ${accountId} failed:`, err);
     return 0;
   }

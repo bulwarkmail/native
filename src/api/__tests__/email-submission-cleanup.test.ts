@@ -57,6 +57,8 @@ const OUTGOING = {
   textBody: 'Hi',
 };
 const VIA_DRAFTS = { draftsMailboxId: 'drafts' };
+/** A send's request: the message, its submission and the submission's delivery status. */
+const SEND = ['Email/set', 'EmailSubmission/set', 'EmailSubmission/get'];
 const RECEIPT = {
   to: 'sender@remote.example',
   fromEmail: 'me@example.com',
@@ -118,7 +120,7 @@ describe('an immediate send removes its own submission record', () => {
 
       const result = await sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS);
 
-      expect(server.methods()).toEqual([['Email/set', 'EmailSubmission/set'], ['EmailSubmission/set']]);
+      expect(server.methods()).toEqual([SEND, ['EmailSubmission/set']]);
       expect(argsOf(server, 'EmailSubmission/set')[1]).toEqual({ accountId: 'acc-1', destroy: [result.emailSubmissionId] });
       expect(server.requests[1].using).toEqual(['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:submission']);
       expect(server.submissions()).toEqual([]);
@@ -134,7 +136,7 @@ describe('an immediate send removes its own submission record', () => {
     const result = await sendEmail(OUTGOING, 'id-1', 'sent', undefined, { ...VIA_DRAFTS, draftId: 'old-draft' });
 
     expect(result.filingWarning).toBeUndefined();
-    expect(server.methods()).toEqual([['Email/set', 'EmailSubmission/set'], ['Email/set', 'EmailSubmission/set']]);
+    expect(server.methods()).toEqual([SEND, ['Email/set', 'EmailSubmission/set']]);
     expect(server.requests[1].calls).toEqual([
       ['Email/set', { accountId: 'acc-1', destroy: ['old-draft'] }, '0'],
       ['EmailSubmission/set', { accountId: 'acc-1', destroy: [result.emailSubmissionId] }, '1'],
@@ -153,7 +155,7 @@ describe('an immediate send removes its own submission record', () => {
       const result = await sendEmail(OUTGOING, 'id-1', 'sent', 10, VIA_DRAFTS);
 
       expect(result.scheduled).toBe(true);
-      expect(server.methods()).toEqual([['Email/set', 'EmailSubmission/set']]);
+      expect(server.methods()).toEqual([SEND]);
       expect(server.submissions()).toEqual([{ id: result.emailSubmissionId, sendAt: expect.any(Number), undoStatus: 'pending' }]);
     },
   );
@@ -164,7 +166,7 @@ describe('an immediate send removes its own submission record', () => {
 
     await sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS);
 
-    expect(server.methods()).toEqual([['Email/set', 'EmailSubmission/set']]);
+    expect(server.methods()).toEqual([SEND]);
     expect(server.submissions()).toHaveLength(1);
   });
 
@@ -215,11 +217,12 @@ describe('a full submission quota on a send (Stalwart 1.0)', () => {
       notCreated: { 'sub-1': { type: 'overQuota', description: OVER_QUOTA_DESCRIPTION } },
     }), '1']);
     // ...then the prune made room and the copy already in Drafts went out.
+    // The retry asks for the delivery status again.
     expect(server.methods()).toEqual([
-      ['Email/set', 'EmailSubmission/set'],
+      SEND,
       ['EmailSubmission/query', 'EmailSubmission/get'],
       ['EmailSubmission/set'],
-      ['EmailSubmission/set'],
+      ['EmailSubmission/set', 'EmailSubmission/get'],
       ['EmailSubmission/set'],
     ]);
     const retry = argsOf(server, 'EmailSubmission/set')[2];
@@ -240,7 +243,8 @@ describe('a full submission quota on a send (Stalwart 1.0)', () => {
     // The query can't see them; the log is read from "n" through each newState.
     expect(argsOf(server, 'EmailSubmission/query')).toHaveLength(1);
     expect(argsOf(server, 'EmailSubmission/changes').map((a) => a.sinceState)).toEqual(['n', 'r2', 'r4']);
-    expect(argsOf(server, 'EmailSubmission/get').at(-1)).toMatchObject({ ids: ['s1', 's2', 's3', 's4', 's5'] });
+    const gets = argsOf(server, 'EmailSubmission/get').filter((a) => !String(a.ids?.[0]).startsWith('#'));
+    expect(gets.at(-1)).toMatchObject({ ids: ['s1', 's2', 's3', 's4', 's5'] });
     expect(server.submissions()).toEqual([]);
   });
 
@@ -294,7 +298,7 @@ describe('a full submission quota on a send (Stalwart 1.0)', () => {
 
     expect(err).not.toBeInstanceOf(SubmissionQuotaError);
     expect((err as Error).message).toContain('Account quota exceeded.');
-    expect(server.methods()).toEqual([['Email/set', 'EmailSubmission/set']]);
+    expect(server.methods()).toEqual([SEND]);
   });
 
   it('Stalwart 0.16.23 does not enforce the limit: no retry is ever needed', async () => {
@@ -303,7 +307,7 @@ describe('a full submission quota on a send (Stalwart 1.0)', () => {
 
     await sendEmail(OUTGOING, 'id-1', 'sent', 10, VIA_DRAFTS);
 
-    expect(server.methods()).toEqual([['Email/set', 'EmailSubmission/set']]);
+    expect(server.methods()).toEqual([SEND]);
   });
 });
 

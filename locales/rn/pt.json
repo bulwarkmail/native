@@ -272,6 +272,9 @@
     "recipient_copy": "Copiar endereço",
     "recipient_move_to": "Mover para {field}",
     "recipient_remove": "Remover",
+    "recipients_partly_refused": "O servidor recusou {recipients}. Os demais destinatários recebem a mensagem.",
+    "recipients_partly_refused_title": "Não enviado a todos",
+    "recipients_refused": "Não enviado: o servidor recusou {recipients}.",
     "remove_attachment": "Remover anexo",
     "save_draft": "Salvar rascunho",
     "save_failed_no_drafts": "Não há uma pasta Rascunhos para salvar este rascunho.",
@@ -402,6 +405,8 @@
     "show_less": "Mostrar menos",
     "smime_unsupported": "Assinado/criptografado com S/MIME - não suportado no celular",
     "source_too_large": "A mensagem é grande demais para ser exibida por completo. Em vez disso, compartilhe o código-fonte completo.",
+    "still_scheduled": "A mensagem continua agendada.",
+    "still_scheduled_at": "A mensagem continua agendada para {date}.",
     "thread_loading": "Carregando conversa...",
     "undo_send_failed": "Não foi possível desfazer o envio",
     "unsubscribe_banner": {

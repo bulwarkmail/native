@@ -272,6 +272,9 @@
     "recipient_copy": "Копіювати адресу",
     "recipient_move_to": "Перемістити в «{field}»",
     "recipient_remove": "Видалити",
+    "recipients_partly_refused": "Сервер відхилив {recipients}. Інші одержувачі отримають лист.",
+    "recipients_partly_refused_title": "Надіслано не всім",
+    "recipients_refused": "Не надіслано: сервер відхилив {recipients}.",
     "remove_attachment": "Видалити вкладення",
     "save_draft": "Зберегти чернетку",
     "save_failed_no_drafts": "Немає папки «Чернетки», щоб зберегти цю чернетку.",
@@ -402,6 +405,8 @@
     "show_less": "Згорнути",
     "smime_unsupported": "Підписано або зашифровано за допомогою S/MIME — на мобільних пристроях не підтримується",
     "source_too_large": "Лист завеликий для повного відображення. Натомість поділіться повним вихідним кодом.",
+    "still_scheduled": "Лист і далі заплановано.",
+    "still_scheduled_at": "Лист і далі заплановано на {date}.",
     "thread_loading": "Завантаження розмови...",
     "undo_send_failed": "Не вдалося скасувати надсилання",
     "unsubscribe_banner": {

@@ -272,6 +272,9 @@
     "recipient_copy": "Kopier adressen",
     "recipient_move_to": "Flytt til {field}",
     "recipient_remove": "Fjern",
+    "recipients_partly_refused": "Serveren avviste {recipients}. De andre mottakerne får meldingen.",
+    "recipients_partly_refused_title": "Ikke sendt til alle",
+    "recipients_refused": "Ikke sendt: serveren avviste {recipients}.",
     "remove_attachment": "Fjern vedlegget",
     "save_draft": "Lagre utkast",
     "save_failed_no_drafts": "Det finnes ingen Utkast-mappe å lagre dette utkastet i.",
@@ -402,6 +405,8 @@
     "show_less": "Vis færre",
     "smime_unsupported": "Signert/kryptert med S/MIME – støttes ikke på mobil",
     "source_too_large": "Meldingen er for stor til å vises i sin helhet. Del hele kilden i stedet.",
+    "still_scheduled": "Meldingen er fortsatt planlagt.",
+    "still_scheduled_at": "Meldingen er fortsatt planlagt til {date}.",
     "thread_loading": "Laster inn samtale...",
     "undo_send_failed": "Sendingen kunne ikke angres",
     "unsubscribe_banner": {

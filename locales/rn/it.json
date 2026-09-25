@@ -272,6 +272,9 @@
     "recipient_copy": "Copia indirizzo",
     "recipient_move_to": "Sposta in {field}",
     "recipient_remove": "Rimuovi",
+    "recipients_partly_refused": "Il server ha rifiutato {recipients}. Gli altri destinatari ricevono il messaggio.",
+    "recipients_partly_refused_title": "Non inviato a tutti",
+    "recipients_refused": "Non inviato: il server ha rifiutato {recipients}.",
     "remove_attachment": "Rimuovi allegato",
     "save_draft": "Salva bozza",
     "save_failed_no_drafts": "Non c'è una cartella Bozze in cui salvare questa bozza.",
@@ -402,6 +405,8 @@
     "show_less": "Mostra meno",
     "smime_unsupported": "Firmato/cifrato con S/MIME - non supportato su mobile",
     "source_too_large": "Il messaggio è troppo grande per essere mostrato per intero. Condividi invece il sorgente completo.",
+    "still_scheduled": "Il messaggio è ancora programmato.",
+    "still_scheduled_at": "Il messaggio è ancora programmato per il {date}.",
     "thread_loading": "Caricamento conversazione...",
     "undo_send_failed": "Impossibile annullare l'invio",
     "unsubscribe_banner": {

@@ -272,6 +272,9 @@
     "recipient_copy": "アドレスをコピー",
     "recipient_move_to": "{field}に移動",
     "recipient_remove": "削除",
+    "recipients_partly_refused": "サーバーが {recipients} を拒否しました。他の宛先にはメッセージが届きます。",
+    "recipients_partly_refused_title": "一部の宛先に送信されませんでした",
+    "recipients_refused": "送信されませんでした: サーバーが {recipients} を拒否しました。",
     "remove_attachment": "添付ファイルを削除",
     "save_draft": "下書きを保存",
     "save_failed_no_drafts": "この下書きを保存する下書きフォルダーがありません。",
@@ -402,6 +405,8 @@
     "show_less": "表示を減らす",
     "smime_unsupported": "S/MIME で署名／暗号化されています（モバイルでは非対応）",
     "source_too_large": "メッセージが大きすぎるため、すべてを表示できません。代わりに完全なソースを共有してください。",
+    "still_scheduled": "メッセージは引き続き送信予定です。",
+    "still_scheduled_at": "メッセージは引き続き {date} に送信予定です。",
     "thread_loading": "会話を読み込み中...",
     "undo_send_failed": "送信を取り消せませんでした",
     "unsubscribe_banner": {

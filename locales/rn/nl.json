@@ -272,6 +272,9 @@
     "recipient_copy": "Adres kopiëren",
     "recipient_move_to": "Verplaatsen naar {field}",
     "recipient_remove": "Verwijderen",
+    "recipients_partly_refused": "De server heeft {recipients} geweigerd. De andere ontvangers krijgen het bericht.",
+    "recipients_partly_refused_title": "Niet naar iedereen verzonden",
+    "recipients_refused": "Niet verzonden: de server heeft {recipients} geweigerd.",
     "remove_attachment": "Bijlage verwijderen",
     "save_draft": "Concept opslaan",
     "save_failed_no_drafts": "Er is geen map Concepten om dit concept in op te slaan.",
@@ -402,6 +405,8 @@
     "show_less": "Minder tonen",
     "smime_unsupported": "Ondertekend/versleuteld met S/MIME - niet ondersteund op mobiel",
     "source_too_large": "Het bericht is te groot om volledig weer te geven. Deel in plaats daarvan de volledige bron.",
+    "still_scheduled": "Het bericht staat nog steeds gepland.",
+    "still_scheduled_at": "Het bericht staat nog steeds gepland voor {date}.",
     "thread_loading": "Gesprek laden...",
     "undo_send_failed": "Verzenden kon niet ongedaan worden gemaakt",
     "unsubscribe_banner": {

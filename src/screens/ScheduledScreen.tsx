@@ -16,12 +16,13 @@ import {
   type ScheduledEmail,
 } from '../api/email';
 import { jmapClient, ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-client';
-import { NoLongerScheduledError } from '../api/jmap-result';
-import { sendFailureMessage } from '../lib/send-failure-message';
+import { NoLongerScheduledError, RecipientsRefusedError, type RefusedRecipient } from '../api/jmap-result';
+import { partlyRefusedWarning, rescheduleFailureMessage, sendFailureMessage } from '../lib/send-failure-message';
 import { useEmailStore } from '../stores/email-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
+import { toast } from '../stores/toast-store';
 import { ownMailboxes } from '../lib/mailbox-tree';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { formatQuoteDate } from '../lib/quote-header';
@@ -100,10 +101,23 @@ export default function ScheduledScreen({ navigation }: Props) {
         void load();
         return;
       }
+      // The server refused every recipient of the replacement (a throttle
+      // used up since the message was scheduled): it goes at its old time.
+      if (e instanceof RecipientsRefusedError) {
+        Alert.alert(failTitle, rescheduleFailureMessage(e, t, formatWhen(item.sendAt)));
+        return;
+      }
       Alert.alert(failTitle, e instanceof Error ? e.message : String(e));
     } finally {
       setBusyId(null);
     }
+  };
+
+  /** Recipients the server refused for a replacement it took for the others. */
+  const warnRefused = (refused: RefusedRecipient[] | undefined) => {
+    if (!refused?.length) return;
+    const { title, message } = partlyRefusedWarning(refused, t);
+    toast.warning(title, { message, duration: 10_000 });
   };
 
   const removeItem = (id: string) => setItems((prev) => prev.filter((i) => i.emailSubmissionId !== id));
@@ -133,11 +147,12 @@ export default function ScheduledScreen({ navigation }: Props) {
 
   const onSendNow = (item: ScheduledEmail) => {
     void runAction(item, async () => {
-      await rescheduleScheduledSend(item, 0);
+      const result = await rescheduleScheduledSend(item, 0);
       if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
         useSendUndoStore.getState().clear();
       }
       removeItem(item.emailSubmissionId);
+      warnRefused(result.refusedRecipients);
     }, t('scheduled.send_now_failed', 'Could not send now'));
   };
 
@@ -167,6 +182,7 @@ export default function ScheduledScreen({ navigation }: Props) {
           ? { ...i, emailSubmissionId: result.emailSubmissionId ?? i.emailSubmissionId, sendAt: result.sendAt ?? date.toISOString() }
           : i))
         .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime()));
+      warnRefused(result.refusedRecipients);
     }, t('scheduled.reschedule_failed', 'Reschedule failed'));
   };
 

@@ -1,13 +1,13 @@
 import { jmapClient } from './jmap-client';
 import {
-  assertSetResult, batched, failedIdsOf, JMAPSetError, NoLongerScheduledError, parseHoldLimit, requireMethodResult,
-  ScheduleTooLateError,
+  assertSetResult, batched, failedIdsOf, JMAPSetError, NoLongerScheduledError, parseHoldLimit, RecipientsRefusedError,
+  requireMethodResult, ScheduleTooLateError, type RefusedRecipient,
 } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import {
-  destroyEmailSubmissions, isStalwartAccount, makeRoomForSubmission, readSubmissionDestroy,
-  submissionCreateError, submissionDestroyCall, submissionQuotaError, SUBMISSION_ONLY_USING,
-  SUBMISSION_SCAN_MAX_PAGES,
+  deliveryStatusCall, destroyEmailSubmissions, isStalwartAccount, makeRoomForSubmission, readSubmissionDestroy,
+  refusedRecipients, submissionAccountIds, submissionCreateError, submissionDestroyCall, submissionQuotaError,
+  SUBMISSION_ONLY_USING, SUBMISSION_SCAN_MAX_PAGES,
 } from './submissions';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
@@ -1517,6 +1517,12 @@ export interface SendEmailResult {
   emailSubmissionId?: string;
   /** Post-send filing/cleanup problem (message did go out). */
   filingWarning?: string;
+  /**
+   * Recipients the server refused while it took the submission; the others
+   * get the message. When it refused every one, the send throws
+   * RecipientsRefusedError instead.
+   */
+  refusedRecipients?: RefusedRecipient[];
 }
 
 function toMessageIdList(value: string[] | string | undefined): string[] | undefined {
@@ -1693,6 +1699,9 @@ export async function sendEmail(
     [
       ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
       ['EmailSubmission/set', submissionArgs, '1'],
+      // Which recipients the server took. A refused one is lost without a
+      // bounce while the create succeeds and files the message in Sent.
+      deliveryStatusCall(accountId, 'sub-1', '2'),
     ],
     SUBMISSION_USING,
   );
@@ -1705,14 +1714,22 @@ export async function sendEmail(
   if (copyCreated && copyId && submissionCreateError(res, 'sub-1')?.type === 'overQuota') {
     await makeRoomForSubmission(accountId);
     const retry = await jmapClient.request(
-      [['EmailSubmission/set', {
-        ...submissionArgs,
-        create: { 'sub-1': { ...submissionCreate, emailId: copyId } },
-      }, '1']],
+      [
+        ['EmailSubmission/set', {
+          ...submissionArgs,
+          create: { 'sub-1': { ...submissionCreate, emailId: copyId } },
+        }, '1'],
+        deliveryStatusCall(accountId, 'sub-1', '2'),
+      ],
       SUBMISSION_USING,
     );
     res = { ...retry, methodResponses: [copyCreated, ...(retry.methodResponses ?? [])] };
   }
+
+  // The get goes on its own: it fails whenever the create did, and must not
+  // count as a failed send or a filing problem either way.
+  const deliveryAnswer = res.methodResponses.find(([, , callId]) => callId === '2');
+  res = { ...res, methodResponses: res.methodResponses.filter(([, , callId]) => callId !== '2') };
 
   let emailId: string | undefined;
   let emailSubmissionId: string | undefined;
@@ -1781,6 +1798,25 @@ export async function sendEmail(
     throw failure;
   }
 
+  // Every recipient refused: nothing was queued, so nothing goes out, held or
+  // not, and no bounce will tell. That is a failed send. The copy made for it
+  // goes, as after any failed send - onSuccessUpdateEmail filed it in Sent,
+  // where it passes for a sent message - while the previous draft version
+  // stays and the composer keeps the text, so the address can be fixed and
+  // the message sent again. The record can neither go out nor be cancelled.
+  const delivery = emailSubmissionId ? refusedRecipients(deliveryAnswer) : { recipients: [], all: false };
+  if (delivery.all) {
+    if (emailId) {
+      try {
+        await destroyEmails([emailId], accountId);
+      } catch (err) {
+        console.warn('[email] failed to remove the unsent copy:', err);
+      }
+    }
+    if (isStalwartAccount(accountId)) await destroyEmailSubmissions([emailSubmissionId!], accountId);
+    throw new RecipientsRefusedError(delivery.recipients);
+  }
+
   // An immediate send's submission record has done its job once the request
   // that created it returned: the message is queued and filed, and with no
   // hold there is nothing to cancel. Stalwart 1.0 stops accepting submissions
@@ -1825,6 +1861,9 @@ export async function sendEmail(
     emailId,
     emailSubmissionId,
     filingWarning,
+    // Some recipients refused: the others get the message, the caller says
+    // who doesn't.
+    ...(delivery.recipients.length > 0 ? { refusedRecipients: delivery.recipients } : {}),
   };
 }
 
@@ -1885,7 +1924,7 @@ export interface ScheduledEmail {
 // primary-only lookup never found it, so it could not be cancelled (webmail
 // #874). Empty when no account supports FUTURERELEASE.
 export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
-  const accountIds = jmapClient.getSubmissionAccountIds().filter((id) => jmapClient.hasDelayedSend(id));
+  const accountIds = submissionAccountIds().filter((id) => jmapClient.hasDelayedSend(id));
   const out: ScheduledEmail[] = [];
   for (const accountId of accountIds) {
     try {
@@ -2029,7 +2068,8 @@ export async function cancelScheduledSend(emailSubmissionId: string, accountIdOv
  * went out, and a refused cancel (the original had just gone out) still let
  * the replacement go, so it was sent twice. Now a refused replacement leaves
  * the original alone, and a replacement whose original can't be cancelled is
- * withdrawn again. Returns the new submission id and send time.
+ * withdrawn again. Returns the new submission id and send time, and the
+ * recipients the server refused for the replacement when it took the others.
  */
 export async function rescheduleScheduledSend(
   scheduled: {
@@ -2043,7 +2083,7 @@ export async function rescheduleScheduledSend(
   },
   holdForSeconds: number,
   recipients?: EmailAddress[],
-): Promise<{ emailSubmissionId?: string; sendAt?: string }> {
+): Promise<{ emailSubmissionId?: string; sendAt?: string; refusedRecipients?: RefusedRecipient[] }> {
   const accountId = scheduled.accountId ?? jmapClient.accountId;
   // "Send now" is a 1-second hold, so the replacement can still be withdrawn.
   const holdFor = Math.max(1, Math.ceil(holdForSeconds));
@@ -2080,15 +2120,18 @@ export async function rescheduleScheduledSend(
   // HOLDFOR counts from when the server takes the request.
   const sendAt = Date.now() + holdFor * 1000;
   const createReplacement = (seconds: number) => jmapClient.request(
-    [['EmailSubmission/set', {
-      accountId,
-      create: {
-        replacement: {
-          ...create,
-          envelope: { ...create.envelope, mailFrom: { ...create.envelope.mailFrom, parameters: { HOLDFOR: String(seconds) } } },
+    [
+      ['EmailSubmission/set', {
+        accountId,
+        create: {
+          replacement: {
+            ...create,
+            envelope: { ...create.envelope, mailFrom: { ...create.envelope.mailFrom, parameters: { HOLDFOR: String(seconds) } } },
+          },
         },
-      },
-    }, '0']],
+      }, '0'],
+      deliveryStatusCall(accountId, 'replacement', '1'),
+    ],
     [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
   let res = await createReplacement(holdFor);
@@ -2112,6 +2155,16 @@ export async function rescheduleScheduledSend(
   const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
   if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
 
+  // The recipients are checked again for the replacement, and a throttle
+  // used up since the original was taken refuses them all: nothing was
+  // queued, and cancelling the original would lose the message. It goes at
+  // its old time instead; the replacement's record is dead weight.
+  const delivery = refusedRecipients(res.methodResponses.find(([, , callId]) => callId === '1'));
+  if (delivery.all) {
+    if (isStalwartAccount(accountId)) await destroyEmailSubmissions([created.id], accountId);
+    throw new RecipientsRefusedError(delivery.recipients);
+  }
+
   // Either cancel below also removes the record it canceled, so a reschedule
   // leaves only the replacement behind.
   try {
@@ -2130,7 +2183,11 @@ export async function rescheduleScheduledSend(
       throw new Error(`Failed to cancel the previous schedule: ${reason}`);
     }
   }
-  return { emailSubmissionId: created.id, sendAt: created.sendAt };
+  return {
+    emailSubmissionId: created.id,
+    sendAt: created.sendAt,
+    ...(delivery.recipients.length > 0 ? { refusedRecipients: delivery.recipients } : {}),
+  };
 }
 
 /**

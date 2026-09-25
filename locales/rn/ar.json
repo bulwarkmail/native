@@ -272,6 +272,9 @@
     "recipient_copy": "نسخ العنوان",
     "recipient_move_to": "نقل إلى {field}",
     "recipient_remove": "إزالة",
+    "recipients_partly_refused": "رفض الخادم {recipients}. سيتلقى باقي المستلمين الرسالة.",
+    "recipients_partly_refused_title": "لم تُرسل إلى جميع المستلمين",
+    "recipients_refused": "لم تُرسل الرسالة: رفض الخادم {recipients}.",
     "remove_attachment": "إزالة المرفق",
     "save_draft": "حفظ المسودة",
     "save_failed_no_drafts": "لا يوجد مجلد مسودات لحفظ هذه المسودة فيه.",
@@ -402,6 +405,8 @@
     "show_less": "عرض أقل",
     "smime_unsupported": "موقّعة/مشفّرة باستخدام S/MIME - غير مدعوم على الجوال",
     "source_too_large": "الرسالة كبيرة جدًا بحيث لا يمكن عرضها كاملة. شارك المصدر الكامل بدلًا من ذلك.",
+    "still_scheduled": "لا تزال الرسالة مجدولة.",
+    "still_scheduled_at": "لا تزال الرسالة مجدولة للإرسال في {date}.",
     "thread_loading": "جارٍ تحميل المحادثة...",
     "undo_send_failed": "تعذّر التراجع عن الإرسال",
     "unsubscribe_banner": {

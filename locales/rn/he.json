@@ -272,6 +272,9 @@
     "recipient_copy": "העתק כתובת",
     "recipient_move_to": "העבר אל {field}",
     "recipient_remove": "הסר",
+    "recipients_partly_refused": "השרת דחה את {recipients}. שאר הנמענים יקבלו את ההודעה.",
+    "recipients_partly_refused_title": "לא נשלח לכולם",
+    "recipients_refused": "לא נשלח: השרת דחה את {recipients}.",
     "remove_attachment": "הסר קובץ מצורף",
     "save_draft": "שמור טיוטה",
     "save_failed_no_drafts": "אין תיקיית טיוטות לשמירת הטיוטה הזו.",
@@ -402,6 +405,8 @@
     "show_less": "הצג פחות",
     "smime_unsupported": "חתום/מוצפן ב-S/MIME - לא נתמך בנייד",
     "source_too_large": "ההודעה גדולה מכדי להציג אותה במלואה. במקום זאת, שתף את קוד המקור המלא.",
+    "still_scheduled": "ההודעה עדיין מתוזמנת.",
+    "still_scheduled_at": "ההודעה עדיין מתוזמנת ל־{date}.",
     "thread_loading": "טוען שיחה...",
     "undo_send_failed": "לא ניתן היה לבטל את השליחה",
     "unsubscribe_banner": {

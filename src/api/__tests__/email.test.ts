@@ -553,10 +553,12 @@ describe('email operations', () => {
 
       expect(mockRequest).toHaveBeenCalledTimes(1);
       const calls = mockRequest.mock.calls[0][0];
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(3);
       expect(calls[0][0]).toBe('Email/set');
       expect(calls[1][0]).toBe('EmailSubmission/set');
       expect(calls[1][1].create['sub-1'].emailId).toBe('#draft');
+      // The new submission's delivery status, named by its creation id.
+      expect(calls[2]).toEqual(['EmailSubmission/get', { accountId: 'acc-1', ids: ['#sub-1'], properties: ['id', 'deliveryStatus'] }, '2']);
     });
 
     it('should use htmlBody when provided', async () => {

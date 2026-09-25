@@ -272,6 +272,9 @@
     "recipient_copy": "复制地址",
     "recipient_move_to": "移至{field}",
     "recipient_remove": "移除",
+    "recipients_partly_refused": "服务器拒绝了 {recipients}。其他收件人会收到此邮件。",
+    "recipients_partly_refused_title": "未发送给所有收件人",
+    "recipients_refused": "未发送：服务器拒绝了 {recipients}。",
     "remove_attachment": "移除附件",
     "save_draft": "保存草稿",
     "save_failed_no_drafts": "没有可用于保存此草稿的“草稿”文件夹。",
@@ -402,6 +405,8 @@
     "show_less": "收起",
     "smime_unsupported": "已使用 S/MIME 签名/加密——移动端不支持",
     "source_too_large": "邮件过大，无法完整显示。请改为分享完整源码。",
+    "still_scheduled": "邮件仍处于定时发送状态。",
+    "still_scheduled_at": "邮件仍计划于 {date} 发送。",
     "thread_loading": "正在加载会话…",
     "undo_send_failed": "无法撤销发送",
     "unsubscribe_banner": {

@@ -272,6 +272,9 @@
     "recipient_copy": "Adresi kopyala",
     "recipient_move_to": "{field} alanına taşı",
     "recipient_remove": "Kaldır",
+    "recipients_partly_refused": "Sunucu şu alıcıları reddetti: {recipients}. Diğer alıcılar iletiyi alır.",
+    "recipients_partly_refused_title": "Herkese gönderilmedi",
+    "recipients_refused": "Gönderilmedi: sunucu şu alıcıları reddetti: {recipients}.",
     "remove_attachment": "Eki kaldır",
     "save_draft": "Taslağı kaydet",
     "save_failed_no_drafts": "Bu taslağın kaydedileceği bir Taslaklar klasörü yok.",
@@ -402,6 +405,8 @@
     "show_less": "Daha az göster",
     "smime_unsupported": "S/MIME ile imzalanmış/şifrelenmiş - mobilde desteklenmiyor",
     "source_too_large": "İleti, tamamı gösterilemeyecek kadar büyük. Bunun yerine tam kaynağı paylaşın.",
+    "still_scheduled": "İleti hâlâ zamanlanmış durumda.",
+    "still_scheduled_at": "İleti hâlâ {date} için zamanlanmış durumda.",
     "thread_loading": "Konuşma yükleniyor...",
     "undo_send_failed": "Gönderme geri alınamadı",
     "unsubscribe_banner": {

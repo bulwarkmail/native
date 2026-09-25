@@ -272,6 +272,9 @@
     "recipient_copy": "Kopiuj adres",
     "recipient_move_to": "Przenieś do pola {field}",
     "recipient_remove": "Usuń",
+    "recipients_partly_refused": "Serwer odrzucił {recipients}. Pozostali odbiorcy otrzymają wiadomość.",
+    "recipients_partly_refused_title": "Nie wysłano do wszystkich",
+    "recipients_refused": "Nie wysłano: serwer odrzucił {recipients}.",
     "remove_attachment": "Usuń załącznik",
     "save_draft": "Zapisz szkic",
     "save_failed_no_drafts": "Brak folderu Szkice, w którym można zapisać ten szkic.",
@@ -402,6 +405,8 @@
     "show_less": "Pokaż mniej",
     "smime_unsupported": "Podpisano/zaszyfrowano za pomocą S/MIME – nieobsługiwane w aplikacji mobilnej",
     "source_too_large": "Wiadomość jest zbyt duża, aby wyświetlić ją w całości. Zamiast tego udostępnij pełne źródło.",
+    "still_scheduled": "Wiadomość jest nadal zaplanowana.",
+    "still_scheduled_at": "Wiadomość jest nadal zaplanowana na {date}.",
     "thread_loading": "Ładowanie konwersacji...",
     "undo_send_failed": "Nie udało się cofnąć wysyłki",
     "unsubscribe_banner": {

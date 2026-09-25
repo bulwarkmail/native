@@ -272,6 +272,9 @@
     "recipient_copy": "Kopírovať adresu",
     "recipient_move_to": "Presunúť do poľa {field}",
     "recipient_remove": "Odstrániť",
+    "recipients_partly_refused": "Server odmietol {recipients}. Ostatní príjemcovia správu dostanú.",
+    "recipients_partly_refused_title": "Neodoslané všetkým",
+    "recipients_refused": "Neodoslané: server odmietol {recipients}.",
     "remove_attachment": "Odstrániť prílohu",
     "save_draft": "Uložiť koncept",
     "save_failed_no_drafts": "Chýba priečinok Koncepty, do ktorého by sa dal koncept uložiť.",
@@ -402,6 +405,8 @@
     "show_less": "Zobraziť menej",
     "smime_unsupported": "Podpísané/zašifrované pomocou S/MIME – v mobilnej aplikácii nie je podporované",
     "source_too_large": "Správa je príliš veľká na zobrazenie v celom rozsahu. Namiesto toho zdieľajte celý zdroj.",
+    "still_scheduled": "Správa je stále naplánovaná.",
+    "still_scheduled_at": "Správa je stále naplánovaná na {date}.",
     "thread_loading": "Načítavanie konverzácie...",
     "undo_send_failed": "Odoslanie sa nepodarilo vrátiť",
     "unsubscribe_banner": {

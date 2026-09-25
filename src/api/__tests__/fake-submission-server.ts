@@ -13,6 +13,16 @@
 //   notFound for a record that is gone;
 // - EmailSubmission/changes from "n": the whole log in pages of maxChanges,
 //   a record created and destroyed within it left out;
+// - the SMTP RCPT stage, which runs while a submission is created, held or
+//   not: a refused recipient is recorded in deliveryStatus as
+//   `delivered: "no"` with the server's reply, the others as `queued`; with
+//   nobody taken nothing is queued, the create answers `final` and sendAt is
+//   the time of the create (seen live on 0.16.23 and 1.0);
+// - `#creationId` in EmailSubmission/get `ids`, naming a submission created
+//   earlier in the same request, and Stalwart's invalidResultReference when
+//   that create failed;
+// - a shared account that refuses this login's submission calls with
+//   `forbidden` (0.16.23 lists one that only shared an address book);
 // - Email/set, Email/import and Email/get, just enough for the send paths.
 // It records the one thing the client must never do - destroy a submission
 // that get reports as pending with sendAt in the future - in `violations`.
@@ -24,7 +34,17 @@ export type StalwartVersion = '0.16.6' | '0.16.10' | '0.16.23' | '1.0';
 export const OVER_QUOTA_DESCRIPTION =
   'There are too many email submissions, please delete some before adding a new one.';
 
+// Stalwart's replies to a recipient it refuses at RCPT (live, 0.16.23 and 1.0).
+export const RELAY_DENIED = '550 5.1.2 Relay not allowed.';
+export const RATE_LIMITED = '452 4.4.5 Rate limit exceeded, try again later.';
+
 const DAY_MS = 86_400_000;
+
+interface DeliveryStatus {
+  delivered: string;
+  smtpReply: string;
+  displayed: string;
+}
 
 interface Submission {
   id: string;
@@ -35,6 +55,9 @@ interface Submission {
   canceled: boolean;
   /** Still in the queue with sendAt passed (a delivery being retried). */
   retrying: boolean;
+  /** False when the RCPT stage refused every recipient: nothing was queued. */
+  taken: boolean;
+  deliveryStatus?: Record<string, DeliveryStatus>;
   envelope?: unknown;
 }
 
@@ -71,6 +94,10 @@ export function createFakeSubmissionServer(options: {
   maxChanges?: number;
   /** Leave `total` out of query answers, as a server may. */
   omitTotal?: boolean;
+  /** The SMTP reply the RCPT stage refuses a recipient with; undefined takes it. */
+  refuseRecipient?: (email: string) => string | undefined;
+  /** Accounts whose EmailSubmission calls this login is refused (`forbidden`). */
+  forbiddenAccounts?: string[];
 }) {
   const { version } = options;
   const limit = options.limit ?? 500;
@@ -107,13 +134,14 @@ export function createFakeSubmissionServer(options: {
 
   function status(s: Submission): 'pending' | 'final' | 'canceled' {
     if (s.canceled) return 'canceled';
+    if (!s.taken) return 'final';
     if (s.retrying) return 'pending';
     return s.sendAt > Date.now() ? 'pending' : 'final';
   }
 
-  function addSubmission(accountId: string, fields: Omit<Submission, 'id' | 'seq'>): Submission {
+  function addSubmission(accountId: string, fields: Omit<Submission, 'id' | 'seq' | 'taken'> & { taken?: boolean }): Submission {
     seq += 1;
-    const submission: Submission = { id: `s${seq}`, seq, ...fields };
+    const submission: Submission = { id: `s${seq}`, seq, ...fields, taken: fields.taken ?? true };
     recordsOf(accountId).set(submission.id, submission);
     logOf(accountId).push({ id: submission.id, kind: 'created' });
     return submission;
@@ -128,6 +156,7 @@ export function createFakeSubmissionServer(options: {
       sendAt: utcDate(s.sendAt),
       undoStatus: status(s),
       envelope: s.envelope ?? null,
+      deliveryStatus: s.deliveryStatus ?? null,
     };
     if (!properties) return full;
     return Object.fromEntries(['id', ...properties].map((p) => [p, full[p]]));
@@ -156,7 +185,7 @@ export function createFakeSubmissionServer(options: {
   function createdAnswer(s: Submission): Record<string, unknown> {
     if (version === '0.16.6') return { id: s.id };
     if (version === '0.16.10') return { id: s.id, sendAt: utcDate(s.sendAt), undoStatus: 'final' };
-    return { id: s.id, sendAt: utcDate(s.sendAt), undoStatus: 'pending' };
+    return { id: s.id, sendAt: utcDate(s.sendAt), undoStatus: s.taken ? 'pending' : 'final' };
   }
 
   function holdSeconds(create: Record<string, any>): number {
@@ -164,7 +193,26 @@ export function createFakeSubmissionServer(options: {
     return hold ? Number(hold) : 0;
   }
 
-  function submissionSet(args: Record<string, any>, callId: string, createdEmails: Map<string, string>): Response[] {
+  /** The RCPT stage: each recipient of the envelope, or else of the message, taken or refused. */
+  function rcptStage(create: Record<string, any>, email: StoredEmail): Record<string, DeliveryStatus> {
+    const envelope = (create.envelope?.rcptTo as Array<{ email: string }> | undefined)?.map((r) => r.email);
+    const headers = [email.to, email.cc, email.bcc]
+      .flatMap((list) => (Array.isArray(list) ? list as Array<{ email: string }> : []))
+      .map((r) => r.email);
+    return Object.fromEntries((envelope ?? headers).map((address) => {
+      const reply = options.refuseRecipient?.(address);
+      return [address, reply
+        ? { delivered: 'no', smtpReply: reply, displayed: 'unknown' }
+        : { delivered: 'queued', smtpReply: '250 2.1.5 Queued', displayed: 'unknown' }];
+    }));
+  }
+
+  function submissionSet(
+    args: Record<string, any>,
+    callId: string,
+    createdEmails: Map<string, string>,
+    createdSubmissions: Map<string, string>,
+  ): Response[] {
     const accountId = args.accountId as string;
     const records = recordsOf(accountId);
     const body: Record<string, any> = { accountId, newState: `s${seq}` };
@@ -185,14 +233,22 @@ export function createFakeSubmissionServer(options: {
           continue;
         }
         accepted += 1;
+        // Held or not, the RCPT stage runs now. With nobody taken, nothing
+        // is queued, and the record's sendAt is the time of the create.
+        const deliveryStatus = rcptStage(create, emails.get(emailId)!);
+        const statuses = Object.values(deliveryStatus);
+        const taken = statuses.length === 0 || statuses.some((d) => d.delivered !== 'no');
         const submission = addSubmission(accountId, {
           emailId,
           identityId: String(create.identityId),
-          sendAt: Date.now() + holdSeconds(create) * 1000,
+          sendAt: Date.now() + (taken ? holdSeconds(create) * 1000 : 0),
           canceled: false,
           retrying: false,
+          taken,
+          deliveryStatus,
           envelope: create.envelope,
         });
+        createdSubmissions.set(creationId, submission.id);
         (body.created ??= {})[creationId] = createdAnswer(submission);
         const update = args.onSuccessUpdateEmail?.[`#${creationId}`];
         if (update) {
@@ -276,10 +332,13 @@ export function createFakeSubmissionServer(options: {
     const responses: Response[] = [];
     requests.push({ calls, using, responses });
     const createdEmails = new Map<string, string>();
+    const createdSubmissions = new Map<string, string>();
     for (const [name, rawArgs, callId] of calls) {
       const args = rawArgs as Record<string, any>;
       const accountId = args.accountId as string;
-      if (name === 'Email/set') {
+      if (name.startsWith('EmailSubmission/') && options.forbiddenAccounts?.includes(accountId)) {
+        responses.push(['error', { type: 'forbidden', description: `You are not an owner of account ${accountId}` }, callId]);
+      } else if (name === 'Email/set') {
         const body: Record<string, any> = { accountId };
         for (const [creationId, create] of Object.entries((args.create ?? {}) as Record<string, Record<string, any>>)) {
           if (emailCreateFailure) {
@@ -341,9 +400,28 @@ export function createFakeSubmissionServer(options: {
         responses.push(['EmailSubmission/query', body, callId]);
       } else if (name === 'EmailSubmission/get') {
         const ref = args['#ids'] as { resultOf: string } | undefined;
-        const ids = ref
-          ? (responses.find(([, , id]) => id === ref.resultOf)?.[1].ids as string[])
-          : (args.ids as string[]);
+        let ids: string[] = [];
+        let unresolved: string | undefined;
+        if (ref) {
+          const [sourceName, source] = responses.find(([, , id]) => id === ref.resultOf) ?? [];
+          if (sourceName && sourceName !== 'error') ids = source!.ids as string[];
+          else unresolved = `Result reference to ${ref.resultOf} not found.`;
+        } else {
+          // "#<creation id>" names a submission created earlier in this
+          // request; a create that failed leaves the whole get refused.
+          for (const id of args.ids as string[]) {
+            const created = id.startsWith('#') ? createdSubmissions.get(id.slice(1)) : id;
+            if (!created) {
+              unresolved = `Id reference "${id.slice(1)}" does not exist or is invalid.`;
+              break;
+            }
+            ids.push(created);
+          }
+        }
+        if (unresolved) {
+          responses.push(['error', { type: 'invalidResultReference', description: unresolved }, callId]);
+          continue;
+        }
         const records = recordsOf(accountId);
         responses.push(['EmailSubmission/get', {
           accountId,
@@ -355,7 +433,7 @@ export function createFakeSubmissionServer(options: {
           notFound: ids.filter((id) => !records.has(id)),
         }, callId]);
       } else if (name === 'EmailSubmission/set') {
-        responses.push(...submissionSet(args, callId, createdEmails));
+        responses.push(...submissionSet(args, callId, createdEmails, createdSubmissions));
       } else if (name === 'EmailSubmission/changes') {
         responses.push(submissionChanges(args, callId));
       } else {

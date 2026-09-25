@@ -19,7 +19,7 @@ vi.mock('../../api/submissions', () => ({
 
 import * as emailApi from '../../api/email';
 import * as submissions from '../../api/submissions';
-import { NoLongerScheduledError, SubmissionQuotaError } from '../../api/jmap-result';
+import { NoLongerScheduledError, RecipientsRefusedError, SubmissionQuotaError } from '../../api/jmap-result';
 import type { Email, Mailbox } from '../../api/types';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../send-undo-store';
 import { useToastStore } from '../toast-store';
@@ -181,6 +181,44 @@ describe('send-undo-store', () => {
       }]);
       // Nothing is left to undo.
       expect(useSendUndoStore.getState()).toMatchObject({ pending: null, busy: false });
+    });
+
+    // A throttle used up since the send was taken (Stalwart 0.16 and 1.0 check
+    // the recipients again for the release): the original was kept.
+    it('keeps the held message when the server refused every recipient of the release', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      api.rescheduleScheduledSend.mockRejectedValueOnce(new RecipientsRefusedError([
+        { email: 'you@example.com', smtpReply: '452 4.4.5 Rate limit exceeded, try again later.' },
+      ]));
+      const pending = entry();
+      useSendUndoStore.getState().setPending(pending);
+
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
+
+      expect(useToastStore.getState().toasts).toMatchObject([{
+        type: 'error',
+        title: 'Could not send now',
+        message: 'Not sent: the server refused you@example.com (452 4.4.5 Rate limit exceeded, try again later.). The message is still scheduled.',
+      }]);
+      // It still goes out when the delay ends, and can still be undone.
+      expect(useSendUndoStore.getState()).toMatchObject({ pending, busy: false });
+    });
+
+    it('names the recipients the server refused for the release while the others get it', async () => {
+      api.rescheduleScheduledSend.mockResolvedValueOnce({
+        emailSubmissionId: 'sub-2',
+        refusedRecipients: [{ email: 'nobody@example.net', smtpReply: '550 5.1.2 Relay not allowed.' }],
+      });
+      useSendUndoStore.getState().setPending(entry());
+
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(true);
+
+      expect(useToastStore.getState().toasts).toMatchObject([{
+        type: 'warning',
+        title: 'Not sent to everyone',
+        message: 'The server refused nobody@example.net (550 5.1.2 Relay not allowed.). The other recipients get the message.',
+      }]);
+      expect(useSendUndoStore.getState().pending).toBeNull();
     });
 
     it('releases the held message from the account holding it', async () => {

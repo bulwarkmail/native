@@ -272,6 +272,9 @@
     "recipient_copy": "کپی نشانی",
     "recipient_move_to": "انتقال به {field}",
     "recipient_remove": "حذف",
+    "recipients_partly_refused": "سرور {recipients} را رد کرد. سایر گیرندگان پیام را دریافت می‌کنند.",
+    "recipients_partly_refused_title": "برای همه ارسال نشد",
+    "recipients_refused": "ارسال نشد: سرور {recipients} را رد کرد.",
     "remove_attachment": "حذف پیوست",
     "save_draft": "ذخیره پیش‌نویس",
     "save_failed_no_drafts": "پوشه پیش‌نویس‌ها برای ذخیره این پیش‌نویس وجود ندارد.",
@@ -402,6 +405,8 @@
     "show_less": "نمایش کمتر",
     "smime_unsupported": "امضا/رمزگذاری‌شده با S/MIME - در موبایل پشتیبانی نمی‌شود",
     "source_too_large": "پیام برای نمایش کامل بیش از حد بزرگ است. به‌جای آن، منبع کامل را به اشتراک بگذارید.",
+    "still_scheduled": "پیام همچنان زمان‌بندی شده است.",
+    "still_scheduled_at": "پیام همچنان برای {date} زمان‌بندی شده است.",
     "thread_loading": "در حال بارگذاری مکالمه...",
     "undo_send_failed": "بازگردانی ارسال ممکن نشد",
     "unsubscribe_banner": {

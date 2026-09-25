@@ -272,6 +272,9 @@
     "recipient_copy": "Copia l'adreça",
     "recipient_move_to": "Mou a {field}",
     "recipient_remove": "Elimina",
+    "recipients_partly_refused": "El servidor ha rebutjat {recipients}. Els altres destinataris reben el missatge.",
+    "recipients_partly_refused_title": "No s'ha enviat a tothom",
+    "recipients_refused": "No s'ha enviat: el servidor ha rebutjat {recipients}.",
     "remove_attachment": "Elimina el fitxer adjunt",
     "save_draft": "Desa l'esborrany",
     "save_failed_no_drafts": "No hi ha cap carpeta Esborranys on desar aquest esborrany.",
@@ -402,6 +405,8 @@
     "show_less": "Mostra'n menys",
     "smime_unsupported": "Signat/xifrat amb S/MIME: no és compatible amb el mòbil",
     "source_too_large": "El missatge és massa gran per mostrar-lo sencer. Compartiu-ne el codi font complet.",
+    "still_scheduled": "El missatge encara està programat.",
+    "still_scheduled_at": "El missatge encara està programat per al {date}.",
     "thread_loading": "Carregant la conversa...",
     "undo_send_failed": "No s'ha pogut desfer l'enviament",
     "unsubscribe_banner": {
