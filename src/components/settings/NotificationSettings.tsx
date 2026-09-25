@@ -14,6 +14,7 @@ import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
+import { useEmailStore } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import {
@@ -24,6 +25,7 @@ import {
   isPushSupported,
   isValidRelayUrl,
   listPushDevices,
+  mailAccountsWithoutPush,
   PushSetupError,
   readPushAccountIds,
   revokePushDevice,
@@ -142,6 +144,26 @@ export function NotificationSettings() {
     // on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAccountId, supported]);
+
+  // Stalwart pushes only the user's own mailboxes and their groups', so
+  // mailboxes shared by other users stay silent in the background (they still
+  // update while the app is open). Say so instead of leaving users to wonder.
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const [sharedWithoutPush, setSharedWithoutPush] = useState(false);
+  useEffect(() => {
+    if (!supported || !client) {
+      setSharedWithoutPush(false);
+      return;
+    }
+    let cancelled = false;
+    const accountIds = mailboxes.flatMap((m) => (m.isShared && m.accountId ? [m.accountId] : []));
+    // Re-read after each enable run too: it may have added refused accounts.
+    void mailAccountsWithoutPush(accountIds).then(
+      (ids) => { if (!cancelled) setSharedWithoutPush(ids.length > 0); },
+      () => undefined,
+    );
+    return () => { cancelled = true; };
+  }, [supported, client, mailboxes, pushStatus.kind]);
 
   const describeError = (error: unknown): string => {
     if (error instanceof PushSetupError) {
@@ -283,6 +305,15 @@ export function NotificationSettings() {
             />
           </View>
         </SettingItem>
+
+        {sharedWithoutPush && (
+          <Text style={styles.fieldDescription}>
+            {t(
+              'settings.notifications.push.shared_mailboxes_no_push',
+              "Mailboxes others share with you don't send background notifications.",
+            )}
+          </Text>
+        )}
 
         {upSupported && (
           <>

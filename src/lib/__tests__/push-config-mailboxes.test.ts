@@ -4,12 +4,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mailbox/get (and the shared accounts') on every sign-in and start, next to
 // the mail store's identical load (PF7).
 
+// A group the user belongs to lists emailpush on 0.16.16+ and 1.0; a mailbox
+// shared by ACL does on 0.16.16-0.16.23 only.
+const { EMAIL_PUSH } = vi.hoisted(() => ({
+  EMAIL_PUSH: { 'urn:ietf:params:jmap:emailpush': {} },
+}));
+
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     username: 'user@example.com',
     serverUrl: 'https://mail.example.com',
     accountId: 'jmap-primary',
-    currentSession: { capabilities: {} },
+    currentSession: {
+      capabilities: EMAIL_PUSH,
+      accounts: {
+        'jmap-primary': { name: 'user', isPersonal: true, isReadOnly: false, accountCapabilities: EMAIL_PUSH },
+        team: { name: 'team', isPersonal: false, isReadOnly: false, accountCapabilities: EMAIL_PUSH },
+        'acl-b': { name: 'userb', isPersonal: false, isReadOnly: true, accountCapabilities: {} },
+      },
+    },
   },
 }));
 
@@ -51,6 +64,18 @@ describe('push filter folders', () => {
       operator: 'AND',
       conditions: [{ notKeyword: '$junk' }, { inMailboxOtherThan: ['j'] }],
     });
+  });
+
+  it('leaves out an account that does not list emailpush (a mailbox shared by ACL on Stalwart 1.0)', async () => {
+    provideLoadedMailboxes(async () => [
+      { id: 'junk', role: 'junk', accountId: 'jmap-primary' },
+      { id: 'team:j', originalId: 'j', role: 'junk', accountId: 'team', isShared: true },
+      { id: 'acl-b:inbox', originalId: 'inbox', role: 'inbox', accountId: 'acl-b', isShared: true },
+    ] as never);
+
+    const config = await buildEmailPushConfig();
+
+    expect(Object.keys(config).sort()).toEqual(['jmap-primary', 'team']);
   });
 
   it('fetches them itself when the store has none for this account', async () => {

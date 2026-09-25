@@ -10,9 +10,9 @@ import {
 import { getMailboxes, getSharedMailboxes } from '../api/email';
 import { loadedMailboxes } from './mailbox-source';
 import { jmapClient } from '../api/jmap-client';
-import { JMAPMethodError } from '../api/jmap-result';
+import { isJMAPSetError, JMAPMethodError } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
-import type { EmailPushConfig, JMAPAccountInfo, Mailbox } from '../api/types';
+import type { EmailPushConfig, JMAPAccountInfo, Mailbox, PushSubscription } from '../api/types';
 import { generateAccountId } from './account-utils';
 import { t } from '../stores/locale-store';
 import {
@@ -252,11 +252,28 @@ export function serverSupportsEmailPush(): boolean {
 }
 
 /**
+ * Whether the session lists emailpush among the account's own capabilities.
+ * Not jmapClient.hasAccountCapability: that falls back to the session-level
+ * capability, which Stalwart advertises whatever the account.
+ */
+function accountListsEmailPush(accountId: string): boolean {
+  const caps = jmapClient.currentSession?.accounts?.[accountId]?.accountCapabilities;
+  return !!caps && EMAIL_PUSH_CAPABILITY in caps;
+}
+
+/**
  * The delivery filter we want on every account the subscription fans out to:
  * skip anything the spam filter tagged `$junk` and anything that lives only in
  * a Junk-role mailbox (Sieve `fileinto` doesn't set the keyword). The two are
  * ANDed so a stale mailbox id - the user deleted and recreated Junk - degrades
  * to keyword-only filtering rather than letting everything through.
+ *
+ * Only the primary account and the accounts that list emailpush in their
+ * accountCapabilities go in the map. Stalwart fans a subscription out to the
+ * user's own account and their groups only, and refuses the whole map as
+ * `forbidden` when it names a mailbox shared by ACL. 1.0 lists emailpush on
+ * exactly those accounts; 0.16.16 to 0.16.23 list it on every account, and
+ * the setup narrows the map when the server refuses it.
  */
 export async function buildEmailPushConfig(): Promise<Record<string, EmailPushConfig>> {
   const primary = jmapClient.accountId;
@@ -272,6 +289,7 @@ export async function buildEmailPushConfig(): Promise<Record<string, EmailPushCo
   ];
   for (const m of all) {
     const accountId = m.accountId || primary;
+    if (accountId !== primary && !accountListsEmailPush(accountId)) continue;
     const junk = junkByAccount.get(accountId) ?? [];
     // Shared-account mailboxes carry a client-side "<account>:<id>" id;
     // the server only knows the original.
@@ -363,8 +381,11 @@ export function emailPushFallbacks(
 
 /**
  * Run a subscription write that carries `emailPush`, narrowing the map along
- * emailPushFallbacks while the server refuses it as `forbidden`. Resolves to
- * the write's result and the map the server took.
+ * emailPushFallbacks while the server refuses the subscription with a
+ * `forbidden` SetError. Anything else - a refused method call (which can be
+ * `forbidden` too), overQuota, a failed request - would fail the same way
+ * with a narrower map, so it is thrown as is. Resolves to the write's result
+ * and the map the server took.
  */
 async function writeWithEmailPush<T>(
   emailPush: Record<string, EmailPushConfig> | null,
@@ -377,8 +398,8 @@ async function writeWithEmailPush<T>(
     try {
       return { result: await write(attempts[i]), emailPush: attempts[i] };
     } catch (err) {
-      const forbidden = err instanceof JMAPMethodError && err.type === 'forbidden';
-      if (!forbidden || i === attempts.length - 1) throw err;
+      const mapRefused = isJMAPSetError(err) && err.type === 'forbidden';
+      if (!mapRefused || i === attempts.length - 1) throw err;
       logPhase('jmap', 'emailPush map refused, retrying with fewer accounts');
     }
   }
@@ -414,6 +435,40 @@ function withoutAccounts(
   accountIds: string[],
 ): Record<string, EmailPushConfig> {
   return Object.fromEntries(Object.entries(config).filter(([id]) => !accountIds.includes(id)));
+}
+
+/**
+ * Which of `accountIds` (accounts the user sees mailboxes in) background
+ * notifications don't reach: mailboxes others share with the user by ACL.
+ * Stalwart only fans a subscription out to the user's own account and their
+ * groups, whatever the emailPush map says, on every version.
+ *
+ * 1.0 leaves emailpush out of exactly those accounts' capabilities, so an
+ * account without it settles the question for every account. 0.16.16 to
+ * 0.16.23 list emailpush everywhere (and 0.16.6 to 0.16.15 nowhere), so there
+ * it is the accounts the server refused in the map, and the ones that don't
+ * look owned.
+ */
+export async function mailAccountsWithoutPush(accountIds: Iterable<string>): Promise<string[]> {
+  let primary: string;
+  try {
+    primary = jmapClient.accountId;
+  } catch {
+    return [];
+  }
+  const others = Array.from(new Set(accountIds)).filter((id) => id && id !== primary);
+  if (others.length === 0) return [];
+  if (serverSupportsEmailPush()) {
+    const withoutEmailPush = others.filter((id) => !accountListsEmailPush(id));
+    if (withoutEmailPush.length > 0) return withoutEmailPush;
+  }
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  const refused = username && serverUrl
+    ? await readRefusedEmailPushAccounts(generateAccountId(username, serverUrl))
+    : [];
+  const accounts = jmapClient.currentSession?.accounts;
+  return others.filter((id) => refused.includes(id) || !looksOwned(accounts?.[id]));
 }
 
 type BulwarkFcmNative = {
@@ -486,6 +541,35 @@ export class PushSetupError extends Error {
     this.name = 'PushSetupError';
     this.phase = phase;
   }
+}
+
+// A subscription write the mail server refused or could not take. The
+// refusals a user can do something about read as plain text; anything else
+// keeps the error's own message.
+function subscriptionError(err: unknown): PushSetupError {
+  const type = err instanceof JMAPMethodError ? err.type : undefined;
+  if (type === 'forbidden') {
+    return new PushSetupError(
+      'jmap',
+      t('settings.notifications.push.err_forbidden', "The mail server doesn't allow background notifications for this account."),
+    );
+  }
+  if (type === 'overQuota') {
+    // Stalwart allows 15 subscriptions per account by default, and a
+    // replacement is created before the one it replaces is destroyed.
+    return new PushSetupError(
+      'jmap',
+      t(
+        'settings.notifications.push.err_over_quota',
+        'This account has too many push registrations on the mail server (the limit is usually 15). Revoke devices you no longer use in the notification settings, then try again.',
+      ),
+    );
+  }
+  const detail = err instanceof Error ? err.message : String(err);
+  return new PushSetupError(
+    'jmap',
+    t('settings.notifications.push.err_jmap_refused', 'The mail server refused the push subscription: {detail}', { detail }),
+  );
 }
 
 function randomClientId(): string {
@@ -916,8 +1000,20 @@ async function setupPushNotificationsInner(
   // With forceRecreate we skip the reuse and replace it instead (#841). Either
   // way the old record keeps delivering until its replacement is verified, so
   // a replacement the server refuses never leaves the device without push.
+  //
+  // A failed listing ends the run here: taken for "the server has no
+  // subscription", it would drop the key of a working registration.
   logPhase('jmap');
-  const existingSubs = await listPushSubscriptions().catch(() => []);
+  let existingSubs: PushSubscription[];
+  try {
+    existingSubs = await listPushSubscriptions();
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new PushSetupError(
+      'jmap',
+      t('settings.notifications.push.err_jmap_list', 'Could not read the push registrations from the mail server: {detail}', { detail }),
+    );
+  }
   // A forced re-registration re-learns which accounts the server accepts in
   // the emailPush map.
   if (params.forceRecreate) await AsyncStorage.removeItem(emailPushRefusedKey(accountId));
@@ -939,7 +1035,15 @@ async function setupPushNotificationsInner(
     if (match) {
       if (match.expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), match.expires);
       if (!params.forceRecreate) {
-        const refreshed = await refreshSubscriptionExpires(match, emailPush);
+        let refreshed: Awaited<ReturnType<typeof refreshSubscriptionExpires>>;
+        try {
+          refreshed = await refreshSubscriptionExpires(match, emailPush);
+        } catch (err) {
+          // Nothing the server said about the subscription (a failed request,
+          // rate limiting, a refused method call): it keeps delivering, and
+          // the next run tries again.
+          throw subscriptionError(err);
+        }
         if (refreshed) {
           await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, refreshed.emailPush);
           await addPushAccountId(accountId);
@@ -949,8 +1053,9 @@ async function setupPushNotificationsInner(
           return { subscriptionId: storedServerId, verified: true };
         }
       }
-      // Server rejected the refresh or the caller asked for a fresh record:
-      // create a replacement below and destroy this one once it's verified.
+      // The server refused the refresh with a SetError, or the caller asked
+      // for a fresh record: create a replacement below and destroy this one
+      // once it's verified.
       replacedServerId = storedServerId;
     } else {
       await AsyncStorage.removeItem(subKey);
@@ -998,11 +1103,7 @@ async function setupPushNotificationsInner(
     serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new PushSetupError(
-      'jmap',
-      t('settings.notifications.push.err_jmap_refused', 'The mail server refused the push subscription: {detail}', { detail }),
-    );
+    throw subscriptionError(err);
   }
 
   logPhase('verify');
@@ -1041,9 +1142,12 @@ async function addPushAccountId(accountId: string): Promise<void> {
 // server's ceiling, and re-sync `types` / the delivery filter when they drift
 // from what this client wants (a subscription created by an older build still
 // listens to `Email`/`Mailbox`; a Junk mailbox id can change under us).
-// Returns false if the server rejects the update, which the caller treats as
-// "replace"; otherwise the emailPush map the update installed (null when it
-// left the filter alone).
+// Returns false when the server refuses the update with a SetError (the
+// subscription is gone, or no narrower map is accepted), which the caller
+// answers with a replacement; otherwise the emailPush map the update
+// installed (null when it left the filter alone). Every other failure - the
+// network, a timeout, rate limiting, a refused method call - says nothing
+// about the subscription and is thrown.
 async function refreshSubscriptionExpires(
   sub: {
     id: string;
@@ -1075,8 +1179,9 @@ async function refreshSubscriptionExpires(
       (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
     );
     return { emailPush };
-  } catch {
-    return false;
+  } catch (err) {
+    if (isJMAPSetError(err)) return false;
+    throw err;
   }
 }
 

@@ -21,6 +21,7 @@ import {
   updatePushSubscription,
   verifyPushSubscription,
 } from '../push';
+import { isJMAPSetError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
@@ -190,6 +191,51 @@ describe('push operations', () => {
         methodResponses: [['PushSubscription/set', { updated: { s1: null } }, '0']],
       });
       await expect(updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' })).resolves.toBeUndefined();
+    });
+
+    // The push setup narrows the emailPush map, or replaces a subscription,
+    // only on the server's verdict about the subscription itself.
+    const rejection = (call: () => Promise<unknown>) => call().then(() => null, (err: unknown) => err);
+
+    it('throws a refused create as a SetError (Stalwart 0.16.16+ and 1.0)', async () => {
+      // As Stalwart answers a map naming a mailbox shared by ACL: no
+      // accountId, state or `created` key (jmap-proto method/set.rs).
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { notCreated: { new: forbidden } }, '0']],
+      });
+      const err = await rejection(() =>
+        createPushSubscription({ deviceClientId: 'd', url: 'https://relay/x', types: ['EmailDelivery'] }));
+      expect(isJMAPSetError(err)).toBe(true);
+      expect(err).toMatchObject({ type: 'forbidden' });
+    });
+
+    it('throws an update of a vanished subscription as a notFound SetError', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['PushSubscription/set', { notUpdated: { s1: { type: 'notFound' } } }, '0']],
+      });
+      const err = await rejection(() => updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' }));
+      expect(isJMAPSetError(err)).toBe(true);
+      expect(err).toMatchObject({ type: 'notFound' });
+    });
+
+    it('throws a refused method call as a plain method error, even when forbidden', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['error', { type: 'forbidden', description: 'Permission denied' }, '0']],
+      });
+      const create = await rejection(() =>
+        createPushSubscription({ deviceClientId: 'd', url: 'https://relay/x', types: ['EmailDelivery'] }));
+      const update = await rejection(() => updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' }));
+      for (const err of [create, update]) {
+        expect(err).toMatchObject({ name: 'JMAPMethodError', type: 'forbidden' });
+        expect(isJMAPSetError(err)).toBe(false);
+      }
+    });
+
+    it('does not read an update that is neither applied nor refused as a SetError', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['PushSubscription/set', {}, '0']] });
+      const err = await rejection(() => updatePushSubscription('s1', { expires: '2026-10-01T00:00:00Z' }));
+      expect(err).toMatchObject({ name: 'JMAPMethodError' });
+      expect(isJMAPSetError(err)).toBe(false);
     });
   });
 

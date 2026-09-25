@@ -20,6 +20,11 @@ function pushUsing(withEmailPush: boolean): string[] {
   return withEmailPush ? [CAPABILITIES.CORE, CAPABILITIES.EMAIL_PUSH] : [CAPABILITIES.CORE];
 }
 
+/**
+ * Every PushSubscription of the account. Throws when the server can't be
+ * asked or refuses the call - never an empty list instead: to the push setup
+ * an empty list means "the server no longer has our subscription".
+ */
 export async function listPushSubscriptions(): Promise<PushSubscription[]> {
   const withEmailPush = hasEmailPushCapability();
   // `emailPush` is not in the server's default property set, so ask for it
@@ -41,9 +46,9 @@ export async function listPushSubscriptions(): Promise<PushSubscription[]> {
  * Create a PushSubscription pointing the JMAP server at the given relay URL.
  * Returns the server-assigned id (which the client also registers with the
  * relay so the relay can route incoming pushes to an Expo token) and the
- * expiry the server settled on. A refusal throws a JMAPMethodError carrying
- * the server's SetError type, so callers can tell a `forbidden` emailPush map
- * from other failures.
+ * expiry the server settled on. A refused subscription throws a JMAPSetError
+ * carrying the SetError type, so callers can tell a `forbidden` emailPush map
+ * from a refused method call and other failures.
  */
 export async function createPushSubscription(params: {
   deviceClientId: string;
@@ -88,10 +93,11 @@ export async function createPushSubscription(params: {
 
 /**
  * Push the subscription's expiry forward and re-sync its types or delivery
- * filter (RFC 8620 §7.2.1). Throws a JMAPMethodError carrying the server's
- * SetError type when it refuses the update - `notFound` once the
- * subscription is gone, `forbidden` for an emailPush map naming an account
- * the user may not subscribe to.
+ * filter (RFC 8620 §7.2.1). Throws a JMAPSetError carrying the SetError type
+ * when the server refuses the update - `notFound` once the subscription is
+ * gone, `forbidden` for an emailPush map naming an account the user may not
+ * subscribe to. An answer that neither updates nor refuses it is a plain
+ * JMAPMethodError: it says nothing about the subscription.
  */
 export async function updatePushSubscription(
   id: string,

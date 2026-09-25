@@ -60,8 +60,31 @@ export function requireMethodResult<T = Record<string, any>>(
 }
 
 /**
- * Throw when a /set response reports the given ids (or any id when `ids` is
- * omitted) under `notCreated` / `notUpdated` / `notDestroyed`.
+ * A SetError (RFC 8620 §5.3): the server looked at one object of a /set call
+ * and refused it (`notCreated` / `notUpdated` / `notDestroyed`), as opposed
+ * to refusing the whole method call. The same type can come either way
+ * (`forbidden` is both), and only a SetError says something about that
+ * object. It is a `JMAPMethodError` with that name, so `instanceof` checks
+ * and the name-based classification in lib/network-error treat it as before.
+ */
+export class JMAPSetError extends JMAPMethodError {
+  /** The properties the server named (`invalidProperties`), if any. */
+  properties?: string[];
+  constructor(type: string, description?: string, properties?: string[]) {
+    super(type, description);
+    if (properties?.length) this.properties = properties;
+  }
+}
+
+/** Whether a thrown value is a SetError rather than a refused method call. */
+export function isJMAPSetError(err: unknown): err is JMAPSetError {
+  return err instanceof JMAPSetError;
+}
+
+/**
+ * Throw a `JMAPSetError` when a /set response reports the given ids (or any
+ * id when `ids` is omitted) under `notCreated` / `notUpdated` /
+ * `notDestroyed`.
  */
 export function assertSetResult(
   body: Record<string, any>,
@@ -82,9 +105,10 @@ export function assertSetResult(
     if (err?.properties?.length) detail.push(`properties=[${err.properties.join(', ')}]`);
     if (err?.description) detail.push(err.description);
     const more = entries.length > 1 ? ` (+${entries.length - 1} more)` : '';
-    throw new JMAPMethodError(
+    throw new JMAPSetError(
       err?.type ?? 'setError',
       `Failed to ${verb} ${what} ${id}${more}: ${detail.join(' – ')}`,
+      err?.properties,
     );
   }
 }
@@ -132,23 +156,6 @@ export function batched<T>(items: T[], size: number): T[][] {
     result.push(items.slice(i, i + step));
   }
   return result;
-}
-
-/**
- * A SetError (RFC 8620 §5.3): the server looked at one object of a /set call
- * and refused it (`notCreated` / `notUpdated` / `notDestroyed`), as opposed
- * to refusing the whole method call. The same type can come either way
- * (`forbidden` is both), and only a SetError says something about that
- * object. It is a `JMAPMethodError` with that name, so `instanceof` checks
- * and the name-based classification in lib/network-error treat it as before.
- */
-export class JMAPSetError extends JMAPMethodError {
-  /** The properties the server named (`invalidProperties`), if any. */
-  properties?: string[];
-  constructor(type: string, description?: string, properties?: string[]) {
-    super(type, description);
-    if (properties?.length) this.properties = properties;
-  }
 }
 
 /**
