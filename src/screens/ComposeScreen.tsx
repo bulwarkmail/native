@@ -882,7 +882,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   React.useEffect(() => {
     if (selectedIdentityId || identities.length === 0) return;
     const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
-    const preferredId = preferredIdentityIds[jmapClient.accountId];
+    // Identities can come from the offline cache before the session is up,
+    // when the throwing `accountId` getter would crash the screen.
+    const connectedAccountId = jmapClient.connectedAccountId;
+    const preferredId = connectedAccountId ? preferredIdentityIds[connectedAccountId] : undefined;
     const defaultIdentity =
       identities.find((i) => i.id === preferredId)
       ?? identities.find((i) => i.email.toLowerCase() === activeEmail?.toLowerCase())
