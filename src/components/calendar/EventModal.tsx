@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert as AlertDialog,
   Modal,
   View,
   Text,
@@ -24,6 +25,7 @@ import {
   Users,
   Trash2,
   AlignLeft,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { addHours, addMinutes, format } from 'date-fns';
 import type {
@@ -42,7 +44,7 @@ import {
   timePattern,
 } from '../../lib/calendar-utils';
 import { displayNow } from '../../lib/calendar-timezone';
-import { editorTimesFromEvent, eventTimeFieldsToSave } from '../../lib/event-editor-times';
+import { editorTimesChanged, editorTimesFromEvent, eventTimeFieldsToSave } from '../../lib/event-editor-times';
 import { useSettingsStore } from '../../stores/settings-store';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { useCalendarLocale } from '../../lib/calendar-locale';
@@ -56,12 +58,15 @@ import {
   type Reminder,
   type ReminderUnit,
 } from '../../lib/calendar-alerts';
-import { buildRecurrenceSummary, isSimpleRecurrenceRule } from '../../lib/recurrence';
+import { buildRecurrenceSummary, isSimpleRecurrenceRule, recurrenceRulesEqual } from '../../lib/recurrence';
 import {
   participantFieldsToSave,
+  participantLimitMessage,
   seedAttendees,
+  userOrganizes,
   type Attendee,
 } from '../../lib/calendar-participants';
+import type { SeriesEdit } from '../../lib/recurrence-overrides';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
@@ -89,10 +94,14 @@ interface EventModalProps {
   currentUserEmails?: string[];
   // Client-side iCal subscriptions are read-only targets (#762).
   isSubscriptionCalendar?: (calendarId: string) => boolean;
+  /** The server's maxParticipantsPerEvent, for a warning; null when not advertised. */
+  maxParticipants?: number | null;
   onSave: (
     data: Partial<CalendarEvent>,
     calendarId: string,
-    options?: { sendSchedulingMessages?: boolean },
+    // `edit`: what the save knows beyond its patch, for the scope a series
+    // edit goes to (the attendee rows, what changed about its dates).
+    options?: { sendSchedulingMessages?: boolean; edit?: SeriesEdit },
   ) => void | Promise<void>;
   onDelete?: (event: CalendarEvent) => void;
   onClose: () => void;
@@ -159,6 +168,7 @@ export function EventModal({
   defaultCalendarId,
   currentUserEmails = [],
   isSubscriptionCalendar,
+  maxParticipants = null,
   onSave,
   onDelete,
   onClose,
@@ -295,6 +305,10 @@ export function EventModal({
     }
   };
 
+  // An event without an organizer, or organized under one of the user's
+  // addresses; not an invitation someone else sent.
+  const organizes = userOrganizes(event, currentUserEmails);
+
   const handleSave = async () => {
     if (!title.trim() || !calendarId) return;
     setSaving(true);
@@ -332,11 +346,19 @@ export function EventModal({
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };
+      // What changes about when the event happens: moved by the user as its
+      // organizer, the attendees are asked again. The dates are those of
+      // the event the editor was opened on - one occurrence of a series -
+      // whose own rule is not this save's to change.
+      const timesMoved = !!event && editorTimesChanged({ allDay, start, end }, event);
+      const ruleChanged = !!event && !recurrenceRulesEqual(event.recurrenceRules, recurrenceRules);
       // An invitation the user received keeps its organizer; only an event
       // without one is organized by the user.
       Object.assign(data, participantFieldsToSave(event, attendees, {
         userEmail: currentUserEmails[0],
+        userEmails: currentUserEmails,
         resolveName: resolveContactName,
+        rescheduled: timesMoved || (!event?.recurrenceId && ruleChanged),
       }));
       if (data.recurrenceRules === null) {
         // Dropping the rule leaves per-occurrence data dangling.
@@ -347,9 +369,17 @@ export function EventModal({
         if (data[key] === undefined) delete data[key];
       }
       await onSave(data, calendarId, {
-        sendSchedulingMessages: attendees.length > 0 && sendInvitations,
+        // Only the organizer sends: on an invitation someone else sent, a
+        // save would reach the organizer as a reply.
+        sendSchedulingMessages: organizes && attendees.length > 0 && sendInvitations,
+        edit: { attendees, timesMoved, ruleChanged },
       });
       onClose();
+    } catch (err) {
+      AlertDialog.alert(
+        t('calendar.notifications.event_error', 'Something went wrong'),
+        participantLimitMessage(err, t) ?? (err instanceof Error ? err.message : undefined),
+      );
     } finally {
       setSaving(false);
     }
@@ -729,7 +759,22 @@ export function EventModal({
                 setAttendees((prev) => prev.filter((a) => a.email.toLowerCase() !== email.toLowerCase()))
               }
             />
-            {attendees.length > 0 && (
+            {/* Only a warning: 0.16 advertises the limit without enforcing
+                it, Stalwart 1.0 refuses to save more participants - the
+                organizer entry a save adds counts too. */}
+            {maxParticipants != null && attendees.length > 0 && attendees.length + 1 > maxParticipants && (
+              <View style={styles.limitRow} accessibilityRole="alert">
+                <AlertTriangle size={14} color={c.warning} />
+                <Text style={styles.limitText}>
+                  {t(
+                    'calendar.participants.limit_warning',
+                    'More than {max, plural, one {# participant} other {# participants}}, including the organizer: the server may refuse to save this event. An administrator can raise the limit.',
+                    { max: maxParticipants },
+                  )}
+                </Text>
+              </View>
+            )}
+            {organizes && attendees.length > 0 && (
               <View style={styles.allDayRow}>
                 <Text style={[styles.fieldText, { flex: 1 }]}>
                   {t('calendar.participants.send_invitations', 'Send invitations to participants')}
@@ -895,6 +940,8 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
   },
   fieldText: { ...typography.body, color: c.text },
+  limitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  limitText: { ...typography.caption, color: c.warning, flex: 1 },
 
   calendarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   calendarSwatch: { width: 12, height: 12, borderRadius: 6 },

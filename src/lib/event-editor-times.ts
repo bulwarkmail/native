@@ -1,4 +1,4 @@
-import { format, parseISO } from 'date-fns';
+import { format, isSameDay, parseISO } from 'date-fns';
 import type { CalendarEvent } from '../api/types';
 import {
   buildAllDayDuration,
@@ -40,6 +40,21 @@ export function editorTimesFromEvent(event: CalendarEvent): EditorTimes {
     // grows the event by one day.
     end: event.showWithoutTime ? getEventDisplayEndDate(event) : getEventEndDate(event),
   };
+}
+
+/**
+ * Whether the editor's times change when `event` happens: it turns all-day or
+ * timed, or its start or end moves - for an all-day event its first or last
+ * day, for a timed one the minute the editor shows. The editor keeps a time
+ * the user did not touch as it came, a zero-length event included, so an
+ * unchanged form is never a move.
+ */
+export function editorTimesChanged(times: EditorTimes, event: CalendarEvent): boolean {
+  const seed = editorTimesFromEvent(event);
+  if (seed.allDay !== times.allDay) return true;
+  if (times.allDay) return !isSameDay(seed.start, times.start) || !isSameDay(seed.end, times.end);
+  const minute = (date: Date) => Math.floor(date.getTime() / 60_000);
+  return minute(seed.start) !== minute(times.start) || minute(seed.end) !== minute(times.end);
 }
 
 export type EventTimeFields = Pick<CalendarEvent, 'start' | 'duration' | 'timeZone' | 'showWithoutTime'>;

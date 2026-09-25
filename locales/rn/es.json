@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Recordatorios del calendario",
+      "participant_limit": "El servidor permite como máximo {max, plural, one {# participante} other {# participantes}} por evento, incluido el organizador, por lo que rechazó este cambio. Un administrador puede aumentar el límite.",
       "starts_in_days": "{count, plural, one {Comienza en # día} other {Comienza en # días}}",
       "starts_in_hours": "{count, plural, one {Comienza en # hora} other {Comienza en # horas}}",
       "starts_in_minutes": "{count, plural, one {Comienza en # minuto} other {Comienza en # minutos}}"
+    },
+    "participants": {
+      "limit_warning": "Más de {max, plural, one {# participante} other {# participantes}}, incluido el organizador: es posible que el servidor se niegue a guardar este evento. Un administrador puede aumentar el límite."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {repetición} other {repeticiones}}",

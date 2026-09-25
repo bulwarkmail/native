@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Agendaherinneringen",
+      "participant_limit": "De server staat maximaal {max, plural, one {# deelnemer} other {# deelnemers}} per evenement toe, de organisator meegeteld, en heeft deze wijziging daarom geweigerd. Een beheerder kan de limiet verhogen.",
       "starts_in_days": "{count, plural, one {Begint over # dag} other {Begint over # dagen}}",
       "starts_in_hours": "{count, plural, one {Begint over # uur} other {Begint over # uur}}",
       "starts_in_minutes": "{count, plural, one {Begint over # minuut} other {Begint over # minuten}}"
+    },
+    "participants": {
+      "limit_warning": "Meer dan {max, plural, one {# deelnemer} other {# deelnemers}}, de organisator meegeteld: de server kan weigeren dit evenement op te slaan. Een beheerder kan de limiet verhogen."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {herhaling} other {herhalingen}}",

@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Kalendererinnerungen",
+      "participant_limit": "Der Server erlaubt höchstens {max, plural, one {# Teilnehmer} other {# Teilnehmer}} pro Termin, den Organisator mitgezählt, und hat die Änderung deshalb abgelehnt. Ihr Administrator kann das Limit erhöhen.",
       "starts_in_days": "{count, plural, one {Beginnt in # Tag} other {Beginnt in # Tagen}}",
       "starts_in_hours": "{count, plural, one {Beginnt in # Stunde} other {Beginnt in # Stunden}}",
       "starts_in_minutes": "{count, plural, one {Beginnt in # Minute} other {Beginnt in # Minuten}}"
+    },
+    "participants": {
+      "limit_warning": "Mehr als {max, plural, one {# Teilnehmer} other {# Teilnehmer}}, den Organisator mitgezählt: Der Server lehnt das Speichern dieses Termins möglicherweise ab. Ihr Administrator kann das Limit erhöhen."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {Termin} other {Terminen}}",

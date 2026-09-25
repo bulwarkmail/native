@@ -92,11 +92,15 @@ import {
 } from '../lib/calendar-utils';
 import { buildReplyTo } from '../lib/calendar-invitation';
 import {
-  buildAllScopeUpdates,
-  buildFutureSeriesData,
+  buildAllScopeEdit,
+  buildFutureSeriesEdit,
   isRecurringSeriesMember,
   truncateRecurrenceRules,
+  type SeriesEdit,
 } from '../lib/recurrence-overrides';
+import { participantLimitMessage } from '../lib/calendar-participants';
+import { maxParticipantsPerEvent } from '../api/calendar';
+import { useContactNameResolver } from '../lib/contact-name-resolver';
 import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } from '../lib/birthday-calendar';
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -116,6 +120,8 @@ type PendingAction =
       updates: Partial<CalendarEvent>;
       calendarId: string;
       sendScheduling?: boolean;
+      // The attendee rows and date changes the scope builds its write from.
+      edit?: SeriesEdit;
     }
   | { kind: 'delete'; event: CalendarEvent }
   | {
@@ -159,6 +165,7 @@ export default function CalendarScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const currentUserEmails = useUserCalendarAddresses();
+  const resolveContactName = useContactNameResolver();
   const { locale } = useCalendarLocale();
   const calendarDefaultView = useSettingsStore((s) => s.calendarDefaultView);
   const calendarShowTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
@@ -651,7 +658,7 @@ export default function CalendarScreen() {
         } catch (err) {
           Alert.alert(
             t('calendar.notifications.rsvp_error', 'Failed to update response'),
-            err instanceof Error ? err.message : undefined,
+            participantLimitMessage(err, t) ?? (err instanceof Error ? err.message : undefined),
           );
         }
         return;
@@ -660,6 +667,11 @@ export default function CalendarScreen() {
         if (action.kind === 'edit') {
           const { updates } = action;
           const opts = { sendSchedulingMessages: action.sendScheduling };
+          const participantContext = {
+            userEmail: currentUserEmails[0],
+            userEmails: currentUserEmails,
+            resolveName: resolveContactName,
+          };
           switch (scope) {
             case 'this': {
               // The store keeps the change on this occurrence: through its
@@ -672,7 +684,7 @@ export default function CalendarScreen() {
               const result = await truncateRecurrenceAtEvent(event);
               if (!result) throw new Error('Master event not found');
               const { master, originalRules } = result;
-              const newEventData = buildFutureSeriesData(master, originalRules, event, updates);
+              const newEventData = buildFutureSeriesEdit(master, originalRules, event, updates, currentUserEmails);
               delete newEventData.calendarIds;
               const targetCalendarId =
                 action.calendarId || getPrimaryCalendarId(master) || '';
@@ -692,7 +704,10 @@ export default function CalendarScreen() {
             case 'all': {
               const master = await getMasterEvent(event);
               if (!master) throw new Error('Master event not found');
-              await updateEvent(master.id, buildAllScopeUpdates(updates, event, master), opts);
+              const changes = action.edit
+                ? buildAllScopeEdit(updates, event, master, action.edit, participantContext)
+                : updates;
+              await updateEvent(master.id, changes, opts);
               break;
             }
           }
@@ -720,7 +735,7 @@ export default function CalendarScreen() {
       } catch (err) {
         Alert.alert(
           t('calendar.notifications.event_error', 'Something went wrong'),
-          err instanceof Error ? err.message : undefined,
+          participantLimitMessage(err, t) ?? (err instanceof Error ? err.message : undefined),
         );
       }
       try {
@@ -729,14 +744,17 @@ export default function CalendarScreen() {
         // Best effort — the next navigation refetches anyway.
       }
     },
-    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, submitRsvp, t],
+    [
+      pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh,
+      submitRsvp, t, currentUserEmails, resolveContactName,
+    ],
   );
 
   const handleSave = React.useCallback(
     async (
       data: Partial<CalendarEvent>,
       calendarId: string,
-      options?: { sendSchedulingMessages?: boolean },
+      options?: { sendSchedulingMessages?: boolean; edit?: SeriesEdit },
     ) => {
       const sendScheduling = options?.sendSchedulingMessages;
       if (modalEvent) {
@@ -749,7 +767,7 @@ export default function CalendarScreen() {
         if (isRecurringSeriesMember(modalEvent)) {
           // Ask which occurrences the edit applies to; the actual write
           // happens in handleScopeSelect.
-          setPendingAction({ kind: 'edit', event: modalEvent, updates, calendarId, sendScheduling });
+          setPendingAction({ kind: 'edit', event: modalEvent, updates, calendarId, sendScheduling, edit: options?.edit });
           return;
         }
         await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: sendScheduling });
@@ -1164,7 +1182,14 @@ export default function CalendarScreen() {
             setPendingAction({ kind: 'rsvp', event: ev, participantId, status });
             return;
           }
-          await submitRsvp(ev, participantId, status, 'series');
+          try {
+            await submitRsvp(ev, participantId, status, 'series');
+          } catch (err) {
+            Alert.alert(
+              t('calendar.notifications.rsvp_error', 'Failed to update response'),
+              participantLimitMessage(err, t) ?? (err instanceof Error ? err.message : undefined),
+            );
+          }
         }}
       />
 
@@ -1175,6 +1200,7 @@ export default function CalendarScreen() {
         defaultDate={modalDate}
         currentUserEmails={currentUserEmails}
         isSubscriptionCalendar={isSubscriptionCalendar}
+        maxParticipants={maxParticipantsPerEvent(modalEvent?.accountId)}
         onSave={handleSave}
         onDelete={handleDeleteFromModal}
         onClose={() => setModalVisible(false)}

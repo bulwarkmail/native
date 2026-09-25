@@ -26,7 +26,10 @@ import {
   resetTimeZoneChecks,
   queryExpandedEvents,
   hydrateExpandedOccurrences,
+  maxParticipantsPerEvent,
+  rsvpEvent,
 } from '../calendar';
+import { JMAPSetError, jmapErrorType } from '../jmap-result';
 import { useSettingsStore } from '../../stores/settings-store';
 
 describe('toLocalDateTime', () => {
@@ -75,7 +78,14 @@ describe('calendar operations', () => {
       expect(result).toEqual(calendars);
       expect(mockRequest).toHaveBeenCalledWith(
         [
-          ['Calendar/get', { accountId: 'acc-1' }, '0'],
+          // The properties by name: Stalwart 1.0's unfinished Metadata ones stay out.
+          ['Calendar/get', {
+            accountId: 'acc-1',
+            properties: [
+              'id', 'name', 'description', 'color', 'sortOrder', 'isSubscribed', 'isVisible', 'isDefault',
+              'myRights', 'shareWith', 'defaultAlertsWithTime', 'defaultAlertsWithoutTime',
+            ],
+          }, '0'],
           // The synthetic-id probe rides along with the first Calendar/get.
           ['CalendarEvent/set', { accountId: 'acc-1', update: { h333333: {} } }, 'synthetic-id-probe'],
         ],
@@ -451,6 +461,64 @@ describe('calendar operations', () => {
       expect(sent).not.toHaveProperty('recurrenceRules');
       // The returned event exposes the internal plural form again.
       expect(result.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 5 }]);
+    });
+  });
+
+  describe('refusals for the participant limit (Stalwart 1.0)', () => {
+    // 1.0 enforces maxParticipantsPerEvent on every create and update, an
+    // answer included; 0.16 advertises the limit without enforcing it.
+    const refusal = {
+      type: 'invalidProperties',
+      description: 'An event cannot have more than 20 participants.',
+      properties: ['participants'],
+    };
+
+    it('keeps the SetError type of a refused create', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { notCreated: { 'new-event': refusal } }, '0']],
+      });
+
+      const error = await createEvent({ title: 'All hands' }, 'cal-1').catch((e) => e);
+
+      expect(error).toBeInstanceOf(JMAPSetError);
+      expect(jmapErrorType(error)).toBe('invalidProperties');
+      expect(error.message).toBe('An event cannot have more than 20 participants.');
+      expect(error.properties).toEqual(['participants']);
+    });
+
+    it('keeps the SetError type of a refused update and answer', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { notUpdated: { ev1: refusal } }, '0']],
+      });
+
+      await expect(updateEvent('ev1', { title: 'All hands' })).rejects.toBeInstanceOf(JMAPSetError);
+      const error = await rsvpEvent('ev1', 'me', 'accepted').catch((e) => e);
+      expect(error).toBeInstanceOf(JMAPSetError);
+      expect(error.message).toBe('An event cannot have more than 20 participants.');
+    });
+  });
+
+  describe('maxParticipantsPerEvent', () => {
+    const session = (calendars: Record<string, unknown>) => ({
+      accounts: {
+        'acc-1': { accountCapabilities: { 'urn:ietf:params:jmap:calendars': calendars } },
+        shared: { accountCapabilities: { 'urn:ietf:params:jmap:calendars': {} } },
+      },
+    });
+    const client = jmapClient as unknown as { isConnected?: boolean; currentSession?: unknown };
+
+    it.each(['0.16.23', '1.0'])('reads the calendars capability of the account, else the primary one (Stalwart %s)', () => {
+      client.isConnected = true;
+      client.currentSession = session({ maxParticipantsPerEvent: 20 });
+      try {
+        expect(maxParticipantsPerEvent()).toBe(20);
+        expect(maxParticipantsPerEvent('shared')).toBe(20);
+        client.currentSession = session({});
+        expect(maxParticipantsPerEvent()).toBeNull();
+      } finally {
+        delete client.isConnected;
+        delete client.currentSession;
+      }
     });
   });
 

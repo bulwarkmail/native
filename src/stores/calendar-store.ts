@@ -4,7 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPersistStorage } from './persist-storage';
 import { t } from './locale-store';
 import type { Calendar, CalendarEvent, CalendarRights, Participant, StateChange } from '../api/types';
-import { normalizeAllDayDuration } from '../lib/calendar-utils';
+import { getEventStartDate, normalizeAllDayDuration } from '../lib/calendar-utils';
+import { withOwnAlertIds } from '../lib/calendar-alerts';
+import { hasAnsweredAttendees } from '../lib/calendar-participants';
 import {
   type CalendarUpdates,
   type EventIdentityFields,
@@ -42,6 +44,8 @@ import {
   buildFallbackOverridePatch,
   buildOccurrencePatch,
   buildOccurrenceRsvpPatch,
+  buildOverrideInTwoSteps,
+  createsOverride,
   isBrowserExpandedOccurrence,
   isOverrideSeriesKeyRejection,
   isServerRecurrenceInstance,
@@ -513,6 +517,65 @@ async function updateOccurrence(
   await updateBaseEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId);
 }
 
+/**
+ * The server occurrence of `instance`'s series at the same recurrence id, read
+ * again: a new override can give an occurrence another synthetic id.
+ */
+async function findServerOccurrence(
+  instance: CalendarEvent,
+  accountId: string | undefined,
+): Promise<CalendarEvent | null> {
+  if (!instance.baseEventId || !instance.recurrenceId) return null;
+  const at = getEventStartDate(instance).getTime();
+  if (isNaN(at)) return null;
+  const ids = await queryExpandedEvents(new Date(at - DAY_MS).toISOString(), new Date(at + DAY_MS).toISOString(), accountId);
+  if (!ids?.length) return null;
+  const found = await fetchEvents(ids, accountId, { expanded: true });
+  return found.find((e) => e.baseEventId === instance.baseEventId && e.recurrenceId === instance.recurrenceId) ?? null;
+}
+
+/**
+ * A first change to one server occurrence that keeps its attendees' answers.
+ * Stalwart delivers a new override only to attendees who have not answered
+ * (organizer.rs, 0.16 and 1.0 alike), and one who has would never hear of the
+ * change; an update of an existing override reaches everyone. So the override
+ * is written first as the occurrence stands, without scheduling, and the
+ * change then goes out as an update of it. The occurrence is looked up again
+ * in between: the new override can give it another synthetic id.
+ */
+async function updateOccurrenceInTwoSteps(
+  instance: CalendarEvent,
+  syntheticId: string,
+  patch: Partial<CalendarEvent>,
+  sendSchedulingMessages: boolean | undefined,
+  accountId: string | undefined,
+): Promise<void> {
+  await updateOccurrence(instance, syntheticId, (options) => withNewOverrideDetails(instance, {}, options), false, accountId);
+  const current = await findServerOccurrence(instance, accountId).catch(() => null);
+  await updateOccurrence(current ?? instance, current?.id ?? syntheticId, () => patch, sendSchedulingMessages, accountId);
+}
+
+/**
+ * Turn the calendar's default alerts off for a whole series, keeping the
+ * alerts it shows as its own - before one occurrence's alerts change in a way
+ * that turns them off (reminderFieldsToSave). While a series uses them,
+ * Stalwart 1.0 shows the calendar's defaults in place of any occurrence's own
+ * alerts and refuses useDefaultAlerts on a single occurrence ("This property
+ * cannot be modified on a single occurrence."): the change was stored and
+ * never shown. 0.16 stores and shows it either way; its series keeps the
+ * same alerts.
+ */
+async function stopSeriesDefaultAlerts(baseId: string, accountId: string | undefined): Promise<void> {
+  const [base] = await fetchEvents([baseId], accountId);
+  if (!base?.useDefaultAlerts) return;
+  const shown = base.alerts ?? {};
+  await apiUpdateEvent(baseId, {
+    useDefaultAlerts: false,
+    // Under ids of their own: 1.0 drops alerts saved under a default alert's id.
+    alerts: Object.keys(shown).length > 0 ? withOwnAlertIds(Object.values(shown), Object.keys(shown)) : null,
+  }, false, accountId);
+}
+
 /** Destroy one server-expanded occurrence; falls back to excluding it on the base event. */
 async function destroyOccurrence(
   instance: CalendarEvent,
@@ -548,6 +611,23 @@ async function updateBrowserOccurrence(
   const patch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates, { seriesKeys: true }));
   if (!patch) throw new Error('Cannot resolve the occurrence to override');
   await updateBaseEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+}
+
+/**
+ * A first change to one occurrence the device expanded that keeps its
+ * attendees' answers: the override on the base event is written first as
+ * the occurrence stands, without scheduling, then updated with the change
+ * (see updateOccurrenceInTwoSteps).
+ */
+async function updateBrowserOccurrenceInTwoSteps(
+  target: MutationTarget,
+  updates: Partial<CalendarEvent>,
+  sendSchedulingMessages: boolean | undefined,
+): Promise<void> {
+  const steps = buildOverrideInTwoSteps(target.storeEvent!, updates);
+  if (!steps) throw new Error('Cannot resolve the occurrence to override');
+  await updateBaseEvent(target.realId, steps.quiet, false, target.accountId);
+  await updateBaseEvent(target.realId, steps.change, sendSchedulingMessages, target.accountId);
 }
 
 /** Delete one occurrence the device expanded by excluding it on its base event. */
@@ -852,16 +932,36 @@ export const useCalendarStore = create<CalendarState>()(
         : undefined);
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
+    // An occurrence's alerts that turn the calendar's defaults off.
+    const stopsDefaultAlerts = patch.useDefaultAlerts === false && 'alerts' in patch;
+    // A first change to one occurrence that goes out to attendees of whom
+    // some answered and keep their answers (see updateOccurrenceInTwoSteps).
+    const twoSteps = !!storeEvent && schedule === true && createsOverride(storeEvent)
+      && hasAnsweredAttendees('participants' in patch
+        ? patch.participants as CalendarEvent['participants']
+        : storeEvent.participants);
     if (target.isOccurrence && storeEvent) {
-      await updateOccurrence(
-        storeEvent,
-        realId,
-        (options) => withNewOverrideDetails(storeEvent, patch as Partial<CalendarEvent>, options),
-        schedule,
-        accountId,
-      );
+      if (stopsDefaultAlerts && storeEvent.baseEventId) {
+        await stopSeriesDefaultAlerts(storeEvent.baseEventId, accountId);
+      }
+      if (twoSteps) {
+        await updateOccurrenceInTwoSteps(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+      } else {
+        await updateOccurrence(
+          storeEvent,
+          realId,
+          (options) => withNewOverrideDetails(storeEvent, patch as Partial<CalendarEvent>, options),
+          schedule,
+          accountId,
+        );
+      }
     } else if (target.isBrowserOccurrence) {
-      await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule);
+      if (stopsDefaultAlerts) await stopSeriesDefaultAlerts(realId, accountId);
+      if (twoSteps) {
+        await updateBrowserOccurrenceInTwoSteps(target, patch as Partial<CalendarEvent>, schedule);
+      } else {
+        await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule);
+      }
     } else {
       await updateBaseEvent(realId, patch, schedule, accountId);
     }

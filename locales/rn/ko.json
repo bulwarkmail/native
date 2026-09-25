@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "캘린더 알림",
+      "participant_limit": "서버에서 일정당 참석자를 주최자를 포함해 최대 {max, plural, other {#명}}까지만 허용해서 이 변경을 거부했어요. 관리자가 한도를 늘릴 수 있어요.",
       "starts_in_days": "{count, plural, other {#일 후 시작}}",
       "starts_in_hours": "{count, plural, other {#시간 후 시작}}",
       "starts_in_minutes": "{count, plural, other {#분 후 시작}}"
+    },
+    "participants": {
+      "limit_warning": "참석자가 주최자를 포함해 {max, plural, other {#명}}을 넘어요. 서버가 이 일정의 저장을 거부할 수 있어요. 관리자가 한도를 늘릴 수 있어요."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, other {회}}",

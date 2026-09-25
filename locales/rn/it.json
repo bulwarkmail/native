@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Promemoria del calendario",
+      "participant_limit": "Il server consente al massimo {max, plural, one {# partecipante} other {# partecipanti}} per evento, organizzatore incluso, quindi ha rifiutato la modifica. Un amministratore può aumentare il limite.",
       "starts_in_days": "{count, plural, one {Inizia tra # giorno} other {Inizia tra # giorni}}",
       "starts_in_hours": "{count, plural, one {Inizia tra # ora} other {Inizia tra # ore}}",
       "starts_in_minutes": "{count, plural, one {Inizia tra # minuto} other {Inizia tra # minuti}}"
+    },
+    "participants": {
+      "limit_warning": "Più di {max, plural, one {# partecipante} other {# partecipanti}}, organizzatore incluso: il server potrebbe rifiutarsi di salvare questo evento. Un amministratore può aumentare il limite."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {occorrenza} other {occorrenze}}",

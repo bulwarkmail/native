@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "日历提醒",
+      "participant_limit": "服务器每个活动最多允许 {max, plural, other {# 位}}参与者（含组织者），因此拒绝了此更改。管理员可以提高此限制。",
       "starts_in_days": "{count, plural, other {# 天后开始}}",
       "starts_in_hours": "{count, plural, other {# 小时后开始}}",
       "starts_in_minutes": "{count, plural, other {# 分钟后开始}}"
+    },
+    "participants": {
+      "limit_warning": "参与者（含组织者）超过 {max, plural, other {# 位}}：服务器可能会拒绝保存此活动。管理员可以提高此限制。"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, other {次}}",

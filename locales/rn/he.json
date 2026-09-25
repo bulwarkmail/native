@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "תזכורות לוח שנה",
+      "participant_limit": "השרת מאפשר עד {max, plural, one {# משתתף} other {# משתתפים}} לאירוע, כולל המארגן, ולכן דחה את השינוי. מנהל המערכת יכול להגדיל את המגבלה.",
       "starts_in_days": "{count, plural, one {מתחיל בעוד יום} two {מתחיל בעוד יומיים} other {מתחיל בעוד # ימים}}",
       "starts_in_hours": "{count, plural, one {מתחיל בעוד שעה} two {מתחיל בעוד שעתיים} other {מתחיל בעוד # שעות}}",
       "starts_in_minutes": "{count, plural, one {מתחיל בעוד דקה} two {מתחיל בעוד שתי דקות} other {מתחיל בעוד # דקות}}"
+    },
+    "participants": {
+      "limit_warning": "יותר מ-{max, plural, one {# משתתף} other {# משתתפים}}, כולל המארגן: ייתכן שהשרת יסרב לשמור את האירוע. מנהל המערכת יכול להגדיל את המגבלה."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {מופע} two {מופעים} other {מופעים}}",

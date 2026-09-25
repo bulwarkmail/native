@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Takvim hatırlatıcıları",
+      "participant_limit": "Sunucu etkinlik başına organizatör dahil en fazla {max, plural, one {# katılımcıya} other {# katılımcıya}} izin verdiği için bu değişikliği reddetti. Bir yönetici bu sınırı yükseltebilir.",
       "starts_in_days": "{count, plural, one {# gün sonra başlıyor} other {# gün sonra başlıyor}}",
       "starts_in_hours": "{count, plural, one {# saat sonra başlıyor} other {# saat sonra başlıyor}}",
       "starts_in_minutes": "{count, plural, one {# dakika sonra başlıyor} other {# dakika sonra başlıyor}}"
+    },
+    "participants": {
+      "limit_warning": "Organizatör dahil {max, plural, one {# katılımcıdan} other {# katılımcıdan}} fazla: sunucu bu etkinliği kaydetmeyi reddedebilir. Bir yönetici bu sınırı yükseltebilir."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {tekrar} other {tekrar}}",

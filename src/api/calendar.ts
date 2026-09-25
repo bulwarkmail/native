@@ -1,7 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
-import { JMAPMethodError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
+import { JMAPSetError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
 import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 import {
@@ -417,11 +417,23 @@ export function resetSyntheticIdSupport(): void {
   syntheticIdSupport.clear();
 }
 
+// The Calendar properties the app reads, which the default list on 0.16 and
+// 1.0 covers. Stalwart 1.0 advertises JMAP Metadata but its handlers are
+// still `todo!()`: a get that selects `metadata` or `privateMetadata` panics
+// on the server. An explicit list keeps them out even if a later release
+// adds them to the default. 0.16.6 knows every one of these.
+const CALENDAR_PROPERTIES = [
+  'id', 'name', 'description', 'color', 'sortOrder', 'isSubscribed', 'isVisible', 'isDefault',
+  'myRights', 'shareWith', 'defaultAlertsWithTime', 'defaultAlertsWithoutTime',
+];
+
 export async function getCalendars(): Promise<Calendar[]> {
   const accountId = jmapClient.accountId;
   const probeKey = syntheticIdProbeKey();
   const carriesProbe = !!probeKey && !syntheticIdSupport.has(probeKey);
-  const methodCalls: [string, Record<string, unknown>, string][] = [['Calendar/get', { accountId }, '0']];
+  const methodCalls: [string, Record<string, unknown>, string][] = [
+    ['Calendar/get', { accountId, properties: CALENDAR_PROPERTIES }, '0'],
+  ];
   if (carriesProbe) methodCalls.push(syntheticIdProbeCall(accountId));
   // The user's time zone is checked on the way too (calendarTimeZone).
   const timeZone = getUserTimeZone();
@@ -443,7 +455,7 @@ export async function getCalendars(): Promise<Calendar[]> {
       if (calendarAccessDenied.has(sharedAccountId)) return [];
       try {
         const sharedRes = await jmapClient.request(
-          [['Calendar/get', { accountId: sharedAccountId }, '0']],
+          [['Calendar/get', { accountId: sharedAccountId, properties: CALENDAR_PROPERTIES }, '0']],
           USING,
         );
         const list = methodResult<{ list: Calendar[] }>(sharedRes).list ?? [];
@@ -619,6 +631,28 @@ function splitRefusedChunk(chunk: RangeChunk, error: unknown): RangeChunk[] | nu
     { start: chunk.start, end: middle, position: 0 },
     { start: middle - 1, end: chunk.end, position: 0 },
   ];
+}
+
+/**
+ * The most participants an event may have, from the account's calendars
+ * capability (`maxParticipantsPerEvent`; the primary account's when the
+ * account names none), or null when it is not advertised. Stalwart 1.0
+ * refuses to create or update an event with more, an answer to an
+ * invitation included, and counts the organizer; 0.16 advertises the same
+ * value without enforcing it.
+ */
+export function maxParticipantsPerEvent(accountId?: string): number | null {
+  if (!jmapClient.isConnected) return null;
+  const accounts = jmapClient.currentSession?.accounts;
+  for (const id of [accountId, jmapClient.accountId]) {
+    if (!id) continue;
+    const capability = accounts?.[id]?.accountCapabilities?.[CAPABILITIES.CALENDARS] as
+      | { maxParticipantsPerEvent?: unknown }
+      | undefined;
+    const max = capability?.maxParticipantsPerEvent;
+    if (typeof max === 'number' && max > 0) return max;
+  }
+  return null;
 }
 
 /**
@@ -939,12 +973,13 @@ export async function createEvent(
   );
   const result = methodResult<{
     created?: Record<string, CalendarEvent>;
-    notCreated?: Record<string, { description?: string; type?: string }>;
+    notCreated?: Record<string, { description?: string; type?: string; properties?: string[] }>;
   }>(res);
   const created = result.created?.['new-event'];
   if (!created) {
     const err = result.notCreated?.['new-event'];
-    throw new Error(err?.description || err?.type || 'Failed to create event');
+    // With its type: the caller names Stalwart 1.0's participant limit.
+    throw new JMAPSetError(err?.type ?? 'setError', err?.description || err?.type || 'Failed to create event', err?.properties);
   }
   // The /set response echoes only server-set properties; merge them over the
   // submitted payload so the store's optimistic insert keeps recurrence data.
@@ -1013,11 +1048,11 @@ export async function updateEvent(
     [['CalendarEvent/set', setArgs(accountId, { update: { [id]: patch } }, sendSchedulingMessages), '0']],
     USING,
   );
-  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
+  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string; properties?: string[] }> }>(res);
   const err = result.notUpdated?.[id];
   // Keep the SetError type: the store retries some refusals differently
   // (isOverrideSeriesKeyRejection).
-  if (err) throw new JMAPMethodError(err.type ?? 'setError', err.description || err.type || 'Failed to update event');
+  if (err) throw new JMAPSetError(err.type ?? 'setError', err.description || err.type || 'Failed to update event', err.properties);
 }
 
 export async function deleteEvents(
@@ -1057,9 +1092,9 @@ export async function rsvpEvent(
     [['CalendarEvent/set', { accountId, update: { [eventId]: patch }, sendSchedulingMessages: true }, '0']],
     USING,
   );
-  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
+  const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string; properties?: string[] }> }>(res);
   const err = result.notUpdated?.[eventId];
-  if (err) throw new Error(err.description || err.type || 'Failed to send RSVP');
+  if (err) throw new JMAPSetError(err.type ?? 'setError', err.description || err.type || 'Failed to send RSVP', err.properties);
 }
 
 // Parse an uploaded .ics blob into one or more JSCalendar events (server-side).

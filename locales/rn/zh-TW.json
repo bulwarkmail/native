@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "行事曆提醒",
+      "participant_limit": "伺服器每個活動最多允許 {max, plural, other {# 位}}參與者（含主辦人），因此拒絕了這項變更。管理員可以提高此限制。",
       "starts_in_days": "{count, plural, other {# 天後開始}}",
       "starts_in_hours": "{count, plural, other {# 小時後開始}}",
       "starts_in_minutes": "{count, plural, other {# 分鐘後開始}}"
+    },
+    "participants": {
+      "limit_warning": "參與者（含主辦人）超過 {max, plural, other {# 位}}：伺服器可能會拒絕儲存此活動。管理員可以提高此限制。"
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, other {次後}}",

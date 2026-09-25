@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { parseISO } from 'date-fns';
 import { expandRecurringEvents } from '../recurrence-expansion';
+import { computeFireTime } from '../calendar-alert-scheduler';
 import type { CalendarEvent, RecurrenceRule } from '../../api/types';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
@@ -398,5 +400,95 @@ describe('expandRecurringEvents - override patches', () => {
     // The other occurrences keep the series' values.
     expect(result[0].participants?.att.participationStatus).toBe('needs-action');
     expect(result[0].locations?.l1.name).toBe('Room A');
+  });
+});
+
+// The master's utcStart/utcEnd place its first occurrence. An occurrence the
+// device expands carries the instants worked out for it, or none, never the
+// master's: kept, they put every later occurrence's reminders on the first
+// one's date, where they are in the past and never scheduled.
+describe('expandRecurringEvents - the master\'s instants', () => {
+  const fifteenHoursBefore = { '@type': 'OffsetTrigger', offset: '-PT15H', relativeTo: 'start' };
+
+  it('gives all-day occurrences no instants, so their reminders go off before each day (0.16.23 and 1.0)', () => {
+    // A yearly birthday, as both servers return the master in Berlin.
+    const birthday = ev({
+      id: 'bday', start: '2024-11-02T00:00:00', showWithoutTime: true, duration: 'P1D', timeZone: null,
+      utcStart: '2024-11-01T23:00:00Z', utcEnd: '2024-11-02T23:00:00Z',
+      recurrenceRules: [{ frequency: 'yearly' }],
+    });
+
+    const [occurrence] = expandRecurringEvents([birthday], '2026-10-01T00:00:00Z', '2026-12-01T00:00:00Z');
+
+    expect(occurrence.start).toBe('2026-11-02T00:00:00');
+    expect(occurrence).not.toHaveProperty('utcStart');
+    expect(occurrence).not.toHaveProperty('utcEnd');
+    expect(computeFireTime(occurrence, fifteenHoursBefore)).toBe(parseISO('2026-11-02T00:00:00').getTime() - 15 * 3600_000);
+  });
+
+  it('gives floating occurrences no instants when the master\'s are 0.16.23\'s year 32548', () => {
+    const standup = ev({
+      id: 'fl', start: '2026-10-05T09:00:00', duration: 'PT1H', timeZone: null,
+      utcStart: '32548-12-04T15:30:07Z', utcEnd: '32548-12-04T15:30:07Z',
+      recurrenceRules: [{ frequency: 'daily', count: 3 }],
+    });
+
+    const result = expandRecurringEvents([standup], '2026-10-01T00:00:00Z', '2026-10-10T00:00:00Z');
+
+    expect(result.map((e) => e.start)).toEqual(['2026-10-05T09:00:00', '2026-10-06T09:00:00', '2026-10-07T09:00:00']);
+    for (const occurrence of result) {
+      expect(occurrence).not.toHaveProperty('utcStart');
+      expect(occurrence).not.toHaveProperty('utcEnd');
+    }
+  });
+
+  it('gives floating occurrences no instants when the master\'s are the next occurrence\'s (0.16.23)', () => {
+    // Once the first occurrence is overridden, 0.16.23 answers the master's
+    // utcStart/utcEnd with the next plain occurrence's.
+    const standup = ev({
+      id: 'fl', start: '2026-10-05T09:00:00', duration: 'PT1H', timeZone: null,
+      utcStart: '2026-10-06T07:00:00Z', utcEnd: '2026-10-06T08:00:00Z',
+      recurrenceRules: [{ frequency: 'daily', count: 3 }],
+      recurrenceOverrides: { '2026-10-05T09:00:00': { title: 'Kick-off' } },
+    });
+
+    const result = expandRecurringEvents([standup], '2026-10-01T00:00:00Z', '2026-10-10T00:00:00Z');
+
+    expect(result.map((e) => [e.start, e.utcStart])).toEqual([
+      ['2026-10-05T09:00:00', undefined],
+      ['2026-10-06T09:00:00', undefined],
+      ['2026-10-07T09:00:00', undefined],
+    ]);
+  });
+
+  it('carries the master\'s offset to floating occurrences when its instants are its own (1.0)', () => {
+    // A floating 09:00 read in Berlin summer time: 07:00Z.
+    const standup = ev({
+      id: 'fl', start: '2026-10-05T09:00:00', duration: 'PT1H', timeZone: null,
+      utcStart: '2026-10-05T07:00:00Z', utcEnd: '2026-10-05T08:00:00Z',
+      recurrenceRules: [{ frequency: 'daily', count: 2 }],
+    });
+
+    const result = expandRecurringEvents([standup], '2026-10-01T00:00:00Z', '2026-10-10T00:00:00Z');
+
+    expect(result.map((e) => [e.utcStart, e.utcEnd])).toEqual([
+      ['2026-10-05T07:00:00.000Z', '2026-10-05T08:00:00.000Z'],
+      ['2026-10-06T07:00:00.000Z', '2026-10-06T08:00:00.000Z'],
+    ]);
+  });
+
+  it('times zoned occurrences from the duration when the master\'s instants are another occurrence\'s (0.16.23)', () => {
+    const standup = ev({
+      id: 'tz', start: '2026-10-05T09:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin',
+      utcStart: '2026-10-06T07:00:00Z', utcEnd: '2026-10-06T08:30:00Z',
+      recurrenceRules: [{ frequency: 'daily', count: 2 }],
+    });
+
+    const result = expandRecurringEvents([standup], '2026-10-01T00:00:00Z', '2026-10-10T00:00:00Z');
+
+    expect(result.map((e) => [e.utcStart, e.utcEnd])).toEqual([
+      ['2026-10-05T07:00:00.000Z', '2026-10-05T08:00:00.000Z'],
+      ['2026-10-06T07:00:00.000Z', '2026-10-06T08:00:00.000Z'],
+    ]);
   });
 });

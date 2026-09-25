@@ -553,7 +553,7 @@ function knownOverrides(occurrence: Partial<CalendarEvent>): OverrideMap | null 
 }
 
 /** True when a change to `occurrence` creates its override, false when one exists or it is unknown. */
-function createsOverride(occurrence: Partial<CalendarEvent>): boolean {
+export function createsOverride(occurrence: Partial<CalendarEvent>): boolean {
   const overrides = knownOverrides(occurrence);
   if (overrides === undefined || !occurrence.recurrenceId) return false;
   const key = resolveOverrideKey({ start: occurrence.start ?? '', recurrenceId: occurrence.recurrenceId }, overrides);
@@ -708,4 +708,29 @@ export function buildOccurrenceRsvpPatch(
     [participantId]: { ...participant, participationStatus: status },
   };
   return withNewOverrideDetails(occurrence, patch as Partial<CalendarEvent>, options);
+}
+
+/**
+ * The two writes, on the base event, of a first change to an occurrence the
+ * device expanded that keeps its attendees' answers: `quiet` creates the
+ * override as the occurrence stands (to be sent without scheduling), then
+ * `change` rewrites that override with the change. Stalwart sends a new
+ * override only to attendees who have not answered; an update of one goes to
+ * everyone. Null when the occurrence cannot be keyed.
+ */
+export function buildOverrideInTwoSteps(
+  instance: OccurrenceOverrideContext & Pick<CalendarEvent, 'duration'>,
+  patch: Partial<CalendarEvent>,
+): { quiet: Record<string, unknown>; change: Record<string, unknown> } | null {
+  const key = resolveOverrideKey(instance, instance.recurrenceOverrides);
+  if (!key) return null;
+  const entry = mergeOverrideEntry({}, {
+    start: instance.start,
+    duration: instance.duration,
+    ...overrideEntryFields(withNewOverrideDetails(instance, {}, { seriesKeys: true })),
+  });
+  return {
+    quiet: overrideEntryPatch(instance, key, entry),
+    change: { [`recurrenceOverrides/${key}`]: mergeOverrideEntry(entry, overrideEntryFields(patch)) },
+  };
 }

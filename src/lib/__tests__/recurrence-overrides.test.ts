@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { CalendarEvent } from '../../api/types';
 import {
+  buildAllScopeEdit,
   buildAllScopeUpdates,
   buildFutureSeriesData,
+  buildFutureSeriesEdit,
   isRecurringSeriesMember,
   truncateRecurrenceRules,
 } from '../recurrence-overrides';
+import { seedAttendees } from '../calendar-participants';
 
 const master: CalendarEvent = {
   id: 'ev-1',
@@ -107,5 +110,74 @@ describe('buildFutureSeriesData', () => {
     const data = buildFutureSeriesData(master, null, occurrence, { start: '2026-03-04T11:00:00' });
     expect(data.start).toBe('2026-03-04T11:00:00');
     expect('recurrenceRules' in data).toBe(false);
+  });
+});
+
+describe('series edits from an occurrence the user organizes', () => {
+  const participants = {
+    p0: { calendarAddress: 'mailto:me@example.com', roles: { owner: true }, participationStatus: 'accepted' },
+    p1: { calendarAddress: 'mailto:bob@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+  } as CalendarEvent['participants'];
+  const series: CalendarEvent = { ...master, organizerCalendarAddress: 'mailto:me@example.com', participants };
+  // The fourth occurrence, stretched to an hour, which Bob declined.
+  const fourth: CalendarEvent = {
+    ...series,
+    id: 'ev-1:2026-03-05T09:00:00',
+    start: '2026-03-05T09:00:00',
+    duration: 'PT1H',
+    recurrenceId: '2026-03-05T09:00:00',
+    participants: { ...participants, p1: { ...participants!.p1, participationStatus: 'declined' } },
+  };
+  const me = { userEmail: 'me@example.com', userEmails: ['me@example.com'] };
+  // What the editor saves for an unchanged form: the occurrence's own times,
+  // the rule written back and the occurrence's participants.
+  const formSave = {
+    title: 'Standup (moved room)',
+    start: fourth.start,
+    duration: fourth.duration,
+    timeZone: fourth.timeZone,
+    showWithoutTime: false,
+    recurrenceRules: [{ frequency: 'daily', interval: 1, count: 10 }],
+    participants: fourth.participants,
+  } as Partial<CalendarEvent>;
+  const attendees = seedAttendees(fourth, ['me@example.com']);
+
+  it('changes only what the user changed when nothing moved (all occurrences)', () => {
+    const update = buildAllScopeEdit(formSave, fourth, series, { attendees, timesMoved: false, ruleChanged: false }, me);
+
+    // Not the fourth's length, rule rewrite or participants (Bob's decline).
+    expect(update).toEqual({ title: 'Standup (moved room)' });
+  });
+
+  it('moves the series by the occurrence\'s delta and asks its attendees again (all occurrences)', () => {
+    const moved = { ...formSave, start: '2026-03-05T10:00:00' };
+
+    const update = buildAllScopeEdit(moved, fourth, series, { attendees, timesMoved: true, ruleChanged: false }, me);
+
+    expect(update.start).toBe('2026-03-02T10:00:00');
+    const statuses = Object.values(update.participants ?? {}).map((p) => [p.calendarAddress, p.participationStatus]);
+    expect(statuses).toEqual([['mailto:me@example.com', 'accepted'], ['mailto:bob@example.com', 'needs-action']]);
+  });
+
+  it('asks every attendee of the new series again (this and following)', () => {
+    const data = buildFutureSeriesEdit(series, series.recurrenceRules!, fourth, formSave, ['me@example.com']);
+
+    const statuses = Object.values(data.participants ?? {}).map((p) => p.participationStatus);
+    expect(statuses).toEqual(['accepted', 'needs-action']);
+  });
+
+  it('leaves the answers of a series someone else organizes alone (this and following)', () => {
+    const invitation = { ...series, organizerCalendarAddress: 'mailto:boss@example.com', participants: {
+      ...participants, p0: { ...participants!.p0, calendarAddress: 'mailto:boss@example.com' },
+    } } as CalendarEvent;
+
+    const data = buildFutureSeriesEdit(invitation, invitation.recurrenceRules!, fourth, {}, ['me@example.com']);
+
+    expect(Object.values(data.participants ?? {}).map((p) => p.participationStatus)).toEqual(['accepted', 'accepted']);
+  });
+
+  it('keeps writing the times when the flags are not given', () => {
+    expect(buildAllScopeUpdates({ start: '2026-03-05T09:00:00', duration: 'PT1H' }, fourth, series))
+      .toEqual({ duration: 'PT1H' });
   });
 });

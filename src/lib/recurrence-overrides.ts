@@ -1,5 +1,13 @@
 import { format, parseISO } from 'date-fns';
 import type { CalendarEvent, RecurrenceRule } from '../api/types';
+import {
+  askAttendeesAgain,
+  getEventOrganizerEmails,
+  seriesParticipantFields,
+  userOrganizes,
+  type Attendee,
+  type ParticipantSaveContext,
+} from './calendar-participants';
 
 /** Identity / whole-series keys that must never go into a single-occurrence override. */
 export const RECURRENCE_OVERRIDE_IMMUTABLE_KEYS = [
@@ -53,20 +61,40 @@ export function truncateRecurrenceRules(
   });
 }
 
+/** What an editor save changed about when the event happens. */
+export interface ScheduleChanges {
+  /** Its start, end or all-day. */
+  timesMoved?: boolean;
+  /** Its recurrence rule. */
+  ruleChanged?: boolean;
+}
+
 /**
  * Updates for the "All events" scope. The editor seeds its date fields from
  * the tapped occurrence, so an unchanged `start` must not be written to the
  * master (that would move the whole series onto the occurrence's date and
  * make the earlier occurrences vanish). When the user did move the occurrence,
- * the same delta is applied to the master's start instead.
+ * the same delta is applied to the master's start instead. With
+ * `changes.timesMoved` false none of the occurrence's times reach the master
+ * - a moved or resized occurrence would move or resize every one - and with
+ * `changes.ruleChanged` false neither does the rule the editor wrote back.
  */
 export function buildAllScopeUpdates(
   updates: Partial<CalendarEvent>,
   occurrence: Pick<CalendarEvent, 'start' | 'recurrenceId'>,
   master: Pick<CalendarEvent, 'start'>,
+  changes: ScheduleChanges = {},
 ): Partial<CalendarEvent> {
   const out: Partial<CalendarEvent> = { ...updates };
   delete (out as Record<string, unknown>).recurrenceId;
+  if (changes.ruleChanged === false) delete out.recurrenceRules;
+  if (changes.timesMoved === false) {
+    delete out.start;
+    delete out.duration;
+    delete out.timeZone;
+    delete out.showWithoutTime;
+    return out;
+  }
   if (!out.start) return out;
   if (!occurrence.recurrenceId) return out; // editing the master itself
   const nextStart = parseISO(out.start);
@@ -137,6 +165,61 @@ export function buildFutureSeriesData(
   delete raw.isShared;
   for (const key of Object.keys(raw)) {
     if (raw[key] === undefined) delete raw[key];
+  }
+  return data;
+}
+
+/** An editor save of one occurrence, for the scope it is applied to. */
+export interface SeriesEdit extends ScheduleChanges {
+  /** The attendee rows the user left. */
+  attendees: Attendee[];
+}
+
+/**
+ * The update of a whole series ("All events") from an editor opened on one of
+ * its occurrences: its times only when the user moved the occurrence (and
+ * then by the same delta), its rule only when the user changed it, and its
+ * participants from the series' own list with the attendees the user added
+ * or removed (seriesParticipantFields) - never the occurrence's list, whose
+ * answers are that day's. A series the user organizes and moves asks its
+ * attendees again.
+ */
+export function buildAllScopeEdit(
+  updates: Partial<CalendarEvent>,
+  occurrence: CalendarEvent,
+  master: CalendarEvent,
+  edit: SeriesEdit,
+  context: ParticipantSaveContext,
+): Partial<CalendarEvent> {
+  const out = buildAllScopeUpdates(updates, occurrence, master, edit);
+  delete out.participants;
+  delete out.organizerCalendarAddress;
+  delete out.replyTo;
+  return {
+    ...out,
+    ...seriesParticipantFields(master, occurrence, edit.attendees, {
+      ...context,
+      rescheduled: !!edit.timesMoved || !!edit.ruleChanged,
+    }),
+  };
+}
+
+/**
+ * The new series of "This and following events", as buildFutureSeriesData
+ * makes it. It is a new event (a new UID) to its attendees, and Stalwart
+ * sends a new event only to attendees who have not answered: when the user
+ * organizes it, everyone but the organizer is asked anew.
+ */
+export function buildFutureSeriesEdit(
+  master: CalendarEvent,
+  originalRules: RecurrenceRule[] | null,
+  occurrence: Pick<CalendarEvent, 'start' | 'recurrenceId'>,
+  updates: Partial<CalendarEvent>,
+  userEmails: string[],
+): Partial<CalendarEvent> {
+  const data = buildFutureSeriesData(master, originalRules, occurrence, updates);
+  if (data.participants && userOrganizes(data, userEmails)) {
+    data.participants = askAttendeesAgain(data.participants, getEventOrganizerEmails(data));
   }
   return data;
 }

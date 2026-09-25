@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Хуанлийн сануулга",
+      "participant_limit": "Сервер нэг үйл явдалд зохион байгуулагчийг оролцуулаад хамгийн ихдээ {max, plural, other {#}} оролцогч зөвшөөрдөг тул энэ өөрчлөлтийг татгалзлаа. Администратор хязгаарыг нэмэгдүүлэх боломжтой.",
       "starts_in_days": "{count, plural, one {# өдрийн дараа эхэлнэ} other {# өдрийн дараа эхэлнэ}}",
       "starts_in_hours": "{count, plural, one {# цагийн дараа эхэлнэ} other {# цагийн дараа эхэлнэ}}",
       "starts_in_minutes": "{count, plural, one {# минутын дараа эхэлнэ} other {# минутын дараа эхэлнэ}}"
+    },
+    "participants": {
+      "limit_warning": "Зохион байгуулагчийг оролцуулаад {max, plural, other {#}}-аас олон оролцогч: сервер энэ үйл явдлыг хадгалахаас татгалзаж магадгүй. Администратор хязгаарыг нэмэгдүүлэх боломжтой."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {удаа} other {удаа}}",

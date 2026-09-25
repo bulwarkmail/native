@@ -30,3 +30,23 @@ describe('recurrence summary', () => {
     expect(buildRecurrenceSummary(rule({ frequency: 'hourly' }), t)).toBeNull();
   });
 });
+
+describe('recurrenceRulesEqual', () => {
+  it('takes the editor\'s rewrite of an unchanged rule for the server\'s normalised copy', async () => {
+    const { recurrenceRulesEqual } = await import('../recurrence');
+    const stored = [{
+      '@type': 'RecurrenceRule' as const, frequency: 'weekly', interval: 1, rscale: 'gregorian', skip: 'omit',
+      firstDayOfWeek: 'mo', byDay: [],
+    }];
+    expect(recurrenceRulesEqual(stored, [{ frequency: 'weekly', interval: 1 }])).toBe(true);
+    expect(recurrenceRulesEqual(undefined, null)).toBe(true);
+    expect(recurrenceRulesEqual(stored, [{ frequency: 'daily', interval: 1 }])).toBe(false);
+    expect(recurrenceRulesEqual(stored, [{ frequency: 'weekly', interval: 2 }])).toBe(false);
+    expect(recurrenceRulesEqual(stored, [{ frequency: 'weekly', count: 5 }])).toBe(false);
+    expect(recurrenceRulesEqual(stored, undefined)).toBe(false);
+    expect(recurrenceRulesEqual(
+      [{ frequency: 'weekly', byDay: [{ day: 'mo' }, { day: 'we' }] }],
+      [{ frequency: 'weekly', byDay: [{ day: 'mo' }, { day: 'fr' }] }],
+    )).toBe(false);
+  });
+});

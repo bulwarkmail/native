@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Rappels du calendrier",
+      "participant_limit": "Le serveur autorise au plus {max, plural, one {# participant} other {# participants}} par événement, organisateur compris, il a donc refusé cette modification. Un administrateur peut relever la limite.",
       "starts_in_days": "{count, plural, one {Commence dans # jour} other {Commence dans # jours}}",
       "starts_in_hours": "{count, plural, one {Commence dans # heure} other {Commence dans # heures}}",
       "starts_in_minutes": "{count, plural, one {Commence dans # minute} other {Commence dans # minutes}}"
+    },
+    "participants": {
+      "limit_warning": "Plus de {max, plural, one {# participant} other {# participants}}, organisateur compris : le serveur risque de refuser d'enregistrer cet événement. Un administrateur peut relever la limite."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",

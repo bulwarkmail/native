@@ -1,4 +1,5 @@
 import type { CalendarEvent, Participant } from '../api/types';
+import type { MessageParams } from '../i18n/format';
 import { generateUUID } from './uuid';
 
 // Port of the webmail's lib/calendar-participants.ts.
@@ -244,18 +245,93 @@ export interface Attendee {
   email: string;
 }
 
+type ParticipationStatus = Participant['participationStatus'];
+
+/**
+ * The limit a refusal names when the server turned an event down for having
+ * too many participants, or null for any other failure. Stalwart 1.0 enforces
+ * maxParticipantsPerEvent on every create and update, answers to invitations
+ * included, and refuses with invalidProperties "An event cannot have more
+ * than 20 participants."; 0.16 advertises the limit without enforcing it.
+ * An import that got nothing in carries the refusals as `refused` reasons.
+ */
+export function participantLimitOf(error: unknown): number | null {
+  const texts: string[] = [];
+  if (error instanceof Error) texts.push(error.message);
+  const refused = (error as { refused?: { reason?: unknown }[] } | null)?.refused;
+  if (Array.isArray(refused)) {
+    for (const entry of refused) if (typeof entry?.reason === 'string') texts.push(entry.reason);
+  }
+  for (const text of texts) {
+    const match = /more than (\d+) participants/i.exec(text);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
+
+/**
+ * What to tell the user about a failed calendar change the server refused
+ * for the participant limit, in the language of `t`; null for any other
+ * failure.
+ */
+export function participantLimitMessage(error: unknown, t: Translate): string | null {
+  const max = participantLimitOf(error);
+  if (max === null) return null;
+  return t(
+    'calendar.notifications.participant_limit',
+    'The server allows at most {max, plural, one {# participant} other {# participants}} per event, including the organizer, so it refused this change. An administrator can raise the limit.',
+    { max },
+  );
+}
+
+/**
+ * An event's participants by address (lowercased): the id each was first
+ * listed under, and its answer - a real one over a missing or needs-action
+ * one when an address is listed twice (see getParticipantList).
+ */
+function participantsByAddress(
+  participants: CalendarEvent['participants'] | null | undefined,
+): Map<string, { id: string; status: ParticipationStatus | undefined }> {
+  const known = new Map<string, { id: string; status: ParticipationStatus | undefined }>();
+  for (const [id, p] of Object.entries(participants ?? {})) {
+    const key = getParticipantEmail(p).trim().toLowerCase();
+    if (!key) continue;
+    const seen = known.get(key);
+    if (!seen) known.set(key, { id, status: p.participationStatus });
+    else if ((!seen.status || seen.status === 'needs-action') && p.participationStatus) seen.status = p.participationStatus;
+  }
+  return known;
+}
+
+/**
+ * The participants an editor save writes: the organizer, then each attendee
+ * once. `existing` is the event's current map. An address already in it
+ * keeps its participant id and its answer, so a save neither resets the
+ * attendees' answers - the user's own on an invitation included - nor leaves
+ * a recurrence override pointing at a participant id that is gone. With
+ * `askAgain` every attendee but the organizer answers anew (needs-action).
+ */
 export function buildParticipantMap(
   organizer: { name: string; email: string },
   attendees: Attendee[],
+  existing?: CalendarEvent['participants'] | null,
+  options: { askAgain?: boolean } = {},
 ): Record<string, Participant> {
   const participants: Record<string, Participant> = {};
-
-  const generateId = () => generateUUID();
+  const known = participantsByAddress(existing);
+  const idFor = (key: string) => {
+    const id = known.get(key)?.id;
+    return id && !(id in participants) ? id : generateUUID();
+  };
 
   // calendarAddress is the scheduling address in draft-ietf-calext-jscalendarbis
   // (implemented by Stalwart); the RFC 8984 sendTo property is retired there and
   // stored as an inert JSPROP, so it is intentionally not sent.
-  participants[generateId()] = {
+  const organizerKey = organizer.email.trim().toLowerCase();
+  const organizerStatus = known.get(organizerKey)?.status;
+  participants[idFor(organizerKey)] = {
     '@type': 'Participant',
     name: organizer.name,
     email: organizer.email,
@@ -264,7 +340,7 @@ export function buildParticipantMap(
     // scheduling emits the organizer as an ATTENDEE line in addition to the
     // ORGANIZER line, so the recipient sees the organizer listed twice.
     roles: { owner: true },
-    participationStatus: 'accepted',
+    participationStatus: organizerStatus && organizerStatus !== 'needs-action' ? organizerStatus : 'accepted',
     scheduleAgent: 'server',
     expectReply: false,
     kind: 'individual',
@@ -272,7 +348,7 @@ export function buildParticipantMap(
 
   // The organizer already has an entry above, and an address must not appear
   // twice in the invite list, so drop both cases case-insensitively (#731).
-  const seen = new Set<string>([organizer.email.trim().toLowerCase()]);
+  const seen = new Set<string>([organizerKey]);
 
   attendees.forEach((a) => {
     const email = a.email.trim();
@@ -280,13 +356,13 @@ export function buildParticipantMap(
     if (!key || seen.has(key)) return;
     seen.add(key);
 
-    participants[generateId()] = {
+    participants[idFor(key)] = {
       '@type': 'Participant',
       name: a.name,
       email,
       calendarAddress: `mailto:${email}`,
       roles: { attendee: true },
-      participationStatus: 'needs-action',
+      participationStatus: (options.askAgain ? undefined : known.get(key)?.status) ?? 'needs-action',
       scheduleAgent: 'server',
       expectReply: true,
       kind: 'individual',
@@ -309,11 +385,39 @@ function eventOrganizer(event: Partial<CalendarEvent>): { name: string; email: s
   return email ? { name: '', email } : null;
 }
 
+/**
+ * Whether a save of `event` is the user's as its organizer: an event without
+ * an organizer yet becomes the user's, and so is one organized under any of
+ * the user's addresses. An invitation someone else sent is not: its
+ * organizer asks, the user only answers.
+ */
+export function userOrganizes(event: Partial<CalendarEvent> | null | undefined, userEmails: string[]): boolean {
+  const organizer = event ? eventOrganizer(event) : null;
+  if (!organizer) return true;
+  const key = organizer.email.toLowerCase();
+  return userEmails.some((address) => address.trim().toLowerCase() === key);
+}
+
+/** Whether two attendee lists name the same addresses, whatever the order or letter case. */
+function sameAddresses(a: Attendee[], b: Attendee[]): boolean {
+  const keys = (list: Attendee[]) => new Set(list.map((x) => x.email.trim().toLowerCase()).filter(Boolean));
+  const left = keys(a);
+  const right = keys(b);
+  return left.size === right.size && [...left].every((key) => right.has(key));
+}
+
 export interface ParticipantSaveContext {
-  /** The user's first calendar address: the organizer of invitations sent from the editor. */
+  /** The user's first calendar address: the organizer of an event that has none yet. */
   userEmail: string | undefined;
+  /** All of the user's calendar addresses (identities, aliases): whether the user organizes the event. */
+  userEmails?: string[];
   /** A name for an organizer the event data carries none for (the contact card, the account). */
   resolveName?: (email: string) => string | undefined;
+  /**
+   * The save changes when the event happens: its start or end, whether it is
+   * all-day, or its recurrence rule.
+   */
+  rescheduled?: boolean;
 }
 
 /**
@@ -325,6 +429,15 @@ export interface ParticipantSaveContext {
  * occurrences). Only an event without an organizer gets the user, and only
  * then `organizerCalendarAddress` is written: Stalwart derives the iCalendar
  * ORGANIZER solely from it, so without one no invitations go out.
+ * Participants that stay keep their id and answer (buildParticipantMap),
+ * unless the user as the organizer moves the event: then the other
+ * attendees are asked again, as RFC 5546 has an organizer do when an event
+ * is rescheduled - Stalwart's update to them carries each stored answer,
+ * which would read as an answer to the new time.
+ *
+ * A save of an invitation someone else organizes writes no participants
+ * while the user left them as they were: the organizer's list is not the
+ * user's to send, and a written list would reach the organizer as a reply.
  *
  * Without attendees, an event that had participants loses them, its
  * organizer and the retired `replyTo` older releases wrote.
@@ -335,6 +448,9 @@ export function participantFieldsToSave(
   context: ParticipantSaveContext,
 ): Partial<Pick<CalendarEvent, 'participants' | 'organizerCalendarAddress' | 'replyTo'>> {
   const { userEmail, resolveName } = context;
+  const userEmails = [userEmail, ...(context.userEmails ?? [])].filter((address): address is string => !!address);
+  const organizes = userOrganizes(event, userEmails);
+  if (event && !organizes && sameAddresses(attendees, seedAttendees(event, userEmails))) return {};
   if (attendees.length > 0 && userEmail) {
     const organizer = (event ? eventOrganizer(event) : null) ?? { name: '', email: userEmail };
     const fields: Partial<Pick<CalendarEvent, 'participants' | 'organizerCalendarAddress'>> = {
@@ -343,6 +459,8 @@ export function participantFieldsToSave(
         // organizer name.
         { name: organizer.name || resolveName?.(organizer.email) || '', email: organizer.email },
         attendees,
+        event?.participants,
+        { askAgain: !!context.rescheduled && organizes },
       ),
     };
     if (!event?.organizerCalendarAddress) fields.organizerCalendarAddress = `mailto:${organizer.email}`;
@@ -356,6 +474,68 @@ export function participantFieldsToSave(
     };
   }
   return {};
+}
+
+/**
+ * The participant fields a save to a whole series writes when the editor was
+ * opened on one of its occurrences ("All events"). The occurrence's list may
+ * differ from the series' - one occurrence declined, one attendee added to
+ * just that day - so the series starts from its own participants and takes
+ * only the attendees the user added or removed in the editor. Nothing is
+ * written when the save changes none of them and does not move the series.
+ */
+export function seriesParticipantFields(
+  master: Partial<CalendarEvent>,
+  occurrence: Partial<CalendarEvent>,
+  attendees: Attendee[],
+  context: ParticipantSaveContext,
+): Partial<Pick<CalendarEvent, 'participants' | 'organizerCalendarAddress' | 'replyTo'>> {
+  const userEmails = [context.userEmail, ...(context.userEmails ?? [])].filter((a): a is string => !!a);
+  const key = (a: Attendee) => a.email.trim().toLowerCase();
+  const before = seedAttendees(occurrence, userEmails);
+  const kept = new Set(attendees.map(key));
+  const removed = new Set(before.map(key).filter((k) => !kept.has(k)));
+  const had = new Set(before.map(key));
+  const added = attendees.filter((a) => !had.has(key(a)));
+  const askAgain = !!context.rescheduled && userOrganizes(master, userEmails);
+  if (added.length === 0 && removed.size === 0 && !askAgain) return {};
+  const series = seedAttendees(master, userEmails).filter((a) => !removed.has(key(a)));
+  const listed = new Set(series.map(key));
+  for (const a of added) if (!listed.has(key(a))) series.push(a);
+  return participantFieldsToSave(master, series, context);
+}
+
+/**
+ * `participants` with every attendee but the organizer asked anew
+ * (needs-action). For a new series cut off an existing one ("This and
+ * following events"): Stalwart sends a new event only to attendees who have
+ * not answered, so an answer carried over would keep it from them.
+ */
+export function askAttendeesAgain(
+  participants: Record<string, Participant>,
+  organizerEmails: string[] = [],
+): Record<string, Participant> {
+  const organizers = new Set(organizerEmails.map((address) => address.trim().toLowerCase()));
+  const result: Record<string, Participant> = {};
+  for (const [id, p] of Object.entries(participants)) {
+    const address = getParticipantEmail(p).trim().toLowerCase();
+    const organizer = !!p.roles?.owner || (!!address && organizers.has(address));
+    result[id] = organizer ? p : { ...p, participationStatus: 'needs-action' };
+  }
+  return result;
+}
+
+/**
+ * Whether an attendee (anyone but the organizer) of `participants` has
+ * answered: Stalwart delivers a new occurrence override, and a new event,
+ * only to attendees who have not.
+ */
+export function hasAnsweredAttendees(participants: CalendarEvent['participants'] | null | undefined): boolean {
+  return Object.values(participants ?? {}).some((p) => {
+    if (p.roles?.owner) return false;
+    const status = p.participationStatus;
+    return !!status && status !== 'needs-action';
+  });
 }
 
 /**

@@ -17,6 +17,7 @@ import {
 import { getEventStartDate, getTaskDueDate, getTaskDueDisplayDate } from '../calendar-utils';
 import {
   durationBetween,
+  editorTimesChanged,
   editorTimesFromEvent,
   eventTimeFieldsToSave,
   type EditorTimes,
@@ -246,5 +247,50 @@ describe('task editor round trip', () => {
     expect(buildTaskEditorChanges({ ...editor, due: new Date(2026, 6, 2) }, t)).toMatchObject({
       due: '2026-07-02T00:00:00', showWithoutTime: true, timeZone: null,
     });
+  });
+});
+
+describe('editorTimesChanged (whether a save moves the event)', () => {
+  // 08:00-09:00 in New York, shown in the Berlin calendar as 14:00-15:00.
+  const meeting = ev({
+    start: '2026-10-12T08:00:00', duration: 'PT1H', timeZone: 'America/New_York',
+    utcStart: '2026-10-12T12:00:00Z', utcEnd: '2026-10-12T13:00:00Z',
+  });
+
+  it('is no move while the form shows the event\'s own times, whatever zone it shows them in', () => {
+    expect(editorTimesChanged(editorTimesFromEvent(meeting), meeting)).toBe(false);
+  });
+
+  it('ignores the seconds the form cannot show', () => {
+    const withSeconds = ev({ ...meeting, utcStart: '2026-10-12T12:00:30Z', utcEnd: '2026-10-12T13:00:30Z' });
+    const times = editorTimesFromEvent(meeting);
+    expect(editorTimesChanged(times, withSeconds)).toBe(false);
+  });
+
+  it('is a move when the start or the end changes', () => {
+    const times = editorTimesFromEvent(meeting);
+    expect(editorTimesChanged(shift(times, 'both', 60), meeting)).toBe(true);
+    expect(editorTimesChanged(shift(times, 'end', 30), meeting)).toBe(true);
+  });
+
+  it('is a move when the event turns all-day or timed', () => {
+    expect(editorTimesChanged({ ...editorTimesFromEvent(meeting), allDay: true }, meeting)).toBe(true);
+  });
+
+  it('compares the first and last day of an all-day event', () => {
+    const holiday = ev({ start: '2026-10-12T00:00:00', duration: 'P2D', timeZone: null, showWithoutTime: true });
+    const times = editorTimesFromEvent(holiday);
+    expect(editorTimesChanged(times, holiday)).toBe(false);
+    expect(editorTimesChanged({ ...times, end: new Date(times.end.getTime() + 86_400_000) }, holiday)).toBe(true);
+  });
+
+  it('does not take a zero-length event for moved (the form keeps its end)', () => {
+    const reminder = ev({
+      start: '2026-10-12T08:00:00', duration: 'PT0S', timeZone: 'America/New_York',
+      utcStart: '2026-10-12T12:00:00Z', utcEnd: '2026-10-12T12:00:00Z',
+    });
+    const times = editorTimesFromEvent(reminder);
+    expect(times.end.getTime()).toBe(times.start.getTime());
+    expect(editorTimesChanged(times, reminder)).toBe(false);
   });
 });

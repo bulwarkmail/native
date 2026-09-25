@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Naptáremlékeztetők",
+      "participant_limit": "A szerver eseményenként legfeljebb {max, plural, one {# résztvevőt} other {# résztvevőt}} enged, a szervezőt is beleértve, ezért elutasította a módosítást. A rendszergazda megemelheti a korlátot.",
       "starts_in_days": "{count, plural, one {# nap múlva kezdődik} other {# nap múlva kezdődik}}",
       "starts_in_hours": "{count, plural, one {# óra múlva kezdődik} other {# óra múlva kezdődik}}",
       "starts_in_minutes": "{count, plural, one {# perc múlva kezdődik} other {# perc múlva kezdődik}}"
+    },
+    "participants": {
+      "limit_warning": "Több mint {max, plural, one {# résztvevő} other {# résztvevő}}, a szervezőt is beleértve: a szerver elutasíthatja az esemény mentését. A rendszergazda megemelheti a korlátot."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {alkalom} other {alkalom}}",

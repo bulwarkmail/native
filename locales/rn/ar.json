@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "تذكيرات التقويم",
+      "participant_limit": "يسمح الخادم بحد أقصى {max, plural, zero {# مشارك} one {مشارك واحد} two {مشاركَين} few {# مشاركين} many {# مشاركًا} other {# مشارك}} لكل حدث، بمن فيهم المنظّم، لذا رفض هذا التغيير. يمكن للمسؤول رفع هذا الحد.",
       "starts_in_days": "{count, plural, zero {يبدأ بعد # يوم} one {يبدأ بعد يوم واحد} two {يبدأ بعد يومين} few {يبدأ بعد # أيام} many {يبدأ بعد # يومًا} other {يبدأ بعد # يوم}}",
       "starts_in_hours": "{count, plural, zero {يبدأ بعد # ساعة} one {يبدأ بعد ساعة واحدة} two {يبدأ بعد ساعتين} few {يبدأ بعد # ساعات} many {يبدأ بعد # ساعة} other {يبدأ بعد # ساعة}}",
       "starts_in_minutes": "{count, plural, zero {يبدأ بعد # دقيقة} one {يبدأ بعد دقيقة واحدة} two {يبدأ بعد دقيقتين} few {يبدأ بعد # دقائق} many {يبدأ بعد # دقيقة} other {يبدأ بعد # دقيقة}}"
+    },
+    "participants": {
+      "limit_warning": "أكثر من {max, plural, zero {# مشارك} one {مشارك واحد} two {مشاركَين} few {# مشاركين} many {# مشاركًا} other {# مشارك}}، بمن فيهم المنظّم: قد يرفض الخادم حفظ هذا الحدث. يمكن للمسؤول رفع هذا الحد."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, zero {مرة} one {مرة} two {مرات} few {مرات} many {مرة} other {مرة}}",

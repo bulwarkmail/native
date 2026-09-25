@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Recordatoris del calendari",
+      "participant_limit": "El servidor permet com a màxim {max, plural, one {# participant} other {# participants}} per esdeveniment, inclòs l'organitzador, per això ha rebutjat aquest canvi. Un administrador pot augmentar el límit.",
       "starts_in_days": "{count, plural, one {Comença d'aquí a # dia} other {Comença d'aquí a # dies}}",
       "starts_in_hours": "{count, plural, one {Comença d'aquí a # hora} other {Comença d'aquí a # hores}}",
       "starts_in_minutes": "{count, plural, one {Comença d'aquí a # minut} other {Comença d'aquí a # minuts}}"
+    },
+    "participants": {
+      "limit_warning": "Més de {max, plural, one {# participant} other {# participants}}, inclòs l'organitzador: és possible que el servidor es negui a desar aquest esdeveniment. Un administrador pot augmentar el límit."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {repetició} other {repeticions}}",

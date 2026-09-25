@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Kalendāra atgādinājumi",
+      "participant_limit": "Serveris atļauj ne vairāk kā {max, plural, one {# dalībnieku} other {# dalībniekus}} vienam pasākumam, ieskaitot organizatoru, tāpēc šīs izmaiņas tika noraidītas. Administrators var palielināt ierobežojumu.",
       "starts_in_days": "{count, plural, zero {Sākas pēc # dienām} one {Sākas pēc # dienas} other {Sākas pēc # dienām}}",
       "starts_in_hours": "{count, plural, zero {Sākas pēc # stundām} one {Sākas pēc # stundas} other {Sākas pēc # stundām}}",
       "starts_in_minutes": "{count, plural, zero {Sākas pēc # minūtēm} one {Sākas pēc # minūtes} other {Sākas pēc # minūtēm}}"
+    },
+    "participants": {
+      "limit_warning": "Vairāk nekā {max, plural, one {# dalībnieks} other {# dalībnieki}}, ieskaitot organizatoru: serveris var atteikties saglabāt šo pasākumu. Administrators var palielināt ierobežojumu."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, zero {reizēm} one {reizes} other {reizēm}}",

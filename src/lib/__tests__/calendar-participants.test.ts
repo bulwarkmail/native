@@ -1,16 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import type { CalendarEvent } from '../../api/types';
 import {
+  askAttendeesAgain,
   buildParticipantMap,
   collectUserCalendarAddresses,
   getParticipantCount,
   getParticipantList,
   getStatusCounts,
   getUserParticipantId,
+  hasAnsweredAttendees,
   isOrganizer,
   participantFieldsToSave,
+  participantLimitMessage,
+  participantLimitOf,
   seedAttendees,
+  seriesParticipantFields,
+  userOrganizes,
 } from '../calendar-participants';
+import { JMAPSetError } from '../../api/jmap-result';
 
 const event: Partial<CalendarEvent> = {
   organizerCalendarAddress: 'mailto:Alice@example.com',
@@ -201,13 +208,34 @@ describe('participantFieldsToSave', () => {
         me: { calendarAddress: 'mailto:me@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
       },
     };
-    const rows = seedAttendees(invitation, ['me@example.com']);
+    const rows = [...seedAttendees(invitation, ['me@example.com']), { name: 'Dan', email: 'dan@example.com' }];
 
     const fields = participantFieldsToSave(invitation, rows, { userEmail: 'me@example.com' });
 
     expect(owner(fields)).toMatchObject({ email: 'boss@example.com', name: 'Boss', calendarAddress: 'mailto:boss@example.com' });
-    expect(Object.values(fields.participants ?? {}).map((p) => p.email).sort()).toEqual(['boss@example.com', 'me@example.com']);
+    expect(Object.values(fields.participants ?? {}).map((p) => p.email).sort())
+      .toEqual(['boss@example.com', 'dan@example.com', 'me@example.com']);
     expect(fields).not.toHaveProperty('organizerCalendarAddress');
+  });
+
+  it('writes no participants for an invitation whose list the user left alone', () => {
+    // An alert or a note on the user's copy: a written list would reach the
+    // organizer as a reply.
+    const invitation: Partial<CalendarEvent> = {
+      organizerCalendarAddress: 'mailto:boss@example.com',
+      participants: {
+        boss: { calendarAddress: 'mailto:boss@example.com', roles: { owner: true } },
+        me: { calendarAddress: 'mailto:me@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+        bob: { calendarAddress: 'mailto:bob@example.com', roles: { attendee: true }, participationStatus: 'declined' },
+      },
+    };
+
+    const fields = participantFieldsToSave(invitation, seedAttendees(invitation, ['me@example.com']), {
+      userEmail: 'me@example.com',
+      rescheduled: true,
+    });
+
+    expect(fields).toEqual({});
   });
 
   it('keeps the exact address a series is organized under', () => {
@@ -216,7 +244,11 @@ describe('participantFieldsToSave', () => {
       participants: { org: { calendarAddress: 'mailto:Team@Example.com' }, bob: { email: 'bob@example.com' } },
     };
 
-    const fields = participantFieldsToSave(series, attendees, { userEmail: 'me@example.com' });
+    // The user organizes it under a group address in another letter case.
+    const fields = participantFieldsToSave(series, [...attendees, { name: 'Dan', email: 'dan@example.com' }], {
+      userEmail: 'me@example.com',
+      userEmails: ['me@example.com', 'team@example.com'],
+    });
 
     expect(owner(fields)?.email).toBe('Team@Example.com');
     expect(fields).not.toHaveProperty('organizerCalendarAddress');
@@ -251,5 +283,155 @@ describe('participantFieldsToSave', () => {
       { userEmail: 'alice@example.com' },
     )).toEqual({ participants: null, replyTo: null });
     expect(participantFieldsToSave({ title: 'Lunch' }, [], { userEmail: 'me@example.com' })).toEqual({});
+  });
+});
+
+describe('answers on save (Stalwart 0.16 and 1.0)', () => {
+  // A meeting the user organizes: Bob accepted, Carol declined, Dan never answered.
+  const meeting: Partial<CalendarEvent> = {
+    organizerCalendarAddress: 'mailto:me@example.com',
+    participants: {
+      p0: { calendarAddress: 'mailto:me@example.com', roles: { owner: true }, participationStatus: 'accepted' },
+      p1: { calendarAddress: 'mailto:Bob@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+      p2: { calendarAddress: 'mailto:carol@example.com', roles: { attendee: true }, participationStatus: 'declined' },
+      p3: { calendarAddress: 'mailto:dan@example.com', roles: { attendee: true }, participationStatus: 'needs-action' },
+    },
+  };
+  const me = { userEmail: 'me@example.com', userEmails: ['me@example.com'] };
+  const rows = () => seedAttendees(meeting, ['me@example.com']);
+  const byAddress = (fields: ReturnType<typeof participantFieldsToSave>) => Object.fromEntries(
+    Object.entries(fields.participants ?? {}).map(([id, p]) => [p.email!.toLowerCase(), { id, status: p.participationStatus }]),
+  );
+
+  it('keeps every attendee\'s id and answer, and asks a new one', () => {
+    const fields = participantFieldsToSave(meeting, [...rows(), { name: 'Eve', email: 'eve@example.com' }], me);
+
+    const after = byAddress(fields);
+    expect(after['me@example.com']).toEqual({ id: 'p0', status: 'accepted' });
+    expect(after['bob@example.com']).toEqual({ id: 'p1', status: 'accepted' });
+    expect(after['carol@example.com']).toEqual({ id: 'p2', status: 'declined' });
+    expect(after['dan@example.com']).toEqual({ id: 'p3', status: 'needs-action' });
+    expect(after['eve@example.com'].status).toBe('needs-action');
+    expect(after['eve@example.com'].id).not.toMatch(/^p\d$/);
+  });
+
+  it('asks the attendees again when the user as the organizer moves the meeting', () => {
+    const after = byAddress(participantFieldsToSave(meeting, rows(), { ...me, rescheduled: true }));
+
+    expect(after['me@example.com'].status).toBe('accepted');
+    expect(after['bob@example.com']).toEqual({ id: 'p1', status: 'needs-action' });
+    expect(after['carol@example.com']).toEqual({ id: 'p2', status: 'needs-action' });
+  });
+
+  it('counts any of the user\'s addresses as the organizer', () => {
+    const aliasMeeting = { ...meeting, organizerCalendarAddress: 'mailto:Alias@example.com' } as Partial<CalendarEvent>;
+    aliasMeeting.participants = { ...meeting.participants, p0: { ...meeting.participants!.p0, calendarAddress: 'mailto:Alias@example.com' } };
+
+    const after = byAddress(participantFieldsToSave(aliasMeeting, seedAttendees(aliasMeeting, ['me@example.com', 'alias@example.com']), {
+      userEmail: 'me@example.com', userEmails: ['me@example.com', 'alias@example.com'], rescheduled: true,
+    }));
+
+    expect(after['bob@example.com'].status).toBe('needs-action');
+    expect(userOrganizes(aliasMeeting, ['me@example.com', 'ALIAS@example.com'])).toBe(true);
+    expect(userOrganizes(aliasMeeting, ['me@example.com'])).toBe(false);
+  });
+
+  it('keeps an answer listed under a second entry of the same address', () => {
+    const map = buildParticipantMap({ name: '', email: 'me@example.com' }, [{ name: '', email: 'bob@example.com' }], {
+      a: { calendarAddress: 'mailto:bob@example.com', participationStatus: 'needs-action' },
+      b: { email: 'BOB@example.com', participationStatus: 'tentative' },
+    });
+
+    expect(Object.entries(map).find(([, p]) => p.email === 'bob@example.com')).toEqual([
+      'a', expect.objectContaining({ participationStatus: 'tentative' }),
+    ]);
+  });
+
+  it('tells whether anyone but the organizer answered', () => {
+    expect(hasAnsweredAttendees(meeting.participants)).toBe(true);
+    expect(hasAnsweredAttendees(askAttendeesAgain(meeting.participants!))).toBe(false);
+    expect(hasAnsweredAttendees(null)).toBe(false);
+  });
+
+  it('asks everyone but the organizer again for a new series', () => {
+    const asked = askAttendeesAgain(meeting.participants!, ['me@example.com']);
+
+    expect(asked.p0.participationStatus).toBe('accepted');
+    expect([asked.p1, asked.p2, asked.p3].map((p) => p.participationStatus)).toEqual(['needs-action', 'needs-action', 'needs-action']);
+  });
+});
+
+describe('seriesParticipantFields (all occurrences)', () => {
+  const master: Partial<CalendarEvent> = {
+    organizerCalendarAddress: 'mailto:me@example.com',
+    participants: {
+      p0: { calendarAddress: 'mailto:me@example.com', roles: { owner: true }, participationStatus: 'accepted' },
+      p1: { calendarAddress: 'mailto:bob@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+      p2: { calendarAddress: 'mailto:carol@example.com', roles: { attendee: true }, participationStatus: 'tentative' },
+    },
+  };
+  // This occurrence: Bob declined it, and Zoe was added to just this day.
+  const occurrence: Partial<CalendarEvent> = {
+    ...master,
+    participants: {
+      ...master.participants,
+      p1: { ...master.participants!.p1, participationStatus: 'declined' },
+      pz: { calendarAddress: 'mailto:zoe@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+    },
+  };
+  const me = { userEmail: 'me@example.com', userEmails: ['me@example.com'] };
+  const rows = seedAttendees(occurrence, ['me@example.com']);
+  const statuses = (fields: ReturnType<typeof seriesParticipantFields>) => Object.fromEntries(
+    Object.values(fields.participants ?? {}).map((p) => [p.email, p.participationStatus]),
+  );
+
+  it('writes nothing when the user changed no attendee and did not move the series', () => {
+    expect(seriesParticipantFields(master, occurrence, rows, me)).toEqual({});
+  });
+
+  it('starts from the series\' own list and applies only the attendees added or removed', () => {
+    const edited = [...rows.filter((a) => a.email !== 'carol@example.com'), { name: '', email: 'eve@example.com' }];
+
+    const fields = seriesParticipantFields(master, occurrence, edited, me);
+
+    // Bob keeps the series' answer, not this day's; Zoe stays on her day only.
+    expect(statuses(fields)).toEqual({
+      'me@example.com': 'accepted',
+      'bob@example.com': 'accepted',
+      'eve@example.com': 'needs-action',
+    });
+  });
+
+  it('asks the series\' attendees again when the user moves it', () => {
+    const fields = seriesParticipantFields(master, occurrence, rows, { ...me, rescheduled: true });
+
+    expect(statuses(fields)).toEqual({
+      'me@example.com': 'accepted',
+      'bob@example.com': 'needs-action',
+      'carol@example.com': 'needs-action',
+    });
+  });
+});
+
+describe('participantLimitOf (Stalwart 1.0 maxParticipantsPerEvent)', () => {
+  it('reads the limit from a 1.0 refusal and ignores other failures', () => {
+    const refusal = new JMAPSetError('invalidProperties', 'An event cannot have more than 20 participants.', ['participants']);
+
+    expect(participantLimitOf(refusal)).toBe(20);
+    expect(participantLimitOf(new Error('Failed to create event'))).toBeNull();
+    expect(participantLimitOf(null)).toBeNull();
+    // An import that got nothing in carries the refusals as reasons.
+    expect(participantLimitOf(Object.assign(new Error('nothing imported'), {
+      refused: [{ reason: 'An event cannot have more than 5 participants.' }],
+    }))).toBe(5);
+  });
+
+  it('says the limit, counting the organizer, in the user\'s language', () => {
+    const t = (_key: string, fallback?: string, params?: Record<string, unknown>) =>
+      (fallback ?? '').replace('{max, plural, one {# participant} other {# participants}}', `${params?.max} participants`);
+
+    expect(participantLimitMessage(new Error('An event cannot have more than 20 participants.'), t))
+      .toBe('The server allows at most 20 participants per event, including the organizer, so it refused this change. An administrator can raise the limit.');
+    expect(participantLimitMessage(new Error('nope'), t)).toBeNull();
   });
 });

@@ -127,6 +127,41 @@ export function isSimpleRecurrenceRule(rule: RecurrenceRule): boolean {
   );
 }
 
+// A rule as the occurrences it makes: JSCalendar defaults filled in, empty
+// lists left out, so an editor's rewrite of an unchanged rule compares equal
+// to the server's normalised copy.
+function ruleKey(rule: RecurrenceRule): string {
+  const list = <T,>(values: T[] | undefined) => (values?.length ? values : undefined);
+  return JSON.stringify({
+    frequency: rule.frequency.toLowerCase(),
+    interval: rule.interval || 1,
+    until: rule.until || undefined,
+    count: rule.count || undefined,
+    byDay: list(rule.byDay?.map((d) => `${d.nthOfPeriod ?? ''}${d.day.toLowerCase()}`)),
+    byMonth: list(rule.byMonth),
+    byMonthDay: list(rule.byMonthDay),
+    byYearDay: list(rule.byYearDay),
+    byWeekNo: list(rule.byWeekNo),
+    byHour: list(rule.byHour),
+    byMinute: list(rule.byMinute),
+    bySecond: list(rule.bySecond),
+    bySetPosition: list(rule.bySetPosition),
+    firstDayOfWeek: (rule.firstDayOfWeek || 'mo').toLowerCase(),
+    rscale: (rule.rscale || 'gregorian').toLowerCase(),
+    skip: (rule.skip || 'omit').toLowerCase(),
+  });
+}
+
+/** Whether two recurrence rule lists make the same occurrences (none equals none). */
+export function recurrenceRulesEqual(
+  a: RecurrenceRule[] | null | undefined,
+  b: RecurrenceRule[] | null | undefined,
+): boolean {
+  const left = (a ?? []).map(ruleKey);
+  const right = (b ?? []).map(ruleKey);
+  return left.length === right.length && left.every((key, i) => key === right[i]);
+}
+
 /**
  * Human-readable summary of a recurrence rule, e.g.
  * "Every 2 months on the third Thursday · 12 occurrences", in the app

@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Przypomnienia kalendarza",
+      "participant_limit": "Serwer pozwala na maksymalnie {max, plural, one {# uczestnika} few {# uczestników} many {# uczestników} other {# uczestnika}} wydarzenia łącznie z organizatorem, więc odrzucił tę zmianę. Administrator może zwiększyć limit.",
       "starts_in_days": "{count, plural, one {Zaczyna się za # dzień} few {Zaczyna się za # dni} many {Zaczyna się za # dni} other {Zaczyna się za # dnia}}",
       "starts_in_hours": "{count, plural, one {Zaczyna się za # godzinę} few {Zaczyna się za # godziny} many {Zaczyna się za # godzin} other {Zaczyna się za # godziny}}",
       "starts_in_minutes": "{count, plural, one {Zaczyna się za # minutę} few {Zaczyna się za # minuty} many {Zaczyna się za # minut} other {Zaczyna się za # minuty}}"
+    },
+    "participants": {
+      "limit_warning": "Ponad {max, plural, one {# uczestnika} few {# uczestników} many {# uczestników} other {# uczestnika}} łącznie z organizatorem: serwer może odmówić zapisania tego wydarzenia. Administrator może zwiększyć limit."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {wystąpieniu} few {wystąpieniach} many {wystąpieniach} other {wystąpienia}}",

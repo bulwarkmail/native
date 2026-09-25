@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Kalenderpåminnelser",
+      "participant_limit": "Serveren tillater høyst {max, plural, one {# deltaker} other {# deltakere}} per hendelse, arrangøren medregnet, så endringen ble avvist. En administrator kan øke grensen.",
       "starts_in_days": "{count, plural, one {Starter om # dag} other {Starter om # dager}}",
       "starts_in_hours": "{count, plural, one {Starter om # time} other {Starter om # timer}}",
       "starts_in_minutes": "{count, plural, one {Starter om # minutt} other {Starter om # minutter}}"
+    },
+    "participants": {
+      "limit_warning": "Mer enn {max, plural, one {# deltaker} other {# deltakere}}, arrangøren medregnet: serveren kan nekte å lagre denne hendelsen. En administrator kan øke grensen."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {forekomst} other {forekomster}}",

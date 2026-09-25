@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "یادآورهای تقویم",
+      "participant_limit": "سرور برای هر رویداد، با احتساب برگزارکننده، حداکثر {max, plural, one {# شرکت‌کننده} other {# شرکت‌کننده}} را می‌پذیرد، به همین دلیل این تغییر را رد کرد. مدیر سیستم می‌تواند این محدودیت را افزایش دهد.",
       "starts_in_days": "{count, plural, one {# روز دیگر شروع می‌شود} other {# روز دیگر شروع می‌شود}}",
       "starts_in_hours": "{count, plural, one {# ساعت دیگر شروع می‌شود} other {# ساعت دیگر شروع می‌شود}}",
       "starts_in_minutes": "{count, plural, one {# دقیقه دیگر شروع می‌شود} other {# دقیقه دیگر شروع می‌شود}}"
+    },
+    "participants": {
+      "limit_warning": "بیش از {max, plural, one {# شرکت‌کننده} other {# شرکت‌کننده}}، با احتساب برگزارکننده: ممکن است سرور ذخیره این رویداد را رد کند. مدیر سیستم می‌تواند این محدودیت را افزایش دهد."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {بار} other {بار}}",

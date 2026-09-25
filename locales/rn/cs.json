@@ -79,9 +79,13 @@
     },
     "notifications": {
       "channel_name": "Připomenutí kalendáře",
+      "participant_limit": "Server povoluje nejvýše {max, plural, one {# účastníka} few {# účastníky} many {# účastníka} other {# účastníků}} na událost včetně organizátora, proto tuto změnu odmítl. Správce může limit zvýšit.",
       "starts_in_days": "{count, plural, one {Začíná za # den} few {Začíná za # dny} many {Začíná za # dne} other {Začíná za # dní}}",
       "starts_in_hours": "{count, plural, one {Začíná za # hodinu} few {Začíná za # hodiny} many {Začíná za # hodiny} other {Začíná za # hodin}}",
       "starts_in_minutes": "{count, plural, one {Začíná za # minutu} few {Začíná za # minuty} many {Začíná za # minuty} other {Začíná za # minut}}"
+    },
+    "participants": {
+      "limit_warning": "Více než {max, plural, one {# účastník} few {# účastníci} many {# účastníka} other {# účastníků}} včetně organizátora: server může uložení této události odmítnout. Správce může limit zvýšit."
     },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {opakování} few {opakováních} many {opakování} other {opakováních}}",

@@ -25,6 +25,7 @@ import {
   type InvitationTrustAssessment,
 } from '../../lib/calendar-invitation';
 import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
+import { participantLimitMessage } from '../../lib/calendar-participants';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
@@ -211,8 +212,10 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
       setRsvpStatus(status);
       setNotice(t('calendar.invitation.response_sent', 'Response sent'));
       setState('done');
-    } catch {
-      setNotice(t('calendar.invitation.response_error', 'Could not send your response'));
+    } catch (err) {
+      // Stalwart 1.0 refuses an answer, too, for a meeting over its
+      // participant limit: say so rather than "could not".
+      setNotice(participantLimitMessage(err, t) ?? t('calendar.invitation.response_error', 'Could not send your response'));
     } finally {
       setBusy(false);
     }
@@ -230,8 +233,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
           : t('calendar.invitation.already_in_calendar', 'Already in your calendar'),
       );
       setState('done');
-    } catch {
-      setNotice(t('calendar.invitation.add_error', 'Could not add the event'));
+    } catch (err) {
+      setNotice(participantLimitMessage(err, t) ?? t('calendar.invitation.add_error', 'Could not add the event'));
     } finally {
       setBusy(false);
     }
