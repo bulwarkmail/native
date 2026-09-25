@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // utcEnd, and every read of the app did: the grid, tasks, reminders, the
 // master of a series, the invitation look-up and the iCal subscription sync.
 
+const h = vi.hoisted(() => ({ session: null as unknown }));
+
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
@@ -13,6 +15,9 @@ vi.mock('../../api/jmap-client', () => ({
     request: vi.fn(),
     getMaxObjectsInGet: () => 500,
     getMaxCallsInRequest: () => 16,
+    get currentSession() {
+      return h.session;
+    },
   },
 }));
 vi.mock('../../api/blob', () => ({ uploadBytes: vi.fn(async () => ({ blobId: 'feed-blob' })) }));
@@ -21,9 +26,14 @@ import { jmapClient } from '../../api/jmap-client';
 import type { CalendarEvent } from '../../api/types';
 import { loadEventsInRange, useCalendarStore } from '../calendar-store';
 import { useCalendarSubscriptionsStore } from '../calendar-subscriptions-store';
+import { useSettingsStore } from '../settings-store';
 import {
   asksForOverridesWithUtc,
+  calendarAccountCapability,
   createStalwartCalendarMock,
+  expandingQueryAnswer,
+  occurrenceObjects,
+  type RangeOccurrence,
   type StalwartCalendarMock,
   type StalwartCalendarMockOptions,
   type StalwartVersion,
@@ -203,5 +213,72 @@ describe.each<StalwartVersion>(['0.16', '1.0'])('calendar reads through the stor
     const { events, error } = useCalendarStore.getState();
     expect(events).toEqual(loaded);
     expect(error).toBe('Internal server error');
+  });
+});
+
+// The loaded window of a freely scrolling view grows past a year, and
+// refresh() - on every calendar push, after a series edit, on pull to
+// refresh - loads all of it again in one range. Stalwart 1.0 refuses an
+// expanded range longer than maxExpandedQueryDuration (P52W1D).
+describe.each<StalwartVersion>(['0.16', '1.0'])('long loaded windows on Stalwart %s', (version) => {
+  // About 460 days: a month view after four forward extensions.
+  const LOADED = { after: '2025-12-01T00:00:00.000Z', before: '2027-03-06T00:00:00.000Z' };
+  const standups: RangeOccurrence[] = [
+    { id: 'maaaaab', start: '2025-12-15T10:00:00', seconds: 3600 },
+    { id: 'maaaaac', start: '2026-09-07T10:00:00', seconds: 3600 },
+    { id: 'maaaaad', start: '2027-03-01T10:00:00', seconds: 3600 },
+  ];
+  let server: StalwartCalendarMock;
+
+  function serve(options: { maxInstances?: number } = {}): void {
+    server = createStalwartCalendarMock({
+      version,
+      calendars: CALENDARS,
+      objects: { b: SERIES },
+      occurrences: occurrenceObjects('b', standups),
+      answer: expandingQueryAnswer(version, { seriesId: 'b', occurrences: standups, ...options }),
+    });
+    mockRequest.mockImplementation(server.request);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSettingsStore.setState({ calendarTimeZone: 'UTC' });
+    h.session = {
+      accounts: { 'acc-1': { accountCapabilities: { 'urn:ietf:params:jmap:calendars': calendarAccountCapability(version) } } },
+    };
+    useCalendarStore.getState().reset();
+    useCalendarStore.setState({ calendars: CALENDARS as never, hiddenCalendarIds: [], loadedRange: LOADED });
+  });
+
+  afterEach(() => {
+    h.session = null;
+    useSettingsStore.setState({ calendarTimeZone: 'auto' });
+  });
+
+  it(`refreshes the whole loaded window in chunks within the limit on Stalwart ${version}`, async () => {
+    serve();
+
+    await useCalendarStore.getState().refresh();
+
+    const { events, error } = useCalendarStore.getState();
+    expect(error).toBeNull();
+    expect(events.map((e) => e.id).sort()).toEqual(['maaaaab', 'maaaaac', 'maaaaad']);
+    expect(events.every((e) => e.recurrenceRules?.length === 1)).toBe(true);
+    expect(server.queries().filter((q) => q.args.expandRecurrences)).toHaveLength(2);
+  });
+
+  it(`expands the window on the device when the server refuses every piece of it on Stalwart ${version}`, async () => {
+    serve({ maxInstances: 0 });
+
+    await useCalendarStore.getState().refresh();
+
+    const { events, error } = useCalendarStore.getState();
+    expect(error).toBeNull();
+    // The series itself, expanded here: five days, the fourth excluded.
+    expect(events.map((e) => e.recurrenceId)).toEqual([
+      '2026-09-07T10:00:00', '2026-09-08T10:00:00', '2026-09-09T10:00:00', '2026-09-11T10:00:00',
+    ]);
+    expect(events.every((e) => e.originalId === 'b')).toBe(true);
   });
 });

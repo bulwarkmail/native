@@ -9,6 +9,7 @@ import {
   SYNTHETIC_ID_PROBE,
   hydrateRecurrenceInstances,
   isServerRecurrenceInstance,
+  parseDurationSeconds,
 } from '../lib/recurrence-instances';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
@@ -426,15 +427,138 @@ export async function queryEvents(
   return ids;
 }
 
+// ─── Expanded ranges ─────────────────────────────────────
+// Stalwart 1.0 refuses an expanded CalendarEvent/query that spans more than
+// the account's `maxExpandedQueryDuration` (expandDurationTooLarge), and
+// one that expands to more occurrences than it allows
+// (cannotCalculateOccurrences; 0.16 said invalidArguments). The loaded
+// window of a freely scrolling view grows well past a year, so a range is
+// queried in chunks within the limit.
+
+const DAY_SECONDS = 86_400;
+// Chunks stay a day below maxExpandedQueryDuration: the server measures the
+// span in UTC after resolving the bounds in the request time zone, so a DST
+// change or an ambiguous local time moves it.
+const EXPANDED_CHUNK_SLACK = DAY_SECONDS;
+// A chunk that still expands to too many occurrences is halved down to about
+// a week, one the server finds too long down to an hour; past that, and past
+// this many queries for one range, the range is expanded on the device.
+const MIN_OCCURRENCE_CHUNK = 7 * DAY_SECONDS;
+const MIN_DURATION_CHUNK = 3600;
+const MAX_EXPANDED_CHUNKS = 64;
+
+/**
+ * Part of an expanded range, in seconds of the request time zone's wall
+ * clock (the LocalDateTime bounds counted as if they were UTC).
+ */
+interface RangeChunk {
+  start: number;
+  end: number;
+  /** Where the next page of this chunk starts. */
+  position: number;
+}
+
+const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/;
+
+/** A LocalDateTime such as "2026-09-01T00:00:00" as wall-clock seconds, or null. */
+function wallClockSeconds(value: string): number | null {
+  const match = LOCAL_DATE_TIME.exec(value);
+  if (!match) return null;
+  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  return date.getTime() / 1000;
+}
+
+function localDateTimeOf(seconds: number): string {
+  const date = new Date(seconds * 1000);
+  const pad = (n: number, length = 2) => String(n).padStart(length, '0');
+  return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
+    + `T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+/**
+ * [start, end] cut into chunks of at most `span` seconds, or null when that
+ * takes more than MAX_EXPANDED_CHUNKS. Neighbours share a second: the server
+ * counts an occurrence in a range only when it overlaps it strictly, so one
+ * that sits exactly on a border would belong to neither chunk.
+ */
+function chunkRange(start: number, end: number, span: number): RangeChunk[] | null {
+  if (span < 2) return null;
+  const chunks: RangeChunk[] = [];
+  for (let from = start; chunks.length < MAX_EXPANDED_CHUNKS; from = chunks[chunks.length - 1].end - 1) {
+    const to = Math.min(from + span, end);
+    chunks.push({ start: from, end: to, position: 0 });
+    if (to >= end) return chunks;
+  }
+  return null;
+}
+
+/**
+ * Whether an expanded query failed on the server's cap on occurrences per
+ * query: `cannotCalculateOccurrences` on Stalwart 1.0, `invalidArguments`
+ * ("The number of expanded recurrences exceeds the server limit") on 0.16.
+ */
+function isOccurrenceLimitError(error: unknown): boolean {
+  const type = jmapErrorType(error);
+  if (type === 'cannotCalculateOccurrences') return true;
+  return type === 'invalidArguments' && /exceeds/i.test(error instanceof Error ? error.message : '');
+}
+
+/**
+ * What to query instead of a chunk the server refused: its two halves, or
+ * null when it is already as small as it gets and the range has to be
+ * expanded on the device. Any other refusal is rethrown.
+ */
+function splitRefusedChunk(chunk: RangeChunk, error: unknown): RangeChunk[] | null {
+  let minimum: number;
+  if (jmapErrorType(error) === 'expandDurationTooLarge') minimum = MIN_DURATION_CHUNK;
+  else if (isOccurrenceLimitError(error)) minimum = MIN_OCCURRENCE_CHUNK;
+  else throw error;
+  if (chunk.end - chunk.start <= minimum) return null;
+  const middle = Math.floor((chunk.start + chunk.end) / 2);
+  return [
+    { start: chunk.start, end: middle, position: 0 },
+    { start: middle - 1, end: chunk.end, position: 0 },
+  ];
+}
+
+/**
+ * The longest range an expanded query may span, in seconds:
+ * `maxExpandedQueryDuration` of the account's calendars capability (the
+ * primary account's when the account has none), an iCalendar duration such
+ * as "P52W1D". Every 0.16 advertises 365 days without enforcing it.
+ */
+function maxExpandedQuerySeconds(accountId: string): number | null {
+  const accounts = jmapClient.currentSession?.accounts;
+  for (const id of [accountId, jmapClient.accountId]) {
+    const capability = accounts?.[id]?.accountCapabilities?.[CAPABILITIES.CALENDARS] as
+      | { maxExpandedQueryDuration?: unknown }
+      | undefined;
+    const duration = capability?.maxExpandedQueryDuration;
+    const seconds = typeof duration === 'string' ? parseDurationSeconds(duration) : null;
+    if (seconds) return seconds;
+  }
+  return null;
+}
+
 /**
  * Occurrence ids in a date window, with recurring series expanded by the
  * server into one synthetic id per occurrence (CalendarEvent/query
  * `expandRecurrences`). Only for servers that accept those ids in
- * CalendarEvent/set (supportsSyntheticCalendarIds). The filter holds just
- * the two range bounds, the form the server expands with (the webmail
- * sends the same); the caller keeps the calendars it asked for. `null` when
- * the server refuses to expand this range (more occurrences than its
- * maxRecurrenceExpansions): the caller then expands on the device.
+ * CalendarEvent/set (supportsSyntheticCalendarIds).
+ *
+ * Each query's filter is one FilterCondition of the two bounds - Stalwart
+ * 1.0 refuses operators in an expanded query - so the caller keeps the
+ * calendars it asked for. The window goes out in chunks within the server's
+ * maxExpandedQueryDuration, as many per request as maxCallsInRequest
+ * allows; a synthetic id does not depend on the chunk it was found in, so
+ * an occurrence two chunks share is kept once. A chunk the server still
+ * refuses is halved: when it is too long, or when it expands to too many
+ * occurrences, down to about a week. `null` when even that is refused: the
+ * caller then expands the whole window on the device (mixing in occurrences
+ * found so far would show series twice).
  */
 export async function queryExpandedEvents(
   after: string,
@@ -443,30 +567,84 @@ export async function queryExpandedEvents(
 ): Promise<string[] | null> {
   const account = accountId || jmapClient.accountId;
   const timeZone = getUserTimeZone();
-  const filter = {
-    after: toLocalDateTime(after, timeZone),
-    before: toLocalDateTime(before, timeZone),
-  };
+  const bounds = { after: toLocalDateTime(after, timeZone), before: toLocalDateTime(before, timeZone) };
+  const baseArgs: Record<string, unknown> = { accountId: account, expandRecurrences: true };
+  if (timeZone) baseArgs.timeZone = timeZone;
+
+  const start = wallClockSeconds(bounds.after);
+  const end = wallClockSeconds(bounds.before);
+  if (start === null || end === null || end <= start) return queryExpandedRange(baseArgs, bounds);
+  const maxSeconds = maxExpandedQuerySeconds(account);
+  const span = maxSeconds === null
+    ? end - start
+    : maxSeconds - Math.min(EXPANDED_CHUNK_SLACK, Math.floor(maxSeconds / 2));
+  const chunks = chunkRange(start, end, span);
+  if (!chunks) return null;
+
+  const ids = new Set<string>();
+  let pending = chunks;
+  let chunksSent = 0;
+  while (pending.length > 0) {
+    const batch = pending.splice(0, Math.max(1, jmapClient.getMaxCallsInRequest()));
+    // Pages are bounded below; splitting is what has to stop somewhere.
+    chunksSent += batch.filter((chunk) => chunk.position === 0).length;
+    if (chunksSent > MAX_EXPANDED_CHUNKS) return null;
+    const res = await jmapClient.request(batch.map((chunk, i): [string, Record<string, unknown>, string] => [
+      'CalendarEvent/query',
+      {
+        ...baseArgs,
+        filter: { after: localDateTimeOf(chunk.start), before: localDateTimeOf(chunk.end) },
+        position: chunk.position,
+        limit: QUERY_PAGE_SIZE,
+      },
+      String(i),
+    ]), USING);
+
+    // The halves of a refused chunk, and the next page of a full one, go to
+    // the front of the queue.
+    const again: RangeChunk[] = [];
+    for (const [i, chunk] of batch.entries()) {
+      let page: string[];
+      try {
+        page = methodResult<{ ids?: string[] }>(res, String(i)).ids ?? [];
+      } catch (error) {
+        const halves = splitRefusedChunk(chunk, error);
+        if (!halves) return null;
+        again.push(...halves);
+        continue;
+      }
+      for (const id of page) ids.add(id);
+      // A server that keeps returning full pages stops after QUERY_MAX_PAGES.
+      const next = chunk.position + page.length;
+      if (page.length === QUERY_PAGE_SIZE && next < QUERY_MAX_PAGES * QUERY_PAGE_SIZE) {
+        again.push({ ...chunk, position: next });
+      }
+    }
+    pending = [...again, ...pending];
+  }
+  return [...ids];
+}
+
+/**
+ * One expanded query for `filter`, paged: for bounds that cannot be cut into
+ * chunks. `null` when the server will not expand it.
+ */
+async function queryExpandedRange(
+  baseArgs: Record<string, unknown>,
+  filter: Record<string, string>,
+): Promise<string[] | null> {
   const ids: string[] = [];
   for (let page = 0; page < QUERY_MAX_PAGES; page++) {
-    const args: Record<string, unknown> = {
-      accountId: account,
-      filter,
-      expandRecurrences: true,
-      limit: QUERY_PAGE_SIZE,
-      position: ids.length,
-    };
-    if (timeZone) args.timeZone = timeZone;
-    const res = await jmapClient.request([['CalendarEvent/query', args, '0']], USING);
-    const entry = res?.methodResponses?.[0];
-    if (
-      entry?.[0] === 'error'
-      && entry[1]?.type === 'invalidArguments'
-      && /expanded recurrences exceeds/i.test(entry[1]?.description ?? '')
-    ) {
-      return null;
+    const res = await jmapClient.request([['CalendarEvent/query', {
+      ...baseArgs, filter, position: ids.length, limit: QUERY_PAGE_SIZE,
+    }, '0']], USING);
+    let batch: string[];
+    try {
+      batch = methodResult<{ ids?: string[] }>(res).ids ?? [];
+    } catch (error) {
+      if (jmapErrorType(error) === 'expandDurationTooLarge' || isOccurrenceLimitError(error)) return null;
+      throw error;
     }
-    const batch = methodResult<{ ids: string[] }>(res).ids ?? [];
     ids.push(...batch);
     if (batch.length < QUERY_PAGE_SIZE) break;
   }

@@ -5,6 +5,7 @@ vi.mock('../jmap-client', () => ({
     accountId: 'acc-1',
     request: vi.fn(),
     getMaxObjectsInGet: () => 500,
+    getMaxCallsInRequest: () => 16,
   },
 }));
 
@@ -131,13 +132,14 @@ describe('calendar operations', () => {
       expect(Object.keys(args.filter).sort()).toEqual(['after', 'before']);
     });
 
-    it('returns null when the range expands past the server limit', async () => {
-      mockRequest.mockResolvedValue({
-        methodResponses: [['error', {
+    it('returns null when even a week expands past the server limit', async () => {
+      // Every chunk query of every request is refused (0.16's answer).
+      mockRequest.mockImplementation(async (calls: [string, unknown, string][]) => ({
+        methodResponses: calls.map(([, , callId]) => ['error', {
           type: 'invalidArguments',
           description: 'The number of expanded recurrences exceeds the limit of 1000',
-        }, '0']],
-      });
+        }, callId]),
+      }));
 
       expect(await queryExpandedEvents('2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z')).toBeNull();
     });

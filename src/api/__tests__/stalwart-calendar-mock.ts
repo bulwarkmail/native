@@ -189,6 +189,72 @@ export function createStalwartCalendarMock(options: StalwartCalendarMockOptions)
   };
 }
 
+/** Stalwart 1.0's refusal of an expanded range longer than maxExpandedQueryDuration. */
+export const EXPAND_DURATION_TOO_LARGE = {
+  type: 'expandDurationTooLarge',
+  description: "The time span between 'after' and 'before' exceeds maxExpandedQueryDuration",
+} as const;
+
+/** Both versions' refusal of a query that expands to more occurrences than allowed. */
+export function tooManyOccurrences(version: StalwartVersion) {
+  const description = 'The number of expanded recurrences exceeds the server limit';
+  return version === '1.0'
+    ? { type: 'cannotCalculateOccurrences', description }
+    : { type: 'invalidArguments', description };
+}
+
+/** An occurrence of a series: a LocalDateTime start and a length in seconds. */
+export interface RangeOccurrence {
+  id: string;
+  start: string;
+  seconds: number;
+}
+
+/** A LocalDateTime read as seconds (the mock has no time zones). */
+export function localSeconds(value: string): number {
+  return Date.parse(`${value}Z`) / 1000;
+}
+
+/** Occurrence objects of the series `seriesId`, for `occurrences` of the mock. */
+export function occurrenceObjects(seriesId: string, occurrences: RangeOccurrence[]) {
+  return Object.fromEntries(occurrences.map((o) => [o.id, {
+    id: o.id, '@type': 'Event', baseEventId: seriesId, uid: `${seriesId}@example.com`, title: 'Standup',
+    start: o.start, duration: `PT${o.seconds}S`, recurrenceId: o.start, calendarIds: { cal: true },
+  }]));
+}
+
+/**
+ * Answers CalendarEvent/query the way Stalwart expands a range: occurrences
+ * that overlap (after, before) strictly, paged. 1.0 refuses a span over
+ * `maxSpanSeconds` (0.16 never checks it), and both refuse a query that
+ * expands to more than `maxInstances` occurrences. A query without
+ * expansion finds the series itself.
+ */
+export function expandingQueryAnswer(
+  version: StalwartVersion,
+  options: { seriesId: string; occurrences: RangeOccurrence[]; maxSpanSeconds?: number; maxInstances?: number },
+) {
+  return (call: RecordedCall): MethodAnswer | undefined => {
+    if (call.method !== 'CalendarEvent/query') return undefined;
+    const { args } = call;
+    if (!args.expandRecurrences) return ['CalendarEvent/query', { ids: [options.seriesId], position: 0 }];
+    const filter = args.filter as { after: string; before: string };
+    const after = localSeconds(filter.after);
+    const before = localSeconds(filter.before);
+    if (version === '1.0' && before - after > (options.maxSpanSeconds ?? 365 * 86_400)) {
+      return ['error', { ...EXPAND_DURATION_TOO_LARGE }];
+    }
+    const hits = options.occurrences.filter((o) => {
+      const start = localSeconds(o.start);
+      return start < before && start + o.seconds > after;
+    });
+    if (hits.length > (options.maxInstances ?? 3000)) return ['error', tooManyOccurrences(version)];
+    const position = (args.position as number | undefined) ?? 0;
+    const limit = (args.limit as number | undefined) ?? hits.length;
+    return ['CalendarEvent/query', { ids: hits.slice(position, position + limit).map((o) => o.id), position }];
+  };
+}
+
 /** The calendars account capability both versions advertise (0.16 hardcodes 365 days and never enforces it). */
 export function calendarAccountCapability(
   version: StalwartVersion,

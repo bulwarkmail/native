@@ -201,8 +201,8 @@ function collapseDuplicateInstances(
   return result;
 }
 
-/** An ISO 8601 duration ("PT1H30M", "P1DT2H", "P1W") in seconds; null when unparsable. */
-function parseDurationSeconds(duration: string | null | undefined): number | null {
+/** An ISO 8601 duration ("PT1H30M", "P1DT2H", "P52W1D") in seconds; null when unparsable. */
+export function parseDurationSeconds(duration: string | null | undefined): number | null {
   if (!duration) return null;
   const match = /^-?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(duration);
   if (!match) return null;

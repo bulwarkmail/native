@@ -343,8 +343,9 @@ export async function loadEventsInRange(
     try {
       let fetched: CalendarEvent[] | null = null;
       if (expand) {
-        // null: the server won't expand a range this long; the series are
-        // then fetched whole and expanded below.
+        // null: the server won't expand the range even in small pieces
+        // (too many occurrences); the series are then fetched whole and
+        // expanded below.
         const expandedIds = await queryExpandedEvents(after, before, accountId);
         if (expandedIds) {
           const occurrences = expandedIds.length > 0
