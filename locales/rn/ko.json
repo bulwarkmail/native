@@ -206,6 +206,7 @@
       "new_organization": "새 조직",
       "org_name_required": "조직 이름을 추가해 주세요.",
       "photo_hint_mobile": "사진을 탭하여 이미지 선택",
+      "photo_media_unread": "서버에서 연락처 사진을 읽을 수 없어서 아무것도 저장되지 않았어요. 다시 시도해 주세요.",
       "photo_permission_message": "연락처 사진을 선택하려면 사진 보관함 권한을 허용해 주세요.",
       "photo_permission_title": "사진 접근 권한 필요",
       "pick_date": "날짜 선택",
@@ -291,6 +292,7 @@
     "send_now": "지금 보내기",
     "send_timeout_body": "메시지가 이미 발송되었을 수 있어요. 다시 보내기 전에 보낸편지함을 확인해 주세요.",
     "send_timeout_title": "서버에서 응답이 없어요",
+    "submission_limit": "한도에 도달하여 서버가 메시지 전송을 거부했습니다: {reason}",
     "submission_quota": "서버에 이 계정의 보낸 메시지 기록이 너무 많습니다. Bulwark가 삭제할 수 있는 기록은 삭제했습니다. 이 문제가 계속되면 관리자에게 메일 발송 한도를 늘려 달라고 요청하세요.",
     "undo_send_label": "{seconds}초 후 전송…",
     "upload_failed_short": "업로드 실패",
@@ -563,10 +565,12 @@
     "title": "새 메일 알림 받기"
   },
   "scheduled": {
+    "already_sent": "이 메시지는 이미 보냈습니다.",
     "cancel_body": "메시지는 전송되지 않아요. 사본은 보낸편지함에 남아 있어요.",
     "cancel_failed": "취소하지 못했어요",
     "edit_failed": "메시지를 편집하기 위해 열 수 없어요",
     "keep_scheduled": "예약 유지",
+    "no_longer_scheduled": "이 메시지는 더 이상 예약되어 있지 않습니다.",
     "reschedule_failed": "다시 예약하지 못했어요",
     "send_now_failed": "지금 보낼 수 없어요"
   },

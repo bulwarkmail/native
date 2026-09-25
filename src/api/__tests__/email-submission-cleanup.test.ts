@@ -42,7 +42,7 @@ import { jmapClient } from '../jmap-client';
 import {
   cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail, sendReadReceipt,
 } from '../email';
-import { SubmissionQuotaError } from '../jmap-result';
+import { NoLongerScheduledError, SubmissionQuotaError } from '../jmap-result';
 import { prunableSubmissionIds, pruneEmailSubmissions, resetSubmissionPrune } from '../submissions';
 import { createFakeSubmissionServer, OVER_QUOTA_DESCRIPTION, type StalwartVersion } from './fake-submission-server';
 
@@ -259,7 +259,8 @@ describe('a full submission quota on a send (Stalwart 1.0)', () => {
       .catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(SubmissionQuotaError);
-    expect(err).toMatchObject({ type: 'overQuota', message: OVER_QUOTA_DESCRIPTION });
+    // Stalwart counts records: the explanation that an administrator can help.
+    expect(err).toMatchObject({ type: 'overQuota', message: OVER_QUOTA_DESCRIPTION, countsRecords: true });
     // One retry only.
     expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(2);
     expect(server.submissions().map((s) => s.id)).toEqual(pending);
@@ -279,6 +280,9 @@ describe('a full submission quota on a send (Stalwart 1.0)', () => {
     const err = await sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS).catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(SubmissionQuotaError);
+    // Another server's overQuota may be any sending limit: its own words, no
+    // Stalwart explanation.
+    expect(err).toMatchObject({ countsRecords: false, description: OVER_QUOTA_DESCRIPTION });
     expect(server.methods().flat()).not.toContain('EmailSubmission/changes');
   });
 
@@ -470,6 +474,101 @@ describe('rescheduling and "Send now"', () => {
     expect(argsOf(server, 'EmailSubmission/set').some((a) => a.update)).toBe(false);
     expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'pending' }]);
   });
+
+  /** A full account: the original, due soon, and two delivered records the prune can remove. */
+  function fullWithOriginal(dueIn: number) {
+    const server = setup('1.0', { limit: 3 });
+    const now = Date.now();
+    const [original] = server.seed('acc-1', [{ sendAt: now + dueIn, status: 'pending', emailId: 'mail-1' }]);
+    server.seed('acc-1', [{ sendAt: now - HOUR, status: 'final' }, { sendAt: now - 2 * HOUR, status: 'final' }]);
+    return { server, original };
+  }
+  const isQuery = (calls: Array<[string, unknown, string]>) => calls[0][0] === 'EmailSubmission/query';
+
+  it('Stalwart 1.0: an original that went out while room was made is not sent a second time', async () => {
+    const { server, original } = fullWithOriginal(30_000);
+    // Its HOLDFOR runs out while the prune looks for records to remove.
+    server.afterEachRequest((calls) => {
+      if (isQuery(calls)) server.deliver('acc-1', original);
+    });
+
+    const err = await rescheduleScheduledSend(scheduled(original), 0).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(NoLongerScheduledError);
+    expect(err).toMatchObject({ sent: true });
+    // The original was read again after the prune, and only the refused create was made.
+    expect(server.requests.at(-1)?.calls).toEqual([
+      ['EmailSubmission/get', { accountId: 'acc-1', ids: [original], properties: ['id', 'undoStatus'] }, '0'],
+    ]);
+    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
+    expect(argsOf(server, 'EmailSubmission/set').some((a) => a.update)).toBe(false);
+    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'final' }]);
+  });
+
+  it('Stalwart 1.0: an original cancelled on another device meanwhile is left as it is', async () => {
+    const { server, original } = fullWithOriginal(HOUR);
+    server.afterEachRequest((calls) => {
+      if (isQuery(calls)) server.cancel('acc-1', original);
+    });
+
+    const err = await rescheduleScheduledSend(scheduled(original), 2 * 3600).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(NoLongerScheduledError);
+    expect(err).toMatchObject({ sent: false });
+    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
+    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'canceled' }]);
+  });
+
+  it('Stalwart 1.0: when the original cannot be read again, nothing is resubmitted', async () => {
+    const { server, original } = fullWithOriginal(HOUR);
+    server.beforeEachRequest((calls) => {
+      const [name, args] = calls[0];
+      if (name === 'EmailSubmission/get' && (args as { properties?: string[] }).properties?.join() === 'id,undoStatus') {
+        throw new Error('Network request failed');
+      }
+    });
+
+    await expect(rescheduleScheduledSend(scheduled(original), 2 * 3600)).rejects.toThrow('Network request failed');
+
+    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(1);
+    expect(server.submissions()).toEqual([{ id: original, sendAt: expect.any(Number), undoStatus: 'pending' }]);
+  });
+
+  it('Stalwart 1.0: the retry takes the time spent making room off the hold', async () => {
+    let clock = Date.parse('2026-09-25T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const { server, original } = fullWithOriginal(HOUR);
+    const target = clock + 2 * HOUR;
+    // The prune takes five minutes.
+    server.afterEachRequest((calls) => {
+      if (isQuery(calls)) clock += 5 * MINUTE;
+    });
+
+    const result = await rescheduleScheduledSend(scheduled(original), 2 * 3600);
+
+    const holds = argsOf(server, 'EmailSubmission/set')
+      .filter((a) => a.create)
+      .map((a) => a.create.replacement.envelope.mailFrom.parameters.HOLDFOR);
+    expect(holds).toEqual(['7200', '6900']);
+    // Out at the time the user picked, not five minutes later.
+    expect(server.submissions()).toEqual([{ id: result.emailSubmissionId, sendAt: target, undoStatus: 'pending' }]);
+  });
+
+  it('Stalwart 1.0: "Send now" that waited for room still goes out at once', async () => {
+    let clock = Date.parse('2026-09-25T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const { server, original } = fullWithOriginal(HOUR);
+    server.afterEachRequest((calls) => {
+      if (isQuery(calls)) clock += 5 * MINUTE;
+    });
+
+    await rescheduleScheduledSend(scheduled(original), 0);
+
+    const holds = argsOf(server, 'EmailSubmission/set')
+      .filter((a) => a.create)
+      .map((a) => a.create.replacement.envelope.mailFrom.parameters.HOLDFOR);
+    expect(holds).toEqual(['1', '1']);
+  });
 });
 
 describe('read receipts', () => {
@@ -534,5 +633,71 @@ describe('the scheduled list', () => {
 
     expect(list.map((s) => s.emailSubmissionId)).toEqual(ids);
     expect(argsOf(server, 'EmailSubmission/query').map((a) => a.position)).toEqual([0, 2]);
+  });
+});
+
+describe('making room where nothing can go (Stalwart 1.0)', () => {
+  /** Requests that look for records to remove: the prune's query and the change-log walk. */
+  const searches = (server: FakeSubmissionServer) =>
+    server.methods().flat().filter((m) => m === 'EmailSubmission/query' || m === 'EmailSubmission/changes').length;
+
+  it('does not search the account again for five minutes', async () => {
+    let clock = Date.parse('2026-09-25T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const server = setup('1.0', { limit: 2 });
+    const pending = server.seed('acc-1', [
+      { sendAt: clock + DAY, status: 'pending' },
+      { sendAt: clock + 2 * DAY, status: 'pending' },
+    ]);
+
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    const first = searches(server);
+    // The query, and the change-log walk once it found nothing.
+    expect(first).toBe(2);
+
+    // A send and an automatic read receipt right after: one retry each, no search.
+    clock += MINUTE;
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(searches(server)).toBe(first);
+    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(6);
+
+    clock += 5 * MINUTE;
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(searches(server)).toBe(2 * first);
+    expect(server.submissions().map((s) => s.id)).toEqual(pending);
+  });
+
+  it('searches again at once when a search failed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const server = setup('1.0', { limit: 1 });
+    server.seed('acc-1', [{ sendAt: Date.now() + DAY, status: 'pending' }]);
+    let failQuery = true;
+    server.beforeEachRequest((calls) => {
+      if (failQuery && calls[0][0] === 'EmailSubmission/query') {
+        failQuery = false;
+        throw new Error('Network request failed');
+      }
+    });
+
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(warn).toHaveBeenCalled();
+    const first = argsOf(server, 'EmailSubmission/query').length;
+
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    // A failed look-up proved nothing, so the second attempt looked again.
+    expect(argsOf(server, 'EmailSubmission/query').length).toBe(first + 1);
+  });
+
+  it('keeps no pause once a search found something to remove', async () => {
+    const server = setup('1.0', { limit: 2 });
+    const now = Date.now();
+    server.seed('acc-1', [{ sendAt: now + DAY, status: 'pending' }, { sendAt: now - HOUR, status: 'final' }]);
+
+    await sendEmail(OUTGOING, 'id-1', 'sent', 10, VIA_DRAFTS);
+    // Full again: a scheduled send holds the freed place.
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', 10, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+
+    expect(argsOf(server, 'EmailSubmission/query')).toHaveLength(2);
   });
 });

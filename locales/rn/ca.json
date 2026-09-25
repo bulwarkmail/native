@@ -206,6 +206,7 @@
       "new_organization": "Organització nova",
       "org_name_required": "Afegiu el nom de l'organització.",
       "photo_hint_mobile": "Toqueu la foto per triar una imatge",
+      "photo_media_unread": "No s'han pogut llegir les fotos del contacte des del servidor, així que no s'ha desat res. Torneu-ho a provar.",
       "photo_permission_message": "Concediu permís per a la galeria de fotos per triar una foto de contacte.",
       "photo_permission_title": "Cal accés a les fotos",
       "pick_date": "Tria una data",
@@ -291,6 +292,7 @@
     "send_now": "Envia ara",
     "send_timeout_body": "És possible que el missatge ja s'hagi enviat. Comproveu la carpeta Enviats abans de tornar-lo a enviar.",
     "send_timeout_title": "El servidor no respon",
+    "submission_limit": "El servidor s'ha negat a enviar el missatge perquè s'ha arribat a un límit: {reason}",
     "submission_quota": "El servidor té massa registres de missatges enviats per a aquest compte. Bulwark ha eliminat els que ha pogut; si torna a passar, demaneu a l'administrador que augmenti el límit d'enviaments de correu.",
     "undo_send_label": "S'envia d'aquí a {seconds} s…",
     "upload_failed_short": "No s'ha pogut pujar",
@@ -563,10 +565,12 @@
     "title": "Rebeu avisos de correu nou"
   },
   "scheduled": {
+    "already_sent": "Aquest missatge ja s'ha enviat.",
     "cancel_body": "El missatge no s'entregarà. Se'n conserva una còpia a la carpeta Enviats.",
     "cancel_failed": "No s'ha pogut cancel·lar",
     "edit_failed": "No s'ha pogut obrir el missatge per editar-lo",
     "keep_scheduled": "Mantén-lo programat",
+    "no_longer_scheduled": "Aquest missatge ja no està programat.",
     "reschedule_failed": "No s'ha pogut reprogramar",
     "send_now_failed": "No s'ha pogut enviar ara"
   },

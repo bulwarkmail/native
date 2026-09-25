@@ -1,26 +1,41 @@
 import { RequestTimeoutError } from '../api/jmap-client';
-import { ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-result';
+import { NoLongerScheduledError, ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-result';
+import type { MessageParams } from '../i18n/format';
 
-type Translate = (key: string, fallback?: string) => string;
+type Translate = (key: string, fallback?: string, params?: MessageParams) => string;
 
 /**
  * What to tell the user about a send (or reschedule) that failed (webmail
  * send-failure-message). Most errors carry the server's own description;
  * these are the ones it would misrepresent or leave unexplained:
- * - a full submission quota: Stalwart asks the user to "delete some", but
- *   the app has already removed every record it may, so only an
- *   administrator can help;
+ * - a full submission quota on Stalwart: it asks the user to "delete some",
+ *   but the app has already removed every record it may, so only an
+ *   administrator can help. Another server's overQuota may stand for any
+ *   sending limit, so its own description goes with a generic sentence;
  * - a timeout, which is not a clean failure: the message may have gone out
  *   with only the answer lost, so point at Sent rather than invite a re-send
  *   (#702);
- * - a hold beyond the server's limit.
+ * - a hold beyond the server's limit;
+ * - "Send now" or a reschedule that found the message gone out, or no longer
+ *   scheduled, while it made room for the replacement.
  */
 export function sendFailureMessage(error: unknown, t: Translate): string {
   if (error instanceof SubmissionQuotaError) {
-    return t(
-      'email_composer.submission_quota',
-      'The server has too many sent-message records for this account. Bulwark removed the ones it could; if this keeps happening, ask your administrator to raise the email submission limit.',
-    );
+    return error.countsRecords
+      ? t(
+        'email_composer.submission_quota',
+        'The server has too many sent-message records for this account. Bulwark removed the ones it could; if this keeps happening, ask your administrator to raise the email submission limit.',
+      )
+      : t(
+        'email_composer.submission_limit',
+        'The server refused to send the message because a limit was reached: {reason}',
+        { reason: error.description || error.type },
+      );
+  }
+  if (error instanceof NoLongerScheduledError) {
+    return error.sent
+      ? t('scheduled.already_sent', 'This message was already sent.')
+      : t('scheduled.no_longer_scheduled', 'This message is no longer scheduled.');
   }
   if (error instanceof RequestTimeoutError) {
     return t(

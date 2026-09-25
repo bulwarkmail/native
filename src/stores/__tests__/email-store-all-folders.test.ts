@@ -341,6 +341,37 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
     expect(server.current!.accounts.team.find((e) => e.id === 'm1')!.keywords).toEqual({ $seen: true });
   });
 
+  it('reads the own rows of a mixed selection when the team account refuses, then reports it', async () => {
+    await search('zephyr');
+    // Every write to the team account fails (a share that turned read-only).
+    server.current!.failing.set('team', 'forbidden');
+
+    const err = await useEmailStore.getState()
+      .setKeywordForEmails(['team:m1', 'c:o1', 'c:o3'], '$seen', true)
+      .catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ type: 'forbidden' });
+    // The own account was still written after the team account refused.
+    expect(server.current!.callsOf('Email/set').map(([, a]) => a.accountId)).toEqual(['team', 'c']);
+    expect(server.current!.accounts.c.filter((e) => e.keywords.$seen).map((e) => e.id)).toEqual(['o1', 'o3']);
+    const seen = (key: string) => !!useEmailStore.getState().emails.find((e) => rowKeyOf(e) === key)!.keywords.$seen;
+    expect([seen('team:m1'), seen('c:o1'), seen('c:o3')]).toEqual([false, true, true]);
+  });
+
+  it('shows only the messages the server updated when it refuses some of them', async () => {
+    await search('zephyr');
+    server.current!.refusing.set('team', new Set(['m2']));
+
+    const err = await useEmailStore.getState()
+      .setKeywordForEmails(['team:m1', 'team:m2', 'c:o1'], '$flagged', true)
+      .catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ type: 'forbidden', failedIds: ['m2'] });
+    const flagged = (key: string) => !!useEmailStore.getState().emails.find((e) => rowKeyOf(e) === key)!.keywords.$flagged;
+    expect([flagged('team:m1'), flagged('team:m2'), flagged('c:o1')]).toEqual([true, false, true]);
+    expect(server.current!.accounts.team.find((e) => e.id === 'm2')!.keywords).toEqual({});
+  });
+
   it('stars a team row in the team account', async () => {
     await search('zephyr');
     await useEmailStore.getState().toggleStar('team:m3', true);

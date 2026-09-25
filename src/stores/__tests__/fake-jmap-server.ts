@@ -38,6 +38,8 @@ export function createFakeJmap(
   const requests: JMAPMethodCall[][] = [];
   /** JMAP account id → error type every call for it is answered with. */
   const failing = new Map<string, string>();
+  /** JMAP account id → messages whose Email/set updates it refuses as `forbidden`. */
+  const refusing = new Map<string, Set<string>>();
 
   const request = async (calls: JMAPMethodCall[]) => {
     requests.push(calls);
@@ -90,9 +92,14 @@ export function createFakeJmap(
           response = ['Thread/get', { accountId, list, state: 't', notFound: [] }, callId];
         } else if (name === 'Email/set') {
           const updated: Record<string, null> = {};
+          const notUpdated: Record<string, { type: string }> = {};
           for (const [id, patch] of Object.entries((args.update ?? {}) as Record<string, Record<string, unknown>>)) {
             const email = store.find((e) => e.id === id);
             if (!email) continue;
+            if (refusing.get(accountId)?.has(id)) {
+              notUpdated[id] = { type: 'forbidden' };
+              continue;
+            }
             for (const [path, value] of Object.entries(patch)) {
               if (path === 'mailboxIds') email.mailboxIds = { ...(value as Record<string, boolean>) };
               else if (path === 'keywords') email.keywords = { ...(value as Record<string, boolean>) };
@@ -107,7 +114,13 @@ export function createFakeJmap(
           }
           const destroyed = ((args.destroy ?? []) as string[]).filter((id) => store.some((e) => e.id === id));
           accounts[accountId] = store.filter((e) => !destroyed.includes(e.id));
-          response = ['Email/set', { accountId, updated, destroyed, newState: 'n' }, callId];
+          response = ['Email/set', {
+            accountId,
+            updated,
+            ...(Object.keys(notUpdated).length > 0 ? { notUpdated } : {}),
+            destroyed,
+            newState: 'n',
+          }, callId];
         } else {
           response = ['error', { type: 'unknownMethod' }, callId];
         }
@@ -123,5 +136,5 @@ export function createFakeJmap(
   /** The calls of `name` sent so far. */
   const callsOf = (name: string) => calls().filter(([n]) => n === name);
 
-  return { request, requests, calls, callsOf, failing, accounts };
+  return { request, requests, calls, callsOf, failing, refusing, accounts };
 }

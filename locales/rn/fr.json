@@ -206,6 +206,7 @@
       "new_organization": "Nouvelle organisation",
       "org_name_required": "Ajoutez le nom de l'organisation.",
       "photo_hint_mobile": "Appuyez sur la photo pour choisir une image",
+      "photo_media_unread": "Les photos du contact n'ont pas pu être lues depuis le serveur ; rien n'a donc été enregistré. Réessayez.",
       "photo_permission_message": "Autorisez l'accès à la photothèque pour choisir une photo de contact.",
       "photo_permission_title": "Accès aux photos requis",
       "pick_date": "Choisir une date",
@@ -291,6 +292,7 @@
     "send_now": "Envoyer maintenant",
     "send_timeout_body": "Le message est peut-être déjà parti. Vérifiez votre dossier Envoyés avant de le renvoyer.",
     "send_timeout_title": "Aucune réponse du serveur",
+    "submission_limit": "Le serveur a refusé d’envoyer le message, car une limite est atteinte : {reason}",
     "submission_quota": "Le serveur conserve trop d’enregistrements de messages envoyés pour ce compte. Bulwark a supprimé ceux qu’il pouvait ; si cela se reproduit, demandez à votre administrateur de relever la limite d’envois de courriels.",
     "undo_send_label": "Envoi dans {seconds} s…",
     "upload_failed_short": "Échec du téléversement",
@@ -563,10 +565,12 @@
     "title": "Soyez averti des nouveaux e-mails"
   },
   "scheduled": {
+    "already_sent": "Ce message a déjà été envoyé.",
     "cancel_body": "Le message ne sera pas distribué. Une copie reste dans votre dossier Envoyés.",
     "cancel_failed": "Échec de l'annulation",
     "edit_failed": "Impossible d'ouvrir le message pour le modifier",
     "keep_scheduled": "Garder planifié",
+    "no_longer_scheduled": "Ce message n’est plus planifié.",
     "reschedule_failed": "Échec de la replanification",
     "send_now_failed": "Impossible d'envoyer maintenant"
   },

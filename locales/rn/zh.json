@@ -206,6 +206,7 @@
       "new_organization": "新组织",
       "org_name_required": "请添加组织名称。",
       "photo_hint_mobile": "点按照片以选择图片",
+      "photo_media_unread": "无法从服务器读取联系人的照片，因此未保存任何内容。请重试。",
       "photo_permission_message": "请授予相册权限以选择联系人照片。",
       "photo_permission_title": "需要相册访问权限",
       "pick_date": "选择日期",
@@ -291,6 +292,7 @@
     "send_now": "立即发送",
     "send_timeout_body": "邮件可能已经发出。再次发送前，请检查“已发送”文件夹。",
     "send_timeout_title": "服务器无响应",
+    "submission_limit": "由于达到上限，服务器拒绝发送此邮件：{reason}",
     "submission_quota": "服务器上此账户的已发送邮件记录过多。Bulwark 已删除了能删除的记录；如果问题仍然出现，请让管理员提高邮件提交数量上限。",
     "undo_send_label": "{seconds} 秒后发送…",
     "upload_failed_short": "上传失败",
@@ -563,10 +565,12 @@
     "title": "接收新邮件通知"
   },
   "scheduled": {
+    "already_sent": "此邮件已发送。",
     "cancel_body": "该邮件将不会被投递。副本会保留在“已发送”文件夹中。",
     "cancel_failed": "取消失败",
     "edit_failed": "无法打开邮件进行编辑",
     "keep_scheduled": "保留计划",
+    "no_longer_scheduled": "此邮件已不在定时发送中。",
     "reschedule_failed": "重新计划失败",
     "send_now_failed": "无法立即发送"
   },

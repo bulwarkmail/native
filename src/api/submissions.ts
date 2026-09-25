@@ -8,7 +8,7 @@
 // any more are ever destroyed. Port of the webmail's client (48382170).
 
 import { jmapClient } from './jmap-client';
-import { batched, requireMethodResult } from './jmap-result';
+import { SubmissionQuotaError, batched, requireMethodResult } from './jmap-result';
 import { CAPABILITIES } from './types';
 import type { JMAPMethodCall, JMAPResponseBody } from './types';
 
@@ -17,11 +17,18 @@ export const SUBMISSION_ONLY_USING = [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION
 
 /** How often the background prune may sweep one account's records. */
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000;
+/**
+ * How long an account where making room found nothing that could go is not
+ * searched again; see makeRoomForSubmission.
+ */
+const ROOM_RECHECK_MS = 5 * 60 * 1000;
 /** Upper bound on the pages one prune, change-log walk or scheduled list reads. */
 export const SUBMISSION_SCAN_MAX_PAGES = 40;
 
 /** When each account's records were last pruned, keyed by server and account. */
 const prunedAt = new Map<string, number>();
+/** Accounts where making room found nothing to free, until when (epoch ms). */
+const roomRecheckAt = new Map<string, number>();
 
 function pruneKey(accountId: string): string {
   return `${jmapClient.serverUrl ?? ''}|${accountId}`;
@@ -30,6 +37,7 @@ function pruneKey(accountId: string): string {
 /** Test hook. */
 export function resetSubmissionPrune(): void {
   prunedAt.clear();
+  roomRecheckAt.clear();
 }
 
 /**
@@ -39,6 +47,16 @@ export function resetSubmissionPrune(): void {
  */
 export function isStalwartAccount(accountId: string): boolean {
   return jmapClient.hasAccountCapability('urn:stalwart:jmap', accountId);
+}
+
+/**
+ * The error for a submission create the account refused with overQuota,
+ * noting whether the account is on Stalwart: its limit is the count of
+ * submission records, which only an administrator can raise once making room
+ * freed nothing. Another server's may stand for any sending limit.
+ */
+export function submissionQuotaError(description: string | undefined, accountId: string): SubmissionQuotaError {
+  return new SubmissionQuotaError(description, isStalwartAccount(accountId));
 }
 
 export interface SubmissionStatus {
@@ -167,6 +185,20 @@ async function pruneSubmissionAccount(accountId: string, force: boolean): Promis
   }
 }
 
+/** The records in the account's change log that can go (see submissionIdsFromChangeLog). */
+async function findOlderPrunableSubmissions(accountId: string): Promise<string[]> {
+  const ids = await submissionIdsFromChangeLog(accountId);
+  const now = Date.now();
+  const prunable: string[] = [];
+  for (const slice of batched(ids, Math.min(500, jmapClient.getMaxObjectsInGet()))) {
+    const res = await jmapClient.request([
+      ['EmailSubmission/get', { accountId, ids: slice, properties: ['id', 'sendAt', 'undoStatus'] }, '0'],
+    ], SUBMISSION_ONLY_USING);
+    prunable.push(...prunableSubmissionIds(submissionList(res, '0'), now));
+  }
+  return prunable;
+}
+
 /**
  * Page through the records the query can see that might go - sendAt passed
  * or canceled, a superset either way - and let EmailSubmission/get decide.
@@ -217,25 +249,39 @@ function submissionList(res: JMAPResponseBody, callId: string): SubmissionStatus
  * by default), and get and destroy by id work at any age, so they are found
  * there and pruned by the same rules. Never rejects: the caller retries the
  * create either way, since another device may have made room meanwhile.
+ *
+ * At a full quota every attempt ends up here - each send, reschedule and
+ * read receipt. When a search found nothing that can go, the account is left
+ * alone for five minutes: what is left is pending or out of reach, and
+ * looking again at once would cost the prune, the change-log walk and the
+ * gets once more for the same answer.
  */
 export async function makeRoomForSubmission(accountId: string): Promise<void> {
-  const freed = await pruneSubmissionAccount(accountId, true);
-  if (freed > 0) return;
-  try {
-    if (!isStalwartAccount(accountId)) return;
-    const ids = await submissionIdsFromChangeLog(accountId);
-    const now = Date.now();
-    const prunable: string[] = [];
-    for (const slice of batched(ids, Math.min(500, jmapClient.getMaxObjectsInGet()))) {
-      const res = await jmapClient.request([
-        ['EmailSubmission/get', { accountId, ids: slice, properties: ['id', 'sendAt', 'undoStatus'] }, '0'],
-      ], SUBMISSION_ONLY_USING);
-      prunable.push(...prunableSubmissionIds(submissionList(res, '0'), now));
+  const key = pruneKey(accountId);
+  const recheckAt = roomRecheckAt.get(key);
+  if (recheckAt !== undefined && Date.now() < recheckAt) return;
+  const now = Date.now();
+  prunedAt.set(key, now);
+  let found = 0;
+  let freed = 0;
+  let complete = true;
+  const prune = async (lookUp: () => Promise<string[]>, what: string) => {
+    try {
+      const prunable = await lookUp();
+      found += prunable.length;
+      if (prunable.length > 0) freed += (await destroyEmailSubmissions(prunable, accountId)).length;
+    } catch (err) {
+      complete = false;
+      console.warn(`[submissions] looking up ${what} of ${accountId} failed:`, err);
     }
-    if (prunable.length > 0) await destroyEmailSubmissions(prunable, accountId);
-  } catch (err) {
-    console.warn(`[submissions] looking up older submissions of ${accountId} failed:`, err);
+  };
+  await prune(() => findPrunableSubmissions(accountId, now), 'recent submissions');
+  if (freed === 0 && isStalwartAccount(accountId)) {
+    await prune(() => findOlderPrunableSubmissions(accountId), 'older submissions');
   }
+  // A failed look-up proves nothing; only an answer of "nothing" counts.
+  if (complete && found === 0) roomRecheckAt.set(key, Date.now() + ROOM_RECHECK_MS);
+  else roomRecheckAt.delete(key);
 }
 
 /**

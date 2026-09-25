@@ -94,22 +94,38 @@ export function mediaForPhotoEdit(
 }
 
 /**
+ * A new photo for a card on the server that neither the form nor a fresh read
+ * knows the media of: a `media` map built from nothing would delete the
+ * card's other entries - a logo, other photos - since a map replaces them all.
+ */
+export class ContactMediaUnreadError extends Error {
+  constructor() {
+    super("The contact's photos could not be read");
+    this.name = 'ContactMediaUnreadError';
+  }
+}
+
+/**
  * What the contact form saves in `media`, and the key of a newly picked
  * photo; null when `media` stays out of the save, which keeps every entry on
  * the server (an unchanged photo).
  *
  * `known` is the card's media as the form got it, `current` as the server has
- * it now (null when it couldn't be read). The contacts cache is stored without
- * media, so a card opened from it before a refresh knows none: a new photo
- * then replaces the photo the server has, and removing one the form never
- * showed changes nothing.
+ * it now (null when it couldn't be read, or for a new card). The contacts
+ * cache is stored without media, so a card opened from it before a refresh
+ * knows none: a new photo then replaces the photo the server has, and
+ * removing one the form never showed changes nothing. When the server's copy
+ * of such a card (`onServer`) couldn't be read either, a new photo throws
+ * ContactMediaUnreadError instead of replacing every entry.
  */
 export function mediaForFormSave(
   known: Record<string, ContactMedia> | undefined,
   current: Pick<ContactCard, 'media'> | null,
   edit: PhotoEdit,
+  onServer = false,
 ): { media: Record<string, ContactMedia> | null; photoKey?: string } | null {
   if (edit.kind === 'unchanged') return null;
+  if (edit.kind === 'new' && onServer && known === undefined && current === null) throw new ContactMediaUnreadError();
   const formCopy = edit.kind === 'new' ? known ?? current?.media ?? {} : known ?? {};
   const shownKey = findContactPhotoEntry({ media: formCopy })?.[0];
   if (edit.kind === 'removed' && !shownKey) return null;

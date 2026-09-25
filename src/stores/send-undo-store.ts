@@ -10,6 +10,7 @@ import {
   type SendEmailResult,
 } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
+import { NoLongerScheduledError } from '../api/jmap-result';
 import { pruneEmailSubmissions } from '../api/submissions';
 import type { EmailAddress, Mailbox } from '../api/types';
 import { draftContextFromEmail } from '../lib/draft-context';
@@ -125,7 +126,9 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
       // The message stays held and goes out when the delay ends; say why it
       // did not go now (a full submission quota, for one).
       toast.error(t('scheduled.send_now_failed', 'Could not send now'), sendFailureMessage(err, t));
-      set({ busy: false });
+      // Making room for the release took long enough for the message to go
+      // out, or be cancelled on another device: nothing is left to undo.
+      set(err instanceof NoLongerScheduledError ? { pending: null, busy: false } : { busy: false });
       return false;
     }
   },

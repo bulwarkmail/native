@@ -37,7 +37,8 @@ import {
 import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
-import { JMAPMethodError } from '../api/jmap-result';
+import { JMAPMethodError, failedIdsOf } from '../api/jmap-result';
+import { isTransientNetworkError } from '../lib/network-error';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
@@ -1927,6 +1928,11 @@ export const useEmailStore = create<EmailState>()(
     // message goes to the account it names.
     const groups = viewed ? [{ accountId: viewed.accountId, emails: targets }] : groupByAccount(state, targets);
     const patch = { [token]: on ? true : null };
+    // Messages the server refused, as `${account}:${id}`: they keep their
+    // keywords here, and the first refusal is thrown once the rest is shown.
+    const refused = new Set<string>();
+    const refusedKey = (accountId: string | undefined, id: string) => `${accountId ?? ''}:${id}`;
+    let refusal: unknown = null;
     await applyOrQueueBatch(
       groups.flatMap(({ accountId, emails }) => emails.map((e): OutboxOp => ({
         kind: 'keywords',
@@ -1935,12 +1941,26 @@ export const useEmailStore = create<EmailState>()(
         patch,
       }))),
       async () => {
+        // Every account the selection spans gets its write: one that refuses
+        // (a read-only share) leaves the others done.
         for (const { accountId, emails } of groups) {
-          await patchKeywordsForEmails(emails.map((e) => e.id), patch, accountId);
+          const ids = emails.map((e) => e.id);
+          try {
+            await patchKeywordsForEmails(ids, patch, accountId);
+          } catch (err) {
+            // A lost connection queues the whole batch instead.
+            if (isTransientNetworkError(err)) throw err;
+            refusal ??= err;
+            for (const id of failedIdsOf(err) ?? ids) refused.add(refusedKey(accountId, id));
+          }
         }
       },
     );
-    const touched = new Set(listed ? targets.map(rowKeyOf) : []);
+    const written = groups.map(({ accountId, emails }) => ({
+      accountId,
+      emails: emails.filter((e) => !refused.has(refusedKey(accountId, e.id))),
+    }));
+    const touched = new Set(listed ? written.flatMap(({ emails }) => emails.map(rowKeyOf)) : []);
     set({
       emails: get().emails.map((e) =>
         touched.has(rowKeyOf(e)) ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
@@ -1951,9 +1971,10 @@ export const useEmailStore = create<EmailState>()(
         ? { retainedIds: retain(get().retainedIds, [...touched]) }
         : {}),
     });
-    for (const { accountId, emails } of groups) {
+    for (const { accountId, emails } of written) {
       for (const e of emails) patchCache(e.id, { keywords: patch }, accountId);
     }
+    if (refusal) throw refusal;
   },
 
   undoLast: async () => {

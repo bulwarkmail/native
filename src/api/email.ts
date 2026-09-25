@@ -1,11 +1,13 @@
 import { jmapClient } from './jmap-client';
 import {
-  assertSetResult, batched, parseHoldLimit, requireMethodResult, ScheduleTooLateError, SubmissionQuotaError,
+  assertSetResult, batched, failedIdsOf, JMAPSetError, NoLongerScheduledError, parseHoldLimit, requireMethodResult,
+  ScheduleTooLateError,
 } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import {
   destroyEmailSubmissions, isStalwartAccount, makeRoomForSubmission, readSubmissionDestroy,
-  submissionCreateError, submissionDestroyCall, SUBMISSION_ONLY_USING, SUBMISSION_SCAN_MAX_PAGES,
+  submissionCreateError, submissionDestroyCall, submissionQuotaError, SUBMISSION_ONLY_USING,
+  SUBMISSION_SCAN_MAX_PAGES,
 } from './submissions';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
@@ -15,6 +17,7 @@ import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threadin
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
 import { stalwartStateWentBack } from './stalwart-state';
+import { isTransientNetworkError } from '../lib/network-error';
 
 export const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -117,11 +120,14 @@ async function emailSetBatched(
   const out = { updated: [] as string[], destroyed: [] as string[] };
   const size = maxInSet();
   let refusal: unknown = null;
+  // Every batch's refusals, named on the error thrown: the rest was written.
+  const failed: string[] = [];
   const check = (body: Record<string, any>, ids: string[]) => {
     try {
       assertSetResult(body, ids, what);
     } catch (err) {
       refusal ??= err;
+      failed.push(...(failedIdsOf(err) ?? []));
     }
   };
   const updateEntries = Object.entries(args.update ?? {});
@@ -139,7 +145,10 @@ async function emailSetBatched(
     check(body, slice);
     out.destroyed.push(...((body.destroyed as string[] | undefined) ?? []));
   }
-  if (refusal) throw refusal;
+  if (refusal) {
+    if (refusal instanceof JMAPSetError) refusal.failedIds = failed;
+    throw refusal;
+  }
   return out;
 }
 
@@ -384,6 +393,28 @@ export async function markMailboxAsRead(mailboxId: string, accountIdOverride?: s
     }
     // Refused messages come back in every page; stop once only they are left.
     if (marked === 0 || ids.length < pageSize) break;
+  }
+  if (refusal) throw refusal;
+  return total;
+}
+
+/**
+ * Mark every message in each folder read ("Mark folder as read" on a folder
+ * and its subfolders). A folder the server refuses - a read-only share, a
+ * message at the keyword limit - doesn't leave the folders after it unread:
+ * the first refusal is thrown once every folder was tried. A lost connection
+ * stops at once. Resolves with the number of messages marked.
+ */
+export async function markMailboxesAsRead(mailboxes: Array<{ id: string; accountId?: string }>): Promise<number> {
+  let total = 0;
+  let refusal: unknown = null;
+  for (const { id, accountId } of mailboxes) {
+    try {
+      total += await markMailboxAsRead(id, accountId);
+    } catch (err) {
+      if (isTransientNetworkError(err)) throw err;
+      refusal ??= err;
+    }
   }
   if (refusal) throw refusal;
   return total;
@@ -1584,8 +1615,8 @@ function buildEmailCreate(email: OutgoingEmail): Record<string, unknown> {
  * `SubmissionQuotaError`, which the UI explains instead of showing the
  * server's "please delete some".
  */
-function submissionError(err: { description?: string; type?: string }, fallback: string): Error {
-  if (err.type === 'overQuota') return new SubmissionQuotaError(err.description);
+function submissionError(err: { description?: string; type?: string }, fallback: string, accountId: string): Error {
+  if (err.type === 'overQuota') return submissionQuotaError(err.description, accountId);
   const limit = parseHoldLimit(err.description);
   if (limit === null) return new Error(err.description ?? err.type ?? fallback);
   jmapClient.learnHoldLimit(limit);
@@ -1726,7 +1757,7 @@ export async function sendEmail(
     if (methodName === 'EmailSubmission/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
       if (notCreated) {
-        failure = submissionError(notCreated, 'Failed to submit message');
+        failure = submissionError(notCreated, 'Failed to submit message', accountId);
         break;
       }
       const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
@@ -2046,20 +2077,38 @@ export async function rescheduleScheduledSend(
     },
   };
 
-  const createReplacement = () => jmapClient.request(
-    [['EmailSubmission/set', { accountId, create: { replacement: create } }, '0']],
+  // HOLDFOR counts from when the server takes the request.
+  const sendAt = Date.now() + holdFor * 1000;
+  const createReplacement = (seconds: number) => jmapClient.request(
+    [['EmailSubmission/set', {
+      accountId,
+      create: {
+        replacement: {
+          ...create,
+          envelope: { ...create.envelope, mailFrom: { ...create.envelope.mailFrom, parameters: { HOLDFOR: String(seconds) } } },
+        },
+      },
+    }, '0']],
     [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
-  let res = await createReplacement();
+  let res = await createReplacement(holdFor);
   // A full submission quota (Stalwart 1.0): make room and try once more. The
   // original is still pending, so making room never touches it.
   if (submissionCreateError(res, 'replacement')?.type === 'overQuota') {
     await makeRoomForSubmission(accountId);
-    res = await createReplacement();
+    // Making room can take a while - a prune, a walk through the change log -
+    // and meanwhile the original may have gone out: its time came, or it was
+    // "Send now" of a message due any moment. A replacement would then send
+    // it a second time. A read that fails throws, and nothing changes.
+    const original = await readSubmissionUndoStatus(scheduled.emailSubmissionId, accountId);
+    if (original !== 'pending') throw new NoLongerScheduledError(original === 'final');
+    // The time spent is taken off the hold; a moment already past goes out
+    // at once.
+    res = await createReplacement(Math.max(1, Math.ceil((sendAt - Date.now()) / 1000)));
   }
   const body = requireMethodResult(res, '0', 'EmailSubmission/set');
   const notCreated = body.notCreated?.replacement as { description?: string; type?: string } | undefined;
-  if (notCreated) throw submissionError(notCreated, 'Failed to reschedule');
+  if (notCreated) throw submissionError(notCreated, 'Failed to reschedule', accountId);
   const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
   if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
 
@@ -2084,15 +2133,24 @@ export async function rescheduleScheduledSend(
   return { emailSubmissionId: created.id, sendAt: created.sendAt };
 }
 
+/**
+ * A submission's `undoStatus`; undefined when the server no longer has the
+ * record. Throws when it can't be read.
+ */
+async function readSubmissionUndoStatus(emailSubmissionId: string, accountId: string): Promise<string | undefined> {
+  const res = await jmapClient.request(
+    [['EmailSubmission/get', { accountId, ids: [emailSubmissionId], properties: ['id', 'undoStatus'] }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
+  );
+  const list = requireMethodResult(res, '0', 'EmailSubmission/get').list as
+    Array<{ id?: string; undoStatus?: string }> | undefined;
+  return list?.find((s) => s.id === emailSubmissionId)?.undoStatus;
+}
+
 /** A submission's `undoStatus`, or undefined when it can't be read. */
 async function submissionUndoStatus(emailSubmissionId: string, accountId: string): Promise<string | undefined> {
   try {
-    const res = await jmapClient.request(
-      [['EmailSubmission/get', { accountId, ids: [emailSubmissionId], properties: ['undoStatus'] }, '0']],
-      [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
-    );
-    const list = requireMethodResult(res, '0', 'EmailSubmission/get').list as Array<{ undoStatus?: string }> | undefined;
-    return list?.[0]?.undoStatus;
+    return await readSubmissionUndoStatus(emailSubmissionId, accountId);
   } catch {
     return undefined;
   }
@@ -2173,7 +2231,7 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
     }
     const body = requireMethodResult(res, '0', 'EmailSubmission/set');
     const refused = body.notCreated?.mdn as { type?: string; description?: string } | undefined;
-    if (refused?.type === 'overQuota') throw new SubmissionQuotaError(refused.description);
+    if (refused?.type === 'overQuota') throw submissionQuotaError(refused.description, accountId);
     assertSetResult(body, ['mdn'], 'read receipt');
     submissionId = body.created?.mdn?.id as string | undefined;
   } catch (err) {

@@ -15,8 +15,8 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { markMailboxAsRead, patchKeywordsForEmails } from '../email';
-import { isJMAPSetError, JMAPSetError } from '../jmap-result';
+import { markMailboxAsRead, markMailboxesAsRead, patchKeywordsForEmails } from '../email';
+import { failedIdsOf, isJMAPSetError, JMAPSetError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockMaxInSet = jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>;
@@ -91,6 +91,18 @@ describe('keyword writes report what the server refused', () => {
 
     expect(sent.map(([, args]) => Object.keys(args.update as Record<string, unknown>))).toEqual([['m1'], ['m2'], ['m3']]);
   });
+
+  it('names every refused message across the batches, so callers show only what was written', async () => {
+    mockMaxInSet.mockReturnValue(2);
+    serve(refuse({ type: 'forbidden' }, (id) => id === 'm1' || id === 'm4'));
+
+    const err = await patchKeywordsForEmails(['m1', 'm2', 'm3', 'm4'], { $seen: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(JMAPSetError);
+    expect(failedIdsOf(err)).toEqual(['m1', 'm4']);
+    // A refused request says nothing about which messages were written.
+    expect(failedIdsOf(new Error('Network request failed'))).toBeNull();
+  });
 });
 
 describe('markMailboxAsRead', () => {
@@ -127,5 +139,58 @@ describe('markMailboxAsRead', () => {
     );
 
     expect(await markMailboxAsRead('a')).toBe(2);
+  });
+});
+
+describe('markMailboxesAsRead (a folder and its subfolders)', () => {
+  /** Unread messages per folder; `readOnly` folders refuse every update. */
+  function serveFolders(unread: Record<string, string[]>, readOnly: string[]) {
+    const folderOf = (id: string) => Object.keys(unread).find((f) => unread[f].includes(id))!;
+    const sent: Call[] = [];
+    mockRequest.mockImplementation(async (calls: Call[]) => {
+      sent.push(...calls);
+      return {
+        methodResponses: calls.map(([name, args, id]) => {
+          if (name === 'Email/query') {
+            const [inMailbox] = (args.filter as { conditions: Array<{ inMailbox?: string }> }).conditions;
+            return [name, { accountId: args.accountId, ids: [...unread[inMailbox.inMailbox!]] }, id];
+          }
+          const ids = Object.keys(args.update as Record<string, unknown>);
+          const refused = ids.filter((m) => readOnly.includes(folderOf(m)));
+          for (const m of ids.filter((m) => !refused.includes(m))) unread[folderOf(m)].splice(unread[folderOf(m)].indexOf(m), 1);
+          return [name, {
+            accountId: args.accountId,
+            updated: Object.fromEntries(ids.filter((m) => !refused.includes(m)).map((m) => [m, null])),
+            ...(refused.length ? { notUpdated: Object.fromEntries(refused.map((m) => [m, { type: 'forbidden' }])) } : {}),
+          }, id];
+        }),
+      };
+    });
+    return sent;
+  }
+
+  it('marks the folders after one the server refuses, then reports the refusal', async () => {
+    const unread = { parent: ['p1'], shared: ['s1'], child: ['c1', 'c2'] };
+    serveFolders(unread, ['shared']);
+
+    const err = await markMailboxesAsRead([{ id: 'parent' }, { id: 'shared', accountId: 'b' }, { id: 'child' }])
+      .catch((e) => e);
+
+    expect(err).toMatchObject({ type: 'forbidden' });
+    expect(unread).toEqual({ parent: [], shared: ['s1'], child: [] });
+  });
+
+  it('stops at a lost connection instead of trying every folder', async () => {
+    mockRequest.mockRejectedValue(new TypeError('Network request failed'));
+
+    await expect(markMailboxesAsRead([{ id: 'a' }, { id: 'b' }])).rejects.toThrow('Network request failed');
+
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves with the count when every folder is marked', async () => {
+    serveFolders({ a: ['m1'], b: ['m2', 'm3'] }, []);
+
+    await expect(markMailboxesAsRead([{ id: 'a' }, { id: 'b' }])).resolves.toBe(3);
   });
 });

@@ -262,6 +262,25 @@ function accountListsEmailPush(accountId: string): boolean {
   return !!caps && EMAIL_PUSH_CAPABILITY in caps;
 }
 
+// RFC 9670. Stalwart 1.0 lists it in every account's accountCapabilities,
+// 0.16 in none.
+const PRINCIPALS_OWNER_CAPABILITY = 'urn:ietf:params:jmap:principals:owner';
+
+/**
+ * Whether the account capabilities name the accounts a subscription reaches:
+ * Stalwart 1.0 lists emailpush on the user's own account and their groups
+ * only. 0.16.16 to 0.16.23 list it on every account, ACL shares included, and
+ * 0.16.6 to 0.16.15 on none, so there the app has to work it out.
+ */
+function emailPushCapabilityIsExact(): boolean {
+  try {
+    const caps = jmapClient.currentSession?.accounts?.[jmapClient.accountId]?.accountCapabilities;
+    return !!caps && PRINCIPALS_OWNER_CAPABILITY in caps;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The delivery filter we want on every account the subscription fans out to:
  * skip anything the spam filter tagged `$junk` and anything that lives only in
@@ -444,8 +463,9 @@ function withoutAccounts(
  * Stalwart only fans a subscription out to the user's own account and their
  * groups, whatever the emailPush map says, on every version.
  *
- * 1.0 leaves emailpush out of exactly those accounts' capabilities, so an
- * account without it settles the question for every account. 0.16.16 to
+ * 1.0 leaves emailpush out of exactly those accounts' capabilities, and that
+ * settles it: a group without calendars, contacts or files looks unowned, and
+ * a refusal remembered under 0.16 could only keep a group out. 0.16.16 to
  * 0.16.23 list emailpush everywhere (and 0.16.6 to 0.16.15 nowhere), so there
  * it is the accounts the server refused in the map, and the ones that don't
  * look owned.
@@ -459,6 +479,7 @@ export async function mailAccountsWithoutPush(accountIds: Iterable<string>): Pro
   }
   const others = Array.from(new Set(accountIds)).filter((id) => id && id !== primary);
   if (others.length === 0) return [];
+  if (emailPushCapabilityIsExact()) return others.filter((id) => !accountListsEmailPush(id));
   if (serverSupportsEmailPush()) {
     const withoutEmailPush = others.filter((id) => !accountListsEmailPush(id));
     if (withoutEmailPush.length > 0) return withoutEmailPush;
@@ -1018,7 +1039,10 @@ async function setupPushNotificationsInner(
   // A forced re-registration re-learns which accounts the server accepts in
   // the emailPush map.
   if (params.forceRecreate) await AsyncStorage.removeItem(emailPushRefusedKey(accountId));
-  const refusedBefore = await readRefusedEmailPushAccounts(accountId);
+  // On 1.0 the capabilities the map is built from already leave out every
+  // account the server refuses; a list remembered under 0.16 could only keep
+  // a group out.
+  const refusedBefore = emailPushCapabilityIsExact() ? [] : await readRefusedEmailPushAccounts(accountId);
   const emailPush = serverSupportsEmailPush()
     ? withoutAccounts(await buildEmailPushConfig(), refusedBefore)
     : null;
@@ -1099,16 +1123,32 @@ async function setupPushNotificationsInner(
 
   let serverAssignedId: string;
   let serverExpires: string | null;
+  const create = () => writeWithEmailPush(emailPush, (filter) =>
+    createPushSubscription({
+      deviceClientId,
+      url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
+      types: [...PUSH_TYPES],
+      expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
+      ...(filter ? { emailPush: filter } : {}),
+    }),
+  );
   try {
-    const created = await writeWithEmailPush(emailPush, (filter) =>
-      createPushSubscription({
-        deviceClientId,
-        url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
-        types: [...PUSH_TYPES],
-        expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
-        ...(filter ? { emailPush: filter } : {}),
-      }),
-    );
+    let created: Awaited<ReturnType<typeof create>>;
+    try {
+      created = await create();
+    } catch (err) {
+      // Stalwart caps an account's subscriptions (15 by default) and counts
+      // the one being replaced, so at the cap a forced re-register could never
+      // create its replacement. The user asked for a new record: free the old
+      // one's place and try once more. Should that fail too, push is off and
+      // the error says why.
+      if (!params.forceRecreate || !replacedServerId || !isJMAPSetError(err) || err.type !== 'overQuota') throw err;
+      logPhase('jmap', 'subscription limit reached, replacing the old record first');
+      await destroyPushSubscription(replacedServerId);
+      await AsyncStorage.removeItem(subKey);
+      replacedServerId = null;
+      created = await create();
+    }
     serverAssignedId = created.result.id;
     serverExpires = created.result.expires;
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);

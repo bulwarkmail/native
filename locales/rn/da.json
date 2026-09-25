@@ -206,6 +206,7 @@
       "new_organization": "Ny organisation",
       "org_name_required": "Tilføj organisationens navn.",
       "photo_hint_mobile": "Tryk på billedet for at vælge et billede",
+      "photo_media_unread": "Kontaktens billeder kunne ikke læses fra serveren, så intet blev gemt. Prøv igen.",
       "photo_permission_message": "Giv adgang til fotobiblioteket for at vælge et kontaktbillede.",
       "photo_permission_title": "Adgang til fotos påkrævet",
       "pick_date": "Vælg en dato",
@@ -291,6 +292,7 @@
     "send_now": "Send nu",
     "send_timeout_body": "Beskeden er muligvis allerede sendt. Tjek din Sendt-mappe, før du sender den igen.",
     "send_timeout_title": "Intet svar fra serveren",
+    "submission_limit": "Serveren afviste at sende beskeden, fordi en grænse er nået: {reason}",
     "submission_quota": "Serveren har for mange registreringer af sendte beskeder for denne konto. Bulwark har fjernet dem, den kunne; hvis det bliver ved med at ske, så bed din administrator om at hæve grænsen for afsendelse af e-mails.",
     "undo_send_label": "Sender om {seconds} s…",
     "upload_failed_short": "Upload mislykkedes",
@@ -563,10 +565,12 @@
     "title": "Få besked om ny mail"
   },
   "scheduled": {
+    "already_sent": "Denne besked er allerede sendt.",
     "cancel_body": "Beskeden bliver ikke leveret. En kopi bliver i din Sendt-mappe.",
     "cancel_failed": "Annullering mislykkedes",
     "edit_failed": "Kunne ikke åbne beskeden til redigering",
     "keep_scheduled": "Behold planlagt",
+    "no_longer_scheduled": "Denne besked er ikke længere planlagt.",
     "reschedule_failed": "Omplanlægning mislykkedes",
     "send_now_failed": "Kunne ikke sende nu"
   },

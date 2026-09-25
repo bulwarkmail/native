@@ -206,6 +206,7 @@
       "new_organization": "Neue Organisation",
       "org_name_required": "Geben Sie den Namen der Organisation an.",
       "photo_hint_mobile": "Tippen Sie auf das Foto, um ein Bild auszuwählen",
+      "photo_media_unread": "Die Fotos des Kontakts konnten nicht vom Server gelesen werden, daher wurde nichts gespeichert. Versuchen Sie es erneut.",
       "photo_permission_message": "Erlauben Sie den Zugriff auf die Fotomediathek, um ein Kontaktfoto auszuwählen.",
       "photo_permission_title": "Fotozugriff erforderlich",
       "pick_date": "Datum auswählen",
@@ -291,6 +292,7 @@
     "send_now": "Jetzt senden",
     "send_timeout_body": "Die Nachricht wurde möglicherweise bereits versendet. Prüfen Sie Ihren Gesendet-Ordner, bevor Sie sie erneut senden.",
     "send_timeout_title": "Keine Antwort vom Server",
+    "submission_limit": "Der Server hat das Senden abgelehnt, weil ein Limit erreicht ist: {reason}",
     "submission_quota": "Der Server hat für dieses Konto zu viele Einträge zu gesendeten Nachrichten. Bulwark hat entfernt, was möglich war; wenn das weiterhin vorkommt, bitten Sie Ihren Administrator, das Limit für E-Mail-Übermittlungen zu erhöhen.",
     "undo_send_label": "Senden in {seconds} s…",
     "upload_failed_short": "Upload fehlgeschlagen",
@@ -563,10 +565,12 @@
     "title": "Bei neuen E-Mails benachrichtigt werden"
   },
   "scheduled": {
+    "already_sent": "Diese Nachricht wurde bereits gesendet.",
     "cancel_body": "Die Nachricht wird nicht zugestellt. Eine Kopie bleibt in Ihrem Gesendet-Ordner.",
     "cancel_failed": "Abbrechen fehlgeschlagen",
     "edit_failed": "Die Nachricht konnte nicht zum Bearbeiten geöffnet werden",
     "keep_scheduled": "Geplant lassen",
+    "no_longer_scheduled": "Diese Nachricht ist nicht mehr geplant.",
     "reschedule_failed": "Neu planen fehlgeschlagen",
     "send_now_failed": "Sofortiges Senden fehlgeschlagen"
   },

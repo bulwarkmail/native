@@ -84,6 +84,9 @@ export function createFakeSubmissionServer(options: {
   let emailSeq = 0;
   /** Makes the next Email/set create fail with this SetError. */
   let emailCreateFailure: { type: string; description?: string } | null = null;
+  /** Test hooks around each request: the queue changing between two requests, a lost request. */
+  let beforeRequest: ((calls: JMAPMethodCall[]) => void) | null = null;
+  let afterRequest: ((calls: JMAPMethodCall[]) => void) | null = null;
 
   const recordsOf = (accountId: string) => {
     let records = accounts.get(accountId);
@@ -269,6 +272,7 @@ export function createFakeSubmissionServer(options: {
   }
 
   async function request(calls: JMAPMethodCall[], using?: string[]): Promise<{ methodResponses: Response[] }> {
+    beforeRequest?.(calls);
     const responses: Response[] = [];
     requests.push({ calls, using, responses });
     const createdEmails = new Map<string, string>();
@@ -358,6 +362,7 @@ export function createFakeSubmissionServer(options: {
         throw new Error(`fake server: unexpected ${name}`);
       }
     }
+    afterRequest?.(calls);
     return { methodResponses: responses };
   }
 
@@ -385,6 +390,28 @@ export function createFakeSubmissionServer(options: {
     },
     failNextEmailCreate(failure: { type: string; description?: string }) {
       emailCreateFailure = failure;
+    },
+    /** Runs before every request from now on; throwing from it fails the request in transit. */
+    beforeEachRequest(hook: (calls: JMAPMethodCall[]) => void) {
+      beforeRequest = hook;
+    },
+    /** Runs after every request from now on, before the client sees the answer. */
+    afterEachRequest(hook: (calls: JMAPMethodCall[]) => void) {
+      afterRequest = hook;
+    },
+    /** A held send goes out now: final, as its HOLDFOR ran out. */
+    deliver(accountId: string, id: string) {
+      const s = recordsOf(accountId).get(id);
+      if (!s) return;
+      s.sendAt = Math.min(s.sendAt, Date.now() - 1000);
+      s.retrying = false;
+    },
+    /** Another device cancels a held send. */
+    cancel(accountId: string, id: string) {
+      const s = recordsOf(accountId).get(id);
+      if (!s) return;
+      s.canceled = true;
+      logOf(accountId).push({ id, kind: 'updated' });
     },
     /** The method names of every request, in order. */
     methods(): string[][] {

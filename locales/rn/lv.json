@@ -206,6 +206,7 @@
       "new_organization": "Jauna organizācija",
       "org_name_required": "Pievienojiet organizācijas nosaukumu.",
       "photo_hint_mobile": "Pieskarieties fotoattēlam, lai izvēlētos attēlu",
+      "photo_media_unread": "Kontakta fotoattēlus neizdevās nolasīt no servera, tāpēc nekas netika saglabāts. Mēģiniet vēlreiz.",
       "photo_permission_message": "Lai izvēlētos kontakta fotoattēlu, piešķiriet fotoattēlu bibliotēkas atļauju.",
       "photo_permission_title": "Nepieciešama piekļuve fotoattēliem",
       "pick_date": "Izvēlēties datumu",
@@ -291,6 +292,7 @@
     "send_now": "Sūtīt tagad",
     "send_timeout_body": "Ziņojums, iespējams, jau ir nosūtīts. Pirms sūtāt to vēlreiz, pārbaudiet mapi Nosūtītie.",
     "send_timeout_title": "Serveris neatbild",
+    "submission_limit": "Serveris atteicās nosūtīt ziņojumu, jo ir sasniegts ierobežojums: {reason}",
     "submission_quota": "Serverī šim kontam ir pārāk daudz nosūtīto ziņojumu ierakstu. Bulwark noņēma tos, ko varēja; ja tas atkārtojas, lūdziet administratoram palielināt e-pasta sūtījumu ierobežojumu.",
     "undo_send_label": "Sūtīšana pēc {seconds} s…",
     "upload_failed_short": "Augšupielāde neizdevās",
@@ -563,10 +565,12 @@
     "title": "Saņemiet paziņojumus par jaunu pastu"
   },
   "scheduled": {
+    "already_sent": "Šis ziņojums jau ir nosūtīts.",
     "cancel_body": "Ziņojums netiks piegādāts. Kopija paliek mapē Nosūtītie.",
     "cancel_failed": "Atcelšana neizdevās",
     "edit_failed": "Neizdevās atvērt ziņojumu rediģēšanai",
     "keep_scheduled": "Paturēt ieplānotu",
+    "no_longer_scheduled": "Šis ziņojums vairs nav ieplānots.",
     "reschedule_failed": "Pārplānošana neizdevās",
     "send_now_failed": "Neizdevās nosūtīt tagad"
   },

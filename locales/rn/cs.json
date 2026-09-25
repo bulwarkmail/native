@@ -206,6 +206,7 @@
       "new_organization": "Nová organizace",
       "org_name_required": "Zadejte název organizace.",
       "photo_hint_mobile": "Klepnutím na fotku vyberete obrázek",
+      "photo_media_unread": "Fotografie kontaktu se nepodařilo načíst ze serveru, proto se nic neuložilo. Zkuste to znovu.",
       "photo_permission_message": "Pro výběr fotky kontaktu povolte přístup ke knihovně fotek.",
       "photo_permission_title": "Je potřeba přístup k fotkám",
       "pick_date": "Vybrat datum",
@@ -291,6 +292,7 @@
     "send_now": "Odeslat nyní",
     "send_timeout_body": "Zpráva už mohla odejít. Než ji odešlete znovu, zkontrolujte složku Odeslané.",
     "send_timeout_title": "Server neodpovídá",
+    "submission_limit": "Server odmítl zprávu odeslat, protože byl dosažen limit: {reason}",
     "submission_quota": "Server má pro tento účet příliš mnoho záznamů o odeslaných zprávách. Bulwark odstranil ty, které mohl; pokud se to bude opakovat, požádejte správce o zvýšení limitu odesílání e-mailů.",
     "undo_send_label": "Odeslání za {seconds} s…",
     "upload_failed_short": "Nahrávání selhalo",
@@ -563,10 +565,12 @@
     "title": "Dostávejte oznámení o nové poště"
   },
   "scheduled": {
+    "already_sent": "Tato zpráva již byla odeslána.",
     "cancel_body": "Zpráva nebude doručena. Kopie zůstane ve složce Odeslané.",
     "cancel_failed": "Zrušení selhalo",
     "edit_failed": "Zprávu se nepodařilo otevřít k úpravám",
     "keep_scheduled": "Ponechat naplánované",
+    "no_longer_scheduled": "Tato zpráva už není naplánována.",
     "reschedule_failed": "Přeplánování selhalo",
     "send_now_failed": "Zprávu se nepodařilo odeslat nyní"
   },

@@ -206,6 +206,7 @@
       "new_organization": "New organization",
       "org_name_required": "Add the organization name.",
       "photo_hint_mobile": "Tap photo to choose an image",
+      "photo_media_unread": "The contact's photos could not be read from the server, so nothing was saved. Try again.",
       "photo_permission_message": "Grant photo library permission to pick a contact photo.",
       "photo_permission_title": "Photo access needed",
       "pick_date": "Pick a date",
@@ -294,6 +295,7 @@
     "send_now": "Send now",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
+    "submission_limit": "The server refused to send the message because a limit was reached: {reason}",
     "submission_quota": "The server has too many sent-message records for this account. Bulwark removed the ones it could; if this keeps happening, ask your administrator to raise the email submission limit.",
     "toolbar": {
       "background_color": "Background color",
@@ -570,10 +572,12 @@
     "title": "Get notified about new mail"
   },
   "scheduled": {
+    "already_sent": "This message was already sent.",
     "cancel_body": "The message will not be delivered. A copy stays in your Sent folder.",
     "cancel_failed": "Cancel failed",
     "edit_failed": "Could not open the message for editing",
     "keep_scheduled": "Keep scheduled",
+    "no_longer_scheduled": "This message is no longer scheduled.",
     "reschedule_failed": "Reschedule failed",
     "send_now_failed": "Could not send now"
   },

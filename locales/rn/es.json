@@ -206,6 +206,7 @@
       "new_organization": "Nueva organización",
       "org_name_required": "Añade el nombre de la organización.",
       "photo_hint_mobile": "Toca la foto para elegir una imagen",
+      "photo_media_unread": "No se pudieron leer las fotos del contacto desde el servidor, así que no se guardó nada. Inténtalo de nuevo.",
       "photo_permission_message": "Concede acceso a la galería de fotos para elegir una foto de contacto.",
       "photo_permission_title": "Se necesita acceso a las fotos",
       "pick_date": "Elegir una fecha",
@@ -291,6 +292,7 @@
     "send_now": "Enviar ahora",
     "send_timeout_body": "Puede que el mensaje ya se haya enviado. Revisa tu carpeta Enviados antes de volver a enviarlo.",
     "send_timeout_title": "El servidor no responde",
+    "submission_limit": "El servidor se negó a enviar el mensaje porque se alcanzó un límite: {reason}",
     "submission_quota": "El servidor tiene demasiados registros de mensajes enviados para esta cuenta. Bulwark eliminó los que pudo; si esto sigue ocurriendo, pida a su administrador que aumente el límite de envíos de correo.",
     "undo_send_label": "Enviando en {seconds} s…",
     "upload_failed_short": "Error al subir",
@@ -563,10 +565,12 @@
     "title": "Recibe avisos de correo nuevo"
   },
   "scheduled": {
+    "already_sent": "Este mensaje ya se envió.",
     "cancel_body": "El mensaje no se entregará. Se conserva una copia en tu carpeta Enviados.",
     "cancel_failed": "No se pudo cancelar",
     "edit_failed": "No se pudo abrir el mensaje para editarlo",
     "keep_scheduled": "Mantener programado",
+    "no_longer_scheduled": "Este mensaje ya no está programado.",
     "reschedule_failed": "No se pudo reprogramar",
     "send_now_failed": "No se pudo enviar ahora"
   },

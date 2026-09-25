@@ -206,6 +206,7 @@
       "new_organization": "Yeni kuruluş",
       "org_name_required": "Kuruluş adını ekleyin.",
       "photo_hint_mobile": "Görsel seçmek için fotoğrafa dokunun",
+      "photo_media_unread": "Kişinin fotoğrafları sunucudan okunamadı, bu yüzden hiçbir şey kaydedilmedi. Tekrar deneyin.",
       "photo_permission_message": "Kişi fotoğrafı seçmek için fotoğraf arşivi izni verin.",
       "photo_permission_title": "Fotoğraf erişimi gerekli",
       "pick_date": "Tarih seçin",
@@ -291,6 +292,7 @@
     "send_now": "Şimdi gönder",
     "send_timeout_body": "İleti zaten gönderilmiş olabilir. Yeniden göndermeden önce Gönderilenler klasörünü kontrol edin.",
     "send_timeout_title": "Sunucudan yanıt yok",
+    "submission_limit": "Bir sınıra ulaşıldığı için sunucu iletiyi göndermeyi reddetti: {reason}",
     "submission_quota": "Sunucuda bu hesap için çok fazla gönderilmiş ileti kaydı var. Bulwark kaldırabildiklerini kaldırdı; bu durum sürerse yöneticinizden e-posta gönderim sınırını yükseltmesini isteyin.",
     "undo_send_label": "{seconds} sn içinde gönderiliyor…",
     "upload_failed_short": "Yükleme başarısız",
@@ -563,10 +565,12 @@
     "title": "Yeni postalardan haberdar olun"
   },
   "scheduled": {
+    "already_sent": "Bu ileti zaten gönderildi.",
     "cancel_body": "İleti teslim edilmeyecek. Bir kopyası Gönderilenler klasöründe kalır.",
     "cancel_failed": "İptal başarısız",
     "edit_failed": "İleti düzenleme için açılamadı",
     "keep_scheduled": "Zamanlanmış kalsın",
+    "no_longer_scheduled": "Bu ileti artık zamanlanmış değil.",
     "reschedule_failed": "Yeniden zamanlama başarısız",
     "send_now_failed": "Şimdi gönderilemedi"
   },

@@ -19,7 +19,7 @@ vi.mock('../../api/submissions', () => ({
 
 import * as emailApi from '../../api/email';
 import * as submissions from '../../api/submissions';
-import { SubmissionQuotaError } from '../../api/jmap-result';
+import { NoLongerScheduledError, SubmissionQuotaError } from '../../api/jmap-result';
 import type { Email, Mailbox } from '../../api/types';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../send-undo-store';
 import { useToastStore } from '../toast-store';
@@ -152,6 +152,7 @@ describe('send-undo-store', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       api.rescheduleScheduledSend.mockRejectedValueOnce(new SubmissionQuotaError(
         'There are too many email submissions, please delete some before adding a new one.',
+        true,
       ));
       useSendUndoStore.getState().setPending(entry());
 
@@ -164,6 +165,22 @@ describe('send-undo-store', () => {
       }]);
       // Still held: it goes out when the delay ends.
       expect(useSendUndoStore.getState().pending).not.toBeNull();
+    });
+
+    it('drops the entry when the message went out while send now made room (Stalwart 1.0)', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      api.rescheduleScheduledSend.mockRejectedValueOnce(new NoLongerScheduledError(true));
+      useSendUndoStore.getState().setPending(entry());
+
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
+
+      expect(useToastStore.getState().toasts).toMatchObject([{
+        type: 'error',
+        title: 'Could not send now',
+        message: 'This message was already sent.',
+      }]);
+      // Nothing is left to undo.
+      expect(useSendUndoStore.getState()).toMatchObject({ pending: null, busy: false });
     });
 
     it('releases the held message from the account holding it', async () => {

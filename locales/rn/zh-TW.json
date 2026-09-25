@@ -206,6 +206,7 @@
       "new_organization": "新組織",
       "org_name_required": "請新增組織名稱。",
       "photo_hint_mobile": "點選相片以選擇圖片",
+      "photo_media_unread": "無法從伺服器讀取聯絡人的相片，因此未儲存任何內容。請再試一次。",
       "photo_permission_message": "請授予相片圖庫權限，以選擇聯絡人相片。",
       "photo_permission_title": "需要相片存取權",
       "pick_date": "選擇日期",
@@ -291,6 +292,7 @@
     "send_now": "立即傳送",
     "send_timeout_body": "郵件可能已經寄出。再次傳送前，請先檢查「寄件備份」信件匣。",
     "send_timeout_title": "伺服器沒有回應",
+    "submission_limit": "由於達到上限，伺服器拒絕傳送此郵件：{reason}",
     "submission_quota": "伺服器上此帳戶的已寄出郵件記錄過多。Bulwark 已移除可以移除的記錄；如果問題持續發生，請要求管理員提高郵件提交數量上限。",
     "undo_send_label": "{seconds} 秒後傳送…",
     "upload_failed_short": "上傳失敗",
@@ -563,10 +565,12 @@
     "title": "接收新郵件通知"
   },
   "scheduled": {
+    "already_sent": "此郵件已寄出。",
     "cancel_body": "這封郵件將不會寄出。副本會保留在「寄件備份」信件匣中。",
     "cancel_failed": "取消失敗",
     "edit_failed": "無法開啟郵件進行編輯",
     "keep_scheduled": "保留排程",
+    "no_longer_scheduled": "此郵件已不在排定傳送中。",
     "reschedule_failed": "重新排程失敗",
     "send_now_failed": "無法立即傳送"
   },

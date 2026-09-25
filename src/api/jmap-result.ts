@@ -70,10 +70,24 @@ export function requireMethodResult<T = Record<string, any>>(
 export class JMAPSetError extends JMAPMethodError {
   /** The properties the server named (`invalidProperties`), if any. */
   properties?: string[];
+  /**
+   * The objects a /set of several left unchanged, when the thrower knows them:
+   * the server refuses objects one by one and applies the rest.
+   */
+  failedIds?: string[];
   constructor(type: string, description?: string, properties?: string[]) {
     super(type, description);
     if (properties?.length) this.properties = properties;
   }
+}
+
+/**
+ * The objects a write of several left unchanged, when the error names them
+ * (JMAPSetError.failedIds); null when it doesn't say - a failed request, a
+ * refused method call - so any of them may be unchanged.
+ */
+export function failedIdsOf(error: unknown): string[] | null {
+  return error instanceof JMAPSetError && error.failedIds ? error.failedIds : null;
 }
 
 /** Whether a thrown value is a SetError rather than a refused method call. */
@@ -105,11 +119,13 @@ export function assertSetResult(
     if (err?.properties?.length) detail.push(`properties=[${err.properties.join(', ')}]`);
     if (err?.description) detail.push(err.description);
     const more = entries.length > 1 ? ` (+${entries.length - 1} more)` : '';
-    throw new JMAPSetError(
+    const error = new JMAPSetError(
       err?.type ?? 'setError',
       `Failed to ${verb} ${what} ${id}${more}: ${detail.join(' – ')}`,
       err?.properties,
     );
+    error.failedIds = entries.map(([failed]) => failed);
+    throw error;
   }
 }
 
@@ -122,9 +138,30 @@ export function assertSetResult(
  * the mailbox storage is full.
  */
 export class SubmissionQuotaError extends JMAPMethodError {
-  constructor(description?: string) {
+  constructor(
+    /** The server's own description, if it gave one. */
+    readonly description?: string,
+    /**
+     * The submission account is on Stalwart (`urn:stalwart:jmap`), whose
+     * limit is the count of submission records. Another server's overQuota
+     * may stand for any sending limit.
+     */
+    readonly countsRecords = false,
+  ) {
     super('overQuota', description || 'There are too many email submissions');
     this.name = 'SubmissionQuotaError';
+  }
+}
+
+/**
+ * "Send now" or a reschedule found the original submission no longer pending
+ * after making room for its replacement, which can take a while: it went out
+ * (`sent`), or was cancelled or removed elsewhere. No replacement was made.
+ */
+export class NoLongerScheduledError extends Error {
+  constructor(readonly sent: boolean) {
+    super(sent ? 'The scheduled message was already sent' : 'The message is no longer scheduled');
+    this.name = 'NoLongerScheduledError';
   }
 }
 

@@ -623,6 +623,15 @@ describe('setupPushNotifications with ACL-shared accounts on Stalwart 1.0', () =
     expect(await AsyncStorage.getItem(REFUSED_KEY)).toBeNull();
   });
 
+  it('ignores accounts remembered as refused while the server was on 0.16', async () => {
+    await AsyncStorage.setItem(REFUSED_KEY, JSON.stringify(['team']));
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(mapKeys(createMock.mock.calls[0][0].emailPush)).toEqual(['jmap-primary', 'team']);
+  });
+
   it('adds the group to an existing map in one update, leaving the ACL share out', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
     const filter = { filter: { operator: 'AND', conditions: [{ notKeyword: '$junk' }] }, properties: ['id', 'threadId'], urgency: 'high' };
@@ -775,6 +784,109 @@ describe('mailAccountsWithoutPush', () => {
   it('names nothing for the user\'s own mailboxes', async () => {
     expect(await mailAccountsWithoutPush(['jmap-primary'])).toEqual([]);
     expect(await mailAccountsWithoutPush([])).toEqual([]);
+  });
+
+  it('takes the emailpush capability as the whole answer on Stalwart 1.0 (principals:owner)', async () => {
+    const owner = (principalId: string) => ({
+      'urn:ietf:params:jmap:principals:owner': { accountIdForPrincipal: 'jmap-primary', principalId },
+    });
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: emailPush,
+      accounts: {
+        'jmap-primary': account(true, { ...owned, ...emailPush, ...owner('jmap-primary') }),
+        // A group with mail only: no calendars, contacts or files to tell
+        // that the user belongs to it.
+        'mail-group': account(false, { ...emailPush, ...owner('mail-group') }),
+      },
+    };
+    expect(await mailAccountsWithoutPush(['mail-group'])).toEqual([]);
+    // Nor does a refusal remembered while the server was on 0.16 count.
+    await AsyncStorage.setItem(REFUSED_KEY, JSON.stringify(['mail-group']));
+    expect(await mailAccountsWithoutPush(['mail-group'])).toEqual([]);
+  });
+});
+
+describe('setupPushNotifications at the server\'s subscription limit', () => {
+  const overQuota = () => new JMAPSetError('overQuota', 'There are too many push subscriptions, please delete some.');
+  const recorded = (expiresInDays: number) => ({
+    id: 'existing',
+    deviceClientId: OUR_DCID,
+    expires: new Date(Date.now() + expiresInDays * 86400000).toISOString(),
+    types: ['EmailDelivery'],
+  });
+  const verifyMock = verifyPushSubscription as ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([recorded(80)]);
+    installFetch({});
+  });
+
+  afterEach(() => {
+    listMock.mockImplementation(async () => []);
+    createMock.mockImplementation(async () => CREATED);
+    updateMock.mockImplementation(async () => undefined);
+  });
+
+  it('a forced re-register frees the old record\'s place and tries once more', async () => {
+    createMock.mockRejectedValueOnce(overQuota());
+
+    const result = await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true });
+
+    expect(result).toEqual({ subscriptionId: 'new-server-id', verified: true });
+    expect(createMock).toHaveBeenCalledTimes(2);
+    const oldDestroys = destroyMock.mock.calls.flatMap((c, i) => (c[0] === 'existing' ? [destroyMock.mock.invocationCallOrder[i]] : []));
+    // Once, between the refused create and the retry - not again after verification.
+    expect(oldDestroys).toHaveLength(1);
+    expect(oldDestroys[0]).toBeGreaterThan(createMock.mock.invocationCallOrder[0]);
+    expect(oldDestroys[0]).toBeLessThan(createMock.mock.invocationCallOrder[1]);
+    expect(verifyMock).toHaveBeenCalledWith('new-server-id', 'CODE');
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
+  });
+
+  it('retries only once, and says why when the limit still refuses', async () => {
+    createMock.mockImplementation(async () => {
+      throw overQuota();
+    });
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(err.phase).toBe('jmap');
+    expect(err.message).toContain('too many push registrations on the mail server');
+    expect(createMock).toHaveBeenCalledTimes(2);
+    // The old record is gone, and so is its key.
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+  });
+
+  it('keeps the old record when its removal fails', async () => {
+    createMock.mockRejectedValueOnce(overQuota());
+    destroyMock.mockRejectedValueOnce(new Error('Network request failed'));
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY, forceRecreate: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(PushSetupError);
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
+  });
+
+  it('never gives up a working record for a replacement the user did not ask for', async () => {
+    // The refresh is refused, so the setup replaces the record by itself.
+    listMock.mockResolvedValue([recorded(1)]);
+    updateMock.mockRejectedValue(new JMAPSetError('invalidProperties'));
+    createMock.mockImplementation(async () => {
+      throw overQuota();
+    });
+
+    const err = await setupPushNotifications({ relayBaseUrl: RELAY }).catch((e) => e);
+
+    expect(err.phase).toBe('jmap');
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('existing');
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('existing');
   });
 });
 

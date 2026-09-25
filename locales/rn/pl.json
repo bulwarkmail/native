@@ -206,6 +206,7 @@
       "new_organization": "Nowa organizacja",
       "org_name_required": "Dodaj nazwę organizacji.",
       "photo_hint_mobile": "Stuknij zdjęcie, aby wybrać obraz",
+      "photo_media_unread": "Nie udało się odczytać zdjęć kontaktu z serwera, więc nic nie zostało zapisane. Spróbuj ponownie.",
       "photo_permission_message": "Zezwól na dostęp do galerii zdjęć, aby wybrać zdjęcie kontaktu.",
       "photo_permission_title": "Wymagany dostęp do zdjęć",
       "pick_date": "Wybierz datę",
@@ -291,6 +292,7 @@
     "send_now": "Wyślij teraz",
     "send_timeout_body": "Wiadomość mogła już zostać wysłana. Zanim wyślesz ją ponownie, sprawdź folder Wysłane.",
     "send_timeout_title": "Brak odpowiedzi serwera",
+    "submission_limit": "Serwer odmówił wysłania wiadomości, ponieważ osiągnięto limit: {reason}",
     "submission_quota": "Serwer przechowuje zbyt wiele rekordów wysłanych wiadomości dla tego konta. Bulwark usunął te, które mógł; jeśli to się powtarza, poproś administratora o podniesienie limitu wysyłek e-mail.",
     "undo_send_label": "Wysyłanie za {seconds} s…",
     "upload_failed_short": "Przesyłanie nie powiodło się",
@@ -563,10 +565,12 @@
     "title": "Otrzymuj powiadomienia o nowej poczcie"
   },
   "scheduled": {
+    "already_sent": "Ta wiadomość została już wysłana.",
     "cancel_body": "Wiadomość nie zostanie dostarczona. Kopia pozostanie w folderze Wysłane.",
     "cancel_failed": "Anulowanie nie powiodło się",
     "edit_failed": "Nie udało się otworzyć wiadomości do edycji",
     "keep_scheduled": "Zostaw zaplanowaną",
+    "no_longer_scheduled": "Ta wiadomość nie jest już zaplanowana.",
     "reschedule_failed": "Nie udało się zmienić terminu",
     "send_now_failed": "Nie udało się wysłać teraz"
   },

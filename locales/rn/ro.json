@@ -206,6 +206,7 @@
       "new_organization": "Organizație nouă",
       "org_name_required": "Adăugați numele organizației.",
       "photo_hint_mobile": "Atingeți fotografia pentru a alege o imagine",
+      "photo_media_unread": "Fotografiile contactului nu au putut fi citite de pe server, așa că nu s-a salvat nimic. Încercați din nou.",
       "photo_permission_message": "Acordați permisiunea pentru galeria foto pentru a alege o fotografie de contact.",
       "photo_permission_title": "Este necesar accesul la fotografii",
       "pick_date": "Alegeți o dată",
@@ -291,6 +292,7 @@
     "send_now": "Trimite acum",
     "send_timeout_body": "Este posibil ca mesajul să fi fost deja trimis. Verificați folderul Trimise înainte de a-l trimite din nou.",
     "send_timeout_title": "Serverul nu răspunde",
+    "submission_limit": "Serverul a refuzat să trimită mesajul deoarece s-a atins o limită: {reason}",
     "submission_quota": "Serverul păstrează prea multe înregistrări de mesaje trimise pentru acest cont. Bulwark le-a eliminat pe cele pe care a putut; dacă problema persistă, cereți administratorului să mărească limita de trimiteri de e-mail.",
     "undo_send_label": "Se trimite în {seconds} s…",
     "upload_failed_short": "Încărcarea a eșuat",
@@ -563,10 +565,12 @@
     "title": "Primiți notificări pentru e-mailurile noi"
   },
   "scheduled": {
+    "already_sent": "Acest mesaj a fost deja trimis.",
     "cancel_body": "Mesajul nu va fi livrat. O copie rămâne în folderul Trimise.",
     "cancel_failed": "Anularea a eșuat",
     "edit_failed": "Mesajul nu a putut fi deschis pentru editare",
     "keep_scheduled": "Păstrați programarea",
+    "no_longer_scheduled": "Acest mesaj nu mai este programat.",
     "reschedule_failed": "Reprogramarea a eșuat",
     "send_now_failed": "Nu s-a putut trimite acum"
   },

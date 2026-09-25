@@ -11,6 +11,8 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
 import { sendEmail } from '../../api/email';
 import { pruneEmailSubmissions } from '../../api/submissions';
+import { SubmissionQuotaError } from '../../api/jmap-result';
+import { sendFailureMessage } from '../../lib/send-failure-message';
 import { isValidUnsubscribeUrl, parseMailtoUrl, isOneClickUnsubscribe } from '../../lib/unsubscribe';
 import type { ListHeaders } from '../../lib/email-headers';
 import { findReceivingIdentity } from '../../lib/email-headers';
@@ -127,6 +129,10 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
     } catch (err) {
       console.warn('[unsubscribe] failed', err);
       setState('error');
+      // A full submission quota needs an administrator, not another try: say so.
+      if (err instanceof SubmissionQuotaError) {
+        Alert.alert(t('email_viewer.unsubscribe_banner.error', 'Unable to unsubscribe'), sendFailureMessage(err, t));
+      }
     }
   };
 

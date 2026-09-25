@@ -206,6 +206,7 @@
       "new_organization": "Nieuwe organisatie",
       "org_name_required": "Voeg de naam van de organisatie toe.",
       "photo_hint_mobile": "Tik op de foto om een afbeelding te kiezen",
+      "photo_media_unread": "De foto's van het contact konden niet van de server worden gelezen, dus er is niets opgeslagen. Probeer het opnieuw.",
       "photo_permission_message": "Geef toegang tot de fotobibliotheek om een contactfoto te kiezen.",
       "photo_permission_title": "Toegang tot foto's nodig",
       "pick_date": "Kies een datum",
@@ -291,6 +292,7 @@
     "send_now": "Nu verzenden",
     "send_timeout_body": "Het bericht is mogelijk al verzonden. Controleer uw map Verzonden voordat u het opnieuw verstuurt.",
     "send_timeout_title": "Geen antwoord van de server",
+    "submission_limit": "De server weigerde het bericht te verzenden omdat een limiet is bereikt: {reason}",
     "submission_quota": "De server bewaart te veel records van verzonden berichten voor dit account. Bulwark heeft verwijderd wat kon; blijft dit gebeuren, vraag uw beheerder dan de limiet voor e-mailverzendingen te verhogen.",
     "undo_send_label": "Verzenden over {seconds} s…",
     "upload_failed_short": "Uploaden mislukt",
@@ -563,10 +565,12 @@
     "title": "Meldingen ontvangen over nieuwe e-mail"
   },
   "scheduled": {
+    "already_sent": "Dit bericht is al verzonden.",
     "cancel_body": "Het bericht wordt niet bezorgd. Er blijft een kopie in uw map Verzonden.",
     "cancel_failed": "Annuleren mislukt",
     "edit_failed": "Kon het bericht niet openen om te bewerken",
     "keep_scheduled": "Gepland laten",
+    "no_longer_scheduled": "Dit bericht staat niet meer gepland.",
     "reschedule_failed": "Opnieuw plannen mislukt",
     "send_now_failed": "Kon niet nu verzenden"
   },

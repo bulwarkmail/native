@@ -21,7 +21,7 @@ import {
   stringToPartialDate, type ContactPhotoRef,
 } from '../lib/contact-utils';
 import { blankForm, contactToForm, formToPatch, type FormState } from '../lib/contact-form';
-import { mediaForFormSave } from '../lib/contact-media';
+import { ContactMediaUnreadError, mediaForFormSave } from '../lib/contact-media';
 import { splitMailbox } from '../lib/rfc5322-mailbox';
 import Dialog from '../components/Dialog';
 import ContactPhoto from '../components/contacts/ContactPhoto';
@@ -389,7 +389,7 @@ export default function ContactFormScreen() {
       let photoKey: string | undefined;
       if (form.photo.kind !== 'unchanged') {
         const current = existing ? await fetchContactMedia(existing.id) : null;
-        const edited = mediaForFormSave(existing?.media, current, form.photo);
+        const edited = mediaForFormSave(existing?.media, current, form.photo, !!existing);
         if (edited) {
           // `null` when no entry is left: it deletes them on the server.
           Object.assign(patch, { media: edited.media });
@@ -410,7 +410,9 @@ export default function ContactFormScreen() {
         asGroup
           ? t('contacts.groups.save_failed', 'Failed to save group')
           : t('contacts.form.save_failed', 'Failed to save contact'),
-        err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'),
+        err instanceof ContactMediaUnreadError
+          ? t('contacts.form.photo_media_unread', "The contact's photos could not be read from the server, so nothing was saved. Try again.")
+          : err instanceof Error ? err.message : t('identities.validation_errors.unknown_error', 'Unknown error'),
       );
     } finally {
       setSaving(false);

@@ -53,6 +53,7 @@ import {
   inlineContactMediaForExport,
   isBlobMediaRejection,
   mediaForFormSave,
+  ContactMediaUnreadError,
   mediaForPhotoEdit,
   resetContactBlobMediaRefusals,
   supportsContactBlobMedia,
@@ -173,6 +174,18 @@ describe('mediaForFormSave', () => {
       p9: { kind: 'photo', uri: PNG_URI, mediaType: 'image/png', pref: 1 },
       logo: { blobId: 'b-l', kind: 'logo' },
     });
+  });
+
+  it('refuses a new photo for a card whose media neither the form nor the server read gave (0.16 and 1.0)', () => {
+    // Opened from the contacts cache (stored without media) and the fresh read
+    // failed: a map of only the new photo would delete the logo and the rest.
+    expect(() => mediaForFormSave(undefined, null, { kind: 'new', uri: PNG_URI, mediaType: 'image/png' }, true))
+      .toThrow(ContactMediaUnreadError);
+    // A new card has nothing on the server to lose.
+    expect(mediaForFormSave(undefined, null, { kind: 'new', uri: PNG_URI, mediaType: 'image/png' }, false)?.photoKey)
+      .toBe('photo');
+    // Removing a photo the form never showed changes nothing either way.
+    expect(mediaForFormSave(undefined, null, { kind: 'removed' }, true)).toBeNull();
   });
 
   it('does nothing when a photo the form never showed is removed', () => {

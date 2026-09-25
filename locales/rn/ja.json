@@ -206,6 +206,7 @@
       "new_organization": "新しい組織",
       "org_name_required": "組織名を入力してください。",
       "photo_hint_mobile": "写真をタップして画像を選択",
+      "photo_media_unread": "サーバーから連絡先の写真を読み込めなかったため、何も保存されませんでした。もう一度お試しください。",
       "photo_permission_message": "連絡先の写真を選択するには、写真ライブラリへのアクセスを許可してください。",
       "photo_permission_title": "写真へのアクセスが必要です",
       "pick_date": "日付を選択",
@@ -291,6 +292,7 @@
     "send_now": "今すぐ送信",
     "send_timeout_body": "メッセージはすでに送信されている可能性があります。再送信する前に送信済みフォルダーを確認してください。",
     "send_timeout_title": "サーバーから応答がありません",
+    "submission_limit": "上限に達したため、サーバーがメッセージの送信を拒否しました: {reason}",
     "submission_quota": "このアカウントの送信済みメッセージの記録がサーバー上に多すぎます。Bulwark は削除できる記録を削除しました。この状態が続く場合は、メール送信数の上限を引き上げるよう管理者に依頼してください。",
     "undo_send_label": "{seconds}秒後に送信…",
     "upload_failed_short": "アップロードに失敗しました",
@@ -563,10 +565,12 @@
     "title": "新着メールの通知を受け取る"
   },
   "scheduled": {
+    "already_sent": "このメッセージはすでに送信されています。",
     "cancel_body": "メッセージは配信されません。コピーは送信済みフォルダーに残ります。",
     "cancel_failed": "キャンセルに失敗しました",
     "edit_failed": "メッセージを編集用に開けませんでした",
     "keep_scheduled": "予約を維持",
+    "no_longer_scheduled": "このメッセージはもう送信予定ではありません。",
     "reschedule_failed": "再予約に失敗しました",
     "send_now_failed": "今すぐ送信できませんでした"
   },

@@ -30,7 +30,7 @@ import { showUnifiedSection } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
 import {
-  markMailboxAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
+  markMailboxesAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
 import { useTagCountsStore } from '../stores/tag-counts-store';
 import { useNavigation } from '@react-navigation/native';
@@ -456,11 +456,12 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     setBusy(true);
     try {
       await work();
-      await fetchMailboxes();
-      if (affectsCurrent) await refreshEmails();
     } catch (err) {
       Alert.alert(label, err instanceof Error ? err.message : String(err));
     } finally {
+      // Also after a refusal: what did get written shows.
+      await fetchMailboxes().catch(() => undefined);
+      if (affectsCurrent) await refreshEmails().catch(() => undefined);
       setBusy(false);
     }
   };
@@ -471,12 +472,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     const affectsCurrent = !!currentMailboxId && ids.includes(currentMailboxId);
     void runFolderAction(
       t('mailbox_context_menu.toast_error_mark_read', 'Failed to mark as read'),
-      async () => {
-        for (const mb of targets) {
-          const ref = refFor(mb);
-          await markMailboxAsRead(ref.id, ref.accountId);
-        }
-      },
+      // Past a folder the server refuses, reporting the refusal at the end.
+      () => markMailboxesAsRead(targets.map(refFor)),
       affectsCurrent,
     );
   };

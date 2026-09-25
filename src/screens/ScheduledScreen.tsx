@@ -16,6 +16,7 @@ import {
   type ScheduledEmail,
 } from '../api/email';
 import { jmapClient, ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-client';
+import { NoLongerScheduledError } from '../api/jmap-result';
 import { sendFailureMessage } from '../lib/send-failure-message';
 import { useEmailStore } from '../stores/email-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -90,6 +91,13 @@ export default function ScheduledScreen({ navigation }: Props) {
       // refuses; the message stays scheduled as it was.
       if (e instanceof SubmissionQuotaError) {
         Alert.alert(failTitle, sendFailureMessage(e, t));
+        return;
+      }
+      // Making room for the replacement took a while, and the message went
+      // out, or was cancelled elsewhere, meanwhile: nothing was changed.
+      if (e instanceof NoLongerScheduledError) {
+        Alert.alert(failTitle, sendFailureMessage(e, t));
+        void load();
         return;
       }
       Alert.alert(failTitle, e instanceof Error ? e.message : String(e));

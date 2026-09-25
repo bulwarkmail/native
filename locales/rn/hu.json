@@ -206,6 +206,7 @@
       "new_organization": "Új szervezet",
       "org_name_required": "Add meg a szervezet nevét.",
       "photo_hint_mobile": "Kép kiválasztásához koppints a fotóra",
+      "photo_media_unread": "A névjegy fotóit nem sikerült beolvasni a szerverről, ezért semmi sem lett mentve. Próbáld újra.",
       "photo_permission_message": "A névjegyfotó kiválasztásához engedélyezd a hozzáférést a fotókhoz.",
       "photo_permission_title": "Hozzáférés szükséges a fotókhoz",
       "pick_date": "Dátum kiválasztása",
@@ -291,6 +292,7 @@
     "send_now": "Küldés most",
     "send_timeout_body": "Lehet, hogy az üzenet már elment. Mielőtt újra elküldenéd, nézd meg az Elküldött mappát.",
     "send_timeout_title": "Nem érkezett válasz a szervertől",
+    "submission_limit": "A kiszolgáló elutasította az üzenet küldését, mert elért egy korlátot: {reason}",
     "submission_quota": "A kiszolgáló túl sok elküldött üzenetről szóló bejegyzést tárol ehhez a fiókhoz. A Bulwark eltávolította, amit tudott; ha ez továbbra is előfordul, kérje meg a rendszergazdát, hogy emelje meg az e-mail-küldési korlátot.",
     "undo_send_label": "Küldés {seconds} mp múlva…",
     "upload_failed_short": "Sikertelen feltöltés",
@@ -563,10 +565,12 @@
     "title": "Értesítések új levelekről"
   },
   "scheduled": {
+    "already_sent": "Ez az üzenet már el lett küldve.",
     "cancel_body": "Az üzenet nem lesz kézbesítve. Egy másolat az Elküldött mappában marad.",
     "cancel_failed": "A megszakítás sikertelen",
     "edit_failed": "Nem sikerült megnyitni az üzenetet szerkesztésre",
     "keep_scheduled": "Ütemezés megtartása",
+    "no_longer_scheduled": "Ez az üzenet már nincs ütemezve.",
     "reschedule_failed": "Az átütemezés sikertelen",
     "send_now_failed": "Nem sikerült most elküldeni"
   },
