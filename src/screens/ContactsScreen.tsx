@@ -32,6 +32,7 @@ import {
 } from '../stores/contacts-store';
 import { getContactDisplayName, getContactSortName, isGroup, matchesContactSearch } from '../lib/contact-utils';
 import { contactsToVCard } from '../lib/vcard';
+import { inlineContactMediaForExport } from '../lib/contact-media';
 import {
   ContactListRow,
   AddressBookPickerSheet,
@@ -237,10 +238,21 @@ export default function ContactsScreen() {
     });
   };
 
+  // Downloading photos stored as blobs (Stalwart 1.0) into the file takes a
+  // moment; a second tap meanwhile would start the whole export again.
+  const exportingRef = React.useRef(false);
   const exportSelected = async () => {
     const selected = contacts.filter((c) => selection.has(c.id));
-    if (selected.length === 0) return;
-    const vcf = contactsToVCard(selected);
+    if (selected.length === 0 || exportingRef.current) return;
+    exportingRef.current = true;
+    try {
+      await shareVCard(contactsToVCard(await inlineContactMediaForExport(selected)));
+    } finally {
+      exportingRef.current = false;
+    }
+  };
+
+  const shareVCard = async (vcf: string) => {
     try {
       const filename = `contacts-${new Date().toISOString().slice(0, 10)}.vcf`;
       const path = `${FileSystem.cacheDirectory}${filename}`;

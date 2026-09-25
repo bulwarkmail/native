@@ -11,7 +11,7 @@
 // export them separately to keep the match 1:1.
 
 import type { ContactCard } from '../api/types';
-import { getContactPhotoUri } from './contact-utils';
+import { getContactPhotoRef, type ContactPhotoRef } from './contact-utils';
 
 // --- Account avatar -------------------------------------------------------
 
@@ -157,20 +157,20 @@ export function markFaviconFailed(domain: string): void {
 // --- Contact photos -------------------------------------------------------
 //
 // Webmail `components/ui/avatar.tsx` looks the sender up in the address book
-// and shows their contact photo ahead of favicons and initials. The webmail
-// scans every contact per avatar; the mail list renders dozens of avatars, so
-// build one lowercased email → photo index per contacts array instead and
-// reuse it until the store hands out a new array.
+// and shows their contact photo ahead of favicons and initials. The mail list
+// renders dozens of avatars, so build one lowercased email → photo index per
+// contacts array and reuse it until the store hands out a new array. A photo
+// is a URI (0.16) or a blob to download (Stalwart 1.0).
 
-const contactPhotoIndexCache = new WeakMap<readonly ContactCard[], Map<string, string>>();
+const contactPhotoIndexCache = new WeakMap<readonly ContactCard[], Map<string, ContactPhotoRef>>();
 
-export function getContactPhotoIndex(contacts: readonly ContactCard[]): Map<string, string> {
+export function getContactPhotoIndex(contacts: readonly ContactCard[]): Map<string, ContactPhotoRef> {
   let index = contactPhotoIndexCache.get(contacts);
   if (index) return index;
   index = new Map();
   for (const contact of contacts) {
     if (!contact.emails) continue;
-    const photo = getContactPhotoUri(contact);
+    const photo = getContactPhotoRef(contact);
     if (!photo) continue;
     for (const entry of Object.values(contact.emails)) {
       const key = entry?.address?.trim().toLowerCase();
@@ -185,7 +185,7 @@ export function getContactPhotoIndex(contacts: readonly ContactCard[]): Map<stri
 export function getContactPhotoForEmail(
   contacts: readonly ContactCard[],
   email: string | null | undefined,
-): string | undefined {
+): ContactPhotoRef | undefined {
   const key = email?.trim().toLowerCase();
   return key ? getContactPhotoIndex(contacts).get(key) : undefined;
 }

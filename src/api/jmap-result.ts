@@ -133,3 +133,28 @@ export function batched<T>(items: T[], size: number): T[][] {
   }
   return result;
 }
+
+/**
+ * A SetError (RFC 8620 §5.3): the server looked at one object of a /set call
+ * and refused it (`notCreated` / `notUpdated` / `notDestroyed`), as opposed
+ * to refusing the whole method call. The same type can come either way
+ * (`forbidden` is both), and only a SetError says something about that
+ * object. It is a `JMAPMethodError` with that name, so `instanceof` checks
+ * and the name-based classification in lib/network-error treat it as before.
+ */
+export class JMAPSetError extends JMAPMethodError {
+  /** The properties the server named (`invalidProperties`), if any. */
+  properties?: string[];
+  constructor(type: string, description?: string, properties?: string[]) {
+    super(type, description);
+    if (properties?.length) this.properties = properties;
+  }
+}
+
+/**
+ * The properties a thrown SetError names, so a caller can tell
+ * `invalidProperties` on `media` from one on `name`; empty for anything else.
+ */
+export function jmapErrorProperties(err: unknown): string[] {
+  return err instanceof JMAPSetError ? err.properties ?? [] : [];
+}

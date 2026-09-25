@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   deriveFullName,
+  findContactPhotoEntry,
   getContactDisplayName,
   getContactSortName,
   getCustomFullName,
+  getContactPhotoRef,
   getContactPhotoUri,
+  hasContactPhoto,
   normalizeContactPhotoUri,
   partialDateToString,
   stringToPartialDate,
@@ -36,6 +39,48 @@ describe('normalizeContactPhotoUri (#307)', () => {
   it('is applied by getContactPhotoUri', () => {
     const c: ContactCard = { id: 'c', addressBookIds: {}, media: { m: { kind: 'photo', uri: 'data:base64,AAAA' } } };
     expect(getContactPhotoUri(c)).toBe('data:image/jpeg;base64,AAAA');
+  });
+});
+
+describe('contact photo refs', () => {
+  const card = (media: ContactCard['media'], extra: Partial<ContactCard> = {}): ContactCard =>
+    ({ id: 'c', addressBookIds: {}, media, ...extra });
+
+  it('reads the data: URI Stalwart 0.16 returns', () => {
+    const c = card({ photo: { kind: 'photo', uri: 'data:image/jpeg;base64,AAAA', mediaType: 'image/jpeg' } });
+    expect(getContactPhotoRef(c)).toEqual({ uri: 'data:image/jpeg;base64,AAAA' });
+    expect(hasContactPhoto(c)).toBe(true);
+  });
+
+  it('reads the blob Stalwart 1.0 returns instead of a uri', () => {
+    const c = card({ photo: { blobId: 'iavlkor1', kind: 'photo', mediaType: 'image/jpeg' } });
+    expect(getContactPhotoRef(c)).toEqual({ blobId: 'iavlkor1', mediaType: 'image/jpeg' });
+    expect(hasContactPhoto(c)).toBe(true);
+    // No uri to hand out for a blob.
+    expect(getContactPhotoUri(c)).toBeUndefined();
+  });
+
+  it('picks the photo with the lowest pref, the first one on a tie', () => {
+    const c = card({
+      logo: { kind: 'logo', blobId: 'b-logo', pref: 1 },
+      p1: { kind: 'photo', blobId: 'b-1' },
+      p2: { kind: 'photo', blobId: 'b-2', pref: 5 },
+      p3: { kind: 'photo', blobId: 'b-3', pref: 2 },
+      p4: { kind: 'photo', blobId: 'b-4', pref: 2 },
+    });
+    expect(findContactPhotoEntry(c)?.[0]).toBe('p3');
+    expect(findContactPhotoEntry(card({ a: { kind: 'photo', uri: 'https://x/a.jpg' }, b: { kind: 'photo', uri: 'https://x/b.jpg' } }))?.[0])
+      .toBe('a');
+  });
+
+  it('has no photo without a photo entry that carries a uri or blobId', () => {
+    expect(hasContactPhoto(card({ logo: { kind: 'logo', blobId: 'b' }, p: { kind: 'photo' } }))).toBe(false);
+    expect(hasContactPhoto(card(undefined))).toBe(false);
+  });
+
+  it('names the owner account for a card of a shared address book', () => {
+    const c = card({ photo: { blobId: 'b', kind: 'photo' } }, { isShared: true, accountId: 'team' });
+    expect(getContactPhotoRef(c)).toEqual({ blobId: 'b', accountId: 'team' });
   });
 });
 

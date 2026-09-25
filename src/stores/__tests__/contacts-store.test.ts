@@ -14,6 +14,7 @@ vi.mock('../../api/contacts', () => ({
   deleteAddressBook: vi.fn(),
   setDefaultAddressBook: vi.fn(),
   getContactsInBook: vi.fn(),
+  getContactMedia: vi.fn(),
   getContactsAccountId: () => 'acc-1',
   getContactCapableAccountIds: () => ['acc-1', 'acc-team'],
   namespaceId: (accountId: string, id: string) => `${accountId}:${id}`,
@@ -40,10 +41,21 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     isConnected: true,
+    serverUrl: 'https://mail.example',
+    getAccountCapability: vi.fn(),
+    fetchBlobArrayBuffer: vi.fn(),
   },
 }));
 
+vi.mock('../../api/blob', () => ({
+  uploadBytes: vi.fn(),
+  getBlobsAsBase64: vi.fn(),
+}));
+
 import * as contactsApi from '../../api/contacts';
+import * as blobApi from '../../api/blob';
+import { jmapClient } from '../../api/jmap-client';
+import { resetContactBlobMediaRefusals } from '../../lib/contact-media';
 import * as recentApi from '../../api/recent-recipients';
 import {
   useContactsStore,
@@ -253,6 +265,93 @@ describe('contacts-store', () => {
       mockUpdateContact.mockResolvedValue(undefined);
       await useContactsStore.getState().updateContact('acc-team:c1', { addressBookIds: { 'acc-team:ab': true } });
       expect(mockUpdateContact).toHaveBeenCalledWith('c1', { addressBookIds: { ab: true } }, 'acc-team');
+    });
+  });
+
+  describe('contact photos', () => {
+    const PHOTO_URI = 'data:image/jpeg;base64,/9j/4AAQ';
+    const mockCapability = jmapClient.getAccountCapability as ReturnType<typeof vi.fn>;
+    const mockUpload = blobApi.uploadBytes as ReturnType<typeof vi.fn>;
+    const mockFetchBlob = jmapClient.fetchBlobArrayBuffer as ReturnType<typeof vi.fn>;
+    const mockGetMedia = contactsApi.getContactMedia as ReturnType<typeof vi.fn>;
+    const blobCapability = (version: '1.0' | '0.16') => ({
+      supportedTypeNames: version === '1.0'
+        ? ['Email', 'Thread', 'SieveScript', 'CalendarEvent', 'ContactCard']
+        : ['Email', 'Thread', 'SieveScript'],
+    });
+    const newPhoto = { media: { photo: { kind: 'photo', uri: PHOTO_URI, mediaType: 'image/jpeg' } } };
+
+    beforeEach(() => {
+      resetContactBlobMediaRefusals();
+    });
+
+    it('uploads a newly picked photo and sends its blobId on Stalwart 1.0', async () => {
+      mockCapability.mockReturnValue(blobCapability('1.0'));
+      mockUpload.mockResolvedValue({ blobId: 'eavlk-up', type: 'image/jpeg', size: 4 });
+      useContactsStore.setState({ contacts: [card('c1')] });
+      mockUpdateContact.mockResolvedValue(undefined);
+
+      await useContactsStore.getState().updateContact('c1', newPhoto, { photoKey: 'photo' });
+
+      expect(mockUpload.mock.calls[0][2]).toBe('acc-1');
+      expect(mockUpdateContact).toHaveBeenCalledWith(
+        'c1', { media: { photo: { kind: 'photo', blobId: 'eavlk-up', mediaType: 'image/jpeg' } } }, undefined,
+      );
+      // The list shows the picked photo right away.
+      expect(useContactsStore.getState().contacts[0].media?.photo?.uri).toBe(PHOTO_URI);
+    });
+
+    it('sends the data: URI on 0.16, also for a new contact', async () => {
+      mockCapability.mockReturnValue(blobCapability('0.16'));
+      useContactsStore.setState({ contacts: [card('c1')], addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockUpdateContact.mockResolvedValue(undefined);
+      mockCreateContact.mockResolvedValue({ id: 'c2', addressBookIds: { 'ab-1': true } });
+
+      await useContactsStore.getState().updateContact('c1', newPhoto, { photoKey: 'photo' });
+      await useContactsStore.getState().createContact({ name: { full: 'N' }, ...newPhoto }, 'ab-1', { photoKey: 'photo' });
+
+      expect(mockUpload).not.toHaveBeenCalled();
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', newPhoto, undefined);
+      expect(mockCreateContact).toHaveBeenCalledWith({ name: { full: 'N' }, ...newPhoto }, 'ab-1', undefined);
+    });
+
+    it('reads the media of the card as the server has it now', async () => {
+      useContactsStore.setState({
+        contacts: [card('acc-team:c1', { originalId: 'c1', accountId: 'acc-team', isShared: true })],
+      });
+      mockGetMedia.mockResolvedValueOnce({ photo: { blobId: 'b', kind: 'photo' } });
+      expect(await useContactsStore.getState().fetchContactMedia('acc-team:c1'))
+        .toEqual({ media: { photo: { blobId: 'b', kind: 'photo' } } });
+      expect(mockGetMedia).toHaveBeenCalledWith('c1', 'acc-team');
+
+      mockGetMedia.mockResolvedValueOnce(null);
+      expect(await useContactsStore.getState().fetchContactMedia('acc-team:c1')).toEqual({ media: undefined });
+      // Gone, or the request failed: the form falls back to its own copy.
+      mockGetMedia.mockResolvedValueOnce(undefined);
+      expect(await useContactsStore.getState().fetchContactMedia('acc-team:c1')).toBeNull();
+      mockGetMedia.mockRejectedValueOnce(new Error('offline'));
+      expect(await useContactsStore.getState().fetchContactMedia('acc-team:c1')).toBeNull();
+    });
+
+    it('sends the bytes of a blob photo when moving a card to another account (Stalwart 1.0)', async () => {
+      useContactsStore.setState({
+        addressBooks: [
+          { id: 'ab-1', name: 'P' },
+          { id: 'acc-team:ab', originalId: 'ab', name: 'Team', accountId: 'acc-team', accountName: 'Team', isShared: true },
+        ],
+        contacts: [card('c1', { media: { photo: { blobId: 'b-photo', kind: 'photo', mediaType: 'image/jpeg' } } })],
+      });
+      mockFetchBlob.mockResolvedValue(new Uint8Array([0xff, 0xd8]).buffer);
+      mockCreateContact.mockResolvedValue({ id: 'c9', addressBookIds: { ab: true } });
+      mockDeleteContacts.mockResolvedValue(['c1']);
+
+      await useContactsStore.getState().moveContactsToAddressBook(['c1'], 'acc-team:ab');
+
+      expect(mockFetchBlob).toHaveBeenCalledWith('b-photo', 'photo', 'image/jpeg', 'acc-1');
+      expect(mockCreateContact.mock.calls[0][0].media).toEqual({
+        photo: { kind: 'photo', mediaType: 'image/jpeg', uri: 'data:image/jpeg;base64,/9g=' },
+      });
+      expect(mockDeleteContacts).toHaveBeenCalledWith(['c1'], undefined);
     });
   });
 

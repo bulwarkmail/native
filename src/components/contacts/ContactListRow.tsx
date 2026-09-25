@@ -1,15 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Check, Users } from 'lucide-react-native';
 import type { ContactCard } from '../../api/types';
 import {
   getContactDisplayName,
   getContactPrimaryEmail,
-  getContactPhotoUri,
+  getContactPhotoRef,
   getPrimaryOrg,
   isGroup,
 } from '../../lib/contact-utils';
 import SenderAvatar from '../SenderAvatar';
+import ContactPhoto from './ContactPhoto';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -37,11 +38,20 @@ export default function ContactListRow({
   const name = getContactDisplayName(contact) || t('contacts.unnamed', 'Unnamed');
   const email = getContactPrimaryEmail(contact);
   const org = getPrimaryOrg(contact);
-  const photoUri = getContactPhotoUri(contact);
+  const photo = getContactPhotoRef(contact);
   const group = isGroup(contact);
 
   const subtitle = secondaryText ?? (email || org);
   const tertiary = email && org && org !== name ? org : undefined;
+  // Also what a photo shows while it downloads (Stalwart 1.0 blobs) or when
+  // it can't be loaded. The card's own photo is the only one it may show.
+  const fallbackAvatar = group ? (
+    <View style={styles.groupAvatar}>
+      <Users size={18} color={c.primary} />
+    </View>
+  ) : (
+    <SenderAvatar name={name} email={email} size={componentSizes.avatarMd} photo={null} />
+  );
 
   return (
     <Pressable
@@ -61,15 +71,9 @@ export default function ContactListRow({
         </View>
       )}
 
-      {photoUri ? (
-        <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-      ) : group ? (
-        <View style={styles.groupAvatar}>
-          <Users size={18} color={c.primary} />
-        </View>
-      ) : (
-        <SenderAvatar name={name} email={email} size={componentSizes.avatarMd} />
-      )}
+      {photo ? (
+        <ContactPhoto photo={photo} style={styles.avatarImage} fallback={fallbackAvatar} />
+      ) : fallbackAvatar}
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{name}</Text>

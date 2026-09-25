@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useShallow } from 'zustand/react/shallow';
 import {
   generateEmailAvatarColor,
   getContactPhotoForEmail,
@@ -9,6 +10,8 @@ import {
   hasFaviconFailed,
   markFaviconFailed,
 } from '../lib/avatar-utils';
+import type { ContactPhotoRef } from '../lib/contact-utils';
+import { useContactPhotoSource } from '../lib/use-contact-photo';
 import { useSettingsStore } from '../stores/settings-store';
 import { useContactsStore } from '../stores/contacts-store';
 
@@ -23,26 +26,34 @@ interface SenderAvatarProps {
    * so a spam sender's domain is not contacted by merely listing the folder.
    */
   disableImages?: boolean;
+  /**
+   * The photo of the contact this avatar stands for (see getContactPhotoRef).
+   * Left undefined, the address is looked up among the contacts; null means
+   * the contact has no photo, so no other card's photo is borrowed.
+   */
+  photo?: ContactPhotoRef | null;
 }
 
 // Mirrors the webmail `Avatar` priority for the subset available on native:
 // address-book photo → company favicon (if sender domain is non-personal and
 // `senderFavicons` is on) → initials over HSL-hashed color.
-export default function SenderAvatar({ name, email, size = 40, style, disableImages }: SenderAvatarProps) {
+export default function SenderAvatar({ name, email, size = 40, style, disableImages, photo }: SenderAvatarProps) {
   const senderFavicons = useSettingsStore((s) => s.senderFavicons) && !disableImages;
-  // Selects a string, so only avatars whose photo changed re-render when the
+  // Compared shallowly, so only avatars whose photo changed re-render when the
   // contacts change; the index behind it is built once per contacts array.
-  const contactPhoto = useContactsStore((s) => getContactPhotoForEmail(s.contacts, email));
+  const indexedPhoto = useContactsStore(
+    useShallow((s) => (photo === undefined ? getContactPhotoForEmail(s.contacts, email) : undefined)),
+  );
+  const contactPhoto = photo === undefined ? indexedPhoto : photo;
+  // A blob photo (Stalwart 1.0) has no source while it waits for its
+  // download or after it failed; the favicon or initials show meanwhile.
+  const { source: photoSource, onLoad: onPhotoLoad, onError: onPhotoError } =
+    useContactPhotoSource(disableImages ? null : contactPhoto);
   const [imgError, setImgError] = React.useState(false);
-  const [photoError, setPhotoError] = React.useState(false);
 
   React.useEffect(() => {
     setImgError(false);
   }, [email]);
-
-  React.useEffect(() => {
-    setPhotoError(false);
-  }, [contactPhoto]);
 
   const primaryName = (name ?? '').split(',')[0].trim();
   const initials = getEmailInitials(primaryName, email ?? undefined);
@@ -50,7 +61,7 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
 
   const faviconDomain = getFaviconDomain(email ?? undefined);
   const domainFailed = faviconDomain ? hasFaviconFailed(faviconDomain) : false;
-  const showPhoto = !disableImages && !!contactPhoto && !photoError;
+  const showPhoto = !disableImages && !!photoSource;
   const showFavicon = !showPhoto && senderFavicons && !!faviconDomain && !imgError && !domainFailed;
 
   const handleError = React.useCallback(() => {
@@ -71,14 +82,15 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
 
   const fontSize = Math.round(size * 0.4);
 
-  if (showPhoto && contactPhoto) {
+  if (showPhoto && photoSource) {
     return (
       <View style={containerStyle}>
         <Image
-          source={{ uri: contactPhoto }}
+          source={photoSource}
           style={{ width: size, height: size, borderRadius: size / 2 }}
           resizeMode="cover"
-          onError={() => setPhotoError(true)}
+          onLoad={onPhotoLoad}
+          onError={onPhotoError}
         />
       </View>
     );

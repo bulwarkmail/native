@@ -19,9 +19,11 @@ import {
   getContactsInBook,
   getContactsAccountId,
   getContactCapableAccountIds,
+  getContactMedia as apiGetContactMedia,
   namespaceId,
   stripClientFields,
 } from '../api/contacts';
+import { inlineContactMedia, writeContactWithNewPhoto, type ContactSaveOptions } from '../lib/contact-media';
 import { queryRecentRecipients, searchSentRecipients, type RecentRecipient } from '../api/recent-recipients';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -85,8 +87,15 @@ export interface ContactsState {
   refresh: () => Promise<void>;
   handleStateChange: (change: StateChange) => Promise<void>;
 
-  createContact: (contact: Partial<ContactCard>, addressBookId: string) => Promise<ContactCard>;
-  updateContact: (id: string, changes: Partial<ContactCard>) => Promise<void>;
+  /** `options.photoKey` names the `media` entry holding a newly picked photo. */
+  createContact: (
+    contact: Partial<ContactCard>,
+    addressBookId: string,
+    options?: ContactSaveOptions,
+  ) => Promise<ContactCard>;
+  updateContact: (id: string, changes: Partial<ContactCard>, options?: ContactSaveOptions) => Promise<void>;
+  /** The card's `media` as the server has it now, or null when it can't be read. */
+  fetchContactMedia: (id: string) => Promise<Pick<ContactCard, 'media'> | null>;
   deleteContact: (id: string) => Promise<void>;
   bulkDelete: (ids: string[]) => Promise<void>;
   importContacts: (
@@ -399,17 +408,27 @@ export const useContactsStore = create<ContactsState>()(
           }
         },
 
-        createContact: async (contact, addressBookId) => {
+        createContact: async (contact, addressBookId, options) => {
           const { originalId, accountId, book } = bookTarget(addressBookId);
-          const created = tagCreated(await apiCreateContact(contact, originalId, accountId), book);
+          const write = (card: Partial<ContactCard>) => apiCreateContact(card, originalId, accountId);
+          const saved = options?.photoKey
+            ? await writeContactWithNewPhoto(accountId, contact, options.photoKey, write)
+            : await write(contact);
+          const created = tagCreated(saved, book);
           set({ contacts: [...get().contacts, created] });
           return created;
         },
 
-        updateContact: async (id, changes) => {
+        updateContact: async (id, changes, options) => {
           const contact = get().contacts.find((c) => c.id === id);
           const { originalId, accountId } = contactTarget(id);
-          await apiUpdateContact(originalId, cleanPatch(contact, changes), accountId);
+          const patch = cleanPatch(contact, changes);
+          const write = (card: Partial<ContactCard>) => apiUpdateContact(originalId, card, accountId);
+          if (options?.photoKey) {
+            await writeContactWithNewPhoto(accountId, patch, options.photoKey, write);
+          } else {
+            await write(patch);
+          }
           set({
             contacts: get().contacts.map((c) => {
               if (c.id !== id) return c;
@@ -422,6 +441,17 @@ export const useContactsStore = create<ContactsState>()(
               return merged;
             }),
           });
+        },
+
+        fetchContactMedia: async (id) => {
+          const { originalId, accountId } = contactTarget(id);
+          try {
+            const media = await apiGetContactMedia(originalId, accountId);
+            return media === undefined ? null : { media: media ?? undefined };
+          } catch (err) {
+            console.warn('[contacts-store] reading the card media failed', err);
+            return null;
+          }
         },
 
         deleteContact: async (id) => {
@@ -539,6 +569,13 @@ export const useContactsStore = create<ContactsState>()(
             } else {
               // Cross-account: create in the target account, then delete the source.
               const { id: _id, addressBookIds: _ab, uid: _uid, created: _c, updated: _u, ...data } = stripClientFields(contact);
+              // A blobId names a photo in the source account and need not
+              // resolve for the target one; send the bytes. If a download
+              // fails the entry goes as it is: the create then either resolves
+              // it or fails, and the source card is only deleted after a
+              // successful create.
+              const media = await inlineContactMedia(contact, 'keep');
+              if (media) data.media = media;
               const created = tagCreated(await apiCreateContact(data, target.originalId, target.accountId), target.book);
               await apiDeleteContacts([source.originalId], source.accountId);
               set({ contacts: get().contacts.map((c) => (c.id === id ? created : c)) });

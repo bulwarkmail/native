@@ -1,6 +1,8 @@
 import { File } from 'expo-file-system';
 import type * as LegacyFileSystemTypes from 'expo-file-system/legacy';
 import { jmapClient } from './jmap-client';
+import { batched } from './jmap-result';
+import { CAPABILITIES } from './types';
 import { getClientCertAlias, secureFetch } from '../lib/client-cert';
 
 // The legacy expo-file-system API (streaming upload tasks with progress and
@@ -268,4 +270,110 @@ export function getDownloadUrl(
     .replace('{blobId}', encodeURIComponent(blobId))
     .replace('{name}', encodeURIComponent(name ?? 'download'))
     .replace('{type}', encodeURIComponent(type ?? 'application/octet-stream'));
+}
+
+/**
+ * Bytes of blob data one Blob/get in getBlobsAsBase64 asks for. They come
+ * back as base64 inside the JSON, a third larger.
+ */
+const BLOB_BATCH_BYTES = 4 * 1024 * 1024;
+/** The largest contact photo Stalwart 1.0 takes by default (maxMediaSize). */
+const BLOB_LARGE_BYTES = 2 * 1024 * 1024;
+
+/** What getBlobsAsBase64 brought back. */
+export interface BlobBatch {
+  /** Contents as base64 by blobId, for every blob the server returned. */
+  data: Map<string, string>;
+  /** Blobs left unfetched because a request failed; they can still be downloaded one by one. */
+  failed: string[];
+}
+
+/**
+ * Split `items` into consecutive batches whose sizes add up to at most
+ * `budget`, and of at most `maxCount` entries. An item larger than the budget
+ * gets a batch of its own; an item without a size counts as the whole budget.
+ */
+function batchedBySize<T>(items: T[], sizeOf: (item: T) => number | undefined, budget: number, maxCount: number): T[][] {
+  const limit = Math.max(1, Math.floor(maxCount));
+  const result: T[][] = [];
+  let batch: T[] = [];
+  let total = 0;
+  for (const item of items) {
+    const size = sizeOf(item) ?? budget;
+    if (batch.length > 0 && (total + size > budget || batch.length >= limit)) {
+      result.push(batch);
+      batch = [];
+      total = 0;
+    }
+    batch.push(item);
+    total += size;
+  }
+  if (batch.length > 0) result.push(batch);
+  return result;
+}
+
+/**
+ * The contents of many blobs as base64, through Blob/get (RFC 9404), for an
+ * export that needs a lot of them (webmail getBlobsAsBase64): one download per
+ * blob queues behind the server's per-user limits (Stalwart: 4 requests at a
+ * time, 1000 a minute), while one Blob/get returns many.
+ *
+ * More blobs than two of the largest photos would fill are first asked for
+ * their sizes, then fetched in requests of about BLOB_BATCH_BYTES, so a
+ * response stays bounded however large the photos are.
+ *
+ * Null when the session doesn't advertise the blob capability, which then
+ * must stay out of `using`. Blobs the server doesn't find are left out; once a
+ * request fails, the blobs not fetched yet are listed in `failed`.
+ */
+export async function getBlobsAsBase64(blobIds: string[], accountId?: string): Promise<BlobBatch | null> {
+  if (!jmapClient.hasCapability(CAPABILITIES.BLOB)) return null;
+  const account = accountId || jmapClient.accountId;
+  const ids = [...new Set(blobIds)];
+  const data = new Map<string, string>();
+  const blobGet = async (chunk: string[], property: 'size' | 'data:asBase64') => {
+    const res = await jmapClient.request(
+      [['Blob/get', { accountId: account, ids: chunk, properties: [property] }, '0']],
+      [CAPABILITIES.CORE, CAPABILITIES.BLOB],
+    );
+    const [name, result] = res.methodResponses?.[0] ?? [];
+    if (name !== 'Blob/get') {
+      throw new Error(`Blob/get failed: ${result?.description || result?.type || 'unknown'}`);
+    }
+    return (result.list ?? []) as Array<Record<string, unknown>>;
+  };
+
+  let chunks: string[][] = ids.length > 0 ? [ids] : [];
+  if (ids.length * BLOB_LARGE_BYTES > BLOB_BATCH_BYTES) {
+    const sizes = new Map<string, number | undefined>();
+    try {
+      for (const chunk of batched(ids, jmapClient.getMaxObjectsInGet())) {
+        for (const blob of await blobGet(chunk, 'size')) {
+          if (typeof blob.id === 'string') sizes.set(blob.id, typeof blob.size === 'number' ? blob.size : undefined);
+        }
+      }
+    } catch (err) {
+      console.warn('[blob] Blob/get of sizes failed', err);
+      return { data, failed: ids };
+    }
+    chunks = batchedBySize(
+      ids.filter((id) => sizes.has(id)),
+      (id) => sizes.get(id),
+      BLOB_BATCH_BYTES,
+      jmapClient.getMaxObjectsInGet(),
+    );
+  }
+
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      for (const blob of await blobGet(chunks[i], 'data:asBase64')) {
+        const base64 = blob['data:asBase64'];
+        if (typeof blob.id === 'string' && typeof base64 === 'string') data.set(blob.id, base64);
+      }
+    } catch (err) {
+      console.warn('[blob] Blob/get failed', err);
+      return { data, failed: chunks.slice(i).flat() };
+    }
+  }
+  return { data, failed: [] };
 }

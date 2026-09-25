@@ -14,6 +14,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useContactsStore, selectAddressBooksWithCount } from '../../stores/contacts-store';
 import { contactsToVCard } from '../../lib/vcard';
 import { isGroup } from '../../lib/contact-utils';
+import { inlineContactMediaForExport } from '../../lib/contact-media';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 
@@ -83,7 +84,8 @@ export function ContactsSettings() {
     if (exportable.length === 0 || exporting) return;
     setExporting(true);
     try {
-      const vcf = contactsToVCard(exportable);
+      // Photos stored as blobs (Stalwart 1.0) are downloaded into the file.
+      const vcf = contactsToVCard(await inlineContactMediaForExport(exportable));
       const filename = `contacts-${new Date().toISOString().slice(0, 10)}.vcf`;
       const path = `${FileSystem.cacheDirectory}${filename}`;
       await FileSystem.writeAsStringAsync(path, vcf);

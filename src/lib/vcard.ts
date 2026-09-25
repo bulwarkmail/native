@@ -7,6 +7,7 @@ import type {
 } from '../api/types';
 import { generateUUID } from './uuid';
 import { deriveFullName } from './contact-utils';
+import { parseBase64DataUri } from './data-uri';
 
 // Convert RFC 9553 AnniversaryDate (PartialDate|Timestamp|string) to vCard date string
 function anniversaryDateToVcardString(date: AnniversaryDate): string {
@@ -1453,19 +1454,29 @@ function generateSingleVCard(contact: ContactCard): string {
   if (contact.members) {
     for (const memberId of Object.keys(contact.members)) {
       if (contact.members[memberId]) {
-        lines.push(`MEMBER:urn:uuid:${memberId}`);
+        // Keys are URIs already for groups made here (members are keyed by
+        // uid, a urn:uuid:) and for groups from CardDAV clients (Stalwart
+        // keeps MEMBER values verbatim); only a bare key gets the prefix.
+        const uri = /^[a-z][a-z0-9+.-]*:/i.test(memberId) ? memberId : `urn:uuid:${memberId}`;
+        lines.push(`MEMBER:${uri}`);
       }
     }
   }
 
   if (contact.media) {
+    // Blob-only entries (Stalwart 1.0) are turned into data: URIs by the
+    // caller before export (inlineContactMediaForExport); there is nothing
+    // to write for them here.
     for (const media of Object.values(contact.media)) {
-      if (media.uri) {
+      if (media?.uri) {
         const prop = media.kind === 'logo' ? 'LOGO' : media.kind === 'sound' ? 'SOUND' : 'PHOTO';
         if (media.uri.startsWith('data:')) {
-          const match = media.uri.match(/^data:([^;]+);base64,(.+)$/);
-          if (match) {
-            lines.push(`${prop};ENCODING=b;TYPE=${match[1]}:${match[2]}`);
+          // Stalwart writes photos without a media type as `data:;base64,`
+          // (0.16.x) and `data:base64,` (0.16.0); the card's mediaType fills in.
+          const parsed = parseBase64DataUri(media.uri);
+          if (parsed?.data) {
+            const type = parsed.type || media.mediaType;
+            lines.push(`${prop};ENCODING=b${type ? `;TYPE=${type}` : ''}:${parsed.data}`);
           }
         } else {
           const mt = media.mediaType ? `;MEDIATYPE=${media.mediaType}` : '';

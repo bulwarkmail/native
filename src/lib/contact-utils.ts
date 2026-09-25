@@ -1,5 +1,6 @@
 import type {
   ContactCard,
+  ContactMedia,
   AnniversaryDate,
   NameComponent,
   PartialDate,
@@ -148,14 +149,54 @@ export function normalizeContactPhotoUri(uri: string, mediaType?: string): strin
   return uri;
 }
 
-export function getContactPhotoUri(contact: ContactCard): string | undefined {
-  if (!contact.media) return undefined;
-  for (const media of Object.values(contact.media)) {
-    if (media.kind === 'photo' && media.uri) {
-      return normalizeContactPhotoUri(media.uri, media.mediaType);
-    }
+/**
+ * A contact photo as something to show: a URI (https, or a data: URI with its
+ * media type fixed), or a blob that still has to be downloaded from the
+ * card's account. Stalwart 1.0 returns every embedded photo as a blob, 0.16
+ * as a data: URI.
+ */
+export type ContactPhotoRef =
+  | { uri: string }
+  | { blobId: string; mediaType?: string; accountId?: string };
+
+/**
+ * The card's photo entry and its key: the `media` entry of kind photo with
+ * the lowest `pref` (RFC 9553: unset counts as least preferred), the first
+ * one on a tie.
+ */
+export function findContactPhotoEntry(
+  contact: Pick<ContactCard, 'media'>,
+): [string, ContactMedia] | undefined {
+  let found: [string, ContactMedia] | undefined;
+  for (const [key, media] of Object.entries(contact.media ?? {})) {
+    if (media?.kind !== 'photo' || !(media.uri || media.blobId)) continue;
+    if (!found || (media.pref ?? Infinity) < (found[1].pref ?? Infinity)) found = [key, media];
+  }
+  return found;
+}
+
+export function getContactPhotoRef(contact: ContactCard): ContactPhotoRef | undefined {
+  const media = findContactPhotoEntry(contact)?.[1];
+  if (media?.uri) return { uri: normalizeContactPhotoUri(media.uri, media.mediaType) };
+  if (media?.blobId) {
+    return {
+      blobId: media.blobId,
+      ...(media.mediaType ? { mediaType: media.mediaType } : {}),
+      // Cards of a shared address book keep their blobs in the owner's account.
+      ...(contact.isShared && contact.accountId ? { accountId: contact.accountId } : {}),
+    };
   }
   return undefined;
+}
+
+export function hasContactPhoto(contact: ContactCard): boolean {
+  return !!findContactPhotoEntry(contact);
+}
+
+/** The photo URI, for callers that cannot download a blob photo. */
+export function getContactPhotoUri(contact: ContactCard): string | undefined {
+  const ref = getContactPhotoRef(contact);
+  return ref && 'uri' in ref ? ref.uri : undefined;
 }
 
 /**

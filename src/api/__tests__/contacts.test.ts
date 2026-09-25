@@ -16,7 +16,9 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
+import { JMAPSetError } from '../jmap-result';
 import {
+  getContactMedia,
   getAddressBooks,
   getAllAddressBooks,
   getContactsAccountId,
@@ -279,6 +281,77 @@ describe('contacts operations', () => {
       mockRequest.mockResolvedValue({ methodResponses: [['ContactCard/set', { updated: {} }, '0']] });
       await updateContact('c1', { kind: 'org' }, 'acc-team');
       expect(mockRequest.mock.calls[0][0][0][1].accountId).toBe('acc-team');
+    });
+
+    it.each(['1.0', '0.16'] as const)('leaves a cleared id, uid and addressBookIds out of the update on Stalwart %s', async (version) => {
+      // What ContactCard/set answers to those keys set to null (1.0 contact/set.rs,
+      // 0.16.23 set.rs): refused, or on 0.16 the card silently loses its UID.
+      mockRequest.mockImplementation(async (calls: Array<[string, { update: Record<string, Record<string, unknown>> }, string]>) => {
+        const update = calls[0][1].update.c1;
+        const refuse = (property: string, description: string) =>
+          ({ notUpdated: { c1: { type: 'invalidProperties', properties: [property], description } } });
+        let answer: Record<string, unknown> = { updated: { c1: null } };
+        if ('id' in update) answer = refuse('id', 'The id property is immutable.');
+        else if (update.addressBookIds === null) answer = refuse('addressBookIds', 'Invalid patch operation for addressBookIds.');
+        else if (update.uid === null && version === '1.0') answer = refuse('uid', 'You cannot change the UID of a contact.');
+        return { methodResponses: [['ContactCard/set', answer, '0']] };
+      });
+
+      await updateContact('c1', {
+        id: undefined, uid: null, addressBookIds: null, name: { full: 'Ann' },
+      } as never);
+
+      expect(mockRequest.mock.calls[0][0][0][1].update.c1).toEqual({ name: { full: 'Ann' } });
+    });
+
+    it('still sends a uid or addressBookIds that has a value', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['ContactCard/set', { updated: { c1: null } }, '0']] });
+      await updateContact('c1', { uid: 'urn:uuid:1', addressBookIds: { ab: true } });
+      expect(mockRequest.mock.calls[0][0][0][1].update.c1).toEqual({ uid: 'urn:uuid:1', addressBookIds: { ab: true } });
+    });
+
+    it('throws the SetError with its type and properties (0.16 refusing a blobId in media)', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['ContactCard/set', {
+          notUpdated: { c1: { type: 'invalidProperties', description: 'blobIds in media is not supported.', properties: ['media'] } },
+        }, '0']],
+      });
+      const error = await updateContact('c1', { media: { photo: { kind: 'photo', blobId: 'b' } } }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(JMAPSetError);
+      expect(error).toMatchObject({ type: 'invalidProperties', properties: ['media'] });
+      // The message the form shows stays as it was.
+      expect((error as Error).message).toBe('blobIds in media is not supported. (media)');
+    });
+
+    it('keeps the type of a refused create', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['ContactCard/set', {
+          notCreated: { 'new-contact': { type: 'invalidProperties', description: 'blobIds in media is not supported.', properties: ['media'] } },
+        }, '0']],
+      });
+      await expect(createContact({ name: { full: 'A' } }, 'ab-1'))
+        .rejects.toMatchObject({ type: 'invalidProperties', properties: ['media'] });
+    });
+  });
+
+  describe('getContactMedia', () => {
+    it('reads only the media of the card', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['ContactCard/get', {
+          list: [{ id: 'c1', media: { photo: { blobId: 'b', kind: 'photo', mediaType: 'image/jpeg' } } }],
+        }, '0']],
+      });
+      expect(await getContactMedia('c1', 'acc-team')).toEqual({ photo: { blobId: 'b', kind: 'photo', mediaType: 'image/jpeg' } });
+      expect(mockRequest.mock.calls[0][0][0]).toEqual(
+        ['ContactCard/get', { accountId: 'acc-team', ids: ['c1'], properties: ['id', 'media'] }, '0'],
+      );
+    });
+
+    it('tells a card without media from a card that is gone', async () => {
+      mockRequest.mockResolvedValueOnce({ methodResponses: [['ContactCard/get', { list: [{ id: 'c1', media: null }] }, '0']] });
+      expect(await getContactMedia('c1')).toBeNull();
+      mockRequest.mockResolvedValueOnce({ methodResponses: [['ContactCard/get', { list: [], notFound: ['c1'] }, '0']] });
+      expect(await getContactMedia('c1')).toBeUndefined();
     });
   });
 

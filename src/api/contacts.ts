@@ -1,6 +1,7 @@
 import { jmapClient } from './jmap-client';
+import { JMAPSetError } from './jmap-result';
 import { CAPABILITIES } from './types';
-import type { ContactCard, AddressBook } from './types';
+import type { ContactCard, ContactMedia, AddressBook } from './types';
 import { generateUUID } from '../lib/uuid';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
@@ -35,6 +36,19 @@ function setErrorMessage(err: SetError | undefined, fallback: string): string {
   const detail = err.description || err.type || fallback;
   return err.properties?.length ? `${detail} (${err.properties.join(', ')})` : detail;
 }
+
+/** The SetError as a thrown error that keeps its type and properties. */
+function setError(err: SetError | undefined, fallback: string): JMAPSetError {
+  return new JMAPSetError(err?.type ?? 'setError', setErrorMessage(err, fallback), err?.properties);
+}
+
+/**
+ * Properties an update never clears (webmail contactToWire). A null `id` fails
+ * the whole update ("The id property is immutable.") and so does a null
+ * `addressBookIds`; a null `uid` is refused by Stalwart 1.0 and on 0.16
+ * silently deletes the card's UID.
+ */
+const NEVER_CLEARED_KEYS = ['id', 'uid', 'addressBookIds'] as const;
 
 /**
  * Primary account for the contacts capability (RFC 8620 `primaryAccounts`),
@@ -245,7 +259,7 @@ export async function createContact(
   }>(res);
   const created = result.created?.['new-contact'];
   if (!created?.id) {
-    throw new Error(setErrorMessage(result.notCreated?.['new-contact'], 'Failed to create contact'));
+    throw setError(result.notCreated?.['new-contact'], 'Failed to create contact');
   }
   // The set response only carries server-set properties (id, created,
   // updated...). Re-fetch the full card so the store appends a complete row
@@ -271,13 +285,38 @@ export async function updateContact(
   accountId?: string,
 ): Promise<void> {
   const account = accountId || getContactsAccountId();
+  const patch = { ...stripClientFields(changes) } as Record<string, unknown>;
+  for (const key of NEVER_CLEARED_KEYS) {
+    if (patch[key] == null) delete patch[key];
+  }
   const res = await jmapClient.request(
-    [['ContactCard/set', { accountId: account, update: { [id]: stripClientFields(changes) } }, '0']],
+    [['ContactCard/set', { accountId: account, update: { [id]: patch } }, '0']],
     USING,
   );
   const result = methodResult<{ notUpdated?: Record<string, SetError> }>(res);
   const err = result.notUpdated?.[id];
-  if (err) throw new Error(setErrorMessage(err, 'Failed to update contact'));
+  if (err) throw setError(err, 'Failed to update contact');
+}
+
+/**
+ * The card's `media` as the server has it now: null when it has none,
+ * undefined when the card is gone. Built on before a photo edit, since a
+ * blobId from an older copy of the card makes Stalwart 1.0 refuse the whole
+ * update ("The following blobIds do not exist or are not accessible").
+ */
+export async function getContactMedia(
+  id: string,
+  accountId?: string,
+): Promise<Record<string, ContactMedia> | null | undefined> {
+  const account = accountId || getContactsAccountId();
+  const res = await jmapClient.request(
+    [['ContactCard/get', { accountId: account, ids: [id], properties: ['id', 'media'] }, '0']],
+    USING,
+  );
+  const card = (methodResult<{ list?: Array<Pick<ContactCard, 'id' | 'media'>> }>(res).list ?? [])
+    .find((c) => c.id === id);
+  if (!card) return undefined;
+  return card.media ?? null;
 }
 
 /**

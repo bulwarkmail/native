@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, Linking, Alert, Image, Share,
+  View, Text, StyleSheet, Pressable, ScrollView, Linking, Alert, Share,
   Animated, Dimensions, Easing, Modal,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -19,13 +19,15 @@ import { openExternalUrl } from '../lib/open-url';
 import type { ContactCard } from '../api/types';
 import { useContactsStore } from '../stores/contacts-store';
 import {
-  getContactDisplayName, getContactPrimaryEmail, getContactPhotoUri,
+  getContactDisplayName, getContactPrimaryEmail, getContactPhotoRef,
   getPrimaryOrg, formatPartialDate, formatAddress,
   getContactKeywords, isGroup, getCompletedYears, getPhoneFeatures,
   getActiveContexts, getPrimaryNickname,
 } from '../lib/contact-utils';
+import { inlineContactMedia, inlineContactMediaForExport } from '../lib/contact-media';
 import { contactToVCard } from '../lib/vcard';
 import SenderAvatar from '../components/SenderAvatar';
+import ContactPhoto from '../components/contacts/ContactPhoto';
 import Dialog from '../components/Dialog';
 import { ContactActivity } from '../components/contacts/ContactActivity';
 import AddressBookPickerSheet from '../components/contacts/AddressBookPickerSheet';
@@ -176,7 +178,7 @@ export default function ContactDetailScreen() {
     : getPrimaryNickname(contact);
   const email = getContactPrimaryEmail(contact);
   const phone = contact.phones ? Object.values(contact.phones)[0]?.number : '';
-  const photoUri = getContactPhotoUri(contact);
+  const photo = getContactPhotoRef(contact);
   const org = getPrimaryOrg(contact);
 
   const emails = contact.emails ? Object.entries(contact.emails).map(([id, e]) => ({ id, ...e })) : [];
@@ -258,7 +260,9 @@ export default function ContactDetailScreen() {
   };
 
   const doShare = async () => {
-    const vcard = contactToVCard(contact);
+    // A photo stored as a blob (Stalwart 1.0) is downloaded into the vCard.
+    const [exported] = await inlineContactMediaForExport([contact]);
+    const vcard = contactToVCard(exported);
     try {
       const safe = name.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 40) || 'contact';
       const path = `${FileSystem.cacheDirectory}${safe}.vcf`;
@@ -307,6 +311,10 @@ export default function ContactDetailScreen() {
       name: rest.name ? { ...rest.name, full: baseName } : { full: baseName },
     };
     try {
+      // A blobId names the bytes embedded in the source card (Stalwart 1.0);
+      // the copy gets the bytes themselves.
+      const media = await inlineContactMedia(contact, 'keep');
+      if (media) draft.media = media;
       const created = await createContact(draft, targetBookId);
       navigation.replace('ContactDetail', { contactId: created.id });
     } catch (err) {
@@ -392,10 +400,14 @@ export default function ContactDetailScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.hero}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.heroPhoto} />
+          {photo ? (
+            <ContactPhoto
+              photo={photo}
+              style={styles.heroPhoto}
+              fallback={<SenderAvatar name={name} email={email} size={96} photo={null} />}
+            />
           ) : (
-            <SenderAvatar name={name} email={email} size={96} />
+            <SenderAvatar name={name} email={email} size={96} photo={null} />
           )}
           <Text style={styles.heroName}>{name}</Text>
           {!!nickname && <Text style={styles.heroNickname}>“{nickname}”</Text>}
