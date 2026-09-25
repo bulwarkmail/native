@@ -16,6 +16,7 @@ import { Folder, FileText, Trash2, UserPlus, Users } from 'lucide-react-native';
 import { isFolder, listPrincipals, ownPrincipalId, setFileNodeShare, type PrincipalListing } from '../../api/files';
 import type { FileNode, FileNodeRights, Principal } from '../../api/types';
 import { directoryNotice } from '../../lib/principal-directory';
+import { fileErrorMessage } from '../../lib/file-errors';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -132,7 +133,7 @@ export default function ShareSheet({ node, onClose, onChanged }: ShareSheetProps
         });
         onChanged();
       } catch (e) {
-        Alert.alert(t('files.share_error', 'Failed to update sharing'), e instanceof Error ? e.message : String(e));
+        Alert.alert(t('files.share_error', 'Failed to update sharing'), fileErrorMessage(e, t));
       } finally {
         setSavingId(null);
       }

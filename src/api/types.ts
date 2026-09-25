@@ -593,11 +593,16 @@ export interface Calendar {
 
 // ─── Files (FileNode) ───────────────────────────────────
 
+export type FileNodeType = 'file' | 'directory' | 'symlink';
+
 export interface FileNode {
   id: string;
   name: string;
   parentId?: string | null;
   type: string;
+  // Returned by Stalwart 0.16.6+; 1.0 adds symlinks. Read it through
+  // fileNodeKind(), and never send it in FileNode/set.
+  nodeType?: FileNodeType;
   blobId?: string | null;
   size?: number;
   created?: string;
@@ -613,6 +618,10 @@ export interface FileNode {
   // True when this node was fetched from another principal's account that was
   // shared with the logged-in user ("Shared with me").
   isShared?: boolean;
+  // A folder of another account that is listed only because something below
+  // it was shared with the user (Stalwart 1.0): name and place in the tree,
+  // no dates, no rights. It leads to the shared node but is not shown itself.
+  discoverableOnly?: boolean;
   // Owning account's JMAP id and display name, set when aggregating nodes
   // across accounts so blob downloads route to the right account.
   accountId?: string;

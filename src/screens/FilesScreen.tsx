@@ -19,7 +19,7 @@ import {
   ChevronLeft, FileText, Folder, FolderPlus, HardDrive, FileImage, FileVideo,
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
-  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink,
+  ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink, FileSymlink,
 } from 'lucide-react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -45,13 +45,15 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 
 import {
   copyFileNode, createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts,
-  getFileNodeDownloadUrl, getMaxSizeUpload, isCrossAccountId, isFolder, moveFileNode,
-  renameFileNode, supportsSharing, uploadFileNode,
+  getFileNameRules, getFileNodeDownloadUrl, getMaxSizeUpload, isCrossAccountId, isFolder,
+  isSymlink, listFolder, moveFileNode, renameFileNode, supportsSharing, uploadFileBatch,
 } from '../api/files';
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
+import { fileNameProblem, type FileNameProblem } from '../lib/file-name-rules';
+import { fileErrorMessage } from '../lib/file-errors';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import type { FileNode } from '../api/types';
@@ -136,6 +138,28 @@ function formatModified(iso?: string): string {
 // `lastModified: node.modified || node.created`).
 function modifiedOf(node: FileNode): string | undefined {
   return node.modified || node.created;
+}
+
+function fileNameProblemText(problem: FileNameProblem, t: Translate): string {
+  switch (problem.kind) {
+    case 'chars':
+      return t('files.name_forbidden_chars', 'The server does not allow these characters in names: {chars}', {
+        chars: problem.chars,
+      });
+    case 'control':
+      return t('files.name_control_chars', 'Names cannot contain control characters.');
+    case 'tooLong':
+      return t('files.name_too_long', 'This name is too long for the server.');
+    case 'reserved':
+      return t('files.name_reserved', 'This name is reserved on the server.');
+  }
+}
+
+// The files an upload could not store, the first three by name, and what the
+// server said about the first one.
+function uploadFailureDetail(failed: Array<{ name: string; error: unknown }>, t: Translate): string {
+  const names = failed.slice(0, 3).map((f) => f.name).join(', ') + (failed.length > 3 ? ', …' : '');
+  return `${names}: ${fileErrorMessage(failed[0].error, t)}`;
 }
 
 // Authenticated thumbnail URL/headers for image nodes. The download endpoint
@@ -274,19 +298,9 @@ export default function FilesScreen() {
     });
   }, [allNodes]);
 
-  const folderNodes = useMemo(() => {
-    if (currentParentId === null) {
-      // Root: our own top-level nodes, plus the roots of every shared-with-me
-      // subtree (a shared node whose parent isn't visible to us).
-      const idSet = new Set(allNodes.map((n) => n.id));
-      return allNodes.filter((n) =>
-        n.isShared
-          ? n.parentId == null || !idSet.has(n.parentId)
-          : (n.parentId ?? null) === null,
-      );
-    }
-    return allNodes.filter((n) => (n.parentId ?? null) === currentParentId);
-  }, [allNodes, currentParentId]);
+  // Root: our own top-level nodes, plus the roots of every shared-with-me
+  // subtree; Stalwart 1.0's placeholder folders above them are left out.
+  const folderNodes = useMemo(() => listFolder(allNodes, currentParentId), [allNodes, currentParentId]);
 
   const visibleFiles = useMemo<FileRow[]>(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -370,7 +384,7 @@ export default function FilesScreen() {
   // structure, then handed to the share sheet (webmail "Download (N)").
   const downloadSelection = useCallback(async (rows: FileRow[]) => {
     if (rows.length === 0) return;
-    if (rows.length === 1 && !isFolder(rows[0])) {
+    if (rows.length === 1 && !isFolder(rows[0]) && !isSymlink(rows[0])) {
       clearSelection();
       await downloadFile(rows[0]);
       return;
@@ -386,7 +400,8 @@ export default function FilesScreen() {
     const walk = (node: FileNode, prefix: string) => {
       if (isFolder(node)) {
         for (const child of children.get(node.id) ?? []) walk(child, `${prefix}${node.name}/`);
-      } else {
+      } else if (!isSymlink(node)) {
+        // A symlink (Stalwart 1.0) has no content to put in the zip.
         entries.push({ node, path: `${prefix}${node.name}` });
       }
     };
@@ -435,6 +450,9 @@ export default function FilesScreen() {
         setSearchQuery('');
         return;
       }
+      // A symlink (Stalwart 1.0) has no content and holds nothing: it can be
+      // renamed, moved and deleted from its actions, but not opened.
+      if (isSymlink(row)) return;
       openFile(row);
     },
     [selectionMode, toggleSelect, openFile],
@@ -474,26 +492,31 @@ export default function FilesScreen() {
     void loadFiles('refresh');
   }, [loadFiles]);
 
-  const invalidNameAlert = useCallback(() => {
-    Alert.alert(t('files.invalid_name', 'Invalid name'), t('files.invalid_name_slash', 'Names cannot contain "/".'));
+  // Explains a name the server would refuse before anything is sent: the
+  // naming rules it publishes (Stalwart 0.16.6+) with 1.0's stricter ones on
+  // top, or at least the "/" every server refuses. True when the name can go.
+  const checkName = useCallback((name: string): boolean => {
+    const problem = fileNameProblem(name, getFileNameRules());
+    const message = problem
+      ? fileNameProblemText(problem, t)
+      : name.includes('/') ? t('files.invalid_name_slash', 'Names cannot contain "/".') : null;
+    if (message) Alert.alert(t('files.invalid_name', 'Invalid name'), message);
+    return !message;
   }, [t]);
 
   const submitNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) return;
-    if (name.includes('/')) {
-      invalidNameAlert();
-      return;
-    }
+    if (!checkName(name)) return;
     setNewFolderOpen(false);
     setNewFolderName('');
     try {
       await createFolder(name, currentParentId);
       await loadFiles('refresh');
     } catch (e) {
-      Alert.alert(t('files.create_folder_error', 'Failed to create folder'), e instanceof Error ? e.message : String(e));
+      Alert.alert(t('files.create_folder_error', 'Failed to create folder'), fileErrorMessage(e, t));
     }
-  }, [newFolderName, currentParentId, loadFiles, invalidNameAlert, t]);
+  }, [newFolderName, currentParentId, loadFiles, checkName, t]);
 
   const submitRename = useCallback(async () => {
     if (!renameTarget) return;
@@ -502,10 +525,7 @@ export default function FilesScreen() {
       setRenameTarget(null);
       return;
     }
-    if (name.includes('/')) {
-      invalidNameAlert();
-      return;
-    }
+    if (!checkName(name)) return;
     const target = renameTarget;
     setRenameTarget(null);
     setRenameValue('');
@@ -513,12 +533,12 @@ export default function FilesScreen() {
       await renameFileNode(target.id, name);
       await loadFiles('refresh');
     } catch (e) {
-      Alert.alert(t('files.rename_error', 'Failed to rename'), e instanceof Error ? e.message : String(e));
+      Alert.alert(t('files.rename_error', 'Failed to rename'), fileErrorMessage(e, t));
     }
-  }, [renameTarget, renameValue, loadFiles, invalidNameAlert, t]);
+  }, [renameTarget, renameValue, loadFiles, checkName, t]);
 
   const duplicateFile = useCallback(async (row: FileRow) => {
-    if (isFolder(row) || row.isShared) return;
+    if (isFolder(row) || isSymlink(row) || row.isShared) return;
     setBusyId(row.id);
     try {
       const siblings = new Set(
@@ -527,7 +547,7 @@ export default function FilesScreen() {
       await copyFileNode(row, row.parentId ?? null, getUniqueName(row.name, siblings));
       await loadFiles('refresh');
     } catch (e) {
-      Alert.alert(t('files.duplicate_error', 'Failed to duplicate'), e instanceof Error ? e.message : String(e));
+      Alert.alert(t('files.duplicate_error', 'Failed to duplicate'), fileErrorMessage(e, t));
     } finally {
       setBusyId(null);
     }
@@ -541,7 +561,7 @@ export default function FilesScreen() {
       await moveFileNode(row.id, destinationId);
       await loadFiles('refresh');
     } catch (e) {
-      Alert.alert(t('files.move_error', 'Failed to move'), e instanceof Error ? e.message : String(e));
+      Alert.alert(t('files.move_error', 'Failed to move'), fileErrorMessage(e, t));
     } finally {
       setBusyId(null);
     }
@@ -599,42 +619,27 @@ export default function FilesScreen() {
     const controller = new AbortController();
     uploadAbortRef.current = controller;
     const parentId = currentParentId;
-    // Duplicate names get " (1)", " (2)", ... so two nodes never share a name.
-    const existing = new Set(
-      allNodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.name),
-    );
-    let failed: string | null = null;
-    try {
-      for (let i = 0; i < accepted.length; i++) {
-        if (controller.signal.aborted) break;
-        const asset = accepted[i];
-        const name = getUniqueName(asset.name, existing);
-        existing.add(name);
-        setUploadProgress({ current: i + 1, total: accepted.length, name, percent: 0 });
-        try {
-          await uploadFileNode(
-            asset.uri,
-            name,
-            asset.mimeType || 'application/octet-stream',
-            parentId,
-            {
-              signal: controller.signal,
-              onProgress: (sent, total) =>
-                setUploadProgress((p) => (p ? { ...p, percent: total > 0 ? sent / total : 0 } : p)),
-            },
-          );
-        } catch (e) {
-          if (controller.signal.aborted || (e instanceof Error && e.name === 'AbortError')) break;
-          failed = `${asset.name}: ${e instanceof Error ? e.message : String(e)}`;
-          break;
-        }
-      }
-    } finally {
+    const siblings = allNodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.name);
+    // A refused file no longer stops the rest; the ones that failed are
+    // reported once the batch is done.
+    const { failed } = await uploadFileBatch(accepted, parentId, siblings, {
+      signal: controller.signal,
+      onFile: (index, name) => setUploadProgress({ current: index + 1, total: accepted.length, name, percent: 0 }),
+      onProgress: (sent, total) =>
+        setUploadProgress((p) => (p ? { ...p, percent: total > 0 ? sent / total : 0 } : p)),
+    }).finally(() => {
       uploadAbortRef.current = null;
       setUploadProgress(null);
-    }
+    });
     await loadFiles('refresh');
-    if (failed) Alert.alert(t('files.upload_error', 'Failed to upload file'), failed);
+    if (failed.length > 0) {
+      Alert.alert(
+        t('files.upload_failed', '{count, plural, one {1 file could not be uploaded} other {# files could not be uploaded}}', {
+          count: failed.length,
+        }),
+        uploadFailureDetail(failed, t),
+      );
+    }
   }, [uploading, currentParentId, allNodes, loadFiles, t]);
 
   const requestDelete = useCallback((rows: FileRow[]) => {
@@ -652,7 +657,7 @@ export default function FilesScreen() {
       await deleteFileNodes(targets.map((t) => t.id));
       await loadFiles('refresh');
     } catch (e) {
-      Alert.alert(t('files.delete_error', 'Failed to delete'), e instanceof Error ? e.message : String(e));
+      Alert.alert(t('files.delete_error', 'Failed to delete'), fileErrorMessage(e, t));
     }
   }, [confirmDelete, clearSelection, loadFiles, t]);
 
@@ -840,6 +845,7 @@ export default function FilesScreen() {
       );
     }
     if (!showIcons) return <View style={{ width: size, height: size }} />;
+    if (isSymlink(item)) return <FileSymlink size={size} color={c.textMuted} />;
     const Icon = isDir ? Folder : pickFileIcon(item.displayName);
     const tint = isDir
       ? (coloredIcons ? c.calendar.blue : c.textMuted)
@@ -881,6 +887,9 @@ export default function FilesScreen() {
               <Text style={styles.fileMeta} numberOfLines={1}>
                 {t('files.shared_by', 'Shared by {name}', { name: item.accountName })}
               </Text>
+            ) : null}
+            {isSymlink(item) ? (
+              <Text style={styles.fileMeta}>{t('files.symlink', 'Symbolic link')}</Text>
             ) : null}
             {item.size != null && !isDir ? (
               <Text style={styles.fileMeta}>{formatFileSize(item.size)}</Text>
@@ -939,6 +948,10 @@ export default function FilesScreen() {
         {item.isShared && item.accountName ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
             {t('files.shared_by', 'Shared by {name}', { name: item.accountName })}
+          </Text>
+        ) : isSymlink(item) ? (
+          <Text style={styles.gridMeta} numberOfLines={1}>
+            {t('files.symlink', 'Symbolic link')}
           </Text>
         ) : item.size != null && !isDir ? (
           <Text style={styles.gridMeta} numberOfLines={1}>
@@ -1211,10 +1224,14 @@ function ActionsSheet({
   const styles = React.useMemo(() => makeSheetStyles(c), [c]);
   if (!target) return null;
   const isDir = isFolder(target);
+  // A symlink (Stalwart 1.0) has no content: it can be renamed, moved and
+  // deleted, but not previewed, opened, downloaded, duplicated or shared.
+  const link = isSymlink(target);
+  const isFile = !isDir && !link;
   // Owned nodes report full rights (or no myRights at all); shared-with-me
   // nodes are managed by their owner, and write ops would have to route to
   // the owner's account — so they only get preview/download here.
-  const canShare = sharingEnabled && !target.isShared && (target.myRights?.mayShare ?? true);
+  const canShare = sharingEnabled && !link && !target.isShared && (target.myRights?.mayShare ?? true);
   const modified = modifiedOf(target);
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -1227,24 +1244,26 @@ function ActionsSheet({
               </Text>
               <Text style={styles.sheetMeta} numberOfLines={1}>
                 {[
-                  isDir ? t('files.folder', 'Folder') : (target.type || t('files.file', 'File')),
-                  !isDir && target.size != null ? formatFileSize(target.size) : null,
+                  isDir ? t('files.folder', 'Folder')
+                    : link ? t('files.symlink', 'Symbolic link')
+                      : (target.type || t('files.file', 'File')),
+                  isFile && target.size != null ? formatFileSize(target.size) : null,
                   modified ? formatModified(modified) : null,
                 ].filter(Boolean).join(' · ')}
               </Text>
-              {!isDir && canPreviewInApp(target) ? (
+              {isFile && canPreviewInApp(target) ? (
                 <Pressable style={styles.action} onPress={() => onPreview(target)}>
                   <Eye size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.preview', 'Preview')}</Text>
                 </Pressable>
               ) : null}
-              {!isDir ? (
+              {isFile ? (
                 <Pressable style={styles.action} onPress={() => onOpenWith(target)}>
                   <ExternalLink size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.open_with', 'Open with…')}</Text>
                 </Pressable>
               ) : null}
-              {!isDir ? (
+              {isFile ? (
                 <Pressable style={styles.action} onPress={() => onDownload(target)}>
                   <Download size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.download', 'Download')}</Text>
@@ -1262,7 +1281,7 @@ function ActionsSheet({
                   <Text style={styles.actionLabel}>{t('files.move_to', 'Move to…')}</Text>
                 </Pressable>
               ) : null}
-              {!target.isShared && !isDir ? (
+              {!target.isShared && isFile ? (
                 <Pressable style={styles.action} onPress={() => onDuplicate(target)}>
                   <Copy size={18} color={c.text} />
                   <Text style={styles.actionLabel}>{t('files.duplicate', 'Duplicate')}</Text>

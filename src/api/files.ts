@@ -1,18 +1,43 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { FileNode, FileNodeRights, JMAPAccountInfo, JMAPMethodCall, Principal } from './types';
+import type { FileNode, FileNodeRights, FileNodeType, JMAPAccountInfo, JMAPMethodCall, Principal } from './types';
 import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
-import { batched, requireMethodResult } from './jmap-result';
-import { decodeFileNodeName } from '../lib/filenode-name';
+import { batched, JMAPSetError, requireMethodResult } from './jmap-result';
+import { decodeFileNodeName, getUniqueName } from '../lib/filenode-name';
+import { acceptedFileName, fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
+import { mediaTypeEssence } from '../lib/media-type';
 
-// A FileNode is a folder (container) only when it has no blob content — the
-// server stores it with `file == null`. Sending a blobId/type/size on create
-// (as older builds did: type 'd' + an empty blob) makes a 0-byte FILE that
-// nothing can ever be parented under (#379). The webmail migrates those
-// legacy flat-named nodes into the real parentId hierarchy on load; this app
-// reads and writes only the real hierarchy.
-export function isFolder(node: Pick<FileNode, 'blobId'>): boolean {
-  return node.blobId == null;
+/**
+ * What a FileNode is: a file, a folder or a symlink.
+ *
+ * `nodeType` says so on Stalwart 0.16.6 and later. Without it, a node is a
+ * folder exactly when it has no content blob — the server stores a container
+ * with `file == null`; sending a blobId/type/size on create (as older builds
+ * did: type 'd' + an empty blob) makes a 0-byte FILE that nothing can ever be
+ * parented under (#379). Stalwart 1.0 adds symlinks, which have no blob
+ * either but can't hold anything, so the blob rule alone would show them as
+ * empty folders.
+ */
+export function fileNodeKind(node: Pick<FileNode, 'nodeType' | 'blobId'>): FileNodeType {
+  switch (node.nodeType) {
+    case 'file':
+    case 'directory':
+    case 'symlink':
+      return node.nodeType;
+    default:
+      return node.blobId == null ? 'directory' : 'file';
+  }
+}
+
+// The webmail migrates legacy flat-named nodes into the real parentId
+// hierarchy on load; this app reads and writes only the real hierarchy.
+export function isFolder(node: Pick<FileNode, 'nodeType' | 'blobId'>): boolean {
+  return fileNodeKind(node) === 'directory';
+}
+
+/** A symbolic link (Stalwart 1.0): no content and no children, so it can't be opened. */
+export function isSymlink(node: Pick<FileNode, 'nodeType' | 'blobId'>): boolean {
+  return fileNodeKind(node) === 'symlink';
 }
 
 // Stalwart omits shareWith/myRights from FileNode/get unless they are
@@ -22,8 +47,23 @@ export function isFolder(node: Pick<FileNode, 'blobId'>): boolean {
 // which is how "updated" left every date blank (#700).
 const FILE_NODE_PROPERTIES = [
   'id', 'parentId', 'name', 'type', 'blobId', 'size', 'created', 'modified',
+  // Tells 1.0's symlinks from folders (see fileNodeKind); servers before
+  // 0.16.6 skip it.
+  'nodeType',
   'shareWith', 'myRights',
 ];
+
+/**
+ * A folder Stalwart 1.0 lists only as the way down to something shared with
+ * the user: the ancestors of a shared node come back with a name and parent
+ * but no dates and every right false. A node the user may read always has
+ * both dates, and 0.16 never leaves `modified` out.
+ */
+function isDiscoverableOnly(node: FileNode): boolean {
+  const rights = node.myRights;
+  return node.modified == null && node.created == null
+    && !!rights && Object.values(rights).every((granted) => !granted);
+}
 
 // Sharing with other users (RFC 9670) needs the principal directory to pick
 // people from, so it is offered whenever the server advertises
@@ -212,8 +252,9 @@ function filesCapableAccountIds(): string[] {
 // Fetch every FileNode the logged-in user can see across all accessible
 // accounts. Nodes owned by another principal (shared with the user) are
 // tagged `isShared: true` with the owning accountId/accountName, and their
-// ids/parentIds are namespaced "accountId:nodeId". Mirrors the webmail's
-// listAllFileNodesAcrossAccounts.
+// ids/parentIds are namespaced "accountId:nodeId". Folders listed only as the
+// way down to a shared node are marked `discoverableOnly`. Mirrors the
+// webmail's listAllFileNodesAcrossAccounts.
 export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   const primaryId = filesAccountId();
   const accounts = jmapClient.currentSession?.accounts ?? {};
@@ -234,6 +275,7 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
           accountId,
           accountName: accounts[accountId]?.name || accountId,
           isShared: !isPrimary,
+          ...(!isPrimary && isDiscoverableOnly(node) ? { discoverableOnly: true } : {}),
         });
       }
     } catch {
@@ -245,12 +287,50 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   return all;
 }
 
+/**
+ * The naming rules the server publishes for FileNodes (Stalwart 0.16.6+),
+ * with Stalwart 1.0's stricter ones on top; null when it publishes none.
+ */
+export function getFileNameRules(): FileNameRules | null {
+  return fileNameRulesFrom(jmapClient.getAccountCapability(CAPABILITIES.FILES, filesAccountId()));
+}
+
+type SetError = { type?: string; description?: string; properties?: string[] };
+
+/** A refused FileNode/set entry as an error that keeps its type and properties. */
+function fileSetError(err: SetError | undefined, fallback: string): JMAPSetError {
+  return new JMAPSetError(err?.type ?? 'setError', err?.description || fallback, err?.properties);
+}
+
+/**
+ * The nodes a Files folder lists. At the root: the user's own top-level
+ * nodes plus the roots of every shared-with-me subtree, a shared node whose
+ * parent isn't among the nodes shown. Inside a folder: its children.
+ *
+ * Stalwart 1.0's placeholder folders above a shared node (discoverableOnly)
+ * are left out of both: left in, the owner's top folder became the shared
+ * root, and the folder actually shared sat somewhere below it, under folders
+ * where rename, delete and move could only fail. They stay in `nodes`, where
+ * they still link a shared node to the path above it.
+ */
+export function listFolder(nodes: FileNode[], parentId: string | null): FileNode[] {
+  if (parentId === null) {
+    const shown = new Set(nodes.filter((n) => !n.discoverableOnly).map((n) => n.id));
+    return nodes.filter((n) => !n.discoverableOnly && (
+      n.isShared
+        ? n.parentId == null || !shown.has(n.parentId)
+        : (n.parentId ?? null) === null
+    ));
+  }
+  return nodes.filter((n) => !n.discoverableOnly && (n.parentId ?? null) === parentId);
+}
+
 export async function createFolder(
   name: string,
   parentId: string | null,
 ): Promise<FileNode> {
   const accountId = filesAccountId();
-  const props: Record<string, unknown> = { name };
+  const props: Record<string, unknown> = { name: acceptedFileName(name, getFileNameRules()) };
   if (parentId !== null) props.parentId = parentId;
 
   const res = await jmapClient.request(
@@ -260,8 +340,7 @@ export async function createFolder(
   const result = requireMethodResult(res, '0', 'FileNode/set');
   const created = result.created?.['new-dir'];
   if (!created) {
-    const err = result.notCreated?.['new-dir'];
-    throw new Error(err?.description || 'Create folder failed');
+    throw fileSetError(result.notCreated?.['new-dir'], 'Create folder failed');
   }
   return { ...props, ...created } as FileNode;
 }
@@ -278,7 +357,7 @@ export async function updateFileNode(
   // A method-level error (e.g. forbidden) has no notUpdated entry, so without
   // this check a refused rename or move reported success.
   const notUpdated = requireMethodResult(res, '0', 'FileNode/set').notUpdated?.[id];
-  if (notUpdated) throw new Error(notUpdated.description || 'Update failed');
+  if (notUpdated) throw fileSetError(notUpdated, 'Update failed');
 }
 
 export async function renameFileNode(id: string, newName: string): Promise<void> {
@@ -297,7 +376,7 @@ export async function deleteFileNodes(ids: string[]): Promise<void> {
   // One FileNode/set per `maxObjectsInSet` ids: a request over the limit
   // fails whole (RFC 8620 §3.6.1), so a large selection deleted nothing.
   // Every batch runs; refusals are reported once all of them are done.
-  const refused: Array<{ description?: string }> = [];
+  const refused: SetError[] = [];
   for (const slice of batched(ids, jmapClient.getMaxObjectsInSet())) {
     const res = await jmapClient.request(
       [['FileNode/set', {
@@ -309,13 +388,13 @@ export async function deleteFileNodes(ids: string[]): Promise<void> {
       fileUsing(),
     );
     const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
-      | Record<string, { type?: string; description?: string }>
+      | Record<string, SetError>
       | undefined;
     // A node inside a folder an earlier batch removed is already gone.
     refused.push(...Object.values(notDestroyed ?? {}).filter((err) => err?.type !== 'notFound'));
   }
   if (refused.length > 0) {
-    throw new Error(refused[0]?.description || `Failed to delete ${refused.length} item(s)`);
+    throw fileSetError(refused[0], `Failed to delete ${refused.length} item(s)`);
   }
 }
 
@@ -324,22 +403,23 @@ export function getFileNodeDownloadUrl(node: FileNode): string {
   return getDownloadUrl(node.blobId, node.name, node.type, node.accountId);
 }
 
-// Stalwart caps the stored MIME type; very long types fail the create.
-function safeMimeType(type: string | undefined, fallback: string): string {
-  const t = type || fallback || 'application/octet-stream';
-  return t.length > 30 ? 'application/octet-stream' : t;
-}
-
+// The `type` is the bare media type (`top/sub`, lowercase, no parameters):
+// Stalwart 1.0 refuses anything else, and the floor, 0.16.6, takes up to 256
+// characters. The old cap at 30 characters stored every Office document as
+// application/octet-stream. No `size` either: every server takes it from the
+// blob, and 1.0 refuses one that differs.
 async function createFileNodeFromBlob(
   name: string,
   blobId: string,
-  type: string,
-  size: number | undefined,
+  type: string | undefined,
   parentId: string | null,
 ): Promise<FileNode> {
   const accountId = filesAccountId();
-  const props: Record<string, unknown> = { name, type, blobId };
-  if (size != null) props.size = size;
+  const props: Record<string, unknown> = {
+    name: acceptedFileName(name, getFileNameRules()),
+    type: mediaTypeEssence(type),
+    blobId,
+  };
   if (parentId !== null) props.parentId = parentId;
 
   const res = await jmapClient.request(
@@ -349,8 +429,7 @@ async function createFileNodeFromBlob(
   const result = requireMethodResult(res, '0', 'FileNode/set');
   const created = result.created?.['new-file'];
   if (!created) {
-    const err = result.notCreated?.['new-file'];
-    throw new Error(err?.description || 'Upload failed');
+    throw fileSetError(result.notCreated?.['new-file'], 'Upload failed');
   }
   return { ...props, ...created } as FileNode;
 }
@@ -363,31 +442,79 @@ export async function uploadFileNode(
   options: UploadBlobOptions = {},
 ): Promise<FileNode> {
   const blob = await uploadBlob(uri, mimeType, options);
-  return createFileNodeFromBlob(
-    name,
-    blob.blobId,
-    safeMimeType(blob.type, mimeType),
-    blob.size,
-    parentId,
-  );
+  return createFileNodeFromBlob(name, blob.blobId, blob.type || mimeType, parentId);
+}
+
+/** A file picked for upload. */
+export interface UploadAsset {
+  uri: string;
+  name: string;
+  mimeType?: string | null;
+}
+
+export interface UploadBatchResult {
+  uploaded: FileNode[];
+  /** The files the server refused, by their name on the device, in upload order. */
+  failed: Array<{ name: string; error: unknown }>;
+}
+
+/**
+ * Upload picked files into `parentId`, one after another. A name from the
+ * device may hold characters every server refuses (`<>:"\|?*`) or, on
+ * Stalwart 1.0, a control character or a reserved stem (`con.txt`): each is
+ * stored under a variant the server accepts, made unique among
+ * `existingNames`. A file the server refuses no longer stops the rest; it
+ * comes back in `failed`. Cancelling through `signal` stops after the file in
+ * flight.
+ */
+export async function uploadFileBatch(
+  assets: UploadAsset[],
+  parentId: string | null,
+  existingNames: Iterable<string>,
+  options: {
+    signal?: AbortSignal;
+    /** A file starts uploading, under the name it will have. */
+    onFile?: (index: number, name: string) => void;
+    onProgress?: (sent: number, total: number) => void;
+  } = {},
+): Promise<UploadBatchResult> {
+  const { signal, onFile, onProgress } = options;
+  const rules = getFileNameRules();
+  // Duplicate names get " (1)", " (2)", ... so two nodes never share a name.
+  const existing = new Set(existingNames);
+  const result: UploadBatchResult = { uploaded: [], failed: [] };
+  for (let i = 0; i < assets.length; i++) {
+    if (signal?.aborted) break;
+    const asset = assets[i];
+    const name = getUniqueName(acceptedFileName(asset.name, rules), existing);
+    existing.add(name);
+    onFile?.(i, name);
+    try {
+      result.uploaded.push(await uploadFileNode(
+        asset.uri,
+        name,
+        asset.mimeType || 'application/octet-stream',
+        parentId,
+        { signal, onProgress },
+      ));
+    } catch (err) {
+      if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) break;
+      result.failed.push({ name: asset.name, error: err });
+    }
+  }
+  return result;
 }
 
 // Copy a file by creating a new node that references the same blob — no
-// bytes are re-uploaded (webmail `copyFileNode`). Folders have no blob and
-// cannot be duplicated this way.
+// bytes are re-uploaded (webmail `copyFileNode`). Folders and symlinks have
+// no blob and cannot be duplicated this way.
 export async function copyFileNode(
   node: FileNode,
   parentId: string | null,
   newName: string = node.name,
 ): Promise<FileNode> {
-  if (!node.blobId) throw new Error('Folders cannot be duplicated');
-  return createFileNodeFromBlob(
-    newName,
-    node.blobId,
-    safeMimeType(node.type, 'application/octet-stream'),
-    node.size,
-    parentId,
-  );
+  if (!node.blobId || fileNodeKind(node) !== 'file') throw new Error('Folders cannot be duplicated');
+  return createFileNodeFromBlob(newName, node.blobId, node.type, parentId);
 }
 
 // ── Sharing (RFC 9670) ────────────────────────────────────
@@ -412,7 +539,7 @@ export async function setFileNodeShare(
   );
   const result = requireMethodResult(res, '0', 'FileNode/set');
   if (result.notUpdated?.[fileNodeId]) {
-    throw new Error(result.notUpdated[fileNodeId].description || 'Failed to update file share');
+    throw fileSetError(result.notUpdated[fileNodeId], 'Failed to update file share');
   }
   if (!result.updated || !(fileNodeId in result.updated)) {
     throw new Error('Server did not confirm the share update');

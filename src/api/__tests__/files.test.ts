@@ -10,6 +10,7 @@ vi.mock('../jmap-client', () => ({
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
     getMaxCallsInRequest: vi.fn(() => 16),
+    getAccountCapability: vi.fn(),
     currentSession: null as unknown,
   },
 }));
@@ -24,25 +25,32 @@ vi.mock('../blob', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
+import { uploadBlob } from '../blob';
 import { CAPABILITIES } from '../types';
 import {
   accountSupportsFiles,
   copyFileNode,
   createFolder,
   deleteFileNodes,
+  fileNodeKind,
   getAllFileNodes,
   getAllFileNodesAcrossAccounts,
+  getFileNameRules,
   getFileNodeDownloadUrl,
   getPrincipals,
   isCrossAccountId,
   isFolder,
+  isSymlink,
+  listFolder,
   listPrincipals,
   moveFileNode,
   renameFileNode,
   setFileNodeShare,
   supportsSharing,
+  uploadFileBatch,
 } from '../files';
 import { directoryNotice } from '../../lib/principal-directory';
+import { fileErrorKind } from '../../lib/file-errors';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
@@ -56,6 +64,8 @@ function setSession(session: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // No naming rules unless a test publishes some.
+  (jmapClient.getAccountCapability as ReturnType<typeof vi.fn>).mockReset();
   mockMaxObjectsInGet.mockReturnValue(500);
   mockMaxObjectsInSet.mockReturnValue(500);
   mockMaxCallsInRequest.mockReturnValue(16);
@@ -613,15 +623,278 @@ describe('copyFileNode', () => {
 
     const [method, args] = mockRequest.mock.calls[0][0][0];
     expect(method).toBe('FileNode/set');
+    // No `size`: the server takes it from the blob, and Stalwart 1.0 refuses
+    // one that differs ("size does not match the size of the blob.").
     expect(args.create['new-file']).toEqual({
-      name: 'report (1).pdf', type: 'application/pdf', blobId: 'blob-1', size: 10, parentId: 'dir-1',
+      name: 'report (1).pdf', type: 'application/pdf', blobId: 'blob-1', parentId: 'dir-1',
     });
     expect(copy.id).toBe('copy-1');
   });
 
-  it('refuses to duplicate folders', async () => {
+  it('refuses to duplicate folders and symlinks', async () => {
     await expect(copyFileNode({ id: 'd', name: 'Docs', type: '', blobId: null }, null)).rejects.toThrow();
+    await expect(copyFileNode({ id: 'l', name: 'latest', type: '', blobId: null, nodeType: 'symlink' }, null)).rejects.toThrow();
     expect(mockRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('fileNodeKind', () => {
+  it('takes nodeType as Stalwart 0.16.6+ returns it', () => {
+    expect(fileNodeKind({ nodeType: 'file', blobId: 'b1' })).toBe('file');
+    expect(fileNodeKind({ nodeType: 'directory', blobId: null })).toBe('directory');
+  });
+
+  // 1.0 symlinks: `blobId`, `size` and `type` are null, like a folder's.
+  it('tells a symlink from a folder on Stalwart 1.0', () => {
+    const link = { nodeType: 'symlink' as const, blobId: null };
+    expect(fileNodeKind(link)).toBe('symlink');
+    expect(isFolder(link)).toBe(false);
+    expect(isSymlink(link)).toBe(true);
+  });
+
+  it('falls back to the blob rule without nodeType (#379)', () => {
+    expect(fileNodeKind({ blobId: null })).toBe('directory');
+    expect(fileNodeKind({ blobId: 'b1' })).toBe('file');
+    // An unknown value from some other server doesn't count.
+    expect(fileNodeKind({ nodeType: 'fifo' as never, blobId: 'b1' })).toBe('file');
+  });
+
+  it('asks for nodeType in listings and never sends it in FileNode/set', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/get', { list: [] }, '0']] });
+    await getAllFileNodes();
+    expect(mockRequest.mock.calls[0][0][0][1].properties).toContain('nodeType');
+
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'd2', nodeType: 'directory' }, 'new-file': { id: 'f2', nodeType: 'file' } } }, '0']],
+    });
+    await createFolder('Docs', null);
+    await copyFileNode({ id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', nodeType: 'file' }, null);
+    const created = mockRequest.mock.calls.slice(1).map(([calls]) => Object.values(calls[0][1].create)[0]);
+    for (const props of created) expect(props).not.toHaveProperty('nodeType');
+  });
+});
+
+describe('"Shared with me" placeholders', () => {
+  const RIGHTS_NONE = { mayRead: false, mayAddChildren: false, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false };
+  const RIGHTS_READ = { ...RIGHTS_NONE, mayRead: true };
+  const stamp = { created: '2026-09-25T17:34:22Z', modified: '2026-09-25T17:34:22Z' };
+
+  function sharedSession() {
+    setSession({
+      primaryAccounts: { [CAPABILITIES.FILES]: 'acc-1' },
+      accounts: {
+        'acc-1': { name: 'me@example.com', isPersonal: true },
+        'acc-2': { name: 'usera@example.org', isPersonal: false },
+      },
+    });
+  }
+
+  it('hides the owner\'s folders above a shared folder on Stalwart 1.0, but keeps them for paths', async () => {
+    sharedSession();
+    // What 1.0 returns to a sharee of Documents/Projects/Project X: the
+    // ancestors come without dates and with every right false.
+    const placeholder = { nodeType: 'directory', blobId: null, type: null, size: null, created: null, modified: null, shareWith: null, myRights: RIGHTS_NONE };
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/get', { list: [{ id: 'own-1', name: 'mine.txt', parentId: null, blobId: 'b1', nodeType: 'file', ...stamp }] }, '0']] })
+      .mockResolvedValueOnce({
+        methodResponses: [['FileNode/get', {
+          list: [
+            { id: 'docs', name: 'Documents', parentId: null, ...placeholder },
+            { id: 'proj', name: 'Projects', parentId: 'docs', ...placeholder },
+            { id: 'px', name: 'Project X', parentId: 'proj', nodeType: 'directory', blobId: null, ...stamp, myRights: RIGHTS_READ },
+            { id: 'plan', name: 'plan.pdf', parentId: 'px', nodeType: 'file', blobId: 'b2', type: 'application/pdf', ...stamp, myRights: RIGHTS_READ },
+          ],
+        }, '0']],
+      });
+
+    const nodes = await getAllFileNodesAcrossAccounts();
+
+    expect(nodes.filter((n) => n.discoverableOnly).map((n) => n.id)).toEqual(['acc-2:docs', 'acc-2:proj']);
+    expect(listFolder(nodes, null).map((n) => n.name)).toEqual(['mine.txt', 'Project X']);
+    expect(listFolder(nodes, 'acc-2:px').map((n) => n.name)).toEqual(['plan.pdf']);
+    // Not listed even if one is opened.
+    expect(listFolder(nodes, 'acc-2:docs')).toEqual([]);
+  });
+
+  it('changes nothing on Stalwart 0.16, which always sends dates', async () => {
+    sharedSession();
+    // 0.16.23 computes myRights from a node's own ACL only, so a child of a
+    // shared folder can report every right false; it still has its dates.
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/get', { list: [] }, '0']] })
+      .mockResolvedValueOnce({
+        methodResponses: [['FileNode/get', {
+          list: [
+            { id: 'f', name: 'Shared', parentId: 'hidden-parent', nodeType: 'directory', blobId: null, ...stamp, myRights: RIGHTS_READ },
+            { id: 'c', name: 'child.txt', parentId: 'f', nodeType: 'file', blobId: 'b3', ...stamp, myRights: RIGHTS_NONE },
+          ],
+        }, '0']],
+      });
+
+    const nodes = await getAllFileNodesAcrossAccounts();
+
+    expect(nodes.some((n) => n.discoverableOnly)).toBe(false);
+    expect(listFolder(nodes, null).map((n) => n.name)).toEqual(['Shared']);
+    expect(listFolder(nodes, 'acc-2:f').map((n) => n.name)).toEqual(['child.txt']);
+  });
+
+  it('never marks the user\'s own nodes', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/get', { list: [{ id: 'x', name: 'odd', parentId: null, blobId: null, created: null, modified: null, myRights: RIGHTS_NONE }] }, '0']],
+    });
+    const nodes = await getAllFileNodesAcrossAccounts();
+    expect(nodes[0].discoverableOnly).toBeUndefined();
+    expect(listFolder(nodes, null)).toHaveLength(1);
+  });
+});
+
+describe('file names', () => {
+  const RESERVED = [
+    '.', '..', 'CON', 'PRN', 'AUX', 'NUL', 'COM0', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7',
+    'COM8', 'COM9', 'LPT0', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+  ];
+  // The filenode account capability of the test servers (live-checked).
+  const CAPABILITY = {
+    '1.0': { maxFileNodeDepth: 64, maxSizeFileNodeName: 255, forbiddenNameChars: '/<>:"\\|?*', forbiddenNodeNames: RESERVED },
+    '0.16': { maxFileNodeDepth: null, maxSizeFileNodeName: 255, forbiddenNameChars: '/<>:"\\|?*', forbiddenNodeNames: RESERVED },
+  };
+  const mockCapability = jmapClient.getAccountCapability as ReturnType<typeof vi.fn>;
+
+  it.each(['1.0', '0.16'] as const)('reads the naming rules from the files account on Stalwart %s', (version) => {
+    mockCapability.mockImplementation((urn: string, accountId?: string) =>
+      (urn === CAPABILITIES.FILES && accountId === 'acc-1' ? CAPABILITY[version] : undefined));
+    expect(getFileNameRules()).toMatchObject({ forbiddenChars: '/<>:"\\|?*', maxNameBytes: 255 });
+  });
+
+  it.each(['1.0', '0.16'] as const)('stores a new file under a name Stalwart %s accepts', async (version) => {
+    mockCapability.mockReturnValue(CAPABILITY[version]);
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'n1' } } }, '0']] });
+
+    await copyFileNode({ id: 'f1', name: 'x', type: 'text/plain', blobId: 'b1' }, null, 'con.txt');
+    await copyFileNode({ id: 'f1', name: 'x', type: 'text/plain', blobId: 'b1' }, null, 'a:b?.txt');
+
+    const names = mockRequest.mock.calls.map(([calls]) => calls[0][1].create['new-file'].name);
+    // 0.16.23 would take "con.txt"; 1.0 refuses it, so both get "con_.txt".
+    expect(names).toEqual(['con_.txt', 'a_b_.txt']);
+  });
+
+  it('leaves names alone where the server publishes no rules', async () => {
+    mockCapability.mockReturnValue({});
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'd1' } } }, '0']] });
+    await createFolder('con', null);
+    expect(mockRequest.mock.calls[0][0][0][1].create['new-dir'].name).toBe('con');
+  });
+});
+
+describe('media type of new files', () => {
+  const create = async (type: string) => {
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'n1' } } }, '0']] });
+    await copyFileNode({ id: 'f1', name: 'doc', type, blobId: 'b1' }, null);
+    return mockRequest.mock.calls.at(-1)![0][0][1].create['new-file'].type;
+  };
+
+  it('keeps Office types whole instead of storing them as application/octet-stream', async () => {
+    expect(await create('application/vnd.openxmlformats-officedocument.wordprocessingml.document'))
+      .toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  });
+
+  it('sends the bare lowercase media type Stalwart 1.0 requires', async () => {
+    // 1.0: "type is not a valid media type." for parameters; uppercase is taken but lowered.
+    expect(await create('Text/Plain; charset=utf-8')).toBe('text/plain');
+    expect(await create('')).toBe('application/octet-stream');
+    expect(await create('d')).toBe('application/octet-stream');
+  });
+});
+
+describe('file errors', () => {
+  it('keeps the type and properties of a refused create, move, delete and copy', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/set', {
+        notCreated: { 'new-dir': { type: 'invalidProperties', description: 'Name is reserved and cannot be used.', properties: ['name'] } },
+      }, '0']],
+    });
+    const created = await createFolder('con', null).catch((e: unknown) => e);
+    expect(fileErrorKind(created)).toBe('invalidName');
+    expect((created as Error).message).toBe('Name is reserved and cannot be used.');
+
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/set', {
+        notUpdated: { f1: { type: 'invalidProperties', description: 'Maximum folder depth exceeded.', properties: ['parentId'] } },
+      }, '0']],
+    });
+    expect(fileErrorKind(await moveFileNode('f1', 'deep').catch((e: unknown) => e))).toBe('tooDeep');
+
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/set', { notDestroyed: { f1: { type: 'forbidden', description: 'You are not allowed to delete this file node.' } } }, '0']],
+    });
+    expect(fileErrorKind(await deleteFileNodes(['f1']).catch((e: unknown) => e))).toBe('forbidden');
+
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/set', {
+        notCreated: { 'new-file': { type: 'overQuota', description: 'There are too many files, please delete some before adding a new one.' } },
+      }, '0']],
+    });
+    expect(fileErrorKind(await copyFileNode({ id: 'f', name: 'a', type: 'text/plain', blobId: 'b' }, null).catch((e: unknown) => e)))
+      .toBe('overQuota');
+  });
+});
+
+describe('uploadFileBatch', () => {
+  const mockUploadBlob = uploadBlob as ReturnType<typeof vi.fn>;
+  const assets = [
+    { uri: 'file:///a', name: 'a.txt', mimeType: 'text/plain' },
+    { uri: 'file:///b', name: 'b.txt', mimeType: 'text/plain' },
+    { uri: 'file:///c', name: 'c.txt', mimeType: 'text/plain' },
+  ];
+
+  it('goes on after a file the server refuses and reports it', async () => {
+    mockUploadBlob.mockImplementation(async (uri: string) => ({ blobId: `blob-${uri.slice(-1)}`, size: 1, type: 'text/plain' }));
+    mockRequest.mockImplementation(async (calls: Array<[string, { create: Record<string, { name: string }> }, string]>) => {
+      const props = calls[0][1].create['new-file'];
+      if (props.name === 'b.txt') {
+        return { methodResponses: [['FileNode/set', { notCreated: { 'new-file': { type: 'forbidden', description: 'You are not allowed to create file nodes in this folder.' } } }, '0']] };
+      }
+      return { methodResponses: [['FileNode/set', { created: { 'new-file': { id: `n-${props.name}` } } }, '0']] };
+    });
+
+    const result = await uploadFileBatch(assets, 'dir-1', []);
+
+    expect(result.uploaded.map((n) => n.name)).toEqual(['a.txt', 'c.txt']);
+    expect(result.failed.map((f) => f.name)).toEqual(['b.txt']);
+    expect(fileErrorKind(result.failed[0].error)).toBe('forbidden');
+  });
+
+  it('stores device names the server would refuse under accepted, unique ones (Stalwart 1.0)', async () => {
+    (jmapClient.getAccountCapability as ReturnType<typeof vi.fn>).mockReturnValue({
+      maxSizeFileNodeName: 255, forbiddenNameChars: '/<>:"\\|?*', forbiddenNodeNames: ['CON', 'NUL'],
+    });
+    mockUploadBlob.mockResolvedValue({ blobId: 'blob', size: 1, type: 'text/plain' });
+    mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'n' } } }, '0']] });
+    const started: string[] = [];
+
+    await uploadFileBatch(
+      [{ uri: 'file:///1', name: 'con.txt' }, { uri: 'file:///2', name: 'Icon\r' }, { uri: 'file:///3', name: 'a:b.txt' }],
+      null,
+      ['a_b.txt'],
+      { onFile: (_i, name) => started.push(name) },
+    );
+
+    expect(started).toEqual(['con_.txt', 'Icon_', 'a_b (1).txt']);
+    const sent = mockRequest.mock.calls.map(([calls]) => calls[0][1].create['new-file'].name);
+    expect(sent).toEqual(started);
+  });
+
+  it('stops after the file in flight when cancelled', async () => {
+    const controller = new AbortController();
+    mockUploadBlob.mockImplementation(async () => {
+      controller.abort();
+      const err = new Error('Upload cancelled');
+      err.name = 'AbortError';
+      throw err;
+    });
+    const result = await uploadFileBatch(assets, null, [], { signal: controller.signal });
+    expect(mockUploadBlob).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ uploaded: [], failed: [] });
   });
 });
 
