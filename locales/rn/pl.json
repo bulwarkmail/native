@@ -670,7 +670,8 @@
       "remove_condition": "Usuń warunek",
       "sieve_editor": {
         "line_count": "{count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}}"
-      }
+      },
+      "validation_header_name": "Wpisz nazwę nagłówka, która zawiera tylko litery A–Z, cyfry, łączniki i podkreślenia, na przykład X-Spam-Flag."
     },
     "folders": {
       "account": "Konto",

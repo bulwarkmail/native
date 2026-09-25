@@ -683,7 +683,8 @@
       "remove_condition": "Remove condition",
       "sieve_editor": {
         "line_count": "{count, plural, one {# line} other {# lines}}"
-      }
+      },
+      "validation_header_name": "Enter a header name that uses only the letters A-Z, digits, hyphens and underscores, such as X-Spam-Flag."
     },
     "folders": {
       "account": "Account",

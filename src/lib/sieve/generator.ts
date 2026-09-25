@@ -22,6 +22,29 @@ function escapeString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+// What sieve-rs (Stalwart 0.16 and 1.0) accepts as a header name. Anything
+// else - a space, a dot, a colon - makes the server refuse the whole script.
+const HEADER_NAME = /^[A-Za-z0-9_-]+$/;
+
+/** Whether `name` can go into a Sieve `header` test (surrounding blanks aside). */
+export function isValidSieveHeaderName(name: string): boolean {
+  return HEADER_NAME.test(name.trim());
+}
+
+/**
+ * A rule's name as it appears in its `# Rule:` comment, which ends at the
+ * line break: a CR or LF in the name would have turned the rest of it into
+ * script. The parser matches the comment back to the rule by this form.
+ */
+export function ruleCommentName(name: string): string {
+  return name.replace(/[\r\n]+/g, ' ').trim();
+}
+
+/** A `header` condition whose name the server would refuse. */
+function hasInvalidHeaderName(condition: FilterCondition): boolean {
+  return condition.field === 'header' && !!condition.headerName?.trim() && !isValidSieveHeaderName(condition.headerName);
+}
+
 // Normalise the condition value to a non-empty string array. Single-value
 // conditions stay one-element; arrays are filtered for empty strings.
 function toValueList(value: string | string[]): string[] {
@@ -78,7 +101,7 @@ function generateCondition(condition: FilterCondition): string {
   }
 
   const headerName = field === 'header'
-    ? (condition.headerName || 'X-Unknown')
+    ? (condition.headerName?.trim() || 'X-Unknown')
     : HEADER_MAP[field];
 
   // A field this client does not know (a rule authored by a newer webmail)
@@ -290,7 +313,10 @@ export function generateScript(
   if (options.includeVacation) {
     metadata.includeVacation = true;
   }
-  const metadataJson = JSON.stringify(metadata);
+  // The rules ride in a `/* */` comment, which the first `*/` ends: one in a
+  // rule name or value cut the metadata short and turned the rest into
+  // script. JSON reads `\/` back as `/`, so every client parses it as before.
+  const metadataJson = JSON.stringify(metadata).replace(/\*\//g, '*\\/');
   const lines: string[] = [];
 
   lines.push('/* @metadata:begin');
@@ -334,9 +360,16 @@ export function generateScript(
       console.warn(`[filters] Skipping rule "${rule.name}": empty conditions or actions`);
       continue;
     }
+    // The server would refuse the whole script, every other rule and the
+    // auto-reply with it. Dropping just the condition could widen an "all
+    // of" rule, so the rule sits out; the metadata keeps it for editing.
+    if (rule.conditions.some(hasInvalidHeaderName)) {
+      console.warn(`[filters] Skipping rule "${rule.name}": a header name the server would refuse`);
+      continue;
+    }
 
     lines.push('');
-    lines.push(`# Rule: ${rule.name}`);
+    lines.push(`# Rule: ${ruleCommentName(rule.name)}`);
 
     const conditions = rule.conditions.map(generateCondition);
     let conditionStr: string;

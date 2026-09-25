@@ -670,7 +670,8 @@
       "remove_condition": "Odebrat podmínku",
       "sieve_editor": {
         "line_count": "{count, plural, one {# řádek} few {# řádky} many {# řádku} other {# řádků}}"
-      }
+      },
+      "validation_header_name": "Zadejte název hlavičky, který obsahuje jen písmena A–Z, číslice, pomlčky a podtržítka, například X-Spam-Flag."
     },
     "folders": {
       "account": "Účet",

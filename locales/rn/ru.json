@@ -670,7 +670,8 @@
       "remove_condition": "Удалить условие",
       "sieve_editor": {
         "line_count": "{count, plural, one {# строка} few {# строки} many {# строк} other {# строки}}"
-      }
+      },
+      "validation_header_name": "Введите имя заголовка, состоящее только из латинских букв A–Z, цифр, дефисов и подчёркиваний, например X-Spam-Flag."
     },
     "folders": {
       "account": "Аккаунт",

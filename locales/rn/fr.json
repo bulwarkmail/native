@@ -670,7 +670,8 @@
       "remove_condition": "Supprimer la condition",
       "sieve_editor": {
         "line_count": "{count, plural, one {# ligne} other {# lignes}}"
-      }
+      },
+      "validation_header_name": "Saisissez un nom d'en-tête composé uniquement des lettres A à Z, de chiffres, de tirets et de tirets bas, par exemple X-Spam-Flag."
     },
     "folders": {
       "account": "Compte",

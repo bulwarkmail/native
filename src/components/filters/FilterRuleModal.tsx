@@ -28,6 +28,7 @@ import {
   updateFilterAction,
   withMailboxTarget,
 } from '../../lib/sieve/rule-actions';
+import { isValidSieveHeaderName } from '../../lib/sieve/generator';
 import type { Mailbox } from '../../api/types';
 import type {
   FilterRule,
@@ -197,11 +198,22 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       .map((cond) => {
         if (isHasAny(cond)) return { ...cond, value: '' };
         if (cond.field === 'size') return cond; // numeric, single-value only
-        if (typeof cond.value !== 'string') return cond; // already structured
-        return { ...cond, value: inputStringToValue(cond.value) };
+        // A keyboard's trailing space is never part of a header name.
+        const named = cond.field === 'header' ? { ...cond, headerName: cond.headerName?.trim() } : cond;
+        if (typeof named.value !== 'string') return named; // already structured
+        return { ...named, value: inputStringToValue(named.value) };
       });
     if (validConditions.length === 0) {
       Alert.alert(t('settings.filters.validation_empty_conditions', 'At least one condition with a value is required'));
+      return;
+    }
+    // The server refuses the whole filter script over one header name it
+    // can't read (a space, a dot or a colon in it), so say so here.
+    if (validConditions.some((cond) => cond.field === 'header' && !isValidSieveHeaderName(cond.headerName ?? ''))) {
+      Alert.alert(t(
+        'settings.filters.validation_header_name',
+        'Enter a header name that uses only the letters A-Z, digits, hyphens and underscores, such as X-Spam-Flag.',
+      ));
       return;
     }
     const validActions = actions
@@ -313,6 +325,8 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                         value={condition.headerName || ''}
                         onChangeText={(v) => updateCondition(index, { headerName: v })}
                         placeholder={t('settings.filters.header_name', 'Header name')}
+                        autoCapitalize="none"
+                        autoCorrect={false}
                       />
                     )}
 

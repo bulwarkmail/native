@@ -670,7 +670,8 @@
       "remove_condition": "Видалити умову",
       "sieve_editor": {
         "line_count": "{count, plural, one {# рядок} few {# рядки} many {# рядків} other {# рядка}}"
-      }
+      },
+      "validation_header_name": "Введіть назву заголовка, що містить лише латинські літери A–Z, цифри, дефіси та підкреслення, наприклад X-Spam-Flag."
     },
     "folders": {
       "account": "Обліковий запис",

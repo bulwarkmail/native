@@ -670,7 +670,8 @@
       "remove_condition": "Feltétel eltávolítása",
       "sieve_editor": {
         "line_count": "{count, plural, one {# sor} other {# sor}}"
-      }
+      },
+      "validation_header_name": "Adj meg egy fejlécnevet, amely csak az A–Z betűket, számjegyeket, kötőjeleket és aláhúzásjeleket tartalmazza, például X-Spam-Flag."
     },
     "folders": {
       "account": "Fiók",

@@ -670,7 +670,8 @@
       "remove_condition": "Bedingung entfernen",
       "sieve_editor": {
         "line_count": "{count, plural, one {# Zeile} other {# Zeilen}}"
-      }
+      },
+      "validation_header_name": "Geben Sie einen Header-Namen ein, der nur die Buchstaben A–Z, Ziffern, Bindestriche und Unterstriche enthält, zum Beispiel X-Spam-Flag."
     },
     "folders": {
       "account": "Konto",

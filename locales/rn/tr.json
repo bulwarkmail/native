@@ -670,7 +670,8 @@
       "remove_condition": "Koşulu kaldır",
       "sieve_editor": {
         "line_count": "{count, plural, one {# satır} other {# satır}}"
-      }
+      },
+      "validation_header_name": "Yalnızca A-Z harfleri, rakamlar, kısa çizgiler ve alt çizgiler içeren bir başlık adı girin; örneğin X-Spam-Flag."
     },
     "folders": {
       "account": "Hesap",

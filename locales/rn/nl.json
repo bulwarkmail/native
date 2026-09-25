@@ -670,7 +670,8 @@
       "remove_condition": "Voorwaarde verwijderen",
       "sieve_editor": {
         "line_count": "{count, plural, one {# regel} other {# regels}}"
-      }
+      },
+      "validation_header_name": "Voer een headernaam in met alleen de letters A-Z, cijfers, koppeltekens en underscores, zoals X-Spam-Flag."
     },
     "folders": {
       "account": "Account",

@@ -670,7 +670,8 @@
       "remove_condition": "조건 제거",
       "sieve_editor": {
         "line_count": "{count, plural, other {#줄}}"
-      }
+      },
+      "validation_header_name": "헤더 이름은 영문자(A-Z), 숫자, 하이픈, 밑줄만 사용해 입력해 주세요(예: X-Spam-Flag)."
     },
     "folders": {
       "account": "계정",

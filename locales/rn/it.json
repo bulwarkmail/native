@@ -670,7 +670,8 @@
       "remove_condition": "Rimuovi condizione",
       "sieve_editor": {
         "line_count": "{count, plural, one {# riga} other {# righe}}"
-      }
+      },
+      "validation_header_name": "Inserisci un nome di intestazione che usi solo le lettere A-Z, cifre, trattini e trattini bassi, ad esempio X-Spam-Flag."
     },
     "folders": {
       "account": "Account",

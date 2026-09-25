@@ -7,6 +7,7 @@ import type {
   FilterRule,
   VacationSieveConfig,
 } from './types';
+import { ruleCommentName } from './generator';
 
 // Ported from the webmail's lib/sieve/parser.ts. Parses a Sieve script back
 // into structured rules. Bulwark-authored scripts carry an `@metadata` JSON
@@ -838,7 +839,8 @@ export function parseScript(content: string): ParseResult {
       const match = raw.match(/#\s*Rule:\s*(.+?)\s*$/m);
       if (match) {
         const name = match[1].trim();
-        if (bulwarkRules.some(b => b.name === name)) return false;
+        // The comment carries the name without line breaks (ruleCommentName).
+        if (bulwarkRules.some(b => ruleCommentName(b.name) === name)) return false;
       }
       if (/#\s*Vacation auto-reply/i.test(raw)) return false;
       return true;

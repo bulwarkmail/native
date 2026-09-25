@@ -670,7 +670,8 @@
       "remove_condition": "条件を削除",
       "sieve_editor": {
         "line_count": "{count, plural, other {#行}}"
-      }
+      },
+      "validation_header_name": "ヘッダー名には英字（A～Z）、数字、ハイフン、アンダースコアのみを使用してください（例: X-Spam-Flag）。"
     },
     "folders": {
       "account": "アカウント",

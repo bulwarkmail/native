@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateScript } from '../generator';
+import { generateScript, isValidSieveHeaderName } from '../generator';
 import { parseScript } from '../parser';
 import type { FilterRule } from '../types';
 
@@ -468,6 +468,88 @@ describe('generateScript', () => {
         actions: [{ type: 'move', value: 'My "Folder"' }],
       })]);
       expect(script).toContain('fileinto "My \\"Folder\\"";');
+    });
+  });
+
+  // The rules ride in a `/* */` comment, which the first `*/` ends, and each
+  // rule's code starts with a `# Rule:` comment, which a line break ends.
+  describe('text that could break out of its comment', () => {
+    const tricky = makeRule({
+      id: 'rule-*/',
+      name: 'Newsletters */ and more',
+      conditions: [
+        { field: 'subject', comparator: 'contains', value: ['*/ spam', 'end */ here'] },
+        { field: 'header', comparator: 'is', value: 'a*/b', headerName: 'X-Spam-Flag' },
+      ],
+      actions: [{ type: 'move', value: 'News */ letters' }, { type: 'mark_read' }],
+    });
+    const vacation = { isEnabled: true, subject: 'Away */', textBody: 'Back soon */ really' };
+
+    it('keeps */ inside the metadata comment and reads every value back', () => {
+      const script = generateScript([tricky], vacation);
+
+      // The comment's first */ is its own end marker.
+      const begin = script.indexOf('/* @metadata:begin');
+      expect(script.indexOf('*/', begin)).toBe(script.indexOf('@metadata:end */') + '@metadata:end '.length);
+      const parsed = parseScript(script);
+      expect(parsed.isOpaque).toBe(false);
+      expect(parsed.rules).toEqual([tricky]);
+      expect(parsed.vacation).toEqual(vacation);
+    });
+
+    it('writes an escape that JSON, and so every older client, reads back as */', () => {
+      const script = generateScript([makeRule({ name: 'a */ b' })]);
+
+      const json = script.match(/@metadata:begin\n(.*)\n@metadata:end/)![1];
+      expect(json).toContain('"name":"a *\\/ b"');
+      expect(JSON.parse(json).rules[0].name).toBe('a */ b');
+    });
+
+    it('keeps a line break in a rule name out of the script and still recognises the block', () => {
+      const rule = makeRule({ name: 'Line one\r\nline two\nthree' });
+      const script = generateScript([rule]);
+
+      expect(script).toContain('\n# Rule: Line one line two three\nif ');
+      const parsed = parseScript(script);
+      // Not kept a second time as an external rule.
+      expect(parsed.rules).toEqual([rule]);
+      expect(parseScript(generateScript(parsed.rules, undefined, { externalRequires: parsed.externalRequires })).rules)
+        .toEqual([rule]);
+    });
+  });
+
+  // sieve-rs (Stalwart 0.16 and 1.0) refuses the whole script over one of
+  // these, the auto-reply and every other rule with it.
+  describe('header names the server would refuse', () => {
+    it.each(['X-Spam Flag', 'X-Foo.Bar', 'X-Foo:', 'X-"Quoted"', 'Grüße'])(
+      'skips a rule that tests %j and keeps it in the metadata',
+      (headerName) => {
+        const bad = makeRule({
+          id: 'bad',
+          name: 'Bad',
+          conditions: [{ field: 'header', comparator: 'contains', value: 'yes', headerName }],
+        });
+        const good = makeRule({ id: 'good', name: 'Good' });
+
+        const script = generateScript([bad, good]);
+
+        const code = script.slice(script.indexOf('@metadata:end */'));
+        expect(code).not.toContain('# Rule: Bad');
+        expect(code).toContain('# Rule: Good');
+        expect(parseScript(script).rules).toEqual([bad, good]);
+      },
+    );
+
+    it('accepts letters, digits, hyphens and underscores, blanks around them aside', () => {
+      expect(isValidSieveHeaderName('X-Spam_Flag2')).toBe(true);
+      expect(isValidSieveHeaderName(' X-Spam-Flag ')).toBe(true);
+      expect(isValidSieveHeaderName('')).toBe(false);
+      expect(isValidSieveHeaderName('X Spam')).toBe(false);
+
+      const script = generateScript([makeRule({
+        conditions: [{ field: 'header', comparator: 'contains', value: 'yes', headerName: ' X-Spam-Flag ' }],
+      })]);
+      expect(script).toContain('if header :contains "X-Spam-Flag" "yes" {');
     });
   });
 

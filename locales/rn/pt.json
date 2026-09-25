@@ -670,7 +670,8 @@
       "remove_condition": "Remover condição",
       "sieve_editor": {
         "line_count": "{count, plural, one {# linha} other {# linhas}}"
-      }
+      },
+      "validation_header_name": "Insira um nome de cabeçalho que use apenas as letras A-Z, algarismos, hífens e sublinhados, como X-Spam-Flag."
     },
     "folders": {
       "account": "Conta",

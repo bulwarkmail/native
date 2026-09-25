@@ -670,7 +670,8 @@
       "remove_condition": "Fjern betingelse",
       "sieve_editor": {
         "line_count": "{count, plural, one {# linje} other {# linjer}}"
-      }
+      },
+      "validation_header_name": "Angiv et headernavn, der kun bruger bogstaverne A-Z, tal, bindestreger og understregninger, f.eks. X-Spam-Flag."
     },
     "folders": {
       "account": "Konto",

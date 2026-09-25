@@ -670,7 +670,8 @@
       "remove_condition": "移除條件",
       "sieve_editor": {
         "line_count": "{count, plural, other {# 行}}"
-      }
+      },
+      "validation_header_name": "請輸入僅包含字母 A-Z、數字、連字號和底線的標頭名稱，例如 X-Spam-Flag。"
     },
     "folders": {
       "account": "帳號",

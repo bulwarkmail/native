@@ -670,7 +670,8 @@
       "remove_condition": "Нөхцөлийг хасах",
       "sieve_editor": {
         "line_count": "{count, plural, one {# мөр} other {# мөр}}"
-      }
+      },
+      "validation_header_name": "Зөвхөн A-Z үсэг, тоо, зураас, доогуур зураас агуулсан толгойн нэр оруулна уу, жишээ нь X-Spam-Flag."
     },
     "folders": {
       "account": "Бүртгэл",

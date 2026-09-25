@@ -670,7 +670,8 @@
       "remove_condition": "הסר תנאי",
       "sieve_editor": {
         "line_count": "{count, plural, one {שורה אחת} two {שתי שורות} other {# שורות}}"
-      }
+      },
+      "validation_header_name": "הזן שם כותרת שכולל רק את האותיות A-Z, ספרות, מקפים וקווים תחתונים, למשל X-Spam-Flag."
     },
     "folders": {
       "account": "חשבון",

@@ -670,7 +670,8 @@
       "remove_condition": "Eliminar condición",
       "sieve_editor": {
         "line_count": "{count, plural, one {# línea} other {# líneas}}"
-      }
+      },
+      "validation_header_name": "Escribe un nombre de encabezado que solo use las letras A-Z, números, guiones y guiones bajos, por ejemplo X-Spam-Flag."
     },
     "folders": {
       "account": "Cuenta",

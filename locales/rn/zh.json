@@ -670,7 +670,8 @@
       "remove_condition": "移除条件",
       "sieve_editor": {
         "line_count": "{count, plural, other {# 行}}"
-      }
+      },
+      "validation_header_name": "请输入仅包含字母 A-Z、数字、连字符和下划线的标头名称，例如 X-Spam-Flag。"
     },
     "folders": {
       "account": "账户",

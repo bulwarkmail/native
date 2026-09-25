@@ -670,7 +670,8 @@
       "remove_condition": "Eliminați condiția",
       "sieve_editor": {
         "line_count": "{count, plural, one {# linie} few {# linii} other {# de linii}}"
-      }
+      },
+      "validation_header_name": "Introduceți un nume de antet care folosește doar literele A–Z, cifre, cratime și liniuțe de subliniere, de exemplu X-Spam-Flag."
     },
     "folders": {
       "account": "Cont",

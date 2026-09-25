@@ -670,7 +670,8 @@
       "remove_condition": "Fjern vilkår",
       "sieve_editor": {
         "line_count": "{count, plural, one {# linje} other {# linjer}}"
-      }
+      },
+      "validation_header_name": "Skriv inn et navn på meldingshode som bare bruker bokstavene A–Z, sifre, bindestreker og understreker, for eksempel X-Spam-Flag."
     },
     "folders": {
       "account": "Konto",

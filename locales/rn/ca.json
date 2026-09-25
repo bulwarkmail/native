@@ -670,7 +670,8 @@
       "remove_condition": "Elimina la condició",
       "sieve_editor": {
         "line_count": "{count, plural, one {# línia} other {# línies}}"
-      }
+      },
+      "validation_header_name": "Introduïu un nom de capçalera que només contingui les lletres A-Z, xifres, guions i guions baixos, com ara X-Spam-Flag."
     },
     "folders": {
       "account": "Compte",

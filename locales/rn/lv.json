@@ -670,7 +670,8 @@
       "remove_condition": "Noņemt nosacījumu",
       "sieve_editor": {
         "line_count": "{count, plural, zero {# rindas} one {# rinda} other {# rindas}}"
-      }
+      },
+      "validation_header_name": "Ievadiet galvenes nosaukumu, kurā ir tikai burti A–Z, cipari, defises un pasvītras, piemēram, X-Spam-Flag."
     },
     "folders": {
       "account": "Konts",

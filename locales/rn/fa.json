@@ -670,7 +670,8 @@
       "remove_condition": "حذف شرط",
       "sieve_editor": {
         "line_count": "{count, plural, one {# خط} other {# خط}}"
-      }
+      },
+      "validation_header_name": "نام هدری وارد کنید که فقط از حروف A-Z، رقم، خط تیره و زیرخط تشکیل شده باشد، مانند X-Spam-Flag."
     },
     "folders": {
       "account": "حساب",

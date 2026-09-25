@@ -670,7 +670,8 @@
       "remove_condition": "إزالة الشرط",
       "sieve_editor": {
         "line_count": "{count, plural, zero {# سطر} one {سطر واحد} two {سطران} few {# أسطر} many {# سطرًا} other {# سطر}}"
-      }
+      },
+      "validation_header_name": "أدخل اسم ترويسة لا يحتوي إلا على الأحرف A-Z والأرقام والشرطات والشرطات السفلية، مثل X-Spam-Flag."
     },
     "folders": {
       "account": "الحساب",
