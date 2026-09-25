@@ -113,9 +113,11 @@ export function startPolling(
     if ('isConnected' in jmapClient && !jmapClient.isConnected) return;
     inFlight = true;
     try {
+      // Only the states are read. An explicit property list keeps Stalwart
+      // 1.0's unfinished JMAP Metadata out of the Mailbox/get (see api/email).
       const res = await jmapClient.request(
         [
-          ['Mailbox/get', { accountId, ids: [] }, 'm'],
+          ['Mailbox/get', { accountId, ids: [], properties: ['id'] }, 'm'],
           ['Email/get', { accountId, ids: [] }, 'e'],
         ],
         [CAPABILITIES.CORE, CAPABILITIES.MAIL],

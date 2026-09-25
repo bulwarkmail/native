@@ -96,9 +96,9 @@ describe('account scoping', () => {
   it('lists scripts of the requested account', async () => {
     mockRequest.mockResolvedValue({ methodResponses: [['SieveScript/get', { list: [] }, '0']] });
     await getSieveScripts('team');
-    expect(mockRequest.mock.calls[0][0][0][1]).toEqual({ accountId: 'team' });
+    expect(mockRequest.mock.calls[0][0][0][1]).toMatchObject({ accountId: 'team' });
     await getSieveScripts();
-    expect(mockRequest.mock.calls[1][0][0][1]).toEqual({ accountId: 'own' });
+    expect(mockRequest.mock.calls[1][0][0][1]).toMatchObject({ accountId: 'own' });
   });
 
   it('downloads a shared account\'s script against that account', async () => {

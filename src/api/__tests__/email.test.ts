@@ -32,6 +32,7 @@ import {
   deleteEmail,
   searchEmails,
   sendEmail,
+  MAILBOX_PROPERTIES,
 } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -61,7 +62,7 @@ describe('email operations', () => {
         isShared: false,
       })));
       expect(mockRequest).toHaveBeenCalledWith(
-        [['Mailbox/get', { accountId: 'acc-1' }, '0']],
+        [['Mailbox/get', { accountId: 'acc-1', properties: MAILBOX_PROPERTIES }, '0']],
       );
     });
   });
@@ -90,7 +91,7 @@ describe('email operations', () => {
       const result = await getSharedMailboxes();
 
       expect(mockRequest).toHaveBeenCalledWith(
-        [['Mailbox/get', { accountId: 'grp-1' }, '0']],
+        [['Mailbox/get', { accountId: 'grp-1', properties: MAILBOX_PROPERTIES }, '0']],
       );
       expect(result).toEqual([
         {

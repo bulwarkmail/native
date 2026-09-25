@@ -31,6 +31,16 @@ export const EMAIL_FULL_PROPERTIES = [
   'messageId', 'inReplyTo', 'references', 'headers',
 ];
 
+// The Mailbox properties the folder list reads (RFC 8621 §2), which is also
+// the default list on 0.16 and 1.0. Stalwart 1.0 advertises JMAP Metadata
+// but its handlers are still `todo!()`: a get that selects `metadata` or
+// `privateMetadata` panics on the server. An explicit list keeps them out
+// even if a later release adds them to the default.
+export const MAILBOX_PROPERTIES = [
+  'id', 'name', 'parentId', 'role', 'sortOrder', 'totalEmails', 'unreadEmails',
+  'totalThreads', 'unreadThreads', 'myRights', 'isSubscribed',
+];
+
 const SUBMISSION_USING = [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION];
 
 // Prefix a shared account's folder ids so they can't collide with the user's
@@ -133,7 +143,7 @@ export async function getMailboxesWithState(
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const isShared = accountId !== jmapClient.accountId;
   const res = await jmapClient.request(
-    [['Mailbox/get', { accountId }, '0']],
+    [['Mailbox/get', { accountId, properties: MAILBOX_PROPERTIES }, '0']],
   );
   const body = requireMethodResult(res, '0', 'Mailbox/get');
   const list = ((body.list as Mailbox[]) ?? []).map((m) =>
@@ -160,7 +170,7 @@ export async function getSharedMailboxes(): Promise<Mailbox[]> {
     const res = await jmapClient.request(
       chunk.map((acc, idx): JMAPMethodCall => [
         'Mailbox/get',
-        { accountId: acc.id },
+        { accountId: acc.id, properties: MAILBOX_PROPERTIES },
         String(idx),
       ]),
     );
@@ -187,7 +197,7 @@ export async function getMailboxesByIds(
   let state = '';
   for (const slice of batched(ids, maxInGet())) {
     const res = await jmapClient.request(
-      [['Mailbox/get', { accountId, ids: slice }, '0']],
+      [['Mailbox/get', { accountId, ids: slice, properties: MAILBOX_PROPERTIES }, '0']],
     );
     const body = requireMethodResult(res, '0', 'Mailbox/get');
     for (const m of (body.list as Mailbox[]) ?? []) {

@@ -9,6 +9,10 @@ import type { SieveScript, SieveCapabilities } from '../lib/sieve/types';
 
 const SIEVE_USING = [CAPABILITIES.CORE, CAPABILITIES.SIEVE];
 
+// SieveScript properties (RFC 9661 §2), explicit so a default that grows to
+// include Stalwart 1.0's unfinished JMAP Metadata can't reach the get.
+const SIEVE_SCRIPT_PROPERTIES = ['id', 'name', 'blobId', 'isActive'];
+
 function requireSession() {
   const session = jmapClient.currentSession;
   if (!session) throw new Error('Not connected');
@@ -59,7 +63,7 @@ export function getSieveCapabilities(accountId?: string): SieveCapabilities | nu
 
 export async function getSieveScripts(accountId: string = getSieveAccountId()): Promise<SieveScript[]> {
   const res = await jmapClient.request(
-    [['SieveScript/get', { accountId }, '0']],
+    [['SieveScript/get', { accountId, properties: SIEVE_SCRIPT_PROPERTIES }, '0']],
     SIEVE_USING,
   );
   const resp = res.methodResponses?.[0];
