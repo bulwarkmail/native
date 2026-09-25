@@ -1275,6 +1275,16 @@ export async function forgetPushServerState(accountId: string): Promise<void> {
 }
 
 /**
+ * Forget the recorded subscription's expiry alone, for an account whose
+ * server may have been replaced unseen (lib/server-change): the next resync
+ * then re-creates a subscription the server lacks instead of taking it for
+ * revoked.
+ */
+export async function forgetPushSubscriptionExpiry(accountId: string): Promise<void> {
+  await AsyncStorage.removeItem(subscriptionExpiresKey(accountId));
+}
+
+/**
  * Tear down push for a single account. Destroys every JMAP subscription the
  * server holds for this device (assumes the jmapClient is currently
  * authenticated to that account; the active-account logout flow guarantees
@@ -1339,8 +1349,8 @@ export async function disablePushForAccount(accountId: string): Promise<void> {
  * True when the server no longer has this account's recorded subscription
  * although it wasn't due to expire - someone revoked it. Without a known
  * expiry (a registration made by an older build, or one on a server that was
- * replaced since) nothing can be told apart, so it counts as not revoked.
- * Throws when the server can't be asked.
+ * replaced since, or may have been) nothing can be told apart, so it counts
+ * as not revoked. Throws when the server can't be asked.
  */
 async function wasRevokedOnServer(accountId: string): Promise<boolean> {
   const storedServerId = await AsyncStorage.getItem(subscriptionIdKey(accountId));

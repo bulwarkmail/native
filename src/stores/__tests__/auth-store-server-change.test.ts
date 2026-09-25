@@ -78,9 +78,11 @@ vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotifications: vi.fn(async () => undefined),
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
   forgetPushServerState: vi.fn(async () => undefined),
+  forgetPushSubscriptionExpiry: vi.fn(async () => undefined),
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { forgetPushSubscriptionExpiry } from '../../lib/push-notifications';
 import { useAuthStore } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useEmailStore } from '../email-store';
@@ -189,5 +191,20 @@ describe('restoring the session on a replaced server', () => {
     expect(emailSets()).toEqual([]);
     expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['b']);
     expect(await AsyncStorage.getItem(OUTBOX_KEY)).not.toBeNull();
+  });
+
+  it('sends none of the queue the build before left, the first time this one sees the server (Stalwart 1.0)', async () => {
+    // No fingerprint: the released build never recorded one, and the server
+    // may have been replaced before this one ran. "b" can be another message.
+    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(QUEUED));
+
+    expect(await useAuthStore.getState().restoreSession()).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(emailSets()).toEqual([]);
+    expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(await AsyncStorage.getItem(OUTBOX_KEY)).toBeNull();
+    expect(forgetPushSubscriptionExpiry).toHaveBeenCalledWith(ACCOUNT);
+    expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
   });
 });

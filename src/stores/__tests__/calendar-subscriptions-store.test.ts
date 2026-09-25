@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/calendar', () => ({
   createCalendar: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: { accountId: 'acc-1', isConnected: true, username: 'user', serverUrl: 'https://mail.example.org' },
 }));
 const calendarStore = vi.hoisted(() => ({
-  importEvents: vi.fn(async () => ({ created: 1, updated: 0 })),
+  importEvents: vi.fn(async (_events: unknown[], _calendarId: string) => ({ created: 1, updated: 0 })),
   fetchCalendars: vi.fn(async () => undefined),
   refresh: vi.fn(async () => undefined),
 }));
@@ -32,6 +32,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 import * as calendarApi from '../../api/calendar';
+import { useAccountStore } from '../account-store';
 import {
   normalizeFeedUrl,
   selectAccountSubscriptions,
@@ -185,8 +186,9 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
     expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
   });
 
-  it('drops no events from a calendar under the recorded id that carries another name', async () => {
-    // The reinstalled server gave "c" to the user's own calendar.
+  it('neither drops events from nor imports the feed into a calendar under the recorded id that carries another name', async () => {
+    // The reinstalled server gave "c" to the user's own calendar (a server
+    // replaced before this build first saw it, so nothing unlinked it).
     vi.mocked(calendarApi.getCalendarName).mockResolvedValue('Personal');
     vi.mocked(calendarApi.queryEvents).mockResolvedValue(['p1']);
     vi.mocked(calendarApi.getEventIdentities).mockResolvedValue([{ id: 'p1', uid: 'dentist', calendarIds: { c: true } }] as never);
@@ -198,6 +200,21 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
     expect(calendarApi.queryEvents).not.toHaveBeenCalled();
     expect(calendarApi.deleteEvents).not.toHaveBeenCalled();
     expect(calendarApi.updateEvent).not.toHaveBeenCalled();
+    // The feed goes into a new mirror, as for an unlinked subscription.
+    expect(calendarApi.createCalendar).toHaveBeenCalledWith('Holidays', '#ff0000');
+    expect(calendarStore.importEvents.mock.calls.map(([, calendarId]) => calendarId)).toEqual(['n1']);
+    expect(only()).toMatchObject({ calendarId: 'n1', accountId: 'acc-1', localAccountId: ME, lastError: null });
+  });
+
+  it('touches nothing when it cannot tell whether the recorded calendar is the mirror', async () => {
+    vi.mocked(calendarApi.getCalendarName).mockRejectedValue(new Error('Network request failed'));
+    useCalendarSubscriptionsStore.setState({ subscriptions: [mine()] });
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('mine');
+
+    expect(calendarStore.importEvents).not.toHaveBeenCalled();
+    expect(calendarApi.createCalendar).not.toHaveBeenCalled();
+    expect(only()).toMatchObject({ calendarId: 'c', lastSyncAt: 5, lastError: 'Network request failed' });
   });
 
   it('still drops events that left the feed from its own mirror calendar', async () => {
@@ -232,5 +249,114 @@ describe('subscriptions of a server that was replaced (0.16.23 to 1.0)', () => {
 
     expect(calendarApi.updateCalendar).not.toHaveBeenCalled();
     expect(only().name).toBe('Public holidays');
+  });
+
+  it('keeps its name when the mirror could not be renamed, so it still prunes and removes its mirror', async () => {
+    vi.mocked(calendarApi.getCalendarName).mockResolvedValue('Holidays');
+    vi.mocked(calendarApi.updateCalendar).mockRejectedValueOnce(new Error('Network request failed'));
+    useCalendarSubscriptionsStore.setState({ subscriptions: [mine()] });
+
+    await expect(useCalendarSubscriptionsStore.getState().updateSubscription('mine', { name: 'Public holidays', color: '#00ff00' }))
+      .rejects.toThrow('Network request failed');
+    expect(only()).toMatchObject({ name: 'Holidays', color: '#ff0000' });
+
+    // The mirror on the server is still called "Holidays".
+    vi.mocked(calendarApi.queryEvents).mockResolvedValue(['x1']);
+    vi.mocked(calendarApi.getEventIdentities).mockResolvedValue([{ id: 'x1', uid: 'gone', calendarIds: { c: true } }] as never);
+    await useCalendarSubscriptionsStore.getState().syncSubscription('mine');
+    expect(calendarApi.deleteEvents).toHaveBeenCalledWith(['x1']);
+    expect(calendarApi.createCalendar).not.toHaveBeenCalled();
+    await useCalendarSubscriptionsStore.getState().removeSubscription('mine');
+    expect(calendarApi.deleteCalendar).toHaveBeenCalledWith('c');
+  });
+
+  it('keeps its name when the mirror\'s name cannot be read', async () => {
+    vi.mocked(calendarApi.getCalendarName).mockRejectedValueOnce(new Error('Network request failed'));
+    useCalendarSubscriptionsStore.setState({ subscriptions: [mine()] });
+
+    await expect(useCalendarSubscriptionsStore.getState().updateSubscription('mine', { name: 'Public holidays' }))
+      .rejects.toThrow('Network request failed');
+
+    expect(calendarApi.updateCalendar).not.toHaveBeenCalled();
+    expect(only().name).toBe('Holidays');
+  });
+});
+
+describe('subscriptions made before they recorded their account', () => {
+  // Accounts on two servers can get the same JMAP id for their own data:
+  // usera on one.example and userb on two.example are both "d" here.
+  const USERA = 'usera@one.example';
+  const USERB = 'userb@two.example';
+  const account = (id: string, jmapAccountId?: string) => ({
+    id, serverUrl: `https://${id.split('@')[1]}`, username: id.split('@')[0], displayName: id, email: id,
+    avatarColor: '#000', lastLoginAt: 0, isConnected: true, hasError: false, isDefault: id === USERA, jmapAccountId,
+  });
+  // userb's, made on two.example before subscriptions recorded their account.
+  const legacy: CalendarSubscription = {
+    id: 'sports', name: 'Sports', url: 'https://feeds.example/s.ics', calendarId: 'k', accountId: 'd', lastSyncAt: 5, lastError: null,
+  };
+  const only = () => useCalendarSubscriptionsStore.getState().subscriptions[0];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useCalendarSubscriptionsStore.setState({ syncing: {}, subscriptions: [{ ...legacy }] });
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true, status: 200, headers: { get: () => null }, text: async () => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+    })) as unknown as typeof fetch;
+    vi.mocked(calendarApi.parseCalendarBlob).mockResolvedValue([{ uid: 'e1', title: 'Final', start: '2027-01-01T00:00:00' }]);
+    vi.mocked(calendarApi.queryEvents).mockResolvedValue([]);
+    vi.mocked(calendarApi.getEventIdentities).mockResolvedValue([]);
+    vi.mocked(calendarApi.createCalendar).mockResolvedValue({ id: 'n1', name: 'Sports' } as never);
+  });
+
+  afterEach(() => {
+    useAccountStore.setState({ accounts: [] });
+  });
+
+  it('are not taken by a replaced server\'s account when another account has the same JMAP id', async () => {
+    useAccountStore.setState({ accounts: [account(USERA, 'd'), account(USERB, 'd')] });
+
+    await useCalendarSubscriptionsStore.getState().unlinkAccount(USERA, { previous: 'd', next: 'd' });
+
+    expect(only()).toEqual(legacy);
+  });
+
+  it('are not taken while another account\'s JMAP id is not known yet', async () => {
+    useAccountStore.setState({ accounts: [account(USERA, 'd'), account(USERB)] });
+
+    await useCalendarSubscriptionsStore.getState().unlinkAccount(USERA, { previous: 'd', next: 'd' });
+
+    expect(only()).toEqual(legacy);
+  });
+
+  it('go with the replaced server\'s account when no other account has their JMAP id', async () => {
+    useAccountStore.setState({ accounts: [account(USERA, 'd'), account(USERB, 'e')] });
+
+    await useCalendarSubscriptionsStore.getState().unlinkAccount(USERA, { previous: 'd', next: 'h' });
+
+    expect(only()).toMatchObject({ calendarId: null, localAccountId: USERA, accountId: 'h', lastSyncAt: null });
+  });
+
+  it('become the account\'s once a sync finds their mirror in it', async () => {
+    // The client serves user@mail.example.org, JMAP id "acc-1".
+    vi.mocked(calendarApi.getCalendarName).mockResolvedValue('Sports');
+    useCalendarSubscriptionsStore.setState({ subscriptions: [{ ...legacy, accountId: 'acc-1' }] });
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('sports');
+
+    expect(only()).toMatchObject({ calendarId: 'k', accountId: 'acc-1', localAccountId: 'user@mail.example.org', lastError: null });
+    expect(calendarStore.importEvents).toHaveBeenCalledWith([expect.objectContaining({ uid: 'e1' })], 'k');
+  });
+
+  it('are left alone by a sync that does not find their mirror when another account may own them', async () => {
+    useAccountStore.setState({ accounts: [account('user@mail.example.org', 'acc-1'), account(USERB, 'acc-1')] });
+    vi.mocked(calendarApi.getCalendarName).mockResolvedValue('Personal');
+    useCalendarSubscriptionsStore.setState({ subscriptions: [{ ...legacy, accountId: 'acc-1' }] });
+
+    await useCalendarSubscriptionsStore.getState().syncSubscription('sports');
+
+    expect(calendarApi.createCalendar).not.toHaveBeenCalled();
+    expect(calendarStore.importEvents).not.toHaveBeenCalled();
+    expect(only()).toEqual({ ...legacy, accountId: 'acc-1' });
   });
 });

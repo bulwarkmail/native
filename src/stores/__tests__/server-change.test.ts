@@ -302,15 +302,75 @@ describe('reconcileServerFingerprint', () => {
     expect(useToastStore.getState().toasts).toEqual([]);
   });
 
-  it('only records the first server it sees for an account', async () => {
-    await seed(ACCOUNT);
-    await AsyncStorage.removeItem(`server-fingerprint:v1:${ACCOUNT}`);
+  describe('on the first sight of an account (no build before recorded its server)', () => {
+    // The update may have come after the server was replaced (0.16.23 to 1.0).
+    const EXPIRES_KEY = `push:subscriptionExpires:v1:${ACCOUNT}`;
+    const firstSight = async () => {
+      await seed(ACCOUNT);
+      await AsyncStorage.removeItem(`server-fingerprint:v1:${ACCOUNT}`);
+      // Recorded by the released build against the server it knew.
+      await AsyncStorage.setItem(EXPIRES_KEY, '2026-12-01T00:00:00.000Z');
+    };
 
-    expect(await reconcileServerFingerprint(ACCOUNT, session('1.0'))).toBe(false);
+    it('keeps the caches, and drops the queued changes with a notice and the push expiry (Stalwart 1.0)', async () => {
+      await firstSight();
 
-    expect(useEmailStore.getState().mailboxState).toBe('s1iaq');
-    expect(useOutboxStore.getState().entries).toHaveLength(2);
-    expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
+      expect(await reconcileServerFingerprint(ACCOUNT, session('1.0'))).toBe(false);
+
+      // What the app only shows stays.
+      expect(useEmailStore.getState().mailboxState).toBe('s1iaq');
+      expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual(SUBSCRIPTIONS);
+      expect(await AsyncStorage.getItem(`push:notifiedIds:v1:${ACCOUNT}`)).not.toBeNull();
+      // What would act on the server by itself goes: queued and failed ops...
+      expect(useOutboxStore.getState().entries).toEqual([]);
+      expect(useOutboxStore.getState().failed).toEqual([]);
+      const keys = await storedKeys();
+      expect(keys).not.toContain(`webmail:outbox:v1:${ACCOUNT}`);
+      expect(keys).not.toContain(`webmail:outbox:v1:${ACCOUNT}:failed`);
+      expect(useToastStore.getState().toasts.map((toast) => toast.title)).toEqual([
+        '3 offline changes were discarded because the mail server changed',
+      ]);
+      // ... and the expiry that would take a missing subscription for revoked.
+      expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBeNull();
+      expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${ACCOUNT}`)).toBe('a');
+      expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
+      // Another account's queue waits for its own first sight.
+      expect(JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`))!)).toHaveLength(2);
+    });
+
+    it('says nothing when no changes were queued (Stalwart 0.16.23)', async () => {
+      await firstSight();
+      await useOutboxStore.getState().clearAccount(ACCOUNT);
+
+      await reconcileServerFingerprint(ACCOUNT, session('0.16.23'));
+
+      expect(useToastStore.getState().toasts).toEqual([]);
+      expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBeNull();
+    });
+
+    it('does it again with the next session when it failed part-way', async () => {
+      await firstSight();
+      const removeItem = vi.mocked(AsyncStorage.removeItem);
+      const remove = removeItem.getMockImplementation()!;
+      removeItem.mockImplementation(async (key: string) => {
+        if (key === EXPIRES_KEY) throw new Error('disk full');
+        return remove(key);
+      });
+
+      try {
+        await expect(reconcileServerFingerprint(ACCOUNT, session('1.0'))).rejects.toThrow('disk full');
+      } finally {
+        removeItem.mockImplementation(remove);
+      }
+      expect(useOutboxStore.getState().entries).toEqual([]);
+      expect(await readServerFingerprint(ACCOUNT)).toBeNull();
+
+      expect(await reconcileServerFingerprint(ACCOUNT, session('1.0'))).toBe(false);
+      expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBeNull();
+      expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
+      // Announced once.
+      expect(useToastStore.getState().toasts).toHaveLength(1);
+    });
   });
 
   it('tries again with the next session when dropping failed part-way', async () => {

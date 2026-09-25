@@ -33,6 +33,10 @@ vi.mock('react-native', () => {
     },
     NativeEventEmitter,
     PermissionsAndroid: { RESULTS: { GRANTED: 'granted' }, request: vi.fn(async () => 'granted') },
+    // What the stores the server check drops from need at load.
+    AppState: { currentState: 'active', addEventListener: () => ({ remove: () => undefined }) },
+    Appearance: { getColorScheme: () => 'dark', addChangeListener: () => ({ remove: () => undefined }) },
+    Linking: { openURL: async () => undefined },
   };
 });
 
@@ -96,6 +100,7 @@ import type { EmailPushConfig } from '../../api/types';
 import { jmapClient } from '../../api/jmap-client';
 import { NativeModules } from 'react-native';
 import { generateAccountId } from '../account-utils';
+import { reconcileServerFingerprint } from '../server-change';
 
 const OUR_DCID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ACCOUNT_ID = generateAccountId('user@example.com', 'https://mail.example.com');
@@ -1114,6 +1119,35 @@ describe('resyncPushNotifications', () => {
     expect(result?.subscriptionId).toBe('new-server-id');
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
+    expect(await readPushAccountIds()).toEqual([ACCOUNT_ID]);
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+  });
+
+  it('re-creates the subscription when this build first sees a server replaced before it ran (0.16.23 to 1.0)', async () => {
+    // Left by the released build, which recorded the expiry but no server
+    // fingerprint, against the 0.16 server; the fresh 1.0 install holds no
+    // subscriptions. The first check can't tell a replacement from none.
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EXPIRES_KEY, inDays(60));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
+    listMock.mockResolvedValue([]);
+    const session10 = {
+      apiUrl: 'https://mail.example.com/jmap/',
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+      accounts: {
+        'jmap-primary': {
+          name: 'user', isPersonal: true, isReadOnly: false,
+          accountCapabilities: { 'urn:ietf:params:jmap:mail': {}, 'urn:ietf:params:jmap:principals:owner': {} },
+        },
+      },
+      capabilities: { 'urn:ietf:params:jmap:core': {}, 'urn:ietf:params:jmap:metadata': {} },
+    };
+
+    expect(await reconcileServerFingerprint(ACCOUNT_ID, session10 as never)).toBe(false);
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result?.subscriptionId).toBe('new-server-id');
+    expect(createMock).toHaveBeenCalledTimes(1);
     expect(await readPushAccountIds()).toEqual([ACCOUNT_ID]);
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
   });

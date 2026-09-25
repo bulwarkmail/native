@@ -12,7 +12,7 @@ import { toast } from '../stores/toast-store';
 import { clearBodyHeights } from './body-heights';
 import { clearBodyDocuments } from './email-body-document';
 import { clearEmailDetailCache } from './email-detail-cache';
-import { forgetPushServerState } from './push-notifications';
+import { forgetPushServerState, forgetPushSubscriptionExpiry } from './push-notifications';
 import {
   primaryAccountId,
   readServerFingerprint,
@@ -97,22 +97,62 @@ export async function forgetServerDerivedState(
   // Get the emptied caches onto disk before the new fingerprint is.
   await step(() => flushPersistedWrites());
 
-  if (droppedOps > 0) {
-    toast.warning(t(
-      'offline.discarded_changes',
-      '{count, plural, one {# offline change was} other {# offline changes were}} discarded because the mail server changed',
-      { count: droppedOps },
-    ));
+  announceDiscardedChanges(droppedOps);
+  if (failures.length > 0) throw failures[0];
+}
+
+function announceDiscardedChanges(count: number): void {
+  if (count <= 0) return;
+  toast.warning(t(
+    'offline.discarded_changes',
+    '{count, plural, one {# offline change was} other {# offline changes were}} discarded because the mail server changed',
+    { count },
+  ));
+}
+
+/**
+ * The first sight of an account: no build before this one recorded its
+ * server, so nothing tells whether it was replaced before this one ran (an
+ * update of the app and a reinstall for Stalwart 1.0 can fall together).
+ * The caches stay, as they do while the server stays the same; dropping them
+ * would cost everyone who updates a full download. What would act on the
+ * server by itself goes:
+ * - the outbox. Its ops replay on their own, and on a replaced server an id
+ *   names another message: a queued delete deletes that one. Nothing proves
+ *   an op was made on this server: the queue records no server, a
+ *   reinstalled Stalwart may accept the old JMAP states, and a queued move
+ *   or delete took its message out of the cached list, so there is no copy
+ *   to compare the server's message under that id with. Offline edits of
+ *   whoever updates with some still unsent are lost, and announced.
+ * - the push subscription's recorded expiry. A replaced server holds no
+ *   subscription, which the resync would take for a revocation and turn
+ *   push off for good; without the expiry it re-creates it.
+ * Every step runs; the first failure is thrown afterwards.
+ */
+async function forgetUnconfirmedServerState(accountId: string): Promise<void> {
+  const failures: unknown[] = [];
+  let droppedOps = 0;
+  try {
+    droppedOps = await useOutboxStore.getState().clearAccount(accountId);
+  } catch (err) {
+    failures.push(err);
   }
+  try {
+    await forgetPushSubscriptionExpiry(accountId);
+  } catch (err) {
+    failures.push(err);
+  }
+  announceDiscardedChanges(droppedOps);
   if (failures.length > 0) throw failures[0];
 }
 
 /**
  * Compare the session with the fingerprint recorded for the local account
  * (username@host) and drop what was derived from the server when it changed.
- * The first sight of an account only records it. The fingerprint is written
- * after the caches are gone, so an interrupted drop is repeated next time.
- * Resolves to true when caches were dropped.
+ * On the first sight of an account only what can't be confirmed to belong
+ * to its server goes (forgetUnconfirmedServerState). The fingerprint is
+ * written after that, so an interrupted drop is repeated next time. Resolves
+ * to true when caches were dropped.
  */
 export async function reconcileServerFingerprint(accountId: string, session: JMAPSession): Promise<boolean> {
   const next = sessionFingerprint(session);
@@ -131,6 +171,8 @@ export async function reconcileServerFingerprint(accountId: string, session: JMA
       previous: await readServerPrimaryAccountId(accountId),
       next: primary || null,
     });
+  } else {
+    await forgetUnconfirmedServerState(accountId);
   }
   await writeServerFingerprint(accountId, next, primary);
   return recorded !== null;
