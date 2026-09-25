@@ -287,6 +287,7 @@
     "send_now": "Sūtīt tagad",
     "send_timeout_body": "Ziņojums, iespējams, jau ir nosūtīts. Pirms sūtāt to vēlreiz, pārbaudiet mapi Nosūtītie.",
     "send_timeout_title": "Serveris neatbild",
+    "submission_quota": "Serverī šim kontam ir pārāk daudz nosūtīto ziņojumu ierakstu. Bulwark noņēma tos, ko varēja; ja tas atkārtojas, lūdziet administratoram palielināt e-pasta sūtījumu ierobežojumu.",
     "undo_send_label": "Sūtīšana pēc {seconds} s…",
     "upload_failed_short": "Augšupielāde neizdevās",
     "uploading": "Augšupielādē...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Parakstīts/šifrēts ar S/MIME – mobilajā lietotnē netiek atbalstīts",
     "source_too_large": "Ziņojums ir pārāk liels, lai to parādītu pilnībā. Tā vietā kopīgojiet pilno avotu.",
     "thread_loading": "Ielādē sarunu...",
+    "undo_send_failed": "Sūtīšanu neizdevās atsaukt",
     "unsubscribe_banner": {
       "no_identity": "Nav pieejamas sūtīšanas identitātes"
     },

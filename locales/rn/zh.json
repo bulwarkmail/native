@@ -287,6 +287,7 @@
     "send_now": "立即发送",
     "send_timeout_body": "邮件可能已经发出。再次发送前，请检查“已发送”文件夹。",
     "send_timeout_title": "服务器无响应",
+    "submission_quota": "服务器上此账户的已发送邮件记录过多。Bulwark 已删除了能删除的记录；如果问题仍然出现，请让管理员提高邮件提交数量上限。",
     "undo_send_label": "{seconds} 秒后发送…",
     "upload_failed_short": "上传失败",
     "uploading": "正在上传…",
@@ -396,6 +397,7 @@
     "smime_unsupported": "已使用 S/MIME 签名/加密——移动端不支持",
     "source_too_large": "邮件过大，无法完整显示。请改为分享完整源码。",
     "thread_loading": "正在加载会话…",
+    "undo_send_failed": "无法撤销发送",
     "unsubscribe_banner": {
       "no_identity": "没有可用的发送身份"
     },

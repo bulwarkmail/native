@@ -287,6 +287,7 @@
     "send_now": "Jetzt senden",
     "send_timeout_body": "Die Nachricht wurde möglicherweise bereits versendet. Prüfen Sie Ihren Gesendet-Ordner, bevor Sie sie erneut senden.",
     "send_timeout_title": "Keine Antwort vom Server",
+    "submission_quota": "Der Server hat für dieses Konto zu viele Einträge zu gesendeten Nachrichten. Bulwark hat entfernt, was möglich war; wenn das weiterhin vorkommt, bitten Sie Ihren Administrator, das Limit für E-Mail-Übermittlungen zu erhöhen.",
     "undo_send_label": "Senden in {seconds} s…",
     "upload_failed_short": "Upload fehlgeschlagen",
     "uploading": "Wird hochgeladen...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Mit S/MIME signiert/verschlüsselt - auf Mobilgeräten nicht unterstützt",
     "source_too_large": "Die Nachricht ist zu groß, um vollständig angezeigt zu werden. Teilen Sie stattdessen den vollständigen Quelltext.",
     "thread_loading": "Unterhaltung wird geladen...",
+    "undo_send_failed": "Senden konnte nicht rückgängig gemacht werden",
     "unsubscribe_banner": {
       "no_identity": "Keine Absenderidentität verfügbar"
     },

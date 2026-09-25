@@ -287,6 +287,7 @@
     "send_now": "Wyślij teraz",
     "send_timeout_body": "Wiadomość mogła już zostać wysłana. Zanim wyślesz ją ponownie, sprawdź folder Wysłane.",
     "send_timeout_title": "Brak odpowiedzi serwera",
+    "submission_quota": "Serwer przechowuje zbyt wiele rekordów wysłanych wiadomości dla tego konta. Bulwark usunął te, które mógł; jeśli to się powtarza, poproś administratora o podniesienie limitu wysyłek e-mail.",
     "undo_send_label": "Wysyłanie za {seconds} s…",
     "upload_failed_short": "Przesyłanie nie powiodło się",
     "uploading": "Przesyłanie...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Podpisano/zaszyfrowano za pomocą S/MIME – nieobsługiwane w aplikacji mobilnej",
     "source_too_large": "Wiadomość jest zbyt duża, aby wyświetlić ją w całości. Zamiast tego udostępnij pełne źródło.",
     "thread_loading": "Ładowanie konwersacji...",
+    "undo_send_failed": "Nie udało się cofnąć wysyłki",
     "unsubscribe_banner": {
       "no_identity": "Brak tożsamości do wysyłki"
     },

@@ -1,6 +1,12 @@
 import { jmapClient } from './jmap-client';
-import { assertSetResult, batched, parseHoldLimit, requireMethodResult, ScheduleTooLateError } from './jmap-result';
+import {
+  assertSetResult, batched, parseHoldLimit, requireMethodResult, ScheduleTooLateError, SubmissionQuotaError,
+} from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
+import {
+  destroyEmailSubmissions, isStalwartAccount, makeRoomForSubmission, readSubmissionDestroy,
+  submissionCreateError, submissionDestroyCall, SUBMISSION_ONLY_USING, SUBMISSION_SCAN_MAX_PAGES,
+} from './submissions';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
 import { toWildcardQuery } from '../lib/search-utils';
@@ -1173,15 +1179,19 @@ export async function destroyEmails(ids: string[], accountIdOverride?: string): 
   const accountId = accountIdOverride ?? jmapClient.accountId;
   for (const slice of batched(ids, maxInSet())) {
     const res = await jmapClient.request([['Email/set', { accountId, destroy: slice }, '0']]);
-    const body = requireMethodResult(res, '0', 'Email/set');
-    const notDestroyed = (body.notDestroyed ?? {}) as Record<string, { type?: string; description?: string }>;
-    const real = Object.entries(notDestroyed).filter(([, err]) => err?.type !== 'notFound');
-    if (real.length > 0) {
-      const [id, err] = real[0];
-      throw new Error(
-        `Failed to delete ${real.length} email(s), first: ${id} – ${err.type || 'unknown'}${err.description ? ` (${err.description})` : ''}`,
-      );
-    }
+    assertEmailsDestroyed(requireMethodResult(res, '0', 'Email/set'));
+  }
+}
+
+/** Throw when an Email/set destroy left messages behind; `notFound` counts as gone. */
+function assertEmailsDestroyed(body: Record<string, any>): void {
+  const notDestroyed = (body.notDestroyed ?? {}) as Record<string, { type?: string; description?: string }>;
+  const real = Object.entries(notDestroyed).filter(([, err]) => err?.type !== 'notFound');
+  if (real.length > 0) {
+    const [id, err] = real[0];
+    throw new Error(
+      `Failed to delete ${real.length} email(s), first: ${id} – ${err.type || 'unknown'}${err.description ? ` (${err.description})` : ''}`,
+    );
   }
 }
 
@@ -1509,9 +1519,13 @@ function buildEmailCreate(email: OutgoingEmail): Record<string, unknown> {
 /**
  * The error for a submission the server refused. A hold beyond the MTA's
  * limit becomes `ScheduleTooLateError`, and the limit it names is remembered
- * so the pickers stop offering such times (webmail parity).
+ * so the pickers stop offering such times (webmail parity). A full
+ * submission quota (Stalwart 1.0, still full after making room) becomes
+ * `SubmissionQuotaError`, which the UI explains instead of showing the
+ * server's "please delete some".
  */
 function submissionError(err: { description?: string; type?: string }, fallback: string): Error {
+  if (err.type === 'overQuota') return new SubmissionQuotaError(err.description);
   const limit = parseHoldLimit(err.description);
   if (limit === null) return new Error(err.description ?? err.type ?? fallback);
   jmapClient.learnHoldLimit(limit);
@@ -1584,13 +1598,30 @@ export async function sendEmail(
     };
   }
 
-  const res = await jmapClient.request(
+  let res = await jmapClient.request(
     [
       ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
       ['EmailSubmission/set', submissionArgs, '1'],
     ],
     SUBMISSION_USING,
   );
+
+  // Stalwart 1.0 refuses a submission once the account holds `maxSubmissions`
+  // records (overQuota). The message exists by then, so make room and submit
+  // that copy once more instead of failing the send.
+  const copyCreated = res.methodResponses.find(([name, , callId]) => name === 'Email/set' && callId === '0');
+  const copyId = (copyCreated?.[1] as { created?: Record<string, { id?: string }> } | undefined)?.created?.draft?.id;
+  if (copyCreated && copyId && submissionCreateError(res, 'sub-1')?.type === 'overQuota') {
+    await makeRoomForSubmission(accountId);
+    const retry = await jmapClient.request(
+      [['EmailSubmission/set', {
+        ...submissionArgs,
+        create: { 'sub-1': { ...submissionCreate, emailId: copyId } },
+      }, '1']],
+      SUBMISSION_USING,
+    );
+    res = { ...retry, methodResponses: [copyCreated, ...(retry.methodResponses ?? [])] };
+  }
 
   let emailId: string | undefined;
   let emailSubmissionId: string | undefined;
@@ -1659,15 +1690,42 @@ export async function sendEmail(
     throw failure;
   }
 
+  // An immediate send's submission record has done its job once the request
+  // that created it returned: the message is queued and filed, and with no
+  // hold there is nothing to cancel. Stalwart 1.0 stops accepting submissions
+  // once an account holds `maxSubmissions` records, so the record goes now;
+  // Stalwart's destroy only removes the record, never the queued message.
+  // Other servers are left to the prune. Decided by the request, not by the
+  // undoStatus the create returned, which 0.16.10-0.16.16 report as final
+  // even for a held send.
+  const recordToDestroy = holdFor === 0 && emailSubmissionId && isStalwartAccount(accountId)
+    ? emailSubmissionId
+    : undefined;
+
   // The message is out (or scheduled) - now it is safe to drop the old draft.
   // A failure here leaves an orphan in Drafts, which is a filing warning
-  // rather than a failed send (#849).
+  // rather than a failed send (#849). The submission record rides along, and
+  // nothing about it may turn into a warning.
   if (opts?.draftId && emailSubmissionId) {
     try {
-      await destroyEmails([opts.draftId], accountId);
+      if (recordToDestroy) {
+        const cleanup = await jmapClient.request(
+          [
+            ['Email/set', { accountId, destroy: [opts.draftId] }, '0'],
+            submissionDestroyCall([recordToDestroy], accountId, '1'),
+          ],
+          SUBMISSION_USING,
+        );
+        readSubmissionDestroy(cleanup, '1');
+        assertEmailsDestroyed(requireMethodResult(cleanup, '0', 'Email/set'));
+      } else {
+        await destroyEmails([opts.draftId], accountId);
+      }
     } catch (err) {
       filingWarning = filingWarning ?? `old draft cleanup failed: ${err instanceof Error ? err.message : String(err)}`;
     }
+  } else if (recordToDestroy) {
+    await destroyEmailSubmissions([recordToDestroy], accountId);
   }
 
   return {
@@ -1754,13 +1812,29 @@ export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
 async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[]> {
   const now = Date.now();
 
-  const queryRes = await jmapClient.request(
-    [['EmailSubmission/query', { accountId, limit: 200 }, '0']],
-    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
-  );
-  const [queryName, queryBody] = queryRes.methodResponses[0];
-  if (queryName === 'error' || queryName.endsWith('/error')) return [];
-  const ids = (queryBody.ids as string[]) ?? [];
+  // Every page of the query. It lists records oldest sendAt first, so a
+  // single page of 200 lost the mail scheduled furthest ahead once the
+  // three-day window held more records than that. `total` only comes back
+  // with calculateTotal.
+  const pageSize = Math.min(500, maxInGet());
+  const found: string[] = [];
+  for (let page = 0; page < SUBMISSION_SCAN_MAX_PAGES; page++) {
+    const queryRes = await jmapClient.request(
+      [['EmailSubmission/query', { accountId, position: found.length, limit: pageSize, calculateTotal: true }, '0']],
+      SUBMISSION_ONLY_USING,
+    );
+    const [queryName, queryBody] = queryRes.methodResponses[0];
+    if (queryName === 'error' || queryName.endsWith('/error')) {
+      if (page === 0) return [];
+      break;
+    }
+    const pageIds = (queryBody.ids as string[]) ?? [];
+    found.push(...pageIds);
+    const done = typeof queryBody.total === 'number' ? found.length >= queryBody.total : pageIds.length < pageSize;
+    if (pageIds.length === 0 || done) break;
+  }
+  // A record created between two pages shifts the later ones by one.
+  const ids = Array.from(new Set(found));
   if (ids.length === 0) return [];
 
   const submissions: Array<{
@@ -1826,8 +1900,9 @@ async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[
 }
 
 // Cancel a pending scheduled send. The held message copy stays in Sent; only
-// delivery is stopped (matches the webmail behaviour). `accountIdOverride` is
-// the account holding the submission (see `ScheduledEmail.accountId`).
+// delivery is stopped (matches the webmail behaviour), and the canceled
+// submission record is removed. `accountIdOverride` is the account holding
+// the submission (see `ScheduledEmail.accountId`).
 export async function cancelScheduledSend(emailSubmissionId: string, accountIdOverride?: string): Promise<void> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const res = await jmapClient.request(
@@ -1843,6 +1918,13 @@ export async function cancelScheduledSend(emailSubmissionId: string, accountIdOv
     | undefined;
   if (failure) {
     throw new Error(failure.description ?? failure.type ?? 'Failed to cancel scheduled send');
+  }
+  // The canceled record is dead weight against Stalwart 1.0's submission
+  // limit. It goes in a request of its own, and only once the cancel is
+  // confirmed: had the two gone together and the cancel failed, the mail
+  // would still be queued with no record left to cancel it through.
+  if (body.updated && emailSubmissionId in body.updated) {
+    await destroyEmailSubmissions([emailSubmissionId], accountId);
   }
 }
 
@@ -1904,16 +1986,25 @@ export async function rescheduleScheduledSend(
     },
   };
 
-  const res = await jmapClient.request(
+  const createReplacement = () => jmapClient.request(
     [['EmailSubmission/set', { accountId, create: { replacement: create } }, '0']],
     [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
+  let res = await createReplacement();
+  // A full submission quota (Stalwart 1.0): make room and try once more. The
+  // original is still pending, so making room never touches it.
+  if (submissionCreateError(res, 'replacement')?.type === 'overQuota') {
+    await makeRoomForSubmission(accountId);
+    res = await createReplacement();
+  }
   const body = requireMethodResult(res, '0', 'EmailSubmission/set');
   const notCreated = body.notCreated?.replacement as { description?: string; type?: string } | undefined;
   if (notCreated) throw submissionError(notCreated, 'Failed to reschedule');
   const created = body.created?.replacement as { id?: string; sendAt?: string } | undefined;
   if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
 
+  // Either cancel below also removes the record it canceled, so a reschedule
+  // leaves only the replacement behind.
   try {
     await cancelScheduledSend(scheduled.emailSubmissionId, accountId);
   } catch (err) {
@@ -1994,8 +2085,9 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
   const { uploadBytes } = await import('./blob');
   const upload = await uploadBytes(bytes, 'message/rfc822', accountId);
   const emailId = await importEmailBlob(upload.blobId, opts.sentMailboxId, { $seen: true }, accountId);
+  let submissionId: string | undefined;
   try {
-    const res = await jmapClient.request(
+    const submit = () => jmapClient.request(
       [
         ['EmailSubmission/set', {
           accountId,
@@ -2013,13 +2105,27 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
       ],
       SUBMISSION_USING,
     );
+    let res = await submit();
+    // A full submission quota (Stalwart 1.0): make room and try once more.
+    if (submissionCreateError(res, 'mdn')?.type === 'overQuota') {
+      await makeRoomForSubmission(accountId);
+      res = await submit();
+    }
     const body = requireMethodResult(res, '0', 'EmailSubmission/set');
+    const refused = body.notCreated?.mdn as { type?: string; description?: string } | undefined;
+    if (refused?.type === 'overQuota') throw new SubmissionQuotaError(refused.description);
     assertSetResult(body, ['mdn'], 'read receipt');
+    submissionId = body.created?.mdn?.id as string | undefined;
   } catch (err) {
     await destroyEmails([emailId], accountId).catch((cleanupErr) => {
       console.warn('[mdn] failed to remove the unsent receipt from Sent:', cleanupErr);
     });
     throw err;
+  }
+  // A receipt goes out without a hold, so its record can go at once, as after
+  // an immediate send (see sendEmail).
+  if (submissionId && isStalwartAccount(accountId)) {
+    await destroyEmailSubmissions([submissionId], accountId);
   }
   return emailId;
 }

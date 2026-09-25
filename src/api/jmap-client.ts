@@ -128,7 +128,8 @@ function canonicalUrl(url: string): string {
 // Shared response helpers live in ./jmap-result (dependency-free) and are
 // re-exported here for convenience.
 export {
-  JMAPMethodError, requireMethodResult, assertSetResult, batched, ScheduleTooLateError, parseHoldLimit,
+  JMAPMethodError, requireMethodResult, assertSetResult, batched, ScheduleTooLateError, SubmissionQuotaError,
+  parseHoldLimit,
 } from './jmap-result';
 
 /**

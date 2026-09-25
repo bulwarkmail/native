@@ -15,7 +15,8 @@ import {
   getFullEmail,
   type ScheduledEmail,
 } from '../api/email';
-import { jmapClient, ScheduleTooLateError } from '../api/jmap-client';
+import { jmapClient, ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-client';
+import { sendFailureMessage } from '../lib/send-failure-message';
 import { useEmailStore } from '../stores/email-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -83,6 +84,12 @@ export default function ScheduledScreen({ navigation }: Props) {
           t('email_composer.schedule_too_late_title', 'Too far ahead'),
           t('email_composer.schedule_too_late_body', 'That is later than this server allows. Pick an earlier time.'),
         );
+        return;
+      }
+      // "Send now" and a reschedule create a submission, which a full quota
+      // refuses; the message stays scheduled as it was.
+      if (e instanceof SubmissionQuotaError) {
+        Alert.alert(failTitle, sendFailureMessage(e, t));
         return;
       }
       Alert.alert(failTitle, e instanceof Error ? e.message : String(e));

@@ -11,6 +11,7 @@ import { Mail, Calendar, BookUser, HardDrive, Settings } from 'lucide-react-nati
 
 import { startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream';
 import { jmapClient } from './src/api/jmap-client';
+import { pruneEmailSubmissions } from './src/api/submissions';
 import type { StateChange } from './src/api/types';
 import { dispatchStateChange } from './src/lib/state-change-bus';
 import {
@@ -652,6 +653,7 @@ export default function App() {
       void email.fetchMailboxes();
       if (email.currentMailboxId) void email.refreshEmails();
       void useOutboxStore.getState().flush();
+      void pruneEmailSubmissions();
     };
 
     // Foreground liveness for the per-account connection dot: the open
@@ -672,6 +674,11 @@ export default function App() {
     });
 
     void start();
+    // Stalwart 1.0 stops accepting sends once an account holds
+    // `maxSubmissions` submission records, so remove the ones that can no
+    // longer be cancelled (throttled per account; a resume or a send runs it
+    // again).
+    void pruneEmailSubmissions();
 
     const subscription = AppState.addEventListener('change', (state) => {
       const nowActive = state === 'active';

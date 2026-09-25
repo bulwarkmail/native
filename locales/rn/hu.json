@@ -287,6 +287,7 @@
     "send_now": "Küldés most",
     "send_timeout_body": "Lehet, hogy az üzenet már elment. Mielőtt újra elküldenéd, nézd meg az Elküldött mappát.",
     "send_timeout_title": "Nem érkezett válasz a szervertől",
+    "submission_quota": "A kiszolgáló túl sok elküldött üzenetről szóló bejegyzést tárol ehhez a fiókhoz. A Bulwark eltávolította, amit tudott; ha ez továbbra is előfordul, kérje meg a rendszergazdát, hogy emelje meg az e-mail-küldési korlátot.",
     "undo_send_label": "Küldés {seconds} mp múlva…",
     "upload_failed_short": "Sikertelen feltöltés",
     "uploading": "Feltöltés...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "S/MIME-mal aláírva/titkosítva – mobilon nem támogatott",
     "source_too_large": "Az üzenet túl nagy ahhoz, hogy teljes egészében megjelenjen. Oszd meg inkább a teljes forrást.",
     "thread_loading": "Beszélgetés betöltése...",
+    "undo_send_failed": "A küldést nem sikerült visszavonni",
     "unsubscribe_banner": {
       "no_identity": "Nincs elérhető küldő azonosság"
     },

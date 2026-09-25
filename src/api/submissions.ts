@@ -1,0 +1,263 @@
+// EmailSubmission records. Every send leaves one behind. Stalwart 1.0 counts
+// all of them, whatever their status or age, against a per-account limit
+// (`maxSubmissions`, 500 by default), and its own purge of old records never
+// runs, so an account that never removes them stops sending for good.
+// Destroying a record only removes the record - on 0.16 and 1.0 it neither
+// cancels nor stops the delivery - but a still-pending submission whose record
+// is gone can no longer be cancelled. So only records that can't be cancelled
+// any more are ever destroyed. Port of the webmail's client (48382170).
+
+import { jmapClient } from './jmap-client';
+import { batched, requireMethodResult } from './jmap-result';
+import { CAPABILITIES } from './types';
+import type { JMAPMethodCall, JMAPResponseBody } from './types';
+
+/** `using` for EmailSubmission calls that neither read nor write an Email. */
+export const SUBMISSION_ONLY_USING = [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION];
+
+/** How often the background prune may sweep one account's records. */
+const PRUNE_INTERVAL_MS = 10 * 60 * 1000;
+/** Upper bound on the pages one prune, change-log walk or scheduled list reads. */
+export const SUBMISSION_SCAN_MAX_PAGES = 40;
+
+/** When each account's records were last pruned, keyed by server and account. */
+const prunedAt = new Map<string, number>();
+
+function pruneKey(accountId: string): string {
+  return `${jmapClient.serverUrl ?? ''}|${accountId}`;
+}
+
+/** Test hook. */
+export function resetSubmissionPrune(): void {
+  prunedAt.clear();
+}
+
+/**
+ * Whether the account is on Stalwart, whose destroy is known to leave the
+ * delivery alone on every version. Only there does a send destroy its own
+ * record right away; elsewhere the prune gets to it once it is final.
+ */
+export function isStalwartAccount(accountId: string): boolean {
+  return jmapClient.hasAccountCapability('urn:stalwart:jmap', accountId);
+}
+
+export interface SubmissionStatus {
+  id: string;
+  sendAt?: string | null;
+  undoStatus?: string;
+}
+
+interface SetError {
+  type?: string;
+  description?: string;
+}
+
+/**
+ * The submissions that can no longer be cancelled, going by the undoStatus
+ * EmailSubmission/get reports: canceled ones, and final ones whose sendAt has
+ * passed. Stalwart computes that status from its queue on every version, so
+ * it is the one to trust - unlike the status a create returns (0.16.10-0.16.16
+ * say final for a held send) or the query's undoStatus filter (0.16 matches
+ * the stored status). A pending submission is never among them, whatever its
+ * sendAt: the queue still holds its mail, held or retrying, and without the
+ * record it could no longer be cancelled - while destroying it would not stop
+ * the delivery either.
+ */
+export function prunableSubmissionIds(submissions: SubmissionStatus[], now: number): string[] {
+  return submissions
+    .filter((submission) => {
+      if (submission.undoStatus === 'canceled') return true;
+      if (submission.undoStatus !== 'final' || !submission.sendAt) return false;
+      const sendAt = Date.parse(submission.sendAt);
+      return Number.isFinite(sendAt) && sendAt <= now;
+    })
+    .map((submission) => submission.id);
+}
+
+/** The SetError an EmailSubmission/set create came back with, if it failed that way. */
+export function submissionCreateError(res: JMAPResponseBody, creationId: string): SetError | undefined {
+  return res.methodResponses
+    ?.find(([name]) => name === 'EmailSubmission/set')?.[1]?.notCreated?.[creationId];
+}
+
+export function submissionDestroyCall(ids: string[], accountId: string, callId: string): JMAPMethodCall {
+  return ['EmailSubmission/set', { accountId, destroy: ids }, callId];
+}
+
+/**
+ * The ids an EmailSubmission/set destroy removed. `notFound` means the record
+ * is gone already - another device got there first - which is what the
+ * caller wanted. Any other failure is only logged: a leftover record costs
+ * quota, never mail.
+ */
+export function readSubmissionDestroy(res: JMAPResponseBody | undefined, callId: string): string[] {
+  const [name, body] = res?.methodResponses?.find(([, , id]) => id === callId) ?? [];
+  if (name !== 'EmailSubmission/set') {
+    console.warn('[submissions] destroy failed:', body);
+    return [];
+  }
+  const failures = Object.entries((body?.notDestroyed ?? {}) as Record<string, SetError>)
+    .filter(([, error]) => error?.type !== 'notFound');
+  if (failures.length > 0) {
+    console.warn('[submissions] not destroyed:', Object.fromEntries(failures));
+  }
+  return Array.isArray(body?.destroyed) ? (body.destroyed as string[]) : [];
+}
+
+/**
+ * Destroy EmailSubmission records, in batches the server accepts. Callers
+ * must only pass records that can no longer be cancelled.
+ *
+ * Resolves with the ids the server destroyed. Ids it no longer has count as
+ * done; other failures are logged. Never rejects, so no send fails over it.
+ */
+export async function destroyEmailSubmissions(ids: string[], accountId: string): Promise<string[]> {
+  const destroyed: string[] = [];
+  for (const slice of batched([...new Set(ids)], jmapClient.getMaxObjectsInSet())) {
+    try {
+      const res = await jmapClient.request([submissionDestroyCall(slice, accountId, '0')], SUBMISSION_ONLY_USING);
+      destroyed.push(...readSubmissionDestroy(res, '0'));
+    } catch (err) {
+      console.warn('[submissions] destroy failed:', err);
+    }
+  }
+  return destroyed;
+}
+
+/**
+ * Destroy, in every submission account, the records that can no longer be
+ * cancelled (see prunableSubmissionIds). That includes other devices' and
+ * other group members' records: the limit is per account.
+ * EmailSubmission/query only sees records whose sendAt is at most three days
+ * back, so older ones are left to makeRoomForSubmission.
+ *
+ * Runs at most once per account every ten minutes unless `force` is set.
+ * Resolves with the number of records destroyed; never rejects. The app
+ * starts it at launch, on returning to the foreground and after sends,
+ * without waiting for it.
+ */
+export async function pruneEmailSubmissions(options: { force?: boolean } = {}): Promise<number> {
+  let destroyed = 0;
+  try {
+    // Without submission there are no records, and a request naming the
+    // capability would be refused whole.
+    if (!jmapClient.hasCapability(CAPABILITIES.SUBMISSION)) return 0;
+    for (const accountId of jmapClient.getSubmissionAccountIds()) {
+      destroyed += await pruneSubmissionAccount(accountId, options.force ?? false);
+    }
+  } catch (err) {
+    console.warn('[submissions] prune failed:', err);
+  }
+  return destroyed;
+}
+
+async function pruneSubmissionAccount(accountId: string, force: boolean): Promise<number> {
+  const now = Date.now();
+  const key = pruneKey(accountId);
+  const lastRun = prunedAt.get(key);
+  if (!force && lastRun !== undefined && now - lastRun < PRUNE_INTERVAL_MS) return 0;
+  prunedAt.set(key, now);
+  try {
+    const prunable = await findPrunableSubmissions(accountId, now);
+    if (prunable.length === 0) return 0;
+    return (await destroyEmailSubmissions(prunable, accountId)).length;
+  } catch (err) {
+    console.warn(`[submissions] pruning ${accountId} failed:`, err);
+    return 0;
+  }
+}
+
+/**
+ * Page through the records the query can see that might go - sendAt passed
+ * or canceled, a superset either way - and let EmailSubmission/get decide.
+ */
+async function findPrunableSubmissions(accountId: string, now: number): Promise<string[]> {
+  const pageSize = Math.min(500, jmapClient.getMaxObjectsInGet());
+  // A UTCDate in whole seconds, like the sendAt it is compared with.
+  const before = new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const prunable: string[] = [];
+  let position = 0;
+  for (let page = 0; page < SUBMISSION_SCAN_MAX_PAGES; page++) {
+    const res = await jmapClient.request([
+      ['EmailSubmission/query', {
+        accountId,
+        filter: { operator: 'OR', conditions: [{ before }, { undoStatus: 'canceled' }] },
+        position,
+        limit: pageSize,
+        calculateTotal: true,
+      }, '0'],
+      ['EmailSubmission/get', {
+        accountId,
+        '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' },
+        properties: ['id', 'sendAt', 'undoStatus'],
+      }, '1'],
+    ], SUBMISSION_ONLY_USING);
+    const query = requireMethodResult(res, '0', 'EmailSubmission/query');
+    const ids = (query.ids as string[] | undefined) ?? [];
+    prunable.push(...prunableSubmissionIds(submissionList(res, '1'), now));
+    position += ids.length;
+    // `total` only comes back with calculateTotal; without it, a short page
+    // is the last one.
+    const done = typeof query.total === 'number' ? position >= query.total : ids.length < pageSize;
+    if (ids.length === 0 || done) break;
+  }
+  return prunable;
+}
+
+/** The list of an EmailSubmission/get response; throws when the get failed. */
+function submissionList(res: JMAPResponseBody, callId: string): SubmissionStatus[] {
+  return (requireMethodResult(res, callId, 'EmailSubmission/get').list as SubmissionStatus[] | undefined) ?? [];
+}
+
+/**
+ * Make room after an EmailSubmission/set create came back overQuota. Prunes
+ * the account at once; when that frees nothing, the records taking up the
+ * room are older than the query can see (sendAt more than three days back).
+ * On Stalwart their ids are still in the change log (the last 10,000 changes
+ * by default), and get and destroy by id work at any age, so they are found
+ * there and pruned by the same rules. Never rejects: the caller retries the
+ * create either way, since another device may have made room meanwhile.
+ */
+export async function makeRoomForSubmission(accountId: string): Promise<void> {
+  const freed = await pruneSubmissionAccount(accountId, true);
+  if (freed > 0) return;
+  try {
+    if (!isStalwartAccount(accountId)) return;
+    const ids = await submissionIdsFromChangeLog(accountId);
+    const now = Date.now();
+    const prunable: string[] = [];
+    for (const slice of batched(ids, Math.min(500, jmapClient.getMaxObjectsInGet()))) {
+      const res = await jmapClient.request([
+        ['EmailSubmission/get', { accountId, ids: slice, properties: ['id', 'sendAt', 'undoStatus'] }, '0'],
+      ], SUBMISSION_ONLY_USING);
+      prunable.push(...prunableSubmissionIds(submissionList(res, '0'), now));
+    }
+    if (prunable.length > 0) await destroyEmailSubmissions(prunable, accountId);
+  } catch (err) {
+    console.warn(`[submissions] looking up older submissions of ${accountId} failed:`, err);
+  }
+}
+
+/**
+ * Every submission id still in the account's change log. Stalwart reads
+ * sinceState "n" as its initial state and answers with the whole log, a
+ * record created and destroyed within it left out, in pages chained through
+ * `newState` while `hasMoreChanges` is set.
+ */
+async function submissionIdsFromChangeLog(accountId: string): Promise<string[]> {
+  const ids = new Set<string>();
+  let sinceState = 'n';
+  for (let page = 0; page < SUBMISSION_SCAN_MAX_PAGES; page++) {
+    const res = await jmapClient.request(
+      [['EmailSubmission/changes', { accountId, sinceState }, '0']],
+      SUBMISSION_ONLY_USING,
+    );
+    const changes = requireMethodResult(res, '0', 'EmailSubmission/changes');
+    for (const id of [...(changes.created ?? []), ...(changes.updated ?? [])] as string[]) ids.add(id);
+    for (const id of (changes.destroyed ?? []) as string[]) ids.delete(id);
+    const next = changes.newState as string | undefined;
+    if (!changes.hasMoreChanges || !next || next === sinceState) break;
+    sinceState = next;
+  }
+  return [...ids];
+}

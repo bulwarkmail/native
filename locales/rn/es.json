@@ -287,6 +287,7 @@
     "send_now": "Enviar ahora",
     "send_timeout_body": "Puede que el mensaje ya se haya enviado. Revisa tu carpeta Enviados antes de volver a enviarlo.",
     "send_timeout_title": "El servidor no responde",
+    "submission_quota": "El servidor tiene demasiados registros de mensajes enviados para esta cuenta. Bulwark eliminó los que pudo; si esto sigue ocurriendo, pida a su administrador que aumente el límite de envíos de correo.",
     "undo_send_label": "Enviando en {seconds} s…",
     "upload_failed_short": "Error al subir",
     "uploading": "Subiendo...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Firmado/cifrado con S/MIME: no compatible en el móvil",
     "source_too_large": "El mensaje es demasiado grande para mostrarlo completo. Comparte el código fuente completo en su lugar.",
     "thread_loading": "Cargando conversación...",
+    "undo_send_failed": "No se pudo deshacer el envío",
     "unsubscribe_banner": {
       "no_identity": "No hay ninguna identidad de envío disponible"
     },

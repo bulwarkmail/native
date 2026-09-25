@@ -287,6 +287,7 @@
     "send_now": "立即傳送",
     "send_timeout_body": "郵件可能已經寄出。再次傳送前，請先檢查「寄件備份」信件匣。",
     "send_timeout_title": "伺服器沒有回應",
+    "submission_quota": "伺服器上此帳戶的已寄出郵件記錄過多。Bulwark 已移除可以移除的記錄；如果問題持續發生，請要求管理員提高郵件提交數量上限。",
     "undo_send_label": "{seconds} 秒後傳送…",
     "upload_failed_short": "上傳失敗",
     "uploading": "正在上傳…",
@@ -396,6 +397,7 @@
     "smime_unsupported": "已使用 S/MIME 簽署／加密，行動裝置不支援",
     "source_too_large": "郵件太大，無法完整顯示。請改為分享完整原始碼。",
     "thread_loading": "正在載入對話串…",
+    "undo_send_failed": "無法取消傳送",
     "unsubscribe_banner": {
       "no_identity": "沒有可用的寄件身分"
     },

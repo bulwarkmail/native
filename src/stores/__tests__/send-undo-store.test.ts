@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/email', () => ({
   cancelScheduledSend: vi.fn(async () => undefined),
@@ -7,13 +7,25 @@ vi.mock('../../api/email', () => ({
   getFullEmail: vi.fn(),
 }));
 
-vi.mock('../../api/jmap-client', () => ({ jmapClient: { accountId: 'primary' } }));
+vi.mock('../../api/jmap-client', () => ({
+  jmapClient: { accountId: 'primary' },
+  RequestTimeoutError: class RequestTimeoutError extends Error {},
+}));
+
+// Background work nobody waits for: it never settles here.
+vi.mock('../../api/submissions', () => ({
+  pruneEmailSubmissions: vi.fn(() => new Promise<number>(() => undefined)),
+}));
 
 import * as emailApi from '../../api/email';
+import * as submissions from '../../api/submissions';
+import { SubmissionQuotaError } from '../../api/jmap-result';
 import type { Email, Mailbox } from '../../api/types';
 import { useSendUndoStore, restoreUndoneSend, type PendingUndoSend } from '../send-undo-store';
+import { useToastStore } from '../toast-store';
 
 const api = vi.mocked(emailApi);
+const prune = vi.mocked(submissions.pruneEmailSubmissions);
 
 const HELD = { scheduled: true, emailSubmissionId: 'sub-1', emailId: 'mail-1', sendAt: '2026-09-24T10:00:10Z' };
 const SENDER = { name: 'Me', email: 'me@example.com' };
@@ -56,7 +68,12 @@ function entry(overrides: Partial<PendingUndoSend> = {}): PendingUndoSend {
 beforeEach(() => {
   vi.clearAllMocks();
   useSendUndoStore.setState({ pending: null, busy: false, restoredEmailId: null });
+  useToastStore.getState().clearToasts();
   api.getFullEmail.mockResolvedValue({ id: 'mail-1', subject: 'Re: hi' } as Email);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('send-undo-store', () => {
@@ -109,12 +126,44 @@ describe('send-undo-store', () => {
       expect(api.cancelScheduledSend).toHaveBeenCalledWith('sub-1', undefined);
     });
 
-    it('keeps the entry when the cancel fails', async () => {
+    it('keeps the entry when the cancel fails, and says so', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       api.cancelScheduledSend.mockRejectedValueOnce(new Error('gone'));
       const pending = entry();
       useSendUndoStore.getState().setPending(pending);
       await expect(useSendUndoStore.getState().undo()).resolves.toBe(false);
       expect(useSendUndoStore.getState()).toMatchObject({ pending, busy: false });
+      // Silence would read as "undone" while the mail may be on its way.
+      expect(useToastStore.getState().toasts).toMatchObject([{ type: 'error', title: 'Undo send failed', message: 'gone' }]);
+      expect(prune).not.toHaveBeenCalled();
+    });
+
+    it('starts a prune of submission records after an undo and after send now, without waiting for it', async () => {
+      useSendUndoStore.getState().setPending(entry());
+      await expect(useSendUndoStore.getState().undo()).resolves.toBe(true);
+      expect(prune).toHaveBeenCalledTimes(1);
+
+      useSendUndoStore.getState().setPending(entry());
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(true);
+      expect(prune).toHaveBeenCalledTimes(2);
+    });
+
+    it('explains a send now refused for a full submission quota (Stalwart 1.0)', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      api.rescheduleScheduledSend.mockRejectedValueOnce(new SubmissionQuotaError(
+        'There are too many email submissions, please delete some before adding a new one.',
+      ));
+      useSendUndoStore.getState().setPending(entry());
+
+      await expect(useSendUndoStore.getState().sendNow()).resolves.toBe(false);
+
+      expect(useToastStore.getState().toasts).toMatchObject([{
+        type: 'error',
+        title: 'Could not send now',
+        message: expect.stringContaining('ask your administrator to raise the email submission limit'),
+      }]);
+      // Still held: it goes out when the delay ends.
+      expect(useSendUndoStore.getState().pending).not.toBeNull();
     });
 
     it('releases the held message from the account holding it', async () => {

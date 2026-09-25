@@ -287,6 +287,7 @@
     "send_now": "Odeslat nyní",
     "send_timeout_body": "Zpráva už mohla odejít. Než ji odešlete znovu, zkontrolujte složku Odeslané.",
     "send_timeout_title": "Server neodpovídá",
+    "submission_quota": "Server má pro tento účet příliš mnoho záznamů o odeslaných zprávách. Bulwark odstranil ty, které mohl; pokud se to bude opakovat, požádejte správce o zvýšení limitu odesílání e-mailů.",
     "undo_send_label": "Odeslání za {seconds} s…",
     "upload_failed_short": "Nahrávání selhalo",
     "uploading": "Nahrávání...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Podepsáno/zašifrováno pomocí S/MIME – v mobilní aplikaci není podporováno",
     "source_too_large": "Zpráva je příliš velká na zobrazení v celé délce. Místo toho sdílejte celý zdroj.",
     "thread_loading": "Načítání konverzace...",
+    "undo_send_failed": "Odeslání se nepodařilo vrátit",
     "unsubscribe_banner": {
       "no_identity": "Není k dispozici žádná identita pro odesílání"
     },

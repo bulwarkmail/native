@@ -10,6 +10,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useEmailStore } from '../../stores/email-store';
 import { sendEmail } from '../../api/email';
+import { pruneEmailSubmissions } from '../../api/submissions';
 import { isValidUnsubscribeUrl, parseMailtoUrl, isOneClickUnsubscribe } from '../../lib/unsubscribe';
 import type { ListHeaders } from '../../lib/email-headers';
 import { findReceivingIdentity } from '../../lib/email-headers';
@@ -119,6 +120,7 @@ export function UnsubscribeBanner({ email, list, messageKey, jmapAccountId }: Pr
           undefined,
           { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
         );
+        void pruneEmailSubmissions();
       }
       setState('done');
       setTimeout(dismiss, 3000);

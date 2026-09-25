@@ -287,6 +287,7 @@
     "send_now": "Send nu",
     "send_timeout_body": "Beskeden er muligvis allerede sendt. Tjek din Sendt-mappe, før du sender den igen.",
     "send_timeout_title": "Intet svar fra serveren",
+    "submission_quota": "Serveren har for mange registreringer af sendte beskeder for denne konto. Bulwark har fjernet dem, den kunne; hvis det bliver ved med at ske, så bed din administrator om at hæve grænsen for afsendelse af e-mails.",
     "undo_send_label": "Sender om {seconds} s…",
     "upload_failed_short": "Upload mislykkedes",
     "uploading": "Uploader...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Signeret/krypteret med S/MIME - understøttes ikke på mobil",
     "source_too_large": "Beskeden er for stor til at blive vist i sin helhed. Del i stedet hele kilden.",
     "thread_loading": "Indlæser samtale...",
+    "undo_send_failed": "Afsendelsen kunne ikke fortrydes",
     "unsubscribe_banner": {
       "no_identity": "Ingen afsenderidentitet tilgængelig"
     },

@@ -287,6 +287,7 @@
     "send_now": "今すぐ送信",
     "send_timeout_body": "メッセージはすでに送信されている可能性があります。再送信する前に送信済みフォルダーを確認してください。",
     "send_timeout_title": "サーバーから応答がありません",
+    "submission_quota": "このアカウントの送信済みメッセージの記録がサーバー上に多すぎます。Bulwark は削除できる記録を削除しました。この状態が続く場合は、メール送信数の上限を引き上げるよう管理者に依頼してください。",
     "undo_send_label": "{seconds}秒後に送信…",
     "upload_failed_short": "アップロードに失敗しました",
     "uploading": "アップロード中...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "S/MIME で署名／暗号化されています（モバイルでは非対応）",
     "source_too_large": "メッセージが大きすぎるため、すべてを表示できません。代わりに完全なソースを共有してください。",
     "thread_loading": "会話を読み込み中...",
+    "undo_send_failed": "送信を取り消せませんでした",
     "unsubscribe_banner": {
       "no_identity": "利用できる送信者情報がありません"
     },

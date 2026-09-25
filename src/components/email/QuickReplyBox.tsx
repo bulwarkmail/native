@@ -11,7 +11,9 @@ import { toast } from '../../stores/toast-store';
 import { useSendUndoStore } from '../../stores/send-undo-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
+import { pruneEmailSubmissions } from '../../api/submissions';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
+import { sendFailureMessage } from '../../lib/send-failure-message';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
 import { resolveReplyIdentity } from '../../lib/reply-identity';
@@ -126,6 +128,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         accountId: jmapAccountId,
         from: [{ name: identity.name, email: identity.email }],
       });
+      void pruneEmailSubmissions();
       try {
         await patchKeywordsForEmails([email.id], { $answered: true }, jmapAccountId);
       } catch { /* the reply is out; the flag is cosmetic */ }
@@ -136,7 +139,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
       if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
     } catch (err) {
-      Alert.alert(t('email_composer.send_failed', 'Failed to send'), err instanceof Error ? err.message : String(err));
+      Alert.alert(t('email_composer.send_failed', 'Failed to send'), sendFailureMessage(err, t));
     } finally {
       setSending(false);
     }

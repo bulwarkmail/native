@@ -287,6 +287,7 @@
     "send_now": "Envia ara",
     "send_timeout_body": "És possible que el missatge ja s'hagi enviat. Comproveu la carpeta Enviats abans de tornar-lo a enviar.",
     "send_timeout_title": "El servidor no respon",
+    "submission_quota": "El servidor té massa registres de missatges enviats per a aquest compte. Bulwark ha eliminat els que ha pogut; si torna a passar, demaneu a l'administrador que augmenti el límit d'enviaments de correu.",
     "undo_send_label": "S'envia d'aquí a {seconds} s…",
     "upload_failed_short": "No s'ha pogut pujar",
     "uploading": "Pujant...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Signat/xifrat amb S/MIME: no és compatible amb el mòbil",
     "source_too_large": "El missatge és massa gran per mostrar-lo sencer. Compartiu-ne el codi font complet.",
     "thread_loading": "Carregant la conversa...",
+    "undo_send_failed": "No s'ha pogut desfer l'enviament",
     "unsubscribe_banner": {
       "no_identity": "No hi ha cap identitat d'enviament disponible"
     },

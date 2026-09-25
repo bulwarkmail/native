@@ -287,6 +287,7 @@
     "send_now": "지금 보내기",
     "send_timeout_body": "메시지가 이미 발송되었을 수 있어요. 다시 보내기 전에 보낸편지함을 확인해 주세요.",
     "send_timeout_title": "서버에서 응답이 없어요",
+    "submission_quota": "서버에 이 계정의 보낸 메시지 기록이 너무 많습니다. Bulwark가 삭제할 수 있는 기록은 삭제했습니다. 이 문제가 계속되면 관리자에게 메일 발송 한도를 늘려 달라고 요청하세요.",
     "undo_send_label": "{seconds}초 후 전송…",
     "upload_failed_short": "업로드 실패",
     "uploading": "업로드 중...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "S/MIME로 서명/암호화됨 - 모바일에서는 지원되지 않아요",
     "source_too_large": "메시지가 너무 커서 전체를 표시할 수 없어요. 대신 전체 원본을 공유해 주세요.",
     "thread_loading": "대화를 불러오는 중...",
+    "undo_send_failed": "보내기를 취소하지 못했습니다",
     "unsubscribe_banner": {
       "no_identity": "사용할 수 있는 보내는 사람 주소가 없어요"
     },

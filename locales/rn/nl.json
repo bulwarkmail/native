@@ -287,6 +287,7 @@
     "send_now": "Nu verzenden",
     "send_timeout_body": "Het bericht is mogelijk al verzonden. Controleer uw map Verzonden voordat u het opnieuw verstuurt.",
     "send_timeout_title": "Geen antwoord van de server",
+    "submission_quota": "De server bewaart te veel records van verzonden berichten voor dit account. Bulwark heeft verwijderd wat kon; blijft dit gebeuren, vraag uw beheerder dan de limiet voor e-mailverzendingen te verhogen.",
     "undo_send_label": "Verzenden over {seconds} s…",
     "upload_failed_short": "Uploaden mislukt",
     "uploading": "Uploaden...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Ondertekend/versleuteld met S/MIME - niet ondersteund op mobiel",
     "source_too_large": "Het bericht is te groot om volledig weer te geven. Deel in plaats daarvan de volledige bron.",
     "thread_loading": "Gesprek laden...",
+    "undo_send_failed": "Verzenden kon niet ongedaan worden gemaakt",
     "unsubscribe_banner": {
       "no_identity": "Geen verzendidentiteit beschikbaar"
     },

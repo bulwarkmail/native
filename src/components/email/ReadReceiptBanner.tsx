@@ -10,8 +10,10 @@ import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
 import { sendReadReceipt, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
+import { pruneEmailSubmissions } from '../../api/submissions';
 import { findReceivingIdentity } from '../../lib/email-headers';
 import { mailboxesOfAccount } from '../../lib/mailbox-tree';
+import { sendFailureMessage } from '../../lib/send-failure-message';
 
 interface Props {
   email: Email;
@@ -94,6 +96,7 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
         { recipient: identity.email },
       ),
     });
+    void pruneEmailSubmissions();
     await flagSent();
   }, [identity, mailboxes, requestedBy, jmapAccountId, email.messageId, email.subject, t, flagSent]);
 
@@ -109,7 +112,7 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
       // Not retried, so say so rather than fail silently (webmail parity).
       toast.error(
         t('email_viewer.read_receipt.send_failed', 'Read receipt could not be sent'),
-        err instanceof Error ? err.message : String(err),
+        sendFailureMessage(err, t),
       );
     });
   }, [readReceiptResponse, shouldOffer, active, jmapAccountId, email.id, send, t]);
@@ -124,7 +127,7 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
     } catch (err) {
       Alert.alert(
         t('email_viewer.read_receipt.send_failed', 'Read receipt could not be sent'),
-        err instanceof Error ? err.message : String(err),
+        sendFailureMessage(err, t),
       );
     } finally {
       setBusy(false);

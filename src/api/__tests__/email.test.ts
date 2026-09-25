@@ -10,6 +10,9 @@ vi.mock('../jmap-client', () => ({
     getMaxCallsInRequest: vi.fn(() => 16),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
+    // Not Stalwart: sends keep their submission record (see
+    // email-submission-cleanup.test.ts for Stalwart).
+    hasAccountCapability: vi.fn(() => false),
   },
 }));
 

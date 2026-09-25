@@ -7,6 +7,9 @@ vi.mock('../jmap-client', () => ({
     learnHoldLimit: vi.fn(),
     getSubmissionAccountIds: vi.fn(() => ['acc-1']),
     hasDelayedSend: vi.fn(() => true),
+    // Not Stalwart: sends keep their submission record (see
+    // email-submission-cleanup.test.ts for the Stalwart paths).
+    hasAccountCapability: vi.fn(() => false),
     getMaxCallsInRequest: vi.fn(() => 16),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
@@ -44,13 +47,16 @@ const REPLACED = [['EmailSubmission/set', {
 }, '0']];
 const set = (body: Record<string, unknown>) => ({ methodResponses: [['EmailSubmission/set', body, '0']] });
 const CANCELLED = set({ updated: { 'sub-1': null } });
-/** The EmailSubmission/set calls made, as [create ids, update ids]. */
+/** A confirmed cancel is followed by the destroy of the canceled record. */
+const DESTROYED = (id: string) => set({ destroyed: [id] });
+/** The EmailSubmission/set calls made, as [create ids, update ids, destroyed ids]. */
 const setCalls = () => mockRequest.mock.calls
   .map((c) => c[0][0])
   .filter(([method]: [string]) => method === 'EmailSubmission/set')
-  .map(([, args]: [string, { create?: object; update?: Record<string, unknown> }]) => [
+  .map(([, args]: [string, { create?: object; update?: Record<string, unknown>; destroy?: string[] }]) => [
     Object.keys(args.create ?? {}),
     Object.keys(args.update ?? {}),
+    args.destroy ?? [],
   ]);
 
 describe('rescheduleScheduledSend', () => {
@@ -75,7 +81,8 @@ describe('rescheduleScheduledSend', () => {
         ],
       })
       .mockResolvedValueOnce({ methodResponses: REPLACED })
-      .mockResolvedValueOnce(CANCELLED);
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'));
 
     const result = await rescheduleScheduledSend(SCHEDULED, 7200);
 
@@ -105,7 +112,8 @@ describe('rescheduleScheduledSend', () => {
         ],
       })
       .mockResolvedValueOnce({ methodResponses: REPLACED })
-      .mockResolvedValueOnce(CANCELLED);
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'));
 
     await rescheduleScheduledSend(SCHEDULED, 60);
 
@@ -115,15 +123,16 @@ describe('rescheduleScheduledSend', () => {
     });
   });
 
-  it('creates the replacement before cancelling the original', async () => {
+  it('creates the replacement before cancelling the original, then removes the canceled record', async () => {
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
       .mockResolvedValueOnce({ methodResponses: REPLACED })
-      .mockResolvedValueOnce(CANCELLED);
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'));
 
     await rescheduleScheduledSend(SCHEDULED, 7200);
 
-    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']]]);
+    expect(setCalls()).toEqual([[['replacement'], [], []], [[], ['sub-1'], []], [[], [], ['sub-1']]]);
     expect(mockRequest.mock.calls[2][0][0][1].update).toEqual({ 'sub-1': { undoStatus: 'canceled' } });
   });
 
@@ -131,7 +140,8 @@ describe('rescheduleScheduledSend', () => {
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
       .mockResolvedValueOnce({ methodResponses: REPLACED })
-      .mockResolvedValueOnce(CANCELLED);
+      .mockResolvedValueOnce(CANCELLED)
+      .mockResolvedValueOnce(DESTROYED('sub-1'));
 
     await rescheduleScheduledSend(SCHEDULED, 0);
 
@@ -140,7 +150,7 @@ describe('rescheduleScheduledSend', () => {
       mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '1' } },
       rcptTo: [{ email: 'to@example.com' }],
     });
-    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']]]);
+    expect(setCalls()).toEqual([[['replacement'], [], []], [[], ['sub-1'], []], [[], [], ['sub-1']]]);
   });
 
   it('leaves the original scheduled when the replacement is refused', async () => {
@@ -150,7 +160,7 @@ describe('rescheduleScheduledSend', () => {
 
     await expect(rescheduleScheduledSend(SCHEDULED, 7200)).rejects.toThrow('Quota exceeded');
     // No cancel went out.
-    expect(setCalls()).toEqual([[['replacement'], []]]);
+    expect(setCalls()).toEqual([[['replacement'], [], []]]);
   });
 
   it('withdraws the replacement when the original has already gone out', async () => {
@@ -160,10 +170,15 @@ describe('rescheduleScheduledSend', () => {
       .mockResolvedValueOnce({ methodResponses: REPLACED })
       .mockResolvedValueOnce(set({ notUpdated: { 'sub-1': { type: 'cannotUnsend', description: 'Already sent' } } }))
       .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/get', { list: [{ id: 'sub-1', undoStatus: 'final' }] }, '0']] })
-      .mockResolvedValueOnce(set({ updated: { 'sub-2': null } }));
+      .mockResolvedValueOnce(set({ updated: { 'sub-2': null } }))
+      .mockResolvedValueOnce(DESTROYED('sub-2'));
 
     await expect(rescheduleScheduledSend(SCHEDULED, 0)).rejects.toThrow('Failed to cancel the previous schedule: Already sent');
-    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']], [[], ['sub-2']]]);
+    // The original went out, so its record stays for the prune; the
+    // withdrawn replacement's goes at once.
+    expect(setCalls()).toEqual([
+      [['replacement'], [], []], [[], ['sub-1'], []], [[], ['sub-2'], []], [[], [], ['sub-2']],
+    ]);
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -192,7 +207,8 @@ describe('rescheduleScheduledSend', () => {
     const result = await rescheduleScheduledSend(SCHEDULED, 7200);
 
     expect(result.emailSubmissionId).toBe('sub-2');
-    expect(setCalls()).toEqual([[['replacement'], []], [[], ['sub-1']]]);
+    // Unconfirmed, so the original's record is left for the prune.
+    expect(setCalls()).toEqual([[['replacement'], [], []], [[], ['sub-1'], []]]);
   });
 });
 
@@ -372,7 +388,7 @@ describe('hold-limit rejections', () => {
     expect(err).toBeInstanceOf(ScheduleTooLateError);
     expect(jmapClient.learnHoldLimit).toHaveBeenCalledWith(172_800);
     // The original stays scheduled.
-    expect(setCalls()).toEqual([[['replacement'], []]]);
+    expect(setCalls()).toEqual([[['replacement'], [], []]]);
   });
 });
 
@@ -445,17 +461,19 @@ describe('scheduled sends in shared accounts (webmail #874)', () => {
 
   it('cancels and reschedules in the account holding the submission', async () => {
     mockRequest.mockReset();
-    mockRequest.mockResolvedValueOnce({
-      methodResponses: [['EmailSubmission/set', { updated: { 's-grp': null } }, '0']],
-    });
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['EmailSubmission/set', { updated: { 's-grp': null } }, '0']] })
+      .mockResolvedValueOnce(DESTROYED('s-grp'));
     await cancelScheduledSend('s-grp', 'grp-1');
-    expect(mockRequest.mock.calls[0][0][0][1].accountId).toBe('grp-1');
+    // The cancel, then the destroy of the canceled record.
+    expect(mockRequest.mock.calls.map((c) => c[0][0][1].accountId)).toEqual(['grp-1', 'grp-1']);
 
     mockRequest
       .mockResolvedValueOnce(LOOKUP)
       .mockResolvedValueOnce(set({ created: { replacement: { id: 's-new', sendAt: FUTURE } } }))
-      .mockResolvedValueOnce(set({ updated: { 's-grp': null } }));
+      .mockResolvedValueOnce(set({ updated: { 's-grp': null } }))
+      .mockResolvedValueOnce(DESTROYED('s-grp'));
     await rescheduleScheduledSend({ ...SCHEDULED, emailSubmissionId: 's-grp', accountId: 'grp-1' }, 0);
-    expect(mockRequest.mock.calls.slice(1).map((c) => c[0][0][1].accountId)).toEqual(['grp-1', 'grp-1', 'grp-1']);
+    expect(mockRequest.mock.calls.slice(2).map((c) => c[0][0][1].accountId)).toEqual(['grp-1', 'grp-1', 'grp-1', 'grp-1']);
   });
 });

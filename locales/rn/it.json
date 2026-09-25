@@ -287,6 +287,7 @@
     "send_now": "Invia ora",
     "send_timeout_body": "Il messaggio potrebbe essere già stato inviato. Controlla la cartella Inviati prima di inviarlo di nuovo.",
     "send_timeout_title": "Nessuna risposta dal server",
+    "submission_quota": "Il server conserva troppi record di messaggi inviati per questo account. Bulwark ha rimosso quelli che poteva; se il problema si ripete, chieda all'amministratore di aumentare il limite di invii di posta.",
     "undo_send_label": "Invio tra {seconds} s…",
     "upload_failed_short": "Caricamento non riuscito",
     "uploading": "Caricamento in corso...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Firmato/cifrato con S/MIME - non supportato su mobile",
     "source_too_large": "Il messaggio è troppo grande per essere mostrato per intero. Condividi invece il sorgente completo.",
     "thread_loading": "Caricamento conversazione...",
+    "undo_send_failed": "Impossibile annullare l'invio",
     "unsubscribe_banner": {
       "no_identity": "Nessuna identità di invio disponibile"
     },

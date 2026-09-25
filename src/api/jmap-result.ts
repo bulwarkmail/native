@@ -89,6 +89,21 @@ export function assertSetResult(
   }
 }
 
+/**
+ * The server refused a new EmailSubmission because the account holds too many
+ * submission records, and removing the ones that can no longer be cancelled
+ * did not make room. Stalwart 1.0 counts every record, whatever its status or
+ * age, against `maxSubmissions` (500 by default) and answers the create with
+ * `overQuota` - not to be confused with Email/set's `overQuota`, which means
+ * the mailbox storage is full.
+ */
+export class SubmissionQuotaError extends JMAPMethodError {
+  constructor(description?: string) {
+    super('overQuota', description || 'There are too many email submissions');
+    this.name = 'SubmissionQuotaError';
+  }
+}
+
 /** A scheduled send later than the server's hold limit. */
 export class ScheduleTooLateError extends Error {
   maxSeconds?: number;

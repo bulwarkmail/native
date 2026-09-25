@@ -5,6 +5,9 @@ vi.mock('../jmap-client', () => ({
     accountId: 'acc-1',
     request: vi.fn(),
     getMaxObjectsInSet: vi.fn(() => 500),
+    // Not Stalwart: a sent receipt keeps its submission record (see
+    // email-submission-cleanup.test.ts for Stalwart).
+    hasAccountCapability: vi.fn(() => false),
   },
 }));
 

@@ -41,7 +41,9 @@ import {
   sendEmail, createDraft, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
 import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
+import { pruneEmailSubmissions } from '../api/submissions';
 import { uploadBlob, uploadBytes } from '../api/blob';
+import { sendFailureMessage } from '../lib/send-failure-message';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
@@ -2114,6 +2116,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       );
       draftIdRef.current = null;
       lastSavedRef.current = null;
+      // Each send leaves a submission record; sweep the ones that can go
+      // (throttled per account).
+      void pruneEmailSubmissions();
       if (result.filingWarning) {
         console.warn('[compose] post-send filing warning:', result.filingWarning);
       }
@@ -2180,10 +2185,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         );
         return;
       }
-      Alert.alert(
-        t('email_composer.send_failed', 'Send failed'),
-        e instanceof Error ? e.message : t('notifications.error_sending', 'Failed to send email'),
-      );
+      Alert.alert(t('email_composer.send_failed', 'Send failed'), sendFailureMessage(e, t));
     } finally {
       setSending(false);
     }

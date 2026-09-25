@@ -10,10 +10,14 @@ import {
   type SendEmailResult,
 } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
+import { pruneEmailSubmissions } from '../api/submissions';
 import type { EmailAddress, Mailbox } from '../api/types';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { mailboxesOfAccount } from '../lib/mailbox-tree';
+import { sendFailureMessage } from '../lib/send-failure-message';
 import type { ComposeDraftContext } from '../navigation/types';
+import { t } from './locale-store';
+import { toast } from './toast-store';
 
 export interface PendingUndoSend {
   emailSubmissionId: string;
@@ -83,9 +87,15 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
     try {
       await cancelScheduledSend(entry.emailSubmissionId, entry.accountId);
       set({ pending: null, busy: false, restoredEmailId: entry.emailId });
+      void pruneEmailSubmissions();
       return true;
     } catch (err) {
       console.warn('[send-undo] cancel failed', err);
+      // Silence here reads as "undone" while the mail may be on its way.
+      toast.error(
+        t('email_viewer.undo_send_failed', 'Undo send failed'),
+        err instanceof Error ? err.message : undefined,
+      );
       set({ busy: false });
       return false;
     }
@@ -108,9 +118,13 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
         0,
       );
       set({ pending: null, busy: false });
+      void pruneEmailSubmissions();
       return true;
     } catch (err) {
       console.warn('[send-undo] send now failed', err);
+      // The message stays held and goes out when the delay ends; say why it
+      // did not go now (a full submission quota, for one).
+      toast.error(t('scheduled.send_now_failed', 'Could not send now'), sendFailureMessage(err, t));
       set({ busy: false });
       return false;
     }

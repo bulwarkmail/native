@@ -287,6 +287,7 @@
     "send_now": "Şimdi gönder",
     "send_timeout_body": "İleti zaten gönderilmiş olabilir. Yeniden göndermeden önce Gönderilenler klasörünü kontrol edin.",
     "send_timeout_title": "Sunucudan yanıt yok",
+    "submission_quota": "Sunucuda bu hesap için çok fazla gönderilmiş ileti kaydı var. Bulwark kaldırabildiklerini kaldırdı; bu durum sürerse yöneticinizden e-posta gönderim sınırını yükseltmesini isteyin.",
     "undo_send_label": "{seconds} sn içinde gönderiliyor…",
     "upload_failed_short": "Yükleme başarısız",
     "uploading": "Yükleniyor...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "S/MIME ile imzalanmış/şifrelenmiş - mobilde desteklenmiyor",
     "source_too_large": "İleti, tamamı gösterilemeyecek kadar büyük. Bunun yerine tam kaynağı paylaşın.",
     "thread_loading": "Konuşma yükleniyor...",
+    "undo_send_failed": "Gönderme geri alınamadı",
     "unsubscribe_banner": {
       "no_identity": "Kullanılabilir gönderim kimliği yok"
     },

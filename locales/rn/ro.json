@@ -287,6 +287,7 @@
     "send_now": "Trimite acum",
     "send_timeout_body": "Este posibil ca mesajul să fi fost deja trimis. Verificați folderul Trimise înainte de a-l trimite din nou.",
     "send_timeout_title": "Serverul nu răspunde",
+    "submission_quota": "Serverul păstrează prea multe înregistrări de mesaje trimise pentru acest cont. Bulwark le-a eliminat pe cele pe care a putut; dacă problema persistă, cereți administratorului să mărească limita de trimiteri de e-mail.",
     "undo_send_label": "Se trimite în {seconds} s…",
     "upload_failed_short": "Încărcarea a eșuat",
     "uploading": "Se încarcă...",
@@ -396,6 +397,7 @@
     "smime_unsupported": "Semnat/criptat cu S/MIME - nu este acceptat pe mobil",
     "source_too_large": "Mesajul este prea mare pentru a fi afișat integral. Partajați în schimb sursa completă.",
     "thread_loading": "Se încarcă conversația...",
+    "undo_send_failed": "Trimiterea nu a putut fi anulată",
     "unsubscribe_banner": {
       "no_identity": "Nu există nicio identitate de trimitere disponibilă"
     },
