@@ -2390,6 +2390,10 @@ function mailboxPath(mailboxes: Mailbox[], mailboxId: string): string | undefine
   return parts.join(' / ');
 }
 
+// Pages of Mailbox/changes one folder sync follows before it reads the whole
+// folder list instead, which takes one request whatever changed.
+const MAX_MAILBOX_CHANGE_ROUNDS = 5;
+
 async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
   const get = useEmailStore.getState;
   const set = useEmailStore.setState;
@@ -2405,49 +2409,51 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
     };
 
     try {
-      let drainAgain = false;
-
-      // Incremental path: ask for just what changed since last time. Fall
-      // through to a full refetch when the server can't compute the diff or
-      // we have no previous state to compare against.
+      // Incremental path: ask for just what changed since last time. The
+      // server caps one answer (hasMoreChanges; Stalwart at 5000 changes),
+      // so follow its newState page by page, storing each page's state as it
+      // is applied: asking again from the old state got the same first page
+      // back forever. Fall through to a full refetch when the server can't
+      // compute the diff, when a page doesn't move the state on, after
+      // MAX_MAILBOX_CHANGE_ROUNDS pages, or with no previous state to compare
+      // against.
       let syncedOwn = false;
-      if (prevState) {
-        const changes = await getMailboxChanges(prevState);
+      let sinceState = prevState;
+      for (let round = 0; sinceState && round < MAX_MAILBOX_CHANGE_ROUNDS; round++) {
+        const changes = await getMailboxChanges(sinceState);
         // Bail if the user switched accounts during the await — anything we
         // set() now would land in the wrong account's bucket.
         if (get().activeAccountId !== activeAccountId) return;
-        if (changes) {
-          syncedOwn = true;
-          // No changes at all — keep the cached list, just bump the state.
-          if (
-            changes.created.length === 0 &&
-            changes.updated.length === 0 &&
-            changes.destroyed.length === 0
-          ) {
-            set({ mailboxState: changes.newState });
-          } else {
-            const toFetch = [...changes.created, ...changes.updated];
-            const fetched = toFetch.length > 0
-              ? (await getMailboxesByIds(toFetch)).list
-              : [];
-            if (get().activeAccountId !== activeAccountId) return;
-            const destroyed = new Set(changes.destroyed);
-            const byId = new Map<string, Mailbox>();
-            for (const m of get().mailboxes) {
-              if (!m.isShared) byId.set(m.id, m);
-            }
-            for (const m of fetched) byId.set(m.id, m);
-            for (const id of destroyed) byId.delete(id);
-            replaceOwn(
-              Array.from(byId.values()),
-              changes.hasMoreChanges ? prevState : changes.newState,
-            );
-            // hasMoreChanges = there are still pending changes past the
-            // server's response cap. Run the same path again to drain.
-            drainAgain = changes.hasMoreChanges;
+        // null → cannotCalculateChanges. Fall through to full.
+        if (!changes) break;
+        // No changes at all — keep the cached list, just bump the state.
+        if (
+          changes.created.length === 0 &&
+          changes.updated.length === 0 &&
+          changes.destroyed.length === 0
+        ) {
+          set({ mailboxState: changes.newState });
+        } else {
+          const toFetch = [...changes.created, ...changes.updated];
+          const fetched = toFetch.length > 0
+            ? (await getMailboxesByIds(toFetch)).list
+            : [];
+          if (get().activeAccountId !== activeAccountId) return;
+          const destroyed = new Set(changes.destroyed);
+          const byId = new Map<string, Mailbox>();
+          for (const m of get().mailboxes) {
+            if (!m.isShared) byId.set(m.id, m);
           }
+          for (const m of fetched) byId.set(m.id, m);
+          for (const id of destroyed) byId.delete(id);
+          replaceOwn(Array.from(byId.values()), changes.newState);
         }
-        // changes === null → cannotCalculateChanges. Fall through to full.
+        if (!changes.hasMoreChanges) {
+          syncedOwn = true;
+          break;
+        }
+        if (!changes.newState || changes.newState === sinceState) break;
+        sinceState = changes.newState;
       }
 
       if (!syncedOwn) {
@@ -2455,8 +2461,6 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
         if (get().activeAccountId !== activeAccountId) return;
         replaceOwn(list, state);
       }
-
-      if (drainAgain) void syncMailboxes(activeAccountId, { own: true, shared: false });
     } catch (err) {
       console.warn('[email-store] fetchMailboxes failed:', err);
       if (get().activeAccountId !== activeAccountId) return;

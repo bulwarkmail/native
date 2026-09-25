@@ -231,6 +231,96 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().error).toBe('Network error');
     });
+
+    // Stalwart answers at most 5000 changes per Mailbox/changes, with
+    // hasMoreChanges and an intermediate newState ("r…") to continue from.
+    describe('Mailbox/changes paged with hasMoreChanges', () => {
+      const mockGetMailboxChanges = emailApi.getMailboxChanges as ReturnType<typeof vi.fn>;
+      const mockGetMailboxesByIds = emailApi.getMailboxesByIds as ReturnType<typeof vi.fn>;
+      const folder = (id: string, name: string) => ({ id, name, isShared: false }) as any;
+      const page = (sinceState: string, newState: string, hasMoreChanges: boolean, changes: {
+        created?: string[]; updated?: string[]; destroyed?: string[];
+      } = {}) => ({
+        oldState: sinceState, newState, hasMoreChanges,
+        created: changes.created ?? [], updated: changes.updated ?? [], destroyed: changes.destroyed ?? [],
+      });
+
+      beforeEach(() => {
+        useEmailStore.setState({
+          mailboxState: 'sbq',
+          mailboxes: [folder('a', 'Inbox'), folder('x', 'Old project')],
+        });
+      });
+
+      it('follows newState page by page, where it used to ask for the first page forever', async () => {
+        mockGetMailboxChanges
+          .mockResolvedValueOnce(page('sbq', 'raehae', true, { created: ['n'], updated: ['a'] }))
+          .mockResolvedValueOnce(page('raehae', 'sca', false, { destroyed: ['x'] }));
+        mockGetMailboxesByIds.mockResolvedValueOnce({ list: [folder('n', 'New'), folder('a', 'Inbox (renamed)')], state: 'raehae' });
+
+        await useEmailStore.getState().fetchMailboxes();
+
+        expect(mockGetMailboxChanges.mock.calls.map(([since]) => since)).toEqual(['sbq', 'raehae']);
+        expect(mockGetMailboxesByIds).toHaveBeenCalledWith(['n', 'a']);
+        expect(mockGetMailboxesWithState).not.toHaveBeenCalled();
+        const state = useEmailStore.getState();
+        expect(state.mailboxState).toBe('sca');
+        expect(state.mailboxes.map((m) => [m.id, m.name])).toEqual([['a', 'Inbox (renamed)'], ['n', 'New']]);
+      });
+
+      it('stores each page before asking for the next one', async () => {
+        const seen: Array<string | undefined> = [];
+        mockGetMailboxChanges
+          .mockResolvedValueOnce(page('sbq', 'raehae', true))
+          .mockImplementationOnce(async (since: string) => {
+            seen.push(useEmailStore.getState().mailboxState);
+            return page(since, 'sca', false);
+          });
+
+        await useEmailStore.getState().fetchMailboxes();
+
+        expect(seen).toEqual(['raehae']);
+        expect(useEmailStore.getState().mailboxState).toBe('sca');
+      });
+
+      it('reads the whole folder list after five pages', async () => {
+        // A sixth call would get the default (null) and still reload, so the
+        // call count is what shows the cap.
+        for (let n = 1; n <= 5; n++) {
+          mockGetMailboxChanges.mockImplementationOnce(async (since: string) => page(since, `r${n}`, true));
+        }
+        mockGetMailboxesWithState.mockResolvedValueOnce({ list: [folder('a', 'Inbox')], state: 'sfull' });
+
+        await useEmailStore.getState().fetchMailboxes();
+
+        expect(mockGetMailboxChanges.mock.calls.map(([since]) => since)).toEqual(['sbq', 'r1', 'r2', 'r3', 'r4']);
+        expect(mockGetMailboxesWithState).toHaveBeenCalledTimes(1);
+        expect(useEmailStore.getState().mailboxState).toBe('sfull');
+      });
+
+      it('reads the whole folder list when a page does not move the state on', async () => {
+        mockGetMailboxChanges.mockResolvedValueOnce(page('sbq', 'sbq', true, { updated: ['a'] }));
+        mockGetMailboxesWithState.mockResolvedValueOnce({ list: [folder('a', 'Inbox')], state: 'sfull' });
+
+        await useEmailStore.getState().fetchMailboxes();
+
+        expect(mockGetMailboxChanges).toHaveBeenCalledTimes(1);
+        expect(useEmailStore.getState().mailboxState).toBe('sfull');
+      });
+
+      it('reads the whole folder list when a later page cannot be calculated', async () => {
+        mockGetMailboxChanges
+          .mockResolvedValueOnce(page('sbq', 'raehae', true, { destroyed: ['x'] }))
+          .mockResolvedValueOnce(null);
+        mockGetMailboxesWithState.mockResolvedValueOnce({ list: [folder('a', 'Inbox'), folder('z', 'Later')], state: 'sfull' });
+
+        await useEmailStore.getState().fetchMailboxes();
+
+        const state = useEmailStore.getState();
+        expect(state.mailboxState).toBe('sfull');
+        expect(state.mailboxes.map((m) => m.id)).toEqual(['a', 'z']);
+      });
+    });
   });
 
   describe('selectMailbox', () => {
