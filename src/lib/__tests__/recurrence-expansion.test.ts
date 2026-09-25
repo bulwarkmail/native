@@ -296,3 +296,107 @@ describe('expandRecurringEvents - event timezone DST handling', () => {
     expect(utcEnds[1]).toBe('2025-03-10T15:00:00.000Z');
   });
 });
+
+// Overrides as Stalwart 1.0 returns them - RFC 8984 PatchObjects with keys
+// like participants/<id>/participationStatus and nulls that remove - and
+// moved or resized occurrences. The expansion used to spread an override
+// onto the occurrence, so pointer keys became junk properties, a declined
+// occurrence stayed accepted, and a moved one kept the time, length and
+// place in the range the rule gave it.
+describe('expandRecurringEvents - override patches', () => {
+  // A daily 09:00-10:00 in Berlin (UTC+1 in January).
+  const berlinDaily = (recurrenceOverrides: CalendarEvent['recurrenceOverrides']) => ev({
+    start: '2025-01-06T09:00:00',
+    timeZone: 'Europe/Berlin',
+    utcStart: '2025-01-06T08:00:00Z',
+    utcEnd: '2025-01-06T09:00:00Z',
+    recurrenceRules: [{ frequency: 'daily' }],
+    recurrenceOverrides,
+  });
+
+  it('places a moved occurrence at its own start, in its time zone', () => {
+    const result = expandRecurringEvents(
+      [berlinDaily({ '2025-01-07T09:00:00': { start: '2025-01-07T14:30:00' } })],
+      '2025-01-06T00:00:00', '2025-01-09T00:00:00',
+    );
+    const moved = result.find((e) => e.recurrenceId === '2025-01-07T09:00:00')!;
+    expect(moved.start).toBe('2025-01-07T14:30:00');
+    expect(moved.utcStart).toBe('2025-01-07T13:30:00.000Z');
+    expect(moved.utcEnd).toBe('2025-01-07T14:30:00.000Z');
+  });
+
+  it('gives a resized occurrence its own length', () => {
+    const result = expandRecurringEvents(
+      [berlinDaily({ '2025-01-07T09:00:00': { duration: 'PT2H30M' } })],
+      '2025-01-06T00:00:00', '2025-01-09T00:00:00',
+    );
+    const resized = result.find((e) => e.recurrenceId === '2025-01-07T09:00:00')!;
+    expect(resized.utcStart).toBe('2025-01-07T08:00:00.000Z');
+    expect(resized.utcEnd).toBe('2025-01-07T10:30:00.000Z');
+  });
+
+  it('shows an occurrence moved into the range from outside it', () => {
+    const result = expandRecurringEvents(
+      [berlinDaily({ '2025-01-12T09:00:00': { start: '2025-01-08T15:00:00' } })],
+      '2025-01-06T00:00:00', '2025-01-10T00:00:00',
+    );
+    expect(result.map((e) => e.recurrenceId)).toEqual([
+      '2025-01-06T09:00:00', '2025-01-07T09:00:00', '2025-01-08T09:00:00', '2025-01-09T09:00:00',
+      '2025-01-12T09:00:00',
+    ]);
+    expect(result[4]).toMatchObject({ start: '2025-01-08T15:00:00', utcStart: '2025-01-08T14:00:00.000Z' });
+  });
+
+  it('times occurrences from the duration when the master\'s instants do not parse (seen on 0.16.23)', () => {
+    // 0.16.23 answered utcStart/utcEnd of a counted daily series' master with
+    // the year 32548.
+    const master = berlinDaily({ '2025-01-07T09:00:00': { start: '2025-01-07T14:30:00' } });
+    master.utcStart = '32548-12-04T15:30:07Z';
+    master.utcEnd = '32548-12-04T15:30:07Z';
+
+    const result = expandRecurringEvents([master], '2025-01-06T00:00:00', '2025-01-09T00:00:00');
+
+    expect(result.map((e) => [e.recurrenceId, e.utcStart, e.utcEnd])).toEqual([
+      ['2025-01-06T09:00:00', '2025-01-06T08:00:00.000Z', '2025-01-06T09:00:00.000Z'],
+      ['2025-01-07T09:00:00', '2025-01-07T13:30:00.000Z', '2025-01-07T14:30:00.000Z'],
+      ['2025-01-08T09:00:00', '2025-01-08T08:00:00.000Z', '2025-01-08T09:00:00.000Z'],
+    ]);
+  });
+
+  it('leaves out an occurrence moved out of the range', () => {
+    const result = expandRecurringEvents(
+      [berlinDaily({ '2025-01-07T09:00:00': { start: '2025-01-20T09:00:00' } })],
+      '2025-01-06T00:00:00', '2025-01-09T00:00:00',
+    );
+    expect(result.map((e) => e.recurrenceId)).toEqual(['2025-01-06T09:00:00', '2025-01-08T09:00:00']);
+  });
+
+  it('applies an override returned as a PatchObject on Stalwart 1.0', () => {
+    const event = berlinDaily({
+      '2025-01-07T09:00:00': {
+        'participants/att/participationStatus': 'declined',
+        'locations/l1/name': 'Room B',
+        description: null,
+      } as unknown as Partial<CalendarEvent>,
+    });
+    event.description = 'Agenda';
+    event.locations = { l1: { '@type': 'Location', name: 'Room A' } } as CalendarEvent['locations'];
+    event.participants = {
+      org: { '@type': 'Participant', calendarAddress: 'mailto:a@example.org', participationStatus: 'accepted' },
+      att: { '@type': 'Participant', calendarAddress: 'mailto:b@example.org', participationStatus: 'needs-action' },
+    } as unknown as CalendarEvent['participants'];
+
+    const result = expandRecurringEvents([event], '2025-01-06T00:00:00', '2025-01-09T00:00:00');
+
+    const answered = result.find((e) => e.recurrenceId === '2025-01-07T09:00:00')!;
+    expect(answered.participants?.att.participationStatus).toBe('declined');
+    expect(answered.participants?.org.participationStatus).toBe('accepted');
+    expect(answered.locations?.l1.name).toBe('Room B');
+    expect(answered).not.toHaveProperty('description');
+    // No pointer keys left on the occurrence as junk properties.
+    expect(Object.keys(answered).filter((k) => k.includes('/'))).toEqual([]);
+    // The other occurrences keep the series' values.
+    expect(result[0].participants?.att.participationStatus).toBe('needs-action');
+    expect(result[0].locations?.l1.name).toBe('Room A');
+  });
+});

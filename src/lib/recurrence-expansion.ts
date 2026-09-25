@@ -15,7 +15,7 @@
 
 import { addDays, addMonths, addWeeks, addYears, differenceInCalendarDays, format, parseISO } from 'date-fns';
 import type { CalendarEvent, RecurrenceRule } from '../api/types';
-import { isServerRecurrenceInstance } from './recurrence-instances';
+import { applyOverridePatch, isServerRecurrenceInstance, parseDurationSeconds } from './recurrence-instances';
 
 type NDay = { day: string; nthOfPeriod?: number };
 
@@ -112,28 +112,65 @@ function expandEvent(
         | undefined;
       if (override?.excluded) continue;
 
-      occurrences.push(createOccurrence(master, date, recurrenceId, override));
+      const occurrence = createOccurrence(master, date, recurrenceId, override);
+      if (isInRange(occurrence, date, override, rangeStart, rangeEnd)) occurrences.push(occurrence);
     }
   }
 
-  // RDATE-equivalent: overrides may define dates not produced by any rule.
+  // RDATE-equivalent: overrides may define dates not produced by any rule,
+  // and move occurrences into the range from outside it.
   for (const [recurrenceId, rawOverride] of Object.entries(overrides)) {
     const override = rawOverride as Partial<CalendarEvent> & { excluded?: boolean };
     if (override.excluded) continue;
     const overrideDate = parseISO(recurrenceId);
     if (isNaN(overrideDate.getTime())) continue;
-    if (overrideDate < rangeStart || overrideDate >= rangeEnd) continue;
 
     // Overrides take precedence over excludedRecurrenceRules (they re-add
     // a concrete instance), so only dedupe against already-generated dates.
     const dateKey = occurrenceDateKey(master, overrideDate);
     if (seenDates.has(dateKey)) continue;
-    seenDates.add(dateKey);
 
-    occurrences.push(createOccurrence(master, overrideDate, recurrenceId, override));
+    const occurrence = createOccurrence(master, overrideDate, recurrenceId, override);
+    if (!isInRange(occurrence, overrideDate, override, rangeStart, rangeEnd)) continue;
+    seenDates.add(dateKey);
+    occurrences.push(occurrence);
   }
 
   return occurrences;
+}
+
+// Override keys that move or resize an occurrence (their first segment).
+const TIMING_KEYS = new Set(['start', 'duration', 'timeZone', 'showWithoutTime']);
+
+/**
+ * Whether an occurrence belongs in [rangeStart, rangeEnd). One that its
+ * override moves or resizes goes by its own start and end - where the rule
+ * put it says nothing about where it is now. Any other goes by `date`, where
+ * the rule put it, like the plain occurrences around it.
+ */
+function isInRange(
+  occurrence: CalendarEvent,
+  date: Date,
+  override: Partial<CalendarEvent> | undefined,
+  rangeStart: Date,
+  rangeEnd: Date,
+): boolean {
+  const moved = !!override && Object.keys(override).some((key) => TIMING_KEYS.has(key.split('/', 1)[0]));
+  if (!moved) return date >= rangeStart && date < rangeEnd;
+  const timed = !occurrence.showWithoutTime;
+  const start = (timed ? validDate(occurrence.utcStart) : null) ?? validDate(occurrence.start);
+  if (!start) return false;
+  const end = (timed ? validDate(occurrence.utcEnd) : null)
+    ?? new Date(start.getTime() + (parseDurationSeconds(occurrence.duration) ?? 0) * 1000);
+  if (end <= start) return start >= rangeStart && start < rangeEnd;
+  return start < rangeEnd && end > rangeStart;
+}
+
+/** `value` parsed, or null when it is missing or does not parse. */
+function validDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = parseISO(value);
+  return isNaN(date.getTime()) ? null : date;
 }
 
 // Cache Intl formatters per IANA timezone id — constructing them is expensive
@@ -205,55 +242,79 @@ function createOccurrence(
     ? format(date, "yyyy-MM-dd'T'00:00:00")
     : format(date, "yyyy-MM-dd'T'HH:mm:ss");
 
+  // The occurrence as the rule generates it, with its override applied as a
+  // patch: a moved or resized occurrence has its own start, time zone and
+  // duration from here on.
+  const generated = { ...master, start: startStr };
+  const occurrence = override
+    ? applyOverridePatch(generated, override as Record<string, unknown>)
+    : generated;
+  const start = occurrence.start || startStr;
+
   // Compute utcStart/utcEnd for this occurrence so getEventStartDate /
   // getEventEndDate return the occurrence times rather than the master's.
   let utcStart: string | undefined;
   let utcEnd: string | undefined;
-  if (!master.showWithoutTime) {
+  const wall = parseISO(start);
+  if (!occurrence.showWithoutTime && !isNaN(wall.getTime())) {
+    // Unless the override sets its own duration, the master's length: from
+    // its instants, else from its duration. 0.16.23 has been seen to return
+    // instants in the year 32548 for a series' master, which don't parse.
     let durationMs: number | null = null;
-    if (master.utcStart && master.utcEnd) {
-      const ms = parseISO(master.utcEnd).getTime() - parseISO(master.utcStart).getTime();
-      if (!isNaN(ms)) durationMs = ms;
+    const ownDuration = override && 'duration' in override ? parseDurationSeconds(occurrence.duration) : null;
+    const masterStart = validDate(master.utcStart);
+    const masterEnd = validDate(master.utcEnd);
+    if (ownDuration !== null) {
+      durationMs = ownDuration * 1000;
+    } else if (masterStart && masterEnd) {
+      durationMs = masterEnd.getTime() - masterStart.getTime();
+    } else {
+      const seconds = parseDurationSeconds(master.duration);
+      if (seconds !== null) durationMs = seconds * 1000;
     }
 
     // Convert the occurrence's wall time using the event's own timezone, so
     // occurrences on the other side of a DST transition in that zone keep
     // their wall time. Reusing the master's fixed UTC offset (the fallback
     // below) would shift them by the DST delta.
-    const zoned = master.timeZone ? zonedWallTimeToUtc(date, master.timeZone) : null;
+    const zoned = occurrence.timeZone ? zonedWallTimeToUtc(wall, occurrence.timeZone) : null;
     if (zoned) {
       utcStart = zoned.toISOString();
       if (durationMs !== null) {
         utcEnd = new Date(zoned.getTime() + durationMs).toISOString();
       }
-    } else if (master.utcStart && master.start) {
+    } else if (masterStart && master.start) {
       // Floating events (or an unrecognized timezone id): keep the master's
       // offset, which by definition doesn't vary.
-      const masterLocal = parseISO(master.start);
-      const masterUtc = parseISO(master.utcStart);
-      const offsetMs = masterUtc.getTime() - masterLocal.getTime();
-      utcStart = new Date(date.getTime() + offsetMs).toISOString();
-      if (durationMs !== null) {
-        utcEnd = new Date(date.getTime() + offsetMs + durationMs).toISOString();
+      const offsetMs = masterStart.getTime() - parseISO(master.start).getTime();
+      if (!isNaN(offsetMs)) {
+        utcStart = new Date(wall.getTime() + offsetMs).toISOString();
+        if (durationMs !== null) {
+          utcEnd = new Date(wall.getTime() + offsetMs + durationMs).toISOString();
+        }
       }
     }
   }
 
-  return {
-    ...master,
-    ...(override || {}),
+  const result: CalendarEvent = {
+    ...occurrence,
     id: `${master.id}:${recurrenceId}`,
     originalId: master.originalId || master.id,
     uid: master.uid,
     calendarIds: master.calendarIds,
-    start: override?.start || startStr,
-    ...(utcStart && !override?.utcStart ? { utcStart } : {}),
-    ...(utcEnd && !override?.utcEnd ? { utcEnd } : {}),
+    start,
     recurrenceId,
     recurrenceRules: master.recurrenceRules,
     recurrenceOverrides: master.recurrenceOverrides,
     excludedRecurrenceRules: master.excludedRecurrenceRules,
   };
+  // The master's own instants place the first occurrence, not this one.
+  if (utcStart) {
+    result.utcStart = utcStart;
+    if (utcEnd) result.utcEnd = utcEnd;
+    else delete result.utcEnd;
+  }
+  return result;
 }
 
 // ─── §3.3.3.1 - Implicit byX property addition ──────────

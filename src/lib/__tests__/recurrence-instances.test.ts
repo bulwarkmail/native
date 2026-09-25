@@ -371,3 +371,65 @@ describe('series keys on one occurrence', () => {
     expect(isOverrideSeriesKeyRejection(new Error('privacy cannot be set inside recurrenceOverrides.'))).toBe(false);
   });
 });
+
+// Stalwart 1.0 returns recurrence overrides as RFC 8984 PatchObjects, with
+// keys like participants/<id>/participationStatus. RFC 8984 does not allow
+// keys that are prefixes of one another in one PatchObject.
+describe('overrides returned as PatchObjects', () => {
+  it('merges a change into an override without keys that are prefixes of one another', () => {
+    const occurrence = ev({
+      id: 'm:2026-09-08T10:00:00', originalId: 'm', recurrenceId: '2026-09-08T10:00:00',
+      start: '2026-09-08T10:00:00', duration: 'PT1H', recurrenceRules: [{ frequency: 'daily' } as any],
+      recurrenceOverrides: {
+        '2026-09-08T10:00:00': {
+          start: '2026-09-08T10:00:00',
+          'participants/tom/participationStatus': 'declined',
+          locations: { l1: { '@type': 'Location', name: 'Room A' } },
+        } as any,
+        '2026-09-09T10:00:00': { excluded: true } as any,
+      },
+    });
+    const participants = { tom: { '@type': 'Participant', participationStatus: 'accepted' } } as any;
+
+    // A whole participants map replaces the patches beneath it; a pointer
+    // goes into the whole locations value the entry already sets.
+    expect(buildFallbackOverridePatch(occurrence, {
+      participants,
+      'locations/l1/name': 'Room B',
+    } as any)).toEqual({
+      'recurrenceOverrides/2026-09-08T10:00:00': {
+        start: '2026-09-08T10:00:00',
+        duration: 'PT1H',
+        participants,
+        locations: { l1: { '@type': 'Location', name: 'Room B' } },
+      },
+    });
+  });
+
+  it('tells the override from the series by the members its PatchObject sets on Stalwart 1.0', () => {
+    const org = { '@type': 'Participant', calendarAddress: 'mailto:a@example.org', participationStatus: 'accepted' };
+    const series = ev({
+      id: 's1', baseEventId: 'b', recurrenceId: '2026-09-08T10:00:00', title: 'Team sync',
+      participants: {
+        org, att: { '@type': 'Participant', calendarAddress: 'mailto:b@example.org', participationStatus: 'needs-action' },
+      } as any,
+    });
+    const declined = ev({
+      ...series,
+      participants: {
+        org, att: { '@type': 'Participant', calendarAddress: 'mailto:b@example.org', participationStatus: 'declined' },
+      } as any,
+    });
+    const bases = new Map<string, Partial<CalendarEvent>>([['b', {
+      id: 'b', duration: 'PT1H',
+      recurrenceOverrides: { '2026-09-08T10:00:00': { 'participants/att/participationStatus': 'declined' } as any },
+    }]]);
+
+    for (const order of [[series, declined], [declined, series]]) {
+      const [merged, ...rest] = hydrateRecurrenceInstances(order, bases);
+      expect(rest).toEqual([]);
+      expect(merged.participants?.att.participationStatus).toBe('declined');
+      expect(merged.participants?.org.participationStatus).toBe('accepted');
+    }
+  });
+});
