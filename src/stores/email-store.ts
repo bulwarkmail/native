@@ -559,12 +559,15 @@ export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>
 /**
  * The JMAP accounts a list spanning accounts covers, and a tag badge counts:
  * the user's own (undefined) and every shared account with folders in the
- * sidebar.
+ * sidebar. The sidebar asks while it renders, also on a cold start before
+ * the session is up: the client's throwing `accountId` crashed the app then,
+ * whenever the persisted folders held a shared or group one.
  */
 export function spannedAccounts(mailboxes: Mailbox[]): Array<string | undefined> {
+  const own = jmapClient.connectedAccountId;
   const out: Array<string | undefined> = [undefined];
   for (const m of mailboxes) {
-    if (m.isShared && m.accountId && m.accountId !== jmapClient.accountId && !out.includes(m.accountId)) {
+    if (m.isShared && m.accountId && m.accountId !== own && !out.includes(m.accountId)) {
       out.push(m.accountId);
     }
   }
@@ -572,10 +575,11 @@ export function spannedAccounts(mailboxes: Mailbox[]): Array<string | undefined>
 }
 
 // The JMAP account a list row lives under (undefined = the user's own): its
-// stamp in a list that spans accounts, else the folder on screen.
+// stamp in a list that spans accounts, else the folder on screen. Asked at
+// render as well (the viewer's pages), before the session may be up.
 function rowAccountId(state: EmailState, email: Email | undefined): string | undefined {
   if (email?.jmapAccountId) {
-    return email.jmapAccountId === jmapClient.accountId ? undefined : email.jmapAccountId;
+    return email.jmapAccountId === jmapClient.connectedAccountId ? undefined : email.jmapAccountId;
   }
   return currentAccountId(state);
 }

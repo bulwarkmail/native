@@ -56,6 +56,7 @@ import { fileNameProblem, type FileNameProblem } from '../lib/file-name-rules';
 import { fileErrorMessage } from '../lib/file-errors';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
+import { driveChange, type DriveScope } from '../lib/files-drive';
 import type { FileNode } from '../api/types';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -225,6 +226,7 @@ export default function FilesScreen() {
   const defaultViewMode = useSettingsStore((s) => s.filesDefaultViewMode);
   const setSetting = useSettingsStore((s) => s.updateSetting);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  const session = useAuthStore((s) => s.session);
 
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
@@ -260,12 +262,18 @@ export default function FilesScreen() {
     [t],
   );
 
-  // Load on mount and reset the whole drive whenever the active account
-  // changes: the node cache, folder stack and selection all belong to the
-  // previous account (webmail 1.9.0 "reset the account-scoped Files drive").
-  const loadedForAccountRef = useRef<string | null | undefined>(undefined);
+  // Load on mount and reset the whole drive whenever the active account, or
+  // the server behind it, changes: the node cache, folder stack and
+  // selection all belong to the previous one (webmail 1.9.0 "reset the
+  // account-scoped Files drive"). The same address can front another server
+  // (another port, or Stalwart reinstalled there), which the account id does
+  // not tell. Every new session reads the drive again.
+  const driveRef = useRef<DriveScope | undefined>(undefined);
   useEffect(() => {
-    if (loadedForAccountRef.current !== undefined && loadedForAccountRef.current !== activeAccountId) {
+    const { action, scope } = driveChange(driveRef.current, activeAccountId, session);
+    driveRef.current = scope;
+    if (action === 'keep') return;
+    if (action === 'reset') {
       uploadAbortRef.current?.abort();
       setAllNodes([]);
       setPath([]);
@@ -276,9 +284,10 @@ export default function FilesScreen() {
       setPreviewTarget(null);
       setSearchQuery('');
     }
-    loadedForAccountRef.current = activeAccountId;
-    void loadFiles();
-  }, [activeAccountId, loadFiles]);
+    // Signed out: nothing to read.
+    if (action !== 'load' && !activeAccountId) return;
+    void loadFiles(action === 'reload' ? 'refresh' : 'initial');
+  }, [activeAccountId, session, loadFiles]);
 
   // If we navigated into a folder that no longer exists (deleted, or its
   // share was revoked), cut the stack back to the deepest ancestor that does.

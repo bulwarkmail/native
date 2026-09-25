@@ -566,17 +566,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     jmapClient.reset();
     clearAccountFeatureStores(currentId);
+    // Neither the switch below nor a failed one, which puts back the account
+    // it left, may bring the signed-out account back.
+    set({ serverUrl: null, username: null, session: null, accountId: null, activeAccountId: null });
 
-    // Switch to next remaining account, if any
-    const remaining = accountStore.accounts;
-    if (remaining.length > 0) {
-      const next = accountStore.getDefaultAccount() ?? remaining[0];
-      try {
-        await get().switchAccount(next.id);
-        return;
-      } catch {
-        // fall through to full logout below
-      }
+    // Switch to the next remaining account, if any. The registry is read
+    // afresh each time: the state taken above still lists the account just
+    // removed, and signing out of the last one "switched" to it, which did
+    // nothing, and left the app on an empty mail view.
+    for (let tries = useAccountStore.getState().accounts.length; tries > 0; tries--) {
+      const registry = useAccountStore.getState();
+      const next = registry.getDefaultAccount() ?? registry.accounts[0];
+      if (!next) break;
+      await get().switchAccount(next.id);
+      // Landed, or another switch has begun and decides.
+      if (get().activeAccountId === next.id || pendingSwitch) return;
+      if (!useAccountStore.getState().getAccountById(next.id)) continue; // its sign-in was refused
+      // Its server did not answer: show what is cached for it, as a cold
+      // start does, and let the session retry bring it up.
+      useAccountStore.getState().setActiveAccount(next.id);
+      useEmailStore.getState().setActiveAccount(next.id);
+      set({
+        isAuthenticated: true,
+        isLoading: false,
+        hasRestoredSession: true,
+        serverUrl: next.serverUrl,
+        username: next.username,
+        session: null,
+        accountId: null,
+        activeAccountId: next.id,
+        client: jmapClient,
+      });
+      return;
     }
 
     set({

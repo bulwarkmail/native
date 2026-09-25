@@ -165,6 +165,16 @@ export class JMAPClient {
     return this._accountId;
   }
 
+  /**
+   * The primary account id while a session is up; null before one is (a
+   * cold start shows the mail view persisted from the last session first)
+   * and while another account loads. For code that runs at render or in
+   * selectors; API calls use `accountId`, which throws.
+   */
+  get connectedAccountId(): string | null {
+    return this._accountId;
+  }
+
   get currentSession(): JMAPSession | null {
     return this.session;
   }

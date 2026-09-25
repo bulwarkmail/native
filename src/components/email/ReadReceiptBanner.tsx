@@ -100,10 +100,14 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
     await flagSent();
   }, [identity, mailboxes, requestedBy, jmapAccountId, email.messageId, email.subject, t, flagSent]);
 
-  // "always" mode: auto-send once when the message is actually displayed.
+  // "always" mode: auto-send once when the message is actually displayed,
+  // and the session is up (a message can be open while another account
+  // loads, or while none has loaded yet).
   React.useEffect(() => {
     if (readReceiptResponse !== 'always' || !shouldOffer || !active) return;
-    const key = `${jmapAccountId ?? jmapClient.accountId}:${email.id}`;
+    const account = jmapAccountId ?? jmapClient.connectedAccountId;
+    if (!account) return;
+    const key = `${account}:${email.id}`;
     if (autoAttempted.has(key)) return;
     autoAttempted.add(key);
     setHandledLocally(true);

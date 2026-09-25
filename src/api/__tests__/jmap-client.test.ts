@@ -268,6 +268,21 @@ describe('JMAPClient', () => {
       expect(client.accountId).toBe('acc-2');
     });
 
+    it('names its account without throwing, and only while a session is up', async () => {
+      // Read at render (the sidebar, the viewer), also before the first session.
+      expect(client.connectedAccountId).toBeNull();
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+      expect(client.connectedAccountId).toBe('acc-1');
+
+      (SecureStore.getItemAsync as any).mockResolvedValue(null);
+      await client.loadAccount('gone@other.example.com');
+
+      expect(client.connectedAccountId).toBeNull();
+      // API calls still refuse to run without one.
+      expect(() => client.accountId).toThrow('Not authenticated');
+    });
+
     it('leaves the previous account to the snapshot when the next one cannot load', async () => {
       global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
       await client.connect('https://mail.example.com', 'user', 'pass');
