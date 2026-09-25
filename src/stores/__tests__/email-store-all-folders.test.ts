@@ -190,7 +190,7 @@ describe('"All folders" search across the own and the team account (#1082)', () 
     expect(server.current!.requests).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, args]) => args.accountId)).toEqual(['c', 'team']);
-    for (const [, args] of queries) expect(args.filter).toEqual({ text: 'zephyr*' });
+    for (const [, args] of queries) expect(args.filter).toEqual({ text: 'zephyr' });
     expect(server.current!.callsOf('Email/get').map(([, args]) => args.accountId)).toEqual(['c', 'team']);
   });
 
@@ -211,7 +211,7 @@ describe('"All folders" search across the own and the team account (#1082)', () 
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
-    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox', text: 'zephyr*' } });
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox', text: 'zephyr' } });
     expect(ids()).toEqual(['m1', 'm2', 'm3', 'm4']);
     expect(useEmailStore.getState().emails[0].jmapAccountId).toBeUndefined();
   });
@@ -541,14 +541,40 @@ describe('tag view across the own and the team account (#1038)', () => {
   it('narrows the tag with a search across both accounts', async () => {
     await openTag('inbox');
     useEmailStore.getState().setSearchQuery('red 2');
+    // The fake matches text like Stalwart 1.0, where the old `red* 2*` was
+    // one prefix containing a space and found nothing (P1-7).
     await vi.waitFor(() => expect(ids()).toEqual(['m2', 'o2']));
 
     const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
     expect(last.map(([, a]) => a.filter)).toEqual([
-      { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] },
-      { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] },
+      { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }] },
+      { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }] },
     ]);
   });
+
+  // 1.0 matches the phrase in order; 0.16 has no phrases and reads it as its
+  // words.
+  it.each([['0.16', ['m1', 'o1']], ['1.0', ['o1']]] as const)(
+    'Stalwart %s: narrows the tag with a quoted phrase as a condition of its own',
+    async (textModel, expected) => {
+      server.current = createFakeJmap({
+        c: [mail('o1', 'inbox', 20, 'own red 2 notes', { keywords: { [RED]: true } })],
+        team: [mail('m1', 't-inbox', 22, 'red notes 2', { keywords: { [RED]: true } })],
+      }, { textModel });
+      await openTag('inbox');
+      useEmailStore.getState().setSearchQuery('"red 2" notes');
+      await vi.waitFor(() => {
+        const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
+        expect(last[0][1].filter).toEqual({
+          operator: 'AND',
+          conditions: [{ text: '"red 2"' }, { text: 'notes' }, { hasKeyword: RED }],
+        });
+      });
+      await vi.waitFor(() => expect(useEmailStore.getState().loading).toBe(false));
+
+      expect(ids()).toEqual(expected);
+    },
+  );
 
   it('untags a team row in the team account and keeps it in view', async () => {
     await openTag('inbox');

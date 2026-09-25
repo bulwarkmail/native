@@ -799,8 +799,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   };
 
   // Local input state for uninterrupted typing. The search runs on submit,
-  // or after a 600 ms pause once at least two characters are typed — with
-  // the `*` wildcard a single letter matches the whole mailbox.
+  // or after a 600 ms pause once at least two characters are typed. The text
+  // goes out as typed and the server matches whole words, so a half-typed
+  // word finds nothing until it is complete (a typed `*` makes it a prefix on
+  // Stalwart 1.0).
   const [searchInput, setSearchInput] = React.useState(storeSearchQuery);
   const [searchFocused, setSearchFocused] = React.useState(false);
   React.useEffect(() => {

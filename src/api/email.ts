@@ -9,7 +9,7 @@ import {
 } from './submissions';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
-import { toWildcardQuery } from '../lib/search-utils';
+import { textFilter } from '../lib/search-utils';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
@@ -1350,8 +1350,9 @@ export async function searchEmails(
   accountIdOverride?: string,
 ): Promise<string[]> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
-  const filter: Record<string, unknown> = { text: toWildcardQuery(query) };
-  if (mailboxId) filter.inMailbox = mailboxId;
+  // Quoted phrases and `word*` prefixes go out as conditions of their own (see
+  // splitSearchText), and an operator can't carry `inMailbox` next to them.
+  const filter = buildMailboxQueryFilter(mailboxId, textFilter(query));
 
   const res = await jmapClient.request([
     ['Email/query', {

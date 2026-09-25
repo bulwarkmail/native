@@ -3,45 +3,38 @@
 // newest first, position + limit), Email/get and Thread/get (including
 // result references), and applies Email/set updates and destroys. Every
 // request is recorded so a test can check which method calls went out, and
-// in how many requests.
+// in how many requests. Text conditions are matched the way Stalwart's
+// built-in index does (see lib/__tests__/stalwart-text-model), 1.0 unless
+// asked for 0.16, against the subject and the preview (standing in for the
+// body).
 
 import type { Email, JMAPMethodCall } from '../../api/types';
+import { textFilterMatches, type StalwartTextVersion } from '../../lib/__tests__/stalwart-text-model';
 
 export type FakeEmail = Pick<Email, 'id' | 'threadId' | 'mailboxIds' | 'keywords' | 'receivedAt' | 'subject'>
   & Partial<Email>;
 
 type Filter = Record<string, unknown>;
 
-function matches(email: FakeEmail, filter: Filter | undefined): boolean {
+function matches(email: FakeEmail, filter: Filter | undefined, textModel: StalwartTextVersion): boolean {
   if (!filter) return true;
-  if ('operator' in filter) {
-    const results = (filter.conditions as Filter[]).map((c) => matches(email, c));
-    if (filter.operator === 'AND') return results.every(Boolean);
-    if (filter.operator === 'OR') return results.some(Boolean);
-    return !results.some(Boolean);
-  }
-  for (const [key, value] of Object.entries(filter)) {
-    if (key === 'text') {
-      const needle = String(value).replace(/\*/g, '').toLowerCase();
-      if (!`${email.subject ?? ''} ${email.preview ?? ''}`.toLowerCase().includes(needle)) return false;
-    } else if (key === 'inMailbox') {
-      if (!email.mailboxIds[value as string]) return false;
-    } else if (key === 'hasKeyword') {
-      if (!email.keywords[value as string]) return false;
-    } else if (key === 'notKeyword') {
-      if (email.keywords[value as string]) return false;
-    } else {
-      throw new Error(`fake server: unsupported filter ${key}`);
-    }
-  }
-  return true;
+  return textFilterMatches(textModel, filter, { subject: email.subject ?? '', body: email.preview ?? '' }, (key, value) => {
+    if (key === 'inMailbox') return !!email.mailboxIds[value as string];
+    if (key === 'hasKeyword') return !!email.keywords[value as string];
+    if (key === 'notKeyword') return !email.keywords[value as string];
+    throw new Error(`fake server: unsupported filter ${key}`);
+  });
 }
 
 function unescapePointer(segment: string): string {
   return segment.replace(/~1/g, '/').replace(/~0/g, '~');
 }
 
-export function createFakeJmap(accounts: Record<string, FakeEmail[]>) {
+export function createFakeJmap(
+  accounts: Record<string, FakeEmail[]>,
+  options: { textModel?: StalwartTextVersion } = {},
+) {
+  const textModel = options.textModel ?? '1.0';
   const requests: JMAPMethodCall[][] = [];
   /** JMAP account id → error type every call for it is answered with. */
   const failing = new Map<string, string>();
@@ -72,7 +65,7 @@ export function createFakeJmap(accounts: Record<string, FakeEmail[]>) {
           response = ['error', { type: 'invalidResultReference' }, callId];
         } else if (name === 'Email/query') {
           const all = store
-            .filter((e) => matches(e, args.filter as Filter))
+            .filter((e) => matches(e, args.filter as Filter, textModel))
             .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
           const position = (args.position as number) ?? 0;
           const limit = (args.limit as number) ?? 50;

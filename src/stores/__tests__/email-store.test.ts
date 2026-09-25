@@ -708,7 +708,32 @@ describe('email-store', () => {
 
       const [mailboxId, opts] = mockQueryEmails.mock.calls[0];
       expect(mailboxId).toBeUndefined();
-      expect(opts.filter).toEqual({ text: 'invoice*' });
+      // As typed: Stalwart 1.0 reads a trailing `*` as one prefix over the
+      // whole value (P1-7).
+      expect(opts.filter).toEqual({ text: 'invoice' });
+    });
+
+    it('sends quoted phrases and word* as conditions of their own, the field filters too (Stalwart 1.0)', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        searchQuery: '"annual report" 2024 budg*',
+        filters: { from: 'anna mül*', subject: 'project budget' },
+      });
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+
+      await useEmailStore.getState().refreshEmails();
+
+      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({
+        operator: 'AND',
+        conditions: [
+          { text: '"annual report"' },
+          { text: '2024' },
+          { text: 'budg*' },
+          { from: 'anna' },
+          { from: 'mül*' },
+          { subject: 'project budget' },
+        ],
+      });
     });
 
     it('scopes a search to the open folder or a picked folder when asked', async () => {
@@ -758,7 +783,7 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().searchQuery).toBe('invoice');
       expect(mockQueryEmails.mock.calls[0][0]).toBe('mb-2');
-      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({ text: 'invoice*' });
+      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({ text: 'invoice' });
     });
   });
 
@@ -1230,7 +1255,7 @@ describe('email-store', () => {
       await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ 'acc-1:t1': 3, 'acc-1:t2': 1 }));
 
       expect(mockQueryAcross).toHaveBeenCalledTimes(1);
-      expect(mockQueryAcross.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice*' }, threads: true });
+      expect(mockQueryAcross.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice' }, threads: true });
       expect(mockQueryEmailPage).toHaveBeenCalledTimes(1);
       expect(mockGetThreads).not.toHaveBeenCalled();
     });

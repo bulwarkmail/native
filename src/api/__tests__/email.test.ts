@@ -272,7 +272,7 @@ describe('email operations', () => {
 
       const pages = await queryEmailPagesAcrossAccounts(
         [{ position: 2, sort }, { accountId: 'grp-1', position: 0, sort }],
-        { limit: 25, filter: { text: 'zephyr*' }, threads: true },
+        { limit: 25, filter: { text: 'zephyr' }, threads: true },
       );
 
       expect(mockRequest).toHaveBeenCalledTimes(1);
@@ -281,7 +281,7 @@ describe('email operations', () => {
         ['Email/query', 'acc-1', '0:q'], ['Email/get', 'acc-1', '0:g'], ['Thread/get', 'acc-1', '0:t'],
         ['Email/query', 'grp-1', '1:q'], ['Email/get', 'grp-1', '1:g'], ['Thread/get', 'grp-1', '1:t'],
       ]);
-      expect(calls[0][1]).toMatchObject({ filter: { text: 'zephyr*' }, position: 2, limit: 25, sort });
+      expect(calls[0][1]).toMatchObject({ filter: { text: 'zephyr' }, position: 2, limit: 25, sort });
       expect(calls[4][1]['#ids']).toEqual({ resultOf: '1:q', name: 'Email/query', path: '/ids' });
       expect(pages[0]).toEqual({
         accountId: undefined, ok: true, total: 3,
@@ -487,7 +487,9 @@ describe('email operations', () => {
   });
 
   describe('searchEmails', () => {
-    it('should search with text filter', async () => {
+    // Stalwart 1.0 reads a value ending in `*` as one prefix over the whole
+    // string, so the text goes out as typed (P1-7).
+    it('should search with the text as typed', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [['Email/query', { ids: ['e1'] }, '0']],
       });
@@ -496,7 +498,7 @@ describe('email operations', () => {
 
       expect(result).toEqual(['e1']);
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({ text: 'test* query*' });
+      expect(call[1].filter).toEqual({ text: 'test query' });
     });
 
     it('should include mailbox filter if specified', async () => {
@@ -507,7 +509,24 @@ describe('email operations', () => {
       await searchEmails('query', 'mb-1');
 
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({ text: 'query*', inMailbox: 'mb-1' });
+      expect(call[1].filter).toEqual({ inMailbox: 'mb-1', text: 'query' });
+    });
+
+    it('ANDs quoted phrases with the folder without mixing operator and property keys', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['Email/query', { ids: [] }, '0']],
+      });
+
+      await searchEmails('"annual report" 2024', 'mb-1');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].filter).toEqual({
+        operator: 'AND',
+        conditions: [
+          { inMailbox: 'mb-1' },
+          { operator: 'AND', conditions: [{ text: '"annual report"' }, { text: '2024' }] },
+        ],
+      });
     });
   });
 

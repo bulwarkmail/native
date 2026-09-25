@@ -41,7 +41,7 @@ import { JMAPMethodError } from '../api/jmap-result';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
-import { toWildcardQuery } from '../lib/search-utils';
+import { textConditions } from '../lib/search-utils';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
@@ -438,14 +438,17 @@ function buildJmapFilter(
 ): Record<string, unknown> | undefined {
   const conditions: Record<string, unknown>[] = [];
 
+  // Sent as typed: quoted phrases and `word*` prefixes become conditions of
+  // their own, the other words one condition (see splitSearchText). The field
+  // filters follow the same rules on the server.
   const trimmed = searchQuery.trim();
-  if (trimmed) conditions.push({ text: toWildcardQuery(trimmed) });
+  if (trimmed) conditions.push(...textConditions(trimmed));
 
   if (filters.keyword) conditions.push({ hasKeyword: filters.keyword });
-  if (filters.from) conditions.push({ from: filters.from });
-  if (filters.to) conditions.push({ to: filters.to });
-  if (filters.subject) conditions.push({ subject: filters.subject });
-  if (filters.body) conditions.push({ body: filters.body });
+  if (filters.from) conditions.push(...textConditions(filters.from, 'from'));
+  if (filters.to) conditions.push(...textConditions(filters.to, 'to'));
+  if (filters.subject) conditions.push(...textConditions(filters.subject, 'subject'));
+  if (filters.body) conditions.push(...textConditions(filters.body, 'body'));
 
   if (filters.dateAfter) {
     const d = new Date(filters.dateAfter);
