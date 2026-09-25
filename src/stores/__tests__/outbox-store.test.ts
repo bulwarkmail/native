@@ -36,6 +36,8 @@ beforeEach(async () => {
   await useOutboxStore.getState().clear();
   await useOutboxStore.getState().setAccount(ACCOUNT);
   await useOutboxStore.getState().clear();
+  // The account's session is up and its server was checked (auth-store).
+  await useOutboxStore.getState().resume(ACCOUNT);
 });
 
 describe('outbox enqueue + coalescing', () => {
@@ -263,7 +265,7 @@ describe('keyword ops queued by earlier builds', () => {
     expect(useOutboxStore.getState().entries[0].op).toEqual({
       kind: 'keywords', emailId: 'e1', accountId: undefined, patch: { $seen: true, '$label:work': true },
     });
-    await useOutboxStore.getState().flush();
+    await useOutboxStore.getState().resume('acc-legacy');
 
     expect(patchKeywordsForEmails).toHaveBeenNthCalledWith(1, ['e1'], { $seen: true, '$label:work': true }, undefined);
     // `$junk` and `$notjunk` exclude each other, so setting one clears the other.
@@ -277,11 +279,77 @@ describe('keyword ops queued by earlier builds', () => {
       { id: 'a', createdAt: 1, attempts: 5, op: { kind: 'keywords', emailId: 'e1', keywords: { $notjunk: true, $flagged: true } } },
     ];
     await AsyncStorage.setItem('webmail:outbox:v1:acc-legacy:failed', JSON.stringify(legacy));
-    await useOutboxStore.getState().setAccount('acc-legacy');
+    await useOutboxStore.getState().resume('acc-legacy');
 
     await useOutboxStore.getState().retryFailed();
 
     expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $notjunk: true, $flagged: true, $junk: null }, undefined);
     expect(useOutboxStore.getState().failed).toHaveLength(0);
+  });
+});
+
+describe('waiting for the account session (resume)', () => {
+  const OTHER = 'acc-2';
+  const stored = (emailId: string) => ({
+    id: `q-${emailId}`, createdAt: 1, attempts: 0, op: { kind: 'keywords', emailId, patch: { $seen: true } },
+  });
+
+  beforeEach(async () => {
+    await AsyncStorage.removeItem(`webmail:outbox:v1:${OTHER}`);
+    await AsyncStorage.removeItem(`webmail:outbox:v1:${OTHER}:failed`);
+  });
+
+  it('queues and holds the ops of a newly attached account until it is resumed', async () => {
+    // Attached on an account switch: the client may still serve the account
+    // being left, although it reports itself connected.
+    await useOutboxStore.getState().setAccount(OTHER);
+    const result = await applyOrQueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
+    expect(result.queued).toBe(true);
+    await useOutboxStore.getState().flush();
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+
+    await useOutboxStore.getState().resume(OTHER);
+
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
+    expect(useOutboxStore.getState().entries).toHaveLength(0);
+  });
+
+  it('replays nothing when another account was attached while the queue loaded', async () => {
+    await AsyncStorage.setItem(`webmail:outbox:v1:${OTHER}`, JSON.stringify([stored('e1')]));
+
+    const resuming = useOutboxStore.getState().resume(OTHER);
+    void useOutboxStore.getState().setAccount(ACCOUNT);
+    await resuming;
+
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().activeAccountId).toBe(ACCOUNT);
+    expect(useOutboxStore.getState().resumed).toBe(false);
+  });
+
+  it('keeps a queue cleared while it was still loading cleared', async () => {
+    // The server check drops the queue of a replaced server while the cold
+    // start is still reading it.
+    await AsyncStorage.setItem(`webmail:outbox:v1:${OTHER}`, JSON.stringify([stored('e1')]));
+
+    const attaching = useOutboxStore.getState().setAccount(OTHER);
+    await useOutboxStore.getState().clearAccount(OTHER);
+    await attaching;
+
+    expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`)).toBeNull();
+    await useOutboxStore.getState().resume(OTHER);
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+  });
+
+  it('keeps ops made while the queue was loading, after the stored ones', async () => {
+    await AsyncStorage.setItem(`webmail:outbox:v1:${OTHER}`, JSON.stringify([stored('e1')]));
+
+    const attaching = useOutboxStore.getState().setAccount(OTHER);
+    useOutboxStore.getState().enqueue({ kind: 'mailboxes', emailId: 'e2', mailboxIds: { trash: true } });
+    await attaching;
+
+    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e1', 'e2']);
+    const persisted = JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`))!) as Array<{ op: { emailId: string } }>;
+    expect(persisted.map((e) => e.op.emailId)).toEqual(['e1', 'e2']);
   });
 });

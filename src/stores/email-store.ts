@@ -882,6 +882,18 @@ export const useEmailStore = create<EmailState>()(
   // run the network refresh afterwards.
   setActiveAccount: (accountId) => {
     const state = get();
+
+    // Point the offline body cache at the same account so the viewer's
+    // cache-first open and selectMailbox's seed read from the right bucket,
+    // and load the account's outbox. Also when the view already shows the
+    // account: a cold start restores it from the persisted view, and neither
+    // store is attached yet. Both ignore a repeat. Fire-and-forget: the
+    // cache returns empty until hydration completes, which is the correct
+    // degraded behaviour. The auth store replays the outbox once the
+    // account's session is up and its server was checked.
+    void useOfflineCacheStore.getState().setAccount(accountId);
+    void useOutboxStore.getState().setAccount(accountId);
+
     if (state.activeAccountId === accountId) return;
 
     const nextSnapshots = { ...state.accountSnapshots };
@@ -904,17 +916,6 @@ export const useEmailStore = create<EmailState>()(
       threadCounts: {},
       error: null,
       loading: false,
-    });
-
-    // Point the offline body cache at the same account so the viewer's
-    // cache-first open and selectMailbox's seed read from the right bucket. Fire-
-    // and-forget — the cache returns empty until hydration completes,
-    // which is the correct degraded behaviour.
-    void useOfflineCacheStore.getState().setAccount(accountId);
-    // Load the new account's outbox and try to drain it (no-op when offline or
-    // the JMAP client isn't serving this account yet).
-    void useOutboxStore.getState().setAccount(accountId).then(() => {
-      void useOutboxStore.getState().flush();
     });
   },
 

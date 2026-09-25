@@ -55,7 +55,12 @@ vi.mock('../../api/jmap-client', () => ({
       return {
         methodResponses: calls.map(([name, args, id]) => (name.endsWith('/changes')
           ? ['error', { type: 'cannotCalculateChanges' }, id]
-          : [name, { accountId: args.accountId, state: 'sfy', list: [], notFound: [] }, id])),
+          : [name, {
+            accountId: args.accountId, state: 'sfy', list: [], notFound: [],
+            ...(name === 'Email/set'
+              ? { updated: Object.fromEntries(Object.keys((args.update ?? {}) as object).map((k) => [k, null])) }
+              : {}),
+          }, id])),
       };
     }),
     getStoredOAuthTokens: vi.fn(async () => null),
@@ -79,17 +84,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useEmailStore } from '../email-store';
+import { useOfflineCacheStore } from '../offline-cache-store';
 import { useOutboxStore } from '../outbox-store';
 import { readServerFingerprint, sessionFingerprint, writeServerFingerprint } from '../../lib/server-fingerprint';
 import type { JMAPSession } from '../../api/types';
 
 const ACCOUNT = 'user@mail.example.com';
 const session = (version: string) => client.session(version) as unknown as JMAPSession;
+const OUTBOX_KEY = `webmail:outbox:v1:${ACCOUNT}`;
+// An edit made offline in the last session: mark message "b" read.
+const QUEUED = [{ id: 'q1', createdAt: 1, attempts: 0, op: { kind: 'keywords', emailId: 'b', patch: { $seen: true } } }];
+
+const emailSets = () => client.requests.flat().filter(([name]) => name === 'Email/set');
 
 beforeEach(async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   await AsyncStorage.clear();
   client.requests.length = 0;
+  // A cold start: nothing is attached yet.
+  await useOutboxStore.getState().setAccount(null);
+  await useOfflineCacheStore.getState().setAccount(null);
   useAccountStore.setState({
     accounts: [{
       id: ACCOUNT, serverUrl: 'https://mail.example.com', username: 'user', displayName: 'user', email: 'user',
@@ -117,6 +131,7 @@ beforeEach(async () => {
 describe('restoring the session on a replaced server', () => {
   it('drops the persisted 0.16.23 states before anything is sent to Stalwart 1.0', async () => {
     await writeServerFingerprint(ACCOUNT, sessionFingerprint(session('0.16.23')));
+    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(QUEUED));
 
     expect(await useAuthStore.getState().restoreSession()).toBe(true);
     // Let the fire-and-forget refetch run.
@@ -127,7 +142,11 @@ describe('restoring the session on a replaced server', () => {
     expect(JSON.stringify(sent)).not.toContain('s1iaq');
     expect(sent.some(([name]) => name === 'Mailbox/changes')).toBe(false);
     expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
+    // "b" is another message on the new server: the edit never goes out.
+    expect(emailSets()).toEqual([]);
+    expect(useOutboxStore.getState().activeAccountId).toBe(ACCOUNT);
     expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(await AsyncStorage.getItem(OUTBOX_KEY)).toBeNull();
   });
 
   it('keeps the cached view and syncs from it when the server is the same (Stalwart 1.0)', async () => {
@@ -138,5 +157,37 @@ describe('restoring the session on a replaced server', () => {
 
     const changes = client.requests.flat().filter(([name]) => name === 'Mailbox/changes');
     expect(changes.map(([, args]) => args.sinceState)).toEqual(['s1iaq']);
+  });
+
+  it('loads the outbox of the restored account and sends it when the server is the same (Stalwart 1.0)', async () => {
+    // The persisted view already shows the account, so the email store has
+    // no switch to make; the outbox and the offline cache attach anyway.
+    await writeServerFingerprint(ACCOUNT, sessionFingerprint(session('1.0')));
+    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(QUEUED));
+
+    expect(await useAuthStore.getState().restoreSession()).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(emailSets().map(([, args]) => args)).toEqual([
+      { accountId: 'f', update: { b: { 'keywords/$seen': true } } },
+    ]);
+    expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(JSON.parse((await AsyncStorage.getItem(OUTBOX_KEY))!)).toEqual([]);
+    expect(useOfflineCacheStore.getState().activeAccountId).toBe(ACCOUNT);
+  });
+
+  it('keeps the outbox of a restored account the server cannot be reached for (Stalwart 0.16.23)', async () => {
+    await writeServerFingerprint(ACCOUNT, sessionFingerprint(session('0.16.23')));
+    await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(QUEUED));
+    const { jmapClient, NetworkError } = await import('../../api/jmap-client');
+    vi.mocked(jmapClient.loadAccount).mockRejectedValueOnce(new NetworkError('offline'));
+
+    expect(await useAuthStore.getState().restoreSession()).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+
+    // No session, no check: nothing is dropped and nothing is sent.
+    expect(emailSets()).toEqual([]);
+    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['b']);
+    expect(await AsyncStorage.getItem(OUTBOX_KEY)).not.toBeNull();
   });
 });

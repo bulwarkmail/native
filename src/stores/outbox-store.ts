@@ -16,7 +16,8 @@
 // When the device is online and nothing is already queued for a message, the
 // op runs immediately (preserving today's behaviour, including surfacing real
 // server errors to the caller). Otherwise it's persisted to AsyncStorage and
-// replayed by flush() once connectivity returns. Storage is keyed per account,
+// replayed by flush() once connectivity returns, and not before the auth store
+// has resumed the account (see `resumed`). Storage is keyed per account,
 // mirroring offline-cache-store, so queues never leak between logins.
 
 import { create } from 'zustand';
@@ -86,10 +87,23 @@ interface OutboxState {
   failed: OutboxEntry[];
   hydrated: boolean;
   flushing: boolean;
-  /** Set after an authentication failure; cleared by setAccount()/login. */
+  /** Set after an authentication failure; cleared by setAccount()/resume(). */
   paused: boolean;
+  /**
+   * False from attaching an account until the auth store calls resume() for
+   * it, once the account's session is up and the server behind it was
+   * checked (lib/server-change). Until then ops queue and flush waits: the
+   * JMAP client may still serve the previous account, and a replaced server
+   * may have given the queued ids to other messages.
+   */
+  resumed: boolean;
 
   setAccount: (accountId: string | null) => Promise<void>;
+  /**
+   * The account's session is up and its server was checked: attach and load
+   * its queue if needed, then replay it.
+   */
+  resume: (accountId: string) => Promise<void>;
   hydrate: () => Promise<void>;
   enqueue: (op: OutboxOp) => void;
   count: () => number;
@@ -189,6 +203,13 @@ function opFamily(op: OutboxOp): string {
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryAttempt = 0;
 
+// Reads of a bucket from storage. A read still running when the account
+// changes or its queue is cleared must not put the old entries back, so
+// each one carries the epoch it started in; callers of the same account
+// share the read in flight.
+let loadEpoch = 0;
+let bucketLoad: { accountId: string; epoch: number; promise: Promise<void> } | null = null;
+
 function clearRetry(): void {
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = null;
@@ -215,6 +236,30 @@ async function refreshAfterDrop(): Promise<void> {
   }
 }
 
+// Load the attached account's bucket, or join the read already under way.
+function loadBucket(accountId: string): Promise<void> {
+  if (bucketLoad && bucketLoad.accountId === accountId && bucketLoad.epoch === loadEpoch) {
+    return bucketLoad.promise;
+  }
+  const epoch = ++loadEpoch;
+  const promise = (async () => {
+    const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
+    const store = useOutboxStore.getState();
+    if (epoch !== loadEpoch || store.activeAccountId !== accountId) return;
+    // Ops the user made while the bucket was loading go after the stored
+    // ones, and the stored list is written again with them: their persist
+    // replaced it with only the new ops.
+    const early = store.entries;
+    const merged = early.length > 0 ? [...entries, ...early] : entries;
+    useOutboxStore.setState({ entries: merged, failed, hydrated: true });
+    if (early.length > 0) persist(accountId, merged);
+  })().finally(() => {
+    if (bucketLoad?.promise === promise) bucketLoad = null;
+  });
+  bucketLoad = { accountId, epoch, promise };
+  return promise;
+}
+
 export const useOutboxStore = create<OutboxState>((set, get) => ({
   activeAccountId: null,
   entries: [],
@@ -222,6 +267,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   hydrated: false,
   flushing: false,
   paused: false,
+  resumed: false,
 
   setAccount: async (accountId) => {
     const state = get();
@@ -232,15 +278,22 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     }
     clearRetry();
     retryAttempt = 0;
-    set({ activeAccountId: accountId, entries: [], failed: [], hydrated: false, paused: false });
+    // Each attach reads the bucket afresh; a read from before is dropped.
+    loadEpoch += 1;
+    set({ activeAccountId: accountId, entries: [], failed: [], hydrated: false, paused: false, resumed: false });
     if (accountId) {
-      const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
-      // Re-check in case another setAccount raced past us.
-      if (get().activeAccountId !== accountId) return;
-      set({ entries, failed, hydrated: true });
+      await loadBucket(accountId);
     } else {
       set({ hydrated: true });
     }
+  },
+
+  resume: async (accountId) => {
+    await get().setAccount(accountId);
+    // Another account may have been attached while this one loaded.
+    if (get().activeAccountId !== accountId) return;
+    set({ resumed: true, paused: false });
+    await get().flush();
   },
 
   hydrate: async () => {
@@ -251,9 +304,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       set({ hydrated: true });
       return;
     }
-    const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
-    if (get().activeAccountId !== accountId) return;
-    set({ entries, failed, hydrated: true });
+    await loadBucket(accountId);
   },
 
   enqueue: (op) => {
@@ -301,7 +352,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   pendingForEmail: (emailId) => get().entries.filter((e) => e.op.emailId === emailId),
 
   flush: async () => {
-    if (get().flushing || get().paused) return;
+    if (get().flushing || get().paused || !get().resumed || !get().hydrated) return;
     const accountId = get().activeAccountId;
     if (!accountId) return;
     if (get().entries.length === 0) return;
@@ -398,7 +449,9 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   clearAccount: async (accountId) => {
     if (get().activeAccountId === accountId) {
       clearRetry();
-      set({ entries: [], failed: [] });
+      // A read of the bucket still under way must not bring the ops back.
+      loadEpoch += 1;
+      set({ entries: [], failed: [], hydrated: true });
     }
     await AsyncStorage.removeItem(storageKey(accountId)).catch(() => undefined);
     await AsyncStorage.removeItem(storageKey(accountId) + FAILED_SUFFIX).catch(() => undefined);
@@ -461,7 +514,9 @@ export async function applyOrQueueBatch(
 ): Promise<ApplyResult> {
   if (ops.length === 0) return { queued: false };
   const store = useOutboxStore.getState();
-  const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
+  // Until the auth store resumes the queue, the client may still serve the
+  // account being left, or a server not yet checked: queue, replay later.
+  const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused && store.resumed;
   const hasQueued = ops.some((op) =>
     store.entries.some((e) => e.op.emailId === op.emailId),
   );

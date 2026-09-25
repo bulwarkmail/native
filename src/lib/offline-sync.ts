@@ -8,6 +8,19 @@ import { jmapClient } from '../api/jmap-client';
 import { queryEmailsByFilter, getFullEmails } from '../api/email';
 import { useOfflineCacheStore, cacheKey } from '../stores/offline-cache-store';
 import type { Email } from '../api/types';
+import { generateAccountId } from './account-utils';
+
+// The sync reads through the JMAP client and writes into the cache's loaded
+// bucket. During an account switch the two name different accounts for a
+// while (the stores switch first, then the client), so a sync goes on only
+// while both are on the account it started for. When they are not, the
+// progress on screen belongs to the other account and is left alone.
+function onAccount(accountId: string): boolean {
+  if (useOfflineCacheStore.getState().activeAccountId !== accountId) return false;
+  const { username, serverUrl } = jmapClient;
+  if (!username || !serverUrl) return false;
+  return generateAccountId(username, serverUrl) === accountId;
+}
 
 // Approximate the on-disk size of a serialised Email so we can show "Y MB
 // downloaded" without measuring AsyncStorage usage. Body values dominate; the
@@ -50,6 +63,8 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
     return;
   }
   if (!cache.hydrated) await cache.hydrate();
+  const account = useOfflineCacheStore.getState().activeAccountId;
+  if (!account || !onAccount(account)) return;
   cache.resetSync();
 
   const startedAt = Date.now();
@@ -64,6 +79,7 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
   try {
     targets.push({ accountId: undefined, ids: await queryEmailsByFilter({ after: since }, DISCOVERY_LIMIT) });
   } catch (err) {
+    if (!onAccount(account)) return;
     cache.setSyncState({
       phase: 'error',
       message: err instanceof Error ? err.message : 'Discovery query failed',
@@ -82,21 +98,25 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
       console.warn('[offline-sync] shared account discovery failed:', acc.id, err);
     }
   }
+  // The ids found name messages of whichever account the client served.
+  if (!onAccount(account)) return;
 
   // Drop entries from the cache that fell out of the lookback window — the
   // user expects the cache to track "the last X days", not grow forever.
   const keepSet = new Set<string>();
   for (const tgt of targets) for (const id of tgt.ids) keepSet.add(cacheKey(id, tgt.accountId));
   const staleByAccount = new Map<string | undefined, string[]>();
-  for (const entry of Object.values(cache.index.entries)) {
+  for (const entry of Object.values(useOfflineCacheStore.getState().index.entries)) {
     const key = cacheKey(entry.id, entry.jmapAccountId);
     if (keepSet.has(key)) continue;
     const list = staleByAccount.get(entry.jmapAccountId);
     if (list) list.push(entry.id); else staleByAccount.set(entry.jmapAccountId, [entry.id]);
   }
   for (const [accountId, ids] of staleByAccount) {
+    if (!onAccount(account)) return;
     if (ids.length > 0) await cache.remove(ids, accountId);
   }
+  if (!onAccount(account)) return;
 
   const total = targets.reduce((n, tgt) => n + tgt.ids.length, 0);
   cache.setSyncState({ phase: 'fetching', total, completed: 0, fetched: 0, bytes: 0 });
@@ -130,6 +150,7 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
 
   for (const tgt of work) {
     for (let i = 0; i < tgt.ids.length; i += chunkSize) {
+      if (!onAccount(account)) return;
       if (useOfflineCacheStore.getState().consumeAbort()) {
         cache.setSyncState({
           phase: 'cancelled',
@@ -143,6 +164,7 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
       try {
         emails = await getFullEmails(chunk, tgt.accountId);
       } catch (err) {
+        if (!onAccount(account)) return;
         cache.setSyncState({
           phase: 'error',
           message: err instanceof Error ? err.message : 'Fetch failed',
@@ -150,10 +172,12 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
         });
         return;
       }
+      // Read through a client that may have moved on to another account.
+      if (!onAccount(account)) return;
 
       for (const email of emails) {
         const size = approxSize(email);
-        await cache.put(email, size, tgt.accountId);
+        await cache.put(email, size, tgt.accountId, account);
         fetched += 1;
         bytes += size;
         completed += 1;
@@ -170,6 +194,7 @@ export async function runOfflineSync(opts: RunOptions): Promise<void> {
 
   // Trim the cache back under its size cap, shedding the oldest mail. Done
   // after fetching so we never evict something we're about to keep.
+  if (!onAccount(account)) return;
   if (opts.maxMB) await cache.evictToFit(opts.maxMB * 1024 * 1024);
 
   cache.setSyncState({

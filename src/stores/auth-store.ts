@@ -8,6 +8,7 @@ import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
+import { useOutboxStore } from './outbox-store';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -146,7 +147,15 @@ async function checkServerChange(accountId: string, session: JMAPSession): Promi
   }
 }
 
-function refetchFeatureStores(): void {
+// The outbox replays against whatever account the JMAP client serves, and a
+// replaced server may have given the queued ids to other messages. So it
+// runs only once the account's session is up and its server was checked.
+function resumeOutbox(accountId: string): void {
+  void useOutboxStore.getState().resume(accountId);
+}
+
+function refetchFeatureStores(accountId: string): void {
+  resumeOutbox(accountId);
   // Fire-and-forget: each store handles its own errors.
   const emailStore = useEmailStore.getState();
   void emailStore.fetchMailboxes();
@@ -255,6 +264,7 @@ async function completeOAuthHandoff(
   useEmailStore.getState().setActiveAccount(accountId);
 
   applyConnectedState(set, session, result.serverUrl.replace(/\/+$/, ''), username, accountId);
+  resumeOutbox(accountId);
   // Start on the folder list now rather than once the mail screen has
   // mounted; the screen joins this load.
   void useEmailStore.getState().fetchMailboxes();
@@ -334,6 +344,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       applyConnectedState(set, session, serverUrl.replace(/\/+$/, ''), username, accountId);
       set({ pendingTotpLogin: null });
+      resumeOutbox(accountId);
       // Start on the folder list now rather than once the mail screen has
       // mounted; the screen joins this load.
       void useEmailStore.getState().fetchMailboxes();
@@ -577,6 +588,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // jmapClient first. If it fails, restore the previous active account
     // so we don't leave the user stranded on a half-switched state.
     const previousActive = get().activeAccountId;
+    const previousLive = get().session !== null;
     // loadAccount overwrites the client's credentials/session; keep the live
     // connection around so a failed switch can put it back instead of
     // leaving the previous account dead until relaunch.
@@ -584,6 +596,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const restorePrevious = () => {
       jmapClient.restoreSnapshot(previousClient);
       if (previousActive) useEmailStore.getState().setActiveAccount(previousActive);
+      // Its session and server check still hold; without one, the next
+      // session resumes the outbox.
+      if (previousActive && previousLive) resumeOutbox(previousActive);
     };
     try {
       const ok = await jmapClient.loadAccount(accountId);
@@ -634,7 +649,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await checkServerChange(accountId, session);
 
     applyConnectedState(set, session, target.serverUrl, target.username, accountId);
-    refetchFeatureStores();
+    refetchFeatureStores(accountId);
     void syncAccountDisplayName(accountId);
   },
 
@@ -759,7 +774,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Refresh the cached mailbox list + current folder now that the session
       // is live. Feature stores show persisted data immediately; this swaps
       // in fresh data once the network round-trip completes.
-      refetchFeatureStores();
+      refetchFeatureStores(target.id);
       void syncAccountDisplayName(target.id);
       return true;
     } catch {
@@ -790,7 +805,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const fresh = jmapClient.currentSession!;
       await checkServerChange(activeAccountId, fresh);
       applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
-      refetchFeatureStores();
+      refetchFeatureStores(activeAccountId);
       return true;
     } catch (err) {
       if (err instanceof AuthenticationError) {

@@ -251,6 +251,7 @@ export class JMAPClient {
     totp?: string,
   ): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
+    this.detachSession();
     if (totp) {
       return this.connectWithTotp(baseUrl, username, password, totp);
     }
@@ -299,6 +300,7 @@ export class JMAPClient {
 
   async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
+    this.detachSession();
     this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
 
     this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
@@ -319,6 +321,7 @@ export class JMAPClient {
     preferredUsername?: string,
   ): Promise<{ session: JMAPSession; username: string; accountId: string }> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
+    this.detachSession();
     this.credentials = {
       serverUrl: baseUrl,
       username: '',
@@ -489,6 +492,7 @@ export class JMAPClient {
   }
 
   async loadAccount(accountId: string): Promise<boolean> {
+    this.detachSession();
     const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
     if (!stored) return false;
 
@@ -526,6 +530,18 @@ export class JMAPClient {
     }
     this._accountId = this.resolveAccountId(this.session);
     return true;
+  }
+
+  /**
+   * Serve no account until the next session is up. The app's stores switch
+   * to the account being signed in first, and the old session would carry
+   * the new credentials once they are swapped in: a request in between (an
+   * outbox replay, a refresh) would reach the previous account. Callers that
+   * switch keep a snapshot() to put it back on failure.
+   */
+  private detachSession(): void {
+    this.session = null;
+    this._accountId = null;
   }
 
   /**

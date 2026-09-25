@@ -78,7 +78,12 @@ interface OfflineCacheState {
   hydrate: () => Promise<void>;
   has: (id: string, jmapAccountId?: string) => boolean;
   get: (id: string, jmapAccountId?: string) => Promise<Email | null>;
-  put: (email: Email, approxBytes: number, jmapAccountId?: string) => Promise<void>;
+  /**
+   * Cache a body in the loaded bucket. `forAccountId` names the account the
+   * caller read it for; the put is dropped when another bucket is loaded by
+   * then (an account switch during a sync).
+   */
+  put: (email: Email, approxBytes: number, jmapAccountId?: string, forAccountId?: string) => Promise<void>;
   // Apply a change to a cached email (no-op when not cached). Used to keep the
   // cached body consistent with an optimistic/queued mutation so a re-open
   // while offline reflects the new keywords / mailboxIds. `keywords` is a
@@ -134,6 +139,11 @@ async function loadIndex(accountId: string): Promise<CacheIndex> {
   return { entries: {} };
 }
 
+// Bumped whenever another bucket is loaded or the loaded one is cleared: an
+// index read or a write still under way from before must not bring old
+// entries into what is loaded now.
+let bucketEpoch = 0;
+
 export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
   activeAccountId: null,
   index: { entries: {} },
@@ -150,6 +160,7 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     }
     // Drop any in-flight sync state from the previous account; the abort flag
     // makes runOfflineSync stop on its next chunk boundary.
+    const epoch = ++bucketEpoch;
     set({
       activeAccountId: accountId,
       index: { ...EMPTY_INDEX },
@@ -159,8 +170,9 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     });
     if (accountId) {
       const index = await loadIndex(accountId);
-      // Re-check in case another setAccount call raced past us.
-      if (get().activeAccountId !== accountId) return;
+      // Re-check in case another setAccount call, or a clearAccount(), raced
+      // past us.
+      if (epoch !== bucketEpoch || get().activeAccountId !== accountId) return;
       set({ index, hydrated: true, abortRequested: false });
     } else {
       set({ hydrated: true, abortRequested: false });
@@ -177,8 +189,9 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
       set({ hydrated: true });
       return;
     }
+    const epoch = bucketEpoch;
     const index = await loadIndex(accountId);
-    if (get().activeAccountId !== accountId) return;
+    if (epoch !== bucketEpoch || get().activeAccountId !== accountId) return;
     set({ index, hydrated: true });
   },
 
@@ -199,10 +212,12 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     }
   },
 
-  put: async (email, approxBytes, jmapAccountId) => {
+  put: async (email, approxBytes, jmapAccountId, forAccountId) => {
     const state = get();
     const accountId = state.activeAccountId;
     if (!accountId) return;
+    if (forAccountId !== undefined && forAccountId !== accountId) return;
+    const epoch = bucketEpoch;
     const key = cacheKey(email.id, jmapAccountId);
     try {
       await AsyncStorage.setItem(entryKey(accountId, key), JSON.stringify(email));
@@ -212,8 +227,9 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     }
     // Re-read the active account in case it changed while we were awaiting
     // AsyncStorage — don't stamp the new account's index with the old
-    // account's entry.
-    if (get().activeAccountId !== accountId) return;
+    // account's entry, nor put it back into a bucket cleared meanwhile. The
+    // body stays unindexed, so it is never read.
+    if (epoch !== bucketEpoch || get().activeAccountId !== accountId) return;
     const nextEntries = {
       ...get().index.entries,
       [key]: {
@@ -233,6 +249,7 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     const accountId = get().activeAccountId;
     const key = cacheKey(id, jmapAccountId);
     if (!accountId || !get().index.entries[key]) return;
+    const epoch = bucketEpoch;
     try {
       const raw = await AsyncStorage.getItem(entryKey(accountId, key));
       if (!raw) return;
@@ -242,7 +259,7 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
         ...(changes.mailboxIds ? { mailboxIds: changes.mailboxIds } : {}),
         ...(changes.keywords ? { keywords: applyKeywordPatch(email.keywords, changes.keywords) } : {}),
       };
-      if (get().activeAccountId !== accountId) return;
+      if (epoch !== bucketEpoch || get().activeAccountId !== accountId) return;
       await AsyncStorage.setItem(entryKey(accountId, key), JSON.stringify(updated));
     } catch (err) {
       console.warn('[offline-cache] patch failed', id, err);
@@ -308,13 +325,18 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
 
   clearAccount: async (accountId) => {
     const loaded = get().activeAccountId === accountId;
-    const keys = Object.keys((loaded ? get().index : await loadIndex(accountId)).entries);
+    const keys = new Set(loaded ? Object.keys(get().index.entries) : []);
     if (loaded) {
-      // A sync still filling the bucket stops at its next chunk.
-      set({ index: { entries: {} }, sync: { ...IDLE }, abortRequested: true });
+      // A sync still filling the bucket stops at its next chunk, and a read
+      // of the index still under way must not bring the old entries back.
+      bucketEpoch += 1;
+      set({ index: { entries: {} }, hydrated: true, sync: { ...IDLE }, abortRequested: true });
     }
+    // The stored index as well: the loaded one may not have been read yet,
+    // or may not have been written yet.
+    for (const key of Object.keys((await loadIndex(accountId)).entries)) keys.add(key);
     await Promise.all(
-      keys.map((key) => AsyncStorage.removeItem(entryKey(accountId, key)).catch(() => undefined)),
+      [...keys].map((key) => AsyncStorage.removeItem(entryKey(accountId, key)).catch(() => undefined)),
     );
     await AsyncStorage.removeItem(indexKey(accountId)).catch(() => undefined);
   },

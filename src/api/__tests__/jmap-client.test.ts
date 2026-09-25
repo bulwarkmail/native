@@ -234,6 +234,55 @@ describe('JMAPClient', () => {
     });
   });
 
+  describe('loadAccount', () => {
+    const OTHER_SESSION: JMAPSession = {
+      ...MOCK_SESSION,
+      apiUrl: 'https://other.example.com/jmap/',
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'acc-2' },
+      accounts: { 'acc-2': { name: 'other@example.com', isPersonal: true, isReadOnly: false } },
+    };
+
+    it('serves no account while the next one loads, then the new one', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+      (SecureStore.getItemAsync as any).mockResolvedValue(
+        JSON.stringify({ serverUrl: 'https://other.example.com', username: 'other', password: 'pw' }),
+      );
+      let respond!: (response: unknown) => void;
+      global.fetch = vi.fn(() => new Promise((resolve) => { respond = resolve; })) as any;
+
+      const loading = client.loadAccount('other@other.example.com');
+      // Before the stored credentials are even read: the stores already show
+      // the new account, and the old session must not serve its requests.
+      expect(client.isConnected).toBe(false);
+      await vi.waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      expect(client.isConnected).toBe(false);
+      await expect(client.request([['Mailbox/get', { accountId: 'acc-1' }, '0']])).rejects.toThrow('Not connected');
+
+      respond({
+        ok: true, status: 200, statusText: 'OK', headers: { get: () => null },
+        json: async () => OTHER_SESSION, text: async () => JSON.stringify(OTHER_SESSION),
+      });
+      expect(await loading).toBe(true);
+      expect(client.isConnected).toBe(true);
+      expect(client.accountId).toBe('acc-2');
+    });
+
+    it('leaves the previous account to the snapshot when the next one cannot load', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+      const previous = client.snapshot();
+      (SecureStore.getItemAsync as any).mockResolvedValue(null);
+
+      expect(await client.loadAccount('gone@other.example.com')).toBe(false);
+      expect(client.isConnected).toBe(false);
+
+      client.restoreSnapshot(previous);
+      expect(client.isConnected).toBe(true);
+      expect(client.accountId).toBe('acc-1');
+    });
+  });
+
   describe('logout', () => {
     it('should clear session and stored credentials', async () => {
       global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
