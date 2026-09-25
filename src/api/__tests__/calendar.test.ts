@@ -476,6 +476,25 @@ describe('calendar operations', () => {
         ev1: { recurrenceRule: null },
       });
     });
+
+    it('keeps the SetError type and description of a refused update (Stalwart 1.0 override rule)', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', {
+          notUpdated: {
+            ev1: {
+              type: 'invalidProperties',
+              description: 'organizerCalendarAddress cannot be set inside recurrenceOverrides.',
+              properties: ['recurrenceOverrides'],
+            },
+          },
+        }, '0']],
+      });
+
+      await expect(updateEvent('ev1', { title: 'x' })).rejects.toMatchObject({
+        type: 'invalidProperties',
+        message: 'organizerCalendarAddress cannot be set inside recurrenceOverrides.',
+      });
+    });
   });
 
   describe('findEventsByUid', () => {

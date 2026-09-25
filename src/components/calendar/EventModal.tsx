@@ -58,8 +58,7 @@ import {
 } from '../../lib/calendar-alerts';
 import { buildRecurrenceSummary, isSimpleRecurrenceRule } from '../../lib/recurrence';
 import {
-  buildParticipantMap,
-  getParticipantList,
+  participantFieldsToSave,
   seedAttendees,
   type Attendee,
 } from '../../lib/calendar-participants';
@@ -327,28 +326,12 @@ export function EventModal({
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };
-      const organizerEmail = currentUserEmails[0];
-      if (attendees.length > 0 && organizerEmail) {
-        // A new event has no participants yet, so it would store an empty
-        // organizer name; fall back to the contact card / account name.
-        const organizerName =
-          (event ? getParticipantList(event).find((p) => p.isOrganizer)?.name : '')
-          || resolveContactName(organizerEmail)
-          || '';
-        data.participants = buildParticipantMap(
-          { name: organizerName, email: organizerEmail },
-          attendees,
-        );
-        // Stalwart (calcard) derives the iCalendar ORGANIZER property solely from
-        // organizerCalendarAddress; without it no ORGANIZER is emitted and iTIP
-        // scheduling is silently skipped, so no invites are sent.
-        data.organizerCalendarAddress = `mailto:${organizerEmail}`;
-      } else if (attendees.length === 0 && isEdit && had('participants')) {
-        data.participants = null;
-        // Also clear the retired replyTo that older releases wrote.
-        if (event?.replyTo) data.replyTo = null;
-        if (event?.organizerCalendarAddress) data.organizerCalendarAddress = null;
-      }
+      // An invitation the user received keeps its organizer; only an event
+      // without one is organized by the user.
+      Object.assign(data, participantFieldsToSave(event, attendees, {
+        userEmail: currentUserEmails[0],
+        resolveName: resolveContactName,
+      }));
       if (data.recurrenceRules === null) {
         // Dropping the rule leaves per-occurrence data dangling.
         if (had('recurrenceOverrides')) data.recurrenceOverrides = null;

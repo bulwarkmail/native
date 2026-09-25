@@ -8,6 +8,7 @@ import {
   getStatusCounts,
   getUserParticipantId,
   isOrganizer,
+  participantFieldsToSave,
   seedAttendees,
 } from '../calendar-participants';
 
@@ -169,5 +170,86 @@ describe('getParticipantList dedupe, names and organizer status', () => {
         ghost: { name: 'No Address' },
       },
     })).toBe(3);
+  });
+});
+
+// The editor rebuilds the participants on every save. It used to make the
+// user the organizer of every event with attendees, invitations they only
+// received included, and to write their first address as
+// organizerCalendarAddress - which Stalwart 1.0 also refuses on one
+// occurrence of a series organized under another address or letter case.
+describe('participantFieldsToSave', () => {
+  const attendees = [{ name: 'Bob', email: 'bob@example.com' }];
+  const owner = (fields: ReturnType<typeof participantFieldsToSave>) =>
+    Object.values(fields.participants ?? {}).find((p) => p.roles?.owner);
+
+  it('makes the user the organizer of a new event and writes the address', () => {
+    const fields = participantFieldsToSave(null, attendees, {
+      userEmail: 'me@example.com',
+      resolveName: (email) => (email === 'me@example.com' ? 'Me' : undefined),
+    });
+
+    expect(owner(fields)).toMatchObject({ email: 'me@example.com', name: 'Me' });
+    expect(fields.organizerCalendarAddress).toBe('mailto:me@example.com');
+  });
+
+  it('keeps the organizer of an invitation the user received', () => {
+    const invitation: Partial<CalendarEvent> = {
+      organizerCalendarAddress: 'mailto:boss@example.com',
+      participants: {
+        boss: { calendarAddress: 'mailto:boss@example.com', name: 'Boss' },
+        me: { calendarAddress: 'mailto:me@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+      },
+    };
+    const rows = seedAttendees(invitation, ['me@example.com']);
+
+    const fields = participantFieldsToSave(invitation, rows, { userEmail: 'me@example.com' });
+
+    expect(owner(fields)).toMatchObject({ email: 'boss@example.com', name: 'Boss', calendarAddress: 'mailto:boss@example.com' });
+    expect(Object.values(fields.participants ?? {}).map((p) => p.email).sort()).toEqual(['boss@example.com', 'me@example.com']);
+    expect(fields).not.toHaveProperty('organizerCalendarAddress');
+  });
+
+  it('keeps the exact address a series is organized under', () => {
+    const series: Partial<CalendarEvent> = {
+      organizerCalendarAddress: 'mailto:Team@Example.com',
+      participants: { org: { calendarAddress: 'mailto:Team@Example.com' }, bob: { email: 'bob@example.com' } },
+    };
+
+    const fields = participantFieldsToSave(series, attendees, { userEmail: 'me@example.com' });
+
+    expect(owner(fields)?.email).toBe('Team@Example.com');
+    expect(fields).not.toHaveProperty('organizerCalendarAddress');
+  });
+
+  it('takes the organizer from organizerCalendarAddress when no participant names it', () => {
+    const fields = participantFieldsToSave(
+      { organizerCalendarAddress: 'mailto:boss@example.com', participants: {} },
+      attendees,
+      { userEmail: 'me@example.com' },
+    );
+
+    expect(owner(fields)?.email).toBe('boss@example.com');
+    expect(fields).not.toHaveProperty('organizerCalendarAddress');
+  });
+
+  it('makes the user the organizer of an event that had none and writes the address', () => {
+    const fields = participantFieldsToSave({ title: 'Lunch' }, attendees, { userEmail: 'me@example.com' });
+
+    expect(owner(fields)?.email).toBe('me@example.com');
+    expect(fields.organizerCalendarAddress).toBe('mailto:me@example.com');
+  });
+
+  it('clears the participants and the organizer when every attendee is removed', () => {
+    expect(participantFieldsToSave(event, [], { userEmail: 'alice@example.com' })).toEqual({
+      participants: null,
+      organizerCalendarAddress: null,
+    });
+    expect(participantFieldsToSave(
+      { participants: event.participants, replyTo: { imip: 'mailto:alice@example.com' } },
+      [],
+      { userEmail: 'alice@example.com' },
+    )).toEqual({ participants: null, replyTo: null });
+    expect(participantFieldsToSave({ title: 'Lunch' }, [], { userEmail: 'me@example.com' })).toEqual({});
   });
 });

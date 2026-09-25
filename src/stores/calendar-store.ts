@@ -42,10 +42,13 @@ import {
   buildOccurrencePatch,
   buildOccurrenceRsvpPatch,
   isBrowserExpandedOccurrence,
+  isOverrideSeriesKeyRejection,
   isServerRecurrenceInstance,
   isSyntheticIdMutationUnsupported,
   seriesIdOf,
   withNewOverrideDetails,
+  withoutOverrideSeriesKeys,
+  type OverridePatchOptions,
 } from '../lib/recurrence-instances';
 import { findTasksOnlyCalendarIds, isTaskLikeObject } from '../lib/calendar-component-detection';
 import { mergeRangeEvents, mergedSpanLimit, planRangeLoad, sameRange } from '../lib/calendar-range-cache';
@@ -443,33 +446,64 @@ export function resolveMutationTarget(
 // said it would take them: go straight to the base-event override then.
 let syntheticIdRejected = false;
 
+// Set once the server refused series keys inside a recurrence override
+// (Stalwart 1.0): override writes leave them out from then on.
+let overrideSeriesKeysRejected = false;
+
 /**
- * Patch one server-expanded occurrence through its synthetic id. A server
- * that predates synthetic-id writes rejects it; the same change is then
- * written as a recurrence override on the base event instead, and that is
- * remembered. A change that creates the override carries the occurrence's
- * details along (`withNewOverrideDetails`).
+ * Update a stored event. Recurrence overrides it writes carry the series keys
+ * 0.16 has always been sent (the organizer; see buildFallbackOverridePatch).
+ * Stalwart 1.0 refuses those inside an override ("organizerCalendarAddress
+ * cannot be set inside recurrenceOverrides."): the update then goes out once
+ * more without them, and so does every later one.
+ */
+async function updateBaseEvent(
+  id: string,
+  updates: Record<string, unknown>,
+  sendSchedulingMessages: boolean | undefined,
+  accountId: string | undefined,
+): Promise<void> {
+  const writesOverrides = Object.keys(updates).some((key) => key.split('/', 1)[0] === 'recurrenceOverrides');
+  if (writesOverrides && overrideSeriesKeysRejected) {
+    await apiUpdateEvent(id, withoutOverrideSeriesKeys(updates), sendSchedulingMessages, accountId);
+    return;
+  }
+  try {
+    await apiUpdateEvent(id, updates, sendSchedulingMessages, accountId);
+  } catch (err) {
+    if (!writesOverrides || !isOverrideSeriesKeyRejection(err)) throw err;
+    overrideSeriesKeysRejected = true;
+    await apiUpdateEvent(id, withoutOverrideSeriesKeys(updates), sendSchedulingMessages, accountId);
+  }
+}
+
+/**
+ * Patch one server-expanded occurrence through its synthetic id, with only
+ * what one occurrence may carry (`buildOccurrencePatch`). A server that
+ * predates synthetic-id writes rejects it; the same change is then written
+ * as a recurrence override on the base event instead, and that is
+ * remembered. `patchFor` builds the change; the base-event override asks it
+ * for the series keys as well.
  */
 async function updateOccurrence(
   instance: CalendarEvent,
   syntheticId: string,
-  updates: Partial<CalendarEvent>,
+  patchFor: (options: OverridePatchOptions) => Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
   accountId: string | undefined,
 ): Promise<void> {
-  const patch = withNewOverrideDetails(instance, buildOccurrencePatch(updates));
   if (!syntheticIdRejected) {
     try {
-      await apiUpdateEvent(syntheticId, patch, sendSchedulingMessages, accountId);
+      await apiUpdateEvent(syntheticId, buildOccurrencePatch(patchFor({})), sendSchedulingMessages, accountId);
       return;
     } catch (err) {
       if (!isSyntheticIdMutationUnsupported(err)) throw err;
       syntheticIdRejected = true;
     }
   }
-  const fallback = buildFallbackOverridePatch(instance, patch);
+  const fallback = buildFallbackOverridePatch(instance, patchFor({ seriesKeys: true }));
   if (!fallback || !instance.baseEventId) throw new Error('Cannot resolve the occurrence to override');
-  await apiUpdateEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId);
+  await updateBaseEvent(instance.baseEventId, fallback, sendSchedulingMessages, accountId);
 }
 
 /** Destroy one server-expanded occurrence; falls back to excluding it on the base event. */
@@ -504,9 +538,9 @@ async function updateBrowserOccurrence(
   sendSchedulingMessages: boolean | undefined,
 ): Promise<void> {
   const occurrence = target.storeEvent!;
-  const patch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates));
+  const patch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates, { seriesKeys: true }));
   if (!patch) throw new Error('Cannot resolve the occurrence to override');
-  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+  await updateBaseEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
 }
 
 /** Delete one occurrence the device expanded by excluding it on its base event. */
@@ -812,11 +846,17 @@ export const useCalendarStore = create<CalendarState>()(
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
     if (target.isOccurrence && storeEvent) {
-      await updateOccurrence(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+      await updateOccurrence(
+        storeEvent,
+        realId,
+        (options) => withNewOverrideDetails(storeEvent, patch as Partial<CalendarEvent>, options),
+        schedule,
+        accountId,
+      );
     } else if (target.isBrowserOccurrence) {
       await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule);
     } else {
-      await apiUpdateEvent(realId, patch, schedule, accountId);
+      await updateBaseEvent(realId, patch, schedule, accountId);
     }
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
@@ -902,10 +942,14 @@ export const useCalendarStore = create<CalendarState>()(
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, seriesIdOf(storeEvent ?? { id: realId }), accountId);
     if (occurrence) {
-      const patch = buildOccurrenceRsvpPatch(occurrence, participantId, status);
+      // Through a synthetic id the answer leaves the organizer out (it is the
+      // series'); an override on the base event names it (0.16.19 needs it).
+      const patchFor = (options: OverridePatchOptions) =>
+        buildOccurrenceRsvpPatch(occurrence, participantId, status, options);
+      const patch = patchFor({ seriesKeys: true });
       if (!patch) throw new Error('Participant not found on this occurrence');
       if (target.isOccurrence) {
-        await updateOccurrence(occurrence, target.realId, patch, true, accountId);
+        await updateOccurrence(occurrence, target.realId, (options) => patchFor(options) ?? {}, true, accountId);
       } else {
         await updateBrowserOccurrence(target, patch, true);
       }
@@ -1144,6 +1188,7 @@ export const useCalendarStore = create<CalendarState>()(
     resetCalendarAccessDenied();
     resetSyntheticIdSupport();
     syntheticIdRejected = false;
+    overrideSeriesKeysRejected = false;
     knownMasters.clear();
     set({
       calendars: [],

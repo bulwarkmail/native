@@ -21,6 +21,7 @@
  */
 
 import type { CalendarEvent, Participant } from '../api/types';
+import { jmapErrorType } from '../api/jmap-result';
 import { RECURRENCE_OVERRIDE_IMMUTABLE_KEYS } from './recurrence-overrides';
 
 /**
@@ -283,6 +284,35 @@ export const OCCURRENCE_REJECTED_KEYS = [
 ] as const;
 
 /**
+ * Properties of the whole series, plus the app's plural rule names. Stalwart
+ * 1.0 refuses them inside a recurrence override, and on a synthetic id
+ * unless they equal the base event's value; 0.16.20 to 0.16.23 drop them
+ * there (jmap/src/calendar_event/validate.rs, is_series_property).
+ */
+export const SERIES_KEYS = [
+  '@type',
+  'method',
+  'organizerCalendarAddress',
+  'privacy',
+  'prodId',
+  'recurrenceId',
+  'recurrenceIdTimeZone',
+  'sentBy',
+  'uid',
+  'recurrenceOverrides',
+  'recurrenceRule',
+  'recurrenceRules',
+  'excludedRecurrenceRule',
+  'excludedRecurrenceRules',
+] as const;
+
+/** Per-event metadata (validate.rs, is_event_metadata): never part of one occurrence. */
+export const EVENT_METADATA_KEYS = ['id', ...OCCURRENCE_REJECTED_KEYS] as const;
+
+// Fields the app keeps on its events that no server knows.
+const CLIENT_ONLY_KEYS = ['originalId', 'originalCalendarIds', 'accountId', 'isShared', 'localAccountId'] as const;
+
+/**
  * Whether a `CalendarEvent/set` failure is a pre-0.16.20 server refusing a
  * synthetic id ("Updating/Deleting synthetic ids is not yet supported.").
  */
@@ -293,37 +323,93 @@ export function isSyntheticIdMutationUnsupported(error: unknown): boolean {
   return /synthetic ids?\b.*\bnot (?:yet )?supported/i.test(message);
 }
 
+/**
+ * Whether a `CalendarEvent/set` failure is Stalwart 1.0 refusing a series
+ * key inside a recurrence override (invalidProperties, "privacy cannot be
+ * set inside recurrenceOverrides.").
+ */
+export function isOverrideSeriesKeyRejection(error: unknown): boolean {
+  return jmapErrorType(error) === 'invalidProperties'
+    && /cannot be set inside recurrenceOverrides/i.test(error instanceof Error ? error.message : '');
+}
+
 function firstPointerSegment(key: string): string {
   const slash = key.indexOf('/');
   return slash === -1 ? key : key.slice(0, slash);
 }
 
+const NOT_PER_OCCURRENCE = new Set<string>([...SERIES_KEYS, ...EVENT_METADATA_KEYS, ...CLIENT_ONLY_KEYS]);
+
+// A participant's address is the series': 1.0 refuses a pointer at it inside
+// an override, and on a synthetic id unless it is unchanged.
+const PARTICIPANT_ADDRESS_POINTER = /^participants\/[^/]+\/calendarAddress$/;
+
+function isPerOccurrenceKey(key: string): boolean {
+  return !NOT_PER_OCCURRENCE.has(firstPointerSegment(key)) && !PARTICIPANT_ADDRESS_POINTER.test(key);
+}
+
 /**
- * Reduce an event patch to what may be written to a single occurrence
- * through its synthetic id: identity / whole-series keys and the per-event
- * keys the server rejects are dropped (also when addressed through a JSON
- * pointer such as `calendarIds/x`). Everything else - including pointer
- * patches like `locations/loc1/name` - passes through unchanged.
+ * Reduce an event patch to what one occurrence may carry, through its
+ * synthetic id or inside its override: series keys and per-event metadata
+ * are dropped (also when addressed through a JSON pointer such as
+ * `calendarIds/x`), and so is a pointer at a participant's calendarAddress.
+ * Everything else - including pointer patches like `locations/loc1/name` and
+ * a whole `participants` map - passes through unchanged.
  */
 export function buildOccurrencePatch(updates: Partial<CalendarEvent>): Partial<CalendarEvent> {
-  const dropped = new Set<string>([
-    ...RECURRENCE_OVERRIDE_IMMUTABLE_KEYS,
-    ...OCCURRENCE_REJECTED_KEYS,
-    'recurrenceId',
-    'recurrenceIdTimeZone',
-    // Client-only fields.
-    'originalId',
-    'originalCalendarIds',
-    'accountId',
-    'isShared',
-    'localAccountId',
-  ]);
   const patch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(updates)) {
-    if (dropped.has(firstPointerSegment(key))) continue;
-    patch[key] = value;
+    if (isPerOccurrenceKey(key)) patch[key] = value;
   }
   return patch as Partial<CalendarEvent>;
+}
+
+const NOT_IN_OVERRIDE_ENTRIES = new Set<string>([
+  ...RECURRENCE_OVERRIDE_IMMUTABLE_KEYS,
+  ...OCCURRENCE_REJECTED_KEYS,
+  'recurrenceId',
+  'recurrenceIdTimeZone',
+  ...CLIENT_ONLY_KEYS,
+]);
+
+/**
+ * The fields of an override entry on the base event, as 0.16 has always been
+ * sent them: identity and per-event keys dropped, series keys such as the
+ * organizer kept. 0.16.22 and older store them on the override, and 0.16.19
+ * only accepts an answer to one occurrence that names the organizer.
+ * Stalwart 1.0 refuses them there; see withoutOverrideSeriesKeys.
+ */
+function overrideEntryFields(updates: Partial<CalendarEvent>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(updates)) {
+    if (!NOT_IN_OVERRIDE_ENTRIES.has(firstPointerSegment(key))) fields[key] = value;
+  }
+  return fields;
+}
+
+/**
+ * `updates` of a base event with the series and per-event keys taken out of
+ * the recurrence overrides it writes, whole entries and pointers into one
+ * alike: what Stalwart 1.0 accepts inside an override. The rest of the
+ * update is left alone.
+ */
+export function withoutOverrideSeriesKeys(updates: Record<string, unknown>): Record<string, unknown> {
+  const entry = (value: unknown) => (value && typeof value === 'object'
+    ? buildOccurrencePatch(value as Partial<CalendarEvent>)
+    : value);
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(updates)) {
+    if (key === 'recurrenceOverrides' && value && typeof value === 'object') {
+      result[key] = Object.fromEntries(Object.entries(value).map(([id, override]) => [id, entry(override)]));
+    } else if (key.startsWith('recurrenceOverrides/')) {
+      const inEntry = key.split('/').slice(2).join('/');
+      if (!inEntry) result[key] = entry(value);
+      else if (isPerOccurrenceKey(inEntry)) result[key] = value;
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 /**
@@ -397,7 +483,7 @@ export function buildFallbackOverridePatch(
     ...kept,
     start: instance.start,
     duration: instance.duration,
-    ...buildOccurrencePatch(patch),
+    ...overrideEntryFields(patch),
   });
 }
 
@@ -433,12 +519,23 @@ const NEW_OVERRIDE_COPIED_KEYS = [
   'locale',
   'status',
   'freeBusyStatus',
-  'privacy',
   'alerts',
-  'organizerCalendarAddress',
   'participants',
   'sequence',
 ] as const;
+
+/**
+ * Series keys that a new override on the base event carries as well, the way
+ * 0.16 has always been sent it (see overrideEntryFields). An override through
+ * a synthetic id never copies them: they are the series' own, 1.0 refuses a
+ * different value and 0.16.20 to 0.16.23 drop them.
+ */
+const NEW_OVERRIDE_SERIES_KEYS = ['privacy', 'organizerCalendarAddress'] as const;
+
+export interface OverridePatchOptions {
+  /** Include the series keys, for an override written on the base event. */
+  seriesKeys?: boolean;
+}
 
 /**
  * `patch` plus the occurrence details a new override needs
@@ -449,11 +546,15 @@ const NEW_OVERRIDE_COPIED_KEYS = [
 export function withNewOverrideDetails(
   occurrence: Partial<CalendarEvent>,
   patch: Partial<CalendarEvent>,
+  options: OverridePatchOptions = {},
 ): Partial<CalendarEvent> {
   if (!createsOverride(occurrence)) return patch;
+  const names: readonly string[] = options.seriesKeys
+    ? [...NEW_OVERRIDE_COPIED_KEYS, ...NEW_OVERRIDE_SERIES_KEYS]
+    : NEW_OVERRIDE_COPIED_KEYS;
   const source = occurrence as Record<string, unknown>;
   const details: Record<string, unknown> = {};
-  for (const name of NEW_OVERRIDE_COPIED_KEYS) {
+  for (const name of names) {
     if (!(name in patch) && source[name] != null) details[name] = source[name];
   }
   return { ...details, ...patch } as Partial<CalendarEvent>;
@@ -467,7 +568,9 @@ export function withNewOverrideDetails(
  *   single occurrence ("Multiple organizers found in iCalendar object",
  *   0.16.23), and a pointer inside an override keeps just the patched
  *   participant, dropping the organizer and everyone else from it.
- * - The organizer: 0.16.19 rejects the override the same way without it.
+ * - For an override on the base event (`seriesKeys`), the organizer: 0.16.19
+ *   rejects the override the same way without it. Through a synthetic id it
+ *   is left out - it is the series'.
  * - The sequence (see NEW_OVERRIDE_COPIED_KEYS).
  * - For a new override, the occurrence's details (`withNewOverrideDetails`).
  */
@@ -475,17 +578,18 @@ export function buildOccurrenceRsvpPatch(
   occurrence: Partial<CalendarEvent>,
   participantId: string,
   status: Participant['participationStatus'],
+  options: OverridePatchOptions = {},
 ): Partial<CalendarEvent> | null {
   const participant = occurrence.participants?.[participantId];
   if (!participant) return null;
   const patch: Record<string, unknown> = {};
   if (occurrence.sequence != null) patch.sequence = occurrence.sequence;
-  if (occurrence.organizerCalendarAddress) {
+  if (options.seriesKeys && occurrence.organizerCalendarAddress) {
     patch.organizerCalendarAddress = occurrence.organizerCalendarAddress;
   }
   patch.participants = {
     ...occurrence.participants,
     [participantId]: { ...participant, participationStatus: status },
   };
-  return withNewOverrideDetails(occurrence, patch as Partial<CalendarEvent>);
+  return withNewOverrideDetails(occurrence, patch as Partial<CalendarEvent>, options);
 }

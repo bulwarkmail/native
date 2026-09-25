@@ -1,7 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
-import { assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
+import { JMAPMethodError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
 import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 import {
@@ -910,7 +910,9 @@ export async function updateEvent(
   );
   const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
   const err = result.notUpdated?.[id];
-  if (err) throw new Error(err.description || err.type || 'Failed to update event');
+  // Keep the SetError type: the store retries some refusals differently
+  // (isOverrideSeriesKeyRejection).
+  if (err) throw new JMAPMethodError(err.type ?? 'setError', err.description || err.type || 'Failed to update event');
 }
 
 export async function deleteEvents(

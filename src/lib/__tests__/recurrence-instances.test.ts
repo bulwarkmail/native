@@ -7,6 +7,7 @@ import {
   buildOccurrenceRsvpPatch,
   hydrateRecurrenceInstances,
   isBrowserExpandedOccurrence,
+  isOverrideSeriesKeyRejection,
   isServerRecurrenceInstance,
   isSyntheticIdMutationUnsupported,
   mergeOverrideParticipants,
@@ -14,8 +15,10 @@ import {
   seriesIdOf,
   stableOccurrenceKey,
   withNewOverrideDetails,
+  withoutOverrideSeriesKeys,
 } from '../recurrence-instances';
 import { expandRecurringEvents } from '../recurrence-expansion';
+import { JMAPMethodError } from '../../api/jmap-result';
 import type { CalendarEvent } from '../../api/types';
 
 function ev(partial: Partial<CalendarEvent>): CalendarEvent {
@@ -231,7 +234,7 @@ describe('changing one occurrence', () => {
     });
   });
 
-  it('answers one occurrence with the whole participant map and the organizer', () => {
+  it('answers one occurrence with the whole participant map', () => {
     const occurrence = ev({
       id: 's1', baseEventId: 'm', recurrenceId: '2026-03-02T09:00:00', title: 'Standup',
       organizerCalendarAddress: 'mailto:org@x', sequence: 1,
@@ -241,15 +244,130 @@ describe('changing one occurrence', () => {
         me: { calendarAddress: 'mailto:me@x', participationStatus: 'needs-action' },
       } as any,
     });
+    const participants = {
+      org: { calendarAddress: 'mailto:org@x', participationStatus: 'accepted' },
+      me: { calendarAddress: 'mailto:me@x', participationStatus: 'accepted' },
+    };
 
-    expect(buildOccurrenceRsvpPatch(occurrence, 'me', 'accepted')).toEqual({
+    // Through a synthetic id: the organizer is the series', which Stalwart
+    // 1.0 checks against the base event.
+    expect(buildOccurrenceRsvpPatch(occurrence, 'me', 'accepted')).toEqual({ sequence: 1, participants });
+    // In an override on the base event: 0.16.19 needs the organizer there.
+    expect(buildOccurrenceRsvpPatch(occurrence, 'me', 'accepted', { seriesKeys: true })).toEqual({
       sequence: 1,
       organizerCalendarAddress: 'mailto:org@x',
-      participants: {
-        org: { calendarAddress: 'mailto:org@x', participationStatus: 'accepted' },
-        me: { calendarAddress: 'mailto:me@x', participationStatus: 'accepted' },
-      },
+      participants,
     });
     expect(buildOccurrenceRsvpPatch(occurrence, 'nobody', 'accepted')).toBeNull();
+  });
+});
+
+// Stalwart 1.0 checks what one occurrence carries (jmap/src/calendar_event/
+// validate.rs): through a synthetic id a series property must repeat the base
+// event's value, inside an override on the base event it is refused whatever
+// its value. 0.16.20-0.16.23 drop such keys silently; older 0.16 store them.
+describe('series keys on one occurrence', () => {
+  it('leaves the series keys and pointers at an address out of an occurrence patch', () => {
+    const patch = buildOccurrencePatch({
+      privacy: 'public',
+      organizerCalendarAddress: 'mailto:me@example.com',
+      method: 'request',
+      prodId: '-//Bulwark//EN',
+      sentBy: 'mailto:assistant@example.com',
+      recurrenceRule: { frequency: 'daily' },
+      excludedRecurrenceRule: null,
+      'participants/p1/calendarAddress': 'mailto:other@example.com',
+      'participants/p1/participationStatus': 'declined',
+      participants: { p1: { '@type': 'Participant', calendarAddress: 'mailto:p1@example.com' } },
+      relatedTo: { r1: { '@type': 'Relation' } },
+      sequence: 3,
+      excluded: false,
+      status: 'tentative',
+      freeBusyStatus: 'free',
+      accountId: 'acc-2',
+    } as unknown as Partial<CalendarEvent>);
+
+    expect(patch).toEqual({
+      'participants/p1/participationStatus': 'declined',
+      participants: { p1: { '@type': 'Participant', calendarAddress: 'mailto:p1@example.com' } },
+      relatedTo: { r1: { '@type': 'Relation' } },
+      sequence: 3,
+      excluded: false,
+      status: 'tentative',
+      freeBusyStatus: 'free',
+    });
+  });
+
+  it('keeps the organizer in an override on the base event, as 0.16 has always been sent it', () => {
+    const occurrence = ev({
+      id: 'm:2026-03-03T09:00:00', originalId: 'm', recurrenceId: '2026-03-03T09:00:00',
+      start: '2026-03-03T09:00:00', duration: 'PT1H', recurrenceRules: [{ frequency: 'daily' } as any],
+      recurrenceOverrides: null,
+    });
+
+    expect(buildFallbackOverridePatch(occurrence, {
+      title: 'x', organizerCalendarAddress: 'mailto:org@example.com', uid: 'u', calendarIds: { c: true },
+    })).toEqual({
+      recurrenceOverrides: {
+        '2026-03-03T09:00:00': {
+          start: '2026-03-03T09:00:00', duration: 'PT1H', title: 'x', organizerCalendarAddress: 'mailto:org@example.com',
+        },
+      },
+    });
+  });
+
+  it('copies the organizer into a new override only when it goes on the base event', () => {
+    const occurrence = ev({
+      id: 's1', baseEventId: 'm', recurrenceId: '2026-03-02T09:00:00', title: 'Standup',
+      organizerCalendarAddress: 'mailto:org@example.com', recurrenceOverrides: null,
+    });
+
+    expect(withNewOverrideDetails(occurrence, { start: 'x' })).not.toHaveProperty('organizerCalendarAddress');
+    expect(withNewOverrideDetails(occurrence, { start: 'x' }, { seriesKeys: true })).toMatchObject({
+      organizerCalendarAddress: 'mailto:org@example.com',
+    });
+  });
+
+  it('takes the series and per-event keys out of every override an update writes', () => {
+    expect(withoutOverrideSeriesKeys({
+      title: 'Series title',
+      organizerCalendarAddress: 'mailto:org@example.com',
+      recurrenceOverrides: {
+        '2026-09-08T10:00:00': { title: 'Moved', privacy: 'public', organizerCalendarAddress: 'mailto:o@example.com' },
+        '2026-09-09T10:00:00': { excluded: true },
+      },
+    })).toEqual({
+      title: 'Series title',
+      organizerCalendarAddress: 'mailto:org@example.com',
+      recurrenceOverrides: {
+        '2026-09-08T10:00:00': { title: 'Moved' },
+        '2026-09-09T10:00:00': { excluded: true },
+      },
+    });
+  });
+
+  it('takes them out of an override entry and of pointers into one', () => {
+    expect(withoutOverrideSeriesKeys({
+      'recurrenceOverrides/2026-09-08T10:00:00': { start: '2026-09-08T12:00:00', privacy: 'public', uid: 'x' },
+      'recurrenceOverrides/2026-09-09T10:00:00/privacy': 'public',
+      'recurrenceOverrides/2026-09-09T10:00:00/participants/p1/calendarAddress': 'mailto:x@example.com',
+      'recurrenceOverrides/2026-09-09T10:00:00/participants/p1/participationStatus': 'accepted',
+      'recurrenceOverrides/2026-09-10T10:00:00': null,
+    })).toEqual({
+      'recurrenceOverrides/2026-09-08T10:00:00': { start: '2026-09-08T12:00:00' },
+      'recurrenceOverrides/2026-09-09T10:00:00/participants/p1/participationStatus': 'accepted',
+      'recurrenceOverrides/2026-09-10T10:00:00': null,
+    });
+  });
+
+  it('recognises Stalwart 1.0 refusing a series key inside an override', () => {
+    expect(isOverrideSeriesKeyRejection(
+      new JMAPMethodError('invalidProperties', 'organizerCalendarAddress cannot be set inside recurrenceOverrides.'),
+    )).toBe(true);
+    expect(isOverrideSeriesKeyRejection(
+      new JMAPMethodError('invalidProperties', 'This property cannot be modified on a single occurrence.'),
+    )).toBe(false);
+    // Without the SetError type it is not recognised.
+    expect(isOverrideSeriesKeyRejection(new Error('privacy cannot be set inside recurrenceOverrides.'))).toBe(false);
   });
 });

@@ -37,6 +37,7 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import * as calendarApi from '../../api/calendar';
+import { JMAPMethodError } from '../../api/jmap-result';
 import {
   useCalendarStore,
   selectVisibleCalendars,
@@ -928,11 +929,11 @@ describe('calendar-store', () => {
       await useCalendarStore.getState().rsvpEvent('s1', 'me', 'declined', undefined, undefined, 'occurrence');
 
       expect(mockRsvpEvent).not.toHaveBeenCalled();
-      // The whole participants map with the organizer, as Stalwart needs it
-      // on one occurrence; sent with scheduling so the organizer hears back.
+      // The whole participants map, as Stalwart needs it on one occurrence,
+      // without the organizer (the series'); sent with scheduling so the
+      // organizer hears back.
       expect(mockUpdateEvent).toHaveBeenCalledWith('s1', {
         sequence: 4,
-        organizerCalendarAddress: 'mailto:org@x',
         participants: { ...participants, me: { ...participants.me, participationStatus: 'declined' } },
       }, true, undefined);
       expect(useCalendarStore.getState().events[0].participants?.me.participationStatus).toBe('declined');
@@ -1140,5 +1141,163 @@ describe('calendar-store', () => {
         percentComplete: 20,
       });
     });
+  });
+});
+
+// Stalwart 1.0 checks what one occurrence carries (jmap/src/calendar_event/
+// validate.rs). Through a synthetic id, a series property must repeat the
+// base event's value; inside an override written on the base event it is
+// refused whatever its value. 0.16.20-0.16.23 drop such keys silently, and
+// older 0.16 store them on the override.
+describe('editing one occurrence of a series', () => {
+  const SERIES_PROPERTIES = [
+    '@type', 'method', 'organizerCalendarAddress', 'privacy', 'prodId', 'recurrenceId',
+    'recurrenceIdTimeZone', 'sentBy', 'uid', 'recurrenceOverrides', 'recurrenceRule',
+  ];
+  // The stored series, organized as Apple Calendar writes it (no CLASS).
+  const BASE: Record<string, unknown> = { id: 'base', uid: 'series@example.com', organizerCalendarAddress: 'mailto:org@example.com' };
+  const participants = {
+    org: { calendarAddress: 'mailto:org@example.com', roles: { owner: true }, participationStatus: 'accepted' },
+    me: { calendarAddress: 'mailto:me@example.com', participationStatus: 'needs-action' },
+  };
+
+  const seriesKeysIn = (entry: unknown) => Object.keys((entry ?? {}) as object)
+    .filter((key) => SERIES_PROPERTIES.includes(key.split('/')[0]));
+
+  /** CalendarEvent/set updates of a Stalwart 1.0 server holding BASE. */
+  function stalwart10Update() {
+    return async (id: string, patch: Record<string, unknown>) => {
+      if (id !== BASE.id) {
+        for (const key of seriesKeysIn(patch)) {
+          if (JSON.stringify(patch[key] ?? null) !== JSON.stringify(BASE[key] ?? null)) {
+            throw new JMAPMethodError('invalidProperties', 'This property cannot be modified on a single occurrence.');
+          }
+        }
+        return;
+      }
+      for (const [key, value] of Object.entries(patch)) {
+        if (key.split('/')[0] !== 'recurrenceOverrides') continue;
+        const entries = key === 'recurrenceOverrides' ? Object.values(value as object) : [value];
+        const [refused] = entries.flatMap(seriesKeysIn);
+        if (refused) throw new JMAPMethodError('invalidProperties', `${refused} cannot be set inside recurrenceOverrides.`);
+      }
+    };
+  }
+
+  const serverOccurrence = (partial: Record<string, unknown> = {}) => ({
+    id: 's1', baseEventId: 'base', uid: 'series@example.com', recurrenceId: '2026-03-02T09:00:00',
+    start: '2026-03-02T09:00:00', duration: 'PT1H', title: 'Standup', recurrenceRules: [{ frequency: 'weekly' }],
+    recurrenceOverrides: { '2026-03-02T09:00:00': { title: 'Standup' } }, calendarIds: { 'cal-1': true },
+    organizerCalendarAddress: 'mailto:org@example.com', participants, sequence: 2,
+    ...partial,
+  });
+  // Expanded on the device (a server without synthetic ids, or a range the
+  // server would not expand): changes become overrides on the base event.
+  const deviceOccurrence = (partial: Record<string, unknown> = {}) => ({
+    id: 'base:2026-03-02T09:00:00', originalId: 'base', uid: 'series@example.com', recurrenceId: '2026-03-02T09:00:00',
+    start: '2026-03-02T09:00:00', duration: 'PT1H', title: 'Standup', recurrenceRules: [{ frequency: 'weekly' }],
+    recurrenceOverrides: null, calendarIds: { 'cal-1': true },
+    organizerCalendarAddress: 'mailto:org@example.com', participants, sequence: 2,
+    ...partial,
+  });
+
+  beforeEach(() => {
+    useCalendarStore.getState().reset();
+    useCalendarStore.setState({ calendars: [{ id: 'cal-1' }] as any });
+    mockQueryEvents.mockResolvedValue([]);
+  });
+
+  it('sends one occurrence nothing of the series through its synthetic id on Stalwart 1.0', async () => {
+    mockUpdateEvent.mockImplementation(stalwart10Update());
+    useCalendarStore.setState({ events: [serverOccurrence() as any] });
+
+    // What the editor sent before: the organizer in another spelling, which
+    // an alias or a letter case gives.
+    await useCalendarStore.getState().updateEvent('s1', {
+      title: 'Renamed', organizerCalendarAddress: 'mailto:ORG@example.com', calendarIds: { 'cal-1': true },
+    });
+
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    const [id, patch] = mockUpdateEvent.mock.calls[0];
+    expect(id).toBe('s1');
+    expect(seriesKeysIn(patch)).toEqual([]);
+    expect(patch.title).toBe('Renamed');
+  });
+
+  it('answers one occurrence without the organizer through its synthetic id on Stalwart 1.0', async () => {
+    mockUpdateEvent.mockImplementation(stalwart10Update());
+    useCalendarStore.setState({ events: [serverOccurrence() as any] });
+
+    await useCalendarStore.getState().rsvpEvent('s1', 'me', 'declined', undefined, undefined, 'occurrence');
+
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateEvent.mock.calls[0][1]).not.toHaveProperty('organizerCalendarAddress');
+  });
+
+  it('writes an override on the base event once more without series keys when Stalwart 1.0 refuses them, and remembers', async () => {
+    mockUpdateEvent.mockImplementation(stalwart10Update());
+    useCalendarStore.setState({ events: [deviceOccurrence() as any] });
+
+    await useCalendarStore.getState().updateEvent('base:2026-03-02T09:00:00', { title: 'Moved' });
+
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(2);
+    const [first, second] = mockUpdateEvent.mock.calls.map((call) => call[1].recurrenceOverrides['2026-03-02T09:00:00']);
+    expect(first).toMatchObject({ organizerCalendarAddress: 'mailto:org@example.com' });
+    expect(second).toEqual({
+      start: '2026-03-02T09:00:00', duration: 'PT1H', title: 'Moved', participants, sequence: 2,
+    });
+
+    // The next override goes out without them straight away.
+    mockUpdateEvent.mockClear();
+    await useCalendarStore.getState().rsvpEvent('base:2026-03-02T09:00:00', 'me', 'accepted', undefined, undefined, 'occurrence');
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    expect(seriesKeysIn(mockUpdateEvent.mock.calls[0][1].recurrenceOverrides['2026-03-02T09:00:00'])).toEqual([]);
+  });
+
+  it('keeps the override payload on 0.16: the organizer, in one write', async () => {
+    mockUpdateEvent.mockImplementation(async () => undefined);
+    useCalendarStore.setState({ events: [deviceOccurrence() as any] });
+
+    await useCalendarStore.getState().rsvpEvent('base:2026-03-02T09:00:00', 'me', 'tentative', undefined, undefined, 'occurrence');
+
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateEvent).toHaveBeenCalledWith('base', {
+      recurrenceOverrides: {
+        '2026-03-02T09:00:00': {
+          start: '2026-03-02T09:00:00',
+          duration: 'PT1H',
+          title: 'Standup',
+          sequence: 2,
+          organizerCalendarAddress: 'mailto:org@example.com',
+          participants: { ...participants, me: { ...participants.me, participationStatus: 'tentative' } },
+        },
+      },
+    }, true, undefined);
+  });
+
+  it('keeps the 0.16.19 fallback payload for a server that rejects synthetic ids', async () => {
+    mockUpdateEvent
+      .mockRejectedValueOnce(new Error('Updating synthetic ids is not yet supported.'))
+      .mockImplementation(async () => undefined);
+    useCalendarStore.setState({ events: [serverOccurrence({ recurrenceOverrides: { '2026-03-09T09:00:00': {} } }) as any] });
+
+    await useCalendarStore.getState().rsvpEvent('s1', 'me', 'accepted', undefined, undefined, 'occurrence');
+
+    // The synthetic attempt leaves the organizer out, the override has it.
+    expect(mockUpdateEvent.mock.calls[0][1]).not.toHaveProperty('organizerCalendarAddress');
+    expect(mockUpdateEvent.mock.calls[1][0]).toBe('base');
+    expect(mockUpdateEvent.mock.calls[1][1]['recurrenceOverrides/2026-03-02T09:00:00'])
+      .toMatchObject({ organizerCalendarAddress: 'mailto:org@example.com' });
+  });
+
+  it('passes other refusals of an override on the base event through on Stalwart 1.0', async () => {
+    mockUpdateEvent.mockImplementation(async () => {
+      throw new JMAPMethodError('forbidden', 'You do not have access to this calendar.');
+    });
+    useCalendarStore.setState({ events: [deviceOccurrence() as any] });
+
+    await expect(useCalendarStore.getState().updateEvent('base:2026-03-02T09:00:00', { title: 'Moved' }))
+      .rejects.toThrow('You do not have access to this calendar.');
+    expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
   });
 });

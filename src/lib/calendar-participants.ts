@@ -297,6 +297,68 @@ export function buildParticipantMap(
 }
 
 /**
+ * The event's own organizer: the organizer participant, else the address in
+ * `organizerCalendarAddress` or the retired `replyTo`. `null` for an event
+ * without one.
+ */
+function eventOrganizer(event: Partial<CalendarEvent>): { name: string; email: string } | null {
+  const participant = getParticipantList(event).find((p) => p.isOrganizer && p.email.trim());
+  if (participant) return { name: participant.name, email: participant.email.trim() };
+  const address = event.organizerCalendarAddress || Object.values(event.replyTo ?? {})[0];
+  const email = address?.replace(/^mailto:/i, '').trim();
+  return email ? { name: '', email } : null;
+}
+
+export interface ParticipantSaveContext {
+  /** The user's first calendar address: the organizer of invitations sent from the editor. */
+  userEmail: string | undefined;
+  /** A name for an organizer the event data carries none for (the contact card, the account). */
+  resolveName?: (email: string) => string | undefined;
+}
+
+/**
+ * The participant fields an editor save writes.
+ *
+ * With attendees, the participants are rebuilt around the event's own
+ * organizer: an invitation keeps whoever sent it, and a series the exact
+ * address it is organized under (Stalwart 1.0 checks it on single
+ * occurrences). Only an event without an organizer gets the user, and only
+ * then `organizerCalendarAddress` is written: Stalwart derives the iCalendar
+ * ORGANIZER solely from it, so without one no invitations go out.
+ *
+ * Without attendees, an event that had participants loses them, its
+ * organizer and the retired `replyTo` older releases wrote.
+ */
+export function participantFieldsToSave(
+  event: Partial<CalendarEvent> | null | undefined,
+  attendees: Attendee[],
+  context: ParticipantSaveContext,
+): Partial<Pick<CalendarEvent, 'participants' | 'organizerCalendarAddress' | 'replyTo'>> {
+  const { userEmail, resolveName } = context;
+  if (attendees.length > 0 && userEmail) {
+    const organizer = (event ? eventOrganizer(event) : null) ?? { name: '', email: userEmail };
+    const fields: Partial<Pick<CalendarEvent, 'participants' | 'organizerCalendarAddress'>> = {
+      participants: buildParticipantMap(
+        // A new event has no participants yet, so it would store an empty
+        // organizer name.
+        { name: organizer.name || resolveName?.(organizer.email) || '', email: organizer.email },
+        attendees,
+      ),
+    };
+    if (!event?.organizerCalendarAddress) fields.organizerCalendarAddress = `mailto:${organizer.email}`;
+    return fields;
+  }
+  if (attendees.length === 0 && event?.participants && Object.keys(event.participants).length > 0) {
+    return {
+      participants: null,
+      ...(event.replyTo ? { replyTo: null } : {}),
+      ...(event.organizerCalendarAddress ? { organizerCalendarAddress: null } : {}),
+    };
+  }
+  return {};
+}
+
+/**
  * The attendee rows an editor should start from: every participant except the
  * organizer (who is re-added by buildParticipantMap on save), without
  * duplicate addresses (#731).
