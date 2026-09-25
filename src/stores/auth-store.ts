@@ -19,6 +19,7 @@ import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
+import { reconcileServerFingerprint } from '../lib/server-change';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -133,6 +134,18 @@ function clearAccountFeatureStores(accountId: string | null): void {
   void flushPersistedWrites();
 }
 
+// Once a session is up and before anything reads the account's caches: when
+// the server behind it is not the one that filled them, they go (see
+// lib/server-change). A failed check never blocks signing in; it runs again
+// with the next session.
+async function checkServerChange(accountId: string, session: JMAPSession): Promise<void> {
+  try {
+    await reconcileServerFingerprint(accountId, session);
+  } catch (err) {
+    console.warn('[auth-store] server change check failed:', err);
+  }
+}
+
 function refetchFeatureStores(): void {
   // Fire-and-forget: each store handles its own errors.
   const emailStore = useEmailStore.getState();
@@ -226,6 +239,7 @@ async function completeOAuthHandoff(
     useContactsStore.getState().reset();
     useCalendarStore.getState().reset();
   }
+  await checkServerChange(accountId, session);
 
   const accountStore = useAccountStore.getState();
   accountStore.addAccount({
@@ -301,6 +315,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         useCalendarStore.getState().reset();
       }
       const accountId = generateAccountId(username, serverUrl.replace(/\/+$/, ''));
+      await checkServerChange(accountId, session);
 
       const accountStore = useAccountStore.getState();
       accountStore.addAccount({
@@ -616,6 +631,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: 'Failed to load session' });
       return;
     }
+    await checkServerChange(accountId, session);
 
     applyConnectedState(set, session, target.serverUrl, target.username, accountId);
     refetchFeatureStores();
@@ -738,6 +754,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       const session = jmapClient.currentSession!;
+      await checkServerChange(target.id, session);
       applyConnectedState(set, session, target.serverUrl, target.username, target.id);
       // Refresh the cached mailbox list + current folder now that the session
       // is live. Feature stores show persisted data immediately; this swaps
@@ -771,6 +788,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         errorMessage: undefined,
       });
       const fresh = jmapClient.currentSession!;
+      await checkServerChange(activeAccountId, fresh);
       applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
       refetchFeatureStores();
       return true;

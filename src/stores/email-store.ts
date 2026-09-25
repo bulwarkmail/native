@@ -375,6 +375,13 @@ export interface EmailState {
   // ── Actions ────────────────────────────────────────────────────
   setActiveAccount: (accountId: string | null) => void;
   removeAccount: (accountId: string) => void;
+  /**
+   * Forget what was read from an account's server - folders, lists, JMAP
+   * states and query states - whether the account is on screen or tucked
+   * away. It stays signed in and selected; the next fetch starts over. For a
+   * server that may no longer be the one these came from (lib/server-change).
+   */
+  forgetServerState: (accountId: string) => void;
   clearAllAccounts: () => void;
   fetchMailboxes: () => Promise<void>;
   /**
@@ -935,6 +942,32 @@ export const useEmailStore = create<EmailState>()(
     } else {
       set({ accountSnapshots: rest });
     }
+  },
+
+  forgetServerState: (accountId) => {
+    const state = get();
+    const { [accountId]: _drop, ...rest } = state.accountSnapshots;
+    if (state.activeAccountId !== accountId) {
+      set({ accountSnapshots: rest });
+      return;
+    }
+    set({
+      accountSnapshots: rest,
+      mailboxes: [],
+      mailboxState: undefined,
+      emailStates: {},
+      // Folder ids may name other folders now; the list opens the Inbox.
+      currentMailboxId: null,
+      mailboxSnapshots: {},
+      emails: [],
+      totalEmails: 0,
+      queryState: undefined,
+      pendingUndo: null,
+      retainedIds: [],
+      threadCounts: {},
+      accountErrors: {},
+      error: null,
+    });
   },
 
   clearAllAccounts: () => {

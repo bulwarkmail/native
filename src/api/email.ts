@@ -14,6 +14,7 @@ import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
+import { stalwartStateWentBack } from './stalwart-state';
 
 export const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -74,6 +75,19 @@ function maxInGet(): number {
 
 function maxInSet(): number {
   return typeof jmapClient.getMaxObjectsInSet === 'function' ? jmapClient.getMaxObjectsInSet() : 500;
+}
+
+// A /changes or /queryChanges answer whose state went back below the one it
+// was asked from (see stalwartStateWentBack). The server then skipped every
+// change since, so the caller takes it like cannotCalculateChanges and reads
+// in full. Only Stalwart's states are read, on accounts that list its
+// extension.
+function stateWentBack(accountId: string, sinceState: string, newState: unknown): boolean {
+  if (typeof jmapClient.hasAccountCapability !== 'function') return false;
+  if (!jmapClient.hasAccountCapability('urn:stalwart:jmap', accountId)) return false;
+  if (!stalwartStateWentBack(sinceState, newState)) return false;
+  console.warn(`[email] ${accountId}: state went back from ${sinceState} to ${String(newState)}, reading in full`);
+  return true;
 }
 
 /**
@@ -194,7 +208,8 @@ export interface MailboxChangesResult {
 }
 
 // Returns null when the server can't compute the diff (typically
-// `cannotCalculateChanges`); callers should fall back to a full Mailbox/get.
+// `cannotCalculateChanges`, or a state that went back); callers should fall
+// back to a full Mailbox/get.
 export async function getMailboxChanges(
   sinceState: string,
   accountIdOverride?: string,
@@ -205,6 +220,7 @@ export async function getMailboxChanges(
   );
   const [name, body] = res.methodResponses[0];
   if (name === 'error') return null;
+  if (stateWentBack(accountId, sinceState, body.newState)) return null;
   return {
     oldState: body.oldState as string,
     newState: body.newState as string,
@@ -555,7 +571,8 @@ export interface EmailQueryChangesResult {
 
 // Run Email/queryChanges for the standard "by receivedAt desc, in this mailbox"
 // query. Returns null when the server replies with `cannotCalculateChanges`
-// (or any other error) — caller should fall back to a fresh Email/query.
+// (or any other error, or a query state that went back) — caller should fall
+// back to a fresh Email/query.
 export async function getEmailQueryChanges(
   mailboxId: string | undefined,
   sinceQueryState: string,
@@ -583,6 +600,8 @@ export async function getEmailQueryChanges(
   const res = await jmapClient.request([['Email/queryChanges', args, '0']]);
   const [name, body] = res.methodResponses[0];
   if (name === 'error') return null;
+  // A query state is the Email change id the query was answered at.
+  if (stateWentBack(accountId, sinceQueryState, body.newQueryState)) return null;
   return {
     oldQueryState: body.oldQueryState as string,
     newQueryState: body.newQueryState as string,
@@ -659,8 +678,11 @@ export async function getEmailListDelta(
   const res = await jmapClient.request(calls);
   const responses = res.methodResponses ?? [];
 
-  const qc = methodBody(responses, 'qc', 'Email/queryChanges');
-  const ch = methodBody(responses, 'ch', 'Email/changes');
+  // A state that went back counts as one the server can't diff.
+  let qc = methodBody(responses, 'qc', 'Email/queryChanges');
+  if (qc && stateWentBack(accountId, sinceQueryState, qc.newQueryState)) qc = null;
+  let ch = methodBody(responses, 'ch', 'Email/changes');
+  if (ch && stateWentBack(accountId, sinceState, ch.newState)) ch = null;
   const got = methodBody(responses, 'get', 'Email/get');
   const th = methodBody(responses, 'th', 'Thread/get');
   return {
@@ -768,7 +790,8 @@ export interface EmailChangesResult {
 }
 
 // Returns null when the server replies with `cannotCalculateChanges` or any
-// other error response; caller should treat that as "rebuild from scratch".
+// other error response, or with a state that went back; caller should treat
+// that as "rebuild from scratch".
 export async function getEmailChanges(
   sinceState: string,
   maxChanges?: number,
@@ -780,6 +803,7 @@ export async function getEmailChanges(
   const res = await jmapClient.request([['Email/changes', args, '0']]);
   const [name, body] = res.methodResponses[0];
   if (name === 'error') return null;
+  if (stateWentBack(accountId, sinceState, body.newState)) return null;
   return {
     oldState: body.oldState as string,
     newState: body.newState as string,

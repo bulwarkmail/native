@@ -546,8 +546,8 @@ export default function App() {
   // and whenever the FCM token rotates. Honours the user's notification
   // preference - flipping it off tears down THIS account's subscription so
   // notifications stop arriving for it. Other logged-in accounts keep their
-  // setups intact. An account the user turned push off for, or whose device
-  // registration was revoked, stays off (see resyncPushNotifications).
+  // setups intact. An account the user turned push off for on this device
+  // stays off (see resyncPushNotifications).
   const emailNotificationsEnabled = useSettingsStore(
     (s) => s.emailNotificationsEnabled,
   );

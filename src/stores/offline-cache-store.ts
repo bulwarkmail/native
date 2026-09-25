@@ -93,6 +93,10 @@ interface OfflineCacheState {
   // the persisted cache from growing without bound on a noisy account.
   evictToFit: (maxBytes: number) => Promise<void>;
   clearAll: () => Promise<void>;
+  // Drop every cached body of `accountId`, whether or not its bucket is the
+  // loaded one: bodies are keyed by message id, and a different server can
+  // hand the same ids to other messages (see lib/server-change).
+  clearAccount: (accountId: string) => Promise<void>;
 
   // Returns cached emails whose `mailboxIds` include the given mailbox,
   // sorted by `receivedAt` descending. Used by selectMailbox to seed the
@@ -300,6 +304,19 @@ export const useOfflineCacheStore = create<OfflineCacheState>((set, get) => ({
     const index = { entries: {} };
     set({ index, sync: { ...IDLE } });
     persistIndex(accountId, index);
+  },
+
+  clearAccount: async (accountId) => {
+    const loaded = get().activeAccountId === accountId;
+    const keys = Object.keys((loaded ? get().index : await loadIndex(accountId)).entries);
+    if (loaded) {
+      // A sync still filling the bucket stops at its next chunk.
+      set({ index: { entries: {} }, sync: { ...IDLE }, abortRequested: true });
+    }
+    await Promise.all(
+      keys.map((key) => AsyncStorage.removeItem(entryKey(accountId, key)).catch(() => undefined)),
+    );
+    await AsyncStorage.removeItem(indexKey(accountId)).catch(() => undefined);
   },
 
   getEmailsInMailbox: async (mailboxId, limit = 200, jmapAccountId) => {

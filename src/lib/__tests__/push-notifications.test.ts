@@ -936,8 +936,7 @@ describe('resyncPushNotifications', () => {
 
     expect(result?.subscriptionId).toBe('existing');
     expect(updateMock).toHaveBeenCalledTimes(1);
-    // The expiry the server reported is what a later resync measures against.
-    expect(await AsyncStorage.getItem(EXPIRES_KEY)).toBe(expires);
+    expect(createMock).not.toHaveBeenCalled();
   });
 
   it('leaves an account alone after the user turned push off for it', async () => {
@@ -970,7 +969,10 @@ describe('resyncPushNotifications', () => {
     expect(createMock).not.toHaveBeenCalled();
   });
 
-  it('does not re-register a subscription another device revoked', async () => {
+  it('re-creates a subscription the server lost before it was due to expire (reinstalled at the same address)', async () => {
+    // A server reinstalled for Stalwart 1.0, or an upgrade that doesn't carry
+    // the subscriptions over, looks exactly like a revocation from elsewhere.
+    // The expiry record is what older builds took for proof of revocation.
     await AsyncStorage.setItem(SUB_KEY, 'existing');
     await AsyncStorage.setItem(EXPIRES_KEY, inDays(5));
     await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ACCOUNT_ID]));
@@ -978,11 +980,39 @@ describe('resyncPushNotifications', () => {
 
     const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
 
-    expect(result).toBeNull();
+    expect(result?.subscriptionId).toBe('new-server-id');
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
+    expect(await readPushAccountIds()).toEqual([ACCOUNT_ID]);
+    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
+  });
+
+  it('does not take over another device\'s subscription that reuses the recorded id', async () => {
+    // Stalwart's ids are short and sequential: after a reinstall another
+    // device's subscription can come back under the id this device recorded.
+    await AsyncStorage.setItem(SUB_KEY, 'b');
+    listMock.mockResolvedValue([
+      { id: 'b', deviceClientId: 'otherotherotherotherotherotherot', expires: inDays(3), types: ['Email'] },
+    ]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result?.subscriptionId).toBe('new-server-id');
+    expect(updateMock).not.toHaveBeenCalled();
+    // The relay can't vouch for it either way, so it stays.
+    expect(destroyMock.mock.calls.map((c) => c[0])).not.toContain('b');
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
+  });
+
+  it('still reuses a recorded subscription the server lists without a device client id', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([{ id: 'existing', expires: inDays(80), types: ['EmailDelivery'] }]);
+
+    const result = await resyncPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(result?.subscriptionId).toBe('existing');
     expect(createMock).not.toHaveBeenCalled();
-    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
-    expect(await readPushAccountIds()).toEqual([]);
-    expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).not.toBeNull();
   });
 
   it('re-creates a subscription that simply lapsed', async () => {
@@ -1023,7 +1053,6 @@ describe('resyncPushNotifications', () => {
     await setupPushNotifications({ relayBaseUrl: RELAY });
 
     expect(await AsyncStorage.getItem(OPTED_OUT_KEY)).toBeNull();
-    expect(await AsyncStorage.getItem(EXPIRES_KEY)).not.toBeNull();
     vi.clearAllMocks();
     listMock.mockResolvedValue([
       { id: 'new-server-id', deviceClientId: OUR_DCID, expires: inDays(7), types: ['EmailDelivery'] },
@@ -1055,6 +1084,30 @@ describe('teardownPushNotificationsForAccount', () => {
     expect(destroyed).not.toContain('foreign');
     const native = (NativeModules as { BulwarkFcm: { deleteToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
     expect(native.deleteToken).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+  });
+
+  it('leaves another device\'s subscription alone when it reuses the recorded id', async () => {
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    await AsyncStorage.setItem(SUB_KEY, 'b');
+    listMock.mockResolvedValue([
+      sub('b', 'ffffffffffffffffffffffffffffffff'),
+      sub('c', OUR_DCID),
+    ]);
+
+    await teardownPushNotificationsForAccount(ACCOUNT_ID);
+
+    expect(destroyMock.mock.calls.map((c) => c[0])).toEqual(['c']);
+  });
+
+  it('still destroys the recorded id when the server cannot list its subscriptions', async () => {
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    await AsyncStorage.setItem(SUB_KEY, 'recorded');
+    listMock.mockRejectedValueOnce(new Error('network down'));
+
+    await teardownPushNotificationsForAccount(ACCOUNT_ID);
+
+    expect(destroyMock.mock.calls.map((c) => c[0])).toEqual(['recorded']);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
   });
 });
