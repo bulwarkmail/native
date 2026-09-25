@@ -325,18 +325,29 @@ function batchedBySize<T>(items: T[], sizeOf: (item: T) => number | undefined, b
  * Null when the session doesn't advertise the blob capability, which then
  * must stay out of `using`. Blobs the server doesn't find are left out; once a
  * request fails, the blobs not fetched yet are listed in `failed`.
+ *
+ * Stalwart answers Blob/get only in accounts the user is a member of: an
+ * address book shared with the user is in an account that isn't one, and the
+ * call comes back `forbidden` ("You are not an owner of account ..."). It
+ * checks the access to each blob by itself, though, whichever account the
+ * request names, so the rest are asked for in the user's own account
+ * (webmail 7977a6ed).
  */
 export async function getBlobsAsBase64(blobIds: string[], accountId?: string): Promise<BlobBatch | null> {
   if (!jmapClient.hasCapability(CAPABILITIES.BLOB)) return null;
-  const account = accountId || jmapClient.accountId;
+  let account = accountId || jmapClient.accountId;
   const ids = [...new Set(blobIds)];
   const data = new Map<string, string>();
   const blobGet = async (chunk: string[], property: 'size' | 'data:asBase64') => {
-    const res = await jmapClient.request(
+    const call = () => jmapClient.request(
       [['Blob/get', { accountId: account, ids: chunk, properties: [property] }, '0']],
       [CAPABILITIES.CORE, CAPABILITIES.BLOB],
     );
-    const [name, result] = res.methodResponses?.[0] ?? [];
+    let [name, result] = (await call()).methodResponses?.[0] ?? [];
+    if (name === 'error' && result?.type === 'forbidden' && account !== jmapClient.accountId) {
+      account = jmapClient.accountId;
+      [name, result] = (await call()).methodResponses?.[0] ?? [];
+    }
     if (name !== 'Blob/get') {
       throw new Error(`Blob/get failed: ${result?.description || result?.type || 'unknown'}`);
     }

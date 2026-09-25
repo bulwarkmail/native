@@ -22,7 +22,7 @@ export const SUBMISSION_ONLY_USING = [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000;
 /**
  * How long an account where making room found nothing that could go is not
- * searched again; see makeRoomForSubmission.
+ * searched again for an automatic read receipt; see makeRoomForSubmission.
  */
 const ROOM_RECHECK_MS = 5 * 60 * 1000;
 /** Upper bound on the pages one prune, change-log walk or scheduled list reads. */
@@ -318,15 +318,18 @@ function submissionList(res: JMAPResponseBody, callId: string): SubmissionStatus
  * create either way, since another device may have made room meanwhile.
  *
  * At a full quota every attempt ends up here - each send, reschedule and
- * read receipt. When a search found nothing that can go, the account is left
- * alone for five minutes: what is left is pending or out of reach, and
- * looking again at once would cost the prune, the change-log walk and the
- * gets once more for the same answer.
+ * read receipt. When a search found nothing that can go, it is not repeated
+ * for automatic read receipts for five minutes: what is left is pending or
+ * out of reach, and looking again at once would cost the prune, the
+ * change-log walk and the gets once more for the same answer. A send the
+ * user starts always looks again: pending records - scheduled mail,
+ * undo-send holds - can go once their message is out, and until the next
+ * search every send would fail with "ask your administrator".
  */
-export async function makeRoomForSubmission(accountId: string): Promise<void> {
+export async function makeRoomForSubmission(accountId: string, options: { automatic?: boolean } = {}): Promise<void> {
   const key = pruneKey(accountId);
   const recheckAt = roomRecheckAt.get(key);
-  if (recheckAt !== undefined && Date.now() < recheckAt) return;
+  if (options.automatic && recheckAt !== undefined && Date.now() < recheckAt) return;
   const now = Date.now();
   prunedAt.set(key, now);
   let found = 0;

@@ -446,6 +446,65 @@ describe('inlineContactMediaForExport', () => {
     expect(mockRequest.mock.calls[0][0][0][1].accountId).toBe('team');
   });
 
+  // Stalwart answers Blob/get only in accounts the user is a member of - the
+  // own account and groups, not one that merely shares an address book - and
+  // then serves every blob the user may read, whichever account the request
+  // names. Live: userc's Blob/get naming userb's account `e` (a book shared
+  // with userc) is refused on 1.0 and 0.16.23 alike, and on 1.0 the same
+  // blobId asked for in userc's own account comes back. 0.16 keeps contact
+  // photos as data: URIs, so an export never gets here there.
+  function memberServer(sizes: Record<string, number>, memberOf = ['f', 'team']) {
+    mockRequest.mockImplementation(async (calls: Array<[string, { accountId: string; ids: string[]; properties: string[] }, string]>) => {
+      const [, args, callId] = calls[0];
+      if (!memberOf.includes(args.accountId)) {
+        return { methodResponses: [['error', { type: 'forbidden', description: `You are not an owner of account ${args.accountId}` }, callId]] };
+      }
+      const found = args.ids.filter((id) => id in sizes);
+      const list = found.map((id) => (args.properties[0] === 'size' ? { id, size: sizes[id] } : { id, 'data:asBase64': 'AAAA' }));
+      return { methodResponses: [['Blob/get', { accountId: args.accountId, list, notFound: args.ids.filter((id) => !(id in sizes)) }, callId]] };
+    });
+  }
+  const sharedCard = (blobId: string) =>
+    card(`e:${blobId}`, { photo: { blobId, kind: 'photo', mediaType: 'image/jpeg' } }, { isShared: true, accountId: 'e', originalId: blobId });
+
+  it('reads the photos of an address book shared with the user through the own account (Stalwart 1.0)', async () => {
+    memberServer({ 'b-1': 40_000, 'b-2': 2_000 });
+
+    const out = await inlineContactMediaForExport([sharedCard('b-1'), sharedCard('b-2')]);
+
+    expect(mockRequest.mock.calls.map(([calls]) => calls[0][1].accountId)).toEqual(['e', 'f']);
+    expect(mockRequest.mock.calls[1][0][0]).toEqual(['Blob/get', { accountId: 'f', ids: ['b-1', 'b-2'], properties: ['data:asBase64'] }, '0']);
+    expect(out.map((c) => c.media?.photo?.uri)).toEqual(['data:image/jpeg;base64,AAAA', 'data:image/jpeg;base64,AAAA']);
+    expect(mockFetchBlob).not.toHaveBeenCalled();
+  });
+
+  it('switches to the own account once when a shared address book has many photos (Stalwart 1.0)', async () => {
+    const MiB = 1024 * 1024;
+    memberServer({ 'b-1': 3 * MiB, 'b-2': 2 * MiB, 'b-3': 2 * MiB });
+
+    await inlineContactMediaForExport([sharedCard('b-1'), sharedCard('b-2'), sharedCard('b-3')]);
+
+    expect(mockRequest.mock.calls.map(([calls]) => [calls[0][1].accountId, calls[0][1].properties[0]])).toEqual([
+      ['e', 'size'],
+      ['f', 'size'],
+      ['f', 'data:asBase64'],
+      ['f', 'data:asBase64'],
+    ]);
+    expect(mockFetchBlob).not.toHaveBeenCalled();
+  });
+
+  it('does not ask the own account again when it refuses too', async () => {
+    memberServer({ 'b-1': 10 }, []);
+    mockFetchBlob.mockResolvedValue(new Uint8Array(JPEG_BYTES).buffer);
+
+    const out = await inlineContactMediaForExport([card('One', { photo: { blobId: 'b-1', kind: 'photo', mediaType: 'image/jpeg' } })]);
+
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    // What the batch could not deliver is downloaded one by one.
+    expect(mockFetchBlob).toHaveBeenCalledTimes(1);
+    expect(out[0].media?.photo?.uri).toBe(JPEG_URI);
+  });
+
   it('leaves 0.16 cards, whose photos are data: URIs, alone', async () => {
     const cards = [card('One', { photo: { uri: JPEG_URI, kind: 'photo', mediaType: 'image/jpeg' } })];
     const out = await inlineContactMediaForExport(cards);

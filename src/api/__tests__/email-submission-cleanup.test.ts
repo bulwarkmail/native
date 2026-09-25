@@ -645,7 +645,7 @@ describe('making room where nothing can go (Stalwart 1.0)', () => {
   const searches = (server: FakeSubmissionServer) =>
     server.methods().flat().filter((m) => m === 'EmailSubmission/query' || m === 'EmailSubmission/changes').length;
 
-  it('does not search the account again for five minutes', async () => {
+  it('searches again for every send the user starts', async () => {
     let clock = Date.parse('2026-09-25T12:00:00Z');
     vi.spyOn(Date, 'now').mockImplementation(() => clock);
     const server = setup('1.0', { limit: 2 });
@@ -655,24 +655,64 @@ describe('making room where nothing can go (Stalwart 1.0)', () => {
     ]);
 
     await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
-    const first = searches(server);
     // The query, and the change-log walk once it found nothing.
-    expect(first).toBe(2);
+    expect(searches(server)).toBe(2);
 
-    // A send and an automatic read receipt right after: one retry each, no search.
     clock += MINUTE;
     await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
-    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
-    expect(searches(server)).toBe(first);
-    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(6);
-
-    clock += 5 * MINUTE;
-    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
-    expect(searches(server)).toBe(2 * first);
+    expect(searches(server)).toBe(4);
     expect(server.submissions().map((s) => s.id)).toEqual(pending);
   });
 
-  it('searches again at once when a search failed', async () => {
+  // A search that found nothing used to hold off the next one for five
+  // minutes, whoever sent: a held send that went out within them could not
+  // make room, and every send failed with "ask your administrator".
+  it('makes room once a held send went out, minutes after a search found nothing', async () => {
+    let clock = Date.parse('2026-09-25T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const server = setup('1.0', { limit: 2 });
+    const [undoHold, scheduled] = server.seed('acc-1', [
+      { sendAt: clock + MINUTE, status: 'pending' },
+      { sendAt: clock + DAY, status: 'pending' },
+    ]);
+
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+
+    // Two minutes later the undo hold has run out and its message left.
+    clock += 2 * MINUTE;
+    server.deliver('acc-1', undoHold);
+    const result = await sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS);
+
+    expect(result.emailSubmissionId).toBeDefined();
+    expect(server.submissions().map((s) => s.id)).toEqual([scheduled]);
+  });
+
+  it('does not search again for automatic read receipts for five minutes', async () => {
+    let clock = Date.parse('2026-09-25T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const server = setup('1.0', { limit: 1 });
+    server.seed('acc-1', [{ sendAt: clock + DAY, status: 'pending' }]);
+
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(searches(server)).toBe(2);
+
+    // Every further automatic receipt only tries the create once more ...
+    clock += MINUTE;
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(searches(server)).toBe(2);
+    expect(argsOf(server, 'EmailSubmission/set').filter((a) => a.create)).toHaveLength(4);
+
+    // ... while one the user sends looks again,
+    await expect(sendReadReceipt({ ...RECEIPT, automatic: false })).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(searches(server)).toBe(4);
+
+    // and so do automatic ones after five minutes.
+    clock += 5 * MINUTE;
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    expect(searches(server)).toBe(6);
+  });
+
+  it('searches again at once for an automatic receipt when a search failed', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const server = setup('1.0', { limit: 1 });
     server.seed('acc-1', [{ sendAt: Date.now() + DAY, status: 'pending' }]);
@@ -684,23 +724,23 @@ describe('making room where nothing can go (Stalwart 1.0)', () => {
       }
     });
 
-    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
     expect(warn).toHaveBeenCalled();
     const first = argsOf(server, 'EmailSubmission/query').length;
 
-    await expect(sendEmail(OUTGOING, 'id-1', 'sent', undefined, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
     // A failed look-up proved nothing, so the second attempt looked again.
     expect(argsOf(server, 'EmailSubmission/query').length).toBe(first + 1);
   });
 
-  it('keeps no pause once a search found something to remove', async () => {
+  it('keeps no pause for automatic receipts once a search found something to remove', async () => {
     const server = setup('1.0', { limit: 2 });
     const now = Date.now();
     server.seed('acc-1', [{ sendAt: now + DAY, status: 'pending' }, { sendAt: now - HOUR, status: 'final' }]);
 
     await sendEmail(OUTGOING, 'id-1', 'sent', 10, VIA_DRAFTS);
     // Full again: a scheduled send holds the freed place.
-    await expect(sendEmail(OUTGOING, 'id-1', 'sent', 10, VIA_DRAFTS)).rejects.toBeInstanceOf(SubmissionQuotaError);
+    await expect(sendReadReceipt(RECEIPT)).rejects.toBeInstanceOf(SubmissionQuotaError);
 
     expect(argsOf(server, 'EmailSubmission/query')).toHaveLength(2);
   });

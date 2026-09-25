@@ -2283,7 +2283,7 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
     let res = await submit();
     // A full submission quota (Stalwart 1.0): make room and try once more.
     if (submissionCreateError(res, 'mdn')?.type === 'overQuota') {
-      await makeRoomForSubmission(accountId);
+      await makeRoomForSubmission(accountId, { automatic: opts.automatic });
       res = await submit();
     }
     const body = requireMethodResult(res, '0', 'EmailSubmission/set');
