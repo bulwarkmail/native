@@ -43,6 +43,7 @@ import {
   isValidTimeZone,
   localDateTimeToInstant,
 } from './calendar-timezone';
+import { debug } from './debug';
 
 /** What the event editor had when it saved, besides the event data it wrote. */
 export interface SeriesEdit {
@@ -104,6 +105,15 @@ interface SeriesFrame {
 }
 
 /**
+ * Whether `rules` name the days their occurrences fall on (BYDAY,
+ * BYMONTHDAY, BYYEARDAY): a start moved by days does not take those
+ * occurrences along.
+ */
+function namesItsDays(rules: CalendarEvent['recurrenceRules']): boolean {
+  return (rules ?? []).some((rule) => !!rule.byDay?.length || !!rule.byMonthDay?.length || !!rule.byYearDay?.length);
+}
+
+/**
  * The key an override of the series `from` keeps in the series `to`, or
  * null when `to` has no such occurrence any more. It moves with its
  * occurrence, by as much as `anchor` - the series' start, or where a new
@@ -112,14 +122,50 @@ interface SeriesFrame {
  * where it was - a weekday rule the start moved away from - keeps the key,
  * and an occurrence the new rule does not give is gone. A date the override
  * adds to the series, which no rule gives, moves along.
+ *
+ * A rule that names its days keeps every occurrence but the anchor on its
+ * day, at the series' new time: moved by a day, the Monday of a Monday and
+ * Tuesday series is still that Monday. Moved along, its override landed on
+ * the Tuesday's and took its place: a cancelled Tuesday came back with the
+ * Monday's title, and the Monday lost its change (live on 1.0 and 0.16.23).
  */
 function overrideKeyIn(key: string, from: SeriesFrame, to: SeriesFrame, anchor = from.start): string | null {
   const shifted = movedLike(key, anchor, to.start);
   const moved = to.showWithoutTime ? `${shifted.slice(0, 10)}T00:00:00` : shifted;
   if (!seriesOccursAt(from.start, from.recurrenceRules, key)) return moved;
+  if (namesItsDays(to.recurrenceRules) && wallClockMs(key) !== wallClockMs(anchor)) {
+    const sameDay = `${key.slice(0, 10)}${moved.slice(10)}`;
+    return seriesOccursAt(to.start, to.recurrenceRules, sameDay) ? sameDay : null;
+  }
   if (seriesOccursAt(to.start, to.recurrenceRules, moved)) return moved;
   if (moved !== key && seriesOccursAt(to.start, to.recurrenceRules, key)) return key;
   return null;
+}
+
+/**
+ * `overrides` with the key each takes (keyOf), those without one left out,
+ * and never two on one key: an override that stays where it is comes first,
+ * and one that would land on a key already taken is left out and logged
+ * rather than overwrite it. Two occurrences of one series never share a
+ * recurrence id.
+ */
+function rekeyed(
+  overrides: OverrideMap,
+  keyOf: (key: string) => string | null,
+): Array<{ key: string; target: string; override: OverrideMap[string] }> {
+  const moves = Object.entries(overrides)
+    .map(([key, override]) => ({ key, target: keyOf(key), override }))
+    .filter((move): move is { key: string; target: string; override: OverrideMap[string] } => move.target !== null);
+  moves.sort((a, b) => Number(b.target === b.key) - Number(a.target === a.key));
+  const taken = new Set<string>();
+  return moves.filter((move) => {
+    if (!taken.has(move.target)) {
+      taken.add(move.target);
+      return true;
+    }
+    debug.warn('calendar', 'Two recurrence overrides map to one occurrence; keeping the first', move.target, move.key);
+    return false;
+  });
 }
 
 /**
@@ -362,13 +408,17 @@ function seriesOverrides(
     showWithoutTime: series.showWithoutTime ?? !!master.showWithoutTime,
     recurrenceRules: options.ruleChanged ? series.recurrenceRules ?? null : master.recurrenceRules,
   };
+  // A series made single ("Repeat: none") keeps no overrides. Its start is
+  // an occurrence of any rule (seriesOccursAt), so the first occurrence's
+  // override stayed on the single event: cancelled, it hid the event from
+  // every range query on 1.0 (still stored); retitled, 0.16.23 listed it
+  // twice (live).
+  if (options.ruleChanged && !to.recurrenceRules?.length) return null;
   const turned = from.showWithoutTime !== to.showWithoutTime;
   const opened = resolveOverrideKey({ start: occurrence.start, recurrenceId: occurrence.recurrenceId ?? master.start }, overrides);
 
   const result: OverrideMap = {};
-  for (const [key, override] of Object.entries(overrides)) {
-    const target = overrideKeyIn(key, from, to);
-    if (!target) continue;
+  for (const { key, target, override } of rekeyed(overrides, (key) => overrideKeyIn(key, from, to))) {
     const { updated: _updated, ...rest } = override as OverrideEntry;
     let entry: OverrideEntry = rest;
     if (!entry.excluded) {
@@ -380,7 +430,10 @@ function seriesOverrides(
           const pinned = wallClockMs(entry.start) === wallClockMs(key)
             && (entry.timeZone === undefined || entry.timeZone === master.timeZone);
           follows = pinned || key === opened;
-          if (follows) entry.start = movedLike(entry.start, from.start, to.start);
+          // The time its occurrence had is the time it has now; one of its
+          // own takes the editor's move when the editor was opened on it.
+          if (pinned) entry.start = target;
+          else if (follows) entry.start = movedLike(entry.start, from.start, to.start);
         }
         if (resized && typeof entry.duration === 'string'
           && (key === opened || parseDurationSeconds(entry.duration) === parseDurationSeconds(master.duration))) {
@@ -730,9 +783,7 @@ function followingOverrides(
   const turned = from.showWithoutTime !== to.showWithoutTime;
   const resized = parseDurationSeconds(to.duration) !== parseDurationSeconds(series.duration);
   const result: OverrideMap = {};
-  for (const [key, override] of Object.entries(overrides)) {
-    const target = overrideKeyIn(key, from, to, splitKey);
-    if (!target) continue;
+  for (const { key, target, override } of rekeyed(overrides, (key) => overrideKeyIn(key, from, to, splitKey))) {
     const opened = key === splitKey;
     const { updated: _updated, ...rest } = override as OverrideEntry;
     let entry = withParticipantsOf(rest, to.participants);

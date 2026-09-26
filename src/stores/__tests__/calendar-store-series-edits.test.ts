@@ -113,6 +113,8 @@ describe('the series itself opened from a reminder on the calendar store', () =>
 
   it.each(['0.16.23', '1.0'])('overrides its first occurrence in the owner\'s account on Stalwart %s', async () => {
     useCalendarStore.setState({ events: [] });
+    // As the owner's account holds it: no overrides yet.
+    mockGetEvents.mockImplementation(async (ids: string[]) => (ids[0] === 'b' ? [{ ...master, recurrenceOverrides: null }] : []));
     const store = useCalendarStore.getState();
 
     await saveOccurrenceEdit('this', {
@@ -190,5 +192,36 @@ describe('a change of an occurrence whose override has no organizer (Stalwart 0.
     expect((patch as Record<string, Record<string, unknown>>)['recurrenceOverrides/2026-10-19T10:00:00']).toMatchObject({
       title: 'Planning, room 2', organizerCalendarAddress: `mailto:${ORGANIZER}`,
     });
+  });
+});
+
+// The SEQUENCE a change of every occurrence raises is the server's: a series
+// opened from a reminder a while ago - or shown as itself in the grid - is
+// an older copy, and a raise from its number goes out lower than what the
+// attendees hold, which 0.16 (0.16.6 to 0.16.23) refuses.
+describe.each(['0.16.23', '1.0'])('a change of every occurrence from a series opened a while ago on Stalwart %s', (version) => {
+  it('raises the SEQUENCE the server holds, not the stale copy\'s', async () => {
+    const overrides = version === '1.0'
+      ? { '2026-10-19T10:00:00': { title: 'Planning, special' } }
+      : { '2026-10-19T10:00:00': { title: 'Planning, special', start: '2026-10-19T10:00:00', duration: 'PT1H', sequence: 2 } };
+    const stale = { ...master, sequence: 2, recurrenceOverrides: overrides } as unknown as CalendarEvent;
+    const current = {
+      ...master, sequence: 5,
+      recurrenceOverrides: version === '1.0' ? overrides : { '2026-10-19T10:00:00': { ...overrides['2026-10-19T10:00:00'], sequence: 5 } },
+    } as unknown as CalendarEvent;
+    mockGetEvents.mockImplementation(async (ids: string[]) => (ids[0] === 'b' ? [current] : []));
+    useCalendarStore.setState({ events: [] });
+    const store = useCalendarStore.getState();
+
+    await saveOccurrenceEdit('all', {
+      event: stale,
+      updates: { title: 'Planning, room 2', start: stale.start, duration: 'PT1H', timeZone: 'Europe/Berlin', participants },
+      editor: { attendees: [{ name: '', email: 'userb@example.org' }], when: editorTimesFromEvent(stale) },
+      sendScheduling: true, userEmails: [ORGANIZER],
+    }, { updateEvent: store.updateEvent, createEvent: store.createEvent, getMasterEvent: store.getMasterEvent });
+
+    expect(mockUpdate.mock.calls.map(([id, patch, schedule]) => [id, patch, schedule])).toEqual([
+      ['b', { title: 'Planning, room 2', sequence: 6, 'recurrenceOverrides/2026-10-19T10:00:00/sequence': 6 }, true],
+    ]);
   });
 });

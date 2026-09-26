@@ -1034,10 +1034,18 @@ describe('calendar-store', () => {
       expect(master?.start).toBe('2026-03-02T09:00:00');
     });
 
-    it('getMasterEvent returns a master as-is', async () => {
-      const ev = { id: 'ev1', recurrenceRules: [{ frequency: 'daily' }] } as any;
-      expect(await useCalendarStore.getState().getMasterEvent(ev)).toBe(ev);
-      expect(mockGetEvents).not.toHaveBeenCalled();
+    // A copy the app holds - opened from a reminder a while ago, or shown as
+    // itself in the grid - may be older than the server's: the scope edits
+    // build on its overrides and its SEQUENCE.
+    it('getMasterEvent reads a master again from the server', async () => {
+      useCalendarStore.setState({ calendars: [], events: [] });
+      const ev = { id: 'ev1', recurrenceRules: [{ frequency: 'daily' }], sequence: 1 } as any;
+      mockGetEvents.mockResolvedValue([{ ...ev, sequence: 4 }]);
+
+      const master = await useCalendarStore.getState().getMasterEvent(ev);
+
+      expect(mockGetEvents).toHaveBeenCalledWith(['ev1'], undefined);
+      expect(master?.sequence).toBe(4);
     });
   });
 

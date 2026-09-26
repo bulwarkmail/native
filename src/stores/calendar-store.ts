@@ -254,8 +254,8 @@ export interface CalendarState {
     options?: { sendSchedulingMessages?: boolean },
   ) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
-  // Resolve a client-side expanded occurrence (or a master) to its master
-  // event, fetching it from the server when the expansion replaced it.
+  // Resolve an expanded occurrence (or a master) to its master event, read
+  // from the server: a copy the app holds may be older.
   getMasterEvent: (event: CalendarEvent) => Promise<CalendarEvent | null>;
   // Invitations / scheduling
   rsvpEvent: (
@@ -1044,25 +1044,20 @@ export const useCalendarStore = create<CalendarState>()(
   },
 
   getMasterEvent: async (event) => {
-    if (event.recurrenceRules?.length && !event.recurrenceId && !isServerRecurrenceInstance(event)) {
-      // The series itself, opened from a reminder or a link rather than the
-      // grid: known from here on, so a change to it is sent to its own
-      // account under its raw id (resolveMutationTarget).
-      if (!get().events.some((e) => e.id === event.id)) knownMasters.set(event.id, event);
-      return event;
-    }
     // Expansion replaces the master with its occurrences, each pointing back
     // at the stored event: through baseEventId when the server expanded it,
-    // through originalId when the device did.
+    // through originalId when the device did. The stored event is read
+    // again every time, also for the series itself (opened from a reminder
+    // or a link) and one the grid shows as itself: a copy held here can be
+    // older than the server's, and the scope edits build on its overrides
+    // and its SEQUENCE - a change that raises it from a stale one goes out
+    // lower than the attendees' copies, which 0.16 refuses.
     const realId = seriesIdOf(event);
-    const inStore = get().events.find(
-      (e) => !e.recurrenceId && !!e.recurrenceRules?.length && !isServerRecurrenceInstance(e)
-        && seriesIdOf(e) === realId && (e.accountId ?? undefined) === (event.accountId ?? undefined),
-    );
-    if (inStore) return inStore;
     const fetched = (await fetchEvents([realId], event.accountId)) ?? [];
     const master = fetched[0];
     if (!master) return null;
+    // Known from here on, so a change to it is sent to its own account under
+    // its raw id (resolveMutationTarget), whether or not the grid shows it.
     const mapped = mapServerEventToStoreEvent(master, get().calendars, event.accountId);
     knownMasters.set(mapped.id, mapped);
     return mapped;
