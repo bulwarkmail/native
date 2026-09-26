@@ -1380,3 +1380,82 @@ describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('a series m
     expect(updates.recurrenceOverrides).toBeNull();
   });
 });
+
+// The rest of a split series is a new event, and 0.16.23 makes whoever
+// creates it the organizer unless it names one: a sharee who split the
+// owner's meeting became its organizer (live, organizerCalendarAddress
+// mailto:usera, isOrigin false), and so would a user's main address for a
+// series organized under an alias. 1.0 takes the owner participant.
+describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('the organizer of the rest of a split series on Stalwart %s', (_label, version) => {
+  it('is the series\' own when a sharee splits the owner\'s meeting', async () => {
+    const occurrence = serverOccurrence(version);
+    const deps = actions({ ...series(version), isOrigin: true, isShared: true, accountId: 'f' });
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence, { title: 'Planning, room 2' }), editor: editorOn(occurrence),
+      sendScheduling: true, userEmails: [SHAREE],
+    }, deps);
+
+    expect(deps.createEvent.mock.calls[0][0].organizerCalendarAddress).toBe(`mailto:${ORGANIZER}`);
+  });
+
+  it('is the exact address a series organized under an alias has', async () => {
+    const alias = 'planning@example.org';
+    const participants = { org: participant(version, alias, true, 'accepted'), b: participant(version, ATTENDEE, false, 'accepted') };
+    const master = { ...series(version), organizerCalendarAddress: `mailto:${alias}`, participants, recurrenceOverrides: null } as CalendarEvent;
+    const occurrence = { ...serverOccurrence(version), organizerCalendarAddress: `mailto:${alias}`, participants } as CalendarEvent;
+    const deps = actions(master);
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence, { title: 'Planning, room 2' }), editor: editorOn(occurrence),
+      sendScheduling: true, userEmails: [ORGANIZER, alias],
+    }, deps);
+
+    expect(deps.createEvent.mock.calls[0][0].organizerCalendarAddress).toBe(`mailto:${alias}`);
+  });
+
+  it('is left out with the participants when the user removed every attendee', async () => {
+    const occurrence = serverOccurrence(version);
+    const deps = actions(series(version));
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence, { participants: null, organizerCalendarAddress: null }),
+      editor: editorOn(occurrence, { attendees: [] }), sendScheduling: false, userEmails: [ORGANIZER],
+    }, deps);
+
+    const created = deps.createEvent.mock.calls[0][0];
+    expect(created.participants).toBeNull();
+    expect(created.organizerCalendarAddress).toBeNull();
+  });
+});
+
+// The new series of a split starts at a SEQUENCE of its own. An override
+// that brought the old series' number along made 0.16.23 list its
+// occurrence twice in the new series - changed, and as the series has it
+// (live, organizer and attendee alike).
+describe('the overrides a split gives the new series (Stalwart 0.16.23)', () => {
+  it('leave the old series\' SEQUENCE behind', async () => {
+    const participants = { org: participant('0.16', ORGANIZER, true, 'accepted'), b: participant('0.16', ATTENDEE, false, 'accepted') };
+    const master = {
+      ...series('0.16'), sequence: 3, start: '2026-12-07T10:00:00', utcStart: '2026-12-07T09:00:00Z', utcEnd: '2026-12-07T10:00:00Z',
+      participants, recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', count: 6 }],
+      recurrenceOverrides: {
+        '2027-01-04T10:00:00': { updated: '2026-11-20T09:00:00Z', start: '2027-01-04T10:00:00', duration: 'PT1H', sequence: 3, title: 'Planning, special', participants },
+      },
+    } as unknown as CalendarEvent;
+    const occurrence = {
+      ...master, id: 'maaaaae', baseEventId: 'b', start: '2026-12-21T10:00:00', recurrenceId: '2026-12-21T10:00:00',
+      recurrenceIdTimeZone: 'Europe/Berlin', utcStart: berlinUtc('2026-12-21T10:00:00'), utcEnd: berlinUtc('2026-12-21T10:00:00', 1),
+    } as CalendarEvent;
+    const deps = actions(master);
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence), editor: editorOn(occurrence), sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps);
+
+    const created = deps.createEvent.mock.calls[0][0];
+    expect(created).not.toHaveProperty('sequence');
+    expect(created.recurrenceOverrides!['2027-01-04T10:00:00']).toMatchObject({ title: 'Planning, special' });
+    expect(created.recurrenceOverrides!['2027-01-04T10:00:00']).not.toHaveProperty('sequence');
+  });
+});
