@@ -219,6 +219,20 @@ describe('calendar operations', () => {
       expect(mockRequest.mock.calls[0][0][0][1].properties).toContain('baseEventId');
       expect(mockRequest.mock.calls[1][0][0][1].properties).not.toContain('baseEventId');
     });
+
+    // Whether the event is its organizer's own copy (0.16 and 1.0 compute it
+    // for the event and each expanded occurrence): the owner's meeting in a
+    // calendar shared with the user is theirs to change, and Stalwart sends
+    // the change from the owner.
+    it('asks for isOrigin for stored events and expanded occurrences alike', async () => {
+      mockRequest.mockResolvedValue(getAnswer([]));
+
+      await getEvents(['a'], undefined, { expanded: true });
+      await getEvents(['a']);
+
+      expect(mockRequest.mock.calls[0][0][0][1].properties).toContain('isOrigin');
+      expect(mockRequest.mock.calls[1][0][0][1].properties).toContain('isOrigin');
+    });
   });
 
   describe('queryEvents', () => {

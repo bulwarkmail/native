@@ -176,6 +176,33 @@ describe('series edits from an occurrence the user organizes', () => {
     expect(Object.values(data.participants ?? {}).map((p) => p.participationStatus)).toEqual(['accepted', 'accepted']);
   });
 
+  // The series in the owner's calendar, shared with the user read & write:
+  // Stalwart sends the user's change from the owner (isOrigin, 0.16 and 1.0).
+  it('asks the attendees again when the user changes the owner\'s series in a shared calendar', () => {
+    const owners = {
+      ...series,
+      isOrigin: true,
+      organizerCalendarAddress: 'mailto:owner@example.com',
+      participants: { ...participants, p0: { ...participants!.p0, calendarAddress: 'mailto:owner@example.com' } },
+    } as CalendarEvent;
+    const occurrenceOfOwners = { ...fourth, isOrigin: true, organizerCalendarAddress: owners.organizerCalendarAddress, participants: {
+      ...owners.participants, p1: { ...owners.participants!.p1, participationStatus: 'declined' },
+    } } as CalendarEvent;
+    const sharee = { userEmail: 'sharee@example.com', userEmails: ['sharee@example.com'] };
+    const rows = seedAttendees(occurrenceOfOwners, ['sharee@example.com']);
+
+    const following = buildFutureSeriesEdit(owners, owners.recurrenceRules!, occurrenceOfOwners, {
+      participants: owners.participants,
+    }, ['sharee@example.com']);
+    const moved = buildAllScopeEdit({ ...formSave, start: '2026-03-05T10:00:00' }, occurrenceOfOwners, owners, {
+      attendees: rows, timesMoved: true, ruleChanged: false,
+    }, sharee);
+
+    expect(Object.values(following.participants ?? {}).map((p) => p.participationStatus)).toEqual(['accepted', 'needs-action']);
+    expect(Object.values(moved.participants ?? {}).map((p) => [p.calendarAddress, p.participationStatus]))
+      .toEqual([['mailto:owner@example.com', 'accepted'], ['mailto:bob@example.com', 'needs-action']]);
+  });
+
   it('keeps writing the times when the flags are not given', () => {
     expect(buildAllScopeUpdates({ start: '2026-03-05T09:00:00', duration: 'PT1H' }, fourth, series))
       .toEqual({ duration: 'PT1H' });

@@ -413,6 +413,102 @@ describe('seriesParticipantFields (all occurrences)', () => {
   });
 });
 
+// userc shares a calendar with the user (userb, read & write) and organizes a
+// meeting in it; userb attends it too. Stalwart sends a change to it from
+// userc, the owner of the account the event is in, and says so with
+// `isOrigin` - true for that meeting and each expanded occurrence, false for
+// an invitation userc got (live on 1.0 and 0.16.23). The app took userb for
+// an attendee there: the editor wrote no participants and sent nothing, and
+// a move asked nobody again.
+describe.each(['0.16.23', '1.0'])('the owner\'s meeting in a calendar shared with the user on Stalwart %s', (version) => {
+  const ME = 'userb@example.org';
+  // 0.16.23 drops an attendee's roles; 1.0 keeps them.
+  const attendee = (address: string, participationStatus: string) => ({
+    calendarAddress: `mailto:${address}`, participationStatus,
+    ...(version === '1.0' ? { roles: { attendee: true } } : {}),
+  });
+  const inShared = (organizer: string, isOrigin: boolean): Partial<CalendarEvent> => ({
+    id: 'f:fj', accountId: 'f', isShared: true, isOrigin,
+    organizerCalendarAddress: `mailto:${organizer}`,
+    participants: {
+      owner: { calendarAddress: `mailto:${organizer}`, roles: { owner: true }, participationStatus: 'accepted' },
+      anna: attendee('usera@example.org', 'accepted'),
+      bea: attendee(ME, 'tentative'),
+    },
+  } as Partial<CalendarEvent>);
+  const me = { userEmail: ME, userEmails: [ME] };
+  const statuses = (fields: ReturnType<typeof participantFieldsToSave>) => Object.fromEntries(
+    Object.entries(fields.participants ?? {}).map(([id, p]) => [id, p.participationStatus]),
+  );
+
+  it('is the owner\'s to change: the server schedules it from the owner', () => {
+    expect(userOrganizes(inShared('userc@example.org', true), [ME])).toBe(true);
+    expect(userOrganizes(inShared('usera@example.org', false), [ME])).toBe(false);
+  });
+
+  it('keeps the user on the list they open, and writes the owner\'s participants', () => {
+    const meeting = inShared('userc@example.org', true);
+    const rows = seedAttendees(meeting, [ME]);
+
+    expect(rows.map((a) => a.email)).toEqual(['usera@example.org', ME]);
+    const fields = participantFieldsToSave(meeting, rows, me);
+    expect(fields.participants?.owner).toMatchObject({ calendarAddress: 'mailto:userc@example.org', roles: { owner: true } });
+    expect(statuses(fields)).toEqual({ owner: 'accepted', anna: 'accepted', bea: 'tentative' });
+    expect(fields).not.toHaveProperty('organizerCalendarAddress');
+  });
+
+  it('asks the attendees again when the user moves it', () => {
+    const meeting = inShared('userc@example.org', true);
+
+    const fields = participantFieldsToSave(meeting, seedAttendees(meeting, [ME]), { ...me, rescheduled: true });
+
+    expect(statuses(fields)).toEqual({ owner: 'accepted', anna: 'needs-action', bea: 'needs-action' });
+  });
+
+  it('leaves an invitation the owner got alone', () => {
+    const invitation = inShared('boss@example.org', false);
+
+    expect(participantFieldsToSave(invitation, seedAttendees(invitation, [ME]), { ...me, rescheduled: true })).toEqual({});
+  });
+
+  it('asks the series\' attendees again when the user moves every occurrence', () => {
+    const meeting = inShared('userc@example.org', true);
+
+    const fields = seriesParticipantFields(meeting, meeting, seedAttendees(meeting, [ME]), { ...me, rescheduled: true });
+
+    expect(statuses(fields)).toEqual({ owner: 'accepted', anna: 'needs-action', bea: 'needs-action' });
+  });
+});
+
+describe('seedAttendees for a meeting organized under an alias', () => {
+  // The user organizes under alias@ and invited their own main address too:
+  // only the organizer's entry is left out, not the user's main address.
+  it('keeps the user\'s main address on the list', () => {
+    const meeting: Partial<CalendarEvent> = {
+      organizerCalendarAddress: 'mailto:alias@example.com',
+      participants: {
+        org: { calendarAddress: 'mailto:alias@example.com', roles: { owner: true }, participationStatus: 'accepted' },
+        main: { calendarAddress: 'mailto:me@example.com', roles: { attendee: true }, participationStatus: 'accepted' },
+        bob: { calendarAddress: 'mailto:bob@example.com', roles: { attendee: true } },
+      },
+    };
+
+    expect(seedAttendees(meeting, ['me@example.com', 'alias@example.com']).map((a) => a.email))
+      .toEqual(['me@example.com', 'bob@example.com']);
+  });
+
+  it('leaves the user out of an event that names no organizer: they become it on save', () => {
+    const plain: Partial<CalendarEvent> = {
+      participants: {
+        a: { calendarAddress: 'mailto:me@example.com' },
+        b: { calendarAddress: 'mailto:bob@example.com' },
+      },
+    };
+
+    expect(seedAttendees(plain, ['me@example.com']).map((a) => a.email)).toEqual(['bob@example.com']);
+  });
+});
+
 describe('participantLimitOf (Stalwart 1.0 maxParticipantsPerEvent)', () => {
   it('reads the limit from a 1.0 refusal and ignores other failures', () => {
     const refusal = new JMAPSetError('invalidProperties', 'An event cannot have more than 20 participants.', ['participants']);

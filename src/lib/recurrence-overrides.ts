@@ -208,7 +208,10 @@ export function buildAllScopeEdit(
  * The new series of "This and following events", as buildFutureSeriesData
  * makes it. It is a new event (a new UID) to its attendees, and Stalwart
  * sends a new event only to attendees who have not answered: when the user
- * organizes it, everyone but the organizer is asked anew.
+ * organizes it, everyone but the organizer is asked anew. Whether they do is
+ * the old series' to say: the new one carries no `isOrigin` yet, and the
+ * owner's meeting in a calendar shared with the user is theirs to change
+ * (userOrganizes).
  */
 export function buildFutureSeriesEdit(
   master: CalendarEvent,
@@ -218,7 +221,7 @@ export function buildFutureSeriesEdit(
   userEmails: string[],
 ): Partial<CalendarEvent> {
   const data = buildFutureSeriesData(master, originalRules, occurrence, updates);
-  if (data.participants && userOrganizes(data, userEmails)) {
+  if (data.participants && userOrganizes({ ...data, isOrigin: master.isOrigin }, userEmails)) {
     data.participants = askAttendeesAgain(data.participants, getEventOrganizerEmails(data));
   }
   return data;

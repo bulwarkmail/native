@@ -509,6 +509,11 @@ export interface CalendarEvent {
   // retired in jscalendarbis and only kept here so old values round-trip.
   replyTo?: Record<string, string> | null;
   organizerCalendarAddress?: string | null;
+  // Server-set, never written: the event's organizer is an address of the
+  // account the event is in - the organizer's own copy, and every expanded
+  // occurrence of it - as opposed to an invitation that account got (0.16
+  // and 1.0 alike).
+  isOrigin?: boolean;
   sequence?: number;
   recurrenceRules?: RecurrenceRule[] | null;
   recurrenceOverrides?: Record<string, Partial<CalendarEvent>> | null;

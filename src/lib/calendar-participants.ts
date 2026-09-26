@@ -388,12 +388,17 @@ function eventOrganizer(event: Partial<CalendarEvent>): { name: string; email: s
 /**
  * Whether a save of `event` is the user's as its organizer: an event without
  * an organizer yet becomes the user's, and so is one organized under any of
- * the user's addresses. An invitation someone else sent is not: its
- * organizer asks, the user only answers.
+ * the user's addresses. So is the organizer's own copy in someone else's
+ * account the user writes to - a calendar shared with them, a group's:
+ * Stalwart schedules a change from the addresses of the account the event is
+ * in, and `isOrigin` is its word that the organizer is one of them (0.16 and
+ * 1.0 alike), so a sharee's change of the owner's meeting goes out from the
+ * owner. An invitation someone else sent is not, in the user's account or
+ * another (`isOrigin: false`): its organizer asks, the user only answers.
  */
 export function userOrganizes(event: Partial<CalendarEvent> | null | undefined, userEmails: string[]): boolean {
   const organizer = event ? eventOrganizer(event) : null;
-  if (!organizer) return true;
+  if (!organizer || event?.isOrigin === true) return true;
   const key = organizer.email.toLowerCase();
   return userEmails.some((address) => address.trim().toLowerCase() === key);
 }
@@ -541,7 +546,10 @@ export function hasAnsweredAttendees(participants: CalendarEvent['participants']
 /**
  * The attendee rows an editor should start from: every participant except the
  * organizer (who is re-added by buildParticipantMap on save), without
- * duplicate addresses (#731).
+ * duplicate addresses (#731). The organizer is the event's own, or the user
+ * for an event without one - not the user as such: a sharee who attends the
+ * owner's meeting, or a user who invited their own main address to a
+ * meeting organized under an alias, stays on the list.
  */
 export function seedAttendees(
   event: Partial<CalendarEvent> | null | undefined,
@@ -549,9 +557,8 @@ export function seedAttendees(
 ): Attendee[] {
   if (!event?.participants) return [];
   const excluded = new Set<string>();
-  if (isOrganizer(event, userEmails) && userEmails[0]) {
-    excluded.add(userEmails[0].toLowerCase());
-  }
+  const organizerAddress = eventOrganizer(event)?.email || userEmails[0]?.trim();
+  if (organizerAddress) excluded.add(organizerAddress.toLowerCase());
   const out: Attendee[] = [];
   for (const p of getParticipantList(event)) {
     if (p.isOrganizer) continue;

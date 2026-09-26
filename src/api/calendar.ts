@@ -204,7 +204,7 @@ const CALENDAR_EVENT_PROPERTIES = [
   'utcStart', 'utcEnd', 'status', 'freeBusyStatus',
   'participants', 'alerts', 'useDefaultAlerts', 'recurrenceRule',
   'excludedRecurrenceRule', 'recurrenceId',
-  'replyTo', 'organizerCalendarAddress', 'sequence',
+  'replyTo', 'organizerCalendarAddress', 'isOrigin', 'sequence',
   'locations', 'virtualLocations',
   'progress', 'due', 'priority', 'percentComplete',
   'links', 'created', 'updated',

@@ -305,8 +305,9 @@ export function EventModal({
     }
   };
 
-  // An event without an organizer, or organized under one of the user's
-  // addresses; not an invitation someone else sent.
+  // An event without an organizer, organized under one of the user's
+  // addresses, or the owner's meeting in a calendar shared with the user
+  // (isOrigin); not an invitation someone else sent.
   const organizes = userOrganizes(event, currentUserEmails);
 
   const handleSave = async () => {
