@@ -480,3 +480,34 @@ describe('hydrateRecurrenceInstances with a reply stub', () => {
     expect(hydrateRecurrenceInstances([{ ...stub(), title: '' }], withOverride({ title: '' }))[0].title).toBe('');
   });
 });
+
+// Until a562ea5 every editor save wrote the organizer into the override it
+// rewrote; 0.16.19 refuses an answer to an occurrence whose override names
+// none. An override on the base event (0.16 before 0.16.20, and ranges the
+// device expands) gets the series' organizer back when it has none; through
+// a synthetic id it is never sent. 1.0 refuses it inside an override once,
+// and the store writes the override again without it.
+describe.each(['0.16.19', '1.0'])('the organizer of an existing override written on the base event (Stalwart %s)', () => {
+  const occurrence = (entry: Record<string, unknown>) => ({
+    id: 'b:2026-09-08T10:00:00', originalId: 'b', start: '2026-09-08T10:00:00', recurrenceId: '2026-09-08T10:00:00',
+    recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily' }],
+    organizerCalendarAddress: 'mailto:org@example.com',
+    recurrenceOverrides: { '2026-09-08T10:00:00': entry },
+  }) as unknown as CalendarEvent;
+
+  it('adds it to an override that has none', () => {
+    expect(withNewOverrideDetails(occurrence({ title: 'Moved' }), { title: 'Renamed' }, { seriesKeys: true }))
+      .toEqual({ title: 'Renamed', organizerCalendarAddress: 'mailto:org@example.com' });
+  });
+
+  it('leaves an override that has one, and a patch that sets one, alone', () => {
+    const named = occurrence({ title: 'Moved', organizerCalendarAddress: 'mailto:org@example.com' });
+    expect(withNewOverrideDetails(named, { title: 'Renamed' }, { seriesKeys: true })).toEqual({ title: 'Renamed' });
+    expect(withNewOverrideDetails(occurrence({}), { organizerCalendarAddress: null } as never, { seriesKeys: true }))
+      .toEqual({ organizerCalendarAddress: null });
+  });
+
+  it('sends nothing of the series through a synthetic id', () => {
+    expect(withNewOverrideDetails(occurrence({ title: 'Moved' }), { title: 'Renamed' })).toEqual({ title: 'Renamed' });
+  });
+});

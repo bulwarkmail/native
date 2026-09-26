@@ -543,6 +543,18 @@ type OccurrenceOverrideContext = Pick<CalendarEvent, 'id' | 'start' | 'recurrenc
   & Partial<Pick<CalendarEvent, 'originalId' | 'baseEventId'>>;
 
 /**
+ * `occurrence` as seen from `master`, the base event it belongs to, for
+ * building an override patch on the master: the master's overrides map is
+ * the one that counts.
+ */
+export function overrideContextOf(
+  occurrence: CalendarEvent,
+  master: Pick<CalendarEvent, 'recurrenceOverrides'>,
+): CalendarEvent {
+  return { ...occurrence, baseEventId: undefined, recurrenceOverrides: master.recurrenceOverrides ?? null };
+}
+
+/**
  * The base event's overrides map as far as `occurrence` knows it, or
  * `undefined` when it does not. The device's expansion copies the base
  * event's map (absent means none); a server occurrence only has it once
@@ -655,17 +667,36 @@ export interface OverridePatchOptions {
 }
 
 /**
+ * `patch` for an occurrence's existing override on the base event, with the
+ * series' organizer when that override names none - as every editor save
+ * wrote it before 2a3febc: 0.16.19 refuses an answer to one occurrence whose
+ * override has no organizer (see buildOccurrenceRsvpPatch).
+ * 0.16.23 takes the key and drops it; Stalwart 1.0 refuses it inside an
+ * override, and the store then writes the override once more without series
+ * keys. Through a synthetic id it is never sent.
+ */
+function withOverrideOrganizer(occurrence: Partial<CalendarEvent>, patch: Partial<CalendarEvent>): Partial<CalendarEvent> {
+  if (!occurrence.organizerCalendarAddress || 'organizerCalendarAddress' in patch || !occurrence.recurrenceId) return patch;
+  const overrides = knownOverrides(occurrence);
+  const key = resolveOverrideKey({ start: occurrence.start ?? '', recurrenceId: occurrence.recurrenceId }, overrides);
+  const entry = key ? overrides?.[key] : undefined;
+  if (!entry || 'organizerCalendarAddress' in entry) return patch;
+  return { ...patch, organizerCalendarAddress: occurrence.organizerCalendarAddress };
+}
+
+/**
  * `patch` plus the occurrence details a new override needs
  * (NEW_OVERRIDE_COPIED_KEYS). Nothing is added when the occurrence already
  * has an override - an attendee may not add most of these to the organizer's
- * - or when that is unknown.
+ * - or when that is unknown; an existing override written on the base event
+ * gets the series' organizer if it has none (withOverrideOrganizer).
  */
 export function withNewOverrideDetails(
   occurrence: Partial<CalendarEvent>,
   patch: Partial<CalendarEvent>,
   options: OverridePatchOptions = {},
 ): Partial<CalendarEvent> {
-  if (!createsOverride(occurrence)) return patch;
+  if (!createsOverride(occurrence)) return options.seriesKeys ? withOverrideOrganizer(occurrence, patch) : patch;
   const names: readonly string[] = options.seriesKeys
     ? [...NEW_OVERRIDE_COPIED_KEYS, ...NEW_OVERRIDE_SERIES_KEYS]
     : NEW_OVERRIDE_COPIED_KEYS;

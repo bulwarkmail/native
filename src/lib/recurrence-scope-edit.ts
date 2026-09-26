@@ -11,6 +11,7 @@ import type { CalendarEvent, RecurrenceRule } from '../api/types';
 import type { RecurrenceEditScope } from '../components/calendar/RecurrenceScopeDialog';
 import { getEventStartDate, getPrimaryCalendarId } from './calendar-utils';
 import {
+  hasAnsweredAttendees,
   participantsAskedAgain,
   seriesParticipantFields,
   userOrganizes,
@@ -19,11 +20,18 @@ import {
 } from './calendar-participants';
 import { editorTimesChanged, type EditorTimes } from './event-editor-times';
 import {
+  buildFallbackExcludePatch,
+  buildFallbackOverridePatch,
   buildOccurrencePatch,
+  buildOverrideInTwoSteps,
+  createsOverride,
+  isBrowserExpandedOccurrence,
   isServerRecurrenceInstance,
+  overrideContextOf,
   parseDurationSeconds,
   resolveOverrideKey,
   stableJson,
+  withNewOverrideDetails,
 } from './recurrence-instances';
 import { occurrencesBefore, seriesOccursAt } from './recurrence-expansion';
 import { recurrenceRulesEqual } from './recurrence';
@@ -31,6 +39,7 @@ import {
   formatWallClock,
   fromDisplayDate,
   getEffectiveTimeZone,
+  getTimeZoneOffsetMs,
   isValidTimeZone,
   localDateTimeToInstant,
 } from './calendar-timezone';
@@ -437,6 +446,61 @@ export function seriesUpdatesFromOccurrence(
   return series;
 }
 
+/** Changes of a series its attendees see - Stalwart announces them, and 1.0 raises the SEQUENCE for them. */
+const ANNOUNCED_KEYS = [
+  'title', 'description', 'locations', 'virtualLocations', 'status', 'participants', 'recurrenceRules',
+  'excludedRecurrenceRules', 'recurrenceOverrides', ...WHEN_KEYS,
+] as const;
+
+/**
+ * `series`, a change to the series `master` its attendees are told of, with
+ * the SEQUENCE of the series and of each of its changed occurrences one up.
+ *
+ * 0.16 (0.16.6 to 0.16.23) sends the change of one occurrence with that
+ * occurrence's SEQUENCE raised, but does not keep the raise itself (in
+ * organizer.rs the list of components to raise is shadowed for such
+ * changes). A later change of every occurrence that does not raise the
+ * number again - a new title - then carried a lower SEQUENCE for that
+ * occurrence than the attendee's copy has, and the attendee's server
+ * refused the whole change as out of sequence: the mail arrived, the copy
+ * stayed as it was (live on 0.16.23). One up from what the organizer's
+ * copy holds is at least what the attendees got. 1.0 raises every
+ * occurrence's SEQUENCE the same way itself for a change it announces, and
+ * keeps a number it would have given (live: the same result with and
+ * without). The app's update sends `sequence` as it is; nothing strips it.
+ */
+function withRaisedSequences(series: Partial<CalendarEvent>, master: CalendarEvent): Record<string, unknown> {
+  const base = master.sequence ?? 0;
+  const raised: Record<string, unknown> = { ...series, sequence: base + 1 };
+  const raise = (entry: OverrideEntry) => (entry.excluded ? entry : { ...entry, sequence: Number(entry.sequence ?? base) + 1 });
+  if (series.recurrenceOverrides !== undefined) {
+    if (series.recurrenceOverrides) {
+      raised.recurrenceOverrides = Object.fromEntries(Object.entries(series.recurrenceOverrides)
+        .map(([key, entry]) => [key, raise(entry as OverrideEntry)]));
+    }
+  } else {
+    for (const [key, entry] of Object.entries(master.recurrenceOverrides ?? {})) {
+      if (!(entry as OverrideEntry).excluded) raised[`recurrenceOverrides/${key}/sequence`] = raise(entry as OverrideEntry).sequence;
+    }
+  }
+  return raised;
+}
+
+/**
+ * Whether saving `series` for every occurrence of `master` raises their
+ * SEQUENCE (withRaisedSequences): the user organizes the series and tells
+ * its attendees of a change they see, and it has occurrences of its own a
+ * change of one of them may have left behind.
+ */
+function raisesSequences(series: Partial<CalendarEvent>, master: CalendarEvent, edit: OccurrenceEdit): boolean {
+  return !!edit.sendScheduling
+    && !!edit.editor
+    && Object.keys(master.participants ?? {}).length > 0
+    && userOrganizes(master, edit.userEmails)
+    && Object.values(master.recurrenceOverrides ?? {}).some((entry) => !(entry as OverrideEntry).excluded)
+    && ANNOUNCED_KEYS.some((key) => key in series);
+}
+
 /** The calendar store's scheduling switch for one write: true sends the attendees messages, false is quiet. */
 interface SchedulingOptions {
   sendSchedulingMessages?: boolean;
@@ -494,6 +558,58 @@ async function seriesOf(event: CalendarEvent, actions: Pick<OccurrenceEditAction
   return master && (master.recurrenceRules?.length ?? 0) > 0 ? master : null;
 }
 
+/** A series itself, not one of its occurrences: it has rules and no recurrence id. */
+function isSeries(event: CalendarEvent): boolean {
+  return (event.recurrenceRules?.length ?? 0) > 0 && !event.recurrenceId;
+}
+
+/**
+ * `event` as an occurrence of `master`, to override or exclude on it: itself
+ * when it is one, the series' first occurrence when it is the series itself.
+ * The app shows a series it has not expanded - one opened from a reminder or
+ * a link, one an edit just made recurring - as the series, once, at its
+ * first occurrence; a change to "this occurrence" of it went to the series
+ * and rewrote every occurrence, and deleting it deleted them all.
+ */
+function asOccurrenceOf(event: CalendarEvent, master: CalendarEvent): CalendarEvent {
+  const occurrence = event.recurrenceId
+    ? event
+    : { ...event, recurrenceId: master.start, recurrenceIdTimeZone: master.timeZone ?? null };
+  return overrideContextOf(occurrence, master);
+}
+
+/** Whether `event` is `master`'s first occurrence, or the series itself standing for it. */
+function isFirstOccurrence(event: CalendarEvent, master: CalendarEvent): boolean {
+  if (!event.recurrenceId) return true;
+  return wallClockMs(event.recurrenceId) === wallClockMs(master.start);
+}
+
+/**
+ * Change `occurrence` of `master`, which has no override yet, so that the
+ * change reaches every attendee who has not declined - in the two steps the
+ * calendar store takes for an occurrence of an expanded series
+ * (updateOccurrenceInTwoSteps). Stalwart sends a new override only to
+ * attendees who have not answered, a change to an existing one to all who
+ * have not declined: the occurrence first gets its override as it is,
+ * without messages, and the change then goes out as a change of it. This is
+ * the series itself standing for its first occurrence, which changed in one
+ * write that reached nobody who had answered. The override is written on
+ * the series, under the key it keeps, so the second step needs no fresh
+ * read.
+ */
+async function overrideForEveryone(
+  occurrence: CalendarEvent,
+  master: CalendarEvent,
+  updates: Partial<CalendarEvent>,
+  actions: Pick<OccurrenceEditActions, 'updateEvent'>,
+): Promise<boolean> {
+  const steps = buildOverrideInTwoSteps(occurrence, updates);
+  if (!steps) return false;
+  await actions.updateEvent(master.id, steps.quiet, { sendSchedulingMessages: false });
+  await actions.updateEvent(master.id, steps.change, { sendSchedulingMessages: true });
+  return true;
+}
+
 /** The recurrence id `occurrence` has in `master`, the key of its override there. */
 function splitKeyOf(occurrence: CalendarEvent, master: CalendarEvent): string {
   return resolveOverrideKey(occurrence, master.recurrenceOverrides) ?? occurrence.recurrenceId ?? occurrence.start;
@@ -521,7 +637,7 @@ async function truncateSeries(
     ? JSON.parse(JSON.stringify(master.recurrenceRules))
     : null;
   const splitKey = splitKeyOf(occurrence, master);
-  const until = untilBefore(splitKey);
+  const until = untilBefore(splitKey, master);
   const truncatedRules = (master.recurrenceRules || []).map((rule) => ({
     ...rule,
     until,
@@ -545,9 +661,29 @@ async function truncateSeries(
   return { restore, announced, removed };
 }
 
-/** The UNTIL that ends a series just before its occurrence at `splitKey`: a second before it, on the series' own clock. */
-function untilBefore(splitKey: string): string {
-  return shiftLocalDateTime(splitKey, -1000);
+/**
+ * The UNTIL that ends `series` just before its occurrence at `splitKey`: a
+ * second before it, on the series' own clock - and earlier by as much as the
+ * series' zone is behind UTC. 0.16 (0.16.23 checked) takes the UNTIL for
+ * the series' wall clock, turns it into UTC and compares that with the
+ * wall clock of each occurrence: in New York "until 09:59:59" kept the
+ * 10:00 occurrence it was to end before, "until 04:59:59" ends before it.
+ * 1.0 reads the UNTIL on the series' clock, and ends it there either way as
+ * long as its occurrences are further apart than that - hours, for a daily
+ * or weekly series never. The offset is the larger of the split's day and
+ * the day before, for a change of daylight saving time between them.
+ */
+function untilBefore(splitKey: string, series: CalendarEvent): string {
+  let back = 1000;
+  const zone = !series.showWithoutTime && series.timeZone && isValidTimeZone(series.timeZone) ? series.timeZone : null;
+  if (zone) {
+    const instant = localDateTimeToInstant(splitKey.slice(0, 19), zone);
+    if (instant) {
+      const offsets = [instant, new Date(instant.getTime() - 86_400_000)].map((at) => getTimeZoneOffsetMs(at, zone));
+      back += Math.max(0, -Math.min(...offsets));
+    }
+  }
+  return shiftLocalDateTime(splitKey, -back);
 }
 
 /**
@@ -723,15 +859,45 @@ export async function saveOccurrenceEdit(
   const { updateEvent, createEvent } = actions;
   const { event, updates, sendScheduling } = edit;
   const scheduling = { sendSchedulingMessages: sendScheduling };
-  if (scope === 'this' || isLoneOccurrence(event)) {
-    // The store keeps the change on this occurrence: through its own
-    // (synthetic) id, or as a recurrence override on the event it was
-    // expanded from.
+  if (scope === 'this') {
+    if (isServerRecurrenceInstance(event) || isBrowserExpandedOccurrence(event)) {
+      // The store keeps the change on this occurrence: through its own
+      // (synthetic) id, or as a recurrence override on the event it was
+      // expanded from.
+      await updateEvent(event.id, updates, scheduling);
+      return true;
+    }
+    // The series itself standing for its first occurrence: override that
+    // occurrence on the series, never write it to the series itself.
+    const master = await seriesOf(event, actions);
+    if (master) {
+      const occurrence = asOccurrenceOf(event, master);
+      const participants = updates.participants === undefined ? occurrence.participants : updates.participants;
+      if (sendScheduling && createsOverride(occurrence) && userOrganizes({ ...occurrence, participants }, edit.userEmails)
+        && hasAnsweredAttendees(participants)) {
+        return overrideForEveryone(occurrence, master, updates, actions);
+      }
+      const overridePatch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates, { seriesKeys: true }));
+      if (!overridePatch) return false;
+      await updateEvent(master.id, overridePatch, scheduling);
+      return true;
+    }
+    // An occurrence the server keeps as an event of its own (an invitation
+    // to that occurrence alone) is itself what changes; a series that
+    // cannot be found is not.
+    if (isSeries(event)) return false;
+    await updateEvent(event.id, updates, scheduling);
+    return true;
+  }
+  if (isLoneOccurrence(event)) {
     await updateEvent(event.id, updates, scheduling);
     return true;
   }
   const master = await seriesOf(event, actions);
   if (!master) return false;
+  // From the first occurrence on is the whole series; ended before its first
+  // occurrence, the series would be left with none.
+  if (scope === 'this_and_future' && isFirstOccurrence(event, master)) return saveOccurrenceEdit('all', edit, actions);
   if (scope === 'this_and_future') {
     const { restore, announced, removed } = await truncateSeries(master, event, actions, {
       sendScheduling, userEmails: edit.userEmails,
@@ -768,7 +934,8 @@ export async function saveOccurrenceEdit(
     seriesUpdates = { ...updates };
     delete seriesUpdates.recurrenceId;
   }
-  await updateEvent(master.id, seriesUpdates, scheduling);
+  const write = raisesSequences(seriesUpdates, master, edit) ? withRaisedSequences(seriesUpdates, master) : seriesUpdates;
+  await updateEvent(master.id, write, scheduling);
   return true;
 }
 
@@ -789,15 +956,34 @@ export async function deleteOccurrence(
   actions: OccurrenceDeleteActions,
 ): Promise<boolean> {
   const { event } = deletion;
-  if (scope === 'this' || isLoneOccurrence(event)) {
-    // The store destroys a server occurrence, or excludes one the device
-    // expanded on its base event.
+  if (scope === 'this') {
+    if (isServerRecurrenceInstance(event) || isBrowserExpandedOccurrence(event)) {
+      // The store destroys a server occurrence, or excludes one the device
+      // expanded on its base event.
+      await actions.deleteEvent(event.id);
+      return true;
+    }
+    // The series itself standing for its first occurrence: exclude that
+    // occurrence on the series, never delete the series. The store tells
+    // the attendees as it does for its own deletes.
+    const master = await seriesOf(event, actions);
+    if (master) {
+      const excludePatch = buildFallbackExcludePatch(asOccurrenceOf(event, master));
+      if (!excludePatch) return false;
+      await actions.updateEvent(master.id, excludePatch);
+      return true;
+    }
+    if (isSeries(event)) return false;
+    await actions.deleteEvent(event.id);
+    return true;
+  }
+  if (isLoneOccurrence(event)) {
     await actions.deleteEvent(event.id);
     return true;
   }
   const master = await seriesOf(event, actions);
   if (!master) return false;
-  if (scope === 'this_and_future') {
+  if (scope === 'this_and_future' && !isFirstOccurrence(event, master)) {
     await truncateSeries(master, event, actions, { sendScheduling: true, userEmails: deletion.userEmails });
     return true;
   }

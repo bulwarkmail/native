@@ -954,7 +954,11 @@ export const useCalendarStore = create<CalendarState>()(
         hasSchedulingParticipants(storeEvent)
         ? true
         : undefined);
+    // A change that makes an event a series, or a single event again, changes
+    // which occurrences the grid shows: only a range load expands a series,
+    // and until then the grid had the series itself, once.
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
+      || 'recurrenceRules' in patch
       || hasServerOccurrencesOf(get().events, realId, accountId);
     // An occurrence's alerts that turn the calendar's defaults off.
     const stopsDefaultAlerts = patch.useDefaultAlerts === false && 'alerts' in patch;
@@ -1041,6 +1045,10 @@ export const useCalendarStore = create<CalendarState>()(
 
   getMasterEvent: async (event) => {
     if (event.recurrenceRules?.length && !event.recurrenceId && !isServerRecurrenceInstance(event)) {
+      // The series itself, opened from a reminder or a link rather than the
+      // grid: known from here on, so a change to it is sent to its own
+      // account under its raw id (resolveMutationTarget).
+      if (!get().events.some((e) => e.id === event.id)) knownMasters.set(event.id, event);
       return event;
     }
     // Expansion replaces the master with its occurrences, each pointing back

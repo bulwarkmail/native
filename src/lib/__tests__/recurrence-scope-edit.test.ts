@@ -720,7 +720,7 @@ describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('where "thi
 describe('saveOccurrenceEdit for every occurrence', () => {
   it('writes the series\' own change to its base event on Stalwart 1.0', async () => {
     const occurrence = serverOccurrence('1.0');
-    const deps = actions({ ...series('1.0'), recurrenceOverrides: null });
+    const deps = actions(series('1.0'));
 
     const saved = await saveOccurrenceEdit('all', {
       event: occurrence,
@@ -733,8 +733,11 @@ describe('saveOccurrenceEdit for every occurrence', () => {
     expect(saved).toBe(true);
     expect(deps.getMasterEvent).toHaveBeenCalledWith(occurrence);
     // What the user changed, and only that: the rule the editor wrote as it
-    // was stays the series' own.
-    expect(deps.updateEvent).toHaveBeenCalledWith('b', { title: 'Planning, room 2' }, { sendSchedulingMessages: true });
+    // was stays the series' own. The attendees are told, and 19 October has
+    // an override: the SEQUENCE goes up (see below).
+    expect(deps.updateEvent).toHaveBeenCalledWith('b', {
+      title: 'Planning, room 2', sequence: 1, 'recurrenceOverrides/2026-10-19T10:00:00/sequence': 1,
+    }, { sendSchedulingMessages: true });
   });
 
   it('reports a series it cannot find', async () => {
@@ -974,5 +977,265 @@ describe('one occurrence the server keeps as its own event', () => {
     expect(deps.updateEvent.mock.calls).toEqual([['lone', { title: 'Mine' }, { sendSchedulingMessages: undefined }]]);
     expect(deps.deleteEvent.mock.calls).toEqual([['lone']]);
     expect(deps.createEvent).not.toHaveBeenCalled();
+  });
+});
+
+// 0.16 sends the change of one occurrence with its SEQUENCE raised, without
+// keeping the raise itself. A later rename of every occurrence carried the
+// lower number for it, and the attendee's server refused the whole change:
+// the mail arrived, the copy stayed as it was (live on 0.16.23). 1.0 raises
+// every occurrence's SEQUENCE the same way itself for a change it sends.
+describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('the SEQUENCE of a changed series on Stalwart %s', (_label, version) => {
+  // Five Mondays from 5 October, 19 October with an override: on 0.16 it
+  // holds a sequence of its own (copied when it got the override), on 1.0
+  // the PatchObject leaves it out while it is the series'.
+  const withSequences = (overrides: CalendarEvent['recurrenceOverrides'] = series(version).recurrenceOverrides) => ({
+    ...series(version), sequence: 2,
+    recurrenceOverrides: version === '1.0'
+      ? overrides
+      : Object.fromEntries(Object.entries(overrides ?? {}).map(([key, entry]) => [key, { ...entry, sequence: 2 }])),
+  }) as CalendarEvent;
+  const occurrenceOn26 = () => ({
+    ...serverOccurrence(version), id: 'maaaaad', start: '2026-10-26T10:00:00', recurrenceId: '2026-10-26T10:00:00',
+    utcStart: '2026-10-26T09:00:00Z', utcEnd: '2026-10-26T10:00:00Z',
+  }) as CalendarEvent;
+  const save = async (
+    master: CalendarEvent,
+    change: Partial<CalendarEvent>,
+    extra: { sendScheduling?: boolean } = {},
+    editor: Partial<SeriesEdit> = {},
+  ) => {
+    const occurrence = occurrenceOn26();
+    const deps = actions(master);
+    await saveOccurrenceEdit('all', {
+      event: occurrence, updates: editorUpdates(occurrence, change), editor: editorOn(occurrence, editor),
+      sendScheduling: true, userEmails: [ORGANIZER], ...extra,
+    }, deps);
+    return deps.updateEvent.mock.calls[0];
+  };
+
+  it('raises the series\' and each changed occurrence\'s by one on a new title', async () => {
+    const [id, patch, options] = await save(withSequences(), { title: 'Planning, room 2' });
+
+    expect([id, options]).toEqual(['b', { sendSchedulingMessages: true }]);
+    expect(patch).toEqual({ title: 'Planning, room 2', sequence: 3, 'recurrenceOverrides/2026-10-19T10:00:00/sequence': 3 });
+  });
+
+  it('raises them inside the overrides when the series moves', async () => {
+    const { start, end } = editorTimesFromEvent(occurrenceOn26());
+    const retitled = withSequences({ '2026-10-19T10:00:00': { title: 'Planning, special' } } as never);
+    const [, patch] = await save(retitled, {}, {}, { when: { allDay: false, start: addHours(start, 1), end: addHours(end, 1) } });
+
+    const raised = patch as Record<string, unknown> & { recurrenceOverrides: Record<string, { sequence?: number }> };
+    expect(raised.sequence).toBe(3);
+    expect(raised.recurrenceOverrides['2026-10-19T11:00:00'].sequence).toBe(3);
+    expect(Object.keys(raised).some((key) => key.startsWith('recurrenceOverrides/'))).toBe(false);
+  });
+
+  it('leaves them alone when nothing goes out, nothing the attendees see changes, or no occurrence has an override', async () => {
+    const quiet = await save(withSequences(), { title: 'Planning, room 2' }, { sendScheduling: false });
+    const alerts = await save(withSequences(), {
+      alerts: { a1: { '@type': 'Alert', trigger: { '@type': 'OffsetTrigger', offset: '-PT5M', relativeTo: 'start' }, action: 'display' } } as never,
+    });
+    const plain = await save({ ...withSequences(), recurrenceOverrides: null } as CalendarEvent, { title: 'Planning, room 2' });
+
+    for (const [, patch] of [quiet, alerts, plain]) {
+      expect(patch).not.toHaveProperty('sequence');
+      expect(Object.keys(patch).some((key) => key.endsWith('/sequence'))).toBe(false);
+    }
+  });
+
+  it('leaves them alone on an attendee\'s own copy', async () => {
+    const occurrence = occurrenceOn26();
+    const deps = actions({ ...withSequences(), isOrigin: false });
+
+    await saveOccurrenceEdit('all', {
+      event: occurrence, updates: editorUpdates(occurrence, { title: 'My name for it', participants: undefined }), editor: editorOn(occurrence),
+      sendScheduling: false, userEmails: [ATTENDEE],
+    }, deps);
+
+    expect(deps.updateEvent.mock.calls[0][1]).toEqual({ title: 'My name for it' });
+  });
+});
+
+// 0.16 (0.16.23 checked) reads UNTIL as the series' wall clock taken for
+// UTC: in New York "until 09:59:59" kept the 10:00 occurrence it was to end
+// before (live). Five hours earlier ends the series there on 0.16 and 1.0.
+describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('ending a series in a zone behind UTC on Stalwart %s', (_label, version) => {
+  const mondays = (start: string, utc: string) => ({
+    ...series(version), start, timeZone: 'America/New_York', utcStart: utc, utcEnd: utc,
+    recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly' }], recurrenceOverrides: null,
+  }) as unknown as CalendarEvent;
+  const occurrenceOf = (master: CalendarEvent, recurrenceId: string, utc: string) => ({
+    ...master, id: 'maaaaac', baseEventId: 'b', start: recurrenceId, recurrenceId, recurrenceIdTimeZone: 'America/New_York',
+    utcStart: utc, utcEnd: utc,
+  }) as CalendarEvent;
+  const untilOf = (patch: unknown) => (patch as { recurrenceRules: { until: string }[] }).recurrenceRules[0].until;
+
+  it('ends it early enough for 0.16', async () => {
+    const master = mondays('2026-12-07T10:00:00', '2026-12-07T15:00:00Z');
+    const deps = actions(master);
+
+    await deleteOccurrence('this_and_future', { event: occurrenceOf(master, '2026-12-21T10:00:00', '2026-12-21T15:00:00Z'), userEmails: [ORGANIZER] }, deps);
+
+    expect(deps.updateEvent.mock.calls[0][1]).toEqual({
+      recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', until: '2026-12-21T04:59:59', count: null }],
+    });
+  });
+
+  it('takes the larger offset when the clocks changed the day before', async () => {
+    // Sunday 8 March 2026: New York went to summer time that night (UTC-5
+    // on Saturday, UTC-4 from Sunday 03:00).
+    const master = { ...mondays('2026-03-01T10:00:00', '2026-03-01T15:00:00Z'), recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily' }] } as CalendarEvent;
+    const deps = actions(master);
+
+    await deleteOccurrence('this_and_future', { event: occurrenceOf(master, '2026-03-08T10:00:00', '2026-03-08T14:00:00Z'), userEmails: [ORGANIZER] }, deps);
+
+    expect(untilOf(deps.updateEvent.mock.calls[0][1])).toBe('2026-03-08T04:59:59');
+  });
+
+  it('ends a split the same way', async () => {
+    const master = mondays('2026-12-07T10:00:00', '2026-12-07T15:00:00Z');
+    const occurrence = occurrenceOf(master, '2026-12-21T10:00:00', '2026-12-21T15:00:00Z');
+    const deps = actions(master);
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: occurrence, updates: editorUpdates(occurrence, { title: 'Planning, room 2' }), editor: editorOn(occurrence),
+      sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps);
+
+    expect(untilOf(deps.updateEvent.mock.calls[0][1])).toBe('2026-12-21T04:59:59');
+  });
+
+  it('ends a floating or all-day series a second before, as before', async () => {
+    const floating = { ...mondays('2026-12-07T10:00:00', '2026-12-07T15:00:00Z'), timeZone: null } as CalendarEvent;
+    const deps = actions(floating);
+
+    await deleteOccurrence('this_and_future', { event: occurrenceOf(floating, '2026-12-21T10:00:00', '2026-12-21T15:00:00Z'), userEmails: [ORGANIZER] }, deps);
+
+    expect(untilOf(deps.updateEvent.mock.calls[0][1])).toBe('2026-12-21T09:59:59');
+  });
+});
+
+// A series the app has not expanded - one opened from a reminder or a
+// link, one an edit just made recurring - shows as the series itself, once,
+// at its first occurrence. "This occurrence" of it went to the series: the
+// editor's data rewrote every occurrence, and deleting it deleted the series.
+describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('the series itself standing for its first occurrence on Stalwart %s', (_label, version) => {
+  // As CalendarEvent/get returns the base event.
+  const base = (overrides: Partial<CalendarEvent> = {}) => ({
+    ...series(version), recurrenceOverrides: null, ...overrides,
+  }) as CalendarEvent;
+  const kickOff = (master: CalendarEvent) => editorUpdates(master, { title: 'Kick-off' });
+  type Call = [string, Record<string, Record<string, Record<string, unknown>>>, unknown];
+
+  // userb accepted the series. Stalwart sends a new override only to
+  // attendees who have not answered: the change went out in one write that
+  // reached nobody who had. It now takes the store's two steps.
+  it('changes only the first occurrence for "this occurrence", in two steps for those who answered', async () => {
+    const master = base();
+    const deps = actions(master);
+
+    const saved = await saveOccurrenceEdit('this', {
+      event: master, updates: kickOff(master), sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps);
+
+    expect(saved).toBe(true);
+    expect(deps.updateEvent).toHaveBeenCalledTimes(2);
+    // First the occurrence as it is, without messages: the whole map, as the
+    // series has no overrides yet; nothing of the series changes.
+    const [id, copy, quiet] = deps.updateEvent.mock.calls[0] as unknown as Call;
+    expect([id, quiet]).toEqual(['b', { sendSchedulingMessages: false }]);
+    expect(Object.keys(copy)).toEqual(['recurrenceOverrides']);
+    expect(copy.recurrenceOverrides['2026-10-05T10:00:00']).toMatchObject({ start: '2026-10-05T10:00:00', title: 'Planning' });
+    // Then the change of that override, with messages.
+    const [again, change, send] = deps.updateEvent.mock.calls[1] as unknown as Call;
+    expect([again, send]).toEqual(['b', { sendSchedulingMessages: true }]);
+    expect(Object.keys(change)).toEqual(['recurrenceOverrides/2026-10-05T10:00:00']);
+    expect(change['recurrenceOverrides/2026-10-05T10:00:00']).toMatchObject({ start: '2026-10-05T10:00:00', title: 'Kick-off' });
+    expect(statusOf(change['recurrenceOverrides/2026-10-05T10:00:00'].participants as CalendarEvent['participants'], ATTENDEE)).toBe('accepted');
+  });
+
+  it('changes it in one write when nobody has answered, or nothing is sent', async () => {
+    const unanswered = base({
+      participants: { org: participant(version, ORGANIZER, true, 'accepted'), b: participant(version, ATTENDEE, false, 'needs-action') },
+    });
+    for (const [master, send] of [[unanswered, true], [base(), false]] as const) {
+      const deps = actions(master);
+
+      await saveOccurrenceEdit('this', { event: master, updates: kickOff(master), sendScheduling: send, userEmails: [ORGANIZER] }, deps);
+
+      expect(deps.updateEvent).toHaveBeenCalledTimes(1);
+      const [id, patch, options] = deps.updateEvent.mock.calls[0] as unknown as Call;
+      expect([id, options]).toEqual(['b', { sendSchedulingMessages: send }]);
+      expect(patch.recurrenceOverrides['2026-10-05T10:00:00']).toMatchObject({ title: 'Kick-off' });
+    }
+  });
+
+  it('adds the override to those the series has', async () => {
+    const master = base({ recurrenceOverrides: series(version).recurrenceOverrides });
+    const deps = actions(master);
+
+    await saveOccurrenceEdit('this', { event: master, updates: kickOff(master), sendScheduling: true, userEmails: [ORGANIZER] }, deps);
+
+    expect(Object.keys(deps.updateEvent.mock.calls[0][1])).toEqual(['recurrenceOverrides/2026-10-05T10:00:00']);
+  });
+
+  it('changes the whole series for "this and following" from its first occurrence', async () => {
+    const master = base();
+    const deps = actions(master);
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: master, updates: kickOff(master), editor: editorOn(master), sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps);
+
+    // Not ended before its first occurrence, no new series: the series itself changes.
+    expect(deps.createEvent).not.toHaveBeenCalled();
+    expect(deps.updateEvent.mock.calls).toEqual([['b', { title: 'Kick-off' }, { sendSchedulingMessages: true }]]);
+  });
+
+  it('changes or deletes the whole series for "this and following" from the first occurrence of an expanded series too', async () => {
+    const master = base();
+    const first = { ...master, id: 'maaaaab', baseEventId: 'b', recurrenceId: '2026-10-05T10:00:00', recurrenceIdTimeZone: 'Europe/Berlin' } as CalendarEvent;
+    const deps = actions(master);
+
+    await saveOccurrenceEdit('this_and_future', {
+      event: first, updates: kickOff(first), editor: editorOn(first), sendScheduling: true, userEmails: [ORGANIZER],
+    }, deps);
+    await deleteOccurrence('this_and_future', { event: first, userEmails: [ORGANIZER] }, deps);
+
+    expect(deps.createEvent).not.toHaveBeenCalled();
+    expect(deps.updateEvent.mock.calls).toEqual([['b', { title: 'Kick-off' }, { sendSchedulingMessages: true }]]);
+    expect(deps.deleteEvent.mock.calls).toEqual([['b']]);
+  });
+
+  it('excludes the first occurrence for "delete this occurrence"', async () => {
+    const master = base();
+    const deps = actions(master);
+
+    const deleted = await deleteOccurrence('this', { event: master, userEmails: [ORGANIZER] }, deps);
+
+    expect(deleted).toBe(true);
+    expect(deps.deleteEvent).not.toHaveBeenCalled();
+    expect(deps.updateEvent.mock.calls).toEqual([['b', { recurrenceOverrides: { '2026-10-05T10:00:00': { excluded: true } } }]]);
+  });
+
+  it('deletes the whole series for "delete this and following" from its first occurrence', async () => {
+    const master = base();
+    const deps = actions(master);
+
+    await deleteOccurrence('this_and_future', { event: master, userEmails: [ORGANIZER] }, deps);
+
+    expect(deps.deleteEvent).toHaveBeenCalledWith('b');
+    expect(deps.updateEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses rather than touch a series it cannot find', async () => {
+    const deps = actions(null);
+
+    expect(await saveOccurrenceEdit('this', { event: base(), updates: { title: 'x' }, userEmails: [ORGANIZER] }, deps)).toBe(false);
+    expect(await deleteOccurrence('this', { event: base(), userEmails: [ORGANIZER] }, deps)).toBe(false);
+    expect(deps.updateEvent).not.toHaveBeenCalled();
+    expect(deps.deleteEvent).not.toHaveBeenCalled();
   });
 });

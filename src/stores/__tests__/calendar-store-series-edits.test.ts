@@ -99,3 +99,96 @@ describe('this and the following occurrences on the calendar store (Stalwart 1.0
     expect(created).toMatchObject({ start: '2026-10-19T10:00:00', recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'weekly', count: 3 }] });
   });
 });
+
+// The series itself, opened from a reminder or a link: not in the grid, and
+// on a calendar shared with the user (the owner's account 'f'). "This
+// occurrence" of it wrote the editor's data to the whole series before; it
+// is an override of its first occurrence now, and has to reach the owner's
+// account under the raw id - the store knew nothing of the series.
+describe('the series itself opened from a reminder on the calendar store', () => {
+  const shared = {
+    ...master, id: 'f:b', originalId: 'b', accountId: 'f', isShared: true, calendarIds: { 'f:cal': true },
+    recurrenceOverrides: null,
+  } as CalendarEvent;
+
+  it.each(['0.16.23', '1.0'])('overrides its first occurrence in the owner\'s account on Stalwart %s', async () => {
+    useCalendarStore.setState({ events: [] });
+    const store = useCalendarStore.getState();
+
+    await saveOccurrenceEdit('this', {
+      event: shared,
+      updates: { title: 'Kick-off', start: shared.start, duration: 'PT1H', timeZone: 'Europe/Berlin' },
+      sendScheduling: false, userEmails: [ORGANIZER],
+    }, { updateEvent: store.updateEvent, createEvent: store.createEvent, getMasterEvent: store.getMasterEvent });
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    const [id, patch, schedule, accountId] = mockUpdate.mock.calls[0];
+    expect([id, schedule, accountId]).toEqual(['b', false, 'f']);
+    expect(Object.keys(patch)).toEqual(['recurrenceOverrides']);
+    expect((patch as { recurrenceOverrides: Record<string, unknown> }).recurrenceOverrides['2026-10-05T10:00:00'])
+      .toMatchObject({ start: '2026-10-05T10:00:00', title: 'Kick-off' });
+  });
+});
+
+// A change that makes an event a series (or a single event again) changes
+// which occurrences the grid shows, and only a range load expands a series:
+// until then the grid had the series itself, once (0.16 before 0.16.20,
+// where nothing else reloads the range).
+describe('an event an edit makes recurring (Stalwart 0.16.19)', () => {
+  it('loads the range again, and not for a single event that stays one', async () => {
+    const single = (id: string) => ({
+      id, uid: `${id}@example.org`, title: 'Once', start: '2026-10-05T10:00:00', duration: 'PT1H', calendarIds: { 'cal-1': true },
+    }) as CalendarEvent;
+    const refresh = vi.fn(async () => undefined);
+    useCalendarStore.setState({ events: [single('x'), single('y')], refresh });
+
+    await useCalendarStore.getState().updateEvent('y', { title: 'Once, renamed' });
+    expect(refresh).not.toHaveBeenCalled();
+
+    await useCalendarStore.getState().updateEvent('x', { recurrenceRules: [{ frequency: 'weekly' }] });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The raised SEQUENCE of an "all" change (0.16.6 to 0.16.23 keep no raise of
+// a single occurrence's change) goes out as it is: the app's update strips
+// no `sequence`, so nothing has to keep it.
+describe.each(['0.16.23', '1.0'])('an announced change of every occurrence through the store on Stalwart %s', () => {
+  it('sends the raised SEQUENCE of the series and of its changed occurrence', async () => {
+    mockGetEvents.mockImplementation(async (ids: string[]) => (ids[0] === 'b' ? [{ ...master, sequence: 4 }] : []));
+    const store = useCalendarStore.getState();
+
+    await saveOccurrenceEdit('all', {
+      event: occurrence,
+      updates: { title: 'Planning, room 2', start: occurrence.start, duration: 'PT1H', timeZone: 'Europe/Berlin', participants },
+      editor: { attendees: [{ name: '', email: 'userb@example.org' }], when: editorTimesFromEvent(occurrence) },
+      sendScheduling: true, userEmails: [ORGANIZER],
+    }, { updateEvent: store.updateEvent, createEvent: store.createEvent, getMasterEvent: store.getMasterEvent });
+
+    expect(mockUpdate.mock.calls.map(([id, patch, schedule]) => [id, patch, schedule])).toEqual([
+      ['b', { title: 'Planning, room 2', sequence: 5, 'recurrenceOverrides/2026-10-19T10:00:00/sequence': 5 }, true],
+    ]);
+  });
+});
+
+// An override written on the base event by an older save, without the
+// organizer: 0.16.19 refuses an answer to such an occurrence, so a change of
+// it writes the series' organizer back (0.16 before 0.16.20: the device
+// expands the series).
+describe('a change of an occurrence whose override has no organizer (Stalwart 0.16.19)', () => {
+  it('writes the series\' organizer into the override', async () => {
+    const deviceOccurrence = {
+      ...master, id: 'b:2026-10-19T10:00:00', originalId: 'b', start: '2026-10-19T10:00:00', recurrenceId: '2026-10-19T10:00:00',
+      recurrenceOverrides: { '2026-10-19T10:00:00': { title: 'Planning, special', start: '2026-10-19T10:00:00', duration: 'PT1H' } },
+    } as CalendarEvent;
+    useCalendarStore.setState({ events: [deviceOccurrence] });
+
+    await useCalendarStore.getState().updateEvent(deviceOccurrence.id, { title: 'Planning, room 2' }, { sendSchedulingMessages: true });
+
+    const [id, patch] = mockUpdate.mock.calls[0];
+    expect(id).toBe('b');
+    expect((patch as Record<string, Record<string, unknown>>)['recurrenceOverrides/2026-10-19T10:00:00']).toMatchObject({
+      title: 'Planning, room 2', organizerCalendarAddress: `mailto:${ORGANIZER}`,
+    });
+  });
+});
