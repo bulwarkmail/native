@@ -400,4 +400,31 @@ describe('switches that overlap (Stalwart 1.0)', () => {
     expect((await editOnScreen()).queued).toBe(false);
     expect(sent()).toEqual([[A, 'd', ['x1']]]);
   });
+
+  // A cold start shows the last account's cached mail while its session
+  // loads, drawer and all. The restore a switch overtook gave up, and with
+  // the switch failing too, the app went to the sign-in screen.
+  it('lets the restore of a cold start land first, and puts it back when the switch fails', async () => {
+    client.served = null;
+    await useOutboxStore.getState().setAccount(null);
+    useEmailStore.setState({ activeAccountId: null, accountSnapshots: {} });
+    useAuthStore.setState({ isAuthenticated: false, hasRestoredSession: false, session: null, activeAccountId: null, accountId: null });
+    const restoringA = deferred();
+    client.gates = { [A]: restoringA.promise };
+    client.loadErrors = { [B]: new Error('Server unreachable') };
+
+    const restoring = useAuthStore.getState().restoreSession();
+    await settle();
+    const switchingToB = useAuthStore.getState().switchAccount(B);
+    await settle();
+    restoringA.open();
+    expect(await restoring).toBe(true);
+    await switchingToB;
+    await settle();
+
+    expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: true, hasRestoredSession: true, error: 'Server unreachable' });
+    expect(where()).toEqual(on(A));
+    expect((await editOnScreen()).queued).toBe(false);
+    expect(sent()).toEqual([[A, 'd', ['x1']]]);
+  });
 });

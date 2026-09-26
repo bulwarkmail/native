@@ -192,6 +192,21 @@ let pendingSwitch: { origin: SwitchOrigin; settled: Promise<void> } | null = nul
 // client from one, nor from a switch.
 let signInsUnderWay = 0;
 
+// The connection an add-account sign-in under way saved: the account in use,
+// which it puts back should it fail. From the moment the sign-in begins, the
+// client serves the account being added, or none, so a switch that overtakes
+// the sign-in falls back on this connection too. It took a snapshot of the
+// client instead, and when it failed as well, the sign-in it overtook had
+// given up: the app stayed on the account in use while the client served no
+// account, or the one being added, under its name.
+let signInSaved: { client: ClientSnapshot; isCurrent: () => boolean } | null = null;
+
+// Set while a cold start brings the last account up. The main screens show
+// its cached mail meanwhile, so a switch can begin; it waits for the restore.
+// A restore that a switch overtook gave up, and with the switch failing too,
+// the app went to the sign-in screen with every account still registered.
+let restoreUnderWay: Promise<void> | null = null;
+
 async function switchesSettled(): Promise<void> {
   while (pendingSwitch) await pendingSwitch.settled;
 }
@@ -217,12 +232,14 @@ async function signIn(
   connect: () => Promise<SignedIn>,
 ): Promise<SignedIn> {
   signInsUnderWay += 1;
+  let saved: typeof signInSaved = null;
   try {
     // A switch under way lands first, so there is one account to put back.
     await switchesSettled();
     const isCurrent = beginAccountChange();
     const previous = opts?.addAccount && get().isAuthenticated ? jmapClient.snapshot() : null;
     const resumable = previous ? useOutboxStore.getState().suspend() : null;
+    if (previous) signInSaved = saved = { client: previous, isCurrent };
     const putBack = () => {
       // Not over a newer account change, which has the client now.
       if (!previous || !isCurrent()) return;
@@ -271,6 +288,7 @@ async function signIn(
     return signedIn;
   } finally {
     signInsUnderWay -= 1;
+    if (signInSaved === saved) signInSaved = null;
   }
 }
 
@@ -642,6 +660,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   switchAccount: async (accountId) => {
+    // A cold start's restore lands first, so there is an account to put back
+    // (see restoreUnderWay). It waits for nothing a switch holds.
+    while (restoreUnderWay) await restoreUnderWay;
     const underWay = pendingSwitch;
     if (get().activeAccountId === accountId && !underWay) return;
 
@@ -649,17 +670,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const target = accountStore.getAccountById(accountId);
     if (!target) return;
 
+    // Read before this switch overtakes it (see signInSaved).
+    const signingIn = signInSaved?.isCurrent() ? signInSaved : null;
     // Once this one's awaits return, a newer account change may own the
     // client and the stores (see beginAccountChange).
     const isCurrent = beginAccountChange();
     // loadAccount overwrites the client's credentials/session; keep the live
     // connection around so a failed switch can put it back instead of
     // leaving the previous account dead until relaunch. With switches under
-    // way, that is the account the first of them left.
+    // way, that is the account the first of them left; with an add-account
+    // sign-in under way, the connection it saved.
     const origin: SwitchOrigin = underWay?.origin ?? {
       accountId: get().activeAccountId,
       live: get().session !== null,
-      client: jmapClient.snapshot(),
+      client: signingIn?.client ?? jmapClient.snapshot(),
     };
     let settle!: () => void;
     const mine = { origin, settled: new Promise<void>((resolve) => { settle = resolve; }) };
@@ -776,6 +800,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   restoreSession: async () => {
     set({ isLoading: true });
+    let restored!: () => void;
+    const restoring = new Promise<void>((resolve) => { restored = resolve; });
+    restoreUnderWay = restoring;
     try {
       // Wait for persisted caches to finish hydrating from AsyncStorage.
       // Otherwise we read empty defaults and bounce the user back to the
@@ -886,6 +913,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ isLoading: false, hasRestoredSession: true });
       return false;
+    } finally {
+      if (restoreUnderWay === restoring) restoreUnderWay = null;
+      restored();
     }
   },
 

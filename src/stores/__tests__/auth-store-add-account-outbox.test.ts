@@ -50,6 +50,8 @@ const { client, SessionSupersededError } = vi.hoisted(() => {
       connectGate: Promise.resolve() as Promise<unknown>,
       connectError: null as Error | null,
       loadGate: Promise.resolve() as Promise<unknown>,
+      // loadAccount() fails for these, as for a server that does not answer.
+      loadErrors: {} as Record<string, Error>,
       requestGate: null as Promise<unknown> | null,
       emailSets: [] as Array<{ served: string; args: Record<string, unknown> }>,
     },
@@ -88,6 +90,7 @@ vi.mock('../../api/jmap-client', () => ({
       client.served = null;
       await client.loadGate;
       if (epoch !== client.epoch) throw new SessionSupersededError();
+      if (client.loadErrors[accountId]) throw client.loadErrors[accountId];
       client.served = accountId;
       return true;
     }),
@@ -186,6 +189,7 @@ beforeEach(async () => {
   client.connectGate = Promise.resolve();
   client.connectError = null;
   client.loadGate = Promise.resolve();
+  client.loadErrors = {};
   client.requestGate = null;
   client.emailSets.length = 0;
   const entry = (id: string, username: string) => ({
@@ -311,6 +315,58 @@ describe('adding an account while the one in use has queued edits (Stalwart 1.0)
     const login = addC();
     await settle();
     await useAuthStore.getState().switchAccount(B);
+    connecting.open();
+    await expect(login).rejects.toThrow('Another account was opened');
+    await settle();
+
+    expect(client.served).toBe(B);
+    expect(useAuthStore.getState().activeAccountId).toBe(B);
+    expect(useEmailStore.getState().activeAccountId).toBe(B);
+    expect(useOutboxStore.getState()).toMatchObject({ activeAccountId: B, resumed: true });
+  });
+
+  // The sign-in the switch overtook gives up. A switch that failed put back
+  // the client the sign-in held, which served no account before C's session
+  // was up and C after: A's screens stayed, with every call refused, or
+  // reaching C.
+  it.each([
+    ['before the new session is up', 'connect'],
+    ['while the new account\'s server is checked', 'check'],
+  ] as const)('puts the account in use back to work when that switch fails %s', async (_label, phase) => {
+    await queueForA(queued('m1'));
+    client.loadErrors = { [B]: new Error('Server unreachable') };
+    const connecting = deferred();
+    if (phase === 'connect') client.connectGate = connecting.promise;
+    const checked = phase === 'check' ? holdServerCheck(C) : () => undefined;
+
+    const login = addC();
+    await settle();
+    expect(client.served).toBe(phase === 'check' ? C : null);
+    await useAuthStore.getState().switchAccount(B);
+    connecting.open();
+    checked();
+    await expect(login).rejects.toThrow('Another account was opened');
+    await settle();
+
+    expect(client.served).toBe(A);
+    expect(useAuthStore.getState()).toMatchObject({ activeAccountId: A, isAuthenticated: true });
+    expect(useEmailStore.getState().activeAccountId).toBe(A);
+    expect(useOutboxStore.getState()).toMatchObject({ activeAccountId: A, resumed: true });
+    // A's queue went to A, under A's id.
+    expect(client.emailSets.map((s) => [s.served, s.args.accountId])).toEqual([[A, 'd']]);
+    expect(await storedQueue(A)).toEqual([]);
+  });
+
+  it('falls back on the account a switch landed on once it overtook the sign-in, not on the one the sign-in saved', async () => {
+    client.loadErrors = { [A]: new Error('Server unreachable') };
+    const connecting = deferred();
+    client.connectGate = connecting.promise;
+
+    const login = addC();
+    await settle();
+    await useAuthStore.getState().switchAccount(B);
+    // B is up; C's sign-in still waits on its server.
+    await useAuthStore.getState().switchAccount(A);
     connecting.open();
     await expect(login).rejects.toThrow('Another account was opened');
     await settle();
