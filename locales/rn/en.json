@@ -1038,5 +1038,188 @@
     "severity_deprecated": "Required",
     "severity_security": "Security",
     "title": "App updates"
+  },
+  "widgets": {
+    "attachments": {
+      "empty": "No recent attachments",
+      "from_mail": "from mail",
+      "title": "Attachments",
+      "unknown_sender": "Unknown sender"
+    },
+    "birthdays": {
+      "empty": "No birthdays coming up",
+      "empty_body": "Birthdays come from your contacts.",
+      "in_days": "{count, plural, one {in # day} other {in # days}}",
+      "send_wishes": "Send wishes",
+      "title": "Birthdays",
+      "wishes_subject": "Happy birthday!"
+    },
+    "calendar": {
+      "agenda": "Agenda",
+      "agenda_more": "{day}: {events}",
+      "all_day": "All day",
+      "join": "Join",
+      "join_named": "Join {name}",
+      "more_this_week": "{count, plural, one {# more this week} other {# more this week}}",
+      "no_more_today": "No more events today",
+      "nothing_planned": "Nothing on the calendar",
+      "now": "Now",
+      "open": "Open",
+      "running_late": "Running late",
+      "running_late_body": "I'm running a few minutes late for {title}.",
+      "running_late_subject": "Running late: {title}",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "unit_days": "{count, plural, one {day} other {days}}",
+      "unit_hours": "{count, plural, one {hour} other {hours}}",
+      "unit_minutes": "{count, plural, one {min} other {min}}",
+      "unsupported": "Calendar isn't available on this server",
+      "untitled": "(no title)",
+      "video_call": "Video call"
+    },
+    "countdown": {
+      "days": "{count, plural, one {day} other {days}}",
+      "empty": "No upcoming events"
+    },
+    "draft": {
+      "edited_at": "Edited {when}",
+      "edited_minutes": "{count, plural, one {Edited # min ago} other {Edited # min ago}}",
+      "edited_now": "Edited just now",
+      "empty": "No drafts",
+      "empty_body": "Messages you start and do not send wait here.",
+      "keep_writing": "Keep writing",
+      "title": "Drafts"
+    },
+    "files": {
+      "empty": "No files yet",
+      "recent": "Recently changed",
+      "unsupported": "Files aren't available on this server"
+    },
+    "free": {
+      "busy_until": "Busy until {time}",
+      "free_rest": "Free for the rest of the day",
+      "free_until": "Free until {time}",
+      "mail": "Mail my free times",
+      "mail_subject": "My free times this week",
+      "no_calendar": "No calendar on this account",
+      "then": "then {title}",
+      "then_free": "then free"
+    },
+    "hub": {
+      "all_clear": "You're all caught up",
+      "mail_unread": "Mail · {count} unread",
+      "next": "Next",
+      "next_on": "Next · {day}",
+      "no_events": "No upcoming events",
+      "now": "Now",
+      "tasks_due": "Tasks · {count} due"
+    },
+    "invites": {
+      "accept": "Accept",
+      "decline": "Decline",
+      "empty": "No invitations waiting",
+      "label": "Invitation · {name}",
+      "label_plain": "Invitation",
+      "maybe": "Maybe",
+      "position": "{index} of {count}"
+    },
+    "mail": {
+      "all_accounts": "All accounts",
+      "all_caught_up": "All caught up",
+      "archive": "Archive",
+      "delete": "Delete",
+      "empty_all_accounts": "Your inboxes are empty",
+      "empty_inbox": "Your inbox is empty",
+      "folders": "Folders",
+      "in_outbox": "{count, plural, one {# change waiting} other {# changes waiting}}",
+      "in_outbox_short": "{count} waiting",
+      "inbox": "Inbox",
+      "more_unread": "+{count} more unread",
+      "no_starred": "No starred mail",
+      "no_starred_body": "Star a message to keep it here.",
+      "no_subject": "(no subject)",
+      "no_unread": "No unread messages in your inbox.",
+      "position": "{index} of {count}",
+      "reply": "Reply",
+      "scheduled": "Scheduled",
+      "starred": "Starred",
+      "unread": "unread"
+    },
+    "people": {
+      "empty": "No favourites yet",
+      "empty_body": "The people you hear from most show up here.",
+      "favourites": "Favourites"
+    },
+    "relative": {
+      "days": "{count, plural, one {in # day} other {in # days}}",
+      "hours": "in {count} h",
+      "minutes": "in {count} min",
+      "now": "now"
+    },
+    "scheduled": {
+      "day_at": "{day}, {time}",
+      "empty": "Nothing scheduled",
+      "empty_body": "Messages you schedule to send later show up here.",
+      "no_recipient": "(no recipient)",
+      "sending": "Sending now",
+      "to": "To: {name}",
+      "today_at": "Today, {time}",
+      "tomorrow_at": "Tomorrow, {time}",
+      "waiting": "Waiting for network",
+      "waiting_body": "Changes you made offline go out when you are back online."
+    },
+    "search": {
+      "no_recent": "Your recent searches show up here.",
+      "placeholder": "Search mail…",
+      "recent": "Recent searches"
+    },
+    "shortcuts": {
+      "calendar": "Calendar",
+      "compose": "Compose",
+      "contacts": "Contacts",
+      "files": "Files"
+    },
+    "state": {
+      "error": "Couldn't show this widget",
+      "loading": "Loading…",
+      "open_app": "Open the app once if this stays empty.",
+      "open_to_load": "Open Bulwark to load this",
+      "signed_out": "Sign in to Bulwark"
+    },
+    "storage": {
+      "no_limit": "No storage limit",
+      "title": "Storage",
+      "unavailable": "No quota information",
+      "used_of": "{used} of {total}"
+    },
+    "tag": {
+      "empty": "No tags yet",
+      "empty_body": "Tags you add in the app show up here.",
+      "messages": "{count, plural, one {message} other {messages}}",
+      "total": "{count, plural, one {# message} other {# messages}}"
+    },
+    "tasks": {
+      "all_done": "All done",
+      "empty": "No open tasks",
+      "mark_complete": "Mark as done",
+      "mark_incomplete": "Mark as not done",
+      "no_title": "(no title)",
+      "off": "Tasks are off",
+      "off_body": "Turn on tasks in the app's calendar settings",
+      "open_count": "{count} open",
+      "overdue": "Overdue",
+      "still_open": "{count} still open",
+      "title": "Tasks",
+      "today": "Today",
+      "tomorrow": "Tomorrow"
+    },
+    "vacation": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "subject": "Subject: {subject}",
+      "title": "Vacation Responder",
+      "unsupported": "Vacation replies aren't available",
+      "until": "Until {date}"
+    }
   }
 }

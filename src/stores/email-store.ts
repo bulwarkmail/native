@@ -552,8 +552,11 @@ export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>
  */
 export function spannedAccounts(mailboxes: Mailbox[]): Array<string | undefined> {
   const out: Array<string | undefined> = [undefined];
+  // The drawer renders the persisted mailboxes before the session is back,
+  // and `accountId` throws while the client is not connected.
+  const own = jmapClient.isConnected ? jmapClient.accountId : undefined;
   for (const m of mailboxes) {
-    if (m.isShared && m.accountId && m.accountId !== jmapClient.accountId && !out.includes(m.accountId)) {
+    if (m.isShared && m.accountId && m.accountId !== own && !out.includes(m.accountId)) {
       out.push(m.accountId);
     }
   }

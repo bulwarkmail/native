@@ -49,6 +49,7 @@ import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
+import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
 
 function getSenderName(email: Email, unknownLabel: string): string {
@@ -824,6 +825,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     if (value.trim()) addRecentSearch(value);
     setSearchFocused(false);
   }, [setSearchQuery, addRecentSearch]);
+  // A search handed over by a deep link (the search widget): run it, or with
+  // no query just put the cursor in the search field.
+  const searchInputRef = React.useRef<TextInput>(null);
+  const pendingSearch = usePendingMailSearch((s) => s.query);
+  React.useEffect(() => {
+    if (pendingSearch === null) return;
+    const query = usePendingMailSearch.getState().consume();
+    if (query === null) return;
+    if (query.trim()) submitSearch(query);
+    else setTimeout(() => searchInputRef.current?.focus(), 300);
+  }, [pendingSearch, submitSearch]);
   // People whose name/address matches what is being typed (#845); picking
   // one turns the search into a `from:` filter like the webmail.
   const contactSuggestions = React.useMemo(() => {
@@ -1120,6 +1132,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         <View style={styles.searchInputArea}>
           <Search size={16} color={c.textMuted} />
           <TextInput
+            ref={searchInputRef}
             style={styles.searchInput}
             placeholder={t('email_list.search_placeholder', 'Search mail...')}
             placeholderTextColor={c.textMuted}

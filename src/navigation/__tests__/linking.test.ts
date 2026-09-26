@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { handleDeepLink, parseDeepLink, shareToDeepLink } from '../linking';
 import { usePendingSettingsTab } from '../pending-settings-tab';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
+import { usePendingMailSearch } from '../pending-mail-search';
 
 describe('parseDeepLink', () => {
   it('parses app-scheme mail links', () => {
@@ -73,6 +74,18 @@ describe('parseDeepLink', () => {
       subject: 'Hello World',
       body: '1+1',
     });
+  });
+
+  it('parses the widget links: reply, draft, unified views, scheduled and search', () => {
+    expect(parseDeepLink('bulwarkmobile://mail/message/M1?account=a%40b&jmapAccount=team&action=reply')).toEqual({
+      kind: 'message', emailId: 'M1', accountId: 'a@b', jmapAccountId: 'team', action: 'reply',
+    });
+    expect(parseDeepLink('bulwarkmobile://mail/draft/D1')).toEqual({ kind: 'draft', emailId: 'D1', accountId: undefined });
+    expect(parseDeepLink('bulwarkmobile://mail/unified?view=starred')).toEqual({ kind: 'unified', view: 'starred' });
+    expect(parseDeepLink('bulwarkmobile://mail/unified?role=drafts&view=bogus')).toEqual({ kind: 'unified', role: 'drafts' });
+    expect(parseDeepLink('bulwarkmobile://mail/scheduled')).toEqual({ kind: 'scheduled' });
+    expect(parseDeepLink('bulwarkmobile://mail/search?q=from%3Aada')).toEqual({ kind: 'search', query: 'from:ada' });
+    expect(parseDeepLink('bulwarkmobile://mail/search')).toEqual({ kind: 'search', query: '' });
   });
 
   it('rejects unknown links', () => {
@@ -164,6 +177,40 @@ describe('handleDeepLink', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('Compose', expect.objectContaining({
       prefillBcc: [{ email: 'c@d.co' }],
     }));
+  });
+
+  it('opens a group-mailbox message in its JMAP account and hands replies to the composer opener', async () => {
+    const navigation = nav();
+    const resolveThreadId = vi.fn(async () => 'T1');
+    await handleDeepLink(
+      { kind: 'message', emailId: 'M1', jmapAccountId: 'team' },
+      { navigation: navigation as never, resolveThreadId },
+    );
+    expect(resolveThreadId).toHaveBeenCalledWith('M1', 'team');
+    expect(navigation.navigate).toHaveBeenCalledWith('EmailThread', { emailId: 'M1', threadId: 'T1', jmapAccountId: 'team' });
+
+    const openReply = vi.fn(async () => true);
+    const ok = await handleDeepLink(
+      { kind: 'message', emailId: 'M2', action: 'reply' },
+      { navigation: nav() as never, resolveThreadId, openReply },
+    );
+    expect(ok).toBe(true);
+    expect(openReply).toHaveBeenCalledWith('M2', undefined);
+  });
+
+  it('opens drafts, unified views, scheduled mail and searches', async () => {
+    const openDraft = vi.fn(async () => true);
+    const navigation = nav();
+    const deps = { navigation: navigation as never, resolveThreadId: async () => 'T', openDraft };
+    expect(await handleDeepLink({ kind: 'draft', emailId: 'D1' }, deps)).toBe(true);
+    expect(openDraft).toHaveBeenCalledWith('D1', undefined);
+    await handleDeepLink({ kind: 'unified', view: 'starred' }, deps);
+    expect(navigation.navigate).toHaveBeenCalledWith('UnifiedInbox', { view: 'starred' });
+    await handleDeepLink({ kind: 'scheduled' }, deps);
+    expect(navigation.navigate).toHaveBeenCalledWith('Scheduled');
+    await handleDeepLink({ kind: 'search', query: 'from:ada' }, deps);
+    expect(usePendingMailSearch.getState().consume()).toBe('from:ada');
+    expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Mail' });
   });
 
   it('refuses when the linked account is not signed in', async () => {

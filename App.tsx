@@ -69,7 +69,10 @@ import { PushOnboardingPrompt } from './src/components/PushOnboardingPrompt';
 import { ToastHost } from './src/components/ToastHost';
 import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { AppIconBadge } from './src/components/AppIconBadge';
-import { getEmails } from './src/api/email';
+import { getEmails, getFullEmail } from './src/api/email';
+import { signOutWidgets, startWidgetSync } from './src/widgets/sync';
+import { draftContextFromEmail } from './src/lib/draft-context';
+import { replyComposeParams } from './src/lib/reply-compose';
 import { handleDeepLink, parseDeepLink, shareToDeepLink, type DeepLink } from './src/navigation/linking';
 import { addShareListener, getInitialShare, shareAttachments } from './src/lib/share-intent';
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
@@ -133,12 +136,32 @@ async function openCalendarReminder(target: CalendarReminderTarget): Promise<voi
 async function openDeepLink(link: DeepLink): Promise<void> {
   await handleDeepLink(link, {
     navigation: navigationRef,
-    resolveThreadId: async (emailId) => {
+    resolveThreadId: async (emailId, jmapAccountId) => {
       try {
-        const [email] = await getEmails([emailId]);
+        const [email] = await getEmails([emailId], jmapAccountId);
         return email?.threadId ?? null;
       } catch {
         return null;
+      }
+    },
+    openReply: async (emailId, jmapAccountId) => {
+      try {
+        const params = replyComposeParams('reply', await getFullEmail(emailId, jmapAccountId), jmapAccountId);
+        if (!params || !navigationRef.isReady()) return false;
+        navigationRef.navigate('Compose', params);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    openDraft: async (emailId, jmapAccountId) => {
+      try {
+        const draft = draftContextFromEmail(await getFullEmail(emailId, jmapAccountId), jmapAccountId);
+        if (!navigationRef.isReady()) return false;
+        navigationRef.navigate('Compose', { draft });
+        return true;
+      } catch {
+        return false;
       }
     },
     switchAccount: async (accountId) => {
@@ -384,6 +407,14 @@ export default function App() {
     startCalendarNotificationSync();
     return useNetworkStore.getState().init();
   }, []);
+
+  // Home-screen widgets follow the signed-in data; once the last account is
+  // gone they are wiped so no mail stays visible on the launcher.
+  React.useEffect(() => {
+    if (isAuthenticated) return startWidgetSync();
+    if (hasRestoredSession) void signOutWidgets();
+    return undefined;
+  }, [isAuthenticated, hasRestoredSession]);
 
   // When the network flips back on while we're authenticated-but-offline
   // (no live JMAP session), retry the session so the user lands back on
