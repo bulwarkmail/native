@@ -144,10 +144,14 @@ function overrideKeyIn(key: string, from: SeriesFrame, to: SeriesFrame, anchor =
 
 /**
  * `overrides` with the key each takes (keyOf), those without one left out,
- * and never two on one key: an override that stays where it is comes first,
- * and one that would land on a key already taken is left out and logged
- * rather than overwrite it. Two occurrences of one series never share a
- * recurrence id.
+ * and never two on one key. Of those that meet on one, the override that
+ * stays where it is keeps the key, else the one that stays on its day, else
+ * the first; the others are left out and logged rather than overwrite it.
+ * Two occurrences of one series never share a recurrence id. A series on
+ * Mondays and Tuesdays that starts a day and an hour later takes its first
+ * Monday's override onto the Tuesday, at its new time, where neither stays
+ * where it was: the server's order of the overrides decided, and could keep
+ * the Monday's change over the Tuesday's cancellation.
  */
 function rekeyed(
   overrides: OverrideMap,
@@ -156,14 +160,17 @@ function rekeyed(
   const moves = Object.entries(overrides)
     .map(([key, override]) => ({ key, target: keyOf(key), override }))
     .filter((move): move is { key: string; target: string; override: OverrideMap[string] } => move.target !== null);
-  moves.sort((a, b) => Number(b.target === b.key) - Number(a.target === a.key));
+  const rank = (move: { key: string; target: string }) =>
+    (move.target === move.key ? 2 : move.target.slice(0, 10) === move.key.slice(0, 10) ? 1 : 0);
+  // Stable: within a rank, the server's order.
+  moves.sort((a, b) => rank(b) - rank(a));
   const taken = new Set<string>();
   return moves.filter((move) => {
     if (!taken.has(move.target)) {
       taken.add(move.target);
       return true;
     }
-    debug.warn('calendar', 'Two recurrence overrides map to one occurrence; keeping the first', move.target, move.key);
+    debug.warn('calendar', 'Two recurrence overrides map to one occurrence; keeping one', move.target, move.key);
     return false;
   });
 }

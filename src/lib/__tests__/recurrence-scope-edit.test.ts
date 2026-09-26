@@ -1325,6 +1325,25 @@ describe.each<[string, Version]>([['1.0', '1.0'], ['0.16', '0.16']])('overrides 
     expect(created.recurrenceOverrides!['2026-12-14T10:00:00']).toMatchObject({ title: 'Planning, Monday special' });
     expect(created.recurrenceOverrides!['2026-12-15T10:00:00']).toEqual({ excluded: true });
   });
+
+  // The series starts on Tuesday 8 December: its first Monday is gone, and
+  // moved along, that Monday's override meets the Tuesday's cancellation.
+  // Moved an hour as well, neither stays where it was, and the server's
+  // order of the overrides decided which one the Tuesday kept.
+  it('keeps the cancellation of the Tuesday the first Monday\'s override moves onto, in either order', () => {
+    const entries: Array<[string, unknown]> = [
+      ['2026-12-07T10:00:00', special('2026-12-07T10:00:00', 'Kick-off')],
+      ['2026-12-08T10:00:00', { excluded: true }],
+    ];
+    for (const [hours, tuesday] of [[24, '2026-12-08T10:00:00'], [25, '2026-12-08T11:00:00']] as const) {
+      for (const order of [entries, [...entries].reverse()]) {
+        const master = withDays({ frequency: 'weekly', byDay: [{ day: 'mo' }, { day: 'tu' }], count: 8 }, Object.fromEntries(order));
+        const { updates } = allFrom(master, '2026-12-21T10:00:00', hours);
+
+        expect(updates.recurrenceOverrides).toEqual({ [tuesday]: { excluded: true } });
+      }
+    }
+  });
 });
 
 // Two occurrences can still meet on one key - an hourly series turned
