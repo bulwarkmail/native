@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CalendarEvent } from '../../api/types';
 import {
-  askAttendeesAgain,
   buildParticipantMap,
   collectUserCalendarAddresses,
   getParticipantCount,
@@ -13,6 +12,7 @@ import {
   participantFieldsToSave,
   participantLimitMessage,
   participantLimitOf,
+  participantsAskedAgain,
   seedAttendees,
   seriesParticipantFields,
   userOrganizes,
@@ -349,15 +349,31 @@ describe('answers on save (Stalwart 0.16 and 1.0)', () => {
 
   it('tells whether anyone but the organizer answered', () => {
     expect(hasAnsweredAttendees(meeting.participants)).toBe(true);
-    expect(hasAnsweredAttendees(askAttendeesAgain(meeting.participants!))).toBe(false);
+    expect(hasAnsweredAttendees(participantsAskedAgain(meeting))).toBe(false);
     expect(hasAnsweredAttendees(null)).toBe(false);
   });
 
   it('asks everyone but the organizer again for a new series', () => {
-    const asked = askAttendeesAgain(meeting.participants!, ['me@example.com']);
+    const asked = participantsAskedAgain(meeting)!;
 
     expect(asked.p0.participationStatus).toBe('accepted');
     expect([asked.p1, asked.p2, asked.p3].map((p) => p.participationStatus)).toEqual(['needs-action', 'needs-action', 'needs-action']);
+  });
+
+  it('knows the organizer by its address when the server gives it no role, and asks nobody when nobody answered', () => {
+    const roleless = {
+      organizerCalendarAddress: 'mailto:me@example.com',
+      participants: {
+        p0: { calendarAddress: 'mailto:me@example.com', participationStatus: 'accepted' },
+        p1: { calendarAddress: 'mailto:bob@example.com', participationStatus: 'accepted' },
+      },
+    } as Partial<CalendarEvent>;
+
+    expect(participantsAskedAgain(roleless)).toEqual({
+      p0: roleless.participants!.p0,
+      p1: { ...roleless.participants!.p1, participationStatus: 'needs-action' },
+    });
+    expect(participantsAskedAgain({ participants: { p3: meeting.participants!.p3 } })).toBeNull();
   });
 });
 

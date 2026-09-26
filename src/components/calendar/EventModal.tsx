@@ -66,7 +66,7 @@ import {
   userOrganizes,
   type Attendee,
 } from '../../lib/calendar-participants';
-import type { SeriesEdit } from '../../lib/recurrence-overrides';
+import type { SeriesEdit } from '../../lib/recurrence-scope-edit';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
@@ -373,7 +373,9 @@ export function EventModal({
         // Only the organizer sends: on an invitation someone else sent, a
         // save would reach the organizer as a reply.
         sendSchedulingMessages: organizes && attendees.length > 0 && sendInvitations,
-        edit: { attendees, timesMoved, ruleChanged },
+        // The dates as shown: a series moves by the occurrence's move, on
+        // its own clock (lib/recurrence-scope-edit).
+        edit: { attendees, when: { allDay, start, end }, ruleChanged },
       });
       onClose();
     } catch (err) {

@@ -511,23 +511,31 @@ export function seriesParticipantFields(
 }
 
 /**
- * `participants` with every attendee but the organizer asked anew
- * (needs-action). For a new series cut off an existing one ("This and
- * following events"): Stalwart sends a new event only to attendees who have
- * not answered, so an answer carried over would keep it from them.
+ * `event`'s participants with every attendee asked to answer again - back at
+ * needs-action - and the organizer's entries as they are. What its organizer
+ * does when an event moves (RFC 5546), and what a new event made from it
+ * needs: Stalwart sends a new event, and a new override of one occurrence,
+ * only to attendees without an answer (PARTSTAT absent or NEEDS-ACTION), and
+ * a change to an existing one carries each attendee's stored answer. Null
+ * when no attendee has answered.
  */
-export function askAttendeesAgain(
-  participants: Record<string, Participant>,
-  organizerEmails: string[] = [],
-): Record<string, Participant> {
-  const organizers = new Set(organizerEmails.map((address) => address.trim().toLowerCase()));
-  const result: Record<string, Participant> = {};
-  for (const [id, p] of Object.entries(participants)) {
+export function participantsAskedAgain(
+  event: Partial<Pick<CalendarEvent, 'participants' | 'organizerCalendarAddress' | 'replyTo'>>,
+): Record<string, Participant> | null {
+  const organizers = getEventOrganizerEmails(event);
+  let asked = false;
+  const participants: Record<string, Participant> = {};
+  for (const [id, p] of Object.entries(event.participants ?? {})) {
     const address = getParticipantEmail(p).trim().toLowerCase();
-    const organizer = !!p.roles?.owner || (!!address && organizers.has(address));
-    result[id] = organizer ? p : { ...p, participationStatus: 'needs-action' };
+    const organizer = !!p.roles?.owner || (!!address && organizers.includes(address));
+    if (organizer || !p.participationStatus || p.participationStatus === 'needs-action') {
+      participants[id] = p;
+      continue;
+    }
+    participants[id] = { ...p, participationStatus: 'needs-action' };
+    asked = true;
   }
-  return result;
+  return asked ? participants : null;
 }
 
 /**

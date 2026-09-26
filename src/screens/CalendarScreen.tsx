@@ -91,13 +91,8 @@ import {
   type TimeFormat,
 } from '../lib/calendar-utils';
 import { buildReplyTo } from '../lib/calendar-invitation';
-import {
-  buildAllScopeEdit,
-  buildFutureSeriesEdit,
-  isRecurringSeriesMember,
-  truncateRecurrenceRules,
-  type SeriesEdit,
-} from '../lib/recurrence-overrides';
+import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
+import { deleteOccurrence, saveOccurrenceEdit, type SeriesEdit } from '../lib/recurrence-scope-edit';
 import { participantLimitMessage } from '../lib/calendar-participants';
 import { maxParticipantsPerEvent } from '../api/calendar';
 import { useContactNameResolver } from '../lib/contact-name-resolver';
@@ -110,7 +105,7 @@ import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
-import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
+import type { Calendar, CalendarEvent } from '../api/types';
 
 type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 type PendingAction =
@@ -603,24 +598,6 @@ export default function CalendarScreen() {
     }
   }, [deleteEvent, isReadOnlyEvent, reportError]);
 
-  // "This and following": end the master at the occurrence and hand back the
-  // master plus its untouched rules so the caller can start a new series (or
-  // roll back). Port of webmail's truncateRecurrenceAtEvent.
-  const truncateRecurrenceAtEvent = React.useCallback(
-    async (event: CalendarEvent) => {
-      const master = await getMasterEvent(event);
-      if (!master) return null;
-      const originalRules = master.recurrenceRules
-        ? (JSON.parse(JSON.stringify(master.recurrenceRules)) as RecurrenceRule[])
-        : null;
-      await updateEvent(master.id, {
-        recurrenceRules: truncateRecurrenceRules(master.recurrenceRules, event),
-      });
-      return { master, originalRules };
-    },
-    [getMasterEvent, updateEvent],
-  );
-
   // Send an answer and show it in the open detail sheet. 'occurrence'
   // answers just that occurrence of a series.
   const submitRsvp = React.useCallback(
@@ -664,74 +641,22 @@ export default function CalendarScreen() {
         return;
       }
       try {
-        if (action.kind === 'edit') {
-          const { updates } = action;
-          const opts = { sendSchedulingMessages: action.sendScheduling };
-          const participantContext = {
-            userEmail: currentUserEmails[0],
+        // lib/recurrence-scope-edit: which occurrences change, and how the
+        // series, its overrides and its attendees follow.
+        const done = action.kind === 'edit'
+          ? await saveOccurrenceEdit(scope, {
+            event,
+            updates: action.updates,
+            editor: action.edit,
+            calendarId: action.calendarId,
+            sendScheduling: action.sendScheduling,
             userEmails: currentUserEmails,
             resolveName: resolveContactName,
-          };
-          switch (scope) {
-            case 'this': {
-              // The store keeps the change on this occurrence: through its
-              // own (synthetic) id, or as a recurrence override on the event
-              // it was expanded from.
-              await updateEvent(event.id, updates, opts);
-              break;
-            }
-            case 'this_and_future': {
-              const result = await truncateRecurrenceAtEvent(event);
-              if (!result) throw new Error('Master event not found');
-              const { master, originalRules } = result;
-              const newEventData = buildFutureSeriesEdit(master, originalRules, event, updates, currentUserEmails);
-              delete newEventData.calendarIds;
-              const targetCalendarId =
-                action.calendarId || getPrimaryCalendarId(master) || '';
-              try {
-                await createEvent(newEventData, targetCalendarId, opts);
-              } catch (createError) {
-                // Roll back the truncation so the series isn't left cut short.
-                try {
-                  await updateEvent(master.id, { recurrenceRules: originalRules ?? [] });
-                } catch {
-                  // The rollback failing is reported through the original error.
-                }
-                throw createError;
-              }
-              break;
-            }
-            case 'all': {
-              const master = await getMasterEvent(event);
-              if (!master) throw new Error('Master event not found');
-              const changes = action.edit
-                ? buildAllScopeEdit(updates, event, master, action.edit, participantContext)
-                : updates;
-              await updateEvent(master.id, changes, opts);
-              break;
-            }
-          }
-        } else {
-          switch (scope) {
-            case 'this': {
-              // The store destroys a server occurrence, or excludes one the
-              // device expanded on its base event.
-              await deleteEvent(event.id);
-              break;
-            }
-            case 'this_and_future': {
-              const result = await truncateRecurrenceAtEvent(event);
-              if (!result) throw new Error('Master event not found');
-              break;
-            }
-            case 'all': {
-              const master = await getMasterEvent(event);
-              if (!master) throw new Error('Master event not found');
-              await deleteEvent(master.id);
-              break;
-            }
-          }
-        }
+          }, { updateEvent, createEvent, getMasterEvent })
+          : await deleteOccurrence(scope, { event, userEmails: currentUserEmails }, {
+            updateEvent, deleteEvent, getMasterEvent,
+          });
+        if (!done) throw new Error('Master event not found');
       } catch (err) {
         Alert.alert(
           t('calendar.notifications.event_error', 'Something went wrong'),
@@ -745,7 +670,7 @@ export default function CalendarScreen() {
       }
     },
     [
-      pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh,
+      pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, refresh,
       submitRsvp, t, currentUserEmails, resolveContactName,
     ],
   );

@@ -66,6 +66,37 @@ export function expandRecurringEvents(
   return result;
 }
 
+/**
+ * How many occurrences `rule` gives a series that starts at `start` before
+ * `before`, both LocalDateTimes on the series' own wall clock, its start
+ * included: how much of the rule's COUNT the part of the series before
+ * `before` uses up (the start counts as the first occurrence, RFC 5545).
+ */
+export function occurrencesBefore(start: string, rule: RecurrenceRule, before: string): number {
+  const from = parseISO(start);
+  const until = parseISO(before);
+  if (isNaN(from.getTime()) || isNaN(until.getTime()) || until <= from) return 0;
+  return generateDates(from, rule, from, until, true, Infinity).length;
+}
+
+/**
+ * Whether a series that starts at `start` and repeats by `rules` has an
+ * occurrence at `recurrenceId`, both LocalDateTimes on its own wall clock.
+ * Its start always is one.
+ */
+export function seriesOccursAt(
+  start: string,
+  rules: RecurrenceRule[] | null | undefined,
+  recurrenceId: string,
+): boolean {
+  const from = parseISO(start);
+  const at = parseISO(recurrenceId);
+  if (isNaN(from.getTime()) || isNaN(at.getTime())) return false;
+  if (at.getTime() === from.getTime()) return true;
+  const until = new Date(at.getTime() + 1000);
+  return (rules ?? []).some((rule) => generateDates(from, rule, at, until).some((date) => date.getTime() === at.getTime()));
+}
+
 function occurrenceDateKey(master: CalendarEvent, date: Date): string {
   return master.showWithoutTime ? format(date, 'yyyy-MM-dd') : date.toISOString();
 }
@@ -398,6 +429,7 @@ function generateDates(
   rangeStart: Date,
   rangeEnd: Date,
   includeStartDate = true,
+  maxOccurrences = 500,
 ): Date[] {
   const rule = addImplicitByX(rawRule, eventStart);
   const dates: Date[] = [];
@@ -413,11 +445,10 @@ function generateDates(
     : fastForwardToRange(eventStart, rule.frequency, interval, rangeStart);
 
   const maxIterations = 2000;
-  // Cap on *emitted* (in-range) dates. This must not count occurrences
-  // before rangeStart, otherwise a series started long ago (e.g. a daily
-  // event from two years back) exhausts the budget before reaching the
-  // visible range and silently renders nothing.
-  const maxOccurrences = 500;
+  // `maxOccurrences` caps the *emitted* (in-range) dates. It must not count
+  // occurrences before rangeStart, otherwise a series started long ago (e.g.
+  // a daily event from two years back) exhausts the budget before reaching
+  // the visible range and silently renders nothing.
   let iterations = 0;
 
   while (iterations++ < maxIterations) {
