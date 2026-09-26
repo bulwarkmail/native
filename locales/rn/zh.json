@@ -400,6 +400,7 @@
     "received_via": "发给 {name}",
     "remove_color": "删除标签",
     "replied": "已回复",
+    "reschedule_recipients_refused": "未作任何更改：服务器拒绝了 {recipients}。",
     "sender_actions": "发件人…",
     "set_color": "设置颜色标签",
     "show_all_count": "显示全部（{count}）",

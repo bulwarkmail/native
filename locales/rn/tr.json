@@ -400,6 +400,7 @@
     "received_via": "alıcı: {name}",
     "remove_color": "Etiketi kaldır",
     "replied": "Yanıtlandı",
+    "reschedule_recipients_refused": "Hiçbir şey değiştirilmedi: sunucu şu alıcıları reddetti: {recipients}.",
     "sender_actions": "Gönderen…",
     "set_color": "Etiket ayarla",
     "show_all_count": "Tümünü göster ({count})",

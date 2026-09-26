@@ -87,8 +87,11 @@ describe('rescheduleScheduledSend', () => {
     const result = await rescheduleScheduledSend(SCHEDULED, 7200);
 
     expect(result).toEqual({ emailSubmissionId: 'sub-2', sendAt: '2026-09-25T08:00:00Z' });
+    // What the server answered for each recipient comes with the envelope.
     const [lookup] = mockRequest.mock.calls[0][0];
-    expect(lookup).toEqual(['EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope'] }, '0']);
+    expect(lookup).toEqual([
+      'EmailSubmission/get', { accountId: 'acc-1', ids: ['sub-1'], properties: ['envelope', 'deliveryStatus'] }, '0',
+    ]);
     const args = mockRequest.mock.calls[1][0][0][1];
     expect(args.create.replacement.envelope).toEqual({
       mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '7200' } },

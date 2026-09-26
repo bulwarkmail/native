@@ -400,6 +400,7 @@
     "received_via": "per a {name}",
     "remove_color": "Elimina l'etiqueta",
     "replied": "Respost",
+    "reschedule_recipients_refused": "No s'ha canviat res: el servidor ha rebutjat {recipients}.",
     "sender_actions": "Remitent…",
     "set_color": "Estableix l'etiqueta",
     "show_all_count": "Mostra-ho tot ({count})",

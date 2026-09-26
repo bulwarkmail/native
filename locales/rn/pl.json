@@ -400,6 +400,7 @@
     "received_via": "do {name}",
     "remove_color": "Usuń etykietę",
     "replied": "Odpowiedziano",
+    "reschedule_recipients_refused": "Nic nie zostało zmienione: serwer odrzucił {recipients}.",
     "sender_actions": "Nadawca…",
     "set_color": "Ustaw etykietę",
     "show_all_count": "Pokaż wszystkie ({count})",

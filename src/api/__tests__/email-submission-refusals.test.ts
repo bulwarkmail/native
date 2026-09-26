@@ -244,14 +244,30 @@ describe('a send whose recipients the server refuses', () => {
 });
 
 describe('"Send now" and "Reschedule" when the server refuses the recipients again', () => {
-  /** A scheduled message to `recipients`, held for an hour. */
+  /**
+   * A message to `recipients`, scheduled an hour ahead: the server holds its
+   * envelope and what the RCPT stage answered for each recipient back then.
+   */
   function scheduledTo(server: FakeSubmissionServer, ...recipients: string[]) {
     server.emails.set('mail-1', {
       id: 'mail-1', mailboxIds: { sent: true }, keywords: {}, to: recipients.map((email) => ({ email })),
     });
-    const [original] = server.seed('acc-1', [{ sendAt: Date.now() + HOUR, status: 'pending', emailId: 'mail-1' }]);
+    const [original] = server.seed('acc-1', [
+      { sendAt: Date.now() + HOUR, status: 'pending', emailId: 'mail-1', rcptTo: recipients },
+    ]);
     return { emailSubmissionId: original, emailId: 'mail-1', identityId: 'id-1', from: [{ email: 'me@example.com' }] };
   }
+  /** Stalwart's 25/h throttle, used up for `address`. */
+  const throttledFor = (address: string) => (email: string) => (email === address ? RATE_LIMITED : undefined);
+  /** The submissions the client cancelled, in order. */
+  const cancelled = (server: FakeSubmissionServer) => argsOf(server, 'EmailSubmission/set')
+    .filter((a) => a.update)
+    .flatMap((a) => Object.keys(a.update as object));
+  /** The replacements the server created, in order. */
+  const replacements = (server: FakeSubmissionServer) => server.requests
+    .flatMap(({ responses }) => responses)
+    .filter(([name, body]) => name === 'EmailSubmission/set' && body.created?.replacement)
+    .map(([, body]) => body.created.replacement.id as string);
 
   it.each([
     ['1.0', 0],
@@ -261,9 +277,10 @@ describe('"Send now" and "Reschedule" when the server refuses the recipients aga
   ] as Array<[StalwartVersion, number]>)(
     'Stalwart %s: keeps the original when every recipient of the replacement is refused (hold %is)',
     async (version, holdFor) => {
-      // A throttle used up since the message was scheduled.
-      const server = setup(version, { refuseRecipient: () => RATE_LIMITED });
+      const server = setup(version);
       const scheduled = scheduledTo(server, 'bob@example.org');
+      // A throttle used up since the message was scheduled.
+      server.refuseRecipients(() => RATE_LIMITED);
 
       const err = await rescheduleScheduledSend(scheduled, holdFor).catch((e: unknown) => e);
 
@@ -292,8 +309,9 @@ describe('"Send now" and "Reschedule" when the server refuses the recipients aga
   });
 
   it.each(['1.0', '0.16.23'] as StalwartVersion[])(
-    'Stalwart %s: names the recipients refused for the replacement and replaces the original',
+    'Stalwart %s: replaces the original when the replacement is refused only a recipient the original was refused too, and names it',
     async (version) => {
+      // The relay rule refused nobody@example.net when the message was scheduled.
       const server = setup(version, { refuseRecipient: relayOff });
       const scheduled = scheduledTo(server, 'bob@example.org', 'nobody@example.net');
 
@@ -308,12 +326,139 @@ describe('"Send now" and "Reschedule" when the server refuses the recipients aga
 
   it('leaves the refused replacement to the prune on a server without urn:stalwart:jmap', async () => {
     fake.stalwart = false;
-    const server = setup('1.0', { refuseRecipient: () => RATE_LIMITED });
+    const server = setup('1.0');
     const scheduled = scheduledTo(server, 'bob@example.org');
+    server.refuseRecipients(() => RATE_LIMITED);
 
     await expect(rescheduleScheduledSend(scheduled, 0)).rejects.toBeInstanceOf(RecipientsRefusedError);
 
     expect(server.submissions().map((s) => s.undoStatus)).toEqual(['pending', 'final']);
+  });
+
+  // The replacement takes the others: cancelling the original would lose
+  // the message for the refused one, whom the original still reaches.
+  describe('when the replacement is refused a recipient the original was taken for', () => {
+    beforeEach(() => {
+      // "Send now" holds the replacement for a second, so the clock stands
+      // still for the withdraw to find it held.
+      vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-26T10:00:00Z'));
+    });
+
+    it.each([
+      ['1.0', 0],
+      ['1.0', 7200],
+      ['0.16.23', 0],
+      ['0.16.23', 7200],
+      ['0.16.6', 0],
+    ] as Array<[StalwartVersion, number]>)(
+      'Stalwart %s: keeps the original at its old time and withdraws the replacement (hold %is)',
+      async (version, holdFor) => {
+        const server = setup(version);
+        const scheduled = scheduledTo(server, 'alice@example.org', 'bob@example.org');
+        server.refuseRecipients(throttledFor('bob@example.org'));
+
+        const err = await rescheduleScheduledSend(scheduled, holdFor).catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(RecipientsRefusedError);
+        expect((err as RecipientsRefusedError).recipients).toEqual([{ email: 'bob@example.org', smtpReply: RATE_LIMITED }]);
+        // Bob still gets it at the old time, and alice only once: the
+        // replacement she was taken for is cancelled, not just its record.
+        expect(cancelled(server)).toEqual(replacements(server));
+        expect(server.submissions()).toEqual([
+          { id: scheduled.emailSubmissionId, sendAt: Date.now() + HOUR, undoStatus: 'pending' },
+        ]);
+      },
+    );
+
+    it.each(['1.0', '0.16.23'] as StalwartVersion[])(
+      'Stalwart %s: names only whom the replacement would have lost when it took nobody',
+      async (version) => {
+        const server = setup(version, { refuseRecipient: relayOff });
+        const scheduled = scheduledTo(server, 'alice@example.org', 'nobody@example.net');
+        server.refuseRecipients((email) => relayOff(email) ?? throttledFor('alice@example.org')(email));
+
+        const err = await rescheduleScheduledSend(scheduled, 7200).catch((e: unknown) => e);
+
+        // nobody@example.net never got it: the relay rule refused it back then.
+        expect((err as RecipientsRefusedError).recipients).toEqual([{ email: 'alice@example.org', smtpReply: RATE_LIMITED }]);
+        // Nothing was queued for the replacement, so only its record goes.
+        expect(cancelled(server)).toEqual([]);
+        expect(server.submissions()).toEqual([
+          { id: scheduled.emailSubmissionId, sendAt: Date.now() + HOUR, undoStatus: 'pending' },
+        ]);
+      },
+    );
+
+    it('Stalwart 1.0 shapes: counts every recipient as taken when the server keeps no delivery status for the original', async () => {
+      const server = setup('1.0', { refuseRecipient: relayOff });
+      const scheduled = scheduledTo(server, 'alice@example.org', 'nobody@example.net');
+      vi.mocked(jmapClient.request).mockImplementationOnce(async (calls, using) => {
+        const res = await server.request(calls, using);
+        return {
+          methodResponses: res.methodResponses.map(([name, body, callId]) => (name === 'EmailSubmission/get'
+            ? [name, { ...body, list: body.list.map((s: object) => ({ ...s, deliveryStatus: null })) }, callId]
+            : [name, body, callId])) as Array<[string, Record<string, any>, string]>,
+        };
+      });
+
+      const err = await rescheduleScheduledSend(scheduled, 7200).catch((e: unknown) => e);
+
+      // Nothing says the relay rule refused nobody@example.net back then.
+      expect((err as RecipientsRefusedError).recipients).toEqual([{ email: 'nobody@example.net', smtpReply: RELAY_DENIED }]);
+      expect(cancelled(server)).toEqual(replacements(server));
+      expect(server.submissions().map((s) => [s.id, s.undoStatus])).toEqual([[scheduled.emailSubmissionId, 'pending']]);
+    });
+
+    it.each(['1.0', '0.16.23'] as StalwartVersion[])(
+      'Stalwart %s: goes ahead and names the refused recipient when "Send now" went out before it could be withdrawn',
+      async (version) => {
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const server = setup(version);
+        const scheduled = scheduledTo(server, 'alice@example.org', 'bob@example.org');
+        server.refuseRecipients(throttledFor('bob@example.org'));
+        // Its second of hold is over before the withdraw arrives.
+        server.afterEachRequest(() => {
+          for (const id of replacements(server)) server.deliver('acc-1', id);
+        });
+
+        const result = await rescheduleScheduledSend(scheduled, 0);
+
+        // Alice has it from the replacement: keeping the original as well
+        // would send her a second copy.
+        expect(result.refusedRecipients).toEqual([{ email: 'bob@example.org', smtpReply: RATE_LIMITED }]);
+        expect(cancelled(server)).toEqual([result.emailSubmissionId, scheduled.emailSubmissionId]);
+        expect(server.submissions()).toEqual([{ id: result.emailSubmissionId, sendAt: expect.any(Number), undoStatus: 'final' }]);
+      },
+    );
+
+    it.each(['1.0', '0.16.23'] as StalwartVersion[])(
+      'Stalwart %s: keeps the original when the withdraw went through and only its answer was lost',
+      async (version) => {
+        const server = setup(version);
+        const scheduled = scheduledTo(server, 'alice@example.org', 'bob@example.org');
+        server.refuseRecipients(throttledFor('bob@example.org'));
+        let answered = false;
+        server.afterEachRequest((calls) => {
+          const [name, args] = calls[0];
+          if (name === 'EmailSubmission/set' && (args as { update?: object }).update && !answered) {
+            answered = true;
+            throw new Error('Network request failed');
+          }
+        });
+
+        const err = await rescheduleScheduledSend(scheduled, 7200).catch((e: unknown) => e);
+
+        // Going ahead would cancel the original too: nobody would get it.
+        expect(err).toBeInstanceOf(RecipientsRefusedError);
+        const [replacement] = replacements(server);
+        expect(cancelled(server)).toEqual([replacement]);
+        // The canceled record is left to the prune.
+        expect(server.submissions().map((s) => [s.id, s.undoStatus])).toEqual([
+          [scheduled.emailSubmissionId, 'pending'],
+          [replacement, 'canceled'],
+        ]);
+      },
+    );
   });
 });
 

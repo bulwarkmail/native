@@ -400,6 +400,7 @@
     "received_via": "به {name}",
     "remove_color": "حذف برچسب",
     "replied": "پاسخ داده شده",
+    "reschedule_recipients_refused": "چیزی تغییر نکرد: سرور {recipients} را رد کرد.",
     "sender_actions": "فرستنده…",
     "set_color": "تنظیم برچسب",
     "show_all_count": "نمایش همه ({count})",

@@ -400,6 +400,7 @@
     "received_via": "para {name}",
     "remove_color": "Eliminar etiqueta",
     "replied": "Respondido",
+    "reschedule_recipients_refused": "No se cambió nada: el servidor rechazó {recipients}.",
     "sender_actions": "Remitente…",
     "set_color": "Establecer etiqueta",
     "show_all_count": "Mostrar todo ({count})",

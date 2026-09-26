@@ -400,6 +400,7 @@
     "received_via": "à {name}",
     "remove_color": "Retirer l'étiquette",
     "replied": "Répondu",
+    "reschedule_recipients_refused": "Rien n’a été modifié : le serveur a refusé {recipients}.",
     "sender_actions": "Expéditeur…",
     "set_color": "Définir l'étiquette",
     "show_all_count": "Tout afficher ({count})",

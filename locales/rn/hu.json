@@ -400,6 +400,7 @@
     "received_via": "címzett: {name}",
     "remove_color": "Címke eltávolítása",
     "replied": "Megválaszolva",
+    "reschedule_recipients_refused": "Semmi sem változott: a kiszolgáló elutasította a következőt: {recipients}.",
     "sender_actions": "Feladó…",
     "set_color": "Címke beállítása",
     "show_all_count": "Összes megjelenítése ({count})",

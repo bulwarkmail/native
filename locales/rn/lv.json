@@ -400,6 +400,7 @@
     "received_via": "kam: {name}",
     "remove_color": "Noņemt tagu",
     "replied": "Atbildēts",
+    "reschedule_recipients_refused": "Nekas netika mainīts: serveris noraidīja {recipients}.",
     "sender_actions": "Sūtītājs…",
     "set_color": "Iestatīt tagu",
     "show_all_count": "Rādīt visus ({count})",

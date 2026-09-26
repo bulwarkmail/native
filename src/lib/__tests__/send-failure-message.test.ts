@@ -4,7 +4,7 @@ import {
   JMAPMethodError, NoLongerScheduledError, RecipientsRefusedError, ScheduleTooLateError, SubmissionQuotaError,
   formatRefusedRecipients,
 } from '../../api/jmap-result';
-import { partlyRefusedWarning, rescheduleFailureMessage, sendFailureMessage } from '../send-failure-message';
+import { partlyRefusedWarning, rescheduleFailureNotice, sendFailureMessage } from '../send-failure-message';
 
 // The English fallback stands in for the catalog.
 const t = (key: string, fallback?: string, params?: Record<string, unknown>) =>
@@ -69,19 +69,25 @@ describe('recipients the server refused', () => {
       .toBe('a@example.net, b@example.net (550 5.1.1 No such user)');
   });
 
-  it('says the message is still scheduled when the server refused every recipient of a reschedule', () => {
+  // The original is kept for all of its recipients, so the headline must not
+  // read as "not sent", which invites sending the message a second time.
+  it('leads with the kept schedule when the server refused recipients of the replacement (Stalwart 0.16 and 1.0)', () => {
     const error = new RecipientsRefusedError([{ email: 'bob@example.org', smtpReply: '452 4.4.5 Rate limit exceeded, try again later.' }]);
-    expect(rescheduleFailureMessage(error, t, 'Sep 26, 10:00')).toBe(
-      'Not sent: the server refused bob@example.org (452 4.4.5 Rate limit exceeded, try again later.). The message is still scheduled for Sep 26, 10:00.',
-    );
-    expect(rescheduleFailureMessage(error, t)).toBe(
-      'Not sent: the server refused bob@example.org (452 4.4.5 Rate limit exceeded, try again later.). The message is still scheduled.',
-    );
+    expect(rescheduleFailureNotice(error, t, 'Reschedule failed', 'Sep 26, 10:00')).toEqual({
+      title: 'The message is still scheduled for Sep 26, 10:00.',
+      message: 'Nothing was changed: the server refused bob@example.org (452 4.4.5 Rate limit exceeded, try again later.).',
+    });
+    expect(rescheduleFailureNotice(error, t, 'Could not send now')).toEqual({
+      title: 'The message is still scheduled.',
+      message: 'Nothing was changed: the server refused bob@example.org (452 4.4.5 Rate limit exceeded, try again later.).',
+    });
   });
 
-  it('leaves other reschedule failures as the send failure message', () => {
-    expect(rescheduleFailureMessage(new NoLongerScheduledError(true), t, 'Sep 26, 10:00')).toBe('This message was already sent.');
-    expect(rescheduleFailureMessage(new Error('Quota exceeded'), t)).toBe('Quota exceeded');
+  it('gives other reschedule failures their title and the send failure message', () => {
+    expect(rescheduleFailureNotice(new NoLongerScheduledError(true), t, 'Reschedule failed', 'Sep 26, 10:00'))
+      .toEqual({ title: 'Reschedule failed', message: 'This message was already sent.' });
+    expect(rescheduleFailureNotice(new Error('Quota exceeded'), t, 'Could not send now'))
+      .toEqual({ title: 'Could not send now', message: 'Quota exceeded' });
   });
 
   it('warns about the recipients refused while the others get the message', () => {

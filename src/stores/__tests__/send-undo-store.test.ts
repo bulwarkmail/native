@@ -184,8 +184,9 @@ describe('send-undo-store', () => {
     });
 
     // A throttle used up since the send was taken (Stalwart 0.16 and 1.0 check
-    // the recipients again for the release): the original was kept.
-    it('keeps the held message when the server refused every recipient of the release', async () => {
+    // the recipients again for the release): the original was kept, and a
+    // "not sent" would invite sending it a second time.
+    it('says the held message is still scheduled when the server refused a recipient of the release', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       api.rescheduleScheduledSend.mockRejectedValueOnce(new RecipientsRefusedError([
         { email: 'you@example.com', smtpReply: '452 4.4.5 Rate limit exceeded, try again later.' },
@@ -197,8 +198,8 @@ describe('send-undo-store', () => {
 
       expect(useToastStore.getState().toasts).toMatchObject([{
         type: 'error',
-        title: 'Could not send now',
-        message: 'Not sent: the server refused you@example.com (452 4.4.5 Rate limit exceeded, try again later.). The message is still scheduled.',
+        title: 'The message is still scheduled.',
+        message: 'Nothing was changed: the server refused you@example.com (452 4.4.5 Rate limit exceeded, try again later.).',
       }]);
       // It still goes out when the delay ends, and can still be undone.
       expect(useSendUndoStore.getState()).toMatchObject({ pending, busy: false });

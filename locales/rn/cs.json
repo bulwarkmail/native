@@ -400,6 +400,7 @@
     "received_via": "pro {name}",
     "remove_color": "Odebrat štítek",
     "replied": "Zodpovězeno",
+    "reschedule_recipients_refused": "Nic se nezměnilo: server odmítl {recipients}.",
     "sender_actions": "Odesílatel…",
     "set_color": "Nastavit štítek",
     "show_all_count": "Zobrazit vše ({count})",

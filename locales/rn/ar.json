@@ -400,6 +400,7 @@
     "received_via": "إلى {name}",
     "remove_color": "إزالة الوسم",
     "replied": "تم الرد عليها",
+    "reschedule_recipients_refused": "لم يتغيّر شيء: رفض الخادم {recipients}.",
     "sender_actions": "المرسل…",
     "set_color": "تعيين وسم",
     "show_all_count": "عرض الكل ({count})",

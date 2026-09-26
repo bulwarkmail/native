@@ -400,6 +400,7 @@
     "received_via": "받는 사람: {name}",
     "remove_color": "태그 제거",
     "replied": "답장함",
+    "reschedule_recipients_refused": "변경된 내용이 없습니다: 서버가 {recipients}을(를) 거부했습니다.",
     "sender_actions": "보낸 사람…",
     "set_color": "태그 설정",
     "show_all_count": "전체 보기({count})",

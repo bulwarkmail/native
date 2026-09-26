@@ -400,6 +400,7 @@
     "received_via": "寄給 {name}",
     "remove_color": "移除標籤",
     "replied": "已回覆",
+    "reschedule_recipients_refused": "未作任何變更：伺服器拒絕了 {recipients}。",
     "sender_actions": "寄件者…",
     "set_color": "設定標籤",
     "show_all_count": "顯示全部（{count}）",

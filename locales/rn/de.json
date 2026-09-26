@@ -400,6 +400,7 @@
     "received_via": "an {name}",
     "remove_color": "Label entfernen",
     "replied": "Beantwortet",
+    "reschedule_recipients_refused": "Nichts wurde geändert: Der Server hat {recipients} abgelehnt.",
     "sender_actions": "Absender…",
     "set_color": "Label setzen",
     "show_all_count": "Alle anzeigen ({count})",

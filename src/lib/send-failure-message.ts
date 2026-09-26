@@ -63,18 +63,29 @@ export function sendFailureMessage(error: unknown, t: Translate): string {
 }
 
 /**
- * What to tell the user about a "Send now" or reschedule that failed. When
- * the server refused every recipient of the replacement, the original was
- * kept: it still goes out at its old time, `scheduledAt` (formatted) when
- * known (webmail rescheduleFailureToast).
+ * The title and message for a "Send now" or reschedule that failed: most
+ * failures get `failTitle` and sendFailureMessage (webmail
+ * rescheduleFailureToast). When the server refused recipients of the
+ * replacement that the original had been taken for, the original was kept
+ * for all of its recipients and still goes out at its old time,
+ * `scheduledAt` (formatted) when known. That leads, and nothing says "not
+ * sent": it would invite sending the message a second time.
  */
-export function rescheduleFailureMessage(error: unknown, t: Translate, scheduledAt?: string): string {
-  const message = sendFailureMessage(error, t);
-  if (!(error instanceof RecipientsRefusedError)) return message;
-  const stillScheduled = scheduledAt
-    ? t('email_viewer.still_scheduled_at', 'The message is still scheduled for {date}.', { date: scheduledAt })
-    : t('email_viewer.still_scheduled', 'The message is still scheduled.');
-  return `${message} ${stillScheduled}`;
+export function rescheduleFailureNotice(
+  error: unknown,
+  t: Translate,
+  failTitle: string,
+  scheduledAt?: string,
+): { title: string; message: string } {
+  if (!(error instanceof RecipientsRefusedError)) return { title: failTitle, message: sendFailureMessage(error, t) };
+  return {
+    title: scheduledAt
+      ? t('email_viewer.still_scheduled_at', 'The message is still scheduled for {date}.', { date: scheduledAt })
+      : t('email_viewer.still_scheduled', 'The message is still scheduled.'),
+    message: t('email_viewer.reschedule_recipients_refused', 'Nothing was changed: the server refused {recipients}.', {
+      recipients: formatRefusedRecipients(error.recipients),
+    }),
+  };
 }
 
 /**

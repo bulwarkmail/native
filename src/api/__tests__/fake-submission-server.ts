@@ -17,7 +17,11 @@
 //   not: a refused recipient is recorded in deliveryStatus as
 //   `delivered: "no"` with the server's reply, the others as `queued`; with
 //   nobody taken nothing is queued, the create answers `final` and sendAt is
-//   the time of the create (seen live on 0.16.23 and 1.0);
+//   the time of the create (seen live on 0.16.23 and 1.0). What it refuses
+//   can change between two submissions, as a throttle that gets used up;
+// - a message scheduled earlier (`seed` with `rcptTo`): get reports its
+//   envelope and what the RCPT stage answered back then, in the shapes both
+//   versions return live;
 // - `#creationId` in EmailSubmission/get `ids`, naming a submission created
 //   earlier in the same request, and Stalwart's invalidResultReference when
 //   that create failed;
@@ -78,6 +82,12 @@ export interface SeedSubmission {
   /** A pending record whose sendAt has passed (retrying). */
   retrying?: boolean;
   emailId?: string;
+  /**
+   * The envelope recipients of a message sent by me@example.com, which the
+   * RCPT stage answers for as the record is seeded. Without them the record
+   * has neither an envelope nor a delivery status.
+   */
+  rcptTo?: string[];
 }
 
 type Response = [string, Record<string, any>, string];
@@ -94,12 +104,16 @@ export function createFakeSubmissionServer(options: {
   maxChanges?: number;
   /** Leave `total` out of query answers, as a server may. */
   omitTotal?: boolean;
-  /** The SMTP reply the RCPT stage refuses a recipient with; undefined takes it. */
+  /**
+   * The SMTP reply the RCPT stage refuses a recipient with; undefined takes
+   * it. Until refuseRecipients changes it.
+   */
   refuseRecipient?: (email: string) => string | undefined;
   /** Accounts whose EmailSubmission calls this login is refused (`forbidden`). */
   forbiddenAccounts?: string[];
 }) {
   const { version } = options;
+  let refuseRecipient = options.refuseRecipient;
   const limit = options.limit ?? 500;
   const maxChanges = options.maxChanges ?? 5000;
   const accounts = new Map<string, Map<string, Submission>>();
@@ -193,18 +207,29 @@ export function createFakeSubmissionServer(options: {
     return hold ? Number(hold) : 0;
   }
 
-  /** The RCPT stage: each recipient of the envelope, or else of the message, taken or refused. */
-  function rcptStage(create: Record<string, any>, email: StoredEmail): Record<string, DeliveryStatus> {
+  /** The recipients of a create: its envelope's, or else the message's. */
+  function recipientsOf(create: Record<string, any>, email: StoredEmail): string[] {
     const envelope = (create.envelope?.rcptTo as Array<{ email: string }> | undefined)?.map((r) => r.email);
     const headers = [email.to, email.cc, email.bcc]
       .flatMap((list) => (Array.isArray(list) ? list as Array<{ email: string }> : []))
       .map((r) => r.email);
-    return Object.fromEntries((envelope ?? headers).map((address) => {
-      const reply = options.refuseRecipient?.(address);
+    return envelope ?? headers;
+  }
+
+  /** The RCPT stage: each recipient taken or refused. */
+  function rcptStage(addresses: string[]): Record<string, DeliveryStatus> {
+    return Object.fromEntries(addresses.map((address) => {
+      const reply = refuseRecipient?.(address);
       return [address, reply
         ? { delivered: 'no', smtpReply: reply, displayed: 'unknown' }
         : { delivered: 'queued', smtpReply: '250 2.1.5 Queued', displayed: 'unknown' }];
     }));
+  }
+
+  /** Whether the RCPT stage took anyone, so that something was queued. */
+  function tookAnyone(deliveryStatus: Record<string, DeliveryStatus>): boolean {
+    const statuses = Object.values(deliveryStatus);
+    return statuses.length === 0 || statuses.some((d) => d.delivered !== 'no');
   }
 
   function submissionSet(
@@ -235,9 +260,8 @@ export function createFakeSubmissionServer(options: {
         accepted += 1;
         // Held or not, the RCPT stage runs now. With nobody taken, nothing
         // is queued, and the record's sendAt is the time of the create.
-        const deliveryStatus = rcptStage(create, emails.get(emailId)!);
-        const statuses = Object.values(deliveryStatus);
-        const taken = statuses.length === 0 || statuses.some((d) => d.delivered !== 'no');
+        const deliveryStatus = rcptStage(recipientsOf(create, emails.get(emailId)!));
+        const taken = tookAnyone(deliveryStatus);
         const submission = addSubmission(accountId, {
           emailId,
           identityId: String(create.identityId),
@@ -457,14 +481,28 @@ export function createFakeSubmissionServer(options: {
       return items.map((item) => {
         const emailId = item.emailId ?? `seed-${seq + 1}`;
         if (!emails.has(emailId)) emails.set(emailId, { id: emailId, mailboxIds: { sent: true }, keywords: {} });
+        // Shaped as 0.16.23 and 1.0 return a held send's (live).
+        const deliveryStatus = item.rcptTo && rcptStage(item.rcptTo);
+        const envelope = item.rcptTo && {
+          mailFrom: {
+            email: 'me@example.com',
+            parameters: { HOLDFOR: String(Math.max(0, Math.round((item.sendAt - Date.now()) / 1000))) },
+          },
+          rcptTo: item.rcptTo.map((email) => ({ email, parameters: null })),
+        };
         return addSubmission(accountId, {
           emailId,
           identityId: 'id-1',
           sendAt: item.sendAt,
           canceled: item.status === 'canceled',
           retrying: item.status === 'pending' && item.sendAt <= Date.now(),
+          ...(deliveryStatus ? { deliveryStatus, envelope, taken: tookAnyone(deliveryStatus) } : {}),
         }).id;
       });
+    },
+    /** What the RCPT stage refuses from now on: a throttle used up meanwhile, say. */
+    refuseRecipients(refuse: ((email: string) => string | undefined) | undefined) {
+      refuseRecipient = refuse;
     },
     failNextEmailCreate(failure: { type: string; description?: string }) {
       emailCreateFailure = failure;

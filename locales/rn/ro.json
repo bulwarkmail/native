@@ -400,6 +400,7 @@
     "received_via": "către {name}",
     "remove_color": "Eliminați eticheta",
     "replied": "Răspuns",
+    "reschedule_recipients_refused": "Nu s-a schimbat nimic: serverul a respins {recipients}.",
     "sender_actions": "Expeditor…",
     "set_color": "Setați eticheta",
     "show_all_count": "Afișează tot ({count})",

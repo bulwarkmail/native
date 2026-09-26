@@ -400,6 +400,7 @@
     "received_via": "aan {name}",
     "remove_color": "Label verwijderen",
     "replied": "Beantwoord",
+    "reschedule_recipients_refused": "Er is niets gewijzigd: de server heeft {recipients} geweigerd.",
     "sender_actions": "Afzender…",
     "set_color": "Label instellen",
     "show_all_count": "Alles tonen ({count})",

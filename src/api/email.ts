@@ -2070,6 +2070,9 @@ export async function cancelScheduledSend(emailSubmissionId: string, accountIdOv
  * the original alone, and a replacement whose original can't be cancelled is
  * withdrawn again. Returns the new submission id and send time, and the
  * recipients the server refused for the replacement when it took the others.
+ * When it refused the replacement a recipient the original had been taken
+ * for, the original is kept at its old time, and RecipientsRefusedError
+ * names whom the replacement would have lost.
  */
 export async function rescheduleScheduledSend(
   scheduled: {
@@ -2090,17 +2093,23 @@ export async function rescheduleScheduledSend(
   // Reuse the held submission's envelope: it names every recipient,
   // Cc and Bcc included, and the envelope sender a catch-all From went
   // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
-  // The Email's To/Cc/Bcc are the fallback when the server has none.
+  // The Email's To/Cc/Bcc are the fallback when the server has none. What
+  // the server answered for each recipient when it took the original comes
+  // along: whom a refusal of the replacement costs the message depends on it.
   const lookup = await jmapClient.request(
     [
-      ['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0'],
+      ['EmailSubmission/get', {
+        accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope', 'deliveryStatus'],
+      }, '0'],
       ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
     ],
     [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
   );
-  const envelope = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
+  const original = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
     envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
-  }> | undefined)?.[0]?.envelope;
+    deliveryStatus?: Record<string, { delivered?: string } | null> | null;
+  }> | undefined)?.[0];
+  const envelope = original?.envelope;
   const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
   const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
   const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
@@ -2143,8 +2152,8 @@ export async function rescheduleScheduledSend(
     // and meanwhile the original may have gone out: its time came, or it was
     // "Send now" of a message due any moment. A replacement would then send
     // it a second time. A read that fails throws, and nothing changes.
-    const original = await readSubmissionUndoStatus(scheduled.emailSubmissionId, accountId);
-    if (original !== 'pending') throw new NoLongerScheduledError(original === 'final');
+    const originalStatus = await readSubmissionUndoStatus(scheduled.emailSubmissionId, accountId);
+    if (originalStatus !== 'pending') throw new NoLongerScheduledError(originalStatus === 'final');
     // The time spent is taken off the hold; a moment already past goes out
     // at once.
     res = await createReplacement(Math.max(1, Math.ceil((sendAt - Date.now()) / 1000)));
@@ -2156,13 +2165,23 @@ export async function rescheduleScheduledSend(
   if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
 
   // The recipients are checked again for the replacement, and a throttle
-  // used up since the original was taken refuses them all: nothing was
-  // queued, and cancelling the original would lose the message. It goes at
-  // its old time instead; the replacement's record is dead weight.
+  // used up since the original was taken ("452 4.4.5 Rate limit exceeded")
+  // can refuse some or all of them. Cancelling the original would lose the
+  // message for a recipient it took and the replacement didn't, so the
+  // original is kept then - it still goes at its old time to everyone it
+  // took - and the replacement is withdrawn. A recipient the original was
+  // refused for as well loses nothing, so the reschedule goes ahead; without
+  // a delivery status of the original, every recipient counts as taken.
+  // Should the replacement not be withdrawn, it goes ahead too, and the
+  // caller names the refused recipients: keeping both would send the others
+  // two copies (webmail aa99f038).
   const delivery = refusedRecipients(res.methodResponses.find(([, , callId]) => callId === '1'));
-  if (delivery.all) {
-    if (isStalwartAccount(accountId)) await destroyEmailSubmissions([created.id], accountId);
-    throw new RecipientsRefusedError(delivery.recipients);
+  const refusedBefore = new Set(Object.entries(original?.deliveryStatus ?? {})
+    .filter(([, status]) => status?.delivered === 'no')
+    .map(([address]) => address.toLowerCase()));
+  const lost = delivery.recipients.filter((recipient) => !refusedBefore.has(recipient.email.toLowerCase()));
+  if (lost.length > 0 && await withdrawReplacement(created.id, accountId, delivery.all)) {
+    throw new RecipientsRefusedError(lost);
   }
 
   // Either cancel below also removes the record it canceled, so a reschedule
@@ -2188,6 +2207,30 @@ export async function rescheduleScheduledSend(
     sendAt: created.sendAt,
     ...(delivery.recipients.length > 0 ? { refusedRecipients: delivery.recipients } : {}),
   };
+}
+
+/**
+ * Withdraw the replacement of a reschedule that keeps its original instead;
+ * true once it can no longer go out. A replacement the server took for
+ * nobody (`tookNobody`) holds no mail, so only its record goes, on Stalwart
+ * (elsewhere the prune takes it once it is final). Any other is cancelled,
+ * which "Send now" may be too late for: its replacement is held for a second
+ * only. A cancel that failed counts when a read shows it went through with
+ * only its answer lost.
+ */
+async function withdrawReplacement(replacementId: string, accountId: string, tookNobody: boolean): Promise<boolean> {
+  if (tookNobody) {
+    if (isStalwartAccount(accountId)) await destroyEmailSubmissions([replacementId], accountId);
+    return true;
+  }
+  try {
+    await cancelScheduledSend(replacementId, accountId);
+    return true;
+  } catch (err) {
+    if ((await submissionUndoStatus(replacementId, accountId)) === 'canceled') return true;
+    console.warn('[email] could not withdraw a replacement some recipients were refused for:', err);
+    return false;
+  }
 }
 
 /**

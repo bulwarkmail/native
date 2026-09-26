@@ -400,6 +400,7 @@
     "received_via": "אל {name}",
     "remove_color": "הסר תג",
     "replied": "נענה",
+    "reschedule_recipients_refused": "דבר לא השתנה: השרת דחה את {recipients}.",
     "sender_actions": "שולח…",
     "set_color": "הגדר תג",
     "show_all_count": "הצג הכול ({count})",

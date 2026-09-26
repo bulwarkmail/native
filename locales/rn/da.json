@@ -400,6 +400,7 @@
     "received_via": "til {name}",
     "remove_color": "Fjern tag",
     "replied": "Besvaret",
+    "reschedule_recipients_refused": "Intet blev ændret: serveren afviste {recipients}.",
     "sender_actions": "Afsender…",
     "set_color": "Sæt tag",
     "show_all_count": "Vis alle ({count})",

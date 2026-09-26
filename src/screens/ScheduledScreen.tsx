@@ -17,7 +17,7 @@ import {
 } from '../api/email';
 import { jmapClient, ScheduleTooLateError, SubmissionQuotaError } from '../api/jmap-client';
 import { NoLongerScheduledError, RecipientsRefusedError, type RefusedRecipient } from '../api/jmap-result';
-import { partlyRefusedWarning, rescheduleFailureMessage, sendFailureMessage } from '../lib/send-failure-message';
+import { partlyRefusedWarning, rescheduleFailureNotice, sendFailureMessage } from '../lib/send-failure-message';
 import { useEmailStore } from '../stores/email-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -101,10 +101,12 @@ export default function ScheduledScreen({ navigation }: Props) {
         void load();
         return;
       }
-      // The server refused every recipient of the replacement (a throttle
-      // used up since the message was scheduled): it goes at its old time.
+      // The server refused recipients of the replacement that the message had
+      // been taken for (a throttle used up since it was scheduled): it goes
+      // at its old time, as it was.
       if (e instanceof RecipientsRefusedError) {
-        Alert.alert(failTitle, rescheduleFailureMessage(e, t, formatWhen(item.sendAt)));
+        const { title, message } = rescheduleFailureNotice(e, t, failTitle, formatWhen(item.sendAt));
+        Alert.alert(title, message);
         return;
       }
       Alert.alert(failTitle, e instanceof Error ? e.message : String(e));

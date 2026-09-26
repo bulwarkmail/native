@@ -400,6 +400,7 @@
     "received_via": "til {name}",
     "remove_color": "Fjern etiketten",
     "replied": "Besvart",
+    "reschedule_recipients_refused": "Ingenting ble endret: serveren avviste {recipients}.",
     "sender_actions": "Avsender…",
     "set_color": "Legg til etikett",
     "show_all_count": "Vis alle ({count})",

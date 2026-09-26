@@ -400,6 +400,7 @@
     "received_via": "на {name}",
     "remove_color": "Убрать тег",
     "replied": "Отвечено",
+    "reschedule_recipients_refused": "Ничего не изменилось: сервер отклонил {recipients}.",
     "sender_actions": "Отправитель…",
     "set_color": "Назначить тег",
     "show_all_count": "Показать все ({count})",

@@ -400,6 +400,7 @@
     "received_via": "a {name}",
     "remove_color": "Rimuovi etichetta",
     "replied": "Risposto",
+    "reschedule_recipients_refused": "Non è stato cambiato nulla: il server ha rifiutato {recipients}.",
     "sender_actions": "Mittente…",
     "set_color": "Imposta etichetta",
     "show_all_count": "Mostra tutto ({count})",

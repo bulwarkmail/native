@@ -400,6 +400,7 @@
     "received_via": "{name}宛",
     "remove_color": "ラベルを削除",
     "replied": "返信済み",
+    "reschedule_recipients_refused": "何も変更されていません: サーバーが {recipients} を拒否しました。",
     "sender_actions": "差出人…",
     "set_color": "ラベルを設定",
     "show_all_count": "すべて表示（{count}）",

@@ -400,6 +400,7 @@
     "received_via": "Хэнд: {name}",
     "remove_color": "Тагийг хасах",
     "replied": "Хариулсан",
+    "reschedule_recipients_refused": "Юу ч өөрчлөгдсөнгүй: сервер дараах хүлээн авагчдыг татгалзлаа: {recipients}.",
     "sender_actions": "Илгээгч…",
     "set_color": "Таг оноох",
     "show_all_count": "Бүгдийг харуулах ({count})",
