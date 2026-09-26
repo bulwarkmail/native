@@ -48,13 +48,14 @@ export function sessionFingerprint(session: JMAPSession): string {
   return sha256Hex(new TextEncoder().encode(JSON.stringify(parts))).slice(0, 16);
 }
 
-/** The fingerprint recorded for a local account (username@host), if any. */
+/**
+ * The fingerprint recorded for a local account (username@host), or null when
+ * none is. A read that fails throws rather than answer null: that would be
+ * the first sight of the account, which drops its queued changes (see
+ * reconcileServerFingerprint), on a server that may never have changed.
+ */
 export async function readServerFingerprint(accountId: string): Promise<string | null> {
-  try {
-    return await AsyncStorage.getItem(storageKey(accountId));
-  } catch {
-    return null;
-  }
+  return AsyncStorage.getItem(storageKey(accountId));
 }
 
 /** The primary JMAP account id recorded with the fingerprint, if any. */

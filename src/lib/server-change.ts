@@ -151,8 +151,10 @@ async function forgetUnconfirmedServerState(accountId: string): Promise<void> {
  * (username@host) and drop what was derived from the server when it changed.
  * On the first sight of an account only what can't be confirmed to belong
  * to its server goes (forgetUnconfirmedServerState). The fingerprint is
- * written after that, so an interrupted drop is repeated next time. Resolves
- * to true when caches were dropped.
+ * written after that, so an interrupted drop is repeated next time. A
+ * recorded fingerprint that cannot be read rejects before anything goes or
+ * is written, and the next session checks again. Resolves to true when
+ * caches were dropped.
  */
 export async function reconcileServerFingerprint(accountId: string, session: JMAPSession): Promise<boolean> {
   const next = sessionFingerprint(session);

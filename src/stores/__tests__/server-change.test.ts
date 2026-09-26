@@ -390,4 +390,49 @@ describe('reconcileServerFingerprint', () => {
     expect(await AsyncStorage.getItem(`push:notifiedIds:v1:${ACCOUNT}`)).toBeNull();
     expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('1.0')));
   });
+
+  // A read that fails is no answer. Taken for no fingerprint, it made the
+  // session the first sight of the account: the queued changes went on a
+  // server that had not changed, and the fingerprint written then hid one
+  // that had.
+  describe('when the recorded fingerprint cannot be read', () => {
+    const checkWithFailingRead = async (current: JMAPSession) => {
+      const getItem = vi.mocked(AsyncStorage.getItem);
+      const read = getItem.getMockImplementation()!;
+      getItem.mockImplementation(async (key: string) => {
+        if (key === `server-fingerprint:v1:${ACCOUNT}`) throw new Error('SQLITE_BUSY');
+        return read(key);
+      });
+      try {
+        await expect(reconcileServerFingerprint(ACCOUNT, current)).rejects.toThrow('SQLITE_BUSY');
+      } finally {
+        getItem.mockImplementation(read);
+      }
+    };
+
+    it('keeps the queued changes, and checks again with the next session (Stalwart 1.0)', async () => {
+      await seed(ACCOUNT);
+      await writeServerFingerprint(ACCOUNT, sessionFingerprint(session('1.0')), 'f');
+
+      await checkWithFailingRead(session('1.0'));
+
+      expect(useOutboxStore.getState().entries).toHaveLength(2);
+      expect(useOutboxStore.getState().failed).toHaveLength(1);
+      expect(useToastStore.getState().toasts).toEqual([]);
+      expect(await reconcileServerFingerprint(ACCOUNT, session('1.0'))).toBe(false);
+      expect(useOutboxStore.getState().entries).toHaveLength(2);
+    });
+
+    it('records nothing, so the next session still drops what the old server left (0.16.23 to 1.0)', async () => {
+      await seed(ACCOUNT);
+
+      await checkWithFailingRead(session('1.0'));
+
+      expect(useEmailStore.getState().mailboxState).toBe('s1iaq');
+      expect(await readServerFingerprint(ACCOUNT)).toBe(sessionFingerprint(session('0.16.23')));
+      expect(await reconcileServerFingerprint(ACCOUNT, session('1.0'))).toBe(true);
+      expect(useEmailStore.getState().mailboxState).toBeUndefined();
+      expect(useOutboxStore.getState().entries).toEqual([]);
+    });
+  });
 });
