@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef, useIsFocused,
 } from '@react-navigation/native';
@@ -802,68 +803,70 @@ export default function App() {
   // in the background and swaps in fresh data once it completes.
   if (!hasRestoredSession && !hasPersistedAccount) {
     return (
-      <>
+      <SafeAreaProvider>
         <StatusBar style={statusBarStyle} />
         <LoadingScreen message={t('common.loading', 'Loading...')} />
-      </>
+      </SafeAreaProvider>
     );
   }
 
   if (hasRestoredSession && !isAuthenticated) {
     return (
-      <>
+      <SafeAreaProvider>
         <StatusBar style={statusBarStyle} />
         <LoginScreen />
-      </>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <NavigationContainer ref={navigationRef} theme={navigationTheme}>
-      <StatusBar style={statusBarStyle} />
-      {/* On Fabric, native-stack keeps the screen right below the top live and
-          freezes the ones further down. */}
-      <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }} screenLayout={withHosts}>
-        <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
-        <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
-        <Stack.Screen name="EmailSource" component={EmailSourceScreen} />
-        <Stack.Screen
-          name="Compose"
-          component={ComposeScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
-        <Stack.Screen
-          name="ContactForm"
-          component={ContactFormScreen}
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
-        <Stack.Screen name="Scheduled" component={ScheduledScreen} />
-        <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
-        <Stack.Screen
-          name="AddAccount"
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        >
-          {({ navigation }) => (
-            <LoginScreen
-              isAddMode
-              onCancel={() => navigation.goBack()}
-              onLogin={() => navigation.goBack()}
-            />
-          )}
-        </Stack.Screen>
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+        <StatusBar style={statusBarStyle} />
+        {/* On Fabric, native-stack keeps the screen right below the top live and
+            freezes the ones further down. */}
+        <Stack.Navigator screenOptions={{ headerShown: false, freezeOnBlur: true }} screenLayout={withHosts}>
+          <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
+          <Stack.Screen name="EmailThread" component={EmailThreadScreen} />
+          <Stack.Screen name="EmailSource" component={EmailSourceScreen} />
+          <Stack.Screen
+            name="Compose"
+            component={ComposeScreen}
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+            }}
+          />
+          <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
+          <Stack.Screen
+            name="ContactForm"
+            component={ContactFormScreen}
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+            }}
+          />
+          <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
+          <Stack.Screen name="Scheduled" component={ScheduledScreen} />
+          <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
+          <Stack.Screen
+            name="AddAccount"
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+            }}
+          >
+            {({ navigation }) => (
+              <LoginScreen
+                isAddMode
+                onCancel={() => navigation.goBack()}
+                onLogin={() => navigation.goBack()}
+              />
+            )}
+          </Stack.Screen>
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   View, Text, StyleSheet, Modal, Pressable, ScrollView, Image, ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { X, ExternalLink, Share2, Download } from 'lucide-react-native';
 import type { Email } from '../../api/types';
@@ -53,6 +53,9 @@ export function AttachmentPreviewModal({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 0);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 0);
   // An image the platform can't decode would stay blank; fall back to the
   // external viewer instead. Keyed by URI so the next item starts clean.
   const [failedImageUri, setFailedImageUri] = React.useState<string | null>(null);
@@ -160,13 +163,13 @@ export function AttachmentPreviewModal({
   };
 
   return (
-    <Modal visible={!!item || loading} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <Modal visible={!!item || loading} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]}>
         <View style={styles.header}>
           <Pressable
             onPress={onClose}
             style={styles.headerBtn}
-            hitSlop={8}
+            hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel={t('common.close', 'Close')}
           >
@@ -208,7 +211,7 @@ export function AttachmentPreviewModal({
           </Pressable>
         </View>
         {renderBody()}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -220,13 +223,14 @@ function makeStyles(c: ThemePalette) {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      height: componentSizes.headerHeight,
+      height: 48,
+      minHeight: 48,
       paddingHorizontal: spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
       gap: spacing.sm,
     },
-    headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
+    headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
     title: { ...typography.h3, color: c.text, flex: 1 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
     hint: { ...typography.body, color: c.textMuted, textAlign: 'center' },

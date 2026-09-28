@@ -46,7 +46,7 @@ module.exports = {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'org.bulwarkmail.mobile',
+      bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER || 'org.bulwarkmail.mobile',
       buildNumber: IOS_BUILD_NUMBER,
       config: {
         // The app only speaks HTTPS/TLS and uses platform crypto, which is

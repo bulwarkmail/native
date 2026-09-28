@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, Modal, Animated, Dimensions, Easing, TextInput, Alert,
+  View, Text, StyleSheet, Pressable, ScrollView, Modal, Animated, Dimensions, Easing, TextInput, Alert, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -160,6 +160,10 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
     />
   );
 
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 0);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 0);
+
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose} onShow={runOpen}>
       <Animated.View style={[styles.overlay, { opacity: overlay }]}>
@@ -167,7 +171,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       </Animated.View>
 
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <View style={[styles.drawerSafe, { paddingTop: topInset, paddingBottom: bottomInset }]}>
           <View style={styles.header}>
             <Pressable
               onPress={onClose}
@@ -307,7 +311,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
               <Text style={styles.hint}>{t('contacts.rename_tag_hint_mobile', 'Long-press a tag to rename it')}</Text>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Animated.View>
     </Modal>
   );
@@ -400,14 +404,15 @@ function makeStyles(c: ThemePalette) {
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    height: 48,
+    minHeight: 48,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
   },
   headerClose: {
-    width: 36, height: 36,
+    width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.full,
   },
   headerTitle: { ...typography.h3, color: c.text },
 
