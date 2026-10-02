@@ -1081,7 +1081,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             accessibilityRole="button"
             accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
           >
-            <Menu size={20} color={c.textMuted} />
+            <Menu size={20} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {headerTitle}
@@ -1835,18 +1835,19 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
 
-  // Header - matches web mobile-header: h-14 (56px), px-4, border-b
+  // Header - matches web mobile-header: compact height 48px, px-4, border-b
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    height: componentSizes.headerHeight,
+    height: 48,
+    minHeight: 48,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   headerButton: {
-    width: componentSizes.buttonLg, height: componentSizes.buttonLg, // h-11 w-11 = 44px
+    width: 40, height: 40, // 40x40 standard
     alignItems: 'center', justifyContent: 'center',
     borderRadius: radius.full,
   },

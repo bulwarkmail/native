@@ -1,10 +1,10 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, Alert,
-  Animated, Dimensions, Easing, ActivityIndicator,
+  Animated, Dimensions, Easing, ActivityIndicator, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
@@ -745,6 +745,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const tagViewActive = !!filters.keyword;
 
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 0);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 0);
+
   return (
     <Modal
       visible={visible}
@@ -759,7 +763,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       </Animated.View>
 
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <View style={[styles.drawerSafe, { paddingTop: topInset, paddingBottom: bottomInset }]}>
           {/* Header: close + account switcher */}
           <View style={styles.header}>
             <Pressable
@@ -1136,7 +1140,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               </>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Animated.View>
 
       {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
@@ -1180,14 +1184,15 @@ function makeStyles(c: ThemePalette) {
     alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    height: 48,
+    minHeight: 48,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
   },
   headerClose: {
-    width: 36, height: 36,
+    width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.full,
   },
   account: {
     flex: 1,
