@@ -279,8 +279,14 @@ function bestCandidate(rawText: string): Candidate | null {
  * senders that put it there ("Your code is 177945") also tend to repeat
  * it next to unrelated numbers in the body.
  */
+// Sender-controlled text is bounded here, so no caller can be stalled by it.
+const MAX_SUBJECT = 1000;
+const MAX_BODY_TEXT = 50_000;
+
 export function findVerificationCode(subject: string | null | undefined, text: string | null | undefined): string | null {
-  return bestCandidate(subject ?? '')?.code ?? bestCandidate(text ?? '')?.code ?? null;
+  return bestCandidate((subject ?? '').slice(0, MAX_SUBJECT))?.code
+    ?? bestCandidate((text ?? '').slice(0, MAX_BODY_TEXT))?.code
+    ?? null;
 }
 
 /** Only fresh codes are worth a chip in the list; they expire within minutes to a day. */
@@ -307,7 +313,6 @@ export function listVerificationCode(
 
 // A code sits near the top; a newsletter of megabytes need not be read whole.
 const MAX_BODY_HTML = 200_000;
-const MAX_BODY_TEXT = 50_000;
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',

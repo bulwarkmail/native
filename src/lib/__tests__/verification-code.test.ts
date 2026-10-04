@@ -255,3 +255,20 @@ describe('chipCodeFor', () => {
     expect(chipCodeFor(plain, { enabled: true, inList: false, now })).toBeNull();
   });
 });
+
+describe('bounded search on hostile input', () => {
+  const unit = 'verification code 123456 ';
+  const huge = unit.repeat(Math.ceil(2_000_000 / unit.length));
+  const fresh = new Date().toISOString();
+  const timed = (fn: () => unknown) => { const t0 = performance.now(); fn(); return performance.now() - t0; };
+
+  it('answers a 2 MB subject in the list under 200 ms', () => {
+    expect(timed(() => listVerificationCode({ subject: huge, preview: '', receivedAt: fresh }))).toBeLessThan(200);
+  });
+  it('answers a 2 MB preview in the list under 200 ms', () => {
+    expect(timed(() => listVerificationCode({ subject: '', preview: huge, receivedAt: fresh }))).toBeLessThan(200);
+  });
+  it('still finds a code within the first 1000 subject characters', () => {
+    expect(findVerificationCode(`Your verification code is 482913 ${'x '.repeat(5000)}`, '')).toBe('482913');
+  });
+});

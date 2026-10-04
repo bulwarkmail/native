@@ -156,9 +156,12 @@ const EmailRow = React.memo(function EmailRow({
   // The row's key (`rowKeyOf`): ids repeat across the accounts of a list
   // spanning accounts (#1082).
   const key = rowKeyOf(item);
-  // Subject and preview only (the list has no body); stale after a day, so
-  // it is looked at again whenever the row re-renders.
-  const verificationCode = chipCodeFor(item, { enabled: showVerificationCodes, inList: true });
+  // Subject and preview only (the list has no body).
+  const verificationCode = React.useMemo(
+    () => chipCodeFor(item, { enabled: showVerificationCodes, inList: true }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item.subject, item.preview, item.receivedAt, showVerificationCodes],
+  );
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
 
