@@ -629,3 +629,46 @@ npm run typecheck && npm test && npm run i18n:check
 ```
 
 Expected: everything passes, and 8 more items are ticked. Phase 1's rows in the roadmap are done.
+
+---
+
+### Task 10: Use the same topmost-header rule for calendar-invitation trust
+
+Added during execution: the Task 1 review found a second, independent Authentication-Results parser in `src/lib/calendar-invitation.ts` with the old regexes, whose `getEmailAuthenticationResults` lets lower (sender-written) headers "fill gaps", so a forged `dkim=pass`/`dmarc=pass` still makes `hasVerifiedAuthentication` true for an invitation. Webmail derives invitation trust from the same `authenticationResults` its mail viewer uses (WEB `lib/calendar-invitation.ts:203-209`).
+
+**Files:**
+- Modify: `src/lib/calendar-invitation.ts:262-323` (the local `AuthenticationResults`, `parseAuthenticationResults`, `getEmailAuthenticationResults`)
+- Test: `src/lib/__tests__/calendar-invitation.test.ts`
+
+**Interfaces:**
+- Consumes: `parseAuthenticationResults(headers: string | readonly string[])` and `headerValues(headers, name)` from `src/lib/email-headers.ts` (Task 1).
+- Produces: `getEmailAuthenticationResults(email)` keeps its name and `| null` return; its result type becomes the `AuthenticationResults` exported by `email-headers.ts`. The local parser is deleted; check every importer of the deleted names with `grep -rn "calendar-invitation'" src` and point them at `email-headers.ts`.
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+it('does not trust an invitation on a pass from a lower, sender-written header', () => {
+  const email = { headers: [
+    { name: 'Authentication-Results', value: 'mx.example; spf=fail smtp.mailfrom=evil.example; dkim=none; dmarc=fail header.from=bank.example' },
+    { name: 'Authentication-Results', value: 'evil.example; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example' },
+  ] };
+  const auth = getEmailAuthenticationResults(email);
+  expect(auth?.dmarc?.result).toBe('fail');
+  expect(auth?.dkim?.result).not.toBe('pass');
+});
+```
+
+Add a trust-assessment test through whatever exported function uses `hasVerifiedAuthentication` (find it in the file): the same forged email must not be assessed as verified. A single honest header with `dkim=pass` still is.
+
+- [ ] **Step 2: Run to verify it fails** — `npx vitest run src/lib/__tests__/calendar-invitation.test.ts`; expected: the new tests FAIL.
+
+- [ ] **Step 3: Implement** — `getEmailAuthenticationResults` returns `parseAuthenticationResults(headerValues(email.headers, 'Authentication-Results'))` (null when there are none); delete the local parser and type.
+
+- [ ] **Step 4: Run to verify they pass** — same command plus `npm run typecheck`; expected PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/calendar-invitation.ts src/lib/__tests__/calendar-invitation.test.ts
+git commit -m "fix: judge an invitation's sender by the receiving server's own authentication results"
+```
