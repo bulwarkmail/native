@@ -799,6 +799,24 @@ function mergeRetainedRows(previous: Email[], fresh: Email[], retainedIds: strin
   return out;
 }
 
+// Rows that left the list while a refresh's query was out were deleted, moved
+// or filed away meanwhile, and the server may have answered before that
+// change landed. Landing them again made a mail deleted in quick succession
+// reappear until the next refresh (webmail #966). `listedBefore` holds the
+// row keys shown when the query went out; the page comes back without the
+// ones no longer shown, its total lowered by as many.
+function withoutRemovedMeanwhile(
+  list: Email[],
+  total: number,
+  listedBefore: Set<string>,
+): { list: Email[]; total: number } {
+  const removed = new Set(listedBefore);
+  for (const e of useEmailStore.getState().emails) removed.delete(rowKeyOf(e));
+  if (removed.size === 0) return { list, total };
+  const kept = list.filter((e) => !removed.has(rowKeyOf(e)));
+  return { list: kept, total: Math.max(0, total - (list.length - kept.length)) };
+}
+
 // View fields to apply when returning from a search/filter to the base view:
 // the cached base-view snapshot, shown immediately so the list doesn't keep
 // displaying search results while the refresh is in flight (issue #10).
@@ -2674,6 +2692,8 @@ async function refreshEmailsImpl(): Promise<void> {
     const orderKey = orderFingerprint();
     let sort = await resolveSort(state, scope.accountId);
     const baseView = isBaseView(searchQuery, filters);
+    // The rows shown before the query goes out; see withoutRemovedMeanwhile.
+    const listedBeforeQuery = new Set(existing.map(rowKeyOf));
 
     // A response that lands after the user switched account/mailbox or
     // changed search/filters/sort must not overwrite the newer view.
@@ -2794,12 +2814,13 @@ async function refreshEmailsImpl(): Promise<void> {
           // Keep the window at what the user had scrolled to (at least one
           // page) — Email/queryChanges can push entries past the original
           // window when many were added; `total` still drives load-more.
-          const trimmed = out.slice(0, Math.max(limit, baseEmails.length));
+          const visible = out.slice(0, Math.max(limit, baseEmails.length));
 
           const nextQueryState = queryChanges.newQueryState;
-          const nextTotal = queryChanges.total;
 
           if (viewChanged()) return;
+          const { list: trimmed, total: nextTotal } =
+            withoutRemovedMeanwhile(visible, queryChanges.total, listedBeforeQuery);
 
           set({
             emails: trimmed,
@@ -2837,9 +2858,10 @@ async function refreshEmailsImpl(): Promise<void> {
         // "All folders": the own and every shared account, one request (#1082).
         const page = await fetchSpanningPage(state, {}, filter, limit, scope.excludeTrashAndJunk);
         if (viewChanged()) return;
+        const landed = withoutRemovedMeanwhile(page.list, page.total, listedBeforeQuery);
         set({
-          emails: mergeRetainedRows(get().emails, page.list, get().retainedIds),
-          totalEmails: page.total,
+          emails: mergeRetainedRows(get().emails, landed.list, get().retainedIds),
+          totalEmails: landed.total,
           threadCounts: withThreadCounts(get().threadCounts, page.threads),
           accountErrors: page.errors,
           loading: false,
@@ -2860,12 +2882,13 @@ async function refreshEmailsImpl(): Promise<void> {
       }
 
       if (viewChanged()) return;
+      const landed = withoutRemovedMeanwhile(queryRes.list, queryRes.total, listedBeforeQuery);
 
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
         // until the view is re-opened, instead of vanishing under them.
-        emails: baseView ? queryRes.list : mergeRetainedRows(get().emails, queryRes.list, get().retainedIds),
-        totalEmails: queryRes.total,
+        emails: baseView ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
+        totalEmails: landed.total,
         threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
         loading: false,
       };
@@ -2880,8 +2903,8 @@ async function refreshEmailsImpl(): Promise<void> {
         updates.mailboxSnapshots = {
           ...get().mailboxSnapshots,
           [currentMailboxId]: {
-            emails: queryRes.list,
-            total: queryRes.total,
+            emails: landed.list,
+            total: landed.total,
             queryState: queryRes.queryState,
           },
         };
