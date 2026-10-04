@@ -4,6 +4,7 @@ import type { FileNode, FileNodeRights, JMAPAccountInfo, JMAPMethodCall, Princip
 import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
 import { batched, requireMethodResult } from './jmap-result';
 import { decodeFileNodeName, numberedFileName } from '../lib/filenode-name';
+import { fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
 
 // A FileNode is a folder (container) only when it has no blob content — the
 // server stores it with `file == null`. Sending a blobId/type/size on create
@@ -33,6 +34,11 @@ type LegacyFileNodeRights = { mayRead?: boolean; mayWrite?: boolean; mayShare?: 
 export function isLegacyFileNodeServer(accountId: string): boolean {
   const cap = jmapClient.getAccountCapability(CAPABILITIES.FILES, accountId);
   return !!cap && !('forbiddenNameChars' in (cap as Record<string, unknown>));
+}
+
+// The server's published naming rules, or null when it publishes none.
+export function getFileNameRules(accountId?: string): FileNameRules | null {
+  return fileNameRulesFrom(jmapClient.getAccountCapability(CAPABILITIES.FILES, accountId ?? filesAccountId()));
 }
 
 export function toLegacyRights(rights: FileNodeRights): LegacyFileNodeRights {

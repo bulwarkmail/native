@@ -46,12 +46,13 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 import {
   copyFileNode, createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts,
   getFileNodeDownloadUrl, getMaxSizeUpload, isCrossAccountId, isFolder, moveFileNode,
-  renameFileNode, supportsSharing, uploadFileNode,
+  getFileNameRules, renameFileNode, supportsSharing, uploadFileNode,
 } from '../api/files';
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
 import { getUniqueName } from '../lib/filenode-name';
+import { acceptedFileName, fileNameProblem } from '../lib/file-name-rules';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { filesBackStep } from '../lib/files-back';
 import type { FileNode } from '../api/types';
@@ -478,6 +479,19 @@ export default function FilesScreen() {
     Alert.alert(t('files.invalid_name', 'Invalid name'), t('files.invalid_name_slash', 'Names cannot contain "/".'));
   }, [t]);
 
+  // Alerts and returns true when the server's published rules refuse the name.
+  const nameRefused = useCallback((name: string, accountId?: string) => {
+    const problem = fileNameProblem(name, getFileNameRules(accountId));
+    if (!problem) return false;
+    Alert.alert(
+      t('files.invalid_name', 'Invalid name'),
+      problem.kind === 'chars'
+        ? t('files.name_forbidden_chars', 'The server does not allow these characters in names: {chars}', { chars: problem.chars })
+        : t('files.name_reserved', 'This name is reserved on the server.'),
+    );
+    return true;
+  }, [t]);
+
   const submitNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
     if (!name) return;
@@ -485,6 +499,7 @@ export default function FilesScreen() {
       invalidNameAlert();
       return;
     }
+    if (nameRefused(name)) return;
     setNewFolderOpen(false);
     setNewFolderName('');
     try {
@@ -493,7 +508,7 @@ export default function FilesScreen() {
     } catch (e) {
       Alert.alert(t('files.create_folder_error', 'Failed to create folder'), e instanceof Error ? e.message : String(e));
     }
-  }, [newFolderName, currentParentId, loadFiles, invalidNameAlert, t]);
+  }, [newFolderName, currentParentId, loadFiles, invalidNameAlert, nameRefused, t]);
 
   const submitRename = useCallback(async () => {
     if (!renameTarget) return;
@@ -506,6 +521,7 @@ export default function FilesScreen() {
       invalidNameAlert();
       return;
     }
+    if (nameRefused(name, renameTarget.accountId)) return;
     const target = renameTarget;
     setRenameTarget(null);
     setRenameValue('');
@@ -515,7 +531,7 @@ export default function FilesScreen() {
     } catch (e) {
       Alert.alert(t('files.rename_error', 'Failed to rename'), e instanceof Error ? e.message : String(e));
     }
-  }, [renameTarget, renameValue, loadFiles, invalidNameAlert, t]);
+  }, [renameTarget, renameValue, loadFiles, invalidNameAlert, nameRefused, t]);
 
   const duplicateFile = useCallback(async (row: FileRow) => {
     if (isFolder(row) || row.isShared) return;
@@ -603,12 +619,13 @@ export default function FilesScreen() {
     const existing = new Set(
       allNodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.name),
     );
+    const rules = getFileNameRules();
     let failed: string | null = null;
     try {
       for (let i = 0; i < accepted.length; i++) {
         if (controller.signal.aborted) break;
         const asset = accepted[i];
-        const name = getUniqueName(asset.name, existing);
+        const name = getUniqueName(acceptedFileName(asset.name, rules), existing);
         existing.add(name);
         setUploadProgress({ current: i + 1, total: accepted.length, name, percent: 0 });
         try {
