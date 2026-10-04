@@ -23,15 +23,20 @@ export function allDayStripLayout(rowCounts: number[], expanded: boolean): AllDa
   return { visibleRows, hiddenCount: needed - visibleRows, expandable };
 }
 
-/** Rows each of `dayCount` shown columns needs, from segments already placed on those columns. */
+/**
+ * Rows each column in `[from, to)` needs, from segments already placed on
+ * the shown columns. A segment counts only for the columns it covers inside
+ * the range, so one that partly overlaps it still counts there.
+ */
 export function allDayRowCounts(
   segments: ReadonlyArray<{ startIndex: number; span: number; row: number }>,
-  dayCount: number,
+  from: number,
+  to: number,
 ): number[] {
-  const counts = new Array<number>(dayCount).fill(0);
+  const counts = new Array<number>(Math.max(0, to - from)).fill(0);
   for (const s of segments) {
-    const end = Math.min(dayCount, s.startIndex + s.span);
-    for (let i = Math.max(0, s.startIndex); i < end; i++) counts[i] = Math.max(counts[i], s.row + 1);
+    const end = Math.min(to, s.startIndex + s.span);
+    for (let i = Math.max(from, s.startIndex); i < end; i++) counts[i - from] = Math.max(counts[i - from], s.row + 1);
   }
   return counts;
 }

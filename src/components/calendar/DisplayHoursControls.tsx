@@ -101,7 +101,7 @@ export function AllDayToggle({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ expanded }}
-      hitSlop={6}
+      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
       onPress={onToggle}
       style={styles.allDayToggle}
     >

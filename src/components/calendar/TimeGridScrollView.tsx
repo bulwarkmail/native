@@ -239,15 +239,6 @@ function TimeGridScrollViewBody({
     // Cut per calendar week, then moved onto the columns that are drawn.
     return packWeekSegments(remapSegmentsToShownDays(buildAllDaySegments(index, allDays, 7), shownIndexByDay));
   }, [index, allDays, perScreen, shownIndexByDay]);
-  // Capped at a few rows; the toggle expands it. Sized from the days drawn.
-  const [allDayExpanded, setAllDayExpanded] = React.useState(false);
-  const allDayLayout = React.useMemo(
-    () => allDayStripLayout(allDayRowCounts(allDaySegments, days.length), allDayExpanded),
-    [allDaySegments, days.length, allDayExpanded],
-  );
-  const allDayRows = allDayLayout.visibleRows;
-  const allDayHeight = allDayRows > 0 ? allDayRows * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs : 0;
-
   // The first column in view. Kept as a day so columns added at the start
   // don't move it.
   const [initialColumn] = React.useState(() =>
@@ -256,6 +247,22 @@ function TimeGridScrollViewBody({
   const firstDayRef = React.useRef<Date>(days[initialColumn] ?? window.start);
   const [headerAnchor, setHeaderAnchor] = React.useState<Date>(firstDayRef.current);
   const headerAnchorRef = React.useRef(headerAnchor);
+
+  // Capped at a few rows; the toggle expands it. Sized from the columns on
+  // screen (the settled anchor), as webmail does, so a crowded day elsewhere
+  // in the window does not touch a quiet week.
+  const [allDayExpanded, setAllDayExpanded] = React.useState(false);
+  const firstOnScreen = columnOf(headerAnchor);
+  const allDayLayout = React.useMemo(
+    () =>
+      allDayStripLayout(
+        allDayRowCounts(allDaySegments, firstOnScreen, Math.min(days.length, firstOnScreen + perScreen)),
+        allDayExpanded,
+      ),
+    [allDaySegments, firstOnScreen, perScreen, days.length, allDayExpanded],
+  );
+  const allDayRows = allDayLayout.visibleRows;
+  const allDayHeight = allDayRows > 0 ? allDayRows * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs : 0;
 
   const scrollX = React.useRef(new Animated.Value(0)).current;
   const headerTranslate = React.useMemo(() => Animated.multiply(scrollX, -1), [scrollX]);

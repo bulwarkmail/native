@@ -30,11 +30,21 @@ describe('allDayRowCounts', () => {
   const seg = (startIndex: number, span: number, row: number) => ({ startIndex, span, row });
 
   it('counts the rows each shown day needs', () => {
-    const counts = allDayRowCounts([seg(0, 2, 0), seg(1, 1, 3), seg(3, 1, 1)], 4);
+    const counts = allDayRowCounts([seg(0, 2, 0), seg(1, 1, 3), seg(3, 1, 1)], 0, 4);
     expect(counts).toEqual([1, 4, 0, 2]);
   });
 
   it('ignores columns outside the shown days', () => {
-    expect(allDayRowCounts([seg(5, 1, 4)], 3)).toEqual([0, 0, 0]);
+    expect(allDayRowCounts([seg(5, 1, 4)], 0, 3)).toEqual([0, 0, 0]);
+  });
+
+  it('does not count segments outside the range', () => {
+    const counts = allDayRowCounts([seg(0, 1, 5), seg(9, 1, 4), seg(3, 1, 1)], 2, 6);
+    expect(counts).toEqual([0, 2, 0, 0]);
+  });
+
+  it('counts a multi-day segment that partly overlaps the range', () => {
+    expect(allDayRowCounts([seg(0, 4, 3)], 2, 6)).toEqual([4, 4, 0, 0]);
+    expect(allDayRowCounts([seg(5, 4, 2)], 2, 6)).toEqual([0, 0, 0, 3]);
   });
 });

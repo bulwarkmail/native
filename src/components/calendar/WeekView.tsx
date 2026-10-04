@@ -134,7 +134,7 @@ function WeekViewInner({
   // The strip is capped at a few rows, sized from the days drawn.
   const [allDayExpanded, setAllDayExpanded] = React.useState(false);
   const allDayLayout = React.useMemo(
-    () => allDayStripLayout(allDayRowCounts(allDaySegments, weekDays.length), allDayExpanded),
+    () => allDayStripLayout(allDayRowCounts(allDaySegments, 0, weekDays.length), allDayExpanded),
     [allDaySegments, weekDays.length, allDayExpanded],
   );
   const allDayRowCount = allDayLayout.visibleRows;
