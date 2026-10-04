@@ -136,7 +136,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       if (result.rejectedRecipients?.length) {
         toast.warning(
           t('email_composer.send_some_recipients_rejected', 'Sent, but not to these recipients - the server rejected them.'),
-          formatRejectedRecipients(result.rejectedRecipients),
+          { message: formatRejectedRecipients(result.rejectedRecipients), duration: 10_000 },
         );
       }
       // The keyboard would cover the undo bar or the toast.

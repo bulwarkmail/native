@@ -45,7 +45,7 @@ import {
 } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
 import { formatRejectedRecipients } from '../api/jmap-result';
-import { sendErrorAlert } from '../lib/send-errors';
+import { sendErrorAlert, withoutRefused } from '../lib/send-errors';
 import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
@@ -2133,7 +2133,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (isReplyLike && mode !== 'forward') {
         const settings = useSettingsStore.getState();
         const contacts = useContactsStore.getState();
-        for (const r of [...outgoing.to, ...(outgoing.cc ?? [])]) {
+        for (const r of withoutRefused([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients)) {
           settings.addTrustedSender(r.email);
           if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
@@ -2144,7 +2144,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (result.rejectedRecipients?.length) {
         toast.warning(
           t('email_composer.send_some_recipients_rejected', 'Sent, but not to these recipients - the server rejected them.'),
-          formatRejectedRecipients(result.rejectedRecipients),
+          { message: formatRejectedRecipients(result.rejectedRecipients), duration: 10_000 },
         );
       }
       if (scheduledAt && result.scheduled) {

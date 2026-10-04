@@ -41,3 +41,13 @@ export function sendErrorAlert(
     message: e instanceof Error ? e.message : t('notifications.error_sending', 'Failed to send email'),
   };
 }
+
+/** Recipients the server accepted: a refused address is not someone to trust. */
+export function withoutRefused<T extends { email: string }>(
+  recipients: T[],
+  refused: { email: string }[] | undefined,
+): T[] {
+  if (!refused?.length) return recipients;
+  const gone = new Set(refused.map((r) => r.email.toLowerCase()));
+  return recipients.filter((r) => !gone.has(r.email.toLowerCase()));
+}
