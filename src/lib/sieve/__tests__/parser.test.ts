@@ -248,3 +248,13 @@ describe('parseScript', () => {
     });
   });
 });
+
+describe('parseScript rule names', () => {
+  it('reads a rule whose name has doubled or trailing spaces back as the same rule', () => {
+    const rules = [makeRule({ name: 'Foo  Bar ' })];
+    const parsed = parseScript(generateScript(rules));
+    // Bulwark's own rules carry no origin; anything with one is a leftover copy.
+    expect(parsed.rules.filter((r) => r.origin)).toEqual([]);
+    expect(parsed.rules).toHaveLength(1);
+  });
+});

@@ -835,10 +835,13 @@ export function parseScript(content: string): ParseResult {
     // identifies it as ours.
     const filteredExternal = external.rules.filter(r => {
       const raw = r.rawBlock || '';
-      const match = raw.match(/#\s*Rule:\s*(.+?)\s*$/m);
+      const match = raw.match(/#\s*Rule:[ \t]*(.*?)[ \t]*$/m);
       if (match) {
-        const name = match[1].trim();
-        if (bulwarkRules.some(b => b.name === name)) return false;
+        // The generator writes the name on one line with its whitespace
+        // collapsed, so compare both sides the same way.
+        const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
+        const name = oneLine(match[1]);
+        if (bulwarkRules.some(b => oneLine(b.name) === name)) return false;
       }
       if (/#\s*Vacation auto-reply/i.test(raw)) return false;
       return true;

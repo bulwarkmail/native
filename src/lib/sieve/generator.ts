@@ -44,8 +44,11 @@ function generateCondition(condition: FilterCondition): string {
   const { field, comparator, value } = condition;
 
   if (field === 'size') {
-    // Size is numeric, single value only.
-    const sizeValue = Array.isArray(value) ? value[0] : value;
+    // Size is numeric, single value only. It is written unquoted, so
+    // anything but a number (with an optional K/M/G quantifier) would be
+    // Sieve source; fall back to 0.
+    const raw = String((Array.isArray(value) ? value[0] : value) ?? '').trim();
+    const sizeValue = /^\d+[KMG]?$/i.test(raw) ? raw : '0';
     const op = comparator === 'greater_than' ? ':over' : ':under';
     return `size ${op} ${sizeValue}`;
   }
@@ -78,7 +81,7 @@ function generateCondition(condition: FilterCondition): string {
   }
 
   const headerName = field === 'header'
-    ? (condition.headerName || 'X-Unknown')
+    ? escapeString(condition.headerName || 'X-Unknown')
     : HEADER_MAP[field];
 
   // A field this client does not know (a rule authored by a newer webmail)
@@ -336,7 +339,7 @@ export function generateScript(
     }
 
     lines.push('');
-    lines.push(`# Rule: ${rule.name}`);
+    lines.push(`# Rule: ${rule.name.replace(/\s+/g, ' ')}`);
 
     const conditions = rule.conditions.map(generateCondition);
     let conditionStr: string;
