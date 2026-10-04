@@ -28,7 +28,7 @@ import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
-import { useCalendarSubscriptionsStore } from '../../stores/calendar-subscriptions-store';
+import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
 
 type BannerState = 'loading' | 'parsed' | 'done' | 'error';
 type RsvpStatus = 'accepted' | 'tentative' | 'declined';
@@ -69,7 +69,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const timeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const calendars = useCalendarStore((s) => s.calendars);
   const storeEvents = useCalendarStore((s) => s.events);
-  const subscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
+  const subscriptions = useAccountSubscriptions();
   const importEvents = useCalendarStore((s) => s.importEvents);
   const rsvpEvent = useCalendarStore((s) => s.rsvpEvent);
   const attachment = React.useMemo(() => findCalendarAttachment(email), [email]);

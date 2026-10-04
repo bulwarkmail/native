@@ -100,7 +100,7 @@ import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } 
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
-import { useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
+import { useAccountSubscriptions, useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
 import { shareEventICS } from '../lib/calendar-ics-export';
@@ -554,7 +554,7 @@ export default function CalendarScreen() {
   // Client-side iCal subscriptions mirror a remote feed into a local
   // calendar; edits there would be wiped by the next sync, so they're
   // read-only targets everywhere (#762).
-  const subscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
+  const subscriptions = useAccountSubscriptions();
   const isSubscriptionCalendar = React.useCallback(
     (calendarId: string) => subscriptions.some((s) => s.calendarId === calendarId),
     [subscriptions],
