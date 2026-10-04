@@ -9,6 +9,7 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
+import { sweepOrphanedOfflineCache } from './offline-cache-store';
 import { forgetAccountData, forgetSharedData } from './account-data-cleanup';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
@@ -834,6 +835,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           accountStore.setActiveAccount(id);
         }
       }
+
+      // Drop offline mail left behind by accounts no longer registered; not
+      // awaited so a slow storage scan never delays the restore.
+      void sweepOrphanedOfflineCache(useAccountStore.getState().accounts.map((a) => a.id)).catch((e) =>
+        console.warn('[offline-cache] orphan sweep failed', e),
+      );
 
       const target = accountStore.getActiveAccount() ?? accountStore.getDefaultAccount();
       if (!target) {

@@ -25,6 +25,25 @@ function entryKey(accountId: string, emailId: string): string {
   return `${ENTRY_KEY_PREFIX}${accountId}:${emailId}`;
 }
 
+/**
+ * Remove cached mail of accounts that are no longer registered (a sign-out
+ * that was interrupted, or an app reinstall restoring storage). Account ids
+ * hold `@` and may hold `:`, so an entry key is matched against each known
+ * id's prefix instead of being split. An empty list means the registry is not
+ * loaded, so nothing is removed. Outbox keys are never touched.
+ */
+export async function sweepOrphanedOfflineCache(knownAccountIds: string[]): Promise<void> {
+  if (knownAccountIds.length === 0) return;
+  const knownIndexKeys = new Set(knownAccountIds.map(indexKey));
+  const knownEntryPrefixes = knownAccountIds.map((id) => `${ENTRY_KEY_PREFIX}${id}:`);
+  const orphaned = (await AsyncStorage.getAllKeys()).filter((k) => {
+    if (k.startsWith(INDEX_KEY_PREFIX)) return !knownIndexKeys.has(k);
+    if (k.startsWith(ENTRY_KEY_PREFIX)) return !knownEntryPrefixes.some((p) => k.startsWith(p));
+    return false;
+  });
+  if (orphaned.length > 0) await AsyncStorage.multiRemove(orphaned);
+}
+
 // Index/entry key of a message. JMAP ids are only unique per account, so a
 // message from a shared (group) account is namespaced by its owning JMAP
 // account id; the user's own mail keeps the bare id (backwards compatible).
