@@ -541,10 +541,11 @@ export default function FilesScreen() {
         allNodes.filter((n) => (n.parentId ?? null) === (row.parentId ?? null)).map((n) => n.name),
       );
       await copyFileNode(row, row.parentId ?? null, getUniqueName(row.name, siblings), allNodes);
-      await loadFiles('refresh');
     } catch (e) {
       Alert.alert(t('files.duplicate_error', 'Failed to duplicate'), e instanceof Error ? e.message : String(e));
     } finally {
+      // A folder copy that failed partway has already created part of the tree.
+      await loadFiles('refresh');
       setBusyId(null);
     }
   }, [allNodes, loadFiles, t]);

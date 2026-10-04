@@ -1,7 +1,8 @@
 // What signing an account out forgets on the device: its offline message
-// bodies, calendar subscriptions and, with the last account, the search history.
-// Unsent outbox changes are kept. Settings,
-// locale, templates and keywords stay, as in the webmail's sign-out cleanup.
+// bodies and calendar subscriptions and, with the last account, every calendar
+// subscription (ownerless ones included) and the search history. Unsent outbox
+// changes are kept. Settings, locale, templates and keywords stay, as in the
+// webmail's sign-out cleanup.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineCacheStore } from './offline-cache-store';
@@ -56,6 +57,11 @@ export async function forgetSharedData(): Promise<void> {
   await step(() => useSearchHistoryStore.getState().clearRecentSearches());
 }
 
+/**
+ * Forget what the device keeps for one signed-out account. With `lastAccount`
+ * it also runs forgetSharedData: every calendar subscription goes, including
+ * ownerless ones and other logins', and so does the search history.
+ */
 export async function forgetAccountData(
   account: SignedOutAccount,
   opts: { lastAccount?: boolean } = {},
