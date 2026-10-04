@@ -231,6 +231,18 @@ describe('copy from the viewer when the list does not hold the message', () => {
   });
 });
 
+describe('copy from the viewer into another account', () => {
+  it('refuses with a copy message, not the move one', async () => {
+    useEmailStore.setState({ emails: [], currentMailboxId: 'a' });
+    const viewed = { email: { ...ROW, blobId: undefined } as unknown as Email, accountId: 'grp-1' };
+
+    await expect(useEmailStore.getState().copyToMailbox('e1', 'x', viewed)).rejects.toThrow(
+      'Messages can only be copied within the same account',
+    );
+    expect(mockCopy).not.toHaveBeenCalled();
+  });
+});
+
 describe('a failed copy', () => {
   it('reports a failed copy as a copy', async () => {
     mockCopy.mockRejectedValue(new Error('boom'));

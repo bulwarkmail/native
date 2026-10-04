@@ -199,6 +199,13 @@ function assertViewedAccount(viewed: ViewedEmail | undefined, ...refs: MailboxRe
   }
 }
 
+// Same refusal for a copy, which says so.
+function assertViewedCopyAccount(viewed: ViewedEmail | undefined, ref: MailboxRef): void {
+  if (viewed && ref.accountId !== viewed.accountId) {
+    throw new Error(t('email_list.copy_same_account', 'Messages can only be copied within the same account'));
+  }
+}
+
 // Strip the shared-folder id prefix off a whole list. Server-side folder
 // matching (archive year/month auto-foldering) compares ids and parent links
 // against what Mailbox/set returns, which is always unprefixed.
@@ -1618,7 +1625,7 @@ export const useEmailStore = create<EmailState>()(
     if (isGoneSpanningRow(emailId, email) || !email) return;
     const to = refFor(state.mailboxes, toMailboxId);
     // The viewer copies within the account it shows; a list row may go anywhere.
-    if (viewed) assertViewedAccount(viewed, to);
+    assertViewedCopyAccount(viewed, to);
     await copyRows(get, set, [{ email, accountId: viewed ? viewed.accountId : rowAccountId(state, email) }], to);
   },
 

@@ -354,6 +354,7 @@
   },
   "email_list": {
     "copy_offline": "Copying needs a connection",
+    "copy_same_account": "Messages can only be copied within the same account",
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
