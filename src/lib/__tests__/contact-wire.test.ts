@@ -109,6 +109,28 @@ describe('links kept intact', () => {
   });
 });
 
+describe('vCard SOURCE next to an ORG-DIRECTORY', () => {
+  const dir = { '@type': 'Directory', kind: 'directory', uri: 'https://org.example/dir' } as const;
+
+  it('keeps SOURCE next to an ORG-DIRECTORY on import', () => {
+    const wire = contactToWire({
+      name: { full: 'A' },
+      directories: { d0: dir },
+      source: 'https://src.example/card.vcf',
+    }, 'create');
+    expect(wire.directories).toEqual({
+      d0: dir,
+      source: { '@type': 'Directory', kind: 'entry', uri: 'https://src.example/card.vcf' },
+    });
+  });
+
+  it('does not add SOURCE twice when the map already has that entry', () => {
+    const directories = { k: { kind: 'entry', uri: 'https://src.example/card.vcf' }, d0: dir };
+    const wire = contactToWire({ directories, source: 'https://src.example/card.vcf' }, 'create');
+    expect(wire.directories).toBe(directories);
+  });
+});
+
 describe('mergeContactLinks', () => {
   it('replaces only the first calendar entry uri', () => {
     const merged = mergeContactLinks(serverCard, { calendarUri: 'https://x.test/new' });
