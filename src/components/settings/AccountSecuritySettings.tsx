@@ -24,6 +24,7 @@ import {
   fetchAuthInfo,
   fetchCryptoInfo,
   fetchPrincipal,
+  fetchAccountDisplayName,
   fetchPublicKeys,
   createPublicKey,
   removePublicKey,
@@ -131,13 +132,14 @@ function ClientCertSection() {
 }
 
 // ── Password change ───────────────────────────────────────
-function PasswordChangeSection() {
+function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwOtpCode, setPwOtpCode] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,8 +151,8 @@ function PasswordChangeSection() {
     if (newPwd !== confirmPwd) { setError(t('settings.security.password.mismatch', "Passwords do not match.")); return; }
     setSaving(true);
     try {
-      await changePassword(currentPwd, newPwd);
-      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+      await changePassword(currentPwd, newPwd, otpEnabled ? pwOtpCode : undefined);
+      setCurrentPwd(''); setNewPwd(''); setConfirmPwd(''); setPwOtpCode('');
       Alert.alert(t('settings.security.password.changed_title', "Password changed"), t('settings.security.password.changed', "Your account password was updated."));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.security.password.error', "Failed to change password."));
@@ -187,13 +189,20 @@ function PasswordChangeSection() {
           <Input value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry={!showNew} autoCapitalize="none" />
         </View>
 
+        {otpEnabled && (
+          <View style={styles.pwField}>
+            <Text style={styles.pwLabel}>{t('settings.security.two_factor.code', "Verification code")}</Text>
+            <Input value={pwOtpCode} onChangeText={setPwOtpCode} keyboardType="number-pad" maxLength={6} />
+          </View>
+        )}
+
         {error && <Text style={styles.errorText}>{error}</Text>}
 
         <View style={{ alignItems: 'flex-end' }}>
           <Button
             size="sm"
             loading={saving}
-            disabled={saving || !currentPwd || !newPwd || !confirmPwd}
+            disabled={saving || !currentPwd || !newPwd || !confirmPwd || (otpEnabled && !pwOtpCode.trim())}
             onPress={() => { void submit(); }}
             icon={<Key size={14} color={c.primaryForeground} />}
           >
@@ -290,7 +299,7 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
     if (!password) { setError(t('settings.security.two_factor.password_required', "Enter your current password.")); return; }
     setSaving(true);
     try {
-      await disableTotp(password);
+      await disableTotp(password, otpCode);
       reset();
       onChanged();
     } catch (err) {
@@ -355,9 +364,13 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
         <View style={styles.panel}>
           <Text style={styles.panelHint}>{t('settings.security.two_factor.disable_hint', "Enter your password to turn off two-factor authentication.")}</Text>
           <Input value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" placeholder={t('settings.security.password.current', "Current password")} />
+          <View>
+            <Text style={styles.pwLabel}>{t('settings.security.two_factor.code', "Verification code")}</Text>
+            <Input value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" maxLength={6} />
+          </View>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <View style={styles.rowGap}>
-            <Button variant="destructive" size="sm" loading={saving} disabled={saving || !password} onPress={() => { void confirmDisable(); }}>
+            <Button variant="destructive" size="sm" loading={saving} disabled={saving || !password || !otpCode.trim()} onPress={() => { void confirmDisable(); }}>
               {t('settings.security.two_factor.disable', "Disable")}
             </Button>
             <Button variant="ghost" size="sm" onPress={reset}>{t('common.cancel', "Cancel")}</Button>
@@ -893,13 +906,20 @@ export function AccountSecuritySettings() {
         const authInfo = await fetchAuthInfo();
         if (cancelled) return;
         setAuth(authInfo);
+        // The name is readable by everyone (x:AccountSettings); the principal is
+        // admin-only, so it is just the fallback. Failures are non-fatal, and
+        // caught at once: a quick one would otherwise go unhandled while the
+        // principal loads.
+        const namePromise = fetchAccountDisplayName().catch(() => null);
+        let principalName = '';
         if (!loadIsOAuth) {
-          // Principal + crypto only matter for password accounts; failures are
-          // non-fatal (e.g. a non-admin principal read is forbidden).
+          // Principal + crypto only matter for password accounts.
           const [principal] = await Promise.allSettled([fetchPrincipal(), reloadCrypto(() => cancelled)]);
-          if (cancelled) return;
-          if (principal.status === 'fulfilled') setDisplayName(principal.value.displayName);
+          if (principal.status === 'fulfilled') principalName = principal.value.displayName;
         }
+        const accountName = await namePromise;
+        if (cancelled) return;
+        setDisplayName(accountName || principalName);
       } catch (err) {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : tRef.current('settings.security.load_error', 'Failed to load security settings.'));
       }
@@ -943,7 +963,7 @@ export function AccountSecuritySettings() {
 
             {!isOAuth && (
               <>
-                <PasswordChangeSection />
+                <PasswordChangeSection otpEnabled={!!auth?.otpEnabled} />
                 <DisplayNameSection initial={displayName} onSaved={setDisplayName} />
                 <TotpSection enabled={!!auth?.otpEnabled} onChanged={() => { void reloadAuth(); }} />
               </>

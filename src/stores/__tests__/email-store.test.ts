@@ -1235,6 +1235,128 @@ describe('email-store', () => {
       expect(mockGetThreads).not.toHaveBeenCalled();
     });
 
+    it('a failed search clears the rows and shows the error', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e0', threadId: 't0' } as any],
+        totalEmails: 1,
+      });
+      mockQueryEmails.mockRejectedValue(new Error('search blew up'));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        useEmailStore.getState().setSearchQuery('invoice');
+        await vi.waitFor(() => expect(useEmailStore.getState().error).toBe('search blew up'));
+      } finally {
+        warn.mockRestore();
+      }
+
+      const state = useEmailStore.getState();
+      expect(state.emails).toEqual([]);
+      expect(state.totalEmails).toBe(0);
+      expect(state.loading).toBe(false);
+    });
+
+    it('a failed "all folders" search that no account answered clears the rows and shows the error', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e0', threadId: 't0' } as any],
+        totalEmails: 1,
+      });
+      mockQueryAcross.mockImplementation(async (targets: Array<{ accountId?: string }>) =>
+        targets.map((t) => ({ accountId: t.accountId, ok: false, error: new Error('account down') })));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        useEmailStore.getState().setSearchQuery('invoice');
+        await vi.waitFor(() => expect(useEmailStore.getState().error).toBe('account down'));
+      } finally {
+        warn.mockRestore();
+      }
+
+      const state = useEmailStore.getState();
+      expect(state.emails).toEqual([]);
+      expect(state.totalEmails).toBe(0);
+      expect(state.loading).toBe(false);
+    });
+
+    it('a failed tag view clears the rows and shows the error', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e0', threadId: 't0' } as any],
+        totalEmails: 1,
+      });
+      mockQueryEmails.mockRejectedValue(new Error('tag view blew up'));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        useEmailStore.getState().setFilters({ keyword: '$label:work' });
+        await vi.waitFor(() => expect(useEmailStore.getState().error).toBe('tag view blew up'));
+      } finally {
+        warn.mockRestore();
+      }
+
+      const state = useEmailStore.getState();
+      expect(state.emails).toEqual([]);
+      expect(state.totalEmails).toBe(0);
+      expect(state.loading).toBe(false);
+    });
+
+    it('a search that fails after the user cleared it leaves the restored folder alone', async () => {
+      const base = [{ id: 'e1', threadId: 't1' } as any, { id: 'e2', threadId: 't2' } as any];
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: base,
+        totalEmails: 2,
+        mailboxSnapshots: { 'mb-1': { emails: base, total: 2, queryState: 'q-base' } },
+      });
+      let failSearch!: (err: Error) => void;
+      mockQueryAcross.mockReturnValueOnce(new Promise((_, reject) => { failSearch = reject; }));
+      let answerFolder!: (value: unknown) => void;
+      mockQueryEmailPage.mockReturnValueOnce(new Promise((resolve) => { answerFolder = resolve; }));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        useEmailStore.getState().setSearchQuery('invoice');
+        await vi.waitFor(() => expect(mockQueryAcross).toHaveBeenCalled());
+        // Back to the folder: its rows are restored at once, and its refresh
+        // waits behind the search still out.
+        useEmailStore.getState().setSearchQuery('');
+        expect(useEmailStore.getState().emails).toEqual(base);
+
+        failSearch(new Error('search blew up'));
+        await vi.waitFor(() => expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.anything()));
+
+        // The folder's own refresh is under way; the failed search changed nothing.
+        const meanwhile = useEmailStore.getState();
+        expect(meanwhile.emails).toEqual(base);
+        expect(meanwhile.totalEmails).toBe(2);
+        expect(meanwhile.error).toBeNull();
+      } finally {
+        answerFolder?.({ ids: ['e1', 'e2'], total: 2, queryState: 'q-2', state: 'em-2', list: base, threads: [] });
+        await useEmailStore.getState().refreshEmails();
+        warn.mockRestore();
+      }
+      expect(useEmailStore.getState().emails).toEqual(base);
+      expect(useEmailStore.getState().error).toBeNull();
+    });
+
+    it('a failed refresh of the plain folder keeps the rows', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e0', threadId: 't0' } as any],
+        totalEmails: 1,
+      });
+      mockQueryEmails.mockRejectedValue(new Error('offline'));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        await useEmailStore.getState().refreshEmails();
+      } finally {
+        warn.mockRestore();
+      }
+
+      const state = useEmailStore.getState();
+      expect(state.emails.map((e) => e.id)).toEqual(['e0']);
+      expect(state.error).toBeNull();
+      expect(state.loading).toBe(false);
+    });
+
     it('leaves Thread/get out when threading is off', async () => {
       useSettingsStore.getState().updateSetting('disableThreading', true);
       try {

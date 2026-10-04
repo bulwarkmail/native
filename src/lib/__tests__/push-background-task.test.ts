@@ -69,17 +69,24 @@ describe('matchAccountsForPush', () => {
   it('matches on the recorded JMAP account id first', () => {
     const payload = parseRelayPushData({ accountId: 'jb', accountLabel: 'alice' });
     expect(matchAccountsForPush(payload, accounts, { 'bob@mail.example.com': 'jb' }, registry))
-      .toEqual(['bob@mail.example.com']);
+      .toEqual({ accountIds: ['bob@mail.example.com'], addressed: true });
   });
 
   it('falls back to the relay accountLabel (username)', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'alice' });
-    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(['alice@mail.example.com']);
+    expect(matchAccountsForPush(payload, accounts, {}, registry))
+      .toEqual({ accountIds: ['alice@mail.example.com'], addressed: true });
   });
 
   it('checks every account when nothing matches', () => {
     const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'carol' });
-    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual(accounts);
+    expect(matchAccountsForPush(payload, accounts, {}, registry)).toEqual({ accountIds: accounts, addressed: false });
+  });
+
+  it('takes the only account for the addressee when nothing matches', () => {
+    const payload = parseRelayPushData({ accountId: 'unknown', accountLabel: 'carol' });
+    expect(matchAccountsForPush(payload, ['alice@mail.example.com'], {}, registry))
+      .toEqual({ accountIds: ['alice@mail.example.com'], addressed: true });
   });
 });
 
@@ -184,6 +191,286 @@ describe('pushBackgroundTask notifications', () => {
     });
 
     expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', body: '(Kein Betreff)' }));
+  });
+});
+
+describe('pushBackgroundTask quiet window across accounts', () => {
+  const ALICE = 'alice@mail.example.com';
+  const CAROL = 'carol@mail.example.com';
+  const showNotification = vi.fn(async () => undefined);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ALICE, CAROL]));
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockResolvedValue({
+      serverUrl: 'https://mail.example.com',
+      username: 'alice',
+      password: 'secret',
+    });
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => (url.endsWith('/.well-known/jmap')
+        ? {
+          apiUrl: 'https://mail.example.com/jmap/',
+          primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+          accounts: { 'jmap-primary': {} },
+        }
+        : {
+          methodResponses: [[
+            'Email/get',
+            { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Hi', from: [{ email: 'bob@example.com' }] }] },
+            '0',
+          ]],
+        }),
+    }));
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  it('rings for the first account and stays silent for the second one', async () => {
+    await pushBackgroundTask({ kind: 'jmap-email-push', emailIds: JSON.stringify(['m1']) });
+
+    expect(showNotification).toHaveBeenCalledTimes(2);
+    expect(showNotification).toHaveBeenNthCalledWith(1, expect.objectContaining({ accountId: ALICE, silent: false }));
+    expect(showNotification).toHaveBeenNthCalledWith(2, expect.objectContaining({ accountId: CAROL, silent: true }));
+  });
+});
+
+describe('pushBackgroundTask when the new mail cannot be looked up', () => {
+  const LOCAL = 'alice@mail.example.com';
+  const showNotification = vi.fn(async () => undefined);
+  let jmapPost: (body: { methodCalls: Array<[string, Record<string, unknown>, string]> }) => unknown;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary' }));
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockResolvedValue({
+      serverUrl: 'https://mail.example.com',
+      username: 'alice',
+      password: 'secret',
+    });
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return {
+          ok: true,
+          json: async () => ({
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }),
+        };
+      }
+      return jmapPost(JSON.parse(init?.body ?? '{}'));
+    });
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  const push = {
+    kind: 'jmap-email-push',
+    accountLabel: 'Work',
+    accountId: 'jmap-primary',
+    emailIds: JSON.stringify(['m1']),
+  };
+
+  it('shows a generic notification when the message lookup fails', async () => {
+    jmapPost = () => ({
+      ok: true,
+      json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }),
+    });
+
+    await pushBackgroundTask(push);
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    const shown = (showNotification.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(shown).toMatchObject({
+      notificationId: `mail-generic:${LOCAL}`,
+      title: 'New email',
+      body: 'Work',
+      accountId: LOCAL,
+      groupKey: `bulwark-mail:${LOCAL}`,
+    });
+    expect(shown.emailId).toBeUndefined();
+  });
+
+  it('shows a generic notification when the request fails', async () => {
+    jmapPost = () => ({ ok: false, status: 503 });
+
+    await pushBackgroundTask(push);
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${LOCAL}`, body: 'Work' }),
+    );
+  });
+
+  it('never shows another message in place of the one that arrived', async () => {
+    const methods: string[] = [];
+    jmapPost = ({ methodCalls }) => {
+      methods.push(methodCalls[0][0]);
+      return {
+        ok: true,
+        json: async () => ({
+          methodResponses: [[
+            'Email/get',
+            { list: [], notFound: ['m1'] },
+            '0',
+          ]],
+        }),
+      };
+    };
+
+    await pushBackgroundTask(push);
+
+    expect(methods).toEqual(['Email/get']);
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${LOCAL}` }),
+    );
+  });
+
+  it('shows a generic notification when the legacy look-up for unread mail fails', async () => {
+    jmapPost = () => ({
+      ok: true,
+      json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }),
+    });
+
+    await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'Work', accountId: 'jmap-primary' });
+
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${LOCAL}` }),
+    );
+  });
+
+  it('stays silent when the inbox simply has nothing unread', async () => {
+    jmapPost = ({ methodCalls }) => ({
+      ok: true,
+      json: async () => ({
+        methodResponses: [
+          methodCalls[0][0] === 'Mailbox/get'
+            ? ['Mailbox/get', { list: [{ id: 'inbox', role: 'inbox' }] }, '0']
+            : ['Email/query', { ids: [] }, '0'],
+        ],
+      }),
+    });
+
+    await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'Work', accountId: 'jmap-primary' });
+
+    expect(showNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('pushBackgroundTask for a push that names no known account', () => {
+  const ALICE = 'alice@a.example.com';
+  const BOB = 'bob@b.example.com';
+  const showNotification = vi.fn(async () => undefined);
+  // What each account's server answers to the message lookup.
+  let answers: Record<string, () => unknown>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ALICE, BOB]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [ALICE]: 'jmap-alice', [BOB]: 'jmap-bob' }));
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockImplementation(async (id: string) => ({
+      serverUrl: id === ALICE ? 'https://a.example.com' : 'https://b.example.com',
+      username: id.split('@')[0],
+      password: 'secret',
+    }));
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      const host = new URL(url).host;
+      if (url.endsWith('/.well-known/jmap')) {
+        const primary = host === 'a.example.com' ? 'jmap-alice' : 'jmap-bob';
+        return {
+          ok: true,
+          json: async () => ({
+            apiUrl: `https://${host}/jmap/`,
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': primary },
+            accounts: { [primary]: {} },
+          }),
+        };
+      }
+      return answers[host]();
+    });
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  const found = () => ({
+    ok: true,
+    json: async () => ({
+      methodResponses: [[
+        'Email/get',
+        { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Hi', from: [{ email: 'carol@example.com' }] }] },
+        '0',
+      ]],
+    }),
+  });
+  const notFound = () => ({
+    ok: true,
+    json: async () => ({ methodResponses: [['Email/get', { list: [], notFound: ['m1'] }, '0']] }),
+  });
+
+  it('notifies only the account that holds the message', async () => {
+    answers = { 'a.example.com': notFound, 'b.example.com': found };
+
+    await pushBackgroundTask({ kind: 'jmap-email-push', accountLabel: 'carol', emailIds: JSON.stringify(['m1']) });
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', accountId: BOB }));
+  });
+
+  it('shows nothing for an account whose lookup fails', async () => {
+    // A JMAP account id this device never recorded: the other login's server
+    // refuses it.
+    answers = {
+      'a.example.com': () => ({
+        ok: true,
+        json: async () => ({ methodResponses: [['error', { type: 'accountNotFound' }, '0']] }),
+      }),
+      'b.example.com': found,
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await pushBackgroundTask({
+        kind: 'jmap-email-push',
+        accountId: 'jmap-unrecorded',
+        accountLabel: 'carol',
+        emailIds: JSON.stringify(['m1']),
+      });
+    } finally {
+      warn.mockRestore();
+    }
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', accountId: BOB }));
+  });
+
+  it('still shows the generic notice for the account a push was addressed to', async () => {
+    answers = { 'a.example.com': notFound, 'b.example.com': found };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await pushBackgroundTask({ kind: 'jmap-email-push', accountId: 'jmap-alice', emailIds: JSON.stringify(['m1']) });
+    } finally {
+      warn.mockRestore();
+    }
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${ALICE}`, accountId: ALICE }),
+    );
   });
 });
 

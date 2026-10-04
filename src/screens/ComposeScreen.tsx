@@ -2302,6 +2302,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       lastSavedRef.current = null;
       if (result.filingWarning) {
         console.warn('[compose] post-send filing warning:', result.filingWarning);
+        toast.warning(t('email_composer.send_filing_warning', 'Sent - but the post-send cleanup failed, a stale draft may remain.'));
       }
       // Flag the original so the list shows the reply/forward arrow; best
       // effort - the message already left.

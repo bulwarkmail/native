@@ -171,7 +171,7 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **TOTP accounts cannot change their password or turn TOTP off** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **TOTP accounts cannot change their password or turn TOTP off** — `P2` — `bugfix-parity` (1.11.0) — fixed in 1f10b84
   - What WEB does: sends the current TOTP code with password and TOTP changes (`stores/account-security-store.ts:263-266,583-603,676-690`).
   - What RN does: `src/api/account-security.ts:346,387` send no code; the server refuses the change.
   - Fix hint: prompt for the current code in `AccountSecuritySettings.tsx` when TOTP is on, and pass it through.
@@ -180,7 +180,7 @@ device.
   - What RN does: search history is never cleared (`src/stores/search-history-store.ts:41`); the offline body cache keeps full message bodies after sign-out or account removal (`offline-cache-store.ts:292` `clearAll` is never called from `auth-store.ts:575-760`); outbox keys of removed accounts stay.
   - Fix hint: one per-account cleanup function called from logout and removeAccount.
 
-- [ ] **Internationalized domains (IDN) fail at sign-in and in addresses (#1100)** — `P2` — `missing` (1.11.0)
+- [x] **Internationalized domains (IDN) fail at sign-in and in addresses (#1100)** — `P2` — `missing` (1.11.0) — fixed in badf664 — sign-in stores the ASCII form; an account first added under a Unicode username becomes a second account on re-login (same as WEB)
   - What WEB does: punycode handling in `lib/idn.ts`, used by `stores/auth-store.ts:29`.
   - What RN does: no punycode handling; `isValidEmail` accepts ASCII only (`src/lib/recipients.ts:32`). Unverified whether Hermes' URL covers the host part.
 
@@ -192,11 +192,11 @@ device.
   - What WEB does: Bearer-token login for servers such as Fastmail, and keeps download/upload/eventSource URLs that sit on another HTTPS origin.
   - What RN does: `connectWithToken` exists (`src/api/jmap-client.ts:299`) but has no UI; `src/api/jmap-client.ts:587-596` rewrites every session URL onto the server origin, which would break such servers.
 
-- [ ] **A refused token exchange on a TOTP login gets a generic error** — `P3` — `partial` (post-1.12)
+- [x] **A refused token exchange on a TOTP login gets a generic error** — `P3` — `partial` (post-1.12) — fixed in e09b84d
   - What RN does: throws `TotpLoginError('token_exchange_failed')` (`src/lib/totp-login.ts:148`), but `src/lib/login-errors.ts:129` only maps `invalid`.
   - Fix hint: add a message for `token_exchange_failed`.
 
-- [ ] **Security page shows an empty name for non-admin users** — `P3` — `bugfix-parity` (1.11.0)
+- [x] **Security page shows an empty name for non-admin users** — `P3` — `bugfix-parity` (1.11.0) — fixed in e09b84d, e4b4968
   - What WEB does: falls back when `x:Account/get` (admin-only on Stalwart) is refused (`stores/account-security-store.ts:519-529`).
   - What RN does: `AccountSecuritySettings.tsx:886-888` reads it from `x:Account/get` only; `fetchAccountDisplayName` (`src/api/account-security.ts:291`) exists but is not used here.
 

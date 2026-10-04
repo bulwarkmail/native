@@ -40,6 +40,7 @@ vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
 }));
 
+import { jmapClient } from '../../api/jmap-client';
 import { useAuthStore } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useEmailStore } from '../email-store';
@@ -76,5 +77,24 @@ describe('display name sync on sign-in', () => {
     expect(useEmailStore.getState().mailboxes.map((m) => m.id)).toEqual(['mb-in']);
     await useEmailStore.getState().ensureMailboxes();
     expect(mailboxGets()).toHaveLength(1);
+  });
+});
+
+describe('sign-in on an internationalized domain', () => {
+  it('connects and registers the account with the ASCII form of the address', async () => {
+    await useAuthStore.getState().login('https://mail.xn--bcher-kva.de', 'Jörg@bücher.de', 'pass');
+
+    expect(jmapClient.connect).toHaveBeenLastCalledWith(
+      'https://mail.xn--bcher-kva.de',
+      'Jörg@xn--bcher-kva.de',
+      'pass',
+      undefined,
+    );
+    expect(useAccountStore.getState().getAccountById('Jörg@xn--bcher-kva.de@mail.xn--bcher-kva.de')).toBeDefined();
+  });
+
+  it('leaves an ASCII address exactly as typed', async () => {
+    await useAuthStore.getState().login('https://mail.example.com', 'Ada@Example.COM', 'pass');
+    expect(jmapClient.connect).toHaveBeenLastCalledWith('https://mail.example.com', 'Ada@Example.COM', 'pass', undefined);
   });
 });

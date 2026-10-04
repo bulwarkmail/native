@@ -92,6 +92,7 @@ import { generateAccountId } from '../../lib/account-utils';
 import * as settingsModule from '../settings-store';
 import {
   useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow, listRowsOfAccount,
+  withFolderScope,
 } from '../email-store';
 import { expandThreadSelection, rowKeyOf } from '../../lib/thread-utils';
 import { useTagCountsStore } from '../tag-counts-store';
@@ -183,6 +184,8 @@ beforeEach(() => {
 
 describe('"All folders" search across the own and the team account (#1082)', () => {
   it('finds the team inbox matches too, in one request', async () => {
+    // The "All folders" chip: the team Trash (m5) is searched too.
+    useEmailStore.setState({ filters: { folder: 'everywhere' } });
     await search('zephyr');
 
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3', 'm5']);
@@ -226,6 +229,8 @@ describe('"All folders" search across the own and the team account (#1082)', () 
 
   it('continues each account from its own rows on load more, skipping none', async () => {
     settings.emailsPerPage = 2;
+    // The "All folders" chip: the team Trash (m5) is searched too.
+    useEmailStore.setState({ filters: { folder: 'everywhere' } });
     await search('zephyr');
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
 
@@ -287,6 +292,8 @@ describe('"All folders" search across the own and the team account (#1082)', () 
 
 describe('opening and acting on "All folders" rows (#1082)', () => {
   it('opens a team row in the team account, paging over the team rows', async () => {
+    // The "All folders" chip: the team Trash (m5) is searched too.
+    useEmailStore.setState({ filters: { folder: 'everywhere' } });
     await search('zephyr');
     const row = useEmailStore.getState().emails.find((e) => e.id === 'm2')!;
 
@@ -378,6 +385,8 @@ describe('opening and acting on "All folders" rows (#1082)', () => {
   });
 
   it('confirms before deleting a hit that already sits in its account\'s Trash', async () => {
+    // The "All folders" chip: the team Trash (m5) is searched too.
+    useEmailStore.setState({ filters: { folder: 'everywhere' } });
     await search('zephyr');
     expect(deleteDestroysAcrossAccounts(['team:m1'])).toBe(false);
     expect(deleteDestroysAcrossAccounts(['team:m1', 'team:m5'])).toBe(true);
@@ -525,9 +534,10 @@ describe('tag view across the own and the team account (#1038)', () => {
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'o2']);
     expect(server.current!.requests).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
+    // Each account's Spam and Trash stay out, as in the webmail.
     expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
-      ['c', { hasKeyword: RED }],
-      ['team', { hasKeyword: RED }],
+      ['c', { operator: 'AND', conditions: [{ hasKeyword: RED }, { inMailboxOtherThan: ['trash', 'junk'] }] }],
+      ['team', { operator: 'AND', conditions: [{ hasKeyword: RED }, { inMailboxOtherThan: ['t-trash', 't-junk'] }] }],
     ]);
   });
 
@@ -544,9 +554,10 @@ describe('tag view across the own and the team account (#1038)', () => {
     await vi.waitFor(() => expect(ids()).toEqual(['m2', 'o2']));
 
     const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
+    const narrowed = { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] };
     expect(last.map(([, a]) => a.filter)).toEqual([
-      { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] },
-      { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] },
+      { operator: 'AND', conditions: [narrowed, { inMailboxOtherThan: ['trash', 'junk'] }] },
+      { operator: 'AND', conditions: [narrowed, { inMailboxOtherThan: ['t-trash', 't-junk'] }] },
     ]);
   });
 
@@ -607,5 +618,118 @@ describe('tag badges (PF6)', () => {
       '@type': 'StateChange', changed: { team: { Email: 's2' } },
     } as never);
     expect(useTagCountsStore.getState().generation).toBe(before + 1);
+  });
+});
+
+// A search with no folder picked used to cover Spam and Trash too, so deleted
+// and junk mail crowded the hits. Like the webmail ("All folders except Spam
+// and Trash"), it now leaves each account's two out; the "All folders" chip
+// still covers them, and a search started inside Spam or Trash searches there.
+describe('Spam and Trash in a search with no folder picked', () => {
+  const OWN_OUT = { inMailboxOtherThan: ['trash', 'junk'] };
+  const TEAM_OUT = { inMailboxOtherThan: ['t-trash', 't-junk'] };
+
+  it('leaves each account\'s Trash and Junk out', async () => {
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] }],
+      ['team', { operator: 'AND', conditions: [{ text: 'zephyr*' }, TEAM_OUT] }],
+    ]);
+    expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
+  });
+
+  it('leaves them out on load more too', async () => {
+    settings.emailsPerPage = 2;
+    await search('zephyr');
+    await useEmailStore.getState().loadMoreEmails();
+
+    const page2 = server.current!.requests[1].filter(([n]) => n === 'Email/query');
+    expect(page2.map(([, a]) => a.filter)).toEqual([
+      { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] },
+      { operator: 'AND', conditions: [{ text: 'zephyr*' }, TEAM_OUT] },
+    ]);
+  });
+
+  it('covers them when "All folders" is picked', async () => {
+    useEmailStore.setState({ filters: { folder: 'everywhere' } });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
+      ['c', { text: 'zephyr*' }],
+      ['team', { text: 'zephyr*' }],
+    ]);
+    expect(ids()).toContain('m5');
+  });
+
+  it('searches Trash only when the search starts in Trash', async () => {
+    useEmailStore.setState({ currentMailboxId: 'team:t-trash' });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr*' } });
+    expect(ids()).toEqual(['m5']);
+  });
+
+  it('a search in the open folder is not narrowed', async () => {
+    useEmailStore.setState({ filters: { folder: 'current' } });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr*' });
+    expect(ids()).toEqual(['o1', 'o3']);
+  });
+
+  // The picker's chips go through `withFolderScope`, as the screen does.
+  function pick(scope: string) {
+    useEmailStore.setState({ filters: withFolderScope(useEmailStore.getState().filters, scope) });
+  }
+
+  it('"This folder" scopes the search to the open folder', async () => {
+    pick('current');
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr*' });
+    expect(ids()).toEqual(['o1', 'o3']);
+  });
+
+  it('searches the Trash picked in the picker only, with nothing left out', async () => {
+    pick('team:t-trash');
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1]).toMatchObject({ accountId: 'team' });
+    expect(queries[0][1].filter).toEqual({ inMailbox: 't-trash', text: 'zephyr*' });
+    expect(ids()).toEqual(['m5']);
+  });
+
+  it('keeps a search in Trash in Trash under a persisted "all" scope', async () => {
+    useEmailStore.setState({ currentMailboxId: 'team:t-trash', filters: { folder: 'all' } });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr*' } });
+    expect(ids()).toEqual(['m5']);
+  });
+
+  it('leaves nothing out for an account with no Trash or Junk', async () => {
+    useEmailStore.setState({
+      mailboxes: MAILBOXES.filter((m) => m.id !== 'team:t-trash' && m.id !== 'team:t-junk'),
+    });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] }],
+      ['team', { text: 'zephyr*' }],
+    ]);
   });
 });

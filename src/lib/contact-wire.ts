@@ -84,9 +84,16 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
     if (card.schedulingUri) out.schedulingAddresses = { sched: { '@type': 'SchedulingAddress', uri: card.schedulingUri } };
     else if (mode === 'update') out.schedulingAddresses = null;
   }
-  if (!('directories' in card) && card.source) {
-    // vCard SOURCE is a JSContact directory entry (RFC 9553 §2.6.2).
-    out.directories = { source: { '@type': 'Directory', kind: 'entry', uri: card.source } };
+  if (card.source) {
+    // vCard SOURCE is a JSContact directory entry (RFC 9553 §2.6.2). A vCard
+    // can also carry ORG-DIRECTORY, so the entry joins the existing map. A
+    // loaded card's map already holds the entry its `source` came from; that
+    // map is sent as it is.
+    const existing = card.directories ?? {};
+    const hasEntry = Object.values(existing).some(d => d?.kind === 'entry' && d.uri === card.source);
+    if (!hasEntry) {
+      out.directories = { ...existing, source: { '@type': 'Directory', kind: 'entry', uri: card.source } };
+    }
   }
   return out;
 }

@@ -11,6 +11,19 @@ import {
 } from '../recipients';
 
 describe('isValidEmail', () => {
+  it('accepts an address on an internationalized domain', () => {
+    expect(isValidEmail('user@bücher.de')).toBe(true);
+    expect(isValidEmail('user@ノード.com')).toBe(true);
+    expect(isValidEmail('user@xn--bcher-kva.de')).toBe(true);
+  });
+
+  it('still rejects a bad internationalized address', () => {
+    expect(isValidEmail('user@bü cher.de')).toBe(false);
+    expect(isValidEmail('user@bücher..de')).toBe(false);
+    expect(isValidEmail('user@.bücher.de')).toBe(false);
+    expect(isValidEmail('üser@bücher.de')).toBe(false);
+  });
+
   it('accepts ordinary addresses', () => {
     expect(isValidEmail('a@b.co')).toBe(true);
     expect(isValidEmail('first.last+tag@sub.example.org')).toBe(true);

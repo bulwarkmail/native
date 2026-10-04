@@ -6,6 +6,7 @@ import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
 import { secureFetch } from './client-cert';
 import { refreshOAuthAccessToken, type OAuthTokens } from './oauth';
+import { recordAlert, shouldStaySilent } from './push-quiet-window';
 import {
   generateEmailAvatarColor,
   getEmailInitials,
@@ -90,17 +91,20 @@ interface ShowNotificationOptions {
   initials: string;
   bgColorHex: string;
   iconUrl?: string;
-  emailId: string;
-  threadId: string;
+  // Absent on the generic notification, which opens the account's inbox.
+  emailId?: string;
+  threadId?: string;
   subject?: string;
   accountId: string;
   // The JMAP account the message lives in - a group or shared mailbox's
   // account rather than the user's own - so a tap opens it there.
-  jmapAccountId: string;
+  jmapAccountId?: string;
   // Android notification group: one per account so the tray bundles
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
   groupTitle: string;
+  // Show it without a sound: another account just rang for the same burst.
+  silent: boolean;
 }
 
 interface BulwarkFcmNative {
@@ -180,6 +184,18 @@ async function readAccountRegistry(): Promise<RegistryAccount[]> {
   }
 }
 
+/** The local accounts a push is checked against. */
+export interface PushTargets {
+  accountIds: string[];
+  /**
+   * Whether the push named these accounts (or there is only one to name).
+   * When false they are every push account, checked in case one of them
+   * holds the mail: an account that can't find it, or can't look it up, is
+   * not the one the push was for, and shows nothing.
+   */
+  addressed: boolean;
+}
+
 /**
  * Pick the local account(s) a relay payload belongs to. Primary key is the
  * JMAP account id recorded at setup; the relay's `accountLabel` (= username)
@@ -191,10 +207,10 @@ export function matchAccountsForPush(
   pushAccountIds: string[],
   jmapAccountIds: Record<string, string>,
   registry: RegistryAccount[],
-): string[] {
+): PushTargets {
   if (payload.jmapAccountId) {
     const byJmapId = pushAccountIds.filter((id) => jmapAccountIds[id] === payload.jmapAccountId);
-    if (byJmapId.length > 0) return byJmapId;
+    if (byJmapId.length > 0) return { accountIds: byJmapId, addressed: true };
   }
   if (payload.accountLabel) {
     const label = payload.accountLabel.toLowerCase();
@@ -203,9 +219,9 @@ export function matchAccountsForPush(
       const username = entry?.username?.toLowerCase();
       return username === label || id.toLowerCase().startsWith(`${label}@`);
     });
-    if (byLabel.length > 0) return byLabel;
+    if (byLabel.length > 0) return { accountIds: byLabel, addressed: true };
   }
-  return pushAccountIds;
+  return { accountIds: pushAccountIds, addressed: pushAccountIds.length === 1 };
 }
 
 async function readNotifiedIds(accountId: string): Promise<string[]> {
@@ -336,6 +352,19 @@ async function jmapPost(
   return body.methodResponses ?? [];
 }
 
+/**
+ * The server answered, but not with the data asked for - a JMAP method error
+ * comes back with HTTP 200 - so the new mail can't be told apart from "there
+ * is none". Thrown instead of returned empty, so the push is shown generically
+ * rather than dropped (WEB 4bc5d48).
+ */
+class PreviewLookupError extends Error {
+  constructor(method: string, got: string | undefined) {
+    super(`${method} failed: ${got ?? 'no response'}`);
+    this.name = 'PreviewLookupError';
+  }
+}
+
 async function detachedGetEmails(
   session: DetachedSession,
   accountId: string,
@@ -345,7 +374,7 @@ async function detachedGetEmails(
     ['Email/get', { accountId, ids, properties: EMAIL_PROPERTIES }, '0'],
   ]);
   const [name, body] = responses[0] ?? [];
-  if (name !== 'Email/get') return [];
+  if (name !== 'Email/get') throw new PreviewLookupError('Email/get', name);
   return (body.list as Email[]) ?? [];
 }
 
@@ -358,7 +387,7 @@ async function detachedNewestUnreadInboxIds(
     ['Mailbox/get', { accountId, properties: ['id', 'role'] }, '0'],
   ]);
   const [mbName, mbBody] = mailboxResponses[0] ?? [];
-  if (mbName !== 'Mailbox/get') return [];
+  if (mbName !== 'Mailbox/get') throw new PreviewLookupError('Mailbox/get', mbName);
   const inbox = ((mbBody.list as Mailbox[]) ?? []).find((m) => m.role === 'inbox');
   if (!inbox) return [];
   const queryResponses = await jmapPost(session, [
@@ -374,7 +403,7 @@ async function detachedNewestUnreadInboxIds(
     ],
   ]);
   const [qName, qBody] = queryResponses[0] ?? [];
-  if (qName !== 'Email/query') return [];
+  if (qName !== 'Email/query') throw new PreviewLookupError('Email/query', qName);
   return (qBody.ids as string[]) ?? [];
 }
 
@@ -420,11 +449,11 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
 
     const registry = await readAccountRegistry();
     const jmapAccountIds = await readPushJmapAccountIds();
-    const accountsToCheck = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
+    const targets = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
 
-    for (const accountId of accountsToCheck) {
+    for (const accountId of targets.accountIds) {
       try {
-        await processAccountForPush(accountId, payload);
+        await processAccountForPush(accountId, payload, targets.addressed);
       } catch (err) {
         console.warn(
           '[push] background check failed for account',
@@ -452,10 +481,19 @@ export function selectNotifiableEmails(emails: Email[], alreadyNotified: readonl
   });
 }
 
-async function processAccountForPush(accountId: string, payload: RelayPushData): Promise<void> {
-  const session = await openDetachedSession(accountId);
-  if (!session) return;
+interface PushLookup {
+  candidates: Email[];
+  alreadyNotified: string[];
+  emailAccountId: string;
+}
 
+// Finds the messages a push announced. Throws when they can't be looked up
+// (a failed request or a method error); an empty result means none to show.
+async function lookUpPushedEmails(
+  session: DetachedSession,
+  accountId: string,
+  payload: RelayPushData,
+): Promise<PushLookup | null> {
   const alreadyNotified = await readNotifiedIds(accountId);
   let candidates: Email[];
   let emailAccountId = session.jmapAccountId;
@@ -465,9 +503,12 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     // messages. The push may concern a shared account the user has access
     // to, in which case the ids live under that JMAP account.
     const fresh = payload.emailIds.filter((id) => !alreadyNotified.includes(id));
-    if (fresh.length === 0) return;
+    if (fresh.length === 0) return null;
     emailAccountId = payload.jmapAccountId ?? session.jmapAccountId;
     candidates = await detachedGetEmails(session, emailAccountId, fresh);
+    // Deleted since, or filed where this login can't see it: the message that
+    // arrived can't be shown, and no other one stands in for it.
+    if (candidates.length === 0) throw new PreviewLookupError('Email/get', 'notFound');
   } else {
     // Legacy `jmap-state-change` payload without ids: look at the newest
     // unread inbox messages and notify the ones not shown before. The ring
@@ -475,18 +516,43 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     // message read elsewhere from surfacing the next older one.
     const ids = await detachedNewestUnreadInboxIds(session, LEGACY_QUERY_LIMIT);
     const fresh = ids.filter((id) => !alreadyNotified.includes(id));
-    if (fresh.length === 0) return;
+    if (fresh.length === 0) return null;
     candidates = await detachedGetEmails(session, session.jmapAccountId, fresh);
   }
+  return { candidates, alreadyNotified, emailAccountId };
+}
 
-  const toNotify = selectNotifiableEmails(candidates, alreadyNotified);
-  if (toNotify.length === 0) return;
-
+async function processAccountForPush(
+  accountId: string,
+  payload: RelayPushData,
+  addressed: boolean,
+): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
 
   const groupKey = `bulwark-mail:${accountId}`;
   const groupTitle = payload.accountLabel ?? accountId.split('@')[0] ?? accountId;
+
+  let lookup: PushLookup | null;
+  try {
+    const session = await openDetachedSession(accountId);
+    if (!session) return;
+    lookup = await lookUpPushedEmails(session, accountId, payload);
+  } catch (err) {
+    // New mail arrived but can't be looked up: say so without naming a
+    // message. Dropping the push would leave the user unaware of it. A push
+    // that named no account is only checked against this one, so it says
+    // nothing: one alert per account would be false for all but one.
+    console.warn('[push] could not look up new mail for', accountId, err instanceof Error ? err.message : err);
+    if (addressed) await showGenericNotification(native, accountId, groupKey, groupTitle);
+    return;
+  }
+  if (!lookup) return;
+  const { candidates, alreadyNotified, emailAccountId } = lookup;
+
+  const toNotify = selectNotifiableEmails(candidates, alreadyNotified);
+  if (toNotify.length === 0) return;
+
   const favicons = await senderFaviconsAllowed();
   const locale = await notificationLocale();
 
@@ -506,6 +572,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const iconUrl = faviconDomain ? getFaviconUrl(faviconDomain) : undefined;
 
     await native.showNotification({
+      silent: await claimAlert(accountId),
       notificationId: `mail:${email.id}`,
       title,
       body,
@@ -523,6 +590,36 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
   }
 
   await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
+}
+
+// Whether this notification stays silent. One that rings takes the quiet
+// window; a silent one leaves it alone.
+async function claimAlert(accountId: string): Promise<boolean> {
+  const silent = await shouldStaySilent(accountId);
+  if (!silent) await recordAlert(accountId);
+  return silent;
+}
+
+// "New email" under the account's name, with no message to open: tapping it
+// opens the account's inbox. One per account, so a second replaces the first.
+async function showGenericNotification(
+  native: BulwarkFcmNative,
+  accountId: string,
+  groupKey: string,
+  groupTitle: string,
+): Promise<void> {
+  const locale = await notificationLocale();
+  await native.showNotification({
+    silent: await claimAlert(accountId),
+    notificationId: `mail-generic:${accountId}`,
+    title: translate(locale, 'notifications.new_email', 'New email'),
+    body: groupTitle,
+    initials: getEmailInitials(groupTitle, ''),
+    bgColorHex: hslToHex(generateEmailAvatarColor(groupTitle, '')),
+    accountId,
+    groupKey,
+    groupTitle,
+  });
 }
 
 function hslToHex(hsl: string): string {

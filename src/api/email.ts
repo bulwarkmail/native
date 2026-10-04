@@ -468,6 +468,11 @@ export interface AccountPageTarget {
   accountId?: string;
   position: number;
   sort: Array<{ property: string; isAscending: boolean; keyword?: string }>;
+  /**
+   * This account's filter. A target that carries the key, even as
+   * `undefined`, overrides the shared `options.filter`.
+   */
+  filter?: Record<string, unknown>;
 }
 
 export type AccountPage =
@@ -498,7 +503,7 @@ export async function queryEmailPagesAcrossAccounts(
         position: target.position,
         limit,
         sort: target.sort,
-        filter: options.filter,
+        filter: 'filter' in target ? target.filter : options.filter,
         accountId: target.accountId,
       });
       calls.push(['Email/query', args, `${index}:q`]);

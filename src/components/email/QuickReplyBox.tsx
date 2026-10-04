@@ -139,6 +139,10 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           { message: formatRejectedRecipients(result.rejectedRecipients), duration: 10_000 },
         );
       }
+      if (result.filingWarning) {
+        console.warn('[quick-reply] post-send filing warning:', result.filingWarning);
+        toast.warning(t('email_composer.send_filing_warning', 'Sent - but the post-send cleanup failed, a stale draft may remain.'));
+      }
       // The keyboard would cover the undo bar or the toast.
       Keyboard.dismiss();
       // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).

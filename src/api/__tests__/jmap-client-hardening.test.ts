@@ -26,6 +26,7 @@ import {
   parseRetryAfter,
   isConcurrentRequestRefusal,
   batched,
+  isReplaySafe,
 } from '../jmap-client';
 import { TransientRefreshError } from '../../lib/oauth';
 import { FirstTouchGate, gateKeysFor } from '../first-touch-gate';
@@ -134,6 +135,16 @@ describe('pure helpers', () => {
     expect(isConcurrentRequestRefusal(400, JSON.stringify({ type: 'urn:ietf:params:jmap:error:limit', limit: 'maxConcurrentRequests' }))).toBe(true);
     expect(isConcurrentRequestRefusal(400, JSON.stringify({ type: 'urn:ietf:params:jmap:error:limit', limit: 'maxSizeRequest' }))).toBe(false);
     expect(isConcurrentRequestRefusal(500, 'nope')).toBe(false);
+  });
+
+  it('isReplaySafe allows only read-only methods', () => {
+    expect(isReplaySafe([['Email/get', {}, '0']])).toBe(true);
+    expect(isReplaySafe([['Email/query', {}, '0']])).toBe(true);
+    expect(isReplaySafe([['Mailbox/changes', {}, '0']])).toBe(true);
+    expect(isReplaySafe([['Core/echo', {}, '0']])).toBe(true);
+    expect(isReplaySafe([['Email/set', {}, '0']])).toBe(false);
+    expect(isReplaySafe([['Email/get', {}, '0'], ['Email/set', {}, '1']])).toBe(false);
+    expect(isReplaySafe([])).toBe(false);
   });
 
   it('requireMethodResult throws JMAPMethodError on the error envelope', () => {
@@ -320,6 +331,14 @@ describe('JMAPClient hardening', () => {
     const client = await connected();
     const fetch = mockFetch([{ status: 200, throw: new TypeError('Network request failed') }]);
     const err = await client.request([['EmailSubmission/set', { accountId: 'acc-1' }, '0']]).catch((e) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry an Email/set after a network error', async () => {
+    const client = await connected();
+    const fetch = mockFetch([{ status: 200, throw: new TypeError('Network request failed') }]);
+    const err = await client.request([['Email/set', { accountId: 'acc-1' }, '0']]).catch((e) => e);
     expect(err).toBeInstanceOf(NetworkError);
     expect(fetch).toHaveBeenCalledTimes(1);
   });

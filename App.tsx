@@ -37,6 +37,7 @@ import {
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
+import { markPushRenewed, renewPushOnResume } from './src/lib/push-renewal';
 import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
@@ -113,6 +114,12 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
     if (!account) return; // account was logged out — nothing safe to open.
     await auth.switchAccount(payload.accountId);
     if (useAuthStore.getState().activeAccountId !== payload.accountId) return;
+  }
+
+  if (!payload.emailId || !payload.threadId) {
+    // A notification that names no message: show the account's mail.
+    navigationRef.navigate('MainTabs', { screen: 'Mail' } as never);
+    return;
   }
 
   prefetchMessage({ id: payload.emailId, threadId: payload.threadId });
@@ -659,6 +666,8 @@ export default function App() {
           relayBaseUrl,
           accountLabel: client.username ?? undefined,
         });
+        // Brought up to date just now: the renewal below can skip it.
+        if (activeAccountId) markPushRenewed(activeAccountId);
         if (cancelled) return;
       } catch (error) {
         console.warn(
@@ -668,7 +677,19 @@ export default function App() {
       }
     };
 
-    void doSetup();
+    // Renew every account's subscription before Stalwart's 7-day expiry: once
+    // the setup above has settled, and on every return to the foreground
+    // (push-renewal throttles it to once a day per account).
+    const setupDone = doSetup();
+    const renew = () => {
+      void setupDone.then(() => renewPushOnResume()).catch((error: unknown) => {
+        console.warn('[push] renewal failed:', error instanceof Error ? error.message : error);
+      });
+    };
+    renew();
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') renew();
+    });
     const unsubscribe = addTokenRefreshListener(() => {
       void doSetup();
     });
@@ -680,6 +701,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      appStateSubscription.remove();
       unsubscribe();
       unsubscribeUp();
     };

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { describeLoginError } from '../login-errors';
 import { PairingError, insecurePairingLinkError, type PairingErrorReason } from '../oauth';
 import { AccountLimitError } from '../account-utils';
+import { TotpLoginError } from '../totp-login';
 
 function named(name: string, message: string): Error {
   const err = new Error(message);
@@ -10,6 +11,17 @@ function named(name: string, message: string): Error {
 }
 
 describe('describeLoginError', () => {
+  it('explains a refused token exchange from the error code, not the message', () => {
+    const copy = describeLoginError(new TotpLoginError('token_exchange_failed', 'Token exchange failed: 400 invalid_client'));
+    expect(copy.title).toBe("That didn't work");
+    expect(copy.detail).toBe('Your password and code were accepted, but the mail server refused to start a session for this app. Ask your administrator to check its OAuth client settings.');
+  });
+
+  it('keeps the bad password or code message for other TOTP login failures', () => {
+    const copy = describeLoginError(new TotpLoginError('invalid_credentials', 'Invalid credentials'));
+    expect(copy.detail).toMatch(/authenticator app/i);
+  });
+
   it('turns a rejected credential into an actionable message', () => {
     const copy = describeLoginError(named('AuthenticationError', 'Invalid credentials'));
     expect(copy.title).toBe("That didn't work");

@@ -308,7 +308,7 @@ device.
   - What WEB does: `components/email/email-composer.tsx:615,2565,3410-3420`; reads back `deliveryStatus` (`lib/jmap/client.ts:717-760`).
   - What RN does: none in the `sendEmail` envelope (`src/api/email.ts:~1537-1556`); `src/api/jmap-client.ts:1043-1079` already parses `submissionExtensions`.
 
-- [ ] **A failed filing of the Sent copy is not shown** — `P3` — `bugfix-parity` (1.11.0)
+- [x] **A failed filing of the Sent copy is not shown** — `P3` — `bugfix-parity` (1.11.0) — fixed in 89ca029
   - What RN does: only logs `filingWarning` (`ComposeScreen.tsx:2117-2118`); WEB warns so the mail isn't sent twice.
 
 - [ ] **No Return-Path note for a From override (#1009)** — `P3` — `missing` (1.11.0)

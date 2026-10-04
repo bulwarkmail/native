@@ -336,18 +336,18 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **Push subscriptions lapse after Stalwart's 7-day expiry** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **Push subscriptions lapse after Stalwart's 7-day expiry** — `P2` — `bugfix-parity` (1.11.0) — fixed in 3bd1d5f, bc62362, e4b4968 — device check outstanding
   - What WEB does: renews when the tab becomes visible (`components/push-notification-prompt.tsx:117-135`, `lib/web-push.ts:410-440`).
   - What RN does: the renewal check (`src/lib/push-notifications.ts:268`) runs only on sign-in, account or setting change, or token rotation, not on return to the foreground (`App.tsx:641-670,764`), and never for accounts other than the active one. A phone left in the background for a week, or any secondary account, silently stops getting notifications.
 
 - [ ] **No inbox-only notifications option (#983)** — `P3` — `missing` (1.11.0, WEB `lib/web-push.ts:90-135`, `pushNotifyInboxOnly`)
   - What RN does: every non-junk folder notifies (`src/lib/push-notifications.ts:300-330`).
 
-- [ ] **One message reaching several accounts rings once per account** — `P3` — `missing` (cd39805, 868805e)
+- [x] **One message reaching several accounts rings once per account** — `P3` — `missing` (cd39805, 868805e) — fixed in 1c9b1a3 — Kotlin uncompiled here; device check outstanding
   - What WEB does: rings once for a burst across accounts, and again for a second mail in the same account.
   - What RN does: each child notification alerts (`GROUP_ALERT_CHILDREN`, `android/.../BulwarkFcmModule.kt:142,191`; `src/lib/push-background-task.ts`).
 
-- [ ] **A failed preview lookup drops the notification** — `P3` — `bugfix-parity` (4bc5d48)
+- [x] **A failed preview lookup drops the notification** — `P3` — `bugfix-parity` (4bc5d48) — fixed in c3b7968, 0223de6
   - What WEB does: shows a generic "New mail".
   - What RN does: `src/lib/push-background-task.ts:340-378` returns `[]` on any method error.
 

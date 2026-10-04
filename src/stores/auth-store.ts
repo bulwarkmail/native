@@ -9,12 +9,14 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
+import { sweepOrphanedOfflineCache } from './offline-cache-store';
 import { forgetAccountData, forgetSharedData } from './account-data-cleanup';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
 import { clearBodyHeights } from '../lib/body-heights';
 import { AccountLimitError, generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
+import { toAsciiEmail } from '../lib/idn';
 import {
   runWebmailHandoff,
   redeemPairingCode,
@@ -344,8 +346,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   client: null,
   pendingTotpLogin: null,
 
-  login: async (serverUrl, username, password, opts) => {
+  login: async (serverUrl, typedUsername, password, opts) => {
     set({ isLoading: true, error: null });
+    // Sign in with the ASCII (punycode) form of an IDN domain, the form
+    // Stalwart stores, so `user@bücher.de` and `user@xn--bcher-kva.de` are one
+    // account (one id, one set of stored credentials).
+    const username = toAsciiEmail(typedUsername);
     // Adding an additional account: keep the live connection until the new
     // sign-in succeeded so a typo doesn't kill the current session.
     const previous = opts?.addAccount && get().isAuthenticated ? jmapClient.snapshot() : null;
@@ -828,6 +834,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const id = generateAccountId(legacy.username, legacy.serverUrl);
           accountStore.setActiveAccount(id);
         }
+      }
+
+      // Drop offline mail left behind by accounts no longer registered; not
+      // awaited so a slow storage scan never delays the restore. Only once
+      // the registry loaded: one that timed out reads as empty, and every
+      // account's mail would look orphaned.
+      if (useAccountStore.persist.hasHydrated()) {
+        void sweepOrphanedOfflineCache(useAccountStore.getState().accounts.map((a) => a.id)).catch((e) =>
+          console.warn('[offline-cache] orphan sweep failed', e),
+        );
       }
 
       const target = accountStore.getActiveAccount() ?? accountStore.getDefaultAccount();

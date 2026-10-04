@@ -11,7 +11,7 @@ vi.mock('../../api/jmap-client', () => ({
     request: vi.fn(async (calls: Array<[string, Record<string, unknown>, string]>) => ({
       methodResponses: calls.map(([name, args, callId]) => [
         name,
-        { ids: [], total: 'operator' in (args.filter as object) ? 1 : 3 },
+        { ids: [], total: String(callId).startsWith('u') ? 1 : 3 },
         callId,
       ]),
     })),
@@ -79,6 +79,18 @@ describe('tag counts cache (PF6)', () => {
     expect(useTagCountsStore.getState().counts).toEqual({});
     await other;
     expect(useTagCountsStore.getState().counts.red).toBeDefined();
+  });
+
+  it('sends the folders to leave out, and fetches again when they change (#1156)', async () => {
+    const { ensure } = useTagCountsStore.getState();
+    await ensure('me', ['red'], [undefined], { c: ['trash', 'junk'] });
+    const filter = mockRequest.mock.calls[0][0][0][1].filter;
+    expect(filter.conditions).toContainEqual({ inMailboxOtherThan: ['trash', 'junk'] });
+
+    await ensure('me', ['red'], [undefined], { c: ['trash', 'junk'] });
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    await ensure('me', ['red'], [undefined], { c: ['trash'] });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the old counts when the fetch fails and retries next time', async () => {

@@ -96,15 +96,13 @@ export function parseRetryAfter(header: string | null): number {
   return 60_000;
 }
 
-// Methods whose bodies must never be replayed automatically: a retried
-// EmailSubmission/set would send the mail twice.
-function hasNonIdempotentMethod(methodCalls: ReadonlyArray<JMAPMethodCall>): boolean {
-  return methodCalls.some(
-    ([name]) =>
-      name === 'EmailSubmission/set' ||
-      name === 'Email/import' ||
-      name === 'Blob/upload',
-  );
+// Only a request made entirely of read-only methods may be replayed after a
+// dropped connection: the server may have run a write before the connection
+// died, and a replayed Email/set create duplicates the draft or sent copy.
+const READ_ONLY_METHOD = /\/(?:get|query|changes|queryChanges|parse)$|^Core\/echo$/;
+
+export function isReplaySafe(methodCalls: ReadonlyArray<JMAPMethodCall>): boolean {
+  return methodCalls.length > 0 && methodCalls.every(([name]) => READ_ONLY_METHOD.test(name));
 }
 
 function fetchSessionDescribes(session: unknown): session is JMAPSession {
@@ -881,7 +879,7 @@ export class JMAPClient {
     };
     const serialized = JSON.stringify(body);
     const apiUrl = this.session.apiUrl;
-    const idempotent = !hasNonIdempotentMethod(methodCalls);
+    const idempotent = isReplaySafe(methodCalls);
 
     for (let attempt = 0; ; attempt++) {
       const response = await this.firstTouchGate.run(methodCalls, () =>

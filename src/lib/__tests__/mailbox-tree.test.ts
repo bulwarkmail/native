@@ -7,6 +7,9 @@ import {
   mailboxesForSiblingOf,
   mailboxesOfAccount,
   mailboxOfEmail,
+  moveOwnerAccountId,
+  orderMoveTree,
+  OWN_ACCOUNT_NODE_PREFIX,
   ownMailboxes,
   SHARED_ACCOUNT_NODE_PREFIX,
 } from '../mailbox-tree';
@@ -155,6 +158,24 @@ describe('account scoping helpers', () => {
     expect(mailboxesOfAccount(all, 'grp-1').map((m) => m.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
     // An account whose folders are not loaded has none: nothing to guess from.
     expect(mailboxesOfAccount(all, 'grp-9')).toEqual([]);
+  });
+
+  it('leads a moved message\'s own shared account, own folders after it under a header', () => {
+    const tree = orderMoveTree(buildMailboxTree(all), all, moveOwnerAccountId(['grp-1']));
+    expect(tree.map((n) => n.id)).toEqual([`${SHARED_ACCOUNT_NODE_PREFIX}grp-1`, `${OWN_ACCOUNT_NODE_PREFIX}acc-1`, `${SHARED_ACCOUNT_NODE_PREFIX}grp-2`]);
+    expect(tree[0].children.map((n) => n.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
+    // The user's own folders are still offered, one level under their header.
+    expect(tree[1].isAccountNode).toBe(true);
+    expect(tree[1].children.map((n) => [n.id, n.depth])).toEqual([['inbox', 1], ['trash', 1]]);
+  });
+
+  it('keeps the order for an own-account row and for a selection spanning accounts', () => {
+    const base = buildMailboxTree(all);
+    expect(orderMoveTree(base, all, moveOwnerAccountId([undefined]))).toBe(base);
+    expect(moveOwnerAccountId([undefined, 'grp-1'])).toBeUndefined();
+    expect(moveOwnerAccountId(['grp-1', 'grp-2'])).toBeUndefined();
+    expect(moveOwnerAccountId([])).toBeUndefined();
+    expect(moveOwnerAccountId(['grp-1', 'grp-1'])).toBe('grp-1');
   });
 
   it('finds the folder a message is filed in, preferring the one it was opened from', () => {

@@ -10,10 +10,11 @@ import {
 import { getMailboxes, getSharedMailboxes } from '../api/email';
 import { loadedMailboxes } from './mailbox-source';
 import { jmapClient, JMAPClient } from '../api/jmap-client';
-import { JMAPMethodError, requireMethodResult } from '../api/jmap-result';
+import { assertSetResult, JMAPMethodError, requireMethodResult } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
 import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
+import { clearRenewAttempt } from './push-renewal-state';
 import { t } from '../stores/locale-store';
 import {
   authorityOfType,
@@ -270,6 +271,14 @@ const SUBSCRIPTION_REFRESH_THRESHOLD_DAYS = 7;
 // had at least this long to live; closer to its expiry (or with the clock a
 // little off) it may simply have lapsed, and is re-created.
 const REVOKED_EXPIRY_MARGIN_MS = 24 * 60 * 60 * 1000;
+
+// More than SUBSCRIPTION_REFRESH_THRESHOLD_DAYS left before `expires`. An
+// unknown expiry counts as close, so it gets pushed forward.
+function hasTimeToSpare(expires: string | null | undefined): boolean {
+  const remainingMs = Date.parse(expires ?? '') - Date.now();
+  const thresholdMs = SUBSCRIPTION_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
+  return Number.isFinite(remainingMs) && remainingMs > thresholdMs;
+}
 
 function expiresFromNow(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
@@ -602,6 +611,15 @@ export async function requestNotificationPermission(): Promise<boolean> {
     'android.permission.POST_NOTIFICATIONS' as Parameters<typeof PermissionsAndroid.request>[0],
   );
   return status === PermissionsAndroid.RESULTS.GRANTED;
+}
+
+/** Whether notifications may be shown, without ever asking for it. */
+export async function hasNotificationPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  if (Platform.Version < 33) return true;
+  return PermissionsAndroid.check(
+    'android.permission.POST_NOTIFICATIONS' as Parameters<typeof PermissionsAndroid.check>[0],
+  );
 }
 
 export async function getFcmToken(): Promise<string | null> {
@@ -1119,13 +1137,9 @@ async function refreshSubscriptionExpires(
   const typesNeedUpdate = !sameTypes(sub.types, types);
   const emailPushNeedsUpdate =
     desiredEmailPush !== null && !sameEmailPush(sub.emailPush, desiredEmailPush);
-  if (!typesNeedUpdate && !emailPushNeedsUpdate && sub.expires) {
-    const remainingMs = new Date(sub.expires).getTime() - Date.now();
-    const thresholdMs = SUBSCRIPTION_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
-    if (Number.isFinite(remainingMs) && remainingMs > thresholdMs) {
-      // Plenty of life left - skip the update round-trip.
-      return { emailPush: null };
-    }
+  if (!typesNeedUpdate && !emailPushNeedsUpdate && hasTimeToSpare(sub.expires)) {
+    // Plenty of life left - skip the update round-trip.
+    return { emailPush: null };
   }
   try {
     return await writeWithPushTypes(types, async (wanted) => {
@@ -1163,6 +1177,7 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
   ]);
+  await clearRenewAttempt(accountId);
   await writePushJmapAccountId(accountId, null);
 }
 
@@ -1305,6 +1320,55 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
 }
 
 /**
+ * Push the expiry of a signed-in account's subscription forward when it is
+ * close, through a client of the account's own - for the accounts the
+ * singleton isn't serving, which no launch-time resync reaches (see
+ * push-renewal). Resolves to 'renewed', to 'fine' when there was nothing to
+ * renew (time to spare, push turned off, no subscription here or on the
+ * server, no credentials), or to 'failed' when the server couldn't be asked
+ * or refused - the one answer worth retrying soon.
+ */
+export async function renewDetachedPushSubscription(
+  accountId: string,
+): Promise<'renewed' | 'fine' | 'failed'> {
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return 'fine';
+  const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
+  if (!subscriptionId) return 'fine';
+  try {
+    const client = new JMAPClient();
+    if (!(await client.loadAccount(accountId))) return 'fine';
+    const using = [CAPABILITIES.CORE];
+    const res = await client.request(
+      [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'expires'] }, '0']],
+      using,
+    );
+    const current = (requireMethodResult(res, '0', 'PushSubscription/get').list as Array<{ id: string; expires?: string | null }> | undefined)
+      ?.find((s) => s.id === subscriptionId);
+    // Gone from the server: re-created when the account is active again.
+    if (!current) return 'fine';
+    if (hasTimeToSpare(current.expires)) {
+      await AsyncStorage.setItem(subscriptionExpiresKey(accountId), current.expires!);
+      return 'fine';
+    }
+    const expires = expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS);
+    const setRes = await client.request(
+      [['PushSubscription/set', { update: { [subscriptionId]: { expires } } }, '0']],
+      using,
+    );
+    const body = requireMethodResult(setRes, '0', 'PushSubscription/set');
+    assertSetResult(body, [subscriptionId], 'push subscription');
+    const updated = body.updated?.[subscriptionId] as { expires?: unknown } | null | undefined;
+    if (updated === undefined) return 'failed';
+    // The server reports the expiry back when it clamped the one asked for.
+    const granted = typeof updated?.expires === 'string' ? updated.expires : expires;
+    await AsyncStorage.setItem(subscriptionExpiresKey(accountId), granted);
+    return 'renewed';
+  } catch {
+    return 'failed';
+  }
+}
+
+/**
  * Tear down push for ALL accounts on this device. Used by the logout-all
  * flow; best-effort because we typically aren't authenticated to every
  * account's JMAP server at the moment we need to call destroy on it. The
@@ -1433,8 +1497,10 @@ export function addTokenRefreshListener(listener: FcmTokenListener): () => void 
 }
 
 export interface NotificationTapPayload {
-  emailId: string;
-  threadId: string;
+  // Both absent for a notification that names no message (the generic "New
+  // email" one): it opens the account's inbox.
+  emailId?: string;
+  threadId?: string;
   subject?: string;
   // Identifies which logged-in account the notification was generated for.
   // Optional for back-compat: older notifications already on the system tray

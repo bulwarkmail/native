@@ -19,7 +19,7 @@ import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/Th
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
 import { useEmailStore, listRowsOfAccount } from '../stores/email-store';
-import { toast } from '../stores/toast-store';
+import { reportActionFailure } from '../lib/action-failure';
 import {
   useSettingsStore,
   normalizeBottomQuickActions,
@@ -50,14 +50,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'>;
 
 // How long the pages beside the one on screen wait for its body at most.
 const NEIGHBOUR_FALLBACK_MS = 1500;
-
-// Actions finish after the viewer may already have gone back, so a failure is
-// reported as a toast instead of vanishing with the promise (webmail
-// `lib/email-action-toast.ts`).
-function toastFailure(title: string, err: unknown): void {
-  console.warn('[viewer]', title, err);
-  toast.error(title, err instanceof Error ? err.message : undefined);
-}
 
 /**
  * The viewer route. A new target handed to it while it is showing (a
@@ -419,7 +411,7 @@ function EmailViewer({ route, navigation }: Props) {
     updateLocalKeywords(email.id, next);
     setKeyword(email, token, !!next[token]).catch((err) => {
       updateLocalKeywords(email.id, email.keywords);
-      toastFailure(t('notifications.tag_failed', 'Tagging failed'), err);
+      reportActionFailure(t('notifications.tag_failed', 'Tagging failed'), err);
     });
   };
 
@@ -432,7 +424,7 @@ function EmailViewer({ route, navigation }: Props) {
     updateLocalKeywords(target.id, next);
     setKeyword(target, '$flagged', !!next.$flagged).catch((err) => {
       updateLocalKeywords(target.id, target.keywords);
-      toastFailure(t('notifications.error_updating', 'Failed to update email'), err);
+      reportActionFailure(t('notifications.error_updating', 'Failed to update email'), err);
     });
   }, [updateLocalKeywords, setKeyword, t]);
 
@@ -442,7 +434,7 @@ function EmailViewer({ route, navigation }: Props) {
     if (!email) return;
     const failed = (err: unknown) => {
       updateLocalKeywords(email.id, email.keywords);
-      toastFailure(t('notifications.error_updating', 'Failed to update email'), err);
+      reportActionFailure(t('notifications.error_updating', 'Failed to update email'), err);
     };
     if (unread) {
       markSeen(email.id).catch(failed);
@@ -464,7 +456,7 @@ function EmailViewer({ route, navigation }: Props) {
   const performDelete = () => {
     if (!email || !sourceMailbox || !trashMailbox) return;
     deleteEmail(email.id, trashMailbox.id, sourceMailbox.id, { email, accountId: ownerAccountId })
-      .catch((err) => toastFailure(t('notifications.error_deleting', 'Failed to delete email'), err));
+      .catch((err) => reportActionFailure(t('notifications.error_deleting', 'Failed to delete email'), err));
     navigation.goBack();
   };
 
@@ -498,7 +490,7 @@ function EmailViewer({ route, navigation }: Props) {
   const onArchive = () => {
     if (!email || !canArchive) return;
     archiveEmailAction(email.id, { email, accountId: ownerAccountId })
-      .catch((err) => toastFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
+      .catch((err) => reportActionFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
     navigation.goBack();
   };
 
@@ -511,10 +503,10 @@ function EmailViewer({ route, navigation }: Props) {
     const viewed = { email, accountId: ownerAccountId };
     if (isInJunk) {
       unmarkSpam([email.id], viewed)
-        .catch((err) => toastFailure(t('email_viewer.spam.error_not_spam', 'Failed to restore email'), err));
+        .catch((err) => reportActionFailure(t('email_viewer.spam.error_not_spam', 'Failed to restore email'), err));
     } else {
       markSpam([email.id], viewed)
-        .catch((err) => toastFailure(t('email_viewer.spam.error', 'Failed to report spam'), err));
+        .catch((err) => reportActionFailure(t('email_viewer.spam.error', 'Failed to report spam'), err));
     }
     navigation.goBack();
   };
@@ -524,7 +516,7 @@ function EmailViewer({ route, navigation }: Props) {
     setMoveMenuOpen(false);
     setMoreMenuOpen(false);
     moveToMailbox(email.id, sourceMailbox.id, toId, { email, accountId: ownerAccountId })
-      .catch((err) => toastFailure(t('notifications.move_failed', 'Move failed'), err));
+      .catch((err) => reportActionFailure(t('notifications.move_failed', 'Move failed'), err));
     navigation.goBack();
   };
 

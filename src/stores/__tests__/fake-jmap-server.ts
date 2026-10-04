@@ -1,9 +1,9 @@
 // A small in-memory JMAP server for store tests that assert the wire: it
-// answers Email/query (text / inMailbox / hasKeyword / notKeyword filters,
-// newest first, position + limit), Email/get and Thread/get (including
-// result references), and applies Email/set updates and destroys. Every
-// request is recorded so a test can check which method calls went out, and
-// in how many requests.
+// answers Email/query (text / inMailbox / inMailboxOtherThan / hasKeyword /
+// notKeyword filters, newest first, position + limit), Email/get and
+// Thread/get (including result references), and applies Email/set updates
+// and destroys. Every request is recorded so a test can check which method
+// calls went out, and in how many requests.
 
 import type { Email, JMAPMethodCall } from '../../api/types';
 
@@ -26,6 +26,8 @@ function matches(email: FakeEmail, filter: Filter | undefined): boolean {
       if (!`${email.subject ?? ''} ${email.preview ?? ''}`.toLowerCase().includes(needle)) return false;
     } else if (key === 'inMailbox') {
       if (!email.mailboxIds[value as string]) return false;
+    } else if (key === 'inMailboxOtherThan') {
+      if (Object.keys(email.mailboxIds).every((id) => (value as string[]).includes(id))) return false;
     } else if (key === 'hasKeyword') {
       if (!email.keywords[value as string]) return false;
     } else if (key === 'notKeyword') {

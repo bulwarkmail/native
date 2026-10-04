@@ -343,12 +343,22 @@ export async function fetchPrincipal(): Promise<PrincipalInfo> {
 
 // ── Mutations ─────────────────────────────────────────────
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+// Patch only `otpAuth/otpCode`: a whole `otpAuth` object would reset `otpUrl`
+// and switch TOTP off. An empty code sends nothing.
+function otpCodePatch(otpCode?: string): Record<string, string> {
+  const code = otpCode?.trim();
+  return code ? { 'otpAuth/otpCode': code } : {};
+}
+
+export async function changePassword(currentPassword: string, newPassword: string, otpCode?: string): Promise<void> {
   const accountId = jmapClient.accountId;
   const responses = await send([
     [
       'x:AccountPassword/set',
-      { accountId, update: { singleton: { currentSecret: currentPassword, secret: newPassword } } },
+      {
+        accountId,
+        update: { singleton: { currentSecret: currentPassword, secret: newPassword, ...otpCodePatch(otpCode) } },
+      },
       '0',
     ],
   ]);
@@ -384,12 +394,16 @@ export async function enableTotp(currentPassword: string, otpUrl: string, otpCod
   if (failure) throw new Error(failure.description || failure.type || 'Failed to enable two-factor authentication');
 }
 
-export async function disableTotp(currentPassword: string): Promise<void> {
+export async function disableTotp(currentPassword: string, otpCode?: string): Promise<void> {
   const accountId = jmapClient.accountId;
+  const code = otpCode?.trim();
   const responses = await send([
     [
       'x:AccountPassword/set',
-      { accountId, update: { singleton: { currentSecret: currentPassword, otpAuth: { otpUrl: null } } } },
+      {
+        accountId,
+        update: { singleton: { currentSecret: currentPassword, otpAuth: { otpUrl: null, ...(code ? { otpCode: code } : {}) } } },
+      },
       '0',
     ],
   ]);

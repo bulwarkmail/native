@@ -21,7 +21,7 @@ function answer(totals: Record<string, { total: number; unread: number }>, faili
     methodResponses: calls.map(([, args, callId]) => {
       const accountId = args.accountId as string;
       if (failing.includes(accountId)) return ['error', { type: 'forbidden' }, callId];
-      const unread = 'operator' in (args.filter as object);
+      const unread = callId.startsWith('u');
       return ['Email/query', { ids: [], total: unread ? totals[accountId].unread : totals[accountId].total }, callId];
     }),
   }));
@@ -39,14 +39,42 @@ describe('fetchTagCounts', () => {
     expect(await fetchTagCounts(['red'])).toEqual([{ id: 'red', total: 2, unread: 1 }]);
     const calls = mockRequest.mock.calls[0][0];
     expect(calls).toEqual([
-      ['Email/query', { accountId: 'c', filter: { hasKeyword: '$label:red' }, limit: 0, calculateTotal: true }, 't0:red'],
+      ['Email/query', { accountId: 'c', filter: { hasKeyword: '$label:red' }, limit: 1, calculateTotal: true }, 't0:red'],
       ['Email/query', {
         accountId: 'c',
         filter: { operator: 'AND', conditions: [{ hasKeyword: '$label:red' }, { notKeyword: '$seen' }] },
-        limit: 0,
+        limit: 1,
         calculateTotal: true,
       }, 'u0:red'],
     ]);
+  });
+
+  it('leaves an account\'s Spam and Trash out of both counts (#1156)', async () => {
+    answer({ c: { total: 2, unread: 1 }, team: { total: 2, unread: 2 } });
+
+    await fetchTagCounts(['red'], [undefined, 'team'], { c: ['trash', 'junk'] });
+
+    const filters = Object.fromEntries(
+      mockRequest.mock.calls[0][0].map((c: [string, { filter: unknown }, string]) => [c[2], c[1].filter]),
+    );
+    const out = { inMailboxOtherThan: ['trash', 'junk'] };
+    expect(filters['t0:red']).toEqual({ operator: 'AND', conditions: [{ hasKeyword: '$label:red' }, out] });
+    expect(filters['u0:red']).toEqual({
+      operator: 'AND',
+      conditions: [{ hasKeyword: '$label:red' }, { notKeyword: '$seen' }, out],
+    });
+    // The team account has no ids listed: its filters stay as they were.
+    expect(filters['t1:red']).toEqual({ hasKeyword: '$label:red' });
+    expect(filters['u1:red']).toEqual({
+      operator: 'AND',
+      conditions: [{ hasKeyword: '$label:red' }, { notKeyword: '$seen' }],
+    });
+  });
+
+  it('asks for one id, not none: Stalwart treats limit 0 as no limit', async () => {
+    answer({ c: { total: 0, unread: 0 } });
+    await fetchTagCounts(['red']);
+    expect(mockRequest.mock.calls[0][0].map((c: [string, { limit: number }]) => c[1].limit)).toEqual([1, 1]);
   });
 
   it('sums a tag over the own and the team account in one request (#1038)', async () => {
