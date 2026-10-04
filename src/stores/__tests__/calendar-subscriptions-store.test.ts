@@ -27,6 +27,8 @@ vi.mock('../calendar-store', () => ({
   },
 }));
 vi.mock('./../auth-store', () => ({ useAuthStore: { getState: () => authState } }));
+const accountState = vi.hoisted(() => ({ accounts: [{ id: 'app-1' }] as { id: string }[] }));
+vi.mock('../account-store', () => ({ useAccountStore: { getState: () => accountState } }));
 vi.mock('react', () => ({ default: {} }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -115,6 +117,18 @@ describe('selectAccountSubscriptions', () => {
     expect(selectAccountSubscriptions(subs, null, 'acc-1', [])).toEqual([]);
   });
 
+  it('with several accounts signed in, adopts a legacy subscription only when the name matches too', () => {
+    // Account ids are unique only per server: another server's calendar can share the id.
+    accountState.accounts = [{ id: 'app-1' }, { id: 'app-2' }];
+    try {
+      const legacy = sub({ id: 'l', calendarId: 'c9', name: 'Old', accountId: 'acc-1' });
+      expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', [{ id: 'c9', name: 'Other' }])).toEqual([]);
+      expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', [{ id: 'c9', name: 'Old' }]).map((s) => s.id)).toEqual(['l']);
+    } finally {
+      accountState.accounts = [{ id: 'app-1' }];
+    }
+  });
+
   it('adopts a legacy subscription only for the login whose calendars contain it', () => {
     const legacy = sub({ id: 'l', calendarId: 'c9', name: 'Feed', accountId: 'acc-1' });
     const mine = [{ id: 'acc-1:c9', originalId: 'c9', name: 'Feed' }];
@@ -175,6 +189,19 @@ describe('subscription store', () => {
     useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'l', calendarId: 'c9', name: 'Old', accountId: 'acc-1' })] });
     useCalendarSubscriptionsStore.getState().adoptSubscriptions(ALICE, 'acc-1', [{ id: 'c9', name: 'New' }]);
     expect(useCalendarSubscriptionsStore.getState().subscriptions[0]).toMatchObject({ owner: ALICE, name: 'New' });
+  });
+
+  it('adoptSubscriptions leaves a differently named calendar alone when several accounts are signed in', () => {
+    accountState.accounts = [{ id: 'app-1' }, { id: 'app-2' }];
+    try {
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'l', calendarId: 'c9', name: 'Old', accountId: 'acc-1' })] });
+      useCalendarSubscriptionsStore.getState().adoptSubscriptions(ALICE, 'acc-1', [{ id: 'c9', name: 'Other' }]);
+      const [kept] = useCalendarSubscriptionsStore.getState().subscriptions;
+      expect(kept.owner).toBeUndefined();
+      expect(kept.name).toBe('Old');
+    } finally {
+      accountState.accounts = [{ id: 'app-1' }];
+    }
   });
 
   it('migrates version 0 state without dropping subscriptions', () => {

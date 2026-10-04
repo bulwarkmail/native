@@ -18,6 +18,7 @@ import { uploadBytes } from '../api/blob';
 import { useCalendarStore } from './calendar-store';
 import { t } from './locale-store';
 import { useAuthStore } from './auth-store';
+import { useAccountStore } from './account-store';
 
 export interface CalendarSubscription {
   id: string;
@@ -97,11 +98,14 @@ function currentCalendars(): SubscriptionCalendar[] {
 
 /**
  * Subscriptions the signed-in login may see and act on. An owned one matches
- * only its owner. An ownerless one (created before owners were recorded) is
- * claimed in two ways. With an accountId it must equal this account's and the
- * calendar id must exist; the name may differ (renamed on the server) and is
- * refreshed on adoption. Without an accountId, short Stalwart ids can collide
- * between logins, so the calendar's name must match too (as in webmail).
+ * only its owner. An ownerless one (created before owners were recorded) needs
+ * its calendar id among this login's calendars and, as in webmail, the
+ * calendar's name to match too, because short Stalwart ids collide between
+ * logins. One exception keeps a calendar renamed on the server claimable: with
+ * a single account signed in, an entry whose accountId equals this account's
+ * is adopted on the id alone and its name refreshed. With several accounts the
+ * accountId proves nothing (it is unique only per server), and adopting
+ * another server's calendar would let a refresh delete its events.
  */
 export function selectAccountSubscriptions(
   subscriptions: CalendarSubscription[],
@@ -110,11 +114,13 @@ export function selectAccountSubscriptions(
   calendars: SubscriptionCalendar[],
 ): CalendarSubscription[] {
   if (!owner) return [];
+  const idAlone = useAccountStore.getState().accounts.length === 1;
   return subscriptions.filter((s) => {
     if (s.owner) return s.owner === owner;
     if (s.accountId && s.accountId !== accountId) return false;
-    // With an accountId we skip webmail's name check so a renamed calendar stays claimable.
-    return calendars.some((c) => (c.originalId ?? c.id) === s.calendarId && (!!s.accountId || c.name === s.name));
+    return calendars.some(
+      (c) => (c.originalId ?? c.id) === s.calendarId && ((!!s.accountId && idAlone) || c.name === s.name),
+    );
   });
 }
 
@@ -125,9 +131,11 @@ export function useAccountSubscriptions(): CalendarSubscription[] {
   const adopt = useCalendarSubscriptionsStore((s) => s.adoptSubscriptions);
   const owner = useAuthStore((s) => ownerFromAuth(s));
   const accountId = currentAccountId();
+  // Read by the selector; a dependency so a second sign-in re-runs it.
+  const accountCount = useAccountStore((s) => s.accounts.length);
   const mine = React.useMemo(
     () => selectAccountSubscriptions(all, owner, accountId, calendars ?? []),
-    [all, owner, accountId, calendars],
+    [all, owner, accountId, calendars, accountCount],
   );
   const needsAdopting = mine.some((s) => !s.owner);
   React.useEffect(() => {
