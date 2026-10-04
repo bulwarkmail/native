@@ -837,10 +837,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Drop offline mail left behind by accounts no longer registered; not
-      // awaited so a slow storage scan never delays the restore.
-      void sweepOrphanedOfflineCache(useAccountStore.getState().accounts.map((a) => a.id)).catch((e) =>
-        console.warn('[offline-cache] orphan sweep failed', e),
-      );
+      // awaited so a slow storage scan never delays the restore. Only once
+      // the registry loaded: one that timed out reads as empty, and every
+      // account's mail would look orphaned.
+      if (useAccountStore.persist.hasHydrated()) {
+        void sweepOrphanedOfflineCache(useAccountStore.getState().accounts.map((a) => a.id)).catch((e) =>
+          console.warn('[offline-cache] orphan sweep failed', e),
+        );
+      }
 
       const target = accountStore.getActiveAccount() ?? accountStore.getDefaultAccount();
       if (!target) {

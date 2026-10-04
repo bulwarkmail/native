@@ -1,4 +1,5 @@
 import { jmapClient } from '../api/jmap-client';
+import { useSettingsStore } from '../stores/settings-store';
 import { generateAccountId } from './account-utils';
 import {
   getStoredRelayBaseUrl,
@@ -81,9 +82,11 @@ export function markPushRenewed(accountId: string, now = Date.now()): void {
 /**
  * Renew the push subscription of every account that has one, at most once a
  * day each (15 minutes after a failed attempt). Called when the app comes to
- * the foreground; overlapping calls share one run.
+ * the foreground; overlapping calls share one run. Does nothing while email
+ * notifications are off: the subscriptions are left to lapse.
  */
 export function renewPushOnResume(now = Date.now()): Promise<void> {
+  if (!useSettingsStore.getState().emailNotificationsEnabled) return Promise.resolve();
   if (inFlight) return inFlight;
   const run = renewDue(now).finally(() => {
     inFlight = null;

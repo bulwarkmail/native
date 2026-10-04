@@ -12,6 +12,11 @@ vi.mock('../push-notifications', () => ({
   hasNotificationPermission: vi.fn(async () => true),
 }));
 
+const settings = { emailNotificationsEnabled: true };
+vi.mock('../../stores/settings-store', () => ({
+  useSettingsStore: { getState: () => settings },
+}));
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getStoredRelayBaseUrl,
@@ -46,6 +51,21 @@ describe('renewPushOnResume', () => {
     resync.mockResolvedValue({ subscriptionId: 'sub', verified: true });
     detached.mockResolvedValue('renewed');
     permission.mockResolvedValue(true);
+    settings.emailNotificationsEnabled = true;
+  });
+
+  it('renews nothing while email notifications are off', async () => {
+    settings.emailNotificationsEnabled = false;
+    await renewPushOnResume(T0);
+    expect(accountIds).not.toHaveBeenCalled();
+    expect(resync).not.toHaveBeenCalled();
+    expect(detached).not.toHaveBeenCalled();
+
+    // Turned back on, the renewal is due at once: the skipped run recorded nothing.
+    settings.emailNotificationsEnabled = true;
+    await renewPushOnResume(T0 + HOUR);
+    expect(resync).toHaveBeenCalledTimes(1);
+    expect(detached).toHaveBeenCalledTimes(1);
   });
 
   it('renews every account: the active one through a resync, the others on their own', async () => {

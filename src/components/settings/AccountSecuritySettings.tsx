@@ -907,17 +907,19 @@ export function AccountSecuritySettings() {
         if (cancelled) return;
         setAuth(authInfo);
         // The name is readable by everyone (x:AccountSettings); the principal is
-        // admin-only, so it is just the fallback. Failures are non-fatal.
-        const namePromise = fetchAccountDisplayName();
+        // admin-only, so it is just the fallback. Failures are non-fatal, and
+        // caught at once: a quick one would otherwise go unhandled while the
+        // principal loads.
+        const namePromise = fetchAccountDisplayName().catch(() => null);
         let principalName = '';
         if (!loadIsOAuth) {
           // Principal + crypto only matter for password accounts.
           const [principal] = await Promise.allSettled([fetchPrincipal(), reloadCrypto(() => cancelled)]);
           if (principal.status === 'fulfilled') principalName = principal.value.displayName;
         }
-        const [accountName] = await Promise.allSettled([namePromise]);
+        const accountName = await namePromise;
         if (cancelled) return;
-        setDisplayName((accountName.status === 'fulfilled' && accountName.value) || principalName);
+        setDisplayName(accountName || principalName);
       } catch (err) {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : tRef.current('settings.security.load_error', 'Failed to load security settings.'));
       }

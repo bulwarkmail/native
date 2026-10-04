@@ -40,7 +40,13 @@ vi.mock('../account-data-cleanup', () => ({
   forgetSharedData: vi.fn(async () => undefined),
 }));
 
+vi.mock('../offline-cache-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../offline-cache-store')>()),
+  sweepOrphanedOfflineCache: vi.fn(async () => undefined),
+}));
+
 import { jmapClient } from '../../api/jmap-client';
+import { sweepOrphanedOfflineCache } from '../offline-cache-store';
 import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
@@ -375,6 +381,41 @@ describe('auth-store', () => {
 
       expect(restored).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    it('sweeps offline mail of accounts no longer registered', async () => {
+      useAccountStore.setState({
+        accounts: [{
+          id: 'acc-1', serverUrl: 'https://mail.example.com', username: 'user', displayName: 'user',
+          email: 'user', avatarColor: '#000', lastLoginAt: 0, isConnected: false, hasError: false, isDefault: true,
+        }],
+        activeAccountId: 'acc-1',
+        defaultAccountId: 'acc-1',
+      });
+      mockLoadAccount.mockResolvedValue(true);
+
+      await useAuthStore.getState().restoreSession();
+
+      expect(sweepOrphanedOfflineCache).toHaveBeenCalledWith(['acc-1']);
+    });
+
+    it('leaves offline mail alone when the account list never loaded', async () => {
+      vi.useFakeTimers();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const hasHydrated = vi.spyOn(useAccountStore.persist, 'hasHydrated').mockReturnValue(false);
+      try {
+        const restoring = useAuthStore.getState().restoreSession();
+        await vi.advanceTimersByTimeAsync(HYDRATION_TIMEOUT_MS);
+        await restoring;
+
+        // An empty registry here only means it isn't loaded: every account's
+        // mail would look orphaned.
+        expect(sweepOrphanedOfflineCache).not.toHaveBeenCalled();
+      } finally {
+        hasHydrated.mockRestore();
+        warn.mockRestore();
+        vi.useRealTimers();
+      }
     });
 
     it('stops waiting for a persisted store that never finishes hydrating', async () => {
