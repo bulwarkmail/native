@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const authState = vi.hoisted(() => ({ serverUrl: 'https://Mail.example.com/' as string | null, username: 'Alice' as string | null }));
 const calState = vi.hoisted(() => ({ calendars: [] as { id: string; originalId?: string; name: string }[] }));
 vi.mock('../../api/calendar', () => ({
   createCalendar: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('../calendar-store', () => ({
     }),
   },
 }));
+vi.mock('./../auth-store', () => ({ useAuthStore: { getState: () => authState } }));
 vi.mock('react', () => ({ default: {} }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -38,6 +40,7 @@ import {
   normalizeFeedUrl,
   selectAccountSubscriptions,
   subscriptionOwner,
+  ownerFromAuth,
   useCalendarSubscriptionsStore,
   type CalendarSubscription,
 } from '../calendar-subscriptions-store';
@@ -62,7 +65,13 @@ const sub = (o: Partial<CalendarSubscription>): CalendarSubscription => ({
   id: 'x', name: 'N', url: 'u', calendarId: 'c1', lastSyncAt: null, lastError: null, ...o,
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 beforeEach(() => {
+  authState.serverUrl = 'https://Mail.example.com/';
+  authState.username = 'Alice';
   calState.calendars = [];
   useCalendarSubscriptionsStore.setState({ subscriptions: [], syncing: {} });
 });
@@ -73,7 +82,26 @@ describe('subscriptionOwner', () => {
   });
 });
 
+describe('ownerFromAuth', () => {
+  it('is null when either field is missing and otherwise matches subscriptionOwner', () => {
+    expect(ownerFromAuth({ serverUrl: null, username: 'a' })).toBeNull();
+    expect(ownerFromAuth({ serverUrl: 'https://x', username: null })).toBeNull();
+    expect(ownerFromAuth({ serverUrl: 'https://Mail.example.com/', username: 'Alice' })).toBe(ALICE);
+  });
+});
+
 describe('selectAccountSubscriptions', () => {
+  it('still lists the login\'s subscriptions when not connected (owner from auth)', () => {
+    const owner = ownerFromAuth({ serverUrl: 'https://mail.example.com', username: 'alice' });
+    expect(selectAccountSubscriptions([sub({ id: 'a', owner: ALICE })], owner, null, []).map((s) => s.id)).toEqual(['a']);
+  });
+
+  it('adopts a legacy subscription whose calendar was renamed', () => {
+    const legacy = sub({ id: 'l', calendarId: 'c9', name: 'Old', accountId: 'acc-1' });
+    expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', [{ id: 'c9', name: 'New' }]).map((s) => s.id)).toEqual(['l']);
+    expect(selectAccountSubscriptions([legacy], ALICE, 'acc-2', [{ id: 'c9', name: 'New' }])).toEqual([]);
+  });
+
   it('shows a subscription only to its owner', () => {
     const subs = [sub({ id: 'a', owner: ALICE }), sub({ id: 'b', owner: BOB })];
     expect(selectAccountSubscriptions(subs, ALICE, 'acc-1', []).map((s) => s.id)).toEqual(['a']);
@@ -85,8 +113,7 @@ describe('selectAccountSubscriptions', () => {
     const legacy = sub({ id: 'l', calendarId: 'c9', name: 'Feed', accountId: 'acc-1' });
     const mine = [{ id: 'acc-1:c9', originalId: 'c9', name: 'Feed' }];
     expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', mine).map((s) => s.id)).toEqual(['l']);
-    // Same id but another name, no calendar at all, or a different account: not claimed.
-    expect(selectAccountSubscriptions([legacy], BOB, 'acc-1', [{ id: 'c9', name: 'Other' }])).toEqual([]);
+    // No calendar at all, or a different account: not claimed.
     expect(selectAccountSubscriptions([legacy], BOB, 'acc-1', [])).toEqual([]);
     expect(selectAccountSubscriptions([legacy], BOB, 'acc-2', mine)).toEqual([]);
   });
@@ -136,6 +163,12 @@ describe('subscription store', () => {
     });
     useCalendarSubscriptionsStore.getState().adoptSubscriptions(ALICE, 'acc-1', [{ id: 'c9', name: 'Feed' }]);
     expect(useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.owner)).toEqual([ALICE, undefined]);
+  });
+
+  it('adoptSubscriptions refreshes the name from a renamed calendar', () => {
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'l', calendarId: 'c9', name: 'Old' })] });
+    useCalendarSubscriptionsStore.getState().adoptSubscriptions(ALICE, 'acc-1', [{ id: 'c9', name: 'New' }]);
+    expect(useCalendarSubscriptionsStore.getState().subscriptions[0]).toMatchObject({ owner: ALICE, name: 'New' });
   });
 
   it('migrates version 0 state without dropping subscriptions', () => {

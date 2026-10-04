@@ -17,6 +17,7 @@ import { jmapClient } from '../api/jmap-client';
 import { uploadBytes } from '../api/blob';
 import { useCalendarStore } from './calendar-store';
 import { t } from './locale-store';
+import { useAuthStore } from './auth-store';
 
 export interface CalendarSubscription {
   id: string;
@@ -76,9 +77,14 @@ export function subscriptionOwner(serverUrl: string, username: string): string {
   return `${serverUrl.replace(/\/+$/, '').toLowerCase()}|${username.toLowerCase()}`;
 }
 
+/** The signed-in login's owner key; unlike the JMAP client it survives being offline. */
+export function ownerFromAuth(state: { serverUrl: string | null; username: string | null }): string | null {
+  if (!state.serverUrl || !state.username) return null;
+  return subscriptionOwner(state.serverUrl, state.username);
+}
+
 function currentOwner(): string | null {
-  if (!jmapClient.isConnected || !jmapClient.serverUrl || !jmapClient.username) return null;
-  return subscriptionOwner(jmapClient.serverUrl, jmapClient.username);
+  return ownerFromAuth(useAuthStore.getState());
 }
 
 function currentAccountId(): string | null {
@@ -92,8 +98,8 @@ function currentCalendars(): SubscriptionCalendar[] {
 /**
  * Subscriptions the signed-in login may see and act on. An owned one matches
  * only its owner. An ownerless one (created before owners were recorded) is
- * claimed only when its calendar id and name both exist in this login's
- * calendars: a bare id match could name an unrelated calendar elsewhere.
+ * claimed only when its calendar id exists in this login's calendars and its
+ * account matches.
  */
 export function selectAccountSubscriptions(
   subscriptions: CalendarSubscription[],
@@ -105,7 +111,8 @@ export function selectAccountSubscriptions(
   return subscriptions.filter((s) => {
     if (s.owner) return s.owner === owner;
     if (s.accountId && s.accountId !== accountId) return false;
-    return calendars.some((c) => (c.originalId ?? c.id) === s.calendarId && c.name === s.name);
+    // Unlike webmail we don't also require the name to match: a calendar renamed on the server would stay unclaimable.
+    return calendars.some((c) => (c.originalId ?? c.id) === s.calendarId);
   });
 }
 
@@ -114,7 +121,7 @@ export function useAccountSubscriptions(): CalendarSubscription[] {
   const all = useCalendarSubscriptionsStore((s) => s.subscriptions);
   const calendars = useCalendarStore((s) => s.calendars);
   const adopt = useCalendarSubscriptionsStore((s) => s.adoptSubscriptions);
-  const owner = currentOwner();
+  const owner = useAuthStore((s) => ownerFromAuth(s));
   const accountId = currentAccountId();
   const mine = React.useMemo(
     () => selectAccountSubscriptions(all, owner, accountId, calendars ?? []),
@@ -344,7 +351,13 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
             .map((s) => s.id),
         );
         if (claimed.size === 0) return;
-        set({ subscriptions: get().subscriptions.map((s) => (claimed.has(s.id) ? { ...s, owner } : s)) });
+        set({
+          subscriptions: get().subscriptions.map((s) => {
+            if (!claimed.has(s.id)) return s;
+            const cal = calendars.find((c) => (c.originalId ?? c.id) === s.calendarId);
+            return { ...s, owner, name: cal?.name ?? s.name };
+          }),
+        });
       },
     }),
     {
