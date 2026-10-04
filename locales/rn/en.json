@@ -305,6 +305,8 @@
     "scheduled_body": "Your message will be sent at {time}.",
     "scheduled_title": "Scheduled",
     "send_now": "Send now",
+    "send_recipients_rejected": "Not sent - the server rejected every recipient.",
+    "send_some_recipients_rejected": "Sent, but not to these recipients - the server rejected them.",
     "send_timeout_body": "The message may already have gone out. Check your Sent folder before sending it again.",
     "send_timeout_title": "No answer from the server",
     "toolbar": {
