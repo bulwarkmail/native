@@ -35,7 +35,12 @@ vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
 }));
 
+vi.mock('../account-data-cleanup', () => ({
+  forgetAccountData: vi.fn(async () => undefined),
+}));
+
 import { jmapClient } from '../../api/jmap-client';
+import { forgetAccountData } from '../account-data-cleanup';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
@@ -116,6 +121,51 @@ describe('auth-store', () => {
       ).rejects.toThrow();
 
       expect(useAuthStore.getState().error).toBe('Invalid username or password');
+    });
+  });
+
+  describe('forgetting an account\'s data', () => {
+    const entry = (id: string, serverUrl: string, username: string) => ({
+      id, serverUrl, username, displayName: username, email: username, avatarColor: '#000',
+      lastLoginAt: 0, isConnected: true, hasError: false, isDefault: false,
+    });
+
+    it('logout forgets the account\'s data', async () => {
+      useAccountStore.setState({ accounts: [entry('me@mail.example.com', 'https://mail.example.com', 'me')] });
+      useAuthStore.setState({
+        isAuthenticated: true, activeAccountId: 'me@mail.example.com',
+        serverUrl: 'https://mail.example.com', username: 'me',
+      });
+
+      await useAuthStore.getState().logout();
+
+      expect(forgetAccountData).toHaveBeenCalledWith({
+        appAccountId: 'me@mail.example.com', serverUrl: 'https://mail.example.com', username: 'me',
+      });
+    });
+
+    it('removeAccount forgets a non-active account\'s data, using its registry serverUrl and username', async () => {
+      useAccountStore.setState({ accounts: [entry('other@x.example.com', 'https://x.example.com', 'other')] });
+      useAuthStore.setState({ activeAccountId: 'me@mail.example.com' });
+
+      await useAuthStore.getState().removeAccount('other@x.example.com');
+
+      expect(forgetAccountData).toHaveBeenCalledTimes(1);
+      expect(forgetAccountData).toHaveBeenCalledWith({
+        appAccountId: 'other@x.example.com', serverUrl: 'https://x.example.com', username: 'other',
+      });
+    });
+
+    it('logoutAll forgets every account\'s data', async () => {
+      useAccountStore.setState({
+        accounts: [entry('a@x.example.com', 'https://x.example.com', 'a'), entry('b@y.example.com', 'https://y.example.com', 'b')],
+      });
+
+      await useAuthStore.getState().logoutAll();
+
+      expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'a@x.example.com', serverUrl: 'https://x.example.com', username: 'a' });
+      expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'b@y.example.com', serverUrl: 'https://y.example.com', username: 'b' });
+      expect(forgetAccountData).toHaveBeenCalledTimes(2);
     });
   });
 

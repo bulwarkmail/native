@@ -99,6 +99,8 @@ interface OutboxState {
   retryFailed: () => Promise<void>;
   discardFailed: () => void;
   clear: () => Promise<void>;
+  /** Remove one account's queued and failed ops from storage (for sign-out), active or not. */
+  clearAccount: (accountId: string) => Promise<void>;
 }
 
 function persist(accountId: string, entries: OutboxEntry[]): void {
@@ -387,6 +389,17 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       await AsyncStorage.removeItem(storageKey(accountId)).catch(() => undefined);
       await AsyncStorage.removeItem(storageKey(accountId) + FAILED_SUFFIX).catch(() => undefined);
     }
+  },
+
+  clearAccount: async (accountId) => {
+    // Only the active account's ops live in memory; another account's
+    // removal must leave them alone.
+    if (get().activeAccountId === accountId) {
+      clearRetry();
+      set({ entries: [], failed: [] });
+    }
+    await AsyncStorage.multiRemove([storageKey(accountId), storageKey(accountId) + FAILED_SUFFIX])
+      .catch(() => undefined);
   },
 }));
 

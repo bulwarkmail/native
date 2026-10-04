@@ -9,6 +9,7 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
+import { forgetAccountData } from './account-data-cleanup';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -591,6 +592,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await teardownPushNotifications().catch(() => undefined);
     }
 
+    // Read before the credentials and registry entry go: they name whose
+    // subscriptions to forget.
+    const entry = currentId ? accountStore.getAccountById(currentId) : undefined;
+    const serverUrl = entry?.serverUrl ?? get().serverUrl;
+    const username = entry?.username ?? get().username;
+
     // Clear credentials for this account first
     if (currentId) {
       await revokeStoredRefreshToken(currentId);
@@ -602,6 +609,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     jmapClient.reset();
     clearAccountFeatureStores(currentId);
+    if (currentId) await forgetAccountData({ appAccountId: currentId, serverUrl, username });
 
     // Switch to next remaining account, if any
     const remaining = accountStore.accounts;
@@ -631,7 +639,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logoutAll: async () => {
     const accountStore = useAccountStore.getState();
-    const ids = accountStore.accounts.map((a) => a.id);
+    const signedOut = [...accountStore.accounts];
+    const ids = signedOut.map((a) => a.id);
     // Device sync (#34): as in logout, for every account.
     if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
     await teardownPushNotifications().catch(() => undefined);
@@ -639,6 +648,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await jmapClient.clearAllCredentials(ids);
     jmapClient.reset();
     clearAllFeatureStores();
+    for (const a of signedOut) {
+      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username });
+    }
 
     for (const id of ids) accountStore.removeAccount(id);
 
@@ -754,7 +766,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
     const accountStore = useAccountStore.getState();
-    if (!accountStore.getAccountById(accountId)) return;
+    const account = accountStore.getAccountById(accountId);
+    if (!account) return;
     // Device sync (#34): as in logout.
     if (!(await releaseDeviceSyncBeforeSignOut([accountId]))) return;
     await teardownPushNotificationsForAccount(accountId).catch(() => undefined);
@@ -762,6 +775,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
+    await forgetAccountData({ appAccountId: accountId, serverUrl: account.serverUrl, username: account.username });
     accountStore.removeAccount(accountId);
   },
 
