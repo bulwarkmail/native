@@ -117,3 +117,40 @@ export function parseMailtoUrl(url: string): MailtoFields | null {
   if (to.length === 0 && cc.length === 0) return null;
   return { to, cc: cc.length ? cc : undefined, subject, body };
 }
+
+export const UNSUBSCRIBE_SUBJECT_MAX = 200;
+export const UNSUBSCRIBE_BODY_MAX = 500;
+
+/**
+ * Parse a List-Unsubscribe mailto: URL for a one-click send from the user's
+ * own account. The sender wrote this URL, so it is held to what an
+ * unsubscribe request needs: exactly one recipient from the address part
+ * (to=/cc= fields are ignored, a list of addresses is refused), a
+ * single-line subject and a short body.
+ */
+export function parseUnsubscribeMailto(url: string): { to: [string]; subject?: string; body?: string } | null {
+  const parsed = parseMailtoUrl(url);
+  if (!parsed) return null;
+
+  const rest = url.slice(7);
+  const queryIndex = rest.indexOf('?');
+  const addressPart = queryIndex === -1 ? rest : rest.slice(0, queryIndex);
+  const addresses = addressPart.split(',').filter((a) => a.trim() !== '');
+  if (addresses.length !== 1) return null;
+  let to: string;
+  try {
+    to = decodeURIComponent(addresses[0]).trim();
+  } catch {
+    to = addresses[0].trim();
+  }
+  if (!isValidEmail(to)) return null;
+
+  const subject = parsed.subject?.replace(/[\r\n]+/g, ' ').trim().slice(0, UNSUBSCRIBE_SUBJECT_MAX) || undefined;
+  const body = parsed.body?.slice(0, UNSUBSCRIBE_BODY_MAX) || undefined;
+  return { to: [to], subject, body };
+}
+
+/** The recipient, then subject and body on their own lines, for the confirmation. */
+export function unsubscribeConfirmDetails(fields: { to: [string]; subject?: string; body?: string }): string {
+  return [fields.to[0], fields.subject, fields.body].filter((line): line is string => !!line).join('\n');
+}
