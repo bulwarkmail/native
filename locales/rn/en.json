@@ -890,11 +890,27 @@
         "all": "All messages"
       },
       "invalid_size": "Enter a size as a whole number, optionally followed by K, M or G (for example 500K or 10M).",
+      "quick_rule_names": {
+        "block": "Block {sender}",
+        "custom": "Mail from {sender}",
+        "custom_plain": "New rule",
+        "mark_read": "Mark as read from {sender}",
+        "move_domain": "Move from @{domain} to {folder}",
+        "move_list": "Move list {list} to {folder}",
+        "move_sender": "Move from {sender} to {folder}",
+        "senders": "{count, plural, one {# sender} other {# senders}}",
+        "tag": "Tag as {tag} from {sender}"
+      },
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
         "line_count": "{count, plural, one {# line} other {# lines}}"
-      }
+      },
+      "suggest_cc": "Cc {address}",
+      "suggest_domain": "@{domain}",
+      "suggest_list": "List-Id",
+      "suggest_subject": "Subject “{subject}”",
+      "suggest_to": "To {address}"
     },
     "folders": {
       "account": "Account",
