@@ -365,6 +365,8 @@ export interface ContactCard {
   keywords?: Record<string, boolean>;
   members?: Record<string, boolean>;
   speakToAs?: ContactSpeakToAs;
+  calendars?: Record<string, { '@type'?: 'Calendar'; kind?: 'calendar' | 'freeBusy' | string; uri: string; mediaType?: string; pref?: number }>;
+  schedulingAddresses?: Record<string, { '@type'?: 'SchedulingAddress'; uri: string; pref?: number }>;
   calendarUri?: string;
   schedulingUri?: string;
   freeBusyUri?: string;
@@ -378,6 +380,7 @@ export interface ContactCard {
   accountId?: string;
   accountName?: string;
   isShared?: boolean;
+  localAccountId?: string;
 }
 
 export interface AddressBookRights {
