@@ -153,7 +153,7 @@ describe('copy to another folder of the same account', () => {
     expect(useEmailStore.getState().pendingUndo).toBeNull();
   });
 
-  it('patches mailboxIds/<dest> only for a batch ', async () => {
+  it('patches mailboxIds/<dest> only for a batch', async () => {
     await useEmailStore.getState().copyEmailsToMailbox(['e1', 'e2'], 'x');
 
     expect(mockCopy).toHaveBeenCalledWith(['e1', 'e2'], 'x', undefined);
@@ -206,6 +206,31 @@ describe('copy to another account', () => {
   });
 });
 
+describe('copy from the viewer when the list does not hold the message', () => {
+  it('copies a team message within the team account while an own folder is open', async () => {
+    useEmailStore.setState({ emails: [], currentMailboxId: 'a' });
+    const viewed = { email: { ...ROW, blobId: undefined } as unknown as Email, accountId: 'grp-1' };
+
+    await useEmailStore.getState().copyToMailbox('e1', 'grp-1:x', viewed);
+
+    expect(mockCopy).toHaveBeenCalledWith(['e1'], 'x', 'grp-1');
+    expect(jmapClient.fetchBlobArrayBuffer).not.toHaveBeenCalled();
+    expect(mockFullEmail).not.toHaveBeenCalled();
+    expect(mockImport).not.toHaveBeenCalled();
+    expect(mockDestroy).not.toHaveBeenCalled();
+  });
+
+  it('copies an own message with a plain patch while a team folder is open', async () => {
+    useEmailStore.setState({ emails: [], currentMailboxId: 'grp-1:a' });
+
+    await useEmailStore.getState().copyToMailbox('e1', 'x', { email: ROW, accountId: undefined });
+
+    expect(mockCopy).toHaveBeenCalledWith(['e1'], 'x', undefined);
+    expect(jmapClient.fetchBlobArrayBuffer).not.toHaveBeenCalled();
+    expect(mockImport).not.toHaveBeenCalled();
+  });
+});
+
 describe('a failed copy', () => {
   it('reports a failed copy as a copy', async () => {
     mockCopy.mockRejectedValue(new Error('boom'));
@@ -222,7 +247,8 @@ describe('a failed copy', () => {
     const { useNetworkStore } = await import('../network-store');
     useNetworkStore.setState({ online: false });
     try {
-      await expect(useEmailStore.getState().copyToMailbox('e1', 'grp-1:x')).rejects.toThrow();
+      await expect(useEmailStore.getState().copyToMailbox('e1', 'grp-1:x')).rejects.toThrow('Copying needs a connection');
+      await expect(useEmailStore.getState().copyToMailbox('e1', 'x')).rejects.toThrow('Copying needs a connection');
       expect(mockImport).not.toHaveBeenCalled();
     } finally {
       useNetworkStore.setState({ online: true });

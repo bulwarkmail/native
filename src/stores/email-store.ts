@@ -49,6 +49,7 @@ import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type 
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
+import { patchDetail } from '../lib/email-detail-cache';
 import { t } from './locale-store';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
@@ -1618,7 +1619,7 @@ export const useEmailStore = create<EmailState>()(
     const to = refFor(state.mailboxes, toMailboxId);
     // The viewer copies within the account it shows; a list row may go anywhere.
     if (viewed) assertViewedAccount(viewed, to);
-    await copyRows(get, set, [email], to);
+    await copyRows(get, set, [{ email, accountId: viewed ? viewed.accountId : rowAccountId(state, email) }], to);
   },
 
   archiveEmail: async (emailId, viewed) => {
@@ -1878,7 +1879,11 @@ export const useEmailStore = create<EmailState>()(
     const state = get();
     const targets = rowsByKey(state, emailIds);
     if (targets.length === 0) return;
-    await copyRows(get, set, targets, refFor(state.mailboxes, toMailboxId));
+    await copyRows(
+      get, set,
+      targets.map((email) => ({ email, accountId: rowAccountId(state, email) })),
+      refFor(state.mailboxes, toMailboxId),
+    );
   },
 
   deleteEmailsBatch: async (emailIds, trashMailboxId, currentMailboxId) => {
@@ -2296,38 +2301,43 @@ async function crossAccountMove(
 async function copyRows(
   get: () => EmailState,
   set: (partial: Partial<EmailState>) => void,
-  targets: Email[],
+  // Each message with the account it lives in. The account is the caller's
+  // knowledge of that message, never defaulted from the open folder.
+  targets: Array<{ email: Email; accountId: string | undefined }>,
   to: MailboxRef,
 ): Promise<void> {
-  const groups = new Map<string | undefined, Email[]>();
-  for (const e of targets) {
-    const accountId = rowAccountId(get(), e);
-    groups.set(accountId, [...(groups.get(accountId) ?? []), e]);
+  if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
+    throw new Error(t('email_list.copy_offline', 'Copying needs a connection'));
   }
-  const copied: Email[] = [];
+  const groups = new Map<string | undefined, Email[]>();
+  for (const { email, accountId } of targets) {
+    groups.set(accountId, [...(groups.get(accountId) ?? []), email]);
+  }
+  let copied = 0;
   try {
     for (const [accountId, rows] of groups) {
       if (accountId === to.accountId) {
-        if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
-          throw new Error(t('email_list.copy_offline', 'Copying needs a connection'));
-        }
         await copyEmailsWithinAccount(rows.map((e) => e.id), to.id, accountId);
         // Same account: the message is now in the destination too.
-        const done = new Set(rows.map(rowKeyOf));
+        const done = new Set(rows.map((e) => e.id));
         set({
-          emails: get().emails.map((e) => (done.has(rowKeyOf(e))
+          emails: get().emails.map((e) => (done.has(e.id) && rowAccountId(get(), e) === accountId
             ? { ...e, mailboxIds: { ...e.mailboxIds, [to.id]: true } }
             : e)),
         });
-        for (const e of rows) patchCache(e.id, { mailboxIds: { ...e.mailboxIds, [to.id]: true } }, accountId);
+        for (const e of rows) {
+          const mailboxIds = { ...e.mailboxIds, [to.id]: true };
+          patchCache(e.id, { mailboxIds }, accountId);
+          patchDetail(e.id, accountId, { mailboxIds });
+        }
       } else {
         await crossAccountMove(rows, { accountId, id: '' }, to, { keepOriginal: true });
       }
-      copied.push(...rows);
+      copied += rows.length;
     }
   } finally {
     // The destination's counts changed; its account's folders are refetched.
-    if (copied.length > 0) void get().fetchMailboxes();
+    if (copied > 0) void get().fetchMailboxes();
   }
 }
 
