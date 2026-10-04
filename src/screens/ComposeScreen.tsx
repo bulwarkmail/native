@@ -231,6 +231,9 @@ function initialsOf(name: string, email: string): string {
   return getEmailInitials(name.trim(), email);
 }
 
+/** Most server-search hits shown after the local suggestions. */
+const MAX_SERVER_HITS = 20;
+
 function SuggestionList({
   suggestions, onPick, onPressIn, onSearchServer, searching,
 }: {
@@ -246,6 +249,11 @@ function SuggestionList({
   const t = useLocaleStore((s) => s.t);
   return (
     <View style={styles.suggestionBox}>
+      <ScrollView
+        style={styles.suggestionScroll}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+      >
       {suggestions.map((s, i) => (
         <Pressable
           key={`${s.group?.id ?? s.email}-${i}`}
@@ -272,6 +280,7 @@ function SuggestionList({
           </View>
         </Pressable>
       ))}
+      </ScrollView>
       {onSearchServer && (
         <Pressable
           onPressIn={onPressIn}
@@ -863,11 +872,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const latestQuery = React.useRef('');
   latestQuery.current = suggestionQuery.trim();
   const trimmedQuery = suggestionQuery.trim();
-  const canSearchServer = trimmedQuery.length >= 2;
+  const canSearchServer = trimmedQuery.length >= 2 && ownerActive;
 
   const searchServer = () => {
     const q = latestQuery.current;
-    if (searchingServer || q.length < 2) return;
+    if (searchingServer || q.length < 2 || !ownerActiveNow()) return;
     setSearchingServer(true);
     void searchRecipients(q)
       .then((hits) => {
@@ -880,7 +889,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const suggestions = React.useMemo<RecipientSuggestion[]>(() => {
     if (serverHits?.query !== trimmedQuery) return localSuggestions;
-    return mergeServerHits(localSuggestions, serverHits.hits, alreadySelected);
+    return mergeServerHits(localSuggestions, serverHits.hits.slice(0, MAX_SERVER_HITS), alreadySelected);
   }, [localSuggestions, serverHits, trimmedQuery, alreadySelected]);
 
   const setterFor = (field: Field) =>
@@ -3198,6 +3207,11 @@ function makeStyles(c: ThemePalette) {
     zIndex: 20,
     elevation: 5,
     overflow: 'hidden',
+    maxHeight: 290,
+  },
+  // About five rows; the "Search the server" row stays pinned below this.
+  suggestionScroll: {
+    maxHeight: 240,
   },
   suggestionRow: {
     flexDirection: 'row',

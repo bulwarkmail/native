@@ -484,6 +484,17 @@ describe('contacts-store', () => {
       warn.mockRestore();
     });
 
+    it('retries a failed load on the next call', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockGetPrincipals.mockRejectedValueOnce(new Error('boom'));
+      await useContactsStore.getState().loadDirectory();
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(mockGetPrincipals).toHaveBeenCalledTimes(2);
+      expect(useContactsStore.getState().getAutocomplete('dana')).toHaveLength(1);
+      warn.mockRestore();
+    });
+
     it('reset drops the directory, and a load in flight across a reset is discarded', async () => {
       mockGetPrincipals.mockResolvedValue([dana]);
       await useContactsStore.getState().loadDirectory();

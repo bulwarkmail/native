@@ -736,6 +736,10 @@ export const useContactsStore = create<ContactsState>()(
           } catch (err) {
             // Directory people are a nicety; the composer works without them.
             console.warn('[contacts-store] load directory failed', err);
+            // Release the claim so the next composer open retries.
+            if (generation === directoryGeneration && get().directoryAccountId === accountId) {
+              set({ directoryAccountId: null });
+            }
           }
         },
 
