@@ -36,6 +36,8 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
+import { useAuthStore } from '../stores/auth-store';
+import { composerOwnerAtMount, isComposerAccountActive } from '../lib/composer-account';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
@@ -438,6 +440,48 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const prefillBody = route.params?.prefillBody;
   const prefillAttachments = route.params?.prefillAttachments;
   const isReplyLike = !!replyTo && !draft;
+
+  // The account this message belongs to, pinned at mount. A notification tap
+  // or deep link can switch accounts under the open composer, and the JMAP
+  // client then serves only the new account: saving, sending, discarding the
+  // server draft and uploading wait until the owner is active again. The
+  // email store swaps its view before the client finishes switching, so both
+  // must point at the owner.
+  const ownerRef = React.useRef<ReturnType<typeof composerOwnerAtMount> | undefined>(undefined);
+  if (ownerRef.current === undefined) {
+    ownerRef.current = composerOwnerAtMount({
+      draftJmapAccountId: draft?.jmapAccountId,
+      activeAppAccountId: useAuthStore.getState().activeAccountId,
+      activeJmapAccountId: jmapClient.isConnected ? jmapClient.accountId : null,
+      accounts: useAccountStore.getState().accounts,
+    });
+  }
+  const owner = ownerRef.current;
+  const authActiveAccountId = useAuthStore((s) => s.activeAccountId);
+  const viewActiveAccountId = useEmailStore((s) => s.activeAccountId);
+  const ownerActive = !owner
+    || (isComposerAccountActive(owner, authActiveAccountId) && isComposerAccountActive(owner, viewActiveAccountId));
+  const ownerActiveRef = React.useRef(ownerActive);
+  ownerActiveRef.current = ownerActive;
+  const ownerEntry = owner ? useAccountStore.getState().getAccountById(owner.appAccountId) : undefined;
+
+  // Explain a blocked action and offer the way back to the owner.
+  const alertAccountSwitched = () => {
+    if (!owner) return;
+    const account = ownerEntry?.email || ownerEntry?.displayName || ownerEntry?.username || '';
+    Alert.alert(
+      t('email_composer.account_switched_title', 'Account changed'),
+      t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account }),
+      [
+        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('email_composer.account_switched_action', 'Switch to {account}', { account }),
+          onPress: () => { void useAuthStore.getState().switchAccount(owner.appAccountId); },
+        },
+      ],
+    );
+  };
+
   const mailboxes = useEmailStore((s) => s.mailboxes);
   // Always the user's own Sent — composing on behalf of a shared account
   // isn't supported, so a group account's Sent must never be picked up here.
@@ -491,8 +535,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // a self-sent message continues to its original recipients (#703).
   const ownEmails = React.useMemo(() => {
     const out = new Set<string>();
-    const active = useAccountStore.getState().getActiveAccount();
-    for (const e of [active?.email, active?.username, jmapClient.username]) {
+    for (const e of [ownerEntry?.email, ownerEntry?.username, jmapClient.username]) {
       if (e && e.includes('@')) out.add(e);
     }
     for (const i of identities) if (i.email) out.add(i.email);
@@ -881,8 +924,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // default") identity, else the one matching the active account.
   React.useEffect(() => {
     if (selectedIdentityId || identities.length === 0) return;
-    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
-    const preferredId = preferredIdentityIds[jmapClient.accountId];
+    const activeEmail = ownerEntry?.email || jmapClient.username;
+    const preferredId = owner ? preferredIdentityIds[owner.jmapAccountId] : undefined;
     const defaultIdentity =
       identities.find((i) => i.id === preferredId)
       ?? identities.find((i) => i.email.toLowerCase() === activeEmail?.toLowerCase())
@@ -922,7 +965,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const primaryIdentity = React.useMemo(() => {
     if (identities.length === 0) return null;
-    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
+    const activeEmail = ownerEntry?.email || jmapClient.username;
     const defaultIdentity = identities.find(
       (i) => i.email.toLowerCase() === activeEmail?.toLowerCase()
     ) ?? identities[0];
@@ -1280,7 +1323,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
     const identity = primaryIdentity;
-    if (!identity || !draftsMailbox || sendingRef.current) return draftIdRef.current;
+    if (!identity || !draftsMailbox || sendingRef.current || !ownerActiveRef.current) return draftIdRef.current;
     let html = latestRef.current.bodyHtml;
     if (opts.live && !plainTextMode) {
       try {
@@ -1335,12 +1378,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    if (!isDirty || !needsSave || !draftsMailbox || !primaryIdentity) return;
+    // Skipped silently while another account is active; resumes on return.
+    if (!isDirty || !needsSave || !draftsMailbox || !primaryIdentity || !ownerActive) return;
     const sinceLast = Date.now() - lastSaveAtRef.current;
     const wait = Math.max(2000, autoSaveDraftInterval - sinceLast);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      if (sendingRef.current || !latestRef.current.needsSave) return;
+      if (sendingRef.current || !latestRef.current.needsSave || !ownerActiveRef.current) return;
       // Live: the editor posts its content throttled, so read the DOM itself.
       saveDraftRef.current({ live: true }).catch((err) => {
         console.warn('[compose] autosave failed', err);
@@ -1350,7 +1394,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSnapshot, draftsMailbox?.id, primaryIdentity?.id]);
+  }, [currentSnapshot, draftsMailbox?.id, primaryIdentity?.id, ownerActive]);
 
   // ── Close guard ──────────────────────────────────────────────────────
 
@@ -1373,6 +1417,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       Alert.alert(t('email_composer.save_failed', 'Failed to save'), draftUnsavableReason);
       return;
     }
+    if (!ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     setSavingDraft(true);
     try {
       await saveDraft({ live: true });
@@ -1391,6 +1439,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const discardAndClose = (proceed: () => void) => {
+    // The server draft lives in the owner's account; destroying it now would
+    // hit the active one instead.
+    if ((draftIdRef.current || inflightSaveRef.current) && !draft && !ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -1580,6 +1634,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   const pickPhotoAttachments = async () => {
+    if (!ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -1608,6 +1666,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const takePhotoAttachment = async () => {
+    if (!ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -1629,6 +1691,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const pickFileAttachments = async () => {
+    if (!ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     let result: DocumentPicker.DocumentPickerResult;
     try {
       result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
@@ -1684,6 +1750,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const insertInlineImage = async () => {
+    if (!ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -2058,6 +2128,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const performSend = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
     if (sendingRef.current) return;
+    if (!ownerActiveRef.current) {
+      alertAccountSwitched();
+      return;
+    }
     sendingRef.current = true;
     try {
       await performSendInner(holdForSeconds, scheduledAt);

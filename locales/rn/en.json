@@ -267,6 +267,9 @@
     "signing_out": "Removing synced contacts and calendars from this device…"
   },
   "email_composer": {
+    "account_switched_action": "Switch to {account}",
+    "account_switched_body": "This message was started in {account}. Switch back to it to send, save or attach files.",
+    "account_switched_title": "Account changed",
     "attach_camera": "Camera",
     "attachment_reminder_body": "Your message mentions \"{keyword}\" but no file is attached. Send anyway?",
     "attachment_reminder_title": "Forgot an attachment?",
