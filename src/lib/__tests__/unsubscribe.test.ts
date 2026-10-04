@@ -69,6 +69,23 @@ describe('parseUnsubscribeMailto', () => {
     expect(r.body).toHaveLength(500);
     expect(parseUnsubscribeMailto(`mailto:l@x.example?subject=${'s'.repeat(300)}`)!.subject).toHaveLength(200);
   });
+  it('refuses an address that a server could split into several recipients', () => {
+    for (const url of [
+      'mailto:unsub@news.example%2Call-staff',
+      'mailto:x%3E%2C%3Cvictim@evil.com',
+      'mailto:x:ceo@corp.example;',
+      'mailto:a%2Cb@x.com',
+      'mailto:hr%E2%80%AE@corp.example',
+    ]) expect(parseUnsubscribeMailto(url)).toBeNull();
+  });
+  it('ignores repeated to= fields and refuses a non-address with a valid to=', () => {
+    expect(parseUnsubscribeMailto('mailto:boss@corp.example?to=hr@corp.example&to=press@news.example&subject=I%20resign')?.to)
+      .toEqual(['boss@corp.example']);
+    expect(parseUnsubscribeMailto('mailto:nobody?to=victim@corp.example')).toBeNull();
+  });
+  it('strips bidi and invisible characters from the subject', () => {
+    expect(parseUnsubscribeMailto('mailto:l@x.example?subject=un%E2%80%AEsub%E2%80%8Bscribe')?.subject).toBe('unsubscribe');
+  });
   it('parseMailtoUrl still accepts several addresses', () => {
     expect(parseMailtoUrl('mailto:a@x.example,b@y.example')?.to).toEqual(['a@x.example', 'b@y.example']);
   });

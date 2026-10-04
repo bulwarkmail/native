@@ -121,6 +121,17 @@ export function parseMailtoUrl(url: string): MailtoFields | null {
 export const UNSUBSCRIBE_SUBJECT_MAX = 200;
 export const UNSUBSCRIBE_BODY_MAX = 500;
 
+// One dot-atom address (RFC 5322 atext local part, LDH domain labels). The
+// loose isValidEmail lets "x>,<victim@evil.com" through as one recipient that
+// a server may split in two. Non-ASCII (including bidi/invisible characters)
+// is rejected, which is acceptable for a list-unsubscribe address.
+const ATEXT = "[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+";
+const LABEL = '[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?';
+const PLAIN_ADDRESS = new RegExp(`^${ATEXT}(?:\\.${ATEXT})*@${LABEL}(?:\\.${LABEL})+$`);
+function isPlainAddress(address: string): boolean {
+  return address.length <= 254 && PLAIN_ADDRESS.test(address);
+}
+
 /**
  * Parse a List-Unsubscribe mailto: URL for a one-click send from the user's
  * own account. The sender wrote this URL, so it is held to what an
@@ -143,9 +154,9 @@ export function parseUnsubscribeMailto(url: string): { to: [string]; subject?: s
   } catch {
     to = addresses[0].trim();
   }
-  if (!isValidEmail(to)) return null;
+  if (!isPlainAddress(to)) return null;
 
-  const subject = parsed.subject?.replace(/[\r\n]+/g, ' ').trim().slice(0, UNSUBSCRIBE_SUBJECT_MAX) || undefined;
+  const subject = parsed.subject?.replace(/[\r\n]+/g, ' ').replace(/\p{Cf}/gu, '').trim().slice(0, UNSUBSCRIBE_SUBJECT_MAX) || undefined;
   const body = parsed.body?.slice(0, UNSUBSCRIBE_BODY_MAX) || undefined;
   return { to: [to], subject, body };
 }
