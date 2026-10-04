@@ -10,7 +10,7 @@ vi.mock('../push-renewal', () => ({ markPushRenewed: vi.fn() }));
 
 import { shouldResyncForInboxOnly } from '../push-inbox-only';
 
-const s = (pushNotifyInboxOnly: boolean, emailNotificationsEnabled = true) => ({ pushNotifyInboxOnly, emailNotificationsEnabled });
+const s = (pushNotifyInboxOnly: boolean, emailNotificationsEnabled = true, hydrated = true) => ({ pushNotifyInboxOnly, emailNotificationsEnabled, hydrated });
 
 describe('shouldResyncForInboxOnly', () => {
   it('re-syncs when the value changes', () => {
@@ -19,6 +19,10 @@ describe('shouldResyncForInboxOnly', () => {
   });
   it('does nothing when the value is unchanged', () => {
     expect(shouldResyncForInboxOnly(s(true), s(true))).toBe(false);
+  });
+  it('ignores the change hydration makes', () => {
+    expect(shouldResyncForInboxOnly(s(true, true, true), s(false, true, false))).toBe(false);
+    expect(shouldResyncForInboxOnly(s(true, true, false), s(false, true, false))).toBe(false);
   });
   it('does nothing while notifications are off', () => {
     expect(shouldResyncForInboxOnly(s(true, false), s(false, false))).toBe(false);

@@ -910,24 +910,35 @@ async function pollVerificationCode(
 // resulting swarm starves Stalwart's one-PushVerification-per-60s slot so none
 // of them ever verifies (the symptom is a perpetual "Timed out waiting for
 // PushVerification"). Callers share the first in-flight run instead.
-const inFlightSetups = new Map<string, Promise<PushSetupResult>>();
+const inFlightSetups = new Map<string, { run: Promise<PushSetupResult>; inboxOnly: boolean }>();
 
 /**
  * Full setup flow: ask permission, fetch the device's FCM token, register
  * with the relay, create a JMAP PushSubscription, poll for the verification
  * code, and finalise the subscription. Concurrent calls for the same account
- * are coalesced onto a single in-flight run.
+ * are coalesced onto a single in-flight run. A run builds its delivery filter
+ * from the "Inbox only" setting as it was when the run started; a caller that
+ * joins a run started under a different value re-runs once after it settles,
+ * so a change made mid-setup is never lost. (Each re-run starts from the
+ * current value, so this ends as soon as the setting stops changing.)
  */
-export function setupPushNotifications(
+export async function setupPushNotifications(
   params: PushSetupParams,
 ): Promise<PushSetupResult> {
+  // The filter must not be built from the pre-hydration default.
+  await useSettingsStore.getState().hydrate();
+  const inboxOnly = useSettingsStore.getState().pushNotifyInboxOnly;
   const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
   const existing = inFlightSetups.get(key);
-  if (existing) return existing;
-  const run = setupPushNotificationsInner(params).finally(() => {
+  if (existing) {
+    if (existing.inboxOnly === inboxOnly) return existing.run;
+    await existing.run.catch(() => undefined);
+    return setupPushNotifications(params);
+  }
+  const run = setupPushNotificationsInner(params, inboxOnly).finally(() => {
     inFlightSetups.delete(key);
   });
-  inFlightSetups.set(key, run);
+  inFlightSetups.set(key, { run, inboxOnly });
   return run;
 }
 
@@ -937,6 +948,7 @@ function logPhase(phase: string, detail?: string): void {
 
 async function setupPushNotificationsInner(
   params: PushSetupParams,
+  inboxOnly: boolean,
 ): Promise<PushSetupResult> {
   const transport = await getEffectivePushTransport();
   const native = getNative();
@@ -1016,7 +1028,7 @@ async function setupPushNotificationsInner(
   if (params.forceRecreate) await AsyncStorage.removeItem(emailPushRefusedKey(accountId));
   const refusedBefore = await readRefusedEmailPushAccounts(accountId);
   const emailPush = serverSupportsEmailPush()
-    ? withoutAccounts(await buildEmailPushConfig(useSettingsStore.getState().pushNotifyInboxOnly), refusedBefore)
+    ? withoutAccounts(await buildEmailPushConfig(inboxOnly), refusedBefore)
     : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);

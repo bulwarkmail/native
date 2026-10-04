@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useSettingsStore } from '../../stores/settings-store';
 
 // Provide the Android native FCM surface setupPushNotifications needs. The
 // global test-setup mocks react-native with an empty NativeModules, so override
@@ -258,6 +259,70 @@ describe('setupPushNotifications leftover reaping', () => {
 
     expect(createMock).toHaveBeenCalledTimes(1);
     expect(new Set(results.map((r) => r.subscriptionId)).size).toBe(1);
+  });
+});
+
+describe('setupPushNotifications and the Inbox-only setting', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    listMock.mockResolvedValue([]);
+    installFetch({});
+    useSettingsStore.setState({ hydrated: true, pushNotifyInboxOnly: false });
+  });
+  afterEach(() => {
+    createMock.mockImplementation(async () => CREATED);
+    useSettingsStore.setState({
+      pushNotifyInboxOnly: false,
+      hydrate: useSettingsStore.getInitialState().hydrate,
+    });
+  });
+
+  // Holds the first subscription write until released.
+  function holdFirstCreate() {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let first = true;
+    createMock.mockImplementation(async () => {
+      if (first) { first = false; await gate; }
+      return CREATED;
+    });
+    return release;
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+
+  it('re-runs once with the new value when the setting flips during a run', async () => {
+    const release = holdFirstCreate();
+    const first = setupPushNotifications({ relayBaseUrl: RELAY });
+    await settle();
+    useSettingsStore.setState({ pushNotifyInboxOnly: true });
+    const joined = setupPushNotifications({ relayBaseUrl: RELAY });
+    await settle();
+    expect(createMock).toHaveBeenCalledTimes(1);
+    release();
+    await Promise.all([first, joined]);
+    expect(createMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not re-run when a joiner sees the same value', async () => {
+    const release = holdFirstCreate();
+    const first = setupPushNotifications({ relayBaseUrl: RELAY });
+    await settle();
+    const joined = setupPushNotifications({ relayBaseUrl: RELAY });
+    release();
+    await Promise.all([first, joined]);
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for settings to hydrate before reading the setting', async () => {
+    const hydrate = vi.fn(async () => {
+      useSettingsStore.setState({ hydrated: true, pushNotifyInboxOnly: true });
+    });
+    useSettingsStore.setState({ hydrated: false, pushNotifyInboxOnly: false, hydrate });
+    const first = setupPushNotifications({ relayBaseUrl: RELAY });
+    await first;
+    expect(hydrate).toHaveBeenCalled();
   });
 });
 

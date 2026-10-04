@@ -7,16 +7,24 @@ import { markPushRenewed } from './push-renewal';
 interface InboxOnlySlice {
   pushNotifyInboxOnly: boolean;
   emailNotificationsEnabled: boolean;
+  hydrated: boolean;
 }
 
 /**
  * The delivery filter lives on the server subscription, so flipping the
  * setting has to re-run the push setup. Only when the value actually changed,
  * and never while email notifications are off (the account has no
- * subscription to update then; turning them back on runs a full setup).
+ * subscription to update then; turning them back on runs a full setup). A
+ * change seen while settings load (the persisted value replacing the default)
+ * is no change: the store must have been hydrated before and after it.
  */
 export function shouldResyncForInboxOnly(next: InboxOnlySlice, prev: InboxOnlySlice): boolean {
-  return next.pushNotifyInboxOnly !== prev.pushNotifyInboxOnly && next.emailNotificationsEnabled;
+  return (
+    prev.hydrated &&
+    next.hydrated &&
+    next.pushNotifyInboxOnly !== prev.pushNotifyInboxOnly &&
+    next.emailNotificationsEnabled
+  );
 }
 
 /**
