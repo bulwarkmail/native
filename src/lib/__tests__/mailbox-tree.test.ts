@@ -7,6 +7,7 @@ import {
   mailboxesForSiblingOf,
   mailboxesOfAccount,
   mailboxOfEmail,
+  moveTargetsFor,
   ownMailboxes,
   SHARED_ACCOUNT_NODE_PREFIX,
 } from '../mailbox-tree';
@@ -155,6 +156,18 @@ describe('account scoping helpers', () => {
     expect(mailboxesOfAccount(all, 'grp-1').map((m) => m.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
     // An account whose folders are not loaded has none: nothing to guess from.
     expect(mailboxesOfAccount(all, 'grp-9')).toEqual([]);
+  });
+
+  it('offers a moved message\'s own account\'s folders, all of them when the selection spans accounts', () => {
+    expect(moveTargetsFor(all, [undefined]).map((m) => m.id)).toEqual(['inbox', 'trash']);
+    expect(moveTargetsFor(all, [undefined, undefined]).map((m) => m.id)).toEqual(['inbox', 'trash']);
+    // A shared-account row gets only that account's folders.
+    expect(moveTargetsFor(all, ['grp-1']).map((m) => m.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
+    // Mixed: cross-account moves are supported, so the full list stays.
+    expect(moveTargetsFor(all, [undefined, 'grp-1'])).toBe(all);
+    expect(moveTargetsFor(all, ['grp-1', 'grp-2'])).toBe(all);
+    // Nothing selected: nothing to scope by.
+    expect(moveTargetsFor(all, [])).toBe(all);
   });
 
   it('finds the folder a message is filed in, preferring the one it was opened from', () => {

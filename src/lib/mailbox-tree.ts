@@ -51,6 +51,16 @@ export function mailboxesOfAccount(mailboxes: Mailbox[], accountId: string | und
 }
 
 /**
+ * The folders the Move sheet offers for rows of a list: the one account's own
+ * when every row belongs to it (undefined = the user's own), every folder when
+ * the rows span accounts, since a cross-account move is supported.
+ */
+export function moveTargetsFor(mailboxes: Mailbox[], rowAccountIds: (string | undefined)[]): Mailbox[] {
+  if (rowAccountIds.length === 0 || rowAccountIds.some((a) => a !== rowAccountIds[0])) return mailboxes;
+  return mailboxesOfAccount(mailboxes, rowAccountIds[0]);
+}
+
+/**
  * The folder a message is filed in among one account's `mailboxes`: the
  * preferred one (the folder it was opened from) when the message is in it,
  * otherwise the first of its folders that is known. `mailboxIds` comes from

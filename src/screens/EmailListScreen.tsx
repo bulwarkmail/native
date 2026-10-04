@@ -40,7 +40,7 @@ import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import {
-  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, ownMailboxes,
+  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveTargetsFor, ownMailboxes,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
@@ -736,6 +736,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     () => expandThreadSelection(selectedIds, emails, disableThreading),
     [selectedIds, emails, disableThreading],
   );
+  const pendingMoveRow = pendingMoveId ? emails.find((e) => rowKeyOf(e) === pendingMoveId) : undefined;
   const selectedEmails = React.useMemo(() => {
     const wanted = new Set(selectedMessageIds);
     return emails.filter((e) => wanted.has(rowKeyOf(e)));
@@ -1699,12 +1700,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         );
       })()}
 
-      {/* Every account's folders are offered: a move into another account's
-          folder is a copy+delete through the blob (webmail 1.7.2). */}
+      {/* A message's own account's folders are offered (webmail c317cd9); a
+          selection spanning accounts keeps every folder, since a move into
+          another account's folder is a copy+delete through the blob. */}
       <MoveSheet
         visible={pendingMoveId !== null}
         onClose={() => setPendingMoveId(null)}
-        mailboxes={mailboxes}
+        mailboxes={moveTargetsFor(mailboxes, pendingMoveRow ? [accountIdOfRow(pendingMoveRow)] : [])}
         currentMailboxId={currentMailboxId}
         onPick={(toId) => {
           const id = pendingMoveId;
@@ -1720,7 +1722,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       <MoveSheet
         visible={batchMoveOpen}
         onClose={() => setBatchMoveOpen(false)}
-        mailboxes={mailboxes}
+        mailboxes={moveTargetsFor(mailboxes, selectedEmails.map(accountIdOfRow))}
         currentMailboxId={currentMailboxId}
         onPick={handleBatchMovePick}
       />
