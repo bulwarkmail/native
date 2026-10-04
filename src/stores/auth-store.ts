@@ -203,6 +203,9 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { 
 // to, gets the client back, and an account the registry never took keeps no
 // credentials behind. Otherwise every request would go out as the new
 // account while the app still shows the old one.
+// connectWithToken's error for a session that names no user (webmail's text).
+const NO_ACCOUNT_NAME = 'The server did not name the account';
+
 async function undoConnect(previous: ClientSnapshot | null, accountId: string, wasRegistered: boolean): Promise<void> {
   if (previous) jmapClient.restoreSnapshot(previous);
   else jmapClient.reset();
@@ -446,8 +449,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       if (previous) jmapClient.restoreSnapshot(previous);
       // A 401 is a rejected token; a 403 reaches us as a failed session fetch.
-      const rejected = err instanceof AuthenticationError
-        || (err instanceof Error && /session discovery failed: 40[13]\b/i.test(err.message));
+      // The missing-username error and a second-factor demand are not a bad
+      // token: they pass through for their own copy.
+      const rejected = !(err instanceof Error && (err.name === 'TotpRequiredError' || err.message === NO_ACCOUNT_NAME))
+        && (err instanceof AuthenticationError
+          || (err instanceof Error && /session discovery failed: 40[13]\b/i.test(err.message)));
       return fail(rejected ? new AuthenticationError('invalid_token') : err);
     }
 

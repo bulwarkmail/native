@@ -11,6 +11,11 @@ function named(name: string, message: string): Error {
 }
 
 describe('describeLoginError', () => {
+  it('names the account problem separately from a rejected token', () => {
+    const copy = describeLoginError(Object.assign(new Error('The server did not name the account'), { name: 'AuthenticationError' }));
+    expect(copy.detail).toContain('did not say which account');
+  });
+
   it('explains a rejected access token without echoing anything typed', () => {
     const copy = describeLoginError(new Error('invalid_token'));
     expect(copy.detail).toContain('did not accept this access token');

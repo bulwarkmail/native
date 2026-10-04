@@ -42,6 +42,12 @@ vi.mock('../../api/jmap-client', () => ({
       this.name = 'AuthenticationError';
     }
   },
+  TotpRequiredError: class TotpRequiredError extends Error {
+    constructor() {
+      super('TOTP_REQUIRED');
+      this.name = 'TotpRequiredError';
+    }
+  },
   NetworkError: class NetworkError extends Error {},
 }));
 
@@ -50,7 +56,7 @@ vi.mock('../../lib/push-notifications', () => ({
   teardownPushNotificationsForAccount: vi.fn(async () => undefined),
 }));
 
-import { jmapClient, AuthenticationError } from '../../api/jmap-client';
+import { jmapClient, AuthenticationError, TotpRequiredError } from '../../api/jmap-client';
 import { cleanAccessToken } from '../../lib/access-token';
 import { MAX_ACCOUNTS } from '../../lib/account-utils';
 import { useAuthStore } from '../auth-store';
@@ -118,6 +124,20 @@ describe('loginWithToken', () => {
     expect(useAuthStore.getState().error).toBe('invalid_token');
   });
 
+  it('does not call a missing account name an invalid token', async () => {
+    connectWithToken.mockRejectedValueOnce(new AuthenticationError('The server did not name the account'));
+
+    await expect(useAuthStore.getState().loginWithToken(SERVER, 'tok')).rejects.toThrow('did not name the account');
+    expect(useAuthStore.getState().error).toBe('The server did not name the account');
+  });
+
+  it('does not call a second-factor demand an invalid token', async () => {
+    connectWithToken.mockRejectedValueOnce(new TotpRequiredError());
+
+    await expect(useAuthStore.getState().loginWithToken(SERVER, 'tok')).rejects.toThrow('TOTP_REQUIRED');
+    expect(useAuthStore.getState().error).toBe('TOTP_REQUIRED');
+  });
+
   it('keeps other failures as they are', async () => {
     connectWithToken.mockRejectedValueOnce(new Error('Session discovery failed: 500 Server Error'));
 
@@ -170,7 +190,9 @@ describe('loginWithToken', () => {
     // username is known.
     await expect(useAuthStore.getState().loginWithToken(SERVER, 'tok')).rejects.toThrow();
 
-    expect(jmapClient.restoreSnapshot).not.toHaveBeenCalledWith(undefined);
+    // No previous session to give back: the client is reset instead.
+    expect(jmapClient.reset).toHaveBeenCalled();
+    expect(useAccountStore.getState().accounts).toHaveLength(MAX_ACCOUNTS);
     expect(jmapClient.clearAccountCredentials).toHaveBeenCalled();
   });
 });

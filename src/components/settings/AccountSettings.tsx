@@ -51,7 +51,7 @@ export function AccountSettings() {
   const email = account?.email || authUsername || '';
   const username = account?.username || authUsername || undefined;
   const serverUrl = account?.serverUrl || authServerUrl || '';
-  // Live client state, not a prop: OAuth/handoff accounts carry a bearer token.
+  // Live client state, not a prop: `authKind` tells a password, an OAuth bundle and a pasted access token apart.
   const authMode = jmapClient.authKind;
 
   const [quota, setQuota] = useState<MailQuota | null>(null);

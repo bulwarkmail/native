@@ -321,7 +321,7 @@ export class JMAPClient {
 
       const username = this.session.username?.trim();
       if (!username) {
-        throw new AuthenticationError('The server did not say which account this token belongs to');
+        throw new AuthenticationError('The server did not name the account');
       }
       this.credentials.username = username;
 

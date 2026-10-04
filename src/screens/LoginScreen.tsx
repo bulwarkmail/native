@@ -98,9 +98,11 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // common no-2FA sign-in stays a two-field form.
   const [totp, setTotp] = React.useState('');
   const [totpRequired, setTotpRequired] = React.useState(false);
-  // Access-token sign-in. The token lives in component state only while the
-  // step is open; it is cleared as soon as the attempt ends.
-  const [tokenServer, setTokenServer] = React.useState('');
+  // Access-token sign-in. The token lives in component state only; it is
+  // cleared on a successful sign-in (a failed attempt keeps it so a typo in
+  // the server address can be fixed without pasting it again). The server
+  // field follows the current server until the user edits it.
+  const [tokenServerEdit, setTokenServerEdit] = React.useState<string | null>(null);
   const [token, setToken] = React.useState('');
   const [failedDomain, setFailedDomain] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<LoginErrorCopy | null>(null);
@@ -145,6 +147,8 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     const active = accounts.find((a) => a.id === activeAccountId);
     return active?.serverUrl ?? accounts[0]?.serverUrl ?? null;
   }, [accounts, activeAccountId]);
+
+  const tokenServer = tokenServerEdit ?? (serverUrl || knownServerUrl || '');
 
   const goTo = React.useCallback(
     (next: StepName) => {
@@ -629,7 +633,6 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
             }}
             onSubmit={() => void handlePasswordSubmit()}
             onUseToken={() => {
-              setTokenServer((current) => current || serverUrl || knownServerUrl || '');
               goTo('token');
             }}
             notice={notice}
@@ -642,7 +645,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
             token={token}
             onChangeServer={(value) => {
               setNotice(null);
-              setTokenServer(value);
+              setTokenServerEdit(value);
             }}
             onChangeToken={(value) => {
               setNotice(null);

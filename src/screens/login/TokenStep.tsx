@@ -60,7 +60,9 @@ export default function TokenStep({
         autoCapitalize="none"
         autoCorrect={false}
         secureTextEntry
-        textContentType="password"
+        textContentType="none"
+        autoComplete="off"
+        importantForAutofill="no"
         returnKeyType="go"
         onSubmitEditing={onSubmit}
       />

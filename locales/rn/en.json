@@ -540,6 +540,7 @@
       "err_rate_title": "Too many attempts",
       "err_server_detail": "The server answered with an error. Try again in a few minutes.",
       "err_server_title": "{host} is having trouble",
+      "err_token_no_account": "The server accepted the token but did not say which account it belongs to. Check that it is a mail access token.",
       "err_totp_bad_detail": "Check your password and the current code from your authenticator app, then try again.",
       "err_totp_detail": "This account is protected with two-factor sign-in. Type the 6-digit code from your authenticator app.",
       "err_totp_title": "Enter your two-factor code",
