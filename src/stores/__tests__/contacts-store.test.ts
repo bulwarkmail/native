@@ -28,6 +28,10 @@ vi.mock('../../api/recent-recipients', () => ({
   searchSentRecipients: vi.fn(),
 }));
 
+vi.mock('../../api/principals', () => ({
+  getPrincipals: vi.fn(),
+}));
+
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
     getItem: vi.fn().mockResolvedValue(null),
@@ -45,10 +49,12 @@ vi.mock('../../api/jmap-client', () => ({
 
 import * as contactsApi from '../../api/contacts';
 import * as recentApi from '../../api/recent-recipients';
+import * as principalsApi from '../../api/principals';
 import {
   useContactsStore,
   cleanGroupMembers,
   normalizeSuggestions,
+  mergeServerHits,
   selectVisibleContacts,
   selectGroupMembers,
   sortContactsByName,
@@ -69,6 +75,8 @@ const mockCreateAddressBook = contactsApi.createAddressBook as ReturnType<typeof
 const mockDeleteAddressBook = contactsApi.deleteAddressBook as ReturnType<typeof vi.fn>;
 const mockSetDefaultAddressBook = contactsApi.setDefaultAddressBook as ReturnType<typeof vi.fn>;
 const mockGetContactsInBook = contactsApi.getContactsInBook as ReturnType<typeof vi.fn>;
+const mockGetPrincipals = principalsApi.getPrincipals as ReturnType<typeof vi.fn>;
+const mockSearchSent = recentApi.searchSentRecipients as ReturnType<typeof vi.fn>;
 const mockQueryRecent = recentApi.queryRecentRecipients as ReturnType<typeof vi.fn>;
 
 const card = (id: string, extra: Partial<ContactCard> = {}): ContactCard =>
@@ -404,6 +412,115 @@ describe('contacts-store', () => {
       expect(mockUpdateContact).toHaveBeenCalledTimes(1);
       expect(mockUpdateContact).toHaveBeenCalledWith('c1', { keywords: { Keep: true, New: true } }, undefined);
       expect(useContactsStore.getState().selectedCategory).toEqual({ type: 'keyword', keyword: 'New' });
+    });
+  });
+
+  describe('directory people', () => {
+    const dana = { id: 'p1', type: 'individual', name: 'dana', description: 'Dana Director', email: 'dana@example.com' };
+
+    it('should augment results with directory principals', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([
+        { name: 'Dana Director', email: 'dana@example.com' },
+      ]);
+    });
+
+    it('matches on description and drops principals without an email', async () => {
+      mockGetPrincipals.mockResolvedValue([dana, { id: 'p2', type: 'group', name: 'staff', email: null }]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('director')).toHaveLength(1);
+      expect(useContactsStore.getState().getAutocomplete('staff')).toEqual([]);
+    });
+
+    it('should not duplicate a directory principal already matched as a contact', async () => {
+      useContactsStore.setState({
+        contacts: [card('c1', { name: { full: 'Jane' }, emails: { e: { address: 'jane@example.com' } } })],
+      });
+      mockGetPrincipals.mockResolvedValue([
+        { id: 'p3', type: 'individual', name: 'Jane From Directory', email: 'JANE@example.com' },
+      ]);
+      await useContactsStore.getState().loadDirectory();
+      const results = useContactsStore.getState().getAutocomplete('jane');
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Jane');
+    });
+
+    it('lets a nameless contact borrow the directory name', async () => {
+      useContactsStore.setState({
+        contacts: [card('c1', { emails: { e: { address: 'dana@example.com' } } })],
+      });
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana@')).toEqual([
+        { name: 'Dana Director', email: 'dana@example.com' },
+      ]);
+    });
+
+    it('sits after contacts and before recent recipients', async () => {
+      useContactsStore.setState({
+        contacts: [card('c1', { name: { full: 'Dan Contact' }, emails: { e: { address: 'dan@x.com' } } })],
+      });
+      mockQueryRecent.mockResolvedValue([{ name: 'Dan Recent', email: 'danr@x.com' }]);
+      await useContactsStore.getState().loadRecentRecipients('sent-1');
+      mockGetPrincipals.mockResolvedValue([{ id: 'p', type: 'individual', name: 'Dan Dir', email: 'dand@x.com' }]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dan').map((r) => r.email))
+        .toEqual(['dan@x.com', 'dand@x.com', 'danr@x.com']);
+    });
+
+    it('loads once per account', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      await useContactsStore.getState().loadDirectory();
+      expect(mockGetPrincipals).toHaveBeenCalledTimes(1);
+    });
+
+    it('a failed load leaves no directory people and does not throw', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockGetPrincipals.mockRejectedValue(new Error('boom'));
+      await expect(useContactsStore.getState().loadDirectory()).resolves.toBeUndefined();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+      warn.mockRestore();
+    });
+
+    it('reset drops the directory, and a load in flight across a reset is discarded', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      useContactsStore.getState().reset();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+
+      let release!: (v: unknown[]) => void;
+      mockGetPrincipals.mockReturnValue(new Promise((r) => { release = r; }));
+      const pending = useContactsStore.getState().loadDirectory();
+      useContactsStore.getState().reset();
+      release([dana]);
+      await pending;
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+    });
+  });
+
+  describe('server recipient search', () => {
+    it('searchRecipients queries the Sent folder for the query', async () => {
+      useContactsStore.setState({ sentMailboxId: 'sent-1' });
+      mockSearchSent.mockResolvedValue([{ name: 'Zed', email: 'zed@x.com' }]);
+      expect(await useContactsStore.getState().searchRecipients(' zed ')).toEqual([{ name: 'Zed', email: 'zed@x.com' }]);
+      expect(mockSearchSent).toHaveBeenCalledWith('zed', 'sent-1');
+    });
+  });
+
+  describe('mergeServerHits', () => {
+    it('appends new hits, deduped by email and skipping already-selected', () => {
+      const shown = [{ name: 'A', email: 'a@x.com' }];
+      const hits = [
+        { name: 'A again', email: 'A@x.com' },
+        { name: 'B', email: 'b@x.com' },
+        { name: 'C', email: 'c@x.com' },
+      ];
+      expect(mergeServerHits(shown, hits, new Set(['c@x.com']))).toEqual([
+        { name: 'A', email: 'a@x.com' },
+        { name: 'B', email: 'b@x.com' },
+      ]);
     });
   });
 

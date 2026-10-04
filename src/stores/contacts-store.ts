@@ -23,6 +23,7 @@ import {
   stripClientFields,
 } from '../api/contacts';
 import { queryRecentRecipients, searchSentRecipients, type RecentRecipient } from '../api/recent-recipients';
+import { getPrincipals } from '../api/principals';
 import { jmapClient } from '../api/jmap-client';
 import {
   getContactDisplayName,
@@ -56,6 +57,37 @@ export interface RecipientSuggestion {
   group?: { id: string; memberCount: number };
 }
 
+/** A directory person (JMAP Principal with an address) offered as a suggestion. */
+export interface DirectoryPerson {
+  name: string;
+  email: string;
+  description: string;
+}
+
+/**
+ * Append server-search hits to the shown suggestions: deduped by address
+ * (case-insensitive) and skipping addresses already on the message.
+ */
+export function mergeServerHits(
+  shown: RecipientSuggestion[],
+  hits: RecipientSuggestion[],
+  alreadySelected: Set<string>,
+): RecipientSuggestion[] {
+  const seen = new Set(shown.map((s) => s.email.toLowerCase()));
+  const out = [...shown];
+  for (const hit of hits) {
+    const key = hit.email.toLowerCase();
+    if (!key || seen.has(key) || alreadySelected.has(key)) continue;
+    seen.add(key);
+    out.push(hit);
+  }
+  return out;
+}
+
+// Bumped by reset() so a directory load that lands after an account switch
+// is discarded instead of showing the old account's people.
+let directoryGeneration = 0;
+
 export interface ContactsState {
   addressBooks: AddressBook[];
   contacts: ContactCard[];
@@ -78,6 +110,10 @@ export interface ContactsState {
   recentRecipients: RecentRecipient[];
   recentRecipientsLoaded: boolean;
   sentMailboxId: string | null;
+
+  // Other people on the server (JMAP Principals), cached per account.
+  directoryPeople: DirectoryPerson[];
+  directoryAccountId: string | null;
 
   hydrate: () => Promise<void>;
   fetchAddressBooks: () => Promise<void>;
@@ -118,6 +154,8 @@ export interface ContactsState {
 
   // Composer autocomplete
   loadRecentRecipients: (sentMailboxId?: string | null) => Promise<void>;
+  /** Loads the directory once per account; failures just mean no directory suggestions. */
+  loadDirectory: () => Promise<void>;
   searchRecipients: (query: string) => Promise<RecipientSuggestion[]>;
   getAutocomplete: (query: string, limit?: number) => RecipientSuggestion[];
   findContactByEmail: (email: string) => ContactCard | undefined;
@@ -314,6 +352,8 @@ export const useContactsStore = create<ContactsState>()(
         recentRecipients: [],
         recentRecipientsLoaded: false,
         sentMailboxId: null,
+        directoryPeople: [],
+        directoryAccountId: null,
 
         hydrate: async () => {
           if (get().hydrated) return;
@@ -676,6 +716,29 @@ export const useContactsStore = create<ContactsState>()(
           }
         },
 
+        loadDirectory: async () => {
+          const accountId = jmapClient.accountId;
+          if (!jmapClient.isConnected || !accountId || get().directoryAccountId === accountId) return;
+          const generation = directoryGeneration;
+          // Claim the account up front so concurrent callers share one load.
+          set({ directoryAccountId: accountId, directoryPeople: [] });
+          try {
+            const principals = await getPrincipals();
+            if (generation !== directoryGeneration) return;
+            const people: DirectoryPerson[] = [];
+            for (const p of principals) {
+              const email = p.email?.trim();
+              if (!email) continue;
+              const description = p.description?.trim() ?? '';
+              people.push({ name: description || p.name || '', email, description });
+            }
+            set({ directoryPeople: people });
+          } catch (err) {
+            // Directory people are a nicety; the composer works without them.
+            console.warn('[contacts-store] load directory failed', err);
+          }
+        },
+
         searchRecipients: async (query) => {
           const mailboxId = get().sentMailboxId;
           const q = query.trim();
@@ -714,6 +777,30 @@ export const useContactsStore = create<ContactsState>()(
               if (!entry.address) continue;
               if (name.toLowerCase().includes(q) || entry.address.toLowerCase().includes(q)) {
                 results.push({ name, email: entry.address });
+              }
+            }
+          }
+
+          // Directory people (other users on the server). Contacts take
+          // precedence, but a contact with no name borrows the directory's.
+          const { directoryPeople } = get();
+          if (directoryPeople.length > 0) {
+            const seen = new Set(results.map((r) => r.email.toLowerCase()));
+            for (const p of directoryPeople) {
+              const addr = p.email.toLowerCase();
+              if (seen.has(addr)) {
+                if (p.name && p.name !== p.email) {
+                  const existing = results.find((r) => r.email.toLowerCase() === addr);
+                  if (existing && (!existing.name || existing.name === existing.email)) existing.name = p.name;
+                }
+                continue;
+              }
+              if (results.length >= limit) continue;
+              if (
+                p.name.toLowerCase().includes(q) || addr.includes(q) || p.description.toLowerCase().includes(q)
+              ) {
+                results.push({ name: p.name !== p.email ? p.name : '', email: p.email });
+                seen.add(addr);
               }
             }
           }
@@ -833,21 +920,26 @@ export const useContactsStore = create<ContactsState>()(
           persistCategory(category);
         },
 
-        reset: () => set({
-          addressBooks: [],
-          contacts: [],
-          selectedCategory: { type: 'all' },
-          loading: false,
-          error: null,
-          contactsFetchedAt: 0,
-          trustedSendersBookId: null,
-          trustedSenderEmails: [],
-          trustedSendersLoaded: false,
-          trustedSendersLoading: false,
-          recentRecipients: [],
-          recentRecipientsLoaded: false,
-          sentMailboxId: null,
-        }),
+        reset: () => {
+          directoryGeneration++;
+          set({
+            addressBooks: [],
+            contacts: [],
+            selectedCategory: { type: 'all' },
+            loading: false,
+            error: null,
+            contactsFetchedAt: 0,
+            trustedSendersBookId: null,
+            trustedSenderEmails: [],
+            trustedSendersLoaded: false,
+            trustedSendersLoading: false,
+            recentRecipients: [],
+            recentRecipientsLoaded: false,
+            sentMailboxId: null,
+            directoryPeople: [],
+            directoryAccountId: null,
+          });
+        },
       };
     },
     {
