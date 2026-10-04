@@ -40,7 +40,7 @@ import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import {
-  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveTargetsFor, ownMailboxes,
+  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveOwnerAccountId, ownMailboxes,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
@@ -1700,13 +1700,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         );
       })()}
 
-      {/* A message's own account's folders are offered (webmail c317cd9); a
-          selection spanning accounts keeps every folder, since a move into
-          another account's folder is a copy+delete through the blob. */}
+      {/* Every account's folders are offered: a move into another account's
+          folder is a copy+delete through the blob (webmail 1.7.2). A message
+          in a shared account sees that account's folders first and the user's
+          own after, under a header (webmail c317cd9, #1149); a selection
+          spanning accounts keeps the usual order. */}
       <MoveSheet
         visible={pendingMoveId !== null}
         onClose={() => setPendingMoveId(null)}
-        mailboxes={moveTargetsFor(mailboxes, pendingMoveRow ? [accountIdOfRow(pendingMoveRow)] : [])}
+        mailboxes={mailboxes}
+        ownerAccountId={moveOwnerAccountId(pendingMoveRow ? [accountIdOfRow(pendingMoveRow)] : [])}
         currentMailboxId={currentMailboxId}
         onPick={(toId) => {
           const id = pendingMoveId;
@@ -1722,7 +1725,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       <MoveSheet
         visible={batchMoveOpen}
         onClose={() => setBatchMoveOpen(false)}
-        mailboxes={moveTargetsFor(mailboxes, selectedEmails.map(accountIdOfRow))}
+        mailboxes={mailboxes}
+        ownerAccountId={moveOwnerAccountId(selectedEmails.map(accountIdOfRow))}
         currentMailboxId={currentMailboxId}
         onPick={handleBatchMovePick}
       />

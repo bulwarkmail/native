@@ -14,6 +14,9 @@ export interface MailboxNode extends Mailbox {
 // Id prefix for the virtual per-shared-account node. Matches the webmail's
 // `shared-account-<accountId>` convention in [lib/utils.ts].
 export const SHARED_ACCOUNT_NODE_PREFIX = 'shared-account-';
+// The header the Move sheet puts over the user's own folders when a shared
+// account leads (webmail `own-account-<accountId>`).
+export const OWN_ACCOUNT_NODE_PREFIX = 'own-account-';
 
 /** The user's own folders — everything not owned by a shared/group account. */
 export function ownMailboxes(mailboxes: Mailbox[]): Mailbox[] {
@@ -51,13 +54,62 @@ export function mailboxesOfAccount(mailboxes: Mailbox[], accountId: string | und
 }
 
 /**
- * The folders the Move sheet offers for rows of a list: the one account's own
- * when every row belongs to it (undefined = the user's own), every folder when
- * the rows span accounts, since a cross-account move is supported.
+ * The shared account a Move sheet should lead with: the one every row belongs
+ * to. Undefined when the rows are the user's own, span accounts, or there are
+ * none, since the user's own folders already lead and a mixed selection keeps
+ * today's order.
  */
-export function moveTargetsFor(mailboxes: Mailbox[], rowAccountIds: (string | undefined)[]): Mailbox[] {
-  if (rowAccountIds.length === 0 || rowAccountIds.some((a) => a !== rowAccountIds[0])) return mailboxes;
-  return mailboxesOfAccount(mailboxes, rowAccountIds[0]);
+export function moveOwnerAccountId(rowAccountIds: (string | undefined)[]): string | undefined {
+  const first = rowAccountIds[0];
+  return first && rowAccountIds.every((a) => a === first) ? first : undefined;
+}
+
+/**
+ * Order a Move sheet's `tree` (from `buildMailboxTree`) so the message's own
+ * shared account leads and the user's own folders follow under a header with
+ * their account name, then any other shared accounts (webmail c317cd9, #1149:
+ * a familiar name like "Spam" must not silently move a message out of the
+ * shared account). Every folder stays; a cross-account move is one pick away.
+ */
+export function orderMoveTree(
+  tree: MailboxNode[],
+  mailboxes: Mailbox[],
+  ownerAccountId: string | undefined,
+): MailboxNode[] {
+  const ownerNode = ownerAccountId
+    ? tree.find((n) => n.isAccountNode && n.id === `${SHARED_ACCOUNT_NODE_PREFIX}${ownerAccountId}`)
+    : undefined;
+  if (!ownerNode) return tree;
+
+  const own = tree.filter((n) => !n.isAccountNode);
+  const others = tree.filter((n) => n.isAccountNode && n !== ownerNode);
+  const ordered: MailboxNode[] = [ownerNode];
+  if (own.length > 0) {
+    const sample = mailboxes.find((m) => !m.isShared);
+    const ownAccountId = sample?.accountId ?? '';
+    const ownName = sample?.accountName || ownAccountId;
+    const indent = (nodes: MailboxNode[]): MailboxNode[] =>
+      nodes.map((n) => ({ ...n, depth: n.depth + 1, children: indent(n.children) }));
+    ordered.push({
+      id: `${OWN_ACCOUNT_NODE_PREFIX}${ownAccountId}`,
+      name: ownName,
+      sortOrder: 1000,
+      totalEmails: 0,
+      unreadEmails: 0,
+      totalThreads: 0,
+      unreadThreads: 0,
+      myRights: ownerNode.myRights,
+      isSubscribed: true,
+      accountId: ownAccountId,
+      accountName: ownName,
+      isShared: false,
+      isAccountNode: true,
+      children: indent(own),
+      depth: 0,
+    });
+  }
+  ordered.push(...others);
+  return ordered;
 }
 
 /**

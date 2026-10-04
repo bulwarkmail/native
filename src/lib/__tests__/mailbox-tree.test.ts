@@ -7,7 +7,9 @@ import {
   mailboxesForSiblingOf,
   mailboxesOfAccount,
   mailboxOfEmail,
-  moveTargetsFor,
+  moveOwnerAccountId,
+  orderMoveTree,
+  OWN_ACCOUNT_NODE_PREFIX,
   ownMailboxes,
   SHARED_ACCOUNT_NODE_PREFIX,
 } from '../mailbox-tree';
@@ -158,16 +160,22 @@ describe('account scoping helpers', () => {
     expect(mailboxesOfAccount(all, 'grp-9')).toEqual([]);
   });
 
-  it('offers a moved message\'s own account\'s folders, all of them when the selection spans accounts', () => {
-    expect(moveTargetsFor(all, [undefined]).map((m) => m.id)).toEqual(['inbox', 'trash']);
-    expect(moveTargetsFor(all, [undefined, undefined]).map((m) => m.id)).toEqual(['inbox', 'trash']);
-    // A shared-account row gets only that account's folders.
-    expect(moveTargetsFor(all, ['grp-1']).map((m) => m.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
-    // Mixed: cross-account moves are supported, so the full list stays.
-    expect(moveTargetsFor(all, [undefined, 'grp-1'])).toBe(all);
-    expect(moveTargetsFor(all, ['grp-1', 'grp-2'])).toBe(all);
-    // Nothing selected: nothing to scope by.
-    expect(moveTargetsFor(all, [])).toBe(all);
+  it('leads a moved message\'s own shared account, own folders after it under a header', () => {
+    const tree = orderMoveTree(buildMailboxTree(all), all, moveOwnerAccountId(['grp-1']));
+    expect(tree.map((n) => n.id)).toEqual([`${SHARED_ACCOUNT_NODE_PREFIX}grp-1`, `${OWN_ACCOUNT_NODE_PREFIX}acc-1`, `${SHARED_ACCOUNT_NODE_PREFIX}grp-2`]);
+    expect(tree[0].children.map((n) => n.id)).toEqual(['grp-1:inbox', 'grp-1:trash']);
+    // The user's own folders are still offered, one level under their header.
+    expect(tree[1].isAccountNode).toBe(true);
+    expect(tree[1].children.map((n) => [n.id, n.depth])).toEqual([['inbox', 1], ['trash', 1]]);
+  });
+
+  it('keeps the order for an own-account row and for a selection spanning accounts', () => {
+    const base = buildMailboxTree(all);
+    expect(orderMoveTree(base, all, moveOwnerAccountId([undefined]))).toBe(base);
+    expect(moveOwnerAccountId([undefined, 'grp-1'])).toBeUndefined();
+    expect(moveOwnerAccountId(['grp-1', 'grp-2'])).toBeUndefined();
+    expect(moveOwnerAccountId([])).toBeUndefined();
+    expect(moveOwnerAccountId(['grp-1', 'grp-1'])).toBe('grp-1');
   });
 
   it('finds the folder a message is filed in, preferring the one it was opened from', () => {

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { buildMailboxTree, flattenVisible, type MailboxNode } from '../lib/mailbox-tree';
+import { buildMailboxTree, flattenVisible, orderMoveTree, type MailboxNode } from '../lib/mailbox-tree';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
 import { localizeMailboxName } from '../lib/mailbox-label';
@@ -33,10 +33,16 @@ interface MoveSheetProps {
   /** Folder the email is currently in - shown with a check, not selectable. */
   currentMailboxId: string | null;
   onPick: (id: string) => void;
+  /**
+   * The shared account the moved message lives in: its folders lead and the
+   * user's own follow under a header, so a familiar name like "Spam" is not
+   * the obvious pick (webmail #1149). Omit to keep the usual order.
+   */
+  ownerAccountId?: string;
 }
 
 export function MoveSheet({
-  visible, onClose, mailboxes, currentMailboxId, onPick,
+  visible, onClose, mailboxes, currentMailboxId, onPick, ownerAccountId,
 }: MoveSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -61,7 +67,7 @@ export function MoveSheet({
   }, [visible, slideY, overlayOpacity]);
 
   const visibleNodes = React.useMemo(() => {
-    const tree = buildMailboxTree(mailboxes);
+    const tree = orderMoveTree(buildMailboxTree(mailboxes), mailboxes, ownerAccountId);
     const expanded = new Set<string>();
     const collect = (nodes: MailboxNode[]) => {
       for (const n of nodes) {
@@ -73,7 +79,7 @@ export function MoveSheet({
     };
     collect(tree);
     return flattenVisible(tree, expanded);
-  }, [mailboxes]);
+  }, [mailboxes, ownerAccountId]);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
