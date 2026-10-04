@@ -585,11 +585,16 @@ export class JMAPClient {
   // before the caller has a chance to substitute values into them.
   private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
     const serverOrigin = extractOrigin(serverUrl);
+    // The origin the server itself names for its API, taken before apiUrl is
+    // rewritten. A download/upload/event URL on a different https origin is
+    // one the server deliberately hosts elsewhere (Fastmail serves downloads
+    // from fastmailusercontent.com) and is kept as reported.
+    const reportedOrigin = extractOrigin(session.apiUrl ?? '');
     const rewrite = (url: string | undefined): string | undefined =>
-      rewriteSessionUrl(url, serverOrigin);
+      isHostedElsewhere(url, reportedOrigin) ? url : rewriteSessionUrl(url, serverOrigin);
     return {
       ...session,
-      apiUrl: rewrite(session.apiUrl) ?? session.apiUrl,
+      apiUrl: rewriteSessionUrl(session.apiUrl, serverOrigin) ?? session.apiUrl,
       downloadUrl: rewrite(session.downloadUrl) ?? session.downloadUrl,
       uploadUrl: rewrite(session.uploadUrl) ?? session.uploadUrl,
       eventSourceUrl: rewrite(session.eventSourceUrl) ?? session.eventSourceUrl,
@@ -1207,6 +1212,22 @@ export interface ClientSnapshot {
 export function extractOrigin(url: string): string | null {
   const m = url.match(/^(https?:\/\/[^/?#]+)/i);
   return m ? m[1] : null;
+}
+
+/**
+ * True when `url` is absolute, https, and on a different origin from the
+ * (absolute) origin the session reported for its own apiUrl. Scheme and host
+ * compare case-insensitively.
+ */
+export function isHostedElsewhere(
+  url: string | undefined,
+  reportedApiOrigin: string | null,
+): boolean {
+  if (!url || !reportedApiOrigin) return false;
+  const origin = extractOrigin(url);
+  if (!origin) return false;
+  const o = origin.toLowerCase();
+  return o.startsWith('https:') && o !== reportedApiOrigin.toLowerCase();
 }
 
 /**

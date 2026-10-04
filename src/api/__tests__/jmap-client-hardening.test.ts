@@ -171,6 +171,101 @@ describe('pure helpers', () => {
   });
 });
 
+async function sessionAfterConnect(
+  serverUrl: string,
+  urls: Partial<Pick<JMAPSession, 'apiUrl' | 'downloadUrl' | 'uploadUrl' | 'eventSourceUrl'>>,
+): Promise<JMAPSession> {
+  mockFetch([{ status: 200, json: { ...SESSION, ...urls } }]);
+  const client = new JMAPClient();
+  await client.connect(serverUrl, 'user', 'pass');
+  return client.currentSession as JMAPSession;
+}
+
+describe('session URL rewriting (full path)', () => {
+  const DOWNLOAD = '/download/{accountId}/{blobId}/{name}?type={type}';
+
+  it('keeps a download URL on another HTTPS domain', async () => {
+    const session = await sessionAfterConnect('https://api.fastmail.com', {
+      apiUrl: 'https://api.fastmail.com/jmap/api/',
+      downloadUrl: 'https://www.fastmailusercontent.com/jmap/download/{accountId}/{blobId}/{name}?type={type}',
+      uploadUrl: 'https://www.fastmailusercontent.com/jmap/upload/{accountId}/',
+      eventSourceUrl: 'https://api.fastmail.com/jmap/event/',
+    });
+    expect(session.downloadUrl).toBe(
+      'https://www.fastmailusercontent.com/jmap/download/{accountId}/{blobId}/{name}?type={type}',
+    );
+    expect(session.uploadUrl).toBe('https://www.fastmailusercontent.com/jmap/upload/{accountId}/');
+    expect(session.eventSourceUrl).toBe('https://api.fastmail.com/jmap/event/');
+  });
+
+  it('keeps another-domain URLs even when the connect URL differs from the reported apiUrl', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: 'https://api.example.net/jmap/',
+      downloadUrl: 'https://dl.example.org/d/{accountId}/{blobId}/{name}?type={type}',
+    });
+    expect(session.apiUrl).toBe('https://mail.example.com/jmap/');
+    expect(session.downloadUrl).toBe('https://dl.example.org/d/{accountId}/{blobId}/{name}?type={type}');
+  });
+
+  it('compares origins case-insensitively', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: 'HTTPS://Mail.Example.com/jmap/',
+      downloadUrl: 'https://MAIL.example.com' + DOWNLOAD,
+    });
+    // Same origin as apiUrl, so it is rewritten (here: to the connect origin).
+    expect(session.downloadUrl).toBe('https://mail.example.com' + DOWNLOAD);
+  });
+
+  it('still rewrites a localhost or http URL (self-hosted behaviour unchanged)', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: 'http://localhost:8080/jmap/',
+      downloadUrl: 'http://localhost:8080' + DOWNLOAD,
+      uploadUrl: 'http://stalwart:8080/upload/{accountId}/',
+      eventSourceUrl: 'http://localhost:8080/eventsource/?types={types}',
+    });
+    expect(session.apiUrl).toBe('https://mail.example.com/jmap/');
+    expect(session.downloadUrl).toBe('https://mail.example.com' + DOWNLOAD);
+    expect(session.uploadUrl).toBe('https://mail.example.com/upload/{accountId}/');
+    expect(session.eventSourceUrl).toBe('https://mail.example.com/eventsource/?types={types}');
+  });
+
+  it('rewrites an http URL on another host even when apiUrl is https', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: 'https://mail.example.com/jmap/',
+      downloadUrl: 'http://cdn.example.org' + DOWNLOAD,
+    });
+    expect(session.downloadUrl).toBe('https://mail.example.com' + DOWNLOAD);
+  });
+
+  it('rewrites an https container-internal host when apiUrl is not absolute', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: '/jmap/',
+      downloadUrl: 'https://internal.svc' + DOWNLOAD,
+    });
+    expect(session.apiUrl).toBe('https://mail.example.com/jmap/');
+    expect(session.downloadUrl).toBe('https://mail.example.com' + DOWNLOAD);
+  });
+
+  it('rewrites a relative URL', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: '/jmap/',
+      downloadUrl: DOWNLOAD,
+      uploadUrl: 'upload/{accountId}/',
+      eventSourceUrl: '/eventsource/',
+    });
+    expect(session.downloadUrl).toBe('https://mail.example.com' + DOWNLOAD);
+    expect(session.uploadUrl).toBe('https://mail.example.com/upload/{accountId}/');
+    expect(session.eventSourceUrl).toBe('https://mail.example.com/eventsource/');
+  });
+
+  it('always rewrites apiUrl, even to another HTTPS domain', async () => {
+    const session = await sessionAfterConnect('https://mail.example.com', {
+      apiUrl: 'https://api.fastmail.com/jmap/api/',
+    });
+    expect(session.apiUrl).toBe('https://mail.example.com/jmap/api/');
+  });
+});
+
 describe('FirstTouchGate', () => {
   it('serialises the first calendar/contacts request per account', async () => {
     const gate = new FirstTouchGate();
