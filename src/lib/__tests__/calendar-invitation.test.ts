@@ -8,8 +8,8 @@ import {
   getEmailAuthenticationResults,
   getInvitationMethod,
   getInvitationTrustAssessment,
-  parseAuthenticationResults,
 } from '../calendar-invitation';
+import { parseAuthenticationResults } from '../email-headers';
 
 const request = {
   organizerCalendarAddress: 'mailto:alice@example.com',
@@ -70,6 +70,34 @@ describe('authentication results', () => {
   it('lets a HELO failure escalate but not a HELO none downgrade', () => {
     expect(parseAuthenticationResults('spf=pass smtp.mailfrom=a.com; spf=none smtp.helo=b.com').spf?.result).toBe('pass');
     expect(parseAuthenticationResults('spf=pass smtp.mailfrom=a.com; spf=fail smtp.helo=b.com').spf?.result).toBe('fail');
+  });
+
+  it('does not take a pass from a lower, sender-written header', () => {
+    const forged = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [
+        { name: 'Authentication-Results', value: 'mx.example; spf=fail smtp.mailfrom=evil.example; dkim=none; dmarc=fail header.from=bank.example' },
+        { name: 'Authentication-Results', value: 'evil.example; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example' },
+      ],
+    });
+    const auth = getEmailAuthenticationResults(forged);
+    expect(auth?.dmarc?.result).toBe('fail');
+    expect(auth?.dkim?.result).not.toBe('pass');
+    expect(getInvitationTrustAssessment(request, forged, 'request').level).toBe('warning');
+  });
+
+  it('does not let a lower header fill a mechanism the topmost one omits', () => {
+    const forged = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [
+        { name: 'Authentication-Results', value: 'mx.example; spf=none smtp.mailfrom=evil.example' },
+        { name: 'Authentication-Results', value: 'evil.example; dkim=pass header.d=example.com; dmarc=pass header.from=example.com' },
+      ],
+    });
+    const auth = getEmailAuthenticationResults(forged);
+    expect(auth?.dkim?.result).not.toBe('pass');
+    expect(auth?.dmarc?.result).not.toBe('pass');
+    expect(getInvitationTrustAssessment(request, forged, 'request').reason).toBe('authentication_missing');
   });
 
   it('reads the Authentication-Results header from the email headers', () => {

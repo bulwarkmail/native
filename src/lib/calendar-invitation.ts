@@ -1,4 +1,5 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
+import { headerValues, parseAuthenticationResults, type AuthenticationResults } from './email-headers';
 
 // ─── Address helpers ─────────────────────────────────────
 
@@ -266,60 +267,18 @@ export function calendarInvitationKey(
 
 // ─── Authentication-Results / trust ──────────────────────
 
-export interface AuthenticationResults {
-  spf?: { result: string; domain?: string };
-  dkim?: { result: string; domain?: string; selector?: string };
-  dmarc?: { result: string; domain?: string; policy?: string };
-}
-
-/** Parse an Authentication-Results header into SPF / DKIM / DMARC results. */
-export function parseAuthenticationResults(header: string): AuthenticationResults {
-  const results: AuthenticationResults = {};
-  // A header can carry several SPF results (HELO and MAIL FROM); the MAIL FROM
-  // identity is primary, another identity may only escalate to a failure.
-  const spfRegex = /spf=(\w+)(?:\s+\([^)]*\))?(?:\s+smtp\.(mailfrom|helo)=([^\s;]+))?/g;
-  const severity: Record<string, number> = {
-    fail: 6, softfail: 5, permerror: 4, temperror: 3, neutral: 2, none: 1, pass: 0,
-  };
-  const spf: Array<{ result: string; identity?: string; domain?: string }> = [];
-  let m: RegExpExecArray | null;
-  while ((m = spfRegex.exec(header)) !== null) {
-    spf.push({ result: m[1].toLowerCase(), identity: m[2], domain: m[3] });
-  }
-  if (spf.length > 0) {
-    let primary = spf.find((e) => e.identity === 'mailfrom') ?? spf[0];
-    for (const cur of spf) {
-      const s = severity[cur.result] ?? -1;
-      if (s >= severity.temperror && s > (severity[primary.result] ?? -1)) primary = cur;
-    }
-    results.spf = { result: primary.result, domain: primary.domain };
-  }
-  const dkim = header.match(/dkim=(\w+)(?:\s+header\.d=([^\s;]+))?(?:\s+header\.s=([^\s;]+))?/);
-  if (dkim) results.dkim = { result: dkim[1].toLowerCase(), domain: dkim[2], selector: dkim[3] };
-  const dmarc = header.match(/dmarc=(\w+)(?:\s+header\.from=([^\s;]+))?(?:\s+policy\.dmarc=(\w+))?/);
-  if (dmarc) results.dmarc = { result: dmarc[1].toLowerCase(), domain: dmarc[2], policy: dmarc[3] };
-  return results;
-}
-
-/** Authentication results of an email, derived from its raw headers. */
+/**
+ * Authentication results of an email, derived from its raw headers. Uses the
+ * mail viewer's rule: only the topmost header (our own server's) can supply a
+ * pass; lower, sender-written headers may only escalate SPF to a failure.
+ */
 export function getEmailAuthenticationResults(
   email?: Pick<Email, 'headers'> | null,
 ): AuthenticationResults | null {
   if (!email?.headers) return null;
-  const values = email.headers
-    .filter((h) => h.name.toLowerCase() === 'authentication-results')
-    .map((h) => h.value);
+  const values = headerValues(email.headers, 'Authentication-Results');
   if (values.length === 0) return null;
-  // Merge: the first (outermost, added by our own server) header wins per
-  // mechanism; later ones only fill gaps.
-  const merged: AuthenticationResults = {};
-  for (const value of values) {
-    const parsed = parseAuthenticationResults(value);
-    if (!merged.spf && parsed.spf) merged.spf = parsed.spf;
-    if (!merged.dkim && parsed.dkim) merged.dkim = parsed.dkim;
-    if (!merged.dmarc && parsed.dmarc) merged.dmarc = parsed.dmarc;
-  }
-  return merged;
+  return parseAuthenticationResults(values);
 }
 
 function hasVerifiedAuthentication(auth?: AuthenticationResults | null): boolean {
