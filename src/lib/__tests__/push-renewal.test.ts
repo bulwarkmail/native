@@ -8,18 +8,20 @@ vi.mock('../push-notifications', () => ({
   readPushAccountIds: vi.fn(async () => []),
   getStoredRelayBaseUrl: vi.fn(async () => 'https://relay.example.com'),
   resyncPushNotifications: vi.fn(async () => ({ subscriptionId: 'sub', verified: true })),
-  renewDetachedPushSubscription: vi.fn(async () => true),
+  renewDetachedPushSubscription: vi.fn(async () => 'renewed'),
+  hasNotificationPermission: vi.fn(async () => true),
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getStoredRelayBaseUrl,
+  hasNotificationPermission,
   readPushAccountIds,
   renewDetachedPushSubscription,
   resyncPushNotifications,
 } from '../push-notifications';
 import { generateAccountId } from '../account-utils';
-import { renewPushOnResume, resetPushRenewalState } from '../push-renewal';
+import { markPushRenewed, renewPushOnResume, resetPushRenewalState } from '../push-renewal';
 
 const ACTIVE = generateAccountId('user@example.com', 'https://mail.example.com');
 const OTHER = 'bob@other.example.net';
@@ -32,6 +34,7 @@ const accountIds = readPushAccountIds as ReturnType<typeof vi.fn>;
 const relay = getStoredRelayBaseUrl as ReturnType<typeof vi.fn>;
 const resync = resyncPushNotifications as ReturnType<typeof vi.fn>;
 const detached = renewDetachedPushSubscription as ReturnType<typeof vi.fn>;
+const permission = hasNotificationPermission as ReturnType<typeof vi.fn>;
 
 describe('renewPushOnResume', () => {
   beforeEach(async () => {
@@ -41,7 +44,8 @@ describe('renewPushOnResume', () => {
     accountIds.mockResolvedValue([ACTIVE, OTHER]);
     relay.mockResolvedValue(RELAY);
     resync.mockResolvedValue({ subscriptionId: 'sub', verified: true });
-    detached.mockResolvedValue(true);
+    detached.mockResolvedValue('renewed');
+    permission.mockResolvedValue(true);
   });
 
   it('renews every account: the active one through a resync, the others on their own', async () => {
@@ -70,7 +74,7 @@ describe('renewPushOnResume', () => {
 
   it('retries a failed renewal after 15 minutes', async () => {
     resync.mockRejectedValueOnce(new Error('relay down'));
-    detached.mockResolvedValueOnce(false);
+    detached.mockResolvedValueOnce('failed');
     await renewPushOnResume(T0);
 
     await renewPushOnResume(T0 + 10 * MINUTE);
@@ -105,7 +109,7 @@ describe('renewPushOnResume', () => {
 
   it('shares a run that is still going', async () => {
     let release: () => void = () => undefined;
-    detached.mockImplementationOnce(() => new Promise<boolean>((resolve) => { release = () => resolve(true); }));
+    detached.mockImplementationOnce(() => new Promise<string>((resolve) => { release = () => resolve('renewed'); }));
     const first = renewPushOnResume(T0);
     const second = renewPushOnResume(T0);
     await vi.waitFor(() => expect(detached).toHaveBeenCalled());
@@ -113,5 +117,45 @@ describe('renewPushOnResume', () => {
     await Promise.all([first, second]);
     expect(resync).toHaveBeenCalledTimes(1);
     expect(detached).toHaveBeenCalledTimes(1);
+  });
+  it('waits a day after a subscription that needed nothing', async () => {
+    // Time to spare, gone from the server, opted out: settled answers, not
+    // failures - retrying them every 15 minutes would cost a session fetch.
+    detached.mockResolvedValue('fine');
+    await renewPushOnResume(T0);
+    await renewPushOnResume(T0 + 16 * MINUTE);
+    expect(detached).toHaveBeenCalledTimes(1);
+    await renewPushOnResume(T0 + 25 * HOUR);
+    expect(detached).toHaveBeenCalledTimes(2);
+  });
+
+  it('renews again when the clock went back past the last attempt', async () => {
+    // The device clock was set ahead (or NTP corrected it) during an attempt.
+    await renewPushOnResume(T0 + 6 * 24 * HOUR);
+    await renewPushOnResume(T0 + HOUR);
+    expect(resync).toHaveBeenCalledTimes(2);
+    expect(detached).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips the active account the launch's setup just renewed", async () => {
+    markPushRenewed(ACTIVE, T0);
+    await renewPushOnResume(T0 + MINUTE);
+    expect(resync).not.toHaveBeenCalled();
+    expect(detached.mock.calls).toEqual([[OTHER]]);
+    // Mirrored to storage like any other attempt.
+    resetPushRenewalState();
+    await renewPushOnResume(T0 + 2 * MINUTE);
+    expect(resync).not.toHaveBeenCalled();
+  });
+
+  it('never asks for the notification permission', async () => {
+    // Without it the resync would prompt; leave the active account until
+    // push is set up again from a user action or the next launch.
+    permission.mockResolvedValue(false);
+    await renewPushOnResume(T0);
+    await renewPushOnResume(T0 + 16 * MINUTE);
+    expect(resync).not.toHaveBeenCalled();
+    // Keeping another account's subscription alive prompts for nothing.
+    expect(detached.mock.calls).toEqual([[OTHER]]);
   });
 });

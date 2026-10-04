@@ -32,7 +32,11 @@ vi.mock('react-native', () => {
       },
     },
     NativeEventEmitter,
-    PermissionsAndroid: { RESULTS: { GRANTED: 'granted' }, request: vi.fn(async () => 'granted') },
+    PermissionsAndroid: {
+      RESULTS: { GRANTED: 'granted' },
+      request: vi.fn(async () => 'granted'),
+      check: vi.fn(async () => true),
+    },
   };
 });
 
@@ -46,7 +50,8 @@ const { CREATED } = vi.hoisted(() => ({
 // and the resume renewal its expiry without the singleton), on a server with
 // contacts and calendars unless a test says otherwise. `granted` is the expiry
 // the server reports back for an update that changed it (null: as asked), and
-// `down` makes every request fail.
+// `gone` leaves the subscription out of /get, and `down` makes every request
+// fail.
 const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
   const SYNC_SESSION = {
     capabilities: {
@@ -62,6 +67,7 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
       types: ['EmailDelivery'] as string[],
       expires: null as string | null,
       granted: null as string | null,
+      gone: false,
       down: false,
       log: [] as unknown[],
       session: SYNC_SESSION,
@@ -89,8 +95,9 @@ vi.mock('../../api/jmap-client', () => ({
       DETACHED.log.push([name, args]);
       if (DETACHED.down) throw new Error('server unreachable');
       if (name === 'PushSubscription/get') {
+        const list = DETACHED.gone ? [] : [{ id: args.ids[0], types: DETACHED.types, expires: DETACHED.expires }];
         return {
-          methodResponses: [[name, { list: [{ id: args.ids[0], types: DETACHED.types, expires: DETACHED.expires }] }, id]],
+          methodResponses: [[name, { list }, id]],
         };
       }
       const updated = DETACHED.granted ? { expires: DETACHED.granted } : null;
@@ -120,6 +127,7 @@ import {
   setupPushNotifications,
   deviceClientIdKey,
   disablePushForAccount,
+  hasNotificationPermission,
   isValidRelayUrl,
   notificationTapJmapAccountId,
   readPushAccountIds,
@@ -143,7 +151,8 @@ import { getSharedMailboxes } from '../../api/email';
 import { JMAPMethodError } from '../../api/jmap-result';
 import type { EmailPushConfig, JMAPSession } from '../../api/types';
 import { jmapClient } from '../../api/jmap-client';
-import { NativeModules } from 'react-native';
+import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { readLastRenewAttempt, recordRenewAttempt } from '../push-renewal-state';
 import { generateAccountId } from '../account-utils';
 
 const OUR_DCID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -893,12 +902,14 @@ describe('renewDetachedPushSubscription', () => {
     DETACHED.log = [];
     DETACHED.loaded = true;
     DETACHED.down = false;
+    DETACHED.gone = false;
     DETACHED.granted = null;
   });
 
   afterEach(() => {
     DETACHED.expires = null;
     DETACHED.granted = null;
+    DETACHED.gone = false;
     DETACHED.down = false;
   });
 
@@ -907,7 +918,7 @@ describe('renewDetachedPushSubscription', () => {
     // Stalwart clamps the 90 days asked for to its own ceiling.
     DETACHED.granted = new Date(Date.now() + 7 * DAY).toISOString();
     const before = Date.now();
-    expect(await renewDetachedPushSubscription(OTHER)).toBe(true);
+    expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
     expect(DETACHED.log.slice(0, 2)).toEqual([
       ['load', OTHER],
       ['PushSubscription/get', { ids: ['bob-sub'], properties: ['id', 'expires'] }],
@@ -928,14 +939,14 @@ describe('renewDetachedPushSubscription', () => {
 
   it('records the expiry it asked for when the server took it as is', async () => {
     DETACHED.expires = null;
-    expect(await renewDetachedPushSubscription(OTHER)).toBe(true);
+    expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
     const [, args] = DETACHED.log[2] as [string, { update: Record<string, { expires: string }> }];
     expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBe(args.update['bob-sub'].expires);
   });
 
   it('leaves a subscription with time to spare alone', async () => {
     DETACHED.expires = new Date(Date.now() + 30 * DAY).toISOString();
-    expect(await renewDetachedPushSubscription(OTHER)).toBe(false);
+    expect(await renewDetachedPushSubscription(OTHER)).toBe('fine');
     expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
     expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBe(DETACHED.expires);
   });
@@ -943,19 +954,49 @@ describe('renewDetachedPushSubscription', () => {
   it('skips opted-out accounts', async () => {
     DETACHED.expires = new Date(Date.now() + 2 * DAY).toISOString();
     await AsyncStorage.setItem(`push:optedOut:v1:${OTHER}`, '1');
-    expect(await renewDetachedPushSubscription(OTHER)).toBe(false);
+    expect(await renewDetachedPushSubscription(OTHER)).toBe('fine');
     expect(DETACHED.log).toEqual([]);
   });
 
   it('skips an account without a subscription', async () => {
-    expect(await renewDetachedPushSubscription('someone@else.example')).toBe(false);
+    expect(await renewDetachedPushSubscription('someone@else.example')).toBe('fine');
     expect(DETACHED.log).toEqual([]);
+  });
+
+  it('settles on a subscription the server no longer has', async () => {
+    // Re-created only when the account is active again; nothing to retry.
+    DETACHED.gone = true;
+    expect(await renewDetachedPushSubscription(OTHER)).toBe('fine');
+    expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
   });
 
   it('swallows a server it cannot reach', async () => {
     DETACHED.down = true;
-    expect(await renewDetachedPushSubscription(OTHER)).toBe(false);
+    expect(await renewDetachedPushSubscription(OTHER)).toBe('failed');
     expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBeNull();
+  });
+});
+
+describe('hasNotificationPermission', () => {
+  afterEach(() => {
+    (Platform as { Version: number }).Version = 30;
+  });
+
+  it('checks the permission without asking for it', async () => {
+    (Platform as { Version: number }).Version = 33;
+    const check = PermissionsAndroid.check as ReturnType<typeof vi.fn>;
+    const request = PermissionsAndroid.request as ReturnType<typeof vi.fn>;
+    request.mockClear();
+    check.mockResolvedValueOnce(false);
+    expect(await hasNotificationPermission()).toBe(false);
+    check.mockResolvedValueOnce(true);
+    expect(await hasNotificationPermission()).toBe(true);
+    expect(check).toHaveBeenCalledWith('android.permission.POST_NOTIFICATIONS');
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('needs none before Android 13', async () => {
+    expect(await hasNotificationPermission()).toBe(true);
   });
 });
 
@@ -1108,6 +1149,14 @@ describe('teardownPushNotificationsForAccount', () => {
     const native = (NativeModules as { BulwarkFcm: { deleteToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
     expect(native.deleteToken).not.toHaveBeenCalled();
     expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+  });
+
+  it('forgets when the account was last renewed', async () => {
+    recordRenewAttempt(ACCOUNT_ID, Date.now());
+    await vi.waitFor(async () => expect(await AsyncStorage.getItem(`push:lastRenewAttempt:v1:${ACCOUNT_ID}`)).not.toBeNull());
+    await teardownPushNotificationsForAccount(ACCOUNT_ID);
+    expect(await AsyncStorage.getItem(`push:lastRenewAttempt:v1:${ACCOUNT_ID}`)).toBeNull();
+    expect(await readLastRenewAttempt(ACCOUNT_ID)).toBeNull();
   });
 });
 

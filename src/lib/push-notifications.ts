@@ -14,6 +14,7 @@ import { assertSetResult, JMAPMethodError, requireMethodResult } from '../api/jm
 import { CAPABILITIES } from '../api/types';
 import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
+import { clearRenewAttempt } from './push-renewal-state';
 import { t } from '../stores/locale-store';
 import {
   authorityOfType,
@@ -612,6 +613,15 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return status === PermissionsAndroid.RESULTS.GRANTED;
 }
 
+/** Whether notifications may be shown, without ever asking for it. */
+export async function hasNotificationPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  if (Platform.Version < 33) return true;
+  return PermissionsAndroid.check(
+    'android.permission.POST_NOTIFICATIONS' as Parameters<typeof PermissionsAndroid.check>[0],
+  );
+}
+
 export async function getFcmToken(): Promise<string | null> {
   const native = getNative();
   if (!native) return null;
@@ -1167,6 +1177,7 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
   ]);
+  await clearRenewAttempt(accountId);
   await writePushJmapAccountId(accountId, null);
 }
 
@@ -1312,16 +1323,20 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
  * Push the expiry of a signed-in account's subscription forward when it is
  * close, through a client of the account's own - for the accounts the
  * singleton isn't serving, which no launch-time resync reaches (see
- * push-renewal). Skips an account that turned push off or has no
- * subscription. Best effort: resolves to whether it renewed.
+ * push-renewal). Resolves to 'renewed', to 'fine' when there was nothing to
+ * renew (time to spare, push turned off, no subscription here or on the
+ * server, no credentials), or to 'failed' when the server couldn't be asked
+ * or refused - the one answer worth retrying soon.
  */
-export async function renewDetachedPushSubscription(accountId: string): Promise<boolean> {
-  if (await AsyncStorage.getItem(optedOutKey(accountId))) return false;
+export async function renewDetachedPushSubscription(
+  accountId: string,
+): Promise<'renewed' | 'fine' | 'failed'> {
+  if (await AsyncStorage.getItem(optedOutKey(accountId))) return 'fine';
   const subscriptionId = await AsyncStorage.getItem(subscriptionIdKey(accountId));
-  if (!subscriptionId) return false;
+  if (!subscriptionId) return 'fine';
   try {
     const client = new JMAPClient();
-    if (!(await client.loadAccount(accountId))) return false;
+    if (!(await client.loadAccount(accountId))) return 'fine';
     const using = [CAPABILITIES.CORE];
     const res = await client.request(
       [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'expires'] }, '0']],
@@ -1329,10 +1344,11 @@ export async function renewDetachedPushSubscription(accountId: string): Promise<
     );
     const current = (requireMethodResult(res, '0', 'PushSubscription/get').list as Array<{ id: string; expires?: string | null }> | undefined)
       ?.find((s) => s.id === subscriptionId);
-    if (!current) return false;
+    // Gone from the server: re-created when the account is active again.
+    if (!current) return 'fine';
     if (hasTimeToSpare(current.expires)) {
       await AsyncStorage.setItem(subscriptionExpiresKey(accountId), current.expires!);
-      return false;
+      return 'fine';
     }
     const expires = expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS);
     const setRes = await client.request(
@@ -1342,14 +1358,13 @@ export async function renewDetachedPushSubscription(accountId: string): Promise<
     const body = requireMethodResult(setRes, '0', 'PushSubscription/set');
     assertSetResult(body, [subscriptionId], 'push subscription');
     const updated = body.updated?.[subscriptionId] as { expires?: unknown } | null | undefined;
-    if (updated === undefined) return false;
+    if (updated === undefined) return 'failed';
     // The server reports the expiry back when it clamped the one asked for.
     const granted = typeof updated?.expires === 'string' ? updated.expires : expires;
     await AsyncStorage.setItem(subscriptionExpiresKey(accountId), granted);
-    return true;
+    return 'renewed';
   } catch {
-    // The next resume tries again.
-    return false;
+    return 'failed';
   }
 }
 

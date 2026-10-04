@@ -37,7 +37,7 @@ import {
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
-import { renewPushOnResume } from './src/lib/push-renewal';
+import { markPushRenewed, renewPushOnResume } from './src/lib/push-renewal';
 import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
@@ -660,6 +660,8 @@ export default function App() {
           relayBaseUrl,
           accountLabel: client.username ?? undefined,
         });
+        // Brought up to date just now: the renewal below can skip it.
+        if (activeAccountId) markPushRenewed(activeAccountId);
         if (cancelled) return;
       } catch (error) {
         console.warn(
