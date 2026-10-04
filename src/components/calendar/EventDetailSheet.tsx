@@ -1,8 +1,10 @@
 import React from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   Easing,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -10,7 +12,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { openExternalUrl } from '../../lib/open-url';
+import { toast } from '../../stores/toast-store';
+import { findMeetingLink, locationAction, mapsUrl, primaryLocationName } from '../../lib/event-links';
 import { splitTextLinks } from '../../lib/linkify-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -184,8 +189,25 @@ export function EventDetailSheet({
   const recurrence = recurrenceLabel(event, t, locale);
   const reminders = alertsToReminders(event.alerts);
   const participants = getParticipantList(event, { resolveName: resolveContactName });
-  const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
-  const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
+  const location = primaryLocationName(event);
+  const meeting = findMeetingLink(event);
+  const videoUri = meeting?.uri;
+  const openLocation = () => {
+    if (!location) return;
+    const action = locationAction(location, meeting);
+    if (action.kind === 'url') {
+      void openExternalUrl(action.uri, { confirm: true });
+      return;
+    }
+    Linking.openURL(mapsUrl(action.query)).catch(() => Alert.alert(t('contacts.detail.open_maps_failed', 'Cannot open maps')));
+  };
+  const copyLocation = () => {
+    if (!location) return;
+    Clipboard.setStringAsync(location).then(
+      () => toast.success(t('calendar.detail.location_copied', 'Location copied')),
+      () => toast.error(t('calendar.detail.location_copy_failed', 'Could not copy the location')),
+    );
+  };
   const isCancelled = event.status === 'cancelled';
 
   // Can the signed-in user RSVP? Only when they appear as a non-organizer
@@ -263,7 +285,12 @@ export function EventDetailSheet({
           >
             <DetailRow icon={<Clock size={16} color={c.textMuted} />} text={range} />
             {location ? (
-              <DetailRow icon={<MapPin size={16} color={c.textMuted} />} text={location} />
+              <DetailRow
+                icon={<MapPin size={16} color={c.textMuted} />}
+                text={location}
+                onPress={openLocation}
+                onLongPress={copyLocation}
+              />
             ) : null}
             {videoUri ? (
               <View style={styles.detailRow}>
@@ -423,9 +450,13 @@ function DetailRow({
   text,
   multiline = false,
   linkify = false,
+  onPress,
+  onLongPress,
 }: {
   icon: React.ReactNode;
   text: string;
+  onPress?: () => void;
+  onLongPress?: () => void;
   multiline?: boolean;
   /**
    * Render the http(s) URLs inside `text` as tappable links. For rows whose
@@ -437,8 +468,10 @@ function DetailRow({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const segments = React.useMemo(() => (linkify ? splitTextLinks(text) : null), [linkify, text]);
+  const Wrapper = onPress || onLongPress ? Pressable : View;
+  const wrapperProps = onPress || onLongPress ? { onPress, onLongPress, accessibilityRole: 'button' as const } : {};
   return (
-    <View style={styles.detailRow}>
+    <Wrapper style={styles.detailRow} {...wrapperProps}>
       <View style={styles.detailIcon}>{icon}</View>
       <Text style={styles.detailText} numberOfLines={multiline ? undefined : 2}>
         {segments
@@ -455,7 +488,7 @@ function DetailRow({
           )))
           : text}
       </Text>
-    </View>
+    </Wrapper>
   );
 }
 

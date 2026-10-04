@@ -14,6 +14,10 @@
       "indigo": "Indigo",
       "teal": "Teal"
     },
+    "detail": {
+      "location_copied": "Location copied",
+      "location_copy_failed": "Could not copy the location"
+    },
     "drawer": {
       "my_calendars": "My calendars",
       "no_calendars": "No calendars yet.",
