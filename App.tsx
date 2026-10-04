@@ -38,6 +38,7 @@ import {
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
 import { markPushRenewed, renewPushOnResume } from './src/lib/push-renewal';
+import { watchInboxOnlyChange } from './src/lib/push-inbox-only';
 import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
@@ -706,6 +707,12 @@ export default function App() {
       unsubscribeUp();
     };
   }, [client, isAuthenticated, emailNotificationsEnabled, activeAccountId]);
+
+  // "Inbox only" changes the delivery filter held on the server subscription.
+  React.useEffect(() => {
+    if (!isAuthenticated || !client) return;
+    return watchInboxOnlyChange();
+  }, [client, isAuthenticated]);
 
   // Live updates (SSE with polling fallback), re-armed on every account
   // switch and every re-established session — the singleton `client` object

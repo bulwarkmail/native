@@ -262,6 +262,8 @@ interface PersistedSettings {
   // Notifications. Sound/vibration live in the Android notification channel
   // (the OS owns them after channel creation), so there are no sound keys.
   emailNotificationsEnabled: boolean;
+  // Only push for mail that lands in the Inbox (webmail's inbox_only).
+  pushNotifyInboxOnly: boolean;
   calendarNotificationsEnabled: boolean;
   calendarInvitationParsingEnabled: boolean;
   // Inbox unread count on the app icon (iOS, see lib/app-badge). Same
@@ -416,6 +418,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   filesShowHiddenFiles: false,
 
   emailNotificationsEnabled: true,
+  pushNotifyInboxOnly: false,
   calendarNotificationsEnabled: true,
   calendarInvitationParsingEnabled: true,
   appIconUnreadBadge: true,
