@@ -16,6 +16,8 @@ import { secureFetch } from '../../lib/client-cert';
 import { CAPABILITIES } from '../types';
 import {
   accountSupportsSieve,
+  activateSieveScript,
+  deactivateSieveScript,
   getSieveCapabilities,
   getSieveScriptContent,
   getSieveScripts,
@@ -130,5 +132,28 @@ describe('account scoping', () => {
     await expect(validateSieveScript('keep;', 'team')).resolves.toEqual({ isValid: true });
     expect(mockFetch.mock.calls[0][0]).toBe('https://mail/upload/team/');
     expect(mockRequest.mock.calls[0][0][0][1]).toEqual({ accountId: 'team', blobId: 'b-val' });
+  });
+});
+
+describe('activating scripts', () => {
+  it('activates a script of the requested account', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['SieveScript/set', {}, '0']] });
+    await activateSieveScript('s9', 'shared');
+    expect(mockRequest.mock.calls[0][0][0]).toEqual([
+      'SieveScript/set', { accountId: 'shared', onSuccessActivateScript: 's9' }, '0',
+    ]);
+  });
+
+  it('deactivates the active script of the requested account', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['SieveScript/set', {}, '0']] });
+    await deactivateSieveScript('shared');
+    expect(mockRequest.mock.calls[0][0][0]).toEqual([
+      'SieveScript/set', { accountId: 'shared', onSuccessDeactivateScript: true }, '0',
+    ]);
+  });
+
+  it('throws on an unexpected response', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['error', {}, '0']] });
+    await expect(deactivateSieveScript('shared')).rejects.toThrow('Failed to deactivate');
   });
 });
