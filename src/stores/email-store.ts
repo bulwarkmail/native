@@ -2842,6 +2842,17 @@ async function refreshEmailsImpl(): Promise<void> {
     } catch (err) {
       console.warn('[email-store] refreshEmails failed:', err);
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      // A failed search must not leave the previous view's rows standing as
+      // if they were its results (WEB clears them too).
+      if (!baseView) {
+        set({
+          emails: [],
+          totalEmails: 0,
+          loading: false,
+          error: err instanceof Error ? err.message : 'Failed to load emails',
+        });
+        return;
+      }
       // Keep whatever's visible; only surface the error when the list is
       // empty. With cached emails on screen the OfflineBanner already
       // tells the user the data is stale.
