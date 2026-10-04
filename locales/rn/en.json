@@ -473,6 +473,9 @@
     }
   },
   "login": {
+    "error": {
+      "token_exchange_failed": "Your password and code were accepted, but the mail server refused to start a session for this app. Ask your administrator to check its OAuth client settings."
+    },
     "mobile": {
       "add_subtitle": "You're signed in to these already.",
       "add_title": "Add another account",

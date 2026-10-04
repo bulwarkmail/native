@@ -24,6 +24,7 @@ import {
   fetchAuthInfo,
   fetchCryptoInfo,
   fetchPrincipal,
+  fetchAccountDisplayName,
   fetchPublicKeys,
   createPublicKey,
   removePublicKey,
@@ -905,13 +906,18 @@ export function AccountSecuritySettings() {
         const authInfo = await fetchAuthInfo();
         if (cancelled) return;
         setAuth(authInfo);
+        // The name is readable by everyone (x:AccountSettings); the principal is
+        // admin-only, so it is just the fallback. Failures are non-fatal.
+        const namePromise = fetchAccountDisplayName();
+        let principalName = '';
         if (!loadIsOAuth) {
-          // Principal + crypto only matter for password accounts; failures are
-          // non-fatal (e.g. a non-admin principal read is forbidden).
+          // Principal + crypto only matter for password accounts.
           const [principal] = await Promise.allSettled([fetchPrincipal(), reloadCrypto(() => cancelled)]);
-          if (cancelled) return;
-          if (principal.status === 'fulfilled') setDisplayName(principal.value.displayName);
+          if (principal.status === 'fulfilled') principalName = principal.value.displayName;
         }
+        const [accountName] = await Promise.allSettled([namePromise]);
+        if (cancelled) return;
+        setDisplayName((accountName.status === 'fulfilled' && accountName.value) || principalName);
       } catch (err) {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : tRef.current('settings.security.load_error', 'Failed to load security settings.'));
       }

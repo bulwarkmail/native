@@ -126,6 +126,14 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // Keyed on the code: the message ("Token exchange failed: 400") says nothing a user can act on.
+  if (name === 'TotpLoginError' && (err as { code?: string }).code === 'token_exchange_failed') {
+    return {
+      title: t('login.mobile.err_bad_title', "That didn't work"),
+      detail: t('login.error.token_exchange_failed', 'Your password and code were accepted, but the mail server refused to start a session for this app. Ask your administrator to check its OAuth client settings.'),
+    };
+  }
+
   if (name === 'TotpLoginError' && lower.includes('invalid')) {
     return {
       title: t('login.mobile.err_bad_title', "That didn't work"),

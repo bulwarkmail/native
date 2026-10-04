@@ -9,7 +9,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { changePassword, disableTotp } from '../account-security';
+import { changePassword, disableTotp, fetchAccountDisplayName, fetchPrincipal, resetPrincipalRefusals } from '../account-security';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const mockUpdatePassword = jmapClient.updatePassword as ReturnType<typeof vi.fn>;
@@ -70,5 +70,29 @@ describe('disableTotp', () => {
   it('treats a whitespace-only code as none', async () => {
     await disableTotp('pw', '  ');
     expect(singletonUpdate()).toEqual({ currentSecret: 'pw', otpAuth: { otpUrl: null } });
+  });
+});
+
+describe('fetchAccountDisplayName', () => {
+  it('reads the trimmed description of x:AccountSettings, which non-admins may read', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['x:AccountSettings/get', { list: [{ description: ' Ada Lovelace ' }] }, '0']] });
+    await expect(fetchAccountDisplayName()).resolves.toBe('Ada Lovelace');
+    expect(mockRequest.mock.calls[0][0][0][0]).toBe('x:AccountSettings/get');
+  });
+
+  it('is null when no name is set', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['x:AccountSettings/get', { list: [{ description: '  ' }] }, '0']] });
+    await expect(fetchAccountDisplayName()).resolves.toBeNull();
+  });
+
+  it('still yields the name when x:Account/get is forbidden', async () => {
+    resetPrincipalRefusals();
+    mockRequest.mockImplementation(async (calls: unknown[][]) => ({
+      methodResponses: calls[0][0] === 'x:Account/get'
+        ? [['error', { type: 'forbidden' }, '0']]
+        : [['x:AccountSettings/get', { list: [{ description: 'Ada Lovelace' }] }, '0']],
+    }));
+    await expect(fetchPrincipal()).rejects.toThrow();
+    await expect(fetchAccountDisplayName()).resolves.toBe('Ada Lovelace');
   });
 });
