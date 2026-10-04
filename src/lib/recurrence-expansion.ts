@@ -399,6 +399,14 @@ function generateCandidatesForPeriod(
       candidates = expandWeekly(periodStart, rule, eventStart);
       break;
     case 'daily':
+      // Build the day from the event's wall-clock time rather than advancing a
+      // Date across a DST gap, which keeps the shifted time and makes the
+      // implicit byHour reject every later day.
+      candidates = [new Date(
+        periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate(),
+        eventStart.getHours(), eventStart.getMinutes(), eventStart.getSeconds(), eventStart.getMilliseconds(),
+      )];
+      break;
     case 'hourly':
     case 'minutely':
     case 'secondly':
@@ -407,7 +415,7 @@ function generateCandidatesForPeriod(
       break;
   }
 
-  candidates = candidates.filter((d) => matchesByX(d, rule));
+  candidates = candidates.filter((d) => matchesByX(d, rule, freq === 'daily' ? eventStart : undefined));
   candidates.sort((a, b) => a.getTime() - b.getTime());
   return candidates;
 }
@@ -535,7 +543,7 @@ function expandWeekly(
   return dates.sort((a, b) => a.getTime() - b.getTime());
 }
 
-function matchesByX(date: Date, rule: RecurrenceRule): boolean {
+function matchesByX(date: Date, rule: RecurrenceRule, timeOf: Date = date): boolean {
   if (rule.byMonth?.length) {
     const month = String(date.getMonth() + 1);
     if (!rule.byMonth.some((m) => m.replace('L', '') === month)) return false;
@@ -581,9 +589,9 @@ function matchesByX(date: Date, rule: RecurrenceRule): boolean {
       })
     ) return false;
   }
-  if (rule.byHour?.length && !rule.byHour.includes(date.getHours())) return false;
-  if (rule.byMinute?.length && !rule.byMinute.includes(date.getMinutes())) return false;
-  if (rule.bySecond?.length && !rule.bySecond.includes(date.getSeconds())) return false;
+  if (rule.byHour?.length && !rule.byHour.includes(timeOf.getHours())) return false;
+  if (rule.byMinute?.length && !rule.byMinute.includes(timeOf.getMinutes())) return false;
+  if (rule.bySecond?.length && !rule.bySecond.includes(timeOf.getSeconds())) return false;
   return true;
 }
 
