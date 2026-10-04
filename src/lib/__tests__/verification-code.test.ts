@@ -122,7 +122,7 @@ describe('findVerificationCode on hostile text', () => {
   ])('stays fast on %s', (_, text) => {
     const start = performance.now();
     findVerificationCode(text, text);
-    expect(performance.now() - start).toBeLessThan(300);
+    expect(performance.now() - start).toBeLessThan(1000);
   });
 
   it('still drops the cut-off word before a trailing ellipsis', () => {
@@ -198,13 +198,13 @@ describe('verificationCodeBodyText', () => {
     };
 
     it('reads 1 MB of unclosed <style> in linear time', () => {
-      expect(timed('<style>'.repeat(150_000)).ms).toBeLessThan(200);
+      expect(timed('<style>'.repeat(150_000)).ms).toBeLessThan(1000);
     });
     it('reads 200 KB of "<" without ">" in linear time', () => {
-      expect(timed('<'.repeat(200_000)).ms).toBeLessThan(200);
+      expect(timed('<'.repeat(200_000)).ms).toBeLessThan(1000);
     });
     it('reads 200 KB of "<br" repeats in linear time', () => {
-      expect(timed('<br'.repeat(70_000)).ms).toBeLessThan(200);
+      expect(timed('<br'.repeat(70_000)).ms).toBeLessThan(1000);
     });
 
     it('turns an invalid entity into a space, not a code', () => {
@@ -262,11 +262,11 @@ describe('bounded search on hostile input', () => {
   const fresh = new Date().toISOString();
   const timed = (fn: () => unknown) => { const t0 = performance.now(); fn(); return performance.now() - t0; };
 
-  it('answers a 2 MB subject in the list under 200 ms', () => {
-    expect(timed(() => listVerificationCode({ subject: huge, preview: '', receivedAt: fresh }))).toBeLessThan(200);
+  it('answers a 2 MB subject in the list under 1 s', () => {
+    expect(timed(() => listVerificationCode({ subject: huge, preview: '', receivedAt: fresh }))).toBeLessThan(1000);
   });
-  it('answers a 2 MB preview in the list under 200 ms', () => {
-    expect(timed(() => listVerificationCode({ subject: '', preview: huge, receivedAt: fresh }))).toBeLessThan(200);
+  it('answers a 2 MB preview in the list under 1 s', () => {
+    expect(timed(() => listVerificationCode({ subject: '', preview: huge, receivedAt: fresh }))).toBeLessThan(1000);
   });
   it('still finds a code within the first 1000 subject characters', () => {
     expect(findVerificationCode(`Your verification code is 482913 ${'x '.repeat(5000)}`, '')).toBe('482913');

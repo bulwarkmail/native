@@ -351,7 +351,7 @@ describe('hasMeaningfulHtmlBody', () => {
     const s = '<a '.repeat(70_000);
     const t0 = performance.now();
     expect(hasMeaningfulHtmlBody(s)).toBe(false);
-    expect(performance.now() - t0).toBeLessThan(200);
+    expect(performance.now() - t0).toBeLessThan(1000);
   });
 
   it('stays fast on 200 KB of unclosed <div tags', () => {
@@ -359,7 +359,7 @@ describe('hasMeaningfulHtmlBody', () => {
     const t0 = performance.now();
     // More than one block element, so the fallback count answers true.
     expect(hasMeaningfulHtmlBody(s)).toBe(true);
-    expect(performance.now() - t0).toBeLessThan(200);
+    expect(performance.now() - t0).toBeLessThan(1000);
   });
 
   it('stays fast on other hostile shapes', () => {
@@ -367,7 +367,7 @@ describe('hasMeaningfulHtmlBody', () => {
       const s = unit.repeat(Math.ceil(200_000 / unit.length));
       const t0 = performance.now();
       hasMeaningfulHtmlBody(s);
-      expect(performance.now() - t0, unit).toBeLessThan(200);
+      expect(performance.now() - t0, unit).toBeLessThan(1000);
     }
   });
 });

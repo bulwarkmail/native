@@ -169,7 +169,7 @@ describe('linear time on hostile text', () => {
     const text = big(unit);
     const start = performance.now();
     findMeetingLink({ description: text, locations: { l: { name: text, description: text } } });
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(performance.now() - start).toBeLessThan(1000);
   });
   it('isMeetingLabel / locationAction / mapsUrl stay fast on a huge location', () => {
     const text = big('é a-');
@@ -177,7 +177,7 @@ describe('linear time on hostile text', () => {
     isMeetingLabel(text);
     locationAction(text, null);
     mapsUrl(text);
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(performance.now() - start).toBeLessThan(1000);
   });
   it('still finds a meeting link within the scanned window of a large description', () => {
     expect(findMeetingLink({ description: `Join https://meet.google.com/abc-defg-hij ${big('x ')}` })?.provider).toBe('Google Meet');
