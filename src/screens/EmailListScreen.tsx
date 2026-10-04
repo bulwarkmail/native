@@ -7,7 +7,7 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, Copy as CopyIcon,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,6 +23,8 @@ import { OfflineBanner } from '../components/OfflineBanner';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { VerificationCodeChip } from '../components/email/VerificationCodeChip';
+import { chipCodeFor } from '../lib/verification-code';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -90,6 +92,7 @@ const EmailRow = React.memo(function EmailRow({
   item,
   threadCount,
   showPreview,
+  showVerificationCodes,
   showRecipient,
   tagIds,
   keywordDefs,
@@ -106,6 +109,7 @@ const EmailRow = React.memo(function EmailRow({
   item: Email;
   threadCount: number;
   showPreview: boolean;
+  showVerificationCodes: boolean;
   showRecipient: boolean;
   /** Comma-joined tag ids of the row (thread union) — a string so memo holds. */
   tagIds: string;
@@ -152,6 +156,12 @@ const EmailRow = React.memo(function EmailRow({
   // The row's key (`rowKeyOf`): ids repeat across the accounts of a list
   // spanning accounts (#1082).
   const key = rowKeyOf(item);
+  // Subject and preview only (the list has no body).
+  const verificationCode = React.useMemo(
+    () => chipCodeFor(item, { enabled: showVerificationCodes, inList: true }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item.subject, item.preview, item.receivedAt, showVerificationCodes],
+  );
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
 
@@ -249,6 +259,7 @@ const EmailRow = React.memo(function EmailRow({
             {singleLine(item.preview)}
           </Text>
         )}
+        {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} />}
         {onOpenAttachment && (
           <ListAttachmentChips
             email={item}
@@ -357,6 +368,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
   const archiveEmailsBatch = useEmailStore((s) => s.archiveEmailsBatch);
   const moveEmailsToMailbox = useEmailStore((s) => s.moveEmailsToMailbox);
+  const copyEmailsToMailbox = useEmailStore((s) => s.copyEmailsToMailbox);
   const deleteEmailsBatch = useEmailStore((s) => s.deleteEmailsBatch);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const setSortAscending = useEmailStore((s) => s.setSortAscending);
@@ -382,6 +394,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showPreview = useSettingsStore((s) => s.showPreview);
+  const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const sortAscending = useSettingsStore((s) => s.mailSortAscending);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
@@ -514,6 +527,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [pendingMoveId, setPendingMoveId] = React.useState<string | null>(null);
   // Batch (multi-select) sheets.
   const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
+  const [batchCopyOpen, setBatchCopyOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
 
   // Selection state
@@ -685,6 +699,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           item={item}
           threadCount={threadCountFor(item)}
           showPreview={showPreview}
+          showVerificationCodes={showVerificationCodes}
           showRecipient={showRecipient}
           tagIds={rowTagIds.get(key) ?? ''}
           keywordDefs={keywordDefs}
@@ -703,7 +718,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     [
       selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showVerificationCodes, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );
@@ -795,6 +810,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     setBatchMoveOpen(false);
     clearSelection();
     void withFailureToast(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
+  };
+
+  // A copy leaves the selection (and the messages) as they are, like the webmail.
+  const handleBatchCopyPick = (toId: string) => {
+    setBatchCopyOpen(false);
+    void withFailureToast(copyEmailsToMailbox(selectedMessageIds, toId), t('notifications.copy_failed', 'Copy failed'));
   };
 
   const handleBatchTagToggle = (token: string, on: boolean) => {
@@ -1033,6 +1054,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             accessibilityLabel={t('email_viewer.move', 'Move')}
           >
             <FolderInput size={20} color={c.text} />
+          </Pressable>
+          <Pressable
+            onPress={() => setBatchCopyOpen(true)}
+            style={styles.headerButton}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('context_menu.copy_to', 'Copy to…')}
+          >
+            <CopyIcon size={20} color={c.text} />
           </Pressable>
           {canSpamSelection && (
             <Pressable
@@ -1729,6 +1759,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         ownerAccountId={moveOwnerAccountId(selectedEmails.map(accountIdOfRow))}
         currentMailboxId={currentMailboxId}
         onPick={handleBatchMovePick}
+      />
+
+      <MoveSheet
+        visible={batchCopyOpen}
+        onClose={() => setBatchCopyOpen(false)}
+        mailboxes={mailboxes}
+        ownerAccountId={moveOwnerAccountId(selectedEmails.map(accountIdOfRow))}
+        currentMailboxId={currentMailboxId}
+        onPick={handleBatchCopyPick}
+        title={t('context_menu.copy_to', 'Copy to…')}
       />
 
       <TagSheet

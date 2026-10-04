@@ -28,6 +28,10 @@ vi.mock('../../api/recent-recipients', () => ({
   searchSentRecipients: vi.fn(),
 }));
 
+vi.mock('../../api/principals', () => ({
+  getPrincipals: vi.fn(),
+}));
+
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
     getItem: vi.fn().mockResolvedValue(null),
@@ -36,19 +40,29 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-vi.mock('../../api/jmap-client', () => ({
-  jmapClient: {
-    accountId: 'acc-1',
-    isConnected: true,
+const client = vi.hoisted(() => ({
+  accountId: 'acc-1', isConnected: true, username: 'u1', serverUrl: 'https://a.example',
+}));
+const accounts = vi.hoisted(() => ({ active: 'app-1' }));
+vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
+vi.mock('../account-store', () => ({
+  useAccountStore: {
+    getState: () => ({
+      activeAccountId: accounts.active,
+      getAccountById: (id: string) =>
+        ({ 'app-1': { username: 'u1', serverUrl: 'https://a.example/' }, 'app-2': { username: 'u2', serverUrl: 'https://b.example' } } as Record<string, unknown>)[id],
+    }),
   },
 }));
 
 import * as contactsApi from '../../api/contacts';
 import * as recentApi from '../../api/recent-recipients';
+import * as principalsApi from '../../api/principals';
 import {
   useContactsStore,
   cleanGroupMembers,
   normalizeSuggestions,
+  mergeServerHits,
   selectVisibleContacts,
   selectGroupMembers,
   sortContactsByName,
@@ -69,6 +83,8 @@ const mockCreateAddressBook = contactsApi.createAddressBook as ReturnType<typeof
 const mockDeleteAddressBook = contactsApi.deleteAddressBook as ReturnType<typeof vi.fn>;
 const mockSetDefaultAddressBook = contactsApi.setDefaultAddressBook as ReturnType<typeof vi.fn>;
 const mockGetContactsInBook = contactsApi.getContactsInBook as ReturnType<typeof vi.fn>;
+const mockGetPrincipals = principalsApi.getPrincipals as ReturnType<typeof vi.fn>;
+const mockSearchSent = recentApi.searchSentRecipients as ReturnType<typeof vi.fn>;
 const mockQueryRecent = recentApi.queryRecentRecipients as ReturnType<typeof vi.fn>;
 
 const card = (id: string, extra: Partial<ContactCard> = {}): ContactCard =>
@@ -404,6 +420,173 @@ describe('contacts-store', () => {
       expect(mockUpdateContact).toHaveBeenCalledTimes(1);
       expect(mockUpdateContact).toHaveBeenCalledWith('c1', { keywords: { Keep: true, New: true } }, undefined);
       expect(useContactsStore.getState().selectedCategory).toEqual({ type: 'keyword', keyword: 'New' });
+    });
+  });
+
+  describe('directory people', () => {
+    const dana = { id: 'p1', type: 'individual', name: 'dana', description: 'Dana Director', email: 'dana@example.com' };
+
+    it('should augment results with directory principals', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([
+        { name: 'Dana Director', email: 'dana@example.com' },
+      ]);
+    });
+
+    it('matches on description and drops principals without an email', async () => {
+      mockGetPrincipals.mockResolvedValue([dana, { id: 'p2', type: 'group', name: 'staff', email: null }]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('director')).toHaveLength(1);
+      expect(useContactsStore.getState().getAutocomplete('staff')).toEqual([]);
+    });
+
+    it('should not duplicate a directory principal already matched as a contact', async () => {
+      useContactsStore.setState({
+        contacts: [card('c1', { name: { full: 'Jane' }, emails: { e: { address: 'jane@example.com' } } })],
+      });
+      mockGetPrincipals.mockResolvedValue([
+        { id: 'p3', type: 'individual', name: 'Jane From Directory', email: 'JANE@example.com' },
+      ]);
+      await useContactsStore.getState().loadDirectory();
+      const results = useContactsStore.getState().getAutocomplete('jane');
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Jane');
+    });
+
+    it('lets a nameless contact borrow the directory name', async () => {
+      useContactsStore.setState({
+        contacts: [card('c1', { emails: { e: { address: 'dana@example.com' } } })],
+      });
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana@')).toEqual([
+        { name: 'Dana Director', email: 'dana@example.com' },
+      ]);
+    });
+
+    it('sits after contacts and before recent recipients', async () => {
+      useContactsStore.setState({
+        contacts: [card('c1', { name: { full: 'Dan Contact' }, emails: { e: { address: 'dan@x.com' } } })],
+      });
+      mockQueryRecent.mockResolvedValue([{ name: 'Dan Recent', email: 'danr@x.com' }]);
+      await useContactsStore.getState().loadRecentRecipients('sent-1');
+      mockGetPrincipals.mockResolvedValue([{ id: 'p', type: 'individual', name: 'Dan Dir', email: 'dand@x.com' }]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dan').map((r) => r.email))
+        .toEqual(['dan@x.com', 'dand@x.com', 'danr@x.com']);
+    });
+
+    it('loads once per account', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      await useContactsStore.getState().loadDirectory();
+      expect(mockGetPrincipals).toHaveBeenCalledTimes(1);
+    });
+
+    it('a failed load leaves no directory people and does not throw', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockGetPrincipals.mockRejectedValue(new Error('boom'));
+      await expect(useContactsStore.getState().loadDirectory()).resolves.toBeUndefined();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+      warn.mockRestore();
+    });
+
+    it('retries a failed load on the next call', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockGetPrincipals.mockRejectedValueOnce(new Error('boom'));
+      await useContactsStore.getState().loadDirectory();
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(mockGetPrincipals).toHaveBeenCalledTimes(2);
+      expect(useContactsStore.getState().getAutocomplete('dana')).toHaveLength(1);
+      warn.mockRestore();
+    });
+
+    it('reset drops the directory, and a load in flight across a reset is discarded', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      useContactsStore.getState().reset();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+
+      let release!: (v: unknown[]) => void;
+      mockGetPrincipals.mockReturnValue(new Promise((r) => { release = r; }));
+      const pending = useContactsStore.getState().loadDirectory();
+      useContactsStore.getState().reset();
+      release([dana]);
+      await pending;
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+    });
+  });
+
+  describe('directory across an account switch', () => {
+    const dana = { id: 'p1', type: 'individual', name: 'dana', description: 'Dana Director', email: 'dana@example.com' };
+    const toSecond = () => {
+      accounts.active = 'app-2';
+      client.username = 'u2'; client.serverUrl = 'https://b.example';
+    };
+    afterEach(() => {
+      accounts.active = 'app-1'; client.username = 'u1'; client.serverUrl = 'https://a.example';
+      client.accountId = 'acc-1';
+    });
+
+    it('does not load for a client still on the account being left', async () => {
+      useContactsStore.getState().reset();
+      accounts.active = 'app-2'; // account store ahead of the client
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(mockGetPrincipals).not.toHaveBeenCalled();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+      // once the client catches up it loads for the new account
+      client.username = 'u2'; client.serverUrl = 'https://b.example'; client.accountId = 'acc-2';
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toHaveLength(1);
+    });
+
+    it('discards a load that resolves after the client moved on, even to the same JMAP id', async () => {
+      let release!: (v: unknown[]) => void;
+      mockGetPrincipals.mockReturnValue(new Promise((r) => { release = r; }));
+      const pending = useContactsStore.getState().loadDirectory();
+      toSecond(); // same JMAP account id "acc-1" on another server
+      release([dana]);
+      await pending;
+      expect(useContactsStore.getState().directoryPeople).toEqual([]);
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+    });
+
+    it('ignores directory people of another account in getAutocomplete', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toHaveLength(1);
+      client.accountId = 'acc-2';
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+      client.accountId = 'acc-1';
+      toSecond();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+    });
+  });
+
+  describe('server recipient search', () => {
+    it('searchRecipients queries the Sent folder for the query', async () => {
+      useContactsStore.setState({ sentMailboxId: 'sent-1' });
+      mockSearchSent.mockResolvedValue([{ name: 'Zed', email: 'zed@x.com' }]);
+      expect(await useContactsStore.getState().searchRecipients(' zed ')).toEqual([{ name: 'Zed', email: 'zed@x.com' }]);
+      expect(mockSearchSent).toHaveBeenCalledWith('zed', 'sent-1');
+    });
+  });
+
+  describe('mergeServerHits', () => {
+    it('appends new hits, deduped by email and skipping already-selected', () => {
+      const shown = [{ name: 'A', email: 'a@x.com' }];
+      const hits = [
+        { name: 'A again', email: 'A@x.com' },
+        { name: 'B', email: 'b@x.com' },
+        { name: 'C', email: 'c@x.com' },
+      ];
+      expect(mergeServerHits(shown, hits, new Set(['c@x.com']))).toEqual([
+        { name: 'A', email: 'a@x.com' },
+        { name: 'B', email: 'b@x.com' },
+      ]);
     });
   });
 

@@ -159,6 +159,22 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // A token the server accepted but could not tie to an account.
+  if (lower.includes('did not name the account')) {
+    return {
+      title: t('login.mobile.err_bad_title', "That didn't work"),
+      detail: t('login.mobile.err_token_no_account', "The server accepted the token but did not say which account it belongs to. Check that it is a mail access token."),
+    };
+  }
+
+  // A rejected access token (the auth store's code, never the token itself).
+  if (message === 'invalid_token') {
+    return {
+      title: t('login.mobile.err_bad_title', "That didn't work"),
+      detail: t('login.error.invalid_token', 'The server did not accept this access token. Check that it is complete and has not expired or been revoked.'),
+    };
+  }
+
   if (name === 'AuthenticationError' || lower.includes('invalid username or password')) {
     return {
       title: t('login.mobile.err_bad_title', "That didn't work"),

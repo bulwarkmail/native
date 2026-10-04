@@ -9,7 +9,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
-  FolderInput, ShieldAlert, ShieldCheck, X, Check,
+  FolderInput, Copy, ShieldAlert, ShieldCheck, X, Check,
   Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus,
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -19,7 +19,7 @@ import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/Th
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
 import { useEmailStore, listRowsOfAccount } from '../stores/email-store';
-import { reportActionFailure } from '../lib/action-failure';
+import { reportActionFailure, withFailureToast } from '../lib/action-failure';
 import {
   useSettingsStore,
   normalizeBottomQuickActions,
@@ -82,6 +82,7 @@ function EmailViewer({ route, navigation }: Props) {
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const deleteEmail = useEmailStore((s) => s.deleteEmail);
   const moveToMailbox = useEmailStore((s) => s.moveToMailbox);
+  const copyToMailbox = useEmailStore((s) => s.copyToMailbox);
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
   const markSpam = useEmailStore((s) => s.markSpam);
   const unmarkSpam = useEmailStore((s) => s.unmarkSpam);
@@ -139,6 +140,7 @@ function EmailViewer({ route, navigation }: Props) {
   const [error, setError] = React.useState<string | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
+  const [copyMenuOpen, setCopyMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
@@ -520,6 +522,17 @@ function EmailViewer({ route, navigation }: Props) {
     navigation.goBack();
   };
 
+  // A copy leaves the message where it is and stays on screen.
+  const onCopyToMailbox = (toId: string) => {
+    if (!email || !sourceMailbox || toId === sourceMailbox.id) return;
+    setCopyMenuOpen(false);
+    setMoreMenuOpen(false);
+    void withFailureToast(
+      copyToMailbox(email.id, toId, { email, accountId: ownerAccountId }),
+      t('notifications.copy_failed', 'Copy failed'),
+    );
+  };
+
   // Reply / forward the given message (a thread card's own, or the active one).
   const navigateCompose = React.useCallback((mode: 'reply' | 'replyAll' | 'forward', target?: Email) => {
     const source = target ?? email;
@@ -819,6 +832,7 @@ function EmailViewer({ route, navigation }: Props) {
         onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
         onToggleUnread={() => { setMoreMenuOpen(false); onToggleUnread(); }}
         onMove={() => { setMoreMenuOpen(false); setMoveMenuOpen(true); }}
+        onCopy={() => { setMoreMenuOpen(false); setCopyMenuOpen(true); }}
         onTag={() => { setMoreMenuOpen(false); setTagMenuOpen(true); }}
         onToggleSpam={onToggleSpam}
         onToggleTheme={() => {
@@ -865,6 +879,15 @@ function EmailViewer({ route, navigation }: Props) {
         mailboxes={scopedMailboxes}
         currentMailboxId={sourceMailbox?.id ?? null}
         onPick={onMoveToMailbox}
+      />
+
+      <MoveSheet
+        visible={copyMenuOpen}
+        onClose={() => setCopyMenuOpen(false)}
+        mailboxes={scopedMailboxes}
+        currentMailboxId={sourceMailbox?.id ?? null}
+        onPick={onCopyToMailbox}
+        title={t('context_menu.copy_to', 'Copy to…')}
       />
 
       <TagMenuSheet
@@ -1168,6 +1191,7 @@ interface MoreMenuSheetProps {
   onArchive: () => void;
   onToggleUnread: () => void;
   onMove: () => void;
+  onCopy: () => void;
   onTag: () => void;
   onToggleSpam: () => void;
   onToggleTheme: () => void;
@@ -1180,7 +1204,7 @@ interface MoreMenuSheetProps {
 function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
   showSpam, isInJunk, canViewSource, canExport, renderDark, hasSender,
-  onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onToggleTheme, onSenderActions,
+  onArchive, onToggleUnread, onMove, onCopy, onTag, onToggleSpam, onToggleTheme, onSenderActions,
   onForwardAsAttachment, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
@@ -1259,6 +1283,14 @@ function MoreMenuSheet({
               icon={<FolderInput size={18} color={c.textSecondary} />}
               label={t('email_viewer.move_to', 'Move to...')}
               onPress={onMove}
+              trailing={<ChevronRight size={16} color={c.textMuted} />}
+            />
+          )}
+          {canMove && (
+            <MoreMenuItem
+              icon={<Copy size={18} color={c.textSecondary} />}
+              label={t('context_menu.copy_to', 'Copy to…')}
+              onPress={onCopy}
               trailing={<ChevronRight size={16} color={c.textMuted} />}
             />
           )}

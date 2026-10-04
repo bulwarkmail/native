@@ -5,6 +5,7 @@ import { spacing, radius, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import EmailBodyView from '../EmailBodyView';
+import { VerificationCodeChip } from './VerificationCodeChip';
 import { CalendarInvitationBanner } from './CalendarInvitationBanner';
 import { MessageHeader } from './MessageHeader';
 import { AttachmentChips } from './AttachmentChips';
@@ -12,6 +13,7 @@ import { UnsubscribeBanner } from './UnsubscribeBanner';
 import { ReadReceiptBanner } from './ReadReceiptBanner';
 import { useBodyOverride } from './use-body-override';
 import { deriveHeaderInfo } from '../../lib/email-headers';
+import { chipCodeFor } from '../../lib/verification-code';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
 
 export interface MessageContentProps {
@@ -59,6 +61,13 @@ export function MessageContent({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
   const calendarParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
+  const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
+  // Reads the whole body: keyed on the mail, not on every render.
+  const verificationCode = React.useMemo(
+    () => chipCodeFor(email, { enabled: showVerificationCodes, inList: false }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [email.id, email.subject, email.preview, email.htmlBody, email.textBody, email.bodyValues, showVerificationCodes],
+  );
   const headerInfo = React.useMemo(() => deriveHeaderInfo(email), [email]);
   const unwrap = useBodyOverride(email, jmapAccountId);
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);
@@ -108,6 +117,10 @@ export function MessageContent({
         />
       )}
 
+      {verificationCode && (
+        <View style={styles.codeBlock}><VerificationCodeChip code={verificationCode} /></View>
+      )}
+
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
 
       <View style={[styles.body, fill && styles.fill]}>
@@ -152,6 +165,10 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.background,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
+    },
+    codeBlock: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.sm,
     },
     chipsBlock: {
       borderBottomWidth: 1,

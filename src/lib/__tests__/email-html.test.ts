@@ -10,6 +10,7 @@ import {
   wrapPlainTextEmail,
   hasNativeDarkMode,
   sniffImageMime,
+  hasMeaningfulHtmlBody,
   TRANSPARENT_BLOCKED_PIXEL,
 } from '../email-html';
 
@@ -251,5 +252,122 @@ describe('sniffImageMime', () => {
   it('falls back to a declared image type, else octet-stream', () => {
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'image/tiff')).toBe('image/tiff');
     expect(sniffImageMime(new Uint8Array([1, 2, 3]), 'application/octet-stream')).toBe('application/octet-stream');
+  });
+});
+
+describe('hasMeaningfulHtmlBody', () => {
+  // The pre-fix implementation, kept here only as the oracle. Its `[^>]*`
+  // makes it quadratic on hostile input, so it is never run on large inputs.
+  const OLD_RE =
+    /<(?:table|img|style|b|strong|i|em|u|font|h[1-6]|ul|ol|blockquote|br)\b|<a\b[^>]*\bhref=|<(?:div|span|p)\b[^>]*\bstyle=/i;
+  function oldHasMeaningfulHtmlBody(html: string): boolean {
+    if (!html.trim()) return false;
+    if (OLD_RE.test(html)) return true;
+    const blockMatches = html.match(/<(?:p|div|blockquote|li)\b/gi);
+    return (blockMatches?.length ?? 0) > 1;
+  }
+
+  const snippets = [
+    '',
+    '   ',
+    'plain text',
+    '<p>hello</p>',
+    '<p>one</p><p>two</p>',
+    '<div>a</div><div>b</div>',
+    '<li>x</li>',
+    '<li>x</li><li>y</li>',
+    '<a href="https://x.test">link</a>',
+    '<A HREF="https://x.test">link</A>',
+    '<a name="top">anchor</a>',
+    '<a title="href=" >x</a>',
+    '<a data-href="x">x</a>',
+    '<a data-href=x>x</a>',
+    '<a title="x>" href="y">x</a>',
+    '<a class=x\nhref=y>x</a>',
+    '<abbr title="href=x">x</abbr>',
+    '<abbr href=x>x</abbr>',
+    '<ahref=x>',
+    '<a href="unclosed',
+    '<a href=',
+    '<a',
+    '<a ',
+    '<a x <a href=1',
+    '<div style="color:red">x</div>',
+    '<DIV STYLE="color:red">x</DIV>',
+    '<span style=x>',
+    '<p style=x>',
+    '<p data-style=x>',
+    '<pre style=x>',
+    '<div class="a">x</div>',
+    '<div class="style=">x</div>',
+    '<div <a href=x>',
+    '<div <span style=x>',
+    '<p <p <p style=y>',
+    '<x <a href=1> y',
+    '<div style="unclosed',
+    '<div x <p y <a z',
+    '<div x <p y <a href=z',
+    '<div x <p y <a z href=',
+    '<div a=1 > style=x',
+    '<a a=1 > href=x',
+    '<img src="x">',
+    '<br>',
+    '<b>x</b>',
+    '<h3>t</h3>',
+    '<span class="x">hi</span>',
+    '<span class="x">hi</span><p>y</p>',
+    '<html><body>plain<br/>text</body></html>',
+    '<html><body><div>text</div></body></html>',
+    '1 < 2 and 3 > 2',
+    '<<<a href=x',
+    '<a\thref=x>',
+    '<a/href=x>',
+  ];
+
+  it.each(snippets)('answers like the old regex for %j', (s) => {
+    expect(hasMeaningfulHtmlBody(s)).toBe(oldHasMeaningfulHtmlBody(s));
+  });
+
+  it('answers like the old regex on random tag soup', () => {
+    let seed = 12345;
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 2 ** 32;
+    };
+    const pieces = [
+      '<', '>', '<a', '<A', '<div', '<DIV', '<span', '<p', '<pre', '<abbr', '<li', '<x', '<b',
+      ' ', '\n', '/', '"', "'", '=', 'href=', 'HREF=', 'style=', 'Style=', 'data-href=', 'x-style=',
+      'href', 'style', 'a', 'p', 'text', '1', '_',
+    ];
+    for (let n = 0; n < 4000; n++) {
+      const len = 1 + Math.floor(rnd() * 14);
+      let s = '';
+      for (let k = 0; k < len; k++) s += pieces[Math.floor(rnd() * pieces.length)];
+      expect(hasMeaningfulHtmlBody(s), JSON.stringify(s)).toBe(oldHasMeaningfulHtmlBody(s));
+    }
+  });
+
+  it('stays fast on 200 KB of unclosed <a tags', () => {
+    const s = '<a '.repeat(70_000);
+    const t0 = performance.now();
+    expect(hasMeaningfulHtmlBody(s)).toBe(false);
+    expect(performance.now() - t0).toBeLessThan(1000);
+  });
+
+  it('stays fast on 200 KB of unclosed <div tags', () => {
+    const s = '<div '.repeat(40_000);
+    const t0 = performance.now();
+    // More than one block element, so the fallback count answers true.
+    expect(hasMeaningfulHtmlBody(s)).toBe(true);
+    expect(performance.now() - t0).toBeLessThan(1000);
+  });
+
+  it('stays fast on other hostile shapes', () => {
+    for (const unit of ['<p ', '<span ', '<a x="1" ', '<div <a ', '<a >', '<div >']) {
+      const s = unit.repeat(Math.ceil(200_000 / unit.length));
+      const t0 = performance.now();
+      hasMeaningfulHtmlBody(s);
+      expect(performance.now() - t0, unit).toBeLessThan(1000);
+    }
   });
 });

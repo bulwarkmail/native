@@ -173,9 +173,11 @@ interface SelectProps {
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   style?: ViewStyle;
+  /** What the control is for, read before the chosen value. */
+  accessibilityLabel?: string;
 }
 
-export function Select({ value, onChange, options, style }: SelectProps) {
+export function Select({ value, onChange, options, style, accessibilityLabel }: SelectProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [open, setOpen] = useState(false);
@@ -187,7 +189,7 @@ export function Select({ value, onChange, options, style }: SelectProps) {
         style={[styles.select, style]}
         onPress={() => setOpen(true)}
         accessibilityRole="combobox"
-        accessibilityLabel={current?.label ?? ''}
+        accessibilityLabel={accessibilityLabel ? `${accessibilityLabel}: ${current?.label ?? ''}` : (current?.label ?? '')}
         accessibilityState={{ expanded: open }}
       >
         <Text style={styles.selectText}>{current?.label ?? ''}</Text>

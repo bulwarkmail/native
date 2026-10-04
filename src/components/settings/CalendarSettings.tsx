@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SettingsSection, SettingItem, Select, RadioGroup, ToggleSwitch } from './settings-section';
 import {
   useSettingsStore,
@@ -7,6 +8,9 @@ import {
   type TimeFormat,
 } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useColors } from '../../theme/colors';
+import { spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { formatDisplayHour } from '../../lib/calendar-display-range';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
@@ -14,6 +18,11 @@ import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 
 // A compact list of IANA zones for the picker (#755). The device zone and
 // any previously stored value are always offered too.
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+const DAY_SHORT_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 const COMMON_TIME_ZONES = [
   'UTC',
   'Europe/London', 'Europe/Dublin', 'Europe/Lisbon',
@@ -45,6 +54,13 @@ export function CalendarSettings() {
   const showTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
   const freeScroll = useSettingsStore((s) => s.calendarFreeScroll);
+  const limitHours = useSettingsStore((s) => s.calendarLimitHours);
+  const dayStartHour = useSettingsStore((s) => s.calendarDayStartHour);
+  const dayEndHour = useSettingsStore((s) => s.calendarDayEndHour);
+  const hideNonWorkingDays = useSettingsStore((s) => s.calendarHideNonWorkingDays);
+  const workingDays = useSettingsStore((s) => s.calendarWorkingDays);
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
@@ -68,6 +84,32 @@ export function CalendarSettings() {
       ...[...zones].sort().map((z) => ({ value: z, label: z.replace(/_/g, ' ') })),
     ];
   }, [deviceZone, timeZone, t]);
+
+  // Visible hours: the end list only offers hours after the start, and
+  // moving the start past the end pushes the end along.
+  const hourOptions = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => ({
+      value: String(from + i),
+      label: formatDisplayHour(from + i, timeFormat),
+    }));
+  const setStartHour = (hour: number) => {
+    update('calendarDayStartHour', hour);
+    if (dayEndHour <= hour) update('calendarDayEndHour', hour + 1);
+  };
+
+  // Working days in the order the user's week runs.
+  const weekOrder = Array.from({ length: 7 }, (_, i) => (firstDay + i) % 7);
+  const toggleWorkingDay = (day: number) => {
+    const current = new Set(workingDays);
+    if (current.has(day)) {
+      // The week view needs at least one day to show.
+      if (current.size === 1) return;
+      current.delete(day);
+    } else {
+      current.add(day);
+    }
+    update('calendarWorkingDays', [...current].sort((a, b) => a - b));
+  };
 
   return (
     <>
@@ -159,6 +201,74 @@ export function CalendarSettings() {
         </SettingItem>
 
         <SettingItem
+          label={t('calendar.settings.limit_hours', 'Limit visible hours')}
+          description={t(
+            'calendar.settings.limit_hours_desc',
+            'Show only these hours in the day and week views. Events outside them stay reachable from the arrows at the top and bottom of each day.',
+          )}
+        >
+          <ToggleSwitch checked={limitHours} onChange={(v) => update('calendarLimitHours', v)} />
+        </SettingItem>
+
+        {limitHours && (
+          <SettingItem label={t('calendar.settings.visible_hours', 'Visible hours')}>
+            <View style={styles.hoursRow}>
+              <Select
+                value={String(dayStartHour)}
+                onChange={(v) => setStartHour(Number(v))}
+                accessibilityLabel={t('calendar.settings.visible_hours_start', 'Start of visible hours')}
+                options={hourOptions(0, 23)}
+              />
+              <Text style={styles.hoursDash}>–</Text>
+              <Select
+                value={String(dayEndHour)}
+                onChange={(v) => update('calendarDayEndHour', Number(v))}
+                accessibilityLabel={t('calendar.settings.visible_hours_end', 'End of visible hours')}
+                options={hourOptions(Math.min(23, dayStartHour) + 1, 24)}
+              />
+            </View>
+          </SettingItem>
+        )}
+
+        <SettingItem
+          label={t('calendar.settings.hide_non_working_days', 'Hide non-working days')}
+          description={t(
+            'calendar.settings.hide_non_working_days_desc',
+            "Leave the days you don't work out of the week view. Their events still show in the month, day and agenda views.",
+          )}
+        >
+          <ToggleSwitch
+            checked={hideNonWorkingDays}
+            onChange={(v) => update('calendarHideNonWorkingDays', v)}
+          />
+        </SettingItem>
+
+        {hideNonWorkingDays && (
+          <SettingItem label={t('calendar.settings.working_days', 'Working days')}>
+            <View style={styles.dayChips} accessibilityRole="toolbar">
+              {weekOrder.map((day) => {
+                const selected = workingDays.includes(day);
+                const name = t(`calendar.days.${DAY_KEYS[day]}`, DAY_NAMES[day]);
+                return (
+                  <Pressable
+                    key={day}
+                    accessibilityRole="button"
+                    accessibilityLabel={name}
+                    accessibilityState={{ selected }}
+                    onPress={() => toggleWorkingDay(day)}
+                    style={[styles.dayChip, selected && styles.dayChipSelected]}
+                  >
+                    <Text style={[styles.dayChipText, selected && styles.dayChipTextSelected]}>
+                      {t(`calendar.days.${DAY_SHORT_KEYS[day]}`, DAY_SHORT_NAMES[day])}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </SettingItem>
+        )}
+
+        <SettingItem
           label={t('calendar.settings.show_birthday_calendar', 'Contact birthday calendar')}
           description={t(
             'calendar.settings.show_birthday_calendar_desc',
@@ -209,4 +319,23 @@ export function CalendarSettings() {
       )}
     </>
   );
+}
+
+function makeStyles(c: ThemePalette) {
+  return StyleSheet.create({
+    hoursRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    hoursDash: { ...typography.body, color: c.textMuted },
+    dayChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    dayChip: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: 8,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    dayChipSelected: { backgroundColor: c.primary, borderColor: c.primary },
+    dayChipText: { ...typography.small, color: c.text },
+    dayChipTextSelected: { color: c.textInverse, fontWeight: '600' },
+  });
 }

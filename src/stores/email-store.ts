@@ -23,6 +23,7 @@ import {
   patchKeywordsPerEmail,
   moveEmail,
   moveEmails as apiMoveEmails,
+  copyEmailsWithinAccount,
   archiveEmails as apiArchiveEmails,
   deleteEmail as apiDeleteEmail,
   deleteEmails as apiDeleteEmails,
@@ -48,6 +49,7 @@ import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type 
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
+import { patchDetail } from '../lib/email-detail-cache';
 import { t } from './locale-store';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
@@ -194,6 +196,13 @@ function actionMailboxes(state: EmailState, viewed?: ViewedEmail): Mailbox[] {
 function assertViewedAccount(viewed: ViewedEmail | undefined, ...refs: MailboxRef[]): void {
   if (viewed && refs.some((ref) => ref.accountId !== viewed.accountId)) {
     throw new Error(t('email_list.move_same_account', 'Messages can only be moved within the same account'));
+  }
+}
+
+// Same refusal for a copy, which says so.
+function assertViewedCopyAccount(viewed: ViewedEmail | undefined, ref: MailboxRef): void {
+  if (viewed && ref.accountId !== viewed.accountId) {
+    throw new Error(t('email_list.copy_same_account', 'Messages can only be copied within the same account'));
   }
 }
 
@@ -419,6 +428,12 @@ export interface EmailState {
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
   togglePin: (emailId: string, pinned: boolean) => Promise<void>;
   moveToMailbox: (emailId: string, fromMailboxId: string, toMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
+  /**
+   * Copy a message into another folder, of its own account or of another one.
+   * The original is never removed, moved or hidden. Online only, never queued;
+   * rejects on failure so the caller can report it.
+   */
+  copyToMailbox: (emailId: string, toMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
   archiveEmail: (emailId: string, viewed?: ViewedEmail) => Promise<void>;
   deleteEmail: (emailId: string, trashMailboxId: string, currentMailboxId: string, viewed?: ViewedEmail) => Promise<void>;
   /**
@@ -433,6 +448,8 @@ export interface EmailState {
   // ── Batch (multi-select) actions ──────────────────────────────
   archiveEmailsBatch: (emailIds: string[]) => Promise<void>;
   moveEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
+  /** Batch copyToMailbox; the rows and the caller's selection stay as they are. */
+  copyEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
   deleteEmailsBatch: (emailIds: string[], trashMailboxId: string, currentMailboxId: string) => Promise<void>;
   /**
    * Set or clear one keyword (tag, `$seen`, `$flagged`) on a selection in one
@@ -1602,6 +1619,16 @@ export const useEmailStore = create<EmailState>()(
     }
   },
 
+  copyToMailbox: async (emailId, toMailboxId, viewed) => {
+    const state = get();
+    const { email } = actionTarget(state, emailId, viewed);
+    if (isGoneSpanningRow(emailId, email) || !email) return;
+    const to = refFor(state.mailboxes, toMailboxId);
+    // The viewer copies within the account it shows; a list row may go anywhere.
+    assertViewedCopyAccount(viewed, to);
+    await copyRows(get, set, [{ email, accountId: viewed ? viewed.accountId : rowAccountId(state, email) }], to);
+  },
+
   archiveEmail: async (emailId, viewed) => {
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
@@ -1853,6 +1880,17 @@ export const useEmailStore = create<EmailState>()(
         items,
       },
     });
+  },
+
+  copyEmailsToMailbox: async (emailIds, toMailboxId) => {
+    const state = get();
+    const targets = rowsByKey(state, emailIds);
+    if (targets.length === 0) return;
+    await copyRows(
+      get, set,
+      targets.map((email) => ({ email, accountId: rowAccountId(state, email) })),
+      refFor(state.mailboxes, toMailboxId),
+    );
   },
 
   deleteEmailsBatch: async (emailIds, trashMailboxId, currentMailboxId) => {
@@ -2238,7 +2276,14 @@ provideLoadedMailboxes(async (accountId) => {
 // download each message's blob from the source account, upload it to the
 // target account, Email/import it into the target folder with its keywords and date,
 // then destroy the original. Online only — there is no idempotent replay.
-async function crossAccountMove(targets: Email[], from: MailboxRef, to: MailboxRef): Promise<void> {
+// `keepOriginal` turns the move into a copy (webmail f02dbf3): the destroy is
+// skipped and the caller leaves the original alone.
+async function crossAccountMove(
+  targets: Email[],
+  from: MailboxRef,
+  to: MailboxRef,
+  { keepOriginal = false }: { keepOriginal?: boolean } = {},
+): Promise<void> {
   if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
     throw new Error(t('email_list.cross_account_move_offline', 'Moving between accounts needs a connection'));
   }
@@ -2251,7 +2296,55 @@ async function crossAccountMove(targets: Email[], from: MailboxRef, to: MailboxR
     const keywords: Record<string, boolean> = {};
     for (const [k, v] of Object.entries(e.keywords ?? {})) if (v) keywords[k] = true;
     await importEmailBlob(blobId, to.id, keywords, to.accountId, e.receivedAt);
-    await apiDestroyEmails([e.id], from.accountId);
+    if (!keepOriginal) await apiDestroyEmails([e.id], from.accountId);
+  }
+}
+
+// Copy rows into `to`, each from its own account: within the account the
+// destination is added to `mailboxIds`, across accounts the message is
+// imported (crossAccountMove, keepOriginal). The originals are never removed
+// from the list, the cache or any folder, and no undo is offered. Rejects on
+// the first failure; rows copied before it stay copied.
+async function copyRows(
+  get: () => EmailState,
+  set: (partial: Partial<EmailState>) => void,
+  // Each message with the account it lives in. The account is the caller's
+  // knowledge of that message, never defaulted from the open folder.
+  targets: Array<{ email: Email; accountId: string | undefined }>,
+  to: MailboxRef,
+): Promise<void> {
+  if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
+    throw new Error(t('email_list.copy_offline', 'Copying needs a connection'));
+  }
+  const groups = new Map<string | undefined, Email[]>();
+  for (const { email, accountId } of targets) {
+    groups.set(accountId, [...(groups.get(accountId) ?? []), email]);
+  }
+  let copied = 0;
+  try {
+    for (const [accountId, rows] of groups) {
+      if (accountId === to.accountId) {
+        await copyEmailsWithinAccount(rows.map((e) => e.id), to.id, accountId);
+        // Same account: the message is now in the destination too.
+        const done = new Set(rows.map((e) => e.id));
+        set({
+          emails: get().emails.map((e) => (done.has(e.id) && rowAccountId(get(), e) === accountId
+            ? { ...e, mailboxIds: { ...e.mailboxIds, [to.id]: true } }
+            : e)),
+        });
+        for (const e of rows) {
+          const mailboxIds = { ...e.mailboxIds, [to.id]: true };
+          patchCache(e.id, { mailboxIds }, accountId);
+          patchDetail(e.id, accountId, { mailboxIds });
+        }
+      } else {
+        await crossAccountMove(rows, { accountId, id: '' }, to, { keepOriginal: true });
+      }
+      copied += rows.length;
+    }
+  } finally {
+    // The destination's counts changed; its account's folders are refetched.
+    if (copied > 0) void get().fetchMailboxes();
   }
 }
 

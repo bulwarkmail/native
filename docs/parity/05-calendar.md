@@ -292,7 +292,7 @@ device.
   - What WEB does: keys on server URL plus username (`subscriptionOwner`) and clears them on sign-out (`forgetICalSubscriptions`, `stores/calendar-store.ts:494-521,1719-1741`).
   - What RN does: keyed on the JMAP account id only, which is unique only per server; old entries without an account id show for every account; nothing is cleared on sign-out (`src/stores/calendar-subscriptions-store.ts:61-70`).
 
-- [ ] **Server-side invitations, updates and cancellations (`CalendarEventNotification`) are not shown** — `P3` — `missing` (1.10.0; P2 for anyone relying on Stalwart scheduling)
+- [x] **Server-side invitations, updates and cancellations (`CalendarEventNotification`) are not shown** — `P3` — `missing` (1.10.0; P2 for anyone relying on Stalwart scheduling) — fixed in 2f383a8, 1bc623d, a65f52d
   - What WEB does: `stores/calendar-event-notification-store.ts`, `components/layout/calendar-event-notification-toaster.tsx`.
   - What RN does: only names the type in `src/api/first-touch-gate.ts:28`.
 
@@ -305,14 +305,14 @@ device.
 - [ ] **Tasks with a due date are not shown in the month view (#1107)** — `P3` — `missing` (1.11.0, WEB `calendar-month-view.tsx`, `task-chip.tsx`, `lib/calendar-tasks.ts`)
   - What RN does: tasks only appear in the tasks sheet (`MonthView.tsx`, `MonthScrollView.tsx`).
 
-- [ ] **Join links in location/description are not detected; location doesn't open maps (#1095)** — `P3` — `missing` (1.12.0)
+- [x] **Join links in location/description are not detected; location doesn't open maps (#1095)** — `P3` — `missing` (1.12.0) — fixed in f543b96 — app-scheme-only meetings (`msteams:`) get no button, since the URL allow-list refuses them
   - What WEB does: detects Teams, Zoom, Meet, Webex, Jitsi, Whereby and GoTo links; location opens in maps with a copy button.
   - What RN does: only `virtualLocations` get "Open link" (`src/components/calendar/EventDetailSheet.tsx:187,265-279`); the maps pattern exists in `ContactDetailScreen.tsx:237`.
 
-- [ ] **Day and week views cannot be limited to working hours and days (#1164)** — `P3` — `missing` (0b4d0b0)
+- [x] **Day and week views cannot be limited to working hours and days (#1164)** — `P3` — `missing` (0b4d0b0) — fixed in e05a85b — on by default (08–20), as in WEB
   - What RN does: `TimeGridScrollView.tsx`, `WeekView.tsx`, no setting.
 
-- [ ] **The week view's all-day strip grows without limit; no tasks in it (#1122)** — `P3` — `partial` (1.12.0)
+- [ ] **The week view's all-day strip grows without limit; no tasks in it (#1122)** — `P3` — `partial` (1.12.0) — collapse to 3 rows done in 710269b, e2dfc6d; still open: tasks in the strip
   - What WEB does: collapses to 3 rows with a toggle and shows tasks.
   - What RN does: `src/components/calendar/WeekView.tsx:96-104`.
 

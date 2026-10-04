@@ -14,6 +14,10 @@
       "indigo": "Indigo",
       "teal": "Teal"
     },
+    "detail": {
+      "location_copied": "Location copied",
+      "location_copy_failed": "Could not copy the location"
+    },
     "drawer": {
       "my_calendars": "My calendars",
       "no_calendars": "No calendars yet.",
@@ -26,6 +30,12 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "hidden_after": "{count, plural, one {# later event} other {# later events}}",
+      "hidden_before": "{count, plural, one {# earlier event} other {# earlier events}}",
+      "show_all_hours": "Show all hours",
+      "show_display_hours": "Show only {start} – {end}",
+      "show_less": "Show less",
+      "show_more": "Show more",
       "tap_to_create": "Tap + to create one"
     },
     "form": {
@@ -96,11 +106,19 @@
     "settings": {
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
+      "hide_non_working_days": "Hide non-working days",
+      "hide_non_working_days_desc": "Leave the days you don't work out of the week view. Their events still show in the month, day and agenda views.",
+      "limit_hours": "Limit visible hours",
+      "limit_hours_desc": "Show only these hours in the day and week views. Events outside them stay reachable from the arrows at the top and bottom of each day.",
       "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
       "time_zone": "Time zone",
       "time_zone_auto": "Device time zone",
       "time_zone_auto_zone": "Device time zone ({zone})",
-      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone."
+      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone.",
+      "visible_hours": "Visible hours",
+      "visible_hours_end": "End of visible hours",
+      "visible_hours_start": "Start of visible hours",
+      "working_days": "Working days"
     },
     "share": {
       "add_people": "Add people",
@@ -129,6 +147,10 @@
       "save_error": "Failed to save task",
       "update_error": "Failed to update task"
     }
+  },
+  "calendar_event_notifications": {
+    "more": "{count, plural, one {# more calendar update} other {# more calendar updates}}",
+    "open": "Open"
   },
   "common": {
     "add": "Add",
@@ -250,6 +272,7 @@
   },
   "context_menu": {
     "color_tag": "Tag",
+    "copy_to": "Copy to…",
     "remove_color": "Remove tag"
   },
   "deep_link": {
@@ -330,6 +353,8 @@
     }
   },
   "email_list": {
+    "copy_offline": "Copying needs a connection",
+    "copy_same_account": "Messages can only be copied within the same account",
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
@@ -433,6 +458,11 @@
     "unsubscribe_banner": {
       "no_identity": "No sending identity available"
     },
+    "verification_code": {
+      "copied": "Code copied",
+      "copy": "Copy code {code}",
+      "copy_failed": "Could not copy the code"
+    },
     "view_dark_mode": "View in dark mode",
     "view_light_mode": "View in light mode"
   },
@@ -474,6 +504,7 @@
   },
   "login": {
     "error": {
+      "invalid_token": "The server did not accept this access token. Check that it is complete and has not expired or been revoked.",
       "token_exchange_failed": "Your password and code were accepted, but the mail server refused to start a session for this app. Ask your administrator to check its OAuth client settings."
     },
     "mobile": {
@@ -534,6 +565,7 @@
       "err_rate_title": "Too many attempts",
       "err_server_detail": "The server answered with an error. Try again in a few minutes.",
       "err_server_title": "{host} is having trouble",
+      "err_token_no_account": "The server accepted the token but did not say which account it belongs to. Check that it is a mail access token.",
       "err_totp_bad_detail": "Check your password and the current code from your authenticator app, then try again.",
       "err_totp_detail": "This account is protected with two-factor sign-in. Type the 6-digit code from your authenticator app.",
       "err_totp_title": "Enter your two-factor code",
@@ -591,9 +623,14 @@
       "use_password": "Sign in with a password instead",
       "username_label": "Email or username",
       "your_server": "your server"
-    }
+    },
+    "token_hint": "Create an API token in your mail provider's settings and paste it here.",
+    "token_label": "Access token",
+    "token_placeholder": "Paste your API token",
+    "token_toggle": "Sign in with an access token"
   },
   "notifications": {
+    "copy_failed": "Copy failed",
     "delete_failed": "Failed to delete"
   },
   "offline": {
@@ -631,6 +668,7 @@
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
         "limit": "Maximum of {count} accounts reached."
       },
+      "auth_method_token": "Access token",
       "shared_accounts": {
         "description_manage": "Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder."
       },
@@ -815,6 +853,10 @@
       },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
+      },
+      "show_verification_codes": {
+        "description": "Offer the code from sign-in and confirmation emails for one-click copying, in the list for a day and in the message",
+        "label": "Show Verification Codes"
       },
       "swipe_actions": {
         "move": "Move to folder",

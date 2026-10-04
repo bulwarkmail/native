@@ -78,6 +78,7 @@ export function NotificationSettings() {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const update = useSettingsStore((s) => s.updateSetting);
   const emailEnabled = useSettingsStore((s) => s.emailNotificationsEnabled);
+  const inboxOnly = useSettingsStore((s) => s.pushNotifyInboxOnly);
   const calEnabled = useSettingsStore((s) => s.calendarNotificationsEnabled);
   const invitationParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const appIconBadge = useSettingsStore((s) => s.appIconUnreadBadge);
@@ -466,6 +467,19 @@ export function NotificationSettings() {
           description={t('settings.notifications.email.enabled_desc', 'Show notifications when new emails arrive')}
         >
           <ToggleSwitch checked={emailEnabled} onChange={(v) => update('emailNotificationsEnabled', v)} />
+        </SettingItem>
+        <SettingItem
+          label={t('settings.notifications.email.inbox_only', 'Inbox only')}
+          description={t(
+            'settings.notifications.email.inbox_only_desc',
+            'Only notify for mail that lands in the Inbox; skip mail a filter files into another folder',
+          )}
+        >
+          <ToggleSwitch
+            checked={inboxOnly}
+            disabled={!emailEnabled}
+            onChange={(v) => update('pushNotifyInboxOnly', v)}
+          />
         </SettingItem>
         {canBadgeAppIcon() && (
           <SettingItem

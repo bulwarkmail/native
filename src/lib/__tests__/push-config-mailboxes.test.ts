@@ -65,3 +65,65 @@ describe('push filter folders', () => {
     });
   });
 });
+
+describe('inbox-only push filter', () => {
+  const mailboxes = [
+    { id: 'inbox', role: 'inbox', accountId: 'jmap-primary' },
+    { id: 'junk', role: 'junk', accountId: 'jmap-primary' },
+    { id: 'team:t-inbox', originalId: 't-inbox', role: 'inbox', accountId: 'team', isShared: true },
+    { id: 'team:t-junk', originalId: 't-junk', role: 'junk', accountId: 'team', isShared: true },
+    { id: 'shared:only', originalId: 'only', role: null, accountId: 'shared', isShared: true },
+  ] as never;
+
+  beforeEach(() => {
+    provideLoadedMailboxes(async () => mailboxes);
+  });
+
+  it('the default filter is unchanged', async () => {
+    const expected = (junk: string) => ({
+      filter: {
+        operator: 'AND',
+        conditions: [{ notKeyword: '$junk' }, { inMailboxOtherThan: [junk] }],
+      },
+      properties: expect.any(Array),
+      urgency: 'high',
+    });
+    const before = await buildEmailPushConfig();
+    expect(before['jmap-primary']).toEqual(expected('junk'));
+    expect(before.team).toEqual(expected('t-junk'));
+    // No Junk folder, no Inbox lookup: keyword-only, as today.
+    expect(before.shared.filter).toEqual({ operator: 'AND', conditions: [{ notKeyword: '$junk' }] });
+    // The argument defaults to false: passing it changes nothing.
+    expect(await buildEmailPushConfig(false)).toEqual(before);
+  });
+
+  it('inbox only filters to the Inbox', async () => {
+    const config = await buildEmailPushConfig(true);
+    expect(config['jmap-primary'].filter).toEqual({
+      operator: 'AND',
+      conditions: [{ notKeyword: '$junk' }, { inMailbox: 'inbox' }],
+    });
+  });
+
+  it('an account without an Inbox never matches', async () => {
+    const config = await buildEmailPushConfig(true);
+    expect(config.shared.filter).toEqual({
+      operator: 'AND',
+      conditions: [{ notKeyword: '$junk' }, { hasKeyword: '$junk' }],
+    });
+  });
+
+  it('shared accounts use raw ids', async () => {
+    const config = await buildEmailPushConfig(true);
+    expect(config.team.filter).toEqual({
+      operator: 'AND',
+      conditions: [{ notKeyword: '$junk' }, { inMailbox: 't-inbox' }],
+    });
+  });
+
+  it('keeps each account on its own Inbox id', async () => {
+    const config = await buildEmailPushConfig(true);
+    expect(JSON.stringify(config['jmap-primary'])).not.toContain('t-inbox');
+    expect(JSON.stringify(config.team)).not.toContain('"inbox"');
+  });
+});

@@ -26,6 +26,8 @@ import EmailStep from './login/EmailStep';
 import ServerStep from './login/ServerStep';
 import ConfirmStep from './login/ConfirmStep';
 import PasswordStep from './login/PasswordStep';
+import { tokenServerPrefill } from './login/token-server';
+import TokenStep from './login/TokenStep';
 import SigningInStep, { type SigningInPhase } from './login/SigningInStep';
 
 interface LoginScreenProps {
@@ -34,7 +36,7 @@ interface LoginScreenProps {
   onCancel?: () => void;
 }
 
-type StepName = 'choose' | 'email' | 'server' | 'confirm' | 'password';
+type StepName = 'choose' | 'email' | 'server' | 'confirm' | 'password' | 'token';
 
 const RECENT_EMAILS_KEY = 'login:recentEmails:v1';
 
@@ -74,6 +76,7 @@ function signInLinkConfirmation(
  */
 export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: LoginScreenProps) {
   const login = useAuthStore((state) => state.login);
+  const loginWithToken = useAuthStore((state) => state.loginWithToken);
   const loginViaWebmail = useAuthStore((state) => state.loginViaWebmail);
   const loginViaPairing = useAuthStore((state) => state.loginViaPairing);
   const clearError = useAuthStore((state) => state.clearError);
@@ -96,6 +99,14 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   // common no-2FA sign-in stays a two-field form.
   const [totp, setTotp] = React.useState('');
   const [totpRequired, setTotpRequired] = React.useState(false);
+  // Access-token sign-in. The token lives in component state only; it is
+  // cleared on a successful sign-in (a failed attempt keeps it so a typo in
+  // the server address can be fixed without pasting it again) and when the
+  // user leaves the step. The server field is filled once on entry, only from a
+  // server chosen in this flow (never another account's), then only the user's
+  // typing changes it.
+  const [tokenServerEdit, setTokenServerEdit] = React.useState<string | null>(null);
+  const [token, setToken] = React.useState('');
   const [failedDomain, setFailedDomain] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<LoginErrorCopy | null>(null);
   const [searching, setSearching] = React.useState(false);
@@ -139,6 +150,11 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     const active = accounts.find((a) => a.id === activeAccountId);
     return active?.serverUrl ?? accounts[0]?.serverUrl ?? null;
   }, [accounts, activeAccountId]);
+
+  const tokenServer = tokenServerEdit ?? '';
+  React.useEffect(() => {
+    if (step !== 'token') setToken('');
+  }, [step]);
 
   const goTo = React.useCallback(
     (next: StepName) => {
@@ -321,6 +337,29 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       setBusy(null);
     }
   }, [email, finishIfSignedIn, isAddMode, login, password, serverInput, serverUrl, totp, totpRequired, t]);
+
+  const handleTokenSubmit = React.useCallback(async () => {
+    const target = normalizeServerUrl(tokenServer);
+    if (!target) {
+      setNotice({
+        title: t('login.mobile.notice_bad_server', "That doesn't look like a server address"),
+        detail: t('login.mobile.notice_bad_server_detail', 'Try the address you use for webmail, like mail.example.com.'),
+      });
+      return;
+    }
+    setNotice(null);
+    setBusy('connecting');
+    const wasAuthenticated = useAuthStore.getState().isAuthenticated;
+    try {
+      await loginWithToken(target, token, { addAccount: isAddMode });
+      setToken('');
+      finishIfSignedIn(wasAuthenticated);
+    } catch (err) {
+      setNotice(describeLoginError(err, { serverUrl: target, t }));
+    } finally {
+      setBusy(null);
+    }
+  }, [finishIfSignedIn, isAddMode, loginWithToken, token, tokenServer, t]);
 
   // A sign-in code, however it arrived: scanned, pasted, or a tapped
   // `bulwarkmail://` link.
@@ -599,6 +638,27 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
               setTotp(value.replace(/\s+/g, ''));
             }}
             onSubmit={() => void handlePasswordSubmit()}
+            onUseToken={() => {
+              setTokenServerEdit((current) => current ?? tokenServerPrefill({ serverUrl }));
+              goTo('token');
+            }}
+            notice={notice}
+          />
+        ) : null}
+
+        {step === 'token' ? (
+          <TokenStep
+            server={tokenServer}
+            token={token}
+            onChangeServer={(value) => {
+              setNotice(null);
+              setTokenServerEdit(value);
+            }}
+            onChangeToken={(value) => {
+              setNotice(null);
+              setToken(value);
+            }}
+            onSubmit={() => void handleTokenSubmit()}
             notice={notice}
           />
         ) : null}

@@ -20,6 +20,7 @@ import {
   queryEmails,
   queryEmailPage,
   queryEmailPagesAcrossAccounts,
+  copyEmailsWithinAccount,
   getEmails,
   getFullEmail,
   getThread,
@@ -458,6 +459,30 @@ describe('email operations', () => {
         'mailboxIds/inbox': null,
         'mailboxIds/archive': true,
       });
+    });
+  });
+
+  describe('copyEmailsWithinAccount', () => {
+    it('adds the destination folder and leaves every other folder alone', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['Email/set', { updated: { e1: null, e2: null } }, '0']] });
+
+      await copyEmailsWithinAccount(['e1', 'e2'], 'a/b~c', 'grp-1');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].accountId).toBe('grp-1');
+      expect(call[1].update).toEqual({
+        e1: { 'mailboxIds/a~1b~0c': true },
+        e2: { 'mailboxIds/a~1b~0c': true },
+      });
+      expect(call[1].destroy).toBeUndefined();
+    });
+
+    it('throws when the server refuses one message', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['Email/set', { updated: {}, notUpdated: { e1: { type: 'forbidden' } } }, '0']],
+      });
+
+      await expect(copyEmailsWithinAccount(['e1'], 'mb')).rejects.toThrow();
     });
   });
 

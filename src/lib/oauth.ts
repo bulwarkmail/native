@@ -11,7 +11,9 @@ import { randomHex } from './random';
 
 export const HANDOFF_REDIRECT_URI = 'bulwarkmobile://auth/callback';
 
-export type OAuthTokenSource = 'handoff' | 'pairing' | 'totp' | 'native';
+// 'manual' marks a pasted access token (never part of an OAuth bundle: it has
+// no refresh token), only ever set by JMAPClient.connectWithToken.
+export type OAuthTokenSource = 'handoff' | 'pairing' | 'totp' | 'native' | 'manual';
 
 export interface OAuthTokens {
   accessToken: string;

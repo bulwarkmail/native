@@ -16,6 +16,7 @@ import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox } from '../
 import { generateAccountId } from './account-utils';
 import { clearRenewAttempt } from './push-renewal-state';
 import { t } from '../stores/locale-store';
+import { useSettingsStore } from '../stores/settings-store';
 import {
   authorityOfType,
   DEVICE_SYNC_STORAGE_KEY,
@@ -305,10 +306,16 @@ export function serverSupportsEmailPush(): boolean {
  * a Junk-role mailbox (Sieve `fileinto` doesn't set the keyword). The two are
  * ANDed so a stale mailbox id - the user deleted and recreated Junk - degrades
  * to keyword-only filtering rather than letting everything through.
+ *
+ * With `inboxOnly`, only mail that lands in the account's Inbox notifies (the
+ * webmail's "Inbox only" setting). An account whose Inbox we can't see (one
+ * folder shared with us) gets a filter that never matches: leaving it out of
+ * the map would make the server fall back to unfiltered pushes for it.
  */
-export async function buildEmailPushConfig(): Promise<Record<string, EmailPushConfig>> {
+export async function buildEmailPushConfig(inboxOnly = false): Promise<Record<string, EmailPushConfig>> {
   const primary = jmapClient.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
+  const inboxByAccount = new Map<string, string>();
   // The mail store loads the same folders at the same moment (sign-in,
   // start): reuse its list rather than a second Mailbox/get of our own.
   const username = jmapClient.username;
@@ -325,12 +332,23 @@ export async function buildEmailPushConfig(): Promise<Record<string, EmailPushCo
     // the server only knows the original.
     if (m.role === 'junk') junk.push(m.originalId ?? m.id);
     junkByAccount.set(accountId, junk);
+    if (m.role === 'inbox') inboxByAccount.set(accountId, m.originalId ?? m.id);
   }
 
   const config: Record<string, EmailPushConfig> = {};
   for (const [accountId, junkIds] of junkByAccount) {
     const conditions: Record<string, unknown>[] = [{ notKeyword: '$junk' }];
-    if (junkIds.length > 0) conditions.push({ inMailboxOtherThan: [...junkIds].sort() });
+    if (inboxOnly) {
+      const inboxId = inboxByAccount.get(accountId);
+      // The primary account always has an Inbox: missing it means the folder
+      // load failed, and muting the account would be worse than failing.
+      if (!inboxId && accountId === primary) {
+        throw new Error(`No Inbox mailbox found for account ${accountId}; cannot build an inbox-only push filter`);
+      }
+      conditions.push(inboxId ? { inMailbox: inboxId } : { hasKeyword: '$junk' });
+    } else if (junkIds.length > 0) {
+      conditions.push({ inMailboxOtherThan: [...junkIds].sort() });
+    }
     config[accountId] = {
       // Always the operator form: that's how the server echoes it back, so a
       // stored config compares equal to a freshly built one.
@@ -892,24 +910,35 @@ async function pollVerificationCode(
 // resulting swarm starves Stalwart's one-PushVerification-per-60s slot so none
 // of them ever verifies (the symptom is a perpetual "Timed out waiting for
 // PushVerification"). Callers share the first in-flight run instead.
-const inFlightSetups = new Map<string, Promise<PushSetupResult>>();
+const inFlightSetups = new Map<string, { run: Promise<PushSetupResult>; inboxOnly: boolean }>();
 
 /**
  * Full setup flow: ask permission, fetch the device's FCM token, register
  * with the relay, create a JMAP PushSubscription, poll for the verification
  * code, and finalise the subscription. Concurrent calls for the same account
- * are coalesced onto a single in-flight run.
+ * are coalesced onto a single in-flight run. A run builds its delivery filter
+ * from the "Inbox only" setting as it was when the run started; a caller that
+ * joins a run started under a different value re-runs once after it settles,
+ * so a change made mid-setup is never lost. (Each re-run starts from the
+ * current value, so this ends as soon as the setting stops changing.)
  */
-export function setupPushNotifications(
+export async function setupPushNotifications(
   params: PushSetupParams,
 ): Promise<PushSetupResult> {
+  // The filter must not be built from the pre-hydration default.
+  await useSettingsStore.getState().hydrate();
+  const inboxOnly = useSettingsStore.getState().pushNotifyInboxOnly;
   const key = `${jmapClient.username ?? ''}@${jmapClient.serverUrl ?? ''}`;
   const existing = inFlightSetups.get(key);
-  if (existing) return existing;
-  const run = setupPushNotificationsInner(params).finally(() => {
+  if (existing) {
+    if (existing.inboxOnly === inboxOnly) return existing.run;
+    await existing.run.catch(() => undefined);
+    return setupPushNotifications(params);
+  }
+  const run = setupPushNotificationsInner(params, inboxOnly).finally(() => {
     inFlightSetups.delete(key);
   });
-  inFlightSetups.set(key, run);
+  inFlightSetups.set(key, { run, inboxOnly });
   return run;
 }
 
@@ -919,6 +948,7 @@ function logPhase(phase: string, detail?: string): void {
 
 async function setupPushNotificationsInner(
   params: PushSetupParams,
+  inboxOnly: boolean,
 ): Promise<PushSetupResult> {
   const transport = await getEffectivePushTransport();
   const native = getNative();
@@ -998,7 +1028,7 @@ async function setupPushNotificationsInner(
   if (params.forceRecreate) await AsyncStorage.removeItem(emailPushRefusedKey(accountId));
   const refusedBefore = await readRefusedEmailPushAccounts(accountId);
   const emailPush = serverSupportsEmailPush()
-    ? withoutAccounts(await buildEmailPushConfig(), refusedBefore)
+    ? withoutAccounts(await buildEmailPushConfig(inboxOnly), refusedBefore)
     : null;
   const subKey = subscriptionIdKey(accountId);
   const storedServerId = await AsyncStorage.getItem(subKey);

@@ -719,12 +719,56 @@ details > summary::-webkit-details-marker { display: none; }
 // Returns false when the HTML is an auto-generated minimal wrapper around plain
 // text (no <br>, no links, no rich tags) - the caller should fall back to the
 // textBody in that case, since the server-side HTML often collapses newlines.
-const MEANINGFUL_HTML_RE =
-  /<(?:table|img|style|b|strong|i|em|u|font|h[1-6]|ul|ol|blockquote|br)\b|<a\b[^>]*\bhref=|<(?:div|span|p)\b[^>]*\bstyle=/i;
+//
+// The `<a ... href=` and `<div|span|p ... style=` checks must not use a regex
+// with `[^>]*`: on input like `<a <a <a ...` with no `>` it rescans to the end
+// for every tag, which is quadratic. The scan below finds each opening tag's
+// own `>` and the next attribute hit once, and reuses both while walking
+// forward, so it is O(n) and answers exactly like the old regex.
+const MEANINGFUL_SIMPLE_TAG_RE =
+  /<(?:table|img|style|b|strong|i|em|u|font|h[1-6]|ul|ol|blockquote|br)\b/i;
+const LINK_OR_BLOCK_TAG_RE = /<(?:(a)|div|span|p)\b/iy;
+const HREF_ATTR_RE = /\bhref=/gi;
+const STYLE_ATTR_RE = /\bstyle=/gi;
+
+// Index of the first match of the global `re` at or after `from`, or -1.
+function indexFrom(re: RegExp, s: string, from: number): number {
+  re.lastIndex = from;
+  const m = re.exec(s);
+  return m ? m.index : -1;
+}
+
+function hasLinkOrStyledBlockTag(html: string): boolean {
+  const n = html.length;
+  // Each cache holds the next hit at or after some earlier position; it only
+  // needs recomputing once the walk has passed it.
+  let gt = -2;
+  let href = -2;
+  let style = -2;
+  let lt = html.indexOf('<');
+  while (lt !== -1) {
+    LINK_OR_BLOCK_TAG_RE.lastIndex = lt;
+    const m = LINK_OR_BLOCK_TAG_RE.exec(html);
+    if (m) {
+      const nameEnd = lt + m[0].length;
+      if (gt !== -1 && gt < nameEnd) gt = html.indexOf('>', nameEnd);
+      const limit = gt === -1 ? n : gt; // an unclosed tag runs to the end
+      if (m[1]) {
+        if (href !== -1 && href < nameEnd) href = indexFrom(HREF_ATTR_RE, html, nameEnd);
+        if (href !== -1 && href < limit) return true;
+      } else {
+        if (style !== -1 && style < nameEnd) style = indexFrom(STYLE_ATTR_RE, html, nameEnd);
+        if (style !== -1 && style < limit) return true;
+      }
+    }
+    lt = html.indexOf('<', lt + 1);
+  }
+  return false;
+}
 
 export function hasMeaningfulHtmlBody(html: string): boolean {
   if (!html.trim()) return false;
-  if (MEANINGFUL_HTML_RE.test(html)) return true;
+  if (MEANINGFUL_SIMPLE_TAG_RE.test(html) || hasLinkOrStyledBlockTag(html)) return true;
   // Fallback: more than one block element suggests structure.
   const blockMatches = html.match(/<(?:p|div|blockquote|li)\b/gi);
   return (blockMatches?.length ?? 0) > 1;

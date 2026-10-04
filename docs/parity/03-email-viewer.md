@@ -264,7 +264,7 @@ device.
   - What WEB does: creates a filter rule from the message (move by sender, domain or list, mark read, tag, block), suggests conditions, can apply it to existing mail, with undo (`components/email/rules-menu.tsx`, `lib/filters/quick-rules.ts`, `lib/filters/retroactive.ts`, `stores/quick-rule-store.ts`).
   - What RN does: nothing; would hang off `src/components/email/ActionSheet.tsx` and prefill `src/components/filters/FilterRuleModal.tsx`.
 
-- [ ] **No copy chip for verification codes** — `P2` — `missing` (1.12.0)
+- [x] **No copy chip for verification codes** — `P2` — `missing` (1.12.0) — fixed in 2d3bfd5, ac8e512, d0730ab, 7a06d9f — detector input is bounded and linear (webmail's `normalize()` has two quadratic regexes, to report upstream)
   - What WEB does: detects one-time codes and shows a copy chip in the message and, for a day, in the list; "Show Verification Codes" setting (`lib/verification-code.ts`, `components/email/verification-code-chip.tsx`).
   - What RN does: nothing; candidates are `MessageHeader.tsx`/`MessageContent.tsx`, the list row and `ReadingSettings.tsx`.
 
