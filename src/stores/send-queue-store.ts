@@ -6,8 +6,11 @@
 // `uncertain` (the server may or may not have accepted it) and replay then
 // checks by Message-ID instead of resending blindly.
 //
-// Storage is keyed per account (`webmail:sendqueue:v1:<appAccountId>`), separate
-// from the mutation outbox. The store makes no network or JMAP calls.
+// Storage is one AsyncStorage row per entry, `webmail:sendqueue:v1:<appAccountId>:<entryId>`,
+// separate from the mutation outbox (`webmail:outbox:v1:*`, never touched here).
+// Every operation runs as one task on a per-account promise chain, reads the
+// state when it runs, and updates memory only after its row write succeeded.
+// The store makes no network or JMAP calls.
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,8 +19,44 @@ import type { OutgoingEmail } from '../api/email';
 const KEY_PREFIX = 'webmail:sendqueue:v1:';
 const MAX_ENTRY_BYTES = 1024 * 1024;
 
-function storageKey(appAccountId: string): string {
-  return `${KEY_PREFIX}${appAccountId}`;
+function accountPrefix(appAccountId: string): string {
+  return `${KEY_PREFIX}${appAccountId}:`;
+}
+
+function rowKey(appAccountId: string, id: string): string {
+  return `${accountPrefix(appAccountId)}${id}`;
+}
+
+function utf8Length(str: string): number {
+  let n = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff) { n += 4; i++; }
+    else n += 3;
+  }
+  return n;
+}
+
+const STATES: readonly string[] = ['queued', 'sending', 'uncertain', 'failed'];
+
+function parseRow(appAccountId: string, key: string, raw: string | null): QueuedSend | null {
+  if (!raw) return null;
+  try {
+    const e = JSON.parse(raw) as QueuedSend;
+    if (!e || typeof e !== 'object') return null;
+    if (typeof e.id !== 'string' || !e.id || key !== rowKey(appAccountId, e.id)) return null;
+    if (e.appAccountId !== appAccountId || !STATES.includes(e.state)) return null;
+    if (!e.outgoing || typeof e.outgoing !== 'object' || typeof e.messageId !== 'string') return null;
+    return e;
+  } catch {
+    return null;
+  }
+}
+
+export function stripMessageIdBrackets(id: string): string {
+  return id.trim().replace(/^<+/, '').replace(/>+$/, '');
 }
 
 export type QueuedSendState = 'queued' | 'sending' | 'uncertain' | 'failed';
@@ -53,8 +92,10 @@ interface SendQueueState {
   /** Loaded queues by app account id. */
   entries: Record<string, QueuedSend[]>;
 
+  /** Load an account's rows, merging with memory (memory wins, never downgrades). */
   hydrateAccount: (appAccountId: string) => Promise<void>;
-  enqueue: (entry: QueuedSend) => Promise<void>;
+  /** `messageId` is derived from `outgoing.messageId`; any supplied value is ignored. */
+  enqueue: (entry: Omit<QueuedSend, 'messageId'> & { messageId?: string }) => Promise<void>;
   /** Persisted before it resolves; call before any request is made. */
   markSending: (id: string) => Promise<void>;
   complete: (id: string) => Promise<void>;
@@ -65,8 +106,7 @@ interface SendQueueState {
   clearAccount: (appAccountId: string) => Promise<void>;
 }
 
-// One write chain per account so back-to-back calls never interleave or lose a
-// write. A failed write does not break the chain for later calls.
+// One task chain per account; a failed task does not break the chain.
 const chains = new Map<string, Promise<unknown>>();
 
 function serialize<T>(appAccountId: string, task: () => Promise<T>): Promise<T> {
@@ -76,72 +116,101 @@ function serialize<T>(appAccountId: string, task: () => Promise<T>): Promise<T> 
   return run;
 }
 
-function persist(appAccountId: string, list: QueuedSend[]): Promise<void> {
-  return serialize(appAccountId, () =>
-    AsyncStorage.setItem(storageKey(appAccountId), JSON.stringify(list)));
-}
-
-async function load(appAccountId: string): Promise<{ list: QueuedSend[]; repaired: boolean }> {
-  let repaired = false;
-  try {
-    const raw = await AsyncStorage.getItem(storageKey(appAccountId));
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const list = (parsed as QueuedSend[]).map((e) => {
-          if (e.state !== 'sending') return e;
-          repaired = true;
-          return { ...e, state: 'uncertain' as const };
-        });
-        return { list, repaired };
-      }
-    }
-  } catch (err) {
-    console.warn('[send-queue] hydrate failed', err);
-  }
-  return { list: [], repaired };
-}
+// id -> account, registered synchronously at enqueue so a method called right
+// after enqueue (before its task has run) still lands on the right chain.
+const owners = new Map<string, string>();
 
 export const useSendQueueStore = create<SendQueueState>((set, get) => {
-  // Apply a change to the entry with this id (undefined = remove) and persist
-  // the owning account's list before resolving. Unknown ids are a no-op.
-  const mutate = async (
-    id: string,
-    change: (e: QueuedSend) => QueuedSend | undefined,
-  ): Promise<void> => {
-    const entries = get().entries;
-    const appAccountId = Object.keys(entries).find((a) => entries[a].some((e) => e.id === id));
-    if (!appAccountId) return;
-    const list = entries[appAccountId].flatMap((e) => {
-      if (e.id !== id) return [e];
-      const next = change(e);
-      return next ? [next] : [];
-    });
+  const setList = (appAccountId: string, list: QueuedSend[]) =>
     set({ entries: { ...get().entries, [appAccountId]: list } });
-    await persist(appAccountId, list);
+
+  const ownerOf = (id: string): string | undefined => {
+    const known = owners.get(id);
+    if (known) return known;
+    const entries = get().entries;
+    return Object.keys(entries).find((a) => entries[a].some((e) => e.id === id));
+  };
+
+  // Change (or remove, when `change` returns undefined) one entry: write its
+  // row, then update memory. Unknown ids are a no-op.
+  const mutate = (id: string, change: (e: QueuedSend) => QueuedSend | undefined): Promise<void> => {
+    const appAccountId = ownerOf(id);
+    if (!appAccountId) return Promise.resolve();
+    return serialize(appAccountId, async () => {
+      const list = get().entries[appAccountId] ?? [];
+      const current = list.find((e) => e.id === id);
+      if (!current) return;
+      const next = change(current);
+      if (next) {
+        await AsyncStorage.setItem(rowKey(appAccountId, id), JSON.stringify(next));
+        setList(appAccountId, (get().entries[appAccountId] ?? []).map((e) => (e.id === id ? next : e)));
+      } else {
+        await AsyncStorage.removeItem(rowKey(appAccountId, id));
+        setList(appAccountId, (get().entries[appAccountId] ?? []).filter((e) => e.id !== id));
+        owners.delete(id);
+      }
+    });
   };
 
   return {
     entries: {},
 
-    hydrateAccount: async (appAccountId) => {
-      // Run behind pending writes so we never read a stale bucket.
-      await serialize(appAccountId, async () => {
-        const { list, repaired } = await load(appAccountId);
-        set({ entries: { ...get().entries, [appAccountId]: list } });
-        if (repaired) await AsyncStorage.setItem(storageKey(appAccountId), JSON.stringify(list));
-      });
-    },
+    hydrateAccount: (appAccountId) =>
+      serialize(appAccountId, async () => {
+        const prefix = accountPrefix(appAccountId);
+        const keys = (await AsyncStorage.getAllKeys()).filter(
+          (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'),
+        );
+        const rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
+        const memory = get().entries[appAccountId] ?? [];
+        const inMemory = new Set(memory.map((e) => e.id));
+        const loaded: QueuedSend[] = [];
+        for (const [key, raw] of rows) {
+          const parsed = parseRow(appAccountId, key, raw);
+          if (!parsed || inMemory.has(parsed.id)) continue; // corrupt rows stay on disk untouched
+          let entry = parsed;
+          if (entry.state === 'sending') {
+            entry = { ...entry, state: 'uncertain' };
+            try {
+              await AsyncStorage.setItem(key, JSON.stringify(entry));
+            } catch (err) {
+              console.warn('[send-queue] could not write back repaired row', err);
+            }
+          }
+          loaded.push(entry);
+        }
+        loaded.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        for (const e of loaded) owners.set(e.id, appAccountId);
+        setList(appAccountId, [...memory, ...loaded]);
+      }),
 
-    enqueue: async (entry) => {
-      if (!entry.messageId || !entry.outgoing?.messageId) {
-        throw new Error('A queued send needs a Message-ID');
+    enqueue: (input) => {
+      const raw = input.outgoing?.messageId;
+      if (typeof raw !== 'string' || !stripMessageIdBrackets(raw)) {
+        return Promise.reject(new Error('A queued send needs a Message-ID'));
       }
-      const serialized = JSON.stringify(entry);
-      if (serialized.length > MAX_ENTRY_BYTES) throw new SendTooLargeToQueueError();
-      const list = [...(get().entries[entry.appAccountId] ?? []), entry];
-      set({ entries: { ...get().entries, [entry.appAccountId]: list } });
-      await persist(entry.appAccountId, list);
+      const entry: QueuedSend = { ...input, messageId: stripMessageIdBrackets(raw) };
+      if (utf8Length(JSON.stringify(entry)) > MAX_ENTRY_BYTES) {
+        return Promise.reject(new SendTooLargeToQueueError());
+      }
+      const { appAccountId, id } = entry;
+      const existing = owners.get(id);
+      if (existing) return Promise.reject(new Error(`Queued send ${id} already exists`));
+      owners.set(id, appAccountId);
+      return serialize(appAccountId, async () => {
+        try {
+          if ((get().entries[appAccountId] ?? []).some((e) => e.id === id)
+            || (await AsyncStorage.getItem(rowKey(appAccountId, id))) !== null) {
+            throw new Error(`Queued send ${id} already exists`);
+          }
+          await AsyncStorage.setItem(rowKey(appAccountId, id), JSON.stringify(entry));
+        } catch (err) {
+          // Only release the claim if no loaded entry holds this id.
+          if (!(get().entries[appAccountId] ?? []).some((e) => e.id === id)) owners.delete(id);
+          throw err;
+        }
+        setList(appAccountId, [...(get().entries[appAccountId] ?? []), entry]);
+      });
     },
 
     markSending: (id) =>
@@ -158,10 +227,16 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
 
     discard: (id) => mutate(id, () => undefined),
 
-    clearAccount: async (appAccountId) => {
-      const { [appAccountId]: _gone, ...rest } = get().entries;
-      set({ entries: rest });
-      await serialize(appAccountId, () => AsyncStorage.removeItem(storageKey(appAccountId)));
-    },
+    clearAccount: (appAccountId) =>
+      serialize(appAccountId, async () => {
+        const prefix = accountPrefix(appAccountId);
+        const keys = (await AsyncStorage.getAllKeys()).filter(
+          (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'),
+        );
+        if (keys.length) await AsyncStorage.multiRemove(keys);
+        for (const e of get().entries[appAccountId] ?? []) owners.delete(e.id);
+        const { [appAccountId]: _gone, ...rest } = get().entries;
+        set({ entries: rest });
+      }),
   };
 });
