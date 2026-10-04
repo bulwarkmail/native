@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  chipCodeFor,
   findVerificationCode,
   listVerificationCode,
   verificationCodeBodyText,
@@ -220,5 +221,37 @@ describe('verificationCodeBodyText', () => {
     it('does not break lines at source newlines inside a paragraph', () => {
       expect(timed('<p>one\n   two\nthree</p>').text.trim()).toBe('one two three');
     });
+  });
+});
+
+describe('chipCodeFor', () => {
+  const now = Date.parse('2026-10-04T12:00:00Z');
+  const fresh = new Date(now - 60_000).toISOString();
+  const old = new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString();
+  const mail = (receivedAt: string) => ({
+    subject: 'Your sign-in code',
+    preview: 'Your verification code is 482913. It expires in 10 minutes.',
+    receivedAt,
+    textBody: [], htmlBody: [], bodyValues: {},
+  });
+
+  it('shows the list code of a fresh mail', () => {
+    expect(chipCodeFor(mail(fresh), { enabled: true, inList: true, now })).toBe('482913');
+  });
+  it('shows nothing when the setting is off, in the list and in the reader', () => {
+    expect(chipCodeFor(mail(fresh), { enabled: false, inList: true, now })).toBeNull();
+    expect(chipCodeFor(mail(fresh), { enabled: false, inList: false, now })).toBeNull();
+  });
+  it('shows nothing for a list row older than a day', () => {
+    expect(chipCodeFor(mail(old), { enabled: true, inList: true, now })).toBeNull();
+  });
+  it('has no age limit in the reader', () => {
+    const body = { ...mail(old), preview: '', textBody: [{ partId: '1', type: 'text/plain' }], bodyValues: { '1': { value: 'Your verification code is 482913.' } } };
+    expect(chipCodeFor(body as never, { enabled: true, inList: false, now })).toBe('482913');
+  });
+  it('shows nothing when the detector finds no code', () => {
+    const plain = { ...mail(fresh), subject: 'Lunch?', preview: 'See you at 12:30 in room 4.' };
+    expect(chipCodeFor(plain, { enabled: true, inList: true, now })).toBeNull();
+    expect(chipCodeFor(plain, { enabled: true, inList: false, now })).toBeNull();
   });
 });

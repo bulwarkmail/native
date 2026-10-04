@@ -393,3 +393,17 @@ export function verificationCodeBodyText(
   if (html) return htmlToPlainText(html.slice(0, MAX_BODY_HTML)).slice(0, MAX_BODY_TEXT);
   return (picked.text ?? '').slice(0, MAX_BODY_TEXT);
 }
+
+/**
+ * The code a chip should offer, or null for no chip. The list reads the
+ * subject and preview it already has and only for fresh mail; the reader
+ * reads the whole body, whatever the age. Off means never.
+ */
+export function chipCodeFor(
+  email: Pick<Email, 'subject' | 'preview' | 'receivedAt' | 'htmlBody' | 'textBody' | 'bodyValues'>,
+  opts: { enabled: boolean; inList: boolean; now?: number },
+): string | null {
+  if (!opts.enabled) return null;
+  if (opts.inList) return listVerificationCode(email, opts.now);
+  return findVerificationCode(email.subject, verificationCodeBodyText(email));
+}

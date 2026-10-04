@@ -23,6 +23,8 @@ import { OfflineBanner } from '../components/OfflineBanner';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { VerificationCodeChip } from '../components/email/VerificationCodeChip';
+import { chipCodeFor } from '../lib/verification-code';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -90,6 +92,7 @@ const EmailRow = React.memo(function EmailRow({
   item,
   threadCount,
   showPreview,
+  showVerificationCodes,
   showRecipient,
   tagIds,
   keywordDefs,
@@ -106,6 +109,7 @@ const EmailRow = React.memo(function EmailRow({
   item: Email;
   threadCount: number;
   showPreview: boolean;
+  showVerificationCodes: boolean;
   showRecipient: boolean;
   /** Comma-joined tag ids of the row (thread union) — a string so memo holds. */
   tagIds: string;
@@ -152,6 +156,9 @@ const EmailRow = React.memo(function EmailRow({
   // The row's key (`rowKeyOf`): ids repeat across the accounts of a list
   // spanning accounts (#1082).
   const key = rowKeyOf(item);
+  // Subject and preview only (the list has no body); stale after a day, so
+  // it is looked at again whenever the row re-renders.
+  const verificationCode = chipCodeFor(item, { enabled: showVerificationCodes, inList: true });
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
 
@@ -249,6 +256,7 @@ const EmailRow = React.memo(function EmailRow({
             {singleLine(item.preview)}
           </Text>
         )}
+        {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} />}
         {onOpenAttachment && (
           <ListAttachmentChips
             email={item}
@@ -382,6 +390,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const swipeRightAction = useSettingsStore((s) => s.swipeRightAction);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showPreview = useSettingsStore((s) => s.showPreview);
+  const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const sortAscending = useSettingsStore((s) => s.mailSortAscending);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
@@ -685,6 +694,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           item={item}
           threadCount={threadCountFor(item)}
           showPreview={showPreview}
+          showVerificationCodes={showVerificationCodes}
           showRecipient={showRecipient}
           tagIds={rowTagIds.get(key) ?? ''}
           keywordDefs={keywordDefs}
@@ -703,7 +713,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     [
       selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
-      showPreview, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
+      showPreview, showVerificationCodes, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
   );

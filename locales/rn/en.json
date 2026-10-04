@@ -433,6 +433,11 @@
     "unsubscribe_banner": {
       "no_identity": "No sending identity available"
     },
+    "verification_code": {
+      "copied": "Code copied",
+      "copy": "Copy code {code}",
+      "copy_failed": "Could not copy the code"
+    },
     "view_dark_mode": "View in dark mode",
     "view_light_mode": "View in light mode"
   },
@@ -815,6 +820,10 @@
       },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
+      },
+      "show_verification_codes": {
+        "description": "Offer the code from sign-in and confirmation emails for one-click copying, in the list for a day and in the message",
+        "label": "Show Verification Codes"
       },
       "swipe_actions": {
         "move": "Move to folder",

@@ -32,6 +32,7 @@ export function ReadingSettings() {
   const deleteAction = useSettingsStore((s) => s.deleteAction);
   const permanentlyDeleteJunk = useSettingsStore((s) => s.permanentlyDeleteJunk);
   const showPreview = useSettingsStore((s) => s.showPreview);
+  const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const clearSearchOnFolderChange = useSettingsStore((s) => s.clearSearchOnFolderChange);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
@@ -191,6 +192,10 @@ export function ReadingSettings() {
 
       <SettingItem label={t('settings.email_behavior.show_preview.label', "Show Preview Text")} description={t('settings.email_behavior.show_preview.description', "Display email preview in the list")}>
         <ToggleSwitch checked={showPreview} onChange={(v) => update('showPreview', v)} />
+      </SettingItem>
+
+      <SettingItem label={t('settings.email_behavior.show_verification_codes.label', "Show Verification Codes")} description={t('settings.email_behavior.show_verification_codes.description', "Offer the code from sign-in and confirmation emails for one-click copying, in the list for a day and in the message")}>
+        <ToggleSwitch checked={showVerificationCodes} onChange={(v) => update('showVerificationCodes', v)} />
       </SettingItem>
 
       <SettingItem label={t('settings.email_behavior.disable_threading.label', "Disable Conversation Grouping")} description={t('settings.email_behavior.disable_threading.description', "Show emails as individual messages instead of grouped by conversation")}>
