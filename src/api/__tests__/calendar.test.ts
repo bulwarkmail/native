@@ -25,6 +25,7 @@ import {
   queryExpandedEvents,
   hydrateExpandedOccurrences,
 } from '../calendar';
+import { SchedulingDeniedError } from '../jmap-result';
 
 describe('toLocalDateTime', () => {
   it('renders an instant as wall-clock in the given zone', () => {
@@ -442,6 +443,37 @@ describe('calendar operations', () => {
       expect(sent).not.toHaveProperty('recurrenceRules');
       // The returned event exposes the internal plural form again.
       expect(result.recurrenceRules).toEqual([{ frequency: 'weekly', interval: 5 }]);
+    });
+  });
+
+  describe('scheduling refusal', () => {
+    const forbidden = { type: 'forbidden', description: 'Not allowed to schedule' };
+
+    it('createEvent throws SchedulingDeniedError when scheduling is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { notCreated: { 'new-event': forbidden } }, '0']],
+      });
+      const err = await createEvent({ title: 'x' }, 'cal-1', true).catch((e) => e);
+      expect(err).toBeInstanceOf(SchedulingDeniedError);
+      expect(err.reason).toBe('Not allowed to schedule');
+    });
+
+    it('updateEvent throws SchedulingDeniedError when scheduling is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { notUpdated: { ev1: forbidden } }, '0']],
+      });
+      const err = await updateEvent('ev1', { title: 'x' }, true).catch((e) => e);
+      expect(err).toBeInstanceOf(SchedulingDeniedError);
+      expect(err.reason).toBe('Not allowed to schedule');
+    });
+
+    it('a forbidden error without scheduling stays a plain error', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['CalendarEvent/set', { notCreated: { 'new-event': forbidden } }, '0']],
+      });
+      const err = await createEvent({ title: 'x' }, 'cal-1', false).catch((e) => e);
+      expect(err).not.toBeInstanceOf(SchedulingDeniedError);
+      expect(err.message).toBe('Not allowed to schedule');
     });
   });
 

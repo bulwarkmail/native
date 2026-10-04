@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Switch,
   Platform,
+  Alert as RNAlert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -94,7 +95,7 @@ interface EventModalProps {
     data: Partial<CalendarEvent>,
     calendarId: string,
     options?: { sendSchedulingMessages?: boolean },
-  ) => void | Promise<void>;
+  ) => void | boolean | Promise<void | boolean>;
   onDelete?: (event: CalendarEvent) => void;
   onClose: () => void;
 }
@@ -357,10 +358,17 @@ export function EventModal({
       for (const key of Object.keys(data) as (keyof CalendarEvent)[]) {
         if (data[key] === undefined) delete data[key];
       }
-      await onSave(data, calendarId, {
+      // `false` means the save was cancelled (declined to save without
+      // invitations): keep the editor open.
+      const saved = await onSave(data, calendarId, {
         sendSchedulingMessages: attendees.length > 0 && sendInvitations,
       });
-      onClose();
+      if (saved !== false) onClose();
+    } catch (err) {
+      RNAlert.alert(
+        t('calendar.notifications.event_error', 'Something went wrong'),
+        err instanceof Error ? err.message : undefined,
+      );
     } finally {
       setSaving(false);
     }
