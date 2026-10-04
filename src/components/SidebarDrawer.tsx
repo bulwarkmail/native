@@ -33,6 +33,7 @@ import {
   markMailboxAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
 import { useTagCountsStore } from '../stores/tag-counts-store';
+import { trashAndJunkIds } from '../lib/search-scope';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -444,8 +445,14 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   React.useEffect(() => {
     if (!visible || !tagsExpanded || keywordDefs.length === 0 || !activeAccountId || !jmapClient.isConnected) return;
     const accounts = tagAccountsKey.split('|').map((id) => id || undefined);
-    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts);
-  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, activeAccountId, tagCountsGeneration, ensureTagCounts]);
+    // Spam and Trash are left out, as the tag view leaves them out (#1156).
+    const excludeByAccount: Record<string, string[]> = {};
+    for (const id of accounts) {
+      const accountId = id ?? jmapClient.accountId;
+      excludeByAccount[accountId] = trashAndJunkIds(mailboxes, accountId);
+    }
+    void ensureTagCounts(activeAccountId, keywordDefs.map((k) => k.id), accounts, excludeByAccount);
+  }, [visible, tagsExpanded, keywordDefs, tagAccountsKey, mailboxes, activeAccountId, tagCountsGeneration, ensureTagCounts]);
 
   // ── Folder actions (long-press) ───────────────────────────────────────
   const refFor = (mb: Mailbox) => ({

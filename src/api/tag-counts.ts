@@ -1,5 +1,6 @@
 import { jmapClient } from './jmap-client';
 import type { JMAPMethodCall } from './types';
+import { exclusionFilter } from '../lib/search-scope';
 
 export interface TagCount {
   /** Tag id (the part after `$label:`). */
@@ -12,15 +13,19 @@ export interface TagCount {
  * Unread/total counts per tag across every folder of the given JMAP accounts
  * (undefined = the user's own), summed: a tag sits on messages in the own and
  * in the shared (group) accounts alike, and its view lists all of them
- * (#1038). Two `Email/query` calls (`calculateTotal`, `limit: 0`) per tag and
+ * (#1038). Two `Email/query` calls (`calculateTotal`, `limit: 1`, since
+ * Stalwart treats 0 as no limit and returns every id) per tag and
  * account, packed into as few requests as the server's maxCallsInRequest
  * allows. Port of the webmail's `fetchTagCounts` (stores/email-store.ts). A
  * call that fails, such as for an account that can't be reached, counts 0
- * rather than sinking the rest.
+ * rather than sinking the rest. `excludeByAccount` names, per account (the
+ * key is the account id), the folders left out of the counts, Spam and Trash,
+ * which a tag view does not list either (#1156).
  */
 export async function fetchTagCounts(
   tagIds: string[],
   accountIds: Array<string | undefined> = [undefined],
+  excludeByAccount: Record<string, string[]> = {},
 ): Promise<TagCount[]> {
   if (tagIds.length === 0) return [];
   const perRequest = Math.max(2, jmapClient.getMaxCallsInRequest());
@@ -30,20 +35,26 @@ export async function fetchTagCounts(
   const targets = new Map<string, { id: string; kind: 'total' | 'unread' }>();
   accountIds.forEach((override, index) => {
     const accountId = override ?? jmapClient.accountId;
+    const exclusion = exclusionFilter(excludeByAccount[accountId] ?? []);
     for (const id of tagIds) {
       const keyword = `$label:${id}`;
       targets.set(`t${index}:${id}`, { id, kind: 'total' });
       calls.push(['Email/query', {
         accountId,
-        filter: { hasKeyword: keyword },
-        limit: 0,
+        filter: exclusion
+          ? { operator: 'AND', conditions: [{ hasKeyword: keyword }, exclusion] }
+          : { hasKeyword: keyword },
+        limit: 1,
         calculateTotal: true,
       }, `t${index}:${id}`]);
       targets.set(`u${index}:${id}`, { id, kind: 'unread' });
       calls.push(['Email/query', {
         accountId,
-        filter: { operator: 'AND', conditions: [{ hasKeyword: keyword }, { notKeyword: '$seen' }] },
-        limit: 0,
+        filter: {
+          operator: 'AND',
+          conditions: [{ hasKeyword: keyword }, { notKeyword: '$seen' }, ...(exclusion ? [exclusion] : [])],
+        },
+        limit: 1,
         calculateTotal: true,
       }, `u${index}:${id}`]);
     }
