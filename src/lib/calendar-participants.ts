@@ -274,6 +274,9 @@ export function buildParticipantMap(
 ): Record<string, Participant> {
   const participants: Record<string, Participant> = {};
 
+  // A blank name would be serialized as `CN=` in the invitation; leave it out.
+  const named = (name: string) => (name.trim() ? { name: name.trim() } : {});
+
   const generateId = () => generateUUID();
 
   // calendarAddress is the scheduling address in draft-ietf-calext-jscalendarbis
@@ -281,7 +284,7 @@ export function buildParticipantMap(
   // stored as an inert JSPROP, so it is intentionally not sent.
   participants[generateId()] = {
     '@type': 'Participant',
-    name: organizer.name,
+    ...named(organizer.name),
     email: organizer.email,
     calendarAddress: `mailto:${organizer.email}`,
     // owner only, NOT attendee: with roles.attendee set, Stalwart's server-side
@@ -306,7 +309,7 @@ export function buildParticipantMap(
 
     participants[generateId()] = {
       '@type': 'Participant',
-      name: a.name,
+      ...named(a.name),
       email,
       calendarAddress: `mailto:${email}`,
       roles: { attendee: true },
