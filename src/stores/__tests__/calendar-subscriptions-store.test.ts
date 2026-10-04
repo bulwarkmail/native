@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const authState = vi.hoisted(() => ({ serverUrl: 'https://Mail.example.com/' as string | null, username: 'Alice' as string | null }));
+const importEvents = vi.hoisted(() => vi.fn());
 const calState = vi.hoisted(() => ({ calendars: [] as { id: string; originalId?: string; name: string }[] }));
 vi.mock('../../api/calendar', () => ({
   createCalendar: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock('../calendar-store', () => ({
       get calendars() { return calState.calendars; },
       fetchCalendars: vi.fn(),
       refresh: vi.fn(),
-      importEvents: vi.fn(),
+      importEvents,
     }),
   },
 }));
@@ -167,6 +168,42 @@ describe('subscription store', () => {
     await useCalendarSubscriptionsStore.getState().syncAll();
     expect(queryEvents).not.toHaveBeenCalled();
     expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).toBeNull();
+  });
+
+  describe('account switch mid-sync', () => {
+    const syncWithFeed = async (switchAccount: () => void) => {
+      const api = await import('../../api/calendar');
+      const { uploadBytes } = await import('../../api/blob');
+      vi.mocked(uploadBytes).mockResolvedValue({ blobId: 'b' } as never);
+      vi.mocked(api.parseCalendarBlob).mockResolvedValue([]);
+      vi.mocked(api.queryEvents).mockResolvedValue(['e1']);
+      vi.mocked(api.getEvents).mockResolvedValue([{ id: 'e1', uid: 'gone', calendarIds: { c1: true } }] as never);
+      vi.mocked(api.deleteEvents).mockClear();
+      vi.mocked(api.updateEvent).mockClear();
+      importEvents.mockClear();
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        switchAccount();
+        return { ok: true, headers: { get: () => '0' }, text: async () => 'BEGIN:VCALENDAR' } as never;
+      });
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'a', owner: ALICE, url: 'https://x/f.ics' })] });
+      await useCalendarSubscriptionsStore.getState().syncSubscription('a');
+      return api;
+    };
+
+    it('stops before deleting events when the account switched mid-sync', async () => {
+      const api = await syncWithFeed(() => { authState.username = 'Bob'; });
+      expect(api.deleteEvents).not.toHaveBeenCalled();
+      expect(api.updateEvent).not.toHaveBeenCalled();
+      expect(importEvents).not.toHaveBeenCalled();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).toBeNull();
+    });
+
+    it('a sync with no switch still deletes and imports', async () => {
+      const api = await syncWithFeed(() => {});
+      expect(api.deleteEvents).toHaveBeenCalledWith(['e1']);
+      expect(importEvents).toHaveBeenCalled();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).not.toBeNull();
+    });
   });
 
   it('forgetSubscriptions removes only that owner\'s subscriptions', () => {
