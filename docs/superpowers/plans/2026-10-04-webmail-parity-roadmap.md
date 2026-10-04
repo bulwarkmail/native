@@ -137,3 +137,43 @@ each sweep stays in one area:
   - from audit-2026-09: icon badge, themes, Tabler icons, the favicon source.
 - **Security (09):** a screenshot / recent-apps protection option.
 - **Accounts (01):** ending the SSO session on sign-out, and the settings scope of shared accounts.
+
+## Phase 1 follow-ups (left open at merge, 2026-10-04)
+
+Phase 1 is done on `parity/phase-1-security-send`. The final review rated the items below "later". Pick them up with Phase 2 or when working in the same files.
+
+- **Before release, on a device:**
+  - Rule editor: create an "All messages → Mark as read" rule on the phone, confirm webmail shows the same rule, then save it once from each side; the script must not grow.
+  - A size like `1.5M` is refused with an alert.
+  - Send to a non-existent address alone (alert, composer stays open, nothing in Sent), then together with a real one (warning toast, message in Sent).
+  - Upstream to webmail: the same two input-validation gaps exist there:
+    - an invalid filter size is written as `0`, so "greater than" matches every message;
+    - the loose `isValidEmail` in `parseUnsubscribeMailto` lets `, < > : ;` and bidi characters through after decoding.
+- **Authentication-Results:**
+  - Known limitation, the same as webmail: if the receiving server adds no Authentication-Results header, the sender's own header is treated as topmost.
+  - Follow-up for both clients: trust only a configured or learned authserv-id per account.
+  - Tests to add: `;` inside quotes or comments, `dkim/1=`, uppercase results, empty or authserv-id-only headers, a lower `iprev=pass` being ignored, a lower `spf=fail` escalating through `getEmailAuthenticationResults`.
+- **Send:**
+  - Inline `deliveryStatus` shape vs the unexported `DeliveryStatus` type in `src/api/jmap-result.ts`.
+  - Test `sendErrorAlert` with several refused recipients.
+  - The unsubscribe banner shows a generic error for an unconfirmed send.
+- **Sieve:**
+  - Commit a webmail↔native round-trip fixture covering `all`, `address_is`/`domain_is` and discard + stop.
+  - Tests:
+    - an empty or whitespace-only rule name;
+    - a metadata-less `if true` / `address` script resaving byte-identically;
+    - a custom header with `address_is`;
+    - an attachment `has_any` row switched to From.
+  - The "condition with a value is required" alert text.
+  - The parser reads back only plain-digit sizes (as webmail does).
+  - An empty size row is silently dropped.
+- **Recipients:** the colon test doesn't reach `findTopLevelColon` (the input needs a trailing `;`).
+- **Unsubscribe:**
+  - Uppercase `MAILTO:`/`HTTPS:` are ignored.
+  - The first mailto that fails the strict parse hides the banner even when a later one would work.
+  - There are three copies of `parseMailtoUrl`/`isValidEmail` (`unsubscribe.ts`, `mailto.ts`, `recipients.ts`).
+- **TNEF:**
+  - Add a positive multi-value parse test.
+  - Port webmail's truncated-attribute test.
+  - Assert on parse results, not only on timing.
+- **Calendar trust:** `hasVerifiedAuthentication` accepts an unaligned DKIM/SPF pass (as webmail does).
