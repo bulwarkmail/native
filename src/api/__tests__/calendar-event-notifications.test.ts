@@ -73,6 +73,20 @@ describe('destroyCalendarEventNotifications', () => {
     expect(mockRequest).not.toHaveBeenCalled();
   });
 
+  it('re-checks the account before every batch and warns when it skips', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockRequest.mockImplementation(async () => {
+      (jmapClient as { accountId: string }).accountId = 'acc-other';
+      return { methodResponses: [] };
+    });
+    await destroyCalendarEventNotifications(['a', 'b', 'c'], 'acc-1');
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0])).not.toMatch(/acc-|['"]a['"]/);
+    (jmapClient as { accountId: string }).accountId = 'acc-1';
+    warn.mockRestore();
+  });
+
   it('does nothing for no ids or without the capability', async () => {
     await destroyCalendarEventNotifications([], 'acc-1');
     mockCap.mockReturnValue(false);

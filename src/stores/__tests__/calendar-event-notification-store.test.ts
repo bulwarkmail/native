@@ -4,7 +4,19 @@ vi.mock('../../api/calendar-event-notifications', () => ({
   getCalendarEventNotifications: vi.fn(),
   destroyCalendarEventNotifications: vi.fn(),
 }));
-const client = vi.hoisted(() => ({ accountId: 'acc-1', isConnected: true }));
+const client = vi.hoisted(() => ({
+  accountId: 'acc-1', isConnected: true, username: 'u1', serverUrl: 'https://a.example/',
+}));
+const accounts = vi.hoisted(() => ({ active: 'app-1' }));
+vi.mock('../account-store', () => ({
+  useAccountStore: {
+    getState: () => ({
+      activeAccountId: accounts.active,
+      getAccountById: (id: string) =>
+        ({ 'app-1': { username: 'u1', serverUrl: 'https://a.example' }, 'app-2': { username: 'u2', serverUrl: 'https://b.example' } } as Record<string, unknown>)[id],
+    }),
+  },
+}));
 vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
 
 import {
@@ -28,6 +40,9 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks();
   client.accountId = 'acc-1';
+  client.username = 'u1';
+  client.serverUrl = 'https://a.example/';
+  accounts.active = 'app-1';
   useStore.getState().reset();
   // reset() keeps the seen set (a notice must not toast twice); use fresh ids per test.
 });
@@ -114,5 +129,36 @@ describe('calendar event notification store', () => {
     useStore.getState().reset();
     await useStore.getState().fetch();
     expect(ids()).toEqual([]);
+  });
+
+  it('drops notices fetched while the client still serves the old account mid-switch', async () => {
+    // Switch to app-2 begun: stores reset, client not yet loaded for app-2.
+    useStore.getState().reset();
+    accounts.active = 'app-2';
+    mockList.mockResolvedValue([n('w1')]);
+    await useStore.getState().fetch();
+    expect(ids()).toEqual([]);
+    expect(mockList).not.toHaveBeenCalled();
+    // Credentials swapped, account store not yet (it flips after load): dropped.
+    accounts.active = 'app-1';
+    client.username = 'u2';
+    client.serverUrl = 'https://b.example';
+    await useStore.getState().fetch();
+    expect(ids()).toEqual([]);
+    // A fetch begun for the old account that lands after the switch finished.
+    client.username = 'u1'; client.serverUrl = 'https://a.example'; accounts.active = 'app-1';
+    const d = deferred<unknown[]>();
+    mockList.mockReturnValue(d.promise);
+    const p = useStore.getState().fetch();
+    accounts.active = 'app-2'; client.username = 'u2'; client.serverUrl = 'https://b.example';
+    client.accountId = 'acc-2';
+    d.resolve([n('w1')]);
+    await p;
+    expect(ids()).toEqual([]);
+    // Nothing was marked seen: once settled on app-2 the notice shows.
+    mockList.mockResolvedValue([n('w1')]);
+    await useStore.getState().fetch();
+    expect(ids()).toEqual(['w1']);
+    expect(useStore.getState().pending[0].accountId).toBe('acc-2');
   });
 });

@@ -5,6 +5,7 @@ import {
   getCalendarEventNotifications,
 } from '../api/calendar-event-notifications';
 import type { CalendarEventNotification } from '../api/types';
+import { useAccountStore } from './account-store';
 
 /** A notice tagged with the JMAP account it was fetched for. */
 export type PendingCalendarEventNotification = CalendarEventNotification & { accountId: string };
@@ -16,6 +17,28 @@ interface CalendarEventNotificationState {
   /** Removes the notices locally, then destroys them on the server. */
   acknowledge: (ids: string[]) => Promise<void>;
   reset: () => void;
+}
+
+const trimUrl = (url: string | null | undefined) => (url ?? '').replace(/\/+$/, '');
+
+// During an account switch the client's session lags the account store (and
+// the other way round), so a fetch started in that window may be for the
+// account being left. True only when the client's credentials belong to the
+// account the app shows as active.
+function clientServesActiveAccount(): boolean {
+  const accounts = useAccountStore.getState();
+  const entry = accounts.activeAccountId ? accounts.getAccountById(accounts.activeAccountId) : undefined;
+  if (!entry) return false;
+  return entry.username === jmapClient.username
+    && trimUrl(entry.serverUrl) === trimUrl(jmapClient.serverUrl);
+}
+
+function currentJmapAccountId(): string | null {
+  try {
+    return jmapClient.accountId;
+  } catch {
+    return null;
+  }
 }
 
 // Bumped by reset() so a fetch that lands after an account switch or a
@@ -37,12 +60,8 @@ export const useCalendarEventNotificationStore = create<CalendarEventNotificatio
     if (inFlight) return inFlight;
     if (!jmapClient.isConnected) return Promise.resolve();
     const mine = generation;
-    let accountId: string;
-    try {
-      accountId = jmapClient.accountId;
-    } catch {
-      return Promise.resolve();
-    }
+    const accountId = currentJmapAccountId();
+    if (!accountId || !clientServesActiveAccount()) return Promise.resolve();
     const token = {};
     inFlightToken = token;
     const run: Promise<void> = (async () => {
@@ -51,6 +70,9 @@ export const useCalendarEventNotificationStore = create<CalendarEventNotificatio
       try {
         const list = await getCalendarEventNotifications();
         if (mine !== generation) return;
+        // Dropped, and not marked seen, when the client moved to (or is still
+        // on) another account than the one this was fetched for.
+        if (currentJmapAccountId() !== accountId || !clientServesActiveAccount()) return;
         const fresh = list
           .filter((n) => !seen.has(`${accountId}:${n.id}`))
           .map((n): PendingCalendarEventNotification => ({ ...n, accountId }));

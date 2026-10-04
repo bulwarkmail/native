@@ -43,8 +43,12 @@ export async function getCalendarEventNotifications(): Promise<CalendarEventNoti
  */
 export async function destroyCalendarEventNotifications(ids: string[], accountId: string): Promise<void> {
   if (ids.length === 0 || !hasCalendarCapability()) return;
-  if (jmapClient.accountId !== accountId) return;
   for (const batch of batched(ids, jmapClient.getMaxObjectsInSet())) {
+    // Re-checked per batch: the account can switch while an earlier one runs.
+    if (jmapClient.accountId !== accountId) {
+      console.warn('[calendar-event-notifications] destroy skipped: the active account changed');
+      return;
+    }
     await jmapClient.request(
       [['CalendarEventNotification/set', { accountId, destroy: batch }, '0']],
       USING,
