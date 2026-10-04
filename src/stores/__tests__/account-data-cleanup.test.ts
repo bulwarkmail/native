@@ -85,6 +85,13 @@ describe('forgetAccountData', () => {
     expect(useOutboxStore.getState().entries).toHaveLength(1);
   });
 
+  it('keeps stored changes when the active outbox has not hydrated yet', async () => {
+    await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, JSON.stringify([{ id: 'q1' }]));
+    useOutboxStore.setState({ activeAccountId: A, entries: [], failed: [], hydrated: false });
+    await forgetAccountData({ appAccountId: A });
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${A}`)).not.toBeNull();
+  });
+
   it('does not touch an account whose id merely starts with the signed-out one', async () => {
     const other = await seed('a@mail.example.com.au');
     const mine = await seed(A);

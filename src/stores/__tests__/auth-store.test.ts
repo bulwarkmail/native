@@ -162,6 +162,41 @@ describe('auth-store', () => {
       expect(forgetSharedData).toHaveBeenCalled();
     });
 
+    it('single-account logout ends signed out', async () => {
+      useAccountStore.setState({
+        accounts: [entry('me@mail.example.com', 'https://mail.example.com', 'me')],
+        activeAccountId: 'me@mail.example.com', defaultAccountId: 'me@mail.example.com',
+      });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+      await useAuthStore.getState().logout();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().activeAccountId).toBeNull();
+    });
+
+    it('two-account logout switches to the survivor', async () => {
+      useAccountStore.setState({ accounts: [
+        entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+        entry('o@mail.example.com', 'https://mail.example.com', 'o'),
+      ] });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+      mockLoadAccount.mockResolvedValue(true);
+      await useAuthStore.getState().logout();
+      expect(mockLoadAccount).toHaveBeenCalledWith('o@mail.example.com');
+      expect(useAuthStore.getState().activeAccountId).toBe('o@mail.example.com');
+    });
+
+    it('logout falls through to signed out when the switch does not take', async () => {
+      useAccountStore.setState({ accounts: [
+        entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+        entry('o@mail.example.com', 'https://mail.example.com', 'o'),
+      ] });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+      mockLoadAccount.mockResolvedValue(false);
+      await useAuthStore.getState().logout();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().activeAccountId).toBeNull();
+    });
+
     it('logout finishes even when the cleanup fails', async () => {
       (forgetAccountData as any).mockRejectedValueOnce(new Error('disk'));
       useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });

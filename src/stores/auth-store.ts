@@ -619,12 +619,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     // Switch to next remaining account, if any
-    const remaining = accountStore.accounts;
+    // Read the registry live: the snapshot above still lists the removed account.
+    const live = useAccountStore.getState();
+    const remaining = live.accounts.filter((a) => a.id !== currentId);
     if (remaining.length > 0) {
-      const next = accountStore.getDefaultAccount() ?? remaining[0];
+      const preferred = live.getDefaultAccount();
+      const next = preferred && preferred.id !== currentId ? preferred : remaining[0];
       try {
         await get().switchAccount(next.id);
-        return;
+        // switchAccount can return without switching (failed load, no session).
+        if (get().activeAccountId === next.id) return;
       } catch {
         // fall through to full logout below
       }
@@ -784,11 +788,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
+    accountStore.removeAccount(accountId);
     await forgetAccountData(
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
-      { lastAccount: accountStore.accounts.length === 1 },
+      { lastAccount: useAccountStore.getState().accounts.length === 0 },
     ).catch(() => undefined);
-    accountStore.removeAccount(accountId);
   },
 
   restoreSession: async () => {

@@ -21,7 +21,8 @@ const OUTBOX_KEY_PREFIX = 'webmail:outbox:v1:';
 
 async function hasUnsentChanges(appAccountId: string): Promise<boolean> {
   const outbox = useOutboxStore.getState();
-  if (outbox.activeAccountId === appAccountId) {
+  // Until hydrated the lists are empty placeholders, so read storage.
+  if (outbox.activeAccountId === appAccountId && outbox.hydrated) {
     return outbox.entries.length > 0 || outbox.failed.length > 0;
   }
   for (const suffix of ['', ':failed']) {
