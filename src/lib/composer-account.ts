@@ -19,26 +19,39 @@ export function isComposerAccountActive(
 }
 
 /**
- * Who owns the composer being mounted: a reopened draft belongs to the
- * registry account whose JMAP account it lives in. A draft from a shared
- * account inside the active login has no registry entry of its own and
- * stays with the active account, as does every new message.
+ * Whether the composer may write now. `switchAccount` swaps the email
+ * store's view (and with it the composer's Drafts/Sent) before the JMAP
+ * client has loaded the new session, and the auth store only after, so both
+ * must still point at the owner. Without an owner nothing is gated.
+ */
+export function isComposerOwnerActive(
+  owner: ComposerAccount | null,
+  authActiveAppAccountId: string | null,
+  viewActiveAppAccountId: string | null,
+): boolean {
+  if (!owner) return true;
+  return isComposerAccountActive(owner, authActiveAppAccountId)
+    && isComposerAccountActive(owner, viewActiveAppAccountId);
+}
+
+/**
+ * The owner is whoever is active when the composer mounts — including for a
+ * reopened draft: JMAP account ids are only unique per server, so a draft's
+ * id can't safely name a registry account.
  */
 export function composerOwnerAtMount(params: {
-  draftJmapAccountId?: string;
   activeAppAccountId: string | null;
   activeJmapAccountId: string | null;
-  accounts: Array<{ id: string; jmapAccountId?: string }>;
 }): ComposerAccount | null {
-  const { draftJmapAccountId, activeAppAccountId, activeJmapAccountId, accounts } = params;
+  const { activeAppAccountId, activeJmapAccountId } = params;
   if (!activeAppAccountId) return null;
-  if (draftJmapAccountId) {
-    const entry = accounts.find((a) => a.jmapAccountId === draftJmapAccountId);
-    if (entry) return { appAccountId: entry.id, jmapAccountId: draftJmapAccountId };
-  }
-  const active = accounts.find((a) => a.id === activeAppAccountId);
-  return {
-    appAccountId: activeAppAccountId,
-    jmapAccountId: activeJmapAccountId ?? active?.jmapAccountId ?? '',
-  };
+  return { appAccountId: activeAppAccountId, jmapAccountId: activeJmapAccountId ?? '' };
+}
+
+/** How the "switch back" alert names the owner; never empty. */
+export function composerAccountLabel(
+  owner: ComposerAccount,
+  entry?: { email?: string; displayName?: string; username?: string },
+): string {
+  return entry?.email || entry?.displayName || entry?.username || owner.appAccountId;
 }

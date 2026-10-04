@@ -1,58 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { composerOwnerAtMount, isComposerAccountActive } from '../composer-account';
-
-const accounts = [
-  { id: 'app-a', jmapAccountId: 'jmap-a' },
-  { id: 'app-b', jmapAccountId: 'jmap-b' },
-  { id: 'app-c' },
-];
+import {
+  composerAccountLabel, composerOwnerAtMount, isComposerAccountActive, isComposerOwnerActive,
+} from '../composer-account';
 
 describe('composerOwnerAtMount', () => {
-  it('owns a new message by the active account when nothing switched', () => {
-    const owner = composerOwnerAtMount({
-      activeAppAccountId: 'app-a',
-      activeJmapAccountId: 'jmap-a',
-      accounts,
-    });
+  it('owns the message by the active account when nothing switched', () => {
+    const owner = composerOwnerAtMount({ activeAppAccountId: 'app-a', activeJmapAccountId: 'jmap-a' });
     expect(owner).toEqual({ appAccountId: 'app-a', jmapAccountId: 'jmap-a' });
     expect(isComposerAccountActive(owner!, 'app-a')).toBe(true);
   });
 
-  it('owns a reopened draft by the app account its JMAP account belongs to', () => {
-    const owner = composerOwnerAtMount({
-      draftJmapAccountId: 'jmap-b',
-      activeAppAccountId: 'app-a',
-      activeJmapAccountId: 'jmap-a',
-      accounts,
-    });
-    expect(owner).toEqual({ appAccountId: 'app-b', jmapAccountId: 'jmap-b' });
-    expect(isComposerAccountActive(owner!, 'app-a')).toBe(false);
-  });
-
-  it('keeps a draft from a shared account with the active login', () => {
-    const owner = composerOwnerAtMount({
-      draftJmapAccountId: 'jmap-shared',
-      activeAppAccountId: 'app-a',
-      activeJmapAccountId: 'jmap-a',
-      accounts,
-    });
-    expect(owner).toEqual({ appAccountId: 'app-a', jmapAccountId: 'jmap-a' });
-  });
-
-  it('falls back to the registry entry when the client has no JMAP account yet', () => {
-    expect(composerOwnerAtMount({
-      activeAppAccountId: 'app-b',
-      activeJmapAccountId: null,
-      accounts,
-    })).toEqual({ appAccountId: 'app-b', jmapAccountId: 'jmap-b' });
+  it('leaves the JMAP id empty when the client has none yet', () => {
+    expect(composerOwnerAtMount({ activeAppAccountId: 'app-a', activeJmapAccountId: null }))
+      .toEqual({ appAccountId: 'app-a', jmapAccountId: '' });
   });
 
   it('has no owner without an active account', () => {
-    expect(composerOwnerAtMount({
-      activeAppAccountId: null,
-      activeJmapAccountId: null,
-      accounts,
-    })).toBeNull();
+    expect(composerOwnerAtMount({ activeAppAccountId: null, activeJmapAccountId: null })).toBeNull();
   });
 });
 
@@ -65,5 +29,46 @@ describe('isComposerAccountActive', () => {
 
   it('reports the owner inactive with no active account', () => {
     expect(isComposerAccountActive(owner, null)).toBe(false);
+  });
+});
+
+describe('isComposerOwnerActive', () => {
+  const owner = { appAccountId: 'app-a', jmapAccountId: 'jmap-a' };
+
+  it('allows writes while both stores point at the owner', () => {
+    expect(isComposerOwnerActive(owner, 'app-a', 'app-a')).toBe(true);
+  });
+
+  it('blocks writes as soon as the view swaps, before the client switched', () => {
+    expect(isComposerOwnerActive(owner, 'app-a', 'app-b')).toBe(false);
+  });
+
+  it('blocks writes after the switch completed', () => {
+    expect(isComposerOwnerActive(owner, 'app-b', 'app-b')).toBe(false);
+  });
+
+  it('blocks writes on the way back until the client is the owner again', () => {
+    expect(isComposerOwnerActive(owner, 'app-b', 'app-a')).toBe(false);
+  });
+
+  it('gates nothing without an owner', () => {
+    expect(isComposerOwnerActive(null, 'app-b', 'app-b')).toBe(true);
+  });
+});
+
+describe('composerAccountLabel', () => {
+  const owner = { appAccountId: 'app-a', jmapAccountId: 'jmap-a' };
+
+  it('prefers the email address', () => {
+    expect(composerAccountLabel(owner, { email: 'a@x.y', displayName: 'A', username: 'a' })).toBe('a@x.y');
+  });
+
+  it('falls back to the display name, then the username', () => {
+    expect(composerAccountLabel(owner, { email: '', displayName: 'A', username: 'a' })).toBe('A');
+    expect(composerAccountLabel(owner, { email: '', displayName: '', username: 'a' })).toBe('a');
+  });
+
+  it('falls back to the registry id when the entry is gone', () => {
+    expect(composerAccountLabel(owner, undefined)).toBe('app-a');
   });
 });
