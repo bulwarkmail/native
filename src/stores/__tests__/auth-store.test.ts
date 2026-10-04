@@ -36,11 +36,12 @@ vi.mock('../../lib/push-notifications', () => ({
 }));
 
 vi.mock('../account-data-cleanup', () => ({
-  forgetAccountData: vi.fn(async () => undefined),
+  forgetAccountData: vi.fn(async (_account: unknown, _opts?: unknown) => undefined),
+  forgetSharedData: vi.fn(async () => undefined),
 }));
 
 import { jmapClient } from '../../api/jmap-client';
-import { forgetAccountData } from '../account-data-cleanup';
+import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
@@ -141,11 +142,38 @@ describe('auth-store', () => {
 
       expect(forgetAccountData).toHaveBeenCalledWith({
         appAccountId: 'me@mail.example.com', serverUrl: 'https://mail.example.com', username: 'me',
-      });
+      }, { lastAccount: true });
+    });
+
+    it('logout is not the last account while another stays signed in', async () => {
+      useAccountStore.setState({ accounts: [
+        entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+        entry('o@mail.example.com', 'https://mail.example.com', 'o'),
+      ] });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+      await useAuthStore.getState().logout().catch(() => undefined);
+      expect((forgetAccountData as any).mock.calls[0][1]).toEqual({ lastAccount: false });
+    });
+
+    it('logout without a registry id still forgets shared data when nothing remains', async () => {
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: null });
+      mockLogout.mockResolvedValue(undefined);
+      await useAuthStore.getState().logout();
+      expect(forgetSharedData).toHaveBeenCalled();
+    });
+
+    it('logout finishes even when the cleanup fails', async () => {
+      (forgetAccountData as any).mockRejectedValueOnce(new Error('disk'));
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: 'me@mail.example.com' });
+      await useAuthStore.getState().logout();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
     it('removeAccount forgets a non-active account\'s data, using its registry serverUrl and username', async () => {
-      useAccountStore.setState({ accounts: [entry('other@x.example.com', 'https://x.example.com', 'other')] });
+      useAccountStore.setState({ accounts: [
+        entry('other@x.example.com', 'https://x.example.com', 'other'),
+        entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+      ] });
       useAuthStore.setState({ activeAccountId: 'me@mail.example.com' });
 
       await useAuthStore.getState().removeAccount('other@x.example.com');
@@ -153,7 +181,7 @@ describe('auth-store', () => {
       expect(forgetAccountData).toHaveBeenCalledTimes(1);
       expect(forgetAccountData).toHaveBeenCalledWith({
         appAccountId: 'other@x.example.com', serverUrl: 'https://x.example.com', username: 'other',
-      });
+      }, { lastAccount: false });
     });
 
     it('logoutAll forgets every account\'s data', async () => {
@@ -163,9 +191,10 @@ describe('auth-store', () => {
 
       await useAuthStore.getState().logoutAll();
 
-      expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'a@x.example.com', serverUrl: 'https://x.example.com', username: 'a' });
-      expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'b@y.example.com', serverUrl: 'https://y.example.com', username: 'b' });
+      expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'a@x.example.com', serverUrl: 'https://x.example.com', username: 'a' }, { lastAccount: false });
+      expect(forgetAccountData).toHaveBeenCalledWith({ appAccountId: 'b@y.example.com', serverUrl: 'https://y.example.com', username: 'b' }, { lastAccount: false });
       expect(forgetAccountData).toHaveBeenCalledTimes(2);
+      expect(forgetSharedData).toHaveBeenCalled();
     });
   });
 

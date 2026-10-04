@@ -9,7 +9,7 @@ import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
-import { forgetAccountData } from './account-data-cleanup';
+import { forgetAccountData, forgetSharedData } from './account-data-cleanup';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -609,7 +609,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     jmapClient.reset();
     clearAccountFeatureStores(currentId);
-    if (currentId) await forgetAccountData({ appAccountId: currentId, serverUrl, username });
+    const lastAccount = useAccountStore.getState().accounts.length === 0;
+    // Best-effort: a cleanup error must not leave the app half signed out.
+    if (currentId) {
+      await forgetAccountData({ appAccountId: currentId, serverUrl, username }, { lastAccount })
+        .catch(() => undefined);
+    } else if (lastAccount) {
+      await forgetSharedData().catch(() => undefined);
+    }
 
     // Switch to next remaining account, if any
     const remaining = accountStore.accounts;
@@ -649,8 +656,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     jmapClient.reset();
     clearAllFeatureStores();
     for (const a of signedOut) {
-      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username });
+      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false })
+        .catch(() => undefined);
     }
+    await forgetSharedData().catch(() => undefined);
 
     for (const id of ids) accountStore.removeAccount(id);
 
@@ -775,7 +784,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
-    await forgetAccountData({ appAccountId: accountId, serverUrl: account.serverUrl, username: account.username });
+    await forgetAccountData(
+      { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
+      { lastAccount: accountStore.accounts.length === 1 },
+    ).catch(() => undefined);
     accountStore.removeAccount(accountId);
   },
 

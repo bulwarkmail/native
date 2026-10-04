@@ -15,7 +15,7 @@ vi.mock('../../api/blob', () => ({ uploadBytes: vi.fn() }));
 vi.mock('react', () => ({ default: {} }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { forgetAccountData } from '../account-data-cleanup';
+import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
 import { useOutboxStore } from '../outbox-store';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSearchHistoryStore } from '../search-history-store';
@@ -69,11 +69,28 @@ describe('forgetAccountData', () => {
     expect(useOutboxStore.getState().entries).toHaveLength(1);
   });
 
-  it('clears the active account\'s in-memory outbox', async () => {
+  it('keeps queued outbox changes so they replay on the next sign-in', async () => {
+    await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, JSON.stringify([{ id: 'q1' }]));
+    await AsyncStorage.setItem(`webmail:outbox:v1:${B}:failed`, JSON.stringify([{ id: 'f1' }]));
+    await forgetAccountData({ appAccountId: A });
+    await forgetAccountData({ appAccountId: B });
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${A}`)).not.toBeNull();
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${B}:failed`)).not.toBeNull();
+  });
+
+  it('keeps the active account\'s unsent in-memory changes', async () => {
     await useOutboxStore.getState().setAccount(A);
     useOutboxStore.setState({ entries: [{ id: 'q1' } as any] });
     await forgetAccountData({ appAccountId: A });
-    expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(useOutboxStore.getState().entries).toHaveLength(1);
+  });
+
+  it('does not touch an account whose id merely starts with the signed-out one', async () => {
+    const other = await seed('a@mail.example.com.au');
+    const mine = await seed(A);
+    await forgetAccountData({ appAccountId: A });
+    for (const k of mine) expect(await AsyncStorage.getItem(k)).toBeNull();
+    for (const k of other) expect(await AsyncStorage.getItem(k)).not.toBeNull();
   });
 
   it('keeps subscriptions when the login is unknown', async () => {
@@ -82,9 +99,25 @@ describe('forgetAccountData', () => {
     expect(useCalendarSubscriptionsStore.getState().subscriptions).toHaveLength(1);
   });
 
-  it('clears the search history', async () => {
-    useSearchHistoryStore.setState({ recentSearches: ['invoice', 'lunch'] });
+  it('keeps the search history while another account stays signed in', async () => {
+    useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
     await forgetAccountData({ appAccountId: A });
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual(['invoice']);
+  });
+
+  it('clears the search history and every subscription when the last account signs out', async () => {
+    useSearchHistoryStore.setState({ recentSearches: ['invoice', 'lunch'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub('s1', ''), sub('s2', 'other|x')] });
+    await forgetAccountData({ appAccountId: A }, { lastAccount: true });
     expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+    expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
+  });
+
+  it('forgetSharedData clears them without an account', async () => {
+    useSearchHistoryStore.setState({ recentSearches: ['x'] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub('s1', '')] });
+    await forgetSharedData();
+    expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+    expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
   });
 });

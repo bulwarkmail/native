@@ -1,7 +1,9 @@
 // What signing an account out forgets on the device: its offline message
-// bodies, outbox and calendar subscriptions, plus the search history. Settings,
+// bodies, calendar subscriptions and, with the last account, the search history.
+// Unsent outbox changes are kept. Settings,
 // locale, templates and keywords stay, as in the webmail's sign-out cleanup.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineCacheStore } from './offline-cache-store';
 import { useOutboxStore } from './outbox-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from './calendar-subscriptions-store';
@@ -15,16 +17,48 @@ export interface SignedOutAccount {
   username?: string | null;
 }
 
-export async function forgetAccountData(account: SignedOutAccount): Promise<void> {
-  await Promise.all([
-    useOfflineCacheStore.getState().clearAccount(account.appAccountId),
-    useOutboxStore.getState().clearAccount(account.appAccountId),
-  ]);
+const OUTBOX_KEY_PREFIX = 'webmail:outbox:v1:';
+
+async function hasUnsentChanges(appAccountId: string): Promise<boolean> {
+  const outbox = useOutboxStore.getState();
+  if (outbox.activeAccountId === appAccountId) {
+    return outbox.entries.length > 0 || outbox.failed.length > 0;
+  }
+  for (const suffix of ['', ':failed']) {
+    try {
+      const raw = await AsyncStorage.getItem(`${OUTBOX_KEY_PREFIX}${appAccountId}${suffix}`);
+      if (raw && (JSON.parse(raw) as unknown[]).length > 0) return true;
+    } catch {
+      // Unreadable: treat as having changes rather than risk dropping them.
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Data that is not kept per account: forgotten once no account is signed in. */
+export async function forgetSharedData(): Promise<void> {
+  // Ownerless subscriptions belong to no login, and their feed URLs can be secret.
+  useCalendarSubscriptionsStore.setState({ subscriptions: [] });
+  useSearchHistoryStore.getState().clearRecentSearches();
+}
+
+export async function forgetAccountData(
+  account: SignedOutAccount,
+  opts: { lastAccount?: boolean } = {},
+): Promise<void> {
+  await useOfflineCacheStore.getState().clearAccount(account.appAccountId);
+  // Queued and failed ops are the user's unsent changes: keep them so they
+  // replay when this account signs in again.
+  if (await hasUnsentChanges(account.appAccountId)) {
+    console.warn('[sign-out] keeping unsent outbox changes for', account.appAccountId);
+  } else {
+    await useOutboxStore.getState().clearAccount(account.appAccountId);
+  }
   if (account.serverUrl && account.username) {
     useCalendarSubscriptionsStore.getState().forgetSubscriptions(
       subscriptionOwner(account.serverUrl, account.username),
     );
   }
-  // Not kept per account, so it goes with every sign-out.
-  useSearchHistoryStore.getState().clearRecentSearches();
+  if (opts.lastAccount) await forgetSharedData();
 }
