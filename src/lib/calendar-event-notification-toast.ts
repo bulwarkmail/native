@@ -32,9 +32,10 @@ export interface NoticeToast {
  * same account, the event still exists (not a cancellation) and has an id.
  */
 export function buildNoticeToasts(
-  notices: (CalendarEventNotification & { accountId?: string })[],
+  notices: (CalendarEventNotification & { accountId?: string; appAccountId?: string })[],
   t: TranslateFn,
   activeAccountId?: string,
+  activeAppAccountId?: string | null,
 ): NoticeToast[] {
   const out: NoticeToast[] = [];
   for (const n of notices) {
@@ -60,7 +61,8 @@ export function buildNoticeToasts(
     const loadable = n.type !== 'destroyed'
       && !!n.calendarEventId
       && !!activeAccountId
-      && n.accountId === activeAccountId;
+      && n.accountId === activeAccountId
+      && (n.appAccountId ?? null) === (activeAppAccountId ?? null);
     out.push({
       id: n.id,
       level,
@@ -70,4 +72,22 @@ export function buildNoticeToasts(
     });
   }
   return out;
+}
+
+// The toast host keeps three toasts; a backlog toasted one by one would evict
+// unrelated ones.
+const MAX_TOASTS = 3;
+const INDIVIDUAL_WHEN_CROWDED = 2;
+
+/**
+ * Splits toasts (oldest first) into those shown one by one and a count of
+ * the rest, which get one summary toast. Up to three are shown as they are;
+ * a bigger batch keeps the newest two and summarises the others.
+ */
+export function selectNoticeToasts(toasts: NoticeToast[]): { individual: NoticeToast[]; overflow: number } {
+  if (toasts.length <= MAX_TOASTS) return { individual: toasts, overflow: 0 };
+  return {
+    individual: toasts.slice(-INDIVIDUAL_WHEN_CROWDED),
+    overflow: toasts.length - INDIVIDUAL_WHEN_CROWDED,
+  };
 }

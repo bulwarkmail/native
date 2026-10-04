@@ -40,12 +40,18 @@ export async function getCalendarEventNotifications(): Promise<CalendarEventNoti
  * Acknowledges (destroys) notifications that were shown. `accountId` is the
  * account they were fetched for; when the client has since moved to another
  * account nothing is sent, so an id is never destroyed on the wrong one.
+ * `stillServing` additionally tells the app account apart (JMAP account ids
+ * can repeat across servers); it is re-checked before every batch.
  */
-export async function destroyCalendarEventNotifications(ids: string[], accountId: string): Promise<void> {
+export async function destroyCalendarEventNotifications(
+  ids: string[],
+  accountId: string,
+  stillServing?: () => boolean,
+): Promise<void> {
   if (ids.length === 0 || !hasCalendarCapability()) return;
   for (const batch of batched(ids, jmapClient.getMaxObjectsInSet())) {
     // Re-checked per batch: the account can switch while an earlier one runs.
-    if (jmapClient.accountId !== accountId) {
+    if (jmapClient.accountId !== accountId || (stillServing && !stillServing())) {
       console.warn('[calendar-event-notifications] destroy skipped: the active account changed');
       return;
     }

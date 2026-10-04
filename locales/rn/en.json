@@ -149,6 +149,7 @@
     }
   },
   "calendar_event_notifications": {
+    "more": "{count, plural, one {# more calendar update} other {# more calendar updates}}",
     "open": "Open"
   },
   "common": {

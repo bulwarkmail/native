@@ -87,6 +87,16 @@ describe('destroyCalendarEventNotifications', () => {
     warn.mockRestore();
   });
 
+  it('skips when the caller says the app account no longer matches', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await destroyCalendarEventNotifications(['a'], 'acc-1', () => false);
+    expect(mockRequest).not.toHaveBeenCalled();
+    mockRequest.mockResolvedValue({ methodResponses: [] });
+    await destroyCalendarEventNotifications(['a'], 'acc-1', () => true);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
   it('does nothing for no ids or without the capability', async () => {
     await destroyCalendarEventNotifications([], 'acc-1');
     mockCap.mockReturnValue(false);

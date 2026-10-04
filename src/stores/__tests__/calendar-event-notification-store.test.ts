@@ -76,7 +76,7 @@ describe('calendar event notification store', () => {
     mockDestroy.mockReturnValue(d.promise);
     const p = useStore.getState().acknowledge(['a1']);
     expect(ids()).toEqual(['a2']);
-    expect(mockDestroy).toHaveBeenCalledWith(['a1'], 'acc-1');
+    expect(mockDestroy).toHaveBeenCalledWith(['a1'], 'acc-1', expect.any(Function));
     d.resolve();
     await p;
   });
@@ -160,5 +160,46 @@ describe('calendar event notification store', () => {
     await useStore.getState().fetch();
     expect(ids()).toEqual(['w1']);
     expect(useStore.getState().pending[0].accountId).toBe('acc-2');
+  });
+
+  it('keys notices by app account: another server with the same JMAP account id and notice ids still toasts', async () => {
+    client.accountId = 'b';
+    mockList.mockResolvedValue([n('n1')]);
+    await useStore.getState().fetch();
+    expect(ids()).toEqual(['n1']);
+    expect(useStore.getState().pending[0].appAccountId).toBe('app-1');
+    await useStore.getState().acknowledge(['n1']);
+    // Switch to the second account (other server), same JMAP id "b".
+    useStore.getState().reset();
+    accounts.active = 'app-2';
+    client.username = 'u2'; client.serverUrl = 'https://b.example';
+    await useStore.getState().fetch();
+    expect(ids()).toEqual(['n1']);
+    expect(useStore.getState().pending[0].appAccountId).toBe('app-2');
+    // and the first account's own repeat is still suppressed
+    await useStore.getState().acknowledge(['n1']);
+    useStore.getState().reset();
+    accounts.active = 'app-1';
+    client.username = 'u1'; client.serverUrl = 'https://a.example';
+    await useStore.getState().fetch();
+    expect(ids()).toEqual([]);
+  });
+
+  it('a destroy for the first account never runs while the client serves the second', async () => {
+    client.accountId = 'b';
+    mockList.mockResolvedValue([n('g1')]);
+    await useStore.getState().fetch();
+    let guard: (() => boolean) | undefined;
+    mockDestroy.mockImplementation(async (_ids: string[], _acc: string, g?: () => boolean) => { guard = g; });
+    await useStore.getState().acknowledge(['g1']);
+    expect(mockDestroy).toHaveBeenCalledWith(['g1'], 'b', expect.any(Function));
+    expect(guard!()).toBe(true);
+    // Switch to app-2 (same JMAP id "b"), account store and client agree.
+    accounts.active = 'app-2';
+    client.username = 'u2'; client.serverUrl = 'https://b.example';
+    expect(guard!()).toBe(false);
+    // Account store lagging the client, or the other way round.
+    accounts.active = 'app-1';
+    expect(guard!()).toBe(false);
   });
 });

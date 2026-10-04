@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildNoticeToasts } from '../calendar-event-notification-toast';
+import { buildNoticeToasts, selectNoticeToasts } from '../calendar-event-notification-toast';
 
 const t = (key: string, fallback?: string, params?: Record<string, string | number>) =>
   (fallback ?? key).replace(/\{(\w+)\}/g, (_m, k) => String(params?.[k] ?? ''));
@@ -58,5 +58,29 @@ describe('buildNoticeToasts', () => {
     ] as never;
     const out = buildNoticeToasts(notes, t as never, 'acc-1');
     expect(out.map((o) => o.openEventId)).toEqual(['ev1', undefined, undefined, undefined]);
+  });
+
+  it('offers Open only when the app account matches too (JMAP ids repeat across servers)', () => {
+    const notes = [{ ...base, id: '1', type: 'created', changedBy: by, appAccountId: 'app-1' }] as never;
+    expect(buildNoticeToasts(notes, t as never, 'acc-1', 'app-1')[0].openEventId).toBe('ev1');
+    expect(buildNoticeToasts(notes, t as never, 'acc-1', 'app-2')[0].openEventId).toBeUndefined();
+    expect(buildNoticeToasts(notes, t as never, 'acc-1')[0].openEventId).toBeUndefined();
+  });
+});
+
+describe('selectNoticeToasts', () => {
+  const toasts = (n: number) => Array.from({ length: n }, (_v, i) => ({ id: `t${i}`, level: 'info' as const, title: `T${i}` }));
+
+  it('shows up to three individually', () => {
+    expect(selectNoticeToasts(toasts(0))).toEqual({ individual: [], overflow: 0 });
+    expect(selectNoticeToasts(toasts(3)).individual.map((x) => x.id)).toEqual(['t0', 't1', 't2']);
+    expect(selectNoticeToasts(toasts(3)).overflow).toBe(0);
+  });
+
+  it('for a bigger burst keeps the newest two and counts the rest', () => {
+    const r = selectNoticeToasts(toasts(7));
+    expect(r.individual.map((x) => x.id)).toEqual(['t5', 't6']);
+    expect(r.overflow).toBe(5);
+    expect(selectNoticeToasts(toasts(4))).toMatchObject({ overflow: 2 });
   });
 });
