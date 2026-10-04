@@ -12,7 +12,9 @@ import { Mail, Calendar, BookUser, HardDrive, Settings } from 'lucide-react-nati
 import { startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream';
 import { jmapClient } from './src/api/jmap-client';
 import type { StateChange } from './src/api/types';
-import { dispatchStateChange } from './src/lib/state-change-bus';
+import { dispatchStateChange, onStateChangeType } from './src/lib/state-change-bus';
+import { startCalendarEventNotificationToasts } from './src/lib/calendar-event-notification-presenter';
+import { useCalendarEventNotificationStore } from './src/stores/calendar-event-notification-store';
 import {
   startCalendarNotificationSync,
   startCalendarReminderTapHandling,
@@ -493,6 +495,14 @@ export default function App() {
     });
   }, [haveLiveSession]);
 
+  // Toasts for invitations the server delivered (queued by the store).
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    return startCalendarEventNotificationToasts(() => {
+      if (navigationRef.isReady()) navigationRef.navigate('MainTabs', { screen: 'Calendar' } as never);
+    });
+  }, [isAuthenticated]);
+
   // Foreground FCM messages: the Kotlin service skips the headless task while
   // the app is visible, so feed the relay's StateChange straight into the
   // stores. SSE normally beats it, but this covers the window where the SSE
@@ -504,7 +514,9 @@ export default function App() {
       try {
         const changed = JSON.parse(raw) as Record<string, Record<string, string>>;
         if (!changed || typeof changed !== 'object') return;
-        void useEmailStore.getState().handleStateChange({ '@type': 'StateChange', changed });
+        const change = { '@type': 'StateChange' as const, changed };
+        dispatchStateChange(change);
+        void useEmailStore.getState().handleStateChange(change);
       } catch {
         // malformed payload - ignore
       }
@@ -769,6 +781,7 @@ export default function App() {
       void email.fetchMailboxes();
       if (email.currentMailboxId) void email.refreshEmails();
       void useOutboxStore.getState().flush();
+      void useCalendarEventNotificationStore.getState().fetch();
     };
 
     // Foreground liveness for the per-account connection dot: the open
@@ -789,6 +802,15 @@ export default function App() {
     });
 
     void start();
+
+    // Invitations, updates and cancellations the server delivered: pull once
+    // now (sign-in or account switch re-runs this effect), then on a push for
+    // the account we serve.
+    void useCalendarEventNotificationStore.getState().fetch();
+    const unsubscribeNotices = onStateChangeType('CalendarEventNotification', (changedAccountId) => {
+      const primary = (() => { try { return jmapClient.accountId; } catch { return null; } })();
+      if (changedAccountId === primary) void useCalendarEventNotificationStore.getState().fetch();
+    });
 
     const subscription = AppState.addEventListener('change', (state) => {
       const nowActive = state === 'active';
@@ -817,6 +839,7 @@ export default function App() {
 
     return () => {
       mounted = false;
+      unsubscribeNotices();
       subscription.remove();
       unsubscribeNetwork();
       liveness.stop();

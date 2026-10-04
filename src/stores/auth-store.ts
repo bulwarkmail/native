@@ -5,6 +5,7 @@ import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-sec
 import { useAccountStore } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
+import { useCalendarEventNotificationStore } from './calendar-event-notification-store';
 import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
@@ -123,6 +124,7 @@ function clearAllFeatureStores(): void {
   clearViewerCaches();
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
+  useCalendarEventNotificationStore.getState().reset();
   useFilterStore.getState().clearState();
   // Cache writes are held back briefly; get the signed-out data off disk now.
   void flushPersistedWrites();
@@ -144,6 +146,7 @@ function clearAccountFeatureStores(accountId: string | null): void {
   // follow-up.
   useContactsStore.getState().reset();
   useCalendarStore.getState().reset();
+  useCalendarEventNotificationStore.getState().reset();
   useFilterStore.getState().clearState();
   void flushPersistedWrites();
 }
@@ -305,6 +308,7 @@ async function completeOAuthHandoff(
   if (previous) {
     useContactsStore.getState().reset();
     useCalendarStore.getState().reset();
+    useCalendarEventNotificationStore.getState().reset();
   }
   accountStore.setActiveAccount(accountId);
   useEmailStore.getState().setActiveAccount(accountId);
@@ -395,6 +399,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (previous) {
         useContactsStore.getState().reset();
         useCalendarStore.getState().reset();
+        useCalendarEventNotificationStore.getState().reset();
       }
       accountStore.setActiveAccount(accountId);
       // Swap the email store's active view to the new account so the rest of
@@ -480,6 +485,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (previous) {
       useContactsStore.getState().reset();
       useCalendarStore.getState().reset();
+      useCalendarEventNotificationStore.getState().reset();
     }
     accountStore.setActiveAccount(accountId);
     useEmailStore.getState().setActiveAccount(accountId);
@@ -777,6 +783,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // need a reset to avoid showing the previous account's data.
     useContactsStore.getState().reset();
     useCalendarStore.getState().reset();
+    useCalendarEventNotificationStore.getState().reset();
     // Load the new account's session. loadAccount overwrites
     // credentials/session/_accountId itself, so we don't need to reset
     // jmapClient first. If it fails, restore the previous active account

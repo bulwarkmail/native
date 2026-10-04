@@ -481,6 +481,24 @@ export interface Alert {
   acknowledged?: string | null;
 }
 
+// draft-ietf-jmap-calendars §7: an invitation, update or cancellation the
+// server delivered for the user. `event` is only present when asked for.
+export interface CalendarEventNotification {
+  id: string;
+  created: string;
+  changedBy: {
+    name: string;
+    email: string;
+    principalId: string | null;
+    scheduleId: string | null;
+  };
+  comment: string | null;
+  type: 'created' | 'updated' | 'destroyed';
+  calendarEventId: string;
+  isDraft: boolean;
+  event?: Partial<CalendarEvent>;
+}
+
 export interface CalendarEvent {
   id: string;
   '@type'?: 'Event' | 'Task';

@@ -130,6 +130,9 @@
       "update_error": "Failed to update task"
     }
   },
+  "calendar_event_notifications": {
+    "open": "Open"
+  },
   "common": {
     "add": "Add",
     "back": "Back",
