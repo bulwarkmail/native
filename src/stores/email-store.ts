@@ -2912,7 +2912,10 @@ async function refreshEmailsImpl(): Promise<void> {
       set(updates);
     } catch (err) {
       console.warn('[email-store] refreshEmails failed:', err);
-      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      // A failure for a view the user already left (cleared or changed the
+      // search, another folder) must not touch the one now on screen; that
+      // view's own refresh is queued behind this one.
+      if (viewChanged()) return;
       // A failed search must not leave the previous view's rows standing as
       // if they were its results (WEB clears them too).
       if (!baseView) {
