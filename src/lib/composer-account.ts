@@ -55,3 +55,24 @@ export function composerAccountLabel(
 ): string {
   return entry?.email || entry?.displayName || entry?.username || owner.appAccountId;
 }
+
+interface ActiveAccountSource {
+  getState(): { activeAccountId: string | null };
+}
+
+/**
+ * A checker that reads the stores at call time. Write-time guards must use
+ * this, not a value captured at render: a detached write (a discard that
+ * finishes after the composer closed) or one between a store change and the
+ * next render would otherwise see a stale "still active".
+ */
+export function liveComposerOwnerCheck(
+  owner: ComposerAccount | null,
+  stores: { auth: ActiveAccountSource; view: ActiveAccountSource },
+): () => boolean {
+  return () => isComposerOwnerActive(
+    owner,
+    stores.auth.getState().activeAccountId,
+    stores.view.getState().activeAccountId,
+  );
+}
