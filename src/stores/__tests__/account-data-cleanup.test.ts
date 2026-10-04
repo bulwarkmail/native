@@ -127,4 +127,40 @@ describe('forgetAccountData', () => {
     expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
     expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
   });
+
+  it('runs every later step when an earlier one fails, and logs the failure', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const clear = vi.spyOn(useOfflineCacheStore.getState(), 'clearAccount').mockRejectedValueOnce(new Error('disk'));
+    try {
+      const ownerA = subscriptionOwner('https://mail.example.com', 'a');
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub('s1', ownerA)] });
+      useSearchHistoryStore.setState({ recentSearches: ['invoice'] });
+      await forgetAccountData(
+        { appAccountId: A, serverUrl: 'https://mail.example.com', username: 'a' },
+        { lastAccount: true },
+      );
+      expect(useCalendarSubscriptionsStore.getState().subscriptions).toEqual([]);
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+      expect(warn).toHaveBeenCalledWith('[sign-out] cleanup failed', expect.any(Error));
+    } finally {
+      clear.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  it('forgetSharedData clears the search history when forgetting subscriptions fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const set = vi.spyOn(useCalendarSubscriptionsStore, 'setState').mockImplementationOnce(() => {
+      throw new Error('storage');
+    });
+    try {
+      useSearchHistoryStore.setState({ recentSearches: ['x'] });
+      await forgetSharedData();
+      expect(useSearchHistoryStore.getState().recentSearches).toEqual([]);
+      expect(warn).toHaveBeenCalledWith('[sign-out] cleanup failed', expect.any(Error));
+    } finally {
+      set.mockRestore();
+      warn.mockRestore();
+    }
+  });
 });

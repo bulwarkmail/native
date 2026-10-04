@@ -37,29 +37,44 @@ async function hasUnsentChanges(appAccountId: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Run one cleanup step, logging a failure instead of throwing, so a step that
+ * fails (storage full, a corrupt entry) does not skip the steps after it.
+ */
+async function step(run: () => unknown): Promise<void> {
+  try {
+    await run();
+  } catch (e) {
+    console.warn('[sign-out] cleanup failed', e);
+  }
+}
+
 /** Data that is not kept per account: forgotten once no account is signed in. */
 export async function forgetSharedData(): Promise<void> {
   // Ownerless subscriptions belong to no login, and their feed URLs can be secret.
-  useCalendarSubscriptionsStore.setState({ subscriptions: [] });
-  useSearchHistoryStore.getState().clearRecentSearches();
+  await step(() => useCalendarSubscriptionsStore.setState({ subscriptions: [] }));
+  await step(() => useSearchHistoryStore.getState().clearRecentSearches());
 }
 
 export async function forgetAccountData(
   account: SignedOutAccount,
   opts: { lastAccount?: boolean } = {},
 ): Promise<void> {
-  await useOfflineCacheStore.getState().clearAccount(account.appAccountId);
-  // Queued and failed ops are the user's unsent changes: keep them so they
-  // replay when this account signs in again.
-  if (await hasUnsentChanges(account.appAccountId)) {
-    console.warn('[sign-out] keeping unsent outbox changes for', account.appAccountId);
-  } else {
-    await useOutboxStore.getState().clearAccount(account.appAccountId);
-  }
-  if (account.serverUrl && account.username) {
-    useCalendarSubscriptionsStore.getState().forgetSubscriptions(
-      subscriptionOwner(account.serverUrl, account.username),
-    );
+  await step(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
+  await step(async () => {
+    // Queued and failed ops are the user's unsent changes: keep them so they
+    // replay when this account signs in again.
+    if (await hasUnsentChanges(account.appAccountId)) {
+      console.warn('[sign-out] keeping unsent outbox changes for', account.appAccountId);
+    } else {
+      await useOutboxStore.getState().clearAccount(account.appAccountId);
+    }
+  });
+  const { serverUrl, username } = account;
+  if (serverUrl && username) {
+    await step(() => useCalendarSubscriptionsStore.getState().forgetSubscriptions(
+      subscriptionOwner(serverUrl, username),
+    ));
   }
   if (opts.lastAccount) await forgetSharedData();
 }

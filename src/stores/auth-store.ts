@@ -613,9 +613,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Best-effort: a cleanup error must not leave the app half signed out.
     if (currentId) {
       await forgetAccountData({ appAccountId: currentId, serverUrl, username }, { lastAccount })
-        .catch(() => undefined);
+        .catch((e) => console.warn('[sign-out] cleanup failed', e));
     } else if (lastAccount) {
-      await forgetSharedData().catch(() => undefined);
+      await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
     }
 
     // Switch to next remaining account, if any
@@ -661,9 +661,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     clearAllFeatureStores();
     for (const a of signedOut) {
       await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false })
-        .catch(() => undefined);
+        .catch((e) => console.warn('[sign-out] cleanup failed', e));
     }
-    await forgetSharedData().catch(() => undefined);
+    await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
 
     for (const id of ids) accountStore.removeAccount(id);
 
@@ -792,7 +792,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await forgetAccountData(
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
       { lastAccount: useAccountStore.getState().accounts.length === 0 },
-    ).catch(() => undefined);
+    ).catch((e) => console.warn('[sign-out] cleanup failed', e));
   },
 
   restoreSession: async () => {
