@@ -70,18 +70,29 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
 
   // Rebuild the calendar links only when the caller manages them, so an
   // update that does not mention them leaves the server's entries alone.
-  if ('calendarUri' in card || 'freeBusyUri' in card) {
+  // A card that still carries its wire maps with flat fields matching them
+  // (move, duplicate) keeps the maps as they are, so extra entries and their
+  // mediaType/pref survive.
+  const cals = Object.values(card.calendars ?? {});
+  const calsMatch = !!card.calendars
+    && (card.calendarUri || undefined) === cals.find(c => c?.kind === 'calendar')?.uri
+    && (card.freeBusyUri || undefined) === cals.find(c => c?.kind === 'freeBusy')?.uri;
+  if (!calsMatch && ('calendarUri' in card || 'freeBusyUri' in card)) {
     const calendars: Record<string, unknown> = {};
     if (card.calendarUri) calendars.cal = { '@type': 'Calendar', kind: 'calendar', uri: card.calendarUri };
     if (card.freeBusyUri) calendars.fb = { '@type': 'Calendar', kind: 'freeBusy', uri: card.freeBusyUri };
     if (Object.keys(calendars).length) out.calendars = calendars;
     else if (mode === 'update') out.calendars = null;
   }
-  if ('schedulingUri' in card) {
+  const schedMatches = !!card.schedulingAddresses
+    && (card.schedulingUri || undefined) === Object.values(card.schedulingAddresses)[0]?.uri;
+  if (!schedMatches && 'schedulingUri' in card) {
     if (card.schedulingUri) out.schedulingAddresses = { sched: { '@type': 'SchedulingAddress', uri: card.schedulingUri } };
     else if (mode === 'update') out.schedulingAddresses = null;
   }
-  if (card.source) {
+  const sourceMatches = !!card.directories
+    && card.source === Object.values(card.directories).find(d => d?.kind === 'entry')?.uri;
+  if (card.source && !sourceMatches) {
     // vCard SOURCE is a JSContact directory entry (RFC 9553 §2.6.2).
     const directories = { ...(card.directories ?? {}) } as Record<string, unknown>;
     directories.source = { '@type': 'Directory', kind: 'entry', uri: card.source };
@@ -105,4 +116,64 @@ export function contactFromWire<T extends ContactCard>(card: T): T {
     ...(schedulingUri ? { schedulingUri } : {}),
     ...(source ? { source } : {}),
   };
+}
+
+type LinkMaps = {
+  calendars?: ContactCard['calendars'] | null;
+  schedulingAddresses?: ContactCard['schedulingAddresses'] | null;
+};
+
+/**
+ * Apply an edit of the flat link fields to the card's own maps, touching only
+ * the first entry of the matching kind. A map left empty comes back as `null`
+ * so an update clears it.
+ */
+export function mergeContactLinks(
+  existing: Partial<ContactCard> | undefined,
+  changes: { calendarUri?: string; freeBusyUri?: string; schedulingUri?: string },
+): LinkMaps {
+  const out: LinkMaps = {};
+  if ('calendarUri' in changes || 'freeBusyUri' in changes) {
+    const calendars: NonNullable<ContactCard['calendars']> = { ...(existing?.calendars ?? {}) };
+    const apply = (kind: 'calendar' | 'freeBusy', key: string, uri: string | undefined) => {
+      if (uri === undefined) return;
+      const found = Object.keys(calendars).find(k => calendars[k]?.kind === kind);
+      if (!uri) { if (found) delete calendars[found]; return; }
+      if (found) calendars[found] = { ...calendars[found], uri };
+      else calendars[key] = { '@type': 'Calendar', kind, uri };
+    };
+    apply('calendar', 'cal', changes.calendarUri);
+    apply('freeBusy', 'fb', changes.freeBusyUri);
+    out.calendars = Object.keys(calendars).length ? calendars : null;
+  }
+  if ('schedulingUri' in changes) {
+    const sched: NonNullable<ContactCard['schedulingAddresses']> = { ...(existing?.schedulingAddresses ?? {}) };
+    const found = Object.keys(sched)[0];
+    const uri = changes.schedulingUri;
+    if (!uri) { if (found) delete sched[found]; }
+    else if (found) sched[found] = { ...sched[found], uri };
+    else sched.sched = { '@type': 'SchedulingAddress', uri };
+    out.schedulingAddresses = Object.keys(sched).length ? sched : null;
+  }
+  return out;
+}
+
+/**
+ * The link part of a form save. A new card sends the flat fields (contactToWire
+ * maps them); an edit sends maps only for the fields the user changed, so a
+ * name-only edit leaves the server's links alone.
+ */
+export function contactLinkPatch(
+  existing: Partial<ContactCard> | undefined,
+  form: { calendarUri: string; freeBusyUri: string; schedulingUri: string },
+): Record<string, unknown> {
+  const fields = ['calendarUri', 'freeBusyUri', 'schedulingUri'] as const;
+  if (!existing) {
+    return Object.fromEntries(fields.filter(f => form[f]).map(f => [f, form[f]]));
+  }
+  const changes: Record<string, string> = {};
+  for (const f of fields) {
+    if (form[f] !== (existing[f] || '')) changes[f] = form[f];
+  }
+  return Object.keys(changes).length ? mergeContactLinks(existing, changes) : {};
 }

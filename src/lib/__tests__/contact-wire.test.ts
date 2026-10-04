@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contactFromWire, contactToWire } from '../contact-wire';
+import { contactFromWire, contactLinkPatch, contactToWire, mergeContactLinks } from '../contact-wire';
 import type { ContactCard } from '../../api/types';
 
 describe('contactToWire', () => {
@@ -78,5 +78,82 @@ describe('contactFromWire', () => {
   it('returns a card without links unchanged', () => {
     const card: ContactCard = { id: 'c1', addressBookIds: {} };
     expect(contactFromWire(card)).toBe(card);
+  });
+});
+
+const serverCard: ContactCard = {
+  id: 'c1',
+  addressBookIds: {},
+  calendars: {
+    k1: { kind: 'calendar', uri: 'https://x.test/A', mediaType: 'text/calendar', pref: 1 },
+    k2: { kind: 'calendar', uri: 'https://x.test/B' },
+    f: { kind: 'freeBusy', uri: 'https://x.test/C' },
+  },
+  schedulingAddresses: { s1: { uri: 'mailto:a@x.test' }, s2: { uri: 'mailto:b@x.test' } },
+  directories: { d1: { kind: 'entry', uri: 'https://x.test/1.vcf' }, d2: { kind: 'entry', uri: 'https://x.test/2.vcf' } },
+};
+
+describe('links kept intact', () => {
+  it('keeps the wire maps when the flat fields match them (move, duplicate)', () => {
+    const wire = contactToWire(contactFromWire(serverCard), 'create');
+    expect(wire.calendars).toBe(serverCard.calendars);
+    expect(wire.schedulingAddresses).toBe(serverCard.schedulingAddresses);
+    expect(wire.directories).toBe(serverCard.directories);
+    expect(wire).not.toHaveProperty('calendarUri');
+    expect(wire).not.toHaveProperty('source');
+  });
+
+  it('rebuilds the maps when a flat field differs and there is no map', () => {
+    const wire = contactToWire({ calendarUri: 'https://x.test/new' }, 'update');
+    expect(wire.calendars).toEqual({ cal: { '@type': 'Calendar', kind: 'calendar', uri: 'https://x.test/new' } });
+  });
+});
+
+describe('mergeContactLinks', () => {
+  it('replaces only the first calendar entry uri', () => {
+    const merged = mergeContactLinks(serverCard, { calendarUri: 'https://x.test/new' });
+    expect(merged.calendars).toEqual({
+      ...serverCard.calendars,
+      k1: { kind: 'calendar', uri: 'https://x.test/new', mediaType: 'text/calendar', pref: 1 },
+    });
+    expect(merged).not.toHaveProperty('schedulingAddresses');
+  });
+
+  it('removes the entry when the value is emptied', () => {
+    const merged = mergeContactLinks(serverCard, { freeBusyUri: '' });
+    expect(Object.keys(merged.calendars ?? {})).toEqual(['k1', 'k2']);
+  });
+
+  it('adds a missing entry under the webmail key', () => {
+    expect(mergeContactLinks({ id: 'c', addressBookIds: {} }, { calendarUri: 'u' }).calendars)
+      .toEqual({ cal: { '@type': 'Calendar', kind: 'calendar', uri: 'u' } });
+  });
+
+  it('replaces the first scheduling address and keeps the rest', () => {
+    expect(mergeContactLinks(serverCard, { schedulingUri: 'mailto:z@x.test' }).schedulingAddresses)
+      .toEqual({ s1: { uri: 'mailto:z@x.test' }, s2: { uri: 'mailto:b@x.test' } });
+  });
+
+  it('returns null for a map that ends up empty', () => {
+    const only = { id: 'c', addressBookIds: {}, calendars: { k: { kind: 'calendar', uri: 'u' } } };
+    expect(mergeContactLinks(only, { calendarUri: '' }).calendars).toBeNull();
+  });
+});
+
+describe('contactLinkPatch', () => {
+  const form = { calendarUri: 'https://x.test/A', freeBusyUri: 'https://x.test/C', schedulingUri: 'mailto:a@x.test' };
+  const existing = contactFromWire(serverCard);
+
+  it('sends no link keys for an edit that did not touch them', () => {
+    expect(contactLinkPatch(existing, form)).toEqual({});
+  });
+
+  it('merges only the changed field on edit', () => {
+    const patch = contactLinkPatch(existing, { ...form, calendarUri: 'https://x.test/new' });
+    expect(Object.keys(patch)).toEqual(['calendars']);
+  });
+
+  it('sends non-empty flat fields for a new card', () => {
+    expect(contactLinkPatch(undefined, { calendarUri: 'u', freeBusyUri: '', schedulingUri: '' })).toEqual({ calendarUri: 'u' });
   });
 });
