@@ -13,7 +13,7 @@ import {
 } from '../../../device-sync/app/collections';
 import { CALENDAR_AUTHORITY, type Authority } from '../../../device-sync/types';
 import { useAuthStore } from '../../../stores/auth-store';
-import { useCalendarSubscriptionsStore } from '../../../stores/calendar-subscriptions-store';
+import { useAccountSubscriptions } from '../../../stores/calendar-subscriptions-store';
 
 export type CollectionsState =
   | { kind: 'idle' }
@@ -33,12 +33,16 @@ export function useSyncCollections(registryId: string, authority: Authority, act
   // Calendars mirroring subscribed feeds are read-only on the device. Only
   // the active account's subscriptions are known here.
   const isActive = useAuthStore((s) => s.activeAccountId === registryId);
-  const subscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
+  const subscriptions = useAccountSubscriptions();
+  // Keyed on the calendars so a store write that changes nothing here doesn't
+  // re-run the network listing below.
+  const feedsKey = subscriptions.map((sub) => `${sub.accountId ?? ''}|${sub.calendarId}`).sort().join(',');
   const feeds = React.useMemo(
     () => (authority === CALENDAR_AUTHORITY && isActive
       ? subscriptions.map((sub) => ({ calendarId: sub.calendarId, accountId: sub.accountId }))
       : []),
-    [authority, isActive, subscriptions],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [authority, isActive, feedsKey],
   );
 
   React.useEffect(() => {

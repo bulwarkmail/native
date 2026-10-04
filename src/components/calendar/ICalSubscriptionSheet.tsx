@@ -12,11 +12,10 @@ import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-ut
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import {
   DEFAULT_REFRESH_INTERVAL_MINUTES,
-  selectAccountSubscriptions,
+  useAccountSubscriptions,
   useCalendarSubscriptionsStore,
   type CalendarSubscription,
 } from '../../stores/calendar-subscriptions-store';
-import { jmapClient } from '../../api/jmap-client';
 
 // The webmail's refresh intervals and their labels.
 const INTERVAL_OPTIONS: { minutes: number; key: string; fallback: string }[] = [
@@ -36,13 +35,9 @@ export function ICalSubscriptionSheet({ visible, onClose }: Props) {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const { locale, t } = useCalendarLocale();
-  const allSubscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
-  // Only the signed-in account's feeds: a sub created under another account
+  // Only the signed-in login's feeds: a sub created under another login
   // mirrors into a calendar id that doesn't exist (or collides) here.
-  const subscriptions = React.useMemo(
-    () => selectAccountSubscriptions(allSubscriptions, jmapClient.isConnected ? jmapClient.accountId : null),
-    [allSubscriptions],
-  );
+  const subscriptions = useAccountSubscriptions();
   const syncing = useCalendarSubscriptionsStore((s) => s.syncing);
   const addSubscription = useCalendarSubscriptionsStore((s) => s.addSubscription);
   const updateSubscription = useCalendarSubscriptionsStore((s) => s.updateSubscription);

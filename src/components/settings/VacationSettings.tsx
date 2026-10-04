@@ -9,6 +9,7 @@ import Button from '../Button';
 import RichTextEditor, { type RichTextEditorHandle } from '../RichTextEditor';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { useAuthStore } from '../../stores/auth-store';
 import { useVacationStore } from '../../stores/vacation-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { useLocaleStore } from '../../stores/locale-store';
@@ -34,6 +35,7 @@ export function VacationSettings() {
   const store = useVacationStore();
   // Scoped to a shared/group account when Settings is managing one.
   const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
 
   const [enabled, setEnabled] = useState(store.isEnabled);
   const [fromDate, setFromDate] = useState(utcIsoToLocalInput(store.fromDate));
@@ -54,10 +56,11 @@ export function VacationSettings() {
     void store.fetch(managedAccountId ?? undefined)
       .then(() => setFetchError(useVacationStore.getState().error));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [managedAccountId]);
+  }, [managedAccountId, activeAccountId]);
 
+  // No hasLoaded guard: after an account switch the store is reset, and the
+  // form must follow it back to blank so Save can't write the old account's text.
   useEffect(() => {
-    if (!store.hasLoaded) return;
     setEnabled(store.isEnabled);
     setFromDate(utcIsoToLocalInput(store.fromDate));
     setToDate(utcIsoToLocalInput(store.toDate));

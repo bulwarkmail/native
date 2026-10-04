@@ -29,6 +29,7 @@ import {
   deleteEmail,
   searchEmails,
   sendEmail,
+  importEmailBlob,
 } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -587,6 +588,30 @@ describe('email operations', () => {
       expect(emailCreate.inReplyTo).toEqual(['msg-1@example.com']);
       expect(emailCreate.references).toEqual(['msg-0@example.com', 'msg-1@example.com']);
       expect(emailCreate['header:In-Reply-To:asText']).toBeUndefined();
+    });
+  });
+
+  describe('importEmailBlob', () => {
+    const importResponse = {
+      methodResponses: [['Email/import', { created: { 'import-0': { id: 'e-new' } } }, '0']],
+    };
+
+    it('sends receivedAt when given', async () => {
+      mockRequest.mockResolvedValue(importResponse);
+
+      await importEmailBlob('blob-1', 'mb-1', { $seen: true }, undefined, '2026-01-02T03:04:05Z');
+
+      const entry = mockRequest.mock.calls[0][0][0][1].emails['import-0'];
+      expect(entry.receivedAt).toBe('2026-01-02T03:04:05Z');
+    });
+
+    it('omits receivedAt when not given', async () => {
+      mockRequest.mockResolvedValue(importResponse);
+
+      await importEmailBlob('blob-1', 'mb-1');
+
+      const entry = mockRequest.mock.calls[0][0][0][1].emails['import-0'];
+      expect(entry).not.toHaveProperty('receivedAt');
     });
   });
 });

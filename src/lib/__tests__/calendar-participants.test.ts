@@ -24,6 +24,23 @@ const event: Partial<CalendarEvent> = {
 };
 
 describe('buildParticipantMap', () => {
+  it('omits a blank organizer name', () => {
+    const map = buildParticipantMap({ name: '', email: 'me@x.example' }, []);
+    const [org] = Object.values(map);
+    expect(org.email).toBe('me@x.example');
+    expect('name' in org).toBe(false);
+  });
+
+  it('omits a whitespace-only attendee name and trims a real one', () => {
+    const map = buildParticipantMap({ name: 'Me', email: 'me@x.example' }, [
+      { name: '   ', email: 'a@x.example' },
+      { name: ' Ann ', email: 'b@x.example' },
+    ]);
+    const byEmail = Object.fromEntries(Object.values(map).map((p) => [p.email, p]));
+    expect('name' in byEmail['a@x.example']).toBe(false);
+    expect(byEmail['b@x.example'].name).toBe('Ann');
+  });
+
   it('emits an owner-only organizer plus server-scheduled attendees, deduped (#731)', () => {
     const map = buildParticipantMap({ name: 'Alice', email: 'alice@example.com' }, [
       { name: 'Bob', email: 'bob@example.com' },

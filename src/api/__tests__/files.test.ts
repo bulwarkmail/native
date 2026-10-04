@@ -6,6 +6,8 @@ vi.mock('../jmap-client', () => ({
     request: vi.fn(),
     hasCapability: vi.fn(),
     hasAccountCapability: vi.fn(() => false),
+    // A current server (0.16.6+) advertises forbiddenNameChars.
+    getAccountCapability: vi.fn((): unknown => ({ forbiddenNameChars: '/' })),
     getMaxSizeUpload: vi.fn(() => 0),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
@@ -43,6 +45,7 @@ import {
 } from '../files';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
+const mockGetAccountCapability = jmapClient.getAccountCapability as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
 const mockMaxObjectsInGet = jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>;
 const mockMaxCallsInRequest = jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>;
@@ -54,6 +57,7 @@ function setSession(session: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetAccountCapability.mockReturnValue({ forbiddenNameChars: '/' });
   mockMaxObjectsInGet.mockReturnValue(500);
   mockMaxObjectsInSet.mockReturnValue(500);
   mockMaxCallsInRequest.mockReturnValue(16);
@@ -92,6 +96,66 @@ describe('createFolder', () => {
     const [method, args] = mockRequest.mock.calls[0][0][0];
     expect(method).toBe('FileNode/set');
     expect(args.create['new-dir']).toEqual({ name: 'Docs', parentId: 'parent-1' });
+  });
+
+  it('sends onExists rename', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1' } } }, '0']],
+    });
+
+    await createFolder('Docs', null);
+
+    expect(mockRequest.mock.calls[0][0][0][1].onExists).toBe('rename');
+  });
+
+  it("takes the server's renamed name", async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['FileNode/set', { created: { 'new-dir': { id: 'f1', name: 'Docs (2)' } } }, '0'],
+      ],
+    });
+
+    const node = await createFolder('Docs', null);
+
+    expect(node.name).toBe('Docs (2)');
+  });
+
+  it('retries with a numbered name on a server that ignores onExists', async () => {
+    const taken = { notCreated: { 'new-dir': { type: 'invalidProperties', description: 'Name already exists' } } };
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', taken, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', taken, '0']] })
+      .mockResolvedValueOnce({
+        methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1' } } }, '0']],
+      });
+
+    const node = await createFolder('Docs', null);
+
+    const names = mockRequest.mock.calls.map((c) => c[0][0][1].create['new-dir'].name);
+    expect(names).toEqual(['Docs', 'Docs (2)', 'Docs (3)']);
+    expect(node.name).toBe('Docs (3)');
+  });
+
+  it('gives up after 20 attempts', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['FileNode/set', { notCreated: { 'new-dir': { description: 'Name already exists' } } }, '0'],
+      ],
+    });
+
+    await expect(createFolder('Docs', null)).rejects.toThrow('already exists');
+    expect(mockRequest).toHaveBeenCalledTimes(20);
+  });
+
+  it('does not retry other refusals', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['FileNode/set', { notCreated: { 'new-dir': { description: 'forbidden' } } }, '0'],
+      ],
+    });
+
+    await expect(createFolder('Docs', null)).rejects.toThrow('forbidden');
+    expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
   it('omits parentId at the root', async () => {
@@ -535,9 +599,69 @@ describe('copyFileNode', () => {
     expect(copy.id).toBe('copy-1');
   });
 
-  it('refuses to duplicate folders', async () => {
-    await expect(copyFileNode({ id: 'd', name: 'Docs', type: '', blobId: null }, null)).rejects.toThrow();
-    expect(mockRequest).not.toHaveBeenCalled();
+  // Answers each FileNode/set create with the next id: copy-1, copy-2, ...
+  function mockCreates() {
+    let n = 0;
+    mockRequest.mockImplementation(async (calls: any[]) => {
+      const [, args] = calls[0];
+      const key = Object.keys(args.create)[0];
+      return { methodResponses: [['FileNode/set', { created: { [key]: { id: `copy-${++n}` } } }, '0']] };
+    });
+  }
+  const creates = () => mockRequest.mock.calls.map((c) => c[0][0][1].create).filter(Boolean).map((c) => Object.values(c)[0] as any);
+
+  it('copies a folder with its whole subtree', async () => {
+    mockCreates();
+    const tree = [
+      { id: 'root', name: 'Docs', type: '', blobId: null, parentId: null },
+      { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', size: 1, parentId: 'root' },
+      { id: 'sub', name: 'Sub', type: '', blobId: null, parentId: 'root' },
+      { id: 'f2', name: 'b.txt', type: 'text/plain', blobId: 'b2', size: 2, parentId: 'sub' },
+      { id: 'other', name: 'Other', type: '', blobId: null, parentId: null },
+    ];
+
+    const copy = await copyFileNode(tree[0], null, 'Docs (1)', tree);
+
+    expect(copy.id).toBe('copy-1');
+    const sent = creates();
+    expect(sent).toHaveLength(4);
+    expect(sent[0]).toEqual({ name: 'Docs (1)' });
+    expect(sent[1]).toMatchObject({ name: 'a.txt', blobId: 'b1', parentId: 'copy-1' });
+    expect(sent[2]).toEqual({ name: 'Sub', parentId: 'copy-1' });
+    expect(sent[3]).toMatchObject({ name: 'b.txt', blobId: 'b2', parentId: 'copy-3' });
+  });
+
+  it('copies an empty folder', async () => {
+    mockCreates();
+    const tree = [{ id: 'd', name: 'Empty', type: '', blobId: null, parentId: 'p' }];
+    await copyFileNode(tree[0], 'p', 'Empty (1)', tree);
+    expect(creates()).toEqual([{ name: 'Empty (1)', parentId: 'p' }]);
+  });
+
+  it('fetches the tree itself when none is given', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/get', { list: [
+        { id: 'd', name: 'Docs', parentId: null },
+        { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', size: 1, parentId: 'd' },
+      ] }, '0']],
+    });
+    mockCreates();
+    await copyFileNode({ id: 'd', name: 'Docs', type: '', blobId: null }, null, 'Docs (1)');
+    const sent = creates();
+    expect(sent.some((c) => c.name === 'a.txt' && c.parentId === 'copy-1')).toBe(true);
+  });
+
+  it('does not revisit the copies when a folder is copied into itself', async () => {
+    mockCreates();
+    const tree = [
+      { id: 'd', name: 'Docs', type: '', blobId: null, parentId: null },
+      { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', size: 1, parentId: 'd' },
+    ];
+    await copyFileNode(tree[0], 'd', 'Docs', tree);
+    const sent = creates();
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toEqual({ name: 'Docs', parentId: 'd' });
+    expect(sent[1]).toMatchObject({ name: 'a.txt', parentId: 'copy-1' });
   });
 });
 
@@ -629,5 +753,81 @@ describe('supportsSharing', () => {
     await setFileNodeShare('f1', 'p1', null);
     const [, using] = mockRequest.mock.calls[1];
     expect(using).toEqual([CAPABILITIES.CORE, CAPABILITIES.FILES]);
+  });
+});
+
+const OFFICE_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+describe('servers before Stalwart 0.16.6', () => {
+  const legacy = () => mockGetAccountCapability.mockReturnValue({ maxFileNodeDepth: 8 });
+  const ack = () => mockRequest.mockResolvedValue({
+    methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'c1' } }, updated: { n1: null } }, '0']],
+  });
+
+  it('shares with the mayWrite rights of servers before 0.16.6', async () => {
+    legacy();
+    ack();
+    await setFileNodeShare('n1', 'p1', {
+      mayRead: true, mayAddChildren: true, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false,
+    });
+    expect(mockRequest.mock.calls[0][0][0][1].update.n1).toEqual({
+      'shareWith/p1': { mayRead: true, mayWrite: true, mayShare: false },
+    });
+  });
+
+  it('shares with the finer rights on a current server', async () => {
+    ack();
+    const rights = {
+      mayRead: true, mayAddChildren: true, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false,
+    };
+    await setFileNodeShare('n1', 'p1', rights);
+    expect(mockRequest.mock.calls[0][0][0][1].update.n1).toEqual({ 'shareWith/p1': rights });
+  });
+
+  it('reads old mayWrite rights as the finer rights', async () => {
+    legacy();
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/get', {
+        list: [{
+          id: 'd1', name: 'Docs', blobId: null,
+          myRights: { mayRead: true, mayWrite: true, mayShare: false },
+          shareWith: { p1: { mayRead: true, mayWrite: false, mayShare: false } },
+        }],
+      }, '0']],
+    });
+    const [node] = await getAllFileNodes();
+    expect(node.myRights).toEqual({
+      mayRead: true, mayAddChildren: true, mayRename: true, mayDelete: true, mayModifyContent: true, mayShare: false,
+    });
+    expect(node.shareWith?.p1).toEqual({
+      mayRead: true, mayAddChildren: false, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false,
+    });
+  });
+
+  it('falls back to octet-stream for a long type on a legacy server', async () => {
+    legacy();
+    ack();
+    await copyFileNode({ id: 'f1', name: 'a.docx', type: OFFICE_TYPE, blobId: 'b1', size: 1 }, null);
+    expect(mockRequest.mock.calls[0][0][0][1].create['new-file'].type).toBe('application/octet-stream');
+  });
+});
+
+describe('MIME types on a current server', () => {
+  it('keeps a 40-character office MIME type on a current server', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'c1' } } }, '0']],
+    });
+    await copyFileNode({ id: 'f1', name: 'a.docx', type: OFFICE_TYPE, blobId: 'b1', size: 1 }, null);
+    expect(mockRequest.mock.calls[0][0][0][1].create['new-file'].type).toBe(OFFICE_TYPE);
+  });
+});
+
+describe('createFolder name decoding (#869)', () => {
+  it('returns a created node with its percent-encoded name decoded', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1', name: 'Spares%20Catalog' } } }, '0']],
+    });
+    const node = await createFolder('Spares Catalog', null);
+    expect(node.name).toBe('Spares Catalog');
   });
 });

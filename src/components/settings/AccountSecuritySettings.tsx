@@ -17,6 +17,7 @@ import {
   isClientCertSupported,
   pickClientCertAlias,
 } from '../../lib/client-cert';
+import { useAuthStore } from '../../stores/auth-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import {
   isStalwartSupported,
@@ -841,20 +842,25 @@ export function AccountSecuritySettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const certSupported = isClientCertSupported();
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  // Read at render for the layout; the load effect re-reads it after a switch.
   const isOAuth = jmapClient.usesBearerAuth;
 
   // null = still probing; false = server lacks the Stalwart extension.
   const [supported, setSupported] = useState<boolean | null>(null);
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const t = useLocaleStore((s) => s.t);
+  const tRef = React.useRef(t);
+  tRef.current = t;
   const [displayName, setDisplayName] = useState('');
   const [crypto, setCrypto] = useState<CryptoInfo | null>(null);
   const [publicKeys, setPublicKeys] = useState<PublicKeyInfo[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
 
-  const reloadCrypto = useCallback(async () => {
+  const reloadCrypto = useCallback(async (isCancelled: () => boolean = () => false) => {
     const [info, keys] = await Promise.allSettled([fetchCryptoInfo(), fetchPublicKeys()]);
+    if (isCancelled()) return;
     if (info.status === 'fulfilled') setCrypto(info.value);
     if (keys.status === 'fulfilled') setPublicKeys(keys.value);
   }, []);
@@ -869,6 +875,13 @@ export function AccountSecuritySettings() {
 
   useEffect(() => {
     let cancelled = false;
+    // A switched-to account must not show, or edit, the previous one's data.
+    setAuth(null);
+    setDisplayName('');
+    setLoadError(null);
+    setCrypto(null);
+    setPublicKeys([]);
+    const loadIsOAuth = jmapClient.usesBearerAuth;
     const session = jmapClient.currentSession;
     if (!session) { setOffline(true); setSupported(false); return; }
     setOffline(false);
@@ -880,20 +893,21 @@ export function AccountSecuritySettings() {
         const authInfo = await fetchAuthInfo();
         if (cancelled) return;
         setAuth(authInfo);
-        if (!isOAuth) {
+        if (!loadIsOAuth) {
           // Principal + crypto only matter for password accounts; failures are
           // non-fatal (e.g. a non-admin principal read is forbidden).
-          const [principal] = await Promise.allSettled([fetchPrincipal(), reloadCrypto()]);
+          const [principal] = await Promise.allSettled([fetchPrincipal(), reloadCrypto(() => cancelled)]);
           if (cancelled) return;
           if (principal.status === 'fulfilled') setDisplayName(principal.value.displayName);
         }
       } catch (err) {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : t('settings.security.load_error', 'Failed to load security settings.'));
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : tRef.current('settings.security.load_error', 'Failed to load security settings.'));
       }
     })();
 
     return () => { cancelled = true; };
-  }, [isOAuth, reloadCrypto, t]);
+    // t is read through a ref: a locale change must not wipe loaded fields.
+  }, [activeAccountId, reloadCrypto]);
 
   return (
     <View style={styles.container}>
@@ -960,8 +974,8 @@ export function AccountSecuritySettings() {
             {isOAuth && <EmailClientSection />}
             {!isOAuth && (
               <>
-                <PublicKeysSection keys={publicKeys} onChanged={reloadCrypto} />
-                {crypto && <EncryptionSection info={crypto} keys={publicKeys} onChanged={reloadCrypto} />}
+                <PublicKeysSection keys={publicKeys} onChanged={() => reloadCrypto()} />
+                {crypto && <EncryptionSection info={crypto} keys={publicKeys} onChanged={() => reloadCrypto()} />}
               </>
             )}
           </View>

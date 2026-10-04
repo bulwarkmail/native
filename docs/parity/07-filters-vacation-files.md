@@ -192,7 +192,7 @@ device.
   - What WEB does: subject 511 bytes, body 2047 (`components/settings/vacation-settings.tsx:16,90-98`).
   - What RN does: `src/components/settings/VacationSettings.tsx` saves and fails.
 
-- [ ] **Files: smaller 1.11 fixes not ported** — `P3` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts`)
+- [x] **Files: smaller 1.11 fixes not ported** — `P3` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts`) — fixed in 227f4a2, 83b8828, 3bd15f3, 138b041
   - A new folder whose name is taken fails instead of becoming "name (2)" (`src/api/files.ts:248-262`, no `onExists: "rename"`; WEB `createFileNodeIn` ~`:8072-8105`).
   - Folders cannot be copied (`FilesScreen.tsx:521`, `src/api/files.ts:378-384`).
   - Sharing fails on Stalwart before 0.16.6: no mapping to the older rights names (`src/api/files.ts:400-420`; WEB `:40-66,8039`).

@@ -302,7 +302,7 @@ device.
 - [ ] **A failed search shows the previous folder's rows as results** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/unified-mailbox.ts:597`)
   - What RN does: `refreshEmailsImpl` only sets an error when the list is empty (`src/stores/email-store.ts:2842-2875`).
 
-- [ ] **A cross-account move loses the message date (#1150)** — `P2` — `bugfix-parity` (71a1fad)
+- [x] **A cross-account move loses the message date (#1150)** — `P2` — `bugfix-parity` (71a1fad) — fixed in 1636f44
   - What RN does: `Email/import` sends no `receivedAt` (`src/api/email.ts:963-976` `importEmailBlob`, `src/stores/email-store.ts:~2175` `crossAccountMove`), so moved mail lands as today's.
   - Fix hint: pass the original `receivedAt` to `Email/import`.
 

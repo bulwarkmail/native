@@ -1,7 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
-import { assertSetResult } from './jmap-result';
+import { assertSetResult, SchedulingDeniedError } from './jmap-result';
 import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
 import {
@@ -622,6 +622,9 @@ export async function createEvent(
   const created = result.created?.['new-event'];
   if (!created) {
     const err = result.notCreated?.['new-event'];
+    if (sendSchedulingMessages && err?.type === 'forbidden') {
+      throw new SchedulingDeniedError(err.description || 'forbidden');
+    }
     throw new Error(err?.description || err?.type || 'Failed to create event');
   }
   // The /set response echoes only server-set properties; merge them over the
@@ -693,7 +696,12 @@ export async function updateEvent(
   );
   const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
   const err = result.notUpdated?.[id];
-  if (err) throw new Error(err.description || err.type || 'Failed to update event');
+  if (err) {
+    if (sendSchedulingMessages && err.type === 'forbidden') {
+      throw new SchedulingDeniedError(err.description || 'forbidden');
+    }
+    throw new Error(err.description || err.type || 'Failed to update event');
+  }
 }
 
 export async function deleteEvents(

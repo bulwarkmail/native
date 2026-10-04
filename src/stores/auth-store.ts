@@ -8,6 +8,8 @@ import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
+import { useVacationStore } from './vacation-store';
+import { forgetAccountData, forgetSharedData } from './account-data-cleanup';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -590,6 +592,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await teardownPushNotifications().catch(() => undefined);
     }
 
+    // Read before the credentials and registry entry go: they name whose
+    // subscriptions to forget.
+    const entry = currentId ? accountStore.getAccountById(currentId) : undefined;
+    const serverUrl = entry?.serverUrl ?? get().serverUrl;
+    const username = entry?.username ?? get().username;
+
     // Clear credentials for this account first
     if (currentId) {
       await revokeStoredRefreshToken(currentId);
@@ -601,14 +609,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     jmapClient.reset();
     clearAccountFeatureStores(currentId);
+    const lastAccount = useAccountStore.getState().accounts.length === 0;
+    // Best-effort: a cleanup error must not leave the app half signed out.
+    if (currentId) {
+      await forgetAccountData({ appAccountId: currentId, serverUrl, username }, { lastAccount })
+        .catch((e) => console.warn('[sign-out] cleanup failed', e));
+    } else if (lastAccount) {
+      await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
+    }
 
     // Switch to next remaining account, if any
-    const remaining = accountStore.accounts;
+    // Read the registry live: the snapshot above still lists the removed account.
+    const live = useAccountStore.getState();
+    const remaining = live.accounts.filter((a) => a.id !== currentId);
     if (remaining.length > 0) {
-      const next = accountStore.getDefaultAccount() ?? remaining[0];
+      const preferred = live.getDefaultAccount();
+      const next = preferred && preferred.id !== currentId ? preferred : remaining[0];
       try {
         await get().switchAccount(next.id);
-        return;
+        // switchAccount can return without switching (failed load, no session).
+        if (get().activeAccountId === next.id) return;
       } catch {
         // fall through to full logout below
       }
@@ -630,7 +650,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logoutAll: async () => {
     const accountStore = useAccountStore.getState();
-    const ids = accountStore.accounts.map((a) => a.id);
+    const signedOut = [...accountStore.accounts];
+    const ids = signedOut.map((a) => a.id);
     // Device sync (#34): as in logout, for every account.
     if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
     await teardownPushNotifications().catch(() => undefined);
@@ -638,6 +659,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await jmapClient.clearAllCredentials(ids);
     jmapClient.reset();
     clearAllFeatureStores();
+    for (const a of signedOut) {
+      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false })
+        .catch((e) => console.warn('[sign-out] cleanup failed', e));
+    }
+    await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
 
     for (const id of ids) accountStore.removeAccount(id);
 
@@ -676,7 +702,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // need a reset to avoid showing the previous account's data.
     useContactsStore.getState().reset();
     useCalendarStore.getState().reset();
-
     // Load the new account's session. loadAccount overwrites
     // credentials/session/_accountId itself, so we don't need to reset
     // jmapClient first. If it fails, restore the previous active account
@@ -737,6 +762,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // Filters and the auto-reply are keyed to "own account" (null) for both
+    // logins, so nothing else tells them the account changed; saving the old
+    // rules would write them into the new account. Cleared only once the
+    // switch succeeded, so a failed one leaves the current account's intact.
+    useFilterStore.getState().clearState();
+    useVacationStore.getState().reset();
     applyConnectedState(set, session, target.serverUrl, target.username, accountId);
     refetchFeatureStores();
     void syncAccountDisplayName(accountId);
@@ -748,7 +779,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
     const accountStore = useAccountStore.getState();
-    if (!accountStore.getAccountById(accountId)) return;
+    const account = accountStore.getAccountById(accountId);
+    if (!account) return;
     // Device sync (#34): as in logout.
     if (!(await releaseDeviceSyncBeforeSignOut([accountId]))) return;
     await teardownPushNotificationsForAccount(accountId).catch(() => undefined);
@@ -757,6 +789,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
     accountStore.removeAccount(accountId);
+    await forgetAccountData(
+      { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
+      { lastAccount: useAccountStore.getState().accounts.length === 0 },
+    ).catch((e) => console.warn('[sign-out] cleanup failed', e));
   },
 
   restoreSession: async () => {

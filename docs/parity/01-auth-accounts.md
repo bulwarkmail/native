@@ -176,7 +176,7 @@ device.
   - What RN does: `src/api/account-security.ts:346,387` send no code; the server refuses the change.
   - Fix hint: prompt for the current code in `AccountSecuritySettings.tsx` when TOTP is on, and pass it through.
 
-- [ ] **Sign-out leaves account data on the device** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/sign-out-cleanup.ts`)
+- [x] **Sign-out leaves account data on the device** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/sign-out-cleanup.ts`) — fixed in 5d389bb, 516b9fc, 7e68e0c, 0384107 — a non-empty outbox is kept so it replays on the next sign-in; shared data (all subscriptions, search history) is cleared when the last account signs out; also fixed a last-account logout that left the app signed in
   - What RN does: search history is never cleared (`src/stores/search-history-store.ts:41`); the offline body cache keeps full message bodies after sign-out or account removal (`offline-cache-store.ts:292` `clearAll` is never called from `auth-store.ts:575-760`); outbox keys of removed accounts stay.
   - Fix hint: one per-account cleanup function called from logout and removeAccount.
 
@@ -184,7 +184,7 @@ device.
   - What WEB does: punycode handling in `lib/idn.ts`, used by `stores/auth-store.ts:29`.
   - What RN does: no punycode handling; `isValidEmail` accepts ASCII only (`src/lib/recipients.ts:32`). Unverified whether Hermes' URL covers the host part.
 
-- [ ] **Filters and the security page can show the previous account's data after a switch** — `P2` — `rn-only-bug` (edge case, partly unverified)
+- [x] **Filters and the security page can show the previous account's data after a switch** — `P2` — `rn-only-bug` (edge case, partly unverified) — fixed in 6c0335c, 95a1e9f — vacation screen and open rule editor included
   - What RN does: `switchAccount` (`src/stores/auth-store.ts:658-742`) does not reset the filter or vacation stores, and the load effects in `FilterSettings.tsx:160-163` and `AccountSecuritySettings.tsx:870-896` do not depend on the active account. Reachable when a notification tap or deep link switches account while the screen stays mounted; a save would then write the old account's rules into the new one.
   - Fix hint: reset the stores in `switchAccount` and key the effects on the active account id.
 

@@ -158,3 +158,14 @@ export function batched<T>(items: T[], size: number): T[][] {
   }
   return result;
 }
+
+/**
+ * The server refused to send an event's invitations (Stalwart 0.16.21+ answers
+ * `forbidden` when scheduling is denied). The event itself was not saved.
+ */
+export class SchedulingDeniedError extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+    this.name = 'SchedulingDeniedError';
+  }
+}

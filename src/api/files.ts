@@ -3,7 +3,8 @@ import { CAPABILITIES } from './types';
 import type { FileNode, FileNodeRights, JMAPAccountInfo, JMAPMethodCall, Principal } from './types';
 import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
 import { batched, requireMethodResult } from './jmap-result';
-import { decodeFileNodeName } from '../lib/filenode-name';
+import { decodeFileNodeName, numberedFileName } from '../lib/filenode-name';
+import { fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
 
 // A FileNode is a folder (container) only when it has no blob content — the
 // server stores it with `file == null`. Sending a blobId/type/size on create
@@ -24,6 +25,61 @@ const FILE_NODE_PROPERTIES = [
   'id', 'parentId', 'name', 'type', 'blobId', 'size', 'created', 'modified',
   'shareWith', 'myRights',
 ];
+
+type LegacyFileNodeRights = { mayRead?: boolean; mayWrite?: boolean; mayShare?: boolean };
+
+// Stalwart before 0.16.6 implements an older File Storage draft whose rights
+// are only mayRead / mayWrite / mayShare, and its capability lacks
+// `forbiddenNameChars`. Detected by that shape, like the webmail.
+export function isLegacyFileNodeServer(accountId: string): boolean {
+  const cap = jmapClient.getAccountCapability(CAPABILITIES.FILES, accountId);
+  return !!cap && !('forbiddenNameChars' in (cap as Record<string, unknown>));
+}
+
+// The server's published naming rules, or null when it publishes none.
+export function getFileNameRules(accountId?: string): FileNameRules | null {
+  return fileNameRulesFrom(jmapClient.getAccountCapability(CAPABILITIES.FILES, accountId ?? filesAccountId()));
+}
+
+export function toLegacyRights(rights: FileNodeRights): LegacyFileNodeRights {
+  return {
+    mayRead: rights.mayRead,
+    mayWrite: rights.mayAddChildren || rights.mayRename || rights.mayDelete || rights.mayModifyContent,
+    mayShare: rights.mayShare,
+  };
+}
+
+// Spread the old mayWrite over the finer rights the UI checks.
+export function fromLegacyRights(
+  rights: FileNodeRights | LegacyFileNodeRights | undefined,
+): FileNodeRights | undefined {
+  if (!rights || !('mayWrite' in rights)) return rights as FileNodeRights | undefined;
+  const write = !!rights.mayWrite;
+  return {
+    mayRead: !!rights.mayRead,
+    mayAddChildren: write,
+    mayRename: write,
+    mayDelete: write,
+    mayModifyContent: write,
+    mayShare: !!rights.mayShare,
+  };
+}
+
+// A FileNode as the server sent it: name decoded, rights in the finer form.
+function fromWireFileNode(node: FileNode): FileNode {
+  const name = decodeFileNodeName(node.name);
+  if (!node.myRights && !node.shareWith) return name === node.name ? node : { ...node, name };
+  return {
+    ...node,
+    name,
+    myRights: fromLegacyRights(node.myRights),
+    shareWith: node.shareWith
+      ? Object.fromEntries(
+        Object.entries(node.shareWith).map(([p, r]) => [p, fromLegacyRights(r) as FileNodeRights]),
+      )
+      : node.shareWith,
+  };
+}
 
 // Sharing with other users (RFC 9670) needs the principal directory to pick
 // people from, so it is offered whenever the server advertises
@@ -192,7 +248,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
 // Fetch every FileNode in the files account (see fetchAllFileNodes).
 export async function getAllFileNodes(): Promise<FileNode[]> {
   const nodes = await fetchAllFileNodes(filesAccountId());
-  return nodes.map((node) => ({ ...node, name: decodeFileNodeName(node.name) }));
+  return nodes.map(fromWireFileNode);
 }
 
 // Accounts (primary + shared/group) that can hold FileNodes: any non-primary
@@ -223,10 +279,10 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
     const isPrimary = accountId === primaryId;
     try {
       const nodes = await fetchAllFileNodes(accountId);
-      for (const node of nodes) {
+      for (const wire of nodes) {
+        const node = fromWireFileNode(wire);
         all.push({
           ...node,
-          name: decodeFileNodeName(node.name),
           id: isPrimary ? node.id : `${accountId}:${node.id}`,
           parentId: node.parentId == null
             ? null
@@ -245,25 +301,38 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   return all;
 }
 
+// FileNode/set `create` of one node. `onExists: "rename"` (Stalwart 0.16.6+)
+// turns a name clash into "name (2)"; older servers ignore it and refuse the
+// clash, so retry with numbered names ourselves.
+async function createFileNode(
+  accountId: string,
+  props: Record<string, unknown>,
+): Promise<FileNode> {
+  const baseName = String(props.name ?? '');
+  const key = props.blobId ? 'new-file' : 'new-dir';
+  for (let attempt = 1; ; attempt++) {
+    const name = attempt === 1 ? baseName : numberedFileName(baseName, attempt);
+    const res = await jmapClient.request(
+      [['FileNode/set', { accountId, onExists: 'rename', create: { [key]: { ...props, name } } }, '0']],
+      fileUsing(),
+    );
+    const result = requireMethodResult(res, '0', 'FileNode/set');
+    const created = result.created?.[key];
+    // The server's name wins: after a rename it differs from the one sent.
+    if (created) return fromWireFileNode({ ...props, name, ...created } as FileNode);
+    const err = result.notCreated?.[key];
+    if (attempt < 20 && /already exists/i.test(err?.description ?? '')) continue;
+    throw new Error(err?.description || 'Create failed');
+  }
+}
+
 export async function createFolder(
   name: string,
   parentId: string | null,
 ): Promise<FileNode> {
-  const accountId = filesAccountId();
   const props: Record<string, unknown> = { name };
   if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-dir': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-dir'];
-  if (!created) {
-    const err = result.notCreated?.['new-dir'];
-    throw new Error(err?.description || 'Create folder failed');
-  }
-  return { ...props, ...created } as FileNode;
+  return createFileNode(filesAccountId(), props);
 }
 
 export async function updateFileNode(
@@ -324,10 +393,12 @@ export function getFileNodeDownloadUrl(node: FileNode): string {
   return getDownloadUrl(node.blobId, node.name, node.type, node.accountId);
 }
 
-// Stalwart caps the stored MIME type; very long types fail the create.
-function safeMimeType(type: string | undefined, fallback: string): string {
+// Servers before 0.16.6 refuse MIME types over 30 characters (most OOXML
+// types); later ones take up to 255.
+function safeMimeType(type: string | undefined, fallback: string, accountId: string): string {
   const t = type || fallback || 'application/octet-stream';
-  return t.length > 30 ? 'application/octet-stream' : t;
+  const max = isLegacyFileNodeServer(accountId) ? 30 : 255;
+  return t.length > max ? 'application/octet-stream' : t;
 }
 
 async function createFileNodeFromBlob(
@@ -337,22 +408,10 @@ async function createFileNodeFromBlob(
   size: number | undefined,
   parentId: string | null,
 ): Promise<FileNode> {
-  const accountId = filesAccountId();
   const props: Record<string, unknown> = { name, type, blobId };
   if (size != null) props.size = size;
   if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-file': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-file'];
-  if (!created) {
-    const err = result.notCreated?.['new-file'];
-    throw new Error(err?.description || 'Upload failed');
-  }
-  return { ...props, ...created } as FileNode;
+  return createFileNode(filesAccountId(), props);
 }
 
 export async function uploadFileNode(
@@ -366,28 +425,45 @@ export async function uploadFileNode(
   return createFileNodeFromBlob(
     name,
     blob.blobId,
-    safeMimeType(blob.type, mimeType),
+    safeMimeType(blob.type, mimeType, filesAccountId()),
     blob.size,
     parentId,
   );
 }
 
-// Copy a file by creating a new node that references the same blob — no
-// bytes are re-uploaded (webmail `copyFileNode`). Folders have no blob and
-// cannot be duplicated this way.
+// Copy a node. A file creates a new node that references the same blob, so no
+// bytes are re-uploaded; a folder is created, then each child is copied into
+// it (webmail `copyFileNode`). Children come from `tree`, or from one fetch
+// of the whole tree taken before any create, so a folder copied into itself
+// or a descendant never re-visits the nodes it just made.
 export async function copyFileNode(
   node: FileNode,
   parentId: string | null,
   newName: string = node.name,
+  tree?: FileNode[],
 ): Promise<FileNode> {
-  if (!node.blobId) throw new Error('Folders cannot be duplicated');
-  return createFileNodeFromBlob(
-    newName,
-    node.blobId,
-    safeMimeType(node.type, 'application/octet-stream'),
-    node.size,
-    parentId,
-  );
+  const accountId = filesAccountId();
+  if (node.blobId) {
+    return createFileNodeFromBlob(
+      newName,
+      node.blobId,
+      safeMimeType(node.type, 'application/octet-stream', accountId),
+      node.size,
+      parentId,
+    );
+  }
+  const snapshot = tree ?? await getAllFileNodes();
+  const copyInto = async (src: FileNode, name: string, parent: string | null): Promise<FileNode> => {
+    if (src.blobId) return copyFileNode(src, parent, name, snapshot);
+    // Read the children before creating anything under the new folder.
+    const children = snapshot.filter((n) => n.parentId === src.id);
+    const props: Record<string, unknown> = { name };
+    if (parent !== null) props.parentId = parent;
+    const created = await createFileNode(accountId, props);
+    for (const child of children) await copyInto(child, child.name, created.id);
+    return created;
+  };
+  return copyInto(node, newName, parentId);
 }
 
 // ── Sharing (RFC 9670) ────────────────────────────────────
@@ -403,10 +479,11 @@ export async function setFileNodeShare(
   rights: FileNodeRights | null,
 ): Promise<void> {
   const accountId = filesAccountId();
+  const wireRights = rights && isLegacyFileNodeServer(accountId) ? toLegacyRights(rights) : rights;
   const res = await jmapClient.request(
     [['FileNode/set', {
       accountId,
-      update: { [fileNodeId]: { [`shareWith/${principalId}`]: rights } },
+      update: { [fileNodeId]: { [`shareWith/${principalId}`]: wireRights } },
     }, '0']],
     fileUsing(),
   );

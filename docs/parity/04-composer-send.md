@@ -300,7 +300,7 @@ device.
   - What WEB does: throws `SendUnconfirmedError`, keeps the draft and shows "check Sent before sending again".
   - What RN does: when the response has no submission entry, `sendEmail` returns success with an undefined `emailSubmissionId` (`src/api/email.ts:1644-1680`) and the composer closes as sent.
 
-- [ ] **An open draft does not stay on its own account across an account switch** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **An open draft does not stay on its own account across an account switch** — `P2` — `bugfix-parity` (1.11.0) — fixed in 3c8c9f3, f5dfa6b, 75bf674, f341b2a, 5fa8908 — diverges from WEB: jmapClient holds one session, so after a switch the composer blocks save/send/upload/discard and offers "Switch to <account>" instead of sending from the old account
   - What RN does: `createDraft`/`sendEmail` resolve the account when they run (`src/api/email.ts:1545,1695`); the composer stays mounted when a notification tap or deep link switches account (`App.tsx:111-115`, `navigation/linking.ts:247`). Autosave and send then go to the new account with the old identity, and the old draft is destroyed in the wrong account.
   - Fix hint: capture the account id when the composer opens and pass it through (`ComposeScreen.tsx:744-757`), or close the composer on switch.
 

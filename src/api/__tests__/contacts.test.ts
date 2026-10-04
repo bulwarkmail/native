@@ -174,6 +174,18 @@ describe('contacts operations', () => {
     });
   });
 
+  describe('getContacts links', () => {
+    it('getContacts fills calendarUri from calendars', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['ContactCard/get', { list: [
+          { id: 'c1', addressBookIds: {}, calendars: { k: { kind: 'calendar', uri: 'https://c.example/cal' } } },
+        ] }, '0']],
+      });
+      const [card] = await getContacts(['c1']);
+      expect(card.calendarUri).toBe('https://c.example/cal');
+    });
+  });
+
   describe('getAllContacts', () => {
     it('namespaces cards and their book ids for shared accounts', async () => {
       session.accounts = {
@@ -244,6 +256,19 @@ describe('contacts operations', () => {
       expect(create.accountName).toBeUndefined();
       // Falls back to a client-side merge when the re-fetch comes back empty.
       expect(result).toMatchObject({ id: 'c-new', uid: 'urn:uuid:keep', name: { full: 'A' }, addressBookIds: { 'ab-1': true } });
+    });
+
+    it('createContact sends calendars, not calendarUri', async () => {
+      mockRequest
+        .mockResolvedValueOnce({
+          methodResponses: [['ContactCard/set', { created: { 'new-contact': { id: 'c-new' } } }, '0']],
+        })
+        .mockResolvedValueOnce({ methodResponses: [['ContactCard/get', { list: [] }, '0']] });
+
+      await createContact({ name: { full: 'A' }, calendarUri: 'https://c.example/cal' }, 'ab-1');
+      const create = mockRequest.mock.calls[0][0][0][1].create['new-contact'];
+      expect(create.calendars.cal).toEqual({ '@type': 'Calendar', kind: 'calendar', uri: 'https://c.example/cal' });
+      expect(create.calendarUri).toBeUndefined();
     });
 
     it('throws the server description when the card is rejected', async () => {
@@ -372,6 +397,28 @@ describe('contacts operations', () => {
 
       const call = mockRequest.mock.calls[0][0][0];
       expect(call[1].destroy).toEqual(['ab-1']);
+    });
+
+    it('asks the server to remove the contents when told to', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { destroyed: ['ab-1'] }, '0']],
+      });
+
+      await deleteAddressBook('ab-1', undefined, { removeContents: true });
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].onDestroyRemoveContents).toBe(true);
+    });
+
+    it('sends no onDestroyRemoveContents by default', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { destroyed: ['ab-1'] }, '0']],
+      });
+
+      await deleteAddressBook('ab-1');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1]).not.toHaveProperty('onDestroyRemoveContents');
     });
 
     it('throws when destroy fails', async () => {

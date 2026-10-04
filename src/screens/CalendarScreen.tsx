@@ -100,9 +100,11 @@ import { generateBirthdayEvents, createBirthdayCalendar, BIRTHDAY_CALENDAR_ID } 
 import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
-import { useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
+import { useAccountSubscriptions, useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
+import { writeFollowingSeries } from '../lib/following-series';
+import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
@@ -133,6 +135,31 @@ type WeekStart = 0 | 1 | 6;
 
 // `firstDay`: the scrolled week grid reports the first column in view; the
 // title then spans the seven days from there instead of the focused week.
+/** Ask whether to save an event without the invitations the server refused to send. */
+function confirmSaveWithoutInvitations(
+  reason: string,
+  t: ReturnType<typeof useLocaleStore.getState>['t'],
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      t('calendar.notifications.invitations_denied_title', "Invitations can't be sent"),
+      t(
+        'calendar.notifications.invitations_denied',
+        'The server refused to send the invitations: {reason}. Save the event without sending them?',
+        { reason },
+      ),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
+        {
+          text: t('calendar.notifications.save_without_invitations', 'Save without invitations'),
+          onPress: () => resolve(true),
+        },
+      ],
+      { onDismiss: () => resolve(false) },
+    );
+  });
+}
+
 function headerTitle(
   viewMode: ViewMode,
   currentDate: Date,
@@ -554,7 +581,7 @@ export default function CalendarScreen() {
   // Client-side iCal subscriptions mirror a remote feed into a local
   // calendar; edits there would be wiped by the next sync, so they're
   // read-only targets everywhere (#762).
-  const subscriptions = useCalendarSubscriptionsStore((s) => s.subscriptions);
+  const subscriptions = useAccountSubscriptions();
   const isSubscriptionCalendar = React.useCallback(
     (calendarId: string) => subscriptions.some((s) => s.calendarId === calendarId),
     [subscriptions],
@@ -658,43 +685,58 @@ export default function CalendarScreen() {
       try {
         if (action.kind === 'edit') {
           const { updates } = action;
-          const opts = { sendSchedulingMessages: action.sendScheduling };
-          switch (scope) {
-            case 'this': {
-              // The store keeps the change on this occurrence: through its
-              // own (synthetic) id, or as a recurrence override on the event
-              // it was expanded from.
-              await updateEvent(event.id, updates, opts);
-              break;
-            }
-            case 'this_and_future': {
-              const result = await truncateRecurrenceAtEvent(event);
-              if (!result) throw new Error('Master event not found');
-              const { master, originalRules } = result;
-              const newEventData = buildFutureSeriesData(master, originalRules, event, updates);
-              delete newEventData.calendarIds;
-              const targetCalendarId =
-                action.calendarId || getPrimaryCalendarId(master) || '';
-              try {
-                await createEvent(newEventData, targetCalendarId, opts);
-              } catch (createError) {
-                // Roll back the truncation so the series isn't left cut short.
-                try {
-                  await updateEvent(master.id, { recurrenceRules: originalRules ?? [] });
-                } catch {
-                  // The rollback failing is reported through the original error.
-                }
-                throw createError;
-              }
-              break;
-            }
-            case 'all': {
-              const master = await getMasterEvent(event);
-              if (!master) throw new Error('Master event not found');
-              await updateEvent(master.id, buildAllScopeUpdates(updates, event, master), opts);
-              break;
-            }
+          // The master is read once: a retry after a truncation would see the
+          // truncated rules.
+          let following: { master: CalendarEvent; originalRules: RecurrenceRule[] | null } | null = null;
+          if (scope === 'this_and_future') {
+            const master = await getMasterEvent(event);
+            if (!master) throw new Error('Master event not found');
+            following = {
+              master,
+              originalRules: master.recurrenceRules
+                ? (JSON.parse(JSON.stringify(master.recurrenceRules)) as RecurrenceRule[])
+                : null,
+            };
           }
+          const write = async (send: boolean | undefined) => {
+            const opts = { sendSchedulingMessages: send };
+            switch (scope) {
+              case 'this': {
+                // The store keeps the change on this occurrence: through its
+                // own (synthetic) id, or as a recurrence override on the event
+                // it was expanded from.
+                await updateEvent(event.id, updates, opts);
+                break;
+              }
+              case 'this_and_future': {
+                const { master, originalRules } = following!;
+                const newEventData = buildFutureSeriesData(master, originalRules, event, updates);
+                delete newEventData.calendarIds;
+                await writeFollowingSeries({
+                  master,
+                  originalRules,
+                  occurrence: event,
+                  newSeries: newEventData,
+                  calendarId: action.calendarId || getPrimaryCalendarId(master) || '',
+                  send,
+                  api: { updateEvent, createEvent },
+                });
+                break;
+              }
+              case 'all': {
+                const master = await getMasterEvent(event);
+                if (!master) throw new Error('Master event not found');
+                await updateEvent(master.id, buildAllScopeUpdates(updates, event, master), opts);
+                break;
+              }
+            }
+          };
+          // A declined retry drops the edit; the editor has already closed.
+          await saveWithSchedulingFallback(
+            write,
+            action.sendScheduling,
+            (reason) => confirmSaveWithoutInvitations(reason, t),
+          );
         } else {
           switch (scope) {
             case 'this': {
@@ -749,14 +791,24 @@ export default function CalendarScreen() {
           // Ask which occurrences the edit applies to; the actual write
           // happens in handleScopeSelect.
           setPendingAction({ kind: 'edit', event: modalEvent, updates, calendarId, sendScheduling });
-          return;
+          return true;
         }
-        await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: sendScheduling });
+        const outcome = await saveWithSchedulingFallback(
+          async (send) => { await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: send }); },
+          sendScheduling,
+          (reason) => confirmSaveWithoutInvitations(reason, t),
+        );
+        return outcome !== 'cancelled';
       } else {
-        await createEvent(data, calendarId, { sendSchedulingMessages: sendScheduling });
+        const outcome = await saveWithSchedulingFallback(
+          async (send) => { await createEvent(data, calendarId, { sendSchedulingMessages: send }); },
+          sendScheduling,
+          (reason) => confirmSaveWithoutInvitations(reason, t),
+        );
+        return outcome !== 'cancelled';
       }
     },
-    [modalEvent, createEvent, updateEvent],
+    [modalEvent, createEvent, updateEvent, t],
   );
 
   const handleDeleteFromModal = React.useCallback(

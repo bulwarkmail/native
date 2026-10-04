@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch,
+  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch, type AlertButton,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -36,6 +36,11 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
+import { useAuthStore } from '../stores/auth-store';
+import {
+  composerAccountLabel, composerOwnerAtMount, composerSwitchBackActions, isComposerOwnerActive,
+  liveComposerOwnerCheck, type SwitchBackAction,
+} from '../lib/composer-account';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
@@ -438,6 +443,109 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const prefillBody = route.params?.prefillBody;
   const prefillAttachments = route.params?.prefillAttachments;
   const isReplyLike = !!replyTo && !draft;
+
+  // The account this message belongs to, pinned at mount. A notification tap
+  // or deep link can switch accounts under the open composer, and the JMAP
+  // client then serves only the new account: saving, sending, discarding the
+  // server draft and uploading wait until the owner is active again. Every
+  // write re-checks `ownerActiveNow()` right before it reaches the server, since
+  // a switch can land during any await (a confirm, an in-flight save).
+  const ownerRef = React.useRef<ReturnType<typeof composerOwnerAtMount> | undefined>(undefined);
+  if (ownerRef.current === undefined) {
+    ownerRef.current = composerOwnerAtMount({
+      activeAppAccountId: useAuthStore.getState().activeAccountId,
+      activeJmapAccountId: jmapClient.isConnected ? jmapClient.accountId : null,
+    });
+  }
+  const owner = ownerRef.current;
+  const authActiveAccountId = useAuthStore((s) => s.activeAccountId);
+  const viewActiveAccountId = useEmailStore((s) => s.activeAccountId);
+  const ownerActive = isComposerOwnerActive(owner, authActiveAccountId, viewActiveAccountId);
+  // Write-time guards read the stores live: the render-time value lags a
+  // store change until the next render and freezes once the screen unmounts.
+  const ownerActiveNow = React.useMemo(
+    () => liveComposerOwnerCheck(owner, { auth: useAuthStore, view: useEmailStore }),
+    [owner],
+  );
+  const ownerEntry = owner ? useAccountStore.getState().getAccountById(owner.appAccountId) : undefined;
+
+  // Explain a blocked action and offer the way back to the owner. When there
+  // is no way back (the owner left the registry, or switching did not take
+  // effect), offer leaving without a server write instead so the user is not
+  // trapped. `proceed` is how an exit path closes; other callers go back.
+  const alertAccountSwitched = (opts: { proceed?: () => void; switchFailed?: boolean } = {}) => {
+    if (!owner) return;
+    const proceed = opts.proceed ?? (() => navigation.goBack());
+    const entry = useAccountStore.getState().getAccountById(owner.appAccountId);
+    const account = composerAccountLabel(owner, entry ?? ownerEntry);
+    const actions = composerSwitchBackActions({ ownerRegistered: !!entry, switchFailed: opts.switchFailed });
+    const buttons: Record<SwitchBackAction, AlertButton> = {
+      cancel: { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+      switch: {
+        text: t('email_composer.account_switched_action', 'Switch to {account}', { account }),
+        onPress: () => { void switchBack(proceed); },
+      },
+      discard: { text: t('email_composer.discard', 'Discard'), style: 'destructive', onPress: () => leaveWithoutWriting(proceed) },
+      copyAndClose: {
+        text: t('email_composer.copy_and_close', 'Copy text and close'),
+        onPress: () => { void copyAndLeave(proceed); },
+      },
+    };
+    const canSwitch = actions.includes('switch');
+    Alert.alert(
+      canSwitch
+        ? t('email_composer.account_switched_title', 'Account changed')
+        : t('email_composer.account_unavailable_title', 'Account unavailable'),
+      canSwitch
+        ? t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account })
+        : t('email_composer.account_unavailable_body', 'This message was started in {account}, which cannot be switched back to. You can discard it, or copy its text and close.', { account }),
+      actions.map((a) => buttons[a]),
+    );
+  };
+
+  const switchBack = async (proceed: () => void) => {
+    if (!owner) return;
+    try {
+      await useAuthStore.getState().switchAccount(owner.appAccountId);
+    } catch (err) {
+      console.warn('[compose] switching back failed', err);
+    }
+    // switchAccount can return without switching (no session, the sign-in was refused).
+    if (!ownerActiveNow()) alertAccountSwitched({ proceed, switchFailed: true });
+  };
+
+  // Close without any server write: the active account is not the owner, so
+  // the draft (if one was saved) stays in the owner's Drafts.
+  const leaveWithoutWriting = (proceed: () => void) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    for (const a of attachments) a.abort?.abort();
+    allowLeaveRef.current = true;
+    proceed();
+  };
+
+  const copyAndLeave = async (proceed: () => void) => {
+    let html = latestRef.current.bodyHtml;
+    if (!plainTextMode) {
+      try {
+        html = (await editorRef.current?.getHtml()) ?? html;
+      } catch { /* the last change message is the best we have */ }
+    }
+    try {
+      await Clipboard.setStringAsync(plainTextMode ? latestRef.current.plainBody : htmlToPlainText(html));
+    } catch (err) {
+      // Closing now would drop the text the user asked to keep.
+      Alert.alert(
+        t('email_composer.copy_failed', 'Could not copy the text'),
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
+    }
+    leaveWithoutWriting(proceed);
+  };
+
   const mailboxes = useEmailStore((s) => s.mailboxes);
   // Always the user's own Sent — composing on behalf of a shared account
   // isn't supported, so a group account's Sent must never be picked up here.
@@ -491,8 +599,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // a self-sent message continues to its original recipients (#703).
   const ownEmails = React.useMemo(() => {
     const out = new Set<string>();
-    const active = useAccountStore.getState().getActiveAccount();
-    for (const e of [active?.email, active?.username, jmapClient.username]) {
+    for (const e of [ownerEntry?.email, ownerEntry?.username, jmapClient.username]) {
       if (e && e.includes('@')) out.add(e);
     }
     for (const i of identities) if (i.email) out.add(i.email);
@@ -794,7 +901,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
         if (!a.blobId || isSeedInline(a)) continue;
         const localId = `seed-${a.blobId}`;
         try {
+          // Uploads go to the active session: once another account is
+          // active the rest fail instead of landing there.
+          if (!ownerActiveNow()) throw new Error(t('email_composer.upload_failed_short', 'Upload failed'));
           const buf = await jmapClient.fetchBlobArrayBuffer(a.blobId, a.name, a.type, seedOwnerAccountId);
+          if (!ownerActiveNow()) throw new Error(t('email_composer.upload_failed_short', 'Upload failed'));
           const up = await uploadBytes(new Uint8Array(buf), a.type || 'application/octet-stream');
           if (!cancelled) updateAttachment(localId, { blobId: up.blobId, size: up.size, uploading: false });
         } catch (e) {
@@ -828,7 +939,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
           const mime = att.type?.toLowerCase().startsWith('image/') ? att.type : (sniffImageMime(bytes) ?? 'image/png');
           map.set(cid, `data:${mime};base64,${bytesToBase64(bytes)}`);
           let blobId = att.blobId;
-          if (seedOwnerAccountId) blobId = (await uploadBytes(bytes, mime)).blobId;
+          if (seedOwnerAccountId) {
+            if (!ownerActiveNow()) throw new Error('account changed');
+            blobId = (await uploadBytes(bytes, mime)).blobId;
+          }
           inlineRegistryRef.current.set(cid, {
             localId: `cid-${cid}`,
             name: att.name || 'image',
@@ -881,8 +995,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // default") identity, else the one matching the active account.
   React.useEffect(() => {
     if (selectedIdentityId || identities.length === 0) return;
-    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
-    const preferredId = preferredIdentityIds[jmapClient.accountId];
+    const activeEmail = ownerEntry?.email || jmapClient.username;
+    const preferredId = owner ? preferredIdentityIds[owner.jmapAccountId] : undefined;
     const defaultIdentity =
       identities.find((i) => i.id === preferredId)
       ?? identities.find((i) => i.email.toLowerCase() === activeEmail?.toLowerCase())
@@ -922,7 +1036,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const primaryIdentity = React.useMemo(() => {
     if (identities.length === 0) return null;
-    const activeEmail = useAccountStore.getState().getActiveAccount()?.email || jmapClient.username;
+    const activeEmail = ownerEntry?.email || jmapClient.username;
     const defaultIdentity = identities.find(
       (i) => i.email.toLowerCase() === activeEmail?.toLowerCase()
     ) ?? identities[0];
@@ -1280,7 +1394,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
     const identity = primaryIdentity;
-    if (!identity || !draftsMailbox || sendingRef.current) return draftIdRef.current;
+    if (!identity || !draftsMailbox || sendingRef.current || !ownerActiveNow()) return draftIdRef.current;
     let html = latestRef.current.bodyHtml;
     if (opts.live && !plainTextMode) {
       try {
@@ -1297,6 +1411,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setDraftStatus('saving');
     try {
       const outgoing = buildOutgoing(identity, html, { forDraft: true });
+      // Re-checked after the editor round-trip above, as the guard at the top.
+      if (!ownerActiveNow()) {
+        setDraftStatus('idle');
+        return draftIdRef.current;
+      }
       const id = await createDraft(outgoing, draftsMailbox.id, draftIdRef.current ?? undefined);
       draftIdRef.current = id;
       lastSavedRef.current = snapshot;
@@ -1335,12 +1454,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    if (!isDirty || !needsSave || !draftsMailbox || !primaryIdentity) return;
+    // Skipped silently while another account is active; resumes on return.
+    if (!isDirty || !needsSave || !draftsMailbox || !primaryIdentity || !ownerActive) return;
     const sinceLast = Date.now() - lastSaveAtRef.current;
     const wait = Math.max(2000, autoSaveDraftInterval - sinceLast);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      if (sendingRef.current || !latestRef.current.needsSave) return;
+      if (sendingRef.current || !latestRef.current.needsSave || !ownerActiveNow()) return;
       // Live: the editor posts its content throttled, so read the DOM itself.
       saveDraftRef.current({ live: true }).catch((err) => {
         console.warn('[compose] autosave failed', err);
@@ -1350,7 +1470,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSnapshot, draftsMailbox?.id, primaryIdentity?.id]);
+  }, [currentSnapshot, draftsMailbox?.id, primaryIdentity?.id, ownerActive]);
 
   // ── Close guard ──────────────────────────────────────────────────────
 
@@ -1373,9 +1493,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
       Alert.alert(t('email_composer.save_failed', 'Failed to save'), draftUnsavableReason);
       return;
     }
+    if (!ownerActiveNow()) {
+      alertAccountSwitched({ proceed });
+      return;
+    }
     setSavingDraft(true);
     try {
       await saveDraft({ live: true });
+      // A switch during the save made it a no-op: closing now would drop the
+      // latest edits as if they had been saved.
+      if (!ownerActiveNow()) {
+        alertAccountSwitched({ proceed });
+        return;
+      }
       allowLeaveRef.current = true;
       proceed();
     } catch (err) {
@@ -1391,6 +1521,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const discardAndClose = (proceed: () => void) => {
+    // The server draft lives in the owner's account; destroying it now would
+    // hit the active one instead.
+    if ((draftIdRef.current || inflightSaveRef.current) && !draft && !ownerActiveNow()) {
+      alertAccountSwitched({ proceed });
+      return;
+    }
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -1403,6 +1539,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
       void (async () => {
         try { await inflightSaveRef.current; } catch { /* ignore */ }
         const id = draftIdRef.current ?? autosaved;
+        // The composer is already closed; a switch during the wait leaves the
+        // draft in the owner's Drafts rather than destroying an id in the
+        // other account.
+        if (!ownerActiveNow()) {
+          console.warn('[compose] discard skipped: account changed');
+          return;
+        }
         destroyEmails([id]).catch((err) => console.warn('[compose] discard failed', err));
       })();
     }
@@ -1411,6 +1554,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const showCloseDialog = (proceed: () => void) => {
+    // While another account is active its Drafts/identities are on screen,
+    // so the usual reasons would be wrong and Discard could drop the text.
+    if (!ownerActiveNow()) {
+      alertAccountSwitched({ proceed });
+      return;
+    }
     if (draftUnsavableReason) {
       Alert.alert(
         t('email_composer.discard_draft_title', 'Discard draft?'),
@@ -1538,6 +1687,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const startUpload = async (entry: AttachmentEntry) => {
+    // The pickers check the account before opening; a switch while one was
+    // open fails the file instead of uploading it into the other account.
+    if (!ownerActiveNow()) {
+      updateAttachment(entry.localId, {
+        uploading: false,
+        abort: undefined,
+        error: t('email_composer.upload_failed_short', 'Upload failed'),
+      });
+      return;
+    }
     try {
       const { blobId, size, type } = await uploadBlob(entry.uri, entry.type, {
         signal: entry.abort?.signal,
@@ -1580,6 +1739,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   const pickPhotoAttachments = async () => {
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -1608,6 +1771,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const takePhotoAttachment = async () => {
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -1629,6 +1796,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const pickFileAttachments = async () => {
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     let result: DocumentPicker.DocumentPickerResult;
     try {
       result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
@@ -1684,6 +1855,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const insertInlineImage = async () => {
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -2058,6 +2233,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const performSend = async (holdForSeconds?: number, scheduledAt?: Date) => {
     if (!canSend || !primaryIdentity || !sentMailbox) return;
     if (sendingRef.current) return;
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     sendingRef.current = true;
     try {
       await performSendInner(holdForSeconds, scheduledAt);
@@ -2104,6 +2283,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
       try { await inflightSaveRef.current; } catch { /* stale version stays; cleaned up below */ }
     }
 
+    // Re-checked here: a switch can land while a confirm above is open.
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     setSending(true);
     try {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
@@ -2121,7 +2305,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       }
       // Flag the original so the list shows the reply/forward arrow; best
       // effort - the message already left.
-      if (replyTo?.originalEmailId) {
+      // Skipped when a switch landed during the send: the client now serves
+      // the other account.
+      const stillOwner = ownerActiveNow();
+      if (replyTo?.originalEmailId && !stillOwner) {
+        console.warn('[compose] reply flag skipped: account changed');
+      } else if (replyTo?.originalEmailId) {
         void patchKeywordsForEmails(
           [replyTo.originalEmailId],
           { [mode === 'forward' ? '$forwarded' : '$answered']: true },
@@ -2135,7 +2324,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const contacts = useContactsStore.getState();
         for (const r of withoutRefused([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients)) {
           settings.addTrustedSender(r.email);
-          if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
+          if (stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
           }
         }

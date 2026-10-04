@@ -1439,13 +1439,13 @@ describe('email-store', () => {
       useEmailStore.setState({
         mailboxes: [ownInbox, sharedInbox],
         currentMailboxId: 'grp-1:s-inbox',
-        emails: [{ id: 'e1', blobId: 'blob-1', keywords: { $seen: true, $flagged: false }, mailboxIds: { 's-inbox': true } } as any],
+        emails: [{ id: 'e1', blobId: 'blob-1', receivedAt: '2026-01-02T03:04:05Z', keywords: { $seen: true, $flagged: false }, mailboxIds: { 's-inbox': true } } as any],
       });
 
       await useEmailStore.getState().moveToMailbox('e1', 'grp-1:s-inbox', 'mb-1');
 
       expect(mockMoveEmail).not.toHaveBeenCalled();
-      expect(mockImport).toHaveBeenCalledWith('blob-new', 'mb-1', { $seen: true }, undefined);
+      expect(mockImport).toHaveBeenCalledWith('blob-new', 'mb-1', { $seen: true }, undefined, '2026-01-02T03:04:05Z');
       expect(mockDestroy).toHaveBeenCalledWith(['e1'], 'grp-1');
       const state = useEmailStore.getState();
       expect(state.error).toBeNull();

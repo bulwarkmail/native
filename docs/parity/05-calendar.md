@@ -280,15 +280,15 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **A daily recurring event stops at a DST change** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **A daily recurring event stops at a DST change** — `P2` — `bugfix-parity` (1.11.0) — fixed in 19882c0
   - What WEB does: builds each occurrence from the event's local start time (`lib/recurrence-expansion.ts:420-444`).
   - What RN does: builds each day from the period start (`src/lib/recurrence-expansion.ts:271-273,401-408,584`).
 
-- [ ] **Cannot save an event without invitations when the server refuses to send them** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **Cannot save an event without invitations when the server refuses to send them** — `P2` — `bugfix-parity` (1.11.0) — fixed in fd0104d, bea14b3 — "this and following" edits included
   - What WEB does: detects the refusal (`SchedulingDeniedError`, `lib/jmap/scheduling-error.ts`) and offers to save without sending (`components/calendar/calendar-app.tsx:915-925`).
   - What RN does: on Stalwart 0.16.21+ the whole save fails (`src/api/calendar.ts:587-691`, `src/screens/CalendarScreen.tsx:738+`).
 
-- [ ] **iCal subscriptions are not tied to the login that created them** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **iCal subscriptions are not tied to the login that created them** — `P2` — `bugfix-parity` (1.11.0) — fixed in b973902, b6cf458, b852b7b, 63d2097 — renamed-calendar legacy subs adopt by id only when one account is signed in
   - What WEB does: keys on server URL plus username (`subscriptionOwner`) and clears them on sign-out (`forgetICalSubscriptions`, `stores/calendar-store.ts:494-521,1719-1741`).
   - What RN does: keyed on the JMAP account id only, which is unique only per server; old entries without an account id show for every account; nothing is cleared on sign-out (`src/stores/calendar-subscriptions-store.ts:61-70`).
 
@@ -316,7 +316,7 @@ device.
   - What WEB does: collapses to 3 rows with a toggle and shows tasks.
   - What RN does: `src/components/calendar/WeekView.tsx:96-104`.
 
-- [ ] **Invitations can carry blank participant names (#748)** — `P3` — `bugfix-parity` (1.12.0)
+- [x] **Invitations can carry blank participant names (#748)** — `P3` — `bugfix-parity` (1.12.0) — fixed in 60bcbce
   - What RN does: writes `name: ''` (`src/lib/calendar-participants.ts:284,309`).
 
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)

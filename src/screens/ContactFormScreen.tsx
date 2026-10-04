@@ -26,6 +26,7 @@ import {
   deriveFullName, getCustomFullName,
 } from '../lib/contact-utils';
 import { splitMailbox } from '../lib/rfc5322-mailbox';
+import { contactLinkPatch } from '../lib/contact-wire';
 import Dialog from '../components/Dialog';
 import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -426,11 +427,6 @@ function formToPatch(
     if (isEdit && existing?.[key] !== undefined) return { [key]: null };
     return {};
   };
-  const scalar = (key: keyof ContactCard, value: string): Record<string, unknown> => {
-    if (value) return { [key]: value };
-    if (isEdit && existing?.[key] !== undefined) return { [key]: null };
-    return {};
-  };
 
   // Only send `kind` when this form owns the answer: switching a card between
   // person and organization. Leave other kinds (group, location, ...) untouched.
@@ -455,9 +451,11 @@ function formToPatch(
     ...collection('notes', notes),
     ...collection('keywords', keywords),
     ...(speakToAs ? { speakToAs } : isEdit && existing?.speakToAs ? { speakToAs: null } : {}),
-    ...scalar('calendarUri', form.calendarUri.trim()),
-    ...scalar('schedulingUri', form.schedulingUri.trim()),
-    ...scalar('freeBusyUri', form.freeBusyUri.trim()),
+    ...contactLinkPatch(existing, {
+      calendarUri: form.calendarUri.trim(),
+      schedulingUri: form.schedulingUri.trim(),
+      freeBusyUri: form.freeBusyUri.trim(),
+    }),
     ...collection('media', media),
   };
 

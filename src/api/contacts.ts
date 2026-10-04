@@ -2,6 +2,7 @@ import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import type { ContactCard, AddressBook } from './types';
 import { generateUUID } from '../lib/uuid';
+import { contactFromWire, contactToWire } from '../lib/contact-wire';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -166,7 +167,7 @@ export async function getContacts(ids: string[], accountId?: string): Promise<Co
       USING,
     );
     const list = methodResult<{ list: ContactCard[] }>(res).list ?? [];
-    all.push(...list);
+    all.push(...list.map(contactFromWire));
   }
   return all;
 }
@@ -223,7 +224,7 @@ export async function createContact(
   accountId?: string,
 ): Promise<ContactCard> {
   const account = accountId || getContactsAccountId();
-  const data = stripClientFields(contact);
+  const data = contactToWire(contact, 'create');
   const res = await jmapClient.request(
     [['ContactCard/set', {
       accountId: account,
@@ -232,7 +233,7 @@ export async function createContact(
           ...data,
           // Stalwart stores the card without one if omitted (#644), which
           // breaks group membership and CardDAV round-trips.
-          uid: data.uid || `urn:uuid:${generateUUID()}`,
+          uid: (data.uid as string | undefined) || `urn:uuid:${generateUUID()}`,
           addressBookIds: { [addressBookId]: true },
         },
       },
@@ -256,13 +257,13 @@ export async function createContact(
   } catch {
     // fall through to the merge below
   }
-  return {
+  return contactFromWire({
     ...data,
     uid: data.uid,
     ...created,
     id: created.id,
     addressBookIds: { [addressBookId]: true },
-  } as ContactCard;
+  } as ContactCard);
 }
 
 export async function updateContact(
@@ -272,7 +273,7 @@ export async function updateContact(
 ): Promise<void> {
   const account = accountId || getContactsAccountId();
   const res = await jmapClient.request(
-    [['ContactCard/set', { accountId: account, update: { [id]: stripClientFields(changes) } }, '0']],
+    [['ContactCard/set', { accountId: account, update: { [id]: contactToWire(changes, 'update') } }, '0']],
     USING,
   );
   const result = methodResult<{ notUpdated?: Record<string, SetError> }>(res);
@@ -359,10 +360,19 @@ export async function setDefaultAddressBook(id: string, accountId?: string): Pro
   methodResult(res);
 }
 
-export async function deleteAddressBook(id: string, accountId?: string): Promise<void> {
+export async function deleteAddressBook(
+  id: string,
+  accountId?: string,
+  options?: { removeContents?: boolean },
+): Promise<void> {
   const account = accountId || getContactsAccountId();
   const res = await jmapClient.request(
-    [['AddressBook/set', { accountId: account, destroy: [id] }, '0']],
+    [['AddressBook/set', {
+      accountId: account,
+      destroy: [id],
+      // Without this a book that still holds cards is refused (addressBookHasContents).
+      ...(options?.removeContents ? { onDestroyRemoveContents: true } : {}),
+    }, '0']],
     USING,
   );
   const result = methodResult<{ notDestroyed?: Record<string, SetError> }>(res);
