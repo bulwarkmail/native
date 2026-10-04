@@ -150,10 +150,47 @@ describe('contactLinkPatch', () => {
 
   it('merges only the changed field on edit', () => {
     const patch = contactLinkPatch(existing, { ...form, calendarUri: 'https://x.test/new' });
-    expect(Object.keys(patch)).toEqual(['calendars']);
+    expect(Object.keys(patch).sort()).toEqual(['calendarUri', 'calendars']);
   });
 
   it('sends non-empty flat fields for a new card', () => {
     expect(contactLinkPatch(undefined, { calendarUri: 'u', freeBusyUri: '', schedulingUri: '' })).toEqual({ calendarUri: 'u' });
+  });
+});
+
+describe('edited links stay consistent in the local card', () => {
+  const form = { calendarUri: 'https://x.test/A', freeBusyUri: 'https://x.test/C', schedulingUri: 'mailto:a@x.test' };
+  const loaded = contactFromWire(serverCard);
+
+  it('returns the merged map and the new flat value for a changed field', () => {
+    const patch = contactLinkPatch(loaded, { ...form, calendarUri: ' https://x.test/new ' });
+    expect(patch.calendarUri).toBe('https://x.test/new');
+    expect((patch.calendars as Record<string, unknown>).k1).toMatchObject({ uri: 'https://x.test/new' });
+  });
+
+  it('returns null and a map without the entry for a cleared field', () => {
+    const patch = contactLinkPatch(loaded, { ...form, freeBusyUri: '' });
+    expect(patch.freeBusyUri).toBeNull();
+    expect(Object.keys(patch.calendars as object)).toEqual(['k1', 'k2']);
+  });
+
+  it('survives the store merge and a move or duplicate', () => {
+    const edited = { ...loaded, ...contactLinkPatch(loaded, { ...form, calendarUri: 'https://x.test/new', freeBusyUri: '' }) } as ContactCard;
+    const wire = contactToWire(edited, 'create') as { calendars: Record<string, any> };
+    expect(wire.calendars.k1).toEqual({ kind: 'calendar', uri: 'https://x.test/new', mediaType: 'text/calendar', pref: 1 });
+    expect(wire.calendars.k2.uri).toBe('https://x.test/B');
+    expect(wire.calendars.f).toBeUndefined();
+    expect(wire).not.toHaveProperty('calendarUri');
+  });
+
+  it('does not send a null map on create when every calendar was cleared', () => {
+    const only = contactFromWire({ id: 'c', addressBookIds: {}, calendars: { k: { kind: 'calendar', uri: 'u' } } });
+    const edited = { ...only, ...contactLinkPatch(only, { calendarUri: '', freeBusyUri: '', schedulingUri: '' }) } as ContactCard;
+    expect(contactToWire(edited, 'create')).not.toHaveProperty('calendars');
+  });
+
+  it('sends no link keys for a name-only edit when the stored URI has whitespace', () => {
+    const padded = { id: 'c', addressBookIds: {}, calendarUri: ' https://x.test/A ' } as ContactCard;
+    expect(contactLinkPatch(padded, { calendarUri: 'https://x.test/A', freeBusyUri: '', schedulingUri: '' })).toEqual({});
   });
 });

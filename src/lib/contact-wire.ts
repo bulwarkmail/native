@@ -55,7 +55,7 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
   for (const [key, value] of Object.entries(card)) {
     if ((CLIENT_ONLY_KEYS as readonly string[]).includes(key)) continue;
     if ((URI_KEYS as readonly string[]).includes(key)) continue;
-    if (value === undefined) {
+    if (value === undefined || (value === null && mode === 'create')) {
       if (mode === 'update') out[key] = null;
       continue;
     }
@@ -91,7 +91,7 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
     else if (mode === 'update') out.schedulingAddresses = null;
   }
   const sourceMatches = !!card.directories
-    && card.source === Object.values(card.directories).find(d => d?.kind === 'entry')?.uri;
+    && (card.source || undefined) === Object.values(card.directories).find(d => d?.kind === 'entry')?.uri;
   if (card.source && !sourceMatches) {
     // vCard SOURCE is a JSContact directory entry (RFC 9553 §2.6.2).
     const directories = { ...(card.directories ?? {}) } as Record<string, unknown>;
@@ -173,7 +173,13 @@ export function contactLinkPatch(
   }
   const changes: Record<string, string> = {};
   for (const f of fields) {
-    if (form[f] !== (existing[f] || '')) changes[f] = form[f];
+    if (form[f].trim() !== (existing[f] ?? '').trim()) changes[f] = form[f].trim();
   }
-  return Object.keys(changes).length ? mergeContactLinks(existing, changes) : {};
+  if (!Object.keys(changes).length) return {};
+  // The flat values ride along so the store's local merge keeps them in step
+  // with the maps; contactToWire drops them before sending.
+  return {
+    ...mergeContactLinks(existing, changes),
+    ...Object.fromEntries(Object.entries(changes).map(([f, v]) => [f, v || null])),
+  };
 }
