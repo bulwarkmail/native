@@ -100,6 +100,22 @@ describe('sendEmail delivery confirmation', () => {
     expect(destroyedIds()).toEqual([]); // the copy may be the only record that it went out
   });
 
+  it('keeps the old draft too when the send is unconfirmed', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['Email/set', { created: { draft: { id: 'email-9' } } }, '0']] });
+    await expect(sendEmail(OUTGOING, 'id-1', 'sent-1', undefined, { draftId: 'draft-1' })).rejects.toBeInstanceOf(SendUnconfirmedError);
+    expect(destroyedIds()).toEqual([]);
+  });
+
+  it('drops the old draft when only some recipients were refused', async () => {
+    respond([['EmailSubmission/get', { list: [{ deliveryStatus: {
+      'ok@example.com': { delivered: 'queued', smtpReply: '250 2.1.5 OK' },
+      'gone@example.com': { delivered: 'no', smtpReply: '550 5.1.1 No such user' },
+    } }] }, 'deliveryStatus']]);
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['Email/set', { destroyed: ['draft-1'] }, '0']] });
+    await sendEmail(OUTGOING, 'id-1', 'sent-1', undefined, { draftId: 'draft-1' });
+    expect(destroyedIds()).toEqual(['draft-1']);
+  });
+
   it('treats a missing or failed read-back as a plain success', async () => {
     respond([['error', { type: 'unknownMethod' }, 'deliveryStatus']]);
     await expect(sendEmail(OUTGOING, 'id-1', 'sent-1')).resolves.toMatchObject({ emailSubmissionId: 'sub-9' });
