@@ -25,6 +25,7 @@ import {
 import { queryRecentRecipients, searchSentRecipients, type RecentRecipient } from '../api/recent-recipients';
 import { getPrincipals } from '../api/principals';
 import { jmapClient } from '../api/jmap-client';
+import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
 import {
   getContactDisplayName,
   getContactKeywords,
@@ -87,6 +88,23 @@ export function mergeServerHits(
 // Bumped by reset() so a directory load that lands after an account switch
 // is discarded instead of showing the old account's people.
 let directoryGeneration = 0;
+
+// App account (account-store id) the directory was claimed for.
+let directoryOwner: string | null = null;
+
+// True when the directory loaded for `accountId` belongs to the account the
+// client serves now. The JMAP id alone can repeat across servers, so the app
+// account that claimed it must still be the active one.
+function directoryServes(accountId: string): boolean {
+  try {
+    return jmapClient.accountId === accountId
+      && clientServesActiveAccount()
+      && directoryOwner !== null
+      && directoryOwner === activeAppAccountId();
+  } catch {
+    return false;
+  }
+}
 
 export interface ContactsState {
   addressBooks: AddressBook[];
@@ -719,12 +737,21 @@ export const useContactsStore = create<ContactsState>()(
         loadDirectory: async () => {
           const accountId = jmapClient.accountId;
           if (!jmapClient.isConnected || !accountId || get().directoryAccountId === accountId) return;
+          // Between an account switch's reset() and the new account loading,
+          // the client still serves the account being left: not now.
+          if (!clientServesActiveAccount()) return;
           const generation = directoryGeneration;
           // Claim the account up front so concurrent callers share one load.
+          directoryOwner = activeAppAccountId();
           set({ directoryAccountId: accountId, directoryPeople: [] });
           try {
             const principals = await getPrincipals();
             if (generation !== directoryGeneration) return;
+            if (!directoryServes(accountId)) {
+              // The client moved on mid-load: drop the result and the claim.
+              if (get().directoryAccountId === accountId) set({ directoryAccountId: null, directoryPeople: [] });
+              return;
+            }
             const people: DirectoryPerson[] = [];
             for (const p of principals) {
               const email = p.email?.trim();
@@ -787,7 +814,8 @@ export const useContactsStore = create<ContactsState>()(
 
           // Directory people (other users on the server). Contacts take
           // precedence, but a contact with no name borrows the directory's.
-          const { directoryPeople } = get();
+          const { directoryPeople: loaded, directoryAccountId } = get();
+          const directoryPeople = directoryAccountId && directoryServes(directoryAccountId) ? loaded : [];
           if (directoryPeople.length > 0) {
             const seen = new Set(results.map((r) => r.email.toLowerCase()));
             for (const p of directoryPeople) {
@@ -926,6 +954,7 @@ export const useContactsStore = create<ContactsState>()(
 
         reset: () => {
           directoryGeneration++;
+          directoryOwner = null;
           set({
             addressBooks: [],
             contacts: [],

@@ -40,10 +40,18 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-vi.mock('../../api/jmap-client', () => ({
-  jmapClient: {
-    accountId: 'acc-1',
-    isConnected: true,
+const client = vi.hoisted(() => ({
+  accountId: 'acc-1', isConnected: true, username: 'u1', serverUrl: 'https://a.example',
+}));
+const accounts = vi.hoisted(() => ({ active: 'app-1' }));
+vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
+vi.mock('../account-store', () => ({
+  useAccountStore: {
+    getState: () => ({
+      activeAccountId: accounts.active,
+      getAccountById: (id: string) =>
+        ({ 'app-1': { username: 'u1', serverUrl: 'https://a.example/' }, 'app-2': { username: 'u2', serverUrl: 'https://b.example' } } as Record<string, unknown>)[id],
+    }),
   },
 }));
 
@@ -507,6 +515,53 @@ describe('contacts-store', () => {
       useContactsStore.getState().reset();
       release([dana]);
       await pending;
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+    });
+  });
+
+  describe('directory across an account switch', () => {
+    const dana = { id: 'p1', type: 'individual', name: 'dana', description: 'Dana Director', email: 'dana@example.com' };
+    const toSecond = () => {
+      accounts.active = 'app-2';
+      client.username = 'u2'; client.serverUrl = 'https://b.example';
+    };
+    afterEach(() => {
+      accounts.active = 'app-1'; client.username = 'u1'; client.serverUrl = 'https://a.example';
+      client.accountId = 'acc-1';
+    });
+
+    it('does not load for a client still on the account being left', async () => {
+      useContactsStore.getState().reset();
+      accounts.active = 'app-2'; // account store ahead of the client
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(mockGetPrincipals).not.toHaveBeenCalled();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+      // once the client catches up it loads for the new account
+      client.username = 'u2'; client.serverUrl = 'https://b.example'; client.accountId = 'acc-2';
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toHaveLength(1);
+    });
+
+    it('discards a load that resolves after the client moved on, even to the same JMAP id', async () => {
+      let release!: (v: unknown[]) => void;
+      mockGetPrincipals.mockReturnValue(new Promise((r) => { release = r; }));
+      const pending = useContactsStore.getState().loadDirectory();
+      toSecond(); // same JMAP account id "acc-1" on another server
+      release([dana]);
+      await pending;
+      expect(useContactsStore.getState().directoryPeople).toEqual([]);
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+    });
+
+    it('ignores directory people of another account in getAutocomplete', async () => {
+      mockGetPrincipals.mockResolvedValue([dana]);
+      await useContactsStore.getState().loadDirectory();
+      expect(useContactsStore.getState().getAutocomplete('dana')).toHaveLength(1);
+      client.accountId = 'acc-2';
+      expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
+      client.accountId = 'acc-1';
+      toSecond();
       expect(useContactsStore.getState().getAutocomplete('dana')).toEqual([]);
     });
   });
