@@ -45,6 +45,7 @@
     "jszip": "^3.10.1",
     "lucide-react-native": "^1.7.0",
     "postal-mime": "^3.0.0",
+    "punycode": "^2.3.1",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-android-widget": "0.22.1",

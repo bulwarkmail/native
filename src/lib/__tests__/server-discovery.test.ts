@@ -69,6 +69,16 @@ describe('normalizeServerUrl', () => {
     expect(normalizeServerUrl('http://localhost:8080')).toBe('http://localhost:8080');
   });
 
+  it('sends an internationalized host in its ASCII form', () => {
+    expect(normalizeServerUrl('mail.bücher.de')).toBe('https://mail.xn--bcher-kva.de');
+    expect(normalizeServerUrl('https://Bücher.DE:8443/mail/jmap')).toBe('https://xn--bcher-kva.de:8443/mail');
+    expect(normalizeServerUrl('https://mail.xn--bcher-kva.de')).toBe('https://mail.xn--bcher-kva.de');
+  });
+
+  it('rejects an internationalized host that is not valid', () => {
+    expect(normalizeServerUrl('https://xn--zz.de')).toBeNull();
+  });
+
   it('rejects non-http schemes', () => {
     expect(normalizeServerUrl('ftp://mail.example.com')).toBeNull();
     expect(normalizeServerUrl('bulwarkmail://connect')).toBeNull();
@@ -96,6 +106,18 @@ describe('emailDomain', () => {
     expect(emailDomain('a@b@example.com')).toBeNull();
     expect(isEmailAddress('ada@example.com')).toBe(true);
     expect(isEmailAddress('ada')).toBe(false);
+  });
+
+  it('returns the ASCII (punycode) form of an internationalized domain', () => {
+    expect(emailDomain('user@bücher.de')).toBe('xn--bcher-kva.de');
+    expect(emailDomain('user@Bücher.DE')).toBe('xn--bcher-kva.de');
+    expect(emailDomain('user@xn--bcher-kva.de')).toBe('xn--bcher-kva.de');
+    expect(isEmailAddress('user@bücher.de')).toBe(true);
+  });
+
+  it('rejects an internationalized domain that cannot be a host name', () => {
+    expect(emailDomain('user@bü cher.de')).toBeNull();
+    expect(emailDomain('user@xn--zz.de')).toBeNull();
   });
 });
 
@@ -189,6 +211,25 @@ describe('discoverServerForEmail', () => {
   it('returns null when nothing answers, so the caller can ask', async () => {
     respondFor({});
     await expect(discoverServerForEmail('ada@example.org')).resolves.toBeNull();
+  });
+
+  it('looks up the ASCII form of an internationalized domain', async () => {
+    respondFor({ 'https://mail.xn--bcher-kva.de': 401 });
+    await expect(discoverServerForEmail('user@bücher.de')).resolves.toBe(
+      'https://mail.xn--bcher-kva.de',
+    );
+    const urls = mockSecureFetch.mock.calls.map(([url]) => String(url));
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((url) => /^https:\/\/(?:[a-z]+\.)?xn--bcher-kva\.de\//.test(url))).toBe(true);
+  });
+
+  it('matches a known server by the ASCII form of the domain', async () => {
+    respondFor({});
+    const found = await discoverServerForEmail('user@bücher.de', {
+      knownServerUrls: ['https://mail.xn--bcher-kva.de'],
+    });
+    expect(found).toBe('https://mail.xn--bcher-kva.de');
+    expect(mockSecureFetch).not.toHaveBeenCalled();
   });
 
   it('returns null without touching the network for a non-address', async () => {

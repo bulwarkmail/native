@@ -4,6 +4,7 @@
 // splitPastedRecipients, expandRecipients). All DOM-free.
 
 import { splitMailbox } from './rfc5322-mailbox';
+import { toAsciiEmail } from './idn';
 
 /**
  * A composer recipient. Display name is optional; email is required - except
@@ -20,7 +21,11 @@ export interface Recipient {
 /**
  * RFC 5322 compliant email validation with security enhancements.
  */
-export function isValidEmail(email: string): boolean {
+export function isValidEmail(input: string): boolean {
+  // An internationalized domain is checked in its ASCII (punycode) form, the
+  // form it is sent and stored in.
+  const email = toAsciiEmail(input);
+
   // Length check
   if (!email || email.length > 254) return false;
 

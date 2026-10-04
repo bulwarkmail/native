@@ -8,6 +8,7 @@
 // slow or hostile network must never be worse than typing it in.
 
 import { secureFetch } from './client-cert';
+import { toAsciiDomain } from './idn';
 
 export const DISCOVERY_TIMEOUT_MS = 2500;
 
@@ -68,6 +69,15 @@ export function normalizeServerUrl(input: string): string | null {
   const host = value.slice(value.indexOf('://') + 3).split('/')[0];
   if (!host || /[\s@]/.test(host)) return null;
 
+  // Hermes' `URL` does no IDNA, so an internationalized host is converted to
+  // its ASCII (punycode) form here, before anything connects to it.
+  const [rawHost, ...port] = host.split(':');
+  if (/[^\p{ASCII}]|(?:^|\.)xn--/iu.test(rawHost)) {
+    const ascii = toAsciiDomain(rawHost);
+    if (!ascii) return null;
+    value = value.replace(host, [ascii, ...port].join(':'));
+  }
+
   const hostname = host.split(':')[0].toLowerCase();
   if (!hostname) return null;
   if (!hostname.includes('.') && hostname !== 'localhost') return null;
@@ -75,9 +85,10 @@ export function normalizeServerUrl(input: string): string | null {
   return value;
 }
 
+/** The domain of `email` in its lowercase ASCII (punycode) form, or null. */
 export function emailDomain(email: string): string | null {
   const match = EMAIL_RE.exec(email.trim());
-  return match ? match[1].toLowerCase() : null;
+  return match ? toAsciiDomain(match[1]) : null;
 }
 
 export function isEmailAddress(value: string): boolean {

@@ -15,6 +15,7 @@ import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
 import { clearBodyHeights } from '../lib/body-heights';
 import { AccountLimitError, generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
+import { toAsciiEmail } from '../lib/idn';
 import {
   runWebmailHandoff,
   redeemPairingCode,
@@ -344,8 +345,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   client: null,
   pendingTotpLogin: null,
 
-  login: async (serverUrl, username, password, opts) => {
+  login: async (serverUrl, typedUsername, password, opts) => {
     set({ isLoading: true, error: null });
+    // Sign in with the ASCII (punycode) form of an IDN domain, the form
+    // Stalwart stores, so `user@bücher.de` and `user@xn--bcher-kva.de` are one
+    // account (one id, one set of stored credentials).
+    const username = toAsciiEmail(typedUsername);
     // Adding an additional account: keep the live connection until the new
     // sign-in succeeded so a typo doesn't kill the current session.
     const previous = opts?.addAccount && get().isAuthenticated ? jmapClient.snapshot() : null;
