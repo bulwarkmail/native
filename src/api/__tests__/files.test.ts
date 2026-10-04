@@ -599,9 +599,69 @@ describe('copyFileNode', () => {
     expect(copy.id).toBe('copy-1');
   });
 
-  it('refuses to duplicate folders', async () => {
-    await expect(copyFileNode({ id: 'd', name: 'Docs', type: '', blobId: null }, null)).rejects.toThrow();
-    expect(mockRequest).not.toHaveBeenCalled();
+  // Answers each FileNode/set create with the next id: copy-1, copy-2, ...
+  function mockCreates() {
+    let n = 0;
+    mockRequest.mockImplementation(async (calls: any[]) => {
+      const [, args] = calls[0];
+      const key = Object.keys(args.create)[0];
+      return { methodResponses: [['FileNode/set', { created: { [key]: { id: `copy-${++n}` } } }, '0']] };
+    });
+  }
+  const creates = () => mockRequest.mock.calls.map((c) => c[0][0][1].create).filter(Boolean).map((c) => Object.values(c)[0] as any);
+
+  it('copies a folder with its whole subtree', async () => {
+    mockCreates();
+    const tree = [
+      { id: 'root', name: 'Docs', type: '', blobId: null, parentId: null },
+      { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', size: 1, parentId: 'root' },
+      { id: 'sub', name: 'Sub', type: '', blobId: null, parentId: 'root' },
+      { id: 'f2', name: 'b.txt', type: 'text/plain', blobId: 'b2', size: 2, parentId: 'sub' },
+      { id: 'other', name: 'Other', type: '', blobId: null, parentId: null },
+    ];
+
+    const copy = await copyFileNode(tree[0], null, 'Docs (1)', tree);
+
+    expect(copy.id).toBe('copy-1');
+    const sent = creates();
+    expect(sent).toHaveLength(4);
+    expect(sent[0]).toEqual({ name: 'Docs (1)' });
+    expect(sent[1]).toMatchObject({ name: 'a.txt', blobId: 'b1', parentId: 'copy-1' });
+    expect(sent[2]).toEqual({ name: 'Sub', parentId: 'copy-1' });
+    expect(sent[3]).toMatchObject({ name: 'b.txt', blobId: 'b2', parentId: 'copy-3' });
+  });
+
+  it('copies an empty folder', async () => {
+    mockCreates();
+    const tree = [{ id: 'd', name: 'Empty', type: '', blobId: null, parentId: 'p' }];
+    await copyFileNode(tree[0], 'p', 'Empty (1)', tree);
+    expect(creates()).toEqual([{ name: 'Empty (1)', parentId: 'p' }]);
+  });
+
+  it('fetches the tree itself when none is given', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['FileNode/get', { list: [
+        { id: 'd', name: 'Docs', parentId: null },
+        { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', size: 1, parentId: 'd' },
+      ] }, '0']],
+    });
+    mockCreates();
+    await copyFileNode({ id: 'd', name: 'Docs', type: '', blobId: null }, null, 'Docs (1)');
+    const sent = creates();
+    expect(sent.some((c) => c.name === 'a.txt' && c.parentId === 'copy-1')).toBe(true);
+  });
+
+  it('does not revisit the copies when a folder is copied into itself', async () => {
+    mockCreates();
+    const tree = [
+      { id: 'd', name: 'Docs', type: '', blobId: null, parentId: null },
+      { id: 'f1', name: 'a.txt', type: 'text/plain', blobId: 'b1', size: 1, parentId: 'd' },
+    ];
+    await copyFileNode(tree[0], 'd', 'Docs', tree);
+    const sent = creates();
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toEqual({ name: 'Docs', parentId: 'd' });
+    expect(sent[1]).toMatchObject({ name: 'a.txt', parentId: 'copy-1' });
   });
 });
 

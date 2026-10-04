@@ -431,22 +431,39 @@ export async function uploadFileNode(
   );
 }
 
-// Copy a file by creating a new node that references the same blob — no
-// bytes are re-uploaded (webmail `copyFileNode`). Folders have no blob and
-// cannot be duplicated this way.
+// Copy a node. A file creates a new node that references the same blob, so no
+// bytes are re-uploaded; a folder is created, then each child is copied into
+// it (webmail `copyFileNode`). Children come from `tree`, or from one fetch
+// of the whole tree taken before any create, so a folder copied into itself
+// or a descendant never re-visits the nodes it just made.
 export async function copyFileNode(
   node: FileNode,
   parentId: string | null,
   newName: string = node.name,
+  tree?: FileNode[],
 ): Promise<FileNode> {
-  if (!node.blobId) throw new Error('Folders cannot be duplicated');
-  return createFileNodeFromBlob(
-    newName,
-    node.blobId,
-    safeMimeType(node.type, 'application/octet-stream', filesAccountId()),
-    node.size,
-    parentId,
-  );
+  const accountId = filesAccountId();
+  if (node.blobId) {
+    return createFileNodeFromBlob(
+      newName,
+      node.blobId,
+      safeMimeType(node.type, 'application/octet-stream', accountId),
+      node.size,
+      parentId,
+    );
+  }
+  const snapshot = tree ?? await getAllFileNodes();
+  const copyInto = async (src: FileNode, name: string, parent: string | null): Promise<FileNode> => {
+    if (src.blobId) return copyFileNode(src, parent, name, snapshot);
+    // Read the children before creating anything under the new folder.
+    const children = snapshot.filter((n) => n.parentId === src.id);
+    const props: Record<string, unknown> = { name };
+    if (parent !== null) props.parentId = parent;
+    const created = await createFileNode(accountId, props);
+    for (const child of children) await copyInto(child, child.name, created.id);
+    return created;
+  };
+  return copyInto(node, newName, parentId);
 }
 
 // ── Sharing (RFC 9670) ────────────────────────────────────
