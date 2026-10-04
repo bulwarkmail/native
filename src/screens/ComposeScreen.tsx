@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch,
+  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch, type AlertButton,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -38,7 +38,8 @@ import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import {
-  composerAccountLabel, composerOwnerAtMount, isComposerOwnerActive, liveComposerOwnerCheck,
+  composerAccountLabel, composerOwnerAtMount, composerSwitchBackActions, isComposerOwnerActive,
+  liveComposerOwnerCheck, type SwitchBackAction,
 } from '../lib/composer-account';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
@@ -468,21 +469,81 @@ export default function ComposeScreen({ route, navigation }: Props) {
   );
   const ownerEntry = owner ? useAccountStore.getState().getAccountById(owner.appAccountId) : undefined;
 
-  // Explain a blocked action and offer the way back to the owner.
-  const alertAccountSwitched = () => {
+  // Explain a blocked action and offer the way back to the owner. When there
+  // is no way back (the owner left the registry, or switching did not take
+  // effect), offer leaving without a server write instead so the user is not
+  // trapped. `proceed` is how an exit path closes; other callers go back.
+  const alertAccountSwitched = (opts: { proceed?: () => void; switchFailed?: boolean } = {}) => {
     if (!owner) return;
-    const account = composerAccountLabel(owner, ownerEntry);
+    const proceed = opts.proceed ?? (() => navigation.goBack());
+    const entry = useAccountStore.getState().getAccountById(owner.appAccountId);
+    const account = composerAccountLabel(owner, entry ?? ownerEntry);
+    const actions = composerSwitchBackActions({ ownerRegistered: !!entry, switchFailed: opts.switchFailed });
+    const buttons: Record<SwitchBackAction, AlertButton> = {
+      cancel: { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
+      switch: {
+        text: t('email_composer.account_switched_action', 'Switch to {account}', { account }),
+        onPress: () => { void switchBack(proceed); },
+      },
+      discard: { text: t('email_composer.discard', 'Discard'), style: 'destructive', onPress: () => leaveWithoutWriting(proceed) },
+      copyAndClose: {
+        text: t('email_composer.copy_and_close', 'Copy text and close'),
+        onPress: () => { void copyAndLeave(proceed); },
+      },
+    };
+    const canSwitch = actions.includes('switch');
     Alert.alert(
-      t('email_composer.account_switched_title', 'Account changed'),
-      t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account }),
-      [
-        { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
-        {
-          text: t('email_composer.account_switched_action', 'Switch to {account}', { account }),
-          onPress: () => { void useAuthStore.getState().switchAccount(owner.appAccountId); },
-        },
-      ],
+      canSwitch
+        ? t('email_composer.account_switched_title', 'Account changed')
+        : t('email_composer.account_unavailable_title', 'Account unavailable'),
+      canSwitch
+        ? t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account })
+        : t('email_composer.account_unavailable_body', 'This message was started in {account}, which cannot be switched back to. You can discard it, or copy its text and close.', { account }),
+      actions.map((a) => buttons[a]),
     );
+  };
+
+  const switchBack = async (proceed: () => void) => {
+    if (!owner) return;
+    try {
+      await useAuthStore.getState().switchAccount(owner.appAccountId);
+    } catch (err) {
+      console.warn('[compose] switching back failed', err);
+    }
+    // switchAccount can return without switching (no session, the sign-in was refused).
+    if (!ownerActiveNow()) alertAccountSwitched({ proceed, switchFailed: true });
+  };
+
+  // Close without any server write: the active account is not the owner, so
+  // the draft (if one was saved) stays in the owner's Drafts.
+  const leaveWithoutWriting = (proceed: () => void) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    for (const a of attachments) a.abort?.abort();
+    allowLeaveRef.current = true;
+    proceed();
+  };
+
+  const copyAndLeave = async (proceed: () => void) => {
+    let html = latestRef.current.bodyHtml;
+    if (!plainTextMode) {
+      try {
+        html = (await editorRef.current?.getHtml()) ?? html;
+      } catch { /* the last change message is the best we have */ }
+    }
+    try {
+      await Clipboard.setStringAsync(plainTextMode ? latestRef.current.plainBody : htmlToPlainText(html));
+    } catch (err) {
+      // Closing now would drop the text the user asked to keep.
+      Alert.alert(
+        t('email_composer.copy_failed', 'Could not copy the text'),
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
+    }
+    leaveWithoutWriting(proceed);
   };
 
   const mailboxes = useEmailStore((s) => s.mailboxes);
@@ -1433,7 +1494,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       return;
     }
     if (!ownerActiveNow()) {
-      alertAccountSwitched();
+      alertAccountSwitched({ proceed });
       return;
     }
     setSavingDraft(true);
@@ -1442,7 +1503,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       // A switch during the save made it a no-op: closing now would drop the
       // latest edits as if they had been saved.
       if (!ownerActiveNow()) {
-        alertAccountSwitched();
+        alertAccountSwitched({ proceed });
         return;
       }
       allowLeaveRef.current = true;
@@ -1463,7 +1524,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // The server draft lives in the owner's account; destroying it now would
     // hit the active one instead.
     if ((draftIdRef.current || inflightSaveRef.current) && !draft && !ownerActiveNow()) {
-      alertAccountSwitched();
+      alertAccountSwitched({ proceed });
       return;
     }
     if (saveTimerRef.current) {
@@ -1496,7 +1557,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // While another account is active its Drafts/identities are on screen,
     // so the usual reasons would be wrong and Discard could drop the text.
     if (!ownerActiveNow()) {
-      alertAccountSwitched();
+      alertAccountSwitched({ proceed });
       return;
     }
     if (draftUnsavableReason) {

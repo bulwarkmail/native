@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  composerAccountLabel, composerOwnerAtMount, isComposerAccountActive, isComposerOwnerActive,
+  composerAccountLabel, composerOwnerAtMount, composerSwitchBackActions, isComposerAccountActive, isComposerOwnerActive,
 } from '../composer-account';
 
 describe('composerOwnerAtMount', () => {
@@ -70,5 +70,20 @@ describe('composerAccountLabel', () => {
 
   it('falls back to the registry id when the entry is gone', () => {
     expect(composerAccountLabel(owner, undefined)).toBe('app-a');
+  });
+});
+
+describe('composerSwitchBackActions', () => {
+  it('offers the way back while the owner is still signed in', () => {
+    expect(composerSwitchBackActions({ ownerRegistered: true })).toEqual(['cancel', 'switch']);
+  });
+
+  it('offers leaving without a server write when the owner was removed', () => {
+    expect(composerSwitchBackActions({ ownerRegistered: false })).toEqual(['cancel', 'discard', 'copyAndClose']);
+  });
+
+  it('offers leaving without a server write when switching back did not take effect', () => {
+    expect(composerSwitchBackActions({ ownerRegistered: true, switchFailed: true }))
+      .toEqual(['cancel', 'discard', 'copyAndClose']);
   });
 });

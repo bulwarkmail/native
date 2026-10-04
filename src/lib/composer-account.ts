@@ -56,6 +56,23 @@ export function composerAccountLabel(
   return entry?.email || entry?.displayName || entry?.username || owner.appAccountId;
 }
 
+export type SwitchBackAction = 'cancel' | 'switch' | 'discard' | 'copyAndClose';
+
+/**
+ * What the "account changed" alert offers. Switching back is the way to send
+ * or save, but an owner that left the registry (its sign-in failed) or a
+ * switch that did not take effect would make it the only exit, trapping the
+ * user in the composer. Then the alert offers leaving without a server write:
+ * a discard, or copying the text first.
+ */
+export function composerSwitchBackActions(params: {
+  ownerRegistered: boolean;
+  switchFailed?: boolean;
+}): SwitchBackAction[] {
+  if (params.ownerRegistered && !params.switchFailed) return ['cancel', 'switch'];
+  return ['cancel', 'discard', 'copyAndClose'];
+}
+
 interface ActiveAccountSource {
   getState(): { activeAccountId: string | null };
 }
