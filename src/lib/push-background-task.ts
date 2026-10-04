@@ -6,6 +6,7 @@ import type { Email, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { detectDeviceLocale, isSupportedLocale, translate, type LocaleCode } from '../i18n';
 import { secureFetch } from './client-cert';
 import { refreshOAuthAccessToken, type OAuthTokens } from './oauth';
+import { recordAlert, shouldStaySilent } from './push-quiet-window';
 import {
   generateEmailAvatarColor,
   getEmailInitials,
@@ -102,6 +103,8 @@ interface ShowNotificationOptions {
   // several deliveries under a "+N more" summary instead of stacking them.
   groupKey: string;
   groupTitle: string;
+  // Show it without a sound: another account just rang for the same burst.
+  silent: boolean;
 }
 
 interface BulwarkFcmNative {
@@ -551,6 +554,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     const iconUrl = faviconDomain ? getFaviconUrl(faviconDomain) : undefined;
 
     await native.showNotification({
+      silent: await claimAlert(accountId),
       notificationId: `mail:${email.id}`,
       title,
       body,
@@ -570,6 +574,14 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
   await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
 }
 
+// Whether this notification stays silent. One that rings takes the quiet
+// window; a silent one leaves it alone.
+async function claimAlert(accountId: string): Promise<boolean> {
+  const silent = await shouldStaySilent(accountId);
+  if (!silent) await recordAlert(accountId);
+  return silent;
+}
+
 // "New email" under the account's name, with no message to open: tapping it
 // opens the account's inbox. One per account, so a second replaces the first.
 async function showGenericNotification(
@@ -580,6 +592,7 @@ async function showGenericNotification(
 ): Promise<void> {
   const locale = await notificationLocale();
   await native.showNotification({
+    silent: await claimAlert(accountId),
     notificationId: `mail-generic:${accountId}`,
     title: translate(locale, 'notifications.new_email', 'New email'),
     body: groupTitle,

@@ -187,6 +187,52 @@ describe('pushBackgroundTask notifications', () => {
   });
 });
 
+describe('pushBackgroundTask quiet window across accounts', () => {
+  const ALICE = 'alice@mail.example.com';
+  const CAROL = 'carol@mail.example.com';
+  const showNotification = vi.fn(async () => undefined);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([ALICE, CAROL]));
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockResolvedValue({
+      serverUrl: 'https://mail.example.com',
+      username: 'alice',
+      password: 'secret',
+    });
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => (url.endsWith('/.well-known/jmap')
+        ? {
+          apiUrl: 'https://mail.example.com/jmap/',
+          primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+          accounts: { 'jmap-primary': {} },
+        }
+        : {
+          methodResponses: [[
+            'Email/get',
+            { list: [{ id: 'm1', threadId: 't1', keywords: {}, subject: 'Hi', from: [{ email: 'bob@example.com' }] }] },
+            '0',
+          ]],
+        }),
+    }));
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  it('rings for the first account and stays silent for the second one', async () => {
+    await pushBackgroundTask({ kind: 'jmap-email-push', emailIds: JSON.stringify(['m1']) });
+
+    expect(showNotification).toHaveBeenCalledTimes(2);
+    expect(showNotification).toHaveBeenNthCalledWith(1, expect.objectContaining({ accountId: ALICE, silent: false }));
+    expect(showNotification).toHaveBeenNthCalledWith(2, expect.objectContaining({ accountId: CAROL, silent: true }));
+  });
+});
+
 describe('pushBackgroundTask when the new mail cannot be looked up', () => {
   const LOCAL = 'alice@mail.example.com';
   const showNotification = vi.fn(async () => undefined);

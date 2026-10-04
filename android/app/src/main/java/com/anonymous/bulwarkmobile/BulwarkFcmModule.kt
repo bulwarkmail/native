@@ -71,6 +71,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             ?: accountId?.let { "bulwark-mail:$it" }
         val groupTitle = options.takeIf { it.hasKey("groupTitle") }?.getString("groupTitle")
             ?: accountId ?: "Bulwark Mail"
+        val silent = options.hasKey("silent") && options.getBoolean("silent")
 
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
         // block waiting for the favicon request.
@@ -79,7 +80,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 ?: makeLetterAvatar(initials, bgColorHex)
             postNotification(
                 notificationId, title, body, largeIcon, bgColorHex,
-                emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                emailId, threadId, subject, accountId, jmapAccountId, groupKey, silent,
             )
             if (groupKey != null) postGroupSummary(groupKey, groupTitle, bgColorHex, accountId)
             promise.resolve(null)
@@ -110,6 +111,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         accountId: String?,
         jmapAccountId: String?,
         groupKey: String?,
+        silent: Boolean,
     ) {
         val ctx = reactApplicationContext
         val intent = Intent(ctx, MainActivity::class.java).apply {
@@ -141,6 +143,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             builder.setGroup(groupKey)
             builder.setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
+        if (silent) builder.setSilent(true)
 
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notificationId.hashCode(), builder.build())
