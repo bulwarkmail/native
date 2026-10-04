@@ -13,6 +13,16 @@ function bytes(s: string): number[] {
   return Array.from(new TextEncoder().encode(s));
 }
 
+// The MAPI block sits in an attachment-level attribute; attAttachRendData first
+// so the parser has a current attachment to apply it to.
+function tnefWithAttachmentProps(mapi: number[]): Uint8Array {
+  return new Uint8Array([
+    ...u32(0x223e9f78), 0x00, 0x00,
+    ...attr(0x02, 0x00069002, [0]),
+    ...attr(0x02, 0x00069005, mapi),
+  ]);
+}
+
 describe('parseTnef', () => {
   it('rejects non-TNEF data', () => {
     expect(parseTnef(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))).toEqual({ body: null, htmlBody: null, attachments: [] });
@@ -64,6 +74,32 @@ describe('parseTnef', () => {
     const res = parseTnef(data);
     expect(res.htmlBody).toBe('<p>hi</p>');
     expect(res.attachments[0]).toMatchObject({ name: 'report.pdf', mimeType: 'application/pdf' });
+  });
+});
+
+describe('parseTnef value-count bounds', () => {
+  const expectFast = (mapi: number[]) => {
+    const started = performance.now();
+    expect(() => parseTnef(tnefWithAttachmentProps(mapi))).not.toThrow();
+    expect(performance.now() - started).toBeLessThan(100);
+  };
+
+  it('stops on a truncated variable-length value instead of spinning on the count', () => {
+    // 1 prop, PT_BINARY id 0x3701, count 0xFFFFFFFF, then a length larger than what is left.
+    expectFast([...u32(1), 0x02, 0x01, 0x01, 0x37, ...u32(0xffffffff), ...u32(1000)]);
+  });
+
+  it('stops a multi-value fixed run that consumes nothing', () => {
+    // PT_MV_LONG with count 0xFFFFFFFF and only 2 bytes left.
+    expectFast([...u32(1), 0x03, 0x10, 0x00, 0x30, ...u32(0xffffffff), 0, 0]);
+  });
+
+  it.each([
+    ['multi-valued STRING8', 0x101e],
+    ['multi-valued unknown fixed type', 0x1099],
+  ])('returns at once for a %s property claiming 0xFFFFFFFF values', (_label, propType) => {
+    // Two bytes are too short to hold even one value.
+    expectFast([...u32(1), propType & 0xff, propType >> 8, 0x01, 0x00, ...u32(0xffffffff), 0, 0]);
   });
 });
 

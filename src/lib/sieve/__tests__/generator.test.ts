@@ -225,6 +225,45 @@ describe('generateScript', () => {
     });
   });
 
+  describe('all messages', () => {
+    const ALL = { field: 'all', comparator: 'any', value: '' } as const;
+
+    it('matches every message', () => {
+      const script = generateScript([makeRule({ conditions: [ALL], actions: [{ type: 'mark_read' }] })]);
+      expect(script).toContain('if true {\n    addflag "\\\\Seen";\n}');
+      // Nothing to require for it.
+      expect(script).toMatch(/^require \["imap4flags"\];$/m);
+    });
+
+    it('still leaves spam out of a move to a folder', () => {
+      const script = generateScript(
+        [makeRule({ conditions: [ALL], actions: [{ type: 'move', value: 'Archive' }] })],
+        undefined,
+        { extensions: ['fileinto', 'spamtestplus', 'relational'] },
+      );
+      expect(script).toContain('if allof(true, not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50") {');
+    });
+
+    it('stands next to other conditions', () => {
+      const subject = { field: 'subject', comparator: 'contains', value: 'Rechnung' } as const;
+      expect(generateScript([makeRule({ conditions: [ALL, subject] })]))
+        .toContain('if allof(true, header :contains "Subject" "Rechnung") {');
+      expect(generateScript([makeRule({ matchType: 'any', conditions: [subject, ALL] })]))
+        .toContain('if anyof(header :contains "Subject" "Rechnung", true) {');
+      // Any of them, and still no spam into a folder.
+      expect(generateScript(
+        [makeRule({ matchType: 'any', conditions: [subject, ALL] })],
+        undefined,
+        { extensions: ['fileinto', 'spamtestplus', 'relational'] },
+      )).toContain('if allof(anyof(header :contains "Subject" "Rechnung", true), not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50") {');
+    });
+
+    it('reads back as written', () => {
+      const rules = [makeRule({ conditions: [ALL], actions: [{ type: 'mark_read' }] })];
+      expect(parseScript(generateScript(rules)).rules).toEqual(rules);
+    });
+  });
+
   describe('stopProcessing', () => {
     it('appends stop when stopProcessing is true', () => {
       const script = generateScript([makeRule({ stopProcessing: true })]);
@@ -241,22 +280,27 @@ describe('generateScript', () => {
       expect(matches).toHaveLength(1);
     });
 
-    it('does not append stop after discard', () => {
-      const script = generateScript([makeRule({
-        actions: [{ type: 'discard' }],
-        stopProcessing: true,
-      })]);
-      const matches = script.match(/stop;/g);
-      expect(matches).toBeNull();
+    it('writes a stop after discard and reject when the rule says stop', () => {
+      for (const type of ['discard', 'reject'] as const) {
+        const script = generateScript([makeRule({ stopProcessing: true, actions: [{ type, value: 'no' }] })]);
+        expect(script).toMatch(new RegExp(`${type}[^\\n]*;\\n    stop;\\n}`));
+      }
     });
 
-    it('does not append stop after reject', () => {
-      const script = generateScript([makeRule({
-        actions: [{ type: 'reject', value: 'No' }],
-        stopProcessing: true,
-      })]);
-      const matches = script.match(/stop;/g);
-      expect(matches).toBeNull();
+    it('writes no second stop when the last action is already stop', () => {
+      const script = generateScript([makeRule({ stopProcessing: true, actions: [{ type: 'stop' }] })]);
+      expect(script.match(/stop;/g)).toHaveLength(1);
+    });
+  });
+
+  describe('address comparators', () => {
+    it('writes address_is and domain_is as address tests', () => {
+      const s = generateScript([makeRule({ conditions: [
+        { field: 'from', comparator: 'address_is', value: 'anna@acme.com' },
+        { field: 'to', comparator: 'domain_is', value: 'acme.com' },
+      ] })]);
+      expect(s).toContain('address :is "From" "anna@acme.com"');
+      expect(s).toContain('address :domain :is "To" "acme.com"');
     });
   });
 
@@ -572,5 +616,73 @@ describe('generateScript', () => {
       expect(script).not.toContain('if ');
       expect(script).not.toContain('require');
     });
+  });
+});
+
+describe('generateScript with hostile rule data', () => {
+  /** The script with every comment removed: what Sieve actually executes. */
+  function commands(script: string): string {
+    return script.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*#.*$/gm, '');
+  }
+
+  it('writes a rule name on one line with its whitespace collapsed', () => {
+    const script = generateScript([makeRule({ name: 'Foo  Bar\nredirect "x@evil.example";' })]);
+    expect(script).toContain('# Rule: Foo Bar redirect "x@evil.example";\n');
+    expect(script).not.toMatch(/^redirect/m);
+    expect(commands(script)).not.toContain('x@evil.example');
+  });
+
+  it('keeps a "*/" in a rule from ending the metadata comment', () => {
+    const name = 'a */ redirect "x@evil.example"; /* b';
+    const script = generateScript([makeRule({
+      name,
+      conditions: [{ field: 'subject', comparator: 'contains', value: 'x */ redirect "y@evil.example"; /*' }],
+    })]);
+    expect(commands(script)).not.toContain('evil.example');
+    expect(script).not.toMatch(/^\s*redirect/m);
+    const parsed = parseScript(script);
+    expect(parsed.isOpaque).toBe(false);
+    expect(parsed.rules).toHaveLength(1);
+    expect(parsed.rules[0].name).toBe(name);
+    expect(parsed.rules[0].conditions[0].value).toBe('x */ redirect "y@evil.example"; /*');
+  });
+
+  it('escapes a custom header name', () => {
+    const script = generateScript([makeRule({
+      conditions: [{ field: 'header', headerName: 'X-A" :contains "B', comparator: 'contains', value: 'v' }],
+    })]);
+    expect(script).toContain('header :contains "X-A\\" :contains \\"B" "v"');
+  });
+
+  it('writes only a number with an optional K/M/G as a size, else 0', () => {
+    const size = (value: string) => generateScript([makeRule({
+      conditions: [{ field: 'size', comparator: 'greater_than', value }],
+    })]);
+    expect(size('10M')).toContain('size :over 10M');
+    expect(size('1; redirect "x@evil.example"')).toContain('size :over 0');
+    expect(commands(size('1 { redirect "x@evil.example"; } if true'))).not.toContain('x@evil.example');
+  });
+
+  // Generated from the code before the escaping change: green on both sides by design.
+  it('leaves a plain script byte-identical', () => {
+    const script = generateScript([
+      makeRule({
+        id: 'r1',
+        name: 'Newsletter Filter',
+        conditions: [{ field: 'from', comparator: 'contains', value: 'news@example.com' }],
+        actions: [{ type: 'move', value: 'Newsletters' }],
+        stopProcessing: true,
+      }),
+      makeRule({
+        id: 'r2',
+        name: 'Spam And Big',
+        conditions: [
+          { field: 'header', headerName: 'X-Spam-Flag', comparator: 'contains', value: 'YES' },
+          { field: 'size', comparator: 'greater_than', value: '10M' },
+        ],
+        actions: [{ type: 'mark_read' }],
+      }),
+    ]);
+    expect(script).toBe("/* @metadata:begin\n{\"version\":1,\"rules\":[{\"id\":\"r1\",\"name\":\"Newsletter Filter\",\"enabled\":true,\"matchType\":\"all\",\"conditions\":[{\"field\":\"from\",\"comparator\":\"contains\",\"value\":\"news@example.com\"}],\"actions\":[{\"type\":\"move\",\"value\":\"Newsletters\"}],\"stopProcessing\":true},{\"id\":\"r2\",\"name\":\"Spam And Big\",\"enabled\":true,\"matchType\":\"all\",\"conditions\":[{\"field\":\"header\",\"headerName\":\"X-Spam-Flag\",\"comparator\":\"contains\",\"value\":\"YES\"},{\"field\":\"size\",\"comparator\":\"greater_than\",\"value\":\"10M\"}],\"actions\":[{\"type\":\"mark_read\"}],\"stopProcessing\":false}]}\n@metadata:end */\n\nrequire [\"fileinto\", \"imap4flags\"];\n\n# Rule: Newsletter Filter\nif header :contains \"From\" \"news@example.com\" {\n    fileinto \"Newsletters\";\n    stop;\n}\n\n# Rule: Spam And Big\nif allof(header :contains \"X-Spam-Flag\" \"YES\", size :over 10M) {\n    addflag \"\\\\Seen\";\n}\n");
   });
 });

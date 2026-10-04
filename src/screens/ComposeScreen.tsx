@@ -43,7 +43,9 @@ import { getIdentities } from '../api/identity';
 import {
   sendEmail, createDraft, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
-import { jmapClient, RequestTimeoutError, ScheduleTooLateError } from '../api/jmap-client';
+import { jmapClient } from '../api/jmap-client';
+import { formatRejectedRecipients } from '../api/jmap-result';
+import { sendErrorAlert, withoutRefused } from '../lib/send-errors';
 import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
@@ -2131,12 +2133,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
       if (isReplyLike && mode !== 'forward') {
         const settings = useSettingsStore.getState();
         const contacts = useContactsStore.getState();
-        for (const r of [...outgoing.to, ...(outgoing.cc ?? [])]) {
+        for (const r of withoutRefused([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients)) {
           settings.addTrustedSender(r.email);
           if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
           }
         }
+      }
+      // Some recipients were refused though the message went to the rest.
+      if (result.rejectedRecipients?.length) {
+        toast.warning(
+          t('email_composer.send_some_recipients_rejected', 'Sent, but not to these recipients - the server rejected them.'),
+          { message: formatRejectedRecipients(result.rejectedRecipients), duration: 10_000 },
+        );
       }
       if (scheduledAt && result.scheduled) {
         // Confirm an explicit "send later" so the user knows it didn't go out now.
@@ -2159,31 +2168,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
       allowLeaveRef.current = true;
       navigation.goBack();
     } catch (e) {
-      if (e instanceof RequestTimeoutError) {
-        // The request may have reached the server; a blind retry would send
-        // the message twice (#702).
-        Alert.alert(
-          t('email_composer.send_timeout_title', 'No answer from the server'),
-          t(
-            'email_composer.send_timeout_body',
-            'The message may already have gone out. Check your Sent folder before sending it again.',
-          ),
-        );
-        return;
-      }
-      if (e instanceof ScheduleTooLateError) {
-        // The server refused the hold; the pickers now only offer times
-        // within the limit it named.
-        Alert.alert(
-          t('email_composer.schedule_too_late_title', 'Too far ahead'),
-          t('email_composer.schedule_too_late_body', 'That is later than this server allows. Pick an earlier time.'),
-        );
-        return;
-      }
-      Alert.alert(
-        t('email_composer.send_failed', 'Send failed'),
-        e instanceof Error ? e.message : t('notifications.error_sending', 'Failed to send email'),
-      );
+      const { title, message } = sendErrorAlert(e, t);
+      Alert.alert(title, message);
     } finally {
       setSending(false);
     }

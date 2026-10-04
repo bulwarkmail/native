@@ -328,6 +328,41 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: `AboutDataSettings.tsx:114-134` shows version+commit; update info lives only in the (Android-only) Updates tab; on iOS nothing indicates a newer build exists.
   - Fix hint: reuse `useUpdatesStore.hasUpdate()` for a pill; on iOS link to TestFlight/App Store instead of Install.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **Push subscriptions lapse after Stalwart's 7-day expiry** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: renews when the tab becomes visible (`components/push-notification-prompt.tsx:117-135`, `lib/web-push.ts:410-440`).
+  - What RN does: the renewal check (`src/lib/push-notifications.ts:268`) runs only on sign-in, account or setting change, or token rotation, not on return to the foreground (`App.tsx:641-670,764`), and never for accounts other than the active one. A phone left in the background for a week, or any secondary account, silently stops getting notifications.
+
+- [ ] **No inbox-only notifications option (#983)** — `P3` — `missing` (1.11.0, WEB `lib/web-push.ts:90-135`, `pushNotifyInboxOnly`)
+  - What RN does: every non-junk folder notifies (`src/lib/push-notifications.ts:300-330`).
+
+- [ ] **One message reaching several accounts rings once per account** — `P3` — `missing` (cd39805, 868805e)
+  - What WEB does: rings once for a burst across accounts, and again for a second mail in the same account.
+  - What RN does: each child notification alerts (`GROUP_ALERT_CHILDREN`, `android/.../BulwarkFcmModule.kt:142,191`; `src/lib/push-background-task.ts`).
+
+- [ ] **A failed preview lookup drops the notification** — `P3` — `bugfix-parity` (4bc5d48)
+  - What WEB does: shows a generic "New mail".
+  - What RN does: `src/lib/push-background-task.ts:340-378` returns `[]` on any method error.
+
+- [ ] **Folder deep links ignore the folder they name** — `P3` — `partial`
+  - What RN does: only opens the Mail tab (`src/navigation/linking.ts:285`), so WEB's folder-link fixes (1d82c59, 1c5dbbc) have nothing to land on.
+
+- [ ] **"Free scrolling" and the automatic time-zone setting are missing from settings search** — `P3` — `partial` (1.10.0)
+  - What RN does: `calendar.settings.calendar_free_scroll` and `time_zone_auto_zone` are not in `src/lib/settings-search.ts:102-113`.
+
+- [ ] **About card links the repo, not the running build's commit** — `P3` — `missing` (0e39b19)
+  - What RN does: `src/components/settings/AboutDataSettings.tsx:211`.
+
+- [ ] **RTL: the drawer may slide in from the wrong side (#944)** — `P3` — `bugfix-parity` (1.10.0, unverified on device)
+  - What RN does: fixed negative `translateX` with no RTL check (`src/components/SidebarDrawer.tsx:683,705`).
+
 ## Verified at parity (do not redo)
 
 - Per-account push registry keys, legacy key migration, in-flight coalescing, relay register/verify/active/unregister endpoint usage, 90-day expiry with 7-day refresh, relay-confirmed-dead reaping: `RN: src/lib/push-notifications.ts:16-95,271-298,342-383,411-439` match `lib/web-push.ts:16-25,334-389,448-489` and `repos/relay/README.md` endpoints.
@@ -341,6 +376,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
 - Confirm dialog styling mirrors WEB confirm-dialog (`Dialog.tsx:19-27`); undo snackbar timer is `createdAt`-based so re-renders do not reset it.
 - Offline detection via NetInfo with reachability fallback; outbox flush on reconnect (`App.tsx:289-295`).
 - Hardware back closes a settings pane (`SettingsScreen.tsx:192-199`); settings groups/tabs mirror WEB's six groups.
+- 1.10–1.12 delta: shared/group push previews (#839); update status after an upgrade; push opens in its own account and previews the named message, never the newest unread (39efd8a); notification tap waits for the account switch; quick switches don't mix identities.
 
 ## N/A on mobile
 

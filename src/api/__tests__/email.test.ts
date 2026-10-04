@@ -530,9 +530,10 @@ describe('email operations', () => {
 
       expect(mockRequest).toHaveBeenCalledTimes(1);
       const calls = mockRequest.mock.calls[0][0];
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(3);
       expect(calls[0][0]).toBe('Email/set');
       expect(calls[1][0]).toBe('EmailSubmission/set');
+      expect(calls[2][0]).toBe('EmailSubmission/get');
       expect(calls[1][1].create['sub-1'].emailId).toBe('#draft');
     });
 

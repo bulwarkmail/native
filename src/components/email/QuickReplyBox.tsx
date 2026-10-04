@@ -20,6 +20,8 @@ import { pickEmailBody, plainTextBody } from '../../lib/email-body';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { mailboxesOfAccount } from '../../lib/mailbox-tree';
 import { emailDisplayDate } from '../../lib/email-date';
+import { sendErrorAlert } from '../../lib/send-errors';
+import { formatRejectedRecipients } from '../../api/jmap-result';
 import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
 
 interface Props {
@@ -131,12 +133,19 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       } catch { /* the reply is out; the flag is cosmetic */ }
       onSent?.({ ...email, keywords: { ...email.keywords, $answered: true } });
       setText('');
+      if (result.rejectedRecipients?.length) {
+        toast.warning(
+          t('email_composer.send_some_recipients_rejected', 'Sent, but not to these recipients - the server rejected them.'),
+          { message: formatRejectedRecipients(result.rejectedRecipients), duration: 10_000 },
+        );
+      }
       // The keyboard would cover the undo bar or the toast.
       Keyboard.dismiss();
       // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
       if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
     } catch (err) {
-      Alert.alert(t('email_composer.send_failed', 'Failed to send'), err instanceof Error ? err.message : String(err));
+      const { title, message } = sendErrorAlert(err, t);
+      Alert.alert(title, message);
     } finally {
       setSending(false);
     }

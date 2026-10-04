@@ -272,6 +272,53 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
   - What RN does: device zone only (`src/api/calendar.ts:15-21`); birthday colour fixed (`src/lib/birthday-calendar.ts:7`).
   - Fix hint: add `timeZone` to the settings store (synced with WEB's key so it round-trips through settings sync), pass it as the JMAP `timeZone` arg and into saved events; convert display via `Intl` like WEB's `getWallClock`.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **A daily recurring event stops at a DST change** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: builds each occurrence from the event's local start time (`lib/recurrence-expansion.ts:420-444`).
+  - What RN does: builds each day from the period start (`src/lib/recurrence-expansion.ts:271-273,401-408,584`).
+
+- [ ] **Cannot save an event without invitations when the server refuses to send them** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: detects the refusal (`SchedulingDeniedError`, `lib/jmap/scheduling-error.ts`) and offers to save without sending (`components/calendar/calendar-app.tsx:915-925`).
+  - What RN does: on Stalwart 0.16.21+ the whole save fails (`src/api/calendar.ts:587-691`, `src/screens/CalendarScreen.tsx:738+`).
+
+- [ ] **iCal subscriptions are not tied to the login that created them** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: keys on server URL plus username (`subscriptionOwner`) and clears them on sign-out (`forgetICalSubscriptions`, `stores/calendar-store.ts:494-521,1719-1741`).
+  - What RN does: keyed on the JMAP account id only, which is unique only per server; old entries without an account id show for every account; nothing is cleared on sign-out (`src/stores/calendar-subscriptions-store.ts:61-70`).
+
+- [ ] **Server-side invitations, updates and cancellations (`CalendarEventNotification`) are not shown** — `P3` — `missing` (1.10.0; P2 for anyone relying on Stalwart scheduling)
+  - What WEB does: `stores/calendar-event-notification-store.ts`, `components/layout/calendar-event-notification-toaster.tsx`.
+  - What RN does: only names the type in `src/api/first-touch-gate.ts:28`.
+
+- [ ] **No attendee free/busy (`Principal/getAvailability`)** — `P3` — `missing` (1.10.0, WEB `components/calendar/participant-availability.tsx`)
+  - What RN does: nothing in `ParticipantInput.tsx` / `EventModal.tsx`.
+
+- [ ] **No default `ParticipantIdentity` for organizing** — `P3` — `missing` (1.10.0, WEB `stores/calendar-store.ts:577-660`, `components/settings/calendar-settings.tsx:23-104`)
+  - What RN does: the organizer is always `currentUserEmails[0]` (`src/components/calendar/EventModal.tsx:330`).
+
+- [ ] **Tasks with a due date are not shown in the month view (#1107)** — `P3` — `missing` (1.11.0, WEB `calendar-month-view.tsx`, `task-chip.tsx`, `lib/calendar-tasks.ts`)
+  - What RN does: tasks only appear in the tasks sheet (`MonthView.tsx`, `MonthScrollView.tsx`).
+
+- [ ] **Join links in location/description are not detected; location doesn't open maps (#1095)** — `P3` — `missing` (1.12.0)
+  - What WEB does: detects Teams, Zoom, Meet, Webex, Jitsi, Whereby and GoTo links; location opens in maps with a copy button.
+  - What RN does: only `virtualLocations` get "Open link" (`src/components/calendar/EventDetailSheet.tsx:187,265-279`); the maps pattern exists in `ContactDetailScreen.tsx:237`.
+
+- [ ] **Day and week views cannot be limited to working hours and days (#1164)** — `P3` — `missing` (0b4d0b0)
+  - What RN does: `TimeGridScrollView.tsx`, `WeekView.tsx`, no setting.
+
+- [ ] **The week view's all-day strip grows without limit; no tasks in it (#1122)** — `P3` — `partial` (1.12.0)
+  - What WEB does: collapses to 3 rows with a toggle and shows tasks.
+  - What RN does: `src/components/calendar/WeekView.tsx:96-104`.
+
+- [ ] **Invitations can carry blank participant names (#748)** — `P3` — `bugfix-parity` (1.12.0)
+  - What RN does: writes `name: ''` (`src/lib/calendar-participants.ts:284,309`).
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Client-side recurrence expansion: `src/lib/recurrence-expansion.ts` is a faithful port of `lib/recurrence-expansion.ts` (byX filtering, bySetPosition, RDATE overrides, fast-forward, per-occurrence `utcStart`/`utcEnd` #116); only the server-instance guard differs.
 - Stalwart singular `recurrenceRule`/`excludedRecurrenceRule` normalisation on read and write (#13, JSCalendar 2.0) — `src/api/calendar.ts:64-126`.
@@ -290,6 +337,7 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
 - Push StateChange refresh for `Calendar`/`CalendarEvent` on primary + shared accounts — `App.tsx:390-397`, `src/stores/calendar-store.ts:261-284`.
 - Calendar tab hidden when the account lacks the JMAP calendars capability — `App.tsx:95, 160`, `src/lib/capabilities.ts:25`.
 - Week start setting, week numbers in month view, 12h/24h time format threaded through views.
+- 1.10–1.12 delta: free scrolling (#759); infinite agenda; synthetic occurrence ids (#140); participants deduped and named (#986); linkified descriptions (#968); RSVP incl. a single occurrence (#967, #1086); task progress (#994, #958) and alarms (#504); clear failures reported (#434); UID dedupe on import (#113); refused principal read (#1036); single-occurrence edits; time-zone-correct ranges past 1000 events; declined events struck through (#1110) and outlined; failed fetch keeps calendars; Save shows progress; empty descriptions not sent; UTC-start recurring events probably don't shift (#1119, unverified).
 
 ## N/A on mobile
 - Mouse drag to move/resize, click-drag create, 15-minute snapping, top-edge resize, hover preview (`hooks/use-time-grid-interactions.ts`) — long-press create is the mobile equivalent.

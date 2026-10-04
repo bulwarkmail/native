@@ -284,6 +284,86 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: `runOfflineSync` discovers via `queryEmailsByFilter` which hard-codes `jmapClient.accountId` (`src/lib/offline-sync.ts:55`, `src/api/email.ts:733-747`), so opening a group-folder message offline always fails; `selectMailbox` seeding for a shared folder therefore always yields nothing (`src/stores/email-store.ts:647-666` looks up by raw id, which is correct).
   - Fix hint: iterate `jmapClient.getSharedMailAccounts()` in the sync with `accountIdOverride`, storing the account id in the cache index (`getFullEmails(ids, accountId)` already exists).
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **Search does not leave out Spam and Trash** — `P2` — `bugfix-parity` (1.12.0)
+  - What WEB does: adds `inMailboxOtherThan: [junk, trash]` unless "All folders" is picked explicitly, and searches the folder itself when the search starts in Spam or Trash.
+  - What RN does: queries with no mailbox filter (`src/stores/email-store.ts:267-271` `effectiveFolderScope`, `:477-484` `queryScope`).
+
+- [ ] **List actions fail silently when the server refuses them** — `P2` — `bugfix-parity` (1.11.0)
+  - What RN does: mark read, star, pin, tag and spam/not-spam from swipes and batch actions are fired with `void` and no catch (`src/screens/EmailListScreen.tsx:633-651,799`; `src/stores/outbox-store.ts:458-461` rethrows). No toast, and the optimistic change is never reverted. The viewer and unified inbox already show a toast.
+
+- [ ] **A failed search shows the previous folder's rows as results** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/unified-mailbox.ts:597`)
+  - What RN does: `refreshEmailsImpl` only sets an error when the list is empty (`src/stores/email-store.ts:2842-2875`).
+
+- [ ] **A cross-account move loses the message date (#1150)** — `P2` — `bugfix-parity` (71a1fad)
+  - What RN does: `Email/import` sends no `receivedAt` (`src/api/email.ts:963-976` `importEmailBlob`, `src/stores/email-store.ts:~2175` `crossAccountMove`), so moved mail lands as today's.
+  - Fix hint: pass the original `receivedAt` to `Email/import`.
+
+- [ ] **No "Copy to folder / account"** — `P3` — `missing` (f02dbf3)
+  - What WEB does: copies messages to a folder of another connected account. RN cannot copy at all, not even within an account.
+
+- [ ] **Tag views and tag counts include Trash and Spam (#1156)** — `P3` — `bugfix-parity` (a4e313f)
+  - What RN does: `src/stores/email-store.ts:444` (`buildJmapFilter`) and `src/api/tag-counts.ts:38-45` do not exclude them.
+
+- [ ] **"Empty folder" is offered only for Trash and Junk** — `P3` — `partial` (1.12.0)
+  - What WEB does: offers it on any folder; an ordinary folder is moved to Trash (`stores/email-store.ts:1520` `emptyFolderMovesToTrash`).
+  - What RN does: `src/components/SidebarDrawer.tsx:510`, `src/api/email.ts:288`.
+
+- [ ] **Search still appends a wildcard to every term** — `P3` — `bugfix-parity` (1.11.0)
+  - What WEB does: sends terms as typed (`lib/jmap/search-utils.ts:44-48`).
+  - What RN does: `toWildcardQuery` (`src/lib/search-utils.ts:1-8`), used at `stores/email-store.ts:442`, `api/unified-inbox.ts:364`, `api/email.ts:1343`. The "Verified at parity" line below that calls the wildcard parity is out of date.
+
+- [ ] **Search hits are not highlighted (`SearchSnippet/get`)** — `P3` — `missing` (1.10.0, WEB `lib/search-snippet.ts`)
+  - What RN does: no SearchSnippet use; the row preview is at `src/screens/EmailListScreen.tsx:88`.
+
+- [ ] **No message-size filter in advanced search** — `P3` — `missing` (1.10.0, WEB `lib/jmap/search-utils.ts`, `components/search/search-chips.tsx`)
+  - What RN does: no minSize/maxSize in `EmailFilters` / `buildJmapFilter` (`src/stores/email-store.ts:253,435-465`).
+
+- [ ] **Search folder picker is flat** — `P3` — `partial` (1.12.0)
+  - What RN does: the first 12 folders as chips, no hierarchy (`src/screens/EmailListScreen.tsx:1567-1577`).
+
+- [ ] **Tags with no local definition are always grey** — `P3` — `partial` (1.12.0, #1052)
+  - What WEB does: gives each unknown tag its own colour; unified rows can be tinted with their account colour.
+  - What RN does: `FALLBACK_KEYWORD_COLOR` (`src/stores/keywords-store.ts:30`); `suggestKeywordColor` (`src/lib/keyword-discovery.ts:68`) could be reused.
+
+- [ ] **The list's Move sheet is not scoped to the message's account (#1149)** — `P3` — `bugfix-parity` (c317cd9)
+  - What RN does: in a shared mailbox your own folders come first (`src/screens/EmailListScreen.tsx:1705-1727`); the viewer is already scoped (`EmailThreadScreen.tsx:381`).
+
+- [ ] **List and notification previews do not skip a leading style sheet** — `P3` — `bugfix-parity` (2d521d1, 6bce332, WEB `lib/utils.ts`)
+  - What RN does: list row preview, `src/lib/push-background-task.ts` and the widgets show the CSS text.
+
+- [ ] **Mail folder sharing (`mail:share`) and share-notification toasts** — `P3` — `missing` (1.10.0)
+  - What WEB does: `components/layout/mailbox-share-dialog.tsx`, `stores/share-notification-store.ts`.
+  - What RN does: calendars and files can be shared, mailboxes cannot; `components/calendar/CalendarShareSheet.tsx` is the pattern.
+
+- [ ] **Mail list rows have no screen-reader label (#1008)** — `P3` — `missing` (1.10.0)
+  - What RN does: the row `Pressable` (`src/screens/EmailListScreen.tsx:158`) has no `accessibilityLabel`, role, or unread/selected state.
+
+- [ ] **Rows jump while attachment chips load** — `P3` — `partial` (1.11.0, WEB `components/email/attachment-chips.tsx:98-160`)
+  - What RN does: renders nothing until the chips arrive and keeps no cache (`src/components/email/ListAttachmentChips.tsx:60-88`).
+
+- [ ] **Mail deleted during a list refresh can reappear (#966)** — `P3` — `bugfix-parity` (1.11.0, unverified)
+  - What RN does: the full re-query overwrites the list without tracking rows removed while it was in flight (`src/stores/email-store.ts:2607+`).
+
+- [ ] **The list may not return to the top when another folder opens** — `P3` — `bugfix-parity` (17a42c4, unverified)
+  - What RN does: the FlatList has no per-folder key and no `scrollToOffset` (`src/screens/EmailListScreen.tsx:1440`).
+
+- [ ] **An opened message may jump in the "unread first" order** — `P3` — `bugfix-parity` (1.12.0, unverified)
+  - What RN does: `retainedIds` only applies to the Unread filter view, not the `unread_first` order (`src/stores/email-store.ts:1323`).
+
+- [ ] **The app restores the last folder on start instead of the inbox** — `P3` — `partial` (64b39c5, decision)
+  - What RN does: `currentMailboxId` is persisted (`src/stores/email-store.ts:783`). May be the intended mobile behaviour; decide and close.
+
+- [ ] **Global search across mail, contacts, calendar and files (#641, #847)** — `P3` — `missing` (1.10.0, product decision)
+  - What WEB does: `lib/global-search/`, `stores/global-search-store.ts`. Earlier audits called it Pro/desktop-only; the changelog describes a cross-surface search.
+
 ## Verified at parity (do not redo)
 - Folder tree: nesting, per-account grouping of shared/group accounts with unread roll-up, expanded state persisted, role priority sort (`src/lib/mailbox-tree.ts`, `SidebarDrawer.tsx`); create/rename/delete own folders with server error surfaced (`FolderSettings.tsx`); delete-with-emails confirm.
 - Shared/group folders: queries and every mutation (read/star/pin/tag/move/archive/delete/undo/import) routed to the owner account with the unprefixed id (`refFor`, `src/stores/email-store.ts:64-99`); thread screen fetches by owner (`EmailThreadScreen.tsx:90-96`); state-change handling per account (`email-store.ts:981-1015`).
@@ -294,10 +374,11 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 - Swipe actions: configurable per direction, instant and reveal modes, pure gesture module with tests, stale-props fix (`SwipeableRow.tsx`, `swipe-gesture.ts`); more actions than WEB (pin, move). RTL: ar, he and fa ship since 990cd84, but swipe directions are not mirrored yet (area 08, RTL finding).
 - Multi-select: long-press, select-all-visible/indeterminate, batch star/read/tag/move/archive/delete (`EmailListScreen.tsx:320-500`).
 - Pagination via `onEndReached`, pull-to-refresh, incremental `Email/queryChanges` + `Email/changes` refresh with per-account state tokens, base-view restore after search (#10), sort change invalidates snapshots (#5), offline seed and fallback.
-- Search: full-text with wildcard suffix (`src/lib/search-utils.ts` = WEB `toWildcardQuery`), from/to/subject/date/attachment/unread/starred tri-state filters, chips row, search inside a shared folder routed to its owner.
+- Search: full-text (the wildcard suffix is no longer parity since WEB 1.11.0, see the delta section), from/to/subject/date/attachment/unread/starred tri-state filters, chips row, search inside a shared folder routed to its owner.
 - Keyword writes send RFC 6901-escaped `keywords/<name>` patch pointers since 5041897 (`src/api/patch-pointer.ts`; the whole-map writes erased other keywords, audit B4), with `null` instead of `false` — not affected by 5c484af1 / be97c8bf; tag ids normalized exactly like WEB `normalizeKeywordLevel` (`KeywordSettings.tsx:118-123`); batch tag toggle via `TagSheet` with "all have it" semantics.
 - Unread dot (#27), date formats smart/relative/full with 12/24h, preview toggle, density-aware rows, sender favicon avatars with failure cache, `.eml`/`.zip` import into the open folder, Scheduled quick view, "Include group inboxes" setting and shared badge/account dot in the unified list.
 - Mark-as-read delay (0/3s/5s) in the thread screen; both clients still display `receivedAt` in the list (WEB `lib/email-date.ts` is not wired into the list yet).
+- 1.10–1.12 delta: Email/Mailbox `changes` push deltas; attachment chips on rows, loaded lazily (#1089); delete a non-empty folder; "clear search on folder switch"; tag view across accounts (#1038) and search inside it (#1084); unified section only when populated (#843, #959); stale quick-search guard (#872); shared-folder hits keep their account (#923) and "All folders" covers shared accounts (#1082); Email/set failures surfaced (#956); missing archive reported (#578) and shared mail archived in the owner's account (#889); spam from the viewer (#695); new folders subscribed (#951); unparsable dates (#1099); no snap back to unified (#1102); cross-account/tag/All-folders paging; refused empty-folder, cancel-scheduled and mark-folder-read reported; keyword patches write only changed keys; mark-all-read past 500; tag counters without full id lists; unified threads owned per account (#1012); failed cross-account move keeps the original; tapping a folder's unread count.
 
 ## N/A on mobile
 - Category tabs / message-list tabs (`stores/message-list-tabs-store.ts`) — plugin-registered; RN has no plugin runtime.

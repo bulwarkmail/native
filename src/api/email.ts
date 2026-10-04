@@ -1,5 +1,15 @@
 import { jmapClient } from './jmap-client';
-import { assertSetResult, batched, parseHoldLimit, requireMethodResult, ScheduleTooLateError } from './jmap-result';
+import {
+  assertSetResult,
+  batched,
+  parseHoldLimit,
+  RecipientsRejectedError,
+  rejectedRecipients,
+  requireMethodResult,
+  ScheduleTooLateError,
+  SendUnconfirmedError,
+  type RejectedRecipient,
+} from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
@@ -23,6 +33,9 @@ export const EMAIL_FULL_PROPERTIES = [
   'attachments', 'blobId', 'bcc', 'replyTo', 'sentAt',
   'messageId', 'inReplyTo', 'references', 'headers',
 ];
+
+/** Call id of the deliveryStatus read-back that rides along with a send. */
+const DELIVERY_STATUS_CALL_ID = 'deliveryStatus';
 
 const SUBMISSION_USING = [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION];
 
@@ -1416,6 +1429,8 @@ export interface SendEmailResult {
   emailSubmissionId?: string;
   /** Post-send filing/cleanup problem (message did go out). */
   filingWarning?: string;
+  /** Recipients the server refused while the others were accepted. */
+  rejectedRecipients?: RejectedRecipient[];
 }
 
 function toMessageIdList(value: string[] | string | undefined): string[] | undefined {
@@ -1588,6 +1603,11 @@ export async function sendEmail(
     [
       ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
       ['EmailSubmission/set', submissionArgs, '1'],
+      // Stalwart runs RCPT TO while creating the submission and records a
+      // refused recipient as delivered "no" instead of failing the create, so
+      // the set response alone reads as a success. A creation-id reference:
+      // Stalwart does not evaluate `#ids` result references into /set responses.
+      ['EmailSubmission/get', { accountId, ids: ['#sub-1'], properties: ['deliveryStatus'] }, DELIVERY_STATUS_CALL_ID],
     ],
     SUBMISSION_USING,
   );
@@ -1597,7 +1617,16 @@ export async function sendEmail(
   let sendAt: string | undefined;
   let filingWarning: string | undefined;
   let failure: Error | undefined;
-  for (const [methodName, result] of res.methodResponses) {
+  let deliveryStatus: Record<string, { delivered?: string; smtpReply?: string }> | undefined;
+  for (const [methodName, result, callId] of res.methodResponses) {
+    // Only reports: its error (a failed set leaves the reference dangling)
+    // must not be taken for a failed send or a filing problem.
+    if (callId === DELIVERY_STATUS_CALL_ID) {
+      if (methodName === 'EmailSubmission/get') {
+        deliveryStatus = (result as { list?: { deliveryStatus?: typeof deliveryStatus }[] }).list?.[0]?.deliveryStatus ?? undefined;
+      }
+      continue;
+    }
     if (methodName === 'error' || methodName.endsWith('/error')) {
       // Once the submission exists the message has left (or is held), so a
       // later error is the implicit `onSuccessUpdateEmail` Email/set that
@@ -1644,19 +1673,32 @@ export async function sendEmail(
     }
   }
 
-  if (failure) {
-    // Nothing went out. A message created before the submission was refused
-    // must not stay behind: nobody tracked that copy, so a retry left a
-    // second one next to it. The caller still holds the message, and a
-    // previous draft version is untouched.
-    if (emailId) {
-      try {
-        await destroyEmails([emailId], accountId);
-      } catch (err) {
-        console.warn('[email] failed to remove the unsent copy:', err);
-      }
+  // Nothing went out. A message created before the submission was refused
+  // must not stay behind: nobody tracked that copy, so a retry left a
+  // second one next to it. The caller still holds the message, and a
+  // previous draft version is untouched.
+  const removeUnsentCopy = async () => {
+    if (!emailId) return;
+    try {
+      await destroyEmails([emailId], accountId);
+    } catch (err) {
+      console.warn('[email] failed to remove the unsent copy:', err);
     }
+  };
+
+  if (failure) {
+    await removeUnsentCopy();
     throw failure;
+  }
+
+  // No submission in the response: the message may still have left, so keep
+  // the filed copy and the old draft - they may be the only record of it.
+  if (!emailSubmissionId) throw new SendUnconfirmedError();
+
+  const refused = rejectedRecipients(deliveryStatus);
+  if (refused.all) {
+    await removeUnsentCopy();
+    throw new RecipientsRejectedError(refused.rejected);
   }
 
   // The message is out (or scheduled) - now it is safe to drop the old draft.
@@ -1676,6 +1718,7 @@ export async function sendEmail(
     emailId,
     emailSubmissionId,
     filingWarning,
+    rejectedRecipients: refused.rejected.length ? refused.rejected : undefined,
   };
 }
 
