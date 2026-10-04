@@ -15,7 +15,7 @@ import {
   type NativeSyntheticEvent,
   type ViewToken,
 } from 'react-native';
-import { differenceInCalendarDays, format, type Locale } from 'date-fns';
+import { differenceInCalendarDays, format, startOfWeek, type Locale } from 'date-fns';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -27,12 +27,25 @@ import {
   getEventColor,
   isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
+  packWeekSegments,
   type CalendarWeekSegment,
   type EventDayIndex,
   type TimedEventLayout,
 } from '../../lib/calendar-utils';
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
 import { displayNow, displayNowMinutes } from '../../lib/calendar-timezone';
+import { useSettingsStore } from '../../stores/settings-store';
+import {
+  displayGridHeight,
+  eventRect,
+  indexOfDayOnOrAfter,
+  minutesToY,
+  partitionByDisplayHours,
+  remapSegmentsToShownDays,
+  resolveWorkingDays,
+  type DisplayHours,
+  type DisplayHoursPartition,
+} from '../../lib/calendar-display-range';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import {
@@ -44,14 +57,14 @@ import {
   type TimeGridMode,
 } from '../../lib/calendar-time-grid';
 import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
+import { useDisplayHours } from './use-display-hours';
 
 const HOUR_HEIGHT = 48;
-const GRID_HEIGHT = 24 * HOUR_HEIGHT;
 const GUTTER_WIDTH = 44;
 const HEADER_HEIGHT = 60;
 const ALL_DAY_CHIP_HEIGHT = 18;
 const ALL_DAY_GAP = 2;
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50 };
 const KEEP_VISIBLE_CONTENT = { minIndexForVisible: 0 };
 
@@ -93,7 +106,7 @@ interface TimeGridScrollViewProps {
  * the ones on screen in place. The screen remounts the grid (keyed by the
  * window) when navigation starts a fresh window.
  */
-function TimeGridScrollViewInner({
+function TimeGridScrollViewBody({
   mode,
   focus,
   window,
@@ -119,7 +132,14 @@ function TimeGridScrollViewInner({
     [eventsByDay, events],
   );
 
-  const perScreen = mode === 'week' ? 7 : 1;
+  // The non-working days the week grid leaves out (never in the day grid).
+  const hideNonWorkingDays = useSettingsStore((s) => s.calendarHideNonWorkingDays);
+  const workingDaysSetting = useSettingsStore((s) => s.calendarWorkingDays);
+  const workingDays = React.useMemo(
+    () => (mode === 'week' ? resolveWorkingDays(hideNonWorkingDays, workingDaysSetting) : null),
+    [mode, hideNonWorkingDays, workingDaysSetting],
+  );
+  const perScreen = mode === 'week' ? (workingDays ? workingDays.size : 7) : 1;
   const { width: screenWidth } = useWindowDimensions();
   const [rootWidth, setRootWidth] = React.useState(screenWidth);
   const listWidth = Math.max(perScreen, rootWidth - GUTTER_WIDTH);
@@ -133,7 +153,7 @@ function TimeGridScrollViewInner({
   // changes so growing the window doesn't re-render the columns already
   // there.
   const dayCacheRef = React.useRef(new Map<string, Date>());
-  const days = React.useMemo(() => {
+  const allDays = React.useMemo(() => {
     const previous = dayCacheRef.current;
     const next = new Map<string, Date>();
     const out = windowDays(window).map((day) => {
@@ -145,35 +165,79 @@ function TimeGridScrollViewInner({
     dayCacheRef.current = next;
     return out;
   }, [window]);
+  // The columns drawn: every day, or the working days. `shownIndexByDay[i]`
+  // is the column of `allDays[i]`, or -1 for a day left out; null when all
+  // are drawn.
+  const { days, shownIndexByDay } = React.useMemo(() => {
+    if (!workingDays) return { days: allDays, shownIndexByDay: null };
+    const shown: Date[] = [];
+    const indices = allDays.map((day) => {
+      if (!workingDays.has(day.getDay())) return -1;
+      shown.push(day);
+      return shown.length - 1;
+    });
+    return shown.length > 0 ? { days: shown, shownIndexByDay: indices } : { days: allDays, shownIndexByDay: null };
+  }, [allDays, workingDays]);
+  // The column holding `day`, or the next one when that day is left out.
+  const columnOf = React.useCallback(
+    (day: Date) => shownIndexByDay
+      ? indexOfDayOnOrAfter(days, day)
+      : Math.max(0, Math.min(days.length - 1, differenceInCalendarDays(day, window.start))),
+    [shownIndexByDay, days, window.start],
+  );
+  const columnOfRef = React.useRef(columnOf);
+  columnOfRef.current = columnOf;
+  // The column navigation aligns with the start of the viewport.
+  const focusColumn = (date: Date) => shownIndexByDay
+    ? indexOfDayOnOrAfter(days, startOfWeek(date, { weekStartsOn }))
+    : timeGridFocusColumn(window, date, mode, weekStartsOn, days.length);
   const daysRef = React.useRef(days);
   daysRef.current = days;
 
+  // The vertical scroller and the hours it draws (the working hours, or the
+  // whole day on request).
+  const vScrollRef = React.useRef<ScrollView>(null);
+  const { hours, configured, canToggle, showAllHours, toggleAllHours, revealMinutes, onScroll: onVScroll } =
+    useDisplayHours(vScrollRef, HOUR_HEIGHT);
+  const gridHeight = displayGridHeight(hours, HOUR_HEIGHT);
+  const firstHour = hours.startMinutes / 60;
+  const gridHours = React.useMemo(
+    () => Array.from({ length: (hours.endMinutes - hours.startMinutes) / 60 }, (_, i) => firstHour + i),
+    [hours, firstHour],
+  );
+
   // Timed layouts per day, computed when a column first renders and kept
-  // until the events change.
+  // until the events or the hours change. Events outside the hours are
+  // counted, not laid out.
   // (A new day index means new events: start an empty cache.)
-  const layoutCache = React.useMemo(() => new Map<string, TimedEventLayout[]>(), [index]);
+  const layoutCache = React.useMemo(
+    () => new Map<string, DayLayout>(),
+    [index, hours],
+  );
   const layoutsFor = React.useCallback(
     (day: Date) => {
       const key = dayKey(day);
-      let layouts = layoutCache.get(key);
-      if (!layouts) {
+      let layout = layoutCache.get(key);
+      if (!layout) {
         const timed = eventsOnDayFromIndex(index, day).filter(
           (e) => !e.showWithoutTime && !isTimedEventFullDayOnDate(e, day),
         );
-        layouts = layoutOverlappingEvents(timed, day);
-        layoutCache.set(key, layouts);
+        const partition = partitionByDisplayHours(timed, day, hours);
+        layout = { ...partition, layouts: layoutOverlappingEvents(partition.visible, day) };
+        layoutCache.set(key, layout);
       }
-      return layouts;
+      return layout;
     },
-    [index, layoutCache],
+    [index, hours, layoutCache],
   );
 
   // All-day bars over the whole window (cut per week, or per day in the day
   // view), so the strip keeps one height while scrolling.
-  const allDaySegments = React.useMemo<CalendarWeekSegment[]>(
-    () => buildAllDaySegments(index, days, perScreen),
-    [index, days, perScreen],
-  );
+  const allDaySegments = React.useMemo<CalendarWeekSegment[]>(() => {
+    if (!shownIndexByDay) return buildAllDaySegments(index, allDays, perScreen);
+    // Cut per calendar week, then moved onto the columns that are drawn.
+    return packWeekSegments(remapSegmentsToShownDays(buildAllDaySegments(index, allDays, 7), shownIndexByDay));
+  }, [index, allDays, perScreen, shownIndexByDay]);
   const allDayRows = React.useMemo(
     () => allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0),
     [allDaySegments],
@@ -183,7 +247,7 @@ function TimeGridScrollViewInner({
   // The first column in view. Kept as a day so columns added at the start
   // don't move it.
   const [initialColumn] = React.useState(() =>
-    timeGridFocusColumn(window, focus.date, mode, weekStartsOn, days.length),
+    focusColumn(focus.date),
   );
   const firstDayRef = React.useRef<Date>(days[initialColumn] ?? window.start);
   const [headerAnchor, setHeaderAnchor] = React.useState<Date>(firstDayRef.current);
@@ -201,14 +265,14 @@ function TimeGridScrollViewInner({
   // amount natively. Move the header along now instead of waiting for the
   // list's scroll event, which may come a frame later (or, at rest, not
   // before the next scroll).
-  const windowStartRef = React.useRef(window.start);
+  const firstColumnDayRef = React.useRef(days[0]);
   React.useLayoutEffect(() => {
-    const added = differenceInCalendarDays(windowStartRef.current, window.start);
-    windowStartRef.current = window.start;
+    const added = days.length > 0 ? columnOfRef.current(firstColumnDayRef.current) : 0;
+    firstColumnDayRef.current = days[0];
     if (added <= 0) return;
     offsetXRef.current += added * colWidthRef.current;
     scrollX.setValue(offsetXRef.current);
-  }, [window.start, scrollX]);
+  }, [days, scrollX]);
   const handleScroll = React.useMemo(
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
@@ -224,7 +288,7 @@ function TimeGridScrollViewInner({
           if (!day) return;
           firstDayRef.current = day;
           // Redraw the header cells once the view moved a screen away.
-          const moved = Math.abs(differenceInCalendarDays(day, headerAnchorRef.current));
+          const moved = Math.abs(columnOfRef.current(day) - columnOfRef.current(headerAnchorRef.current));
           if (moved >= perScreen) {
             headerAnchorRef.current = day;
             setHeaderAnchor(day);
@@ -258,23 +322,13 @@ function TimeGridScrollViewInner({
   React.useEffect(() => {
     if (handledNonceRef.current === focus.nonce) return;
     handledNonceRef.current = focus.nonce;
-    const target = timeGridFocusColumn(window, focus.date, mode, weekStartsOn, days.length);
-    const current = Math.max(0, differenceInCalendarDays(firstDayRef.current, window.start));
+    const target = focusColumn(focus.date);
+    const current = columnOf(firstDayRef.current);
     listRef.current?.scrollToIndex({
       index: target,
       animated: Math.abs(target - current) <= perScreen * 2,
     });
   }, [focus, window, mode, weekStartsOn, days.length, perScreen]);
-
-  // Start the hours at the one before now, like the paged week view.
-  const vScrollRef = React.useRef<ScrollView>(null);
-  React.useEffect(() => {
-    const target = Math.max(0, (displayNow().getHours() - 1) * HOUR_HEIGHT);
-    const frame = requestAnimationFrame(() => {
-      vScrollRef.current?.scrollTo({ y: target, animated: false });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, []);
 
   // The now-line and "today" follow a clock in the calendar's time zone.
   const [nowMinutes, setNowMinutes] = React.useState(displayNowMinutes);
@@ -302,7 +356,10 @@ function TimeGridScrollViewInner({
     ({ item: day }: ListRenderItemInfo<Date>) => (
       <DayColumn
         day={day}
-        layouts={layoutsFor(day)}
+        layout={layoutsFor(day)}
+        hours={hours}
+        gridHeight={gridHeight}
+        onReveal={revealMinutes}
         width={colWidth}
         nowMinutes={dayKey(day) === todayKey ? nowMinutes : -1}
         calendars={calendars}
@@ -315,7 +372,7 @@ function TimeGridScrollViewInner({
       />
     ),
     [
-      layoutsFor, colWidth, todayKey, nowMinutes, calendars, timeFormat, currentUserEmails, c, styles,
+      layoutsFor, hours, gridHeight, revealMinutes, colWidth, todayKey, nowMinutes, calendars, timeFormat, currentUserEmails, c, styles,
       onSelectEvent, onCreateAtTime, handleLongPressAt,
     ],
   );
@@ -326,7 +383,7 @@ function TimeGridScrollViewInner({
   );
 
   // Header cells and all-day bars for the columns around the viewport.
-  const anchorIndex = Math.max(0, Math.min(days.length - 1, differenceInCalendarDays(headerAnchor, window.start)));
+  const anchorIndex = columnOf(headerAnchor);
   const { from, to } = headerColumnRange(anchorIndex, perScreen, days.length);
   const selectedKey = dayKey(selectedDate);
   const headerCells: React.ReactNode[] = [];
@@ -361,19 +418,25 @@ function TimeGridScrollViewInner({
   if (initialIndexRef.current === null || initialIndexRef.current.key !== listKey) {
     initialIndexRef.current = {
       key: listKey,
-      index: Math.max(
-        0,
-        Math.min(days.length - 1, differenceInCalendarDays(firstDayRef.current, window.start)),
-      ),
+      index: columnOf(firstDayRef.current),
     };
   }
-  const listStyle = React.useMemo(() => ({ width: listWidth, height: GRID_HEIGHT }), [listWidth]);
+  const listStyle = React.useMemo(() => ({ width: listWidth, height: gridHeight }), [listWidth, gridHeight]);
 
   return (
     <View style={styles.container} onLayout={handleRootLayout}>
       <View style={styles.headerRow}>
         <View style={styles.gutter}>
-          <View style={{ height: HEADER_HEIGHT }} />
+          <View style={{ height: HEADER_HEIGHT, justifyContent: 'flex-end' }}>
+            {canToggle && (
+              <AllHoursToggle
+                showAllHours={showAllHours}
+                configured={configured}
+                timeFormat={timeFormat}
+                onToggle={toggleAllHours}
+              />
+            )}
+          </View>
           {allDayHeight > 0 && (
             <View style={[styles.allDayLabelWrap, { height: allDayHeight }]}>
               <Text style={styles.allDayLabel} numberOfLines={2}>
@@ -414,12 +477,18 @@ function TimeGridScrollViewInner({
         </View>
       </View>
 
-      <ScrollView ref={vScrollRef} style={styles.vScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.gridRow}>
+      <ScrollView
+        ref={vScrollRef}
+        style={styles.vScroll}
+        showsVerticalScrollIndicator={false}
+        onScroll={onVScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={[styles.gridRow, { height: gridHeight }]}>
           <View style={styles.gutter}>
-            {HOURS.map((h) => (
+            {gridHours.map((h) => (
               <View key={h} style={styles.hourLabelCell}>
-                {h > 0 && (
+                {h > firstHour && (
                   <Text style={styles.hourLabel}>
                     {timeFormat === '12h'
                       ? `${(h % 12) || 12} ${h < 12 ? 'AM' : 'PM'}`
@@ -429,10 +498,10 @@ function TimeGridScrollViewInner({
               </View>
             ))}
           </View>
-          <View style={{ width: listWidth, height: GRID_HEIGHT }}>
+          <View style={{ width: listWidth, height: gridHeight }}>
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              {HOURS.map((h) => (
-                <View key={h} style={[styles.hourLine, { top: (h + 1) * HOUR_HEIGHT - 1 }]} />
+              {gridHours.map((h) => (
+                <View key={h} style={[styles.hourLine, { top: minutesToY((h + 1) * 60, hours, HOUR_HEIGHT) - 1 }]} />
               ))}
             </View>
             <Animated.FlatList
@@ -469,6 +538,18 @@ function TimeGridScrollViewInner({
       </ScrollView>
     </View>
   );
+}
+
+/**
+ * The week grid leaves out the non-working days when the user asked for it.
+ * Its columns are built once from the window, so a change to that setting
+ * starts the grid afresh.
+ */
+function TimeGridScrollViewInner(props: TimeGridScrollViewProps) {
+  const hide = useSettingsStore((s) => s.calendarHideNonWorkingDays);
+  const workingDays = useSettingsStore((s) => s.calendarWorkingDays);
+  const columnsKey = props.mode === 'week' && hide ? workingDays.join(',') : 'all';
+  return <TimeGridScrollViewBody key={columnsKey} {...props} />;
 }
 
 export const TimeGridScrollView = React.memo(TimeGridScrollViewInner);
@@ -522,9 +603,14 @@ const DayHeaderCell = React.memo(function DayHeaderCell({
   );
 });
 
+type DayLayout = DisplayHoursPartition & { layouts: TimedEventLayout[] };
+
 const DayColumn = React.memo(function DayColumn({
   day,
-  layouts,
+  layout,
+  hours,
+  gridHeight,
+  onReveal,
   width,
   nowMinutes,
   calendars,
@@ -536,7 +622,12 @@ const DayColumn = React.memo(function DayColumn({
   onLongPressAt,
 }: {
   day: Date;
-  layouts: TimedEventLayout[];
+  layout: DayLayout;
+  /** The hours the grid draws. */
+  hours: DisplayHours;
+  gridHeight: number;
+  /** Shows the whole day at a minute from midnight. */
+  onReveal: (minutes: number) => void;
   width: number;
   /** Minutes since midnight for today's column, -1 for the others. */
   nowMinutes: number;
@@ -551,18 +642,31 @@ const DayColumn = React.memo(function DayColumn({
   const { t } = useCalendarLocale();
   const handleLongPress = React.useCallback(
     (e: GestureResponderEvent) => {
-      onLongPressAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT));
+      onLongPressAt?.(day, hourAtOffset(e.nativeEvent.locationY, HOUR_HEIGHT, hours));
     },
-    [onLongPressAt, day],
+    [onLongPressAt, day, hours],
   );
   return (
     <Pressable
-      style={[styles.dayCol, { width }]}
+      style={[styles.dayCol, { width, height: gridHeight }]}
       onLongPress={onLongPressAt ? handleLongPress : undefined}
     >
-      {layouts.map(({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
-        const top = (startMinutes / 60) * HOUR_HEIGHT;
-        const height = Math.max(20, ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT - 1);
+      {layout.before > 0 && (
+        <HiddenEventsIndicator
+          count={layout.before}
+          direction="before"
+          onReveal={() => onReveal(layout.firstBeforeMinutes ?? hours.startMinutes)}
+        />
+      )}
+      {layout.after > 0 && (
+        <HiddenEventsIndicator
+          count={layout.after}
+          direction="after"
+          onReveal={() => onReveal(layout.firstAfterMinutes ?? hours.endMinutes)}
+        />
+      )}
+      {layout.layouts.map(({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
+        const { top, height, clippedStart, clippedEnd } = eventRect(startMinutes, endMinutes, hours, HOUR_HEIGHT);
         const widthPct = 100 / totalColumns;
         return (
           <TimedEventBlock
@@ -577,15 +681,15 @@ const DayColumn = React.memo(function DayColumn({
               colors,
             )}
             ringColor={colors.background}
-            continuesBefore={continuesBefore}
-            continuesAfter={continuesAfter}
+            continuesBefore={continuesBefore || clippedStart}
+            continuesAfter={continuesAfter || clippedEnd}
             onPress={() => onSelectEvent?.(event)}
             style={{ top, height, left: `${column * widthPct}%`, width: `${widthPct}%` }}
           />
         );
       })}
-      {nowMinutes >= 0 && (
-        <View pointerEvents="none" style={[styles.nowLine, { top: (nowMinutes / 60) * HOUR_HEIGHT }]}>
+      {nowMinutes >= hours.startMinutes && nowMinutes < hours.endMinutes && (
+        <View pointerEvents="none" style={[styles.nowLine, { top: minutesToY(nowMinutes, hours, HOUR_HEIGHT) }]}>
           <View style={styles.nowDot} />
           <View style={styles.nowBar} />
         </View>
@@ -650,7 +754,7 @@ function makeStyles(c: ThemePalette) {
   allDayLabel: { ...typography.small, color: c.textMuted, textAlign: 'right' },
 
   vScroll: { flex: 1 },
-  gridRow: { flexDirection: 'row', height: GRID_HEIGHT },
+  gridRow: { flexDirection: 'row' },
   hourLabelCell: { height: HOUR_HEIGHT, paddingRight: 4, alignItems: 'flex-end' },
   hourLabel: {
     ...typography.small,
@@ -665,7 +769,6 @@ function makeStyles(c: ThemePalette) {
     backgroundColor: c.borderLight,
   },
   dayCol: {
-    height: GRID_HEIGHT,
     borderLeftWidth: 1,
     borderLeftColor: c.border,
   },

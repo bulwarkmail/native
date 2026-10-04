@@ -30,6 +30,10 @@
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
+      "hidden_after": "{count, plural, one {# later event} other {# later events}}",
+      "hidden_before": "{count, plural, one {# earlier event} other {# earlier events}}",
+      "show_all_hours": "Show all hours",
+      "show_display_hours": "Show only {start} – {end}",
       "tap_to_create": "Tap + to create one"
     },
     "form": {
@@ -100,11 +104,19 @@
     "settings": {
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
+      "hide_non_working_days": "Hide non-working days",
+      "hide_non_working_days_desc": "Leave the days you don't work out of the week view. Their events still show in the month, day and agenda views.",
+      "limit_hours": "Limit visible hours",
+      "limit_hours_desc": "Show only these hours in the day and week views. Events outside them stay reachable from the arrows at the top and bottom of each day.",
       "show_week_numbers_mobile_desc": "Display week numbers in the month view.",
       "time_zone": "Time zone",
       "time_zone_auto": "Device time zone",
       "time_zone_auto_zone": "Device time zone ({zone})",
-      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone."
+      "time_zone_desc": "Zone used for new events and for interpreting the calendar. \"Device\" follows the phone.",
+      "visible_hours": "Visible hours",
+      "visible_hours_end": "End of visible hours",
+      "visible_hours_start": "Start of visible hours",
+      "working_days": "Working days"
     },
     "share": {
       "add_people": "Add people",

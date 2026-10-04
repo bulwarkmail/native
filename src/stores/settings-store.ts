@@ -4,6 +4,7 @@ import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
 import { jmapClient } from '../api/jmap-client';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
+import { isValidHourPair, isValidWorkingDays } from '../lib/calendar-display-range';
 
 export type ExternalContentPolicy = 'allow' | 'block' | 'ask';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -238,6 +239,15 @@ interface PersistedSettings {
   // one period at a time. Same key as the webmail's setting.
   calendarFreeScroll: boolean;
   calendarHoverPreview: CalendarHoverPreview;
+  // Draw only calendarDayStartHour..calendarDayEndHour in the day and week
+  // views (webmail #1164). Same keys as the webmail's settings.
+  calendarLimitHours: boolean;
+  calendarDayStartHour: number;
+  calendarDayEndHour: number;
+  // Leave the days missing from calendarWorkingDays out of the week view.
+  calendarHideNonWorkingDays: boolean;
+  // Weekdays as Date.getDay numbers (0 = Sunday).
+  calendarWorkingDays: number[];
   // IANA zone the calendar works in, or 'auto' to follow the device (#755).
   // Same key semantics as the webmail's `timeZone` setting.
   calendarTimeZone: string;
@@ -402,6 +412,11 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   calendarShowWeekNumbers: false,
   calendarFreeScroll: true,
   calendarHoverPreview: 'delay-500ms',
+  calendarLimitHours: true,
+  calendarDayStartHour: 8,
+  calendarDayEndHour: 20,
+  calendarHideNonWorkingDays: false,
+  calendarWorkingDays: [1, 2, 3, 4, 5],
   calendarTimeZone: 'auto',
   showBirthdayCalendar: false,
   enableCalendarTasks: false,
@@ -585,6 +600,9 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   calendarFirstDayOfWeek: oneOf([0, 1]),
   calendarTimeFormat: oneOf(['12h', '24h']),
   calendarHoverPreview: oneOf(['instant', 'delay-500ms', 'delay-1s', 'delay-2s', 'off']),
+  calendarDayStartHour: intBetween(0, 23),
+  calendarDayEndHour: intBetween(1, 24),
+  calendarWorkingDays: isValidWorkingDays,
   filesFolderLayout: oneOf(['inline', 'sidebar']),
   filesDefaultViewMode: oneOf(['list', 'grid']),
   filesDefaultSortKey: oneOf(['name', 'size', 'modified']),
@@ -618,6 +636,14 @@ export function mergeWithDefaults(parsed: Partial<PersistedSettings>): Persisted
     } else if (typeof def === typeof v) {
       out[k] = v;
     }
+  }
+  // The two hours only make sense together: a persisted pair that is not
+  // 0 <= start < end <= 24 goes back to the defaults as a pair.
+  if (parsed.calendarDayStartHour != null || parsed.calendarDayEndHour != null) {
+    const start = parsed.calendarDayStartHour ?? DEFAULT_PERSISTED.calendarDayStartHour;
+    const end = parsed.calendarDayEndHour ?? DEFAULT_PERSISTED.calendarDayEndHour;
+    out.calendarDayStartHour = isValidHourPair(start, end) ? start : DEFAULT_PERSISTED.calendarDayStartHour;
+    out.calendarDayEndHour = isValidHourPair(start, end) ? end : DEFAULT_PERSISTED.calendarDayEndHour;
   }
   return out as unknown as PersistedSettings;
 }

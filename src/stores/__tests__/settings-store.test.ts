@@ -16,6 +16,43 @@ describe('settings-store', () => {
     useSettingsStore.getState().resetToDefaults();
   });
 
+  describe('calendar working hours and days (#1164)', () => {
+    it('defaults to limiting the view to 08:00-20:00 on weekdays', () => {
+      const s = useSettingsStore.getState();
+      expect(s.calendarLimitHours).toBe(true);
+      expect(s.calendarDayStartHour).toBe(8);
+      expect(s.calendarDayEndHour).toBe(20);
+      expect(s.calendarHideNonWorkingDays).toBe(false);
+      expect(s.calendarWorkingDays).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('falls back to the defaults for an invalid persisted pair or day list', () => {
+      const merged = mergeWithDefaults({
+        calendarDayStartHour: 22, calendarDayEndHour: 6, calendarWorkingDays: [],
+      } as never);
+      expect(merged).toMatchObject({
+        calendarDayStartHour: 8, calendarDayEndHour: 20, calendarWorkingDays: [1, 2, 3, 4, 5],
+      });
+      const ok = mergeWithDefaults({ calendarDayStartHour: 6, calendarDayEndHour: 18, calendarWorkingDays: [0, 6] } as never);
+      expect(ok).toMatchObject({ calendarDayStartHour: 6, calendarDayEndHour: 18, calendarWorkingDays: [0, 6] });
+    });
+
+    it('rejects out-of-range hours and duplicate or out-of-range days', () => {
+      expect(mergeWithDefaults({ calendarDayStartHour: 24, calendarDayEndHour: 24 } as never))
+        .toMatchObject({ calendarDayStartHour: 8, calendarDayEndHour: 20 });
+      expect(mergeWithDefaults({ calendarDayStartHour: 0, calendarDayEndHour: 0 } as never))
+        .toMatchObject({ calendarDayStartHour: 8, calendarDayEndHour: 20 });
+      expect(mergeWithDefaults({ calendarWorkingDays: [1, 1] } as never).calendarWorkingDays).toEqual([1, 2, 3, 4, 5]);
+      expect(mergeWithDefaults({ calendarWorkingDays: [7] } as never).calendarWorkingDays).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('falls back to both defaults when a lone persisted hour clashes with the other default', () => {
+      expect(mergeWithDefaults({ calendarDayStartHour: 21 } as never)).toMatchObject({
+        calendarDayStartHour: 8, calendarDayEndHour: 20,
+      });
+    });
+  });
+
   describe('defaults', () => {
     it('match the webmail where behaviour is identical', () => {
       const s = useSettingsStore.getState();

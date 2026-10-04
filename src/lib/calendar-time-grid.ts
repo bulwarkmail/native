@@ -9,6 +9,7 @@ import {
   type EventDayIndex,
 } from './calendar-utils';
 import type { DayRange, WeekStartsOn } from './calendar-scroll-window';
+import { FULL_DAY_HOURS, minutesAtY, type DisplayHours } from './calendar-display-range';
 
 /**
  * Geometry of the freely scrolling week and day grids (#759, webmail
@@ -92,6 +93,11 @@ export function buildAllDaySegments(
 }
 
 /** The hour a long press at `offsetY` in a day column lands on. */
-export function hourAtOffset(offsetY: number, hourHeight: number): number {
-  return Math.max(0, Math.min(23, Math.floor(offsetY / hourHeight)));
+export function hourAtOffset(
+  offsetY: number,
+  hourHeight: number,
+  hours: DisplayHours = FULL_DAY_HOURS,
+): number {
+  const hour = Math.floor(minutesAtY(offsetY, hours, hourHeight) / 60);
+  return Math.max(hours.startMinutes / 60, Math.min(hours.endMinutes / 60 - 1, hour));
 }

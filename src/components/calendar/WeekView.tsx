@@ -7,7 +7,7 @@ import {
   Pressable,
 } from 'react-native';
 import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
-import { displayNow, displayNowMinutes, isDisplayToday } from '../../lib/calendar-timezone';
+import { displayNowMinutes, isDisplayToday } from '../../lib/calendar-timezone';
 import type { Calendar, CalendarEvent } from '../../api/types';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -24,15 +24,25 @@ import {
   type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
+import { useSettingsStore } from '../../stores/settings-store';
+import {
+  displayGridHeight,
+  eventRect,
+  minutesToY,
+  partitionByDisplayHours,
+  remapSegmentsToShownDays,
+  resolveWorkingDays,
+} from '../../lib/calendar-display-range';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
+import { useDisplayHours } from './use-display-hours';
 
 const HOUR_HEIGHT = 48;
 const GUTTER_WIDTH = 44;
 const ALL_DAY_CHIP_HEIGHT = 18;
 const ALL_DAY_GAP = 2;
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 interface WeekViewProps {
   /** A day of the week to show; defaults to the selected day. */
@@ -67,6 +77,15 @@ function WeekViewInner({
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
   const scrollRef = React.useRef<ScrollView>(null);
+  // The working hours, or the whole day on request.
+  const { hours, configured, canToggle, showAllHours, toggleAllHours, revealMinutes, onScroll } =
+    useDisplayHours(scrollRef, HOUR_HEIGHT);
+  const gridHeight = displayGridHeight(hours, HOUR_HEIGHT);
+  const firstHour = hours.startMinutes / 60;
+  const gridHours = React.useMemo(
+    () => Array.from({ length: (hours.endMinutes - hours.startMinutes) / 60 }, (_, i) => firstHour + i),
+    [hours, firstHour],
+  );
 
   const index = React.useMemo(
     () => eventsByDay ?? buildEventDayIndex(events),
@@ -74,24 +93,42 @@ function WeekViewInner({
   );
 
   const shownDate = weekDate ?? selectedDate;
-  const weekDays = React.useMemo(() => {
+  const fullWeek = React.useMemo(() => {
     const start = startOfWeek(shownDate, { weekStartsOn });
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }, [shownDate, weekStartsOn]);
+  // The non-working days the user asked to leave out. `shownIndexByDay[i]`
+  // is the column of `fullWeek[i]`, or -1 for a day left out.
+  const hideNonWorkingDays = useSettingsStore((s) => s.calendarHideNonWorkingDays);
+  const workingDaysSetting = useSettingsStore((s) => s.calendarWorkingDays);
+  const { weekDays, shownIndexByDay } = React.useMemo(() => {
+    const working = resolveWorkingDays(hideNonWorkingDays, workingDaysSetting);
+    if (!working) return { weekDays: fullWeek, shownIndexByDay: null };
+    const shown: Date[] = [];
+    const indices = fullWeek.map((day) => {
+      if (!working.has(day.getDay())) return -1;
+      shown.push(day);
+      return shown.length - 1;
+    });
+    return shown.length > 0
+      ? { weekDays: shown, shownIndexByDay: indices }
+      : { weekDays: fullWeek, shownIndexByDay: null };
+  }, [fullWeek, hideNonWorkingDays, workingDaysSetting]);
 
   // Multi-day all-day events render as one bar across the days they span.
   // Timed events that consume the entire day get promoted to this strip too.
   const allDaySegments = React.useMemo<CalendarWeekSegment[]>(() => {
     const explicit = buildWeekSegmentsRaw(
       events.filter((e) => e.showWithoutTime),
-      weekDays,
+      fullWeek,
     );
     const timedFull = buildTimedFullDayWeekSegments(
       events.filter((e) => !e.showWithoutTime),
-      weekDays,
+      fullWeek,
     );
-    return packWeekSegments([...explicit, ...timedFull]);
-  }, [events, weekDays]);
+    const raw = [...explicit, ...timedFull];
+    return packWeekSegments(shownIndexByDay ? remapSegmentsToShownDays(raw, shownIndexByDay) : raw);
+  }, [events, fullWeek, shownIndexByDay]);
 
   const allDayRowCount = React.useMemo(() => {
     return allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0);
@@ -104,14 +141,16 @@ function WeekViewInner({
 
   // Timed grid excludes events that fill the full day on that day - they're
   // already promoted to the all-day strip above.
+  // Events outside the visible hours are counted, not laid out.
   const layoutsByDay = React.useMemo(() => {
     return weekDays.map((day) => {
       const dayEvents = eventsOnDayFromIndex(index, day).filter(
         (e) => !e.showWithoutTime && !isTimedEventFullDayOnDate(e, day),
       );
-      return layoutOverlappingEvents(dayEvents, day);
+      const partition = partitionByDisplayHours(dayEvents, day, hours);
+      return { ...partition, layouts: layoutOverlappingEvents(partition.visible, day) };
     });
-  }, [weekDays, index]);
+  }, [weekDays, index, hours]);
 
   // The now-line and "today" follow a clock in the calendar's time zone.
   const [nowMinutes, setNowMinutes] = React.useState(displayNowMinutes);
@@ -121,13 +160,6 @@ function WeekViewInner({
       setNowMinutes(displayNowMinutes());
     }, 60_000);
     return () => clearInterval(interval);
-  }, []);
-
-  React.useEffect(() => {
-    const target = Math.max(0, (displayNow().getHours() - 1) * HOUR_HEIGHT);
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: target, animated: false });
-    });
   }, []);
 
   const handleSlotLongPress = (day: Date, hour: number) => {
@@ -172,7 +204,16 @@ function WeekViewInner({
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <View style={styles.gutter} />
+        <View style={[styles.gutter, { justifyContent: 'flex-end' }]}>
+          {canToggle && (
+            <AllHoursToggle
+              showAllHours={showAllHours}
+              configured={configured}
+              timeFormat={timeFormat}
+              onToggle={toggleAllHours}
+            />
+          )}
+        </View>
         <View style={styles.dayHeaders}>{weekDays.map(dayHeader)}</View>
       </View>
 
@@ -223,12 +264,14 @@ function WeekViewInner({
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
-        <View style={[styles.grid, { height: 24 * HOUR_HEIGHT }]}>
+        <View style={[styles.grid, { height: gridHeight }]}>
           <View style={styles.gutterCol}>
-            {HOURS.map((h) => (
+            {gridHours.map((h) => (
               <View key={h} style={[styles.hourLabelCell, { height: HOUR_HEIGHT }]}>
-                {h > 0 && (
+                {h > firstHour && (
                   <Text style={styles.hourLabel}>
                     {timeFormat === '12h'
                       ? `${((h % 12) || 12)} ${h < 12 ? 'AM' : 'PM'}`
@@ -241,11 +284,12 @@ function WeekViewInner({
 
           <View style={styles.dayCols}>
             {weekDays.map((day, dayIndex) => {
-              const layouted = layoutsByDay[dayIndex];
+              const dayLayout = layoutsByDay[dayIndex];
+              const layouted = dayLayout.layouts;
               const todayCol = isDisplayToday(day);
               return (
                 <View key={day.toISOString()} style={styles.dayCol}>
-                  {HOURS.map((h) => (
+                  {gridHours.map((h) => (
                     <Pressable
                       key={h}
                       onLongPress={() => handleSlotLongPress(day, h)}
@@ -253,12 +297,28 @@ function WeekViewInner({
                     />
                   ))}
 
+                  {dayLayout.before > 0 && (
+                    <HiddenEventsIndicator
+                      count={dayLayout.before}
+                      direction="before"
+                      onReveal={() => revealMinutes(dayLayout.firstBeforeMinutes ?? hours.startMinutes)}
+                    />
+                  )}
+                  {dayLayout.after > 0 && (
+                    <HiddenEventsIndicator
+                      count={dayLayout.after}
+                      direction="after"
+                      onReveal={() => revealMinutes(dayLayout.firstAfterMinutes ?? hours.endMinutes)}
+                    />
+                  )}
+
                   {layouted.map(
                     ({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
-                      const top = (startMinutes / 60) * HOUR_HEIGHT;
-                      const height = Math.max(
-                        20,
-                        ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT - 1,
+                      const { top, height, clippedStart, clippedEnd } = eventRect(
+                        startMinutes,
+                        endMinutes,
+                        hours,
+                        HOUR_HEIGHT,
                       );
                       const widthPct = 100 / totalColumns;
                       const leftPct = column * widthPct;
@@ -275,8 +335,8 @@ function WeekViewInner({
                             c,
                           )}
                           ringColor={c.background}
-                          continuesBefore={continuesBefore}
-                          continuesAfter={continuesAfter}
+                          continuesBefore={continuesBefore || clippedStart}
+                          continuesAfter={continuesAfter || clippedEnd}
                           onPress={() => onSelectEvent?.(event)}
                           style={{ top, height, left: `${leftPct}%`, width: `${widthPct}%` }}
                         />
@@ -284,12 +344,12 @@ function WeekViewInner({
                     },
                   )}
 
-                  {todayCol && (
+                  {todayCol && nowMinutes >= hours.startMinutes && nowMinutes < hours.endMinutes && (
                     <View
                       pointerEvents="none"
                       style={[
                         styles.nowLine,
-                        { top: (nowMinutes / 60) * HOUR_HEIGHT },
+                        { top: minutesToY(nowMinutes, hours, HOUR_HEIGHT) },
                       ]}
                     >
                       <View style={styles.nowDot} />
