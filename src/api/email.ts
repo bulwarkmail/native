@@ -468,7 +468,10 @@ export interface AccountPageTarget {
   accountId?: string;
   position: number;
   sort: Array<{ property: string; isAscending: boolean; keyword?: string }>;
-  /** This account's filter, in place of the shared `options.filter`. */
+  /**
+   * This account's filter. A target that carries the key, even as
+   * `undefined`, overrides the shared `options.filter`.
+   */
   filter?: Record<string, unknown>;
 }
 

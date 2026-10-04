@@ -92,6 +92,7 @@ import { generateAccountId } from '../../lib/account-utils';
 import * as settingsModule from '../settings-store';
 import {
   useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow, listRowsOfAccount,
+  withFolderScope,
 } from '../email-store';
 import { expandThreadSelection, rowKeyOf } from '../../lib/thread-utils';
 import { useTagCountsStore } from '../tag-counts-store';
@@ -681,5 +682,54 @@ describe('Spam and Trash in a search with no folder picked', () => {
     expect(queries).toHaveLength(1);
     expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr*' });
     expect(ids()).toEqual(['o1', 'o3']);
+  });
+
+  // The picker's chips go through `withFolderScope`, as the screen does.
+  function pick(scope: string) {
+    useEmailStore.setState({ filters: withFolderScope(useEmailStore.getState().filters, scope) });
+  }
+
+  it('"This folder" scopes the search to the open folder', async () => {
+    pick('current');
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr*' });
+    expect(ids()).toEqual(['o1', 'o3']);
+  });
+
+  it('searches the Trash picked in the picker only, with nothing left out', async () => {
+    pick('team:t-trash');
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1]).toMatchObject({ accountId: 'team' });
+    expect(queries[0][1].filter).toEqual({ inMailbox: 't-trash', text: 'zephyr*' });
+    expect(ids()).toEqual(['m5']);
+  });
+
+  it('keeps a search in Trash in Trash under a persisted "all" scope', async () => {
+    useEmailStore.setState({ currentMailboxId: 'team:t-trash', filters: { folder: 'all' } });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries).toHaveLength(1);
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr*' } });
+    expect(ids()).toEqual(['m5']);
+  });
+
+  it('leaves nothing out for an account with no Trash or Junk', async () => {
+    useEmailStore.setState({
+      mailboxes: MAILBOXES.filter((m) => m.id !== 'team:t-trash' && m.id !== 'team:t-junk'),
+    });
+    await search('zephyr');
+
+    const queries = server.current!.callsOf('Email/query');
+    expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] }],
+      ['team', { text: 'zephyr*' }],
+    ]);
   });
 });

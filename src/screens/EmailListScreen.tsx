@@ -26,7 +26,7 @@ import {
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
-  useEmailStore, effectiveFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  useEmailStore, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
   type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
@@ -886,12 +886,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     const id = filters.keyword.replace(/^\$label:/, '').replace(/^\$color:/, '');
     return keywordDefs.find((k) => k.id === id)?.label ?? id;
   }, [filters.keyword, keywordDefs]);
-  const setFolderScope = (scope: string) => {
-    const updated: EmailFilters = { ...filters };
-    if (scope === 'current') delete updated.folder;
-    else updated.folder = scope;
-    setFilters(updated);
-  };
+  const setFolderScope = (scope: string) => setFilters(withFolderScope(filters, scope));
 
   const cycleTriStateTo = (key: 'hasAttachment' | 'isStarred' | 'isUnread', next: boolean | undefined) => {
     const updated: EmailFilters = { ...filters };

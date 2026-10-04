@@ -276,8 +276,17 @@ export function effectiveFolderScope(
   current?: Mailbox,
 ): SearchFolderScope {
   if (filters.keyword) return 'all';
-  if (filters.folder) return filters.folder;
-  return searchQuery.trim() ? defaultSearchScopeFor(current) : 'current';
+  // A persisted 'all' is the default too: a search from Spam or Trash stays there.
+  if (filters.folder && filters.folder !== 'all') return filters.folder;
+  return filters.folder === 'all' || searchQuery.trim() ? defaultSearchScopeFor(current) : 'current';
+}
+
+/**
+ * `filters` scoped to a folder chip's pick. "This folder" is stored as
+ * 'current': left unset, a search would fall back to the default scope.
+ */
+export function withFolderScope(filters: EmailFilters, scope: SearchFolderScope): EmailFilters {
+  return { ...filters, folder: scope };
 }
 
 function openMailbox(state: Pick<EmailState, 'mailboxes' | 'currentMailboxId'>): Mailbox | undefined {
