@@ -112,6 +112,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
 
   // Scoped to a shared/group account when Settings is managing one.
   const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
 
   // Rules run in the account whose filters they are, so only that account's
   // folders are valid "file into" targets: the user's own, or the managed
@@ -160,10 +161,17 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   // Always name the account (null = own) so leaving a shared account never
   // keeps showing, or saving into, its script. The app account is a
   // dependency too: managedAccountId stays null across a switch.
-  const activeAccountId = useAuthStore((s) => s.activeAccountId);
   useEffect(() => {
     void selectAccount(managedAccountId);
   }, [managedAccountId, selectAccount, activeAccountId]);
+
+  // An edit in progress belongs to the account it was started in; drop it
+  // rather than let Save write it into the account just switched to.
+  useEffect(() => {
+    setShowRuleModal(false);
+    setShowSieveEditor(false);
+    setEditingRule(undefined);
+  }, [activeAccountId]);
 
   const showVacationBanner =
     !managedAccountId && ((vacationEnabled || vacationSettings?.isEnabled || includeVacation) ?? false);

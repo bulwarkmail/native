@@ -162,6 +162,27 @@ describe('auth-store', () => {
     });
   });
 
+  describe('switchAccount failure', () => {
+    it('keeps the current account\'s filters and auto-reply when the switch fails', async () => {
+      const entry = { serverUrl: 'https://mail.example.com', displayName: '', email: '', lastLoginAt: 0, isConnected: true, hasError: false };
+      const idA = useAccountStore.getState().addAccount({ ...entry, username: 'a' });
+      const idB = useAccountStore.getState().addAccount({ ...entry, username: 'b' });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: idA });
+      mockLoadAccount.mockResolvedValue(false);
+      useFilterStore.setState({
+        rules: [{ id: 'r1', name: 'Rule', enabled: true, matchType: 'all', conditions: [], actions: [], stopProcessing: false }],
+      });
+      useVacationStore.setState({ isEnabled: true, subject: 'Away', hasLoaded: true });
+
+      await useAuthStore.getState().switchAccount(idB);
+
+      expect(useAuthStore.getState().activeAccountId).toBe(idA);
+      expect(useFilterStore.getState().rules).toHaveLength(1);
+      expect(useVacationStore.getState().isEnabled).toBe(true);
+      expect(useVacationStore.getState().subject).toBe('Away');
+    });
+  });
+
   describe('mail the viewer held in memory', () => {
     const docInput = {
       key: '|e1', rawHtml: '<p>Hi</p>', text: null, emptyLabel: '-', blockRemoteImages: false,

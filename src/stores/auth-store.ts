@@ -677,12 +677,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // need a reset to avoid showing the previous account's data.
     useContactsStore.getState().reset();
     useCalendarStore.getState().reset();
-    // Filters and the auto-reply are keyed to "own account" (null) for both
-    // logins, so nothing else tells them the account changed; saving the old
-    // rules would write them into the new account.
-    useFilterStore.getState().clearState();
-    useVacationStore.getState().reset();
-
     // Load the new account's session. loadAccount overwrites
     // credentials/session/_accountId itself, so we don't need to reset
     // jmapClient first. If it fails, restore the previous active account
@@ -743,6 +737,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // Filters and the auto-reply are keyed to "own account" (null) for both
+    // logins, so nothing else tells them the account changed; saving the old
+    // rules would write them into the new account. Cleared only once the
+    // switch succeeded, so a failed one leaves the current account's intact.
+    useFilterStore.getState().clearState();
+    useVacationStore.getState().reset();
     applyConnectedState(set, session, target.serverUrl, target.username, accountId);
     refetchFeatureStores();
     void syncAccountDisplayName(accountId);
