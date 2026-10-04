@@ -93,7 +93,7 @@ range was checked against native `main` at `76180b3`, skipping what
 [docs/audit-2026-09.md](docs/audit-2026-09.md) already lists. The 74 new items
 sit in a "Webmail 1.10.0 → 1.12.0+ delta" section in each area file (3 P1,
 24 P2, 47 P3); what was already at parity is one "1.10–1.12 delta" line at the
-end of each area's Verified list. The three P1s, and the P2s worth doing next:
+end of each area's Verified list. Phase 1 of the [roadmap](docs/superpowers/plans/2026-10-04-webmail-parity-roadmap.md) closed the three P1s and five security/send P2s below on branch `parity/phase-1-security-send`. The three P1s, and the P2s worth doing next:
 
 - P1: forged `Authentication-Results` can fake a DMARC/DKIM pass (03); refused
   recipients in `deliveryStatus` are never reported, so a send that reached no
@@ -115,14 +115,14 @@ end of each area's Verified list. The three P1s, and the P2s worth doing next:
 |---|---|---|---|---|---|---|---|---|
 | 01 | Authentication, login, session, multi-account | [docs/parity/01-auth-accounts.md](docs/parity/01-auth-accounts.md) | 38 | 29 | 9 | 4 | 12 | 22 |
 | 02 | Mail list, folders, unified views, search, tags | [docs/parity/02-mail-list-folders.md](docs/parity/02-mail-list-folders.md) | 76 | 50 | 26 | 1 | 24 | 51 |
-| 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 52 | 45 | 7 | 7 | 17 | 27 |
-| 04 | Composer, drafts, sending, identities, templates, scheduled send | [docs/parity/04-composer-send.md](docs/parity/04-composer-send.md) | 60 | 46 | 14 | 7 | 16 | 37 |
+| 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 52 | 48 | 4 | 7 | 17 | 27 |
+| 04 | Composer, drafts, sending, identities, templates, scheduled send | [docs/parity/04-composer-send.md](docs/parity/04-composer-send.md) | 60 | 49 | 11 | 7 | 16 | 37 |
 | 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 61 | 43 | 18 | 5 | 23 | 33 |
 | 06 | Contacts and address books | [docs/parity/06-contacts.md](docs/parity/06-contacts.md) | 53 | 46 | 7 | 1 | 21 | 31 |
-| 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 38 | 29 | 9 | 3 | 11 | 24 |
+| 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 38 | 32 | 6 | 3 | 11 | 24 |
 | 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 54 | 38 | 16 | 0 | 15 | 39 |
 | 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 57 | 54 | 3 | 7 | 23 | 27 |
-| | **Total** | | **489** | **380** | **109** | **35** | **162** | **291** |
+| | **Total** | | **489** | **389** | **100** | **35** | **162** | **291** |
 
 Counts are of the `- [ ]` and `- [x]` items per file as of 2026-10-04. Done and
 Open split them by tick; the P columns count the priority tags on those items
@@ -166,9 +166,9 @@ Open split them by tick; the P columns count the priority tags on those items
 - [x] Webmail password handoff sends the clear-text password in a custom-scheme redirect fragment that any app can register; OAuth `state` uses `Math.random`; `server_url`/`token_endpoint` in the callback are trusted as-is. → [09](docs/parity/09-jmap-core-sync-security.md), [01](docs/parity/01-auth-accounts.md) *(fixed in 2c0dbd1)*
 
 ### Webmail 1.10–1.12 delta (2026-10-04)
-- [ ] A forged lower `Authentication-Results` header can supply a DKIM/DMARC pass in the security badge. → [03](docs/parity/03-email-viewer.md)
-- [ ] Recipients refused at RCPT TO (`deliveryStatus`, #1123) are never read back; a send that reached nobody shows as sent. → [04](docs/parity/04-composer-send.md)
-- [ ] `splitRecipients` ignores escaped quotes, so a crafted display name splits off an extra recipient. → [04](docs/parity/04-composer-send.md)
+- [x] A forged lower `Authentication-Results` header can supply a DKIM/DMARC pass in the security badge. → [03](docs/parity/03-email-viewer.md) *(fixed in f66084f, 0c07c68)*
+- [x] Recipients refused at RCPT TO (`deliveryStatus`, #1123) are never read back; a send that reached nobody shows as sent. → [04](docs/parity/04-composer-send.md) *(fixed in 600f355, e113118)*
+- [x] `splitRecipients` ignores escaped quotes, so a crafted display name splits off an extra recipient. → [04](docs/parity/04-composer-send.md) *(fixed in 5f9812a)*
 
 ### Repo health
 - [x] `npm test` is red on `main` (see Baseline health above). *(fixed in b84d4d8)*

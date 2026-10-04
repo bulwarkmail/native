@@ -288,15 +288,15 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **Recipients the server refuses at send are never reported** — `P1` — `bugfix-parity` (1.12.0, #1123)
+- [x] **Recipients the server refuses at send are never reported** — `P1` — `bugfix-parity` (1.12.0, #1123) — fixed in 600f355; alerts and warning toast in e113118, e1c8b0c
   - What WEB does: Stalwart runs RCPT TO while creating the submission and records refusals in `deliveryStatus` while the create succeeds. WEB reads `deliveryStatus` back (`EmailSubmission/get` on `#creationId`); if every recipient was refused it fails the send, drops the Sent copy and keeps the draft, and if some were it warns and names them (`lib/jmap/client.ts` ~716-790: `deliveryStatusCall`, `rejectedRecipients`, `RecipientsRejectedError`).
   - What RN does: never reads `deliveryStatus` (`src/api/email.ts:1586-1680` `sendEmail`), so a send that reached nobody shows as sent.
 
-- [ ] **A quote in a display name can create an extra recipient** — `P1` — `bugfix-parity` (1.11.0, security; lower exposure than WEB)
+- [x] **A quote in a display name can create an extra recipient** — `P1` — `bugfix-parity` (1.11.0, security; lower exposure than WEB) — fixed in 5f9812a
   - What WEB does: honours escaped quotes when splitting (`lib/email-composer-utils.ts:283-289`).
   - What RN does: `splitRecipients` (`src/lib/recipients.ts:87`) toggles on every `"` and ignores `\"`, so `Support\", ceo@corp.example, \"x` splits off an address; `findTopLevelColon` (~:155) has the same gap. Callers: `ComposeScreen.tsx:948,2238`, `IdentitySettings.tsx:84` (pasted recipients and identity settings).
 
-- [ ] **A send with no `EmailSubmission/set` response counts as a success** — `P2` — `bugfix-parity` (15740fa, 07625bc)
+- [x] **A send with no `EmailSubmission/set` response counts as a success** — `P2` — `bugfix-parity` (15740fa, 07625bc) — fixed in 600f355; alert in e113118
   - What WEB does: throws `SendUnconfirmedError`, keeps the draft and shows "check Sent before sending again".
   - What RN does: when the response has no submission entry, `sendEmail` returns success with an undefined `emailSubmissionId` (`src/api/email.ts:1644-1680`) and the composer closes as sent.
 

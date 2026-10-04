@@ -247,16 +247,16 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **A sender can fake a DMARC/DKIM pass in the security badge** — `P1` — `bugfix-parity` (1.11.0, security)
+- [x] **A sender can fake a DMARC/DKIM pass in the security badge** — `P1` — `bugfix-parity` (1.11.0, security) — fixed in f66084f; calendar-invitation trust uses the same parser since 0c07c68
   - What WEB does: splits each `Authentication-Results` header into results (skipping quotes and comments) and takes DKIM, DMARC and iprev only from the topmost header; a sender's own header can only downgrade SPF (`lib/email-headers.ts:40-145`, `lib/jmap/client.ts:2444-2448`).
   - What RN does: `deriveHeaderInfo` joins every `Authentication-Results` header with `; ` and takes the first regex match for `dkim=` / `dmarc=` (`src/lib/email-headers.ts:107-160,262-264`), so a header the sender added, or text inside a comment, can supply the pass.
   - Fix hint: port WEB's parser and the topmost-header rule; add tests with a forged lower header.
 
-- [ ] **A `mailto:` unsubscribe can go to several addresses without showing them** — `P2` — `bugfix-parity` (1.11.0, security)
+- [x] **A `mailto:` unsubscribe can go to several addresses without showing them** — `P2` — `bugfix-parity` (1.11.0, security) — fixed in ef341b1; strict single plain address in 31900f5
   - What WEB does: sends to the single address in the link and shows recipient, subject and body before sending (`lib/validation.ts:180`, `components/email/unsubscribe-banner.tsx:44-49,164,198`).
   - What RN does: takes every comma-separated address plus `?to=`/`?cc=` and confirms with a generic alert (`src/lib/unsubscribe.ts:79-118`, `src/components/email/UnsubscribeBanner.tsx:99-140`).
 
-- [ ] **A crafted `winmail.dat` can freeze the app** — `P2` — `bugfix-parity` (1.11.0, security)
+- [x] **A crafted `winmail.dat` can freeze the app** — `P2` — `bugfix-parity` (1.11.0, security) — fixed in 4d85f28
   - What WEB does: stops when a value fails to parse or makes no progress, and bounds the count with `readValueCount` (`lib/tnef.ts`).
   - What RN does: `parseMAPIProps` (`src/lib/tnef.ts:168-220`) can loop up to a sender-chosen 32-bit count on a truncated value, blocking the JS thread.
 

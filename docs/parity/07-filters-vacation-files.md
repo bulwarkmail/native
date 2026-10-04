@@ -172,15 +172,15 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **Sieve values are not escaped (injection through rule names, header names, sizes)** — `P2` — `bugfix-parity` (1.11.0–1.11.1, security)
+- [x] **Sieve values are not escaped (injection through rule names, header names, sizes)** — `P2` — `bugfix-parity` (1.11.0–1.11.1, security) — fixed in 2996c02, f11bfbd; invalid sizes refused at save in c565dfe
   - What WEB does: escapes the header name, checks sizes against `^\d+[KMG]?$` and collapses whitespace in rule names (`lib/sieve/generator.ts:47,79,343`).
   - What RN does: writes them raw (`src/lib/sieve/generator.ts:46-50,80-108`; `# Rule: ${rule.name}` at `:339`). A newline in a rule name can inject commands such as `redirect`; a name with doubled or trailing spaces is duplicated on every save, because the parser compares the trimmed name (`src/lib/sieve/parser.ts:838-841`).
 
-- [ ] **"Stop processing" writes no `stop` after "Delete silently" or "Reject"** — `P2` — `bugfix-parity` (cbdc4de)
+- [x] **"Stop processing" writes no `stop` after "Delete silently" or "Reject"** — `P2` — `bugfix-parity` (cbdc4de) — fixed in f15be2c
   - What RN does: skips `stop;` when the last action is `discard` or `reject` (`src/lib/sieve/generator.ts:361-364`), so a later rule still files the message.
   - Fix hint: only skip when the last action is `stop`.
 
-- [ ] **Rules from the current webmail break or loosen on a native save** — `P2` — `bugfix-parity` (c55b9f4)
+- [x] **Rules from the current webmail break or loosen on a native save** — `P2` — `bugfix-parity` (c55b9f4) — fixed in f15be2c; editor options in fd2f129
   - What WEB does: has a `field: 'all'` condition ("matches every message") and `address_is` / `domain_is` comparators.
   - What RN does: the generator throws "Unsupported filter condition field" for `all` (`src/lib/sieve/generator.ts:86-88`), so once such a rule exists every native filter save fails; `address_is` / `domain_is` fall through to `header :contains` (`:107`), silently loosening the rule. Neither is in the UI (`src/lib/sieve/types.ts:23-38`, `FilterRuleModal.tsx:42`).
 
