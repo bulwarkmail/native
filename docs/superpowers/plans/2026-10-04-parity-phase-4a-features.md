@@ -403,3 +403,30 @@ Keys (WEB):
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run them to verify they pass.**
 - [ ] **Step 5: Commit, then close the phase.** Commit `feat: collapse a crowded all-day strip`. After the final review, tick the parity items and update the counts in one `docs:` commit.
+
+---
+
+### Task 12: Decide whether an HTML body is meaningful in linear time
+
+This task was added during execution. The Task 1 re-review found that `MEANINGFUL_HTML_RE` in `src/lib/email-html.ts:722-723` is quadratic. The controller measured it on hostile input:
+- 4.7 s on 200 KB of repeated `<a ` with no `>`;
+- 2.8 s on 200 KB of repeated `<div `.
+
+The cause is the `[^>]*` that follows `<a\b` and `<(?:div|span|p)\b`. `hasMeaningfulHtmlBody` runs this regex on the full, uncapped HTML whenever an HTML message is opened, so a crafted mail freezes the viewer. The bug predates this branch.
+
+**Files:**
+- Modify: `src/lib/email-html.ts` (`MEANINGFUL_HTML_RE`, `hasMeaningfulHtmlBody`, ~:722-735)
+- Test: `src/lib/__tests__/email-html.test.ts`
+
+**Interfaces:** `hasMeaningfulHtmlBody(html: string): boolean` keeps its signature and its answers. It must be O(n). The approach:
+- keep the `<tag\b` alternatives that have no `[^>]*`;
+- for `<a … href=` and `<div|span|p … style=`, scan each opening tag only up to its own `>`, using `indexOf`, and stop when there is no `>`.
+
+**Steps:**
+- [ ] **Step 1: Write the failing tests.**
+  - Time-bounded hostile inputs (under 200 ms): 200 KB of `<a `, 200 KB of `<div `.
+  - Equivalence with the old regex on a table of realistic HTML snippets. Include `href` and `style` on the target tags, attributes that merely contain `href=` as a value, uppercase tags, and tags that are never closed.
+- [ ] **Step 2: Run to verify they fail.** The timing tests fail.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run to verify they pass.** Run every `email-html` and `email-body` test file.
+- [ ] **Step 5: Commit** `fix: check whether an HTML body is meaningful in linear time`
