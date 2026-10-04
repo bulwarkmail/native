@@ -26,6 +26,7 @@ import EmailStep from './login/EmailStep';
 import ServerStep from './login/ServerStep';
 import ConfirmStep from './login/ConfirmStep';
 import PasswordStep from './login/PasswordStep';
+import { tokenServerPrefill } from './login/token-server';
 import TokenStep from './login/TokenStep';
 import SigningInStep, { type SigningInPhase } from './login/SigningInStep';
 
@@ -100,8 +101,10 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   const [totpRequired, setTotpRequired] = React.useState(false);
   // Access-token sign-in. The token lives in component state only; it is
   // cleared on a successful sign-in (a failed attempt keeps it so a typo in
-  // the server address can be fixed without pasting it again). The server
-  // field follows the current server until the user edits it.
+  // the server address can be fixed without pasting it again) and when the
+  // user leaves the step. The server field is filled once on entry, only from a
+  // server chosen in this flow (never another account's), then only the user's
+  // typing changes it.
   const [tokenServerEdit, setTokenServerEdit] = React.useState<string | null>(null);
   const [token, setToken] = React.useState('');
   const [failedDomain, setFailedDomain] = React.useState<string | null>(null);
@@ -148,7 +151,10 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     return active?.serverUrl ?? accounts[0]?.serverUrl ?? null;
   }, [accounts, activeAccountId]);
 
-  const tokenServer = tokenServerEdit ?? (serverUrl || knownServerUrl || '');
+  const tokenServer = tokenServerEdit ?? '';
+  React.useEffect(() => {
+    if (step !== 'token') setToken('');
+  }, [step]);
 
   const goTo = React.useCallback(
     (next: StepName) => {
@@ -633,6 +639,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
             }}
             onSubmit={() => void handlePasswordSubmit()}
             onUseToken={() => {
+              setTokenServerEdit((current) => current ?? tokenServerPrefill({ serverUrl }));
               goTo('token');
             }}
             notice={notice}
