@@ -103,6 +103,7 @@ import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
 import { useAccountSubscriptions, useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
+import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
@@ -684,6 +685,19 @@ export default function CalendarScreen() {
       try {
         if (action.kind === 'edit') {
           const { updates } = action;
+          // The master is read once: a retry after a truncation would see the
+          // truncated rules.
+          let following: { master: CalendarEvent; originalRules: RecurrenceRule[] | null } | null = null;
+          if (scope === 'this_and_future') {
+            const master = await getMasterEvent(event);
+            if (!master) throw new Error('Master event not found');
+            following = {
+              master,
+              originalRules: master.recurrenceRules
+                ? (JSON.parse(JSON.stringify(master.recurrenceRules)) as RecurrenceRule[])
+                : null,
+            };
+          }
           const write = async (send: boolean | undefined) => {
             const opts = { sendSchedulingMessages: send };
             switch (scope) {
@@ -695,24 +709,18 @@ export default function CalendarScreen() {
                 break;
               }
               case 'this_and_future': {
-                const result = await truncateRecurrenceAtEvent(event);
-                if (!result) throw new Error('Master event not found');
-                const { master, originalRules } = result;
+                const { master, originalRules } = following!;
                 const newEventData = buildFutureSeriesData(master, originalRules, event, updates);
                 delete newEventData.calendarIds;
-                const targetCalendarId =
-                  action.calendarId || getPrimaryCalendarId(master) || '';
-                try {
-                  await createEvent(newEventData, targetCalendarId, opts);
-                } catch (createError) {
-                  // Roll back the truncation so the series isn't left cut short.
-                  try {
-                    await updateEvent(master.id, { recurrenceRules: originalRules ?? [] });
-                  } catch {
-                    // The rollback failing is reported through the original error.
-                  }
-                  throw createError;
-                }
+                await writeFollowingSeries({
+                  master,
+                  originalRules,
+                  occurrence: event,
+                  newSeries: newEventData,
+                  calendarId: action.calendarId || getPrimaryCalendarId(master) || '',
+                  send,
+                  api: { updateEvent, createEvent },
+                });
                 break;
               }
               case 'all': {
@@ -723,6 +731,7 @@ export default function CalendarScreen() {
               }
             }
           };
+          // A declined retry drops the edit; the editor has already closed.
           await saveWithSchedulingFallback(
             write,
             action.sendScheduling,

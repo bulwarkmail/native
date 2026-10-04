@@ -165,7 +165,7 @@ export function batched<T>(items: T[], size: number): T[][] {
  */
 export class SchedulingDeniedError extends Error {
   constructor(readonly reason: string) {
-    super(`The server refused to send the invitations: ${reason}`);
+    super(reason);
     this.name = 'SchedulingDeniedError';
   }
 }
