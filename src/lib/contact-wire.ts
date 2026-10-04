@@ -68,35 +68,25 @@ export function contactToWire(card: Partial<ContactCard>, mode: Mode): Record<st
     );
   }
 
-  // Rebuild the calendar links only when the caller manages them, so an
-  // update that does not mention them leaves the server's entries alone.
-  // A card that still carries its wire maps with flat fields matching them
-  // (move, duplicate) keeps the maps as they are, so extra entries and their
-  // mediaType/pref survive.
-  const cals = Object.values(card.calendars ?? {});
-  const calsMatch = !!card.calendars
-    && (card.calendarUri || undefined) === cals.find(c => c?.kind === 'calendar')?.uri
-    && (card.freeBusyUri || undefined) === cals.find(c => c?.kind === 'freeBusy')?.uri;
-  if (!calsMatch && ('calendarUri' in card || 'freeBusyUri' in card)) {
+  // A card that carries a link map (a form edit's merged map, or a loaded card
+  // being moved or duplicated) sends that map as it is: JMAP replaces the
+  // whole property, so rebuilding it from the flat fields would drop the other
+  // entries and their mediaType/pref. Only a card without the map (a new card,
+  // a vCard import) has its links built from the flat fields.
+  if (!('calendars' in card) && ('calendarUri' in card || 'freeBusyUri' in card)) {
     const calendars: Record<string, unknown> = {};
     if (card.calendarUri) calendars.cal = { '@type': 'Calendar', kind: 'calendar', uri: card.calendarUri };
     if (card.freeBusyUri) calendars.fb = { '@type': 'Calendar', kind: 'freeBusy', uri: card.freeBusyUri };
     if (Object.keys(calendars).length) out.calendars = calendars;
     else if (mode === 'update') out.calendars = null;
   }
-  const schedMatches = !!card.schedulingAddresses
-    && (card.schedulingUri || undefined) === Object.values(card.schedulingAddresses)[0]?.uri;
-  if (!schedMatches && 'schedulingUri' in card) {
+  if (!('schedulingAddresses' in card) && 'schedulingUri' in card) {
     if (card.schedulingUri) out.schedulingAddresses = { sched: { '@type': 'SchedulingAddress', uri: card.schedulingUri } };
     else if (mode === 'update') out.schedulingAddresses = null;
   }
-  const sourceMatches = !!card.directories
-    && (card.source || undefined) === Object.values(card.directories).find(d => d?.kind === 'entry')?.uri;
-  if (card.source && !sourceMatches) {
+  if (!('directories' in card) && card.source) {
     // vCard SOURCE is a JSContact directory entry (RFC 9553 §2.6.2).
-    const directories = { ...(card.directories ?? {}) } as Record<string, unknown>;
-    directories.source = { '@type': 'Directory', kind: 'entry', uri: card.source };
-    out.directories = directories;
+    out.directories = { source: { '@type': 'Directory', kind: 'entry', uri: card.source } };
   }
   return out;
 }

@@ -194,3 +194,63 @@ describe('edited links stay consistent in the local card', () => {
     expect(contactLinkPatch(padded, { calendarUri: 'https://x.test/A', freeBusyUri: '', schedulingUri: '' })).toEqual({});
   });
 });
+
+describe('an edit sends the full link map the store patch carries', () => {
+  // The store sends contactLinkPatch's partial patch, not the merged card.
+  const form = { calendarUri: 'https://x.test/A', freeBusyUri: 'https://x.test/C', schedulingUri: 'mailto:a@x.test' };
+  const loaded = contactFromWire(serverCard);
+  const send = (edit: Partial<typeof form>, card: ContactCard = loaded) =>
+    contactToWire(contactLinkPatch(card, { ...form, ...edit }), 'update');
+
+  it('keeps the other calendars when only the calendar URI changes', () => {
+    expect(send({ calendarUri: 'https://x.test/new' })).toEqual({
+      calendars: {
+        k1: { kind: 'calendar', uri: 'https://x.test/new', mediaType: 'text/calendar', pref: 1 },
+        k2: { kind: 'calendar', uri: 'https://x.test/B' },
+        f: { kind: 'freeBusy', uri: 'https://x.test/C' },
+      },
+    });
+  });
+
+  it('keeps the calendars when only the free/busy URI changes', () => {
+    expect(send({ freeBusyUri: 'https://x.test/fb2' })).toEqual({
+      calendars: { ...serverCard.calendars, f: { kind: 'freeBusy', uri: 'https://x.test/fb2' } },
+    });
+  });
+
+  it('keeps free/busy when a calendar is added to a free/busy-only card', () => {
+    const fbOnly = contactFromWire({ id: 'c', addressBookIds: {}, calendars: { f: { kind: 'freeBusy', uri: 'https://x.test/C' } } });
+    expect(send({ calendarUri: 'https://x.test/A', schedulingUri: '' }, fbOnly)).toEqual({
+      calendars: {
+        f: { kind: 'freeBusy', uri: 'https://x.test/C' },
+        cal: { '@type': 'Calendar', kind: 'calendar', uri: 'https://x.test/A' },
+      },
+    });
+  });
+
+  it('keeps free/busy and the second calendar when the calendar URI is cleared', () => {
+    expect(send({ calendarUri: '' })).toEqual({
+      calendars: { k2: serverCard.calendars!.k2, f: serverCard.calendars!.f },
+    });
+  });
+
+  it('keeps the second scheduling address when the first is cleared', () => {
+    expect(send({ schedulingUri: '' })).toEqual({ schedulingAddresses: { s2: { uri: 'mailto:b@x.test' } } });
+  });
+
+  it('sends null only when nothing of the kind remains', () => {
+    const only = contactFromWire({ id: 'c', addressBookIds: {}, calendars: { k: { kind: 'calendar', uri: 'u' } } });
+    expect(send({ calendarUri: '', freeBusyUri: '', schedulingUri: '' }, only)).toEqual({ calendars: null });
+  });
+
+  it('keeps the surviving entry on a move or duplicate after a local clear', () => {
+    // The store's merge deletes the keys patched to null.
+    const patch = contactLinkPatch(loaded, { ...form, calendarUri: '', schedulingUri: '' });
+    const local = { ...loaded, ...patch } as Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) if (v === null) delete local[k];
+    const wire = contactToWire(local as unknown as ContactCard, 'create');
+    expect(wire.calendars).toEqual({ k2: serverCard.calendars!.k2, f: serverCard.calendars!.f });
+    expect(wire.schedulingAddresses).toEqual({ s2: { uri: 'mailto:b@x.test' } });
+    expect(wire.directories).toBe(serverCard.directories);
+  });
+});
