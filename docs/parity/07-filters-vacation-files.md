@@ -164,6 +164,41 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
 - [x] **README still says "file storage - UI stubs only"** — fixed in c0e1d6b — `P3` — `rn-only-bug` (docs)
   - `repos/react-native/README.md:30` lists filters, S/MIME, plugins, themes and file storage as stubs; filters, vacation and files are real implementations (`src/api/files.ts`, `src/screens/FilesScreen.tsx`, `src/components/files/ShareSheet.tsx`, `src/api/__tests__/files.test.ts`). Update the README when the items above land.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **Sieve values are not escaped (injection through rule names, header names, sizes)** — `P2` — `bugfix-parity` (1.11.0–1.11.1, security)
+  - What WEB does: escapes the header name, checks sizes against `^\d+[KMG]?$` and collapses whitespace in rule names (`lib/sieve/generator.ts:47,79,343`).
+  - What RN does: writes them raw (`src/lib/sieve/generator.ts:46-50,80-108`; `# Rule: ${rule.name}` at `:339`). A newline in a rule name can inject commands such as `redirect`; a name with doubled or trailing spaces is duplicated on every save, because the parser compares the trimmed name (`src/lib/sieve/parser.ts:838-841`).
+
+- [ ] **"Stop processing" writes no `stop` after "Delete silently" or "Reject"** — `P2` — `bugfix-parity` (cbdc4de)
+  - What RN does: skips `stop;` when the last action is `discard` or `reject` (`src/lib/sieve/generator.ts:361-364`), so a later rule still files the message.
+  - Fix hint: only skip when the last action is `stop`.
+
+- [ ] **Rules from the current webmail break or loosen on a native save** — `P2` — `bugfix-parity` (c55b9f4)
+  - What WEB does: has a `field: 'all'` condition ("matches every message") and `address_is` / `domain_is` comparators.
+  - What RN does: the generator throws "Unsupported filter condition field" for `all` (`src/lib/sieve/generator.ts:86-88`), so once such a rule exists every native filter save fails; `address_is` / `domain_is` fall through to `header :contains` (`:107`), silently loosening the rule. Neither is in the UI (`src/lib/sieve/types.ts:23-38`, `FilterRuleModal.tsx:42`).
+
+- [ ] **Forward actions ignore the server's redirect limit** — `P3` — `missing` (1.11.0, 6da2bf9)
+  - What WEB does: counts forwards per message against `maxNumberRedirects` (1 on Stalwart) and warns (`lib/filters/forward-limit.ts`, `components/settings/filter-settings.tsx:259-261,540`).
+  - What RN does: never reads `maxNumberRedirects` (`src/lib/sieve/types.ts:20`); extra forwards are dropped without notice.
+
+- [ ] **No warning before saving an auto-reply Stalwart would refuse as too long** — `P3` — `missing` (1.11.0)
+  - What WEB does: subject 511 bytes, body 2047 (`components/settings/vacation-settings.tsx:16,90-98`).
+  - What RN does: `src/components/settings/VacationSettings.tsx` saves and fails.
+
+- [ ] **Files: smaller 1.11 fixes not ported** — `P3` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts`)
+  - A new folder whose name is taken fails instead of becoming "name (2)" (`src/api/files.ts:248-262`, no `onExists: "rename"`; WEB `createFileNodeIn` ~`:8072-8105`).
+  - Folders cannot be copied (`FilesScreen.tsx:521`, `src/api/files.ts:378-384`).
+  - Sharing fails on Stalwart before 0.16.6: no mapping to the older rights names (`src/api/files.ts:400-420`; WEB `:40-66,8039`).
+  - File names Stalwart refuses are not caught before sending.
+  - `safeMimeType` turns any type over 30 characters into `application/octet-stream` even on 0.16.6+, so office files lose their type (`src/api/files.ts:327-330`; WEB `:8036-8047,8082`).
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Sieve parser/generator/types are a faithful port up to 1.7.2: `diff -w --strip-trailing-cr lib/sieve/parser.ts repos/react-native/src/lib/sieve/parser.ts` shows only the multi-value/attachment hunks (and `debug.warn` → `console.warn`). Included and identical: `@metadata` JSON round-trip, external-rule parsing with origin labels (Roundcube/Nextcloud/etc., changelog 1.4.14 #201), Nextcloud marker regions preserved verbatim, `# Rule:` dedupe of Bulwark blocks that failed to re-parse (1.7.0 "literal braces" fix, `parser.ts` `findBodyOpenBrace` + `filteredExternal`), vacation-only script detection, `externalRequires` merge, `INBOX` canonical path (1.7.1 #313: `FilterRuleModal.tsx:57`), all 10 action types, `computeRequires` (fileinto/copy/imap4flags/reject/body/vacation), `stop` folding into `stopProcessing`. Since then the webmail writes "Keep" as `fileinto "INBOX"` (62465e1e, #1027) and added the vacation `include`, `:mailboxid` targets, `redirect :copy` and the spam guard; ported in f63d739, d53bfec, 3f88868 and 6c31c8d.
 - Filter store semantics identical: skip server-managed `vacation` script (1.4.10), keep activation via `onSuccessActivateScript` on create/update (1.4.10), external/opaque rules read-only, bulwark rules kept contiguous before external ones, `addRule/updateRule/deleteRule/reorderRules/toggleRule`, rollback on failed save, opaque banner with "Open raw editor" / two-step "Reset to visual builder", `SieveScript/validate` via uploaded blob with error-method handling, `createSieveScript('filters')`.
@@ -172,6 +207,7 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
 - Vacation: `VacationResponse/get|set` on singleton with `core+mail+vacationresponse` using, default object when the list is empty, capability gating (`isVacationSupported`), enable toggle + status pill, subject, plain-text body, preview, end-before-start warning, empty-body warning, error surfacing.
 - Files API: folder detection `blobId == null` (`src/api/files.ts:12-14`), `FileNode/get ids:null`, which Stalwart caps at `maxObjectsInGet` (500), continued since 4eb8c47 by paging `FileNode/query` (which lists folders too since Stalwart 0.16.6) and batched gets (#1069), `shareWith/myRights` requested explicitly, `principals:owner` in `using` only when advertised (sharing is gated on `principals` since caea3d0), real-hierarchy folder create without blob/type/size, cascade delete with `onDestroyRemoveChildren`, MIME-type >30 chars → `application/octet-stream` (1.4.12), cross-account "shared with me" aggregation with `accountId:nodeId` namespacing and owner-routed download URLs, shared subtrees browsable and writes hidden inside them, `Share2`/`Users` badges, ShareSheet with the same read/readWrite/manager presets as WEB `FILE_PRESETS`, custom-rights detection, principal search excluding self, revoke, refresh after change; unit tests in `src/api/__tests__/files.test.ts`.
 - Files UI: list/grid toggle persisted to settings, folder breadcrumb, pull-to-refresh, hidden-file filter, colored/plain icons, long-press multi-select (own nodes only), rename/new-folder prompts rejecting `/`, delete confirmation naming folder cascade, path stack pruned when a folder disappears, Files tab disabled when the capability is missing.
+- 1.10–1.12 delta: "Keep" as `fileinto "INBOX"` (#1027); "keep a copy" on forward; per-rule "also move spam"; filters keep running with the auto-reply on; mark read/star/label on moved mail; rules keep their folder after a rename; every file listed past `maxObjectsInGet` (#1069); numbered names for taken upload names.
 
 ## N/A on mobile
 - Drag-and-drop upload / whole-folder upload (`uploadFolder`, `getDroppedFilesAndFolders`), drag-out of files, marquee selection, keyboard shortcuts (Ctrl+A/C/X/V, F2, Delete, Backspace), right-click context menus, resizable folder-tree sidebar, breadcrumb right-click dropdown, `?preview=` window title updates, `window.open` blob preview safety list (`isMimeTypeSafeForInlinePreview`).

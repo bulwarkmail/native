@@ -280,6 +280,48 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - What RN does: `ComposeScreen.tsx:620-623`, `:696-699`, `:719` hard-code "Photo library permission is required…", "Could not load image"; `identityError` fallback text at `:1052` ("identity unavailable", "Loading...").
   - Fix hint: route through `t()` with keys in `locales/<lang>/common.json`.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **Recipients the server refuses at send are never reported** — `P1` — `bugfix-parity` (1.12.0, #1123)
+  - What WEB does: Stalwart runs RCPT TO while creating the submission and records refusals in `deliveryStatus` while the create succeeds. WEB reads `deliveryStatus` back (`EmailSubmission/get` on `#creationId`); if every recipient was refused it fails the send, drops the Sent copy and keeps the draft, and if some were it warns and names them (`lib/jmap/client.ts` ~716-790: `deliveryStatusCall`, `rejectedRecipients`, `RecipientsRejectedError`).
+  - What RN does: never reads `deliveryStatus` (`src/api/email.ts:1586-1680` `sendEmail`), so a send that reached nobody shows as sent.
+
+- [ ] **A quote in a display name can create an extra recipient** — `P1` — `bugfix-parity` (1.11.0, security; lower exposure than WEB)
+  - What WEB does: honours escaped quotes when splitting (`lib/email-composer-utils.ts:283-289`).
+  - What RN does: `splitRecipients` (`src/lib/recipients.ts:87`) toggles on every `"` and ignores `\"`, so `Support\", ceo@corp.example, \"x` splits off an address; `findTopLevelColon` (~:155) has the same gap. Callers: `ComposeScreen.tsx:948,2238`, `IdentitySettings.tsx:84` (pasted recipients and identity settings).
+
+- [ ] **A send with no `EmailSubmission/set` response counts as a success** — `P2` — `bugfix-parity` (15740fa, 07625bc)
+  - What WEB does: throws `SendUnconfirmedError`, keeps the draft and shows "check Sent before sending again".
+  - What RN does: when the response has no submission entry, `sendEmail` returns success with an undefined `emailSubmissionId` (`src/api/email.ts:1644-1680`) and the composer closes as sent.
+
+- [ ] **An open draft does not stay on its own account across an account switch** — `P2` — `bugfix-parity` (1.11.0)
+  - What RN does: `createDraft`/`sendEmail` resolve the account when they run (`src/api/email.ts:1545,1695`); the composer stays mounted when a notification tap or deep link switches account (`App.tsx:111-115`, `navigation/linking.ts:247`). Autosave and send then go to the new account with the old identity, and the old draft is destroyed in the wrong account.
+  - Fix hint: capture the account id when the composer opens and pass it through (`ComposeScreen.tsx:744-757`), or close the composer on switch.
+
+- [ ] **No delivery status notification (DSN) / REQUIRETLS option** — `P3` — `missing` (1.10.0)
+  - What WEB does: `components/email/email-composer.tsx:615,2565,3410-3420`; reads back `deliveryStatus` (`lib/jmap/client.ts:717-760`).
+  - What RN does: none in the `sendEmail` envelope (`src/api/email.ts:~1537-1556`); `src/api/jmap-client.ts:1043-1079` already parses `submissionExtensions`.
+
+- [ ] **A failed filing of the Sent copy is not shown** — `P3` — `bugfix-parity` (1.11.0)
+  - What RN does: only logs `filingWarning` (`ComposeScreen.tsx:2117-2118`); WEB warns so the mail isn't sent twice.
+
+- [ ] **No Return-Path note for a From override (#1009)** — `P3` — `missing` (1.11.0)
+  - What WEB does: says the identity's address shows in the Return-Path, and tries the override as envelope sender with a fallback (`email-composer.tsx:809-817,2383-2392`, `lib/jmap/client.ts:4116-4140`).
+  - What RN does: `ComposeScreen.tsx:1200`, `src/api/email.ts:1562-1568`.
+
+- [ ] **Pasted plain-text lists are not turned into real lists** — `P3` — `missing` (1.12.0)
+  - What WEB does: lines starting with `- `, `* `, `• `, `1. `, `1) ` become lists on paste.
+  - What RN does: no paste handler in the contenteditable editor (`src/components/RichTextEditor.tsx`, `src/lib/editor-html.ts`).
+
+- [ ] **No @-mention of a recipient in the body** — `P3` — `missing` (2b5110e, 26cbca7)
+  - What WEB does: `@` + first name inserts a recipient mention, with a setting to turn it off and screen-reader announcements.
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Scheduled send via `EmailSubmission` envelope `HOLDFOR` with explicit `rcptTo` (bare addresses, names stripped) and `maxDelayedSend`/FUTURERELEASE capability checks: `src/api/email.ts:828-844`, `src/api/jmap-client.ts:513-531`, `ComposeScreen.tsx:796-821` — matches `lib/jmap/client.ts:592-612`, `:3245-3258`. The capability check read only the session-level object, which Stalwart leaves empty, so scheduling and the undo delay were off on Stalwart until e28e8b4 (#57, audit B8); holds are capped at Stalwart's 7-day limit since 4e7ae2f.
 - Undo-send delay setting (0/5/10/20/30 s) applied only when the server supports delayed send: `ComposeScreen.tsx:825-828`, `ComposingSettings.tsx:42-48`.
@@ -299,6 +341,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
 - Blob upload tolerant of both Stalwart upload-response shapes: `src/api/blob.ts:38-61`.
 - Scheduled list filters `undoStatus==='pending'` and future `sendAt`, cancel via `undoStatus:'canceled'` keeping the Sent copy: `src/api/email.ts:902-988`.
 - Contact prefill from contact/group detail: `ContactDetailScreen.tsx:159`, `GroupDetailScreen.tsx:83`.
+- 1.10–1.12 delta: per-message HTML/plain toggle (#1022); exact vs same-domain reply identity (#1000) and delivered-to reply (#991); `$answered` with a send delay (#985); background colour; "Email sent" toast; refused send reported, and the server's real reason shown instead of a dangling reference (cbde644); no replay of submit/import/upload; reply draft keeps its thread; identity Bcc; attachment size limits; scheduled send capped at 7 days; unified-inbox reply from the receiving account (#1104); forward parts copied into the sending account (cd9536d, c0db46d).
 
 ## N/A on mobile
 - Ctrl/Cmd+Enter send, Ctrl+Shift+Enter schedule, `t` template shortcut, Escape close (`email-composer.tsx:2428-2468`).

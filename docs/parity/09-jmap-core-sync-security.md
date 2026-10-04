@@ -288,6 +288,18 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
   - What RN does: `jmapPost`/`fetchInboxForAccount` do a bare `secureFetch` per account and per shared account in parallel (`src/api/unified-inbox.ts:116-131`, `215-233`), swallowing shared-account errors and only mapping 401 to "Session expired".
   - Fix hint: route through the same `request()` helper once it has deadlines/back-off (pass explicit credentials instead of the singleton).
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **An `Email/set` create can be replayed after a dropped connection** — `P3` — `partial` (1.11.0)
+  - What WEB does: never replays a request that creates mail.
+  - What RN does: submit, import and upload are never replayed (`src/api/jmap-client.ts:101-108,884`), but an `Email/set` create still can be, which can leave a duplicate draft or Sent copy.
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Session discovery, `primaryAccounts` selection (mail -> core -> first account), shared/group account detection (`src/api/jmap-client.ts:388-401`, `480-493` vs `lib/jmap/client.ts:988-995`, `4421-4463`).
 - Per-capability account ids for Sieve and Files (`src/api/sieve.ts:20-23`, `src/api/files.ts:27-31`); calendar/contacts use the primary account on both sides in practice.
@@ -309,6 +321,7 @@ RN's JMAP client (`src/api/jmap-client.ts`, 615 lines) is a thin transport: sess
 - No secrets in `console.*` output; `usesNonExemptEncryption: false` declared (`app.config.js:370`).
 - Stalwart self-service via `urn:stalwart:jmap`: password change, display name, TOTP enable/disable, app passwords and API keys with IP allow-list, principal read (`src/api/account-security.ts`), with proper `error`/`notUpdated` checks.
 - SHA-256 implementation correct (FIPS 180-4) and APK size + optional checksum verification (`src/lib/sha256.ts`, `src/lib/install-update.ts:100-127`).
+- 1.10–1.12 delta: assertSetResult on mutations (#956); fallback poll stays within the per-request call limit (`src/api/push-stream.ts:115-121`, but it doesn't cover shared accounts).
 
 ## N/A on mobile
 - Server-side SSRF/DNS-rebinding guard, endpoint allow-list, `OAUTH_ALLOW_PRIVATE_ENDPOINTS`, IPv6 transition-address checks (`lib/security/url-guard.ts`, `lib/stalwart/server-fetch.ts`; GHSA-24w9): RN talks to the server directly from the device; the only analogue is scheme validation (covered above).

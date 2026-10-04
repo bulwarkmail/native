@@ -239,6 +239,39 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
   - What RN does: `SmimeSettings` renders empty mock arrays and buttons with no handlers (`src/components/settings/SmimeSettings.tsx:32-33`, `118-121`, `163-166`); there is no verification/decryption in the viewer.
   - Fix hint: hide the screen (or show a "not available in the mobile app" note) until a crypto path exists; treat viewer-side S/MIME as N/A.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **A sender can fake a DMARC/DKIM pass in the security badge** — `P1` — `bugfix-parity` (1.11.0, security)
+  - What WEB does: splits each `Authentication-Results` header into results (skipping quotes and comments) and takes DKIM, DMARC and iprev only from the topmost header; a sender's own header can only downgrade SPF (`lib/email-headers.ts:40-145`, `lib/jmap/client.ts:2444-2448`).
+  - What RN does: `deriveHeaderInfo` joins every `Authentication-Results` header with `; ` and takes the first regex match for `dkim=` / `dmarc=` (`src/lib/email-headers.ts:107-160,262-264`), so a header the sender added, or text inside a comment, can supply the pass.
+  - Fix hint: port WEB's parser and the topmost-header rule; add tests with a forged lower header.
+
+- [ ] **A `mailto:` unsubscribe can go to several addresses without showing them** — `P2` — `bugfix-parity` (1.11.0, security)
+  - What WEB does: sends to the single address in the link and shows recipient, subject and body before sending (`lib/validation.ts:180`, `components/email/unsubscribe-banner.tsx:44-49,164,198`).
+  - What RN does: takes every comma-separated address plus `?to=`/`?cc=` and confirms with a generic alert (`src/lib/unsubscribe.ts:79-118`, `src/components/email/UnsubscribeBanner.tsx:99-140`).
+
+- [ ] **A crafted `winmail.dat` can freeze the app** — `P2` — `bugfix-parity` (1.11.0, security)
+  - What WEB does: stops when a value fails to parse or makes no progress, and bounds the count with `readValueCount` (`lib/tnef.ts`).
+  - What RN does: `parseMAPIProps` (`src/lib/tnef.ts:168-220`) can loop up to a sender-chosen 32-bit count on a truncated value, blocking the JS thread.
+
+- [ ] **No "Rules" entry on a message** — `P2` — `missing` (1.12.0)
+  - What WEB does: creates a filter rule from the message (move by sender, domain or list, mark read, tag, block), suggests conditions, can apply it to existing mail, with undo (`components/email/rules-menu.tsx`, `lib/filters/quick-rules.ts`, `lib/filters/retroactive.ts`, `stores/quick-rule-store.ts`).
+  - What RN does: nothing; would hang off `src/components/email/ActionSheet.tsx` and prefill `src/components/filters/FilterRuleModal.tsx`.
+
+- [ ] **No copy chip for verification codes** — `P2` — `missing` (1.12.0)
+  - What WEB does: detects one-time codes and shows a copy chip in the message and, for a day, in the list; "Show Verification Codes" setting (`lib/verification-code.ts`, `components/email/verification-code-chip.tsx`).
+  - What RN does: nothing; candidates are `MessageHeader.tsx`/`MessageContent.tsx`, the list row and `ReadingSettings.tsx`.
+
+- [ ] **Fixed-width tables shrink instead of wrapping on iOS (#1020)** — `P3` — `bugfix-parity` (1.11.0, unverified on device)
+  - What WEB does: `releaseFixedWidthTables` (`lib/email-fit-width.ts`).
+  - What RN does: a `<table width="800">` is scaled down (`src/lib/email-html.ts:452-466`, `src/components/EmailBodyView.tsx:264`).
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Body isolation: sandboxed WebView with `default-src 'none'` CSP, `originWhitelist` about:blank, links opened externally, no cookies/storage/file access (`src/components/EmailBodyView.tsx:675-724`, `src/lib/email-html.ts:236-256`) — matches WEB's srcDoc iframe + CSP approach (1.6.7).
 - `hasMeaningfulHtmlBody` text-alternative preference (`src/lib/email-html.ts:353-362`) — same regex as WEB `lib/signature-utils.ts` (only the same-partId guard is missing, see P1 finding).
@@ -256,6 +289,7 @@ RN has a solid single-message reader (WebView body with CSP, shrink-to-fit + pin
 - View source (raw RFC 822, shareable) and Export .eml with the email filename template (`src/screens/EmailSourceScreen.tsx`, `src/lib/email-export.ts:173-206`).
 - Calendar invitation: detection by MIME/extension, parse via `CalendarEvent/parse`, RSVP via import-then-`rsvpEvent` with `replyTo`/`organizerCalendarAddress`, cancelled notice, "no writable calendar" warning, `calendarInvitationParsingEnabled` setting (`src/components/email/CalendarInvitationBanner.tsx`, `src/lib/calendar-invitation.ts`).
 - Tag sheet from the viewer with keyword definitions (`src/screens/EmailThreadScreen.tsx:1033-1100`).
+- 1.10–1.12 delta: link clicks gated by scheme; `cid:` octet-stream parts hidden (#1005); images/tables keep their max-width (#1034, #790); truncated body refetched (#928); text direction detected (#663); plain-text-only mail as text (#489); SVG/HTML attachments never previewed inline; odd types previewed by file name; remote content blocked by the WebView CSP; spam/not-spam refusals reported; MDN header CR/LF stripped (GHSA-w38p).
 
 ## N/A on mobile
 - Print (WEB `handlePrint`, `components/email/email-viewer.tsx:2621-2670`) — could be done with `expo-print` later, but not a parity requirement.

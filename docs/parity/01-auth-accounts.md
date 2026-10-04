@@ -163,6 +163,46 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
   - What RN does: `randomState()` uses `Math.random` (`src/lib/oauth.ts:41-46`) although a CSPRNG helper with `getRandomValues`/`randomUUID` fallbacks already exists in `src/lib/totp.ts:16-46`. The state is the only guard against a forged `bulwarkmobile://` redirect delivering foreign credentials.
   - Fix hint: export `randomBytes` from `totp.ts` (or a shared `random.ts`) and use it here.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **TOTP accounts cannot change their password or turn TOTP off** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: sends the current TOTP code with password and TOTP changes (`stores/account-security-store.ts:263-266,583-603,676-690`).
+  - What RN does: `src/api/account-security.ts:346,387` send no code; the server refuses the change.
+  - Fix hint: prompt for the current code in `AccountSecuritySettings.tsx` when TOTP is on, and pass it through.
+
+- [ ] **Sign-out leaves account data on the device** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/sign-out-cleanup.ts`)
+  - What RN does: search history is never cleared (`src/stores/search-history-store.ts:41`); the offline body cache keeps full message bodies after sign-out or account removal (`offline-cache-store.ts:292` `clearAll` is never called from `auth-store.ts:575-760`); outbox keys of removed accounts stay.
+  - Fix hint: one per-account cleanup function called from logout and removeAccount.
+
+- [ ] **Internationalized domains (IDN) fail at sign-in and in addresses (#1100)** — `P2` — `missing` (1.11.0)
+  - What WEB does: punycode handling in `lib/idn.ts`, used by `stores/auth-store.ts:29`.
+  - What RN does: no punycode handling; `isValidEmail` accepts ASCII only (`src/lib/recipients.ts:32`). Unverified whether Hermes' URL covers the host part.
+
+- [ ] **Filters and the security page can show the previous account's data after a switch** — `P2` — `rn-only-bug` (edge case, partly unverified)
+  - What RN does: `switchAccount` (`src/stores/auth-store.ts:658-742`) does not reset the filter or vacation stores, and the load effects in `FilterSettings.tsx:160-163` and `AccountSecuritySettings.tsx:870-896` do not depend on the active account. Reachable when a notification tap or deep link switches account while the screen stays mounted; a save would then write the old account's rules into the new one.
+  - Fix hint: reset the stores in `switchAccount` and key the effects on the active account id.
+
+- [ ] **No "Sign in with an access token"; session URLs on another origin are rewritten** — `P3` — `missing` (29c74c3)
+  - What WEB does: Bearer-token login for servers such as Fastmail, and keeps download/upload/eventSource URLs that sit on another HTTPS origin.
+  - What RN does: `connectWithToken` exists (`src/api/jmap-client.ts:299`) but has no UI; `src/api/jmap-client.ts:587-596` rewrites every session URL onto the server origin, which would break such servers.
+
+- [ ] **A refused token exchange on a TOTP login gets a generic error** — `P3` — `partial` (post-1.12)
+  - What RN does: throws `TotpLoginError('token_exchange_failed')` (`src/lib/totp-login.ts:148`), but `src/lib/login-errors.ts:129` only maps `invalid`.
+  - Fix hint: add a message for `token_exchange_failed`.
+
+- [ ] **Security page shows an empty name for non-admin users** — `P3` — `bugfix-parity` (1.11.0)
+  - What WEB does: falls back when `x:Account/get` (admin-only on Stalwart) is refused (`stores/account-security-store.ts:519-529`).
+  - What RN does: `AccountSecuritySettings.tsx:886-888` reads it from `x:Account/get` only; `fetchAccountDisplayName` (`src/api/account-security.ts:291`) exists but is not used here.
+
+- [ ] **SSO sign-out does not end the identity provider's session (#905)** — `P3` — `missing` (1.11.0)
+  - What RN does: `end_session_endpoint` is never called (`src/lib/oauth-native.ts:212`), so the next sign-in in the in-app browser reuses the provider session.
+
 ## Verified at parity (brief list, so the fixer knows NOT to redo)
 - QR login payloads: WEB emits `bulwarkmail://pair?server=<webmailBase>&code=…` (`account-security-settings.tsx:971`); RN parses it plus a `connect` variant and bare URLs (`src/lib/oauth.ts:135-162`) and redeems at `/api/auth/pair/redeem` (`:165-207`) into the same OAuth bundle the browser handoff yields.
 - Webmail handoff (`mobile_redirect_uri`/`mobile_state`, fragment transport, state check, password/oauth flows) matches `login/page.tsx:115-130, 282, 638-650` and `auth/callback/page.tsx` mobile branch.
@@ -175,6 +215,7 @@ RN covers the happy paths (password login, webmail-mediated OAuth handoff, QR pa
 - Server discovery by email domain (`/.well-known/jmap` probe on bare/`mail.`/`webmail.` hosts, 401 counts as a hit, known servers trusted) is RN's equivalent of WEB's admin server list / auto-pick-by-domain (#799); neither side does `_jmap._tcp` SRV.
 - Login error → session-expired banner: RN's `ChooseStep` shows the store error ("Session expired") like WEB's `session_expired` banner.
 - `AuthenticationError` on 401, `RateLimitError` on 429 with Retry-After parsing in `request()`.
+- 1.10–1.12 delta: `prompt=select_account` on add account; permanent refresh failures not retried (#972); discovery base path (#971); session refetch after a redirect drops auth (#892); no `max_age=0` (#938); SSO discovery uses the selected server (#952); rate-limited token endpoint doesn't sign out; full sign-out removes an account whose restore failed; webmail "Link Mobile App" password bundles (`src/lib/oauth.ts:193-215,438-451`).
 
 ## N/A on mobile
 - "Remember me" (RN always stores credentials in the device keychain), `rememberMeEnabled`/`SESSION_SECRET` cookie logic, per-slot cookie handling (`cookieSlot`, `oauth_cookie_slot`), orphan-cookie adoption, `serverIdentifiers`/`classifySessionMatch` slot→token desync guard (RN keys credentials per registry id, no shared slot).

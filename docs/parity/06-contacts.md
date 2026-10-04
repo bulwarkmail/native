@@ -291,6 +291,25 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: filters `useCalendarStore().events` (`src/components/contacts/ContactActivity.tsx:90-91, 127-142`), i.e. only the range the calendar tab happened to load; on a fresh start it is empty.
   - Fix hint: call the RN calendar API for `[now, now+365d]` with a participant filter, falling back to the cache.
 
+## Webmail 1.10.0 → 1.12.0+ delta (audited 2026-10-04)
+
+Webmail changelog 1.10.0, 1.11.0-beta.1 – 1.11.2 and 1.12.0, plus the
+unreleased commits up to `a4e313f` (2026-10-02), checked against native `main`
+at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
+are not repeated. "Unverified" means read from the code but not confirmed on a
+device.
+
+- [ ] **A contact with calendar, scheduling or free/busy links fails to save** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: maps them to `calendars` / `schedulingAddresses` / `directories` (`lib/jmap/contact-wire.ts`).
+  - What RN does: sends flat `calendarUri` / `schedulingUri` / `freeBusyUri`, which Stalwart rejects as "Invalid property" (`src/screens/ContactFormScreen.tsx:458-460`, `src/api/contacts.ts:83-89`); the detail screen reads `contact.calendarUri`, which the server never returns (`ContactDetailScreen.tsx:602+`).
+
+- [ ] **vCard import sends fields Stalwart rejects** — `P2` — `bugfix-parity` (1.11.0)
+  - What WEB does: `addressToWire` and the same URI mapping in `contact-wire.ts`.
+  - What RN does: flat address fields, the URI fields and `source` (`src/lib/vcard.ts:651-669,976-989`, `src/stores/contacts-store.ts:471-479`), so those cards fail to import.
+
+- [ ] **Deleting an address book that still has contacts fails** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts:5822-5835`)
+  - What RN does: `AddressBook/set` destroy omits `onDestroyRemoveContents` (`src/api/contacts.ts:362-371`), so the server answers `addressBookHasContents`; the comment at `contacts-store.ts:631` wrongly assumes Stalwart deletes the cards.
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Address book list/create/rename/delete with `myRights` checks (`src/components/settings/ContactsSettings.tsx`, `AddressBookPickerSheet`); inline "New address book…" in the move sheet (WEB #415).
 - Move contacts between books (single from detail, bulk from list) via `addressBookIds` patch (`contacts-store.ts:237-241`) — RN equivalent of WEB drag-and-drop.
@@ -307,6 +326,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
 - Contacts tab hidden when the session lacks `urn:ietf:params:jmap:contacts` (`src/lib/capabilities.ts:29-31`, `App.tsx:170-179`) — WEB 1.8.x "Hide Contacts and Calendars when the account lacks the JMAP capability".
 - Push `StateChange` for `AddressBook`/`ContactCard` triggers refetch (`contacts-store.ts:152-168`, `App.tsx:390-396`); contacts cache persisted for instant render; selected category persisted.
 - Contact store reset on logout/account switch (`src/stores/auth-store.ts:58,76,113,179,379`) — the RN counterpart of the 583e20d9 namespacing fix (single-account store, so no id-form flip).
+- 1.10–1.12 delta: sort by last name (#963); default address book (#924); `name.full` on every write (#430); new contacts go to the selected book (#940); cleared fields cleared on the server.
 
 ## N/A on mobile
 - Pro multi-account aggregation (`hooks/use-pro-multi-account-contacts.ts`, `fetchAllAccountsContacts`, `::` id namespacing) — Pro shell only; RN keeps one account active and resets the store on switch.

@@ -1,0 +1,139 @@
+# Webmail parity roadmap (October 2026)
+
+How to work down the 109 open items in [PARITY_CHECKLIST.md](../../../PARITY_CHECKLIST.md)
+and [docs/parity/](../../parity/): 74 come from the webmail 1.10.0 → 1.12.0+
+delta (audited 2026-10-04), 35 are left over from the 1.9.2 audit. The six
+open webmail items in [docs/audit-2026-09.md](../../audit-2026-09.md) ("Missing
+vs webmail") are folded into Phase 6.
+
+Each phase is one branch and one implementation plan. Only Phase 1 has a
+detailed plan yet ([2026-10-04-parity-phase-1-security-send.md](2026-10-04-parity-phase-1-security-send.md)).
+Write the next phase's plan when the previous one merges, because each phase
+changes files the next one touches. Re-run the delta audit before writing a
+plan, since webmail ships every few days.
+
+## Ground rules for every phase
+
+- **Source of truth.** For each item, the area file in `docs/parity/` gives
+  the WEB and RN file pointers. Port webmail's logic and tests rather than
+  re-deriving them. Reference checkout:
+  `git clone https://github.com/bulwarkmail/webmail` at `a4e313f` or later.
+- **One finding, one commit** (`fix:` / `feat:`, as in the git log). Tick the
+  item in its area file in the same commit and add the commit hash, as the
+  existing ticks do.
+- **Gate:** `npm run typecheck && npm test && npm run i18n:check` passes on
+  every commit. New user-visible strings use `t('key', 'English')`. Reuse the
+  webmail key when one exists (it arrives with the next `sync-locales`);
+  otherwise `npm run i18n:harvest` adds it to `locales/rn/en.json`.
+- **Device check.** Anything that touches push, the WebView, the editor or
+  native modules gets a line in the PR saying what was checked on which device
+  and server (Stalwart version).
+- **Close the loop.** At the end of a phase, update the counts table in
+  `PARITY_CHECKLIST.md`.
+
+## Phase 1: security and send correctness (detailed plan written)
+
+Goal: nothing a sender writes can fool the user or redirect mail, and the app
+never says "sent" when nothing went out. Size: about 3–4 days.
+
+| Item | Area | Pri |
+|---|---|---|
+| Forged `Authentication-Results` can supply a DKIM/DMARC pass | 03 | P1 |
+| Refused recipients in `deliveryStatus` never reported (#1123) | 04 | P1 |
+| Escaped quote in a display name splits off a recipient | 04 | P1 |
+| Send with no `EmailSubmission/set` response counts as success | 04 | P2 |
+| Sieve values unescaped; rule names with spaces duplicate | 07 | P2 |
+| No `stop` after discard/reject; `field: 'all'` and `address_is`/`domain_is` break native saves | 07 | P2 |
+| `mailto:` unsubscribe to several addresses, not shown | 03 | P2 |
+| Crafted `winmail.dat` freezes the app | 03 | P2 |
+
+## Phase 2: data correctness
+
+Goal: no write the app makes is silently refused by the server, put in the
+wrong account, or rewritten. Size: about 4–5 days.
+
+| Item | Area | Pri | Note |
+|---|---|---|---|
+| Contacts with calendar/scheduling/free-busy URIs fail to save | 06 | P2 | Port webmail `lib/jmap/contact-wire.ts` as `src/lib/contact-wire.ts`. One mapping layer feeds the next item too. |
+| vCard import sends fields Stalwart rejects | 06 | P2 | Same wire layer: `addressToWire`. |
+| Address book delete refused while it has contacts | 06 | P2 | `onDestroyRemoveContents: true` behind the existing confirm. |
+| Cross-account move loses the message date (#1150) | 02 | P2 | Pass `receivedAt` to `Email/import`. |
+| Open draft follows an account switch into the wrong account | 04 | P2 | Capture `accountId` when the composer mounts. Thread it through `createDraft`/`sendEmail` (`SendEmailOptions.accountId` exists). |
+| Filters / security screens keep the previous account's data after a switch | 01 | P2 | Reset the stores in `switchAccount`; key the effects on the account id. |
+| iCal subscriptions not tied to the login | 05 | P2 | Key on server URL + username; forget on sign-out. Needs a store migration. |
+| Sign-out leaves search history, offline bodies and outbox keys behind | 01 | P2 | One `forgetAccountData(accountKey)` called from logout and removeAccount. Pairs with the iCal item. |
+| Daily recurrence stops at a DST change | 05 | P2 | Port webmail `recurrence-expansion.ts:420-444`. Tests in Europe/Berlin and America/New_York. |
+| Save without invitations when the server refuses scheduling | 05 | P2 | `SchedulingDeniedError` + "Save without sending" alert. |
+| Blank participant names in invitations (#748) | 05 | P3 | Same files as above. |
+| Files: smaller 1.11 fixes (rename-on-exists, copy folders, pre-0.16.6 rights, MIME type) | 07 | P3 | |
+
+## Phase 3: reliability and honest feedback
+
+Goal: when something fails, the user finds out, and background features keep
+working past a week. Size: about 4 days.
+
+| Item | Area | Pri | Note |
+|---|---|---|---|
+| Push subscriptions lapse after Stalwart's 7-day expiry | 08 | P2 | Renew on foreground and for every signed-in account. Needs a device check over more than 7 days, or a server with a short expiry. |
+| List actions (swipe/batch) fail silently | 02 | P2 | Catch, toast and revert the optimistic change, the same way the viewer already does. |
+| A failed search shows the previous folder's rows | 02 | P2 | |
+| Search doesn't leave out Spam and Trash | 02 | P2 | |
+| TOTP accounts cannot change password or turn TOTP off | 01 | P2 | Prompt for the current code. |
+| Internationalized domains (#1100) | 01 | P2 | Check what Hermes `URL` does first; add a punycode dependency only if needed. |
+| Tag views/counts include Trash and Spam (#1156); list Move sheet not account-scoped (#1149) | 02 | P3 | |
+| Failed preview lookup drops the push; one message rings once per account | 08 | P3 | Android module + background task. |
+| Sent-copy filing warning not shown; `Email/set` create can be replayed | 04, 09 | P3 | |
+| Mail deleted during a refresh reappears (#966); scroll position and unread-first jumps (unverified) | 02 | P3 | Confirm on a device before fixing. |
+| Refused TOTP token exchange gets a generic error; empty name for non-admins | 01 | P3 | |
+
+## Phase 4: new webmail features that matter on a phone
+
+Goal: the features users of the current webmail will expect in the app.
+Each item is a small sub-project with its own plan. Do them in this order.
+
+| Item | Area | Pri | Size |
+|---|---|---|---|
+| Verification-code copy chip (viewer + list, setting) | 03 | P2 | S–M |
+| "Rules" from a message, with retroactive apply and undo | 03, 07 | P2 | L. Builds on the Phase 1 Sieve work. |
+| Offline send queue (outbox op carrying the Email/set + submission) | 04, 09 | P2 | L |
+| Contact autocomplete: groups, recent recipients, server and directory search | 06 | P2 | M |
+| Server-side invitations (`CalendarEventNotification`) inbox | 05 | P3→P2 | M |
+| Join links and maps in events; working-hours day/week views; tasks in the month view; collapsible all-day strip | 05 | P3 | M |
+| Copy messages to a folder / another account | 02 | P3 | M |
+| Sign in with an access token; keep cross-origin session URLs | 01 | P3 | S |
+| Inbox-only notifications option (#983) | 08 | P3 | S |
+
+## Phase 5: platform gaps (need work outside this repo)
+
+These have been deferred because each needs something outside this repo. Plan each
+one with the owner of that other piece.
+
+| Item | Area | Pri | Dependency |
+|---|---|---|---|
+| iOS push | 08 | P2 | APNs transport in the push relay + an iOS token module |
+| Cross-device settings sync (native #1); unblocks template and tag sync | 08, 04, 02 | P2 | A server-side settings store both clients can use |
+| RTL completion (swipe directions, drawer side #944) | 08 | P2 | Device check in ar/he |
+| Remaining calendar i18n; Jalali grid | 05 | P2/P3 | Port `jalali-utils.ts` |
+| S/MIME sign/encrypt on send | 04 | P3 | Raw-MIME send path |
+| Sending from shared/group accounts | 04 | P3 | Envelope/identity routing |
+
+## Phase 6: P3 backlog
+
+Pick these up when you are working on the same files anyway. Group them so
+each sweep stays in one area:
+
+- **Mail list and search (02):**
+  - search snippets highlighted, size filter, nested folder picker, colours for unknown tags, row screen-reader labels, attachment-chip placeholders;
+  - no wildcard suffix in search, empty any folder, folder sharing, folder reorder, folder icons, tag nesting;
+  - the date-locale setting;
+  - two decisions: last folder vs inbox on start, and global search.
+- **Composer (04):** DSN/REQUIRETLS, Return-Path note, pasting a list, @-mentions, font size (audit-2026-09), identity refresh.
+- **Viewer (03):** wrapping fixed-width tables on iOS, and what remains of the invitation banner.
+- **Calendar (05):** free/busy, default ParticipantIdentity, duplicate/copy title/add note, `supported-calendar-component-set`, deep links to dates, the push types, birthday colour.
+- **Contacts (06):** sharing an address book, list filters, deep links.
+- **Filters and files (07):** redirect-limit warning, auto-reply length warning, legacy flat-name migration, Files deep links.
+- **Settings and UI (08):**
+  - settings-search entries, About build link, font size everywhere, status/navigation bar theming, sidebar apps, the relay list;
+  - from audit-2026-09: icon badge, themes, Tabler icons, the favicon source.
+- **Security (09):** a screenshot / recent-apps protection option.
+- **Accounts (01):** ending the SSO session on sign-out, and the settings scope of shared accounts.
