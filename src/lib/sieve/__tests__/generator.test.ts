@@ -588,6 +588,21 @@ describe('generateScript with hostile rule data', () => {
     expect(commands(script)).not.toContain('x@evil.example');
   });
 
+  it('keeps a "*/" in a rule from ending the metadata comment', () => {
+    const name = 'a */ redirect "x@evil.example"; /* b';
+    const script = generateScript([makeRule({
+      name,
+      conditions: [{ field: 'subject', comparator: 'contains', value: 'x */ redirect "y@evil.example"; /*' }],
+    })]);
+    expect(commands(script)).not.toContain('evil.example');
+    expect(script).not.toMatch(/^\s*redirect/m);
+    const parsed = parseScript(script);
+    expect(parsed.isOpaque).toBe(false);
+    expect(parsed.rules).toHaveLength(1);
+    expect(parsed.rules[0].name).toBe(name);
+    expect(parsed.rules[0].conditions[0].value).toBe('x */ redirect "y@evil.example"; /*');
+  });
+
   it('escapes a custom header name', () => {
     const script = generateScript([makeRule({
       conditions: [{ field: 'header', headerName: 'X-A" :contains "B', comparator: 'contains', value: 'v' }],

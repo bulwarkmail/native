@@ -293,7 +293,10 @@ export function generateScript(
   if (options.includeVacation) {
     metadata.includeVacation = true;
   }
-  const metadataJson = JSON.stringify(metadata);
+  // The JSON sits inside a /* ... */ comment: a "*/" in any string (a rule
+  // name, a condition value) would end the comment and turn the rest into
+  // live Sieve. JSON reads "\/" back as "/", so the metadata is unchanged.
+  const metadataJson = JSON.stringify(metadata).replace(/\*\//g, '*\\/');
   const lines: string[] = [];
 
   lines.push('/* @metadata:begin');
