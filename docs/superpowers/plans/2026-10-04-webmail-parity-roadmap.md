@@ -245,3 +245,39 @@ Phase 3 is done on `parity/phase-3-reliability`. The final review rated these "l
   - The TOTP step shows the punycode address.
 - **Calendar:** in `addSubscription`, the catch path's `deleteCalendar` is not guarded against an account switch.
 - **Tests:** no render harness, so the wiring in the composer, security page, MoveSheet and calendar is covered by typecheck and device checks only.
+
+## Phase 4a follow-ups (left open at merge, 2026-10-04)
+
+Phase 4a is done on `parity/phase-4a-features`. The final review rated these "later".
+
+- **Before release:**
+  - Device check: sign in to Fastmail with an API token. The inbox loads, an attachment downloads and an upload works (the upload uses the kept off-origin `uploadUrl`).
+  - Device check: the working-hours grid's earlier/later indicator sits above event blocks on Android, and the all-day "+N" toggle is easy to hit.
+  - Release note: working hours are on by default (08–20), as in webmail, so the day and week grids change on upgrade.
+- **Upstream (webmail):** four quadratic regexes on sender text. Two are in `lib/verification-code.ts` `normalize()` (`/[\p{L}\p{N}-]*(?:\.\.\.|…)\s*$/u` and `/\S*@\S+/g`). One is the trailing-punctuation regex in `lib/event-links.ts`. The fourth is the pre-existing `MEANINGFUL_HTML_RE` shape, fixed natively in 2a37bb5.
+- **Locales:** the vendored webmail locale predates 7e1a659, so several webmail keys were added to `locales/rn/en.json` with webmail's English. Run `sync-locales` to bring in their translations.
+- **Push:**
+  - Non-active accounts keep their old Inbox-only filter until they are next active (`renewDetachedPushSubscription` writes only `expires`).
+  - A primary account with no Inbox in Inbox-only mode makes setup throw, as in webmail; the old subscription keeps working.
+  - A failed re-sync only warns, so the toggle can show on while the server filter is unchanged.
+  - Settings `hydrate()` is not single-flight.
+  - FCM and SSE both dispatching a change can fire bus listeners twice (a duplicate refetch only).
+- **Mail:**
+  - The list chip has no long-press forward.
+  - The chip goes stale across the one-day boundary until the row re-renders.
+  - The viewer's detail-cache patch after a copy uses the passed email's `mailboxIds`.
+  - Error classification in token sign-in matches message text (the 403 discovery text and the missing-account text); a typed error would be sturdier.
+- **Calendar:**
+  - Invitation notices already seen survive sign-out until restart.
+  - A notice whose destroy failed can toast once more after a restart.
+  - Tasks are not shown in the all-day strip.
+  - The calendar's `ParticipantInput` offers contacts only.
+  - The location row has no link styling or long-press accessibility hint.
+  - The rules in CalendarSettings (end after start, last working day) are inline and untested.
+  - The all-day cap follows the settled scroll anchor, so it lags a drag by up to one column.
+  - The "N more calendar updates" summary toast offers Open even while the client is mid-switch; the notice presenter has no test.
+- **Composer:**
+  - The "Search the server" row shows even without a Sent mailbox (as in webmail).
+  - The search handling in ComposeScreen has no test.
+  - Directory suggestions load only when the account entry's username and server match the client's exactly. A trimmed or untrimmed username would quietly hide them.
+- **Tests:** the wall-clock timing tests now allow 1 s, against 2.8–22 s for the old quadratic cases.

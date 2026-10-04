@@ -340,7 +340,7 @@ device.
   - What WEB does: renews when the tab becomes visible (`components/push-notification-prompt.tsx:117-135`, `lib/web-push.ts:410-440`).
   - What RN does: the renewal check (`src/lib/push-notifications.ts:268`) runs only on sign-in, account or setting change, or token rotation, not on return to the foreground (`App.tsx:641-670,764`), and never for accounts other than the active one. A phone left in the background for a week, or any secondary account, silently stops getting notifications.
 
-- [ ] **No inbox-only notifications option (#983)** — `P3` — `missing` (1.11.0, WEB `lib/web-push.ts:90-135`, `pushNotifyInboxOnly`)
+- [x] **No inbox-only notifications option (#983)** — `P3` — `missing` (1.11.0, WEB `lib/web-push.ts:90-135`, `pushNotifyInboxOnly`) — fixed in 964acb1, a827c5c — non-active accounts pick up the filter only when next active
   - What RN does: every non-junk folder notifies (`src/lib/push-notifications.ts:300-330`).
 
 - [x] **One message reaching several accounts rings once per account** — `P3` — `missing` (cd39805, 868805e) — fixed in 1c9b1a3 — Kotlin uncompiled here; device check outstanding

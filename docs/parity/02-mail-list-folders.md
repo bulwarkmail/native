@@ -306,7 +306,7 @@ device.
   - What RN does: `Email/import` sends no `receivedAt` (`src/api/email.ts:963-976` `importEmailBlob`, `src/stores/email-store.ts:~2175` `crossAccountMove`), so moved mail lands as today's.
   - Fix hint: pass the original `receivedAt` to `Email/import`.
 
-- [ ] **No "Copy to folder / account"** — `P3` — `missing` (f02dbf3)
+- [x] **No "Copy to folder / account"** — `P3` — `missing` (f02dbf3) — fixed in 7700c2b, 6bd6058, d892d79 — also copies within an account (adds the folder), which WEB does not
   - What WEB does: copies messages to a folder of another connected account. RN cannot copy at all, not even within an account.
 
 - [x] **Tag views and tag counts include Trash and Spam (#1156)** — `P3` — `bugfix-parity` (a4e313f) — fixed in 954d28a, 11d65fc

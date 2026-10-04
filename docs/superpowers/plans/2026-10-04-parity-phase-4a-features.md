@@ -49,7 +49,7 @@ Webmail reference: `origin/main` at `7e1a659` (2026-10-04).
 ## Review Focus
 
 1. **A message with no code-like text** (newsletters, receipts with order numbers, status codes) shows no verification chip. Owned by Task 1, through the ported webmail "does not take …" cases.
-2. **Accounts that sign in with a password or OAuth** keep every session URL rewritten as today. Only an absolute HTTPS download, upload or eventSource URL on another origin than the session's own `apiUrl` is kept. Owned by Task 4, test `still rewrites a localhost or http URL`.
+2. **Accounts that sign in with a password** keep every session URL rewritten as today. Only for a bearer sign-in (OAuth, pairing, password+TOTP that returns tokens, or a pasted token) is an absolute HTTPS download, upload or eventSource URL on another origin than the session's own `apiUrl` kept: those URLs receive the Authorization header, so a password must never go there (ruling during execution; OAuth on Fastmail needs the same keep). Owned by Task 4, test `still rewrites a localhost or http URL`.
 3. **With working hours off (`calendarLimitHours: false`)**, the day and week grids draw all 24 hours, positioned exactly as before. Owned by Task 10, test `the full day is unchanged when limiting is off`.
 4. **Copying a message never removes or moves the original.** Owned by Task 6, test `a copy keeps the original where it was`.
 5. **With "Inbox only" off**, the push filter is exactly today's junk exclusion. Owned by Task 3, test `the default filter is unchanged`.

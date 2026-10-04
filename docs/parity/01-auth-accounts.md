@@ -188,7 +188,7 @@ device.
   - What RN does: `switchAccount` (`src/stores/auth-store.ts:658-742`) does not reset the filter or vacation stores, and the load effects in `FilterSettings.tsx:160-163` and `AccountSecuritySettings.tsx:870-896` do not depend on the active account. Reachable when a notification tap or deep link switches account while the screen stays mounted; a save would then write the old account's rules into the new one.
   - Fix hint: reset the stores in `switchAccount` and key the effects on the active account id.
 
-- [ ] **No "Sign in with an access token"; session URLs on another origin are rewritten** — `P3` — `missing` (29c74c3)
+- [x] **No "Sign in with an access token"; session URLs on another origin are rewritten** — `P3` — `missing` (29c74c3) — fixed in c482c21, 8da72ac, 4ba2d28, 587c08b (token sign-in) and b110e03, 24b3598 (off-origin URLs kept for bearer sign-ins only, so a password never leaves the typed server) — device check with a Fastmail API token outstanding
   - What WEB does: Bearer-token login for servers such as Fastmail, and keeps download/upload/eventSource URLs that sit on another HTTPS origin.
   - What RN does: `connectWithToken` exists (`src/api/jmap-client.ts:299`) but has no UI; `src/api/jmap-client.ts:587-596` rewrites every session URL onto the server origin, which would break such servers.
 
