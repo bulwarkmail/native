@@ -871,13 +871,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (filters.keyword ? 1 : 0) +
     (filters.folder && filters.folder !== 'current' ? 1 : 0);
   const hasActiveSearchOrFilter = Boolean(storeSearchQuery) || activeFilterCount > 0;
-  const folderScope = effectiveFolderScope(storeSearchQuery, filters);
+  const folderScope = effectiveFolderScope(storeSearchQuery, filters, currentMailbox);
   // Accounts an "All folders" list could not reach (#1082).
-  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters })
+  const unreachedAccounts = spansAccounts({ searchQuery: storeSearchQuery, filters, mailboxes, currentMailboxId })
     ? Object.values(accountErrors)
     : [];
   const scopeFolderName = React.useMemo(() => {
-    if (folderScope === 'all' || folderScope === 'current') return null;
+    if (folderScope === 'all' || folderScope === 'everywhere' || folderScope === 'current') return null;
     const m = mailboxes.find((mb) => mb.id === folderScope);
     return m ? localizeMailboxName(m.role, m.name, t) : folderScope;
   }, [folderScope, mailboxes, t]);
@@ -1251,10 +1251,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               icon={<Folder size={12} color={c.textSecondary} />}
               label={
                 folderScope === 'all'
-                  ? t('email_list.scope_all_folders', 'All folders')
-                  : folderScope === 'current'
-                    ? t('email_list.scope_this_folder', 'This folder')
-                    : scopeFolderName ?? ''
+                  ? t('advanced_search.all_folders_except_spam_trash', 'All folders except Spam and Trash')
+                  : folderScope === 'everywhere'
+                    ? t('email_list.scope_all_folders', 'All folders')
+                    : folderScope === 'current'
+                      ? t('email_list.scope_this_folder', 'This folder')
+                      : scopeFolderName ?? ''
               }
               onPress={() => setFilterMenuOpen(true)}
             />
@@ -1551,15 +1553,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                     />
                   </View>
 
-                  {/* Folder scope (#788): all folders by default for a search,
-                      the open folder, or one picked from the account's tree. */}
+                  {/* Folder scope (#788): all folders except Spam and Trash by
+                      default for a search, every folder ("All folders"), the
+                      open folder, or one picked from the account's tree. */}
                   <View>
                     <Text style={styles.filterFieldLabel}>{t('advanced_search.folder', 'Folder')}</Text>
                     <View style={styles.filterToggleGroup}>
                       <ScopeChip
                         label={t('email_list.scope_all_folders', 'All folders')}
-                        active={folderScope === 'all'}
-                        onPress={() => setFolderScope('all')}
+                        active={folderScope === 'everywhere'}
+                        onPress={() => setFolderScope('everywhere')}
                       />
                       <ScopeChip
                         label={t('email_list.scope_this_folder', 'This folder')}

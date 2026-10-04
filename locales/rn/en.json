@@ -1,6 +1,7 @@
 {
   "advanced_search": {
     "after": "After",
+    "all_folders_except_spam_trash": "All folders except Spam and Trash",
     "before": "Before",
     "no_attachment": "No attachment",
     "not_starred": "Not starred"

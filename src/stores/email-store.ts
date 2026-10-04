@@ -42,6 +42,7 @@ import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
 import { toWildcardQuery } from '../lib/search-utils';
+import { defaultSearchScopeFor, exclusionFilter, trashAndJunkIds } from '../lib/search-scope';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
@@ -240,8 +241,12 @@ function jmapClientServesActiveAccount(activeAccountId: string | null): boolean 
   return generateAccountId(username, serverUrl) === activeAccountId;
 }
 
-/** Folder scope of a search/filter: every folder, the open one, or a store mailbox id. */
-export type SearchFolderScope = 'all' | 'current' | (string & {});
+/**
+ * Folder scope of a search/filter: every folder except Spam and Trash
+ * ('all', the default), every folder ('everywhere', the "All folders"
+ * chip), the open one, or a store mailbox id.
+ */
+export type SearchFolderScope = 'all' | 'everywhere' | 'current' | (string & {});
 
 export interface EmailFilters {
   from?: string;
@@ -254,20 +259,29 @@ export interface EmailFilters {
   isStarred?: boolean;
   isUnread?: boolean;
   /**
-   * Folder scope. Unset means "all folders" while a text query is active
-   * (#788) and "the open folder" otherwise; explicit values come from the
-   * folder chip in the filter panel.
+   * Folder scope. Unset means "all folders except Spam and Trash" while a
+   * text query is active (#788), unless the open folder is Spam or Trash,
+   * and "the open folder" otherwise; explicit values come from the folder
+   * chip in the filter panel.
    */
   folder?: SearchFolderScope;
   /** Tag view (#175): messages carrying this JMAP keyword, across all folders. */
   keyword?: string;
 }
 
-/** The folder scope a query runs in, resolving the unset default. */
-export function effectiveFolderScope(searchQuery: string, filters: EmailFilters): SearchFolderScope {
+/** The folder scope a query runs in, resolving the unset default for the open folder. */
+export function effectiveFolderScope(
+  searchQuery: string,
+  filters: EmailFilters,
+  current?: Mailbox,
+): SearchFolderScope {
   if (filters.keyword) return 'all';
   if (filters.folder) return filters.folder;
-  return searchQuery.trim() ? 'all' : 'current';
+  return searchQuery.trim() ? defaultSearchScopeFor(current) : 'current';
+}
+
+function openMailbox(state: Pick<EmailState, 'mailboxes' | 'currentMailboxId'>): Mailbox | undefined {
+  return state.currentMailboxId ? state.mailboxes.find((m) => m.id === state.currentMailboxId) : undefined;
 }
 
 // Snapshot of an action that can still be reversed via the undo snackbar.
@@ -474,13 +488,32 @@ function buildJmapFilter(
 }
 
 // The raw mailbox id an Email/query is scoped to: the open folder, an
-// explicitly picked folder, or undefined for "all folders" (#788).
-function queryScope(state: EmailState, current: MailboxRef): { mailboxId: string | undefined; accountId?: string } {
-  const scope = effectiveFolderScope(state.searchQuery, state.filters);
-  if (scope === 'current') return { mailboxId: current.id, accountId: current.accountId };
-  if (scope === 'all') return { mailboxId: undefined, accountId: current.accountId };
+// explicitly picked folder, or undefined for "all folders" (#788), which
+// leaves each account's Spam and Trash out unless "All folders" was picked.
+interface QueryScope {
+  mailboxId: string | undefined;
+  accountId?: string;
+  excludeTrashAndJunk: boolean;
+}
+function queryScope(state: EmailState, current: MailboxRef): QueryScope {
+  const scope = effectiveFolderScope(state.searchQuery, state.filters, openMailbox(state));
+  if (scope === 'current') return { mailboxId: current.id, accountId: current.accountId, excludeTrashAndJunk: false };
+  if (scope === 'all' || scope === 'everywhere') {
+    return { mailboxId: undefined, accountId: current.accountId, excludeTrashAndJunk: scope === 'all' };
+  }
   const ref = refFor(state.mailboxes, scope);
-  return { mailboxId: ref.id, accountId: ref.accountId };
+  return { mailboxId: ref.id, accountId: ref.accountId, excludeTrashAndJunk: false };
+}
+
+// `filter` ANDed with the condition leaving one account's Spam and Trash out.
+function withoutTrashAndJunk(
+  state: EmailState,
+  accountId: string,
+  filter: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const exclusion = exclusionFilter(trashAndJunkIds(state.mailboxes, accountId));
+  if (!exclusion) return filter;
+  return filter ? { operator: 'AND', conditions: [filter, exclusion] } : exclusion;
 }
 
 // Filter keys that don't narrow the query on their own: a folder scope of
@@ -541,8 +574,11 @@ function isUnsupportedSort(err: unknown): boolean {
 // to one folder stays in its account.
 
 /** Whether the list on screen spans the own and the shared accounts. */
-export function spansAccounts(state: Pick<EmailState, 'searchQuery' | 'filters'>): boolean {
-  return effectiveFolderScope(state.searchQuery, state.filters) === 'all';
+export function spansAccounts(
+  state: Pick<EmailState, 'searchQuery' | 'filters' | 'mailboxes' | 'currentMailboxId'>,
+): boolean {
+  const scope = effectiveFolderScope(state.searchQuery, state.filters, openMailbox(state));
+  return scope === 'all' || scope === 'everywhere';
 }
 
 /**
@@ -636,14 +672,16 @@ interface SpanningPage {
 
 // One page from every account the list spans, each account starting at its
 // own position (`loaded[stamp]`: its rows already on screen), so "load more"
-// never skips one account's messages because another had more. An account
-// refusing the keyword sort is retried once without it; a failing account
-// lands in `errors`. Throws only when no account answered.
+// never skips one account's messages because another had more. With
+// `excludeTrashAndJunk`, each account's own Spam and Trash are left out. An
+// account refusing the keyword sort is retried once without it; a failing
+// account lands in `errors`. Throws only when no account answered.
 async function fetchSpanningPage(
   state: EmailState,
   loaded: Record<string, number>,
   filter: Record<string, unknown> | undefined,
   limit: number,
+  excludeTrashAndJunk: boolean,
 ): Promise<SpanningPage> {
   const primary = jmapClient.accountId;
   const threads = !useSettingsStore.getState().disableThreading;
@@ -652,6 +690,7 @@ async function fetchSpanningPage(
       accountId,
       position: loaded[accountId ?? primary] ?? 0,
       sort: await resolveSort(state, accountId),
+      filter: excludeTrashAndJunk ? withoutTrashAndJunk(state, accountId ?? primary, filter) : filter,
     }))),
     { limit, filter, threads },
   );
@@ -1085,7 +1124,7 @@ export const useEmailStore = create<EmailState>()(
         for (const e of emails) {
           if (e.jmapAccountId && !retained.has(rowKeyOf(e))) loaded[e.jmapAccountId] = (loaded[e.jmapAccountId] ?? 0) + 1;
         }
-        const page = await fetchSpanningPage(state, loaded, filter, limit);
+        const page = await fetchSpanningPage(state, loaded, filter, limit, scope.excludeTrashAndJunk);
         const now = get();
         if (
           now.activeAccountId !== activeAccountId || now.currentMailboxId !== currentMailboxId ||
@@ -2787,7 +2826,7 @@ async function refreshEmailsImpl(): Promise<void> {
       // conversation badges) their threads.
       if (spansAccounts(state)) {
         // "All folders": the own and every shared account, one request (#1082).
-        const page = await fetchSpanningPage(state, {}, filter, limit);
+        const page = await fetchSpanningPage(state, {}, filter, limit, scope.excludeTrashAndJunk);
         if (viewChanged()) return;
         set({
           emails: mergeRetainedRows(get().emails, page.list, get().retainedIds),
