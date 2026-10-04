@@ -590,8 +590,16 @@ export class JMAPClient {
     // one the server deliberately hosts elsewhere (Fastmail serves downloads
     // from fastmailusercontent.com) and is kept as reported.
     const reportedOrigin = extractOrigin(session.apiUrl ?? '');
+    // Only bearer-token sign-ins (OAuth, token) may keep an off-origin URL:
+    // those URLs receive the Authorization header, and with Basic auth that
+    // would send the password to another host. Fastmail and similar servers
+    // are bearer-only, so password accounts lose nothing. Every connect path
+    // sets `credentials` before it calls this.
+    const keepOffOrigin = this.usesBearerAuth;
     const rewrite = (url: string | undefined): string | undefined =>
-      isHostedElsewhere(url, reportedOrigin) ? url : rewriteSessionUrl(url, serverOrigin);
+      keepOffOrigin && isHostedElsewhere(url, reportedOrigin)
+        ? url
+        : rewriteSessionUrl(url, serverOrigin);
     return {
       ...session,
       apiUrl: rewriteSessionUrl(session.apiUrl, serverOrigin) ?? session.apiUrl,
@@ -1217,7 +1225,8 @@ export function extractOrigin(url: string): string | null {
 /**
  * True when `url` is absolute, https, and on a different origin from the
  * (absolute) origin the session reported for its own apiUrl. Scheme and host
- * compare case-insensitively.
+ * compare case-insensitively, and an explicit :443 equals no port (comparison
+ * only; the URL text is never changed).
  */
 export function isHostedElsewhere(
   url: string | undefined,
@@ -1226,8 +1235,9 @@ export function isHostedElsewhere(
   if (!url || !reportedApiOrigin) return false;
   const origin = extractOrigin(url);
   if (!origin) return false;
-  const o = origin.toLowerCase();
-  return o.startsWith('https:') && o !== reportedApiOrigin.toLowerCase();
+  const norm = (o: string) => o.toLowerCase().replace(/^(https:\/\/[^/]*?):443$/, '$1');
+  const o = norm(origin);
+  return o.startsWith('https:') && o !== norm(reportedApiOrigin);
 }
 
 /**

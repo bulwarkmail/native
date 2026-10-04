@@ -23,6 +23,7 @@ import {
   requireMethodResult,
   assertSetResult,
   rewriteSessionUrl,
+  isHostedElsewhere,
   parseRetryAfter,
   isConcurrentRequestRefusal,
   batched,
@@ -174,10 +175,20 @@ describe('pure helpers', () => {
 async function sessionAfterConnect(
   serverUrl: string,
   urls: Partial<Pick<JMAPSession, 'apiUrl' | 'downloadUrl' | 'uploadUrl' | 'eventSourceUrl'>>,
+  login: 'token' | 'password' | 'oauth' = 'token',
 ): Promise<JMAPSession> {
   mockFetch([{ status: 200, json: { ...SESSION, ...urls } }]);
   const client = new JMAPClient();
-  await client.connect(serverUrl, 'user', 'pass');
+  if (login === 'password') {
+    await client.connect(serverUrl, 'user', 'pass');
+  } else if (login === 'oauth') {
+    await client.connectWithOAuth(serverUrl, {
+      accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: 'https://x/token', clientId: 'c',
+    } as never, 'user');
+  } else {
+    await client.connectWithToken(serverUrl, 'tok');
+  }
   return client.currentSession as JMAPSession;
 }
 
@@ -196,6 +207,24 @@ describe('session URL rewriting (full path)', () => {
     );
     expect(session.uploadUrl).toBe('https://www.fastmailusercontent.com/jmap/upload/{accountId}/');
     expect(session.eventSourceUrl).toBe('https://api.fastmail.com/jmap/event/');
+  });
+
+  const FASTMAIL = {
+    apiUrl: 'https://api.fastmail.com/jmap/api/',
+    downloadUrl: 'https://www.fastmailusercontent.com/jmap/download/{accountId}/{blobId}/{name}?type={type}',
+    uploadUrl: 'https://www.fastmailusercontent.com/jmap/upload/{accountId}/',
+  };
+
+  it('rewrites off-origin URLs for a password login so the password stays on the server origin', async () => {
+    const session = await sessionAfterConnect('https://api.fastmail.com', FASTMAIL, 'password');
+    expect(session.downloadUrl).toBe('https://api.fastmail.com/jmap/download/{accountId}/{blobId}/{name}?type={type}');
+    expect(session.uploadUrl).toBe('https://api.fastmail.com/jmap/upload/{accountId}/');
+  });
+
+  it('keeps off-origin URLs for an OAuth login', async () => {
+    const session = await sessionAfterConnect('https://api.fastmail.com', FASTMAIL, 'oauth');
+    expect(session.downloadUrl).toBe(FASTMAIL.downloadUrl);
+    expect(session.uploadUrl).toBe(FASTMAIL.uploadUrl);
   });
 
   it('keeps another-domain URLs even when the connect URL differs from the reported apiUrl', async () => {
@@ -263,6 +292,31 @@ describe('session URL rewriting (full path)', () => {
       apiUrl: 'https://api.fastmail.com/jmap/api/',
     });
     expect(session.apiUrl).toBe('https://mail.example.com/jmap/api/');
+  });
+});
+
+describe('isHostedElsewhere', () => {
+  const api = 'https://api.example.com';
+  it('is true for a different https origin', () => {
+    expect(isHostedElsewhere('https://dl.example.org/x/{blobId}', api)).toBe(true);
+  });
+  it('is false for the same origin in different case', () => {
+    expect(isHostedElsewhere('HTTPS://API.Example.COM/x', api)).toBe(false);
+    expect(isHostedElsewhere('https://api.example.com/x', 'HTTPS://Api.Example.com')).toBe(false);
+  });
+  it('treats an explicit :443 as no port', () => {
+    expect(isHostedElsewhere('https://api.example.com:443/x', api)).toBe(false);
+    expect(isHostedElsewhere('https://api.example.com/x', 'https://api.example.com:443')).toBe(false);
+    expect(isHostedElsewhere('https://api.example.com:8443/x', api)).toBe(true);
+  });
+  it('is false for http, relative, protocol-relative and undefined', () => {
+    expect(isHostedElsewhere('http://dl.example.org/x', api)).toBe(false);
+    expect(isHostedElsewhere('/download/x', api)).toBe(false);
+    expect(isHostedElsewhere('//dl.example.org/x', api)).toBe(false);
+    expect(isHostedElsewhere(undefined, api)).toBe(false);
+  });
+  it('is false when apiUrl is not absolute', () => {
+    expect(isHostedElsewhere('https://dl.example.org/x', null)).toBe(false);
   });
 });
 
