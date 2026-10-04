@@ -13,12 +13,13 @@ import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useKeywordsStore } from '../../stores/keywords-store';
 import { generateUUID } from '../../lib/uuid';
+import { isValueLessCondition, valueToInputString } from '../../lib/sieve/condition-value';
 import {
-  inputStringToValue,
-  isConditionValueEmpty,
-  isHasAnyCondition,
-  valueToInputString,
-} from '../../lib/sieve/condition-value';
+  CONDITION_FIELDS,
+  comparatorsFor,
+  conditionForField,
+  conditionsToSave,
+} from '../../lib/sieve/condition-options';
 import {
   ACTIONS_WITH_MAILBOX,
   ACTIONS_WITH_VALUE,
@@ -37,19 +38,6 @@ import type {
   FilterComparator,
   FilterActionType,
 } from '../../lib/sieve/types';
-
-const ALL_FIELDS: FilterConditionField[] = ['from', 'to', 'cc', 'subject', 'header', 'size', 'body', 'attachment'];
-const TEXT_COMPARATORS: FilterComparator[] = ['contains', 'not_contains', 'is', 'not_is', 'starts_with', 'ends_with', 'matches'];
-const SIZE_COMPARATORS: FilterComparator[] = ['greater_than', 'less_than'];
-const ATTACHMENT_COMPARATORS: FilterComparator[] = ['has_any', 'has_type'];
-
-function comparatorsFor(field: FilterConditionField): FilterComparator[] {
-  if (field === 'size') return SIZE_COMPARATORS;
-  if (field === 'attachment') return ATTACHMENT_COMPARATORS;
-  return TEXT_COMPARATORS;
-}
-
-const isHasAny = isHasAnyCondition;
 
 function seedConditions(rule?: FilterRule): FilterCondition[] {
   return rule?.conditions.length ? rule.conditions.map((cond) => ({ ...cond })) : [makeEmptyCondition()];
@@ -105,7 +93,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
 
   const fieldOptions = useMemo(
-    () => ALL_FIELDS.map((f) => ({ value: f, label: t(`settings.filters.condition_fields.${f}`, f) })),
+    () => CONDITION_FIELDS.map((f) => ({ value: f, label: t(`settings.filters.condition_fields.${f}`, f) })),
     [t],
   );
   const actionTypeOptions = useMemo(
@@ -130,19 +118,10 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     setConditions((prev) =>
       prev.map((cond, i) => {
         if (i !== index) return cond;
+        if (updates.field) return conditionForField({ ...cond, ...updates }, updates.field);
         const updated = { ...cond, ...updates };
-        // Reconcile the comparator when the field family changes so a size
-        // rule never keeps "contains" and an attachment rule never keeps
-        // "greater than".
-        if (updates.field && !comparatorsFor(updates.field).includes(updated.comparator)) {
-          updated.comparator = comparatorsFor(updates.field)[0];
-        }
-        if (updates.field && updates.field !== 'header') {
-          delete updated.headerName;
-        }
-        if (isHasAny(updated)) {
-          updated.value = '';
-        }
+        // Picking has_any drops whatever value was typed.
+        if (isValueLessCondition(updated)) updated.value = '';
         return updated;
       }),
     );
@@ -188,18 +167,7 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       Alert.alert(t('settings.filters.validation_empty_name', 'Rule name is required'));
       return;
     }
-    // While editing, condition.value is the raw string typed into the input
-    // (commas not yet split). Convert to array form here on save so a user
-    // typing "a, b, c" persists ["a","b","c"]; splitting on every keystroke
-    // would eat the comma the moment it is typed.
-    const validConditions = conditions
-      .filter((cond) => isHasAny(cond) || !isConditionValueEmpty(cond.value))
-      .map((cond) => {
-        if (isHasAny(cond)) return { ...cond, value: '' };
-        if (cond.field === 'size') return cond; // numeric, single-value only
-        if (typeof cond.value !== 'string') return cond; // already structured
-        return { ...cond, value: inputStringToValue(cond.value) };
-      });
+    const validConditions = conditionsToSave(conditions);
     if (validConditions.length === 0) {
       Alert.alert(t('settings.filters.validation_empty_conditions', 'At least one condition with a value is required'));
       return;
@@ -316,15 +284,17 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                       />
                     )}
 
-                    <Select
-                      value={condition.comparator}
-                      onChange={(v) => updateCondition(index, { comparator: v as FilterComparator })}
-                      options={comparatorOptions(condition.field)}
-                      style={{ alignSelf: 'flex-start' }}
-                    />
+                    {condition.field !== 'all' && (
+                      <Select
+                        value={condition.comparator}
+                        onChange={(v) => updateCondition(index, { comparator: v as FilterComparator })}
+                        options={comparatorOptions(condition.field)}
+                        style={{ alignSelf: 'flex-start' }}
+                      />
+                    )}
 
-                    {/* has_any takes no value ("an attachment is present"). */}
-                    {!isHasAny(condition) && (
+                    {/* has_any and "all messages" take no value. */}
+                    {!isValueLessCondition(condition) && (
                       <Input
                         value={valueToInputString(condition.value)}
                         onChangeText={(v) => updateCondition(index, { value: v })}

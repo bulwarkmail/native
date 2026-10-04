@@ -826,6 +826,13 @@
       "title": "Experimental Feature"
     },
     "filters": {
+      "comparators": {
+        "address_is": "is the address",
+        "domain_is": "has the domain"
+      },
+      "condition_fields": {
+        "all": "All messages"
+      },
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
