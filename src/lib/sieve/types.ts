@@ -22,7 +22,9 @@ export interface SieveCapabilities {
 
 export type FilterConditionField =
   | 'from' | 'to' | 'cc' | 'subject' | 'header' | 'size' | 'body'
-  | 'attachment';
+  // 'all' matches every message; it always pairs with comparator 'any' and
+  // an empty value.
+  | 'attachment' | 'all';
 
 export type FilterComparator =
   | 'contains' | 'not_contains'
@@ -34,7 +36,10 @@ export type FilterComparator =
   //   has_any  → message has any attachment (Content-Disposition: attachment)
   //   has_type → message has an attachment whose Content-Type matches `value`
   //              (substring match, e.g. "application/pdf" or "image/")
-  | 'has_any' | 'has_type';
+  | 'has_any' | 'has_type'
+  // address_is / domain_is: Sieve `address` test on From/To/Cc (exact parsed
+  // address, or just its domain). 'any' is the 'all' field's comparator.
+  | 'address_is' | 'domain_is' | 'any';
 
 export type FilterActionType =
   | 'move' | 'copy' | 'forward'

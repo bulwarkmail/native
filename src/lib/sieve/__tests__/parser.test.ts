@@ -258,3 +258,17 @@ describe('parseScript rule names', () => {
     expect(parsed.rules).toHaveLength(1);
   });
 });
+
+describe('bare true test', () => {
+  it('reads if true as an all-messages condition without metadata', () => {
+    const parsed = parseScript('require ["imap4flags"];\n# Rule: Everything\nif true {\n    addflag "\\\\Seen";\n}\n');
+    expect(parsed.isOpaque).toBe(false);
+    expect(parsed.rules[0].conditions).toEqual([{ field: 'all', comparator: 'any', value: '' }]);
+  });
+
+  it('reads true inside anyof, and leaves not true opaque', () => {
+    const parsed = parseScript('if anyof(header :contains "Subject" "x", true) { discard; }\nif not true { discard; }');
+    expect(parsed.rules[0].conditions[1]).toEqual({ field: 'all', comparator: 'any', value: '' });
+    expect(parsed.rules[1].origin).toBe('opaque');
+  });
+});

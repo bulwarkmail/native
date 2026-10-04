@@ -4,6 +4,7 @@ import {
   inputStringToValue,
   isConditionValueEmpty,
   describeCondition,
+  isValueLessCondition,
   summarizeRule,
 } from '../condition-value';
 import type { FilterRule } from '../types';
@@ -57,5 +58,15 @@ describe('summaries', () => {
     expect(summarizeRule(rule, t)).toBe(
       'from contains "@a.com" or "@b.com" or attachment has_any (+1) → move "Archive", stop',
     );
+  });
+
+  it('describes an all-messages condition by its field label alone', () => {
+    expect(describeCondition({ field: 'all', comparator: 'any', value: '' }, t)).toBe('All messages');
+  });
+
+  it('treats has_any and all as value-less', () => {
+    expect(isValueLessCondition({ field: 'all', comparator: 'any', value: '' })).toBe(true);
+    expect(isValueLessCondition({ field: 'attachment', comparator: 'has_any', value: '' })).toBe(true);
+    expect(isValueLessCondition({ field: 'from', comparator: 'contains', value: 'x' })).toBe(false);
   });
 });

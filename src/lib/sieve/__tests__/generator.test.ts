@@ -225,6 +225,45 @@ describe('generateScript', () => {
     });
   });
 
+  describe('all messages', () => {
+    const ALL = { field: 'all', comparator: 'any', value: '' } as const;
+
+    it('matches every message', () => {
+      const script = generateScript([makeRule({ conditions: [ALL], actions: [{ type: 'mark_read' }] })]);
+      expect(script).toContain('if true {\n    addflag "\\\\Seen";\n}');
+      // Nothing to require for it.
+      expect(script).toMatch(/^require \["imap4flags"\];$/m);
+    });
+
+    it('still leaves spam out of a move to a folder', () => {
+      const script = generateScript(
+        [makeRule({ conditions: [ALL], actions: [{ type: 'move', value: 'Archive' }] })],
+        undefined,
+        { extensions: ['fileinto', 'spamtestplus', 'relational'] },
+      );
+      expect(script).toContain('if allof(true, not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50") {');
+    });
+
+    it('stands next to other conditions', () => {
+      const subject = { field: 'subject', comparator: 'contains', value: 'Rechnung' } as const;
+      expect(generateScript([makeRule({ conditions: [ALL, subject] })]))
+        .toContain('if allof(true, header :contains "Subject" "Rechnung") {');
+      expect(generateScript([makeRule({ matchType: 'any', conditions: [subject, ALL] })]))
+        .toContain('if anyof(header :contains "Subject" "Rechnung", true) {');
+      // Any of them, and still no spam into a folder.
+      expect(generateScript(
+        [makeRule({ matchType: 'any', conditions: [subject, ALL] })],
+        undefined,
+        { extensions: ['fileinto', 'spamtestplus', 'relational'] },
+      )).toContain('if allof(anyof(header :contains "Subject" "Rechnung", true), not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50") {');
+    });
+
+    it('reads back as written', () => {
+      const rules = [makeRule({ conditions: [ALL], actions: [{ type: 'mark_read' }] })];
+      expect(parseScript(generateScript(rules)).rules).toEqual(rules);
+    });
+  });
+
   describe('stopProcessing', () => {
     it('appends stop when stopProcessing is true', () => {
       const script = generateScript([makeRule({ stopProcessing: true })]);
@@ -241,22 +280,27 @@ describe('generateScript', () => {
       expect(matches).toHaveLength(1);
     });
 
-    it('does not append stop after discard', () => {
-      const script = generateScript([makeRule({
-        actions: [{ type: 'discard' }],
-        stopProcessing: true,
-      })]);
-      const matches = script.match(/stop;/g);
-      expect(matches).toBeNull();
+    it('writes a stop after discard and reject when the rule says stop', () => {
+      for (const type of ['discard', 'reject'] as const) {
+        const script = generateScript([makeRule({ stopProcessing: true, actions: [{ type, value: 'no' }] })]);
+        expect(script).toMatch(new RegExp(`${type}[^\\n]*;\\n    stop;\\n}`));
+      }
     });
 
-    it('does not append stop after reject', () => {
-      const script = generateScript([makeRule({
-        actions: [{ type: 'reject', value: 'No' }],
-        stopProcessing: true,
-      })]);
-      const matches = script.match(/stop;/g);
-      expect(matches).toBeNull();
+    it('writes no second stop when the last action is already stop', () => {
+      const script = generateScript([makeRule({ stopProcessing: true, actions: [{ type: 'stop' }] })]);
+      expect(script.match(/stop;/g)).toHaveLength(1);
+    });
+  });
+
+  describe('address comparators', () => {
+    it('writes address_is and domain_is as address tests', () => {
+      const s = generateScript([makeRule({ conditions: [
+        { field: 'from', comparator: 'address_is', value: 'anna@acme.com' },
+        { field: 'to', comparator: 'domain_is', value: 'acme.com' },
+      ] })]);
+      expect(s).toContain('address :is "From" "anna@acme.com"');
+      expect(s).toContain('address :domain :is "To" "acme.com"');
     });
   });
 

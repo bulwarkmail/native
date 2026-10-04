@@ -344,6 +344,12 @@ function parseAtom(raw: string): FilterCondition | null {
     }
   }
 
+  // Sieve's `true` test: the all-messages condition, so a script without
+  // metadata reads back too. Negated, it has no builder form.
+  if (s === 'true') {
+    return negated ? null : { field: 'all', comparator: 'any', value: '' };
+  }
+
   // Parse the value-tail of a header/body test: either a single quoted
   // string or a Sieve list literal ["a", "b", ...]. Returns the unwrapped
   // value(s), preserving the array shape when present so the caller can
@@ -455,6 +461,21 @@ function parseAtom(raw: string): FilterCondition | null {
   // opaque rendering so we don't silently misrepresent the script.
   if (/^header\s+:mime\s+:anychild\b/.test(s)) {
     return null;
+  }
+
+  // `address [:all|:domain] :is` on From/To/Cc, as the generator writes the
+  // address_is / domain_is comparators. Tagged arguments come in any order,
+  // so the address part may also follow `:is`. Anything else about an
+  // address test has no builder equivalent and stays opaque.
+  m = /^address\s+(?:(:all|:domain)\s+)?:is\s+(?:(:all|:domain)\s+)?"((?:[^"\\]|\\.)*)"\s+([\s\S]+)$/.exec(s);
+  if (m) {
+    const [, partBefore, partAfter, headerName, rawTail] = m;
+    if (negated || (partBefore && partAfter)) return null;
+    const field = FIELD_FROM_HEADER[unescapeSieveString(headerName).toLowerCase()];
+    const value = parseValueTail(rawTail);
+    if (!field || field === 'subject' || value === null) return null;
+    const part = partBefore ?? partAfter;
+    return { field, comparator: part === ':domain' ? 'domain_is' : 'address_is', value };
   }
 
   m = /^header\s+:(contains|is|matches)\s+"((?:[^"\\]|\\.)*)"\s+([\s\S]+)$/.exec(s);

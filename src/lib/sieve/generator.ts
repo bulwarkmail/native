@@ -18,6 +18,9 @@ const HEADER_MAP: Record<string, string> = {
   subject: 'Subject',
 };
 
+/** Fields whose header holds addresses, so the `address` test applies. */
+const ADDRESS_FIELDS = new Set<FilterCondition['field']>(['from', 'to', 'cc']);
+
 function escapeString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
@@ -42,6 +45,9 @@ function formatStringArg(values: string[], transform: (s: string) => string = (s
 
 function generateCondition(condition: FilterCondition): string {
   const { field, comparator, value } = condition;
+
+  // Every message: there is nothing to compare.
+  if (field === 'all') return 'true';
 
   if (field === 'size') {
     // Size is numeric, single value only. It is written unquoted, so
@@ -90,6 +96,14 @@ function generateCondition(condition: FilterCondition): string {
   // save instead so the script stays untouched.
   if (!headerName) {
     throw new Error(`Unsupported filter condition field: ${String(field)}`);
+  }
+
+  // RFC 5228 5.1: `address` compares the parsed address, so the display name
+  // and angle brackets play no part. `header :contains` would let
+  // "anna@acme.com" match joanna@acme.com.
+  if ((comparator === 'address_is' || comparator === 'domain_is') && ADDRESS_FIELDS.has(field)) {
+    const part = comparator === 'domain_is' ? ':domain ' : '';
+    return `address ${part}:is "${headerName}" ${formatStringArg(values)}`;
   }
 
   switch (comparator) {
@@ -364,11 +378,11 @@ export function generateScript(
 
     const actionLines = generateActions(rule.actions, useMailboxId);
 
-    if (rule.stopProcessing) {
-      const lastAction = rule.actions[rule.actions.length - 1];
-      if (!lastAction || !['stop', 'discard', 'reject'].includes(lastAction.type)) {
-        actionLines.push('stop;');
-      }
+    // discard and reject only cancel the implicit keep; the script goes on
+    // and later rules would still act on the message. So "stop processing"
+    // always writes a stop, unless the block has one already.
+    if (rule.stopProcessing && !actionLines.includes('stop;')) {
+      actionLines.push('stop;');
     }
 
     lines.push(`if ${conditionStr} {`);

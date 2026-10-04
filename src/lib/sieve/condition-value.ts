@@ -27,21 +27,39 @@ export function isHasAnyCondition(cond: FilterCondition): boolean {
   return cond.field === 'attachment' && cond.comparator === 'has_any';
 }
 
+// Conditions with nothing to type: attachment has_any and every message.
+export function isValueLessCondition(cond: FilterCondition): boolean {
+  return isHasAnyCondition(cond) || cond.field === 'all';
+}
+
 type Translate = (key: string, fallback?: string) => string;
 
 // Human-readable value part of a condition: `"a"`, or `"a" or "b"` for lists
 // using the locale's OR glue, or nothing for the value-less has_any test.
 export function formatConditionValue(cond: FilterCondition, t: Translate): string {
-  if (isHasAnyCondition(cond)) return '';
+  if (isValueLessCondition(cond)) return '';
   if (Array.isArray(cond.value)) {
     return cond.value.map((v) => `"${v}"`).join(` ${t('settings.filters.or', 'or')} `);
   }
   return `"${cond.value}"`;
 }
 
+const COMPARATOR_FALLBACK: Partial<Record<FilterCondition['comparator'], string>> = {
+  address_is: 'is the address',
+  domain_is: 'has the domain',
+};
+
 export function describeCondition(cond: FilterCondition, t: Translate): string {
-  const field = t(`settings.filters.condition_fields.${cond.field}`, cond.field);
-  const comparator = t(`settings.filters.comparators.${cond.comparator}`, cond.comparator);
+  const field = t(
+    `settings.filters.condition_fields.${cond.field}`,
+    cond.field === 'all' ? 'All messages' : cond.field,
+  );
+  // "All messages" says it all; there is no comparator to show.
+  if (cond.field === 'all') return field;
+  const comparator = t(
+    `settings.filters.comparators.${cond.comparator}`,
+    COMPARATOR_FALLBACK[cond.comparator] ?? cond.comparator,
+  );
   const value = formatConditionValue(cond, t);
   return value ? `${field} ${comparator} ${value}` : `${field} ${comparator}`;
 }
