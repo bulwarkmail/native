@@ -57,7 +57,8 @@ import {
   type TimeGridMode,
 } from '../../lib/calendar-time-grid';
 import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
-import { AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
+import { allDayRowCounts, allDayStripLayout } from '../../lib/calendar-all-day';
+import { AllDayToggle, AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
 import { useDisplayHours } from './use-display-hours';
 
 const HOUR_HEIGHT = 48;
@@ -238,10 +239,13 @@ function TimeGridScrollViewBody({
     // Cut per calendar week, then moved onto the columns that are drawn.
     return packWeekSegments(remapSegmentsToShownDays(buildAllDaySegments(index, allDays, 7), shownIndexByDay));
   }, [index, allDays, perScreen, shownIndexByDay]);
-  const allDayRows = React.useMemo(
-    () => allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0),
-    [allDaySegments],
+  // Capped at a few rows; the toggle expands it. Sized from the days drawn.
+  const [allDayExpanded, setAllDayExpanded] = React.useState(false);
+  const allDayLayout = React.useMemo(
+    () => allDayStripLayout(allDayRowCounts(allDaySegments, days.length), allDayExpanded),
+    [allDaySegments, days.length, allDayExpanded],
   );
+  const allDayRows = allDayLayout.visibleRows;
   const allDayHeight = allDayRows > 0 ? allDayRows * (ALL_DAY_CHIP_HEIGHT + ALL_DAY_GAP) + spacing.xs : 0;
 
   // The first column in view. Kept as a day so columns added at the start
@@ -406,7 +410,7 @@ function TimeGridScrollViewBody({
     );
   }
   const visibleSegments = allDaySegments.filter(
-    (s) => s.startIndex <= to && s.startIndex + s.span - 1 >= from,
+    (s) => s.row < allDayRows && s.startIndex <= to && s.startIndex + s.span - 1 >= from,
   );
 
   const threshold = perScreen === 1 ? 3 : 1;
@@ -439,9 +443,17 @@ function TimeGridScrollViewBody({
           </View>
           {allDayHeight > 0 && (
             <View style={[styles.allDayLabelWrap, { height: allDayHeight }]}>
-              <Text style={styles.allDayLabel} numberOfLines={2}>
-                {t('calendar.events.all_day', 'All day')}
-              </Text>
+              {allDayLayout.expandable ? (
+                <AllDayToggle
+                  expanded={allDayExpanded}
+                  hiddenCount={allDayLayout.hiddenCount}
+                  onToggle={() => setAllDayExpanded((v) => !v)}
+                />
+              ) : (
+                <Text style={styles.allDayLabel} numberOfLines={2}>
+                  {t('calendar.events.all_day', 'All day')}
+                </Text>
+              )}
             </View>
           )}
         </View>

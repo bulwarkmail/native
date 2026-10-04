@@ -77,6 +77,46 @@ export function AllHoursToggle({
   );
 }
 
+/**
+ * The "All day" label of a crowded strip, as a toggle: "+N" while it is
+ * capped, a chevron once it is expanded.
+ */
+export function AllDayToggle({
+  expanded,
+  hiddenCount,
+  onToggle,
+}: {
+  expanded: boolean;
+  hiddenCount: number;
+  onToggle: () => void;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { t } = useCalendarLocale();
+  const label = expanded
+    ? t('calendar.events.show_less', 'Show less')
+    : `${t('calendar.events.show_more', 'Show more')} (+${hiddenCount})`;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded }}
+      hitSlop={6}
+      onPress={onToggle}
+      style={styles.allDayToggle}
+    >
+      {expanded ? (
+        <ChevronUp size={14} color={c.textMuted} />
+      ) : (
+        <>
+          <Text style={styles.allDayToggleText}>+{hiddenCount}</Text>
+          <ChevronDown size={14} color={c.textMuted} />
+        </>
+      )}
+    </Pressable>
+  );
+}
+
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     indicator: {
@@ -97,5 +137,7 @@ function makeStyles(c: ThemePalette) {
     indicatorBottom: { bottom: 2 },
     indicatorText: { ...typography.small, color: c.textMuted },
     toggle: { alignSelf: 'center', padding: 6 },
+    allDayToggle: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end' },
+    allDayToggleText: { ...typography.small, color: c.textMuted },
   });
 }

@@ -36,7 +36,8 @@ import {
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
-import { AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
+import { allDayRowCounts, allDayStripLayout } from '../../lib/calendar-all-day';
+import { AllDayToggle, AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
 import { useDisplayHours } from './use-display-hours';
 
 const HOUR_HEIGHT = 48;
@@ -130,9 +131,17 @@ function WeekViewInner({
     return packWeekSegments(shownIndexByDay ? remapSegmentsToShownDays(raw, shownIndexByDay) : raw);
   }, [events, fullWeek, shownIndexByDay]);
 
-  const allDayRowCount = React.useMemo(() => {
-    return allDaySegments.reduce((max, s) => Math.max(max, s.row + 1), 0);
-  }, [allDaySegments]);
+  // The strip is capped at a few rows, sized from the days drawn.
+  const [allDayExpanded, setAllDayExpanded] = React.useState(false);
+  const allDayLayout = React.useMemo(
+    () => allDayStripLayout(allDayRowCounts(allDaySegments, weekDays.length), allDayExpanded),
+    [allDaySegments, weekDays.length, allDayExpanded],
+  );
+  const allDayRowCount = allDayLayout.visibleRows;
+  const shownAllDaySegments = React.useMemo(
+    () => allDaySegments.filter((s) => s.row < allDayRowCount),
+    [allDaySegments, allDayRowCount],
+  );
 
   const allDayStripHeight =
     allDayRowCount > 0
@@ -220,7 +229,15 @@ function WeekViewInner({
       {allDayRowCount > 0 && (
         <View style={[styles.allDayStrip, { height: allDayStripHeight }]}>
           <View style={[styles.gutter, styles.allDayLabelWrap]}>
-            <Text style={styles.allDayLabel} numberOfLines={2}>{t('calendar.events.all_day', 'All day')}</Text>
+            {allDayLayout.expandable ? (
+              <AllDayToggle
+                expanded={allDayExpanded}
+                hiddenCount={allDayLayout.hiddenCount}
+                onToggle={() => setAllDayExpanded((v) => !v)}
+              />
+            ) : (
+              <Text style={styles.allDayLabel} numberOfLines={2}>{t('calendar.events.all_day', 'All day')}</Text>
+            )}
           </View>
           <View style={styles.allDayGrid}>
             {/* Empty per-day columns to draw vertical separators */}
@@ -229,7 +246,7 @@ function WeekViewInner({
             ))}
             {/* Segments overlay - multi-day events span their date range */}
             <View style={styles.allDayOverlay} pointerEvents="box-none">
-              {allDaySegments.map((segment) => {
+              {shownAllDaySegments.map((segment) => {
                 const leftPct = (segment.startIndex / weekDays.length) * 100;
                 const widthPct = (segment.span / weekDays.length) * 100;
                 return (

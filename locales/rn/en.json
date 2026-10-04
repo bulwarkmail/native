@@ -34,6 +34,8 @@
       "hidden_before": "{count, plural, one {# earlier event} other {# earlier events}}",
       "show_all_hours": "Show all hours",
       "show_display_hours": "Show only {start} – {end}",
+      "show_less": "Show less",
+      "show_more": "Show more",
       "tap_to_create": "Tap + to create one"
     },
     "form": {
