@@ -38,6 +38,19 @@ describe('splitRecipients', () => {
   it('keeps RFC 5322 groups as one entry', () => {
     expect(splitRecipients('Team: a@x.com, b@y.com;, c@z.com')).toEqual(['Team: a@x.com, b@y.com;', 'c@z.com']);
   });
+
+  it('keeps an escaped quote inside the display name (no extra recipient)', () => {
+    const input = '"Support\\", ceo@corp.example, \\"x" <support@shop.example>';
+    expect(splitRecipients(input)).toEqual([input]);
+  });
+
+  it('round-trips a name containing quotes and commas', () => {
+    const name = 'Support", ceo@corp.example, "x';
+    const formatted = formatRecipient(name, 'support@shop.example');
+    const parts = splitRecipients(`${formatted}, other@example.com`);
+    expect(parts).toHaveLength(2);
+    expect(parseRecipient(parts[0])).toEqual({ name, email: 'support@shop.example' });
+  });
 });
 
 describe('parseRecipient', () => {
@@ -60,6 +73,12 @@ describe('parseRecipient', () => {
   it('round-trips through formatRecipient / parseRecipientList', () => {
     const list = parseRecipientList([formatRecipient('Doe, John', 'j@x.com'), formatRecipient(undefined, 'b@y.com')].join(', '));
     expect(list).toEqual([{ name: 'Doe, John', email: 'j@x.com' }, { email: 'b@y.com' }]);
+  });
+
+  it('does not open a group on a colon after an escaped quote', () => {
+    const r = parseRecipient('"a\\": b" <a@example.com>');
+    expect(r.group).toBeUndefined();
+    expect(r.email).toBe('a@example.com');
   });
 });
 
