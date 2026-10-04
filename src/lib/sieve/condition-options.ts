@@ -23,6 +23,12 @@ export function comparatorsFor(field: FilterConditionField): FilterComparator[] 
   return TEXT_COMPARATORS;
 }
 
+// The generator writes any other size as 0, which matches every message, so
+// the editor must refuse it rather than save an "act on everything" rule.
+export function isValidSizeValue(value: string | string[]): boolean {
+  return typeof value === 'string' && /^\d+[KMG]?$/i.test(value.trim());
+}
+
 // What a condition row becomes when its field changes.
 export function conditionForField(prev: FilterCondition, field: FilterConditionField): FilterCondition {
   if (field === 'all') return { field: 'all', comparator: 'any', value: '' };
@@ -34,6 +40,8 @@ export function conditionForField(prev: FilterCondition, field: FilterConditionF
   // "greater than".
   if (!comparators.includes(updated.comparator)) updated.comparator = comparators[0];
   if (field !== 'header') delete updated.headerName;
+  // An address list must never become a size, nor a size an address.
+  if ((field === 'size') !== (prev.field === 'size')) updated.value = '';
   if (isValueLessCondition(updated)) updated.value = '';
   return updated;
 }

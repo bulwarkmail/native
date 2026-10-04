@@ -833,6 +833,7 @@
       "condition_fields": {
         "all": "All messages"
       },
+      "invalid_size": "Enter a size as a whole number, optionally followed by K, M or G (for example 500K or 10M).",
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {

@@ -19,6 +19,7 @@ import {
   comparatorsFor,
   conditionForField,
   conditionsToSave,
+  isValidSizeValue,
 } from '../../lib/sieve/condition-options';
 import {
   ACTIONS_WITH_MAILBOX,
@@ -170,6 +171,10 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     const validConditions = conditionsToSave(conditions);
     if (validConditions.length === 0) {
       Alert.alert(t('settings.filters.validation_empty_conditions', 'At least one condition with a value is required'));
+      return;
+    }
+    if (validConditions.some((c) => c.field === 'size' && !isValidSizeValue(c.value))) {
+      Alert.alert(t('settings.filters.invalid_size', 'Enter a size as a whole number, optionally followed by K, M or G (for example 500K or 10M).'));
       return;
     }
     const validActions = actions

@@ -4,6 +4,7 @@ import {
   comparatorsFor,
   conditionForField,
   conditionsToSave,
+  isValidSizeValue,
 } from '../condition-options';
 import type { FilterCondition } from '../types';
 
@@ -42,7 +43,7 @@ describe('condition options', () => {
 
   it('replaces a comparator the new field lacks and drops headerName', () => {
     const prev: FilterCondition = { field: 'header', headerName: 'X-A', comparator: 'contains', value: 'x' };
-    expect(conditionForField(prev, 'size')).toEqual({ field: 'size', comparator: 'greater_than', value: 'x' });
+    expect(conditionForField(prev, 'size')).toEqual({ field: 'size', comparator: 'greater_than', value: '' });
   });
 
   it('saves a rule that only has an all-messages condition', () => {
@@ -55,5 +56,23 @@ describe('condition options', () => {
       { field: 'to', comparator: 'is', value: 'a, b' },
     ]);
     expect(out).toEqual([{ field: 'to', comparator: 'is', value: ['a', 'b'] }]);
+  });
+});
+
+describe('size values', () => {
+  it('accepts a whole number with an optional K, M or G', () => {
+    for (const v of ['500', '10M', '2k']) expect(isValidSizeValue(v)).toBe(true);
+  });
+
+  it('rejects anything the generator would write as 0', () => {
+    for (const v of ['1.5M', '1,000,000', '5 MB', '']) expect(isValidSizeValue(v)).toBe(false);
+    expect(isValidSizeValue(['a@x.com'])).toBe(false);
+  });
+
+  it('drops the value when a row changes into or out of size', () => {
+    const from: FilterCondition = { field: 'from', comparator: 'contains', value: ['a@x.com', 'b@y.com'] };
+    expect(conditionForField(from, 'size').value).toBe('');
+    const size: FilterCondition = { field: 'size', comparator: 'greater_than', value: '10M' };
+    expect(conditionForField(size, 'subject').value).toBe('');
   });
 });
