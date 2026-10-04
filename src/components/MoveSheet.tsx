@@ -39,10 +39,12 @@ interface MoveSheetProps {
    * the obvious pick (webmail #1149). Omit to keep the usual order.
    */
   ownerAccountId?: string;
+  /** Heading; defaults to "Move to folder". A copy picker passes its own. */
+  title?: string;
 }
 
 export function MoveSheet({
-  visible, onClose, mailboxes, currentMailboxId, onPick, ownerAccountId,
+  visible, onClose, mailboxes, currentMailboxId, onPick, ownerAccountId, title,
 }: MoveSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -97,7 +99,7 @@ export function MoveSheet({
             <View style={styles.sheetHandle} />
           </View>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{t('context_menu.move_to', 'Move to folder')}</Text>
+            <Text style={styles.sheetTitle}>{title ?? t('context_menu.move_to', 'Move to folder')}</Text>
             <Pressable onPress={onClose} hitSlop={8} style={styles.sheetClose}
               accessibilityRole="button"
               accessibilityLabel={t('common.close', 'Close')}

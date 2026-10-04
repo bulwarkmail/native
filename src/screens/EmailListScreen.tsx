@@ -7,7 +7,7 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, Copy as CopyIcon,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -368,6 +368,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const archiveEmailAction = useEmailStore((s) => s.archiveEmail);
   const archiveEmailsBatch = useEmailStore((s) => s.archiveEmailsBatch);
   const moveEmailsToMailbox = useEmailStore((s) => s.moveEmailsToMailbox);
+  const copyEmailsToMailbox = useEmailStore((s) => s.copyEmailsToMailbox);
   const deleteEmailsBatch = useEmailStore((s) => s.deleteEmailsBatch);
   const setKeywordForEmails = useEmailStore((s) => s.setKeywordForEmails);
   const setSortAscending = useEmailStore((s) => s.setSortAscending);
@@ -526,6 +527,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [pendingMoveId, setPendingMoveId] = React.useState<string | null>(null);
   // Batch (multi-select) sheets.
   const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
+  const [batchCopyOpen, setBatchCopyOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
 
   // Selection state
@@ -810,6 +812,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     void withFailureToast(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
   };
 
+  // A copy leaves the selection (and the messages) as they are, like the webmail.
+  const handleBatchCopyPick = (toId: string) => {
+    setBatchCopyOpen(false);
+    void withFailureToast(copyEmailsToMailbox(selectedMessageIds, toId), t('notifications.copy_failed', 'Copy failed'));
+  };
+
   const handleBatchTagToggle = (token: string, on: boolean) => {
     void withFailureToast(setKeywordForEmails(selectedMessageIds, token, on), t('notifications.tag_failed', 'Tagging failed'));
   };
@@ -1046,6 +1054,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             accessibilityLabel={t('email_viewer.move', 'Move')}
           >
             <FolderInput size={20} color={c.text} />
+          </Pressable>
+          <Pressable
+            onPress={() => setBatchCopyOpen(true)}
+            style={styles.headerButton}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={t('context_menu.copy_to', 'Copy to…')}
+          >
+            <CopyIcon size={20} color={c.text} />
           </Pressable>
           {canSpamSelection && (
             <Pressable
@@ -1742,6 +1759,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         ownerAccountId={moveOwnerAccountId(selectedEmails.map(accountIdOfRow))}
         currentMailboxId={currentMailboxId}
         onPick={handleBatchMovePick}
+      />
+
+      <MoveSheet
+        visible={batchCopyOpen}
+        onClose={() => setBatchCopyOpen(false)}
+        mailboxes={mailboxes}
+        ownerAccountId={moveOwnerAccountId(selectedEmails.map(accountIdOfRow))}
+        currentMailboxId={currentMailboxId}
+        onPick={handleBatchCopyPick}
+        title={t('context_menu.copy_to', 'Copy to…')}
       />
 
       <TagSheet

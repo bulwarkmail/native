@@ -250,6 +250,7 @@
   },
   "context_menu": {
     "color_tag": "Tag",
+    "copy_to": "Copy to…",
     "remove_color": "Remove tag"
   },
   "deep_link": {
@@ -330,6 +331,7 @@
     }
   },
   "email_list": {
+    "copy_offline": "Copying needs a connection",
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
@@ -605,6 +607,7 @@
     "token_toggle": "Sign in with an access token"
   },
   "notifications": {
+    "copy_failed": "Copy failed",
     "delete_failed": "Failed to delete"
   },
   "offline": {

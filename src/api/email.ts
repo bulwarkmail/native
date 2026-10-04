@@ -1084,6 +1084,21 @@ export async function moveEmails(
   await emailSetBatched(accountId, { update });
 }
 
+// Copy messages into another folder of the same account: the destination is
+// added to `mailboxIds`, every folder they are already in stays (JMAP has no
+// copy within an account, a message is simply in both).
+export async function copyEmailsWithinAccount(
+  ids: string[],
+  toMailboxId: string,
+  accountIdOverride?: string,
+): Promise<void> {
+  if (ids.length === 0) return;
+  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const update: Record<string, Record<string, unknown>> = {};
+  for (const id of ids) update[id] = { [mailboxPointer(toMailboxId)]: true };
+  await emailSetBatched(accountId, { update }, 'copy');
+}
+
 /**
  * File messages into Junk and flip `$junk`/`$notjunk` so the server's
  * classifier and other clients learn (#850). Optionally also marks them read
