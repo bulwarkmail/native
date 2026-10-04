@@ -299,15 +299,15 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **A contact with calendar, scheduling or free/busy links fails to save** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **A contact with calendar, scheduling or free/busy links fails to save** — `P2` — `bugfix-parity` (1.11.0) — fixed in 30c440a, b61f8dc, 45d2a66, df5cf93
   - What WEB does: maps them to `calendars` / `schedulingAddresses` / `directories` (`lib/jmap/contact-wire.ts`).
   - What RN does: sends flat `calendarUri` / `schedulingUri` / `freeBusyUri`, which Stalwart rejects as "Invalid property" (`src/screens/ContactFormScreen.tsx:458-460`, `src/api/contacts.ts:83-89`); the detail screen reads `contact.calendarUri`, which the server never returns (`ContactDetailScreen.tsx:602+`).
 
-- [ ] **vCard import sends fields Stalwart rejects** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **vCard import sends fields Stalwart rejects** — `P2` — `bugfix-parity` (1.11.0) — fixed in 30c440a — OPEN regression from df5cf93: a vCard with both ORG-DIRECTORY and SOURCE loses SOURCE on import (contact-wire.ts directories guard)
   - What WEB does: `addressToWire` and the same URI mapping in `contact-wire.ts`.
   - What RN does: flat address fields, the URI fields and `source` (`src/lib/vcard.ts:651-669,976-989`, `src/stores/contacts-store.ts:471-479`), so those cards fail to import.
 
-- [ ] **Deleting an address book that still has contacts fails** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts:5822-5835`)
+- [x] **Deleting an address book that still has contacts fails** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts:5822-5835`) — fixed in 4cf81ad
   - What RN does: `AddressBook/set` destroy omits `onDestroyRemoveContents` (`src/api/contacts.ts:362-371`), so the server answers `addressBookHasContents`; the comment at `contacts-store.ts:631` wrongly assumes Stalwart deletes the cards.
 
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)

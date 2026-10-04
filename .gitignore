@@ -63,3 +63,7 @@ yarn-error.*
 /android/build-release.log
 /android/expo*.log
 /android/metro.log
+/.idea/.gitignore
+/.idea/bulwark-native.iml
+/.idea/modules.xml
+/.idea/vcs.xml

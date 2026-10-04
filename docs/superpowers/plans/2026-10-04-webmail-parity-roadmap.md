@@ -177,3 +177,38 @@ Phase 1 is done on `parity/phase-1-security-send`. The final review rated the it
   - Port webmail's truncated-attribute test.
   - Assert on parse results, not only on timing.
 - **Calendar trust:** `hasVerifiedAuthentication` accepts an unaligned DKIM/SPF pass (as webmail does).
+
+## Phase 2 follow-ups (left open at merge, 2026-10-04)
+
+Phase 2 is done on `parity/phase-2-data-correctness`. The final review left these open.
+
+- **Fix before or right after merge:**
+  - A vCard with both `ORG-DIRECTORY` and `SOURCE` loses SOURCE on import.
+    - The `directories` guard in `src/lib/contact-wire.ts` skips the flat `source` whenever the card already has a `directories` map.
+    - Webmail adds both.
+    - Fix: for `directories` only, add the source entry unless a `kind: 'entry'` with that URI already exists. Add a test for `{ directories: { d0 }, source }`.
+- **Device checks:**
+  - **Contacts:**
+    - Edit one of two calendar links, refresh, and both must still be there.
+    - Import a vCard that has `ADR`, `CALURI` and `SOURCE`.
+  - **Composer:**
+    - Switch account from a notification while a reply is open: send, save and attach must be blocked, with "Switch to …".
+    - Remove the original account: Discard and "Copy text and close" must work by back gesture and header X.
+  - **Calendar:**
+    - On Stalwart 0.16.21+, saving an event and a "this and following" edit must offer "Save without invitations".
+- **Architecture:**
+  - Give the composer its own JMAP client, so a draft can be sent from an account that isn't active. Today the composer blocks instead (ruling R7).
+  - The undo-send bar has the same issue after a switch.
+- **Sign-out:**
+  - A launch-time sweep should remove offline-cache keys for accounts no longer in the registry. That covers failed cleanups and orphan bodies.
+  - Cap the age of kept outbox ops.
+  - Usernames that differ only by case get orphaned outboxes.
+- **Calendar subscriptions:**
+  - Legacy subscriptions whose calendar was deleted, or renamed while several accounts are signed in, stay stuck.
+  - An in-flight `syncFeedIntoCalendar` across an account switch runs its delete diff against the new session. Give this priority.
+  - `syncAll` has no connection guard.
+- **Calendar:**
+  - Deleting "this and following" has no fallback when invitations are refused.
+  - Generic alerts show the bare server reason (`forbidden`).
+- **i18n:** the composer's account-changed and account-unavailable strings exist only in English. `i18n:check` covers English only.
+- **Tests:** the screen wiring for the composer, calendar fallback and Files has no test harness, so it is covered by typecheck and device checks only.
