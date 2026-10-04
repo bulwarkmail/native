@@ -23,6 +23,30 @@ describe('parseAuthenticationResults', () => {
     const none = parseAuthenticationResults('spf=pass smtp.mailfrom=a.example; spf=none smtp.helo=b.example');
     expect(none.spf?.result).toBe('pass');
   });
+
+  it('takes DKIM and DMARC only from the topmost header', () => {
+    const r = parseAuthenticationResults([
+      'mx.example; spf=fail smtp.mailfrom=evil.example; dmarc=fail header.from=bank.example',
+      'evil.example; dkim=pass header.d=bank.example; dmarc=pass header.from=bank.example',
+    ]);
+    expect(r.dmarc?.result).toBe('fail');
+    expect(r.dkim).toBeUndefined();
+  });
+
+  it('ignores results inside comments and property values', () => {
+    const r = parseAuthenticationResults(
+      'mx.example; spf=pass smtp.mailfrom="dmarc=pass"@x.example (dkim=pass header.d=bank.example); dmarc=fail',
+    );
+    expect(r.dmarc?.result).toBe('fail');
+    expect(r.dkim).toBeUndefined();
+    expect(r.spf?.result).toBe('pass');
+  });
+
+  it('lets a lower header escalate SPF to a failure but never supply a pass', () => {
+    expect(parseAuthenticationResults(['mx; spf=none smtp.mailfrom=a.example', 'x; spf=fail smtp.mailfrom=a.example']).spf?.result).toBe('fail');
+    expect(parseAuthenticationResults(['mx; spf=fail smtp.mailfrom=a.example', 'x; spf=pass smtp.mailfrom=a.example']).spf?.result).toBe('fail');
+    expect(parseAuthenticationResults(['mx; dkim=none', 'x; spf=pass smtp.mailfrom=a.example']).spf).toBeUndefined();
+  });
 });
 
 describe('isAuthenticationSpoofed', () => {
@@ -76,6 +100,17 @@ describe('deriveHeaderInfo', () => {
     expect(info.messageId).toBe('abc@x.example');
     expect(info.spamScore?.score).toBe(0.1);
     expect(isAuthenticationSpoofed(info.auth)).toBe(true);
+  });
+
+  it('does not let a lower Authentication-Results header supply a DMARC pass', () => {
+    const info = deriveHeaderInfo({
+      headers: [
+        { name: 'Authentication-Results', value: 'mx; spf=pass smtp.mailfrom=a.example' },
+        { name: 'Authentication-Results', value: 'x; dmarc=pass' },
+      ],
+      messageId: null,
+    });
+    expect(info.auth?.dmarc).toBeUndefined();
   });
 
   it('copes with no headers', () => {
