@@ -35,6 +35,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
+import { withFailureToast } from '../lib/action-failure';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
@@ -613,8 +614,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       case 'archive':
         if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
-          if (ids.length > 1) void archiveEmailsBatch(ids);
-          else void archiveEmailAction(id);
+          if (ids.length > 1) void withFailureToast(archiveEmailsBatch(ids), t('notifications.move_failed', 'Move failed'));
+          else void withFailureToast(archiveEmailAction(id), t('notifications.move_failed', 'Move failed'));
         } else if (!archiveMailboxId) {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -623,16 +624,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         }
         break;
       case 'delete':
-        void deleteIds(idsForRow(id));
+        void withFailureToast(deleteIds(idsForRow(id)), t('notifications.delete_failed', 'Failed to delete'));
         break;
       case 'spam':
         // Your own outgoing mail is never spam (webmail hides the action in
         // Sent/Drafts); inside Junk the same swipe means "not spam".
         if (currentRole === 'sent' || currentRole === 'drafts') break;
         if (inJunk) {
-          void unmarkSpam(idsForRow(id));
+          void withFailureToast(unmarkSpam(idsForRow(id)), t('email_viewer.spam.error', 'Failed to report spam'));
         } else if (junkMailboxId) {
-          void markSpam(idsForRow(id));
+          void withFailureToast(markSpam(idsForRow(id)), t('email_viewer.spam.error', 'Failed to report spam'));
         } else {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -641,14 +642,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         }
         break;
       case 'read':
-        if (isUnread(email)) void markRead(id);
-        else void markUnread(id);
+        if (isUnread(email)) void withFailureToast(markRead(id), t('notifications.error_updating', 'Failed to update email'));
+        else void withFailureToast(markUnread(id), t('notifications.error_updating', 'Failed to update email'));
         break;
       case 'star':
-        void toggleStar(id, !isStarred(email));
+        void withFailureToast(toggleStar(id, !isStarred(email)), t('notifications.error_updating', 'Failed to update email'));
         break;
       case 'pin':
-        void togglePin(id, !isPinned(email));
+        void withFailureToast(togglePin(id, !isPinned(email)), t('notifications.error_updating', 'Failed to update email'));
         break;
       case 'move':
         setPendingMoveId(id);
@@ -744,12 +745,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   // One Email/set for the whole selection, not a request per message.
   const handleBulkMarkReadToggle = async () => {
-    await setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead);
+    await withFailureToast(setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead), t('notifications.error_updating', 'Failed to update email'));
     clearSelection();
   };
 
   const handleBulkStar = async () => {
-    await setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred);
+    await withFailureToast(setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred), t('notifications.error_updating', 'Failed to update email'));
     clearSelection();
   };
 
@@ -767,19 +768,19 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       permanentlyDeleteJunk,
     });
     if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
-    await deleteEmailsBatch(ids, trash.id, currentMailboxId);
+    await withFailureToast(deleteEmailsBatch(ids, trash.id, currentMailboxId), t('notifications.delete_failed', 'Failed to delete'));
     clearSelection();
   };
 
   const handleBulkArchive = async () => {
-    await archiveEmailsBatch(selectedMessageIds);
+    await withFailureToast(archiveEmailsBatch(selectedMessageIds), t('notifications.move_failed', 'Move failed'));
     clearSelection();
   };
 
   const handleBulkSpam = async () => {
     const ids = selectedMessageIds;
-    if (inJunk) await unmarkSpam(ids);
-    else await markSpam(ids);
+    if (inJunk) await withFailureToast(unmarkSpam(ids), t('email_viewer.spam.error', 'Failed to report spam'));
+    else await withFailureToast(markSpam(ids), t('email_viewer.spam.error', 'Failed to report spam'));
     clearSelection();
   };
 
@@ -792,11 +793,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     const ids = selectedMessageIds;
     setBatchMoveOpen(false);
     clearSelection();
-    void moveEmailsToMailbox(ids, toId);
+    void withFailureToast(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
   };
 
   const handleBatchTagToggle = (token: string, on: boolean) => {
-    void setKeywordForEmails(selectedMessageIds, token, on);
+    void withFailureToast(setKeywordForEmails(selectedMessageIds, token, on), t('notifications.tag_failed', 'Tagging failed'));
   };
 
   // Local input state for uninterrupted typing. The search runs on submit,
@@ -1712,8 +1713,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           setPendingMoveId(null);
           if (id && currentMailboxId && toId !== currentMailboxId) {
             const ids = idsForRow(id);
-            if (ids.length > 1) void moveEmailsToMailbox(ids, toId);
-            else void moveToMailboxAction(id, currentMailboxId, toId);
+            if (ids.length > 1) void withFailureToast(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
+            else void withFailureToast(moveToMailboxAction(id, currentMailboxId, toId), t('notifications.move_failed', 'Move failed'));
           }
         }}
       />

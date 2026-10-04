@@ -589,6 +589,9 @@
       "your_server": "your server"
     }
   },
+  "notifications": {
+    "delete_failed": "Failed to delete"
+  },
   "offline": {
     "banner": "You are offline",
     "queued_changes": "{count, plural, one {# change} other {# changes}} will sync when you reconnect",
