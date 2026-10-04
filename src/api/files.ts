@@ -25,6 +25,56 @@ const FILE_NODE_PROPERTIES = [
   'shareWith', 'myRights',
 ];
 
+type LegacyFileNodeRights = { mayRead?: boolean; mayWrite?: boolean; mayShare?: boolean };
+
+// Stalwart before 0.16.6 implements an older File Storage draft whose rights
+// are only mayRead / mayWrite / mayShare, and its capability lacks
+// `forbiddenNameChars`. Detected by that shape, like the webmail.
+export function isLegacyFileNodeServer(accountId: string): boolean {
+  const cap = jmapClient.getAccountCapability(CAPABILITIES.FILES, accountId);
+  return !!cap && !('forbiddenNameChars' in (cap as Record<string, unknown>));
+}
+
+export function toLegacyRights(rights: FileNodeRights): LegacyFileNodeRights {
+  return {
+    mayRead: rights.mayRead,
+    mayWrite: rights.mayAddChildren || rights.mayRename || rights.mayDelete || rights.mayModifyContent,
+    mayShare: rights.mayShare,
+  };
+}
+
+// Spread the old mayWrite over the finer rights the UI checks.
+export function fromLegacyRights(
+  rights: FileNodeRights | LegacyFileNodeRights | undefined,
+): FileNodeRights | undefined {
+  if (!rights || !('mayWrite' in rights)) return rights as FileNodeRights | undefined;
+  const write = !!rights.mayWrite;
+  return {
+    mayRead: !!rights.mayRead,
+    mayAddChildren: write,
+    mayRename: write,
+    mayDelete: write,
+    mayModifyContent: write,
+    mayShare: !!rights.mayShare,
+  };
+}
+
+// A FileNode as the server sent it: name decoded, rights in the finer form.
+function fromWireFileNode(node: FileNode): FileNode {
+  const name = decodeFileNodeName(node.name);
+  if (!node.myRights && !node.shareWith) return name === node.name ? node : { ...node, name };
+  return {
+    ...node,
+    name,
+    myRights: fromLegacyRights(node.myRights),
+    shareWith: node.shareWith
+      ? Object.fromEntries(
+        Object.entries(node.shareWith).map(([p, r]) => [p, fromLegacyRights(r) as FileNodeRights]),
+      )
+      : node.shareWith,
+  };
+}
+
 // Sharing with other users (RFC 9670) needs the principal directory to pick
 // people from, so it is offered whenever the server advertises
 // `urn:ietf:params:jmap:principals`, like the webmail's supportsPrincipals().
@@ -192,7 +242,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
 // Fetch every FileNode in the files account (see fetchAllFileNodes).
 export async function getAllFileNodes(): Promise<FileNode[]> {
   const nodes = await fetchAllFileNodes(filesAccountId());
-  return nodes.map((node) => ({ ...node, name: decodeFileNodeName(node.name) }));
+  return nodes.map(fromWireFileNode);
 }
 
 // Accounts (primary + shared/group) that can hold FileNodes: any non-primary
@@ -223,10 +273,10 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
     const isPrimary = accountId === primaryId;
     try {
       const nodes = await fetchAllFileNodes(accountId);
-      for (const node of nodes) {
+      for (const wire of nodes) {
+        const node = fromWireFileNode(wire);
         all.push({
           ...node,
-          name: decodeFileNodeName(node.name),
           id: isPrimary ? node.id : `${accountId}:${node.id}`,
           parentId: node.parentId == null
             ? null
@@ -263,7 +313,7 @@ async function createFileNode(
     const result = requireMethodResult(res, '0', 'FileNode/set');
     const created = result.created?.[key];
     // The server's name wins: after a rename it differs from the one sent.
-    if (created) return { ...props, name, ...created } as FileNode;
+    if (created) return fromWireFileNode({ ...props, name, ...created } as FileNode);
     const err = result.notCreated?.[key];
     if (attempt < 20 && /already exists/i.test(err?.description ?? '')) continue;
     throw new Error(err?.description || 'Create failed');
@@ -337,10 +387,12 @@ export function getFileNodeDownloadUrl(node: FileNode): string {
   return getDownloadUrl(node.blobId, node.name, node.type, node.accountId);
 }
 
-// Stalwart caps the stored MIME type; very long types fail the create.
-function safeMimeType(type: string | undefined, fallback: string): string {
+// Servers before 0.16.6 refuse MIME types over 30 characters (most OOXML
+// types); later ones take up to 255.
+function safeMimeType(type: string | undefined, fallback: string, accountId: string): string {
   const t = type || fallback || 'application/octet-stream';
-  return t.length > 30 ? 'application/octet-stream' : t;
+  const max = isLegacyFileNodeServer(accountId) ? 30 : 255;
+  return t.length > max ? 'application/octet-stream' : t;
 }
 
 async function createFileNodeFromBlob(
@@ -367,7 +419,7 @@ export async function uploadFileNode(
   return createFileNodeFromBlob(
     name,
     blob.blobId,
-    safeMimeType(blob.type, mimeType),
+    safeMimeType(blob.type, mimeType, filesAccountId()),
     blob.size,
     parentId,
   );
@@ -385,7 +437,7 @@ export async function copyFileNode(
   return createFileNodeFromBlob(
     newName,
     node.blobId,
-    safeMimeType(node.type, 'application/octet-stream'),
+    safeMimeType(node.type, 'application/octet-stream', filesAccountId()),
     node.size,
     parentId,
   );
@@ -404,10 +456,11 @@ export async function setFileNodeShare(
   rights: FileNodeRights | null,
 ): Promise<void> {
   const accountId = filesAccountId();
+  const wireRights = rights && isLegacyFileNodeServer(accountId) ? toLegacyRights(rights) : rights;
   const res = await jmapClient.request(
     [['FileNode/set', {
       accountId,
-      update: { [fileNodeId]: { [`shareWith/${principalId}`]: rights } },
+      update: { [fileNodeId]: { [`shareWith/${principalId}`]: wireRights } },
     }, '0']],
     fileUsing(),
   );

@@ -6,6 +6,8 @@ vi.mock('../jmap-client', () => ({
     request: vi.fn(),
     hasCapability: vi.fn(),
     hasAccountCapability: vi.fn(() => false),
+    // A current server (0.16.6+) advertises forbiddenNameChars.
+    getAccountCapability: vi.fn((): unknown => ({ forbiddenNameChars: '/' })),
     getMaxSizeUpload: vi.fn(() => 0),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
@@ -43,6 +45,7 @@ import {
 } from '../files';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
+const mockGetAccountCapability = jmapClient.getAccountCapability as ReturnType<typeof vi.fn>;
 const mockHasCapability = jmapClient.hasCapability as ReturnType<typeof vi.fn>;
 const mockMaxObjectsInGet = jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>;
 const mockMaxCallsInRequest = jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>;
@@ -54,6 +57,7 @@ function setSession(session: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetAccountCapability.mockReturnValue({ forbiddenNameChars: '/' });
   mockMaxObjectsInGet.mockReturnValue(500);
   mockMaxObjectsInSet.mockReturnValue(500);
   mockMaxCallsInRequest.mockReturnValue(16);
@@ -689,5 +693,81 @@ describe('supportsSharing', () => {
     await setFileNodeShare('f1', 'p1', null);
     const [, using] = mockRequest.mock.calls[1];
     expect(using).toEqual([CAPABILITIES.CORE, CAPABILITIES.FILES]);
+  });
+});
+
+const OFFICE_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+describe('servers before Stalwart 0.16.6', () => {
+  const legacy = () => mockGetAccountCapability.mockReturnValue({ maxFileNodeDepth: 8 });
+  const ack = () => mockRequest.mockResolvedValue({
+    methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'c1' } }, updated: { n1: null } }, '0']],
+  });
+
+  it('shares with the mayWrite rights of servers before 0.16.6', async () => {
+    legacy();
+    ack();
+    await setFileNodeShare('n1', 'p1', {
+      mayRead: true, mayAddChildren: true, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false,
+    });
+    expect(mockRequest.mock.calls[0][0][0][1].update.n1).toEqual({
+      'shareWith/p1': { mayRead: true, mayWrite: true, mayShare: false },
+    });
+  });
+
+  it('shares with the finer rights on a current server', async () => {
+    ack();
+    const rights = {
+      mayRead: true, mayAddChildren: true, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false,
+    };
+    await setFileNodeShare('n1', 'p1', rights);
+    expect(mockRequest.mock.calls[0][0][0][1].update.n1).toEqual({ 'shareWith/p1': rights });
+  });
+
+  it('reads old mayWrite rights as the finer rights', async () => {
+    legacy();
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/get', {
+        list: [{
+          id: 'd1', name: 'Docs', blobId: null,
+          myRights: { mayRead: true, mayWrite: true, mayShare: false },
+          shareWith: { p1: { mayRead: true, mayWrite: false, mayShare: false } },
+        }],
+      }, '0']],
+    });
+    const [node] = await getAllFileNodes();
+    expect(node.myRights).toEqual({
+      mayRead: true, mayAddChildren: true, mayRename: true, mayDelete: true, mayModifyContent: true, mayShare: false,
+    });
+    expect(node.shareWith?.p1).toEqual({
+      mayRead: true, mayAddChildren: false, mayRename: false, mayDelete: false, mayModifyContent: false, mayShare: false,
+    });
+  });
+
+  it('falls back to octet-stream for a long type on a legacy server', async () => {
+    legacy();
+    ack();
+    await copyFileNode({ id: 'f1', name: 'a.docx', type: OFFICE_TYPE, blobId: 'b1', size: 1 }, null);
+    expect(mockRequest.mock.calls[0][0][0][1].create['new-file'].type).toBe('application/octet-stream');
+  });
+});
+
+describe('MIME types on a current server', () => {
+  it('keeps a 40-character office MIME type on a current server', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-file': { id: 'c1' } } }, '0']],
+    });
+    await copyFileNode({ id: 'f1', name: 'a.docx', type: OFFICE_TYPE, blobId: 'b1', size: 1 }, null);
+    expect(mockRequest.mock.calls[0][0][0][1].create['new-file'].type).toBe(OFFICE_TYPE);
+  });
+});
+
+describe('createFolder name decoding (#869)', () => {
+  it('returns a created node with its percent-encoded name decoded', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1', name: 'Spares%20Catalog' } } }, '0']],
+    });
+    const node = await createFolder('Spares Catalog', null);
+    expect(node.name).toBe('Spares Catalog');
   });
 });
