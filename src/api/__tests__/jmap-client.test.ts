@@ -147,6 +147,7 @@ describe('JMAPClient', () => {
         username: 'user@example.com',
         password: '',
         accessToken: TOKEN,
+        tokenSource: 'manual',
       });
       expect(global.fetch).toHaveBeenCalledWith(
         'https://mail.example.com/jmap/session',
@@ -196,6 +197,23 @@ describe('JMAPClient', () => {
         tokenEndpoint: 'https://mail.example.com/token', clientId: 'c',
       }, 'user@example.com');
       expect(client.authKind).toBe('oauth');
+    });
+
+    it('an OAuth sign-in without a refresh token is still oauth, not token', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      await client.connectWithOAuth('https://mail.example.com', {
+        accessToken: 'a', tokenEndpoint: 'https://mail.example.com/token', clientId: 'c',
+      }, 'user@example.com');
+      expect(client.authKind).toBe('oauth');
+    });
+
+    it('legacy token credentials (no marker, no OAuth fields) still read as token', async () => {
+      (SecureStore.getItemAsync as any).mockResolvedValueOnce(JSON.stringify({
+        serverUrl: 'https://mail.example.com', username: 'user@example.com', password: '', accessToken: 'legacy',
+      }));
+      global.fetch = mockFetch([{ status: 200, json: { ...MOCK_SESSION, username: 'user@example.com' } }]) as any;
+      expect(await client.restoreSession()).toBe(true);
+      expect(client.authKind).toBe('token');
     });
   });
 

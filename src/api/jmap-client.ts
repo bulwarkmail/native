@@ -180,7 +180,13 @@ export class JMAPClient {
   // out and the user signs in again).
   get authKind(): 'basic' | 'oauth' | 'token' {
     if (!this.credentials?.accessToken) return 'basic';
-    return this.credentials.refreshToken ? 'oauth' : 'token';
+    const c = this.credentials;
+    if (c.tokenSource === 'manual') return 'token';
+    // Pasted tokens saved before the marker existed carry none of the OAuth
+    // fields; an OAuth sign-in always has a token endpoint and client id,
+    // refresh token or not.
+    if (!c.refreshToken && !c.tokenEndpoint && !c.clientId) return 'token';
+    return 'oauth';
   }
 
   get isConnected(): boolean {
@@ -312,7 +318,7 @@ export class JMAPClient {
   async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
     const previous = this.snapshot();
-    this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
+    this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken, tokenSource: 'manual' };
 
     try {
       this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
