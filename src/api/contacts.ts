@@ -360,10 +360,19 @@ export async function setDefaultAddressBook(id: string, accountId?: string): Pro
   methodResult(res);
 }
 
-export async function deleteAddressBook(id: string, accountId?: string): Promise<void> {
+export async function deleteAddressBook(
+  id: string,
+  accountId?: string,
+  options?: { removeContents?: boolean },
+): Promise<void> {
   const account = accountId || getContactsAccountId();
   const res = await jmapClient.request(
-    [['AddressBook/set', { accountId: account, destroy: [id] }, '0']],
+    [['AddressBook/set', {
+      accountId: account,
+      destroy: [id],
+      // Without this a book that still holds cards is refused (addressBookHasContents).
+      ...(options?.removeContents ? { onDestroyRemoveContents: true } : {}),
+    }, '0']],
     USING,
   );
   const result = methodResult<{ notDestroyed?: Record<string, SetError> }>(res);

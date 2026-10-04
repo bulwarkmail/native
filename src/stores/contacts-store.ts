@@ -627,9 +627,9 @@ export const useContactsStore = create<ContactsState>()(
 
         deleteAddressBook: async (id) => {
           const { originalId, accountId } = bookTarget(id);
-          await apiDeleteAddressBook(originalId, accountId);
-          // Stalwart destroys the cards filed in the book along with it, so
-          // drop them from the cache instead of leaving orphans under "All".
+          await apiDeleteAddressBook(originalId, accountId, { removeContents: true });
+          // The request asks the server to destroy the cards filed in the book
+          // (onDestroyRemoveContents, RFC 9610 §2.3), so drop them from the cache instead of leaving orphans under "All".
           set({
             addressBooks: get().addressBooks.filter((b) => b.id !== id),
             contacts: get().contacts.filter((c) => !c.addressBookIds?.[id]),

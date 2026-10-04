@@ -399,6 +399,28 @@ describe('contacts operations', () => {
       expect(call[1].destroy).toEqual(['ab-1']);
     });
 
+    it('asks the server to remove the contents when told to', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { destroyed: ['ab-1'] }, '0']],
+      });
+
+      await deleteAddressBook('ab-1', undefined, { removeContents: true });
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1].onDestroyRemoveContents).toBe(true);
+    });
+
+    it('sends no onDestroyRemoveContents by default', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { destroyed: ['ab-1'] }, '0']],
+      });
+
+      await deleteAddressBook('ab-1');
+
+      const call = mockRequest.mock.calls[0][0][0];
+      expect(call[1]).not.toHaveProperty('onDestroyRemoveContents');
+    });
+
     it('throws when destroy fails', async () => {
       mockRequest.mockResolvedValue({
         methodResponses: [['AddressBook/set', { notDestroyed: { 'ab-1': { description: 'in use' } } }, '0']],
