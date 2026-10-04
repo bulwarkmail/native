@@ -107,6 +107,28 @@ describe('findVerificationCode', () => {
   });
 });
 
+describe('findVerificationCode on hostile text', () => {
+  const N = 50_000;
+  it.each([
+    ['one long word', 'a'.repeat(N)],
+    ['a long digit run', '1'.repeat(N)],
+    ['a keyword and a long word', 'code ' + 'a'.repeat(N)],
+    ['a long word ending in an ellipsis', 'a'.repeat(N) + '...'],
+    ['hyphenated groups', '123-'.repeat(N / 4)],
+    ['"@" runs', 'a@'.repeat(N / 2)],
+    ['repeated keywords', 'code '.repeat(N / 5)],
+    ['spaced digits', '1 '.repeat(N / 2)],
+  ])('stays fast on %s', (_, text) => {
+    const start = performance.now();
+    findVerificationCode(text, text);
+    expect(performance.now() - start).toBeLessThan(300);
+  });
+
+  it('still drops the cut-off word before a trailing ellipsis', () => {
+    expect(findVerificationCode('', 'Your code is 482913 and the rest of the mess1234...')).toBe('482913');
+  });
+});
+
 describe('listVerificationCode', () => {
   const now = Date.parse('2026-09-27T12:00:00Z');
   const row = (receivedAt: string) => ({ subject: 'Your code is 482913', preview: '', receivedAt });
@@ -160,5 +182,43 @@ describe('verificationCodeBodyText', () => {
     expect(text).toContain('Müller & Co');
     expect(text).not.toContain('var a');
     expect(text).toMatch(/\n\s*482913/);
+  });
+
+  describe('hostile HTML', () => {
+    const htmlMail = (html: string) => ({
+      htmlBody: [part('1', 'text/html')],
+      textBody: [],
+      bodyValues: { 1: value(html) },
+    });
+    const timed = (html: string) => {
+      const start = performance.now();
+      const text = verificationCodeBodyText(htmlMail(html));
+      return { text, ms: performance.now() - start };
+    };
+
+    it('reads 1 MB of unclosed <style> in linear time', () => {
+      expect(timed('<style>'.repeat(150_000)).ms).toBeLessThan(200);
+    });
+    it('reads 200 KB of "<" without ">" in linear time', () => {
+      expect(timed('<'.repeat(200_000)).ms).toBeLessThan(200);
+    });
+    it('reads 200 KB of "<br" repeats in linear time', () => {
+      expect(timed('<br'.repeat(70_000)).ms).toBeLessThan(200);
+    });
+
+    it('turns an invalid entity into a space, not a code', () => {
+      const { text } = timed('<p>Your code is &#x110000;</p>');
+      expect(text).not.toContain('x110000');
+      expect(findVerificationCode('', text)).toBeNull();
+    });
+    it('drops NUL', () => {
+      expect(timed('<p>ab&#0;cd</p>').text).not.toContain('\u0000');
+    });
+    it('keeps valid entities', () => {
+      expect(timed('<p>&lt;&amp;&#65;&#x42;&nbsp;x</p>').text.trim()).toBe('<&AB x');
+    });
+    it('does not break lines at source newlines inside a paragraph', () => {
+      expect(timed('<p>one\n   two\nthree</p>').text.trim()).toBe('one two three');
+    });
   });
 });

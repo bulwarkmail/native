@@ -217,20 +217,43 @@ function scoreCandidate(text: string, raw: string, start: number, keywords: Span
   return { start, end, code, score };
 }
 
+const WORD_CHAR = /[\p{L}\p{N}-]/u;
+const TRAILING_ELLIPSIS = /(?:\.\.\.|…)\s*$/u;
+
+// `/[\p{L}\p{N}-]*(?:\.\.\.|…)\s*$/u` removed from the text, without that
+// pattern's quadratic backtracking on a long unbroken word.
+function stripTrailingEllipsis(text: string): string {
+  const ellipsis = TRAILING_ELLIPSIS.exec(text);
+  if (!ellipsis) return text;
+  let start = ellipsis.index;
+  while (start > 0) {
+    const low = text.charCodeAt(start - 1);
+    const width = low >= 0xdc00 && low <= 0xdfff && start > 1 ? 2 : 1;
+    if (!WORD_CHAR.test(text.slice(start - width, start))) break;
+    start -= width;
+  }
+  return text.slice(0, start);
+}
+
 function normalize(text: string): string {
-  return text
+  const cleaned = text
     // Invisible spacers senders put between characters
     .replace(/[\u00ad\u200b-\u200f\u2060\ufeff]|\u034f/g, '')
     // Links and addresses carry ids and tokens, never the code to type
     .replace(/https?:\/\/\S+|www\.\S+/gi, ' ')
-    .replace(/\S*@\S+/g, ' ')
+    // (a word holding an "@" with something after it; `/\S*@\S+/` on its own
+    // backtracks quadratically over a long word without one)
+    .replace(/\S+/g, (word) => {
+      const at = word.indexOf('@');
+      return at !== -1 && at < word.length - 1 ? ' ' : word;
+    })
     // Keep line breaks (a code often stands on a line of its own) but not
     // the runs of blank lines and indentation between table cells.
     .replace(/[^\S\n]+/g, ' ')
     .replace(/ ?\n[\s]*/g, '\n')
-    // A preview is cut off with "...", and the word it cut may be half a code.
-    .replace(/[\p{L}\p{N}-]*(?:\.\.\.|…)\s*$/u, '')
     .trim();
+  // A preview is cut off with "...", and the word it cut may be half a code.
+  return stripTrailingEllipsis(cleaned).trim();
 }
 
 function bestCandidate(rawText: string): Candidate | null {
@@ -290,29 +313,75 @@ const NAMED_ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
 };
 
+// An entity that is unknown or names no character becomes a space: leaving
+// "&#x110000;" as text would hand the detector a code-shaped "x110000".
 function decodeEntities(text: string): string {
-  return text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z]+));/g, (whole, dec, hex, name) => {
-    if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
+  return text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z][a-zA-Z0-9]*));/g, (_whole, dec, hex, name) => {
+    if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? ' ';
     const point = dec ? parseInt(dec, 10) : parseInt(hex, 16);
-    try {
-      return String.fromCodePoint(point);
-    } catch {
-      return whole;
-    }
+    if (point === 0) return '';
+    if (!(point <= 0x10ffff) || (point >= 0xd800 && point <= 0xdfff)) return ' ';
+    return String.fromCodePoint(point);
   });
 }
 
-const NON_TEXT_ELEMENTS = /<(style|script|title)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+const SKIPPED_ELEMENTS = new Set(['style', 'script', 'title']);
+const LINE_BREAK_TAGS = new Set(['br', 'p', 'div', 'tr', 'li']);
+const SPACE_TAGS = new Set(['td', 'th']);
+
+function isLetter(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
 
 // Native has no DOM; this is the minimum the detector needs. Line breaks
 // matter (a code often stands on a line of its own), markup does not.
+// One pass over the string with indexOf, so hostile markup (thousands of
+// unclosed tags) costs time in proportion to its length, never more.
 function htmlToPlainText(html: string): string {
-  const stripped = html
-    .replace(NON_TEXT_ELEMENTS, ' ')
-    .replace(/<br\b[^>]*>|<\/?(?:p|div|tr|li)\b[^>]*>/gi, '\n')
-    .replace(/<\/?(?:td|th)\b[^>]*>/gi, ' ')
-    .replace(/<[^>]*>/g, '');
-  return decodeEntities(stripped);
+  // ASCII-only lowercase: same length as `html`, so indexes line up.
+  const lower = html.replace(/[A-Z]+/g, (m) => m.toLowerCase());
+  const parts: string[] = [];
+  const addText = (raw: string) => {
+    if (raw) parts.push(decodeEntities(raw.replace(/[ \t\r\n]+/g, ' ')));
+  };
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) { addText(html.slice(i)); break; }
+    addText(html.slice(i, lt));
+    const next = html.charCodeAt(lt + 1);
+    const closing = next === 47; // '/'
+    if (!isLetter(closing ? html.charCodeAt(lt + 2) : next) && next !== 33) {
+      parts.push('<'); // a lone "<" is text
+      i = lt + 1;
+      continue;
+    }
+    if (html.startsWith('<!--', lt)) {
+      const end = html.indexOf('-->', lt + 4);
+      if (end === -1) break;
+      i = end + 3;
+      continue;
+    }
+    const gt = html.indexOf('>', lt + 1);
+    if (gt === -1) break; // an unterminated tag swallows the rest
+    i = gt + 1;
+    let nameEnd = lt + (closing ? 2 : 1);
+    while (nameEnd < gt && /[A-Za-z0-9]/.test(html[nameEnd])) nameEnd++;
+    const name = lower.slice(lt + (closing ? 2 : 1), nameEnd);
+    if (!closing && SKIPPED_ELEMENTS.has(name)) {
+      const closeAt = lower.indexOf(`</${name}`, i);
+      if (closeAt === -1) break; // never closed: the rest is its content
+      const closeEnd = html.indexOf('>', closeAt);
+      if (closeEnd === -1) break;
+      i = closeEnd + 1;
+      parts.push(' ');
+    } else if (LINE_BREAK_TAGS.has(name)) {
+      parts.push('\n');
+    } else if (SPACE_TAGS.has(name)) {
+      parts.push(' ');
+    }
+  }
+  return parts.join('');
 }
 
 /** The text of a loaded mail as the reader shows it, for finding its code. */
@@ -321,10 +390,6 @@ export function verificationCodeBodyText(
 ): string {
   const picked = pickEmailBody(email);
   const html = selectRenderableHtml(picked);
-  if (html) {
-    // A <style> in the body would be text once the tags are gone.
-    const markup = html.replace(NON_TEXT_ELEMENTS, ' ');
-    return htmlToPlainText(markup.slice(0, MAX_BODY_HTML)).slice(0, MAX_BODY_TEXT);
-  }
+  if (html) return htmlToPlainText(html.slice(0, MAX_BODY_HTML)).slice(0, MAX_BODY_TEXT);
   return (picked.text ?? '').slice(0, MAX_BODY_TEXT);
 }
