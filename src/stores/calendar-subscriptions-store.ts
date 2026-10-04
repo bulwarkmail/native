@@ -98,8 +98,10 @@ function currentCalendars(): SubscriptionCalendar[] {
 /**
  * Subscriptions the signed-in login may see and act on. An owned one matches
  * only its owner. An ownerless one (created before owners were recorded) is
- * claimed only when its calendar id exists in this login's calendars and its
- * account matches.
+ * claimed in two ways. With an accountId it must equal this account's and the
+ * calendar id must exist; the name may differ (renamed on the server) and is
+ * refreshed on adoption. Without an accountId, short Stalwart ids can collide
+ * between logins, so the calendar's name must match too (as in webmail).
  */
 export function selectAccountSubscriptions(
   subscriptions: CalendarSubscription[],
@@ -111,8 +113,8 @@ export function selectAccountSubscriptions(
   return subscriptions.filter((s) => {
     if (s.owner) return s.owner === owner;
     if (s.accountId && s.accountId !== accountId) return false;
-    // Unlike webmail we don't also require the name to match: a calendar renamed on the server would stay unclaimable.
-    return calendars.some((c) => (c.originalId ?? c.id) === s.calendarId);
+    // With an accountId we skip webmail's name check so a renamed calendar stays claimable.
+    return calendars.some((c) => (c.originalId ?? c.id) === s.calendarId && (!!s.accountId || c.name === s.name));
   });
 }
 

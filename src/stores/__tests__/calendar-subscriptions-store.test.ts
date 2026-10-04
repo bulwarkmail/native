@@ -96,6 +96,12 @@ describe('selectAccountSubscriptions', () => {
     expect(selectAccountSubscriptions([sub({ id: 'a', owner: ALICE })], owner, null, []).map((s) => s.id)).toEqual(['a']);
   });
 
+  it('does not adopt a legacy subscription without an accountId on an id match alone', () => {
+    const legacy = sub({ id: 'l', calendarId: 'c9', name: 'Old' });
+    expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', [{ id: 'c9', name: 'New' }])).toEqual([]);
+    expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', [{ id: 'c9', name: 'Old' }]).map((s) => s.id)).toEqual(['l']);
+  });
+
   it('adopts a legacy subscription whose calendar was renamed', () => {
     const legacy = sub({ id: 'l', calendarId: 'c9', name: 'Old', accountId: 'acc-1' });
     expect(selectAccountSubscriptions([legacy], ALICE, 'acc-1', [{ id: 'c9', name: 'New' }]).map((s) => s.id)).toEqual(['l']);
@@ -166,7 +172,7 @@ describe('subscription store', () => {
   });
 
   it('adoptSubscriptions refreshes the name from a renamed calendar', () => {
-    useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'l', calendarId: 'c9', name: 'Old' })] });
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'l', calendarId: 'c9', name: 'Old', accountId: 'acc-1' })] });
     useCalendarSubscriptionsStore.getState().adoptSubscriptions(ALICE, 'acc-1', [{ id: 'c9', name: 'New' }]);
     expect(useCalendarSubscriptionsStore.getState().subscriptions[0]).toMatchObject({ owner: ALICE, name: 'New' });
   });
