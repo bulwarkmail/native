@@ -2170,7 +2170,7 @@ provideLoadedMailboxes(async (accountId) => {
 
 // Copy-then-delete across accounts (webmail `crossAccountMoveEmails`, 1.7.2):
 // download each message's blob from the source account, upload it to the
-// target account, Email/import it into the target folder with its keywords,
+// target account, Email/import it into the target folder with its keywords and date,
 // then destroy the original. Online only — there is no idempotent replay.
 async function crossAccountMove(targets: Email[], from: MailboxRef, to: MailboxRef): Promise<void> {
   if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
@@ -2184,7 +2184,7 @@ async function crossAccountMove(targets: Email[], from: MailboxRef, to: MailboxR
     const { blobId } = await uploadBytes(new Uint8Array(bytes), 'message/rfc822', to.accountId);
     const keywords: Record<string, boolean> = {};
     for (const [k, v] of Object.entries(e.keywords ?? {})) if (v) keywords[k] = true;
-    await importEmailBlob(blobId, to.id, keywords, to.accountId);
+    await importEmailBlob(blobId, to.id, keywords, to.accountId, e.receivedAt);
     await apiDestroyEmails([e.id], from.accountId);
   }
 }

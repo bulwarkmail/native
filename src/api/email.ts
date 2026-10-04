@@ -978,13 +978,17 @@ export async function importEmailBlob(
   mailboxId: string,
   keywords: Record<string, boolean> = { $seen: true },
   accountIdOverride?: string,
+  receivedAt?: string,
 ): Promise<string> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
   const res = await jmapClient.request([
     ['Email/import', {
       accountId,
       emails: {
-        'import-0': { blobId, mailboxIds: { [mailboxId]: true }, keywords },
+        'import-0': { blobId, mailboxIds: { [mailboxId]: true }, keywords,
+          // Without it the server stamps the import time (a moved message would look new).
+          ...(receivedAt ? { receivedAt } : {}),
+        },
       },
     }, '0'],
   ]);
