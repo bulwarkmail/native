@@ -37,6 +37,7 @@ import {
   teardownPushNotificationsForAccount,
   type NotificationTapPayload,
 } from './src/lib/push-notifications';
+import { renewPushOnResume } from './src/lib/push-renewal';
 import { addUnifiedPushEndpointListener } from './src/lib/unified-push';
 import type { MainTabsParamList, RootStackParamList } from './src/navigation/types';
 import ComposeScreen from './src/screens/ComposeScreen';
@@ -668,7 +669,19 @@ export default function App() {
       }
     };
 
-    void doSetup();
+    // Renew every account's subscription before Stalwart's 7-day expiry: once
+    // the setup above has settled, and on every return to the foreground
+    // (push-renewal throttles it to once a day per account).
+    const setupDone = doSetup();
+    const renew = () => {
+      void setupDone.then(() => renewPushOnResume()).catch((error: unknown) => {
+        console.warn('[push] renewal failed:', error instanceof Error ? error.message : error);
+      });
+    };
+    renew();
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') renew();
+    });
     const unsubscribe = addTokenRefreshListener(() => {
       void doSetup();
     });
@@ -680,6 +693,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      appStateSubscription.remove();
       unsubscribe();
       unsubscribeUp();
     };

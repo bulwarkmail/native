@@ -43,8 +43,10 @@ const { CREATED } = vi.hoisted(() => ({
 }));
 
 // A client of another signed-in account (device sync patches its push types
-// without the singleton), on a server with contacts and calendars unless a
-// test says otherwise.
+// and the resume renewal its expiry without the singleton), on a server with
+// contacts and calendars unless a test says otherwise. `granted` is the expiry
+// the server reports back for an update that changed it (null: as asked), and
+// `down` makes every request fail.
 const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
   const SYNC_SESSION = {
     capabilities: {
@@ -55,7 +57,15 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
   };
   return {
     SYNC_SESSION,
-    DETACHED: { loaded: true, types: ['EmailDelivery'] as string[], log: [] as unknown[], session: SYNC_SESSION },
+    DETACHED: {
+      loaded: true,
+      types: ['EmailDelivery'] as string[],
+      expires: null as string | null,
+      granted: null as string | null,
+      down: false,
+      log: [] as unknown[],
+      session: SYNC_SESSION,
+    },
   };
 });
 
@@ -77,10 +87,14 @@ vi.mock('../../api/jmap-client', () => ({
     async request(calls: Array<[string, Record<string, any>, string]>) {
       const [name, args, id] = calls[0];
       DETACHED.log.push([name, args]);
+      if (DETACHED.down) throw new Error('server unreachable');
       if (name === 'PushSubscription/get') {
-        return { methodResponses: [[name, { list: [{ id: args.ids[0], types: DETACHED.types }] }, id]] };
+        return {
+          methodResponses: [[name, { list: [{ id: args.ids[0], types: DETACHED.types, expires: DETACHED.expires }] }, id]],
+        };
       }
-      return { methodResponses: [[name, { updated: { [Object.keys(args.update)[0]]: null } }, id]] };
+      const updated = DETACHED.granted ? { expires: DETACHED.granted } : null;
+      return { methodResponses: [[name, { updated: { [Object.keys(args.update)[0]]: updated } }, id]] };
     }
   },
 }));
@@ -113,6 +127,7 @@ import {
   PushSetupError,
   pushTypesFor,
   refreshPushSubscriptionTypes,
+  renewDetachedPushSubscription,
   resyncPushNotifications,
   revokePushDevice,
   teardownPushNotificationsForAccount,
@@ -863,6 +878,84 @@ describe('setupPushNotifications over UnifiedPush', () => {
 
     expect(err.phase).toBe('distributor');
     expect(err.message).toContain('choose one');
+  });
+});
+
+describe('renewDetachedPushSubscription', () => {
+  const OTHER = 'bob@other.example.net';
+  const OTHER_EXPIRES_KEY = `push:subscriptionExpires:v1:${OTHER}`;
+  const DAY = 86400000;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'bob-sub');
+    DETACHED.log = [];
+    DETACHED.loaded = true;
+    DETACHED.down = false;
+    DETACHED.granted = null;
+  });
+
+  afterEach(() => {
+    DETACHED.expires = null;
+    DETACHED.granted = null;
+    DETACHED.down = false;
+  });
+
+  it("renews a non-active account's subscription close to expiry", async () => {
+    DETACHED.expires = new Date(Date.now() + 2 * DAY).toISOString();
+    // Stalwart clamps the 90 days asked for to its own ceiling.
+    DETACHED.granted = new Date(Date.now() + 7 * DAY).toISOString();
+    const before = Date.now();
+    expect(await renewDetachedPushSubscription(OTHER)).toBe(true);
+    expect(DETACHED.log.slice(0, 2)).toEqual([
+      ['load', OTHER],
+      ['PushSubscription/get', { ids: ['bob-sub'], properties: ['id', 'expires'] }],
+    ]);
+    const [name, args] = DETACHED.log[2] as [string, { update: Record<string, { expires: string }> }];
+    expect(name).toBe('PushSubscription/set');
+    expect(Object.keys(args.update)).toEqual(['bob-sub']);
+    expect(Object.keys(args.update['bob-sub'])).toEqual(['expires']);
+    const asked = Date.parse(args.update['bob-sub'].expires);
+    expect(asked).toBeGreaterThanOrEqual(before + 90 * DAY);
+    expect(asked).toBeLessThanOrEqual(Date.now() + 90 * DAY);
+    // What the server settled on, for the revocation check.
+    expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBe(DETACHED.granted);
+    // The singleton's subscriptions were not touched.
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(listMock).not.toHaveBeenCalled();
+  });
+
+  it('records the expiry it asked for when the server took it as is', async () => {
+    DETACHED.expires = null;
+    expect(await renewDetachedPushSubscription(OTHER)).toBe(true);
+    const [, args] = DETACHED.log[2] as [string, { update: Record<string, { expires: string }> }];
+    expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBe(args.update['bob-sub'].expires);
+  });
+
+  it('leaves a subscription with time to spare alone', async () => {
+    DETACHED.expires = new Date(Date.now() + 30 * DAY).toISOString();
+    expect(await renewDetachedPushSubscription(OTHER)).toBe(false);
+    expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+    expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBe(DETACHED.expires);
+  });
+
+  it('skips opted-out accounts', async () => {
+    DETACHED.expires = new Date(Date.now() + 2 * DAY).toISOString();
+    await AsyncStorage.setItem(`push:optedOut:v1:${OTHER}`, '1');
+    expect(await renewDetachedPushSubscription(OTHER)).toBe(false);
+    expect(DETACHED.log).toEqual([]);
+  });
+
+  it('skips an account without a subscription', async () => {
+    expect(await renewDetachedPushSubscription('someone@else.example')).toBe(false);
+    expect(DETACHED.log).toEqual([]);
+  });
+
+  it('swallows a server it cannot reach', async () => {
+    DETACHED.down = true;
+    expect(await renewDetachedPushSubscription(OTHER)).toBe(false);
+    expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBeNull();
   });
 });
 
