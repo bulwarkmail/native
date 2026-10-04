@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodeFileNodeName, getUniqueName } from '../filenode-name';
+import { decodeFileNodeName, getUniqueName, numberedFileName } from '../filenode-name';
 
 describe('decodeFileNodeName (#869)', () => {
   it('decodes WebDAV-created percent-encoded names', () => {
@@ -36,5 +36,20 @@ describe('getUniqueName', () => {
   it('handles names without an extension and dotfiles', () => {
     expect(getUniqueName('README', new Set(['README']))).toBe('README (1)');
     expect(getUniqueName('.env', new Set(['.env']))).toBe('.env (1)');
+  });
+});
+
+describe('numberedFileName', () => {
+  it('puts the number before the extension', () => {
+    expect(numberedFileName('report.pdf', 2)).toBe('report (2).pdf');
+    expect(numberedFileName('archive.tar.gz', 3)).toBe('archive.tar (3).gz');
+  });
+
+  it('appends to names without an extension', () => {
+    expect(numberedFileName('notes', 3)).toBe('notes (3)');
+  });
+
+  it('treats a leading dot as part of the name', () => {
+    expect(numberedFileName('.env', 2)).toBe('.env (2)');
   });
 });

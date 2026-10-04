@@ -3,7 +3,7 @@ import { CAPABILITIES } from './types';
 import type { FileNode, FileNodeRights, JMAPAccountInfo, JMAPMethodCall, Principal } from './types';
 import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
 import { batched, requireMethodResult } from './jmap-result';
-import { decodeFileNodeName } from '../lib/filenode-name';
+import { decodeFileNodeName, numberedFileName } from '../lib/filenode-name';
 
 // A FileNode is a folder (container) only when it has no blob content — the
 // server stores it with `file == null`. Sending a blobId/type/size on create
@@ -245,25 +245,38 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   return all;
 }
 
+// FileNode/set `create` of one node. `onExists: "rename"` (Stalwart 0.16.6+)
+// turns a name clash into "name (2)"; older servers ignore it and refuse the
+// clash, so retry with numbered names ourselves.
+async function createFileNode(
+  accountId: string,
+  props: Record<string, unknown>,
+): Promise<FileNode> {
+  const baseName = String(props.name ?? '');
+  const key = props.blobId ? 'new-file' : 'new-dir';
+  for (let attempt = 1; ; attempt++) {
+    const name = attempt === 1 ? baseName : numberedFileName(baseName, attempt);
+    const res = await jmapClient.request(
+      [['FileNode/set', { accountId, onExists: 'rename', create: { [key]: { ...props, name } } }, '0']],
+      fileUsing(),
+    );
+    const result = requireMethodResult(res, '0', 'FileNode/set');
+    const created = result.created?.[key];
+    // The server's name wins: after a rename it differs from the one sent.
+    if (created) return { ...props, name, ...created } as FileNode;
+    const err = result.notCreated?.[key];
+    if (attempt < 20 && /already exists/i.test(err?.description ?? '')) continue;
+    throw new Error(err?.description || 'Create failed');
+  }
+}
+
 export async function createFolder(
   name: string,
   parentId: string | null,
 ): Promise<FileNode> {
-  const accountId = filesAccountId();
   const props: Record<string, unknown> = { name };
   if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-dir': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-dir'];
-  if (!created) {
-    const err = result.notCreated?.['new-dir'];
-    throw new Error(err?.description || 'Create folder failed');
-  }
-  return { ...props, ...created } as FileNode;
+  return createFileNode(filesAccountId(), props);
 }
 
 export async function updateFileNode(
@@ -337,22 +350,10 @@ async function createFileNodeFromBlob(
   size: number | undefined,
   parentId: string | null,
 ): Promise<FileNode> {
-  const accountId = filesAccountId();
   const props: Record<string, unknown> = { name, type, blobId };
   if (size != null) props.size = size;
   if (parentId !== null) props.parentId = parentId;
-
-  const res = await jmapClient.request(
-    [['FileNode/set', { accountId, create: { 'new-file': props } }, '0']],
-    fileUsing(),
-  );
-  const result = requireMethodResult(res, '0', 'FileNode/set');
-  const created = result.created?.['new-file'];
-  if (!created) {
-    const err = result.notCreated?.['new-file'];
-    throw new Error(err?.description || 'Upload failed');
-  }
-  return { ...props, ...created } as FileNode;
+  return createFileNode(filesAccountId(), props);
 }
 
 export async function uploadFileNode(

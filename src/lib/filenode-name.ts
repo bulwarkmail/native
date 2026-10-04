@@ -39,3 +39,10 @@ export function getUniqueName(name: string, existingNames: Set<string>): string 
   while (existingNames.has(`${base} (${counter})${ext}`)) counter++;
   return `${base} (${counter})${ext}`;
 }
+
+// "report.pdf", 2 -> "report (2).pdf": the name Stalwart's onExists "rename"
+// gives a copy, used to retry on servers that ignore it (webmail numberedFileName).
+export function numberedFileName(name: string, n: number): string {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? `${name.slice(0, dot)} (${n})${name.slice(dot)}` : `${name} (${n})`;
+}

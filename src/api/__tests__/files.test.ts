@@ -94,6 +94,66 @@ describe('createFolder', () => {
     expect(args.create['new-dir']).toEqual({ name: 'Docs', parentId: 'parent-1' });
   });
 
+  it('sends onExists rename', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1' } } }, '0']],
+    });
+
+    await createFolder('Docs', null);
+
+    expect(mockRequest.mock.calls[0][0][0][1].onExists).toBe('rename');
+  });
+
+  it("takes the server's renamed name", async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['FileNode/set', { created: { 'new-dir': { id: 'f1', name: 'Docs (2)' } } }, '0'],
+      ],
+    });
+
+    const node = await createFolder('Docs', null);
+
+    expect(node.name).toBe('Docs (2)');
+  });
+
+  it('retries with a numbered name on a server that ignores onExists', async () => {
+    const taken = { notCreated: { 'new-dir': { type: 'invalidProperties', description: 'Name already exists' } } };
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', taken, '0']] })
+      .mockResolvedValueOnce({ methodResponses: [['FileNode/set', taken, '0']] })
+      .mockResolvedValueOnce({
+        methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1' } } }, '0']],
+      });
+
+    const node = await createFolder('Docs', null);
+
+    const names = mockRequest.mock.calls.map((c) => c[0][0][1].create['new-dir'].name);
+    expect(names).toEqual(['Docs', 'Docs (2)', 'Docs (3)']);
+    expect(node.name).toBe('Docs (3)');
+  });
+
+  it('gives up after 20 attempts', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['FileNode/set', { notCreated: { 'new-dir': { description: 'Name already exists' } } }, '0'],
+      ],
+    });
+
+    await expect(createFolder('Docs', null)).rejects.toThrow('already exists');
+    expect(mockRequest).toHaveBeenCalledTimes(20);
+  });
+
+  it('does not retry other refusals', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [
+        ['FileNode/set', { notCreated: { 'new-dir': { description: 'forbidden' } } }, '0'],
+      ],
+    });
+
+    await expect(createFolder('Docs', null)).rejects.toThrow('forbidden');
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
   it('omits parentId at the root', async () => {
     mockRequest.mockResolvedValue({
       methodResponses: [['FileNode/set', { created: { 'new-dir': { id: 'f1' } } }, '0']],
