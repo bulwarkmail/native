@@ -174,6 +174,15 @@ export class JMAPClient {
     return !!this.credentials?.accessToken;
   }
 
+  // How the live session authenticates: a password, an OAuth bundle (access
+  // + refresh token), or a bare access token the user pasted (no refresh
+  // token, so it is never refreshed; once it stops working the account signs
+  // out and the user signs in again).
+  get authKind(): 'basic' | 'oauth' | 'token' {
+    if (!this.credentials?.accessToken) return 'basic';
+    return this.credentials.refreshToken ? 'oauth' : 'token';
+  }
+
   get isConnected(): boolean {
     return this.session !== null && this._accountId !== null;
   }
@@ -294,13 +303,37 @@ export class JMAPClient {
     return session;
   }
 
+  // Sign in with an access token the user pasted (for example a Fastmail API
+  // token). The token authenticates the session fetch as a Bearer credential,
+  // so it is set before the fetch (`usesBearerAuth` decides which off-origin
+  // session URLs are kept). The username comes from the session; without one
+  // there is no stable account id, so nothing is stored. The token is only
+  // ever written to SecureStore: it is never logged or put in an error.
   async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
+    const previous = this.snapshot();
     this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken };
 
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
-    this.firstTouchGate.reset();
+    try {
+      this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
+      this._accountId = this.resolveAccountId(this.session);
+      this.firstTouchGate.reset();
+
+      const username = this.session.username?.trim();
+      if (!username) {
+        throw new AuthenticationError('The server did not say which account this token belongs to');
+      }
+      this.credentials.username = username;
+
+      const accountId = generateAccountId(username, baseUrl);
+      await SecureStore.setItemAsync(
+        credentialsKey(accountId),
+        JSON.stringify(this.credentials),
+      );
+    } catch (err) {
+      this.restoreSnapshot(previous);
+      throw err;
+    }
 
     return this.session;
   }

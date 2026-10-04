@@ -159,6 +159,14 @@ export function describeLoginError(err: unknown, context: LoginErrorContext = {}
     };
   }
 
+  // A rejected access token (the auth store's code, never the token itself).
+  if (message === 'invalid_token') {
+    return {
+      title: t('login.mobile.err_bad_title', "That didn't work"),
+      detail: t('login.error.invalid_token', 'The server did not accept this access token. Check that it is complete and has not expired or been revoked.'),
+    };
+  }
+
   if (name === 'AuthenticationError' || lower.includes('invalid username or password')) {
     return {
       title: t('login.mobile.err_bad_title', "That didn't work"),

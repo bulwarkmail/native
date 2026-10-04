@@ -11,6 +11,11 @@ function named(name: string, message: string): Error {
 }
 
 describe('describeLoginError', () => {
+  it('explains a rejected access token without echoing anything typed', () => {
+    const copy = describeLoginError(new Error('invalid_token'));
+    expect(copy.detail).toContain('did not accept this access token');
+  });
+
   it('explains a refused token exchange from the error code, not the message', () => {
     const copy = describeLoginError(new TotpLoginError('token_exchange_failed', 'Token exchange failed: 400 invalid_client'));
     expect(copy.title).toBe("That didn't work");

@@ -114,7 +114,7 @@ describe('JMAPClient', () => {
 
   describe('connectWithToken', () => {
     it('should use Bearer auth', async () => {
-      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      global.fetch = mockFetch([{ status: 200, json: { ...MOCK_SESSION, username: 'user@example.com' } }]) as any;
 
       await client.connectWithToken('https://mail.example.com', 'my-token');
 
@@ -127,6 +127,75 @@ describe('JMAPClient', () => {
         }),
       );
       expect(client.isConnected).toBe(true);
+    });
+
+    const TOKEN = 'fmu1-secret-token';
+    const SESSION_WITH_USER = { ...MOCK_SESSION, username: 'user@example.com' };
+
+    it('stores the token under the session username, with no refresh fields', async () => {
+      global.fetch = mockFetch([{ status: 200, json: SESSION_WITH_USER }]) as any;
+
+      const session = await client.connectWithToken('https://mail.example.com/', TOKEN);
+
+      expect(session.username).toBe('user@example.com');
+      expect(client.username).toBe('user@example.com');
+      const call = (SecureStore.setItemAsync as any).mock.calls.at(-1);
+      expect(call[0]).toMatch(/^jmap_credentials__/);
+      expect(call[0]).toContain('user_example.com');
+      expect(JSON.parse(call[1])).toEqual({
+        serverUrl: 'https://mail.example.com',
+        username: 'user@example.com',
+        password: '',
+        accessToken: TOKEN,
+      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://mail.example.com/jmap/session',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: `Bearer ${TOKEN}` }),
+        }),
+      );
+    });
+
+    it('reports the account as a token account that never refreshes', async () => {
+      global.fetch = mockFetch([{ status: 200, json: SESSION_WITH_USER }]) as any;
+      await client.connectWithToken('https://mail.example.com', TOKEN);
+
+      expect(client.authKind).toBe('token');
+      expect(client.usesBearerAuth).toBe(true);
+      expect(await client.forceRefreshToken()).toBe(false);
+      const fetchMock = global.fetch as any;
+      const before = fetchMock.mock.calls.length;
+      await client.ensureFreshToken();
+      expect(fetchMock.mock.calls.length).toBe(before);
+    });
+
+    it('rejects a session with no username and stores nothing', async () => {
+      (SecureStore.setItemAsync as any).mockClear();
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+
+      await expect(client.connectWithToken('https://mail.example.com', TOKEN))
+        .rejects.toThrow(AuthenticationError);
+
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+      expect(client.isConnected).toBe(false);
+      expect(client.username).toBeNull();
+    });
+
+    it('never puts the token in an error message', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      const err = await client.connectWithToken('https://mail.example.com', TOKEN).catch((e) => e);
+      expect(String(err.message)).not.toContain(TOKEN);
+    });
+
+    it('classifies accounts as basic, oauth or token', async () => {
+      global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
+      await client.connect('https://mail.example.com', 'user', 'pass');
+      expect(client.authKind).toBe('basic');
+      await client.connectWithOAuth('https://mail.example.com', {
+        accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 1e6,
+        tokenEndpoint: 'https://mail.example.com/token', clientId: 'c',
+      }, 'user@example.com');
+      expect(client.authKind).toBe('oauth');
     });
   });
 

@@ -15,6 +15,7 @@ import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
 import { clearBodyHeights } from '../lib/body-heights';
+import { cleanAccessToken } from '../lib/access-token';
 import { AccountLimitError, generateAccountId, MAX_ACCOUNTS } from '../lib/account-utils';
 import { toAsciiEmail } from '../lib/idn';
 import {
@@ -93,6 +94,8 @@ export interface AuthState {
   /** OAuth/OIDC (PKCE) straight against the mail server's authorization server. */
   loginViaOAuth: (serverUrl: string, opts?: { addAccount?: boolean }) => Promise<void>;
   loginViaPairing: (webmailUrl: string, code: string, opts?: { addAccount?: boolean }) => Promise<void>;
+  /** Sign in with a pasted access token (e.g. a Fastmail API token). */
+  loginWithToken: (serverUrl: string, typedToken: string, opts?: { addAccount?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
@@ -419,6 +422,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: message });
       throw err;
     }
+  },
+
+  loginWithToken: async (serverUrl, typedToken, opts) => {
+    set({ isLoading: true, error: null });
+    const fail = (err: unknown): never => {
+      // The stored message is a code or a server message, never the token.
+      set({ isLoading: false, error: err instanceof Error ? err.message : 'Connection failed' });
+      throw err;
+    };
+    const token = cleanAccessToken(typedToken);
+    if (!token) return fail(new AuthenticationError('invalid_token'));
+    // A full registry refuses before anything is connected or stored.
+    refuseAddWhenFull(set, opts);
+    const base = serverUrl.replace(/\/+$/, '');
+    // Same as `login`: the live connection is kept until the new sign-in has
+    // succeeded, and a failure puts it straight back.
+    const previous = opts?.addAccount && get().isAuthenticated ? jmapClient.snapshot() : null;
+
+    let session: JMAPSession;
+    try {
+      session = await jmapClient.connectWithToken(base, token);
+    } catch (err) {
+      if (previous) jmapClient.restoreSnapshot(previous);
+      // A 401 is a rejected token; a 403 reaches us as a failed session fetch.
+      const rejected = err instanceof AuthenticationError
+        || (err instanceof Error && /session discovery failed: 40[13]\b/i.test(err.message));
+      return fail(rejected ? new AuthenticationError('invalid_token') : err);
+    }
+
+    // connectWithToken guarantees a username (it throws without one).
+    const username = session.username as string;
+    const accountId = generateAccountId(username, base);
+    const accountStore = useAccountStore.getState();
+    const wasRegistered = !!accountStore.getAccountById(accountId);
+    try {
+      assertRoomForAccount(accountId);
+      accountStore.addAccount({
+        serverUrl: base,
+        username,
+        displayName: username,
+        email: username,
+        lastLoginAt: Date.now(),
+        isConnected: true,
+        hasError: false,
+      });
+    } catch (err) {
+      await undoConnect(previous, accountId, wasRegistered);
+      return fail(err);
+    }
+    if (previous) {
+      useContactsStore.getState().reset();
+      useCalendarStore.getState().reset();
+    }
+    accountStore.setActiveAccount(accountId);
+    useEmailStore.getState().setActiveAccount(accountId);
+
+    applyConnectedState(set, session, base, username, accountId);
+    void useEmailStore.getState().fetchMailboxes();
+    void syncAccountDisplayName(accountId);
+    void deviceSyncSignedIn(accountId);
   },
 
   loginViaWebmail: async (webmailUrl, opts) => {

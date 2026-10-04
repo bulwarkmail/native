@@ -18,6 +18,8 @@ interface PasswordStepProps {
   totpRequired?: boolean;
   onChangeTotp?: (value: string) => void;
   onSubmit: () => void;
+  /** Switch to signing in with an access token. */
+  onUseToken?: () => void;
   notice?: { title: string; detail?: string } | null;
 }
 
@@ -37,6 +39,7 @@ export default function PasswordStep({
   totpRequired = false,
   onChangeTotp,
   onSubmit,
+  onUseToken,
   notice,
 }: PasswordStepProps) {
   const c = useColors();
@@ -109,6 +112,12 @@ export default function PasswordStep({
       <Button variant="default" size="md" onPress={onSubmit}>
         {t('login.sign_in', 'Sign in')}
       </Button>
+
+      {onUseToken ? (
+        <Pressable onPress={onUseToken} hitSlop={8} accessibilityRole="button" style={styles.tokenLink}>
+          <Text style={styles.tokenLinkText}>{t('login.token_toggle', 'Sign in with an access token')}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -119,5 +128,7 @@ function makeStyles(c: ThemePalette) {
     heading: { gap: spacing.sm },
     title: { ...typography.h1, color: c.text },
     subtitle: { ...typography.body, color: c.textSecondary },
+    tokenLink: { alignItems: 'center', paddingVertical: spacing.xs },
+    tokenLinkText: { ...typography.body, color: c.textLink },
   });
 }

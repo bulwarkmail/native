@@ -479,6 +479,7 @@
   },
   "login": {
     "error": {
+      "invalid_token": "The server did not accept this access token. Check that it is complete and has not expired or been revoked.",
       "token_exchange_failed": "Your password and code were accepted, but the mail server refused to start a session for this app. Ask your administrator to check its OAuth client settings."
     },
     "mobile": {
@@ -596,7 +597,11 @@
       "use_password": "Sign in with a password instead",
       "username_label": "Email or username",
       "your_server": "your server"
-    }
+    },
+    "token_hint": "Create an API token in your mail provider's settings and paste it here.",
+    "token_label": "Access token",
+    "token_placeholder": "Paste your API token",
+    "token_toggle": "Sign in with an access token"
   },
   "notifications": {
     "delete_failed": "Failed to delete"
@@ -636,6 +641,7 @@
         "description_mobile": "Reorder how accounts appear in the account switcher, pick the default, or sign one out.",
         "limit": "Maximum of {count} accounts reached."
       },
+      "auth_method_token": "Access token",
       "shared_accounts": {
         "description_manage": "Group and shared accounts you can read through this account. Select one to manage its filters and vacation responder."
       },

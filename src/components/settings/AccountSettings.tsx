@@ -52,7 +52,7 @@ export function AccountSettings() {
   const username = account?.username || authUsername || undefined;
   const serverUrl = account?.serverUrl || authServerUrl || '';
   // Live client state, not a prop: OAuth/handoff accounts carry a bearer token.
-  const authMode: 'oauth' | 'basic' = jmapClient.usesBearerAuth ? 'oauth' : 'basic';
+  const authMode = jmapClient.authKind;
 
   const [quota, setQuota] = useState<MailQuota | null>(null);
   useEffect(() => {
@@ -126,9 +126,11 @@ export function AccountSettings() {
 
         <SettingItem label={t('settings.account.auth_method_label', 'Authentication')}>
           <Text style={styles.value}>
-            {authMode === 'oauth'
-              ? t('settings.account.auth_method_oauth', 'Single Sign-On (OAuth/OIDC)')
-              : t('settings.account.auth_method_basic', 'Password')}
+            {authMode === 'token'
+              ? t('settings.account.auth_method_token', 'Access token')
+              : authMode === 'oauth'
+                ? t('settings.account.auth_method_oauth', 'Single Sign-On (OAuth/OIDC)')
+                : t('settings.account.auth_method_basic', 'Password')}
           </Text>
         </SettingItem>
 
