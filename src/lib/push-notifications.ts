@@ -1497,8 +1497,10 @@ export function addTokenRefreshListener(listener: FcmTokenListener): () => void 
 }
 
 export interface NotificationTapPayload {
-  emailId: string;
-  threadId: string;
+  // Both absent for a notification that names no message (the generic "New
+  // email" one): it opens the account's inbox.
+  emailId?: string;
+  threadId?: string;
   subject?: string;
   // Identifies which logged-in account the notification was generated for.
   // Optional for back-compat: older notifications already on the system tray

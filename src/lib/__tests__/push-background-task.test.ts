@@ -187,6 +187,135 @@ describe('pushBackgroundTask notifications', () => {
   });
 });
 
+describe('pushBackgroundTask when the new mail cannot be looked up', () => {
+  const LOCAL = 'alice@mail.example.com';
+  const showNotification = vi.fn(async () => undefined);
+  let jmapPost: (body: { methodCalls: Array<[string, Record<string, unknown>, string]> }) => unknown;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL]));
+    await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary' }));
+    (NativeModules as Record<string, unknown>).BulwarkFcm = { showNotification };
+    (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockResolvedValue({
+      serverUrl: 'https://mail.example.com',
+      username: 'alice',
+      password: 'secret',
+    });
+    (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+      if (url.endsWith('/.well-known/jmap')) {
+        return {
+          ok: true,
+          json: async () => ({
+            apiUrl: 'https://mail.example.com/jmap/',
+            primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' },
+            accounts: { 'jmap-primary': {} },
+          }),
+        };
+      }
+      return jmapPost(JSON.parse(init?.body ?? '{}'));
+    });
+  });
+
+  afterEach(() => {
+    delete (NativeModules as Record<string, unknown>).BulwarkFcm;
+  });
+
+  const push = {
+    kind: 'jmap-email-push',
+    accountLabel: 'Work',
+    accountId: 'jmap-primary',
+    emailIds: JSON.stringify(['m1']),
+  };
+
+  it('shows a generic notification when the message lookup fails', async () => {
+    jmapPost = () => ({
+      ok: true,
+      json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }),
+    });
+
+    await pushBackgroundTask(push);
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    const shown = (showNotification.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(shown).toMatchObject({
+      notificationId: `mail-generic:${LOCAL}`,
+      title: 'New email',
+      body: 'Work',
+      accountId: LOCAL,
+      groupKey: `bulwark-mail:${LOCAL}`,
+    });
+    expect(shown.emailId).toBeUndefined();
+  });
+
+  it('shows a generic notification when the request fails', async () => {
+    jmapPost = () => ({ ok: false, status: 503 });
+
+    await pushBackgroundTask(push);
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${LOCAL}`, body: 'Work' }),
+    );
+  });
+
+  it('never shows another message in place of the one that arrived', async () => {
+    const methods: string[] = [];
+    jmapPost = ({ methodCalls }) => {
+      methods.push(methodCalls[0][0]);
+      return {
+        ok: true,
+        json: async () => ({
+          methodResponses: [[
+            'Email/get',
+            { list: [], notFound: ['m1'] },
+            '0',
+          ]],
+        }),
+      };
+    };
+
+    await pushBackgroundTask(push);
+
+    expect(methods).toEqual(['Email/get']);
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${LOCAL}` }),
+    );
+  });
+
+  it('shows a generic notification when the legacy look-up for unread mail fails', async () => {
+    jmapPost = () => ({
+      ok: true,
+      json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }),
+    });
+
+    await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'Work', accountId: 'jmap-primary' });
+
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: `mail-generic:${LOCAL}` }),
+    );
+  });
+
+  it('stays silent when the inbox simply has nothing unread', async () => {
+    jmapPost = ({ methodCalls }) => ({
+      ok: true,
+      json: async () => ({
+        methodResponses: [
+          methodCalls[0][0] === 'Mailbox/get'
+            ? ['Mailbox/get', { list: [{ id: 'inbox', role: 'inbox' }] }, '0']
+            : ['Email/query', { ids: [] }, '0'],
+        ],
+      }),
+    });
+
+    await pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'Work', accountId: 'jmap-primary' });
+
+    expect(showNotification).not.toHaveBeenCalled();
+  });
+});
+
 describe('pushes for device sync (#34)', () => {
   const LOCAL = 'alice@mail.example.com';
   const showNotification = vi.fn(async () => undefined);

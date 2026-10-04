@@ -31,10 +31,12 @@ object NotificationTapStore {
 
     fun captureFromIntent(intent: Intent?): TapPayload? {
         val extras = intent?.extras ?: return null
+        // A message notification carries both ids. One that carries neither
+        // (the generic "New email" one, or a group summary) opens the account's
+        // inbox, so it needs the account instead.
         val emailId = extras.getString(EXTRA_EMAIL_ID)?.takeIf { ID_PATTERN.matches(it) }
-            ?: return null
         val threadId = extras.getString(EXTRA_THREAD_ID)?.takeIf { ID_PATTERN.matches(it) }
-            ?: return null
+        if ((emailId == null) != (threadId == null)) return null
         // Subject is human-readable text and may legitimately contain anything;
         // cap its length so a hostile launcher can't ship a 1MB string into
         // the navigation payload.
@@ -43,6 +45,7 @@ object NotificationTapStore {
         // The JMAP account a group/shared mailbox's message lives in - a JMAP
         // id like the email id. Optional: older notifications don't carry it.
         val jmapAccountId = extras.getString(EXTRA_JMAP_ACCOUNT_ID)?.takeIf { ID_PATTERN.matches(it) }
+        if (emailId == null && accountId == null) return null
         val payload = TapPayload(emailId, threadId, subject, accountId, jmapAccountId)
         pending = payload
         // Clear so a subsequent activity lifecycle event doesn't replay this.
@@ -55,15 +58,15 @@ object NotificationTapStore {
     }
 
     data class TapPayload(
-        val emailId: String,
-        val threadId: String,
+        val emailId: String?,
+        val threadId: String?,
         val subject: String?,
         val accountId: String?,
         val jmapAccountId: String?,
     ) {
         fun toMap(): WritableMap = Arguments.createMap().apply {
-            putString("emailId", emailId)
-            putString("threadId", threadId)
+            if (emailId != null) putString("emailId", emailId)
+            if (threadId != null) putString("threadId", threadId)
             if (subject != null) putString("subject", subject)
             if (accountId != null) putString("accountId", accountId)
             if (jmapAccountId != null) putString("jmapAccountId", jmapAccountId)

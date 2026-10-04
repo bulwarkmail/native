@@ -116,6 +116,12 @@ async function navigateToNotificationTap(payload: NotificationTapPayload): Promi
     if (useAuthStore.getState().activeAccountId !== payload.accountId) return;
   }
 
+  if (!payload.emailId || !payload.threadId) {
+    // A notification that names no message: show the account's mail.
+    navigationRef.navigate('MainTabs', { screen: 'Mail' } as never);
+    return;
+  }
+
   prefetchMessage({ id: payload.emailId, threadId: payload.threadId });
   navigationRef.navigate('EmailThread', {
     emailId: payload.emailId,
