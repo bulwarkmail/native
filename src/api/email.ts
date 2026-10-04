@@ -1410,6 +1410,53 @@ export async function queryEmailsByFilter(
   return (requireMethodResult(res, '0', 'Email/query').ids as string[]) ?? [];
 }
 
+/**
+ * Every email matching `filter`, newest first, with just `properties` (plus
+ * `id`). Each page is one request: an `Email/query` and an `Email/get` that
+ * back-references its ids. The page size is held to the server's
+ * maxObjectsInGet, and `max` is a hard cap on the total even if the server
+ * returns more than it was asked for. `accountId` is always explicit.
+ */
+export async function queryEmailFields(
+  filter: Record<string, unknown>,
+  properties: string[],
+  { accountId, pageSize = 500, max = 10000 }: { accountId: string; pageSize?: number; max?: number },
+): Promise<Array<Record<string, unknown>>> {
+  const perPage = Math.max(1, Math.min(pageSize, maxInGet()));
+  const seen = new Set<string>();
+  const list: Array<Record<string, unknown>> = [];
+  let position = 0;
+  while (list.length < max) {
+    const requested = Math.min(perPage, max - list.length);
+    const res = await jmapClient.request([
+      ['Email/query', {
+        accountId,
+        filter,
+        sort: [{ property: 'receivedAt', isAscending: false }],
+        position,
+        limit: requested,
+      }, '0'],
+      ['Email/get', {
+        accountId,
+        '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
+        properties: ['id', ...properties],
+      }, '1'],
+    ]);
+    const ids = (requireMethodResult(res, '0', 'Email/query').ids as string[] | undefined) ?? [];
+    const records = (requireMethodResult(res, '1', 'Email/get').list as Array<Record<string, unknown>> | undefined) ?? [];
+    for (const record of records) {
+      if (list.length >= max) break;
+      const id = record.id;
+      if (typeof id !== 'string' || seen.has(id)) continue;
+      seen.add(id);
+      list.push(record);
+    }
+    if (ids.length < requested) break;
+    position += requested;
+  }
+  return list;
+}
+
 export interface OutgoingAttachment {
   blobId: string;
   type: string;

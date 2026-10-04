@@ -31,6 +31,7 @@ import {
   searchEmails,
   sendEmail,
   importEmailBlob,
+  queryEmailFields,
 } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -638,5 +639,71 @@ describe('email operations', () => {
       const entry = mockRequest.mock.calls[0][0][0][1].emails['import-0'];
       expect(entry).not.toHaveProperty('receivedAt');
     });
+  });
+});
+
+describe('queryEmailFields', () => {
+  const pageOf = (ids: string[], extra: Record<string, unknown> = {}) => ({
+    methodResponses: [
+      ['Email/query', { ids }, '0'],
+      ['Email/get', { list: ids.map((id) => ({ id, ...extra })) }, '1'],
+    ],
+  });
+  const range = (from: number, count: number) => Array.from({ length: count }, (_, i) => `e${from + i}`);
+
+  it('sends one query plus a back-referenced get with the explicit account', async () => {
+    mockRequest.mockResolvedValue(pageOf(['e1', 'e2'], { keywords: {} }));
+    const filter = { inMailbox: 'mb-1' };
+    const result = await queryEmailFields(filter, ['keywords'], { accountId: 'grp-1' });
+
+    expect(result).toEqual([{ id: 'e1', keywords: {} }, { id: 'e2', keywords: {} }]);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest).toHaveBeenCalledWith([
+      ['Email/query', {
+        accountId: 'grp-1', filter, sort: [{ property: 'receivedAt', isAscending: false }], position: 0, limit: 500,
+      }, '0'],
+      ['Email/get', {
+        accountId: 'grp-1',
+        '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
+        properties: ['id', 'keywords'],
+      }, '1'],
+    ]);
+  });
+
+  it('pages until a short page', async () => {
+    mockRequest
+      .mockResolvedValueOnce(pageOf(range(0, 3)))
+      .mockResolvedValueOnce(pageOf(range(3, 3)))
+      .mockResolvedValueOnce(pageOf(range(6, 1)));
+    const result = await queryEmailFields({}, [], { accountId: 'acc-1', pageSize: 3 });
+    expect(result).toHaveLength(7);
+    const positions = mockRequest.mock.calls.map((c: any[][]) => (c[0][0][1] as { position: number }).position);
+    expect(positions).toEqual([0, 3, 6]);
+  });
+
+  it('stops at max, even when the server returns more than asked', async () => {
+    mockRequest.mockImplementation(async () => pageOf(range(0, 50)));
+    const result = await queryEmailFields({}, [], { accountId: 'acc-1', pageSize: 20, max: 30 });
+    expect(result).toHaveLength(30);
+    const limits = mockRequest.mock.calls.map((c: any[][]) => (c[0][0][1] as { limit: number }).limit);
+    expect(limits[0]).toBe(20);
+    expect(limits.every((l: number) => l <= 20)).toBe(true);
+    expect(mockRequest.mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it('caps a page at what the server allows per get', async () => {
+    (jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>).mockReturnValueOnce(100);
+    mockRequest.mockResolvedValue(pageOf(['e1']));
+    await queryEmailFields({}, [], { accountId: 'acc-1', pageSize: 500 });
+    expect(((mockRequest.mock.calls[0] as any)[0][0][1] as { limit: number }).limit).toBe(100);
+  });
+
+  it('drops duplicate ids and throws when the query fails', async () => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['Email/query', { ids: ['a', 'a'] }, '0'], ['Email/get', { list: [{ id: 'a' }, { id: 'a' }] }, '1']],
+    });
+    expect(await queryEmailFields({}, [], { accountId: 'acc-1' })).toEqual([{ id: 'a' }]);
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['error', { type: 'serverFail' }, '0']] });
+    await expect(queryEmailFields({}, [], { accountId: 'acc-1' })).rejects.toThrow();
   });
 });
