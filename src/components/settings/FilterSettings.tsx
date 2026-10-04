@@ -11,6 +11,7 @@ import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useFilterStore } from '../../stores/filter-store';
 import { useVacationStore } from '../../stores/vacation-store';
+import { useAuthStore } from '../../stores/auth-store';
 import { useEmailStore } from '../../stores/email-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { getMailboxes } from '../../api/email';
@@ -157,10 +158,12 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   }, [hydrated, hydrate]);
 
   // Always name the account (null = own) so leaving a shared account never
-  // keeps showing, or saving into, its script.
+  // keeps showing, or saving into, its script. The app account is a
+  // dependency too: managedAccountId stays null across a switch.
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
   useEffect(() => {
     void selectAccount(managedAccountId);
-  }, [managedAccountId, selectAccount]);
+  }, [managedAccountId, selectAccount, activeAccountId]);
 
   const showVacationBanner =
     !managedAccountId && ((vacationEnabled || vacationSettings?.isEnabled || includeVacation) ?? false);

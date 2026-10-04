@@ -8,6 +8,7 @@ import { useContactsStore } from './contacts-store';
 import { useCalendarStore } from './calendar-store';
 import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
+import { useVacationStore } from './vacation-store';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -676,6 +677,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // need a reset to avoid showing the previous account's data.
     useContactsStore.getState().reset();
     useCalendarStore.getState().reset();
+    // Filters and the auto-reply are keyed to "own account" (null) for both
+    // logins, so nothing else tells them the account changed; saving the old
+    // rules would write them into the new account.
+    useFilterStore.getState().clearState();
+    useVacationStore.getState().reset();
 
     // Load the new account's session. loadAccount overwrites
     // credentials/session/_accountId itself, so we don't need to reset

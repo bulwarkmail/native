@@ -17,6 +17,7 @@ import {
   isClientCertSupported,
   pickClientCertAlias,
 } from '../../lib/client-cert';
+import { useAuthStore } from '../../stores/auth-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import {
   isStalwartSupported,
@@ -841,6 +842,8 @@ export function AccountSecuritySettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const certSupported = isClientCertSupported();
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  // Read at render for the layout; the load effect re-reads it after a switch.
   const isOAuth = jmapClient.usesBearerAuth;
 
   // null = still probing; false = server lacks the Stalwart extension.
@@ -869,6 +872,13 @@ export function AccountSecuritySettings() {
 
   useEffect(() => {
     let cancelled = false;
+    // A switched-to account must not show, or edit, the previous one's data.
+    setAuth(null);
+    setDisplayName('');
+    setLoadError(null);
+    setCrypto(null);
+    setPublicKeys([]);
+    const loadIsOAuth = jmapClient.usesBearerAuth;
     const session = jmapClient.currentSession;
     if (!session) { setOffline(true); setSupported(false); return; }
     setOffline(false);
@@ -880,7 +890,7 @@ export function AccountSecuritySettings() {
         const authInfo = await fetchAuthInfo();
         if (cancelled) return;
         setAuth(authInfo);
-        if (!isOAuth) {
+        if (!loadIsOAuth) {
           // Principal + crypto only matter for password accounts; failures are
           // non-fatal (e.g. a non-admin principal read is forbidden).
           const [principal] = await Promise.allSettled([fetchPrincipal(), reloadCrypto()]);
@@ -893,7 +903,7 @@ export function AccountSecuritySettings() {
     })();
 
     return () => { cancelled = true; };
-  }, [isOAuth, reloadCrypto, t]);
+  }, [activeAccountId, reloadCrypto, t]);
 
   return (
     <View style={styles.container}>

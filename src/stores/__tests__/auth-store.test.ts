@@ -41,6 +41,8 @@ import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
 import { useContactsStore } from '../contacts-store';
 import { useEmailStore } from '../email-store';
+import { useFilterStore } from '../filter-store';
+import { useVacationStore } from '../vacation-store';
 import type { Email } from '../../api/types';
 import { peekRow, rememberRows } from '../../lib/email-detail-cache';
 import { bodyDocument } from '../../lib/email-body-document';
@@ -128,6 +130,35 @@ describe('auth-store', () => {
       expect(state.isAuthenticated).toBe(false);
       expect(state.serverUrl).toBeNull();
       expect(state.username).toBeNull();
+    });
+  });
+
+  describe('switchAccount', () => {
+    it('switchAccount clears the filter and vacation stores', async () => {
+      // Seeded the way logout is: registered accounts plus store state, with
+      // the mocked client "loading" the target account.
+      const entry = { serverUrl: 'https://mail.example.com', displayName: '', email: '', lastLoginAt: 0, isConnected: true, hasError: false };
+      const idA = useAccountStore.getState().addAccount({ ...entry, username: 'a' });
+      const idB = useAccountStore.getState().addAccount({ ...entry, username: 'b' });
+      useAuthStore.setState({ isAuthenticated: true, activeAccountId: idA });
+      mockLoadAccount.mockResolvedValue(true);
+
+      const initialFilters = useFilterStore.getState();
+      const initialVacation = useVacationStore.getState();
+      useFilterStore.setState({
+        rules: [{ id: 'r1', name: 'Old rule', enabled: true, matchType: 'all', conditions: [], actions: [], stopProcessing: false }],
+        isSupported: true,
+      });
+      useVacationStore.setState({ isEnabled: true, subject: 'Away', hasLoaded: true, isSupported: true });
+
+      await useAuthStore.getState().switchAccount(idB);
+
+      expect(useAuthStore.getState().activeAccountId).toBe(idB);
+      expect(useFilterStore.getState().rules).toEqual(initialFilters.rules);
+      expect(useFilterStore.getState().isSupported).toBe(initialFilters.isSupported);
+      expect(useVacationStore.getState().isEnabled).toBe(initialVacation.isEnabled);
+      expect(useVacationStore.getState().subject).toBe('');
+      expect(useVacationStore.getState().hasLoaded).toBe(false);
     });
   });
 
