@@ -296,7 +296,7 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **An `Email/set` create can be replayed after a dropped connection** — `P3` — `partial` (1.11.0)
+- [x] **An `Email/set` create can be replayed after a dropped connection** — `P3` — `partial` (1.11.0) — fixed in 89ca029
   - What WEB does: never replays a request that creates mail.
   - What RN does: submit, import and upload are never replayed (`src/api/jmap-client.ts:101-108,884`), but an `Email/set` create still can be, which can leave a duplicate draft or Sent copy.
 

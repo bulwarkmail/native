@@ -303,7 +303,7 @@ device.
   - What WEB does: maps them to `calendars` / `schedulingAddresses` / `directories` (`lib/jmap/contact-wire.ts`).
   - What RN does: sends flat `calendarUri` / `schedulingUri` / `freeBusyUri`, which Stalwart rejects as "Invalid property" (`src/screens/ContactFormScreen.tsx:458-460`, `src/api/contacts.ts:83-89`); the detail screen reads `contact.calendarUri`, which the server never returns (`ContactDetailScreen.tsx:602+`).
 
-- [x] **vCard import sends fields Stalwart rejects** — `P2` — `bugfix-parity` (1.11.0) — fixed in 30c440a — OPEN regression from df5cf93: a vCard with both ORG-DIRECTORY and SOURCE loses SOURCE on import (contact-wire.ts directories guard)
+- [x] **vCard import sends fields Stalwart rejects** — `P2` — `bugfix-parity` (1.11.0) — fixed in 30c440a — the df5cf93 regression (SOURCE lost next to ORG-DIRECTORY) fixed in 792009e
   - What WEB does: `addressToWire` and the same URI mapping in `contact-wire.ts`.
   - What RN does: flat address fields, the URI fields and `source` (`src/lib/vcard.ts:651-669,976-989`, `src/stores/contacts-store.ts:471-479`), so those cards fail to import.
 

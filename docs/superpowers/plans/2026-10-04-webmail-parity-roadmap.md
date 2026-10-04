@@ -212,3 +212,36 @@ Phase 2 is done on `parity/phase-2-data-correctness`. The final review left thes
   - Generic alerts show the bare server reason (`forbidden`).
 - **i18n:** the composer's account-changed and account-unavailable strings exist only in English. `i18n:check` covers English only.
 - **Tests:** the screen wiring for the composer, calendar fallback and Files has no test harness, so it is covered by typecheck and device checks only.
+
+## Phase 3 follow-ups (left open at merge, 2026-10-04)
+
+Phase 3 is done on `parity/phase-3-reliability`. The final review rated these "later".
+
+- **Before release:**
+  - Run an Android build or CI. The Kotlin changes in `BulwarkFcmModule.kt` (the `silent` flag) and `NotificationTapStore.kt` (taps without ids) were not compiled here.
+  - Device checks:
+    - Two accounts, with the app brought to the foreground after moving the clock 6 days forward: both keep getting notifications.
+    - One message sent to two accounts rings once and shows two notifications.
+    - Tapping a generic "New email" opens Mail.
+  - Release note: an account first added under a Unicode domain becomes a second account when the user signs in again, because the stored username is now ASCII. That account's calendar subscriptions are orphaned by owner.
+- **Push:**
+  - The generic tap opens the Mail tab rather than forcing the inbox.
+  - Ids are not remembered after a generic notice.
+  - The group-summary tap now switches account. The exported activity accepts an `accountId` extra; impact is low.
+  - A label that matches two servers still counts both as addressed.
+  - `notUpdated notFound` on renewal retries every 15 min.
+  - Setup from settings or onboarding doesn't call `markPushRenewed`.
+- **Mail list:**
+  - The selection is cleared after a failed bulk action.
+  - A failed cross-account move shows no toast.
+  - A failed search while offline shows the "nothing cached" text.
+  - There is no default-scope chip.
+  - The widgets' unread tag query uses `limit: 0` (`src/widgets/jmap.ts:282`).
+- **Accounts:**
+  - TOTP code fields aren't cleared after a failed submit.
+  - `otpEnabled` is briefly stale after a toggle.
+  - The `disable_hint` text doesn't mention the code.
+  - An email address ending in a dot (`ada@example.com.`) is rejected.
+  - The TOTP step shows the punycode address.
+- **Calendar:** in `addSubscription`, the catch path's `deleteCalendar` is not guarded against an account switch.
+- **Tests:** no render harness, so the wiring in the composer, security page, MoveSheet and calendar is covered by typecheck and device checks only.

@@ -292,14 +292,14 @@ at `76180b3`. Items already listed in [../audit-2026-09.md](../audit-2026-09.md)
 are not repeated. "Unverified" means read from the code but not confirmed on a
 device.
 
-- [ ] **Search does not leave out Spam and Trash** — `P2` — `bugfix-parity` (1.12.0)
+- [x] **Search does not leave out Spam and Trash** — `P2` — `bugfix-parity` (1.12.0) — fixed in 954d28a, 9668eef — "This folder" chip now scopes too
   - What WEB does: adds `inMailboxOtherThan: [junk, trash]` unless "All folders" is picked explicitly, and searches the folder itself when the search starts in Spam or Trash.
   - What RN does: queries with no mailbox filter (`src/stores/email-store.ts:267-271` `effectiveFolderScope`, `:477-484` `queryScope`).
 
-- [ ] **List actions fail silently when the server refuses them** — `P2` — `bugfix-parity` (1.11.0)
+- [x] **List actions fail silently when the server refuses them** — `P2` — `bugfix-parity` (1.11.0) — fixed in 9e8fb8f
   - What RN does: mark read, star, pin, tag and spam/not-spam from swipes and batch actions are fired with `void` and no catch (`src/screens/EmailListScreen.tsx:633-651,799`; `src/stores/outbox-store.ts:458-461` rethrows). No toast, and the optimistic change is never reverted. The viewer and unified inbox already show a toast.
 
-- [ ] **A failed search shows the previous folder's rows as results** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/unified-mailbox.ts:597`)
+- [x] **A failed search shows the previous folder's rows as results** — `P2` — `bugfix-parity` (1.11.0, WEB `lib/unified-mailbox.ts:597`) — fixed in 86ca8bf, 7c3e9f9
   - What RN does: `refreshEmailsImpl` only sets an error when the list is empty (`src/stores/email-store.ts:2842-2875`).
 
 - [x] **A cross-account move loses the message date (#1150)** — `P2` — `bugfix-parity` (71a1fad) — fixed in 1636f44
@@ -309,7 +309,7 @@ device.
 - [ ] **No "Copy to folder / account"** — `P3` — `missing` (f02dbf3)
   - What WEB does: copies messages to a folder of another connected account. RN cannot copy at all, not even within an account.
 
-- [ ] **Tag views and tag counts include Trash and Spam (#1156)** — `P3` — `bugfix-parity` (a4e313f)
+- [x] **Tag views and tag counts include Trash and Spam (#1156)** — `P3` — `bugfix-parity` (a4e313f) — fixed in 954d28a, 11d65fc
   - What RN does: `src/stores/email-store.ts:444` (`buildJmapFilter`) and `src/api/tag-counts.ts:38-45` do not exclude them.
 
 - [ ] **"Empty folder" is offered only for Trash and Junk** — `P3` — `partial` (1.12.0)
@@ -333,7 +333,7 @@ device.
   - What WEB does: gives each unknown tag its own colour; unified rows can be tinted with their account colour.
   - What RN does: `FALLBACK_KEYWORD_COLOR` (`src/stores/keywords-store.ts:30`); `suggestKeywordColor` (`src/lib/keyword-discovery.ts:68`) could be reused.
 
-- [ ] **The list's Move sheet is not scoped to the message's account (#1149)** — `P3` — `bugfix-parity` (c317cd9)
+- [x] **The list's Move sheet is not scoped to the message's account (#1149)** — `P3` — `bugfix-parity` (c317cd9) — fixed in 56475d7, de6765c — orders the message's account first, as WEB does
   - What RN does: in a shared mailbox your own folders come first (`src/screens/EmailListScreen.tsx:1705-1727`); the viewer is already scoped (`EmailThreadScreen.tsx:381`).
 
 - [ ] **List and notification previews do not skip a leading style sheet** — `P3` — `bugfix-parity` (2d521d1, 6bce332, WEB `lib/utils.ts`)
@@ -349,7 +349,7 @@ device.
 - [ ] **Rows jump while attachment chips load** — `P3` — `partial` (1.11.0, WEB `components/email/attachment-chips.tsx:98-160`)
   - What RN does: renders nothing until the chips arrive and keeps no cache (`src/components/email/ListAttachmentChips.tsx:60-88`).
 
-- [ ] **Mail deleted during a list refresh can reappear (#966)** — `P3` — `bugfix-parity` (1.11.0, unverified)
+- [x] **Mail deleted during a list refresh can reappear (#966)** — `P3` — `bugfix-parity` (1.11.0, unverified) — fixed in 8501746
   - What RN does: the full re-query overwrites the list without tracking rows removed while it was in flight (`src/stores/email-store.ts:2607+`).
 
 - [ ] **The list may not return to the top when another folder opens** — `P3` — `bugfix-parity` (17a42c4, unverified)
