@@ -184,6 +184,18 @@ async function readAccountRegistry(): Promise<RegistryAccount[]> {
   }
 }
 
+/** The local accounts a push is checked against. */
+export interface PushTargets {
+  accountIds: string[];
+  /**
+   * Whether the push named these accounts (or there is only one to name).
+   * When false they are every push account, checked in case one of them
+   * holds the mail: an account that can't find it, or can't look it up, is
+   * not the one the push was for, and shows nothing.
+   */
+  addressed: boolean;
+}
+
 /**
  * Pick the local account(s) a relay payload belongs to. Primary key is the
  * JMAP account id recorded at setup; the relay's `accountLabel` (= username)
@@ -195,10 +207,10 @@ export function matchAccountsForPush(
   pushAccountIds: string[],
   jmapAccountIds: Record<string, string>,
   registry: RegistryAccount[],
-): string[] {
+): PushTargets {
   if (payload.jmapAccountId) {
     const byJmapId = pushAccountIds.filter((id) => jmapAccountIds[id] === payload.jmapAccountId);
-    if (byJmapId.length > 0) return byJmapId;
+    if (byJmapId.length > 0) return { accountIds: byJmapId, addressed: true };
   }
   if (payload.accountLabel) {
     const label = payload.accountLabel.toLowerCase();
@@ -207,9 +219,9 @@ export function matchAccountsForPush(
       const username = entry?.username?.toLowerCase();
       return username === label || id.toLowerCase().startsWith(`${label}@`);
     });
-    if (byLabel.length > 0) return byLabel;
+    if (byLabel.length > 0) return { accountIds: byLabel, addressed: true };
   }
-  return pushAccountIds;
+  return { accountIds: pushAccountIds, addressed: pushAccountIds.length === 1 };
 }
 
 async function readNotifiedIds(accountId: string): Promise<string[]> {
@@ -437,11 +449,11 @@ export async function pushBackgroundTask(data: unknown): Promise<void> {
 
     const registry = await readAccountRegistry();
     const jmapAccountIds = await readPushJmapAccountIds();
-    const accountsToCheck = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
+    const targets = matchAccountsForPush(payload, accountIds, jmapAccountIds, registry);
 
-    for (const accountId of accountsToCheck) {
+    for (const accountId of targets.accountIds) {
       try {
-        await processAccountForPush(accountId, payload);
+        await processAccountForPush(accountId, payload, targets.addressed);
       } catch (err) {
         console.warn(
           '[push] background check failed for account',
@@ -510,7 +522,11 @@ async function lookUpPushedEmails(
   return { candidates, alreadyNotified, emailAccountId };
 }
 
-async function processAccountForPush(accountId: string, payload: RelayPushData): Promise<void> {
+async function processAccountForPush(
+  accountId: string,
+  payload: RelayPushData,
+  addressed: boolean,
+): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
 
@@ -524,9 +540,11 @@ async function processAccountForPush(accountId: string, payload: RelayPushData):
     lookup = await lookUpPushedEmails(session, accountId, payload);
   } catch (err) {
     // New mail arrived but can't be looked up: say so without naming a
-    // message. Dropping the push would leave the user unaware of it.
+    // message. Dropping the push would leave the user unaware of it. A push
+    // that named no account is only checked against this one, so it says
+    // nothing: one alert per account would be false for all but one.
     console.warn('[push] could not look up new mail for', accountId, err instanceof Error ? err.message : err);
-    await showGenericNotification(native, accountId, groupKey, groupTitle);
+    if (addressed) await showGenericNotification(native, accountId, groupKey, groupTitle);
     return;
   }
   if (!lookup) return;
