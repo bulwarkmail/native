@@ -90,6 +90,55 @@ export class ScheduleTooLateError extends Error {
   }
 }
 
+interface DeliveryStatus {
+  delivered?: string;
+  smtpReply?: string;
+}
+
+export interface RejectedRecipient {
+  email: string;
+  smtpReply: string;
+}
+
+/**
+ * The recipients a submission's deliveryStatus (RFC 8621 §7) marks as not
+ * delivered, and whether that is all of them - then the message went nowhere.
+ */
+export function rejectedRecipients(deliveryStatus: Record<string, DeliveryStatus> | null | undefined): {
+  rejected: RejectedRecipient[];
+  all: boolean;
+} {
+  const entries = Object.entries(deliveryStatus ?? {});
+  const rejected = entries
+    .filter(([, status]) => status?.delivered === 'no')
+    .map(([email, status]) => ({ email, smtpReply: status.smtpReply?.trim() ?? '' }));
+  return { rejected, all: rejected.length > 0 && rejected.length === entries.length };
+}
+
+/** "a@example.com (550 5.1.2 Mailbox does not exist.), b@example.com" */
+export function formatRejectedRecipients(recipients: RejectedRecipient[]): string {
+  return recipients.map(({ email, smtpReply }) => (smtpReply ? `${email} (${smtpReply})` : email)).join(', ');
+}
+
+/** The server refused every recipient of a send, so nothing went out. */
+export class RecipientsRejectedError extends Error {
+  constructor(readonly recipients: RejectedRecipient[]) {
+    super(`The server rejected every recipient: ${formatRejectedRecipients(recipients)}`);
+    this.name = 'RecipientsRejectedError';
+  }
+}
+
+/**
+ * The send request came back without an EmailSubmission: nothing confirms the
+ * message left, and it may still have. The draft is kept.
+ */
+export class SendUnconfirmedError extends Error {
+  constructor() {
+    super('Send confirmation was not received. Check Sent before sending again. Your draft has been kept.');
+    this.name = 'SendUnconfirmedError';
+  }
+}
+
 /**
  * The hold limit named in a rejected submission, if that was the reason:
  * Stalwart's MTA refuses a HOLDFOR beyond its `futureRelease` limit with
