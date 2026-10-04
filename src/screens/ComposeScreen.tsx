@@ -1350,6 +1350,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
     setDraftStatus('saving');
     try {
       const outgoing = buildOutgoing(identity, html, { forDraft: true });
+      // Re-checked after the editor round-trip above, as the guard at the top.
+      if (!ownerActiveNow()) {
+        setDraftStatus('idle');
+        return draftIdRef.current;
+      }
       const id = await createDraft(outgoing, draftsMailbox.id, draftIdRef.current ?? undefined);
       draftIdRef.current = id;
       lastSavedRef.current = snapshot;
@@ -2239,7 +2244,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       }
       // Flag the original so the list shows the reply/forward arrow; best
       // effort - the message already left.
-      if (replyTo?.originalEmailId) {
+      // Skipped when a switch landed during the send: the client now serves
+      // the other account.
+      const stillOwner = ownerActiveNow();
+      if (replyTo?.originalEmailId && !stillOwner) {
+        console.warn('[compose] reply flag skipped: account changed');
+      } else if (replyTo?.originalEmailId) {
         void patchKeywordsForEmails(
           [replyTo.originalEmailId],
           { [mode === 'forward' ? '$forwarded' : '$answered']: true },
@@ -2253,7 +2263,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const contacts = useContactsStore.getState();
         for (const r of withoutRefused([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients)) {
           settings.addTrustedSender(r.email);
-          if (isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
+          if (stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
             contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
           }
         }
