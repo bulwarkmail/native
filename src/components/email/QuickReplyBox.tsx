@@ -13,7 +13,7 @@ import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { useNetworkStore } from '../../stores/network-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useSendQueueStore, SendTooLargeToQueueError } from '../../stores/send-queue-store';
-import { buildQueuedSend, shouldQueueSend, attachmentsUploaded } from '../../lib/queue-send';
+import { buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded } from '../../lib/queue-send';
 import { generateUUID } from '../../lib/uuid';
 import { generateMessageId } from '../../lib/email-threading';
 import type { OutgoingEmail } from '../../api/email';
@@ -58,6 +58,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const sendingRef = React.useRef(false);
 
   React.useEffect(() => { setText(''); }, [email.id]);
 
@@ -66,7 +67,16 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
 
   const send = async () => {
     const body = text.trim();
-    if (!body || sending) return;
+    if (!body || sending || sendingRef.current) return;
+    sendingRef.current = true;
+    try {
+      await sendInner(body);
+    } finally {
+      sendingRef.current = false;
+    }
+  };
+
+  const sendInner = async (body: string) => {
     const ownEmails = identities.map((i) => i.email).filter(Boolean);
     // The own identity the message was delivered to (or, for our own message,
     // the one that sent it). Never the catch-all From rewrite: this box has no
@@ -108,35 +118,40 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       });
       const threading = computeReplyThreadingHeaders(email);
       const outgoing: OutgoingEmail = {
-          from: [{ name: identity.name, email: identity.email }],
-          to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
-          cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
-          subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
-          // Signed as the composer signs a plain-text reply; an alias without a
-          // signature of its own carries the primary identity's.
-          textBody: signPlainTextReply(body, `${header.text}${quoted}`, signatureIdentityFor(identity, identities), {
-            position: signaturePosition,
-            separator: signatureSeparatorEnabled,
-          }),
-          inReplyTo: threading?.inReplyTo,
-          references: threading?.references,
+        from: [{ name: identity.name, email: identity.email }],
+        to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
+        cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
+        subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
+        // Signed as the composer signs a plain-text reply; an alias without a
+        // signature of its own carries the primary identity's.
+        textBody: signPlainTextReply(body, `${header.text}${quoted}`, signatureIdentityFor(identity, identities), {
+          position: signaturePosition,
+          separator: signatureSeparatorEnabled,
+        }),
+        inReplyTo: threading?.inReplyTo,
+        references: threading?.references,
       };
       // Offline at the moment of sending, before any request: queue it.
       const ownerAppAccountId = useAuthStore.getState().activeAccountId;
       const queueJmapAccountId = jmapAccountId ?? (jmapClient.isConnected ? jmapClient.accountId : '');
-      if (
-        !useNetworkStore.getState().online && ownerAppAccountId && queueJmapAccountId
-        && shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(outgoing) })
-      ) {
+      if (!useNetworkStore.getState().online) {
+        if (
+          !hasQueueAccounts(ownerAppAccountId, queueJmapAccountId)
+          || !shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(outgoing) })
+        ) {
+          const { title, message } = sendErrorAlert(new Error('offline'), t);
+          Alert.alert(title, message);
+          return;
+        }
         try {
           outgoing.messageId = generateMessageId(identity.email);
           await useSendQueueStore.getState().enqueue(buildQueuedSend({
             id: generateUUID(),
-            appAccountId: ownerAppAccountId,
+            appAccountId: ownerAppAccountId!,
             jmapAccountId: queueJmapAccountId,
             identityId: identity.id,
             outgoing,
-            replyTo: { emailIds: [email.id], keyword: '$answered' },
+            replyTo: { emailIds: [email.id], keyword: '$answered', jmapAccountId },
           }));
           setText('');
           Keyboard.dismiss();

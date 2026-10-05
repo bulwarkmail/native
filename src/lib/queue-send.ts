@@ -13,6 +13,11 @@ export function shouldQueueSend(params: { online: boolean; uploadsDone: boolean 
   return params.online === false && params.uploadsDone;
 }
 
+/** A queued entry needs both accounts; an empty JMAP account id cannot be replayed. */
+export function hasQueueAccounts(appAccountId: string | null | undefined, jmapAccountId: string | null | undefined): boolean {
+  return !!appAccountId && !!jmapAccountId;
+}
+
 /** Every attachment of `outgoing` carries a blob id. */
 export function attachmentsUploaded(outgoing: OutgoingEmail): boolean {
   return (outgoing.attachments ?? []).every((a) => !!a.blobId);
@@ -29,7 +34,7 @@ export interface BuildQueuedSendParams {
   draftId?: string | null;
   /** The user's chosen schedule; stored as an absolute ISO time. */
   scheduledAt?: Date;
-  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded' };
+  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded'; jmapAccountId?: string };
   now?: Date;
 }
 

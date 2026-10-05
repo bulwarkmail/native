@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attachmentsUploaded, buildQueuedSend, shouldQueueSend } from '../queue-send';
+import { attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend } from '../queue-send';
 import type { OutgoingEmail } from '../../api/email';
 
 const outgoing: OutgoingEmail = {
@@ -46,5 +46,21 @@ describe('shouldQueueSend', () => {
   it('attachmentsUploaded requires blob ids', () => {
     expect(attachmentsUploaded(outgoing)).toBe(true);
     expect(attachmentsUploaded({ ...outgoing, attachments: [{ blobId: '', type: 't', name: 'n', size: 1 } as never] })).toBe(false);
+  });
+});
+
+describe('account guards', () => {
+  it('hasQueueAccounts refuses an empty account', () => {
+    expect(hasQueueAccounts('a', 'j')).toBe(true);
+    expect(hasQueueAccounts('a', '')).toBe(false);
+    expect(hasQueueAccounts(null, 'j')).toBe(false);
+    expect(hasQueueAccounts('a', undefined)).toBe(false);
+  });
+  it('buildQueuedSend carries replyTo.jmapAccountId', () => {
+    const e = buildQueuedSend({
+      id: 'x', appAccountId: 'a', jmapAccountId: 'j', identityId: 'i', outgoing,
+      replyTo: { emailIds: ['e1'], keyword: '$forwarded', jmapAccountId: 'orig-j' },
+    });
+    expect(e.replyTo).toEqual({ emailIds: ['e1'], keyword: '$forwarded', jmapAccountId: 'orig-j' });
   });
 });

@@ -57,7 +57,7 @@ import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients'
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { useNetworkStore } from '../stores/network-store';
 import { useSendQueueStore, SendTooLargeToQueueError } from '../stores/send-queue-store';
-import { attachmentsUploaded, buildQueuedSend, shouldQueueSend } from '../lib/queue-send';
+import { attachmentsUploaded, buildQueuedSend, hasQueueAccounts, shouldQueueSend } from '../lib/queue-send';
 import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { escapeHtml, stripDangerousTags } from '../lib/email-html';
@@ -2363,7 +2363,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // Offline at the moment of sending, before any request: queue it. An
     // online send never takes this path, and a network error during one keeps
     // the "Send failed" alert below (never auto-queue after a request).
-    if (!useNetworkStore.getState().online && owner) {
+    if (!useNetworkStore.getState().online) {
+      if (!owner || !hasQueueAccounts(owner.appAccountId, owner.jmapAccountId)) {
+        // Nothing to queue against; never fall through to an online send.
+        const { title, message } = sendErrorAlert(new Error('offline'), t);
+        Alert.alert(title, message);
+        return;
+      }
       const queued = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
       if (shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(queued) })) {
         setSending(true);
@@ -2377,7 +2383,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
             draftId: draftIdRef.current,
             scheduledAt,
             replyTo: replyTo?.originalEmailId
-              ? { emailIds: [replyTo.originalEmailId], keyword: mode === 'forward' ? '$forwarded' : '$answered' }
+              ? {
+                  emailIds: [replyTo.originalEmailId],
+                  keyword: mode === 'forward' ? '$forwarded' : '$answered',
+                  jmapAccountId: replyTo.jmapAccountId,
+                }
               : undefined,
           }));
           toast.info(t('outbox.queued', "Will send when you're back online"));
