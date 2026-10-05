@@ -18,7 +18,7 @@ import type { RootStackParamList } from '../../navigation/types';
 import { useAccountStore } from '../../stores/account-store';
 import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../../stores/send-queue-store';
 import {
-  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, ownerStillActive,
+  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, ownerStillActive, OutboxCheckError,
 } from '../../lib/queue-send';
 import { generateUUID } from '../../lib/uuid';
 import { generateMessageId } from '../../lib/email-threading';
@@ -109,7 +109,15 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       alertOwnerChanged();
       return;
     }
-    if (await findAlreadyQueued(ownerRef.current, { messageId: messageIdRef.current })) {
+    let alreadyQueued: Awaited<ReturnType<typeof findAlreadyQueued>>;
+    try {
+      alreadyQueued = await findAlreadyQueued(ownerRef.current, { messageId: messageIdRef.current });
+    } catch (err) {
+      if (!(err instanceof OutboxCheckError)) throw err;
+      toast.error(t('outbox.check_failed_send', "Couldn't check the Outbox. Try sending again."));
+      return;
+    }
+    if (alreadyQueued) {
       toastAlreadyQueued();
       return;
     }

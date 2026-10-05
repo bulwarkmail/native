@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend, queuedEntryFor, findAlreadyQueued, ownerStillActive,
+  attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend, queuedEntryFor, findAlreadyQueued, ownerStillActive, OutboxCheckError,
 } from '../queue-send';
 import type { OutgoingEmail } from '../../api/email';
 import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
@@ -110,6 +110,13 @@ describe('already-queued guard', () => {
       expect(useSendQueueStore.getState().hydrated.a).toBe(true);
       expect(await findAlreadyQueued('a', { messageId: 'x@y', draftId: 'D' })).toBeDefined();
       expect(await findAlreadyQueued('a', { messageId: 'x@y', draftId: 'E' })).toBeUndefined();
+    });
+
+    it('refuses rather than guesses when the owner queue cannot be read', async () => {
+      const spy = vi.spyOn(AsyncStorage, 'getAllKeys').mockRejectedValueOnce(new Error('disk'));
+      await expect(findAlreadyQueued('a', { messageId: 'mid-1@x.test', draftId: null }))
+        .rejects.toBeInstanceOf(OutboxCheckError);
+      spy.mockRestore();
     });
   });
 });

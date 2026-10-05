@@ -244,6 +244,8 @@ async function removeSentDraft(entry: QueuedSend, proofIds: readonly string[]): 
     const { list } = await getEmailFlags([draftId], entry.jmapAccountId);
     const draft = list.find((e) => e.id === draftId);
     if (draft?.keywords?.$draft !== true) return;
+    // The read was a round trip: the account may have switched since.
+    if (!canReplay(entry.appAccountId)) return;
     await destroyEmails([draftId], entry.jmapAccountId);
   } catch (err) {
     console.warn('[send-queue] could not remove the draft of a sent message:', err);

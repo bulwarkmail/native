@@ -73,11 +73,19 @@ export function queuedEntryFor(entries: readonly QueuedSend[], refs: ComposerRef
   return entries.find((e) => (!!mid && e.messageId === mid) || (!!draftId && e.draftId === draftId));
 }
 
+/** The Outbox could not be read, so whether this message is already queued is unknown. */
+export class OutboxCheckError extends Error {
+  constructor(readonly cause: unknown) {
+    super('Could not check the Outbox');
+    this.name = 'OutboxCheckError';
+  }
+}
+
 /**
  * The guard the composer and the quick reply run before any send, online or
  * queued. The owner account is hydrated first so a row an earlier run left
- * counts; when hydration fails (storage error) only loaded entries count:
- * replay cannot load that account either, so it sends nothing from it.
+ * counts; when hydration fails (storage error) it throws OutboxCheckError
+ * rather than let a send through that the queue may already hold.
  */
 export async function findAlreadyQueued(ownerAppAccountId: string | null | undefined, refs: ComposerRefs): Promise<QueuedSend | undefined> {
   const store = useSendQueueStore.getState();
@@ -85,7 +93,9 @@ export async function findAlreadyQueued(ownerAppAccountId: string | null | undef
     try {
       await store.hydrateAccount(ownerAppAccountId);
     } catch (err) {
-      console.warn('[queue-send] hydrate failed; checking loaded entries only:', err);
+      // An unread queue may hold this very message; sending now could send
+      // it twice once the queue loads. Refuse instead of guessing.
+      throw new OutboxCheckError(err);
     }
   }
   return queuedEntryFor(Object.values(useSendQueueStore.getState().entries).flat(), refs);
