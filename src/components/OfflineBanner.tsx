@@ -7,7 +7,7 @@ import { CloudOff } from 'lucide-react-native';
 import { useNetworkStore } from '../stores/network-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
-import { queuedSendCount } from '../lib/outbox-rows';
+import { allQueuedSends } from '../lib/outbox-rows';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -24,7 +24,8 @@ export function OfflineBanner({ hint }: OfflineBannerProps) {
   const t = useLocaleStore((s) => s.t);
   // Pending offline mutations that will replay once we're back online.
   // Queued sends count with them; tapping opens the Outbox.
-  const queuedSends = useSendQueueStore((s) => queuedSendCount(s.entries));
+  // Only `queued` sends will go out on reconnect; failed/uncertain wait for the user.
+  const queuedSends = useSendQueueStore((s) => allQueuedSends(s.entries).filter((e) => e.state === 'queued').length);
   const queued = useOutboxStore((s) => s.entries.length) + queuedSends;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   if (online) return null;

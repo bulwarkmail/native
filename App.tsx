@@ -520,11 +520,15 @@ export default function App() {
 
   // One toast per send that ended up failed or uncertain, and the Outbox
   // badge counts: load every account's queue so both see all of it.
+  const accountIds = useAccountStore((s) => s.accounts.map((a) => a.id).join('\n'));
   React.useEffect(() => {
     if (!isAuthenticated) return;
     for (const a of useAccountStore.getState().accounts) {
       void useSendQueueStore.getState().hydrateAccount(a.id).catch(() => undefined);
     }
+  }, [isAuthenticated, accountIds]);
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
     return startOutboxToasts(() => {
       if (navigationRef.isReady()) navigationRef.navigate('Outbox' as never);
     });

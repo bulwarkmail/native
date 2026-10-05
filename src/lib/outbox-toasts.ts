@@ -11,7 +11,12 @@ export function startOutboxToasts(openOutbox: () => void): () => void {
     const fresh = unannouncedUnsent(useSendQueueStore.getState().entries, notified);
     if (fresh.length === 0) return;
     const t = useLocaleStore.getState().t;
-    toast.error(t('outbox.failed', 'A message was not sent'), {
+    // Failed is certain; uncertain must not claim the message was not sent.
+    const onlyUncertain = fresh.every((e) => e.state === 'uncertain');
+    const title = onlyUncertain
+      ? t('outbox.uncertain', 'A message may not have been sent. Check Outbox.')
+      : t('outbox.failed', 'A message was not sent');
+    toast.error(title, {
       message: t('outbox.failed_hint', 'Check the Outbox to retry, save it as a draft or discard it.'),
       action: { label: t('outbox.open', 'Open Outbox'), onPress: openOutbox },
     });

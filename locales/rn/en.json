@@ -685,6 +685,13 @@
     "draft_saved": "Saved to Drafts",
     "empty": "Nothing waiting to be sent",
     "empty_hint": "Messages you send while offline wait here until you are back online.",
+    "error": {
+      "changed": "This message changed. Check the Outbox.",
+      "draft_lost": "The draft could not be saved and the message could not be restored.",
+      "draft_restored": "The draft could not be saved. The message is back in the Outbox.",
+      "sending": "This message is being sent.",
+      "wrong_account": "Switch to the sending account first."
+    },
     "failed": "A message was not sent",
     "failed_hint": "Check the Outbox to retry, save it as a draft or discard it.",
     "open": "Open Outbox",
@@ -706,7 +713,8 @@
     },
     "title": "Outbox",
     "title_count": "Outbox ({count})",
-    "too_large": "This message is too large to send offline"
+    "too_large": "This message is too large to send offline",
+    "uncertain": "A message may not have been sent. Check Outbox."
   },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",

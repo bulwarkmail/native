@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const calls: string[] = [];
-const state = { entries: {} as Record<string, unknown[]>, active: 'A', serves: true };
+const state = { entries: {} as Record<string, unknown[]>, active: 'A', serves: true, discardFails: false, createFails: false, enqueued: [] as unknown[] };
 
 vi.mock('../../api/email', () => ({
-  createDraft: vi.fn(async () => { calls.push('createDraft'); return 'd1'; }),
+  createDraft: vi.fn(async () => { calls.push('createDraft'); if (state.createFails) throw new Error('net'); return 'd1'; }),
 }));
 vi.mock('../../api/sent-lookup', () => ({
   resolveSendMailboxes: vi.fn(async () => ({ draftsId: 'drafts' })),
@@ -19,7 +19,8 @@ vi.mock('../../stores/send-queue-store', () => ({
     getState: () => ({
       entries: state.entries,
       requeue: async () => { calls.push('requeue'); },
-      discard: async () => { calls.push('discard'); },
+      discard: async () => { calls.push('discard'); if (state.discardFails) throw new Error('state'); },
+      enqueue: async (e: unknown) => { calls.push('enqueue'); state.enqueued.push(e); },
     }),
   },
 }));
@@ -33,31 +34,63 @@ beforeEach(() => {
   calls.length = 0;
   state.active = 'A';
   state.serves = true;
+  state.discardFails = false;
+  state.createFails = false;
+  state.enqueued = [];
   state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'uncertain', outgoing: { subject: 'x' } }] };
 });
 
 describe('outbox actions', () => {
   it('requeues then flushes', async () => {
-    await requeueAndFlush(e('failed'));
+    await requeueAndFlush(e('uncertain'), 'uncertain');
     expect(calls).toEqual(['requeue', 'flush']);
+  });
+
+  it('refuses when the live state is not the one the row showed', async () => {
+    await expect(requeueAndFlush(e('failed'), 'failed')).rejects.toThrow();
+    expect(calls).toEqual([]);
   });
 
   it('refuses retry when the entry account is not active', async () => {
     state.active = 'B';
-    await expect(requeueAndFlush(e('failed'))).rejects.toThrow();
+    await expect(requeueAndFlush(e('failed'), 'uncertain')).rejects.toThrow();
     expect(calls).toEqual([]);
   });
 
   it('refuses retry when the client serves another account', async () => {
     state.serves = false;
-    await expect(requeueAndFlush(e('failed'))).rejects.toThrow();
+    await expect(requeueAndFlush(e('failed'), 'uncertain')).rejects.toThrow();
     expect(calls).toEqual([]);
   });
 
-  it('saves a draft in the entry account, then discards', async () => {
+  it('discards first, then saves a draft in the entry account', async () => {
     await saveEntryAsDraft(e('uncertain'));
     expect(createDraft).toHaveBeenCalledWith({ subject: 'x' }, 'drafts', undefined, 'jA');
-    expect(calls).toEqual(['createDraft', 'discard']);
+    expect(calls).toEqual(['discard', 'createDraft']);
+  });
+
+  it('replaces the entry draft like autosave', async () => {
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', draftId: 'old', outgoing: { subject: 'x' } }] };
+    await saveEntryAsDraft(e('queued'));
+    expect(createDraft).toHaveBeenCalledWith({ subject: 'x' }, 'drafts', 'old', 'jA');
+  });
+
+  it('creates nothing when discard rejects (a flush won)', async () => {
+    state.discardFails = true;
+    await expect(saveEntryAsDraft(e('queued'))).rejects.toThrow();
+    expect(calls).toEqual(['discard']);
+    expect(state.enqueued).toEqual([]);
+  });
+
+  it('puts the entry back under a fresh id when the draft fails', async () => {
+    state.createFails = true;
+    await expect(saveEntryAsDraft(e('uncertain'))).rejects.toMatchObject({ code: 'draft_failed_restored' });
+    expect(calls).toEqual(['discard', 'createDraft', 'enqueue']);
+    const back = state.enqueued[0] as { id: string; state: string; outgoing: unknown; messageId?: string };
+    expect(back.id).not.toBe('1');
+    expect(back.state).toBe('uncertain');
+    expect(back.outgoing).toEqual({ subject: 'x' });
+    expect(back.messageId).toBeUndefined();
   });
 
   it('does not save a draft for an entry that is sending now or gone', async () => {

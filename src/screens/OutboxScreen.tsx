@@ -9,7 +9,7 @@ import { useAccountStore } from '../stores/account-store';
 import { useNetworkStore } from '../stores/network-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { outboxRows, allQueuedSends, type OutboxAction, type OutboxLabel, type OutboxRow } from '../lib/outbox-rows';
-import { requeueAndFlush, saveEntryAsDraft } from '../lib/outbox-actions';
+import { requeueAndFlush, saveEntryAsDraft, outboxErrorMessage } from '../lib/outbox-actions';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -23,7 +23,9 @@ export default function OutboxScreen({ navigation }: Props) {
   const accounts = useAccountStore((s) => s.accounts);
   const activeAppAccountId = useAccountStore((s) => s.activeAccountId);
   const online = useNetworkStore((s) => s.online);
-  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState<ReadonlySet<string>>(new Set());
+  // Synchronous guard: state updates land too late to stop a double tap.
+  const inFlight = React.useRef<Set<string>>(new Set());
 
   // Mutators need a hydrated account; load every account's rows.
   React.useEffect(() => {
@@ -41,13 +43,17 @@ export default function OutboxScreen({ navigation }: Props) {
   const label = (l: OutboxLabel) => t(l.key, l.fallback, l.params);
 
   const run = async (row: OutboxRow, action: () => Promise<void>) => {
-    setBusyId(row.id);
+    if (inFlight.current.has(row.id)) return;
+    inFlight.current.add(row.id);
+    setBusy(new Set(inFlight.current));
     try {
       await action();
     } catch (e) {
-      Alert.alert(t('outbox.action_failed', 'That did not work'), e instanceof Error ? e.message : String(e));
+      const m = outboxErrorMessage(e);
+      Alert.alert(t('outbox.action_failed', 'That did not work'), 'raw' in m ? m.raw : t(m.key, m.fallback));
     } finally {
-      setBusyId(null);
+      inFlight.current.delete(row.id);
+      setBusy(new Set(inFlight.current));
     }
   };
 
@@ -59,18 +65,19 @@ export default function OutboxScreen({ navigation }: Props) {
   };
 
   const onAction = (row: OutboxRow, action: OutboxAction) => {
+    if (inFlight.current.has(row.id)) return;
     const entry: QueuedSend = row.entry;
     const uncertain = row.state === 'uncertain';
     switch (action) {
       case 'retry':
-        void run(row, () => requeueAndFlush(entry));
+        void run(row, () => requeueAndFlush(entry, 'failed'));
         break;
       case 'send_again':
         confirm(
           t('outbox.send_again', 'Send again'),
           t('outbox.confirm_resend', 'This message may already have been sent. Check your Sent folder before sending it again. Send again?'),
           t('outbox.send_again', 'Send again'),
-          () => { void run(row, () => requeueAndFlush(entry)); },
+          () => { void run(row, () => requeueAndFlush(entry, 'uncertain')); },
         );
         break;
       case 'save_draft': {
@@ -116,7 +123,7 @@ export default function OutboxScreen({ navigation }: Props) {
   };
 
   const renderItem = ({ item }: { item: OutboxRow }) => {
-    const busy = busyId === item.id;
+    const isBusy = busy.has(item.id);
     return (
       <View style={styles.row}>
         <Text style={styles.subject} numberOfLines={1}>
@@ -134,10 +141,10 @@ export default function OutboxScreen({ navigation }: Props) {
             {item.actions.map((a) => (
               <Pressable
                 key={a}
-                disabled={busy}
+                disabled={isBusy}
                 onPress={() => onAction(item, a)}
                 accessibilityRole="button"
-                style={[styles.actionBtn, busy && { opacity: 0.5 }]}
+                style={[styles.actionBtn, isBusy && { opacity: 0.5 }]}
               >
                 <Text style={[styles.actionText, a === 'discard' && { color: c.error }]}>{actionLabel(a)}</Text>
               </Pressable>
