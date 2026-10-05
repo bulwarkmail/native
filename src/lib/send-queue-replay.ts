@@ -21,7 +21,12 @@
 import { AuthenticationError, jmapClient } from '../api/jmap-client';
 import { patchKeywordsForEmails, sendEmail } from '../api/email';
 import { RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, type RejectedRecipient } from '../api/jmap-result';
-import { findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes } from '../api/sent-lookup';
+import {
+  findCopiesByMessageId,
+  findSubmissionsForEmails,
+  resolveSendMailboxes,
+  type EmailCopy,
+} from '../api/sent-lookup';
 import { useNetworkStore } from '../stores/network-store';
 import { useSendQueueStore, type QueuedSend } from '../stores/send-queue-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -152,9 +157,10 @@ type ReconcileResult = 'completed' | 'left';
  * Settle an `uncertain` entry against the server. Never sends, never
  * requeues, never destroys: it completes the entry on positive proof of
  * submission and otherwise leaves it `uncertain`. Proof is a copy with the
- * entry's Message-ID that is not `$draft` (anywhere in the account), a
- * `$draft` copy filed in Sent, or a (not canceled) EmailSubmission of one of
- * the matching copies.
+ * entry's Message-ID whose From includes the entry's sender, and that is
+ * either filed in Sent (with or without `$draft`) or the email of a (not
+ * canceled) EmailSubmission by the entry's identity. A copy anywhere else is
+ * not proof on its own.
  */
 async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
   const accountId = entry.jmapAccountId;
@@ -166,6 +172,16 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
     return 'left';
   }
 
+  // Only the user's own message counts: a copy that merely carries the same
+  // Message-ID (an incoming reply quoting it, a reflection, a forgery, a
+  // Sieve filing) must never mark a send done that did not happen.
+  const ownAddresses = new Set(
+    entry.outgoing.from.map((a) => a.email?.trim().toLowerCase()).filter((e): e is string => !!e),
+  );
+  if (ownAddresses.size === 0) return 'left';
+  const fromUs = (c: EmailCopy) =>
+    c.from.some((a) => typeof a?.email === 'string' && ownAddresses.has(a.email.trim().toLowerCase()));
+
   let submitted = false;
   try {
     const { sentId } = await resolveSendMailboxes(accountId);
@@ -173,13 +189,17 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
       accountId,
       since: new Date(started - RECONCILE_LOOKBACK_MS).toISOString(),
     });
-    const isDraft = (c: { keywords: Record<string, boolean> }) => c.keywords?.$draft === true;
-    // Positive proof only; an incomplete lookup can still yield it.
-    submitted = copies.some((c) => !isDraft(c) || (!!sentId && c.mailboxIds?.[sentId] === true));
-    if (!submitted && copies.length) {
-      const ids = new Set(copies.map((c) => c.id));
+    const own = copies.filter(fromUs);
+    // Proof: our copy filed in Sent (with or without $draft), or a live
+    // submission of our copy by this entry's identity. An incomplete lookup
+    // can still yield it.
+    submitted = !!sentId && own.some((c) => c.mailboxIds?.[sentId] === true);
+    if (!submitted && own.length) {
+      const ids = new Set(own.map((c) => c.id));
       const submissions = await findSubmissionsForEmails([...ids], accountId);
-      submitted = submissions.some((s) => ids.has(s.emailId) && s.undoStatus !== 'canceled');
+      submitted = submissions.some(
+        (s) => ids.has(s.emailId) && s.identityId === entry.identityId && s.undoStatus !== 'canceled',
+      );
     }
   } catch (err) {
     console.warn('[send-queue] reconciliation inconclusive, left for the user:', err);

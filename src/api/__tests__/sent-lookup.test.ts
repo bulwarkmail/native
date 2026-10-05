@@ -59,7 +59,7 @@ describe('findCopiesByMessageId', () => {
       ['Email/get', {
         accountId: 'shared-1',
         '#ids': { resultOf: 'q', name: 'Email/query', path: '/ids' },
-        properties: ['id', 'messageId', 'keywords', 'mailboxIds'],
+        properties: ['id', 'messageId', 'from', 'keywords', 'mailboxIds'],
       }, 'g'],
     ]);
     // No JMAP `header` filter (Stalwart 0.16 does not match it), no mailbox restriction.
@@ -147,14 +147,18 @@ describe('findSubmissionsForEmails', () => {
   it('queries submissions for the given email ids in the given account', async () => {
     mockRequest.mockResolvedValueOnce({ methodResponses: [
       ['EmailSubmission/query', { ids: ['s1'] }, '0'],
-      ['EmailSubmission/get', { list: [{ id: 's1', emailId: 'e3', undoStatus: 'final' }] }, '1'],
+      ['EmailSubmission/get', { list: [{ id: 's1', emailId: 'e3', identityId: 'i1', undoStatus: 'final' }] }, '1'],
     ] });
     await expect(findSubmissionsForEmails(['e3'], 'shared-1')).resolves.toEqual([
-      { id: 's1', emailId: 'e3', undoStatus: 'final' },
+      { id: 's1', emailId: 'e3', identityId: 'i1', undoStatus: 'final' },
     ]);
     const [calls, using] = mockRequest.mock.calls[0];
     expect(calls[0]).toEqual(['EmailSubmission/query', { accountId: 'shared-1', filter: { emailIds: ['e3'] } }, '0']);
-    expect(calls[1][1]).toMatchObject({ accountId: 'shared-1', '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' } });
+    expect(calls[1][1]).toEqual({
+      accountId: 'shared-1',
+      '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' },
+      properties: ['id', 'emailId', 'identityId', 'undoStatus'],
+    });
     expect(using).toContain('urn:ietf:params:jmap:submission');
   });
 

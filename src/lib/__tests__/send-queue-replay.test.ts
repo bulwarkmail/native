@@ -97,7 +97,7 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 const copy = (over: Record<string, unknown>) => ({
-  id: 'c1', messageId: ['mid-1@a.test'], keywords: {}, mailboxIds: { 'm-sent': true }, ...over,
+  id: 'c1', messageId: ['mid-1@a.test'], from: [{ email: 'Me@A.test' }], keywords: {}, mailboxIds: { 'm-sent': true }, ...over,
 });
 const draftInDrafts = () => copy({ id: 'd1', keywords: { $draft: true, $seen: true }, mailboxIds: { 'm-drafts': true } });
 
@@ -133,12 +133,65 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(toast.success).toHaveBeenCalled();
   });
 
-  it('a non-draft copy outside Sent and Drafts (archived) is proof: completed, no send', async () => {
+  it('a copy of our own outside Sent (archived), without a submission, is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('an archived copy of our own with a submission from our identity is proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'c1', identityId: 'iA', undoStatus: 'final' }]);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
+  });
+
+  it('R15: an incoming copy in Inbox with the same Message-ID and another sender is not proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({
+      copies: [copy({ from: [{ email: 'attacker@evil.test' }], mailboxIds: { 'm-inbox': true } })],
+      complete: true,
+    });
+    // Even a submission for it would not count: it is not our message.
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'c1', identityId: 'iA', undoStatus: 'final' }]);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('R15: the same Message-ID in Inbox from our address, not in Sent and without a submission, is not proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-inbox': true } })], complete: true });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('R15: a copy in Sent from another sender is not proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [copy({ from: [{ email: 'someone@else.test' }] })], complete: true });
+    await flushSendQueue();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('R15: a copy in Sent with our from (any case) is proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [copy({ from: [{ email: 'ME@a.TEST' }] })], complete: true });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
+  });
+
+  it('R15: a submission from a different identity is not proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iOther', undoStatus: 'final' }]);
+    await flushSendQueue();
+    expect(stateOf('q1')).toBe('uncertain');
   });
 
   it('a $draft copy in Sent is proof: completed, no send', async () => {
@@ -203,7 +256,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
   it('a $draft copy with a submission for it is proof: completed, no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
-    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', undoStatus: 'final' }]);
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iA', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
@@ -212,7 +265,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
   it('a submission for an unrelated emailId is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
-    mockSubs.mockResolvedValue([{ id: 's9', emailId: 'someone-else', undoStatus: 'final' }]);
+    mockSubs.mockResolvedValue([{ id: 's9', emailId: 'someone-else', identityId: 'iA', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
@@ -221,7 +274,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
   it('only a canceled submission is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
-    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', undoStatus: 'canceled' }]);
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iA', undoStatus: 'canceled' }]);
     await flushSendQueue();
     expect(stateOf('q1')).toBe('uncertain');
   });
@@ -266,10 +319,16 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('without a Sent mailbox a non-draft copy is still proof', async () => {
+  it('without a Sent mailbox a copy alone is not proof, but its submission from our identity is', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockBoxes.mockResolvedValue({ draftsId: 'm-drafts' });
     mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { other: true } })], complete: true });
+    await flushSendQueue();
+    expect(stateOf('q1')).toBe('uncertain');
+
+    await useSendQueueStore.getState().clearAccount('A');
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'c1', identityId: 'iA', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(entries()).toEqual([]);
     expect(mockSend).not.toHaveBeenCalled();

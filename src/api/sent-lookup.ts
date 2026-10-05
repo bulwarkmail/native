@@ -10,7 +10,7 @@ import { CAPABILITIES } from './types';
 export const COPY_LOOKUP_PAGE = 200;
 /** Messages the lookup reads at most (10 pages) before giving up without a match. */
 export const COPY_LOOKUP_MAX = 2000;
-const COPY_PROPERTIES = ['id', 'messageId', 'keywords', 'mailboxIds'];
+const COPY_PROPERTIES = ['id', 'messageId', 'from', 'keywords', 'mailboxIds'];
 
 /** Message-ID values longer than this are never compared (RFC 5322 line limit). */
 const MAX_MESSAGE_ID_LENGTH = 998;
@@ -18,6 +18,8 @@ const MAX_MESSAGE_ID_LENGTH = 998;
 export interface EmailCopy {
   id: string;
   messageId: string[];
+  /** Header From addresses. */
+  from: Array<{ email?: string; name?: string | null }>;
   keywords: Record<string, boolean>;
   mailboxIds: Record<string, boolean>;
 }
@@ -41,6 +43,7 @@ function toCopy(id: string, record: Record<string, unknown>): EmailCopy {
   return {
     id,
     messageId: record.messageId as string[],
+    from: Array.isArray(record.from) ? (record.from as EmailCopy['from']) : [],
     keywords: (record.keywords as Record<string, boolean> | null) ?? {},
     mailboxIds: (record.mailboxIds as Record<string, boolean> | null) ?? {},
   };
@@ -110,6 +113,7 @@ export async function resolveSendMailboxes(accountId: string): Promise<{ sentId?
 export interface SubmissionRef {
   id: string;
   emailId: string;
+  identityId?: string;
   undoStatus?: string;
 }
 
@@ -126,7 +130,7 @@ export async function findSubmissionsForEmails(emailIds: string[], accountId: st
       ['EmailSubmission/get', {
         accountId,
         '#ids': { resultOf: '0', name: 'EmailSubmission/query', path: '/ids' },
-        properties: ['id', 'emailId', 'undoStatus'],
+        properties: ['id', 'emailId', 'identityId', 'undoStatus'],
       }, '1'],
     ],
     [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
