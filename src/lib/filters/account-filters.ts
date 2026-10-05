@@ -11,7 +11,6 @@ import {
   getSieveScripts,
   updateSieveScript,
 } from '../../api/sieve';
-import { useFilterStore } from '../../stores/filter-store';
 
 /**
  * One account's filters script, read and written against an explicit
@@ -54,7 +53,7 @@ export class FiltersChangedError extends Error {
   }
 }
 
-function supportsInclude(capabilities: SieveCapabilities | null): boolean {
+export function supportsInclude(capabilities: SieveCapabilities | null): boolean {
   return capabilities?.sieveExtensions?.includes('include') ?? false;
 }
 
@@ -123,15 +122,39 @@ export interface FiltersChange {
   };
 }
 
-/** Bring the Settings screen up to date when it shows the account just written. */
+/**
+ * Bring the Settings screen up to date when it shows the account just
+ * written. The store is imported lazily because filter-store itself imports
+ * this module (supportsInclude, writeFiltersScript).
+ */
 async function refreshFilterStore(accountId: string): Promise<void> {
   try {
+    const { useFilterStore } = await import('../../stores/filter-store');
     if (useFilterStore.getState().selectedAccountId === accountId) {
       await useFilterStore.getState().fetchFilters(accountId);
     }
   } catch {
     // The write already happened; a failed refresh must not report it as failed.
   }
+}
+
+/**
+ * Upload `content` as the account's filters script and make it the active
+ * one: the existing script is updated, or a "filters" script is created.
+ * Shared by the Settings save and by rules made from a message. An undefined
+ * accountId is the user's own Sieve account.
+ */
+export async function writeFiltersScript(
+  accountId: string | undefined,
+  content: string,
+  scriptId: string | null,
+): Promise<{ scriptId: string }> {
+  if (scriptId) {
+    await updateSieveScript(scriptId, content, true, accountId);
+    return { scriptId };
+  }
+  const script = await createSieveScript('filters', content, true, accountId);
+  return { scriptId: script.id };
 }
 
 /**
@@ -152,13 +175,8 @@ export async function updateAccountFilters(
   if (!rules) return null;
 
   const written = renderFiltersScript(rules, filters);
-  let scriptId = filters.script?.id ?? null;
-  if (scriptId) {
-    await updateSieveScript(scriptId, written, true, accountId);
-  } else {
-    scriptId = (await createSieveScript('filters', written, true, accountId)).id;
-  }
-  await refreshFilterStore(accountId);
+  const { scriptId } = await writeFiltersScript(accountId, written, filters.script?.id ?? null);
+  void refreshFilterStore(accountId);
   return {
     accountId,
     scriptId,
@@ -201,5 +219,5 @@ export async function restoreAccountFilters(change: FiltersChange): Promise<void
     await restoreActive();
     await deleteSieveScript(scriptId, accountId);
   }
-  await refreshFilterStore(accountId);
+  void refreshFilterStore(accountId);
 }

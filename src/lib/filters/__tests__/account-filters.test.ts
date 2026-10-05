@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mockSieveAccount, sieveRouter } from './sieve-mock';
 
 const router = vi.hoisted(() => ({ current: null as unknown as ReturnType<typeof sieveRouter> }));
@@ -65,6 +65,12 @@ const makeAccount = (...args: Parameters<typeof mockSieveAccount>) => {
   const account = sieve().register(mockSieveAccount(...args));
   return { ...account, client: account.api };
 };
+
+const originalFetchFilters = useFilterStore.getState().fetchFilters;
+
+afterEach(() => {
+  useFilterStore.setState({ fetchFilters: originalFetchFilters });
+});
 
 beforeEach(() => {
   router.current = sieveRouter();
@@ -215,9 +221,9 @@ describe('account scoping and store refresh', () => {
     useFilterStore.setState({ fetchFilters });
 
     const change = await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')));
-    expect(fetchFilters).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(fetchFilters).toHaveBeenCalledTimes(1));
     await restoreAccountFilters(change!);
-    expect(fetchFilters).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(fetchFilters).toHaveBeenCalledTimes(2));
   });
 
   it('leaves the filter store alone when it shows another account', async () => {
@@ -227,6 +233,7 @@ describe('account scoping and store refresh', () => {
     useFilterStore.setState({ fetchFilters });
 
     await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(fetchFilters).not.toHaveBeenCalled();
   });
 

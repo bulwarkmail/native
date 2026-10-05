@@ -45,7 +45,8 @@ export function mockSieveAccount(
     }),
     deleteSieveScript: vi.fn(async (id: string) => {
       const index = scripts.findIndex((s) => s.id === id);
-      if (scripts[index]?.isActive) throw new Error('scriptIsActive');
+      if (index === -1) throw new Error('notFound');
+      if (scripts[index].isActive) throw new Error('scriptIsActive');
       scripts.splice(index, 1);
     }),
     activateSieveScript: vi.fn(async (id: string) => { setActive(id); }),

@@ -187,7 +187,8 @@ async function setActiveScript(args: Record<string, unknown>, accountId: string,
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/set') return;
-  throw new Error(`Failed to ${what} Sieve script`);
+  const detail = (resp?.[1] as { description?: string } | undefined)?.description;
+  throw new Error(detail ?? `Failed to ${what} Sieve script`);
 }
 
 /** Make `scriptId` the account's active script (switches off the current one). */
