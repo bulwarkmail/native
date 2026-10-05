@@ -5,6 +5,7 @@ import {
   retroactiveSupport,
   retroProperties,
   retroQueryFilter,
+  RetroactiveTooComplexError,
   ruleMatches,
   sieveMatches,
   toRetroMessage,
@@ -124,10 +125,10 @@ describe('sieveMatches', () => {
   });
 });
 
-describe('sieveMatches on hostile input', () => {
+describe('sieveMatches on large input', () => {
   const big = 'a'.repeat(200 * 1024);
 
-  it('is linear on hostile patterns', () => {
+  it('answers star-heavy patterns on a 200 KB value within the ceiling', () => {
     const started = Date.now();
     expect(sieveMatches('*a*a*a*a*b', big)).toBe(false);
     expect(sieveMatches('*a*a*a*a*a*a*a*a*a*a*b', big)).toBe(false);
@@ -137,20 +138,138 @@ describe('sieveMatches on hostile input', () => {
     expect(Date.now() - started).toBeLessThan(1000);
   });
 
-  it('cuts header values to 4 KB before matching', () => {
-    const started = Date.now();
-    const r = rule([{ field: 'subject', comparator: 'matches', value: '*a*a*a*a*b' }]);
-    expect(ruleMatches(r, message({ headers: { subject: [big] } }))).toBe(false);
-    const tail = rule([{ field: 'subject', comparator: 'contains', value: 'needle' }]);
-    expect(ruleMatches(tail, message({ headers: { subject: [`${'a'.repeat(5000)}needle`] } }))).toBe(false);
-    expect(ruleMatches(tail, message({ headers: { subject: [`${'a'.repeat(100)}needle`] } }))).toBe(true);
-    expect(Date.now() - started).toBeLessThan(1000);
+  it('answers a long literal segment that almost matches in well under 5 ms on average', () => {
+    const header = 'a'.repeat(8192);
+    const pattern = `*${'a'.repeat(2000)}b`;
+    const withAny = `*${'a'.repeat(1000)}?${'a'.repeat(1000)}b`;
+    const started = performance.now();
+    for (let i = 0; i < 100; i++) {
+      expect(sieveMatches(pattern, header)).toBe(false);
+      expect(sieveMatches(withAny, header)).toBe(false);
+    }
+    expect((performance.now() - started) / 200).toBeLessThan(5);
   });
 
   it('treats a trailing backslash and astral characters literally', () => {
     expect(sieveMatches('a\\', 'a\\')).toBe(true);
     expect(sieveMatches('?', '\u{1F600}')).toBe(true);
     expect(sieveMatches('??', '\u{1F600}')).toBe(false);
+    expect(sieveMatches('*?x', '\u{1F600}x')).toBe(true);
+  });
+});
+
+/** Reference matcher: plain recursion with memo, obviously right, slow. */
+function referenceMatch(pattern: string, text: string): boolean {
+  const tokens: Array<{ kind: 'star' | 'any' | 'lit'; ch?: string }> = [];
+  const p = Array.from(pattern);
+  for (let i = 0; i < p.length; i++) {
+    if (p[i] === '\\' && i + 1 < p.length) tokens.push({ kind: 'lit', ch: p[++i] });
+    else if (p[i] === '*') tokens.push({ kind: 'star' });
+    else if (p[i] === '?') tokens.push({ kind: 'any' });
+    else tokens.push({ kind: 'lit', ch: p[i] });
+  }
+  const t = Array.from(text);
+  const memo = new Map<number, boolean>();
+  const go = (i: number, j: number): boolean => {
+    const key = i * (t.length + 1) + j;
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+    let result: boolean;
+    if (i === tokens.length) result = j === t.length;
+    else if (tokens[i].kind === 'star') result = go(i + 1, j) || (j < t.length && go(i, j + 1));
+    else if (j >= t.length) result = false;
+    else result = (tokens[i].kind === 'any' || tokens[i].ch === t[j]) && go(i + 1, j + 1);
+    memo.set(key, result);
+    return result;
+  };
+  return go(0, 0);
+}
+
+describe('sieveMatches equivalence', () => {
+  it('agrees with a reference matcher on random globs and texts', () => {
+    let seed = 12345;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed % n;
+    };
+    const patternAlphabet = ['a', 'b', 'A', '*', '*', '?', '\\*', '\\?', '\\\\', '\u{1F600}', 'ab'];
+    const textAlphabet = ['a', 'b', 'A', '*', '?', '\\', '\u{1F600}', 'a', 'b'];
+    let matched = 0;
+    for (let n = 0; n < 4000; n++) {
+      let pattern = '';
+      for (let i = rand(7); i > 0; i--) pattern += patternAlphabet[rand(patternAlphabet.length)];
+      let text = '';
+      for (let i = rand(9); i > 0; i--) text += textAlphabet[rand(textAlphabet.length)];
+      const expected = referenceMatch(pattern, text);
+      if (expected) matched++;
+      expect(sieveMatches(pattern, text), `${JSON.stringify(pattern)} vs ${JSON.stringify(text)}`).toBe(expected);
+    }
+    expect(matched).toBeGreaterThan(200);
+  });
+});
+
+describe('ruleMatches never shortens a value', () => {
+  it('finds a needle past 4 KB in a header and keeps negations right', () => {
+    const header = `${'a'.repeat(5000)}needle`;
+    const contains = rule([{ field: 'subject', comparator: 'contains', value: 'needle' }]);
+    expect(ruleMatches(contains, message({ headers: { subject: [header] } }))).toBe(true);
+    const not = rule([{ field: 'subject', comparator: 'not_contains', value: 'needle' }]);
+    expect(ruleMatches(not, message({ headers: { subject: [header] } }))).toBe(false);
+  });
+
+  it('keeps a rule value of 500 characters whole', () => {
+    const value = `${'a'.repeat(499)}b`;
+    const r = rule([{ field: 'subject', comparator: 'is', value }]);
+    expect(ruleMatches(r, message({ headers: { subject: [`${'a'.repeat(499)}c`] } }))).toBe(false);
+    expect(ruleMatches(r, message({ headers: { subject: [value] } }))).toBe(true);
+  });
+
+  it('skips a message whose compared header is over 8192 characters', () => {
+    const huge = 'a'.repeat(8193);
+    const contains = rule([{ field: 'subject', comparator: 'contains', value: 'a' }]);
+    expect(ruleMatches(contains, message({ headers: { subject: [huge] } }))).toBe(false);
+    // Fails closed for a negation too.
+    const not = rule([{ field: 'subject', comparator: 'not_contains', value: 'zzz' }]);
+    expect(ruleMatches(not, message({ headers: { subject: ['fine', huge] } }))).toBe(false);
+    expect(ruleMatches(not, message({ headers: { subject: ['a'.repeat(8192)] } }))).toBe(true);
+    const weekly = rule([{ field: 'subject', comparator: 'contains', value: 'week' }], [{ type: 'mark_read' }]);
+    const plan = planRetroactive(weekly, [message({ id: 'big', headers: { subject: [`week${huge}`] } }), message({ id: 'ok' })]);
+    expect(plan.ids).toEqual(['ok']);
+  });
+});
+
+describe('retroactiveSupport limits', () => {
+  const actions: FilterAction[] = [{ type: 'mark_read' }];
+  const refused = { ok: false, reason: 'condition' };
+
+  it('refuses a value over 512 characters', () => {
+    expect(retroactiveSupport(rule([{ field: 'subject', comparator: 'contains', value: 'a'.repeat(513) }], actions))).toEqual(refused);
+    expect(retroactiveSupport(rule([{ field: 'subject', comparator: 'contains', value: 'a'.repeat(512) }], actions)).ok).toBe(true);
+  });
+
+  it('refuses more than 50 values in one condition', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => `v${i}`);
+    expect(retroactiveSupport(rule([{ field: 'subject', comparator: 'contains', value: many(51) }], actions))).toEqual(refused);
+    expect(retroactiveSupport(rule([{ field: 'subject', comparator: 'contains', value: many(50) }], actions)).ok).toBe(true);
+  });
+
+  it('refuses a rule whose patterns total over 8192 characters', () => {
+    const conditions = (n: number): FilterCondition[] => Array.from({ length: n }, () => (
+      { field: 'subject', comparator: 'contains', value: 'a'.repeat(512) } as FilterCondition
+    ));
+    expect(retroactiveSupport(rule(conditions(16), actions)).ok).toBe(true);
+    expect(retroactiveSupport(rule([...conditions(16), { field: 'subject', comparator: 'contains', value: 'x' }], actions))).toEqual(refused);
+    expect(planRetroactive(rule(conditions(17), actions), [message()])).toEqual({ ids: [], steps: [] });
+  });
+});
+
+describe('planRetroactive budget', () => {
+  it('aborts with RetroactiveTooComplexError past 50 million compared characters', () => {
+    const r = rule([{ field: 'subject', comparator: 'contains', value: 'zzz' }], [{ type: 'mark_read' }]);
+    const long = 'a'.repeat(8192);
+    const messages = Array.from({ length: 7000 }, (_, i) => message({ id: `m${i}`, headers: { subject: [long] } }));
+    expect(() => planRetroactive(r, messages)).toThrow(RetroactiveTooComplexError);
+    expect(() => planRetroactive(r, messages.slice(0, 5000))).not.toThrow();
   });
 });
 
