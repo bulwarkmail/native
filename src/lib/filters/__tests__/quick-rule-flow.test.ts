@@ -71,7 +71,7 @@ import { useEmailStore } from '../../../stores/email-store';
 import { useToastStore } from '../../../stores/toast-store';
 import { clientServesActiveAccount } from '../../active-client-account';
 import { RetroactiveTooComplexError } from '../retroactive';
-import { applyToExisting, runPresetRule, saveEditorRule } from '../quick-rule-flow';
+import { applyToExisting, runPresetRule, saveEditorRule, SwitchedAwayError } from '../quick-rule-flow';
 import { resolveQuickRuleTarget, type QuickRuleTarget } from '../quick-rule-target';
 import { collectSenders, sharedDomain, type QuickRuleSubject } from '../quick-rules';
 
@@ -335,10 +335,99 @@ describe('applyToExisting', () => {
     sieveOf('own', [{ name: 'filters', content: generateScript([]), isActive: true }]);
     api.queryEmailFields.mockResolvedValue(rows(1));
     // Same failure the planner raises for a rule it cannot afford.
-    vi.spyOn(await import('../retroactive'), 'planRetroactive').mockImplementation(() => { throw new RetroactiveTooComplexError(); });
+    const spy = vi.spyOn(await import('../retroactive'), 'planRetroactive').mockImplementation(() => { throw new RetroactiveTooComplexError(); });
     await saveEditorRule(rule('r'), { target: targetFor('own'), applyToExisting: true });
     expect(useToastStore.getState().toasts.map((t) => t.title)).toContain('Could not apply the rule to existing messages');
     expect(api.moveEmails).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe('after an account switch', () => {
+  const matching = [{ id: 'e1', mailboxIds: { a: true }, keywords: {}, from: [{ email: 'anna@acme.com' }] }];
+  const noServerCalls = () => {
+    expect(api.moveEmails).not.toHaveBeenCalled();
+    expect(api.patchKeywordsForEmails).not.toHaveBeenCalled();
+    expect(api.copyEmailsWithinAccount).not.toHaveBeenCalled();
+  };
+
+  async function savedWithApplyOffer() {
+    const account = sieveOf('own', [{ name: 'filters', content: generateScript([]), isActive: true }]);
+    api.queryEmailFields.mockResolvedValue(matching);
+    await runPresetRule({ target: targetFor('own'), preset: { kind: 'move_sender', mailbox: news }, subject: subject('anna@acme.com') });
+    api.queryEmailFields.mockClear();
+    return account;
+  }
+
+  it('Apply sends nothing when another login is active, and says to switch back', async () => {
+    await savedWithApplyOffer();
+    const apply = lastToast().secondaryAction!;
+    useAccountStore.setState({ activeAccountId: 'app-2', accounts: [{ id: 'app-1', email: 'a@x.org', username: 'a' }] } as never);
+    apply.onPress();
+    await vi.waitFor(() => expect(lastToast().title).toBe('Switch back to a@x.org to finish this'));
+    expect(api.queryEmailFields).not.toHaveBeenCalled();
+    noServerCalls();
+  });
+
+  it('Apply sends nothing while the client lags the active account', async () => {
+    await savedWithApplyOffer();
+    const apply = lastToast().secondaryAction!;
+    vi.mocked(clientServesActiveAccount).mockReturnValue(false);
+    apply.onPress();
+    await vi.waitFor(() => expect(lastToast().type).toBe('error'));
+    expect(api.queryEmailFields).not.toHaveBeenCalled();
+    noServerCalls();
+  });
+
+  it('Undo is refused, with no Sieve call, and works again after switching back', async () => {
+    const account = await savedWithApplyOffer();
+    const undo = lastToast().action!;
+    const calls = () => account.api.getSieveScripts.mock.calls.length;
+    const before = calls();
+    const writes = account.writes();
+    useAccountStore.setState({ activeAccountId: 'app-2' } as never);
+    undo.onPress();
+    expect(lastToast().title).toContain('Switch back to');
+    expect(calls()).toBe(before);
+    expect(account.writes()).toBe(writes);
+
+    useAccountStore.setState({ activeAccountId: 'app-1' } as never);
+    undo.onPress();
+    undo.onPress();
+    await vi.waitFor(() => expect(lastToast().title).toBe('Rule change undone'));
+    expect(account.api.getSieveScripts.mock.calls.length - before).toBe(1);
+  });
+
+  it('stops between two batches when the account changes, and reports a partial apply', async () => {
+    limits.set = 1;
+    api.queryEmailFields.mockResolvedValue([
+      { id: 'e1', mailboxIds: { a: true }, keywords: {}, from: [{ email: 'anna@acme.com' }] },
+      { id: 'e2', mailboxIds: { a: true }, keywords: {}, from: [{ email: 'anna@acme.com' }] },
+    ]);
+    api.moveEmails.mockImplementationOnce(async () => {
+      useAccountStore.setState({ activeAccountId: 'app-2' } as never);
+    });
+    await expect(applyToExisting(targetFor('own'), rule('r'))).rejects.toMatchObject({ name: 'PartialApplyError' });
+    expect(api.moveEmails).toHaveBeenCalledTimes(1);
+  });
+
+  it('says some messages may already have changed when a later batch fails', async () => {
+    sieveOf('own', [{ name: 'filters', content: generateScript([]), isActive: true }]);
+    limits.set = 1;
+    api.queryEmailFields.mockResolvedValue([
+      { id: 'e1', mailboxIds: { a: true }, keywords: {}, from: [{ email: 'anna@acme.com' }] },
+      { id: 'e2', mailboxIds: { a: true }, keywords: {}, from: [{ email: 'anna@acme.com' }] },
+    ]);
+    api.moveEmails.mockResolvedValueOnce().mockRejectedValueOnce(new Error('boom'));
+    await saveEditorRule(rule('r'), { target: targetFor('own'), applyToExisting: true });
+    const errors = useToastStore.getState().toasts.filter((t) => t.type === 'error');
+    expect(errors[0].title).toContain('Some messages may already have been changed');
+  });
+
+  it('applyToExisting itself refuses, so the immediate apply of the editor is covered too', async () => {
+    useAccountStore.setState({ activeAccountId: 'app-2' } as never);
+    await expect(applyToExisting(targetFor('own'), rule('r'))).rejects.toBeInstanceOf(SwitchedAwayError);
+    expect(api.queryEmailFields).not.toHaveBeenCalled();
   });
 });
 

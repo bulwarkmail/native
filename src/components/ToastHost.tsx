@@ -198,9 +198,9 @@ function ToastCard({ toast }: { toast: Toast }) {
         </View>
         {toast.action || toast.secondaryAction ? (
           <View style={cardStyles.actions}>
-            {[toast.action, toast.secondaryAction].map((action) => action ? (
+            {[toast.action, toast.secondaryAction].map((action, index) => action ? (
               <Pressable
-                key={action.label}
+                key={index}
                 onPress={() => { action.onPress(); removeToast(toast.id); }}
                 hitSlop={8}
                 accessibilityRole="button"
