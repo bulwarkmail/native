@@ -35,6 +35,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { trustRecipients } from '../lib/trust-recipients';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import {
@@ -50,7 +51,7 @@ import {
 } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
 import { formatRejectedRecipients } from '../api/jmap-result';
-import { sendErrorAlert, withoutRefused } from '../lib/send-errors';
+import { sendErrorAlert } from '../lib/send-errors';
 import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
@@ -2388,14 +2389,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       // People you reply to are people you trust: allow their remote content
       // from now on (webmail 1.5.x).
       if (isReplyLike && mode !== 'forward') {
-        const settings = useSettingsStore.getState();
-        const contacts = useContactsStore.getState();
-        for (const r of withoutRefused([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients)) {
-          settings.addTrustedSender(r.email);
-          if (stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
-            contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
-          }
-        }
+        trustRecipients([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients, {
+          syncToBook: stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts),
+        });
       }
       // Some recipients were refused though the message went to the rest.
       if (result.rejectedRecipients?.length) {

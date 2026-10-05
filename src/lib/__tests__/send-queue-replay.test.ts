@@ -1,0 +1,500 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+vi.mock('../../api/jmap-client', () => {
+  class AuthenticationError extends Error { constructor(m: string) { super(m); this.name = 'AuthenticationError'; } }
+  class NetworkError extends Error { constructor(m: string) { super(m); this.name = 'NetworkError'; } }
+  class RequestTimeoutError extends Error { constructor() { super('timed out'); this.name = 'RequestTimeoutError'; } }
+  class RateLimitError extends Error { constructor() { super('rate limited'); this.name = 'RateLimitError'; } }
+  return {
+    AuthenticationError,
+    NetworkError,
+    RequestTimeoutError,
+    RateLimitError,
+    jmapClient: {
+      isConnected: true,
+      accountId: 'jA',
+      getSubmissionAccountIds: vi.fn(() => ['jA']),
+    },
+  };
+});
+vi.mock('../../api/email', () => ({
+  sendEmail: vi.fn(),
+  patchKeywordsForEmails: vi.fn(async () => undefined),
+}));
+vi.mock('../../api/sent-lookup', () => ({
+  findCopiesByMessageId: vi.fn(),
+  findSubmissionsForEmails: vi.fn(async () => []),
+  resolveSendMailboxes: vi.fn(async () => ({ sentId: 'm-sent', draftsId: 'm-drafts' })),
+  destroyDraftCopies: vi.fn(async () => undefined),
+}));
+vi.mock('../active-client-account', () => ({
+  clientServesActiveAccount: vi.fn(() => true),
+  activeAppAccountId: vi.fn(() => 'A'),
+}));
+vi.mock('../trust-recipients', () => ({ trustRecipients: vi.fn(), trustedSendersBookSyncOn: vi.fn(() => false) }));
+vi.mock('../../stores/toast-store', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), dismiss: vi.fn() },
+}));
+
+import { jmapClient, AuthenticationError, NetworkError, RequestTimeoutError, RateLimitError } from '../../api/jmap-client';
+import { sendEmail, patchKeywordsForEmails } from '../../api/email';
+import {
+  findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes, destroyDraftCopies,
+} from '../../api/sent-lookup';
+import {
+  RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, SendUnconfirmedError,
+} from '../../api/jmap-result';
+import { clientServesActiveAccount, activeAppAccountId } from '../active-client-account';
+import { trustRecipients } from '../trust-recipients';
+import { toast } from '../../stores/toast-store';
+import { useNetworkStore } from '../../stores/network-store';
+import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
+import { flushSendQueue, hasNewEntry } from '../send-queue-replay';
+
+const mockSend = sendEmail as unknown as ReturnType<typeof vi.fn>;
+const mockFind = findCopiesByMessageId as unknown as ReturnType<typeof vi.fn>;
+const mockSubs = findSubmissionsForEmails as unknown as ReturnType<typeof vi.fn>;
+const mockBoxes = resolveSendMailboxes as unknown as ReturnType<typeof vi.fn>;
+const mockDestroy = destroyDraftCopies as unknown as ReturnType<typeof vi.fn>;
+const mockActive = activeAppAccountId as unknown as ReturnType<typeof vi.fn>;
+const mockServes = clientServesActiveAccount as unknown as ReturnType<typeof vi.fn>;
+const client = jmapClient as unknown as { isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn> };
+
+const HOUR_AGO = () => new Date(Date.now() - 60 * 60 * 1000).toISOString();
+const OK = { scheduled: false, emailId: 'sent-1', emailSubmissionId: 'sub-1' };
+
+function entry(over: Partial<QueuedSend> = {}): QueuedSend {
+  return {
+    id: 'q1', appAccountId: 'A', jmapAccountId: 'jA', identityId: 'iA',
+    outgoing: {
+      from: [{ email: 'me@a.test' }], to: [{ email: 'you@x.test', name: 'You' }], cc: [{ email: 'cc@x.test' }],
+      subject: 'Hello', textBody: 'hi', messageId: 'mid-1@a.test',
+    },
+    messageId: 'mid-1@a.test', createdAt: '2026-10-04T08:00:00.000Z', state: 'queued', ...over,
+  };
+}
+
+/** Put a row on disk as a previous app run left it, then hydrate. */
+async function seed(e: QueuedSend) {
+  await AsyncStorage.setItem(`webmail:sendqueue:v1:${e.appAccountId}:${e.id}`, JSON.stringify(e));
+}
+const entries = (a = 'A') => useSendQueueStore.getState().entries[a] ?? [];
+const stateOf = (id: string, a = 'A') => entries(a).find((e) => e.id === id)?.state;
+
+beforeEach(async () => {
+  vi.clearAllMocks();
+  for (const a of ['A', 'B']) await useSendQueueStore.getState().clearAccount(a);
+  await AsyncStorage.clear();
+  useNetworkStore.setState({ online: true });
+  client.isConnected = true;
+  client.accountId = 'jA';
+  client.getSubmissionAccountIds.mockReturnValue(['jA']);
+  mockActive.mockReturnValue('A');
+  mockServes.mockReturnValue(true);
+  mockBoxes.mockResolvedValue({ sentId: 'm-sent', draftsId: 'm-drafts' });
+  mockSubs.mockResolvedValue([]);
+  mockFind.mockResolvedValue({ copies: [], complete: true });
+  mockSend.mockResolvedValue(OK);
+});
+afterEach(() => vi.restoreAllMocks());
+
+describe('flushSendQueue: reconciling an unknown outcome', () => {
+  it('a send interrupted mid-request is reconciled, not resent', async () => {
+    // The app was killed after markSending was persisted: `sending` on disk.
+    await seed(entry({ state: 'sending', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({
+      copies: [{ id: 'e1', messageId: ['mid-1@a.test'], keywords: { $seen: true }, mailboxIds: { 'm-sent': true } }],
+      complete: true,
+    });
+
+    await flushSendQueue();
+
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
+    expect(await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1')).toBeNull();
+    const [mid, opts] = mockFind.mock.calls[0];
+    expect(mid).toBe('mid-1@a.test');
+    expect(opts.accountId).toBe('jA');
+    expect(opts.mailboxIds).toEqual(['m-sent', 'm-drafts']);
+    expect(mockBoxes).toHaveBeenCalledWith('jA');
+  });
+
+  it('an entry found in Sent is completed without a second send', async () => {
+    const started = HOUR_AGO();
+    await seed(entry({ state: 'uncertain', attemptStartedAt: started, replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
+    mockFind.mockResolvedValue({
+      copies: [{ id: 'e1', messageId: ['mid-1@a.test'], keywords: {}, mailboxIds: { 'm-sent': true } }],
+      complete: true,
+    });
+
+    await flushSendQueue();
+
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
+    // since = attemptStartedAt minus 10 minutes
+    expect(mockFind.mock.calls[0][1].since).toBe(new Date(Date.parse(started) - 10 * 60 * 1000).toISOString());
+    // Post-send effects ran for the reconciled copy.
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['orig-1'], { $answered: true }, 'jA');
+    expect(trustRecipients).toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('destroys a $draft-only copy, then sends once', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'user-draft' }));
+    const draftCopy = { id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true, $seen: true }, mailboxIds: { 'm-drafts': true } };
+    const userDraft = { id: 'user-draft', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } };
+    mockFind.mockResolvedValue({ copies: [draftCopy, userDraft], complete: true });
+    const order: string[] = [];
+    mockDestroy.mockImplementation(async () => { order.push('destroy'); });
+    mockSend.mockImplementation(async () => { order.push('send'); return OK; });
+
+    await flushSendQueue();
+
+    expect(order).toEqual(['destroy', 'send']);
+    // The user's own draft (entry.draftId) is not one of the destroyed copies.
+    expect(mockDestroy).toHaveBeenCalledWith([draftCopy], 'mid-1@a.test', 'jA');
+    expect(mockSubs).toHaveBeenCalledWith(['d1'], 'jA');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(entries()).toEqual([]);
+  });
+
+  it('a $draft copy with a submission counts as submitted: completed, no send, nothing destroyed', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({
+      copies: [{ id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }],
+      complete: true,
+    });
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', undoStatus: 'final' }]);
+
+    await flushSendQueue();
+
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockDestroy).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
+  });
+
+  it('stays uncertain when the submission lookup fails', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({
+      copies: [{ id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }],
+      complete: true,
+    });
+    mockSubs.mockRejectedValue(new Error('unknownMethod'));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockDestroy).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('stays uncertain when destroying the draft copy fails', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({
+      copies: [{ id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }],
+      complete: true,
+    });
+    mockDestroy.mockRejectedValue(new Error('forbidden'));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('no copy found: sent once', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(entries()).toEqual([]);
+  });
+
+  it('the lookup fails: still uncertain, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockRejectedValue(new TypeError('Network request failed'));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('an incomplete lookup without a submitted copy is ambiguous: still uncertain, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [], complete: false });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('a non-draft copy outside Sent is ambiguous: still uncertain, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({
+      copies: [{ id: 'e1', messageId: ['mid-1@a.test'], keywords: {}, mailboxIds: { 'm-drafts': true } }],
+      complete: true,
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('no Sent mailbox for the account: still uncertain, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockBoxes.mockResolvedValue({ draftsId: 'm-drafts' });
+    await flushSendQueue();
+    expect(mockFind).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('does not reconcile an attempt that started moments ago (the server may still be processing it)', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: new Date().toISOString() }));
+    await flushSendQueue();
+    expect(mockFind).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('never reconciles an entry made uncertain during the same flush', async () => {
+    await useSendQueueStore.getState().hydrateAccount('A');
+    await useSendQueueStore.getState().enqueue(entry());
+    // The clock moves past the grace period during the send, so only the
+    // "uncertain when the flush began" rule keeps this pass from reconciling.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      mockSend.mockImplementationOnce(async () => {
+        vi.setSystemTime(Date.now() + 60 * 60 * 1000);
+        throw new RequestTimeoutError(30_000);
+      });
+      await flushSendQueue();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockFind).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('leaves a failed entry alone', async () => {
+    await seed(entry({ state: 'failed', lastError: 'x' }));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockFind).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('failed');
+  });
+});
+
+describe('flushSendQueue: sending queued entries', () => {
+  it('sends with the entry account, identity and mailboxes resolved for that account', async () => {
+    await seed(entry({ draftId: 'dr-1' }));
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const [outgoing, identityId, sentId, holdFor, opts] = mockSend.mock.calls[0];
+    expect(outgoing.messageId).toBe('mid-1@a.test');
+    expect(identityId).toBe('iA');
+    expect(sentId).toBe('m-sent');
+    expect(holdFor).toBe(0);
+    expect(opts).toEqual({ draftsMailboxId: 'm-drafts', draftId: 'dr-1', accountId: 'jA' });
+    expect(mockBoxes).toHaveBeenCalledWith('jA');
+    expect(entries()).toEqual([]);
+  });
+
+  it('persists sending before the request is made', async () => {
+    await seed(entry());
+    let onDisk: string | undefined;
+    mockSend.mockImplementation(async () => {
+      onDisk = JSON.parse((await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1'))!).state;
+      return OK;
+    });
+    await flushSendQueue();
+    expect(onDisk).toBe('sending');
+  });
+
+  it('does not send when markSending rejects', async () => {
+    await seed(entry());
+    await useSendQueueStore.getState().hydrateAccount('A');
+    const original = useSendQueueStore.getState().markSending;
+    useSendQueueStore.setState({ markSending: vi.fn(async () => { throw new Error('disk full'); }) });
+    try {
+      await flushSendQueue();
+    } finally {
+      useSendQueueStore.setState({ markSending: original });
+    }
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+  });
+
+  it('a past sendAt gives holdFor 0', async () => {
+    await seed(entry({ sendAt: new Date(Date.now() - 60_000).toISOString() }));
+    await flushSendQueue();
+    expect(mockSend.mock.calls[0][3]).toBe(0);
+  });
+
+  it('a future sendAt is held for the remaining seconds', async () => {
+    await seed(entry({ sendAt: new Date(Date.now() + 3600_000).toISOString() }));
+    await flushSendQueue();
+    const hold = mockSend.mock.calls[0][3] as number;
+    expect(hold).toBeGreaterThan(3590);
+    expect(hold).toBeLessThanOrEqual(3600);
+  });
+
+  it('sends oldest first', async () => {
+    await seed(entry({ id: 'late', createdAt: '2026-10-04T09:00:00.000Z' }));
+    await seed(entry({ id: 'early', createdAt: '2026-10-04T07:00:00.000Z', outgoing: { ...entry().outgoing, subject: 'early' } }));
+    await flushSendQueue();
+    expect(mockSend.mock.calls.map((c) => c[0].subject)).toEqual(['early', 'Hello']);
+  });
+
+  it('two concurrent flushSendQueue calls send once', async () => {
+    await seed(entry());
+    let release!: () => void;
+    mockSend.mockImplementation(() => new Promise((r) => { release = () => r(OK); }));
+    const a = flushSendQueue();
+    const b = flushSendQueue();
+    await vi.waitFor(() => expect(mockSend).toHaveBeenCalled());
+    release();
+    await Promise.all([a, b]);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(entries()).toEqual([]);
+  });
+
+  it('a flush requested while one runs picks up an entry enqueued meanwhile', async () => {
+    await seed(entry());
+    let release!: () => void;
+    mockSend.mockImplementationOnce(() => new Promise((r) => { release = () => r(OK); }));
+    const a = flushSendQueue();
+    await vi.waitFor(() => expect(mockSend).toHaveBeenCalledTimes(1));
+    await useSendQueueStore.getState().enqueue(entry({ id: 'q2', createdAt: '2026-10-04T09:00:00.000Z' }));
+    const b = flushSendQueue();
+    release();
+    await Promise.all([a, b]);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(entries()).toEqual([]);
+  });
+
+  it('runs post-send effects best effort without changing the outcome', async () => {
+    await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
+    mockSend.mockResolvedValue({ ...OK, rejectedRecipients: [{ email: 'cc@x.test', smtpReply: '550' }] });
+    (patchKeywordsForEmails as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('boom'));
+    (trustRecipients as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => { throw new Error('boom'); });
+    await flushSendQueue();
+    expect(entries()).toEqual([]);
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['orig-1'], { $answered: true }, 'jA');
+    const [recipients, refused] = (trustRecipients as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(recipients.map((r: { email: string }) => r.email)).toEqual(['you@x.test', 'cc@x.test']);
+    expect(refused).toEqual([{ email: 'cc@x.test', smtpReply: '550' }]);
+  });
+
+  it('does not trust recipients of a forward', async () => {
+    await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$forwarded' } }));
+    await flushSendQueue();
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['orig-1'], { $forwarded: true }, 'jA');
+    expect(trustRecipients).not.toHaveBeenCalled();
+  });
+
+  describe('maps each send error to its state', () => {
+    const cases: Array<[string, () => unknown, 'failed' | 'uncertain']> = [
+      ['RecipientsRejectedError', () => new RecipientsRejectedError([{ email: 'x@y', smtpReply: '550' }]), 'failed'],
+      ['ScheduleTooLateError', () => new ScheduleTooLateError(100), 'failed'],
+      ['SendRefusedError (notCreated / method error)', () => new SendRefusedError('blobNotFound', 'blobNotFound'), 'failed'],
+      ['NetworkError', () => new NetworkError('offline'), 'uncertain'],
+      ['TypeError from fetch', () => new TypeError('Network request failed'), 'uncertain'],
+      ['RequestTimeoutError', () => new RequestTimeoutError(30_000), 'uncertain'],
+      ['SendUnconfirmedError', () => new SendUnconfirmedError(), 'uncertain'],
+      ['RateLimitError', () => new RateLimitError(1000), 'uncertain'],
+      ['a plain Error (HTTP 500, invalid JSON, unknown)', () => new Error('JMAP request failed: 500'), 'uncertain'],
+      ['a non-Error throw', () => 'weird', 'uncertain'],
+    ];
+    for (const [name, make, expected] of cases) {
+      it(`${name} -> ${expected}`, async () => {
+        await seed(entry());
+        mockSend.mockRejectedValueOnce(make());
+        await flushSendQueue();
+        expect(mockSend).toHaveBeenCalledTimes(1);
+        expect(stateOf('q1')).toBe(expected);
+        expect(entries()[0].lastError).toBeTruthy();
+      });
+    }
+  });
+
+  it('an auth error requeues the entry and stops the flush', async () => {
+    await seed(entry({ id: 'q1', createdAt: '2026-10-04T07:00:00.000Z' }));
+    await seed(entry({ id: 'q2', createdAt: '2026-10-04T08:00:00.000Z' }));
+    mockSend.mockRejectedValueOnce(new AuthenticationError('Session expired'));
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(stateOf('q1')).toBe('queued');
+    expect(stateOf('q2')).toBe('queued');
+  });
+});
+
+describe('flushSendQueue: preconditions and accounts', () => {
+  it('waits for its own account', async () => {
+    await seed(entry({ appAccountId: 'A', jmapAccountId: 'jA', identityId: 'iA' }));
+    // B is active: the client serves B.
+    mockActive.mockReturnValue('B');
+    client.accountId = 'jB';
+    client.getSubmissionAccountIds.mockReturnValue(['jB']);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+
+    // Back on A.
+    mockActive.mockReturnValue('A');
+    client.accountId = 'jA';
+    client.getSubmissionAccountIds.mockReturnValue(['jA']);
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][1]).toBe('iA');
+    expect(mockSend.mock.calls[0][4].accountId).toBe('jA');
+    expect(mockBoxes).toHaveBeenCalledWith('jA');
+    expect(entries('A')).toEqual([]);
+  });
+
+  it('does nothing while the client does not serve the active account', async () => {
+    await seed(entry());
+    mockServes.mockReturnValue(false);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('skips an entry whose JMAP account the client does not serve', async () => {
+    await seed(entry({ jmapAccountId: 'jOther' }));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+  });
+
+  it('does nothing offline or disconnected', async () => {
+    await seed(entry());
+    useNetworkStore.setState({ online: false });
+    await flushSendQueue();
+    useNetworkStore.setState({ online: true });
+    client.isConnected = false;
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('stops before the next entry when the account switches mid-flush', async () => {
+    await seed(entry({ id: 'q1', createdAt: '2026-10-04T07:00:00.000Z' }));
+    await seed(entry({ id: 'q2', createdAt: '2026-10-04T08:00:00.000Z' }));
+    mockSend.mockImplementationOnce(async () => {
+      mockActive.mockReturnValue('B');
+      return OK;
+    });
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(stateOf('q2')).toBe('queued');
+  });
+
+  it('hydrates the active account before flushing', async () => {
+    await seed(entry());
+    expect(useSendQueueStore.getState().hydrated.A).toBeFalsy();
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('hasNewEntry', () => {
+  it('is true only when an entry id appears', () => {
+    const a = entry();
+    expect(hasNewEntry({ A: [a] }, {})).toBe(true);
+    expect(hasNewEntry({ A: [a, entry({ id: 'q2' })] }, { A: [a] })).toBe(true);
+    expect(hasNewEntry({ A: [{ ...a, state: 'queued' }] }, { A: [{ ...a, state: 'uncertain' }] })).toBe(false);
+    expect(hasNewEntry({ A: [] }, { A: [a] })).toBe(false);
+  });
+});

@@ -7,6 +7,7 @@ import {
   rejectedRecipients,
   requireMethodResult,
   ScheduleTooLateError,
+  SendRefusedError,
   SendUnconfirmedError,
   type RejectedRecipient,
 } from './jmap-result';
@@ -1689,6 +1690,9 @@ export async function sendEmail(
   let filingWarning: string | undefined;
   let failure: Error | undefined;
   let deliveryStatus: Record<string, { delivered?: string; smtpReply?: string }> | undefined;
+  // The server reported the submission created, even if without an id: from
+  // here on nothing proves the message did not leave.
+  let submissionCreated = false;
   for (const [methodName, result, callId] of res.methodResponses) {
     // Only reports: its error (a failed set leaves the reference dangling)
     // must not be taken for a failed send or a filing problem.
@@ -1703,19 +1707,23 @@ export async function sendEmail(
       // later error is the implicit `onSuccessUpdateEmail` Email/set that
       // Stalwart appends failing to file it. Failing the send here made the
       // user retry and send the message twice.
-      if (emailSubmissionId) {
+      if (emailSubmissionId || submissionCreated) {
         const err = result as { description?: string; type?: string };
         filingWarning = filingWarning ?? (err.description || err.type || 'post-send filing failed');
         continue;
       }
-      failure = new Error((result as { description?: string }).description ?? 'Send failed');
+      const err = result as { description?: string; type?: string };
+      failure = new SendRefusedError(err.description ?? 'Send failed', err.type);
       break;
     }
     if (methodName === 'Email/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string; properties?: string[] }> }).notCreated?.draft;
-      if (notCreated) {
+      if (notCreated && (emailSubmissionId || submissionCreated)) {
+        // Not the message create (that came first): the submission exists.
+        filingWarning = filingWarning ?? (notCreated.description || notCreated.type || 'post-send filing failed');
+      } else if (notCreated) {
         const props = notCreated.properties?.length ? ` (properties: ${notCreated.properties.join(', ')})` : '';
-        throw new Error(`${notCreated.description ?? notCreated.type ?? 'Failed to create message'}${props}`);
+        throw new SendRefusedError(`${notCreated.description ?? notCreated.type ?? 'Failed to create message'}${props}`, notCreated.type);
       }
       // Stalwart answers a submission carrying `onSuccessUpdateEmail` with a
       // SECOND `Email/set` response (reusing the submission's call id) that
@@ -1735,10 +1743,12 @@ export async function sendEmail(
     if (methodName === 'EmailSubmission/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
       if (notCreated) {
-        failure = submissionError(notCreated, 'Failed to submit message');
+        const refused = submissionError(notCreated, 'Failed to submit message');
+        failure = refused instanceof ScheduleTooLateError ? refused : new SendRefusedError(refused.message, notCreated.type);
         break;
       }
       const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
+      if (created) submissionCreated = true;
       emailSubmissionId = created?.id;
       sendAt = created?.sendAt;
     }

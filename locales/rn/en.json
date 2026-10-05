@@ -663,6 +663,9 @@
       "up_to_date": "Already up to date"
     }
   },
+  "outbox": {
+    "sent": "Sent: {subject}"
+  },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",
     "dismiss": "Not now",

@@ -92,6 +92,8 @@ import { addShareListener, getInitialShare, shareAttachments } from './src/lib/s
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
+import { useSendQueueStore } from './src/stores/send-queue-store';
+import { flushSendQueue, hasNewEntry } from './src/lib/send-queue-replay';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
@@ -487,12 +489,31 @@ export default function App() {
   // Drain the offline action queue (outbox) as soon as we have a live session,
   // and again whenever the network comes back. The flush itself no-ops when
   // there's nothing queued or the client isn't ready.
+  // The offline send queue replays at the same points (it hydrates the active
+  // account itself and waits while the client serves another account), plus
+  // when a new session or active account lands and right after an enqueue.
   React.useEffect(() => {
     if (!haveLiveSession) return;
     void useOutboxStore.getState().flush();
-    return useNetworkStore.subscribe((state, prev) => {
-      if (state.online && !prev.online) void useOutboxStore.getState().flush();
-    });
+    void flushSendQueue();
+    const unsubscribers = [
+      useNetworkStore.subscribe((state, prev) => {
+        if (state.online && !prev.online) {
+          void useOutboxStore.getState().flush();
+          void flushSendQueue();
+        }
+      }),
+      useAuthStore.subscribe((state, prev) => {
+        if (state.session && state.session !== prev.session) void flushSendQueue();
+      }),
+      useAccountStore.subscribe((state, prev) => {
+        if (state.activeAccountId !== prev.activeAccountId) void flushSendQueue();
+      }),
+      useSendQueueStore.subscribe((state, prev) => {
+        if (useNetworkStore.getState().online && hasNewEntry(state.entries, prev.entries)) void flushSendQueue();
+      }),
+    ];
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [haveLiveSession]);
 
   // Toasts for invitations the server delivered (queued by the store).
@@ -781,6 +802,7 @@ export default function App() {
       void email.fetchMailboxes();
       if (email.currentMailboxId) void email.refreshEmails();
       void useOutboxStore.getState().flush();
+      void flushSendQueue();
       void useCalendarEventNotificationStore.getState().fetch();
     };
 
