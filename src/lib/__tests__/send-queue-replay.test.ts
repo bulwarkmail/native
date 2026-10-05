@@ -61,14 +61,18 @@ const client = jmapClient as unknown as { isConnected: boolean; accountId: strin
 const HOUR_AGO = () => new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const OK = { scheduled: false, emailId: 'sent-1', emailSubmissionId: 'sub-1' };
 
+// Each entry id carries its own Message-ID (q1 keeps mid-1): the store
+// refuses a second entry with the same Message-ID in one account.
 function entry(over: Partial<QueuedSend> = {}): QueuedSend {
+  const id = over.id ?? 'q1';
+  const mid = id === 'q1' ? 'mid-1@a.test' : `mid-${id}@a.test`;
   return {
     id: 'q1', appAccountId: 'A', jmapAccountId: 'jA', identityId: 'iA',
     outgoing: {
       from: [{ email: 'me@a.test' }], to: [{ email: 'you@x.test', name: 'You' }], cc: [{ email: 'cc@x.test' }],
-      subject: 'Hello', textBody: 'hi', messageId: 'mid-1@a.test',
+      subject: 'Hello', textBody: 'hi', messageId: mid,
     },
-    messageId: 'mid-1@a.test', createdAt: '2026-10-04T08:00:00.000Z', state: 'queued', ...over,
+    messageId: mid, createdAt: '2026-10-04T08:00:00.000Z', state: 'queued', ...over,
   };
 }
 

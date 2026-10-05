@@ -56,8 +56,8 @@ import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { useNetworkStore } from '../stores/network-store';
-import { useSendQueueStore, SendTooLargeToQueueError } from '../stores/send-queue-store';
-import { attachmentsUploaded, buildQueuedSend, hasQueueAccounts, shouldQueueSend } from '../lib/queue-send';
+import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../stores/send-queue-store';
+import { attachmentsUploaded, buildQueuedSend, findAlreadyQueued, hasQueueAccounts, shouldQueueSend } from '../lib/queue-send';
 import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { escapeHtml, stripDangerousTags } from '../lib/email-html';
@@ -2360,6 +2360,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
       alertAccountSwitched();
       return;
     }
+    // This message (its Message-ID, or its server draft) already waits in the
+    // Outbox, e.g. a draft reopened after it was queued offline: sending it
+    // from here, online or queued, would send it twice. Keep the composer open.
+    if (await findAlreadyQueued(owner?.appAccountId, { messageId: messageIdRef.current, draftId: draftIdRef.current })) {
+      toast.warning(t('outbox.already_queued', 'This message is already in the Outbox'), {
+        action: { label: t('outbox.open', 'Open Outbox'), onPress: () => navigation.navigate('Outbox') },
+      });
+      return;
+    }
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
     // Offline at the moment of sending, before any request: queue it. An
     // online send never takes this path, and a network error during one keeps
     // the "Send failed" alert below (never auto-queue after a request).
@@ -2399,6 +2412,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
               t('email_composer.send_failed', 'Send failed'),
               t('outbox.too_large', 'This message is too large to send offline'),
             );
+          } else if (e instanceof AlreadyQueuedError) {
+            toast.warning(t('outbox.already_queued', 'This message is already in the Outbox'), {
+              action: { label: t('outbox.open', 'Open Outbox'), onPress: () => navigation.navigate('Outbox') },
+            });
           } else {
             const { title, message } = sendErrorAlert(e, t);
             Alert.alert(title, message);

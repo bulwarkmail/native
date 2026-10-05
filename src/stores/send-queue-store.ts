@@ -96,6 +96,14 @@ export class SendQueueStateError extends Error {
   }
 }
 
+/** The account already holds an entry with this Message-ID: the message is in the Outbox. */
+export class AlreadyQueuedError extends Error {
+  constructor(message = 'This message is already in the Outbox') {
+    super(message);
+    this.name = 'AlreadyQueuedError';
+  }
+}
+
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 interface SendQueueState {
@@ -106,7 +114,11 @@ interface SendQueueState {
 
   /** Load an account's rows, merging with memory (memory wins, never downgrades). */
   hydrateAccount: (appAccountId: string) => Promise<void>;
-  /** `messageId` is derived from `outgoing.messageId`; any supplied value is ignored. */
+  /**
+   * `messageId` is derived from `outgoing.messageId`; any supplied value is
+   * ignored. Rejects with AlreadyQueuedError when the account already holds an
+   * entry (loaded or, before hydration, on disk) with that Message-ID.
+   */
   enqueue: (entry: Omit<QueuedSend, 'messageId'> & { messageId?: string }) => Promise<void>;
   /** Persisted before it resolves; call before any request is made. */
   markSending: (id: string) => Promise<void>;
@@ -183,6 +195,18 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
     });
   };
 
+  // Loaded entries once the account is hydrated; before that, its rows on disk too.
+  const holdsMessageId = async (appAccountId: string, messageId: string): Promise<boolean> => {
+    if ((get().entries[appAccountId] ?? []).some((e) => e.messageId === messageId)) return true;
+    if (get().hydrated[appAccountId]) return false;
+    const prefix = accountPrefix(appAccountId);
+    const keys = (await AsyncStorage.getAllKeys()).filter(
+      (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'),
+    );
+    const rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
+    return rows.some(([key, raw]) => parseRow(appAccountId, key, raw)?.messageId === messageId);
+  };
+
   return {
     entries: {},
     hydrated: {},
@@ -236,6 +260,8 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
             || (await AsyncStorage.getItem(rowKey(appAccountId, id))) !== null) {
             throw new Error(`Queued send ${id} already exists`);
           }
+          // One entry per message: a second one would send it twice.
+          if (await holdsMessageId(appAccountId, entry.messageId)) throw new AlreadyQueuedError();
           await AsyncStorage.setItem(rowKey(appAccountId, id), JSON.stringify(entry));
         } catch (err) {
           // Only release the claim if no loaded entry holds this id.

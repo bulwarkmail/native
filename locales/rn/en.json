@@ -677,6 +677,7 @@
   },
   "outbox": {
     "action_failed": "That did not work",
+    "already_queued": "This message is already in the Outbox",
     "confirm_discard": "Discard this message? It will not be sent.",
     "confirm_discard_uncertain": "This message may already have been sent. Discard it from the Outbox?",
     "confirm_draft_uncertain": "This message may already have been sent. Check your Sent folder before saving it as a draft. Save as draft?",

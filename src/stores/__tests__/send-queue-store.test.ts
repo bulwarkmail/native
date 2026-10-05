@@ -1,14 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSendQueueStore, SendTooLargeToQueueError, SendQueueStateError, type QueuedSend } from '../send-queue-store';
+import {
+  useSendQueueStore, SendTooLargeToQueueError, SendQueueStateError, AlreadyQueuedError, type QueuedSend,
+} from '../send-queue-store';
 
 const row = (a: string, id: string) => `webmail:sendqueue:v1:${a}:${id}`;
 
+// Each entry id carries its own Message-ID (q1 keeps mid-1): the store
+// refuses a second entry with the same Message-ID in one account.
 function entry(over: Partial<QueuedSend> = {}): QueuedSend {
+  const id = over.id ?? 'q1';
+  const mid = id === 'q1' ? 'mid-1@x.test' : `mid-${id}@x.test`;
   return {
     id: 'q1', appAccountId: 'a1', jmapAccountId: 'j1', identityId: 'i1',
-    outgoing: { from: [{ email: 'a@x.test' }], to: [{ email: 'b@x.test' }], subject: 's', textBody: 'hi', messageId: 'mid-1@x.test' },
-    messageId: 'mid-1@x.test', createdAt: '2026-10-04T00:00:00Z', state: 'queued', ...over,
+    outgoing: { from: [{ email: 'a@x.test' }], to: [{ email: 'b@x.test' }], subject: 's', textBody: 'hi', messageId: mid },
+    messageId: mid, createdAt: '2026-10-04T00:00:00Z', state: 'queued', ...over,
   };
 }
 const stored = async (a: string, id: string) => {
@@ -137,6 +143,31 @@ describe('send-queue-store', () => {
     // also a duplicate of a row that is on disk but not loaded
     await AsyncStorage.setItem(row('a2', 'z'), JSON.stringify(entry({ id: 'z', appAccountId: 'a2' })));
     await expect(s.enqueue(entry({ id: 'z', appAccountId: 'a2' }))).rejects.toThrow(/already exists/);
+  });
+
+  it('refuses a second entry with the same Message-ID in the same account', async () => {
+    const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
+    await s.enqueue(entry());
+    const again = entry({ id: 'q2', outgoing: { ...entry().outgoing, messageId: '<mid-1@x.test>' } });
+    await expect(s.enqueue(again)).rejects.toBeInstanceOf(AlreadyQueuedError);
+    expect(mem('a1').map((e) => e.id)).toEqual(['q1']);
+    expect(await stored('a1', 'q2')).toBeNull();
+    // Another account may hold the same Message-ID (it is that account's send).
+    await s.enqueue(entry({ id: 'q3', appAccountId: 'a2', outgoing: entry().outgoing }));
+    // Once the first is gone (discarded, sent), the Message-ID may be queued again.
+    await s.discard('q1');
+    await s.enqueue(entry({ id: 'q4', outgoing: entry().outgoing }));
+    expect(mem('a1').map((e) => e.id)).toEqual(['q4']);
+  });
+
+  it('refuses a duplicate Message-ID held only by a row on disk (account not loaded)', async () => {
+    await AsyncStorage.setItem(row('a1', 'old'), JSON.stringify(entry({ id: 'old', state: 'uncertain', outgoing: entry().outgoing, messageId: 'mid-1@x.test' })));
+    await expect(useSendQueueStore.getState().enqueue(entry())).rejects.toBeInstanceOf(AlreadyQueuedError);
+    expect(await stored('a1', 'q1')).toBeNull();
+    // The id claim is released: a later enqueue with that id works.
+    await useSendQueueStore.getState().enqueue(entry({ outgoing: { ...entry().outgoing, messageId: 'other@x.test' } }));
+    expect(await stored('a1', 'q1')).not.toBeNull();
   });
 
   it('derives messageId from outgoing.messageId, brackets stripped', async () => {

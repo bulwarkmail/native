@@ -1,7 +1,7 @@
 // Pure helpers for queueing a message that is sent while the device is known
 // to be offline. Both the composer and the quick reply box use them.
 import type { OutgoingEmail } from '../api/email';
-import type { QueuedSend } from '../stores/send-queue-store';
+import { stripMessageIdBrackets, useSendQueueStore, type QueuedSend } from '../stores/send-queue-store';
 
 /**
  * True only when the device is known to be offline at the moment of sending
@@ -53,4 +53,45 @@ export function buildQueuedSend(p: BuildQueuedSendParams): Omit<QueuedSend, 'mes
   if (p.scheduledAt) entry.sendAt = p.scheduledAt.toISOString();
   if (p.replyTo && p.replyTo.emailIds.length) entry.replyTo = p.replyTo;
   return entry;
+}
+
+export interface ComposerRefs {
+  /** The composer's Message-ID (messageIdRef). */
+  messageId?: string | null;
+  /** The composer's server draft (draftIdRef). */
+  draftId?: string | null;
+}
+
+/**
+ * The Outbox entry, in any state, that holds this message: same Message-ID,
+ * or same server draft. Sending it again would send it twice.
+ */
+export function queuedEntryFor(entries: readonly QueuedSend[], refs: ComposerRefs): QueuedSend | undefined {
+  const mid = refs.messageId ? stripMessageIdBrackets(refs.messageId) : '';
+  const draftId = refs.draftId || '';
+  if (!mid && !draftId) return undefined;
+  return entries.find((e) => (!!mid && e.messageId === mid) || (!!draftId && e.draftId === draftId));
+}
+
+/**
+ * The guard the composer and the quick reply run before any send, online or
+ * queued. The owner account is hydrated first so a row an earlier run left
+ * counts; when hydration fails (storage error) only loaded entries count:
+ * replay cannot load that account either, so it sends nothing from it.
+ */
+export async function findAlreadyQueued(ownerAppAccountId: string | null | undefined, refs: ComposerRefs): Promise<QueuedSend | undefined> {
+  const store = useSendQueueStore.getState();
+  if (ownerAppAccountId && !store.hydrated[ownerAppAccountId]) {
+    try {
+      await store.hydrateAccount(ownerAppAccountId);
+    } catch (err) {
+      console.warn('[queue-send] hydrate failed; checking loaded entries only:', err);
+    }
+  }
+  return queuedEntryFor(Object.values(useSendQueueStore.getState().entries).flat(), refs);
+}
+
+/** The quick reply's owner (the app account active at mount) is still the active one. */
+export function ownerStillActive(ownerAtMount: string | null | undefined, activeNow: string | null | undefined): boolean {
+  return !!ownerAtMount && ownerAtMount === activeNow;
 }

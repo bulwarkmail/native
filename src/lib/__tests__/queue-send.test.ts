@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend } from '../queue-send';
+import { beforeEach, describe, expect, it } from 'vitest';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend, queuedEntryFor, findAlreadyQueued, ownerStillActive,
+} from '../queue-send';
 import type { OutgoingEmail } from '../../api/email';
+import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
 
 const outgoing: OutgoingEmail = {
   from: [{ email: 'a@x.test' }],
@@ -62,5 +66,60 @@ describe('account guards', () => {
       replyTo: { emailIds: ['e1'], keyword: '$forwarded', jmapAccountId: 'orig-j' },
     });
     expect(e.replyTo).toEqual({ emailIds: ['e1'], keyword: '$forwarded', jmapAccountId: 'orig-j' });
+  });
+});
+
+describe('already-queued guard', () => {
+  const queued = (over: Partial<QueuedSend> = {}): QueuedSend => ({
+    id: 'q1', appAccountId: 'a', jmapAccountId: 'j', identityId: 'i', outgoing,
+    messageId: 'mid-1@x.test', draftId: 'D', createdAt: '2026-10-04T00:00:00.000Z', state: 'queued', ...over,
+  });
+
+  it('refuses on a matching Message-ID, brackets and case of the brackets aside', () => {
+    expect(queuedEntryFor([queued()], { messageId: '<mid-1@x.test>', draftId: null })?.id).toBe('q1');
+    expect(queuedEntryFor([queued({ draftId: undefined })], { messageId: 'mid-1@x.test' })?.id).toBe('q1');
+  });
+
+  it('refuses on a matching draft id', () => {
+    expect(queuedEntryFor([queued({ messageId: 'other@x.test' })], { messageId: 'new@x.test', draftId: 'D' })?.id).toBe('q1');
+  });
+
+  it('refuses whatever the entry state is', () => {
+    for (const state of ['sending', 'uncertain', 'failed'] as const) {
+      expect(queuedEntryFor([queued({ state })], { messageId: 'mid-1@x.test' })).toBeDefined();
+    }
+  });
+
+  it('allows a message that is not queued, and never matches on empty refs', () => {
+    expect(queuedEntryFor([queued()], { messageId: 'new@x.test', draftId: 'E' })).toBeUndefined();
+    expect(queuedEntryFor([queued({ draftId: undefined })], { messageId: null, draftId: null })).toBeUndefined();
+    expect(queuedEntryFor([queued({ draftId: undefined })], { messageId: '', draftId: '' })).toBeUndefined();
+  });
+
+  describe('findAlreadyQueued', () => {
+    beforeEach(async () => {
+      await useSendQueueStore.getState().clearAccount('a');
+      await AsyncStorage.clear();
+    });
+
+    it('hydrates the owner account first, so a row from an earlier run counts', async () => {
+      await AsyncStorage.setItem('webmail:sendqueue:v1:a:q1', JSON.stringify(queued()));
+      expect(useSendQueueStore.getState().hydrated.a).toBeFalsy();
+      const hit = await findAlreadyQueued('a', { messageId: 'mid-1@x.test', draftId: null });
+      expect(hit?.id).toBe('q1');
+      expect(useSendQueueStore.getState().hydrated.a).toBe(true);
+      expect(await findAlreadyQueued('a', { messageId: 'x@y', draftId: 'D' })).toBeDefined();
+      expect(await findAlreadyQueued('a', { messageId: 'x@y', draftId: 'E' })).toBeUndefined();
+    });
+  });
+});
+
+describe('ownerStillActive (quick reply owner)', () => {
+  it('is true only while the account captured at mount is the active one', () => {
+    expect(ownerStillActive('a', 'a')).toBe(true);
+    expect(ownerStillActive('a', 'b')).toBe(false);
+    expect(ownerStillActive('a', null)).toBe(false);
+    expect(ownerStillActive(null, null)).toBe(false);
+    expect(ownerStillActive(undefined, 'a')).toBe(false);
   });
 });
