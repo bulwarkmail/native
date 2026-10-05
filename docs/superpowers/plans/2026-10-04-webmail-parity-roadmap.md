@@ -281,3 +281,31 @@ Phase 4a is done on `parity/phase-4a-features`. The final review rated these "la
   - The search handling in ComposeScreen has no test.
   - Directory suggestions load only when the account entry's username and server match the client's exactly. A trimmed or untrimmed username would quietly hide them.
 - **Tests:** the wall-clock timing tests now allow 1 s, against 2.8–22 s for the old quadratic cases.
+
+## Phase 4b follow-ups (left open at merge, 2026-10-04)
+
+Phase 4b is done on `parity/phase-4b-rules-outbox`: rules from a message, and an app-only offline send queue. The offline send queue's design changed during execution: a send whose outcome is unknown is never resent automatically, and the user decides in the Outbox. The plan's Task 8 note and the ledger rulings R12, R14, R15, R18 and R19 record this. The final review rated the following "later".
+
+- **Before release (device checks):**
+  - **Airplane mode:** compose and send, then reconnect. The message arrives once.
+  - **Kill mid-send:** kill the app right after reconnecting while a large message sends, then reopen. It is not sent twice; it is either completed from proof or left as "may have been sent".
+  - **Another account:** with a send queued for account A, switch to B and reconnect. The send waits for A, and the Outbox says so.
+  - **Rules from a newsletter:** use "Always move messages from this list", apply it to existing messages, then Undo. The rule is gone from Filters, and the moved messages stay moved.
+  - **Narrow phones:** the Rules icon in the selection bar does not crowd it.
+  - **Stalwart support:** check `EmailSubmission/query` with an `emailIds` filter, `calculateTotal`, and that submissions return `identityId`. If any of these is missing, a proof lookup leaves an entry "may have been sent" for the user.
+- **Upstream (webmail):** a fifth quadratic regex, `stripSubjectPrefixes` in `lib/filters/quick-rules.ts`, on long runs of spaces. Report it with the four from Phase 4a.
+- **Send queue:**
+  - The proof lookup pages by position, so a deletion between pages can skip the proof copy. "Send again" then resends after the user's confirmation.
+  - A send is held when its account is unavailable, and it then waits for the user's Retry even after the account is back.
+  - "Send again" within 2 minutes of an attempt shows the generic "could not check" text.
+  - A failed lookup still stamps the 15-minute backoff.
+  - Rows that are corrupt on disk are counted at sign-out and in the widget.
+  - Toasts for failed, uncertain and held sends repeat once per launch.
+  - A draft still can't be saved offline.
+- **Rules:**
+  - Undo's check-then-write is not atomic; it needs `ifInState`, as in webmail.
+  - `fetchFilters` replies can land out of order: a push refetch after Undo can put the undone rule back into the Settings screen's memory.
+  - The presets can be tapped before the hand-edited-script check returns; the write still refuses.
+  - The rules target snapshots the mailboxes when the sheet opens.
+  - There is no "New folder…" in the rule pickers, and no "Edit rule" toast action.
+  - RulesFlow and the Outbox screen have no render tests.

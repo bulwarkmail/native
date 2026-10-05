@@ -14,7 +14,7 @@
   - The screens only add entries and sheets.
 - **Send queue:**
   - a new per-account store, separate from the existing per-message outbox;
-  - a replay engine that marks each entry "sending" before its request and reconciles any entry whose outcome is unknown against Sent and Drafts by Message-ID before it resends;
+  - a replay engine that marks each entry "sending" before its request; an entry whose outcome is unknown is completed only on proof that it was submitted, and is otherwise left for the user (amended during execution, rulings R12, R14, R15, R18 and R19);
   - an Outbox screen for queued, failed and uncertain sends.
 
 **Tech Stack:** React Native / Expo, TypeScript, Zustand, AsyncStorage, vitest (`npm test`), JMAP (RFC 8620/8621, Sieve RFC 9661 `SieveScript/*`, `EmailSubmission`).
@@ -53,7 +53,7 @@ Webmail reference: `origin/main` at `7e1a659`.
    - the app is killed after the send request leaves and before the reply arrives;
    - a timeout;
    - `SendUnconfirmedError`.
-   An entry in `sending` or `uncertain` state is resent only after reconciliation proves no copy was submitted. Owned by Task 8, tests `a send interrupted mid-request is reconciled, not resent` and `an entry found in Sent is completed without a second send`.
+   An entry in `sending` or `uncertain` state is never resent automatically. Reconciliation completes it only on proof of submission: the user's own copy in Sent, or an EmailSubmission from the entry's identity. Otherwise the user decides in the Outbox, and "Send again" looks for proof first. *(Amended during execution; the original text resent after finding no copy, which the review showed could send twice.)* Owned by Task 8, tests `a send interrupted mid-request is reconciled, not resent` and `an entry found in Sent is completed without a second send`.
 2. **A hand-edited (opaque) filter script is never overwritten** by a rule from a message, and a script changed on the server since the rule was written is never overwritten by Undo. Owned by Task 3, tests `refuses an opaque script` and `undo refuses when the script changed since`.
 3. **Applying a rule to existing messages touches only matching messages in the one source folder of the message's own account**, and skips Junk-keyword mail unless the rule includes spam. Owned by Tasks 2 and 4, tests `planRetroactive only plans matching messages` and `apply uses the message's account and source folder`.
 4. **A send queued from account A replays only through account A**, with A's identity, even if B is active when the connection returns. Owned by Task 8, test `waits for its own account`.
@@ -292,6 +292,8 @@ Device check (human): from a newsletter, run "Always move messages from this lis
 - [ ] **Step 5: Commit** `feat: keep messages to send when the device is offline`
 
 ### Task 8: Replay queued sends, and reconcile an unknown outcome before resending
+
+> **Amended during execution.** The reconciliation below was replaced. Proof (the user's own copy in Sent, or an EmailSubmission for the copy from the entry's identity) completes the entry. Anything else leaves it `uncertain` for the user. Nothing is destroyed or resent automatically. The lookup searches the whole account over 7 days, paged up to 2000 messages. Replay also holds an entry with a reason when it cannot send it (no Sent or Drafts mailbox, an unreadable schedule, the account not served), refuses a second entry with the same Message-ID, and re-checks the account right after `markSending`. See the ledger rulings R12, R14, R15, R18 and R19.
 
 **Files:**
 - Create:
