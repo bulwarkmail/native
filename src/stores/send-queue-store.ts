@@ -249,7 +249,9 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
     markSending: (id) =>
       transition(id, ['queued'], (e) => ({ ...e, state: 'sending', attemptStartedAt: new Date().toISOString() })),
 
-    complete: (id) => transition(id, ['sending', 'uncertain'], () => undefined),
+    // From `queued` as well: replay found proof of an uncertain send that the
+    // user requeued meanwhile; the proof wins (flushes are single-flight).
+    complete: (id) => transition(id, ['sending', 'uncertain', 'queued'], () => undefined),
 
     markUncertain: (id, error) =>
       transition(id, ['sending'], (e) => ({ ...e, state: 'uncertain', lastError: error })),

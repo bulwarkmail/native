@@ -10,7 +10,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes } from '../sent-lookup';
+import { findCopiesByMessageId, findSubmissionsForEmails, hasMessageId, resolveSendMailboxes } from '../sent-lookup';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -19,20 +19,22 @@ beforeEach(() => {
   mockRequest.mockReset();
 });
 
-/** One lookup page: the query ids and the fetched records. */
-function lookupResponse(ids: string[], list: Array<Record<string, unknown>>) {
+/** One lookup page: the query ids (and total, when given) and the fetched records. */
+function lookupResponse(ids: string[], list: Array<Record<string, unknown>>, total?: number) {
   return {
     methodResponses: [
-      ['Email/query', { ids }, 'q'],
+      ['Email/query', total === undefined ? { ids } : { ids, total }, 'q'],
       ['Email/get', { list }, 'g'],
     ],
   };
 }
-/** A full page of 200 unrelated messages, ids prefixed with `p`. */
-function unrelatedPage(p: string) {
-  const ids = Array.from({ length: 200 }, (_, i) => `${p}-${i}`);
-  return lookupResponse(ids, ids.map((id) => ({ id, messageId: [`${id}@other.test`], keywords: {}, mailboxIds: { inbox: true } })));
+/** A page of `n` unrelated messages, ids prefixed with `p`. */
+function unrelatedPage(p: string, n = 200, total?: number) {
+  const ids = Array.from({ length: n }, (_, i) => `${p}-${i}`);
+  return lookupResponse(ids, ids.map((id) => ({ id, messageId: [`${id}@other.test`], keywords: {}, mailboxIds: { inbox: true } })), total);
 }
+const hit = (id: string, over: Record<string, unknown> = {}) =>
+  ({ id, messageId: ['mid-1@x.test'], from: [{ email: 'me@x.test' }], keywords: {}, mailboxIds: { sent: true }, ...over });
 const SINCE = '2026-09-27T09:50:00.000Z';
 const queries = () => mockRequest.mock.calls.map((c) => (c[0] as Array<[string, Record<string, unknown>, string]>)[0][1]);
 
@@ -42,7 +44,7 @@ describe('findCopiesByMessageId', () => {
       { id: 'e1', messageId: ['mid-1@x.test'], keywords: { $seen: true }, mailboxIds: { sent: true } },
       { id: 'e2', messageId: ['other@x.test'], keywords: {}, mailboxIds: { sent: true } },
       { id: 'e3', messageId: ['<mid-1@x.test>'], keywords: { $draft: true }, mailboxIds: { drafts: true } },
-    ]));
+    ], 3));
 
     const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'shared-1', since: SINCE });
 
@@ -55,6 +57,7 @@ describe('findCopiesByMessageId', () => {
         sort: [{ property: 'receivedAt', isAscending: false }],
         position: 0,
         limit: 200,
+        calculateTotal: true,
       }, 'q'],
       ['Email/get', {
         accountId: 'shared-1',
@@ -66,39 +69,82 @@ describe('findCopiesByMessageId', () => {
     expect(JSON.stringify(calls)).not.toContain('header');
     expect(JSON.stringify(calls)).not.toContain('inMailbox');
     expect(result.complete).toBe(true);
+    expect(result.proven).toBe(false);
     expect(result.copies.map((c) => c.id)).toEqual(['e1', 'e3']);
   });
 
-  it('pages newest first and stops on the page with a match (page 3)', async () => {
-    // Make page 3 full so only the match (not exhaustion) can stop the search.
-    const page3Ids = ['hit', ...Array.from({ length: 199 }, (_, i) => `p3-${i}`)];
+  it('pages newest first and stops on the page where isProof holds (page 3)', async () => {
     mockRequest
       .mockResolvedValueOnce(unrelatedPage('p1'))
       .mockResolvedValueOnce(unrelatedPage('p2'))
-      .mockResolvedValueOnce(lookupResponse(page3Ids, [{ id: 'hit', messageId: ['mid-1@x.test'], keywords: {}, mailboxIds: { sent: true } }]))
+      .mockResolvedValueOnce(lookupResponse(['h', ...Array.from({ length: 199 }, (_, i) => `p3-${i}`)], [hit('h')]))
       .mockResolvedValue(unrelatedPage('more'));
+    const isProof = vi.fn(async () => true);
 
-    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE, isProof });
 
-    expect(result.copies.map((c) => c.id)).toEqual(['hit']);
+    expect(result.proven).toBe(true);
+    expect(result.copies.map((c) => c.id)).toEqual(['h']);
+    expect(isProof).toHaveBeenCalledTimes(1);
     expect(queries().map((q) => q.position)).toEqual([0, 200, 400]);
   });
 
-  it('stops when the window is exhausted', async () => {
+  it('keeps paging past a match that is not proof (an echo or forgery)', async () => {
     mockRequest
-      .mockResolvedValueOnce(unrelatedPage('p1'))
-      .mockResolvedValueOnce(lookupResponse(['last'], [{ id: 'last', messageId: ['no@x'], keywords: {}, mailboxIds: {} }]));
-    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
-    expect(mockRequest).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ copies: [], complete: true });
+      .mockResolvedValueOnce(lookupResponse(['echo', ...Array.from({ length: 199 }, (_, i) => `p1-${i}`)], [hit('echo', { mailboxIds: { inbox: true } })]))
+      .mockResolvedValueOnce(lookupResponse(['real', 'z'], [hit('real')], 202));
+    const isProof = vi.fn(async (m: Array<{ id: string }>) => m.some((c) => c.id === 'real'));
+
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE, isProof });
+
+    expect(result.proven).toBe(true);
+    expect(result.copies.map((c) => c.id)).toEqual(['echo', 'real']);
+    expect(isProof.mock.calls.map((c) => c[0].map((x: { id: string }) => x.id))).toEqual([['echo'], ['real']]);
   });
 
-  it('stops after 2000 messages (10 queries) without a match and reports it incomplete', async () => {
+  it('advances by the ids returned: a short page is not the end (server page cap below 200)', async () => {
+    mockRequest
+      .mockResolvedValueOnce(unrelatedPage('p1', 50, 120))
+      .mockResolvedValueOnce(unrelatedPage('p2', 50, 120))
+      .mockResolvedValueOnce(lookupResponse(['h', 'x1'], [hit('h')], 120));
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE, isProof: async () => true });
+    expect(result.proven).toBe(true);
+    expect(queries().map((q) => q.position)).toEqual([0, 50, 100]);
+  });
+
+  it('ends at the total, or at an empty page', async () => {
+    mockRequest
+      .mockResolvedValueOnce(unrelatedPage('p1', 200, 201))
+      .mockResolvedValueOnce(unrelatedPage('p2', 1, 201));
+    expect(await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE }))
+      .toEqual({ copies: [], complete: true, proven: false });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+
+    mockRequest.mockReset();
+    mockRequest
+      .mockResolvedValueOnce(unrelatedPage('p1', 30))
+      .mockResolvedValueOnce(lookupResponse([], []));
+    expect((await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE })).complete).toBe(true);
+    expect(queries().map((q) => q.position)).toEqual([0, 30]);
+  });
+
+  it('dedupes a message seen on two pages (the window shifted)', async () => {
+    mockRequest
+      .mockResolvedValueOnce(lookupResponse(['h', 'a1'], [hit('h')]))
+      .mockResolvedValueOnce(lookupResponse(['h', 'a2'], [hit('h')]))
+      .mockResolvedValueOnce(lookupResponse([], []));
+    const isProof = vi.fn(async () => false);
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE, isProof });
+    expect(result.copies.map((c) => c.id)).toEqual(['h']);
+    expect(isProof).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops after 2000 messages (10 queries) without proof and reports it incomplete', async () => {
     mockRequest.mockImplementation(async () => unrelatedPage(`p${mockRequest.mock.calls.length}`));
-    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE, isProof: async () => false });
     expect(mockRequest).toHaveBeenCalledTimes(10);
     expect(queries().map((q) => q.position)).toEqual([0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800]);
-    expect(result).toEqual({ copies: [], complete: false });
+    expect(result).toEqual({ copies: [], complete: false, proven: false });
   });
 
   it('throws when the server answers a method with an error', async () => {
@@ -119,11 +165,29 @@ describe('findCopiesByMessageId', () => {
       { id: 'e1', messageId: null, keywords: {}, mailboxIds: { sent: true } },
       { id: 'e2', messageId: [`${'<'.repeat(200_000)}mid-1@x.test`], keywords: {}, mailboxIds: { sent: true } },
       { id: 'e3', messageId: 'mid-1@x.test', keywords: {}, mailboxIds: { sent: true } },
-    ]));
+    ], 3));
     const start = Date.now();
     const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
     expect(Date.now() - start).toBeLessThan(1000);
     expect(result.copies).toEqual([]);
+  });
+});
+
+describe('hasMessageId', () => {
+  it('ignores angle brackets and surrounding space on either side', () => {
+    expect(hasMessageId({ messageId: ['<abc@x.test>'] }, 'abc@x.test')).toBe(true);
+    expect(hasMessageId({ messageId: ['abc@x.test'] }, '<abc@x.test>')).toBe(true);
+    expect(hasMessageId({ messageId: [' <abc@x.test> '] }, 'abc@x.test')).toBe(true);
+  });
+
+  it('compares case exactly (a different case is not the same message)', () => {
+    expect(hasMessageId({ messageId: ['ABC@x.test'] }, 'abc@x.test')).toBe(false);
+  });
+
+  it('is false for a missing or non-array messageId, or an empty target', () => {
+    expect(hasMessageId({ messageId: null }, 'abc@x.test')).toBe(false);
+    expect(hasMessageId({ messageId: 'abc@x.test' }, 'abc@x.test')).toBe(false);
+    expect(hasMessageId({ messageId: [''] }, '')).toBe(false);
   });
 });
 

@@ -254,8 +254,8 @@ describe('send-queue-store', () => {
     it('rejects each disallowed transition and allows the legal ones', async () => {
       const s = await setup();
       const bad = (p: Promise<void>) => expect(p).rejects.toBeInstanceOf(SendQueueStateError);
-      // queued
-      await bad(s.complete('q1')); await bad(s.markUncertain('q1', 'e')); await bad(s.markFailed('q1', 'e'));
+      // queued (complete from queued is legal: proof found after a Retry; see below)
+      await bad(s.markUncertain('q1', 'e')); await bad(s.markFailed('q1', 'e'));
       await bad(s.requeue('q1')); await bad(s.releaseUnsent('q1'));
       await s.markSending('q1');
       await bad(s.markSending('q1'));
@@ -284,6 +284,16 @@ describe('send-queue-store', () => {
       expect((await stored('a1', 'q1')).state).toBe('sending');
       // A Retry cannot make it queued, so a second markSending cannot win.
       await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+    });
+
+    it('complete is allowed from queued (proof found after the user requeued), not from failed', async () => {
+      const s = await setup();
+      await s.complete('q1');
+      expect(mem('a1')).toEqual([]);
+      expect(await stored('a1', 'q1')).toBeNull();
+      await s.enqueue(entry({ id: 'q2' }));
+      await s.markSending('q2'); await s.markFailed('q2', 'x');
+      await expect(s.complete('q2')).rejects.toBeInstanceOf(SendQueueStateError);
     });
 
     it('discard works from queued, uncertain and failed', async () => {

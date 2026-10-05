@@ -185,28 +185,33 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
   let submitted = false;
   try {
     const { sentId } = await resolveSendMailboxes(accountId);
-    const { copies } = await findCopiesByMessageId(entry.messageId, {
-      accountId,
-      since: new Date(started - RECONCILE_LOOKBACK_MS).toISOString(),
-    });
-    const own = copies.filter(fromUs);
     // Proof: our copy filed in Sent (with or without $draft), or a live
-    // submission of our copy by this entry's identity. An incomplete lookup
-    // can still yield it.
-    submitted = !!sentId && own.some((c) => c.mailboxIds?.[sentId] === true);
-    if (!submitted && own.length) {
+    // submission of our copy by this entry's identity. Checked page by page,
+    // so the lookup goes on past a match that is not proof.
+    const isProof = async (matches: EmailCopy[]): Promise<boolean> => {
+      const own = matches.filter(fromUs);
+      if (own.length === 0) return false;
+      if (sentId && own.some((c) => c.mailboxIds?.[sentId] === true)) return true;
       const ids = new Set(own.map((c) => c.id));
       const submissions = await findSubmissionsForEmails([...ids], accountId);
-      submitted = submissions.some(
+      return submissions.some(
         (s) => ids.has(s.emailId) && s.identityId === entry.identityId && s.undoStatus !== 'canceled',
       );
-    }
+    };
+    ({ proven: submitted } = await findCopiesByMessageId(entry.messageId, {
+      accountId,
+      since: new Date(started - RECONCILE_LOOKBACK_MS).toISOString(),
+      isProof,
+    }));
   } catch (err) {
     console.warn('[send-queue] reconciliation inconclusive, left for the user:', err);
     return 'left';
   }
   if (!submitted) return 'left';
 
+  // The store allows complete from `queued` too: a "Send again" the user
+  // made while this lookup ran must lose to the proof, or the next pass
+  // would send the message a second time.
   try {
     await useSendQueueStore.getState().complete(entry.id);
   } catch (err) {
@@ -234,6 +239,13 @@ async function sendOne(entry: QueuedSend): Promise<boolean> {
     return true;
   }
   if (!sentId) return false;
+  // Without Drafts, sendEmail would file the copy straight into Sent in the
+  // same request as the submission; if the submission were refused and the
+  // reply lost, that unsent copy would later read as proof. Never replay so.
+  if (!draftsId) {
+    console.warn('[send-queue] this account has no Drafts folder; not replaying', entry.id);
+    return false;
+  }
   if (!canReplay(entry.appAccountId)) return true;
 
   try {

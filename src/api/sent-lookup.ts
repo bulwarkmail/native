@@ -8,8 +8,10 @@ import { CAPABILITIES } from './types';
 
 /** Messages per lookup page. */
 export const COPY_LOOKUP_PAGE = 200;
-/** Messages the lookup reads at most (10 pages) before giving up without a match. */
+/** Messages the lookup reads at most (10 pages) before giving up without proof. */
 export const COPY_LOOKUP_MAX = 2000;
+/** Requests at most, for a server that pages in tiny steps. */
+const COPY_LOOKUP_MAX_REQUESTS = 40;
 const COPY_PROPERTIES = ['id', 'messageId', 'from', 'keywords', 'mailboxIds'];
 
 /** Message-ID values longer than this are never compared (RFC 5322 line limit). */
@@ -26,8 +28,10 @@ export interface EmailCopy {
 
 export interface CopyLookup {
   copies: EmailCopy[];
-  /** False when the lookup gave up at its cap without a match: a copy may have been missed. */
+  /** False when the lookup gave up at its cap without proof: a copy may have been missed. */
   complete: boolean;
+  /** True when `isProof` accepted a page's matches. */
+  proven: boolean;
 }
 
 /** `<id>` -> `id`, linear; null for a value too long to be a Message-ID. */
@@ -59,26 +63,34 @@ export function hasMessageId(copy: { messageId?: unknown }, target: string): boo
 /**
  * Messages anywhere in the account received after `since` whose Message-ID is
  * `messageId`. The JMAP `header` filter is not used (Stalwart 0.16 does not
- * match it): the account is paged newest first by `receivedAt`,
- * {@link COPY_LOOKUP_PAGE} at a time, and Message-IDs are compared here, page
- * by page. Paging stops at the first page holding a match, when the window
- * is exhausted, or after {@link COPY_LOOKUP_MAX} messages. `complete` is
- * false only when the cap stopped it. Throws when a request or method fails.
+ * match it): the account is paged newest first by `receivedAt` and
+ * Message-IDs are compared here, page by page. Each page's new matches go to
+ * `isProof`; paging stops once it says yes (`proven`), at the end of the
+ * window (an empty page, or `total` reached), or after
+ * {@link COPY_LOOKUP_MAX} messages (`complete: false`). A match that is not
+ * proof (an echo, a forgery) never stops it. Throws when a request or method
+ * fails.
  */
 export async function findCopiesByMessageId(
   messageId: string,
-  { accountId, since }: { accountId: string; since: string },
+  { accountId, since, isProof }: {
+    accountId: string;
+    since: string;
+    isProof?: (matches: EmailCopy[]) => Promise<boolean>;
+  },
 ): Promise<CopyLookup> {
   const seen = new Set<string>();
   const copies: EmailCopy[] = [];
-  for (let position = 0; position < COPY_LOOKUP_MAX; position += COPY_LOOKUP_PAGE) {
+  let position = 0;
+  for (let request = 0; request < COPY_LOOKUP_MAX_REQUESTS && position < COPY_LOOKUP_MAX; request++) {
     const res = await jmapClient.request([
       ['Email/query', {
         accountId,
         filter: { after: since },
         sort: [{ property: 'receivedAt', isAscending: false }],
         position,
-        limit: COPY_LOOKUP_PAGE,
+        limit: Math.min(COPY_LOOKUP_PAGE, COPY_LOOKUP_MAX - position),
+        calculateTotal: true,
       }, 'q'],
       ['Email/get', {
         accountId,
@@ -86,18 +98,26 @@ export async function findCopiesByMessageId(
         properties: COPY_PROPERTIES,
       }, 'g'],
     ]);
-    const ids = (requireMethodResult(res, 'q', 'Email/query').ids as string[] | undefined) ?? [];
+    const query = requireMethodResult(res, 'q', 'Email/query');
+    const ids = (query.ids as string[] | undefined) ?? [];
     const list = (requireMethodResult(res, 'g', 'Email/get').list as Array<Record<string, unknown>> | undefined) ?? [];
+    const matches: EmailCopy[] = [];
     for (const record of list) {
       const id = record.id;
       // A message arriving between pages shifts the window: dedupe by id.
       if (typeof id !== 'string' || seen.has(id) || !hasMessageId(record, messageId)) continue;
       seen.add(id);
-      copies.push(toCopy(id, record));
+      matches.push(toCopy(id, record));
     }
-    if (copies.length > 0 || ids.length < COPY_LOOKUP_PAGE) return { copies, complete: true };
+    copies.push(...matches);
+    if (matches.length && isProof && (await isProof(matches))) return { copies, complete: true, proven: true };
+    // A server may return fewer than asked for: only an empty page or the
+    // total marks the end of the window.
+    if (ids.length === 0) return { copies, complete: true, proven: false };
+    position += ids.length;
+    if (typeof query.total === 'number' && position >= query.total) return { copies, complete: true, proven: false };
   }
-  return { copies, complete: false };
+  return { copies, complete: false, proven: false };
 }
 
 /** The account's Sent and Drafts mailboxes by role (raw ids, as the server knows them). */

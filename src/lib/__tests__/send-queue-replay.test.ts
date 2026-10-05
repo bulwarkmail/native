@@ -78,6 +78,16 @@ async function seed(e: QueuedSend) {
 }
 const entries = (a = 'A') => useSendQueueStore.getState().entries[a] ?? [];
 const stateOf = (id: string, a = 'A') => entries(a).find((e) => e.id === id)?.state;
+/**
+ * Make the mocked lookup return these copies, asking the caller's isProof
+ * about them as the real paged lookup does.
+ */
+function findReturns({ copies, complete }: { copies: Array<Record<string, unknown>>; complete: boolean }) {
+  mockFind.mockImplementation(async (_mid: string, opts: { isProof?: (c: unknown[]) => Promise<boolean> }) => {
+    const proven = copies.length > 0 && !!opts.isProof && (await opts.isProof(copies));
+    return { copies, complete: proven || complete, proven };
+  });
+}
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -91,7 +101,7 @@ beforeEach(async () => {
   mockServes.mockReturnValue(true);
   mockBoxes.mockResolvedValue({ sentId: 'm-sent', draftsId: 'm-drafts' });
   mockSubs.mockResolvedValue([]);
-  mockFind.mockResolvedValue({ copies: [], complete: true });
+  findReturns({ copies: [], complete: true });
   mockSend.mockResolvedValue(OK);
 });
 afterEach(() => vi.restoreAllMocks());
@@ -106,7 +116,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     // The app was killed after markSending was persisted: `sending` on disk.
     const started = HOUR_AGO();
     await seed(entry({ state: 'sending', attemptStartedAt: started }));
-    mockFind.mockResolvedValue({ copies: [copy({ keywords: { $seen: true } })], complete: true });
+    findReturns({ copies: [copy({ keywords: { $seen: true } })], complete: true });
 
     await flushSendQueue();
 
@@ -115,13 +125,15 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1')).toBeNull();
     const [mid, opts] = mockFind.mock.calls[0];
     expect(mid).toBe('mid-1@a.test');
-    expect(opts).toEqual({ accountId: 'jA', since: new Date(Date.parse(started) - 7 * 24 * 3600 * 1000).toISOString() });
+    expect(opts.accountId).toBe('jA');
+    expect(opts.since).toBe(new Date(Date.parse(started) - 7 * 24 * 3600 * 1000).toISOString());
+    expect(typeof opts.isProof).toBe('function');
     expect(mockBoxes).toHaveBeenCalledWith('jA');
   });
 
   it('an entry found in Sent is completed without a second send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
-    mockFind.mockResolvedValue({ copies: [copy({})], complete: true });
+    findReturns({ copies: [copy({})], complete: true });
 
     await flushSendQueue();
 
@@ -135,7 +147,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('a copy of our own outside Sent (archived), without a submission, is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
+    findReturns({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
@@ -143,7 +155,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('an archived copy of our own with a submission from our identity is proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
+    findReturns({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
     mockSubs.mockResolvedValue([{ id: 's1', emailId: 'c1', identityId: 'iA', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
@@ -152,7 +164,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('R15: an incoming copy in Inbox with the same Message-ID and another sender is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({
+    findReturns({
       copies: [copy({ from: [{ email: 'attacker@evil.test' }], mailboxIds: { 'm-inbox': true } })],
       complete: true,
     });
@@ -165,7 +177,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('R15: the same Message-ID in Inbox from our address, not in Sent and without a submission, is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-inbox': true } })], complete: true });
+    findReturns({ copies: [copy({ mailboxIds: { 'm-inbox': true } })], complete: true });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
@@ -173,14 +185,14 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('R15: a copy in Sent from another sender is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [copy({ from: [{ email: 'someone@else.test' }] })], complete: true });
+    findReturns({ copies: [copy({ from: [{ email: 'someone@else.test' }] })], complete: true });
     await flushSendQueue();
     expect(stateOf('q1')).toBe('uncertain');
   });
 
   it('R15: a copy in Sent with our from (any case) is proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [copy({ from: [{ email: 'ME@a.TEST' }] })], complete: true });
+    findReturns({ copies: [copy({ from: [{ email: 'ME@a.TEST' }] })], complete: true });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
@@ -188,7 +200,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('R15: a submission from a different identity is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    findReturns({ copies: [draftInDrafts()], complete: true });
     mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iOther', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(stateOf('q1')).toBe('uncertain');
@@ -196,7 +208,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('a $draft copy in Sent is proof: completed, no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [copy({ keywords: { $draft: true } })], complete: true });
+    findReturns({ copies: [copy({ keywords: { $draft: true } })], complete: true });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
@@ -234,6 +246,21 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
       expect(entries()).toEqual([]);
     });
 
+    it('pages past an incoming echo with the same Message-ID to the real proof', async () => {
+      await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+      client.request
+        .mockResolvedValueOnce(page(['echo', ...Array.from({ length: 199 }, (_, i) => `p1-${i}`)], [
+          { id: 'echo', messageId: ['mid-1@a.test'], from: [{ email: 'attacker@evil.test' }], keywords: {}, mailboxIds: { 'm-inbox': true } },
+        ]))
+        .mockResolvedValueOnce(page(['real'], [
+          { id: 'real', messageId: ['mid-1@a.test'], from: [{ email: 'me@a.test' }], keywords: {}, mailboxIds: { 'm-sent': true } },
+        ]));
+      await flushSendQueue();
+      expect(emailQueries()).toHaveLength(2);
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(entries()).toEqual([]);
+    });
+
     it('the cap is reached without a match: uncertain after exactly 10 queries', async () => {
       await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
       client.request.mockImplementation(async () => unrelated(`p${client.request.mock.calls.length}`));
@@ -246,7 +273,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('a $draft-only copy in Drafts stays uncertain: no destroy, no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    findReturns({ copies: [draftInDrafts()], complete: true });
     await flushSendQueue();
     expect(mockSubs).toHaveBeenCalledWith(['d1'], 'jA');
     expect(mockSend).not.toHaveBeenCalled();
@@ -255,7 +282,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('a $draft copy with a submission for it is proof: completed, no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    findReturns({ copies: [draftInDrafts()], complete: true });
     mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iA', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
@@ -264,7 +291,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('a submission for an unrelated emailId is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    findReturns({ copies: [draftInDrafts()], complete: true });
     mockSubs.mockResolvedValue([{ id: 's9', emailId: 'someone-else', identityId: 'iA', undoStatus: 'final' }]);
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
@@ -273,7 +300,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('only a canceled submission is not proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    findReturns({ copies: [draftInDrafts()], complete: true });
     mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iA', undoStatus: 'canceled' }]);
     await flushSendQueue();
     expect(stateOf('q1')).toBe('uncertain');
@@ -281,7 +308,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 
   it('stays uncertain when the submission lookup fails', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    findReturns({ copies: [draftInDrafts()], complete: true });
     mockSubs.mockRejectedValue(new Error('unknownMethod'));
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
@@ -303,9 +330,9 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('an incomplete lookup (total > ids) without proof stays uncertain', async () => {
+  it('an incomplete lookup (cap reached) without proof stays uncertain', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: false });
+    findReturns({ copies: [draftInDrafts()], complete: false });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
@@ -322,7 +349,7 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
   it('without a Sent mailbox a copy alone is not proof, but its submission from our identity is', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockBoxes.mockResolvedValue({ draftsId: 'm-drafts' });
-    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { other: true } })], complete: true });
+    findReturns({ copies: [copy({ mailboxIds: { other: true } })], complete: true });
     await flushSendQueue();
     expect(stateOf('q1')).toBe('uncertain');
 
@@ -332,6 +359,29 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     await flushSendQueue();
     expect(entries()).toEqual([]);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('proof wins over a requeue made while the lookup was running: completed, never sent', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockImplementation(async (_mid: string, opts: { isProof?: (c: unknown[]) => Promise<boolean> }) => {
+      // The user taps "Send again" in the Outbox mid-lookup, and the
+      // enqueue-style trigger asks for another pass.
+      await useSendQueueStore.getState().requeue('q1');
+      void flushSendQueue();
+      const copies = [copy({})];
+      return { copies, complete: true, proven: await opts.isProof!(copies) };
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
+  });
+
+  it('an entry whose sender list is empty is never proven', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), outgoing: { ...entry().outgoing, from: [] } }));
+    findReturns({ copies: [copy({})], complete: true });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
   });
 
   it('does not reconcile an attempt that started moments ago (the server may still be processing it)', async () => {
@@ -372,6 +422,14 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 });
 
 describe('flushSendQueue: sending queued entries', () => {
+  it('never replays without a Drafts mailbox: no send, the entry stays queued', async () => {
+    await seed(entry());
+    mockBoxes.mockResolvedValue({ sentId: 'm-sent' });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+  });
+
   it('sends with the entry account, identity and mailboxes resolved for that account', async () => {
     await seed(entry({ draftId: 'dr-1' }));
     await flushSendQueue();
