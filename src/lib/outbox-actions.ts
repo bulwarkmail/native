@@ -66,16 +66,32 @@ export async function saveEntryAsDraft(entry: QueuedSend): Promise<void> {
   try {
     const { draftsId } = await resolveSendMailboxes(captured.jmapAccountId);
     if (!draftsId) throw new Error('No Drafts folder');
+    // Re-checked right before the write: a switch can land during the lookup.
+    // Nothing was written, so the entry goes back as it was.
+    try {
+      requireActive(captured);
+    } catch (switched) {
+      await restoreCaptured(captured, captured.state, captured.lastError);
+      throw switched;
+    }
     // Replaces the entry's own server draft the way the composer's autosave does.
     await createDraft(captured.outgoing, draftsId, captured.draftId, captured.jmapAccountId);
-  } catch {
-    const { messageId: _derived, ...rest } = captured;
-    try {
-      await useSendQueueStore.getState().enqueue({ ...rest, id: generateUUID() });
-    } catch {
-      throw new OutboxActionError('The draft could not be saved and the message could not be restored', 'draft_lost');
-    }
+  } catch (err) {
+    if (err instanceof OutboxActionError) throw err;
+    await restoreCaptured(captured, captured.state, captured.lastError);
     throw new OutboxActionError('The draft could not be saved. The message is back in the Outbox.', 'draft_failed_restored');
+  }
+}
+
+/** Put a discarded entry back under a fresh id (same Message-ID); OutboxActionError('draft_lost') if that fails. */
+async function restoreCaptured(captured: QueuedSend, state: QueuedSend['state'], lastError: string | undefined): Promise<void> {
+  const { messageId: _derived, lastError: _e, ...rest } = captured;
+  const back: Omit<QueuedSend, 'messageId'> = { ...rest, id: generateUUID(), state };
+  if (lastError) back.lastError = lastError;
+  try {
+    await useSendQueueStore.getState().enqueue(back);
+  } catch {
+    throw new OutboxActionError('The draft could not be saved and the message could not be restored', 'draft_lost');
   }
 }
 

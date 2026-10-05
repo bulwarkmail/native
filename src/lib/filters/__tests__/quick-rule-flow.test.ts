@@ -424,6 +424,46 @@ describe('after an account switch', () => {
     expect(errors[0].title).toContain('Some messages may already have been changed');
   });
 
+  it('a one-click rule writes nothing when the account switches while the script is read', async () => {
+    useAccountStore.setState({ activeAccountId: 'app-1', accounts: [{ id: 'app-1', email: 'a@x.org', username: 'a' }] } as never);
+    const account = sieveOf('own', [{ name: 'filters', content: generateScript([]), isActive: true }]);
+    account.api.getSieveScripts.mockImplementationOnce(async () => {
+      useAccountStore.setState({ activeAccountId: 'app-2' } as never);
+      return account.scripts.map((x) => ({ ...x }));
+    });
+    await runPresetRule({ target: targetFor('own'), preset: { kind: 'mark_read' }, subject: subject('anna@acme.com') });
+    expect(account.writes()).toBe(0);
+    expect(lastToast()).toMatchObject({ type: 'error', title: 'Switch back to a@x.org to finish this' });
+  });
+
+  it('the rule editor writes nothing when the account switches while the script is read', async () => {
+    const account = sieveOf('own', [{ name: 'filters', content: generateScript([]), isActive: true }]);
+    account.api.getSieveScripts.mockImplementationOnce(async () => {
+      vi.mocked(clientServesActiveAccount).mockReturnValue(false);
+      return account.scripts.map((x) => ({ ...x }));
+    });
+    await saveEditorRule(rule('r'), { target: targetFor('own') });
+    expect(account.writes()).toBe(0);
+    expect(lastToast().title).toContain('Switch back to');
+  });
+
+  it('Undo writes nothing when the account switches during its read, and can be used again', async () => {
+    const account = await savedWithApplyOffer();
+    const undo = lastToast().action!;
+    const writes = account.writes();
+    account.api.getSieveScripts.mockImplementationOnce(async () => {
+      useAccountStore.setState({ activeAccountId: 'app-2' } as never);
+      return account.scripts.map((x) => ({ ...x }));
+    });
+    undo.onPress();
+    await vi.waitFor(() => expect(lastToast().title).toContain('Switch back to'));
+    expect(account.writes()).toBe(writes);
+
+    useAccountStore.setState({ activeAccountId: 'app-1' } as never);
+    undo.onPress();
+    await vi.waitFor(() => expect(lastToast().title).toBe('Rule change undone'));
+  });
+
   it('applyToExisting itself refuses, so the immediate apply of the editor is covered too', async () => {
     useAccountStore.setState({ activeAccountId: 'app-2' } as never);
     await expect(applyToExisting(targetFor('own'), rule('r'))).rejects.toBeInstanceOf(SwitchedAwayError);

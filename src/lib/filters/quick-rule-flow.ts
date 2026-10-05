@@ -16,6 +16,7 @@ import {
   FiltersChangedError,
   OpaqueFiltersError,
   restoreAccountFilters,
+  SwitchedAwayError,
   updateAccountFilters,
   type FiltersChange,
 } from './account-filters';
@@ -52,7 +53,11 @@ const SAVED_TOAST_MS = 12_000;
 /** The `settings.filters` translator buildPresetRule names rules with. */
 const filtersText: Translate = (key, values) => t(`settings.filters.${key}`, undefined, values);
 
-function reportWriteError(error: unknown): void {
+function reportWriteError(error: unknown, target: QuickRuleTarget): void {
+  if (error instanceof SwitchedAwayError) {
+    toast.error(switchBackText(target));
+    return;
+  }
   if (error instanceof OpaqueFiltersError) {
     toast.error(t('context_menu.rules.opaque_hint', 'Your filters were edited by hand. Open Filters settings'));
     return;
@@ -64,12 +69,7 @@ function reportWriteError(error: unknown): void {
 }
 
 /** The login the rule was made in is no longer the one the client serves. */
-export class SwitchedAwayError extends Error {
-  constructor() {
-    super('The account changed');
-    this.name = 'SwitchedAwayError';
-  }
-}
+export { SwitchedAwayError };
 
 /** A plan failed after some of its batches had already been sent. */
 export class PartialApplyError extends Error {
@@ -218,15 +218,21 @@ async function applyAndReport(target: QuickRuleTarget, rule: FilterRule): Promis
   }
 }
 
-async function undoChange(change: FiltersChange): Promise<void> {
+/** Resolves false when the account changed before a write: the Undo may be used again. */
+async function undoChange(target: QuickRuleTarget, change: FiltersChange): Promise<boolean> {
   try {
-    await restoreAccountFilters(change);
+    await restoreAccountFilters(change, () => targetStillActive(target));
     toast.success(t('notifications.rule_undone', 'Rule change undone'));
   } catch (error) {
+    if (error instanceof SwitchedAwayError) {
+      toast.error(switchBackText(target));
+      return false;
+    }
     toast.error(error instanceof FiltersChangedError
       ? t('notifications.rule_undo_conflict', 'Your filters have changed since. Undo the change in Filters settings.')
       : t('notifications.rule_undo_failed', 'Could not undo the rule change'));
   }
+  return true;
 }
 
 function undoAction(target: QuickRuleTarget, change: FiltersChange) {
@@ -240,7 +246,7 @@ function undoAction(target: QuickRuleTarget, change: FiltersChange) {
         return;
       }
       used = true;
-      void undoChange(change);
+      void undoChange(target, change).then((done) => { if (!done) used = false; });
     },
   };
 }
@@ -267,9 +273,9 @@ export async function runPresetRule(params: {
     change = await updateAccountFilters(target.sieveAccountId, (rules) => {
       result.outcome = applyQuickRule(rules, candidate);
       return result.outcome.kind === 'covered' ? null : result.outcome.rules;
-    });
+    }, () => targetStillActive(target));
   } catch (error) {
-    reportWriteError(error);
+    reportWriteError(error, target);
     return;
   }
   const outcome = result.outcome!;
@@ -321,10 +327,13 @@ export async function saveEditorRule(
   }
   let change: FiltersChange | null;
   try {
-    change = await updateAccountFilters(target.sieveAccountId, (rules) =>
-      editing ? replaceOrInsertRule(rules, rule) : insertRuleAtTop(rules, rule));
+    change = await updateAccountFilters(
+      target.sieveAccountId,
+      (rules) => (editing ? replaceOrInsertRule(rules, rule) : insertRuleAtTop(rules, rule)),
+      () => targetStillActive(target),
+    );
   } catch (error) {
-    reportWriteError(error);
+    reportWriteError(error, target);
     return;
   }
   if (!change) return;

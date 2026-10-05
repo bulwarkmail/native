@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const calls: string[] = [];
-const state = { entries: {} as Record<string, unknown[]>, active: 'A', serves: true, discardFails: false, createFails: false, enqueued: [] as unknown[] };
+const state = {
+  entries: {} as Record<string, unknown[]>, active: 'A', serves: true, discardFails: false, createFails: false,
+  enqueued: [] as unknown[], onBoxes: undefined as undefined | (() => void),
+};
 
 vi.mock('../../api/email', () => ({
   createDraft: vi.fn(async () => { calls.push('createDraft'); if (state.createFails) throw new Error('net'); return 'd1'; }),
 }));
 vi.mock('../../api/sent-lookup', () => ({
-  resolveSendMailboxes: vi.fn(async () => ({ draftsId: 'drafts' })),
+  resolveSendMailboxes: vi.fn(async () => { calls.push('boxes'); state.onBoxes?.(); return { draftsId: 'drafts' }; }),
 }));
 vi.mock('../active-client-account', () => ({ clientServesActiveAccount: () => state.serves }));
 vi.mock('../send-queue-replay', () => ({ flushSendQueue: vi.fn(async () => { calls.push('flush'); }) }));
@@ -31,12 +34,14 @@ import { createDraft } from '../../api/email';
 const e = (s: string) => ({ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: s, outgoing: { subject: 'x' } }) as never;
 
 beforeEach(() => {
+  vi.clearAllMocks();
   calls.length = 0;
   state.active = 'A';
   state.serves = true;
   state.discardFails = false;
   state.createFails = false;
   state.enqueued = [];
+  state.onBoxes = undefined;
   state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'uncertain', outgoing: { subject: 'x' } }] };
 });
 
@@ -78,7 +83,7 @@ describe('outbox actions', () => {
   it('discards first, then saves a draft in the entry account', async () => {
     await saveEntryAsDraft(e('uncertain'));
     expect(createDraft).toHaveBeenCalledWith({ subject: 'x' }, 'drafts', undefined, 'jA');
-    expect(calls).toEqual(['discard', 'createDraft']);
+    expect(calls).toEqual(['discard', 'boxes', 'createDraft']);
   });
 
   it('replaces the entry draft like autosave', async () => {
@@ -97,12 +102,29 @@ describe('outbox actions', () => {
   it('puts the entry back under a fresh id when the draft fails', async () => {
     state.createFails = true;
     await expect(saveEntryAsDraft(e('uncertain'))).rejects.toMatchObject({ code: 'draft_failed_restored' });
-    expect(calls).toEqual(['discard', 'createDraft', 'enqueue']);
+    expect(calls).toEqual(['discard', 'boxes', 'createDraft', 'enqueue']);
     const back = state.enqueued[0] as { id: string; state: string; outgoing: unknown; messageId?: string };
     expect(back.id).not.toBe('1');
     expect(back.state).toBe('uncertain');
     expect(back.outgoing).toEqual({ subject: 'x' });
     expect(back.messageId).toBeUndefined();
+  });
+
+  it('re-checks the account right before creating the draft: a switch means no write, the entry back as it was', async () => {
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', outgoing: { subject: 'x' } }] };
+    state.onBoxes = () => { state.active = 'B'; };
+    await expect(saveEntryAsDraft(e('queued'))).rejects.toMatchObject({ code: 'wrong_account' });
+    expect(calls).toEqual(['discard', 'boxes', 'enqueue']);
+    expect(createDraft).not.toHaveBeenCalled();
+    const back = state.enqueued[0] as { id: string; state: string };
+    expect(back.state).toBe('queued');
+  });
+
+  it('a client that stops serving the account before the draft is written also means no write', async () => {
+    state.onBoxes = () => { state.serves = false; };
+    await expect(saveEntryAsDraft(e('uncertain'))).rejects.toMatchObject({ code: 'wrong_account' });
+    expect(createDraft).not.toHaveBeenCalled();
+    expect((state.enqueued[0] as { state: string }).state).toBe('uncertain');
   });
 
   it('does not save a draft for an entry that is sending now or gone', async () => {

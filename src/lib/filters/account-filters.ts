@@ -45,6 +45,22 @@ export class OpaqueFiltersError extends Error {
   }
 }
 
+/**
+ * The login the write was made for is no longer the one the client serves
+ * (the caller's `stillValid` said no). Nothing further is written.
+ */
+export class SwitchedAwayError extends Error {
+  constructor() {
+    super('The account changed');
+    this.name = 'SwitchedAwayError';
+  }
+}
+
+/** Throws SwitchedAwayError unless `stillValid` (when given) still holds. Called right before each write. */
+function recheck(stillValid: (() => boolean) | undefined): void {
+  if (stillValid && !stillValid()) throw new SwitchedAwayError();
+}
+
 /** The script changed after the write that is being undone. */
 export class FiltersChangedError extends Error {
   constructor() {
@@ -163,11 +179,13 @@ export async function writeFiltersScript(
  * before the write, so a stale copy (the store's, or one another device has
  * changed since) is never uploaded. `modify` returns null when there is
  * nothing to write. Hand-edited scripts are refused: they are never
- * rewritten from a rule.
+ * rewritten from a rule. `stillValid` is checked right before the write;
+ * when it says no, nothing is written (SwitchedAwayError).
  */
 export async function updateAccountFilters(
   accountId: string,
   modify: (rules: FilterRule[], filters: AccountFilters) => FilterRule[] | null,
+  stillValid?: () => boolean,
 ): Promise<FiltersChange | null> {
   const filters = await readAccountFilters(accountId);
   if (filters.parsed.isOpaque) throw new OpaqueFiltersError();
@@ -175,6 +193,7 @@ export async function updateAccountFilters(
   if (!rules) return null;
 
   const written = renderFiltersScript(rules, filters);
+  recheck(stillValid);
   const { scriptId } = await writeFiltersScript(accountId, written, filters.script?.id ?? null);
   void refreshFilterStore(accountId);
   return {
@@ -195,9 +214,10 @@ export async function updateAccountFilters(
  * script was active before is active again; a script the write created is
  * removed. Refused with FiltersChangedError when the script is no longer
  * what the write left (compared byte for byte), so a later edit from here or
- * another device is not thrown away.
+ * another device is not thrown away. `stillValid` is checked right before
+ * each write; when it says no, nothing more is written (SwitchedAwayError).
  */
-export async function restoreAccountFilters(change: FiltersChange): Promise<void> {
+export async function restoreAccountFilters(change: FiltersChange, stillValid?: () => boolean): Promise<void> {
   const { accountId, scriptId, previous } = change;
   const scripts = await getSieveScripts(accountId);
   const current = scripts.find((s) => s.id === scriptId);
@@ -207,16 +227,19 @@ export async function restoreAccountFilters(change: FiltersChange): Promise<void
 
   const restoreActive = async () => {
     if (previous.activeScriptId === scriptId) return;
+    recheck(stillValid);
     if (previous.activeScriptId) await activateSieveScript(previous.activeScriptId, accountId);
     else await deactivateSieveScript(accountId);
   };
 
   if (previous.scriptId) {
+    recheck(stillValid);
     await updateSieveScript(scriptId, previous.content, previous.activeScriptId === scriptId, accountId);
     await restoreActive();
   } else {
     // An active script cannot be destroyed (RFC 9661), so switch back first.
     await restoreActive();
+    recheck(stillValid);
     await deleteSieveScript(scriptId, accountId);
   }
   void refreshFilterStore(accountId);

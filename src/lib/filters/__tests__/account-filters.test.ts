@@ -30,6 +30,7 @@ import {
   OpaqueFiltersError,
   readAccountFilters,
   restoreAccountFilters,
+  SwitchedAwayError,
   updateAccountFilters,
 } from '../account-filters';
 import { applyQuickRule, insertRuleAtTop } from '../quick-rules';
@@ -185,6 +186,50 @@ describe('restoreAccountFilters (Undo)', () => {
 
     await expect(restoreAccountFilters(change!)).rejects.toBeInstanceOf(FiltersChangedError);
     expect(parseScript(account.content('filters')).rules.map((r) => r.id)).toEqual(['later', 'new', 'old']);
+  });
+});
+
+describe('the per-request account re-check (stillValid)', () => {
+  it('writes nothing when the account is no longer valid at write time', async () => {
+    const account = makeAccount('b', [{ name: 'filters', content: bulwarkScript([rule('old')]), isActive: true }]);
+    let valid = true;
+    // The switch lands while the script is being read.
+    account.client.getSieveScriptContent.mockImplementationOnce(async (blobId: string) => {
+      valid = false;
+      return account.content('filters') || blobId;
+    });
+    await expect(updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')), () => valid))
+      .rejects.toBeInstanceOf(SwitchedAwayError);
+    expect(account.writes()).toBe(0);
+  });
+
+  it('writes as before while it stays valid', async () => {
+    const account = makeAccount('b', [{ name: 'filters', content: bulwarkScript([rule('old')]), isActive: true }]);
+    const stillValid = vi.fn(() => true);
+    await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')), stillValid);
+    expect(stillValid).toHaveBeenCalled();
+    expect(account.writes()).toBe(1);
+  });
+
+  it('undo writes nothing when the account is no longer valid', async () => {
+    const account = makeAccount('b', [{ name: 'filters', content: bulwarkScript([rule('old')]), isActive: true }]);
+    const change = await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')));
+    const writes = account.writes();
+    await expect(restoreAccountFilters(change!, () => false)).rejects.toBeInstanceOf(SwitchedAwayError);
+    expect(account.writes()).toBe(writes);
+  });
+
+  it('undo re-checks before each write: a switch after the first one stops the rest', async () => {
+    const account = makeAccount('b', [{ name: 'vacation', content: 'require "vacation"; vacation "x";', isActive: true }]);
+    const change = await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')));
+    let valid = true;
+    account.client.activateSieveScript.mockImplementationOnce(async (id: string) => {
+      for (const s of account.scripts) s.isActive = s.id === id;
+      valid = false;
+    });
+    await expect(restoreAccountFilters(change!, () => valid)).rejects.toBeInstanceOf(SwitchedAwayError);
+    // The vacation script was switched back on; the created script was not deleted.
+    expect(account.client.deleteSieveScript).not.toHaveBeenCalled();
   });
 });
 
