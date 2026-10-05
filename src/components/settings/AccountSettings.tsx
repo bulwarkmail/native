@@ -11,6 +11,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
+import { confirmSignOutWithQueue } from '../../lib/sign-out-guard';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
@@ -96,8 +97,11 @@ export function AccountSettings() {
           text: t('common.remove', 'Remove'),
           style: 'destructive',
           onPress: () => {
-            setBusyId(id);
-            void removeAccountAuth(id).finally(() => setBusyId(null));
+            void confirmSignOutWithQueue([id], () => navigation.navigate('Outbox')).then((ok) => {
+              if (!ok) return;
+              setBusyId(id);
+              return removeAccountAuth(id).finally(() => setBusyId(null));
+            });
           },
         },
       ],

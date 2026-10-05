@@ -23,6 +23,7 @@ import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
 import { queuedSendCount } from '../lib/outbox-rows';
+import { confirmSignOutWithQueue } from '../lib/sign-out-guard';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
@@ -747,7 +748,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         {
           text: t('sidebar.remove_account', 'Remove account'),
           style: 'destructive',
-          onPress: () => { void useAuthStore.getState().removeAccount(acc.id); },
+          onPress: () => {
+            void confirmSignOutWithQueue([acc.id], () => { onClose(); navigation.navigate('Outbox'); })
+              .then((ok) => { if (ok) return useAuthStore.getState().removeAccount(acc.id); });
+          },
         },
       ],
     );
@@ -937,7 +941,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   styles.accountMenuAction,
                   pressed && styles.accountMenuActionPressed,
                 ]}
-                onPress={() => { setAccountMenuOpen(false); onClose(); void logout(); }}
+                onPress={() => {
+                  setAccountMenuOpen(false);
+                  onClose();
+                  const id = useAuthStore.getState().activeAccountId;
+                  void confirmSignOutWithQueue(id ? [id] : [], () => navigation.navigate('Outbox'))
+                    .then((ok) => { if (ok) return logout(); });
+                }}
               >
                 <LogOut size={16} color={c.textSecondary} />
                 <Text style={styles.accountMenuActionText} numberOfLines={1}>
@@ -950,7 +960,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     styles.accountMenuAction,
                     pressed && styles.accountMenuActionPressed,
                   ]}
-                  onPress={() => { setAccountMenuOpen(false); onClose(); void logoutAll(); }}
+                  onPress={() => {
+                    setAccountMenuOpen(false);
+                    onClose();
+                    const ids = useAccountStore.getState().accounts.map((a) => a.id);
+                    void confirmSignOutWithQueue(ids, () => navigation.navigate('Outbox'))
+                      .then((ok) => { if (ok) return logoutAll(); });
+                  }}
                 >
                   <LogOut size={16} color={c.error} />
                   <Text style={[styles.accountMenuActionText, { color: c.error }]}>

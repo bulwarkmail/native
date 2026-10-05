@@ -16,6 +16,7 @@ vi.mock('react', () => ({ default: {} }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
+import { signOutNeedsConfirm, countQueuedSends } from '../../lib/sign-out-guard';
 import { useOutboxStore } from '../outbox-store';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSearchHistoryStore } from '../search-history-store';
@@ -162,5 +163,39 @@ describe('forgetAccountData', () => {
       set.mockRestore();
       warn.mockRestore();
     }
+  });
+});
+
+describe('send queue on sign-out', () => {
+  const qkey = (acct: string, id: string) => `webmail:sendqueue:v1:${acct}:${id}`;
+
+  it('deletes only the signed-out account\'s queued sends, and keeps outbox keys', async () => {
+    await AsyncStorage.setItem(qkey(A, 'e1'), '{}');
+    await AsyncStorage.setItem(qkey(A, 'e2'), '{}');
+    await AsyncStorage.setItem(qkey(B, 'e3'), '{}');
+    await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, JSON.stringify([{ id: 'q1' }]));
+    await forgetAccountData({ appAccountId: A });
+    expect(await AsyncStorage.getItem(qkey(A, 'e1'))).toBeNull();
+    expect(await AsyncStorage.getItem(qkey(A, 'e2'))).toBeNull();
+    expect(await AsyncStorage.getItem(qkey(B, 'e3'))).not.toBeNull();
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${A}`)).not.toBeNull();
+  });
+});
+
+describe('sign-out guard', () => {
+  const qkey = (acct: string, id: string) => `webmail:sendqueue:v1:${acct}:${id}`;
+
+  it('signOutNeedsConfirm is true only when something is queued', () => {
+    expect(signOutNeedsConfirm([])).toBe(false);
+    expect(signOutNeedsConfirm([0, 0])).toBe(false);
+    expect(signOutNeedsConfirm([0, 2])).toBe(true);
+  });
+
+  it('counts persisted rows per account in every state, hydrated or not', async () => {
+    await AsyncStorage.setItem(qkey(A, 'e1'), JSON.stringify({ state: 'uncertain' }));
+    await AsyncStorage.setItem(qkey(A, 'e2'), JSON.stringify({ state: 'failed' }));
+    await AsyncStorage.setItem(qkey(B, 'e3'), JSON.stringify({ state: 'queued' }));
+    await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, '[1]');
+    expect(await countQueuedSends([A, B, 'c@x'])).toEqual([2, 1, 0]);
   });
 });
