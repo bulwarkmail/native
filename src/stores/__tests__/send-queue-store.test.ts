@@ -135,6 +135,24 @@ describe('send-queue-store', () => {
     expect(mem('a1')).toEqual([]);
   });
 
+  it('unloadAccount drops an account from memory and keeps its rows on disk', async () => {
+    const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
+    await s.enqueue(entry());
+    await s.enqueue(entry({ id: 'q2', appAccountId: 'a2' }));
+    await s.unloadAccount('a1');
+    expect(useSendQueueStore.getState().entries.a1).toBeUndefined();
+    expect(useSendQueueStore.getState().hydrated.a1).toBeFalsy();
+    expect(mem('a2')).toHaveLength(1);
+    expect(await stored('a1', 'q1')).not.toBeNull();
+    // Not actionable while unloaded...
+    await expect(s.discard('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+    // ...and back when the account signs in again.
+    await s.hydrateAccount('a1');
+    expect(mem('a1').map((e) => e.id)).toEqual(['q1']);
+    await s.discard('q1');
+  });
+
   it('refuses a duplicate id', async () => {
     const s = useSendQueueStore.getState();
     await s.enqueue(entry());

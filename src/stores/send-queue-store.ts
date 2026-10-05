@@ -151,6 +151,11 @@ interface SendQueueState {
   /** Removes an entry in any state but `sending` (a send may be in flight). */
   discard: (id: string) => Promise<void>;
   clearAccount: (appAccountId: string) => Promise<void>;
+  /**
+   * Forget a signed-out account's entries in memory only; its rows stay on
+   * disk and load again when the account signs in (hydrateAccount).
+   */
+  unloadAccount: (appAccountId: string) => Promise<void>;
 }
 
 // One task chain per account; a failed task does not break the chain.
@@ -327,6 +332,14 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
           (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'),
         );
         if (keys.length) await AsyncStorage.multiRemove(keys);
+        for (const e of get().entries[appAccountId] ?? []) owners.delete(e.id);
+        const { [appAccountId]: _gone, ...rest } = get().entries;
+        const { [appAccountId]: _h, ...restHydrated } = get().hydrated;
+        set({ entries: rest, hydrated: restHydrated });
+      }),
+
+    unloadAccount: (appAccountId) =>
+      serialize(appAccountId, async () => {
         for (const e of get().entries[appAccountId] ?? []) owners.delete(e.id);
         const { [appAccountId]: _gone, ...rest } = get().entries;
         const { [appAccountId]: _h, ...restHydrated } = get().hydrated;

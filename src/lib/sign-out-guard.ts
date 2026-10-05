@@ -2,6 +2,8 @@
 // Counting reads storage by key prefix, so accounts whose queue was never
 // hydrated this session still count. Every state counts: `queued` and
 // `failed` were never sent, `uncertain` and `sending` may or may not have been.
+// A `sending` row is named apart: its request is in flight and may still go
+// out whatever the user picks.
 
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,6 +32,40 @@ export async function countQueuedSends(appAccountIds: readonly string[]): Promis
   });
 }
 
+export interface QueuedSendStates {
+  /** Rows in any state. */
+  total: number;
+  /** Rows whose send is in flight now: they may still go out whatever the user picks. */
+  sending: number;
+}
+
+/**
+ * Like countQueuedSends, with the `sending` rows counted apart. A storage
+ * error counts as one unsent row (ask rather than risk it); a row that cannot
+ * be read counts as unsent.
+ */
+export async function countQueuedSendStates(appAccountIds: readonly string[]): Promise<QueuedSendStates[]> {
+  let rows: ReadonlyArray<readonly [string, string | null]>;
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(KEY_PREFIX));
+    rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
+  } catch {
+    return appAccountIds.map(() => ({ total: 1, sending: 0 }));
+  }
+  return appAccountIds.map((id) => {
+    const prefix = `${KEY_PREFIX}${id}:`;
+    const mine = rows.filter(([k]) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'));
+    const sending = mine.filter(([, raw]) => {
+      try {
+        return (JSON.parse(raw ?? 'null') as { state?: unknown } | null)?.state === 'sending';
+      } catch {
+        return false;
+      }
+    }).length;
+    return { total: mine.length, sending };
+  });
+}
+
 type Choice = 'cancel' | 'outbox' | 'confirm';
 
 function ask(title: string, message: string, confirmLabel: string): Promise<Choice> {
@@ -47,12 +83,18 @@ function ask(title: string, message: string, confirmLabel: string): Promise<Choi
   });
 }
 
-function queuedMessage(count: number): string {
-  return t(
-    'outbox.signout_confirm',
-    '{count, plural, one {# unsent message will be deleted. Sign out anyway?} other {# unsent messages will be deleted. Sign out anyway?}}',
-    { count },
-  );
+/** The unsent count (sending rows apart) and, when one is in flight, that it may still go out. */
+function queuedMessage(unsent: number, sending: number): string {
+  const parts: string[] = [];
+  if (unsent > 0) {
+    parts.push(t(
+      'outbox.signout_confirm',
+      '{count, plural, one {# unsent message will be deleted. Sign out anyway?} other {# unsent messages will be deleted. Sign out anyway?}}',
+      { count: unsent },
+    ));
+  }
+  if (sending > 0) parts.push(t('outbox.signout_sending', 'A message is being sent and may still go out.'));
+  return parts.join('\n\n');
 }
 
 /**
@@ -67,10 +109,11 @@ async function guard(
   confirmLabel: string,
   titleAndMessage?: (queuedText: string) => { title: string; message: string },
 ): Promise<{ go: boolean; discard: boolean; none: boolean }> {
-  const counts = await countQueuedSends(ids);
-  if (!signOutNeedsConfirm(counts)) return { go: true, discard: false, none: true };
-  const count = counts.reduce((a, b) => a + b, 0);
-  const text = queuedMessage(count);
+  const states = await countQueuedSendStates(ids);
+  if (!signOutNeedsConfirm(states.map((s) => s.total))) return { go: true, discard: false, none: true };
+  const total = states.reduce((a, s) => a + s.total, 0);
+  const sending = states.reduce((a, s) => a + s.sending, 0);
+  const text = queuedMessage(total - sending, sending);
   const { title, message } = titleAndMessage
     ? titleAndMessage(text)
     : { title: t('outbox.title', 'Outbox'), message: text };

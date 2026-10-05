@@ -88,6 +88,10 @@ export async function forgetAccountData(
   // discard rules.
   if (opts.discardQueuedSends) {
     await step(() => useSendQueueStore.getState().clearAccount(account.appAccountId));
+  } else {
+    // Kept rows are not actionable while signed out: drop them from memory
+    // so the Outbox and the counts do not offer them.
+    await step(() => useSendQueueStore.getState().unloadAccount(account.appAccountId));
   }
   const { serverUrl, username } = account;
   if (serverUrl && username) {

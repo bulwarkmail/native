@@ -711,6 +711,7 @@
     "sent": "Sent: {subject}",
     "setting_desc": "Messages sent while offline, waiting to go out.",
     "signout_confirm": "{count, plural, one {# unsent message will be deleted. Sign out anyway?} other {# unsent messages will be deleted. Sign out anyway?}}",
+    "signout_sending": "A message is being sent and may still go out.",
     "state": {
       "failed": "Not sent: {error}",
       "failed_unknown": "Not sent",

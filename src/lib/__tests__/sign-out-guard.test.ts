@@ -8,10 +8,12 @@ vi.mock('../../stores/auth-store', () => ({ useAuthStore: { getState: () => auth
 vi.mock('../../stores/account-store', () => ({
   useAccountStore: { getState: () => ({ accounts: [{ id: 'a1' }, { id: 'a10' }] }) },
 }));
-vi.mock('../../stores/locale-store', () => ({ t: (_k: string, f: string) => f }));
+vi.mock('../../stores/locale-store', () => ({
+  t: (_k: string, f: string, p?: Record<string, unknown>) => (p ? `${f}|${JSON.stringify(p)}` : f),
+}));
 
 import {
-  countQueuedSends, signOutWithGuard, signOutAllWithGuard, removeAccountWithGuard,
+  countQueuedSends, countQueuedSendStates, signOutWithGuard, signOutAllWithGuard, removeAccountWithGuard,
 } from '../sign-out-guard';
 
 const row = (a: string, id: string) => `webmail:sendqueue:v1:${a}:${id}`;
@@ -35,6 +37,41 @@ describe('countQueuedSends', () => {
     await AsyncStorage.setItem(row('a10', 'e2'), '{}');
     await AsyncStorage.setItem(row('a10', 'e3'), '{}');
     expect(await countQueuedSends(['a1', 'a10'])).toEqual([1, 2]);
+  });
+});
+
+describe('countQueuedSendStates', () => {
+  it('counts sending rows separately; an unreadable row counts as unsent', async () => {
+    await AsyncStorage.setItem(row('a1', 'e1'), JSON.stringify({ state: 'sending' }));
+    await AsyncStorage.setItem(row('a1', 'e2'), JSON.stringify({ state: 'queued' }));
+    await AsyncStorage.setItem(row('a1', 'e3'), '{not json');
+    await AsyncStorage.setItem(row('a10', 'e4'), JSON.stringify({ state: 'sending' }));
+    expect(await countQueuedSendStates(['a1', 'a10', 'zz'])).toEqual([
+      { total: 3, sending: 1 }, { total: 1, sending: 1 }, { total: 0, sending: 0 },
+    ]);
+  });
+});
+
+describe('sign-out prompt while a message is being sent', () => {
+  it('says a message may still go out, and counts only the others as unsent', async () => {
+    await AsyncStorage.setItem(row('a1', 'e1'), JSON.stringify({ state: 'sending' }));
+    await AsyncStorage.setItem(row('a1', 'e2'), JSON.stringify({ state: 'failed' }));
+    const p = signOutWithGuard('a1', vi.fn());
+    await press('Cancel');
+    await p;
+    const message = String(alertSpy.mock.calls[0][1]);
+    expect(message).toContain('A message is being sent and may still go out.');
+    expect(message).toContain('"count":1');
+  });
+
+  it('only sending: no unsent-messages count, just the sending warning', async () => {
+    await AsyncStorage.setItem(row('a1', 'e1'), JSON.stringify({ state: 'sending' }));
+    const p = signOutWithGuard('a1', vi.fn());
+    await press('Sign out');
+    await p;
+    const message = String(alertSpy.mock.calls[0][1]);
+    expect(message).toBe('A message is being sent and may still go out.');
+    expect(auth.logout).toHaveBeenCalledWith({ discardQueuedSends: true });
   });
 });
 

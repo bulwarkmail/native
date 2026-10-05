@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
 import { signOutNeedsConfirm, countQueuedSends } from '../../lib/sign-out-guard';
 import { useOutboxStore } from '../outbox-store';
+import { useSendQueueStore } from '../send-queue-store';
 import { useOfflineCacheStore } from '../offline-cache-store';
 import { useSearchHistoryStore } from '../search-history-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from '../calendar-subscriptions-store';
@@ -172,6 +173,26 @@ describe('send queue on sign-out', () => {
   it('keeps queued sends by default', async () => {
     await AsyncStorage.setItem(qkey(A, 'e1'), '{}');
     await forgetAccountData({ appAccountId: A });
+    expect(await AsyncStorage.getItem(qkey(A, 'e1'))).not.toBeNull();
+  });
+
+  it('a kept queue leaves memory: the rows stay on disk, the Outbox and counts no longer show them', async () => {
+    const row = (acct: string, id: string) => ({
+      id, appAccountId: acct, jmapAccountId: 'j', identityId: 'i',
+      outgoing: { from: [], to: [], subject: 's', messageId: `${id}@x` }, messageId: `${id}@x`,
+      createdAt: '2026-10-04T00:00:00.000Z', state: 'queued',
+    });
+    await AsyncStorage.setItem(qkey(A, 'e1'), JSON.stringify(row(A, 'e1')));
+    await AsyncStorage.setItem(qkey(B, 'e2'), JSON.stringify(row(B, 'e2')));
+    await useSendQueueStore.getState().hydrateAccount(A);
+    await useSendQueueStore.getState().hydrateAccount(B);
+    expect(useSendQueueStore.getState().entries[A]).toHaveLength(1);
+
+    await forgetAccountData({ appAccountId: A });
+
+    expect(useSendQueueStore.getState().entries[A]).toBeUndefined();
+    expect(useSendQueueStore.getState().hydrated[A]).toBeFalsy();
+    expect(useSendQueueStore.getState().entries[B]).toHaveLength(1);
     expect(await AsyncStorage.getItem(qkey(A, 'e1'))).not.toBeNull();
   });
 
