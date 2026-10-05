@@ -99,15 +99,26 @@ describe('outbox actions', () => {
     expect(state.enqueued).toEqual([]);
   });
 
-  it('puts the entry back under a fresh id when the draft fails', async () => {
+  it('puts the entry back under a fresh id, as failed with the error, when the draft fails', async () => {
     state.createFails = true;
     await expect(saveEntryAsDraft(e('uncertain'))).rejects.toMatchObject({ code: 'draft_failed_restored' });
     expect(calls).toEqual(['discard', 'boxes', 'createDraft', 'enqueue']);
-    const back = state.enqueued[0] as { id: string; state: string; outgoing: unknown; messageId?: string };
+    const back = state.enqueued[0] as { id: string; state: string; lastError?: string; outgoing: unknown; messageId?: string };
     expect(back.id).not.toBe('1');
-    expect(back.state).toBe('uncertain');
+    expect(back.state).toBe('failed');
+    expect(back.lastError).toBe('net');
     expect(back.outgoing).toEqual({ subject: 'x' });
     expect(back.messageId).toBeUndefined();
+  });
+
+  it('never puts a queued entry back as queued after a failed draft (it could auto-send)', async () => {
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', heldReason: 'no_sent', outgoing: { subject: 'x' } }] };
+    state.createFails = true;
+    await expect(saveEntryAsDraft(e('queued'))).rejects.toMatchObject({ code: 'draft_failed_restored' });
+    const back = state.enqueued[0] as { state: string; lastError?: string; heldReason?: string };
+    expect(back.state).toBe('failed');
+    expect(back.lastError).toBe('net');
+    expect(back.heldReason).toBeUndefined();
   });
 
   it('re-checks the account right before creating the draft: a switch means no write, the entry back as it was', async () => {

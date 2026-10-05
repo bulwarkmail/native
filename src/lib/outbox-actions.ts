@@ -49,9 +49,12 @@ export async function requeueAndFlush(entry: QueuedSend, expectedState: RetryFro
  * Save the message as a server draft in the entry's own account. The entry is
  * discarded FIRST: a flush may be about to send it, and a draft kept next to
  * a sent message is worse than a refused action. If discard rejects (sending
- * or gone) nothing is created. If creating the draft then fails, the captured
- * entry goes back into the Outbox under a fresh id (same state, same
- * Message-ID) and the error is OutboxActionError('draft_failed_restored').
+ * or gone) nothing is created. If the account changed before the draft is
+ * written, nothing is written and the entry goes back as it was
+ * (OutboxActionError('wrong_account')). If creating the draft fails, the
+ * captured entry goes back into the Outbox under a fresh id as `failed` with
+ * that error (same Message-ID), never as `queued`, and the error is
+ * OutboxActionError('draft_failed_restored').
  */
 export async function saveEntryAsDraft(entry: QueuedSend): Promise<void> {
   requireActive(entry);
@@ -78,16 +81,20 @@ export async function saveEntryAsDraft(entry: QueuedSend): Promise<void> {
     await createDraft(captured.outgoing, draftsId, captured.draftId, captured.jmapAccountId);
   } catch (err) {
     if (err instanceof OutboxActionError) throw err;
-    await restoreCaptured(captured, captured.state, captured.lastError);
+    // Back as `failed`, never `queued`: the draft may have been created after
+    // all (a lost reply), and a queued entry would then be sent on its own.
+    await restoreCaptured(captured, 'failed', err instanceof Error && err.message ? err.message : String(err));
     throw new OutboxActionError('The draft could not be saved. The message is back in the Outbox.', 'draft_failed_restored');
   }
 }
 
 /** Put a discarded entry back under a fresh id (same Message-ID); OutboxActionError('draft_lost') if that fails. */
 async function restoreCaptured(captured: QueuedSend, state: QueuedSend['state'], lastError: string | undefined): Promise<void> {
-  const { messageId: _derived, lastError: _e, ...rest } = captured;
+  const { messageId: _derived, lastError: _e, heldReason, ...rest } = captured;
   const back: Omit<QueuedSend, 'messageId'> = { ...rest, id: generateUUID(), state };
   if (lastError) back.lastError = lastError;
+  // A hold belongs to a queued entry only.
+  if (heldReason && state === 'queued') back.heldReason = heldReason;
   try {
     await useSendQueueStore.getState().enqueue(back);
   } catch {
