@@ -18,6 +18,7 @@ import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
+import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
 import {
@@ -529,6 +530,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [batchMoveOpen, setBatchMoveOpen] = React.useState(false);
   const [batchCopyOpen, setBatchCopyOpen] = React.useState(false);
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  const [rulesOpen, setRulesOpen] = React.useState(false);
 
   // Selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -756,6 +758,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     const wanted = new Set(selectedMessageIds);
     return emails.filter((e) => wanted.has(rowKeyOf(e)));
   }, [emails, selectedMessageIds]);
+  // Rules for the selection's account; hidden for shared accounts or no Sieve.
+  const { availability: rulesAvailability } = useRulesTarget(selectedEmails);
   const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
   const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));
 
@@ -1088,6 +1092,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               accessibilityLabel={t('context_menu.archive', 'Archive')}
             >
               <Archive size={20} color={c.text} />
+            </Pressable>
+          )}
+          {rulesAvailability !== 'hidden' && (
+            <Pressable
+              onPress={() => setRulesOpen(true)}
+              style={styles.headerButton}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('context_menu.rules.title', 'Rules')}
+            >
+              <Filter size={20} color={c.text} />
             </Pressable>
           )}
           <Pressable
@@ -1769,6 +1784,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         currentMailboxId={currentMailboxId}
         onPick={handleBatchCopyPick}
         title={t('context_menu.copy_to', 'Copy to…')}
+      />
+
+      <RulesFlow
+        visible={rulesOpen && selectedEmails.length > 0}
+        onClose={() => setRulesOpen(false)}
+        emails={selectedEmails}
       />
 
       <TagSheet

@@ -275,7 +275,19 @@
     "copy_to": "Copy to…",
     "remove_color": "Remove tag",
     "rules": {
-      "opaque_hint": "Your filters were edited by hand. Open Filters settings"
+      "block": "{count, plural, one {Block sender} other {Block # senders}}",
+      "create": "Create rule…",
+      "cross_account": "Select messages from one account",
+      "manage": "Manage rules",
+      "mark_read_from": "Always mark as read from {sender}",
+      "move_from": "Always move messages from {sender}",
+      "move_from_domain": "Always move messages from @{domain}",
+      "move_from_list": "Always move messages from this list",
+      "no_junk": "This account has no Junk folder",
+      "opaque_hint": "Your filters were edited by hand. Open Filters settings",
+      "senders_count": "{count, plural, one {# sender} other {# senders}}",
+      "tag_with": "Always tag with",
+      "title": "Rules"
     }
   },
   "deep_link": {
