@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSendQueueStore, SendTooLargeToQueueError, type QueuedSend } from '../send-queue-store';
+import { useSendQueueStore, SendTooLargeToQueueError, SendQueueStateError, type QueuedSend } from '../send-queue-store';
 
 const row = (a: string, id: string) => `webmail:sendqueue:v1:${a}:${id}`;
 
@@ -26,6 +26,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('send-queue-store', () => {
   it('does not resolve markSending until the row write completes', async () => {
     const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
     await s.enqueue(entry());
     let release!: () => void;
     const gate = new Promise<void>((r) => { release = r; });
@@ -48,6 +49,7 @@ describe('send-queue-store', () => {
 
   it('rejects and leaves memory unchanged when the write fails', async () => {
     const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
     await s.enqueue(entry());
     vi.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
     await expect(s.markSending('q1')).rejects.toThrow('disk full');
@@ -94,6 +96,7 @@ describe('send-queue-store', () => {
 
   it('hydrate merges: memory wins and is never downgraded', async () => {
     const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
     await s.enqueue(entry());
     await s.markSending('q1');
     await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({ state: 'queued' })));
@@ -162,6 +165,7 @@ describe('send-queue-store', () => {
 
   it('discard removes only that entry', async () => {
     const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
     await s.enqueue(entry());
     await s.enqueue(entry({ id: 'q2' }));
     await s.discard('q1');
@@ -172,8 +176,10 @@ describe('send-queue-store', () => {
 
   it('does not lose writes when methods are called back to back', async () => {
     const s = useSendQueueStore.getState();
+    await s.hydrateAccount('a1');
     await Promise.all([s.enqueue(entry()), s.enqueue(entry({ id: 'q2' })), s.enqueue(entry({ id: 'q3' }))]);
-    await Promise.all([s.markSending('q1'), s.markFailed('q2', 'boom'), s.complete('q3')]);
+    await Promise.all([s.markSending('q1'), s.markSending('q2'), s.markSending('q3')]);
+    await Promise.all([s.markFailed('q2', 'boom'), s.complete('q3')]);
     expect((await stored('a1', 'q1')).state).toBe('sending');
     expect((await stored('a1', 'q2')).state).toBe('failed');
     expect(await stored('a1', 'q3')).toBeNull();
@@ -197,5 +203,91 @@ describe('send-queue-store', () => {
     expect(touched.length).toBeGreaterThan(0);
     expect(touched.some((k) => k.includes('webmail:outbox:'))).toBe(false);
     expect(await AsyncStorage.getItem('webmail:outbox:v1:a1')).toBe('[1]');
+  });
+
+  describe('state machine', () => {
+    const setup = async () => {
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await s.enqueue(entry());
+      return s;
+    };
+
+    it('rejects markSending for an unknown or disk-only id', async () => {
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await AsyncStorage.setItem(row('a1', 'disk'), JSON.stringify(entry({ id: 'disk' })));
+      await expect(s.markSending('disk')).rejects.toBeInstanceOf(SendQueueStateError);
+      await expect(s.markSending('nope')).rejects.toBeInstanceOf(SendQueueStateError);
+      expect((await stored('a1', 'disk')).state).toBe('queued');
+    });
+
+    it('rejects every mutator before the account is hydrated', async () => {
+      const s = useSendQueueStore.getState();
+      await s.enqueue(entry());
+      await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      await expect(s.discard('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      expect((await stored('a1', 'q1')).state).toBe('queued');
+    });
+
+    it('lets only one of two concurrent markSending calls succeed', async () => {
+      const s = await setup();
+      const results = await Promise.allSettled([s.markSending('q1'), s.markSending('q1')]);
+      expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+      expect((results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason)
+        .toBeInstanceOf(SendQueueStateError);
+      expect((await stored('a1', 'q1')).state).toBe('sending');
+    });
+
+    it('rejects markSending after complete and after discard', async () => {
+      const s = await setup();
+      await s.markSending('q1');
+      await s.complete('q1');
+      await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      await s.enqueue(entry({ id: 'q2' }));
+      await s.discard('q2');
+      await expect(s.markSending('q2')).rejects.toBeInstanceOf(SendQueueStateError);
+      await expect(s.discard('q2')).rejects.toBeInstanceOf(SendQueueStateError);
+    });
+
+    it('rejects each disallowed transition and allows the legal ones', async () => {
+      const s = await setup();
+      const bad = (p: Promise<void>) => expect(p).rejects.toBeInstanceOf(SendQueueStateError);
+      // queued
+      await bad(s.complete('q1')); await bad(s.markUncertain('q1', 'e')); await bad(s.markFailed('q1', 'e'));
+      await bad(s.requeue('q1'));
+      await s.markSending('q1');
+      await bad(s.markSending('q1'));
+      await s.requeue('q1'); // sending -> queued (auth error before the request)
+      await s.markSending('q1');
+      await s.markUncertain('q1', 'net');
+      await bad(s.markSending('q1')); await bad(s.markUncertain('q1', 'e'));
+      await s.markFailed('q1', 'x'); // uncertain -> failed
+      await bad(s.markSending('q1')); await bad(s.complete('q1')); await bad(s.markUncertain('q1', 'e'));
+      await bad(s.markFailed('q1', 'e'));
+      await s.requeue('q1'); // failed -> queued
+      await s.markSending('q1');
+      await s.markUncertain('q1', 'net');
+      await s.complete('q1'); // uncertain -> removed
+      expect(mem('a1')).toEqual([]);
+      expect(await stored('a1', 'q1')).toBeNull();
+    });
+
+    it('rejects hydrate when the sending repair write-back fails, memory unchanged', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({ state: 'sending' })));
+      vi.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
+      const s = useSendQueueStore.getState();
+      await expect(s.hydrateAccount('a1')).rejects.toThrow('disk full');
+      expect(mem('a1')).toEqual([]);
+      expect(useSendQueueStore.getState().hydrated.a1).toBeUndefined();
+      expect((await stored('a1', 'q1')).state).toBe('sending');
+      await s.hydrateAccount('a1');
+      expect(mem('a1')[0].state).toBe('uncertain');
+    });
+
+    it('refuses an id with a colon', async () => {
+      await expect(useSendQueueStore.getState().enqueue(entry({ id: 'a:b' }))).rejects.toThrow(/Invalid queued send id/);
+      expect(await AsyncStorage.getAllKeys()).toEqual([]);
+    });
   });
 });

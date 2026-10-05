@@ -88,9 +88,21 @@ export class SendTooLargeToQueueError extends Error {
   }
 }
 
+/** An unknown id, an unhydrated account, or a transition the state machine disallows. */
+export class SendQueueStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SendQueueStateError';
+  }
+}
+
+const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 interface SendQueueState {
   /** Loaded queues by app account id. */
   entries: Record<string, QueuedSend[]>;
+  /** True once an account's hydrate has succeeded; mutators (except enqueue/clearAccount) need it. */
+  hydrated: Record<string, boolean>;
 
   /** Load an account's rows, merging with memory (memory wins, never downgrades). */
   hydrateAccount: (appAccountId: string) => Promise<void>;
@@ -131,15 +143,26 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
     return Object.keys(entries).find((a) => entries[a].some((e) => e.id === id));
   };
 
-  // Change (or remove, when `change` returns undefined) one entry: write its
-  // row, then update memory. Unknown ids are a no-op.
-  const mutate = (id: string, change: (e: QueuedSend) => QueuedSend | undefined): Promise<void> => {
+  // Checked transition on one entry: `from` lists the states the entry may be
+  // in (checked when the task runs, so it is a compare-and-set); `change`
+  // returns the new entry, or undefined to remove it. The row is written
+  // before memory changes. Rejects with SendQueueStateError otherwise.
+  const transition = (
+    id: string,
+    from: readonly QueuedSendState[] | 'any',
+    change: (e: QueuedSend) => QueuedSend | undefined,
+  ): Promise<void> => {
     const appAccountId = ownerOf(id);
-    if (!appAccountId) return Promise.resolve();
+    if (!appAccountId) return Promise.reject(new SendQueueStateError(`Unknown queued send ${id}`));
     return serialize(appAccountId, async () => {
-      const list = get().entries[appAccountId] ?? [];
-      const current = list.find((e) => e.id === id);
-      if (!current) return;
+      if (!get().hydrated[appAccountId]) {
+        throw new SendQueueStateError(`Account ${appAccountId} is not hydrated`);
+      }
+      const current = (get().entries[appAccountId] ?? []).find((e) => e.id === id);
+      if (!current) throw new SendQueueStateError(`Unknown queued send ${id}`);
+      if (from !== 'any' && !from.includes(current.state)) {
+        throw new SendQueueStateError(`Queued send ${id} is ${current.state}; transition not allowed`);
+      }
       const next = change(current);
       if (next) {
         await AsyncStorage.setItem(rowKey(appAccountId, id), JSON.stringify(next));
@@ -154,6 +177,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
 
   return {
     entries: {},
+    hydrated: {},
 
     hydrateAccount: (appAccountId) =>
       serialize(appAccountId, async () => {
@@ -171,17 +195,17 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
           let entry = parsed;
           if (entry.state === 'sending') {
             entry = { ...entry, state: 'uncertain' };
-            try {
-              await AsyncStorage.setItem(key, JSON.stringify(entry));
-            } catch (err) {
-              console.warn('[send-queue] could not write back repaired row', err);
-            }
+            // A failed write-back rejects the hydrate with memory untouched.
+            await AsyncStorage.setItem(key, JSON.stringify(entry));
           }
           loaded.push(entry);
         }
         loaded.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
         for (const e of loaded) owners.set(e.id, appAccountId);
-        setList(appAccountId, [...memory, ...loaded]);
+        set({
+          entries: { ...get().entries, [appAccountId]: [...memory, ...loaded] },
+          hydrated: { ...get().hydrated, [appAccountId]: true },
+        });
       }),
 
     enqueue: (input) => {
@@ -194,6 +218,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
         return Promise.reject(new SendTooLargeToQueueError());
       }
       const { appAccountId, id } = entry;
+      if (!ID_PATTERN.test(id)) return Promise.reject(new Error(`Invalid queued send id ${id}`));
       const existing = owners.get(id);
       if (existing) return Promise.reject(new Error(`Queued send ${id} already exists`));
       owners.set(id, appAccountId);
@@ -214,18 +239,22 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
     },
 
     markSending: (id) =>
-      mutate(id, (e) => ({ ...e, state: 'sending', attemptStartedAt: new Date().toISOString() })),
+      transition(id, ['queued'], (e) => ({ ...e, state: 'sending', attemptStartedAt: new Date().toISOString() })),
 
-    complete: (id) => mutate(id, () => undefined),
+    complete: (id) => transition(id, ['sending', 'uncertain'], () => undefined),
 
-    markUncertain: (id, error) => mutate(id, (e) => ({ ...e, state: 'uncertain', lastError: error })),
+    markUncertain: (id, error) =>
+      transition(id, ['sending'], (e) => ({ ...e, state: 'uncertain', lastError: error })),
 
-    markFailed: (id, error) => mutate(id, (e) => ({ ...e, state: 'failed', lastError: error })),
+    markFailed: (id, error) =>
+      transition(id, ['sending', 'uncertain'], (e) => ({ ...e, state: 'failed', lastError: error })),
 
     requeue: (id) =>
-      mutate(id, (e) => ({ ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined })),
+      transition(id, ['failed', 'uncertain', 'sending'], (e) => ({
+        ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined,
+      })),
 
-    discard: (id) => mutate(id, () => undefined),
+    discard: (id) => transition(id, 'any', () => undefined),
 
     clearAccount: (appAccountId) =>
       serialize(appAccountId, async () => {
@@ -236,7 +265,8 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
         if (keys.length) await AsyncStorage.multiRemove(keys);
         for (const e of get().entries[appAccountId] ?? []) owners.delete(e.id);
         const { [appAccountId]: _gone, ...rest } = get().entries;
-        set({ entries: rest });
+        const { [appAccountId]: _h, ...restHydrated } = get().hydrated;
+        set({ entries: rest, hydrated: restHydrated });
       }),
   };
 });
