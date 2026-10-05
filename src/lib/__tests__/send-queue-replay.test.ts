@@ -82,6 +82,7 @@ async function seed(e: QueuedSend) {
 }
 const entries = (a = 'A') => useSendQueueStore.getState().entries[a] ?? [];
 const stateOf = (id: string, a = 'A') => entries(a).find((e) => e.id === id)?.state;
+const heldOf = (id: string, a = 'A') => entries(a).find((e) => e.id === id)?.heldReason;
 /**
  * Make the mocked lookup return these copies, asking the caller's isProof
  * about them as the real paged lookup does.
@@ -426,12 +427,52 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
 });
 
 describe('flushSendQueue: sending queued entries', () => {
-  it('never replays without a Drafts mailbox: no send, the entry stays queued', async () => {
+  it('never replays without a Drafts mailbox: no send, the entry is held as no_drafts', async () => {
     await seed(entry());
     mockBoxes.mockResolvedValue({ sentId: 'm-sent' });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('queued');
+    expect(heldOf('q1')).toBe('no_drafts');
+    expect(JSON.parse((await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1'))!).heldReason).toBe('no_drafts');
+  });
+
+  it('holds an entry when the account has no Sent mailbox: no_sent', async () => {
+    await seed(entry());
+    mockBoxes.mockResolvedValue({ draftsId: 'm-drafts' });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+    expect(heldOf('q1')).toBe('no_sent');
+  });
+
+  it('holds an entry whose sendAt cannot be read: bad_schedule, no Sent lookup', async () => {
+    await seed(entry({ sendAt: 'not a date' }));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockBoxes).not.toHaveBeenCalled();
+    expect(heldOf('q1')).toBe('bad_schedule');
+  });
+
+  it('skips a held entry on later flushes, and sends it after the user retries', async () => {
+    await seed(entry({ heldReason: 'no_drafts' }));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockBoxes).not.toHaveBeenCalled();
+    expect(heldOf('q1')).toBe('no_drafts');
+
+    await useSendQueueStore.getState().requeue('q1');
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(entries()).toEqual([]);
+  });
+
+  it('a Sent lookup that fails is transient: no hold, the flush stops', async () => {
+    await seed(entry());
+    mockBoxes.mockRejectedValue(new Error('net'));
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(heldOf('q1')).toBeUndefined();
   });
 
   it('sends with the entry account, identity and mailboxes resolved for that account', async () => {
@@ -654,11 +695,20 @@ describe('flushSendQueue: preconditions and accounts', () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it('skips an entry whose JMAP account the client does not serve', async () => {
+  it('holds a queued entry whose JMAP account the client does not serve: account_unavailable', async () => {
     await seed(entry({ jmapAccountId: 'jOther' }));
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('queued');
+    expect(heldOf('q1')).toBe('account_unavailable');
+  });
+
+  it('leaves an uncertain entry of an unserved JMAP account alone (no hold, no lookup)', async () => {
+    await seed(entry({ jmapAccountId: 'jOther', state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    await flushSendQueue();
+    expect(mockFind).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+    expect(heldOf('q1')).toBeUndefined();
   });
 
   it('does nothing offline or disconnected', async () => {

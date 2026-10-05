@@ -92,6 +92,34 @@ describe('outboxRows', () => {
     expect(acts('uncertain')).toEqual(['send_again', 'discard']);
   });
 
+  it('labels a held entry by its reason and offers Retry, Save as draft and Discard', () => {
+    const reasons = ['bad_schedule', 'no_sent', 'no_drafts', 'account_unavailable'] as const;
+    const rows = outboxRows(reasons.map((r, i) => entry(String(i + 1).repeat(i + 1), 'queued', { heldReason: r })), base);
+    expect(rows.map((r) => r.stateLabel.key)).toEqual(reasons.map((r) => `outbox.held.${r}`));
+    for (const r of rows) {
+      expect(r.held).toBe(true);
+      expect(r.actions).toEqual(['retry', 'save_draft', 'discard']);
+      expect(r.stateLabel.fallback).toBeTruthy();
+    }
+    const plain = outboxRows([entry('1', 'queued')], base)[0];
+    expect(plain.held).toBe(false);
+  });
+
+  it('a held entry offline keeps Retry and Discard; in another account only Discard, with the account note', () => {
+    const [off] = outboxRows([entry('1', 'queued', { heldReason: 'no_sent' })], { ...base, online: false });
+    expect(off.actions).toEqual(['retry', 'discard']);
+    const [other] = outboxRows([entry('1', 'queued', { heldReason: 'no_sent', appAccountId: 'B' })], base);
+    expect(other.stateLabel.key).toBe('outbox.held.no_sent');
+    expect(other.accountNote?.key).toBe('outbox.state.waiting_account');
+    expect(other.actions).toEqual(['discard']);
+  });
+
+  it('an unknown hold reason still reads as held, never as waiting for connection', () => {
+    const [row] = outboxRows([entry('1', 'queued', { heldReason: 'weird' as never })], base);
+    expect(row.stateLabel.key).toBe('outbox.held.unknown');
+    expect(row.actions).toContain('retry');
+  });
+
   it('summarises many recipients and tolerates none', () => {
     const many = entry('1', 'queued', {
       outgoing: { from: [], to: ['a', 'b', 'c', 'd', 'e'].map((n) => ({ email: `${n}@x.org` })), subject: '', messageId: 'm' },
@@ -116,5 +144,16 @@ describe('queuedSendCount / unannouncedUnsent', () => {
     expect(unannouncedUnsent(s1, notified)).toEqual([]);
     unannouncedUnsent({ A: [entry('2', 'queued'), entry('3', 'uncertain')] }, notified);
     expect(unannouncedUnsent({ A: [entry('2', 'failed'), entry('3', 'uncertain')] }, notified).map((e) => e.id)).toEqual(['2']);
+  });
+});
+
+describe('unannouncedUnsent: held entries', () => {
+  it('announces a held entry once, and again only after a Retry cleared the hold', () => {
+    const notified = new Set<string>();
+    const held = { A: [entry('1', 'queued', { heldReason: 'no_drafts' })] };
+    expect(unannouncedUnsent(held, notified).map((e) => e.id)).toEqual(['1']);
+    expect(unannouncedUnsent(held, notified)).toEqual([]);
+    unannouncedUnsent({ A: [entry('1', 'queued')] }, notified);
+    expect(unannouncedUnsent(held, notified).map((e) => e.id)).toEqual(['1']);
   });
 });

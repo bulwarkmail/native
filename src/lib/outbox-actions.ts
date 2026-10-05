@@ -22,15 +22,25 @@ function requireActive(entry: QueuedSend): void {
   }
 }
 
+/** The row state an action was offered for: `held` is a queued entry replay holds. */
+export type RetryFrom = 'failed' | 'uncertain' | 'held';
+
+function liveMatches(live: QueuedSend | undefined, expected: RetryFrom): live is QueuedSend {
+  if (!live) return false;
+  if (expected === 'held') return live.state === 'queued' && !!live.heldReason;
+  return live.state === expected;
+}
+
 /**
- * Retry (failed) or Send again (uncertain, after the user confirmed): requeue,
- * then replay. Refuses unless the live entry is still in `expectedState`, so
- * a stale row cannot requeue an uncertain entry without its confirmation.
+ * Retry (failed or held) or Send again (uncertain, after the user confirmed):
+ * requeue, then replay. Refuses unless the live entry is still in
+ * `expectedState`, so a stale row cannot requeue an uncertain entry without
+ * its confirmation.
  */
-export async function requeueAndFlush(entry: QueuedSend, expectedState: 'failed' | 'uncertain'): Promise<void> {
+export async function requeueAndFlush(entry: QueuedSend, expectedState: RetryFrom): Promise<void> {
   requireActive(entry);
   const live = (useSendQueueStore.getState().entries[entry.appAccountId] ?? []).find((e) => e.id === entry.id);
-  if (!live || live.state !== expectedState) throw new OutboxActionError('This message changed. Check the Outbox.');
+  if (!liveMatches(live, expectedState)) throw new OutboxActionError('This message changed. Check the Outbox.');
   await useSendQueueStore.getState().requeue(entry.id);
   await flushSendQueue();
 }

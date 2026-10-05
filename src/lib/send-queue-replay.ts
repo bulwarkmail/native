@@ -14,7 +14,10 @@
 //   no copy, draft-only copies, an incomplete or failed lookup - leaves it
 //   `uncertain` for the user to decide in the Outbox;
 // - an entry whose attempt started less than RECONCILE_GRACE_MS ago is not
-//   reconciled yet: the server may still be processing that request.
+//   reconciled yet: the server may still be processing that request;
+// - a queued entry that cannot be sent (unreadable schedule, no Sent or no
+//   Drafts folder, a JMAP account the session does not serve) is held with a
+//   reason the Outbox shows, and skipped until the user's Retry clears it.
 // A queue replays only through its own account: entries of another app
 // account wait until it is active again (no detached clients).
 
@@ -28,7 +31,7 @@ import {
   type EmailCopy,
 } from '../api/sent-lookup';
 import { useNetworkStore } from '../stores/network-store';
-import { useSendQueueStore, type QueuedSend } from '../stores/send-queue-store';
+import { useSendQueueStore, type HeldReason, type QueuedSend } from '../stores/send-queue-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { toast } from '../stores/toast-store';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
@@ -222,12 +225,25 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
   return 'completed';
 }
 
+/**
+ * Mark a queued entry replay cannot send, so the Outbox says why instead of
+ * "Waiting for connection". Best effort: a refusal (the entry changed) is fine.
+ */
+async function holdEntry(entry: QueuedSend, reason: HeldReason): Promise<void> {
+  try {
+    await useSendQueueStore.getState().hold(entry.id, reason);
+  } catch (err) {
+    console.warn('[send-queue] could not hold an entry:', err);
+  }
+}
+
 /** Send one `queued` entry. Returns true when the flush must stop. */
 async function sendOne(entry: QueuedSend): Promise<boolean> {
   const store = useSendQueueStore.getState();
   const holdFor = holdForSeconds(entry.sendAt);
   if (holdFor === null) {
     console.warn('[send-queue] unreadable sendAt, not sending', entry.id);
+    await holdEntry(entry, 'bad_schedule');
     return false;
   }
   let sentId: string | undefined;
@@ -238,12 +254,16 @@ async function sendOne(entry: QueuedSend): Promise<boolean> {
     console.warn('[send-queue] could not resolve Sent, stopping:', err);
     return true;
   }
-  if (!sentId) return false;
+  if (!sentId) {
+    await holdEntry(entry, 'no_sent');
+    return false;
+  }
   // Without Drafts, sendEmail would file the copy straight into Sent in the
   // same request as the submission; if the submission were refused and the
   // reply lost, that unsent copy would later read as proof. Never replay so.
   if (!draftsId) {
     console.warn('[send-queue] this account has no Drafts folder; not replaying', entry.id);
+    await holdEntry(entry, 'no_drafts');
     return false;
   }
   if (!canReplay(entry.appAccountId)) return true;
@@ -322,7 +342,13 @@ async function flushOnce(): Promise<'done' | 'stopped'> {
   for (const snapshot of ordered) {
     if (!canReplay(appId)) return 'stopped';
     const entry = liveEntry(appId, snapshot.id);
-    if (!entry || entry.appAccountId !== appId || !servesJmapAccount(entry.jmapAccountId)) continue;
+    if (!entry || entry.appAccountId !== appId) continue;
+    // Held entries wait for the user's Retry.
+    if (entry.state === 'queued' && entry.heldReason) continue;
+    if (!servesJmapAccount(entry.jmapAccountId)) {
+      if (entry.state === 'queued') await holdEntry(entry, 'account_unavailable');
+      continue;
+    }
 
     if (entry.state === 'uncertain') {
       await reconcile(entry);

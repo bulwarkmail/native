@@ -695,6 +695,13 @@
     },
     "failed": "A message was not sent",
     "failed_hint": "Check the Outbox to retry, save it as a draft or discard it.",
+    "held": {
+      "account_unavailable": "Not sent: this account is not available",
+      "bad_schedule": "Not sent: the scheduled time could not be read",
+      "no_drafts": "Not sent: this account has no Drafts folder",
+      "no_sent": "Not sent: this account has no Sent folder",
+      "unknown": "Not sent: this message cannot be sent now"
+    },
     "open": "Open Outbox",
     "open_short": "Open",
     "queued": "Will send when you're back online",

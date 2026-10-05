@@ -349,6 +349,48 @@ describe('send-queue-store', () => {
       expect(mem('a1')[0].state).toBe('uncertain');
     });
 
+    it('hold marks a queued entry with a reason, persisted, without changing its state', async () => {
+      const s = await setup();
+      await s.hold('q1', 'no_drafts');
+      expect(mem('a1')[0]).toMatchObject({ state: 'queued', heldReason: 'no_drafts' });
+      expect((await stored('a1', 'q1')).heldReason).toBe('no_drafts');
+    });
+
+    it('hold is allowed only on queued', async () => {
+      const s = await setup();
+      const bad = (p: Promise<void>) => expect(p).rejects.toBeInstanceOf(SendQueueStateError);
+      await s.markSending('q1');
+      await bad(s.hold('q1', 'no_sent'));
+      await s.markUncertain('q1', 'net');
+      await bad(s.hold('q1', 'no_sent'));
+      await s.markFailed('q1', 'x');
+      await bad(s.hold('q1', 'no_sent'));
+      await bad(s.hold('nope', 'no_sent'));
+    });
+
+    it('a held entry cannot be marked sending until the user retries it', async () => {
+      const s = await setup();
+      await s.hold('q1', 'bad_schedule');
+      await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      await s.requeue('q1'); // the user's Retry: queued (held) -> queued
+      expect(mem('a1')[0].heldReason).toBeUndefined();
+      expect((await stored('a1', 'q1')).heldReason).toBeUndefined();
+      await s.markSending('q1');
+    });
+
+    it('requeue stays refused on a queued entry that is not held', async () => {
+      const s = await setup();
+      await expect(s.requeue('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+    });
+
+    it('discard removes a held entry', async () => {
+      const s = await setup();
+      await s.hold('q1', 'account_unavailable');
+      await s.discard('q1');
+      expect(mem('a1')).toEqual([]);
+      expect(await stored('a1', 'q1')).toBeNull();
+    });
+
     it('refuses an id with a colon', async () => {
       await expect(useSendQueueStore.getState().enqueue(entry({ id: 'a:b' }))).rejects.toThrow(/Invalid queued send id/);
       expect(await AsyncStorage.getAllKeys()).toEqual([]);

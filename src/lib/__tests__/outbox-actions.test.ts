@@ -46,6 +46,18 @@ describe('outbox actions', () => {
     expect(calls).toEqual(['requeue', 'flush']);
   });
 
+  it('retries a held entry: requeue (clears the hold) then flush', async () => {
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', heldReason: 'no_drafts', outgoing: {} }] };
+    await requeueAndFlush(e('queued'), 'held');
+    expect(calls).toEqual(['requeue', 'flush']);
+  });
+
+  it('refuses a held retry when the entry is no longer held', async () => {
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'queued', outgoing: {} }] };
+    await expect(requeueAndFlush(e('queued'), 'held')).rejects.toThrow();
+    expect(calls).toEqual([]);
+  });
+
   it('refuses when the live state is not the one the row showed', async () => {
     await expect(requeueAndFlush(e('failed'), 'failed')).rejects.toThrow();
     expect(calls).toEqual([]);

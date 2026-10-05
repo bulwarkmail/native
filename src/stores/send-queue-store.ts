@@ -61,6 +61,14 @@ export function stripMessageIdBrackets(id: string): string {
 
 export type QueuedSendState = 'queued' | 'sending' | 'uncertain' | 'failed';
 
+/**
+ * Why replay holds a `queued` entry instead of sending it: its schedule cannot
+ * be read, the account has no Sent or no Drafts folder, or the session does
+ * not serve its JMAP account. A held entry waits for the user (Retry, Save as
+ * draft, Discard); it is never sent until the user's Retry clears the hold.
+ */
+export type HeldReason = 'bad_schedule' | 'no_sent' | 'no_drafts' | 'account_unavailable';
+
 export interface QueuedSend {
   id: string;
   appAccountId: string;
@@ -79,6 +87,8 @@ export interface QueuedSend {
   state: QueuedSendState;
   attemptStartedAt?: string;
   lastError?: string;
+  /** Set on a `queued` entry replay cannot send; cleared by requeue. */
+  heldReason?: HeldReason;
 }
 
 export class SendTooLargeToQueueError extends Error {
@@ -125,8 +135,13 @@ interface SendQueueState {
   complete: (id: string) => Promise<void>;
   markUncertain: (id: string, error: string) => Promise<void>;
   markFailed: (id: string, error: string) => Promise<void>;
-  /** failed | uncertain -> queued: the user's Retry. Never from `sending`. */
+  /**
+   * failed | uncertain | held queued -> queued: the user's Retry. Clears the
+   * hold. Never from `sending`, nor from a `queued` entry that is not held.
+   */
   requeue: (id: string) => Promise<void>;
+  /** queued -> queued with `heldReason`: replay cannot send it; it waits for the user. */
+  hold: (id: string, reason: HeldReason) => Promise<void>;
   /**
    * sending -> queued, for replay only: the request was never made (an
    * account re-check failed after markSending) or never reached the server
@@ -169,9 +184,10 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
   // before memory changes. Rejects with SendQueueStateError otherwise.
   const transition = (
     id: string,
-    from: readonly QueuedSendState[],
+    from: readonly QueuedSendState[] | ((e: QueuedSend) => boolean),
     change: (e: QueuedSend) => QueuedSend | undefined,
   ): Promise<void> => {
+    const allowed = typeof from === 'function' ? from : (e: QueuedSend) => from.includes(e.state);
     const appAccountId = ownerOf(id);
     if (!appAccountId) return Promise.reject(new SendQueueStateError(`Unknown queued send ${id}`));
     return serialize(appAccountId, async () => {
@@ -180,7 +196,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       }
       const current = (get().entries[appAccountId] ?? []).find((e) => e.id === id);
       if (!current) throw new SendQueueStateError(`Unknown queued send ${id}`);
-      if (!from.includes(current.state)) {
+      if (!allowed(current)) {
         throw new SendQueueStateError(`Queued send ${id} is ${current.state}; transition not allowed`);
       }
       const next = change(current);
@@ -272,8 +288,11 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       });
     },
 
+    // A held entry is not sent until the user's Retry clears the hold.
     markSending: (id) =>
-      transition(id, ['queued'], (e) => ({ ...e, state: 'sending', attemptStartedAt: new Date().toISOString() })),
+      transition(id, (e) => e.state === 'queued' && !e.heldReason, (e) => ({
+        ...e, state: 'sending', attemptStartedAt: new Date().toISOString(),
+      })),
 
     // From `queued` as well: replay found proof of an uncertain send that the
     // user requeued meanwhile; the proof wins (flushes are single-flight).
@@ -286,9 +305,13 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       transition(id, ['sending', 'uncertain'], (e) => ({ ...e, state: 'failed', lastError: error })),
 
     requeue: (id) =>
-      transition(id, ['failed', 'uncertain'], (e) => ({
-        ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined,
-      })),
+      transition(
+        id,
+        (e) => e.state === 'failed' || e.state === 'uncertain' || (e.state === 'queued' && !!e.heldReason),
+        (e) => ({ ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined, heldReason: undefined }),
+      ),
+
+    hold: (id, reason) => transition(id, ['queued'], (e) => ({ ...e, heldReason: reason })),
 
     releaseUnsent: (id) =>
       transition(id, ['sending'], (e) => ({

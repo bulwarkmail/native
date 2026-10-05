@@ -70,7 +70,7 @@ export default function OutboxScreen({ navigation }: Props) {
     const uncertain = row.state === 'uncertain';
     switch (action) {
       case 'retry':
-        void run(row, () => requeueAndFlush(entry, 'failed'));
+        void run(row, () => requeueAndFlush(entry, row.held ? 'held' : 'failed'));
         break;
       case 'send_again':
         confirm(
@@ -132,7 +132,7 @@ export default function OutboxScreen({ navigation }: Props) {
         <Text style={styles.recipient} numberOfLines={1}>
           {t('email_composer.to', 'To')}: {item.recipients.length ? item.recipients.join(', ') : t('email_composer.no_recipient', '(no recipient)')}
         </Text>
-        <Text style={[styles.state, item.state === 'failed' && { color: c.error }]} numberOfLines={2}>
+        <Text style={[styles.state, (item.state === 'failed' || item.held) && { color: c.error }]} numberOfLines={2}>
           {label(item.stateLabel)}
         </Text>
         {item.accountNote ? <Text style={styles.note} numberOfLines={2}>{label(item.accountNote)}</Text> : null}
