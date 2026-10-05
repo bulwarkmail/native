@@ -74,7 +74,7 @@ export interface QueuedSend {
   draftId?: string;
   /** ISO time for a scheduled send; absent = send now. */
   sendAt?: string;
-  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded' };
+  replyTo?: { emailIds: string[]; keyword: '$answered' | '$forwarded'; jmapAccountId?: string };
   createdAt: string;
   state: QueuedSendState;
   attemptStartedAt?: string;
@@ -113,7 +113,15 @@ interface SendQueueState {
   complete: (id: string) => Promise<void>;
   markUncertain: (id: string, error: string) => Promise<void>;
   markFailed: (id: string, error: string) => Promise<void>;
+  /** failed | uncertain -> queued: the user's Retry. Never from `sending`. */
   requeue: (id: string) => Promise<void>;
+  /**
+   * sending -> queued, for replay only: the request was never made (an
+   * account re-check failed after markSending) or never reached the server
+   * (an auth error).
+   */
+  releaseUnsent: (id: string) => Promise<void>;
+  /** Removes an entry in any state but `sending` (a send may be in flight). */
   discard: (id: string) => Promise<void>;
   clearAccount: (appAccountId: string) => Promise<void>;
 }
@@ -149,7 +157,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
   // before memory changes. Rejects with SendQueueStateError otherwise.
   const transition = (
     id: string,
-    from: readonly QueuedSendState[] | 'any',
+    from: readonly QueuedSendState[],
     change: (e: QueuedSend) => QueuedSend | undefined,
   ): Promise<void> => {
     const appAccountId = ownerOf(id);
@@ -160,7 +168,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       }
       const current = (get().entries[appAccountId] ?? []).find((e) => e.id === id);
       if (!current) throw new SendQueueStateError(`Unknown queued send ${id}`);
-      if (from !== 'any' && !from.includes(current.state)) {
+      if (!from.includes(current.state)) {
         throw new SendQueueStateError(`Queued send ${id} is ${current.state}; transition not allowed`);
       }
       const next = change(current);
@@ -250,11 +258,16 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       transition(id, ['sending', 'uncertain'], (e) => ({ ...e, state: 'failed', lastError: error })),
 
     requeue: (id) =>
-      transition(id, ['failed', 'uncertain', 'sending'], (e) => ({
+      transition(id, ['failed', 'uncertain'], (e) => ({
         ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined,
       })),
 
-    discard: (id) => transition(id, 'any', () => undefined),
+    releaseUnsent: (id) =>
+      transition(id, ['sending'], (e) => ({
+        ...e, state: 'queued', attemptStartedAt: undefined,
+      })),
+
+    discard: (id) => transition(id, ['queued', 'uncertain', 'failed'], () => undefined),
 
     clearAccount: (appAccountId) =>
       serialize(appAccountId, async () => {

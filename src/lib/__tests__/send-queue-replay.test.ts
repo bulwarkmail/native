@@ -26,7 +26,6 @@ vi.mock('../../api/sent-lookup', () => ({
   findCopiesByMessageId: vi.fn(),
   findSubmissionsForEmails: vi.fn(async () => []),
   resolveSendMailboxes: vi.fn(async () => ({ sentId: 'm-sent', draftsId: 'm-drafts' })),
-  destroyDraftCopies: vi.fn(async () => undefined),
 }));
 vi.mock('../active-client-account', () => ({
   clientServesActiveAccount: vi.fn(() => true),
@@ -39,9 +38,7 @@ vi.mock('../../stores/toast-store', () => ({
 
 import { jmapClient, AuthenticationError, NetworkError, RequestTimeoutError, RateLimitError } from '../../api/jmap-client';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
-import {
-  findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes, destroyDraftCopies,
-} from '../../api/sent-lookup';
+import { findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes } from '../../api/sent-lookup';
 import {
   RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, SendUnconfirmedError,
 } from '../../api/jmap-result';
@@ -56,7 +53,6 @@ const mockSend = sendEmail as unknown as ReturnType<typeof vi.fn>;
 const mockFind = findCopiesByMessageId as unknown as ReturnType<typeof vi.fn>;
 const mockSubs = findSubmissionsForEmails as unknown as ReturnType<typeof vi.fn>;
 const mockBoxes = resolveSendMailboxes as unknown as ReturnType<typeof vi.fn>;
-const mockDestroy = destroyDraftCopies as unknown as ReturnType<typeof vi.fn>;
 const mockActive = activeAppAccountId as unknown as ReturnType<typeof vi.fn>;
 const mockServes = clientServesActiveAccount as unknown as ReturnType<typeof vi.fn>;
 const client = jmapClient as unknown as { isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn> };
@@ -99,14 +95,17 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+const copy = (over: Record<string, unknown>) => ({
+  id: 'c1', messageId: ['mid-1@a.test'], keywords: {}, mailboxIds: { 'm-sent': true }, ...over,
+});
+const draftInDrafts = () => copy({ id: 'd1', keywords: { $draft: true, $seen: true }, mailboxIds: { 'm-drafts': true } });
+
 describe('flushSendQueue: reconciling an unknown outcome', () => {
   it('a send interrupted mid-request is reconciled, not resent', async () => {
     // The app was killed after markSending was persisted: `sending` on disk.
-    await seed(entry({ state: 'sending', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({
-      copies: [{ id: 'e1', messageId: ['mid-1@a.test'], keywords: { $seen: true }, mailboxIds: { 'm-sent': true } }],
-      complete: true,
-    });
+    const started = HOUR_AGO();
+    await seed(entry({ state: 'sending', attemptStartedAt: started }));
+    mockFind.mockResolvedValue({ copies: [copy({ keywords: { $seen: true } })], complete: true });
 
     await flushSendQueue();
 
@@ -115,95 +114,89 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1')).toBeNull();
     const [mid, opts] = mockFind.mock.calls[0];
     expect(mid).toBe('mid-1@a.test');
-    expect(opts.accountId).toBe('jA');
-    expect(opts.mailboxIds).toEqual(['m-sent', 'm-drafts']);
+    expect(opts).toEqual({ accountId: 'jA', since: new Date(Date.parse(started) - 7 * 24 * 3600 * 1000).toISOString() });
     expect(mockBoxes).toHaveBeenCalledWith('jA');
   });
 
   it('an entry found in Sent is completed without a second send', async () => {
-    const started = HOUR_AGO();
-    await seed(entry({ state: 'uncertain', attemptStartedAt: started, replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
-    mockFind.mockResolvedValue({
-      copies: [{ id: 'e1', messageId: ['mid-1@a.test'], keywords: {}, mailboxIds: { 'm-sent': true } }],
-      complete: true,
-    });
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), replyTo: { emailIds: ['orig-1'], keyword: '$answered' } }));
+    mockFind.mockResolvedValue({ copies: [copy({})], complete: true });
 
     await flushSendQueue();
 
     expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
-    // since = attemptStartedAt minus 10 minutes
-    expect(mockFind.mock.calls[0][1].since).toBe(new Date(Date.parse(started) - 10 * 60 * 1000).toISOString());
     // Post-send effects ran for the reconciled copy.
     expect(patchKeywordsForEmails).toHaveBeenCalledWith(['orig-1'], { $answered: true }, 'jA');
     expect(trustRecipients).toHaveBeenCalled();
     expect(toast.success).toHaveBeenCalled();
   });
 
-  it('destroys a $draft-only copy, then sends once', async () => {
-    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'user-draft' }));
-    const draftCopy = { id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true, $seen: true }, mailboxIds: { 'm-drafts': true } };
-    const userDraft = { id: 'user-draft', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } };
-    mockFind.mockResolvedValue({ copies: [draftCopy, userDraft], complete: true });
-    const order: string[] = [];
-    mockDestroy.mockImplementation(async () => { order.push('destroy'); });
-    mockSend.mockImplementation(async () => { order.push('send'); return OK; });
-
+  it('a non-draft copy outside Sent and Drafts (archived) is proof: completed, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { 'm-archive': true } })], complete: true });
     await flushSendQueue();
-
-    expect(order).toEqual(['destroy', 'send']);
-    // The user's own draft (entry.draftId) is not one of the destroyed copies.
-    expect(mockDestroy).toHaveBeenCalledWith([draftCopy], 'mid-1@a.test', 'jA');
-    expect(mockSubs).toHaveBeenCalledWith(['d1'], 'jA');
-    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
   });
 
-  it('a $draft copy with a submission counts as submitted: completed, no send, nothing destroyed', async () => {
+  it('a $draft copy in Sent is proof: completed, no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({
-      copies: [{ id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }],
-      complete: true,
-    });
-    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', undoStatus: 'final' }]);
-
+    mockFind.mockResolvedValue({ copies: [copy({ keywords: { $draft: true } })], complete: true });
     await flushSendQueue();
-
     expect(mockSend).not.toHaveBeenCalled();
-    expect(mockDestroy).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
+  });
+
+  it('a $draft-only copy in Drafts stays uncertain: no destroy, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    await flushSendQueue();
+    expect(mockSubs).toHaveBeenCalledWith(['d1'], 'jA');
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('a $draft copy with a submission for it is proof: completed, no send', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', undoStatus: 'final' }]);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
+  });
+
+  it('a submission for an unrelated emailId is not proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    mockSubs.mockResolvedValue([{ id: 's9', emailId: 'someone-else', undoStatus: 'final' }]);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('only a canceled submission is not proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', undoStatus: 'canceled' }]);
+    await flushSendQueue();
+    expect(stateOf('q1')).toBe('uncertain');
   });
 
   it('stays uncertain when the submission lookup fails', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({
-      copies: [{ id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }],
-      complete: true,
-    });
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: true });
     mockSubs.mockRejectedValue(new Error('unknownMethod'));
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
-    expect(mockDestroy).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('stays uncertain when destroying the draft copy fails', async () => {
+  it('no copy found stays uncertain: no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({
-      copies: [{ id: 'd1', messageId: ['mid-1@a.test'], keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }],
-      complete: true,
-    });
-    mockDestroy.mockRejectedValue(new Error('forbidden'));
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
-  });
-
-  it('no copy found: sent once', async () => {
-    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    await flushSendQueue();
-    expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(entries()).toEqual([]);
   });
 
   it('the lookup fails: still uncertain, no send', async () => {
@@ -214,32 +207,29 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('an incomplete lookup without a submitted copy is ambiguous: still uncertain, no send', async () => {
+  it('an incomplete lookup (total > ids) without proof stays uncertain', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({ copies: [], complete: false });
+    mockFind.mockResolvedValue({ copies: [draftInDrafts()], complete: false });
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('a non-draft copy outside Sent is ambiguous: still uncertain, no send', async () => {
+  it('the Sent mailbox lookup fails: still uncertain, no send', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
-    mockFind.mockResolvedValue({
-      copies: [{ id: 'e1', messageId: ['mid-1@a.test'], keywords: {}, mailboxIds: { 'm-drafts': true } }],
-      complete: true,
-    });
+    mockBoxes.mockRejectedValue(new Error('offline'));
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('no Sent mailbox for the account: still uncertain, no send', async () => {
+  it('without a Sent mailbox a non-draft copy is still proof', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockBoxes.mockResolvedValue({ draftsId: 'm-drafts' });
+    mockFind.mockResolvedValue({ copies: [copy({ mailboxIds: { other: true } })], complete: true });
     await flushSendQueue();
-    expect(mockFind).not.toHaveBeenCalled();
+    expect(entries()).toEqual([]);
     expect(mockSend).not.toHaveBeenCalled();
-    expect(stateOf('q1')).toBe('uncertain');
   });
 
   it('does not reconcile an attempt that started moments ago (the server may still be processing it)', async () => {
@@ -412,7 +402,7 @@ describe('flushSendQueue: sending queued entries', () => {
     }
   });
 
-  it('an auth error requeues the entry and stops the flush', async () => {
+  it('an auth error releases the entry back to queued and stops the flush', async () => {
     await seed(entry({ id: 'q1', createdAt: '2026-10-04T07:00:00.000Z' }));
     await seed(entry({ id: 'q2', createdAt: '2026-10-04T08:00:00.000Z' }));
     mockSend.mockRejectedValueOnce(new AuthenticationError('Session expired'));
@@ -420,6 +410,48 @@ describe('flushSendQueue: sending queued entries', () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(stateOf('q1')).toBe('queued');
     expect(stateOf('q2')).toBe('queued');
+  });
+
+  it('P1: an account switch while markSending persists gives no send, and the entry is queued again', async () => {
+    await seed(entry());
+    vi.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (k: string, v: string) => {
+      if (v.includes('"state":"sending"')) {
+        // B becomes active while the sending row is being written.
+        mockActive.mockReturnValue('B');
+        client.accountId = 'jB';
+        client.getSubmissionAccountIds.mockReturnValue(['jB']);
+      }
+      await AsyncStorage.multiSet([[k, v]]);
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+    expect(JSON.parse((await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1'))!).state).toBe('queued');
+  });
+
+  it('releases the entry when the client stops serving its JMAP account during markSending', async () => {
+    await seed(entry());
+    vi.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (k: string, v: string) => {
+      if (v.includes('"state":"sending"')) {
+        client.getSubmissionAccountIds.mockReturnValue([]);
+        client.accountId = 'jOther';
+      }
+      await AsyncStorage.multiSet([[k, v]]);
+    });
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+  });
+
+  it('a rerun requested during a pass that stopped still runs while the conditions allow', async () => {
+    await seed(entry());
+    mockBoxes.mockImplementationOnce(async () => {
+      void flushSendQueue(); // e.g. an enqueue or online trigger during the pass
+      throw new Error('blip');
+    });
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(entries()).toEqual([]);
   });
 });
 

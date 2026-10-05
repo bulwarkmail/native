@@ -7,10 +7,12 @@
 // - only a refusal that proves the server did not submit the message makes an
 //   entry `failed`; any other error, including ones this code does not know,
 //   makes it `uncertain`;
-// - an `uncertain` entry is sent again only after the server's Sent and
-//   Drafts show no submitted copy of it; anything ambiguous (a failed or
-//   incomplete lookup, a copy we cannot place) leaves it `uncertain` for the
-//   user;
+// - right after markSending, the account is checked again; if it changed,
+//   the entry goes back to `queued` (releaseUnsent) without a request;
+// - reconciliation never resends. An `uncertain` entry is resolved only on
+//   positive proof that it was submitted (then completed); anything else -
+//   no copy, draft-only copies, an incomplete or failed lookup - leaves it
+//   `uncertain` for the user to decide in the Outbox;
 // - an entry whose attempt started less than RECONCILE_GRACE_MS ago is not
 //   reconciled yet: the server may still be processing that request.
 // A queue replays only through its own account: entries of another app
@@ -19,12 +21,7 @@
 import { AuthenticationError, jmapClient } from '../api/jmap-client';
 import { patchKeywordsForEmails, sendEmail } from '../api/email';
 import { RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, type RejectedRecipient } from '../api/jmap-result';
-import {
-  destroyDraftCopies,
-  findCopiesByMessageId,
-  findSubmissionsForEmails,
-  resolveSendMailboxes,
-} from '../api/sent-lookup';
+import { findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes } from '../api/sent-lookup';
 import { useNetworkStore } from '../stores/network-store';
 import { useSendQueueStore, type QueuedSend } from '../stores/send-queue-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -32,8 +29,8 @@ import { toast } from '../stores/toast-store';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 import { trustRecipients, trustedSendersBookSyncOn } from './trust-recipients';
 
-/** How far before the attempt the copy lookup starts (clock and filing slack). */
-export const RECONCILE_LOOKBACK_MS = 10 * 60 * 1000;
+/** How far before the attempt the copy lookup starts (generous: device clocks drift). */
+export const RECONCILE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 /** An attempt younger than this is not reconciled yet: the server may still be on it. */
 export const RECONCILE_GRACE_MS = 2 * 60 * 1000;
 
@@ -45,7 +42,7 @@ export type SendErrorOutcome = 'failed' | 'uncertain' | 'auth';
  *   (method error or SetError: `SendRefusedError`), refused every recipient
  *   (`RecipientsRejectedError`, the copy is removed and nothing left), or
  *   refused the hold (`ScheduleTooLateError`).
- * - `auth`: `AuthenticationError`. sendEmail can only raise it from its one
+ * - `auth`: `AuthenticationError` (the entry is released back to `queued`). sendEmail can only raise it from its one
  *   send request (a 401, or a token refresh before or after a 401), i.e.
  *   before the server ran any method; the clean-ups after the response
  *   swallow their errors.
@@ -148,11 +145,17 @@ function postSendEffects(entry: QueuedSend, refused: RejectedRecipient[] | undef
   }
 }
 
-type ReconcileResult = 'completed' | 'requeued' | 'left';
+type ReconcileResult = 'completed' | 'left';
 
-/** Settle an `uncertain` entry against the server. Never sends. */
+/**
+ * Settle an `uncertain` entry against the server. Never sends, never
+ * requeues, never destroys: it completes the entry on positive proof of
+ * submission and otherwise leaves it `uncertain`. Proof is a copy with the
+ * entry's Message-ID that is not `$draft` (anywhere in the account), a
+ * `$draft` copy filed in Sent, or a (not canceled) EmailSubmission of one of
+ * the matching copies.
+ */
 async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
-  const store = useSendQueueStore.getState();
   const accountId = entry.jmapAccountId;
   const started = Date.parse(entry.attemptStartedAt ?? entry.createdAt);
   if (Number.isNaN(started)) return 'left';
@@ -162,49 +165,35 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
     return 'left';
   }
 
-  const markSubmitted = async (): Promise<ReconcileResult> => {
-    try {
-      await store.complete(entry.id);
-    } catch (err) {
-      console.warn('[send-queue] complete failed:', err);
-      return 'left';
-    }
-    postSendEffects(entry, undefined);
-    return 'completed';
-  };
-
+  let submitted = false;
   try {
-    const { sentId, draftsId } = await resolveSendMailboxes(accountId);
-    if (!sentId) return 'left';
-    const { copies, complete } = await findCopiesByMessageId(entry.messageId, {
+    const { sentId } = await resolveSendMailboxes(accountId);
+    const { copies } = await findCopiesByMessageId(entry.messageId, {
       accountId,
-      mailboxIds: draftsId ? [sentId, draftsId] : [sentId],
       since: new Date(started - RECONCILE_LOOKBACK_MS).toISOString(),
     });
-
     const isDraft = (c: { keywords: Record<string, boolean> }) => c.keywords?.$draft === true;
-    // A non-draft copy in Sent: the submission's onSuccessUpdateEmail filed it.
-    if (copies.some((c) => !isDraft(c) && c.mailboxIds?.[sentId])) return await markSubmitted();
-    if (!complete) return 'left';
-    // A non-draft copy anywhere else is not something we can place.
-    if (copies.some((c) => !isDraft(c))) return 'left';
-
-    // The user's own saved draft (entry.draftId) carries the same Message-ID
-    // but proves nothing and is not ours to destroy here.
-    const drafts = copies.filter((c) => isDraft(c) && c.id !== entry.draftId);
-    if (drafts.length) {
-      // A submission whose filing failed leaves its copy in Drafts with $draft.
-      const submissions = await findSubmissionsForEmails(drafts.map((c) => c.id), accountId);
-      if (submissions.some((s) => s.undoStatus !== 'canceled')) return await markSubmitted();
-      if (submissions.length) return 'left';
-      await destroyDraftCopies(drafts, entry.messageId, accountId);
+    // Positive proof only; an incomplete lookup can still yield it.
+    submitted = copies.some((c) => !isDraft(c) || (!!sentId && c.mailboxIds?.[sentId] === true));
+    if (!submitted && copies.length) {
+      const ids = new Set(copies.map((c) => c.id));
+      const submissions = await findSubmissionsForEmails([...ids], accountId);
+      submitted = submissions.some((s) => ids.has(s.emailId) && s.undoStatus !== 'canceled');
     }
-    await store.requeue(entry.id);
-    return 'requeued';
   } catch (err) {
     console.warn('[send-queue] reconciliation inconclusive, left for the user:', err);
     return 'left';
   }
+  if (!submitted) return 'left';
+
+  try {
+    await useSendQueueStore.getState().complete(entry.id);
+  } catch (err) {
+    console.warn('[send-queue] complete failed:', err);
+    return 'left';
+  }
+  postSendEffects(entry, undefined);
+  return 'completed';
 }
 
 /** Send one `queued` entry. Returns true when the flush must stop. */
@@ -233,6 +222,16 @@ async function sendOne(entry: QueuedSend): Promise<boolean> {
     console.warn('[send-queue] markSending refused, not sending:', err);
     return false;
   }
+  // The account may have switched while `sending` was being persisted.
+  if (!canReplay(entry.appAccountId) || !servesJmapAccount(entry.jmapAccountId)) {
+    try {
+      await store.releaseUnsent(entry.id);
+    } catch (err) {
+      // Stays `sending` (skipped); the next launch reconciles it.
+      console.warn('[send-queue] could not release an unsent entry:', err);
+    }
+    return true;
+  }
 
   let result: Awaited<ReturnType<typeof sendEmail>>;
   try {
@@ -246,7 +245,7 @@ async function sendOne(entry: QueuedSend): Promise<boolean> {
     const message = errorText(err);
     try {
       if (outcome === 'failed') await store.markFailed(entry.id, message);
-      else if (outcome === 'auth') await store.requeue(entry.id);
+      else if (outcome === 'auth') await store.releaseUnsent(entry.id);
       else await store.markUncertain(entry.id, message);
     } catch (writeErr) {
       // The entry stays `sending`; the next launch turns that into `uncertain`.
@@ -289,20 +288,24 @@ async function flushOnce(): Promise<'done' | 'stopped'> {
 
   for (const snapshot of ordered) {
     if (!canReplay(appId)) return 'stopped';
-    let entry = liveEntry(appId, snapshot.id);
+    const entry = liveEntry(appId, snapshot.id);
     if (!entry || entry.appAccountId !== appId || !servesJmapAccount(entry.jmapAccountId)) continue;
 
     if (entry.state === 'uncertain') {
-      if ((await reconcile(entry)) !== 'requeued') continue;
-      if (!canReplay(appId)) return 'stopped';
-      entry = liveEntry(appId, entry.id);
-      if (!entry) continue;
+      await reconcile(entry);
+      continue;
     }
     // `failed` waits for the user; `sending` belongs to an attempt in progress.
     if (entry.state !== 'queued') continue;
     if (await sendOne(entry)) return 'stopped';
   }
   return 'done';
+}
+
+/** The flush preconditions for whatever account is active now. */
+function flushPossible(): boolean {
+  const appId = activeAppAccountId();
+  return !!appId && canReplay(appId);
 }
 
 let running: Promise<void> | null = null;
@@ -323,7 +326,9 @@ export function flushSendQueue(): Promise<void> {
       do {
         rerun = false;
         try {
-          if ((await flushOnce()) === 'stopped') break;
+          // A stopped pass still honours a rerun asked for meanwhile, as long
+          // as a flush could run now; otherwise the next trigger runs it.
+          if ((await flushOnce()) === 'stopped' && !(rerun && flushPossible())) break;
         } catch (err) {
           console.warn('[send-queue] flush failed:', err);
           break;

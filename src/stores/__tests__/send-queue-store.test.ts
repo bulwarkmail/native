@@ -197,6 +197,7 @@ describe('send-queue-store', () => {
     await s.hydrateAccount('a1');
     await s.enqueue(entry());
     await s.markSending('q1');
+    await s.releaseUnsent('q1');
     await s.discard('q1');
     await s.clearAccount('a1');
     const touched = spies.flatMap((sp) => sp.mock.calls.map((c) => JSON.stringify(c[0])));
@@ -255,22 +256,44 @@ describe('send-queue-store', () => {
       const bad = (p: Promise<void>) => expect(p).rejects.toBeInstanceOf(SendQueueStateError);
       // queued
       await bad(s.complete('q1')); await bad(s.markUncertain('q1', 'e')); await bad(s.markFailed('q1', 'e'));
-      await bad(s.requeue('q1'));
+      await bad(s.requeue('q1')); await bad(s.releaseUnsent('q1'));
       await s.markSending('q1');
       await bad(s.markSending('q1'));
-      await s.requeue('q1'); // sending -> queued (auth error before the request)
+      // sending: only replay itself may hand it back, and nobody may discard it
+      await bad(s.requeue('q1')); await bad(s.discard('q1'));
+      await s.releaseUnsent('q1'); // sending -> queued (nothing was sent)
       await s.markSending('q1');
       await s.markUncertain('q1', 'net');
-      await bad(s.markSending('q1')); await bad(s.markUncertain('q1', 'e'));
+      await bad(s.markSending('q1')); await bad(s.markUncertain('q1', 'e')); await bad(s.releaseUnsent('q1'));
       await s.markFailed('q1', 'x'); // uncertain -> failed
       await bad(s.markSending('q1')); await bad(s.complete('q1')); await bad(s.markUncertain('q1', 'e'));
-      await bad(s.markFailed('q1', 'e'));
+      await bad(s.markFailed('q1', 'e')); await bad(s.releaseUnsent('q1'));
       await s.requeue('q1'); // failed -> queued
       await s.markSending('q1');
       await s.markUncertain('q1', 'net');
       await s.complete('q1'); // uncertain -> removed
       expect(mem('a1')).toEqual([]);
       expect(await stored('a1', 'q1')).toBeNull();
+    });
+
+    it('P2: requeue or discard while a send is in flight rejects, the entry stays sending', async () => {
+      const s = await setup();
+      await s.markSending('q1');
+      await expect(s.requeue('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      await expect(s.discard('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      expect((await stored('a1', 'q1')).state).toBe('sending');
+      // A Retry cannot make it queued, so a second markSending cannot win.
+      await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+    });
+
+    it('discard works from queued, uncertain and failed', async () => {
+      const s = await setup();
+      await s.enqueue(entry({ id: 'q2' }));
+      await s.enqueue(entry({ id: 'q3' }));
+      await s.markSending('q2'); await s.markUncertain('q2', 'net');
+      await s.markSending('q3'); await s.markFailed('q3', 'x');
+      await s.discard('q1'); await s.discard('q2'); await s.discard('q3');
+      expect(mem('a1')).toEqual([]);
     });
 
     it('rejects hydrate when the sending repair write-back fails, memory unchanged', async () => {
