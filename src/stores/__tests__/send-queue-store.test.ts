@@ -409,6 +409,22 @@ describe('send-queue-store', () => {
       expect(await stored('a1', 'q1')).toBeNull();
     });
 
+    it('noteReconcile stamps an uncertain entry only; a new attempt or a requeue clears the stamp', async () => {
+      const s = await setup();
+      await expect(s.noteReconcile('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      await s.markSending('q1');
+      await s.markUncertain('q1', 'net');
+      await s.noteReconcile('q1');
+      expect(typeof mem('a1')[0].lastReconcileAt).toBe('string');
+      expect((await stored('a1', 'q1')).lastReconcileAt).toBe(mem('a1')[0].lastReconcileAt);
+      expect(mem('a1')[0].state).toBe('uncertain');
+      await s.requeue('q1');
+      expect(mem('a1')[0].lastReconcileAt).toBeUndefined();
+      await s.markSending('q1');
+      await s.markUncertain('q1', 'net');
+      expect(mem('a1')[0].lastReconcileAt).toBeUndefined();
+    });
+
     it('refuses an id with a colon', async () => {
       await expect(useSendQueueStore.getState().enqueue(entry({ id: 'a:b' }))).rejects.toThrow(/Invalid queued send id/);
       expect(await AsyncStorage.getAllKeys()).toEqual([]);

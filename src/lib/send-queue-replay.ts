@@ -10,9 +10,12 @@
 // - right after markSending, the account is checked again; if it changed,
 //   the entry goes back to `queued` (releaseUnsent) without a request;
 // - reconciliation never resends. An `uncertain` entry is resolved only on
-//   positive proof that it was submitted (then completed); anything else -
-//   no copy, draft-only copies, an incomplete or failed lookup - leaves it
-//   `uncertain` for the user to decide in the Outbox;
+//   positive proof that it was submitted (then completed, and its own draft
+//   removed); anything else - no copy, draft-only copies, an incomplete or
+//   failed lookup - leaves it `uncertain` for the user to decide in the
+//   Outbox, and it is looked at again at most every RECONCILE_BACKOFF_MS;
+// - the user's "Send again" looks for proof first (checkSentBeforeResend) and
+//   requeues only after a lookup that went through without finding any;
 // - an entry whose attempt started less than RECONCILE_GRACE_MS ago is not
 //   reconciled yet: the server may still be processing that request;
 // - a queued entry that cannot be sent (unreadable schedule, no Sent or no
@@ -22,7 +25,7 @@
 // account wait until it is active again (no detached clients).
 
 import { AuthenticationError, jmapClient } from '../api/jmap-client';
-import { patchKeywordsForEmails, sendEmail } from '../api/email';
+import { destroyEmails, getEmailFlags, patchKeywordsForEmails, sendEmail } from '../api/email';
 import { RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, type RejectedRecipient } from '../api/jmap-result';
 import {
   findCopiesByMessageId,
@@ -123,7 +126,11 @@ function scheduleRetry(delayMs: number): void {
 }
 
 /** Flag the original, trust the recipients, tell the user. Best effort; never changes the outcome. */
-function postSendEffects(entry: QueuedSend, refused: RejectedRecipient[] | undefined): void {
+function postSendEffects(
+  entry: QueuedSend,
+  refused: RejectedRecipient[] | undefined,
+  opts: { toast?: boolean } = {},
+): void {
   const ownerActive = canReplay(entry.appAccountId);
   try {
     const reply = entry.replyTo;
@@ -145,6 +152,7 @@ function postSendEffects(entry: QueuedSend, refused: RejectedRecipient[] | undef
   } catch (err) {
     console.warn('[send-queue] trusting recipients failed:', err);
   }
+  if (opts.toast === false) return;
   try {
     const { t } = useLocaleStore.getState();
     const subject = entry.outgoing.subject || t('email_viewer.no_subject', '(No Subject)');
@@ -154,75 +162,179 @@ function postSendEffects(entry: QueuedSend, refused: RejectedRecipient[] | undef
   }
 }
 
-type ReconcileResult = 'completed' | 'left';
+/** Rescan an `uncertain` entry at most this often; the user's Send again does not wait. */
+export const RECONCILE_BACKOFF_MS = 15 * 60 * 1000;
+
+/** The proof lookup could not settle it: it failed, ran out, or the attempt is too young. */
+export class ProofLookupError extends Error {
+  constructor(message = 'Could not check whether this message was already sent') {
+    super(message);
+    this.name = 'ProofLookupError';
+  }
+}
 
 /**
- * Settle an `uncertain` entry against the server. Never sends, never
- * requeues, never destroys: it completes the entry on positive proof of
- * submission and otherwise leaves it `uncertain`. Proof is a copy with the
- * entry's Message-ID whose From includes the entry's sender, and that is
- * either filed in Sent (with or without `$draft`) or the email of a (not
- * canceled) EmailSubmission by the entry's identity. A copy anywhere else is
- * not proof on its own.
+ * What the server says about an `uncertain` entry.
+ * - `proven`: our copy is filed in Sent, or a live submission by the entry's
+ *   identity holds it; `proofIds` are those emails.
+ * - `none`: the lookup went through the whole window without proof.
+ * - `incomplete`: it gave up at its cap, or the entry names no sender.
+ * Throws when a request fails.
  */
-async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
-  const accountId = entry.jmapAccountId;
-  const started = Date.parse(entry.attemptStartedAt ?? entry.createdAt);
-  if (Number.isNaN(started)) return 'left';
-  const age = Date.now() - started;
-  if (age < RECONCILE_GRACE_MS) {
-    scheduleRetry(RECONCILE_GRACE_MS - age);
-    return 'left';
-  }
+type SendProof = { status: 'proven'; proofIds: string[] } | { status: 'none' } | { status: 'incomplete' };
 
+/**
+ * Proof is a copy with the entry's Message-ID whose From includes the
+ * entry's sender, and that is either filed in Sent (with or without `$draft`)
+ * or the email of a (not canceled) EmailSubmission by the entry's identity. A
+ * copy anywhere else is not proof on its own.
+ */
+async function lookupSendProof(entry: QueuedSend, started: number): Promise<SendProof> {
+  const accountId = entry.jmapAccountId;
   // Only the user's own message counts: a copy that merely carries the same
   // Message-ID (an incoming reply quoting it, a reflection, a forgery, a
   // Sieve filing) must never mark a send done that did not happen.
   const ownAddresses = new Set(
     entry.outgoing.from.map((a) => a.email?.trim().toLowerCase()).filter((e): e is string => !!e),
   );
-  if (ownAddresses.size === 0) return 'left';
+  if (ownAddresses.size === 0) return { status: 'incomplete' };
   const fromUs = (c: EmailCopy) =>
     c.from.some((a) => typeof a?.email === 'string' && ownAddresses.has(a.email.trim().toLowerCase()));
 
-  let submitted = false;
+  const { sentId } = await resolveSendMailboxes(accountId);
+  const proofIds: string[] = [];
+  // Checked page by page, so the lookup goes on past a match that is not proof.
+  const isProof = async (matches: EmailCopy[]): Promise<boolean> => {
+    const own = matches.filter(fromUs);
+    if (own.length === 0) return false;
+    if (sentId) {
+      const filed = own.filter((c) => c.mailboxIds?.[sentId] === true).map((c) => c.id);
+      if (filed.length) {
+        proofIds.push(...filed);
+        return true;
+      }
+    }
+    const ids = new Set(own.map((c) => c.id));
+    const submissions = await findSubmissionsForEmails([...ids], accountId);
+    const submitted = submissions
+      .filter((s) => ids.has(s.emailId) && s.identityId === entry.identityId && s.undoStatus !== 'canceled')
+      .map((s) => s.emailId);
+    proofIds.push(...submitted);
+    return submitted.length > 0;
+  };
+  const { proven, complete } = await findCopiesByMessageId(entry.messageId, {
+    accountId,
+    since: new Date(started - RECONCILE_LOOKBACK_MS).toISOString(),
+    isProof,
+  });
+  if (proven) return { status: 'proven', proofIds };
+  return complete ? { status: 'none' } : { status: 'incomplete' };
+}
+
+/**
+ * Remove the entry's own server draft after its send was proven, as sendEmail
+ * does after a send: in the entry's account, only while that account is
+ * active, only when that email still carries `$draft`, and never when it is
+ * itself the proof. Best effort.
+ */
+async function removeSentDraft(entry: QueuedSend, proofIds: readonly string[]): Promise<void> {
+  const draftId = entry.draftId;
+  if (!draftId || proofIds.includes(draftId) || !canReplay(entry.appAccountId)) return;
   try {
-    const { sentId } = await resolveSendMailboxes(accountId);
-    // Proof: our copy filed in Sent (with or without $draft), or a live
-    // submission of our copy by this entry's identity. Checked page by page,
-    // so the lookup goes on past a match that is not proof.
-    const isProof = async (matches: EmailCopy[]): Promise<boolean> => {
-      const own = matches.filter(fromUs);
-      if (own.length === 0) return false;
-      if (sentId && own.some((c) => c.mailboxIds?.[sentId] === true)) return true;
-      const ids = new Set(own.map((c) => c.id));
-      const submissions = await findSubmissionsForEmails([...ids], accountId);
-      return submissions.some(
-        (s) => ids.has(s.emailId) && s.identityId === entry.identityId && s.undoStatus !== 'canceled',
-      );
-    };
-    ({ proven: submitted } = await findCopiesByMessageId(entry.messageId, {
-      accountId,
-      since: new Date(started - RECONCILE_LOOKBACK_MS).toISOString(),
-      isProof,
-    }));
+    const { list } = await getEmailFlags([draftId], entry.jmapAccountId);
+    const draft = list.find((e) => e.id === draftId);
+    if (draft?.keywords?.$draft !== true) return;
+    await destroyEmails([draftId], entry.jmapAccountId);
+  } catch (err) {
+    console.warn('[send-queue] could not remove the draft of a sent message:', err);
+  }
+}
+
+/**
+ * Complete an entry the server proved was sent. The store allows complete
+ * from `queued` too: a "Send again" the user made while a lookup ran must
+ * lose to the proof, or the next pass would send the message a second time.
+ * Rejects when the entry changed meanwhile (SendQueueStateError).
+ */
+async function completeOnProof(entry: QueuedSend, proofIds: readonly string[], announce: boolean): Promise<void> {
+  await useSendQueueStore.getState().complete(entry.id);
+  postSendEffects(entry, undefined, { toast: announce });
+  await removeSentDraft(entry, proofIds);
+}
+
+type ReconcileResult = 'completed' | 'left';
+
+/** The attempt's start, or null when it cannot be read. */
+function attemptStart(entry: QueuedSend): number | null {
+  const started = Date.parse(entry.attemptStartedAt ?? entry.createdAt);
+  return Number.isNaN(started) ? null : started;
+}
+
+/**
+ * Settle an `uncertain` entry against the server. Never sends, never
+ * requeues: it completes the entry on positive proof of submission (see
+ * lookupSendProof) and otherwise leaves it `uncertain`. A lookup runs at most
+ * every RECONCILE_BACKOFF_MS per entry.
+ */
+async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
+  const started = attemptStart(entry);
+  if (started === null) return 'left';
+  const age = Date.now() - started;
+  if (age < RECONCILE_GRACE_MS) {
+    scheduleRetry(RECONCILE_GRACE_MS - age);
+    return 'left';
+  }
+  const last = entry.lastReconcileAt ? Date.parse(entry.lastReconcileAt) : NaN;
+  if (!Number.isNaN(last) && Date.now() - last < RECONCILE_BACKOFF_MS) return 'left';
+  try {
+    await useSendQueueStore.getState().noteReconcile(entry.id);
+  } catch (err) {
+    // Changed meanwhile (completed, requeued, discarded): not this pass's to settle.
+    console.warn('[send-queue] could not note the reconcile; skipped:', err);
+    return 'left';
+  }
+
+  let proof: SendProof;
+  try {
+    proof = await lookupSendProof(entry, started);
   } catch (err) {
     console.warn('[send-queue] reconciliation inconclusive, left for the user:', err);
     return 'left';
   }
-  if (!submitted) return 'left';
-
-  // The store allows complete from `queued` too: a "Send again" the user
-  // made while this lookup ran must lose to the proof, or the next pass
-  // would send the message a second time.
+  if (proof.status !== 'proven') return 'left';
   try {
-    await useSendQueueStore.getState().complete(entry.id);
+    await completeOnProof(entry, proof.proofIds, true);
   } catch (err) {
     console.warn('[send-queue] complete failed:', err);
     return 'left';
   }
-  postSendEffects(entry, undefined);
   return 'completed';
+}
+
+/**
+ * The user's "Send again" on an `uncertain` entry: look for proof first,
+ * whatever the backoff. With proof the entry is completed (its draft
+ * removed) and this resolves `already_sent`; the caller tells the user. After
+ * a lookup that went through the whole window without proof it resolves
+ * `not_found` and changes nothing: the caller may requeue. Anything else -
+ * a failed or capped lookup, an attempt too young to judge - rejects with
+ * ProofLookupError and changes nothing. A complete that the entry no longer
+ * allows rejects with SendQueueStateError.
+ */
+export async function checkSentBeforeResend(entry: QueuedSend): Promise<'already_sent' | 'not_found'> {
+  const started = attemptStart(entry);
+  if (started === null || Date.now() - started < RECONCILE_GRACE_MS) throw new ProofLookupError();
+  let proof: SendProof;
+  try {
+    proof = await lookupSendProof(entry, started);
+  } catch (err) {
+    console.warn('[send-queue] proof lookup failed before a resend:', err);
+    throw new ProofLookupError();
+  }
+  if (proof.status === 'incomplete') throw new ProofLookupError();
+  if (proof.status === 'none') return 'not_found';
+  await completeOnProof(entry, proof.proofIds, false);
+  return 'already_sent';
 }
 
 /**

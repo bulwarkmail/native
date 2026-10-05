@@ -22,6 +22,8 @@ vi.mock('../../api/jmap-client', () => {
 vi.mock('../../api/email', () => ({
   sendEmail: vi.fn(),
   patchKeywordsForEmails: vi.fn(async () => undefined),
+  getEmailFlags: vi.fn(async () => ({ list: [], notFound: [] })),
+  destroyEmails: vi.fn(async () => undefined),
 }));
 vi.mock('../../api/sent-lookup', () => ({
   findCopiesByMessageId: vi.fn(),
@@ -38,7 +40,7 @@ vi.mock('../../stores/toast-store', () => ({
 }));
 
 import { jmapClient, AuthenticationError, NetworkError, RequestTimeoutError, RateLimitError } from '../../api/jmap-client';
-import { sendEmail, patchKeywordsForEmails } from '../../api/email';
+import { sendEmail, patchKeywordsForEmails, getEmailFlags, destroyEmails } from '../../api/email';
 import { findCopiesByMessageId, findSubmissionsForEmails, resolveSendMailboxes } from '../../api/sent-lookup';
 import {
   RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, SendUnconfirmedError,
@@ -48,9 +50,13 @@ import { trustRecipients } from '../trust-recipients';
 import { toast } from '../../stores/toast-store';
 import { useNetworkStore } from '../../stores/network-store';
 import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
-import { flushSendQueue, hasNewEntry } from '../send-queue-replay';
+import {
+  flushSendQueue, hasNewEntry, checkSentBeforeResend, ProofLookupError, RECONCILE_BACKOFF_MS,
+} from '../send-queue-replay';
 
 const mockSend = sendEmail as unknown as ReturnType<typeof vi.fn>;
+const mockFlags = getEmailFlags as unknown as ReturnType<typeof vi.fn>;
+const mockDestroy = destroyEmails as unknown as ReturnType<typeof vi.fn>;
 const mockFind = findCopiesByMessageId as unknown as ReturnType<typeof vi.fn>;
 const mockSubs = findSubmissionsForEmails as unknown as ReturnType<typeof vi.fn>;
 const mockBoxes = resolveSendMailboxes as unknown as ReturnType<typeof vi.fn>;
@@ -108,6 +114,8 @@ beforeEach(async () => {
   mockSubs.mockResolvedValue([]);
   findReturns({ copies: [], complete: true });
   mockSend.mockResolvedValue(OK);
+  mockFlags.mockResolvedValue({ list: [], notFound: [] });
+  mockDestroy.mockResolvedValue(undefined);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -423,6 +431,143 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     expect(mockSend).not.toHaveBeenCalled();
     expect(mockFind).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('failed');
+  });
+});
+
+describe('reconcile backoff', () => {
+  it('rescans an uncertain entry at most every 15 minutes', async () => {
+    expect(RECONCILE_BACKOFF_MS).toBe(15 * 60 * 1000);
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      await flushSendQueue();
+      expect(mockFind).toHaveBeenCalledTimes(1);
+      await flushSendQueue();
+      expect(mockFind).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(Date.now() + 14 * 60 * 1000);
+      await flushSendQueue();
+      expect(mockFind).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(Date.now() + 2 * 60 * 1000);
+      await flushSendQueue();
+      expect(mockFind).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('a failed lookup also waits out the backoff', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    mockFind.mockRejectedValueOnce(new Error('net'));
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockFind).toHaveBeenCalledTimes(1);
+  });
+
+  it('the user\'s Send again bypasses it', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    await flushSendQueue();
+    expect(mockFind).toHaveBeenCalledTimes(1);
+    await checkSentBeforeResend(entries()[0]);
+    expect(mockFind).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('the draft after a reconciled send', () => {
+  it('destroys the entry draft in its own account when it still carries $draft', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'dr-1' }));
+    findReturns({ copies: [copy({})], complete: true });
+    mockFlags.mockResolvedValue({ list: [{ id: 'dr-1', keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }], notFound: [] });
+    await flushSendQueue();
+    expect(entries()).toEqual([]);
+    expect(mockFlags).toHaveBeenCalledWith(['dr-1'], 'jA');
+    expect(mockDestroy).toHaveBeenCalledWith(['dr-1'], 'jA');
+  });
+
+  it('leaves a draft that no longer carries $draft, or is gone', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'dr-1' }));
+    findReturns({ copies: [copy({})], complete: true });
+    mockFlags.mockResolvedValue({ list: [{ id: 'dr-1', keywords: { $seen: true }, mailboxIds: { 'm-drafts': true } }], notFound: [] });
+    await flushSendQueue();
+    expect(entries()).toEqual([]);
+    expect(mockDestroy).not.toHaveBeenCalled();
+
+    await seed(entry({ id: 'q2', state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'dr-2' }));
+    await useSendQueueStore.getState().hydrateAccount('A');
+    findReturns({ copies: [copy({ messageId: ['mid-q2@a.test'] })], complete: true });
+    mockFlags.mockResolvedValue({ list: [], notFound: ['dr-2'] });
+    await flushSendQueue();
+    expect(entries()).toEqual([]);
+    expect(mockDestroy).not.toHaveBeenCalled();
+  });
+
+  it('never destroys the draft when it is itself the proof', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'd1' }));
+    findReturns({ copies: [draftInDrafts()], complete: true });
+    mockSubs.mockResolvedValue([{ id: 's1', emailId: 'd1', identityId: 'iA', undoStatus: 'final' }]);
+    mockFlags.mockResolvedValue({ list: [{ id: 'd1', keywords: { $draft: true }, mailboxIds: { 'm-drafts': true } }], notFound: [] });
+    await flushSendQueue();
+    expect(entries()).toEqual([]);
+    expect(mockDestroy).not.toHaveBeenCalled();
+  });
+
+  it('a failed clean-up does not change the outcome', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), draftId: 'dr-1' }));
+    findReturns({ copies: [copy({})], complete: true });
+    mockFlags.mockRejectedValue(new Error('net'));
+    await flushSendQueue();
+    expect(entries()).toEqual([]);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkSentBeforeResend (the user\'s Send again)', () => {
+  const uncertain = async (over: Partial<QueuedSend> = {}) => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), ...over }));
+    await useSendQueueStore.getState().hydrateAccount('A');
+    return entries()[0];
+  };
+
+  it('with proof: completes the entry and reports already sent, never sends', async () => {
+    const e = await uncertain({ draftId: 'dr-1' });
+    findReturns({ copies: [copy({})], complete: true });
+    mockFlags.mockResolvedValue({ list: [{ id: 'dr-1', keywords: { $draft: true }, mailboxIds: {} }], notFound: [] });
+    expect(await checkSentBeforeResend(e)).toBe('already_sent');
+    expect(entries()).toEqual([]);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockDestroy).toHaveBeenCalledWith(['dr-1'], 'jA');
+    // The caller tells the user; no "Sent:" toast on top of it.
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('a complete lookup without proof: not found, the entry untouched', async () => {
+    const e = await uncertain();
+    expect(await checkSentBeforeResend(e)).toBe('not_found');
+    expect(stateOf('q1')).toBe('uncertain');
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('a failed lookup rejects with ProofLookupError and changes nothing', async () => {
+    const e = await uncertain();
+    mockFind.mockRejectedValue(new Error('net'));
+    await expect(checkSentBeforeResend(e)).rejects.toBeInstanceOf(ProofLookupError);
+    mockFind.mockReset();
+    mockBoxes.mockRejectedValue(new Error('net'));
+    await expect(checkSentBeforeResend(e)).rejects.toBeInstanceOf(ProofLookupError);
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('an incomplete lookup (cap reached) is not "not found"', async () => {
+    const e = await uncertain();
+    findReturns({ copies: [], complete: false });
+    await expect(checkSentBeforeResend(e)).rejects.toBeInstanceOf(ProofLookupError);
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('an attempt that started moments ago is not checked yet: rejects without a lookup', async () => {
+    const e = await uncertain({ attemptStartedAt: new Date().toISOString() });
+    await expect(checkSentBeforeResend(e)).rejects.toBeInstanceOf(ProofLookupError);
+    expect(mockFind).not.toHaveBeenCalled();
   });
 });
 

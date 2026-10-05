@@ -13,7 +13,19 @@ vi.mock('../../api/sent-lookup', () => ({
   resolveSendMailboxes: vi.fn(async () => { calls.push('boxes'); state.onBoxes?.(); return { draftsId: 'drafts' }; }),
 }));
 vi.mock('../active-client-account', () => ({ clientServesActiveAccount: () => state.serves }));
-vi.mock('../send-queue-replay', () => ({ flushSendQueue: vi.fn(async () => { calls.push('flush'); }) }));
+const proof = vi.hoisted(() => ({ result: 'not_found' as 'not_found' | 'already_sent' | Error }));
+vi.mock('../send-queue-replay', () => {
+  class ProofLookupError extends Error { constructor() { super('lookup'); this.name = 'ProofLookupError'; } }
+  return {
+    ProofLookupError,
+    flushSendQueue: vi.fn(async () => { calls.push('flush'); }),
+    checkSentBeforeResend: vi.fn(async () => {
+      calls.push('proof');
+      if (proof.result instanceof Error) throw proof.result;
+      return proof.result;
+    }),
+  };
+});
 vi.mock('../../stores/account-store', () => ({
   useAccountStore: { getState: () => ({ activeAccountId: state.active }) },
 }));
@@ -28,7 +40,8 @@ vi.mock('../../stores/send-queue-store', () => ({
   },
 }));
 
-import { requeueAndFlush, saveEntryAsDraft } from '../outbox-actions';
+import { requeueAndFlush, saveEntryAsDraft, sendAgain, outboxErrorMessage, OutboxActionError } from '../outbox-actions';
+import { ProofLookupError } from '../send-queue-replay';
 import { createDraft } from '../../api/email';
 
 const e = (s: string) => ({ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: s, outgoing: { subject: 'x' } }) as never;
@@ -42,6 +55,7 @@ beforeEach(() => {
   state.createFails = false;
   state.enqueued = [];
   state.onBoxes = undefined;
+  proof.result = 'not_found';
   state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'uncertain', outgoing: { subject: 'x' } }] };
 });
 
@@ -144,5 +158,43 @@ describe('outbox actions', () => {
     state.entries = { A: [] };
     await expect(saveEntryAsDraft(e('queued'))).rejects.toThrow();
     expect(calls).toEqual([]);
+  });
+});
+
+describe('send again (uncertain)', () => {
+  it('looks for proof first; without proof (a complete lookup) it requeues and flushes', async () => {
+    expect(await sendAgain(e('uncertain'))).toBe('requeued');
+    expect(calls).toEqual(['proof', 'requeue', 'flush']);
+  });
+
+  it('with proof it does not requeue: already sent', async () => {
+    proof.result = 'already_sent';
+    expect(await sendAgain(e('uncertain'))).toBe('already_sent');
+    expect(calls).toEqual(['proof']);
+  });
+
+  it('a failed lookup tells the user and does nothing', async () => {
+    proof.result = new ProofLookupError();
+    const err = await sendAgain(e('uncertain')).catch((x) => x);
+    expect(err).toBeInstanceOf(OutboxActionError);
+    expect(err.code).toBe('proof_check_failed');
+    expect(outboxErrorMessage(err)).toMatchObject({ key: 'outbox.error.proof_check_failed' });
+    expect(calls).toEqual(['proof']);
+  });
+
+  it('refuses before any lookup when the account is not active or the entry is not uncertain', async () => {
+    state.active = 'B';
+    await expect(sendAgain(e('uncertain'))).rejects.toThrow();
+    state.active = 'A';
+    state.entries = { A: [{ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: 'failed', outgoing: {} }] };
+    await expect(sendAgain(e('uncertain'))).rejects.toThrow();
+    expect(calls).toEqual([]);
+  });
+
+  it('re-checks the account after the lookup before requeueing', async () => {
+    const { checkSentBeforeResend } = await import('../send-queue-replay');
+    vi.mocked(checkSentBeforeResend).mockImplementationOnce(async () => { calls.push('proof'); state.active = 'B'; return 'not_found'; });
+    await expect(sendAgain(e('uncertain'))).rejects.toMatchObject({ code: 'wrong_account' });
+    expect(calls).toEqual(['proof']);
   });
 });

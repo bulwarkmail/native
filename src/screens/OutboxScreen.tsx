@@ -9,7 +9,7 @@ import { useAccountStore } from '../stores/account-store';
 import { useNetworkStore } from '../stores/network-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { outboxRows, allQueuedSends, type OutboxAction, type OutboxLabel, type OutboxRow } from '../lib/outbox-rows';
-import { requeueAndFlush, saveEntryAsDraft, outboxErrorMessage } from '../lib/outbox-actions';
+import { requeueAndFlush, saveEntryAsDraft, sendAgain, outboxErrorMessage } from '../lib/outbox-actions';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -77,7 +77,17 @@ export default function OutboxScreen({ navigation }: Props) {
           t('outbox.send_again', 'Send again'),
           t('outbox.confirm_resend', 'This message may already have been sent. Check your Sent folder before sending it again. Send again?'),
           t('outbox.send_again', 'Send again'),
-          () => { void run(row, () => requeueAndFlush(entry, 'uncertain')); },
+          () => {
+            void run(row, async () => {
+              // Looks for proof first; nothing is sent when the message already went out.
+              if ((await sendAgain(entry)) === 'already_sent') {
+                Alert.alert(
+                  t('outbox.already_sent', 'Already sent'),
+                  t('outbox.already_sent_hint', 'This message had already gone out. It was not sent again.'),
+                );
+              }
+            });
+          },
         );
         break;
       case 'save_draft': {

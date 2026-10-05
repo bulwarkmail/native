@@ -678,6 +678,8 @@
   "outbox": {
     "action_failed": "That did not work",
     "already_queued": "This message is already in the Outbox",
+    "already_sent": "Already sent",
+    "already_sent_hint": "This message had already gone out. It was not sent again.",
     "confirm_discard": "Discard this message? It will not be sent.",
     "confirm_discard_uncertain": "This message may already have been sent. Discard it from the Outbox?",
     "confirm_draft_uncertain": "This message may already have been sent. Check your Sent folder before saving it as a draft. Save as draft?",
@@ -690,6 +692,7 @@
       "changed": "This message changed. Check the Outbox.",
       "draft_lost": "The draft could not be saved and the message could not be restored.",
       "draft_restored": "The draft could not be saved. The message is back in the Outbox.",
+      "proof_check_failed": "Could not check whether this message was already sent. Nothing was sent. Try again later.",
       "sending": "This message is being sent.",
       "wrong_account": "Switch to the sending account first."
     },

@@ -89,6 +89,8 @@ export interface QueuedSend {
   lastError?: string;
   /** Set on a `queued` entry replay cannot send; cleared by requeue. */
   heldReason?: HeldReason;
+  /** When replay last looked for proof of an `uncertain` entry (backoff). */
+  lastReconcileAt?: string;
 }
 
 export class SendTooLargeToQueueError extends Error {
@@ -142,6 +144,8 @@ interface SendQueueState {
   requeue: (id: string) => Promise<void>;
   /** queued -> queued with `heldReason`: replay cannot send it; it waits for the user. */
   hold: (id: string, reason: HeldReason) => Promise<void>;
+  /** uncertain -> uncertain with `lastReconcileAt` now: replay looked for proof. */
+  noteReconcile: (id: string) => Promise<void>;
   /**
    * sending -> queued, for replay only: the request was never made (an
    * account re-check failed after markSending) or never reached the server
@@ -304,7 +308,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
     complete: (id) => transition(id, ['sending', 'uncertain', 'queued'], () => undefined),
 
     markUncertain: (id, error) =>
-      transition(id, ['sending'], (e) => ({ ...e, state: 'uncertain', lastError: error })),
+      transition(id, ['sending'], (e) => ({ ...e, state: 'uncertain', lastError: error, lastReconcileAt: undefined })),
 
     markFailed: (id, error) =>
       transition(id, ['sending', 'uncertain'], (e) => ({ ...e, state: 'failed', lastError: error })),
@@ -313,10 +317,14 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       transition(
         id,
         (e) => e.state === 'failed' || e.state === 'uncertain' || (e.state === 'queued' && !!e.heldReason),
-        (e) => ({ ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined, heldReason: undefined }),
+        (e) => ({
+          ...e, state: 'queued', lastError: undefined, attemptStartedAt: undefined, heldReason: undefined, lastReconcileAt: undefined,
+        }),
       ),
 
     hold: (id, reason) => transition(id, ['queued'], (e) => ({ ...e, heldReason: reason })),
+
+    noteReconcile: (id) => transition(id, ['uncertain'], (e) => ({ ...e, lastReconcileAt: new Date().toISOString() })),
 
     releaseUnsent: (id) =>
       transition(id, ['sending'], (e) => ({
