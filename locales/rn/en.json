@@ -273,7 +273,10 @@
   "context_menu": {
     "color_tag": "Tag",
     "copy_to": "Copy to…",
-    "remove_color": "Remove tag"
+    "remove_color": "Remove tag",
+    "rules": {
+      "opaque_hint": "Your filters were edited by hand. Open Filters settings"
+    }
   },
   "deep_link": {
     "open_failed": "Couldn't open this"
@@ -631,7 +634,17 @@
   },
   "notifications": {
     "copy_failed": "Copy failed",
-    "delete_failed": "Failed to delete"
+    "delete_failed": "Failed to delete",
+    "rule_already_covered": "Already covered by rule “{name}”",
+    "rule_applied": "{count, plural, =0 {No messages needed changes} one {Rule applied to # message} other {Rule applied to # messages}}",
+    "rule_apply_existing": "{count, plural, one {Apply to # existing message} other {Apply to # existing messages}}",
+    "rule_apply_failed": "Could not apply the rule to existing messages",
+    "rule_created": "Rule created",
+    "rule_merged": "Added to rule “{name}”",
+    "rule_undo": "Undo",
+    "rule_undo_conflict": "Your filters have changed since. Undo the change in Filters settings.",
+    "rule_undo_failed": "Could not undo the rule change",
+    "rule_undone": "Rule change undone"
   },
   "offline": {
     "banner": "You are offline",

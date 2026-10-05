@@ -18,6 +18,8 @@ export interface Toast {
   title: string;
   message?: string;
   action?: ToastAction;
+  /** A second button beside `action`, e.g. Undo plus "Apply to existing". */
+  secondaryAction?: ToastAction;
   // ms; errors default to 10 s like the webmail, everything else to 5 s.
   duration: number;
   createdAt: number;
@@ -58,6 +60,7 @@ export const useToastStore = create<ToastState>((set) => ({
 interface ToastOptions {
   message?: string;
   action?: ToastAction;
+  secondaryAction?: ToastAction;
   duration?: number;
 }
 
@@ -68,6 +71,7 @@ function show(type: ToastType, title: string, options?: string | ToastOptions): 
     title,
     message: opts?.message,
     action: opts?.action,
+    secondaryAction: opts?.secondaryAction,
     duration: opts?.duration,
   });
 }

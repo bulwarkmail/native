@@ -196,19 +196,24 @@ function ToastCard({ toast }: { toast: Toast }) {
           <Text style={cardStyles.title} numberOfLines={2}>{toast.title}</Text>
           {toast.message ? <Text style={cardStyles.message} numberOfLines={3}>{toast.message}</Text> : null}
         </View>
-        {toast.action ? (
-          <Pressable
-            onPress={() => { toast.action?.onPress(); removeToast(toast.id); }}
-            hitSlop={8}
-            accessibilityRole="button"
-            style={({ pressed }) => [cardStyles.action, pressed && cardStyles.actionPressed]}
-          >
-            {/* The underline is a border so it can sit 3px under the
-                baseline; textDecorationLine has no offset in RN. */}
-            <View style={cardStyles.actionUnderline}>
-              <Text style={cardStyles.actionText} numberOfLines={1}>{toast.action.label}</Text>
-            </View>
-          </Pressable>
+        {toast.action || toast.secondaryAction ? (
+          <View style={cardStyles.actions}>
+            {[toast.action, toast.secondaryAction].map((action) => action ? (
+              <Pressable
+                key={action.label}
+                onPress={() => { action.onPress(); removeToast(toast.id); }}
+                hitSlop={8}
+                accessibilityRole="button"
+                style={({ pressed }) => [cardStyles.action, pressed && cardStyles.actionPressed]}
+              >
+                {/* The underline is a border so it can sit 3px under the
+                    baseline; textDecorationLine has no offset in RN. */}
+                <View style={cardStyles.actionUnderline}>
+                  <Text style={cardStyles.actionText} numberOfLines={1}>{action.label}</Text>
+                </View>
+              </Pressable>
+            ) : null)}
+          </View>
         ) : null}
         <View pointerEvents="none" style={cardStyles.countdownTrack} />
         <Animated.View
@@ -268,7 +273,9 @@ function makeStyles(c: ThemePalette, scheme: 'light' | 'dark') {
     body: { flex: 1 },
     title: { fontSize: 14.5, lineHeight: 20, fontWeight: '500', color: c.text },
     message: { fontSize: 13, lineHeight: 18, color: c.mutedForeground, marginTop: 2 },
-    action: { alignSelf: 'center' },
+    // One action sits beside the text; two stack so neither label is cut.
+    actions: { alignSelf: 'center', alignItems: 'flex-end', gap: spacing.sm },
+    action: {},
     actionPressed: { opacity: 0.6 },
     actionUnderline: { borderBottomWidth: 1, borderBottomColor: c.text },
     actionText: { fontSize: 13, lineHeight: 16, fontWeight: '600', color: c.text },
