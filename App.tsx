@@ -56,6 +56,7 @@ import ContactFormScreen from './src/screens/ContactFormScreen';
 import GroupDetailScreen from './src/screens/GroupDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ScheduledScreen from './src/screens/ScheduledScreen';
+import OutboxScreen from './src/screens/OutboxScreen';
 import UnifiedInboxScreen from './src/screens/UnifiedInboxScreen';
 import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
@@ -94,6 +95,7 @@ import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
 import { useSendQueueStore } from './src/stores/send-queue-store';
 import { flushSendQueue, hasNewEntry } from './src/lib/send-queue-replay';
+import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
@@ -516,6 +518,18 @@ export default function App() {
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [haveLiveSession]);
 
+  // One toast per send that ended up failed or uncertain, and the Outbox
+  // badge counts: load every account's queue so both see all of it.
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    for (const a of useAccountStore.getState().accounts) {
+      void useSendQueueStore.getState().hydrateAccount(a.id).catch(() => undefined);
+    }
+    return startOutboxToasts(() => {
+      if (navigationRef.isReady()) navigationRef.navigate('Outbox' as never);
+    });
+  }, [isAuthenticated]);
+
   // Toasts for invitations the server delivered (queued by the store).
   React.useEffect(() => {
     if (!isAuthenticated) return;
@@ -920,6 +934,7 @@ export default function App() {
         />
         <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
         <Stack.Screen name="Scheduled" component={ScheduledScreen} />
+        <Stack.Screen name="Outbox" component={OutboxScreen} />
         <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
         <Stack.Screen
           name="AddAccount"

@@ -97,6 +97,7 @@ export type RootStackParamList = {
   GroupDetail: { groupId: string };
   AddAccount: undefined;
   Scheduled: undefined;
+  Outbox: undefined;
   UnifiedInbox:
     | {
         /** Per-role unified view ("All Sent", …); defaults to the inbox. */

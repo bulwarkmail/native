@@ -21,6 +21,8 @@ import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
+import { useSendQueueStore } from '../stores/send-queue-store';
+import { queuedSendCount } from '../lib/outbox-rows';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
@@ -332,6 +334,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const outboxCount = useSendQueueStore((st) => queuedSendCount(st.entries));
 
   const [foldersExpanded, setFoldersExpanded] = React.useState(true);
   const [tagsExpanded, setTagsExpanded] = React.useState(true);
@@ -982,6 +985,15 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               <Clock size={16} color={c.textSecondary} />
               <Text style={styles.quickRowLabel}>{t('sidebar.scheduled', 'Scheduled')}</Text>
             </Pressable>
+            {outboxCount > 0 && (
+              <Pressable
+                style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
+                onPress={() => { onClose(); navigation.navigate('Outbox'); }}
+              >
+                <Send size={16} color={c.textSecondary} />
+                <Text style={styles.quickRowLabel}>{t('outbox.title_count', 'Outbox ({count})', { count: outboxCount })}</Text>
+              </Pressable>
+            )}
 
             {/* Unified per-role and cross views */}
             {showUnified && (

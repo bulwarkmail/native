@@ -676,8 +676,35 @@
     }
   },
   "outbox": {
+    "action_failed": "That did not work",
+    "confirm_discard": "Discard this message? It will not be sent.",
+    "confirm_discard_uncertain": "This message may already have been sent. Discard it from the Outbox?",
+    "confirm_draft_uncertain": "This message may already have been sent. Check your Sent folder before saving it as a draft. Save as draft?",
+    "confirm_resend": "This message may already have been sent. Check your Sent folder before sending it again. Send again?",
+    "discard": "Discard",
+    "draft_saved": "Saved to Drafts",
+    "empty": "Nothing waiting to be sent",
+    "empty_hint": "Messages you send while offline wait here until you are back online.",
+    "failed": "A message was not sent",
+    "failed_hint": "Check the Outbox to retry, save it as a draft or discard it.",
+    "open": "Open Outbox",
+    "open_short": "Open",
     "queued": "Will send when you're back online",
+    "retry": "Retry",
+    "save_draft": "Save as draft",
+    "send_again": "Send again",
     "sent": "Sent: {subject}",
+    "setting_desc": "Messages sent while offline, waiting to go out.",
+    "state": {
+      "failed": "Not sent: {error}",
+      "failed_unknown": "Not sent",
+      "queued": "Waiting for connection",
+      "sending": "Sending…",
+      "uncertain": "May have been sent — check Sent",
+      "waiting_account": "Waiting — switch to {account} to send"
+    },
+    "title": "Outbox",
+    "title_count": "Outbox ({count})",
     "too_large": "This message is too large to send offline"
   },
   "push_prompt": {
