@@ -23,7 +23,7 @@ import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
 import { queuedSendCount } from '../lib/outbox-rows';
-import { confirmSignOutWithQueue } from '../lib/sign-out-guard';
+import { signOutWithGuard, signOutAllWithGuard, removeAccountWithGuard } from '../lib/sign-out-guard';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
@@ -322,8 +322,6 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const refreshEmails = useEmailStore((s) => s.refreshEmails);
   const username = useAuthStore((s) => s.username);
   const serverUrl = useAuthStore((s) => s.serverUrl);
-  const logout = useAuthStore((s) => s.logout);
-  const logoutAll = useAuthStore((s) => s.logoutAll);
   const switchAccount = useAuthStore((s) => s.switchAccount);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const accounts = useAccountStore((s) => s.accounts);
@@ -740,21 +738,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const confirmRemoveAccount = (acc: { id: string; email: string; username: string }) => {
     const label = acc.email || acc.username;
-    Alert.alert(
-      t('sidebar.remove_account', 'Remove account'),
-      t('sidebar.remove_account_confirm', `Remove ${label} from this device? You can add it back later.`, { account: label }),
-      [
-        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-        {
-          text: t('sidebar.remove_account', 'Remove account'),
-          style: 'destructive',
-          onPress: () => {
-            void confirmSignOutWithQueue([acc.id], () => { onClose(); navigation.navigate('Outbox'); })
-              .then((ok) => { if (ok) return useAuthStore.getState().removeAccount(acc.id); });
-          },
-        },
-      ],
-    );
+    void removeAccountWithGuard(acc.id, () => { onClose(); navigation.navigate('Outbox'); }, {
+      title: t('sidebar.remove_account', 'Remove account'),
+      message: t('sidebar.remove_account_confirm', `Remove ${label} from this device? You can add it back later.`, { account: label }),
+      confirmLabel: t('sidebar.remove_account', 'Remove account'),
+    });
   };
 
   const tagViewActive = !!filters.keyword;
@@ -944,9 +932,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 onPress={() => {
                   setAccountMenuOpen(false);
                   onClose();
-                  const id = useAuthStore.getState().activeAccountId;
-                  void confirmSignOutWithQueue(id ? [id] : [], () => navigation.navigate('Outbox'))
-                    .then((ok) => { if (ok) return logout(); });
+                  void signOutWithGuard(useAuthStore.getState().activeAccountId, () => navigation.navigate('Outbox'));
                 }}
               >
                 <LogOut size={16} color={c.textSecondary} />
@@ -963,9 +949,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   onPress={() => {
                     setAccountMenuOpen(false);
                     onClose();
-                    const ids = useAccountStore.getState().accounts.map((a) => a.id);
-                    void confirmSignOutWithQueue(ids, () => navigation.navigate('Outbox'))
-                      .then((ok) => { if (ok) return logoutAll(); });
+                    void signOutAllWithGuard(() => navigation.navigate('Outbox'));
                   }}
                 >
                   <LogOut size={16} color={c.error} />

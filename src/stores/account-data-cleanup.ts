@@ -1,7 +1,7 @@
 // What signing an account out forgets on the device: its offline message
 // bodies and calendar subscriptions and, with the last account, every calendar
 // subscription (ownerless ones included) and the search history. Unsent outbox
-// changes are kept; queued sends (the app-only send queue) are deleted. Settings, locale, templates and keywords stay, as in the
+// changes are kept; queued sends are kept unless discardQueuedSends is set. Settings, locale, templates and keywords stay, as in the
 // webmail's sign-out cleanup.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +17,11 @@ export interface SignedOutAccount {
   jmapAccountId?: string;
   serverUrl?: string | null;
   username?: string | null;
+}
+
+/** Queued sends are kept on disk unless the user chose to delete them. */
+export interface SignOutOptions {
+  discardQueuedSends?: boolean;
 }
 
 const OUTBOX_KEY_PREFIX = 'webmail:outbox:v1:';
@@ -65,7 +70,7 @@ export async function forgetSharedData(): Promise<void> {
  */
 export async function forgetAccountData(
   account: SignedOutAccount,
-  opts: { lastAccount?: boolean } = {},
+  opts: { lastAccount?: boolean; discardQueuedSends?: boolean } = {},
 ): Promise<void> {
   await step(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
   await step(async () => {
@@ -77,10 +82,13 @@ export async function forgetAccountData(
       await useOutboxStore.getState().clearAccount(account.appAccountId);
     }
   });
-  // Queued sends are not kept: signing out was confirmed with the user (see
-  // sign-out-guard). Only this account's rows go; clearAccount does not depend
-  // on the account being hydrated and bypasses the discard rules.
-  await step(() => useSendQueueStore.getState().clearAccount(account.appAccountId));
+  // Queued sends stay on disk (orphaned but safe; they return if the account
+  // signs in again) unless the user was asked and chose to delete them. Only
+  // this account's rows go; clearAccount needs no hydration and bypasses the
+  // discard rules.
+  if (opts.discardQueuedSends) {
+    await step(() => useSendQueueStore.getState().clearAccount(account.appAccountId));
+  }
   const { serverUrl, username } = account;
   if (serverUrl && username) {
     await step(() => useCalendarSubscriptionsStore.getState().forgetSubscriptions(

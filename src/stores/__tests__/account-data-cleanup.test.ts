@@ -169,12 +169,18 @@ describe('forgetAccountData', () => {
 describe('send queue on sign-out', () => {
   const qkey = (acct: string, id: string) => `webmail:sendqueue:v1:${acct}:${id}`;
 
-  it('deletes only the signed-out account\'s queued sends, and keeps outbox keys', async () => {
+  it('keeps queued sends by default', async () => {
+    await AsyncStorage.setItem(qkey(A, 'e1'), '{}');
+    await forgetAccountData({ appAccountId: A });
+    expect(await AsyncStorage.getItem(qkey(A, 'e1'))).not.toBeNull();
+  });
+
+  it('with discardQueuedSends deletes only that account\'s rows; outbox keys survive', async () => {
     await AsyncStorage.setItem(qkey(A, 'e1'), '{}');
     await AsyncStorage.setItem(qkey(A, 'e2'), '{}');
     await AsyncStorage.setItem(qkey(B, 'e3'), '{}');
     await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, JSON.stringify([{ id: 'q1' }]));
-    await forgetAccountData({ appAccountId: A });
+    await forgetAccountData({ appAccountId: A }, { discardQueuedSends: true });
     expect(await AsyncStorage.getItem(qkey(A, 'e1'))).toBeNull();
     expect(await AsyncStorage.getItem(qkey(A, 'e2'))).toBeNull();
     expect(await AsyncStorage.getItem(qkey(B, 'e3'))).not.toBeNull();

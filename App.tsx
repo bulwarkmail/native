@@ -1,3 +1,4 @@
+import { signOutWithGuard } from './src/lib/sign-out-guard';
 import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -240,7 +241,6 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const inboxUnreadCount = useEmailStore(
     (state) => state.mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0,
   );
-  const logout = useAuthStore((state) => state.logout);
   const hasCalendar = useHasCalendar();
   const hasContacts = useHasContacts();
   const hasFiles = useHasFiles();
@@ -380,7 +380,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       >
-        {() => <SettingsScreen onLogout={logout} />}
+        {() => <SettingsScreen onLogout={() => { void signOutWithGuard(useAuthStore.getState().activeAccountId, () => navigation.navigate('Outbox')); }} />}
       </Tab.Screen>
     </Tab.Navigator>
     </View>

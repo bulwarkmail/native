@@ -11,7 +11,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useAccountStore } from '../../stores/account-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
-import { confirmSignOutWithQueue } from '../../lib/sign-out-guard';
+import { removeAccountWithGuard } from '../../lib/sign-out-guard';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { sharedAccountSettingsTabs } from '../../lib/capabilities';
 import { jmapClient } from '../../api/jmap-client';
@@ -41,7 +41,6 @@ export function AccountSettings() {
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const session = useAuthStore((s) => s.session);
   const switchAccount = useAuthStore((s) => s.switchAccount);
-  const removeAccountAuth = useAuthStore((s) => s.removeAccount);
   const accounts = useAccountStore((s) => s.accounts);
   const defaultAccountId = useAccountStore((s) => s.defaultAccountId);
   const setDefaultAccount = useAccountStore((s) => s.setDefaultAccount);
@@ -88,24 +87,12 @@ export function AccountSettings() {
   };
 
   const confirmRemove = (id: string, label: string) => {
-    Alert.alert(
-      t('sidebar.remove_account_title', 'Remove account?'),
-      t('sidebar.remove_account_message', 'Sign out of {account} on this device. Your mail stays on the server.', { account: label }),
-      [
-        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-        {
-          text: t('common.remove', 'Remove'),
-          style: 'destructive',
-          onPress: () => {
-            void confirmSignOutWithQueue([id], () => navigation.navigate('Outbox')).then((ok) => {
-              if (!ok) return;
-              setBusyId(id);
-              return removeAccountAuth(id).finally(() => setBusyId(null));
-            });
-          },
-        },
-      ],
-    );
+    void removeAccountWithGuard(id, () => navigation.navigate('Outbox'), {
+      title: t('sidebar.remove_account_title', 'Remove account?'),
+      message: t('sidebar.remove_account_message', 'Sign out of {account} on this device. Your mail stays on the server.', { account: label }),
+      confirmLabel: t('common.remove', 'Remove'),
+      onConfirmed: () => setBusyId(id),
+    }).finally(() => setBusyId(null));
   };
 
   return (

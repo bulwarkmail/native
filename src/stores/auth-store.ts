@@ -11,7 +11,7 @@ import { useSettingsStore } from './settings-store';
 import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
 import { sweepOrphanedOfflineCache } from './offline-cache-store';
-import { forgetAccountData, forgetSharedData } from './account-data-cleanup';
+import { forgetAccountData, forgetSharedData, type SignOutOptions } from './account-data-cleanup';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -97,11 +97,12 @@ export interface AuthState {
   loginViaPairing: (webmailUrl: string, code: string, opts?: { addAccount?: boolean }) => Promise<void>;
   /** Sign in with a pasted access token (e.g. a Fastmail API token). */
   loginWithToken: (serverUrl: string, typedToken: string, opts?: { addAccount?: boolean }) => Promise<void>;
-  logout: () => Promise<void>;
-  logoutAll: () => Promise<void>;
+  /** Queued sends are kept unless `discardQueuedSends` (the user chose to delete them). */
+  logout: (opts?: SignOutOptions) => Promise<void>;
+  logoutAll: (opts?: SignOutOptions) => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
   /** Sign a non-active account out and drop its caches; the active one stays. */
-  removeAccount: (accountId: string) => Promise<void>;
+  removeAccount: (accountId: string, opts?: SignOutOptions) => Promise<void>;
   restoreSession: () => Promise<boolean>;
   retrySession: () => Promise<boolean>;
   clearError: () => void;
@@ -655,7 +656,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: async () => {
+  logout: async (opts) => {
     const accountStore = useAccountStore.getState();
     const currentId = get().activeAccountId;
 
@@ -693,7 +694,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const lastAccount = useAccountStore.getState().accounts.length === 0;
     // Best-effort: a cleanup error must not leave the app half signed out.
     if (currentId) {
-      await forgetAccountData({ appAccountId: currentId, serverUrl, username }, { lastAccount })
+      await forgetAccountData({ appAccountId: currentId, serverUrl, username }, { lastAccount, discardQueuedSends: opts?.discardQueuedSends })
         .catch((e) => console.warn('[sign-out] cleanup failed', e));
     } else if (lastAccount) {
       await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
@@ -729,7 +730,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  logoutAll: async () => {
+  logoutAll: async (opts) => {
     const accountStore = useAccountStore.getState();
     const signedOut = [...accountStore.accounts];
     const ids = signedOut.map((a) => a.id);
@@ -741,7 +742,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     jmapClient.reset();
     clearAllFeatureStores();
     for (const a of signedOut) {
-      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false })
+      await forgetAccountData({ appAccountId: a.id, serverUrl: a.serverUrl, username: a.username }, { lastAccount: false, discardQueuedSends: opts?.discardQueuedSends })
         .catch((e) => console.warn('[sign-out] cleanup failed', e));
     }
     await forgetSharedData().catch((e) => console.warn('[sign-out] cleanup failed', e));
@@ -855,9 +856,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     void syncAccountDisplayName(accountId);
   },
 
-  removeAccount: async (accountId) => {
+  removeAccount: async (accountId, opts) => {
     if (get().activeAccountId === accountId) {
-      await get().logout();
+      await get().logout(opts);
       return;
     }
     const accountStore = useAccountStore.getState();
@@ -873,7 +874,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     accountStore.removeAccount(accountId);
     await forgetAccountData(
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
-      { lastAccount: useAccountStore.getState().accounts.length === 0 },
+      { lastAccount: useAccountStore.getState().accounts.length === 0, discardQueuedSends: opts?.discardQueuedSends },
     ).catch((e) => console.warn('[sign-out] cleanup failed', e));
   },
 
