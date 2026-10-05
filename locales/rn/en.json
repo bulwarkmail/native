@@ -676,7 +676,9 @@
     }
   },
   "outbox": {
-    "sent": "Sent: {subject}"
+    "queued": "Will send when you're back online",
+    "sent": "Sent: {subject}",
+    "too_large": "This message is too large to send offline"
   },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",

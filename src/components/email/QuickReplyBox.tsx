@@ -10,6 +10,13 @@ import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
 import { useSendUndoStore } from '../../stores/send-undo-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
+import { useNetworkStore } from '../../stores/network-store';
+import { useAuthStore } from '../../stores/auth-store';
+import { useSendQueueStore, SendTooLargeToQueueError } from '../../stores/send-queue-store';
+import { buildQueuedSend, shouldQueueSend, attachmentsUploaded } from '../../lib/queue-send';
+import { generateUUID } from '../../lib/uuid';
+import { generateMessageId } from '../../lib/email-threading';
+import type { OutgoingEmail } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
 import { buildReplySubject } from '../../lib/subject-prefix';
@@ -100,9 +107,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         labels: quoteHeaderLabels(t),
       });
       const threading = computeReplyThreadingHeaders(email);
-      const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
-      const result = await sendEmail(
-        {
+      const outgoing: OutgoingEmail = {
           from: [{ name: identity.name, email: identity.email }],
           to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
           cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
@@ -115,7 +120,40 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           }),
           inReplyTo: threading?.inReplyTo,
           references: threading?.references,
-        },
+      };
+      // Offline at the moment of sending, before any request: queue it.
+      const ownerAppAccountId = useAuthStore.getState().activeAccountId;
+      const queueJmapAccountId = jmapAccountId ?? (jmapClient.isConnected ? jmapClient.accountId : '');
+      if (
+        !useNetworkStore.getState().online && ownerAppAccountId && queueJmapAccountId
+        && shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(outgoing) })
+      ) {
+        try {
+          outgoing.messageId = generateMessageId(identity.email);
+          await useSendQueueStore.getState().enqueue(buildQueuedSend({
+            id: generateUUID(),
+            appAccountId: ownerAppAccountId,
+            jmapAccountId: queueJmapAccountId,
+            identityId: identity.id,
+            outgoing,
+            replyTo: { emailIds: [email.id], keyword: '$answered' },
+          }));
+          setText('');
+          Keyboard.dismiss();
+          toast.info(t('outbox.queued', "Will send when you're back online"));
+        } catch (err) {
+          if (err instanceof SendTooLargeToQueueError) {
+            Alert.alert(t('common.error', 'Error'), t('outbox.too_large', 'This message is too large to send offline'));
+          } else {
+            const { title, message } = sendErrorAlert(err, t);
+            Alert.alert(title, message);
+          }
+        }
+        return;
+      }
+      const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
+      const result = await sendEmail(
+        outgoing,
         identity.id,
         sent.originalId ?? sent.id,
         holdFor,

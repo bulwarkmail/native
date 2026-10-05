@@ -55,6 +55,10 @@ import { sendErrorAlert } from '../lib/send-errors';
 import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
+import { useNetworkStore } from '../stores/network-store';
+import { useSendQueueStore, SendTooLargeToQueueError } from '../stores/send-queue-store';
+import { attachmentsUploaded, buildQueuedSend, shouldQueueSend } from '../lib/queue-send';
+import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { escapeHtml, stripDangerousTags } from '../lib/email-html';
 import {
@@ -2355,6 +2359,45 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (!ownerActiveNow()) {
       alertAccountSwitched();
       return;
+    }
+    // Offline at the moment of sending, before any request: queue it. An
+    // online send never takes this path, and a network error during one keeps
+    // the "Send failed" alert below (never auto-queue after a request).
+    if (!useNetworkStore.getState().online && owner) {
+      const queued = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
+      if (shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(queued) })) {
+        setSending(true);
+        try {
+          await useSendQueueStore.getState().enqueue(buildQueuedSend({
+            id: generateUUID(),
+            appAccountId: owner.appAccountId,
+            jmapAccountId: owner.jmapAccountId,
+            identityId: primaryIdentity.id,
+            outgoing: queued,
+            draftId: draftIdRef.current,
+            scheduledAt,
+            replyTo: replyTo?.originalEmailId
+              ? { emailIds: [replyTo.originalEmailId], keyword: mode === 'forward' ? '$forwarded' : '$answered' }
+              : undefined,
+          }));
+          toast.info(t('outbox.queued', "Will send when you're back online"));
+          allowLeaveRef.current = true;
+          navigation.goBack();
+        } catch (e) {
+          if (e instanceof SendTooLargeToQueueError) {
+            Alert.alert(
+              t('email_composer.send_failed', 'Send failed'),
+              t('outbox.too_large', 'This message is too large to send offline'),
+            );
+          } else {
+            const { title, message } = sendErrorAlert(e, t);
+            Alert.alert(title, message);
+          }
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
     }
     setSending(true);
     try {
