@@ -30,6 +30,9 @@ import {
   updateFilterAction,
   withMailboxTarget,
 } from '../../lib/sieve/rule-actions';
+import { applySuggestion } from '../../lib/filters/rule-suggestions';
+import { retroactiveSupport } from '../../lib/filters/retroactive';
+import type { RuleSuggestion } from '../../lib/filters/quick-rules';
 import type { Mailbox } from '../../api/types';
 import type {
   FilterRule,
@@ -57,25 +60,38 @@ function makeEmptyAction(): FilterAction {
 
 interface FilterRuleModalProps {
   visible: boolean;
+  /** Edit this rule in place. */
   rule?: FilterRule;
+  /** A starting point that saves as a new rule (ignored when `rule` is given). */
+  initialRule?: FilterRule;
+  /** One-tap conditions offered as chips. */
+  suggestions?: RuleSuggestion[];
+  /** Offer "also apply to existing messages". */
+  offerApplyToExisting?: boolean;
   mailboxes: Mailbox[];
-  onSave: (rule: FilterRule) => void;
+  onSave: (rule: FilterRule, options?: { applyToExisting: boolean }) => void;
   onClose: () => void;
 }
 
-export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: FilterRuleModalProps) {
+export function FilterRuleModal({
+  visible, rule, initialRule, suggestions, offerApplyToExisting, mailboxes, onSave, onClose,
+}: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const keywords = useKeywordsStore((s) => s.keywords);
   const isEdit = !!rule;
+  // An edit starts from `rule`; a prefill starts from `initialRule` and saves as a new rule.
+  const start = rule ?? initialRule;
 
-  const [name, setName] = useState(rule?.name || '');
-  const [matchType, setMatchType] = useState<'all' | 'any'>(rule?.matchType || 'all');
-  const [conditions, setConditions] = useState<FilterCondition[]>(() => seedConditions(rule));
-  const [actions, setActions] = useState<FilterAction[]>(() => seedActions(rule));
-  const [stopProcessing, setStopProcessing] = useState(rule?.stopProcessing ?? false);
-  const [includeSpam, setIncludeSpam] = useState(rule?.includeSpam ?? false);
+  const [name, setName] = useState(start?.name || '');
+  const [matchType, setMatchType] = useState<'all' | 'any'>(start?.matchType || 'all');
+  const [conditions, setConditions] = useState<FilterCondition[]>(() => seedConditions(start));
+  const [actions, setActions] = useState<FilterAction[]>(() => seedActions(start));
+  const [stopProcessing, setStopProcessing] = useState(start?.stopProcessing ?? false);
+  const [includeSpam, setIncludeSpam] = useState(start?.includeSpam ?? false);
+  const [usedSuggestions, setUsedSuggestions] = useState<ReadonlySet<string>>(new Set());
+  const [applyToExisting, setApplyToExisting] = useState(false);
 
   // The Modal stays mounted between opens, so re-seed every field whenever it
   // is (re)opened for a different rule - otherwise "Add Rule" after editing
@@ -83,13 +99,15 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
   // B's id. Mirrors SieveEditorSheet, which re-seeds on `visible`.
   useEffect(() => {
     if (!visible) return;
-    setName(rule?.name || '');
-    setMatchType(rule?.matchType || 'all');
-    setConditions(seedConditions(rule));
-    setActions(seedActions(rule));
-    setStopProcessing(rule?.stopProcessing ?? false);
-    setIncludeSpam(rule?.includeSpam ?? false);
-  }, [visible, rule]);
+    setName(start?.name || '');
+    setMatchType(start?.matchType || 'all');
+    setConditions(seedConditions(start));
+    setActions(seedActions(start));
+    setStopProcessing(start?.stopProcessing ?? false);
+    setIncludeSpam(start?.includeSpam ?? false);
+    setUsedSuggestions(new Set());
+    setApplyToExisting(false);
+  }, [visible, start]);
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
 
@@ -162,6 +180,24 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
     setActions((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Old mail can only be sorted by what the client can check the way Sieve
+  // does. Until an action is complete, only the conditions decide.
+  const canApplyToExisting = useMemo(() => {
+    if (!offerApplyToExisting) return false;
+    const done = actions
+      .map((a) => withMailboxTarget(a, mailboxTargets))
+      .filter((a) => !ACTIONS_WITH_VALUE.has(a.type) || a.value?.trim());
+    const checkActions: FilterAction[] = done.length > 0 ? done : [{ type: 'mark_read' }];
+    return retroactiveSupport({ conditions: conditionsToSave(conditions), actions: checkActions }).ok;
+  }, [offerApplyToExisting, conditions, actions, mailboxTargets]);
+
+  const visibleSuggestions = (suggestions ?? []).filter((s) => !usedSuggestions.has(s.id));
+
+  const chooseSuggestion = (suggestion: RuleSuggestion) => {
+    setConditions((prev) => applySuggestion({ conditions: prev }, suggestion).conditions);
+    setUsedSuggestions((prev) => new Set(prev).add(suggestion.id));
+  };
+
   const handleSave = useCallback(() => {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -185,9 +221,9 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       return;
     }
     onSave({
-      id: rule?.id || generateUUID(),
+      id: rule?.id || initialRule?.id || generateUUID(),
       name: trimmedName,
-      enabled: rule?.enabled ?? true,
+      enabled: start?.enabled ?? true,
       matchType,
       conditions: validConditions,
       actions: validActions,
@@ -195,8 +231,8 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
       // Only folder moves are kept out of Junk, so the opt-in only means
       // something (and is only stored) while the rule has one.
       ...(includeSpam && validActions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) ? { includeSpam: true } : {}),
-    });
-  }, [name, conditions, actions, matchType, stopProcessing, includeSpam, rule, onSave, t, mailboxTargets]);
+    }, { applyToExisting: applyToExisting && canApplyToExisting });
+  }, [name, conditions, actions, matchType, stopProcessing, includeSpam, rule, initialRule, start, onSave, t, mailboxTargets, applyToExisting, canApplyToExisting]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -259,6 +295,26 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
             {/* Conditions */}
             <View>
               <Text style={styles.label}>{t('settings.filters.conditions', 'Conditions')}</Text>
+              {visibleSuggestions.length > 0 && (
+                <View
+                  style={styles.chipRow}
+                  accessibilityRole="toolbar"
+                  accessibilityLabel={t('settings.filters.suggestions', 'Suggestions')}
+                >
+                  {visibleSuggestions.map((suggestion) => (
+                    <Pressable
+                      key={suggestion.id}
+                      onPress={() => chooseSuggestion(suggestion)}
+                      style={styles.chip}
+                      accessibilityRole="button"
+                      accessibilityLabel={suggestion.label}
+                    >
+                      <Plus size={12} color={c.primary} />
+                      <Text style={styles.chipText} numberOfLines={1}>{suggestion.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
               <View style={{ gap: spacing.sm }}>
                 {conditions.map((condition, index) => (
                   <View key={index} style={styles.card}>
@@ -452,6 +508,30 @@ export function FilterRuleModal({ visible, rule, mailboxes, onSave, onClose }: F
                 />
               </View>
             )}
+
+            {offerApplyToExisting && (
+              <View>
+                <View style={styles.stopRow}>
+                  <Text style={canApplyToExisting ? styles.stopLabel : [styles.stopLabel, { color: c.mutedForeground }]}>
+                    {t('settings.filters.apply_existing', 'Also apply to existing messages in this folder')}
+                  </Text>
+                  <ToggleSwitch
+                    checked={applyToExisting && canApplyToExisting}
+                    onChange={setApplyToExisting}
+                    disabled={!canApplyToExisting}
+                    accessibilityLabel={t('settings.filters.apply_existing', 'Also apply to existing messages in this folder')}
+                  />
+                </View>
+                {!canApplyToExisting && (
+                  <Text style={styles.hint}>
+                    {t(
+                      'settings.filters.apply_existing_unsupported',
+                      'Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.',
+                    )}
+                  </Text>
+                )}
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -523,6 +603,15 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.md,
     },
     stopLabel: { ...typography.body, color: c.text, flex: 1 },
+
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+    chip: {
+      flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%',
+      paddingHorizontal: spacing.md, paddingVertical: 6,
+      borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.muted,
+    },
+    chipText: { ...typography.caption, color: c.text, flexShrink: 1 },
+    hint: { ...typography.caption, color: c.mutedForeground, marginTop: spacing.xs },
 
     optionRow: {
       flexDirection: 'row',

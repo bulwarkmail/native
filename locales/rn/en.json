@@ -882,6 +882,8 @@
       "title": "Experimental Feature"
     },
     "filters": {
+      "apply_existing": "Also apply to existing messages in this folder",
+      "apply_existing_unsupported": "Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.",
       "comparators": {
         "address_is": "is the address",
         "domain_is": "has the domain"
@@ -910,7 +912,8 @@
       "suggest_domain": "@{domain}",
       "suggest_list": "List-Id",
       "suggest_subject": "Subject “{subject}”",
-      "suggest_to": "To {address}"
+      "suggest_to": "To {address}",
+      "suggestions": "Suggestions"
     },
     "folders": {
       "account": "Account",
