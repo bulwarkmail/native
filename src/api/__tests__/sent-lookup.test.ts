@@ -16,18 +16,25 @@ const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRequest.mockReset();
 });
 
-/** A lookup response: the query ids (and total) and the fetched records. */
-function lookupResponse(ids: string[], list: Array<Record<string, unknown>>, total: number | null = ids.length) {
+/** One lookup page: the query ids and the fetched records. */
+function lookupResponse(ids: string[], list: Array<Record<string, unknown>>) {
   return {
     methodResponses: [
-      ['Email/query', total === null ? { ids } : { ids, total }, 'q'],
+      ['Email/query', { ids }, 'q'],
       ['Email/get', { list }, 'g'],
     ],
   };
 }
+/** A full page of 200 unrelated messages, ids prefixed with `p`. */
+function unrelatedPage(p: string) {
+  const ids = Array.from({ length: 200 }, (_, i) => `${p}-${i}`);
+  return lookupResponse(ids, ids.map((id) => ({ id, messageId: [`${id}@other.test`], keywords: {}, mailboxIds: { inbox: true } })));
+}
 const SINCE = '2026-09-27T09:50:00.000Z';
+const queries = () => mockRequest.mock.calls.map((c) => (c[0] as Array<[string, Record<string, unknown>, string]>)[0][1]);
 
 describe('findCopiesByMessageId', () => {
   it('queries the whole account since the given time and compares Message-ID client-side (request shape)', async () => {
@@ -46,8 +53,8 @@ describe('findCopiesByMessageId', () => {
         accountId: 'shared-1',
         filter: { after: SINCE },
         sort: [{ property: 'receivedAt', isAscending: false }],
+        position: 0,
         limit: 200,
-        calculateTotal: true,
       }, 'q'],
       ['Email/get', {
         accountId: 'shared-1',
@@ -62,21 +69,36 @@ describe('findCopiesByMessageId', () => {
     expect(result.copies.map((c) => c.id)).toEqual(['e1', 'e3']);
   });
 
-  it('reports an incomplete lookup when the total exceeds the ids read', async () => {
-    mockRequest.mockResolvedValueOnce(lookupResponse(['e1'], [
-      { id: 'e1', messageId: ['x@y'], keywords: {}, mailboxIds: { sent: true } },
-    ], 5000));
+  it('pages newest first and stops on the page with a match (page 3)', async () => {
+    // Make page 3 full so only the match (not exhaustion) can stop the search.
+    const page3Ids = ['hit', ...Array.from({ length: 199 }, (_, i) => `p3-${i}`)];
+    mockRequest
+      .mockResolvedValueOnce(unrelatedPage('p1'))
+      .mockResolvedValueOnce(unrelatedPage('p2'))
+      .mockResolvedValueOnce(lookupResponse(page3Ids, [{ id: 'hit', messageId: ['mid-1@x.test'], keywords: {}, mailboxIds: { sent: true } }]))
+      .mockResolvedValue(unrelatedPage('more'));
+
     const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
-    expect(result.complete).toBe(false);
-    expect(result.copies).toEqual([]);
+
+    expect(result.copies.map((c) => c.id)).toEqual(['hit']);
+    expect(queries().map((q) => q.position)).toEqual([0, 200, 400]);
   });
 
-  it('without a total, only a short page counts as complete', async () => {
-    const ids = Array.from({ length: 200 }, (_, i) => `e${i}`);
-    mockRequest.mockResolvedValueOnce(lookupResponse(ids, [], null));
-    expect((await findCopiesByMessageId('m@x', { accountId: 'a', since: SINCE })).complete).toBe(false);
-    mockRequest.mockResolvedValueOnce(lookupResponse(['e1'], [], null));
-    expect((await findCopiesByMessageId('m@x', { accountId: 'a', since: SINCE })).complete).toBe(true);
+  it('stops when the window is exhausted', async () => {
+    mockRequest
+      .mockResolvedValueOnce(unrelatedPage('p1'))
+      .mockResolvedValueOnce(lookupResponse(['last'], [{ id: 'last', messageId: ['no@x'], keywords: {}, mailboxIds: {} }]));
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ copies: [], complete: true });
+  });
+
+  it('stops after 2000 messages (10 queries) without a match and reports it incomplete', async () => {
+    mockRequest.mockImplementation(async () => unrelatedPage(`p${mockRequest.mock.calls.length}`));
+    const result = await findCopiesByMessageId('mid-1@x.test', { accountId: 'a', since: SINCE });
+    expect(mockRequest).toHaveBeenCalledTimes(10);
+    expect(queries().map((q) => q.position)).toEqual([0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800]);
+    expect(result).toEqual({ copies: [], complete: false });
   });
 
   it('throws when the server answers a method with an error', async () => {

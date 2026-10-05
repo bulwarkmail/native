@@ -6,8 +6,11 @@ import { jmapClient } from './jmap-client';
 import { requireMethodResult } from './jmap-result';
 import { CAPABILITIES } from './types';
 
-/** Messages the lookup reads; more matches of the time filter make the result incomplete. */
-export const COPY_LOOKUP_LIMIT = 200;
+/** Messages per lookup page. */
+export const COPY_LOOKUP_PAGE = 200;
+/** Messages the lookup reads at most (10 pages) before giving up without a match. */
+export const COPY_LOOKUP_MAX = 2000;
+const COPY_PROPERTIES = ['id', 'messageId', 'keywords', 'mailboxIds'];
 
 /** Message-ID values longer than this are never compared (RFC 5322 line limit). */
 const MAX_MESSAGE_ID_LENGTH = 998;
@@ -21,7 +24,7 @@ export interface EmailCopy {
 
 export interface CopyLookup {
   copies: EmailCopy[];
-  /** False when a mailbox had more recent mail than was read: a copy may have been missed. */
+  /** False when the lookup gave up at its cap without a match: a copy may have been missed. */
   complete: boolean;
 }
 
@@ -34,6 +37,15 @@ function bareMessageId(value: unknown): string | null {
   return s.trim();
 }
 
+function toCopy(id: string, record: Record<string, unknown>): EmailCopy {
+  return {
+    id,
+    messageId: record.messageId as string[],
+    keywords: (record.keywords as Record<string, boolean> | null) ?? {},
+    mailboxIds: (record.mailboxIds as Record<string, boolean> | null) ?? {},
+  };
+}
+
 /** True when one of the copy's Message-ID values equals `target` exactly. */
 export function hasMessageId(copy: { messageId?: unknown }, target: string): boolean {
   const wanted = bareMessageId(target);
@@ -44,49 +56,45 @@ export function hasMessageId(copy: { messageId?: unknown }, target: string): boo
 /**
  * Messages anywhere in the account received after `since` whose Message-ID is
  * `messageId`. The JMAP `header` filter is not used (Stalwart 0.16 does not
- * match it): the account is queried by time, newest first, up to
- * {@link COPY_LOOKUP_LIMIT}, with `calculateTotal`, and Message-IDs are
- * compared here. `complete` is false when the server holds more matches of
- * the time filter than were read. Throws when the request or a method fails.
+ * match it): the account is paged newest first by `receivedAt`,
+ * {@link COPY_LOOKUP_PAGE} at a time, and Message-IDs are compared here, page
+ * by page. Paging stops at the first page holding a match, when the window
+ * is exhausted, or after {@link COPY_LOOKUP_MAX} messages. `complete` is
+ * false only when the cap stopped it. Throws when a request or method fails.
  */
 export async function findCopiesByMessageId(
   messageId: string,
   { accountId, since }: { accountId: string; since: string },
 ): Promise<CopyLookup> {
-  const res = await jmapClient.request([
-    ['Email/query', {
-      accountId,
-      filter: { after: since },
-      sort: [{ property: 'receivedAt', isAscending: false }],
-      limit: COPY_LOOKUP_LIMIT,
-      calculateTotal: true,
-    }, 'q'],
-    ['Email/get', {
-      accountId,
-      '#ids': { resultOf: 'q', name: 'Email/query', path: '/ids' },
-      properties: ['id', 'messageId', 'keywords', 'mailboxIds'],
-    }, 'g'],
-  ]);
-  const query = requireMethodResult(res, 'q', 'Email/query');
-  const ids = (query.ids as string[] | undefined) ?? [];
-  const list = (requireMethodResult(res, 'g', 'Email/get').list as Array<Record<string, unknown>> | undefined) ?? [];
-  // Without a total, only a short page proves nothing was left out.
-  const complete = typeof query.total === 'number' ? query.total <= ids.length : ids.length < COPY_LOOKUP_LIMIT;
-
   const seen = new Set<string>();
   const copies: EmailCopy[] = [];
-  for (const record of list) {
-    const id = record.id;
-    if (typeof id !== 'string' || seen.has(id) || !hasMessageId(record, messageId)) continue;
-    seen.add(id);
-    copies.push({
-      id,
-      messageId: record.messageId as string[],
-      keywords: (record.keywords as Record<string, boolean> | null) ?? {},
-      mailboxIds: (record.mailboxIds as Record<string, boolean> | null) ?? {},
-    });
+  for (let position = 0; position < COPY_LOOKUP_MAX; position += COPY_LOOKUP_PAGE) {
+    const res = await jmapClient.request([
+      ['Email/query', {
+        accountId,
+        filter: { after: since },
+        sort: [{ property: 'receivedAt', isAscending: false }],
+        position,
+        limit: COPY_LOOKUP_PAGE,
+      }, 'q'],
+      ['Email/get', {
+        accountId,
+        '#ids': { resultOf: 'q', name: 'Email/query', path: '/ids' },
+        properties: COPY_PROPERTIES,
+      }, 'g'],
+    ]);
+    const ids = (requireMethodResult(res, 'q', 'Email/query').ids as string[] | undefined) ?? [];
+    const list = (requireMethodResult(res, 'g', 'Email/get').list as Array<Record<string, unknown>> | undefined) ?? [];
+    for (const record of list) {
+      const id = record.id;
+      // A message arriving between pages shifts the window: dedupe by id.
+      if (typeof id !== 'string' || seen.has(id) || !hasMessageId(record, messageId)) continue;
+      seen.add(id);
+      copies.push(toCopy(id, record));
+    }
+    if (copies.length > 0 || ids.length < COPY_LOOKUP_PAGE) return { copies, complete: true };
   }
-  return { copies, complete };
+  return { copies, complete: false };
 }
 
 /** The account's Sent and Drafts mailboxes by role (raw ids, as the server knows them). */

@@ -15,6 +15,7 @@ vi.mock('../../api/jmap-client', () => {
       isConnected: true,
       accountId: 'jA',
       getSubmissionAccountIds: vi.fn(() => ['jA']),
+      request: vi.fn(),
     },
   };
 });
@@ -55,7 +56,7 @@ const mockSubs = findSubmissionsForEmails as unknown as ReturnType<typeof vi.fn>
 const mockBoxes = resolveSendMailboxes as unknown as ReturnType<typeof vi.fn>;
 const mockActive = activeAppAccountId as unknown as ReturnType<typeof vi.fn>;
 const mockServes = clientServesActiveAccount as unknown as ReturnType<typeof vi.fn>;
-const client = jmapClient as unknown as { isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn> };
+const client = jmapClient as unknown as { isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn>; request: ReturnType<typeof vi.fn> };
 
 const HOUR_AGO = () => new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const OK = { scheduled: false, emailId: 'sent-1', emailSubmissionId: 'sub-1' };
@@ -146,6 +147,48 @@ describe('flushSendQueue: reconciling an unknown outcome', () => {
     await flushSendQueue();
     expect(mockSend).not.toHaveBeenCalled();
     expect(entries()).toEqual([]);
+  });
+
+  describe('through the real paged lookup', () => {
+    const page = (ids: string[], list: Array<Record<string, unknown>>) => ({
+      methodResponses: [['Email/query', { ids }, 'q'], ['Email/get', { list }, 'g']],
+    });
+    const unrelated = (p: string) => {
+      const ids = Array.from({ length: 200 }, (_, i) => `${p}-${i}`);
+      return page(ids, ids.map((id) => ({ id, messageId: [`${id}@other.test`], keywords: {}, mailboxIds: { inbox: true } })));
+    };
+    const emailQueries = () => client.request.mock.calls.filter((c) => c[0][0][0] === 'Email/query');
+
+    beforeEach(async () => {
+      client.request.mockReset();
+      const actual = await vi.importActual<typeof import('../../api/sent-lookup')>('../../api/sent-lookup');
+      mockFind.mockImplementation(actual.findCopiesByMessageId);
+    });
+
+    it('proof found on page 3 completes the entry', async () => {
+      await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+      const page3 = ['hit', ...Array.from({ length: 199 }, (_, i) => `p3-${i}`)];
+      client.request
+        .mockResolvedValueOnce(unrelated('p1'))
+        .mockResolvedValueOnce(unrelated('p2'))
+        .mockResolvedValueOnce(page(page3, [
+          { id: 'hit', messageId: ['mid-1@a.test'], from: [{ email: 'me@a.test' }], keywords: { $seen: true }, mailboxIds: { 'm-sent': true } },
+        ]))
+        .mockResolvedValue(unrelated('more'));
+      await flushSendQueue();
+      expect(emailQueries()).toHaveLength(3);
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(entries()).toEqual([]);
+    });
+
+    it('the cap is reached without a match: uncertain after exactly 10 queries', async () => {
+      await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+      client.request.mockImplementation(async () => unrelated(`p${client.request.mock.calls.length}`));
+      await flushSendQueue();
+      expect(emailQueries()).toHaveLength(10);
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(stateOf('q1')).toBe('uncertain');
+    });
   });
 
   it('a $draft-only copy in Drafts stays uncertain: no destroy, no send', async () => {
@@ -368,6 +411,12 @@ describe('flushSendQueue: sending queued entries', () => {
     const [recipients, refused] = (trustRecipients as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(recipients.map((r: { email: string }) => r.email)).toEqual(['you@x.test', 'cc@x.test']);
     expect(refused).toEqual([{ email: 'cc@x.test', smtpReply: '550' }]);
+  });
+
+  it('flags the original in its own account when replyTo carries one', async () => {
+    await seed(entry({ replyTo: { emailIds: ['orig-1'], keyword: '$answered', jmapAccountId: 'jShared' } }));
+    await flushSendQueue();
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['orig-1'], { $answered: true }, 'jShared');
   });
 
   it('does not trust recipients of a forward', async () => {

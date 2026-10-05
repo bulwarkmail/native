@@ -120,7 +120,8 @@ function postSendEffects(entry: QueuedSend, refused: RejectedRecipient[] | undef
   try {
     const reply = entry.replyTo;
     if (reply?.emailIds?.length && ownerActive) {
-      void patchKeywordsForEmails(reply.emailIds, { [reply.keyword]: true }, entry.jmapAccountId)
+      // The original may sit in another account (a shared folder) than the send.
+      void patchKeywordsForEmails(reply.emailIds, { [reply.keyword]: true }, reply.jmapAccountId ?? entry.jmapAccountId)
         .catch((err) => console.warn('[send-queue] reply flag failed:', err));
     }
   } catch (err) {
