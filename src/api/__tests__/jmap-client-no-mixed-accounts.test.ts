@@ -13,7 +13,8 @@ vi.mock('expo-file-system', () => ({ File: class {} }));
 import { JMAPClient, StaleLoadError, jmapClient } from '../jmap-client';
 import {
   archiveEmails, cancelScheduledSend, createMailbox, deleteMailbox, destroyEmails, emptyMailbox, getEmails,
-  markMailboxAsRead, moveEmails, queryEmails, rescheduleScheduledSend, restoreEmailToDraft, sendEmail, updateMailbox,
+  markMailboxAsRead, moveEmails, queryEmails, rescheduleScheduledSend, restoreEmailToDraft, sendEmail, sendReadReceipt,
+  updateMailbox,
 } from '../email';
 import { uploadBytes } from '../blob';
 import { opScope } from '../op-scope';
@@ -510,6 +511,9 @@ describe('an operation stays on the connection it started on (R15)', () => {
     ['restore an undone send to Drafts', (at: ReturnType<typeof opScope>) => restoreEmailToDraft('m1', 'drafts', 'sent', at)],
     ['query the archive (reorganise)', (at: ReturnType<typeof opScope>) => queryEmails('archive', { limit: 100 }, at)],
     ['read archived messages (reorganise)', (at: ReturnType<typeof opScope>) => getEmails(['m1'], at)],
+    ['send a read receipt', (at: ReturnType<typeof opScope>) => sendReadReceipt({
+      to: 'x@example.com', fromEmail: 'alice@a.example.com', identityId: 'i1', sentMailboxId: 'sent', accountId: at,
+    })],
   ])('%s, bound to A at the tap, sends nothing to B after a switch', async (_name, act) => {
     await bothOnC(async (c) => setOk(c));
     const at = opScope();

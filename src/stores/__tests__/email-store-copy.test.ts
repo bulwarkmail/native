@@ -104,7 +104,7 @@ vi.mock('../../api/blob', () => ({
 }));
 
 vi.mock('../toast-store', () => ({
-  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
 import * as emailApi from '../../api/email';
@@ -390,6 +390,30 @@ describe('a move between accounts stays on one connection', () => {
     expect(uploadBytes).toHaveBeenCalledWith(expect.any(Uint8Array), 'message/rfc822', { gen: 7, accountId: 'grp-1' });
     expect(mockImport).toHaveBeenCalledWith('uploaded-blob', 'x', expect.anything(), { gen: 7, accountId: 'grp-1' }, ROW.receivedAt);
     expect(mockDestroy).toHaveBeenCalledWith(['e1'], { gen: 7, accountId: 'acc-1' });
+  });
+
+  // R16: a switch (or a reload) between the import and the removal of the
+  // original stops the move unsent, which the caller drops silently.
+  const stale = () => Object.assign(new Error('Superseded'), { name: 'StaleLoadError' });
+  const MAY_REMAIN = 'The moved copy may also remain in the original folder.';
+
+  it('says the message may be in both places when it stops after the import', async () => {
+    mockImport.mockResolvedValue('imported-1');
+    mockDestroy.mockRejectedValueOnce(stale());
+    await expect(useEmailStore.getState().moveToMailbox('e1', 'a', 'grp-1:x')).rejects.toThrow('Superseded');
+    expect(toast.warning).toHaveBeenCalledWith(MAY_REMAIN);
+  });
+
+  it('says nothing when it stops before anything was imported', async () => {
+    mockImport.mockRejectedValueOnce(stale());
+    await expect(useEmailStore.getState().moveToMailbox('e1', 'a', 'grp-1:x')).rejects.toThrow('Superseded');
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it('says nothing for a copy, which keeps the original anyway', async () => {
+    mockImport.mockRejectedValueOnce(stale());
+    await expect(useEmailStore.getState().copyToMailbox('e1', 'grp-1:x')).rejects.toThrow('Superseded');
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });
 

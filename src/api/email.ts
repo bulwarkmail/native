@@ -1654,7 +1654,7 @@ export interface SendEmailOptions {
   /** Previous draft version to destroy once the submission succeeded (#849). */
   draftId?: string;
   /** Submitting account (shared/group account); defaults to the primary. */
-  accountId?: string;
+  accountId?: AccountRef;
 }
 
 export async function sendEmail(
@@ -2145,7 +2145,7 @@ export interface SendReadReceiptOptions extends MdnOptions {
   /** Where the sent receipt is filed. */
   sentMailboxId: string;
   /** Submitting account (shared/group account); defaults to the primary. */
-  accountId?: string;
+  accountId?: AccountRef;
 }
 
 /**

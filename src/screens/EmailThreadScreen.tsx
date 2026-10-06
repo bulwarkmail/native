@@ -795,6 +795,7 @@ function EmailViewer({ route, navigation }: Props) {
                   threadSizeHint={!disableThreading ? threadSizeOf(item) : undefined}
                   threading={!disableThreading}
                   jmapAccountId={ownerAccountId}
+                  appAccountId={viewerAppAccountId}
                   currentMailboxRole={currentMailboxRole}
                   identities={identities}
                   themeOverrides={themeOverrides}
@@ -963,6 +964,8 @@ interface EmailPaneProps {
   threadSizeHint?: number;
   threading: boolean;
   jmapAccountId?: string;
+  /** The app account the viewer shows mail of. */
+  appAccountId?: string;
   currentMailboxRole: string | null;
   identities: Identity[];
   themeOverrides: Record<string, 'light' | 'dark'>;
@@ -987,7 +990,7 @@ interface EmailPaneProps {
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
   id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
-  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
+  threading, jmapAccountId, appAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
   ensureThread, scheduleMarkRead, styles, bottomBarHeight, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
@@ -1146,6 +1149,7 @@ function EmailPane({
               onToggleExpanded={() => toggleCard(m.id)}
               onReply={onReply}
               jmapAccountId={jmapAccountId}
+              appAccountId={appAccountId}
               identities={identities}
               currentMailboxRole={currentMailboxRole}
               active={active}

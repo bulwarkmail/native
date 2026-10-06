@@ -9,6 +9,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
 import { useSendUndoStore } from '../../stores/send-undo-store';
+import { opScope } from '../../api/op-scope';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { useNetworkStore } from '../../stores/network-store';
 import { useAuthStore } from '../../stores/auth-store';
@@ -223,12 +224,16 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         return;
       }
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
+      // The send and the `$answered` flag after it on one connection: the
+      // owner's, checked active just above. Flagged after a switch, the
+      // replied-to id would name the other account's message.
+      const at = opScope(jmapAccountId);
       const result = await sendEmail(
         outgoing,
         identity.id,
         sent.originalId ?? sent.id,
         holdFor,
-        { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
+        { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: at },
       );
       // Held for the undo-send delay: the undo bar offers Undo / Send now.
       // Recorded before the flag below so its round trip doesn't eat the window.
@@ -239,7 +244,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         from: [{ name: identity.name, email: identity.email }],
       });
       try {
-        await patchKeywordsForEmails([email.id], { $answered: true }, jmapAccountId);
+        await patchKeywordsForEmails([email.id], { $answered: true }, at);
       } catch { /* the reply is out; the flag is cosmetic */ }
       onSent?.({ ...email, keywords: { ...email.keywords, $answered: true } });
       setText('');

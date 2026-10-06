@@ -57,6 +57,7 @@ import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
 import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from './outbox-store';
 import { useTagCountsStore } from './tag-counts-store';
+import { toast } from './toast-store';
 
 // ── Refresh coalescing ─────────────────────────────────────────────────
 // Push events, mount effects and post-action follow-ups all call
@@ -2395,15 +2396,31 @@ async function crossAccountMove(
   const source = inAccount(at, from.accountId);
   const dest = inAccount(at, to.accountId);
   const { uploadBytes } = await import('../api/blob');
-  for (const e of targets) {
-    const full = e.blobId ? e : await getFullEmail(e.id, source);
-    if (!full.blobId) throw new Error('Message has no blob');
-    const bytes = await jmapClient.fetchBlobArrayBuffer(full.blobId, undefined, 'message/rfc822', source.accountId, source.gen);
-    const { blobId } = await uploadBytes(new Uint8Array(bytes), 'message/rfc822', dest);
-    const keywords: Record<string, boolean> = {};
-    for (const [k, v] of Object.entries(e.keywords ?? {})) if (v) keywords[k] = true;
-    await importEmailBlob(blobId, to.id, keywords, dest, e.receivedAt);
-    if (!keepOriginal) await apiDestroyEmails([e.id], source);
+  // A message imported into the destination whose original is not removed yet.
+  let imported = false;
+  try {
+    for (const e of targets) {
+      const full = e.blobId ? e : await getFullEmail(e.id, source);
+      if (!full.blobId) throw new Error('Message has no blob');
+      const bytes = await jmapClient.fetchBlobArrayBuffer(full.blobId, undefined, 'message/rfc822', source.accountId, source.gen);
+      const { blobId } = await uploadBytes(new Uint8Array(bytes), 'message/rfc822', dest);
+      const keywords: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(e.keywords ?? {})) if (v) keywords[k] = true;
+      await importEmailBlob(blobId, to.id, keywords, dest, e.receivedAt);
+      if (!keepOriginal) {
+        imported = true;
+        await apiDestroyEmails([e.id], source);
+        imported = false;
+      }
+    }
+  } catch (err) {
+    // Stopped by a switch (or a reload) between the import and the removal of
+    // the original: the message is now in both places. The caller drops a
+    // stale stop silently, so say so here.
+    if (imported && isStaleLoad(err)) {
+      toast.warning(t('email_list.cross_account_move_interrupted', 'The moved copy may also remain in the original folder.'));
+    }
+    throw err;
   }
 }
 
