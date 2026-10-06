@@ -72,6 +72,11 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
       down: false,
       log: [] as unknown[],
       session: SYNC_SESSION,
+      // The filter the server holds (null: none) and what the account's own
+      // client sees as folders.
+      emailPush: null as unknown,
+      mailboxes: [{ id: 'bob-inbox', role: 'inbox' }, { id: 'bob-junk', role: 'junk' }] as unknown[],
+      failEmailPushWrite: false,
     },
   };
 });
@@ -87,6 +92,12 @@ vi.mock('../../api/jmap-client', () => ({
     get currentSession() {
       return DETACHED.session;
     }
+    get accountId() {
+      return 'bob-jmap';
+    }
+    getSharedMailAccounts() {
+      return [];
+    }
     async loadAccount(id: string) {
       DETACHED.log.push(['load', id]);
       return DETACHED.loaded;
@@ -95,8 +106,14 @@ vi.mock('../../api/jmap-client', () => ({
       const [name, args, id] = calls[0];
       DETACHED.log.push([name, args]);
       if (DETACHED.down) throw new Error('server unreachable');
+      if (name === 'Mailbox/get') {
+        return { methodResponses: [[name, { list: DETACHED.mailboxes }, id]] };
+      }
+      if (name === 'PushSubscription/set' && DETACHED.failEmailPushWrite && 'emailPush' in (Object.values(args.update)[0] as object)) {
+        return { methodResponses: [['error', { type: 'forbidden' }, id]] };
+      }
       if (name === 'PushSubscription/get') {
-        const list = DETACHED.gone ? [] : [{ id: args.ids[0], types: DETACHED.types, expires: DETACHED.expires }];
+        const list = DETACHED.gone ? [] : [{ id: args.ids[0], types: DETACHED.types, expires: DETACHED.expires, emailPush: DETACHED.emailPush }];
         return {
           methodResponses: [[name, { list }, id]],
         };
@@ -141,6 +158,7 @@ import {
   revokePushDevice,
   teardownPushNotificationsForAccount,
 } from '../push-notifications';
+import { getMailboxes } from '../../api/email';
 import {
   listPushSubscriptions,
   createPushSubscription,
@@ -969,9 +987,13 @@ describe('renewDetachedPushSubscription', () => {
     DETACHED.down = false;
     DETACHED.gone = false;
     DETACHED.granted = null;
+    DETACHED.session = SYNC_SESSION;
+    DETACHED.emailPush = null;
+    DETACHED.failEmailPushWrite = false;
   });
 
   afterEach(() => {
+    DETACHED.session = SYNC_SESSION;
     DETACHED.expires = null;
     DETACHED.granted = null;
     DETACHED.gone = false;
@@ -1033,6 +1055,76 @@ describe('renewDetachedPushSubscription', () => {
     DETACHED.gone = true;
     expect(await renewDetachedPushSubscription(OTHER)).toBe('fine');
     expect(DETACHED.log.map((entry) => (entry as unknown[])[0])).toEqual(['load', 'PushSubscription/get']);
+  });
+
+  describe('the email filter', () => {
+    const withEmailPush = {
+      capabilities: { ...SYNC_SESSION.capabilities, 'urn:ietf:params:jmap:emailpush': {} },
+    };
+    const filterOf = (conditions: unknown[]) => ({
+      'bob-jmap': {
+        filter: { operator: 'AND', conditions },
+        properties: ['id', 'threadId'],
+        urgency: 'high',
+      },
+    });
+    const sets = () =>
+      DETACHED.log.filter((e) => (e as unknown[])[0] === 'PushSubscription/set') as Array<
+        [string, { update: Record<string, Record<string, unknown>> }]
+      >;
+
+    beforeEach(() => {
+      DETACHED.session = withEmailPush as typeof SYNC_SESSION;
+      DETACHED.expires = new Date(Date.now() + 2 * DAY).toISOString();
+    });
+
+    it('detached renewal rewrites a changed filter', async () => {
+      DETACHED.emailPush = filterOf([{ notKeyword: '$junk' }, { inMailboxOtherThan: ['bob-junk'] }]);
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(sets()).toHaveLength(1);
+      const patch = sets()[0][1].update['bob-sub'];
+      expect(Object.keys(patch).sort()).toEqual(['emailPush', 'expires']);
+      expect(patch.emailPush).toEqual(filterOf([{ notKeyword: '$junk' }, { inMailbox: 'bob-inbox' }]));
+    });
+
+    it('writes only the expiry when the filter is unchanged', async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.emailPush = filterOf([{ notKeyword: '$junk' }, { inMailbox: 'bob-inbox' }]);
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(Object.keys(sets()[0][1].update['bob-sub'])).toEqual(['expires']);
+    });
+
+    it('rewrites a changed filter even with time to spare', async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.expires = new Date(Date.now() + 30 * DAY).toISOString();
+      DETACHED.emailPush = filterOf([{ notKeyword: '$junk' }, { inMailboxOtherThan: ['bob-junk'] }]);
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(sets()).toHaveLength(1);
+    });
+
+    it('keeps the never-matching rule for an account with no visible Inbox', async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.mailboxes = [{ id: 'bob-junk', role: 'junk' }];
+      // Its own primary account must have an Inbox: failing to see it is a
+      // load failure, so the expiry is renewed and the filter left alone.
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(Object.keys(sets()[0][1].update['bob-sub'])).toEqual(['expires']);
+      DETACHED.mailboxes = [{ id: 'bob-inbox', role: 'inbox' }, { id: 'bob-junk', role: 'junk' }];
+    });
+
+    it('still renews the expiry when the server refuses the filter', async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.failEmailPushWrite = true;
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(sets().map((s) => Object.keys(s[1].update['bob-sub']))).toEqual([['expires', 'emailPush'], ['expires']]);
+    });
+
+    it("never reads the active account's folders", async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      await renewDetachedPushSubscription(OTHER);
+      expect(getMailboxes).not.toHaveBeenCalled();
+    });
   });
 
   it('swallows a server it cannot reach', async () => {
