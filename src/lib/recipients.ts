@@ -4,7 +4,7 @@
 // splitPastedRecipients, expandRecipients). All DOM-free.
 
 import { splitMailbox } from './rfc5322-mailbox';
-import { toAsciiEmail } from './idn';
+import { isValidEmail, parseMailtoUrl as parseSharedMailtoUrl } from './mailto';
 
 /**
  * A composer recipient. Display name is optional; email is required - except
@@ -18,38 +18,7 @@ export interface Recipient {
   group?: { members: Array<{ name?: string; email: string }> };
 }
 
-/**
- * RFC 5322 compliant email validation with security enhancements.
- */
-export function isValidEmail(input: string): boolean {
-  // An internationalized domain is checked in its ASCII (punycode) form, the
-  // form it is sent and stored in.
-  const email = toAsciiEmail(input);
-
-  // Length check
-  if (!email || email.length > 254) return false;
-
-  // Security: Block control characters and header injection
-  if (/[\r\n\0<>]/.test(email)) return false;
-
-  // RFC 5322 compliant regex (simplified but secure)
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-
-  if (!emailRegex.test(email)) return false;
-
-  // Additional checks
-  const [localPart, domain] = email.split('@');
-
-  // Local part max 64 chars
-  if (localPart.length > 64) return false;
-
-  // Domain validation
-  if (domain.length > 255) return false;
-  if (domain.startsWith('.') || domain.endsWith('.')) return false;
-  if (domain.includes('..')) return false;
-
-  return true;
-}
+export { isValidEmail };
 
 /**
  * True when the angle run that is open at `from` closes before the next one
@@ -333,58 +302,19 @@ export function splitPastedRecipients(
 }
 
 /**
- * Parse a `mailto:` URL into composer prefill data. Returns null when the
- * URL carries no valid recipient. Port of the webmail's parseMailtoUrl.
+ * Parse a `mailto:` URL into composer prefill data (empty cc/bcc are left
+ * out). A thin shape adapter over the shared strict parser in ./mailto.
  */
 export function parseMailtoUrl(
   url: string,
 ): { to: string[]; cc?: string[]; bcc?: string[]; subject?: string; body?: string } | null {
-  if (!url || !/^mailto:/i.test(url)) return null;
-
-  const rest = url.slice(7);
-  const queryIndex = rest.indexOf('?');
-  const addressPart = queryIndex === -1 ? rest : rest.slice(0, queryIndex);
-  const query = queryIndex === -1 ? '' : rest.slice(queryIndex + 1);
-
-  const decode = (value: string): string => {
-    try {
-      return decodeURIComponent(value.replace(/\+/g, '%20'));
-    } catch {
-      return value;
-    }
-  };
-
-  const to = addressPart
-    .split(',')
-    .map((a) => decode(a).trim())
-    .filter((a) => isValidEmail(a));
-
-  const cc: string[] = [];
-  const bcc: string[] = [];
-  let subject: string | undefined;
-  let body: string | undefined;
-  for (const pair of query.split('&')) {
-    const eq = pair.indexOf('=');
-    if (eq === -1) continue;
-    const key = pair.slice(0, eq).toLowerCase();
-    const value = decode(pair.slice(eq + 1));
-    if (key === 'subject') subject = value;
-    else if (key === 'body') body = value;
-    else if (key === 'to') {
-      for (const a of value.split(',').map((s) => s.trim())) if (isValidEmail(a)) to.push(a);
-    } else if (key === 'cc') {
-      for (const a of value.split(',').map((s) => s.trim())) if (isValidEmail(a)) cc.push(a);
-    } else if (key === 'bcc') {
-      for (const a of value.split(',').map((s) => s.trim())) if (isValidEmail(a)) bcc.push(a);
-    }
-  }
-
-  if (to.length === 0 && cc.length === 0 && bcc.length === 0 && !subject && !body) return null;
+  const parsed = parseSharedMailtoUrl(url);
+  if (!parsed) return null;
   return {
-    to,
-    cc: cc.length ? cc : undefined,
-    bcc: bcc.length ? bcc : undefined,
-    subject,
-    body,
+    to: parsed.to,
+    cc: parsed.cc.length ? parsed.cc : undefined,
+    bcc: parsed.bcc.length ? parsed.bcc : undefined,
+    subject: parsed.subject,
+    body: parsed.body,
   };
 }

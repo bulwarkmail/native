@@ -139,6 +139,19 @@ describe('parseMailtoUrl', () => {
     });
   });
 
+  it('shares the strict parser: bidi and split-able addresses are refused, + stays literal', () => {
+    expect(parseMailtoUrl('mailto:hr%E2%80%AE@corp.example')).toBeNull();
+    expect(parseMailtoUrl('mailto:a%2Cb@x.com')).toBeNull();
+    expect(parseMailtoUrl('mailto:a@b.co?subject=a+b')?.subject).toBe('a+b');
+    expect(parseMailtoUrl('MAILTO:a@b.co')?.to).toEqual(['a@b.co']);
+  });
+
+  it('isValidEmail rejects bidi and control characters', () => {
+    expect(isValidEmail('hr\u202E@corp.example')).toBe(false);
+    expect(isValidEmail('a@b.co\u200B')).toBe(false);
+    expect(isValidEmail('a,b@x.com')).toBe(false);
+  });
+
   it('returns null for non-mailto or empty', () => {
     expect(parseMailtoUrl('https://x')).toBeNull();
     expect(parseMailtoUrl('mailto:')).toBeNull();
