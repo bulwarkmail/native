@@ -16,7 +16,7 @@ import {
   type ScheduledEmail,
 } from '../api/email';
 import { jmapClient, ScheduleTooLateError } from '../api/jmap-client';
-import { useEmailStore, requireShownAccountScope } from '../stores/email-store';
+import { useEmailStore, requireShownAccountScope, isShownAccount } from '../stores/email-store';
 import type { OpScope } from '../api/op-scope';
 import { isStaleLoad } from '../lib/network-error';
 import { useLocaleStore } from '../stores/locale-store';
@@ -67,9 +67,14 @@ export default function ScheduledScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
+      // Read while the client serves the account shown, and still shown once
+      // read; otherwise (a switch around the load) the items may be another
+      // account's, and actions on them are refused.
       const of = useEmailStore.getState().activeAccountId;
+      let servedAtStart = true;
+      try { requireShownAccountScope(of); } catch { servedAtStart = false; }
       const list = await listScheduledEmails();
-      itemsOfRef.current = of;
+      itemsOfRef.current = servedAtStart && isShownAccount(of) ? of : null;
       setItems(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('email_list.error', 'Error'));

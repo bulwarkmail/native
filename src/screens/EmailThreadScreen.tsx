@@ -361,9 +361,10 @@ function EmailViewer({ route, navigation }: Props) {
       // The keywords as they are now: a star or tag set during the delay stays.
       const current = peekDetail(target.id, ownerAccountId) ?? target;
       updateLocalKeywords(target.id, { ...current.keywords, $seen: true });
-      markSeen(target.id).catch((err) => reportActionFailure(t('notifications.error_updating', 'Failed to update email'), err));
+      // Quiet, as before: an automatic mark-read is not the user's action.
+      markSeen(target.id).catch((err) => console.warn('[viewer] mark read failed', err));
     });
-  }, [markAsReadDelay, markSeen, updateLocalKeywords, ownerAccountId, viewerAppAccountId, t]);
+  }, [markAsReadDelay, markSeen, updateLocalKeywords, ownerAccountId, viewerAppAccountId]);
 
   React.useEffect(() => {
     let cancelled = false;
