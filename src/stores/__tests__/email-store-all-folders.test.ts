@@ -46,14 +46,15 @@ vi.mock('../outbox-store', async () => {
     if (op.kind === 'mailboxes') return api.setEmailMailboxes(op.emailId, op.mailboxIds!, op.accountId);
     if (op.kind === 'destroy') return api.destroyEmails([op.emailId], op.accountId);
   };
-  const applyOrQueueBatch = async (ops: Op[], onlineRun?: () => Promise<void>) => {
-    if (onlineRun) await onlineRun();
+  const applyOrQueueBatch = async (ops: Op[], onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => {
+    // The scope the real outbox hands over: the connection, own account.
+    if (onlineRun) await onlineRun({ gen: 0, accountId: 'c' });
     else for (const op of ops) await runOp(op);
     return { queued: false };
   };
   return {
     applyOrQueueBatch,
-    applyOrQueue: async (op: Op, onlineRun?: () => Promise<void>) => applyOrQueueBatch([op], onlineRun),
+    applyOrQueue: async (op: Op, onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => applyOrQueueBatch([op], onlineRun),
     useOutboxStore: { getState: () => ({ setAccount: vi.fn(async () => undefined), flush: vi.fn(async () => undefined) }) },
   };
 });
@@ -94,9 +95,15 @@ import {
   useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow, listRowsOfAccount,
   withFolderScope,
 } from '../email-store';
+import { registerServedAccount } from './helpers/served-account';
 import { expandThreadSelection, rowKeyOf } from '../../lib/thread-utils';
 import { useTagCountsStore } from '../tag-counts-store';
 import type { Email, Mailbox } from '../../api/types';
+
+// The mocked client serves this account; the store checks that before acting.
+beforeEach(() => {
+  registerServedAccount('me@example.com', 'https://mail.example.com');
+});
 
 const settings = (settingsModule as unknown as { __settings: Record<string, unknown> }).__settings;
 

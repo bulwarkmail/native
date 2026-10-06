@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // NetInfo is a native module; stub it so network-store loads under node. The
 // store defaults to online, which we flip per-test via setState.
@@ -10,7 +10,10 @@ vi.mock('@react-native-community/netinfo', () => ({
 }));
 
 // `accountId`: the client's primary JMAP account (own mail is stamped with it).
-const { client } = vi.hoisted(() => ({ client: { isConnected: true, accountId: 'jmap-own' as string | undefined } }));
+// `connectionGen`: the connection every request of an op is bound to.
+const { client } = vi.hoisted(() => ({
+  client: { isConnected: true, accountId: 'jmap-own' as string | undefined, connectionGen: 1 },
+}));
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: client,
 }));
@@ -54,6 +57,9 @@ import { useNetworkStore } from '../network-store';
 import { useToastStore } from '../toast-store';
 
 const ACCOUNT = 'acc-1';
+
+/** The scope an op runs with: JMAP account `accountId` on the live connection. */
+const onAccount = (accountId: string) => expect.objectContaining({ accountId, gen: client.connectionGen });
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -110,7 +116,7 @@ describe('applyOrQueue', () => {
   it('runs immediately when online with an empty queue', async () => {
     const result = await applyOrQueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
     expect(result.queued).toBe(false);
-    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, onAccount('jmap-own'));
     expect(useOutboxStore.getState().entries).toHaveLength(0);
   });
 
@@ -168,9 +174,9 @@ describe('flush', () => {
     useNetworkStore.setState({ online: true });
     await useOutboxStore.getState().flush();
 
-    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, 'jmap-own');
-    expect(setEmailMailboxes).toHaveBeenCalledWith('e2', { trash: true }, 'jmap-own');
-    expect(destroyEmails).toHaveBeenCalledWith(['e3'], 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, onAccount('jmap-own'));
+    expect(setEmailMailboxes).toHaveBeenCalledWith('e2', { trash: true }, onAccount('jmap-own'));
+    expect(destroyEmails).toHaveBeenCalledWith(['e3'], onAccount('jmap-own'));
     expect(useOutboxStore.getState().entries).toHaveLength(0);
   });
 
@@ -271,7 +277,7 @@ describe('failed ops and archive replay', () => {
     await useOutboxStore.getState().retryFailed();
     expect(useOutboxStore.getState().failed).toHaveLength(0);
     expect(useOutboxStore.getState().entries).toHaveLength(0);
-    expect(patchKeywordsForEmails).toHaveBeenLastCalledWith(['e1'], { $seen: true }, 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenLastCalledWith(['e1'], { $seen: true }, onAccount('jmap-own'));
   });
 
   it('discardFailed forgets parked ops', async () => {
@@ -342,10 +348,10 @@ describe('keyword ops queued by earlier builds', () => {
     await useOutboxStore.getState().flush();
 
     // No account id (older builds): the served connection's primary account.
-    expect(patchKeywordsForEmails).toHaveBeenNthCalledWith(1, ['e1'], { $seen: true, '$label:work': true }, 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenNthCalledWith(1, ['e1'], { $seen: true, '$label:work': true }, onAccount('jmap-own'));
     // `$junk` and `$notjunk` exclude each other, so setting one clears the other.
-    expect(patchKeywordsForEmails).toHaveBeenNthCalledWith(2, ['e2'], { $junk: true, $notjunk: null }, 'grp-1');
-    expect(setEmailMailboxes).toHaveBeenCalledWith('e3', { trash: true }, 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenNthCalledWith(2, ['e2'], { $junk: true, $notjunk: null }, onAccount('grp-1'));
+    expect(setEmailMailboxes).toHaveBeenCalledWith('e3', { trash: true }, onAccount('jmap-own'));
     expect(useOutboxStore.getState().entries).toHaveLength(0);
   });
 
@@ -358,7 +364,7 @@ describe('keyword ops queued by earlier builds', () => {
 
     await useOutboxStore.getState().retryFailed();
 
-    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $notjunk: true, $flagged: true, $junk: null }, 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $notjunk: true, $flagged: true, $junk: null }, onAccount('jmap-own'));
     expect(useOutboxStore.getState().failed).toHaveLength(0);
   });
 });
@@ -517,7 +523,7 @@ describe('replay only on the connection serving the account', () => {
     serving.client = true;
     await useOutboxStore.getState().flush();
     expect(patchKeywordsForEmails).toHaveBeenCalledTimes(1);
-    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, 'jmap-own');
+    expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $seen: true }, onAccount('jmap-own'));
     expect(useOutboxStore.getState().entries).toHaveLength(0);
   });
 
@@ -557,7 +563,7 @@ describe('replay only on the connection serving the account', () => {
 
   it('the online path passes the stamped account id too', async () => {
     await applyOrQueue({ kind: 'destroy', emailId: 'e1' });
-    expect(destroyEmails).toHaveBeenCalledWith(['e1'], 'jmap-own');
+    expect(destroyEmails).toHaveBeenCalledWith(['e1'], onAccount('jmap-own'));
   });
 
   it('replay passes the op\'s own account id, not the primary at run time', async () => {
@@ -565,8 +571,8 @@ describe('replay only on the connection serving the account', () => {
     queueOffline({ kind: 'destroy', emailId: 'e2', accountId: 'grp-1' });
     client.accountId = 'jmap-later';
     await useOutboxStore.getState().flush();
-    expect(setEmailMailboxes).toHaveBeenCalledWith('e1', { trash: true }, 'jmap-own');
-    expect(destroyEmails).toHaveBeenCalledWith(['e2'], 'grp-1');
+    expect(setEmailMailboxes).toHaveBeenCalledWith('e1', { trash: true }, onAccount('jmap-own'));
+    expect(destroyEmails).toHaveBeenCalledWith(['e2'], onAccount('grp-1'));
 
     client.accountId = 'jmap-own';
     queueOffline({ kind: 'archive', emailId: 'e3', archiveMailboxId: 'own-arch', mode: 'year', receivedAt: '2026-01-01T00:00:00Z' });
@@ -574,9 +580,9 @@ describe('replay only on the connection serving the account', () => {
     await useOutboxStore.getState().flush();
     // Own archive: own folders; shared: that account's folders, unprefixed.
     expect(archiveEmails.mock.calls[0][3].map((m: { id: string }) => m.id)).toEqual(['own-arch']);
-    expect(archiveEmails.mock.calls[0][4]).toBe('jmap-own');
+    expect(archiveEmails.mock.calls[0][4]).toEqual(onAccount('jmap-own'));
     expect(archiveEmails.mock.calls[1][3].map((m: { id: string }) => m.id)).toEqual(['arch']);
-    expect(archiveEmails.mock.calls[1][4]).toBe('grp-1');
+    expect(archiveEmails.mock.calls[1][4]).toEqual(onAccount('grp-1'));
   });
 
   it('an op queued while the client did not serve the account is left for replay to resolve', () => {
@@ -596,9 +602,75 @@ describe('replay only on the connection serving the account', () => {
     expect(destroyEmails).not.toHaveBeenCalled();
     serving.client = true;
     await useOutboxStore.getState().flush();
-    expect(destroyEmails).toHaveBeenCalledWith(['e1'], 'jmap-own');
+    expect(destroyEmails).toHaveBeenCalledWith(['e1'], onAccount('jmap-own'));
     // Not migrated on disk beforehand: the stored entry was removed by the run, never rewritten with an id.
     expect(JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:acc-old`))!)).toEqual([]);
     await AsyncStorage.removeItem(`webmail:outbox:v1:acc-old`);
+  });
+});
+
+// C1 (R15): during a switch the app already shows B (the outbox is on B) while
+// the client still serves A. An action on one of B's rows must not run on A,
+// where the same id (Stalwart numbers them per account) is another message.
+describe('the online path runs only on the connection serving the account (C1)', () => {
+  const B = 'acc-2';
+  const showBWhileServingA = async () => {
+    await useOutboxStore.getState().setAccount(B);
+    await useOutboxStore.getState().clear();
+    // The account store (and the client) are still on A.
+    serving.app = ACCOUNT;
+    serving.client = true;
+  };
+  afterEach(async () => {
+    await useOutboxStore.getState().setAccount(B);
+    await useOutboxStore.getState().clear();
+  });
+
+  it("a destroy of B's row in the switch window runs nothing on A and is queued for B", async () => {
+    await showBWhileServingA();
+    const result = await applyOrQueue({ kind: 'destroy', emailId: 'b-msg-7' });
+    expect(result.queued).toBe(true);
+    expect(destroyEmails).not.toHaveBeenCalled();
+    // Queued for B, its account left for replay on B's connection to fill in.
+    expect(useOutboxStore.getState().entries.map((e) => e.op)).toEqual([{ kind: 'destroy', emailId: 'b-msg-7' }]);
+    expect(JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${B}`))!)
+      .map((e: { op: unknown }) => e.op)).toEqual([{ kind: 'destroy', emailId: 'b-msg-7' }]);
+
+    // B is served: the op replays there, once.
+    serving.app = B;
+    client.accountId = 'jmap-b';
+    await useOutboxStore.getState().flush();
+    expect(destroyEmails).toHaveBeenCalledTimes(1);
+    expect(destroyEmails).toHaveBeenCalledWith(['b-msg-7'], onAccount('jmap-b'));
+  });
+
+  it('an online runner is not called in the switch window', async () => {
+    await showBWhileServingA();
+    const run = vi.fn(async () => undefined);
+    const { applyOrQueueBatch } = await import('../outbox-store');
+    const result = await applyOrQueueBatch([
+      { kind: 'mailboxes', emailId: 'b-msg-1', mailboxIds: { trash: true } },
+      { kind: 'keywords', emailId: 'b-msg-1', patch: { $seen: true } },
+    ], run);
+    expect(result.queued).toBe(true);
+    expect(run).not.toHaveBeenCalled();
+    expect(setEmailMailboxes).not.toHaveBeenCalled();
+    expect(patchKeywordsForEmails).not.toHaveBeenCalled();
+    expect(useOutboxStore.getState().entries).toHaveLength(2);
+  });
+
+  it('nothing runs while the client serves no account the app knows', async () => {
+    serving.client = false;
+    const result = await applyOrQueue({ kind: 'destroy', emailId: 'e1' }, async () => {
+      throw new Error('must not run');
+    });
+    expect(result.queued).toBe(true);
+    expect(destroyEmails).not.toHaveBeenCalled();
+  });
+
+  it('the online runner gets the connection the action started on', async () => {
+    const run = vi.fn(async (_at: unknown) => undefined);
+    await applyOrQueue({ kind: 'destroy', emailId: 'e1' }, run);
+    expect(run).toHaveBeenCalledWith(onAccount('jmap-own'));
   });
 });

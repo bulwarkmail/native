@@ -520,6 +520,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             ? t('email_list.import.none', 'No messages were imported.')
             : t('email_list.import.success', '{count, plural, one {# message imported.} other {# messages imported.}}', { count: imported }),
       );
+    } catch (err) {
+      // Refused before anything was sent (the account is still loading).
+      Alert.alert(t('email_list.import.title', 'Import'), err instanceof Error ? err.message : String(err));
     } finally {
       setImporting(false);
     }

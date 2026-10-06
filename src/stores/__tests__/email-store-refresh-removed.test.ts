@@ -31,13 +31,14 @@ vi.mock('../locale-store', () => ({
 
 // Online, nothing queued: run the store's online path.
 vi.mock('../outbox-store', () => {
-  const applyOrQueueBatch = async (_ops: unknown[], onlineRun?: () => Promise<void>) => {
-    if (onlineRun) await onlineRun();
+  const applyOrQueueBatch = async (_ops: unknown[], onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => {
+    // The scope the real outbox hands over: the connection, own account.
+    if (onlineRun) await onlineRun({ gen: 0, accountId: 'acc-1' });
     return { queued: false };
   };
   return {
     applyOrQueueBatch,
-    applyOrQueue: async (op: unknown, onlineRun?: () => Promise<void>) => applyOrQueueBatch([op], onlineRun),
+    applyOrQueue: async (op: unknown, onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => applyOrQueueBatch([op], onlineRun),
     useOutboxStore: {
       getState: () => ({
         entries: [],
@@ -96,7 +97,13 @@ vi.mock('../../api/jmap-client', () => ({
 import { generateAccountId } from '../../lib/account-utils';
 import * as emailApi from '../../api/email';
 import { useEmailStore } from '../email-store';
+import { registerServedAccount } from './helpers/served-account';
 import type { Email } from '../../api/types';
+
+// The mocked client serves this account; the store checks that before acting.
+beforeEach(() => {
+  registerServedAccount('test@example.com', 'https://mail.example.com');
+});
 
 const TEST_ACCOUNT_ID = generateAccountId('test@example.com', 'https://mail.example.com');
 const mockQueryEmailPage = emailApi.queryEmailPage as ReturnType<typeof vi.fn>;

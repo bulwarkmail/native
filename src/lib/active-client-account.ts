@@ -36,14 +36,13 @@ export function activeAppAccountId(): string | null {
 }
 
 /**
- * During an account switch the client's session lags the account store (and
- * the other way round), so work started in that window may be for the account
- * being left. True only when the client's credentials belong to the account
- * the app shows as active.
+ * Whether the client's credentials belong to app account `appAccountId`
+ * (same server, same user). The one rule for "the client serves this
+ * account"; `clientServesActiveAccount` applies it to the active account.
  */
-export function clientServesActiveAccount(): boolean {
-  const accounts = useAccountStore.getState();
-  const entry = accounts.activeAccountId ? accounts.getAccountById(accounts.activeAccountId) : undefined;
+export function clientServesAccount(appAccountId: string | null | undefined): boolean {
+  if (!appAccountId) return false;
+  const entry = useAccountStore.getState().getAccountById(appAccountId);
   if (!entry) return false;
   const entryServer = serverKey(entry.serverUrl);
   const user = userKey(jmapClient.username);
@@ -51,4 +50,14 @@ export function clientServesActiveAccount(): boolean {
     && entryServer === serverKey(jmapClient.serverUrl)
     && user !== ''
     && userKey(entry.username) === user;
+}
+
+/**
+ * During an account switch the client's session lags the account store (and
+ * the other way round), so work started in that window may be for the account
+ * being left. True only when the client's credentials belong to the account
+ * the app shows as active.
+ */
+export function clientServesActiveAccount(): boolean {
+  return clientServesAccount(activeAppAccountId());
 }

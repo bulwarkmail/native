@@ -31,6 +31,7 @@ import { jmapClient } from '../api/jmap-client';
 import {
   patchKeywordsForEmails, setEmailMailboxes, destroyEmails, archiveEmails, unprefixMailboxId,
 } from '../api/email';
+import { inAccount, type OpScope } from '../api/op-scope';
 import type { KeywordPatch } from '../lib/keyword-patch';
 import type { ArchiveMode } from './settings-store';
 
@@ -151,18 +152,18 @@ async function load(accountId: string, suffix = ''): Promise<OutboxEntry[]> {
 }
 
 /**
- * Run `op` against JMAP account `accountId`, passed explicitly to every API
- * call: the op's own account, or for a legacy op (see `flush`) the primary
- * account of the connection that serves the outbox's account. `undefined`
- * only on the online path when the client could not be checked (see
- * `applyOrQueueBatch`), where it means the client's primary as before.
+ * Run `op` on the connection and JMAP account `at` names, passed explicitly
+ * to every API call: the op's own account, or for a legacy op (see `flush`)
+ * the primary account of the connection that serves the outbox's account.
+ * Every request of the op is bound to that connection.
  */
-async function runOp(op: OutboxOp, accountId: string | undefined = op.accountId): Promise<void> {
+async function runOp(op: OutboxOp, at: OpScope): Promise<void> {
+  const accountId = at.accountId;
   switch (op.kind) {
     case 'keywords':
-      return patchKeywordsForEmails([op.emailId], op.patch, accountId);
+      return patchKeywordsForEmails([op.emailId], op.patch, at);
     case 'mailboxes':
-      return setEmailMailboxes(op.emailId, op.mailboxIds, accountId);
+      return setEmailMailboxes(op.emailId, op.mailboxIds, at);
     case 'archive': {
       // The foldering needs the account's current folder list; read it from
       // the email store lazily (it imports this module, so no static import).
@@ -181,13 +182,23 @@ async function runOp(op: OutboxOp, accountId: string | undefined = op.accountId)
         op.archiveMailboxId,
         op.mode,
         scoped,
-        accountId,
+        at,
       );
       return;
     }
     case 'destroy':
-      return destroyEmails([op.emailId], accountId);
+      return destroyEmails([op.emailId], at);
   }
+}
+
+/**
+ * The live connection and its primary JMAP account, taken in one step, or
+ * null when the client has none. Callers take it right after checking that
+ * the connection serves the outbox's account (`servesAccount`).
+ */
+function connectionScope(): OpScope | null {
+  const accountId = primaryAccountId();
+  return accountId ? { gen: jmapClient.connectionGen, accountId } : null;
 }
 
 /** The client's primary JMAP account id, or undefined when it has none. */
@@ -205,8 +216,9 @@ function primaryAccountId(): string | undefined {
  * the outbox's account; otherwise the op is left as it is and is handled at
  * replay like a legacy op.
  */
-function stampAccount(op: OutboxOp): OutboxOp {
+function stampAccount(op: OutboxOp, at?: OpScope | null): OutboxOp {
   if (op.accountId) return op;
+  if (at !== undefined) return at ? { ...op, accountId: at.accountId } : op;
   const outboxAccount = useOutboxStore.getState().activeAccountId;
   if (!outboxAccount || !servesAccount(outboxAccount)) return op;
   const primary = primaryAccountId();
@@ -464,8 +476,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
         // mail), or while the client did not serve this account. It runs
         // against the primary account of the connection that serves this
         // outbox, checked just above; it is not migrated on disk.
-        const target = entry.op.accountId ?? primaryAccountId();
-        if (!target) break;
+        // The connection checked just above, taken once for every request of
+        // this op (an archive may send several, after an await).
+        const at = connectionScope();
+        if (!at) break;
+        const target = inAccount(at, entry.op.accountId);
 
         try {
           await runOp(entry.op, target);
@@ -612,9 +627,17 @@ export interface ApplyResult {
 // path (e.g. batch move) while still degrading to the idempotent primitives
 // offline — which replay with the same semantics (an `archive` op re-applies
 // the year/month foldering on replay).
+//
+// The online path runs only while the connection serves the outbox's account.
+// During a switch the app can already show the next account (whose rows the
+// user acts on) while the client still serves the previous one; an op run
+// then would land on the previous account's message with the same id. Such
+// ops are queued and replayed once the account is served. `onlineRun` gets
+// the connection the action runs on (`at`, own primary account), taken here
+// once, and passes it (or `inAccount(at, …)`) to every API call it makes.
 export async function applyOrQueueBatch(
   ops: OutboxOp[],
-  onlineRun?: () => Promise<void>,
+  onlineRun?: (at: OpScope) => Promise<void>,
 ): Promise<ApplyResult> {
   if (ops.length === 0) return { queued: false };
   const store = useOutboxStore.getState();
@@ -622,17 +645,22 @@ export async function applyOrQueueBatch(
   // the online run must not move its ops to the account switched to.
   const accountId = store.activeAccountId;
   const startedAt = Date.now();
+  const at = accountId && servesAccount(accountId) ? connectionScope() : null;
   // Each op names its JMAP account, own mail included (taken now, while the
-  // client serves this account; see stampAccount).
-  ops = ops.map(stampAccount);
-  const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
+  // client serves this account; unserved, left for replay to fill in).
+  ops = ops.map((op) => stampAccount(op, at));
+  const network = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
+  const online = network && at !== null;
   const hasQueued = ops.some((op) =>
     store.entries.some((e) => e.op.emailId === op.emailId),
   );
 
   if (online && !hasQueued) {
     try {
-      await (onlineRun ? onlineRun() : Promise.all(ops.map((op) => runOp(op))).then(() => undefined));
+      const scope = at!;
+      await (onlineRun
+        ? onlineRun(scope)
+        : Promise.all(ops.map((op) => runOp(op, inAccount(scope, op.accountId)))).then(() => undefined));
       return { queued: false };
     } catch (err) {
       // A real server/validation error should bubble up exactly like before.
@@ -660,10 +688,10 @@ export async function applyOrQueueBatch(
   } else {
     for (const op of ops) useOutboxStore.getState().enqueue(op, startedAt);
   }
-  if (online) void useOutboxStore.getState().flush();
+  if (network) void useOutboxStore.getState().flush();
   return { queued: true };
 }
 
-export function applyOrQueue(op: OutboxOp, onlineRun?: () => Promise<void>): Promise<ApplyResult> {
+export function applyOrQueue(op: OutboxOp, onlineRun?: (at: OpScope) => Promise<void>): Promise<ApplyResult> {
   return applyOrQueueBatch([op], onlineRun);
 }

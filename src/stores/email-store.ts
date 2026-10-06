@@ -48,7 +48,8 @@ import { defaultSearchScopeFor, exclusionFilter, trashAndJunkIds } from '../lib/
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
-import { generateAccountId } from '../lib/account-utils';
+import { clientServesAccount } from '../lib/active-client-account';
+import { inAccount, opScope, type OpScope } from '../api/op-scope';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
 import { patchDetail } from '../lib/email-detail-cache';
 import { t } from './locale-store';
@@ -242,13 +243,31 @@ function withEmailState(
 // fired in that window (e.g. by an EmailListScreen useEffect reacting to
 // the empty new-account view) would return the previous account's data and
 // stamp it into the new account's snapshot.
+// Same server and user as the account entry, by the app's one rule
+// (`clientServesAccount`).
 function jmapClientServesActiveAccount(activeAccountId: string | null): boolean {
   if (!activeAccountId) return false;
   if (!jmapClient.isConnected) return false;
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (!username || !serverUrl) return false;
-  return generateAccountId(username, serverUrl) === activeAccountId;
+  return clientServesAccount(activeAccountId);
+}
+
+/**
+ * The connection an action on the shown account runs on, taken once when it
+ * starts (see `OpScope`), or null while the client serves another account
+ * (an account switch in progress: the rows on screen are not its own).
+ */
+function servedScope(): OpScope | null {
+  if (!jmapClientServesActiveAccount(useEmailStore.getState().activeAccountId)) return null;
+  return opScope();
+}
+
+/** `servedScope()`, or the "try again" refusal of an action that can't wait in the outbox. */
+function requireServedScope(): OpScope {
+  const at = servedScope();
+  if (!at) {
+    throw new Error(t('email_list.account_not_ready', 'This account is still loading. Try again in a moment.'));
+  }
+  return at;
 }
 
 /**
@@ -1244,6 +1263,8 @@ export const useEmailStore = create<EmailState>()(
     // Both the blob upload and the import have to target the folder's owning
     // account, or the import references a blob the server can't see.
     const ref = refFor(get().mailboxes, mailboxId);
+    // Every upload and import on the connection serving the shown account.
+    const at = inAccount(requireServedScope(), ref.accountId);
     let imported = 0;
     let failed = 0;
     for (const file of files) {
@@ -1253,8 +1274,8 @@ export const useEmailStore = create<EmailState>()(
         if (emls.length === 0) failed += 1;
         for (const eml of emls) {
           try {
-            const { blobId } = await uploadBytes(eml.bytes, 'message/rfc822', ref.accountId);
-            await importEmailBlob(blobId, ref.id, undefined, ref.accountId);
+            const { blobId } = await uploadBytes(eml.bytes, 'message/rfc822', at);
+            await importEmailBlob(blobId, ref.id, undefined, at);
             imported += 1;
           } catch {
             failed += 1;
@@ -1403,7 +1424,8 @@ export const useEmailStore = create<EmailState>()(
     // JMAP account and isn't in the active list/cache or the (account-scoped)
     // offline queue — mark it read directly against its owning account.
     if (accountId && !email) {
-      await patchKeywordsForEmails([id], patch, accountId);
+      // Never run on a connection serving another account.
+      await patchKeywordsForEmails([id], patch, inAccount(requireServedScope(), accountId));
       return;
     }
     const owner = accountId ?? rowAccountId(state, email);
@@ -1509,7 +1531,7 @@ export const useEmailStore = create<EmailState>()(
         { kind: 'mailboxes', emailId: e.id, accountId: junk.accountId, mailboxIds: junkTarget },
         { kind: 'keywords', emailId: e.id, accountId: junk.accountId, patch: keywordPatch },
       ]),
-      () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead }),
+      (at) => apiMarkAsSpam(targets.map((e) => e.id), junk.id, inAccount(at, junk.accountId), { markRead }),
     );
 
     const removed = new Set(listed ? targets.map(rowKeyOf) : []);
@@ -1554,7 +1576,7 @@ export const useEmailStore = create<EmailState>()(
         { kind: 'mailboxes', emailId: e.id, accountId: inbox.accountId, mailboxIds: inboxTarget },
         { kind: 'keywords', emailId: e.id, accountId: inbox.accountId, patch: keywordPatch },
       ]),
-      () => apiUndoSpam(targets.map((e) => e.id), inbox.id, inbox.accountId),
+      (at) => apiUndoSpam(targets.map((e) => e.id), inbox.id, inAccount(at, inbox.accountId)),
     );
 
     const removed = new Set(listed ? targets.map(rowKeyOf) : []);
@@ -1593,7 +1615,7 @@ export const useEmailStore = create<EmailState>()(
     if (from.accountId !== to.accountId) {
       if (!email) return;
       try {
-        await crossAccountMove([email], from, to);
+        await crossAccountMove([email], from, to, { at: requireServedScope() });
       } catch (err) {
         // The caller reports it as a failed move (toast), like a same-account one.
         set({ error: storeError(err, t('notifications.move_failed', 'Move failed')) });
@@ -1608,7 +1630,7 @@ export const useEmailStore = create<EmailState>()(
 
     await applyOrQueue(
       { kind: 'mailboxes', emailId, accountId: from.accountId, mailboxIds: target },
-      () => moveEmail(emailId, from.id, to.id, from.accountId),
+      (at) => moveEmail(emailId, from.id, to.id, inAccount(at, from.accountId)),
     );
     if (listed) set({ emails: get().emails.filter((e) => rowKeyOf(e) !== rowKey) });
     patchCache(emailId, { mailboxIds: target }, from.accountId);
@@ -1674,12 +1696,12 @@ export const useEmailStore = create<EmailState>()(
         mode,
         receivedAt: email.receivedAt,
       },
-      () => apiArchiveEmails(
+      (at) => apiArchiveEmails(
         [{ id: email.id, receivedAt: email.receivedAt }],
         archive.id,
         mode,
         toRawMailboxes(scoped),
-        archive.accountId,
+        inAccount(at, archive.accountId),
       ),
     );
 
@@ -1738,25 +1760,28 @@ export const useEmailStore = create<EmailState>()(
       // destroy branch even when the source folder isn't trash.
       await applyOrQueue(
         { kind: 'destroy', emailId, accountId: trash.accountId },
-        () => apiDeleteEmail(emailId, trash.id, trash.id, trash.accountId),
+        (at) => apiDeleteEmail(emailId, trash.id, trash.id, inAccount(at, trash.accountId)),
       );
       dropFromCache([emailId], trash.accountId);
     } else {
       const target = mailboxesAfterMove(email?.mailboxIds, source.id, trash.id);
-      await applyOrQueue(
-        { kind: 'mailboxes', emailId, accountId: source.accountId, mailboxIds: target },
-        () => apiDeleteEmail(emailId, trash.id, source.id, source.accountId),
-      );
       // "Move to Trash and mark as read" (#323): when the user picked that
       // delete action, also clear unread state for messages moved to trash.
-      if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
-        const patch = { $seen: true };
-        await applyOrQueue({
-          kind: 'keywords',
-          emailId,
-          accountId: source.accountId,
-          patch,
-        });
+      // One action, so one connection: both ops go together.
+      const markRead = settings.deleteAction === 'trash-and-read' && !!email && !email.keywords?.$seen;
+      const patch = { $seen: true };
+      await applyOrQueueBatch(
+        [
+          { kind: 'mailboxes', emailId, accountId: source.accountId, mailboxIds: target },
+          ...(markRead ? [{ kind: 'keywords', emailId, accountId: source.accountId, patch } as OutboxOp] : []),
+        ],
+        async (at) => {
+          const scope = inAccount(at, source.accountId);
+          await apiDeleteEmail(emailId, trash.id, source.id, scope);
+          if (markRead) await patchKeywordsForEmails([emailId], patch, scope);
+        },
+      );
+      if (markRead) {
         patchCache(emailId, { mailboxIds: target, keywords: patch }, source.accountId);
       } else {
         patchCache(emailId, { mailboxIds: target }, source.accountId);
@@ -1808,12 +1833,12 @@ export const useEmailStore = create<EmailState>()(
         mode,
         receivedAt: e.receivedAt,
       })),
-      () => apiArchiveEmails(
+      (at) => apiArchiveEmails(
         targets.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
         archive.id,
         mode,
         toRawMailboxes(scoped),
-        archive.accountId,
+        inAccount(at, archive.accountId),
       ),
     );
 
@@ -1848,7 +1873,7 @@ export const useEmailStore = create<EmailState>()(
     // See moveToMailbox: one Email/set can't span two accounts — copy+delete.
     if (source.accountId !== to.accountId) {
       try {
-        await crossAccountMove(targets, source, to);
+        await crossAccountMove(targets, source, to, { at: requireServedScope() });
       } catch (err) {
         set({ error: storeError(err, t('notifications.move_failed', 'Move failed')) });
         throw err;
@@ -1868,7 +1893,7 @@ export const useEmailStore = create<EmailState>()(
         accountId: source.accountId,
         mailboxIds: mailboxesAfterMove(e.mailboxIds, source.id, to.id),
       })),
-      () => apiMoveEmails(targets.map((e) => e.id), source.id, to.id, source.accountId),
+      (at) => apiMoveEmails(targets.map((e) => e.id), source.id, to.id, inAccount(at, source.accountId)),
     );
 
     const removed = new Set(targets.map(rowKeyOf));
@@ -1960,15 +1985,16 @@ export const useEmailStore = create<EmailState>()(
         patch: markReadPatch,
       })),
     ];
-    await applyOrQueueBatch(ops, async () => {
+    // Every request on the connection the action started on (`at`).
+    await applyOrQueueBatch(ops, async (at) => {
       if (toDestroy.length > 0) {
-        await apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, trash.accountId);
+        await apiDeleteEmails(toDestroy.map((e) => e.id), trash.id, trash.id, inAccount(at, trash.accountId));
       }
       if (toTrash.length > 0) {
-        await apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, source.accountId);
+        await apiMoveEmails(toTrash.map((e) => e.id), source.id, trash.id, inAccount(at, source.accountId));
       }
       if (toMarkRead.length > 0) {
-        await patchKeywordsForEmails([...markReadIds], markReadPatch, source.accountId);
+        await patchKeywordsForEmails([...markReadIds], markReadPatch, inAccount(at, source.accountId));
       }
     });
 
@@ -2014,9 +2040,9 @@ export const useEmailStore = create<EmailState>()(
         accountId,
         patch,
       }))),
-      async () => {
+      async (at) => {
         for (const { accountId, emails } of groups) {
-          await patchKeywordsForEmails(emails.map((e) => e.id), patch, accountId);
+          await patchKeywordsForEmails(emails.map((e) => e.id), patch, inAccount(at, accountId));
         }
       },
     );
@@ -2050,51 +2076,50 @@ export const useEmailStore = create<EmailState>()(
       if (group) group.items.push(it);
       else byAccount.set(accountId ?? '', { accountId, items: [it] });
     }
+    // Spam / not-spam also flipped `$junk`/`$notjunk` (and maybe `$seen`):
+    // put those keywords back as they were, leaving the rest alone.
+    const keywordPatch = entry.keywordPatch;
+    const keywordUndo = keywordPatch
+      ? entry.items.map((it) => ({
+        id: it.email.id,
+        accountId: accountOf(it),
+        patch: revertKeywordPatch(keywordPatch, it.originalKeywords),
+      }))
+      : [];
     try {
+      // Folders and keywords in one batch: one undo runs on one connection
+      // (`at`), and nothing of it is left to run after a switch.
       await applyOrQueueBatch(
-        entry.items.map((it): OutboxOp => ({
-          kind: 'mailboxes',
-          emailId: it.email.id,
-          accountId: accountOf(it),
-          mailboxIds: it.originalMailboxIds,
-        })),
-        async () => {
-          for (const { accountId, items } of byAccount.values()) {
-            await restoreEmailMailboxes(
-              items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
-              accountId,
-            );
-          }
-        },
-      );
-      // Spam / not-spam also flipped `$junk`/`$notjunk` (and maybe `$seen`):
-      // put those keywords back as they were, leaving the rest alone.
-      const keywordPatch = entry.keywordPatch;
-      const keywordUndo = keywordPatch
-        ? entry.items.map((it) => ({
-          id: it.email.id,
-          accountId: accountOf(it),
-          patch: revertKeywordPatch(keywordPatch, it.originalKeywords),
-        }))
-        : [];
-      if (keywordUndo.length > 0) {
-        await applyOrQueueBatch(
-          keywordUndo.map((u): OutboxOp => ({
+        [
+          ...entry.items.map((it): OutboxOp => ({
+            kind: 'mailboxes',
+            emailId: it.email.id,
+            accountId: accountOf(it),
+            mailboxIds: it.originalMailboxIds,
+          })),
+          ...keywordUndo.map((u): OutboxOp => ({
             kind: 'keywords',
             emailId: u.id,
             accountId: u.accountId,
             patch: u.patch,
           })),
-          async () => {
-            for (const { accountId } of byAccount.values()) {
-              await patchKeywordsPerEmail(
-                keywordUndo.filter((u) => u.accountId === accountId).map(({ id, patch }) => ({ id, patch })),
-                accountId,
-              );
-            }
-          },
-        );
-      }
+        ],
+        async (at) => {
+          for (const { accountId, items } of byAccount.values()) {
+            await restoreEmailMailboxes(
+              items.map((it) => ({ id: it.email.id, mailboxIds: it.originalMailboxIds })),
+              inAccount(at, accountId),
+            );
+          }
+          if (keywordUndo.length === 0) return;
+          for (const { accountId } of byAccount.values()) {
+            await patchKeywordsPerEmail(
+              keywordUndo.filter((u) => u.accountId === accountId).map(({ id, patch }) => ({ id, patch })),
+              inAccount(at, accountId),
+            );
+          }
+        },
+      );
       const undoById = new Map(keywordUndo.map((u) => [`${u.accountId ?? ''}:${u.id}`, u.patch]));
       for (const it of entry.items) {
         const patch = undoById.get(`${accountOf(it) ?? ''}:${it.email.id}`);
@@ -2288,25 +2313,32 @@ provideLoadedMailboxes(async (accountId) => {
 // then destroy the original. Online only — there is no idempotent replay.
 // `keepOriginal` turns the move into a copy (webmail f02dbf3): the destroy is
 // skipped and the caller leaves the original alone.
+//
+// `at` is the connection the action started on (`requireServedScope()`):
+// every download, upload, import and destroy goes there, or nowhere. A switch
+// mid-way stops it with `StaleLoadError` before the next request, so one
+// account's message is never uploaded to, or destroyed in, another.
 async function crossAccountMove(
   targets: Email[],
   from: MailboxRef,
   to: MailboxRef,
-  { keepOriginal = false }: { keepOriginal?: boolean } = {},
+  { keepOriginal = false, at }: { keepOriginal?: boolean; at: OpScope },
 ): Promise<void> {
   if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
     throw new Error(t('email_list.cross_account_move_offline', 'Moving between accounts needs a connection'));
   }
+  const source = inAccount(at, from.accountId);
+  const dest = inAccount(at, to.accountId);
   const { uploadBytes } = await import('../api/blob');
   for (const e of targets) {
-    const full = e.blobId ? e : await getFullEmail(e.id, from.accountId);
+    const full = e.blobId ? e : await getFullEmail(e.id, source);
     if (!full.blobId) throw new Error('Message has no blob');
-    const bytes = await jmapClient.fetchBlobArrayBuffer(full.blobId, undefined, 'message/rfc822', from.accountId);
-    const { blobId } = await uploadBytes(new Uint8Array(bytes), 'message/rfc822', to.accountId);
+    const bytes = await jmapClient.fetchBlobArrayBuffer(full.blobId, undefined, 'message/rfc822', source.accountId, source.gen);
+    const { blobId } = await uploadBytes(new Uint8Array(bytes), 'message/rfc822', dest);
     const keywords: Record<string, boolean> = {};
     for (const [k, v] of Object.entries(e.keywords ?? {})) if (v) keywords[k] = true;
-    await importEmailBlob(blobId, to.id, keywords, to.accountId, e.receivedAt);
-    if (!keepOriginal) await apiDestroyEmails([e.id], from.accountId);
+    await importEmailBlob(blobId, to.id, keywords, dest, e.receivedAt);
+    if (!keepOriginal) await apiDestroyEmails([e.id], source);
   }
 }
 
@@ -2326,6 +2358,8 @@ async function copyRows(
   if (!useNetworkStore.getState().online || !jmapClient.isConnected) {
     throw new Error(t('email_list.copy_offline', 'Copying needs a connection'));
   }
+  // Online only, so never on a connection serving another account.
+  const at = requireServedScope();
   const groups = new Map<string | undefined, Email[]>();
   for (const { email, accountId } of targets) {
     groups.set(accountId, [...(groups.get(accountId) ?? []), email]);
@@ -2334,7 +2368,7 @@ async function copyRows(
   try {
     for (const [accountId, rows] of groups) {
       if (accountId === to.accountId) {
-        await copyEmailsWithinAccount(rows.map((e) => e.id), to.id, accountId);
+        await copyEmailsWithinAccount(rows.map((e) => e.id), to.id, inAccount(at, accountId));
         // Same account: the message is now in the destination too.
         const done = new Set(rows.map((e) => e.id));
         set({
@@ -2348,7 +2382,7 @@ async function copyRows(
           patchDetail(e.id, accountId, { mailboxIds });
         }
       } else {
-        await crossAccountMove(rows, { accountId, id: '' }, to, { keepOriginal: true });
+        await crossAccountMove(rows, { accountId, id: '' }, to, { keepOriginal: true, at });
       }
       copied += rows.length;
     }
@@ -2373,7 +2407,8 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   const settings = useSettingsStore.getState();
   const to = toMailboxId ? refFor(state.mailboxes, toMailboxId) : undefined;
   const ops: OutboxOp[] = [];
-  const runs: Array<() => Promise<unknown>> = [];
+  // Each run gets the connection the batch runs on (see applyOrQueueBatch).
+  const runs: Array<(at: OpScope) => Promise<unknown>> = [];
   const cacheUpdates: Array<() => void> = [];
   const items: UndoEntry['items'] = [];
   const gone: Email[] = [];
@@ -2422,12 +2457,12 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         gone.push(e);
       }
       if (rows.length > 0) {
-        runs.push(() => apiArchiveEmails(
+        runs.push((at) => apiArchiveEmails(
           rows.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
           archiveId,
           mode,
           toRawMailboxes(mailboxes),
-          accountId,
+          inAccount(at, accountId),
         ));
         if (mode !== 'single') refreshFolders = true;
       }
@@ -2437,7 +2472,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       const toTrash = emails.filter((e) => !destroy.includes(e));
       if (destroy.length > 0) {
         for (const e of destroy) ops.push({ kind: 'destroy', emailId: e.id, accountId });
-        runs.push(() => apiDestroyEmails(ids(destroy), accountId));
+        runs.push((at) => apiDestroyEmails(ids(destroy), inAccount(at, accountId)));
         cacheUpdates.push(() => dropFromCache(ids(destroy), accountId));
         gone.push(...destroy);
       }
@@ -2449,8 +2484,8 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         const unread = settings.deleteAction === 'trash-and-read' ? toTrash.filter((e) => !e.keywords?.$seen) : [];
         const read = new Set(unread);
         for (const e of toTrash) fileInto(accountId, [e], trashId, read.has(e) ? { $seen: true } : undefined);
-        runs.push(() => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), accountId));
-        if (unread.length > 0) runs.push(() => patchKeywordsForEmails(ids(unread), { $seen: true }, accountId));
+        runs.push((at) => restoreEmailMailboxes(toTrash.map((e) => ({ id: e.id, mailboxIds: { [trashId]: true } })), inAccount(at, accountId)));
+        if (unread.length > 0) runs.push((at) => patchKeywordsForEmails(ids(unread), { $seen: true }, inAccount(at, accountId)));
       }
     } else if (action === 'spam' || action === 'notSpam') {
       const dest = action === 'spam' ? findJunkMailbox(mailboxes) : mailboxes.find((m) => m.role === 'inbox');
@@ -2460,9 +2495,9 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       }
       const destId = dest.originalId ?? dest.id;
       fileInto(accountId, emails, destId, keywordPatch);
-      runs.push(() => (action === 'spam'
-        ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
-        : apiUndoSpam(ids(emails), destId, accountId)));
+      runs.push((at) => (action === 'spam'
+        ? apiMarkAsSpam(ids(emails), destId, inAccount(at, accountId), { markRead: settings.deleteAction === 'trash-and-read' })
+        : apiUndoSpam(ids(emails), destId, inAccount(at, accountId))));
     } else if (to) {
       if (to.accountId !== accountId) {
         copies.push({ accountId, emails });
@@ -2474,20 +2509,26 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       });
       if (rows.length === 0) continue;
       fileInto(accountId, rows, to.id);
-      runs.push(() => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), accountId));
+      runs.push((at) => restoreEmailMailboxes(rows.map((e) => ({ id: e.id, mailboxIds: { [to.id]: true } })), inAccount(at, accountId)));
     }
   }
 
   if (ops.length > 0) {
-    const { queued } = await applyOrQueueBatch(ops, async () => {
-      for (const run of runs) await run();
+    const { queued } = await applyOrQueueBatch(ops, async (at) => {
+      for (const run of runs) await run(at);
     });
     // Year/month archiving may have created folders.
     if (refreshFolders && !queued) void get().fetchMailboxes();
   }
+  // The copies can't wait in the outbox: they run only on a connection that
+  // serves the shown account, taken once for all of them.
+  const copyScope = copies.length > 0 ? servedScope() : null;
   for (const copy of copies) {
     try {
-      await crossAccountMove(copy.emails, { accountId: copy.accountId, id: '' }, to!);
+      if (!copyScope) {
+        throw new Error(t('email_list.account_not_ready', 'This account is still loading. Try again in a moment.'));
+      }
+      await crossAccountMove(copy.emails, { accountId: copy.accountId, id: '' }, to!, { at: copyScope });
       gone.push(...copy.emails);
       dropFromCache(copy.emails.map((e) => e.id), copy.accountId);
     } catch (err) {
