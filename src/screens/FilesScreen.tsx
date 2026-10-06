@@ -51,6 +51,7 @@ import {
 import { jmapClient } from '../api/jmap-client';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
+import { observeServerFetch } from '../lib/server-reachability';
 import { getUniqueName } from '../lib/filenode-name';
 import { acceptedFileName, fileNameProblem } from '../lib/file-name-rules';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
@@ -404,7 +405,7 @@ export default function FilesScreen() {
       for (let i = 0; i < entries.length; i++) {
         const { node, path: rel } = entries[i];
         setBatchBusy(`${i + 1}/${entries.length}`);
-        const res = await secureFetch(getFileNodeDownloadUrl(node), { headers: header });
+        const res = await observeServerFetch(secureFetch(getFileNodeDownloadUrl(node), { headers: header }));
         if (!res.ok) throw new Error(`${node.name}: ${res.status}`);
         zip.file(rel, await res.arrayBuffer());
       }

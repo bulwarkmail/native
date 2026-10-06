@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('expo-file-system', () => ({
   File: class {
@@ -40,7 +40,9 @@ vi.mock('../jmap-client', () => ({
   },
 }));
 
-import { getDownloadUrl, isStaleUploadCopy, uploadBlob } from '../blob';
+import { getDownloadUrl, isStaleUploadCopy, uploadBlob, uploadBytes } from '../blob';
+import { secureFetch } from '../../lib/client-cert';
+import { setServerReachabilitySink } from '../../lib/server-reachability';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -183,5 +185,45 @@ describe('isStaleUploadCopy', () => {
     expect(isStaleUploadCopy('upload-notes.txt')).toBe(false);
     expect(isStaleUploadCopy('bulwark-exports')).toBe(false);
     expect(isStaleUploadCopy('x-upload-1700000000000-3')).toBe(false);
+  });
+});
+
+// Uploads tell the network store whether the mail server answered.
+describe('upload reachability', () => {
+  const sink = { response: vi.fn(), unreachable: vi.fn() };
+  beforeEach(() => setServerReachabilitySink(sink));
+  afterEach(() => setServerReachabilitySink(null));
+
+  it('reports the server answering a streamed upload, even with an error status', async () => {
+    uploadTask.uploadAsync.mockResolvedValueOnce({ status: 413, body: 'too large' });
+    await expect(uploadBlob('file:///tmp/a.bin', 'application/octet-stream')).rejects.toThrow(/413/);
+    expect(sink.response).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports nothing for a cancelled streamed upload', async () => {
+    const controller = new AbortController();
+    uploadTask.uploadAsync.mockImplementationOnce(async () => {
+      controller.abort();
+      return null;
+    });
+    await expect(
+      uploadBlob('file:///tmp/a.bin', 'application/octet-stream', { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(sink.response).not.toHaveBeenCalled();
+    expect(sink.unreachable).not.toHaveBeenCalled();
+  });
+
+  it('reports a buffered upload response and a transport failure', async () => {
+    vi.mocked(secureFetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ blobId: 'b', size: 1, type: 'text/plain' }),
+    } as unknown as Response);
+    await uploadBytes(new Uint8Array([1]), 'text/plain');
+    expect(sink.response).toHaveBeenCalledTimes(1);
+
+    vi.mocked(secureFetch).mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(uploadBytes(new Uint8Array([1]), 'text/plain')).rejects.toThrow('Network request failed');
+    expect(sink.unreachable).toHaveBeenCalledTimes(1);
   });
 });

@@ -13,6 +13,7 @@ import {
   type EmailFilenameOptions,
 } from './download-filename';
 import { getClientCertAlias, secureFetch } from './client-cert';
+import { observeServerFetch } from './server-reachability';
 import { sniffImageMime } from './email-html';
 
 const RFC822 = 'message/rfc822';
@@ -194,9 +195,9 @@ async function downloadInto(
       });
       return dest;
     }
-    const response = await secureFetch(url, {
+    const response = await observeServerFetch(secureFetch(url, {
       headers: { Authorization: jmapClient.authHeader },
-    });
+    }));
     if (!response.ok) {
       throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: response.status }));
     }
@@ -438,9 +439,9 @@ export async function shareAttachmentViaSheet(
 
 async function authedBlobFetch(url: string): Promise<Response> {
   await jmapClient.ensureFreshToken();
-  let r = await secureFetch(url, { headers: { Authorization: jmapClient.authHeader } });
+  let r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeader } }));
   if (r.status === 401 && (await jmapClient.forceRefreshToken())) {
-    r = await secureFetch(url, { headers: { Authorization: jmapClient.authHeader } });
+    r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeader } }));
   }
   if (!r.ok) throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: r.status }));
   return r;

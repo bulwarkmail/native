@@ -2,6 +2,7 @@ import { File } from 'expo-file-system';
 import type * as LegacyFileSystemTypes from 'expo-file-system/legacy';
 import { jmapClient } from './jmap-client';
 import { getClientCertAlias, secureFetch } from '../lib/client-cert';
+import { observeServerFetch, reportServerResponse } from '../lib/server-reachability';
 
 // The legacy expo-file-system API (streaming upload tasks with progress and
 // cancellation) is required lazily: it touches native globals at import time,
@@ -173,6 +174,9 @@ async function uploadFileStreamed(
     signal?.removeEventListener('abort', onAbort);
   }
   if (signal?.aborted || !result) throw abortError();
+  // The server answered (whatever the status). A failed task is not reported
+  // as unreachable: its error does not say whether the request left.
+  reportServerResponse();
 
   if (result.status < 200 || result.status >= 300) {
     const detail = (result.body || '').slice(0, 300);
@@ -203,7 +207,7 @@ async function uploadBlobBuffered(
   const bytes = await new File(uri).bytes();
   if (signal?.aborted) throw abortError();
 
-  const response = await secureFetch(uploadUrl, {
+  const response = await observeServerFetch(secureFetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Content-Type': contentType,
@@ -211,7 +215,7 @@ async function uploadBlobBuffered(
     },
     body: bytes.buffer as ArrayBuffer,
     signal,
-  });
+  }), signal);
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -234,14 +238,14 @@ export async function uploadBytes(
   const targetAccountId = accountId ?? jmapClient.accountId;
   const uploadUrl = uploadUrlFor(targetAccountId);
 
-  const response = await secureFetch(uploadUrl, {
+  const response = await observeServerFetch(secureFetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Content-Type': type || 'application/octet-stream',
       Authorization: jmapClient.authHeader,
     },
     body: bytes.buffer as ArrayBuffer,
-  });
+  }));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');

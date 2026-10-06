@@ -782,12 +782,13 @@ export async function fetchCalendarBlobText(
     await jmapClient.ensureFreshToken();
     // Lazy: blob/client-cert pull in native Expo modules, which the pure
     // JMAP layer (and its node tests) must not load eagerly.
-    const [{ getDownloadUrl }, { secureFetch }] = await Promise.all([
+    const [{ getDownloadUrl }, { secureFetch }, { observeServerFetch }] = await Promise.all([
       import('./blob'),
       import('../lib/client-cert'),
+      import('../lib/server-reachability'),
     ]);
     const url = getDownloadUrl(blobId, 'invite.ics', 'text/calendar', targetAccountId);
-    const res = await secureFetch(url, { headers: { Authorization: jmapClient.authHeader } });
+    const res = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeader } }));
     if (!res.ok) return null;
     const text = await res.text();
     return text.length > 2 * 1024 * 1024 ? null : text;

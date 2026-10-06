@@ -15,6 +15,7 @@
 //   client certificate that XHR cannot present, repeated failures).
 
 import { jmapClient, AuthenticationError } from './jmap-client';
+import { reportServerResponse } from '../lib/server-reachability';
 import { CAPABILITIES } from './types';
 import type { StateChange } from './types';
 import { getClientCertAlias } from '../lib/client-cert';
@@ -274,7 +275,11 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
       esHandlers.push([type, handler]);
     };
 
+    // Every event from the stream is the server answering; its pings keep the
+    // network store's view of the server fresh after a failed request.
+    // A dropped stream (status 0) is not reported: the request path decides.
     on('open', () => {
+      reportServerResponse();
       consecutiveFailures = 0;
       streamOpen = es === source;
       armWatchdog();
@@ -285,8 +290,12 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
         void connect();
       }, RECYCLE_MS);
     });
-    on('ping', () => armWatchdog());
+    on('ping', () => {
+      reportServerResponse();
+      armWatchdog();
+    });
     on('state', (event) => {
+      reportServerResponse();
       armWatchdog();
       try {
         const data: StateChange = JSON.parse(typeof event === 'string' ? event : event.data ?? '');
@@ -304,6 +313,7 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
       if (closed || es !== source) return;
       dropStream();
       const status = event?.xhrStatus ?? 0;
+      if (status > 0) reportServerResponse();
       if (status === 401) {
         // Stale bearer: refresh and come straight back with the new header.
         void jmapClient.forceRefreshToken().then(

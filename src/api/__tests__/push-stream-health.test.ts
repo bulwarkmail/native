@@ -41,6 +41,7 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { startLiveUpdates } from '../push-stream';
+import { setServerReachabilitySink } from '../../lib/server-reachability';
 
 beforeEach(() => {
   sources.length = 0;
@@ -78,5 +79,26 @@ describe('live updates health', () => {
     expect(handle.healthy).toBe(true);
     handle.close();
     expect(handle.healthy).toBe(false);
+  });
+
+  it('reports the server answering on open, ping, state and a refused stream, not on a dropped socket', async () => {
+    const sink = { response: vi.fn(), unreachable: vi.fn() };
+    setServerReachabilitySink(sink);
+    try {
+      const handle = await startLiveUpdates({ onStateChange: () => undefined });
+      sources[0].emit('open');
+      sources[0].emit('ping');
+      sources[0].emit('state', { data: '{}' });
+      expect(sink.response).toHaveBeenCalledTimes(3);
+      sources[0].emit('error', { xhrStatus: 0 });
+      expect(sink.response).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(5_000);
+      sources[1].emit('error', { xhrStatus: 503 });
+      expect(sink.response).toHaveBeenCalledTimes(4);
+      expect(sink.unreachable).not.toHaveBeenCalled();
+      handle.close();
+    } finally {
+      setServerReachabilitySink(null);
+    }
   });
 });

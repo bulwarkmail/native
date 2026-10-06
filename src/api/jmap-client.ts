@@ -16,6 +16,7 @@ import {
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
+import { isTransportFailure, reportServerResponse, reportServerUnreachable } from '../lib/server-reachability';
 
 // Refresh OAuth access tokens this many ms before they actually expire so
 // in-flight requests don't race the expiry window.
@@ -693,9 +694,18 @@ export class JMAPClient {
       controller?.abort();
     }, timeoutMs);
     try {
-      return await secureFetch(url, { ...init, ...(controller ? { signal: controller.signal } : {}), timeoutMs });
+      const response = await secureFetch(url, { ...init, ...(controller ? { signal: controller.signal } : {}), timeoutMs });
+      // Any HTTP response, whatever its status, means the server is reachable
+      // (stores/network-store counts that as online when the probe fails).
+      reportServerResponse();
+      return response;
     } catch (error) {
-      if (timedOut) throw new RequestTimeoutError(timeoutMs);
+      if (timedOut) {
+        reportServerUnreachable();
+        throw new RequestTimeoutError(timeoutMs);
+      }
+      // The caller's own abort (a cancelled upload) says nothing about the server.
+      if (!external?.aborted && isTransportFailure(error)) reportServerUnreachable();
       throw error;
     } finally {
       clearTimeout(timer);
