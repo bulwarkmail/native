@@ -14,9 +14,8 @@ vi.mock('../../api/calendar', () => ({
   updateCalendar: vi.fn(),
 }));
 vi.mock('../../api/blob', () => ({ uploadBytes: vi.fn() }));
-vi.mock('../../api/jmap-client', () => ({
-  jmapClient: { accountId: 'acc-1', isConnected: true, serverUrl: 'https://Mail.example.com/', username: 'Alice' },
-}));
+const jmapState = vi.hoisted(() => ({ accountId: 'acc-1', isConnected: true, serverUrl: 'https://Mail.example.com/', username: 'Alice' }));
+vi.mock('../../api/jmap-client', () => ({ jmapClient: jmapState }));
 vi.mock('../calendar-store', () => ({
   useCalendarStore: {
     getState: () => ({
@@ -28,8 +27,20 @@ vi.mock('../calendar-store', () => ({
   },
 }));
 vi.mock('./../auth-store', () => ({ useAuthStore: { getState: () => authState } }));
-const accountState = vi.hoisted(() => ({ accounts: [{ id: 'app-1' }] as { id: string }[] }));
+const accountState = vi.hoisted(() => {
+  const entries: Record<string, { id: string; username: string; serverUrl: string }> = {
+    'app-1': { id: 'app-1', username: 'Alice', serverUrl: 'https://Mail.example.com/' },
+    'app-2': { id: 'app-2', username: 'Bob', serverUrl: 'https://Mail.example.com/' },
+  };
+  return {
+    accounts: [{ id: 'app-1' }] as { id: string }[],
+    activeAccountId: 'app-1' as string | null,
+    getAccountById: (id: string) => entries[id],
+  };
+});
 vi.mock('../account-store', () => ({ useAccountStore: { getState: () => accountState } }));
+const networkState = vi.hoisted(() => ({ online: true }));
+vi.mock('../network-store', () => ({ useNetworkStore: { getState: () => networkState } }));
 vi.mock('react', () => ({ default: {} }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -76,6 +87,11 @@ beforeEach(() => {
   authState.serverUrl = 'https://Mail.example.com/';
   authState.username = 'Alice';
   calState.calendars = [];
+  accountState.activeAccountId = 'app-1';
+  networkState.online = true;
+  jmapState.accountId = 'acc-1';
+  jmapState.isConnected = true;
+  jmapState.username = 'Alice';
   useCalendarSubscriptionsStore.setState({ subscriptions: [], syncing: {} });
 });
 
@@ -198,12 +214,62 @@ describe('subscription store', () => {
       expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).toBeNull();
     });
 
+    it('a switch after the fetch (app account changes) writes nothing', async () => {
+      const api = await syncWithFeed(() => {});
+      // Re-run, switching only after the feed fetch and the event listing.
+      vi.mocked(api.deleteEvents).mockClear();
+      vi.mocked(api.updateEvent).mockClear();
+      importEvents.mockClear();
+      vi.mocked(api.getEvents).mockImplementation((async () => {
+        accountState.activeAccountId = 'app-2';
+        return [{ id: 'e1', uid: 'gone', calendarIds: { c1: true } }, { id: 'e2', uid: 'gone2', calendarIds: { c1: true, c2: true } }];
+      }) as never);
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'a', owner: ALICE, url: 'https://x/f.ics' })], syncing: {} });
+      await useCalendarSubscriptionsStore.getState().syncSubscription('a');
+      expect(api.deleteEvents).not.toHaveBeenCalled();
+      expect(api.updateEvent).not.toHaveBeenCalled();
+      expect(importEvents).not.toHaveBeenCalled();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastError).toBeNull();
+    });
+
     it('a sync with no switch still deletes and imports', async () => {
       const api = await syncWithFeed(() => {});
       expect(api.deleteEvents).toHaveBeenCalledWith(['e1']);
       expect(importEvents).toHaveBeenCalled();
       expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).not.toBeNull();
     });
+  });
+
+  it('syncAll while disconnected or offline does nothing', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'a', owner: ALICE })] });
+    jmapState.isConnected = false;
+    await useCalendarSubscriptionsStore.getState().syncAll();
+    jmapState.isConnected = true;
+    networkState.online = false;
+    await useCalendarSubscriptionsStore.getState().syncAll();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("addSubscription's rollback after an account switch deletes nothing", async () => {
+    const api = await import('../../api/calendar');
+    vi.mocked(api.createCalendar).mockResolvedValue({ id: 'c1', name: 'N' } as never);
+    vi.mocked(api.deleteCalendar).mockClear();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      accountState.activeAccountId = 'app-2';
+      throw new Error('boom');
+    });
+    await expect(useCalendarSubscriptionsStore.getState().addSubscription({ name: 'N', url: 'https://x/f.ics' })).rejects.toThrow('boom');
+    expect(api.deleteCalendar).not.toHaveBeenCalled();
+  });
+
+  it("addSubscription's rollback without a switch still deletes the calendar", async () => {
+    const api = await import('../../api/calendar');
+    vi.mocked(api.createCalendar).mockResolvedValue({ id: 'c1', name: 'N' } as never);
+    vi.mocked(api.deleteCalendar).mockClear();
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('boom'));
+    await expect(useCalendarSubscriptionsStore.getState().addSubscription({ name: 'N', url: 'https://x/f.ics' })).rejects.toThrow('boom');
+    expect(api.deleteCalendar).toHaveBeenCalledWith('c1');
   });
 
   it('forgetSubscriptions removes only that owner\'s subscriptions', () => {
