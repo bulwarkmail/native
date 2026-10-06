@@ -19,7 +19,7 @@ import type { RootStackParamList } from '../../navigation/types';
 import { useAccountStore } from '../../stores/account-store';
 import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../../stores/send-queue-store';
 import {
-  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, ownerStillActive, OutboxCheckError,
+  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, quickReplyOwnerActive, OutboxCheckError,
 } from '../../lib/queue-send';
 import { generateUUID } from '../../lib/uuid';
 import { generateMessageId } from '../../lib/email-threading';
@@ -41,6 +41,12 @@ import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
 interface Props {
   email: Email;
   jmapAccountId?: string;
+  /**
+   * The app account the viewer was opened in, which owns `email`. The box can
+   * remount after an account switch (the message cache is per account), and
+   * must still belong to the message it replies to, not the account now shown.
+   */
+  ownerAppAccountId?: string;
   /** Open the full composer with the draft text carried over. */
   onMoreOptions: (draft: string) => void;
   /** Reflect `$answered` in the caller's cache. */
@@ -52,7 +58,7 @@ interface Props {
  * to the sender with the original quoted, sent through the identity that
  * received the message. "More options" hands the text to the full composer.
  */
-export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: Props) {
+export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreOptions, onSent }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -67,16 +73,20 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const [sending, setSending] = React.useState(false);
   const sendingRef = React.useRef(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  // The app account this box was opened in. A reply is sent (or queued) only
-  // while it is still the active one: the message and its ids belong to it.
-  const ownerRef = React.useRef(useAuthStore.getState().activeAccountId);
+  // The app account that owns the message: the viewer's when given, else the
+  // one active as the box opened. A reply is sent (or queued) only while that
+  // account is both the active one and the one the app shows: the message and
+  // its ids belong to it.
+  const ownerRef = React.useRef(ownerAppAccountId ?? useAuthStore.getState().activeAccountId);
   // The Message-ID of the reply being written, kept across a failed attempt
   // and dropped once it was sent or queued.
   const messageIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => { setText(''); messageIdRef.current = null; }, [email.id]);
 
-  const ownerActiveNow = () => ownerStillActive(ownerRef.current, useAuthStore.getState().activeAccountId);
+  const ownerActiveNow = () => quickReplyOwnerActive(
+    ownerRef.current, useAuthStore.getState().activeAccountId, useEmailStore.getState().activeAccountId,
+  );
   const ownerLabel = () => {
     const entry = ownerRef.current ? useAccountStore.getState().getAccountById(ownerRef.current) : undefined;
     return entry?.email || entry?.username || ownerRef.current || '';

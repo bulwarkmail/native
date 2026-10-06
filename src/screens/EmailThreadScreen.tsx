@@ -1170,6 +1170,7 @@ function EmailPane({
           <QuickReplyBox
             email={newest}
             jmapAccountId={jmapAccountId}
+            ownerAppAccountId={appAccountId}
             onMoreOptions={() => onReply('reply', newest)}
             onSent={onEmailPatched}
           />
