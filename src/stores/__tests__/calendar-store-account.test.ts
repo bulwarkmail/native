@@ -310,3 +310,25 @@ describe('participant identities are loaded and kept per account', () => {
     expect(useCalendarStore.getState().participantIdentities).toEqual({});
   });
 });
+
+describe('a note is private: no scheduling mail', () => {
+  it('a note on an event with participants sends no scheduling flag', async () => {
+    const { buildNoteUpdate, noteSaveOptions } = await import('../../lib/event-note');
+    mockUpdate.mockResolvedValue(undefined);
+    const event = {
+      id: '1',
+      description: 'Agenda',
+      participants: {
+        me: { email: 'test@example.com', roles: { owner: true } },
+        guest: { email: 'guest@example.com', roles: { attendee: true } },
+      },
+    };
+    useCalendarStore.setState({ events: [event as never] });
+    const updates = buildNoteUpdate(event, 'remember the slides', new Date(2026, 9, 6, 9, 30))!;
+    await useCalendarStore.getState().updateEvent('1', updates, noteSaveOptions({ appAccountId: A }));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    const [, patch, schedule] = mockUpdate.mock.calls[0];
+    expect(patch).toEqual({ description: 'Agenda\n\n--- 2026-10-06 09:30 ---\nremember the slides' });
+    expect(schedule).toBe(false);
+  });
+});

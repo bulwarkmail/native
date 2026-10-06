@@ -107,7 +107,7 @@ import { usePendingCalendarOpen } from '../navigation/pending-calendar-open';
 import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
 import { createAccountCapture } from '../lib/captured-account';
-import { buildNoteUpdate } from '../lib/event-note';
+import { buildNoteUpdate, noteSaveOptions } from '../lib/event-note';
 import { toast } from '../stores/toast-store';
 import { useEmailStore, requireShownAccountScope, isShownAccount, AccountNotServedError } from '../stores/email-store';
 import { shareEventICS } from '../lib/calendar-ics-export';
@@ -1036,14 +1036,21 @@ export default function CalendarScreen() {
     async (event: CalendarEvent, note: string): Promise<boolean> => {
       const updates = buildNoteUpdate(event, note, displayNow());
       if (!updates) return false;
-      const account = accountOf(event);
+      const options = noteSaveOptions(accountOf(event));
       if (isRecurringSeriesMember(event)) {
         setDetailEvent(null);
-        setPendingAction({ kind: 'edit', event, updates, calendarId: getPrimaryCalendarId(event) ?? '', account });
+        setPendingAction({
+          kind: 'edit',
+          event,
+          updates,
+          calendarId: getPrimaryCalendarId(event) ?? '',
+          sendScheduling: options.sendSchedulingMessages,
+          account: options.account,
+        });
         return true;
       }
       try {
-        await updateEvent(event.id, updates, { account });
+        await updateEvent(event.id, updates, options);
         setDetailEvent((cur) => (cur && cur.id === event.id ? { ...cur, ...updates } : cur));
         toast.success(t('calendar.detail.note_saved', 'Note added'));
         return true;

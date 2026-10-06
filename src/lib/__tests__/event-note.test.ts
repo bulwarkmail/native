@@ -40,3 +40,11 @@ describe('buildNoteUpdate', () => {
     expect(buildNoteUpdate({ id: 'e1' } as never, ' ', NOW)).toBeNull();
   });
 });
+
+describe('noteSaveOptions', () => {
+  it('never asks for scheduling messages, and keeps the account', async () => {
+    const { noteSaveOptions } = await import('../event-note');
+    const account = { appAccountId: 'app-1', jmapAccountId: 'grp' };
+    expect(noteSaveOptions(account)).toEqual({ sendSchedulingMessages: false, account });
+  });
+});

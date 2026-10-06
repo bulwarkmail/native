@@ -28,3 +28,13 @@ export function buildNoteUpdate(
   const description = appendEventNote(event.description, note, now);
   return description === null ? null : { description };
 }
+
+/**
+ * How a note is saved: never with scheduling messages. A note is the user's
+ * own; with them the server would mail it to every guest (iMIP), and an
+ * attendee's note would send scheduling for someone else's event. Webmail's
+ * note sends none either.
+ */
+export function noteSaveOptions<A>(account: A): { sendSchedulingMessages: false; account: A } {
+  return { sendSchedulingMessages: false, account };
+}
