@@ -70,7 +70,7 @@ const sink = { response: vi.fn(), unreachable: vi.fn() };
 
 async function connected(): Promise<JMAPClient> {
   mockFetch([{ status: 200, json: SESSION }]);
-  const client = new JMAPClient();
+  const client = new JMAPClient({ reportsReachability: true });
   await client.connect('https://mail.example.com', 'user', 'pass');
   sink.response.mockClear();
   sink.unreachable.mockClear();
@@ -91,9 +91,24 @@ afterEach(() => {
 describe('jmapClient reports whether the mail server answered', () => {
   it('reports a response for a session fetch', async () => {
     mockFetch([{ status: 200, json: SESSION }]);
-    await new JMAPClient().connect('https://mail.example.com', 'user', 'pass');
+    await new JMAPClient({ reportsReachability: true }).connect('https://mail.example.com', 'user', 'pass');
     expect(sink.response).toHaveBeenCalled();
     expect(sink.unreachable).not.toHaveBeenCalled();
+  });
+
+  it('a detached client (another account) reports nothing', async () => {
+    mockFetch([{ status: 200, json: SESSION }]);
+    const detached = new JMAPClient();
+    await detached.connect('https://mail.example.com', 'user', 'pass');
+    mockFetch([{ status: 200, throw: new TypeError('Network request failed') }]);
+    await expect(detached.request([['EmailSubmission/set', { accountId: 'acc-1' }, '0']])).rejects.toBeInstanceOf(NetworkError);
+    expect(sink.response).not.toHaveBeenCalled();
+    expect(sink.unreachable).not.toHaveBeenCalled();
+  });
+
+  it('the app singleton reports', async () => {
+    const { jmapClient } = await import('../jmap-client');
+    expect((jmapClient as unknown as { reportsReachability: boolean }).reportsReachability).toBe(true);
   });
 
   it('reports a response for an API request', async () => {

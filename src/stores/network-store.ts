@@ -45,6 +45,8 @@ export const useNetworkStore = create<NetworkState>((set, get) => {
     });
   };
 
+  // Last writer wins: a stale result (a request that settled late) can win
+  // briefly, and the next ping, poll or request corrects it.
   const noteServer = (serverReachable: boolean): void => {
     const { connected, internetReachable } = get();
     const online = deriveOnline(connected, internetReachable, serverReachable);

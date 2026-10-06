@@ -33,6 +33,7 @@ import {
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
+import { singleFlightByKey } from '../lib/session-retry';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -1010,46 +1011,60 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { activeAccountId, session } = get();
     if (!activeAccountId) return false;
     if (session) return true;
-    const accountStore = useAccountStore.getState();
-    const target = accountStore.getAccountById(activeAccountId);
-    if (!target) return false;
-    try {
-      const ok = await jmapClient.loadAccount(activeAccountId);
-      if (!ok) return false;
-      accountStore.updateAccount(activeAccountId, {
-        isConnected: true,
-        hasError: false,
-        errorMessage: undefined,
-      });
-      const fresh = jmapClient.currentSession!;
-      applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
-      refetchFeatureStores();
-      return true;
-    } catch (err) {
-      if (err instanceof AuthenticationError) {
-        // Now we know the credentials are bad — fall back to logout flow.
-        await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
-        accountStore.removeAccount(activeAccountId);
-        set({
-          isAuthenticated: false,
-          isLoading: false,
-          hasRestoredSession: true,
-          error: 'Session expired',
-          serverUrl: null,
-          username: null,
-          session: null,
-          accountId: null,
-          activeAccountId: null,
-          client: null,
-        });
-      }
-      // NetworkError or anything else: stay where we are.
-      return false;
-    }
+    // Concurrent callers (the retry timer, an online edge, the 401 handler)
+    // share one attempt: two overlapping loadAccount calls, a success then a
+    // failure, could leave the client without a session while this store
+    // holds a live one.
+    return retrySessionFlight(activeAccountId);
   },
 
   clearError: () => set({ error: null }),
 }));
+
+// One attempt to bring back the session of `activeAccountId`; see retrySession.
+async function attemptSessionRetry(activeAccountId: string): Promise<boolean> {
+  if (useAuthStore.getState().session) return true;
+  const accountStore = useAccountStore.getState();
+  const target = accountStore.getAccountById(activeAccountId);
+  if (!target) return false;
+  try {
+    const ok = await jmapClient.loadAccount(activeAccountId);
+    if (!ok) return false;
+    // The user switched accounts meanwhile; that switch sets its own state.
+    if (useAuthStore.getState().activeAccountId !== activeAccountId) return false;
+    accountStore.updateAccount(activeAccountId, {
+      isConnected: true,
+      hasError: false,
+      errorMessage: undefined,
+    });
+    const fresh = jmapClient.currentSession!;
+    applyConnectedState(useAuthStore.setState, fresh, target.serverUrl, target.username, activeAccountId);
+    refetchFeatureStores();
+    return true;
+  } catch (err) {
+    if (err instanceof AuthenticationError) {
+      // Now we know the credentials are bad — fall back to logout flow.
+      await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
+      accountStore.removeAccount(activeAccountId);
+      useAuthStore.setState({
+        isAuthenticated: false,
+        isLoading: false,
+        hasRestoredSession: true,
+        error: 'Session expired',
+        serverUrl: null,
+        username: null,
+        session: null,
+        accountId: null,
+        activeAccountId: null,
+        client: null,
+      });
+    }
+    // NetworkError or anything else: stay where we are.
+    return false;
+  }
+}
+
+const retrySessionFlight = singleFlightByKey(attemptSessionRetry);
 
 // A 401 on a live session (revoked password/token, expired refresh token)
 // used to leave the user on a dead session until relaunch: nothing outside

@@ -148,6 +148,15 @@ export class JMAPClient {
   private tokenRefreshListeners = new Set<() => void>();
   /** Hold limits learned from rejected scheduled sends, per server (seconds). */
   private learnedHoldLimits = new Map<string, number>();
+  /** Whether this client's round trips feed the network store's
+   *  `serverReachable`. Only the app's active connection (`jmapClient`) does:
+   *  detached clients (push renewal, device sync, widgets) serve other
+   *  accounts, whose servers say nothing about the active one. */
+  private readonly reportsReachability: boolean;
+
+  constructor(opts?: { reportsReachability?: boolean }) {
+    this.reportsReachability = opts?.reportsReachability ?? false;
+  }
 
   get accountId(): string {
     if (!this._accountId) {
@@ -697,15 +706,15 @@ export class JMAPClient {
       const response = await secureFetch(url, { ...init, ...(controller ? { signal: controller.signal } : {}), timeoutMs });
       // Any HTTP response, whatever its status, means the server is reachable
       // (stores/network-store counts that as online when the probe fails).
-      reportServerResponse();
+      if (this.reportsReachability) reportServerResponse();
       return response;
     } catch (error) {
       if (timedOut) {
-        reportServerUnreachable();
+        if (this.reportsReachability) reportServerUnreachable();
         throw new RequestTimeoutError(timeoutMs);
       }
       // The caller's own abort (a cancelled upload) says nothing about the server.
-      if (!external?.aborted && isTransportFailure(error)) reportServerUnreachable();
+      if (this.reportsReachability && !external?.aborted && isTransportFailure(error)) reportServerUnreachable();
       throw error;
     } finally {
       clearTimeout(timer);
@@ -1370,4 +1379,4 @@ export class RateLimitError extends Error {
 }
 
 // Singleton instance
-export const jmapClient = new JMAPClient();
+export const jmapClient = new JMAPClient({ reportsReachability: true });

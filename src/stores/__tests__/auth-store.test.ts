@@ -472,4 +472,52 @@ describe('auth-store', () => {
       expect(useAuthStore.getState().error).toBeNull();
     });
   });
+
+  describe('retrySession', () => {
+    function offlineSignedIn(): void {
+      useAccountStore.setState({
+        accounts: [{
+          id: 'acc-1', serverUrl: 'https://mail.example.com', username: 'user', displayName: 'user',
+          email: 'user', avatarColor: '#000', lastLoginAt: 0, isConnected: false, hasError: true, isDefault: true,
+        }],
+        activeAccountId: 'acc-1',
+        defaultAccountId: 'acc-1',
+      });
+      useAuthStore.setState({ isAuthenticated: true, session: null, activeAccountId: 'acc-1', client: jmapClient });
+    }
+
+    it('shares one in-flight attempt between concurrent callers', async () => {
+      offlineSignedIn();
+      let finish!: (ok: boolean) => void;
+      mockLoadAccount.mockImplementationOnce(() => new Promise<boolean>((r) => { finish = r; }));
+      const a = useAuthStore.getState().retrySession();
+      const b = useAuthStore.getState().retrySession();
+      expect(mockLoadAccount).toHaveBeenCalledTimes(1);
+      finish(true);
+      expect(await a).toBe(true);
+      expect(await b).toBe(true);
+      expect(useAuthStore.getState().session).not.toBeNull();
+    });
+
+    it('starts a new attempt once the previous one settled', async () => {
+      offlineSignedIn();
+      const { NetworkError } = await import('../../api/jmap-client');
+      mockLoadAccount.mockRejectedValueOnce(new NetworkError('down')).mockResolvedValueOnce(true);
+      expect(await useAuthStore.getState().retrySession()).toBe(false);
+      expect(await useAuthStore.getState().retrySession()).toBe(true);
+      expect(mockLoadAccount).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not apply a session for an account that is no longer active', async () => {
+      offlineSignedIn();
+      let finish!: (ok: boolean) => void;
+      mockLoadAccount.mockImplementationOnce(() => new Promise<boolean>((r) => { finish = r; }));
+      const p = useAuthStore.getState().retrySession();
+      useAuthStore.setState({ activeAccountId: 'acc-2' });
+      finish(true);
+      expect(await p).toBe(false);
+      expect(useAuthStore.getState().session).toBeNull();
+    });
+  });
 });
+

@@ -71,6 +71,7 @@ import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
+import { shouldRetrySession, startSessionRetry } from './src/lib/session-retry';
 import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
 import { PushOnboardingPrompt } from './src/components/PushOnboardingPrompt';
@@ -443,14 +444,45 @@ export default function App() {
 
   // When the network flips back on while we're authenticated-but-offline
   // (no live JMAP session), retry the session so the user lands back on
-  // live data without needing to relaunch.
+  // live data without needing to relaunch. The online edge alone is not
+  // enough: a cold start while the LAN server restarts leaves no session and
+  // no edge to come, so keep retrying on a backoff (5 s doubling to 60 s)
+  // while an interface is up, and at once when the app comes to the
+  // foreground (lib/session-retry). retrySession is single-flight.
   React.useEffect(() => {
     if (!isAuthenticated) return;
-    return useNetworkStore.subscribe((state, prev) => {
-      if (state.online && !prev.online && !useAuthStore.getState().session) {
-        void useAuthStore.getState().retrySession();
-      }
+    const retrier = startSessionRetry({
+      shouldRetry: () => {
+        const auth = useAuthStore.getState();
+        return shouldRetrySession({
+          isAuthenticated: auth.isAuthenticated,
+          hasSession: auth.session != null,
+          connected: useNetworkStore.getState().connected,
+          isLoading: auth.isLoading,
+        });
+      },
+      retry: () => useAuthStore.getState().retrySession(),
     });
+    retrier.poke();
+    const unsubscribers = [
+      useNetworkStore.subscribe((state, prev) => {
+        if (state.online && !prev.online && !useAuthStore.getState().session) {
+          void useAuthStore.getState().retrySession();
+        }
+        if (state.connected !== prev.connected) retrier.poke();
+      }),
+      useAuthStore.subscribe((state, prev) => {
+        if (state.session !== prev.session || state.isLoading !== prev.isLoading) retrier.poke();
+      }),
+    ];
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') retrier.kick();
+    });
+    return () => {
+      retrier.stop();
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+      appStateSubscription.remove();
+    };
   }, [isAuthenticated]);
 
   React.useEffect(() => {
@@ -831,7 +863,9 @@ export default function App() {
       ping: () => jmapClient.ping(),
       streamHealthy: () => handle?.healthy ?? false,
       isActive: () => appActive,
-      isOnline: () => useNetworkStore.getState().online,
+      // An interface, not `online`: the echo is itself how a reachable server
+      // is found again when the internet probe fails.
+      isOnline: () => useNetworkStore.getState().connected,
       onConnected: (connected) => {
         if (!mounted || !activeAccountId) return;
         const account = useAccountStore.getState().getAccountById(activeAccountId);
