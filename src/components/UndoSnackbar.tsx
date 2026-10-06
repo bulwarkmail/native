@@ -38,6 +38,15 @@ export function UndoSnackbar() {
   const undoLast = useEmailStore((s) => s.undoLast);
   const clearUndo = useEmailStore((s) => s.clearUndo);
   const pendingSend = useSendUndoStore((s) => s.pending);
+  // A held send is offered only in the account it was sent from: after a
+  // switch its Undo / Send now would name that account's submission and
+  // message ids, which repeat in other accounts. Withdrawn on a switch (and
+  // not shown in the render before that).
+  const shownAccountId = useEmailStore((s) => s.activeAccountId);
+  const sendOfShown = pendingSend && pendingSend.appAccountId === shownAccountId ? pendingSend : null;
+  React.useEffect(() => {
+    if (pendingSend && pendingSend.appAccountId !== shownAccountId) useSendUndoStore.getState().clear();
+  }, [pendingSend, shownAccountId]);
   const sendBusy = useSendUndoStore((s) => s.busy);
   const slideY = React.useRef(new Animated.Value(120)).current;
   const opacity = React.useRef(new Animated.Value(0)).current;
@@ -48,17 +57,17 @@ export function UndoSnackbar() {
     const list: Shown | null = entry
       ? { label: entry.label, createdAt: entry.createdAt, visibleMs: VISIBLE_MS }
       : null;
-    const send: Shown | null = pendingSend
+    const send: Shown | null = sendOfShown
       ? {
-          label: t('email_composer.undo_send_label', 'Sending in {seconds}s…', { seconds: pendingSend.delaySeconds }),
-          createdAt: pendingSend.createdAt,
-          visibleMs: Math.max(1000, pendingSend.delaySeconds * 1000 - 1000),
-          send: pendingSend,
+          label: t('email_composer.undo_send_label', 'Sending in {seconds}s…', { seconds: sendOfShown.delaySeconds }),
+          createdAt: sendOfShown.createdAt,
+          visibleMs: Math.max(1000, sendOfShown.delaySeconds * 1000 - 1000),
+          send: sendOfShown,
         }
       : null;
     if (list && send) return list.createdAt >= send.createdAt ? list : send;
     return list ?? send;
-  }, [entry, pendingSend, t]);
+  }, [entry, sendOfShown, t]);
 
   // Remember the last non-null entry so the bar's text/handlers stay valid
   // while it animates out after the entry flips to null.
@@ -110,7 +119,8 @@ export function UndoSnackbar() {
     if (!ok) return;
     // Bring the message back as an editable draft and reopen the composer.
     try {
-      const draft = await restoreUndoneSend(send, useEmailStore.getState().mailboxes);
+      const { mailboxes, activeAccountId } = useEmailStore.getState();
+      const draft = await restoreUndoneSend(send, mailboxes, activeAccountId);
       navigation.navigate('Compose', { draft });
     } catch (err) {
       console.warn('[send-undo] reopen failed', err);

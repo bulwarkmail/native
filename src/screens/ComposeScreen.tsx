@@ -2493,6 +2493,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         // Undo-send window: the undo bar offers Undo / Send now.
         useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
           identityId: primaryIdentity.id,
+          appAccountId: owner?.appAccountId,
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
         });

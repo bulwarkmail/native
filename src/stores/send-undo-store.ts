@@ -10,6 +10,8 @@ import {
   type SendEmailResult,
 } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
+import { inAccount, opScope, type OpScope } from '../api/op-scope';
+import { clientServesAccount } from '../lib/active-client-account';
 import type { EmailAddress, Mailbox } from '../api/types';
 import { draftContextFromEmail } from '../lib/draft-context';
 import { mailboxesOfAccount } from '../lib/mailbox-tree';
@@ -21,6 +23,12 @@ export interface PendingUndoSend {
   identityId: string;
   /** Account holding the submission: a shared account for a send from its identity. */
   accountId?: string;
+  /**
+   * The app account the message was sent from. Undo and Send now act only
+   * while the client serves it: ids repeat across accounts, so the
+   * submission and message ids would name another account's otherwise.
+   */
+  appAccountId?: string;
   from?: EmailAddress[];
   to?: EmailAddress[];
   /** ISO time the server will release the message. */
@@ -31,7 +39,17 @@ export interface PendingUndoSend {
 }
 
 /** What the sender knows about a held send beyond the server's answer. */
-export type HeldSendDetails = Pick<PendingUndoSend, 'identityId' | 'accountId' | 'from' | 'to'>;
+export type HeldSendDetails = Pick<PendingUndoSend, 'identityId' | 'accountId' | 'appAccountId' | 'from' | 'to'>;
+
+/**
+ * The connection to act on a held send on (its JMAP account, on the
+ * connection serving the app account it was sent from), taken now, or null
+ * while the client serves another account or the sender is unknown.
+ */
+export function heldSendScope(entry: PendingUndoSend): OpScope | null {
+  if (!entry.appAccountId || !jmapClient.isConnected || !clientServesAccount(entry.appAccountId)) return null;
+  return inAccount(opScope(), entry.accountId);
+}
 
 interface SendUndoState {
   pending: PendingUndoSend | null;
@@ -79,9 +97,16 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
   undo: async () => {
     const entry = get().pending;
     if (!entry || get().busy) return false;
+    const at = heldSendScope(entry);
+    if (!at) {
+      // Another account is served: never act there. The message goes out as
+      // sent; the bar is withdrawn.
+      set({ pending: null, busy: false });
+      return false;
+    }
     set({ busy: true });
     try {
-      await cancelScheduledSend(entry.emailSubmissionId, entry.accountId);
+      await cancelScheduledSend(entry.emailSubmissionId, at);
       set({ pending: null, busy: false, restoredEmailId: entry.emailId });
       return true;
     } catch (err) {
@@ -94,6 +119,12 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
   sendNow: async () => {
     const entry = get().pending;
     if (!entry || get().busy) return false;
+    const at = heldSendScope(entry);
+    if (!at) {
+      // The hold runs out by itself; nothing is sent to another account.
+      set({ pending: null, busy: false });
+      return false;
+    }
     set({ busy: true });
     try {
       await rescheduleScheduledSend(
@@ -103,7 +134,7 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
           identityId: entry.identityId,
           from: entry.from,
           to: entry.to,
-          accountId: entry.accountId,
+          accountId: at,
         },
         0,
       );
@@ -120,13 +151,19 @@ export const useSendUndoStore = create<SendUndoState>((set, get) => ({
 /**
  * After an undo: move the held message back into Drafts and load it for the
  * composer, in the account it was sent from (a quick reply to shared mail
- * goes out of the shared account). Webmail `cancelUndoSend`.
+ * goes out of the shared account). Webmail `cancelUndoSend`. `mailboxes` are
+ * app account `mailboxesOf`'s folders (the email store's); refused unless
+ * that is the account the message was sent from and the client serves it.
  */
 export async function restoreUndoneSend(
   entry: PendingUndoSend,
   mailboxes: Mailbox[],
+  mailboxesOf: string | null,
 ): Promise<ComposeDraftContext> {
-  const shared = !!entry.accountId && entry.accountId !== jmapClient.accountId;
+  const at = mailboxesOf && mailboxesOf === entry.appAccountId ? heldSendScope(entry) : null;
+  if (!at) throw new Error('The account the message was sent from is not active');
+  const primary = opScope().accountId;
+  const shared = !!entry.accountId && entry.accountId !== primary;
   const accountId = shared ? entry.accountId : undefined;
   const scope = mailboxesOfAccount(mailboxes, accountId);
   const drafts = scope.find((m) => m.role === 'drafts');
@@ -136,8 +173,8 @@ export async function restoreUndoneSend(
       entry.emailId,
       drafts.originalId ?? drafts.id,
       sent ? (sent.originalId ?? sent.id) : undefined,
-      accountId,
+      at,
     );
   }
-  return draftContextFromEmail(await getFullEmail(entry.emailId, accountId), accountId);
+  return draftContextFromEmail(await getFullEmail(entry.emailId, at), accountId);
 }

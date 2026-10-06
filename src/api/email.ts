@@ -2030,7 +2030,7 @@ export async function rescheduleScheduledSend(
     from?: EmailAddress[];
     to?: EmailAddress[];
     /** Account holding the submission; the replacement is created there too. */
-    accountId?: string;
+    accountId?: AccountRef;
   },
   holdForSeconds: number,
   recipients?: EmailAddress[],

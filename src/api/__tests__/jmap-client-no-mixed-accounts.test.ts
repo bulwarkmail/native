@@ -12,8 +12,8 @@ vi.mock('expo-file-system', () => ({ File: class {} }));
 
 import { JMAPClient, StaleLoadError, jmapClient } from '../jmap-client';
 import {
-  archiveEmails, createMailbox, deleteMailbox, destroyEmails, emptyMailbox, markMailboxAsRead, moveEmails,
-  sendEmail, updateMailbox,
+  archiveEmails, cancelScheduledSend, createMailbox, deleteMailbox, destroyEmails, emptyMailbox, markMailboxAsRead,
+  moveEmails, rescheduleScheduledSend, restoreEmailToDraft, sendEmail, updateMailbox,
 } from '../email';
 import { uploadBytes } from '../blob';
 import { opScope } from '../op-scope';
@@ -504,6 +504,10 @@ describe('an operation stays on the connection it started on (R15)', () => {
     ['rename folder', (at: ReturnType<typeof opScope>) => updateMailbox('f1', { name: 'x' }, at)],
     ['create folder', (at: ReturnType<typeof opScope>) => createMailbox({ name: 'x', parentId: 'f1' }, at)],
     ['mark folder read', (at: ReturnType<typeof opScope>) => markMailboxAsRead('inbox', at)],
+    ['cancel a held send (Undo)', (at: ReturnType<typeof opScope>) => cancelScheduledSend('sub-1', at)],
+    ['release a held send (Send now)', (at: ReturnType<typeof opScope>) => rescheduleScheduledSend(
+      { emailSubmissionId: 'sub-1', emailId: 'm1', identityId: 'i1', accountId: at }, 0)],
+    ['restore an undone send to Drafts', (at: ReturnType<typeof opScope>) => restoreEmailToDraft('m1', 'drafts', 'sent', at)],
   ])('%s, bound to A at the tap, sends nothing to B after a switch', async (_name, act) => {
     await bothOnC(async (c) => setOk(c));
     const at = opScope();

@@ -234,6 +234,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       // Recorded before the flag below so its round trip doesn't eat the window.
       useSendUndoStore.getState().recordHeldSend(result, holdFor, {
         identityId: identity.id,
+        appAccountId: ownerAppAccountId ?? undefined,
         accountId: jmapAccountId,
         from: [{ name: identity.name, email: identity.email }],
       });
