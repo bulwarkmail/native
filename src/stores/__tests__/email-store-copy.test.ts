@@ -287,3 +287,25 @@ describe('a failed cross-account move', () => {
     expect(useEmailStore.getState().emails).toEqual([ROW, ROW2]);
   });
 });
+
+describe('a failed bulk action on a list spanning accounts', () => {
+  const TEAM_ROW = { ...ROW, id: 'e3', jmapAccountId: 'grp-1' } as Email;
+  beforeEach(() => {
+    useEmailStore.setState({
+      mailboxes: [...MAILBOXES, own('t', 'trash'), team('t', 'trash'), own('j', 'junk'), team('j', 'junk')],
+      emails: [ROW, TEAM_ROW],
+    });
+    for (const m of [mockMoveEmails, emailApi.archiveEmails, emailApi.restoreEmailMailboxes, emailApi.setEmailMailboxes, mockDestroy,
+      emailApi.markAsSpam, emailApi.patchKeywordsForEmails, emailApi.patchKeywordsPerEmail]) {
+      (m as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('boom'));
+    }
+  });
+
+  it.each([
+    ['archive', () => useEmailStore.getState().archiveEmailsBatch(['e1', 'grp-1:e3'])],
+    ['delete', () => useEmailStore.getState().deleteEmailsBatch(['e1', 'grp-1:e3'], 't', 'a')],
+    ['spam', () => useEmailStore.getState().markSpam(['e1', 'grp-1:e3'])],
+  ])('%s rejects', async (_name, run) => {
+    await expect(run()).rejects.toThrow('boom');
+  });
+});
