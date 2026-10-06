@@ -32,6 +32,11 @@ vi.mock('../../stores/settings-store', () => ({
   useSettingsStore: (select: (s: unknown) => unknown) => select({ identities: [] }),
 }));
 
+let storedIdentities: Record<string, Array<{ calendarAddress: string }>> = {};
+vi.mock('../../stores/calendar-store', () => ({
+  useCalendarStore: (select: (s: unknown) => unknown) => select({ participantIdentities: storedIdentities }),
+}));
+
 import { useUserCalendarAddresses, resetUserCalendarAddressCache } from '../calendar-user-addresses';
 import { fetchAccountDisplayName, fetchPrincipal, resetPrincipalRefusals } from '../../api/account-security';
 
@@ -41,6 +46,14 @@ beforeEach(() => {
   request.mockReset();
   resetUserCalendarAddressCache();
   resetPrincipalRefusals();
+});
+
+describe('the organizing identity counts as the user', () => {
+  it('merges the account\'s ParticipantIdentity addresses', () => {
+    storedIdentities = { 'acc-1': [{ calendarAddress: 'mailto:work@example.com' }, { calendarAddress: 'mailto:ME@example.com' }] };
+    expect(useUserCalendarAddresses(false)).toEqual(['me@example.com', 'work@example.com']);
+    storedIdentities = {};
+  });
 });
 
 describe('account aliases for calendar invitations', () => {

@@ -13,6 +13,7 @@ import {
   seedAttendees,
   defaultIdentityAddress,
   organizerAddressForSave,
+  participantsLockedFor,
 } from '../calendar-participants';
 
 const event: Partial<CalendarEvent> = {
@@ -251,5 +252,47 @@ describe('organizerAddressForSave', () => {
     expect(organizerAddressForSave(null, undefined, ['login@example.com', 'x@example.com'])).toBe('login@example.com');
     expect(organizerAddressForSave(null, [{ calendarAddress: 'mailto:a@b.c', isDefault: false }], ['login@example.com'])).toBe('login@example.com');
     expect(organizerAddressForSave(null, [], [])).toBe('');
+  });
+});
+
+describe('editing keeps participants', () => {
+  const existing = {
+    o1: { '@type': 'Participant', email: 'work@example.com', calendarAddress: 'mailto:work@example.com', roles: { owner: true }, participationStatus: 'accepted', extra: 'keep' },
+    p1: { '@type': 'Participant', email: 'bob@example.com', name: 'Bob', roles: { attendee: true }, participationStatus: 'declined', scheduleStatus: '2.0' },
+    p2: { '@type': 'Participant', email: 'gone@example.com', roles: { attendee: true } },
+  } as unknown as Record<string, import('../../api/types').Participant>;
+
+  it('keeps ids and properties, drops removed, adds new with fresh ids', () => {
+    const map = buildParticipantMap(
+      { name: 'W', email: 'Work@example.com' },
+      [{ name: 'Bob', email: 'bob@example.com' }, { name: 'Cy', email: 'cy@example.com' }],
+      existing,
+    );
+    expect(map.o1).toBe(existing.o1);
+    expect(map.p1).toBe(existing.p1);
+    expect(map.p2).toBeUndefined();
+    const added = Object.entries(map).filter(([id]) => !(id in existing));
+    expect(added).toHaveLength(1);
+    expect(added[0][1].email).toBe('cy@example.com');
+    expect(Object.keys(map)).toHaveLength(3);
+  });
+
+  it('seedAttendees leaves out the organizer address actually used', () => {
+    const ev = { participants: { a: { email: 'work@example.com', roles: {} }, b: { email: 'bob@example.com', roles: { attendee: true } } } } as unknown as Partial<CalendarEvent>;
+    expect(seedAttendees(ev, ['me@example.com'], 'mailto:Work@example.com').map((a) => a.email)).toEqual(['bob@example.com']);
+  });
+});
+
+describe('participantsLockedFor', () => {
+  const ev = { organizerCalendarAddress: 'mailto:Work@example.com', participants: { a: { email: 'bob@example.com' } } } as unknown as Partial<CalendarEvent>;
+  it('is open to the organizer, also as an identity address', () => {
+    expect(participantsLockedFor(ev, ['me@example.com', 'work@example.com'])).toBe(false);
+  });
+  it('is locked for someone else\'s event', () => {
+    expect(participantsLockedFor(ev, ['me@example.com'])).toBe(true);
+  });
+  it('is open for events without participants and for new ones', () => {
+    expect(participantsLockedFor({ title: 'x' }, ['me@example.com'])).toBe(false);
+    expect(participantsLockedFor(null, [])).toBe(false);
   });
 });

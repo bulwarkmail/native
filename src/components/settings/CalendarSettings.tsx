@@ -11,6 +11,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
+import { useAccountStore } from '../../stores/account-store';
 import { jmapClient } from '../../api/jmap-client';
 import { useColors } from '../../theme/colors';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -85,7 +86,14 @@ export function CalendarSettings() {
     if (!ownJmapAccountId || useCalendarStore.getState().participantIdentities[ownJmapAccountId]) return;
     void fetchIdentities({ appAccountId: useEmailStore.getState().activeAccountId });
   }, [ownJmapAccountId, fetchIdentities]);
-  const defaultIdentityId = identities?.find((i) => i.isDefault)?.id ?? identities?.[0]?.id ?? '';
+  // What organizes new invitations: the flagged default, else the login
+  // address (the fallback), else the first identity.
+  const loginEmail = useAccountStore((s) => s.getActiveAccount()?.email ?? '');
+  const defaultIdentityId =
+    identities?.find((i) => i.isDefault)?.id
+    ?? identities?.find((i) => i.calendarAddress.replace(/^mailto:/i, '').toLowerCase() === loginEmail.toLowerCase())?.id
+    ?? identities?.[0]?.id
+    ?? '';
 
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
