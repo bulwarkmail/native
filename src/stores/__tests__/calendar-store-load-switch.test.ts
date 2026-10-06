@@ -391,3 +391,28 @@ describe('a pinned load (a widget run without the app open)', () => {
   });
 });
 
+describe('residual minors', () => {
+  it('a load superseded by a reconnect of the same account does not leave loading on', async () => {
+    const aQuery = deferred<string[]>();
+    mockQuery.mockReturnValueOnce(aQuery.promise);
+    const pending = useCalendarStore.getState().fetchEvents(['cal-1'], AFTER, BEFORE);
+    expect(useCalendarStore.getState().loading).toBe(true);
+    client.connectionGen = 9;
+    aQuery.resolve([]);
+    await pending;
+    expect(useCalendarStore.getState().loading).toBe(false);
+    expect(useCalendarStore.getState().loadedRange).toBeNull();
+  });
+
+  it('an extendRange superseded the same way does not leave loading on', async () => {
+    useCalendarStore.setState({ loadedRange: { after: AFTER, before: BEFORE } });
+    const aQuery = deferred<string[]>();
+    mockQuery.mockReturnValueOnce(aQuery.promise);
+    const pending = useCalendarStore.getState().extendRange(AFTER, '2026-12-01T00:00:00.000Z');
+    client.connectionGen = 9;
+    aQuery.resolve([]);
+    await pending;
+    expect(useCalendarStore.getState().loading).toBe(false);
+    expect(useCalendarStore.getState().loadedRange).toEqual({ after: AFTER, before: BEFORE });
+  });
+});

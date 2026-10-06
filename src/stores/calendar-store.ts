@@ -368,6 +368,15 @@ function loadIsCurrent(load: LoadContext): boolean {
     && (load.pinned ? clientServesRegistryAccount(load.appAccountId) : isShownAccount(load.appAccountId));
 }
 
+/**
+ * A superseded load stores nothing; in the same session it still clears the
+ * `loading` it set (a reconnect of the same account would leave it on). After
+ * a reset the flag is the new session's.
+ */
+function dropLoad(load: LoadContext, set: (partial: Partial<CalendarState>) => void): void {
+  if (load.epoch === loadEpoch) set({ loading: false });
+}
+
 const loadKey = (load: LoadContext) =>
   `${load.pinned ? 'pin' : 'shown'}|${load.epoch}|${load.appAccountId}|${load.scope.gen}|${load.scope.accountId}`;
 
@@ -742,10 +751,16 @@ export const useCalendarStore = create<CalendarState>()(
       const events = await loadEventsInRange(get().calendars, calendarIds, after, before, load.scope);
       // Superseded (another account, connection or session): neither the
       // events nor the "loaded" mark are the shown account's.
-      if (!loadIsCurrent(load)) return;
+      if (!loadIsCurrent(load)) {
+        dropLoad(load, set);
+        return;
+      }
       set({ events, loadedRange: { after, before }, loading: false });
     } catch (err) {
-      if (!loadIsCurrent(load)) return;
+      if (!loadIsCurrent(load)) {
+        dropLoad(load, set);
+        return;
+      }
       if (isStaleLoad(err)) {
         set({ loading: false });
         return;
@@ -868,7 +883,10 @@ export const useCalendarStore = create<CalendarState>()(
         incoming.push(...(await loadEventsInRange(calendars, calendarIds, piece.after, piece.before, load.scope)));
       }
       // Superseded: these events and this window are not the shown account's.
-      if (!loadIsCurrent(load)) return;
+      if (!loadIsCurrent(load)) {
+        dropLoad(load, set);
+        return;
+      }
       // A jump elsewhere replaced the window meanwhile: these pieces no
       // longer border it. (A refresh of the same window is fine.)
       if (!sameRange(get().loadedRange, loaded)) {
@@ -881,7 +899,10 @@ export const useCalendarStore = create<CalendarState>()(
         loading: false,
       });
     } catch (err) {
-      if (!loadIsCurrent(load)) return;
+      if (!loadIsCurrent(load)) {
+        dropLoad(load, set);
+        return;
+      }
       if (isStaleLoad(err)) {
         set({ loading: false });
         return;
