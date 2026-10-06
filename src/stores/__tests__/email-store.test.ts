@@ -231,6 +231,16 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().error).toBe('Network error');
     });
+
+    it('sets no error for a request dropped after an account switch (StaleLoadError)', async () => {
+      const stale = new Error('Superseded by a newer account load');
+      stale.name = 'StaleLoadError';
+      mockGetMailboxesWithState.mockRejectedValue(stale);
+
+      await useEmailStore.getState().fetchMailboxes();
+
+      expect(useEmailStore.getState().error).toBeNull();
+    });
   });
 
   describe('selectMailbox', () => {

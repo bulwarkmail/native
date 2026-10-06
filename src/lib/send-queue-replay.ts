@@ -42,6 +42,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { toast } from '../stores/toast-store';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 import { trustRecipients, trustedSendersBookSyncOn } from './trust-recipients';
+import { isStaleLoad } from './network-error';
 
 /** How far before the attempt the copy lookup starts (generous: device clocks drift). */
 export const RECONCILE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -60,6 +61,10 @@ export type SendErrorOutcome = 'failed' | 'uncertain' | 'auth';
  *   send request (a 401, or a token refresh before or after a 401), i.e.
  *   before the server ran any method; the clean-ups after the response
  *   swallow their errors.
+ *   `StaleLoadError` counts the same: jmapClient throws it only before the
+ *   request is sent (the client moved to another connection first) or for a
+ *   401 on a connection that is gone, so nothing ran either way, and the
+ *   flush stops because the connection it ran on is gone.
  * - `uncertain`: everything else - NetworkError, a TypeError from fetch,
  *   RequestTimeoutError, SendUnconfirmedError, RateLimitError, an HTTP error
  *   or unparsable reply, and any error class not listed here.
@@ -68,7 +73,7 @@ export function classifySendError(err: unknown): SendErrorOutcome {
   if (err instanceof SendRefusedError || err instanceof RecipientsRejectedError || err instanceof ScheduleTooLateError) {
     return 'failed';
   }
-  if (err instanceof AuthenticationError) return 'auth';
+  if (err instanceof AuthenticationError || isStaleLoad(err)) return 'auth';
   return 'uncertain';
 }
 

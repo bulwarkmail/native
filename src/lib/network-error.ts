@@ -54,6 +54,16 @@ export function isTransientNetworkError(err: unknown): boolean {
   return TRANSIENT_MESSAGE_HINTS.some((hint) => msg.includes(hint));
 }
 
+/**
+ * True for jmapClient's `StaleLoadError`: the client moved to another
+ * connection (account switch, sign-in, sign-out) before the request was sent.
+ * Nothing reached the server, and the work belongs to a connection that is
+ * gone: drop it without an error, a retry or a toast.
+ */
+export function isStaleLoad(err: unknown): boolean {
+  return err instanceof Error && err.name === 'StaleLoadError';
+}
+
 /** True when the failure means the session/credentials are unusable. */
 export function isAuthError(err: unknown): boolean {
   return err instanceof Error && (err.name === 'AuthenticationError' || err.name === 'TotpRequiredError');

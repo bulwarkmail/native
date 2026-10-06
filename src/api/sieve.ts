@@ -82,10 +82,12 @@ export async function getSieveScriptContent(
     .replace('{blobId}', encodeURIComponent(blobId))
     .replace('{name}', encodeURIComponent('script.sieve'))
     .replace('{type}', encodeURIComponent('application/sieve'));
+  // The header from the connection the URL came from (same tick).
+  const { gen } = jmapClient.requestContext();
 
   const response = await observeServerFetch(secureFetch(url, {
-    headers: { Authorization: jmapClient.authHeader },
-  }));
+    headers: { Authorization: jmapClient.authHeaderFor(gen) },
+  }), undefined, () => jmapClient.isCurrent(gen));
   if (!response.ok) throw new Error(`Failed to download script: ${response.status}`);
   return response.text();
 }
@@ -96,17 +98,18 @@ async function uploadSieveBlob(content: string, accountId: string): Promise<stri
     '{accountId}',
     encodeURIComponent(accountId),
   );
+  const { gen } = jmapClient.requestContext();
 
   const response = await observeServerFetch(secureFetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/sieve',
-      Authorization: jmapClient.authHeader,
+      Authorization: jmapClient.authHeaderFor(gen),
     },
     // A plain string body is encoded as UTF-8 by RN's fetch. (api/blob.ts uses
     // an ArrayBuffer only because typed-array bodies get stringified there.)
     body: content,
-  }));
+  }), undefined, () => jmapClient.isCurrent(gen));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');

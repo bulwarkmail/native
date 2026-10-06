@@ -803,6 +803,20 @@ describe('flushSendQueue: sending queued entries', () => {
     expect(stateOf('q2')).toBe('queued');
   });
 
+  it('a stale-connection error (nothing sent) releases the entry back to queued with no prompt and stops', async () => {
+    await seed(entry({ id: 'q1', createdAt: '2026-10-04T07:00:00.000Z' }));
+    await seed(entry({ id: 'q2', createdAt: '2026-10-04T08:00:00.000Z' }));
+    const stale = new Error('Superseded by a newer account load');
+    stale.name = 'StaleLoadError';
+    mockSend.mockRejectedValueOnce(stale);
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(stateOf('q1')).toBe('queued');
+    expect(stateOf('q2')).toBe('queued');
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it('P1: an account switch while markSending persists gives no send, and the entry is queued again', async () => {
     await seed(entry());
     vi.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (k: string, v: string) => {

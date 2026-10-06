@@ -37,6 +37,9 @@ vi.mock('../jmap-client', () => ({
       uploadUrl: 'https://mail.example.com/upload/{accountId}/',
     },
     authHeader: 'Basic dXNlcjpwYXNz',
+    // Connection-scoped header (jmap-client requestContext / authHeaderFor).
+    requestContext: () => ({ gen: 1, authHeader: 'Basic dXNlcjpwYXNz' }),
+    authHeaderFor: () => 'Basic dXNlcjpwYXNz', isCurrent: () => true,
   },
 }));
 

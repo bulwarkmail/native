@@ -145,10 +145,10 @@ function modifiedOf(node: FileNode): string | undefined {
 function thumbnailSource(node: FileNode): { uri: string; headers: Record<string, string> } | null {
   if (!node.blobId || !isImageName(node.name)) return null;
   try {
-    return {
-      uri: getFileNodeDownloadUrl(node),
-      headers: { Authorization: jmapClient.authHeader },
-    };
+    // URL and header read together, from one connection.
+    const uri = getFileNodeDownloadUrl(node);
+    const { gen } = jmapClient.requestContext();
+    return { uri, headers: { Authorization: jmapClient.authHeaderFor(gen) } };
   } catch {
     return null;
   }
@@ -401,11 +401,14 @@ export default function FilesScreen() {
     setBatchBusy(`0/${entries.length}`);
     try {
       const zip = new JSZip();
-      const header = { Authorization: jmapClient.authHeader };
+      // The whole zip from one connection: a switch mid-way stops it.
+      const { gen } = jmapClient.requestContext();
       for (let i = 0; i < entries.length; i++) {
         const { node, path: rel } = entries[i];
         setBatchBusy(`${i + 1}/${entries.length}`);
-        const res = await observeServerFetch(secureFetch(getFileNodeDownloadUrl(node), { headers: header }));
+        const url = getFileNodeDownloadUrl(node);
+        const header = { Authorization: jmapClient.authHeaderFor(gen) };
+        const res = await observeServerFetch(secureFetch(url, { headers: header }), undefined, () => jmapClient.isCurrent(gen));
         if (!res.ok) throw new Error(`${node.name}: ${res.status}`);
         zip.file(rel, await res.arrayBuffer());
       }

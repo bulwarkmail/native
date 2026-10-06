@@ -176,8 +176,11 @@ function isUnauthorizedError(err: unknown): boolean {
 // be refreshed here: proactively before the header is captured, and once
 // reactively when the server still answers 401 (a token that expired between
 // the check and the request).
+// `gen` is the connection `url` came from (taken in the same tick); the
+// header is read from that connection right before each request.
 async function downloadInto(
   url: string,
+  gen: number,
   dest: File,
   parent: Directory,
 ): Promise<File> {
@@ -190,14 +193,14 @@ async function downloadInto(
       // have a fully-typed `File` referencing the same uri, so we ignore the
       // return value and re-use our `dest` reference for downstream code.
       await File.downloadFileAsync(url, dest, {
-        headers: { Authorization: jmapClient.authHeader },
+        headers: { Authorization: jmapClient.authHeaderFor(gen) },
         idempotent: true,
       });
       return dest;
     }
     const response = await observeServerFetch(secureFetch(url, {
-      headers: { Authorization: jmapClient.authHeader },
-    }));
+      headers: { Authorization: jmapClient.authHeaderFor(gen) },
+    }), undefined, () => jmapClient.isCurrent(gen));
     if (!response.ok) {
       throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: response.status }));
     }
@@ -228,7 +231,7 @@ export async function cacheBlobFile(
   const dir = exportsDir();
   const dest = new File(dir, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
-  return downloadInto(url, dest, dir);
+  return downloadInto(url, jmapClient.requestContext().gen, dest, dir);
 }
 
 export async function shareAttachment(
@@ -283,7 +286,7 @@ export async function downloadAttachment(
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
-  const downloaded = await downloadInto(url, dest, Paths.document);
+  const downloaded = await downloadInto(url, jmapClient.requestContext().gen, dest, Paths.document);
   await offerSavedFile(downloaded, filename, mimeType);
 }
 
@@ -338,8 +341,9 @@ export async function cachePreviewFile(
   const dir = newPreviewDir();
   const filename = safeAttachmentName(name, type);
   const url = getDownloadUrl(blobId, filename, type || 'application/octet-stream', accountId);
+  const gen = jmapClient.requestContext().gen;
   try {
-    return await downloadInto(url, new File(dir, filename), dir);
+    return await downloadInto(url, gen, new File(dir, filename), dir);
   } catch (err) {
     try {
       if (dir.exists) dir.delete();
@@ -437,11 +441,12 @@ export async function shareAttachmentViaSheet(
   await shareLocalFile(downloaded, mimeType, filename, { forceSheet: true });
 }
 
-async function authedBlobFetch(url: string): Promise<Response> {
+// `gen`: the connection `url` came from, taken in the same tick.
+async function authedBlobFetch(url: string, gen: number): Promise<Response> {
   await jmapClient.ensureFreshToken();
-  let r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeader } }));
+  let r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
   if (r.status === 401 && (await jmapClient.forceRefreshToken())) {
-    r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeader } }));
+    r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
   }
   if (!r.ok) throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: r.status }));
   return r;
@@ -449,7 +454,7 @@ async function authedBlobFetch(url: string): Promise<Response> {
 
 export async function fetchRawEmail(blobId: string, accountId?: string): Promise<string> {
   const url = getDownloadUrl(blobId, 'email.eml', RFC822, accountId);
-  const r = await authedBlobFetch(url);
+  const r = await authedBlobFetch(url, jmapClient.requestContext().gen);
   return r.text();
 }
 
@@ -461,7 +466,7 @@ export async function fetchBlobBytes(
   accountId?: string,
 ): Promise<Uint8Array> {
   const url = getDownloadUrl(blobId, name ?? 'blob', type ?? 'application/octet-stream', accountId);
-  const r = await authedBlobFetch(url);
+  const r = await authedBlobFetch(url, jmapClient.requestContext().gen);
   return new Uint8Array(await r.arrayBuffer());
 }
 

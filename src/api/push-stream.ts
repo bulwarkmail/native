@@ -177,8 +177,30 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
   let streamOpen = false;
   let unsubscribeTokenRefresh: (() => void) | null = null;
 
+  // The stream's URL and header must come from one connection: `gen` ties
+  // every reconnect to the connection the URL came from.
   const session = jmapClient.currentSession;
   const template = session?.eventSourceUrl;
+  let gen: number | null = null;
+  try {
+    gen = template ? jmapClient.requestContext().gen : null;
+  } catch {
+    gen = null;
+  }
+  /** Whether the client still serves the connection this stream belongs to. */
+  const servesThisConnection = (): boolean => {
+    if (gen === null) return false;
+    try {
+      jmapClient.assertCurrent(gen);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  // Only this connection's own stream says anything about the server.
+  const noteServerAnswered = () => {
+    if (servesThisConnection()) reportServerResponse();
+  };
   const certAlias = await getClientCertAlias().catch(() => null);
 
   const clearTimers = () => {
@@ -246,7 +268,10 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
     }
     let authHeader: string;
     try {
-      authHeader = jmapClient.authHeader;
+      // Throws once the client serves another connection: this stream is
+      // done, and whoever started that connection starts its own.
+      if (gen === null) return;
+      authHeader = jmapClient.authHeaderFor(gen);
     } catch {
       return;
     }
@@ -279,7 +304,7 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
     // network store's view of the server fresh after a failed request.
     // A dropped stream (status 0) is not reported: the request path decides.
     on('open', () => {
-      reportServerResponse();
+      noteServerAnswered();
       consecutiveFailures = 0;
       streamOpen = es === source;
       armWatchdog();
@@ -291,11 +316,11 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
       }, RECYCLE_MS);
     });
     on('ping', () => {
-      reportServerResponse();
+      noteServerAnswered();
       armWatchdog();
     });
     on('state', (event) => {
-      reportServerResponse();
+      noteServerAnswered();
       armWatchdog();
       try {
         const data: StateChange = JSON.parse(typeof event === 'string' ? event : event.data ?? '');
@@ -313,7 +338,10 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
       if (closed || es !== source) return;
       dropStream();
       const status = event?.xhrStatus ?? 0;
-      if (status > 0) reportServerResponse();
+      if (status > 0) noteServerAnswered();
+      // The client serves another connection now: refreshing would refresh
+      // that account's token, and reconnecting stops at the header anyway.
+      if (status === 401 && !servesThisConnection()) return;
       if (status === 401) {
         // Stale bearer: refresh and come straight back with the new header.
         void jmapClient.forceRefreshToken().then(

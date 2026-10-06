@@ -33,6 +33,10 @@ vi.mock('../jmap-client', () => ({
     accountId: 'acc-1',
     currentSession: { eventSourceUrl: 'https://mail.example.com/eventsource/?types={types}&closeafter={closeafter}&ping={ping}' },
     authHeader: 'Basic dXNlcjpwYXNz',
+    // Connection-scoped header (jmap-client requestContext / authHeaderFor).
+    requestContext: () => ({ gen: 1, authHeader: 'Basic dXNlcjpwYXNz' }),
+    authHeaderFor: () => 'Basic dXNlcjpwYXNz', isCurrent: () => true,
+    assertCurrent: () => undefined,
     ensureFreshToken: vi.fn(async () => undefined),
     onTokenRefresh: vi.fn(() => () => undefined),
     request: vi.fn(),

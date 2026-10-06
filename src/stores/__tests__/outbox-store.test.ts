@@ -167,6 +167,31 @@ describe('flush', () => {
     expect(useOutboxStore.getState().entries[0].lastError).toContain('Network');
   });
 
+  it('stops on a stale-connection error without recording an error or counting an attempt', async () => {
+    useNetworkStore.setState({ online: false });
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e2', patch: { $seen: true } });
+    useNetworkStore.setState({ online: true });
+    const stale = new Error('Superseded by a newer account load');
+    stale.name = 'StaleLoadError';
+    patchKeywordsForEmails.mockRejectedValueOnce(stale);
+    vi.useFakeTimers();
+    try {
+      await useOutboxStore.getState().flush();
+      expect(patchKeywordsForEmails).toHaveBeenCalledTimes(1);
+      const entries = useOutboxStore.getState().entries;
+      expect(entries).toHaveLength(2);
+      expect(entries[0].lastError).toBeUndefined();
+      expect(entries[0].attempts ?? 0).toBe(0);
+      expect(useOutboxStore.getState().paused).toBe(false);
+      // No retry scheduled: nothing runs on its own afterwards.
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(patchKeywordsForEmails).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('drops a poison op after repeated server rejections', async () => {
     useNetworkStore.setState({ online: false });
     useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });

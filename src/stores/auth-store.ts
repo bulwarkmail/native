@@ -34,6 +34,9 @@ import {
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
 import { singleFlightByKey } from '../lib/session-retry';
+// jmapClient's `StaleLoadError`, matched by name (suites that mock the client
+// module need not export the class).
+import { isStaleLoad } from '../lib/network-error';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -208,13 +211,6 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { 
 // to, gets the client back, and an account the registry never took keeps no
 // credentials behind. Otherwise every request would go out as the new
 // account while the app still shows the old one.
-// jmapClient's `StaleLoadError`: a newer load superseded this one and owns the
-// client. Matched by name so suites that mock the client module need not
-// export the class.
-function isStaleLoad(err: unknown): boolean {
-  return err instanceof Error && err.name === 'StaleLoadError';
-}
-
 // connectWithToken's error for a session that names no user (webmail's text).
 const NO_ACCOUNT_NAME = 'The server did not name the account';
 

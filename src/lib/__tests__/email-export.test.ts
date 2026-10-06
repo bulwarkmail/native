@@ -89,6 +89,9 @@ vi.mock('../client-cert', () => ({
 const { jmapClientMock } = vi.hoisted(() => ({
   jmapClientMock: {
     authHeader: 'Bearer token',
+    // Connection-scoped header (jmap-client requestContext / authHeaderFor).
+    requestContext: () => ({ gen: 1, authHeader: 'Bearer token' }),
+    authHeaderFor: () => 'Bearer token', isCurrent: () => true,
     ensureFreshToken: vi.fn(async () => undefined),
     forceRefreshToken: vi.fn(async () => false),
   },

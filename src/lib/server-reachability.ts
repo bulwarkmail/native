@@ -36,14 +36,20 @@ export function isTransportFailure(err: unknown): boolean {
 /**
  * Report how a fetch to the mail server settled, then pass its result or error
  * through unchanged. `signal` is the caller's own abort signal, if any.
+ * `stillCurrent` says whether the connection the fetch was made on is still
+ * the app's active one; a superseded connection's fetch reports nothing.
  */
-export async function observeServerFetch<T>(request: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+export async function observeServerFetch<T>(
+  request: Promise<T>,
+  signal?: AbortSignal | null,
+  stillCurrent: () => boolean = () => true,
+): Promise<T> {
   try {
     const response = await request;
-    reportServerResponse();
+    if (stillCurrent()) reportServerResponse();
     return response;
   } catch (err) {
-    if (!signal?.aborted && isTransportFailure(err)) reportServerUnreachable();
+    if (!signal?.aborted && isTransportFailure(err) && stillCurrent()) reportServerUnreachable();
     throw err;
   }
 }

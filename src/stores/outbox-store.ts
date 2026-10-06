@@ -22,7 +22,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '../lib/uuid';
-import { isTransientNetworkError, isAuthError } from '../lib/network-error';
+import { isTransientNetworkError, isAuthError, isStaleLoad } from '../lib/network-error';
 import { useNetworkStore } from './network-store';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -328,6 +328,9 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
           retryAttempt = 0;
         } catch (err) {
           if (get().activeAccountId !== accountId) break;
+          // Not sent: the client moved to another connection first. The op
+          // stays as it is (no error, no attempt counted) for the next flush.
+          if (isStaleLoad(err)) break;
           if (isAuthError(err)) {
             // Revoked password / expired session: nothing will succeed until
             // the user signs in again. Keep the queue and stop trying.

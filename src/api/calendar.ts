@@ -788,7 +788,9 @@ export async function fetchCalendarBlobText(
       import('../lib/server-reachability'),
     ]);
     const url = getDownloadUrl(blobId, 'invite.ics', 'text/calendar', targetAccountId);
-    const res = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeader } }));
+    // Same tick as the URL: the header must come from the same connection.
+    const { gen } = jmapClient.requestContext();
+    const res = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
     if (!res.ok) return null;
     const text = await res.text();
     return text.length > 2 * 1024 * 1024 ? null : text;

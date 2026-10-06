@@ -290,5 +290,31 @@ describe('a superseded session load (C-1)', () => {
     await refresh;
     expect(store.has(key(idA))).toBe(false);
   });
+
+  it('a refresh that outlives a reload of the same account updates the live connection too', async () => {
+    await keysCheck();
+    const aOAuth = {
+      serverUrl: A.serverUrl, username: A.username, password: '', accessToken: 'old-a', refreshToken: 'r-a',
+      expiresAt: Date.now() + 1_000, tokenEndpoint: 'https://a.example.com/token', clientId: 'c',
+    };
+    store.set(key(idA), JSON.stringify(aOAuth));
+    const client = new JMAPClient();
+    handlers['a.example.com'] = async () => response(200, session('a.example.com', 'alice'));
+    mockRefresh.mockResolvedValue({ ...aOAuth }); // loads' own proactive refreshes: unchanged
+    expect(await client.loadAccount(idA)).toBe(true);
+
+    const refreshed = deferred<unknown>();
+    mockRefresh.mockImplementationOnce(() => refreshed.promise);
+    const refresh = client.ensureFreshToken();
+    // The same account is loaded again (a session retry) while the refresh runs.
+    expect(await client.loadAccount(idA)).toBe(true);
+    refreshed.resolve({ accessToken: 'new-a', refreshToken: 'r-a2', expiresAt: Date.now() + 3_600_000, tokenEndpoint: aOAuth.tokenEndpoint, clientId: 'c' });
+    await refresh;
+
+    // The rotated refresh token is neither lost in memory nor in storage.
+    expect(client.authHeader).toBe('Bearer new-a');
+    expect(JSON.parse(store.get(key(idA))!).refreshToken).toBe('r-a2');
+    mockRefresh.mockReset();
+  });
 });
 

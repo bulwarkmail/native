@@ -66,10 +66,20 @@ function parseUploadResponse(
   throw new Error('Upload succeeded but response did not include a blobId');
 }
 
-function uploadUrlFor(accountId: string): string {
+// The upload URL and the connection it came from; the header is taken from
+// that same connection right before the request (`authHeaderFor`), so an
+// account switch in between can't send one account's header to the other's
+// server.
+interface UploadTarget {
+  url: string;
+  gen: number;
+}
+
+function uploadTargetFor(accountId: string): UploadTarget {
   const session = jmapClient.currentSession;
   if (!session) throw new Error('Not connected');
-  return session.uploadUrl.replace('{accountId}', encodeURIComponent(accountId));
+  const { gen } = jmapClient.requestContext();
+  return { url: session.uploadUrl.replace('{accountId}', encodeURIComponent(accountId)), gen };
 }
 
 // Upload a local file to the JMAP upload endpoint.
@@ -86,7 +96,7 @@ export async function uploadBlob(
   options: UploadBlobOptions = {},
 ): Promise<UploadResult> {
   const accountId = jmapClient.accountId;
-  const uploadUrl = uploadUrlFor(accountId);
+  const uploadUrl = uploadTargetFor(accountId);
   const contentType = type || 'application/octet-stream';
   const { signal } = options;
   if (signal?.aborted) throw abortError();
@@ -145,19 +155,19 @@ async function uploadFileStreamed(
   fileUri: string,
   contentType: string,
   accountId: string,
-  uploadUrl: string,
+  uploadUrl: UploadTarget,
   { onProgress, signal }: UploadBlobOptions,
 ): Promise<UploadResult> {
   if (signal?.aborted) throw abortError();
   const task = LegacyFileSystem.createUploadTask(
-    uploadUrl,
+    uploadUrl.url,
     fileUri,
     {
       httpMethod: 'POST',
       uploadType: LegacyFileSystem.FileSystemUploadType.BINARY_CONTENT,
       headers: {
         'Content-Type': contentType,
-        Authorization: jmapClient.authHeader,
+        Authorization: jmapClient.authHeaderFor(uploadUrl.gen),
       },
     },
     onProgress
@@ -176,7 +186,7 @@ async function uploadFileStreamed(
   if (signal?.aborted || !result) throw abortError();
   // The server answered (whatever the status). A failed task is not reported
   // as unreachable: its error does not say whether the request left.
-  reportServerResponse();
+  if (jmapClient.isCurrent(uploadUrl.gen)) reportServerResponse();
 
   if (result.status < 200 || result.status >= 300) {
     const detail = (result.body || '').slice(0, 300);
@@ -196,7 +206,7 @@ async function uploadBlobBuffered(
   uri: string,
   contentType: string,
   accountId: string,
-  uploadUrl: string,
+  uploadUrl: UploadTarget,
   signal?: AbortSignal,
 ): Promise<UploadResult> {
   // Read via the file-system API so this works for both `file://` (image
@@ -207,15 +217,15 @@ async function uploadBlobBuffered(
   const bytes = await new File(uri).bytes();
   if (signal?.aborted) throw abortError();
 
-  const response = await observeServerFetch(secureFetch(uploadUrl, {
+  const response = await observeServerFetch(secureFetch(uploadUrl.url, {
     method: 'POST',
     headers: {
       'Content-Type': contentType,
-      Authorization: jmapClient.authHeader,
+      Authorization: jmapClient.authHeaderFor(uploadUrl.gen),
     },
     body: bytes.buffer as ArrayBuffer,
     signal,
-  }), signal);
+  }), signal, () => jmapClient.isCurrent(uploadUrl.gen));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -236,16 +246,16 @@ export async function uploadBytes(
   accountId?: string,
 ): Promise<UploadResult> {
   const targetAccountId = accountId ?? jmapClient.accountId;
-  const uploadUrl = uploadUrlFor(targetAccountId);
+  const uploadUrl = uploadTargetFor(targetAccountId);
 
-  const response = await observeServerFetch(secureFetch(uploadUrl, {
+  const response = await observeServerFetch(secureFetch(uploadUrl.url, {
     method: 'POST',
     headers: {
       'Content-Type': type || 'application/octet-stream',
-      Authorization: jmapClient.authHeader,
+      Authorization: jmapClient.authHeaderFor(uploadUrl.gen),
     },
     body: bytes.buffer as ArrayBuffer,
-  }));
+  }), undefined, () => jmapClient.isCurrent(uploadUrl.gen));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');

@@ -38,6 +38,7 @@ import {
 import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
+import { isStaleLoad } from '../lib/network-error';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
@@ -927,6 +928,14 @@ function applyEmailDiff(
   return out;
 }
 
+// The text for the store's `error`, or null for a request the client dropped
+// because it moved to another connection first (an account switch): that is
+// not a failure of this account, and the new account loads its own view.
+function storeError(err: unknown, fallback: string): string | null {
+  if (isStaleLoad(err)) return null;
+  return err instanceof Error ? err.message : fallback;
+}
+
 export const useEmailStore = create<EmailState>()(
   persist(
     (set, get) => ({
@@ -1223,7 +1232,7 @@ export const useEmailStore = create<EmailState>()(
       set(updates);
     } catch (err) {
       if (get().activeAccountId !== activeAccountId) return;
-      set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load more' });
+      set({ loading: false, error: storeError(err, 'Failed to load more') });
     }
   },
 
@@ -1587,7 +1596,7 @@ export const useEmailStore = create<EmailState>()(
         await crossAccountMove([email], from, to);
       } catch (err) {
         // The caller reports it as a failed move (toast), like a same-account one.
-        set({ error: err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed') });
+        set({ error: storeError(err, t('notifications.move_failed', 'Move failed')) });
         throw err;
       }
       if (listed) set({ emails: get().emails.filter((e) => rowKeyOf(e) !== rowKey) });
@@ -1841,7 +1850,7 @@ export const useEmailStore = create<EmailState>()(
       try {
         await crossAccountMove(targets, source, to);
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed') });
+        set({ error: storeError(err, t('notifications.move_failed', 'Move failed')) });
         throw err;
       }
       const moved = new Set(targets.map(rowKeyOf));
@@ -2095,7 +2104,7 @@ export const useEmailStore = create<EmailState>()(
         }, accountOf(it));
       }
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed') });
+      set({ error: storeError(err, t('email_list.undo_failed', 'Undo failed')) });
       return;
     }
 
@@ -2482,7 +2491,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       gone.push(...copy.emails);
       dropFromCache(copy.emails.map((e) => e.id), copy.accountId);
     } catch (err) {
-      missing = err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed');
+      missing = storeError(err, t('notifications.move_failed', 'Move failed'));
       moveFailure ??= err;
     }
   }
@@ -2628,7 +2637,7 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<void> {
       // can still navigate folders. Only surface the error when we have no
       // mailboxes at all to show.
       if (get().mailboxes.length === 0) {
-        set({ error: err instanceof Error ? err.message : 'Failed to load mailboxes' });
+        set({ error: storeError(err, 'Failed to load mailboxes') });
       }
     }
 
@@ -3021,7 +3030,7 @@ async function refreshEmailsImpl(): Promise<void> {
           emails: [],
           totalEmails: 0,
           loading: false,
-          error: err instanceof Error ? err.message : 'Failed to load emails',
+          error: storeError(err, 'Failed to load emails'),
         });
         return;
       }
@@ -3054,7 +3063,7 @@ async function refreshEmailsImpl(): Promise<void> {
       }
       set({
         loading: false,
-        error: existing.length > 0 ? null : (err instanceof Error ? err.message : 'Failed to load emails'),
+        error: existing.length > 0 ? null : (storeError(err, 'Failed to load emails')),
       });
     }
 }
