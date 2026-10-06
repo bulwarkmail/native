@@ -709,5 +709,13 @@ export const CAPABILITIES = {
   FILES: 'urn:ietf:params:jmap:filenode',
   PRINCIPALS: 'urn:ietf:params:jmap:principals',
   PRINCIPALS_OWNER: 'urn:ietf:params:jmap:principals:owner',
+  PRINCIPALS_AVAILABILITY: 'urn:ietf:params:jmap:principals:availability',
   EMAIL_PUSH: 'urn:ietf:params:jmap:emailpush',
 } as const;
+
+/** One busy period of a principal (Principal/getAvailability, RFC 9670 §4). */
+export interface BusyPeriod {
+  utcStart: string;
+  utcEnd: string;
+  busyStatus: 'confirmed' | 'tentative' | 'unavailable' | null;
+}

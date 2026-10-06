@@ -60,6 +60,8 @@ export interface RecipientSuggestion {
 
 /** A directory person (JMAP Principal with an address) offered as a suggestion. */
 export interface DirectoryPerson {
+  /** The Principal id, for free/busy lookups. */
+  principalId?: string;
   name: string;
   email: string;
   description: string;
@@ -757,7 +759,7 @@ export const useContactsStore = create<ContactsState>()(
               const email = p.email?.trim();
               if (!email) continue;
               const description = p.description?.trim() ?? '';
-              people.push({ name: description || p.name || '', email, description });
+              people.push({ principalId: p.id, name: description || p.name || '', email, description });
             }
             set({ directoryPeople: people });
           } catch (err) {

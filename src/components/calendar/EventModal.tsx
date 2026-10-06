@@ -229,6 +229,12 @@ export function EventModal({
       return '';
     }
   })();
+  // Free/busy is asked for the account the editor opened in.
+  const availabilityAccount = React.useMemo(
+    () => ({ jmapAccountId: ownJmapAccountId, appAccountId: useEmailStore.getState().activeAccountId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ownJmapAccountId, visible],
+  );
   const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
   const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
   // The identities count as the user, so an event organized as one is theirs.
@@ -785,6 +791,8 @@ export function EventModal({
             ) : (
               <ParticipantInput
                 attendees={attendees}
+                availabilityAccount={visible ? availabilityAccount : undefined}
+                window={visible && !allDay && end > start ? { start, end } : allDay && end >= start ? { start, end: new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1) } : null}
                 onAdd={(a) => setAttendees((prev) => [...prev, a])}
                 onRemove={(email) =>
                   setAttendees((prev) => prev.filter((a) => a.email.toLowerCase() !== email.toLowerCase()))
