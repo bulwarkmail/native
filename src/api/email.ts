@@ -14,7 +14,6 @@ import {
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
-import { toWildcardQuery } from '../lib/search-utils';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
@@ -1415,7 +1414,7 @@ export async function searchEmails(
   accountIdOverride?: string,
 ): Promise<string[]> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
-  const filter: Record<string, unknown> = { text: toWildcardQuery(query) };
+  const filter: Record<string, unknown> = { text: query.trim() };
   if (mailboxId) filter.inMailbox = mailboxId;
 
   const res = await jmapClient.request([

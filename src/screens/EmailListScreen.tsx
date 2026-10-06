@@ -40,6 +40,7 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { withFailureToast } from '../lib/action-failure';
 import { isStaleLoad } from '../lib/network-error';
+import { sizeFilterBytes } from '../lib/search-utils';
 import {
   selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection, type AccountSelection,
 } from '../lib/selection-after';
@@ -931,6 +932,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (filters.body ? 1 : 0) +
     (filters.dateAfter ? 1 : 0) +
     (filters.dateBefore ? 1 : 0) +
+    (sizeFilterBytes(filters.minSizeKb) !== null ? 1 : 0) +
+    (sizeFilterBytes(filters.maxSizeKb) !== null ? 1 : 0) +
     (filters.hasAttachment !== undefined ? 1 : 0) +
     (filters.isStarred !== undefined ? 1 : 0) +
     (filters.isUnread !== undefined ? 1 : 0) +
@@ -1410,6 +1413,20 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               onRemove={() => setFilterField('dateBefore', undefined)}
             />
           ) : null}
+          {sizeFilterBytes(filters.minSizeKb) !== null && (
+            <FilterChip
+              icon={<Paperclip size={12} color={c.textSecondary} />}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} KB` })}
+              onRemove={() => setFilterField('minSizeKb', undefined)}
+            />
+          )}
+          {sizeFilterBytes(filters.maxSizeKb) !== null && (
+            <FilterChip
+              icon={<Paperclip size={12} color={c.textSecondary} />}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} KB` })}
+              onRemove={() => setFilterField('maxSizeKb', undefined)}
+            />
+          )}
           {filters.isUnread !== undefined && (
             <FilterChip
               icon={filters.isUnread
@@ -1731,6 +1748,33 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                           </Pressable>
                         ) : null}
                       </Pressable>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterFieldRow}>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.size_min', 'Larger than (KB)')}</Text>
+                      <TextInput
+                        value={filters.minSizeKb ?? ''}
+                        onChangeText={(v) => setFilterField('minSizeKb', v.replace(/[^0-9.]/g, ''))}
+                        placeholder="0"
+                        placeholderTextColor={c.textMuted}
+                        keyboardType="decimal-pad"
+                        autoCorrect={false}
+                        style={styles.filterFieldInput}
+                      />
+                    </View>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.size_max', 'Smaller than (KB)')}</Text>
+                      <TextInput
+                        value={filters.maxSizeKb ?? ''}
+                        onChangeText={(v) => setFilterField('maxSizeKb', v.replace(/[^0-9.]/g, ''))}
+                        placeholder="0"
+                        placeholderTextColor={c.textMuted}
+                        keyboardType="decimal-pad"
+                        autoCorrect={false}
+                        style={styles.filterFieldInput}
+                      />
                     </View>
                   </View>
 

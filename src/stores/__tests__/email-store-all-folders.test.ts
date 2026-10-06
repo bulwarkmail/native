@@ -200,7 +200,7 @@ describe('"All folders" search across the own and the team account (#1082)', () 
     expect(server.current!.requests).toHaveLength(1);
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, args]) => args.accountId)).toEqual(['c', 'team']);
-    for (const [, args] of queries) expect(args.filter).toEqual({ text: 'zephyr*' });
+    for (const [, args] of queries) expect(args.filter).toEqual({ text: 'zephyr' });
     expect(server.current!.callsOf('Email/get').map(([, args]) => args.accountId)).toEqual(['c', 'team']);
   });
 
@@ -221,7 +221,7 @@ describe('"All folders" search across the own and the team account (#1082)', () 
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
-    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox', text: 'zephyr*' } });
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox', text: 'zephyr' } });
     expect(ids()).toEqual(['m1', 'm2', 'm3', 'm4']);
     expect(useEmailStore.getState().emails[0].jmapAccountId).toBeUndefined();
   });
@@ -561,7 +561,7 @@ describe('tag view across the own and the team account (#1038)', () => {
     await vi.waitFor(() => expect(ids()).toEqual(['m2', 'o2']));
 
     const last = server.current!.requests.at(-1)!.filter(([n]) => n === 'Email/query');
-    const narrowed = { operator: 'AND', conditions: [{ text: 'red* 2*' }, { hasKeyword: RED }] };
+    const narrowed = { operator: 'AND', conditions: [{ text: 'red 2' }, { hasKeyword: RED }] };
     expect(last.map(([, a]) => a.filter)).toEqual([
       { operator: 'AND', conditions: [narrowed, { inMailboxOtherThan: ['trash', 'junk'] }] },
       { operator: 'AND', conditions: [narrowed, { inMailboxOtherThan: ['t-trash', 't-junk'] }] },
@@ -641,8 +641,8 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
-      ['c', { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] }],
-      ['team', { operator: 'AND', conditions: [{ text: 'zephyr*' }, TEAM_OUT] }],
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr' }, OWN_OUT] }],
+      ['team', { operator: 'AND', conditions: [{ text: 'zephyr' }, TEAM_OUT] }],
     ]);
     expect(ids()).toEqual(['m1', 'o1', 'm2', 'm3', 'o2', 'm4', 'o3']);
   });
@@ -654,8 +654,8 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const page2 = server.current!.requests[1].filter(([n]) => n === 'Email/query');
     expect(page2.map(([, a]) => a.filter)).toEqual([
-      { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] },
-      { operator: 'AND', conditions: [{ text: 'zephyr*' }, TEAM_OUT] },
+      { operator: 'AND', conditions: [{ text: 'zephyr' }, OWN_OUT] },
+      { operator: 'AND', conditions: [{ text: 'zephyr' }, TEAM_OUT] },
     ]);
   });
 
@@ -665,8 +665,8 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
-      ['c', { text: 'zephyr*' }],
-      ['team', { text: 'zephyr*' }],
+      ['c', { text: 'zephyr' }],
+      ['team', { text: 'zephyr' }],
     ]);
     expect(ids()).toContain('m5');
   });
@@ -677,7 +677,7 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
-    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr*' } });
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr' } });
     expect(ids()).toEqual(['m5']);
   });
 
@@ -687,7 +687,7 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
-    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr*' });
+    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr' });
     expect(ids()).toEqual(['o1', 'o3']);
   });
 
@@ -702,7 +702,7 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
-    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr*' });
+    expect(queries[0][1].filter).toEqual({ inMailbox: 'inbox', text: 'zephyr' });
     expect(ids()).toEqual(['o1', 'o3']);
   });
 
@@ -713,7 +713,7 @@ describe('Spam and Trash in a search with no folder picked', () => {
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
     expect(queries[0][1]).toMatchObject({ accountId: 'team' });
-    expect(queries[0][1].filter).toEqual({ inMailbox: 't-trash', text: 'zephyr*' });
+    expect(queries[0][1].filter).toEqual({ inMailbox: 't-trash', text: 'zephyr' });
     expect(ids()).toEqual(['m5']);
   });
 
@@ -723,7 +723,7 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries).toHaveLength(1);
-    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr*' } });
+    expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-trash', text: 'zephyr' } });
     expect(ids()).toEqual(['m5']);
   });
 
@@ -735,8 +735,8 @@ describe('Spam and Trash in a search with no folder picked', () => {
 
     const queries = server.current!.callsOf('Email/query');
     expect(queries.map(([, a]) => [a.accountId, a.filter])).toEqual([
-      ['c', { operator: 'AND', conditions: [{ text: 'zephyr*' }, OWN_OUT] }],
-      ['team', { text: 'zephyr*' }],
+      ['c', { operator: 'AND', conditions: [{ text: 'zephyr' }, OWN_OUT] }],
+      ['team', { text: 'zephyr' }],
     ]);
   });
 });

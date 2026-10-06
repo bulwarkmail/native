@@ -7,7 +7,6 @@ import {
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { secureFetch } from '../lib/client-cert';
 import { refreshOAuthAccessToken, type OAuthTokens } from '../lib/oauth';
-import { toWildcardQuery } from '../lib/search-utils';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
 // Unread / Starred). Because the JMAP client is a single-account singleton
@@ -340,7 +339,7 @@ export function crossIncludedMailboxes(mailboxes: Mailbox[]): Mailbox[] {
   return mailboxes.filter((m) => !CROSS_EXCLUDED_ROLES.has(m.role ?? ''));
 }
 
-function buildFilter(
+export function buildFilter(
   mailboxes: Mailbox[],
   opts: UnifiedFetchOptions,
 ): Record<string, unknown> | null {
@@ -361,7 +360,7 @@ function buildFilter(
     conditions.push({ inMailbox: target.id });
   }
   const q = opts.query?.trim();
-  if (q) conditions.push({ text: toWildcardQuery(q) });
+  if (q) conditions.push({ text: q });
   return conditions.length === 1 ? conditions[0] : { operator: 'AND', conditions };
 }
 

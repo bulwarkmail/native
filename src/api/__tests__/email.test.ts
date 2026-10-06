@@ -522,7 +522,7 @@ describe('email operations', () => {
 
       expect(result).toEqual(['e1']);
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({ text: 'test* query*' });
+      expect(call[1].filter).toEqual({ text: 'test query' });
     });
 
     it('should include mailbox filter if specified', async () => {
@@ -533,7 +533,7 @@ describe('email operations', () => {
       await searchEmails('query', 'mb-1');
 
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({ text: 'query*', inMailbox: 'mb-1' });
+      expect(call[1].filter).toEqual({ text: 'query', inMailbox: 'mb-1' });
     });
   });
 

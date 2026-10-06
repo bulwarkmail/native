@@ -39,11 +39,11 @@ import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } fro
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
 import { isStaleLoad } from '../lib/network-error';
+import { sizeFilterBytes } from '../lib/search-utils';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
-import { toWildcardQuery } from '../lib/search-utils';
 import { defaultSearchScopeFor, exclusionFilter, trashAndJunkIds } from '../lib/search-scope';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
@@ -341,6 +341,9 @@ export interface EmailFilters {
   hasAttachment?: boolean; // undefined = unset, true = with, false = without
   isStarred?: boolean;
   isUnread?: boolean;
+  /** Message size bounds in KB (minSize inclusive, maxSize exclusive); unset or '' = no bound. */
+  minSizeKb?: string;
+  maxSizeKb?: string;
   /**
    * Folder scope. Unset means "all folders except Spam and Trash" while a
    * text query is active (#788), unless the open folder is Spam or Trash,
@@ -557,7 +560,9 @@ function buildJmapFilter(
   const conditions: Record<string, unknown>[] = [];
 
   const trimmed = searchQuery.trim();
-  if (trimmed) conditions.push({ text: toWildcardQuery(trimmed) });
+  // Sent as typed: JMAP's text filter has no wildcard syntax, and Stalwart
+  // drops a trailing "*" (so "runn*" finds nothing).
+  if (trimmed) conditions.push({ text: trimmed });
 
   if (filters.keyword) conditions.push({ hasKeyword: filters.keyword });
   if (filters.from) conditions.push({ from: filters.from });
@@ -585,6 +590,11 @@ function buildJmapFilter(
 
   if (filters.isStarred === true) conditions.push({ hasKeyword: '$flagged' });
   else if (filters.isStarred === false) conditions.push({ notKeyword: '$flagged' });
+
+  const minSize = sizeFilterBytes(filters.minSizeKb);
+  if (minSize !== null) conditions.push({ minSize });
+  const maxSize = sizeFilterBytes(filters.maxSizeKb);
+  if (maxSize !== null) conditions.push({ maxSize });
 
   if (conditions.length === 0) return undefined;
   if (conditions.length === 1) return conditions[0];
@@ -2243,10 +2253,14 @@ export const useEmailStore = create<EmailState>()(
   searchEmails: async (query) => {
     // Search the account whose folder is open, so a shared mailbox searches
     // its own messages rather than the user's.
+    const shown = get().activeAccountId;
     const owner = currentAccountId(get());
     const ids = await apiSearchEmails(query, undefined, 30, owner);
     if (ids.length === 0) return [];
-    return fetchEmails(ids, owner);
+    const found = await fetchEmails(ids, owner);
+    // Ids repeat across accounts: a result for the account left mid-search
+    // is not the new account's.
+    return get().activeAccountId === shown ? found : [];
   },
 
   reset: () => set({
