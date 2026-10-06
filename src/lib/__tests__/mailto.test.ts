@@ -59,4 +59,29 @@ describe('parseMailtoUrl', () => {
     expect(parsed?.cc).toEqual(['dave+y@partner.example', 'erin+z@partner.example']);
     expect(parsed?.bcc).toEqual(['frank+w@partner.example']);
   });
+
+  it('keeps the strict address checks of the unsubscribe parser', () => {
+    for (const url of [
+      'mailto:x%3E%2C%3Cvictim@evil.com',
+      'mailto:a%2Cb@x.com',
+      'mailto:x:ceo@corp.example;',
+      'mailto:hr%E2%80%AE@corp.example',
+      'mailto:a@b.co%0D%0ABcc:x@y.z',
+      'mailto:a@b..co',
+    ]) expect(parseMailtoUrl(url)).toBeNull();
+    expect(parseMailtoUrl('mailto:a@b.co?cc=x%E2%80%AE@y.co')).toEqual(expect.objectContaining({ cc: [] }));
+  });
+
+  it('accepts an internationalized domain', () => {
+    expect(parseMailtoUrl('mailto:user@bücher.de')?.to).toEqual(['user@bücher.de']);
+  });
+
+  it('parses a 200 KB url in linear time', () => {
+    const big = (unit: string) => unit.repeat(Math.ceil(200_000 / unit.length));
+    for (const url of [`mailto:${big('a,')}`, `mailto:${big('a.')}@x`, `mailto:a@${big('a-')}`, `mailto:a@b.co?${big('cc=a&')}`, `mailto:${big('%')}`]) {
+      const start = performance.now();
+      parseMailtoUrl(url);
+      expect(performance.now() - start).toBeLessThan(1000);
+    }
+  });
 });

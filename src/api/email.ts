@@ -19,6 +19,7 @@ import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
+import { opScope, type AccountRef, type OpScope } from './op-scope';
 
 export const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -76,6 +77,15 @@ function tagMailbox(
   };
 }
 
+/**
+ * A request of operation `at`, sent only on the connection it started on (see
+ * `OpScope`). Helpers that issue more than one request take `at` once at
+ * their start and send every request through this.
+ */
+function requestOn(at: OpScope, methodCalls: JMAPMethodCall[], using?: string[]) {
+  return jmapClient.request(methodCalls, using, { gen: at.gen });
+}
+
 function maxInGet(): number {
   return typeof jmapClient.getMaxObjectsInGet === 'function' ? jmapClient.getMaxObjectsInGet() : 500;
 }
@@ -91,15 +101,16 @@ function maxInSet(): number {
  * offline replay must be split before it is sent.
  */
 async function emailSetBatched(
-  accountId: string,
+  at: OpScope,
   args: { update?: Record<string, Record<string, unknown>>; destroy?: string[] },
   what = 'email',
 ): Promise<{ updated: string[]; destroyed: string[] }> {
+  const { accountId } = at;
   const out = { updated: [] as string[], destroyed: [] as string[] };
   const size = maxInSet();
   const updateEntries = Object.entries(args.update ?? {});
   for (const slice of batched(updateEntries, size)) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/set', { accountId, update: Object.fromEntries(slice) }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/set');
@@ -107,7 +118,7 @@ async function emailSetBatched(
     out.updated.push(...Object.keys(body.updated ?? {}));
   }
   for (const slice of batched(args.destroy ?? [], size)) {
-    const res = await jmapClient.request([['Email/set', { accountId, destroy: slice }, '0']]);
+    const res = await requestOn(at, [['Email/set', { accountId, destroy: slice }, '0']]);
     const body = requireMethodResult(res, '0', 'Email/set');
     assertSetResult(body, slice, what);
     out.destroyed.push(...((body.destroyed as string[] | undefined) ?? []));
@@ -225,9 +236,10 @@ export async function getMailboxChanges(
 
 export async function createMailbox(
   data: { name: string; parentId?: string | null; role?: string | null },
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<string> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const cid = 'new-mailbox';
   // Subscribe explicitly: IMAP clients that list folders via LSUB
   // (Thunderbird) hide unsubscribed mailboxes, and the server default is
@@ -238,7 +250,7 @@ export async function createMailbox(
     isSubscribed: true,
   };
   if (data.role !== undefined) create.role = data.role;
-  const res = await jmapClient.request([
+  const res = await requestOn(at, [
     ['Mailbox/set', { accountId, create: { [cid]: create } }, '0'],
   ]);
   const result = requireMethodResult(res, '0', 'Mailbox/set');
@@ -256,10 +268,11 @@ export async function createMailbox(
 export async function updateMailbox(
   id: string,
   changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number },
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const res = await jmapClient.request([
+  const at = opScope(account);
+  const { accountId } = at;
+  const res = await requestOn(at, [
     ['Mailbox/set', { accountId, update: { [id]: changes } }, '0'],
   ]);
   const body = requireMethodResult(res, '0', 'Mailbox/set');
@@ -275,13 +288,14 @@ export async function updateMailbox(
 
 export async function deleteMailbox(
   id: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
   opts?: { onDestroyRemoveEmails?: boolean },
 ): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const args: Record<string, unknown> = { accountId, destroy: [id] };
   if (opts?.onDestroyRemoveEmails) args.onDestroyRemoveEmails = true;
-  const res = await jmapClient.request([['Mailbox/set', args, '0']]);
+  const res = await requestOn(at, [['Mailbox/set', args, '0']]);
   const body = requireMethodResult(res, '0', 'Mailbox/set');
   const failure = body.notDestroyed?.[id] as
     | { type?: string; description?: string }
@@ -299,12 +313,13 @@ export async function deleteMailbox(
  * guaranteed with `calculateTotal`, and Stalwart omits it otherwise, which
  * used to stop after the first batch (#711). Returns the number destroyed.
  */
-export async function emptyMailbox(mailboxId: string, accountIdOverride?: string): Promise<number> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+export async function emptyMailbox(mailboxId: string, account?: AccountRef): Promise<number> {
+  const at = opScope(account);
+  const { accountId } = at;
   const batchSize = Math.min(500, maxInSet());
   let totalDestroyed = 0;
   for (;;) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/query', { accountId, filter: { inMailbox: mailboxId }, limit: batchSize }, '0'],
       ['Email/set', { accountId, '#destroy': { resultOf: '0', name: 'Email/query', path: '/ids' } }, '1'],
     ]);
@@ -322,12 +337,13 @@ export async function emptyMailbox(mailboxId: string, accountIdOverride?: string
 }
 
 /** Set `$seen` on every unread message in a folder. Returns the count. */
-export async function markMailboxAsRead(mailboxId: string, accountIdOverride?: string): Promise<number> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+export async function markMailboxAsRead(mailboxId: string, account?: AccountRef): Promise<number> {
+  const at = opScope(account);
+  const { accountId } = at;
   const pageSize = Math.min(500, maxInSet());
   let total = 0;
   for (;;) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/query', {
         accountId,
         filter: { operator: 'AND', conditions: [{ inMailbox: mailboxId }, { notKeyword: '$seen' }] },
@@ -337,7 +353,7 @@ export async function markMailboxAsRead(mailboxId: string, accountIdOverride?: s
     const ids = (requireMethodResult(res, '0', 'Email/query').ids as string[]) ?? [];
     if (ids.length === 0) break;
     const update = Object.fromEntries(ids.map((id) => [id, { [keywordPointer('$seen')]: true }]));
-    const setRes = await jmapClient.request([['Email/set', { accountId, update }, '0']]);
+    const setRes = await requestOn(at, [['Email/set', { accountId, update }, '0']]);
     const body = requireMethodResult(setRes, '0', 'Email/set');
     const marked = Object.keys(body.updated ?? {}).length;
     total += marked;
@@ -391,8 +407,12 @@ function emailQueryArgs(mailboxId: string | undefined, options?: EmailQueryOptio
 export async function queryEmails(
   mailboxId: string | undefined,
   options?: EmailQueryOptions,
+  /** Binds the query to an operation's connection and account (see `OpScope`). */
+  account?: AccountRef,
 ): Promise<{ ids: string[]; total: number; queryState?: string }> {
-  const res = await jmapClient.request([['Email/query', emailQueryArgs(mailboxId, options), '0']]);
+  const at = account === undefined ? null : opScope(account);
+  const call: JMAPMethodCall = ['Email/query', emailQueryArgs(mailboxId, at ? { ...options, accountId: at.accountId } : options), '0'];
+  const res = at ? await requestOn(at, [call]) : await jmapClient.request([call]);
   const body = requireMethodResult(res, '0', 'Email/query');
   return {
     ids: (body.ids as string[]) ?? [],
@@ -702,8 +722,8 @@ export async function getEmailListDelta(
   };
 }
 
-export async function getEmails(ids: string[], accountIdOverride?: string): Promise<Email[]> {
-  return (await getEmailsWithState(ids, accountIdOverride)).list;
+export async function getEmails(ids: string[], account?: AccountRef): Promise<Email[]> {
+  return (await getEmailsWithState(ids, account)).list;
 }
 
 // Returns the Email/get response with the JMAP `state` token. Used by the
@@ -712,13 +732,14 @@ export async function getEmails(ids: string[], accountIdOverride?: string): Prom
 // server's maxObjectsInGet.
 export async function getEmailsWithState(
   ids: string[],
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<{ list: Email[]; state: string }> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   if (ids.length === 0) {
     // Email/get with an empty id list still returns a state token; useful for
     // priming the store after an empty mailbox query.
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/get', { accountId, ids: [], properties: EMAIL_LIST_PROPERTIES }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/get');
@@ -727,7 +748,7 @@ export async function getEmailsWithState(
   const list: Email[] = [];
   let state = '';
   for (const slice of batched(ids, maxInGet())) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/get', { accountId, ids: slice, properties: EMAIL_LIST_PROPERTIES }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/get');
@@ -750,12 +771,13 @@ const LIST_ATTACHMENT_BODY_PROPERTIES = ['blobId', 'size', 'name', 'type', 'cid'
  */
 export async function getEmailAttachments(
   ids: string[],
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<Map<string, Attachment[]>> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const found = new Map<string, Attachment[]>();
   for (const slice of batched(ids, maxInGet())) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/get', {
         accountId,
         ids: slice,
@@ -822,13 +844,14 @@ const TRUNCATED_BODY_REFETCH_MAX_BYTES = 8_000_000;
  * values are kept. A failure leaves the truncated values in place (the viewer
  * says the message isn't shown in full) instead of failing the open.
  */
-async function refetchTruncatedBodyValues(emails: Email[], accountId: string): Promise<void> {
+async function refetchTruncatedBodyValues(emails: Email[], at: OpScope): Promise<void> {
+  const { accountId } = at;
   const truncated = emails.filter(hasTruncatedDisplayedBody);
   if (truncated.length === 0) return;
   try {
     const refetched = new Map<string, Email['bodyValues']>();
     for (const slice of batched(truncated.map((e) => e.id), maxInGet())) {
-      const res = await jmapClient.request([
+      const res = await requestOn(at, [
         ['Email/get', {
           accountId,
           ids: slice,
@@ -851,24 +874,25 @@ async function refetchTruncatedBodyValues(emails: Email[], accountId: string): P
   }
 }
 
-export async function getFullEmail(id: string, accountIdOverride?: string): Promise<Email> {
-  // `accountIdOverride` lets the unified inbox open a message that lives under
+export async function getFullEmail(id: string, account?: AccountRef): Promise<Email> {
+  // `account` lets the unified inbox open a message that lives under
   // a group/shared account in the same session instead of the user's own.
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const res = await jmapClient.request([
+  const at = opScope(account);
+  const { accountId } = at;
+  const res = await requestOn(at, [
     ['Email/get', { accountId, ids: [id], ...FULL_BODY_ARGS }, '0'],
   ]);
   const body = requireMethodResult(res, '0', 'Email/get');
   const email = (body.list as Email[] | undefined)?.[0];
   if (!email) throw new Error(`Email ${id} not found`);
-  await refetchTruncatedBodyValues([email], accountId);
+  await refetchTruncatedBodyValues([email], at);
   return email;
 }
 
 // Batch variant for offline sync and the thread view. Splits to the server's
 // maxObjectsInGet ceiling itself.
-export async function getFullEmails(ids: string[], accountIdOverride?: string): Promise<Email[]> {
-  return (await getFullEmailsWithState(ids, accountIdOverride)).list;
+export async function getFullEmails(ids: string[], account?: AccountRef): Promise<Email[]> {
+  return (await getFullEmailsWithState(ids, account)).list;
 }
 
 /** An `Email/get` result: what came back, what the server does not know, and its Email state. */
@@ -885,13 +909,14 @@ export interface EmailGetResult<T> {
  */
 export async function getFullEmailsWithState(
   ids: string[],
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<EmailGetResult<Email>> {
   if (ids.length === 0) return { list: [], notFound: [] };
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const out: EmailGetResult<Email> = { list: [], notFound: [] };
   for (const slice of batched(ids, maxInGet())) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/get', { accountId, ids: slice, ...FULL_BODY_ARGS }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/get');
@@ -899,7 +924,7 @@ export async function getFullEmailsWithState(
     out.notFound.push(...((body.notFound as string[] | undefined) ?? []));
     out.state = body.state as string | undefined;
   }
-  await refetchTruncatedBodyValues(out.list, accountId);
+  await refetchTruncatedBodyValues(out.list, at);
   return out;
 }
 
@@ -912,13 +937,14 @@ export type EmailFlags = Pick<Email, 'id' | 'keywords' | 'mailboxIds'>;
  */
 export async function getEmailFlags(
   ids: string[],
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<EmailGetResult<EmailFlags>> {
   if (ids.length === 0) return { list: [], notFound: [] };
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const out: EmailGetResult<EmailFlags> = { list: [], notFound: [] };
   for (const slice of batched(ids, maxInGet())) {
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/get', { accountId, ids: slice, properties: ['id', 'keywords', 'mailboxIds'] }, '0'],
     ]);
     const body = requireMethodResult(res, '0', 'Email/get');
@@ -983,11 +1009,12 @@ export async function importEmailBlob(
   blobId: string,
   mailboxId: string,
   keywords: Record<string, boolean> = { $seen: true },
-  accountIdOverride?: string,
+  account?: AccountRef,
   receivedAt?: string,
 ): Promise<string> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const res = await jmapClient.request([
+  const at = opScope(account);
+  const { accountId } = at;
+  const res = await requestOn(at, [
     ['Email/import', {
       accountId,
       emails: {
@@ -1019,12 +1046,13 @@ export async function getThread(threadId: string, accountIdOverride?: string): P
 }
 
 /** Thread/get for many ids at once (chunked). Missing threads are skipped. */
-export async function getThreads(threadIds: string[], accountIdOverride?: string): Promise<Thread[]> {
+export async function getThreads(threadIds: string[], account?: AccountRef): Promise<Thread[]> {
   if (threadIds.length === 0) return [];
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const out: Thread[] = [];
   for (const slice of batched(Array.from(new Set(threadIds)), maxInGet())) {
-    const res = await jmapClient.request([['Thread/get', { accountId, ids: slice }, '0']]);
+    const res = await requestOn(at, [['Thread/get', { accountId, ids: slice }, '0']]);
     out.push(...((requireMethodResult(res, '0', 'Thread/get').list as Thread[]) ?? []));
   }
   return out;
@@ -1046,23 +1074,24 @@ function keywordPointers(patch: Record<string, boolean | null>): Record<string, 
 export async function patchKeywordsForEmails(
   ids: string[],
   patch: Record<string, boolean | null>,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const pointerPatch = keywordPointers(patch);
   const update: Record<string, Record<string, unknown>> = {};
   for (const id of ids) update[id] = { ...pointerPatch };
-  await emailSetBatched(accountId, { update });
+  await emailSetBatched(at, { update });
 }
 
 export async function moveEmail(
   emailId: string,
   fromMailboxId: string,
   toMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
-  await moveEmails([emailId], fromMailboxId, toMailboxId, accountIdOverride);
+  await moveEmails([emailId], fromMailboxId, toMailboxId, account);
 }
 
 // Move several emails from one mailbox to another. Pointer keys are JSON
@@ -1071,10 +1100,11 @@ export async function moveEmails(
   ids: string[],
   fromMailboxId: string,
   toMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const update: Record<string, Record<string, unknown>> = {};
   for (const id of ids) {
     update[id] = {
@@ -1082,7 +1112,7 @@ export async function moveEmails(
       [mailboxPointer(toMailboxId)]: true,
     };
   }
-  await emailSetBatched(accountId, { update });
+  await emailSetBatched(at, { update });
 }
 
 // Copy messages into another folder of the same account: the destination is
@@ -1091,13 +1121,14 @@ export async function moveEmails(
 export async function copyEmailsWithinAccount(
   ids: string[],
   toMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const update: Record<string, Record<string, unknown>> = {};
   for (const id of ids) update[id] = { [mailboxPointer(toMailboxId)]: true };
-  await emailSetBatched(accountId, { update }, 'copy');
+  await emailSetBatched(at, { update }, 'copy');
 }
 
 /**
@@ -1108,11 +1139,12 @@ export async function copyEmailsWithinAccount(
 export async function markAsSpam(
   ids: string[],
   junkMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
   opts?: { markRead?: boolean },
 ): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const update: Record<string, Record<string, unknown>> = {};
   for (const id of ids) {
     update[id] = {
@@ -1122,17 +1154,18 @@ export async function markAsSpam(
       ...(opts?.markRead ? { [keywordPointer('$seen')]: true } : {}),
     };
   }
-  await emailSetBatched(accountId, { update });
+  await emailSetBatched(at, { update });
 }
 
 /** Inverse of {@link markAsSpam}: restore into `targetMailboxId` with `$notjunk`. */
 export async function undoSpam(
   ids: string[],
   targetMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const update: Record<string, Record<string, unknown>> = {};
   for (const id of ids) {
     update[id] = {
@@ -1141,7 +1174,7 @@ export async function undoSpam(
       [keywordPointer('$notjunk')]: true,
     };
   }
-  await emailSetBatched(accountId, { update });
+  await emailSetBatched(at, { update });
 }
 
 // Batch delete: destroy outright when already in trash, otherwise move to trash.
@@ -1149,13 +1182,13 @@ export async function deleteEmails(
   ids: string[],
   trashMailboxId: string,
   currentMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (ids.length === 0) return;
   if (currentMailboxId === trashMailboxId) {
-    await destroyEmails(ids, accountIdOverride);
+    await destroyEmails(ids, account);
   } else {
-    await moveEmails(ids, currentMailboxId, trashMailboxId, accountIdOverride);
+    await moveEmails(ids, currentMailboxId, trashMailboxId, account);
   }
 }
 
@@ -1163,13 +1196,14 @@ export async function deleteEmails(
 // round-trip (chunked). Undo uses it to put back each message's own keywords.
 export async function patchKeywordsPerEmail(
   updates: Array<{ id: string; patch: Record<string, boolean | null> }>,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (updates.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const update: Record<string, Record<string, unknown>> = {};
   for (const u of updates) update[u.id] = keywordPointers(u.patch);
-  await emailSetBatched(accountId, { update });
+  await emailSetBatched(at, { update });
 }
 
 // Restore each email's mailboxIds to the snapshot supplied. Used by undo to
@@ -1177,10 +1211,11 @@ export async function patchKeywordsPerEmail(
 // the entire map, so we don't need to compute a diff against the current state.
 export async function restoreEmailMailboxes(
   items: Array<{ id: string; mailboxIds: Record<string, boolean> }>,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (items.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const update: Record<string, { mailboxIds: Record<string, true> }> = {};
   for (const item of items) {
     const onlyTrue: Record<string, true> = {};
@@ -1189,7 +1224,7 @@ export async function restoreEmailMailboxes(
     }
     update[item.id] = { mailboxIds: onlyTrue };
   }
-  await emailSetBatched(accountId, { update });
+  await emailSetBatched(at, { update });
 }
 
 // Replace one email's full mailboxIds map. JMAP "mailboxIds" assigns the whole
@@ -1199,18 +1234,19 @@ export async function restoreEmailMailboxes(
 export async function setEmailMailboxes(
   emailId: string,
   mailboxIds: Record<string, boolean>,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
-  await restoreEmailMailboxes([{ id: emailId, mailboxIds }], accountIdOverride);
+  await restoreEmailMailboxes([{ id: emailId, mailboxIds }], account);
 }
 
 // Permanently destroy emails (no move-to-trash). Idempotent: destroying an
 // already-gone id is a no-op on replay (a `notFound` is tolerated).
-export async function destroyEmails(ids: string[], accountIdOverride?: string): Promise<void> {
+export async function destroyEmails(ids: string[], account?: AccountRef): Promise<void> {
   if (ids.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   for (const slice of batched(ids, maxInSet())) {
-    const res = await jmapClient.request([['Email/set', { accountId, destroy: slice }, '0']]);
+    const res = await requestOn(at, [['Email/set', { accountId, destroy: slice }, '0']]);
     const body = requireMethodResult(res, '0', 'Email/set');
     const notDestroyed = (body.notDestroyed ?? {}) as Record<string, { type?: string; description?: string }>;
     const real = Object.entries(notDestroyed).filter(([, err]) => err?.type !== 'notFound');
@@ -1231,16 +1267,17 @@ export async function archiveEmails(
   archiveMailboxId: string,
   mode: 'single' | 'year' | 'month',
   existingMailboxes: Mailbox[],
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
   if (emails.length === 0) return;
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
 
   if (mode === 'single') {
     const updates = Object.fromEntries(
       emails.map((e) => [e.id, { mailboxIds: { [archiveMailboxId]: true } }]),
     );
-    await emailSetBatched(accountId, { update: updates });
+    await emailSetBatched(at, { update: updates });
     return;
   }
 
@@ -1325,7 +1362,7 @@ export async function archiveEmails(
     }
     methodCalls.push(['Email/set', { accountId, update: Object.fromEntries(batch) }, String(methodCalls.length)]);
 
-    const response = await jmapClient.request(methodCalls);
+    const response = await requestOn(at, methodCalls);
 
     if (withCreates) {
       const mailboxResult = requireMethodResult(response, '0', 'Mailbox/set');
@@ -1366,9 +1403,9 @@ export async function deleteEmail(
   emailId: string,
   trashMailboxId: string,
   currentMailboxId: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
-  await deleteEmails([emailId], trashMailboxId, currentMailboxId, accountIdOverride);
+  await deleteEmails([emailId], trashMailboxId, currentMailboxId, account);
 }
 
 export async function searchEmails(
@@ -1423,13 +1460,14 @@ export async function queryEmailFields(
   properties: string[],
   { accountId, pageSize = 500, max = 10000 }: { accountId: string; pageSize?: number; max?: number },
 ): Promise<Array<Record<string, unknown>>> {
+  const at = opScope(accountId);
   const perPage = Math.max(1, Math.min(pageSize, maxInGet()));
   const seen = new Set<string>();
   const list: Array<Record<string, unknown>> = [];
   let position = 0;
   while (list.length < max) {
     const requested = Math.min(perPage, max - list.length);
-    const res = await jmapClient.request([
+    const res = await requestOn(at, [
       ['Email/query', {
         accountId,
         filter,
@@ -1616,7 +1654,7 @@ export interface SendEmailOptions {
   /** Previous draft version to destroy once the submission succeeded (#849). */
   draftId?: string;
   /** Submitting account (shared/group account); defaults to the primary. */
-  accountId?: string;
+  accountId?: AccountRef;
 }
 
 export async function sendEmail(
@@ -1629,7 +1667,10 @@ export async function sendEmail(
   holdForSeconds?: number,
   opts?: SendEmailOptions,
 ): Promise<SendEmailResult> {
-  const accountId = opts?.accountId ?? jmapClient.accountId;
+  // One connection for the send and its clean-up: a destroy sent after a
+  // switch would remove the message with the same id in the other account.
+  const at = opScope(opts?.accountId);
+  const { accountId } = at;
   const emailCreate = buildEmailCreate(email);
   const viaDrafts = !!opts?.draftsMailboxId;
   if (viaDrafts) {
@@ -1671,7 +1712,7 @@ export async function sendEmail(
     };
   }
 
-  const res = await jmapClient.request(
+  const res = await requestOn(at, 
     [
       ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
       ['EmailSubmission/set', submissionArgs, '1'],
@@ -1761,7 +1802,7 @@ export async function sendEmail(
   const removeUnsentCopy = async () => {
     if (!emailId) return;
     try {
-      await destroyEmails([emailId], accountId);
+      await destroyEmails([emailId], at);
     } catch (err) {
       console.warn('[email] failed to remove the unsent copy:', err);
     }
@@ -1787,7 +1828,7 @@ export async function sendEmail(
   // rather than a failed send (#849).
   if (opts?.draftId && emailSubmissionId) {
     try {
-      await destroyEmails([opts.draftId], accountId);
+      await destroyEmails([opts.draftId], at);
     } catch (err) {
       filingWarning = filingWarning ?? `old draft cleanup failed: ${err instanceof Error ? err.message : String(err)}`;
     }
@@ -1814,13 +1855,14 @@ export async function createDraft(
   email: OutgoingEmail,
   draftsMailboxId: string,
   previousDraftId?: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<string> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const emailCreate = buildEmailCreate(email);
   emailCreate.mailboxIds = { [draftsMailboxId]: true };
   emailCreate.keywords = { $seen: true, $draft: true };
-  const res = await jmapClient.request([
+  const res = await requestOn(at, [
     ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
   ]);
   const body = requireMethodResult(res, '0', 'Email/set');
@@ -1830,7 +1872,7 @@ export async function createDraft(
   if (!id) throw new Error('Draft save returned no id');
   if (previousDraftId && previousDraftId !== id) {
     try {
-      await destroyEmails([previousDraftId], accountId);
+      await destroyEmails([previousDraftId], at);
     } catch (err) {
       console.warn('[email] failed to destroy previous draft version:', err);
     }
@@ -1876,9 +1918,10 @@ export async function listScheduledEmails(): Promise<ScheduledEmail[]> {
 }
 
 async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[]> {
+  const at = opScope(accountId);
   const now = Date.now();
 
-  const queryRes = await jmapClient.request(
+  const queryRes = await requestOn(at, 
     [['EmailSubmission/query', { accountId, limit: 200 }, '0']],
     [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
@@ -1896,7 +1939,7 @@ async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[
     undoStatus?: string;
   }> = [];
   for (const slice of batched(ids, maxInGet())) {
-    const subRes = await jmapClient.request(
+    const subRes = await requestOn(at, 
       [['EmailSubmission/get', {
         accountId,
         ids: slice,
@@ -1916,7 +1959,7 @@ async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[
   const emailIds = Array.from(new Set(pending.map((s) => s.emailId)));
   const emailById = new Map<string, Email>();
   for (const slice of batched(emailIds, maxInGet())) {
-    const emailRes = await jmapClient.request([
+    const emailRes = await requestOn(at, [
       ['Email/get', {
         accountId,
         ids: slice,
@@ -1950,11 +1993,12 @@ async function listScheduledEmailsIn(accountId: string): Promise<ScheduledEmail[
 }
 
 // Cancel a pending scheduled send. The held message copy stays in Sent; only
-// delivery is stopped (matches the webmail behaviour). `accountIdOverride` is
+// delivery is stopped (matches the webmail behaviour). `account` is
 // the account holding the submission (see `ScheduledEmail.accountId`).
-export async function cancelScheduledSend(emailSubmissionId: string, accountIdOverride?: string): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const res = await jmapClient.request(
+export async function cancelScheduledSend(emailSubmissionId: string, account?: AccountRef): Promise<void> {
+  const at = opScope(account);
+  const { accountId } = at;
+  const res = await requestOn(at, 
     [['EmailSubmission/set', {
       accountId,
       update: { [emailSubmissionId]: { undoStatus: 'canceled' } },
@@ -1990,19 +2034,20 @@ export async function rescheduleScheduledSend(
     from?: EmailAddress[];
     to?: EmailAddress[];
     /** Account holding the submission; the replacement is created there too. */
-    accountId?: string;
+    accountId?: AccountRef;
   },
   holdForSeconds: number,
   recipients?: EmailAddress[],
 ): Promise<{ emailSubmissionId?: string; sendAt?: string }> {
-  const accountId = scheduled.accountId ?? jmapClient.accountId;
+  const at = opScope(scheduled.accountId);
+  const { accountId } = at;
   // "Send now" is a 1-second hold, so the replacement can still be withdrawn.
   const holdFor = Math.max(1, Math.ceil(holdForSeconds));
   // Reuse the held submission's envelope: it names every recipient,
   // Cc and Bcc included, and the envelope sender a catch-all From went
   // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
   // The Email's To/Cc/Bcc are the fallback when the server has none.
-  const lookup = await jmapClient.request(
+  const lookup = await requestOn(at, 
     [
       ['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0'],
       ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
@@ -2028,7 +2073,7 @@ export async function rescheduleScheduledSend(
     },
   };
 
-  const res = await jmapClient.request(
+  const res = await requestOn(at, 
     [['EmailSubmission/set', { accountId, create: { replacement: create } }, '0']],
     [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
@@ -2039,14 +2084,14 @@ export async function rescheduleScheduledSend(
   if (!created?.id) throw new Error('Failed to reschedule: the server returned no submission');
 
   try {
-    await cancelScheduledSend(scheduled.emailSubmissionId, accountId);
+    await cancelScheduledSend(scheduled.emailSubmissionId, at);
   } catch (err) {
     // A cancel whose answer got lost may still have gone through. Otherwise
     // the original is still due or has just gone out, and the replacement
     // must not go as well.
-    if ((await submissionUndoStatus(scheduled.emailSubmissionId, accountId)) !== 'canceled') {
+    if ((await submissionUndoStatus(scheduled.emailSubmissionId, at)) !== 'canceled') {
       try {
-        await cancelScheduledSend(created.id, accountId);
+        await cancelScheduledSend(created.id, at);
       } catch (withdrawErr) {
         console.warn('[email] could not withdraw the replacement scheduled send:', withdrawErr);
       }
@@ -2058,9 +2103,10 @@ export async function rescheduleScheduledSend(
 }
 
 /** A submission's `undoStatus`, or undefined when it can't be read. */
-async function submissionUndoStatus(emailSubmissionId: string, accountId: string): Promise<string | undefined> {
+async function submissionUndoStatus(emailSubmissionId: string, at: OpScope): Promise<string | undefined> {
+  const { accountId } = at;
   try {
-    const res = await jmapClient.request(
+    const res = await requestOn(at, 
       [['EmailSubmission/get', { accountId, ids: [emailSubmissionId], properties: ['undoStatus'] }, '0']],
       [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
     );
@@ -2080,16 +2126,17 @@ export async function restoreEmailToDraft(
   emailId: string,
   draftsMailboxId: string,
   sentMailboxId?: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const patch: Record<string, unknown> = {
     [mailboxPointer(draftsMailboxId)]: true,
     [keywordPointer('$draft')]: true,
     [keywordPointer('$seen')]: true,
   };
   if (sentMailboxId && sentMailboxId !== draftsMailboxId) patch[mailboxPointer(sentMailboxId)] = null;
-  await emailSetBatched(accountId, { update: { [emailId]: patch } }, 'draft');
+  await emailSetBatched(at, { update: { [emailId]: patch } }, 'draft');
 }
 
 export interface SendReadReceiptOptions extends MdnOptions {
@@ -2098,7 +2145,7 @@ export interface SendReadReceiptOptions extends MdnOptions {
   /** Where the sent receipt is filed. */
   sentMailboxId: string;
   /** Submitting account (shared/group account); defaults to the primary. */
-  accountId?: string;
+  accountId?: AccountRef;
 }
 
 /**
@@ -2110,16 +2157,18 @@ export interface SendReadReceiptOptions extends MdnOptions {
  * it had gone out. The caller flags the original `$mdnsent` afterwards.
  */
 export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<string> {
-  const accountId = opts.accountId ?? jmapClient.accountId;
+  // Upload, import, submit and clean-up on one connection.
+  const at = opScope(opts.accountId);
+  const { accountId } = at;
   const raw = buildMdnMessage(opts);
   const bytes = new TextEncoder().encode(raw);
   // Lazy: blob.ts pulls in expo-file-system, which this module otherwise
   // never needs (and which the node test environment cannot load).
   const { uploadBytes } = await import('./blob');
-  const upload = await uploadBytes(bytes, 'message/rfc822', accountId);
-  const emailId = await importEmailBlob(upload.blobId, opts.sentMailboxId, { $seen: true }, accountId);
+  const upload = await uploadBytes(bytes, 'message/rfc822', at);
+  const emailId = await importEmailBlob(upload.blobId, opts.sentMailboxId, { $seen: true }, at);
   try {
-    const res = await jmapClient.request(
+    const res = await requestOn(at, 
       [
         ['EmailSubmission/set', {
           accountId,
@@ -2140,7 +2189,7 @@ export async function sendReadReceipt(opts: SendReadReceiptOptions): Promise<str
     const body = requireMethodResult(res, '0', 'EmailSubmission/set');
     assertSetResult(body, ['mdn'], 'read receipt');
   } catch (err) {
-    await destroyEmails([emailId], accountId).catch((cleanupErr) => {
+    await destroyEmails([emailId], at).catch((cleanupErr) => {
       console.warn('[mdn] failed to remove the unsent receipt from Sent:', cleanupErr);
     });
     throw err;

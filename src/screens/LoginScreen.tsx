@@ -18,7 +18,9 @@ import {
   emailDomain,
   isEmailAddress,
   normalizeServerUrl,
+  stripTrailingDot,
 } from '../lib/server-discovery';
+import { toUnicodeEmail } from '../lib/idn';
 import { describeLoginError, type LoginErrorCopy } from '../lib/login-errors';
 import LoginShell from './login/LoginShell';
 import ChooseStep from './login/ChooseStep';
@@ -224,7 +226,8 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     (err: unknown, target: string): boolean => {
       const pending = useAuthStore.getState().pendingTotpLogin;
       if (!(err instanceof Error && err.name === 'TotpRequiredError' && pending)) return false;
-      setEmail(pending.username);
+      // Show the Unicode form; sign-in converts it back to ASCII.
+      setEmail(toUnicodeEmail(pending.username));
       setPassword(pending.password);
       setServerUrl(pending.serverUrl);
       setTotpRequired(true);
@@ -258,7 +261,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
   );
 
   const handleEmailContinue = React.useCallback(async () => {
-    const value = email.trim();
+    const value = stripTrailingDot(email);
     if (!isEmailAddress(value)) {
       setNotice({
         title: t('login.mobile.notice_full_email', 'Enter a full email address'),
@@ -269,6 +272,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
 
     setNotice(null);
     setSearching(true);
+    setEmail(value);
     rememberEmail(value);
     try {
       const found = await discoverServerForEmail(value, { knownServerUrls });
@@ -321,12 +325,14 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
     setBusy('connecting');
     const wasAuthenticated = useAuthStore.getState().isAuthenticated;
     try {
-      await login(target, email.trim(), password, {
+      await login(target, stripTrailingDot(email), password, {
         addAccount: isAddMode,
         totp: totpRequired ? totp.trim() : undefined,
       });
       finishIfSignedIn(wasAuthenticated);
     } catch (err) {
+      // Cleared on any failed submit: a code is single-use and short-lived.
+      setTotp('');
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         setTotpRequired(true);
         setNotice(describeLoginError(err, { serverUrl: target, t }));

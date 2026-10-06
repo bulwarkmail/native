@@ -86,13 +86,21 @@ vi.mock('../client-cert', () => ({
   secureFetch: vi.fn(),
 }));
 
-const { jmapClientMock } = vi.hoisted(() => ({
-  jmapClientMock: {
+const { jmapClientMock } = vi.hoisted(() => {
+  const stale = () => Object.assign(new Error('Superseded by a newer account load'), { name: 'StaleLoadError' });
+  const mock = {
     authHeader: 'Bearer token',
+    // Connection-scoped header (jmap-client requestContext / authHeaderFor).
+    requestContext: () => ({ gen: 1, authHeader: 'Bearer token' }),
+    authHeaderFor: () => 'Bearer token', isCurrent: vi.fn((_gen: number) => true),
     ensureFreshToken: vi.fn(async () => undefined),
     forceRefreshToken: vi.fn(async () => false),
-  },
-}));
+    assertCurrent: (gen: number) => {
+      if (!mock.isCurrent(gen)) throw stale();
+    },
+  };
+  return { jmapClientMock: mock };
+});
 
 vi.mock('../../api/jmap-client', () => ({
   jmapClient: jmapClientMock,
@@ -109,8 +117,9 @@ import { File, Directory } from 'expo-file-system';
 import { getDownloadUrl } from '../../api/blob';
 import {
   shareAttachment, downloadAttachment, cachePreviewFile, discardPreviewFile, saveLocalFileCopy,
-  shareLocalFile, writePreviewFile,
+  shareLocalFile, writePreviewFile, fetchRawEmail,
 } from '../email-export';
+import { secureFetch } from '../client-cert';
 
 const VIEW = 'android.intent.action.VIEW';
 const FLAG_GRANT_READ_URI_PERMISSION = 0x00000001;
@@ -180,6 +189,41 @@ describe('shareAttachment (preview)', () => {
     vi.mocked(File.downloadFileAsync).mockRejectedValueOnce(new Error('Download failed: 401'));
 
     await expect(shareAttachment('blob-7', 'x.pdf', 'application/pdf')).rejects.toThrow('401');
+  });
+
+  // M-1: after an account switch the 401 belongs to the connection left
+  // behind; a forced refresh now would refresh the new account's token.
+  it('does not refresh another account\'s token after a 401 on a superseded connection', async () => {
+    const { File } = await import('expo-file-system');
+    jmapClientMock.forceRefreshToken.mockClear().mockResolvedValue(true);
+    vi.mocked(File.downloadFileAsync).mockClear().mockImplementationOnce(async () => {
+      jmapClientMock.isCurrent.mockReturnValue(false); // switched while downloading
+      throw new Error('Download failed: 401');
+    });
+    try {
+      await expect(shareAttachment('blob-8', 'x.pdf', 'application/pdf')).rejects.toThrow();
+      expect(jmapClientMock.forceRefreshToken).not.toHaveBeenCalled();
+      expect(File.downloadFileAsync).toHaveBeenCalledTimes(1);
+    } finally {
+      jmapClientMock.isCurrent.mockReturnValue(true);
+      jmapClientMock.forceRefreshToken.mockReset().mockResolvedValue(false);
+    }
+  });
+
+  it('a raw-message fetch does not refresh another account\'s token after a 401 (M-1)', async () => {
+    jmapClientMock.forceRefreshToken.mockClear().mockResolvedValue(true);
+    vi.mocked(secureFetch).mockReset().mockImplementationOnce(async () => {
+      jmapClientMock.isCurrent.mockReturnValue(false);
+      return { ok: false, status: 401 } as Response;
+    });
+    try {
+      await expect(fetchRawEmail('blob-9')).rejects.toThrow();
+      expect(jmapClientMock.forceRefreshToken).not.toHaveBeenCalled();
+      expect(secureFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      jmapClientMock.isCurrent.mockReturnValue(true);
+      jmapClientMock.forceRefreshToken.mockReset().mockResolvedValue(false);
+    }
   });
 
   it('uses the share sheet on iOS', async () => {

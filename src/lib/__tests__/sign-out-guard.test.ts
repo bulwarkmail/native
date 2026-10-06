@@ -17,6 +17,13 @@ import {
 } from '../sign-out-guard';
 
 const row = (a: string, id: string) => `webmail:sendqueue:v1:${a}:${id}`;
+/** A row as the store writes it (hydrate's validation accepts it). */
+const valid = (a: string, id: string, state = 'queued') => JSON.stringify({
+  id, appAccountId: a, jmapAccountId: 'j', identityId: 'i', outgoing: { messageId: `${id}@x` }, messageId: `${id}@x`,
+  createdAt: '2026-10-04T00:00:00Z', state,
+});
+/** Seed a valid row in this state. */
+const put = (a: string, id: string, state = 'queued') => AsyncStorage.setItem(row(a, id), valid(a, id, state));
 const prompt = { title: 'Remove?', message: 'Remove x', confirmLabel: 'Remove' };
 // Press the alert button with this label once the alert is shown.
 async function press(label: string) {
@@ -33,29 +40,55 @@ beforeEach(async () => {
 
 describe('countQueuedSends', () => {
   it('does not count a1 rows for a10 or the reverse', async () => {
-    await AsyncStorage.setItem(row('a1', 'e1'), '{}');
-    await AsyncStorage.setItem(row('a10', 'e2'), '{}');
-    await AsyncStorage.setItem(row('a10', 'e3'), '{}');
+    await put('a1', 'e1');
+    await put('a10', 'e2');
+    await put('a10', 'e3');
     expect(await countQueuedSends(['a1', 'a10'])).toEqual([1, 2]);
+  });
+
+  it('counts only rows hydrate would load: a corrupt row is not counted', async () => {
+    await put('a1', 'e1');
+    await AsyncStorage.setItem(row('a1', 'e2'), '{not json');
+    await AsyncStorage.setItem(row('a1', 'e3'), JSON.stringify({ state: 'queued' }));
+    await AsyncStorage.setItem(row('a1', 'e4'), valid('a1', 'other'));
+    expect(await countQueuedSends(['a1'])).toEqual([1]);
+  });
+
+  it('a storage error still counts as one: ask rather than risk it', async () => {
+    vi.spyOn(AsyncStorage, 'getAllKeys').mockRejectedValueOnce(new Error('io'));
+    expect(await countQueuedSends(['a1', 'a10'])).toEqual([1, 1]);
   });
 });
 
 describe('countQueuedSendStates', () => {
-  it('counts sending rows separately; an unreadable row counts as unsent', async () => {
-    await AsyncStorage.setItem(row('a1', 'e1'), JSON.stringify({ state: 'sending' }));
-    await AsyncStorage.setItem(row('a1', 'e2'), JSON.stringify({ state: 'queued' }));
+  it('counts sending rows separately; a corrupt row is not counted', async () => {
+    await put('a1', 'e1', 'sending');
+    await put('a1', 'e2', 'queued');
     await AsyncStorage.setItem(row('a1', 'e3'), '{not json');
-    await AsyncStorage.setItem(row('a10', 'e4'), JSON.stringify({ state: 'sending' }));
+    await AsyncStorage.setItem(row('a1', 'e5'), JSON.stringify({ state: 'sending' }));
+    await put('a10', 'e4', 'sending');
     expect(await countQueuedSendStates(['a1', 'a10', 'zz'])).toEqual([
-      { total: 3, sending: 1 }, { total: 1, sending: 1 }, { total: 0, sending: 0 },
+      { total: 2, sending: 1 }, { total: 1, sending: 1 }, { total: 0, sending: 0 },
     ]);
+  });
+
+  it('only corrupt rows: nothing to ask about', async () => {
+    await AsyncStorage.setItem(row('a1', 'e1'), '{not json');
+    await signOutWithGuard('a1', vi.fn());
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(auth.logout).toHaveBeenCalledWith(undefined);
+  });
+
+  it('a storage error still counts as one unsent row', async () => {
+    vi.spyOn(AsyncStorage, 'getAllKeys').mockRejectedValueOnce(new Error('io'));
+    expect(await countQueuedSendStates(['a1'])).toEqual([{ total: 1, sending: 0 }]);
   });
 });
 
 describe('sign-out prompt while a message is being sent', () => {
   it('says a message may still go out, and counts only the others as unsent', async () => {
-    await AsyncStorage.setItem(row('a1', 'e1'), JSON.stringify({ state: 'sending' }));
-    await AsyncStorage.setItem(row('a1', 'e2'), JSON.stringify({ state: 'failed' }));
+    await put('a1', 'e1', 'sending');
+    await put('a1', 'e2', 'failed');
     const p = signOutWithGuard('a1', vi.fn());
     await press('Cancel');
     await p;
@@ -65,7 +98,7 @@ describe('sign-out prompt while a message is being sent', () => {
   });
 
   it('only sending: no unsent-messages count, just the sending warning', async () => {
-    await AsyncStorage.setItem(row('a1', 'e1'), JSON.stringify({ state: 'sending' }));
+    await put('a1', 'e1', 'sending');
     const p = signOutWithGuard('a1', vi.fn());
     await press('Sign out');
     await p;
@@ -83,7 +116,7 @@ describe('guards', () => {
   });
 
   it('sign out with queued sends: discards only after Sign out', async () => {
-    await AsyncStorage.setItem(row('a1', 'e1'), '{}');
+    await put('a1', 'e1');
     const p = signOutWithGuard('a1', vi.fn());
     await press('Sign out');
     await p;
@@ -91,7 +124,7 @@ describe('guards', () => {
   });
 
   it('Cancel and Open Outbox do not sign out', async () => {
-    await AsyncStorage.setItem(row('a1', 'e1'), '{}');
+    await put('a1', 'e1');
     const open = vi.fn();
     let p = signOutWithGuard('a1', open);
     await press('Cancel');
@@ -105,7 +138,7 @@ describe('guards', () => {
   });
 
   it('sign out of all sums counts across accounts', async () => {
-    await AsyncStorage.setItem(row('a10', 'e1'), '{}');
+    await put('a10', 'e1');
     const p = signOutAllWithGuard(vi.fn());
     await press('Sign out');
     await p;
@@ -120,7 +153,7 @@ describe('guards', () => {
     expect(alertSpy).toHaveBeenCalledTimes(1);
     expect(auth.removeAccount).toHaveBeenLastCalledWith('a1', undefined);
 
-    await AsyncStorage.setItem(row('a1', 'e1'), '{}');
+    await put('a1', 'e1');
     alertSpy.mockClear();
     p = removeAccountWithGuard('a1', vi.fn(), prompt);
     await press('Remove');

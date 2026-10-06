@@ -12,7 +12,7 @@ import { loadedMailboxes } from './mailbox-source';
 import { jmapClient, JMAPClient } from '../api/jmap-client';
 import { assertSetResult, JMAPMethodError, requireMethodResult } from '../api/jmap-result';
 import { CAPABILITIES } from '../api/types';
-import type { EmailPushConfig, JMAPAccountInfo, JMAPSession, Mailbox } from '../api/types';
+import type { EmailPushConfig, JMAPAccountInfo, JMAPMethodCall, JMAPSession, Mailbox } from '../api/types';
 import { generateAccountId } from './account-utils';
 import { clearRenewAttempt } from './push-renewal-state';
 import { t } from '../stores/locale-store';
@@ -312,19 +312,26 @@ export function serverSupportsEmailPush(): boolean {
  * folder shared with us) gets a filter that never matches: leaving it out of
  * the map would make the server fall back to unfiltered pushes for it.
  */
-export async function buildEmailPushConfig(inboxOnly = false): Promise<Record<string, EmailPushConfig>> {
-  const primary = jmapClient.accountId;
+export async function buildEmailPushConfig(
+  inboxOnly = false,
+  // A client other than the singleton (a detached renewal): its own account
+  // and folders, never the active account's.
+  source?: { primary: string; mailboxes: readonly Mailbox[] },
+): Promise<Record<string, EmailPushConfig>> {
+  const primary = source ? source.primary : jmapClient.accountId;
   const junkByAccount = new Map<string, string[]>([[primary, []]]);
   const inboxByAccount = new Map<string, string>();
   // The mail store loads the same folders at the same moment (sign-in,
   // start): reuse its list rather than a second Mailbox/get of our own.
   const username = jmapClient.username;
   const serverUrl = jmapClient.serverUrl;
-  const loaded = username && serverUrl ? await loadedMailboxes(generateAccountId(username, serverUrl)) : null;
-  const all = loaded ?? [
-    ...(await getMailboxes().catch(() => [] as Mailbox[])),
-    ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
-  ];
+  const loaded = source ? null : username && serverUrl ? await loadedMailboxes(generateAccountId(username, serverUrl)) : null;
+  const all = source
+    ? source.mailboxes
+    : loaded ?? [
+        ...(await getMailboxes().catch(() => [] as Mailbox[])),
+        ...(await getSharedMailboxes().catch(() => [] as Mailbox[])),
+      ];
   for (const m of all) {
     const accountId = m.accountId || primary;
     const junk = junkByAccount.get(accountId) ?? [];
@@ -435,9 +442,16 @@ export function emailPushFallbacks(
 async function writeWithEmailPush<T>(
   emailPush: Record<string, EmailPushConfig> | null,
   write: (emailPush: Record<string, EmailPushConfig> | null) => Promise<T>,
+  // The login the write is for; the singleton's unless a detached client's
+  // is given.
+  login?: { primary: string; accounts: Record<string, JMAPAccountInfo> | undefined },
 ): Promise<{ result: T; emailPush: Record<string, EmailPushConfig> | null }> {
   const attempts = emailPush
-    ? emailPushFallbacks(emailPush, jmapClient.accountId, jmapClient.currentSession?.accounts)
+    ? emailPushFallbacks(
+        emailPush,
+        login ? login.primary : jmapClient.accountId,
+        login ? login.accounts : jmapClient.currentSession?.accounts,
+      )
     : [null];
   for (let i = 0; ; i++) {
     try {
@@ -1349,6 +1363,24 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
   }
 }
 
+// The folders of a detached client's own account and the shared accounts in
+// its session, for the push filter. Throws when any account's get fails.
+async function detachedMailboxes(client: JMAPClient): Promise<Mailbox[]> {
+  const accountIds = [client.accountId, ...client.getSharedMailAccounts().map((a) => a.id)];
+  const res = await client.request(
+    accountIds.map((accountId, i): JMAPMethodCall => ['Mailbox/get', { accountId, properties: ['id', 'role'] }, String(i)]),
+    [CAPABILITIES.CORE, CAPABILITIES.MAIL],
+  );
+  const out: Mailbox[] = [];
+  // Every account's folders or none: leaving one out would drop it from the
+  // map, and the server then falls back to unfiltered pushes for it.
+  for (let i = 0; i < accountIds.length; i++) {
+    const body = requireMethodResult(res, String(i), 'Mailbox/get');
+    for (const m of (body.list as Mailbox[] | undefined) ?? []) out.push({ ...m, accountId: accountIds[i] });
+  }
+  return out;
+}
+
 /**
  * Push the expiry of a signed-in account's subscription forward when it is
  * close, through a client of the account's own - for the accounts the
@@ -1368,25 +1400,63 @@ export async function renewDetachedPushSubscription(
     const client = new JMAPClient();
     if (!(await client.loadAccount(accountId))) return 'fine';
     const using = [CAPABILITIES.CORE];
+    const withEmailPush = EMAIL_PUSH_CAPABILITY in (client.currentSession?.capabilities ?? {});
     const res = await client.request(
-      [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'expires'] }, '0']],
+      [['PushSubscription/get', { ids: [subscriptionId], properties: ['id', 'expires', ...(withEmailPush ? ['emailPush'] : [])] }, '0']],
       using,
     );
-    const current = (requireMethodResult(res, '0', 'PushSubscription/get').list as Array<{ id: string; expires?: string | null }> | undefined)
+    const current = (requireMethodResult(res, '0', 'PushSubscription/get').list as Array<{ id: string; expires?: string | null; emailPush?: Record<string, EmailPushConfig> | null }> | undefined)
       ?.find((s) => s.id === subscriptionId);
     // Gone from the server: re-created when the account is active again.
     if (!current) return 'fine';
-    if (hasTimeToSpare(current.expires)) {
+    // The account's own "Inbox only" filter, from its own folders. Best
+    // effort: when it can't be built the expiry is still renewed.
+    let desired: Record<string, EmailPushConfig> | null = null;
+    const refused = withEmailPush ? await readRefusedEmailPushAccounts(accountId) : [];
+    if (withEmailPush) {
+      try {
+        await useSettingsStore.getState().hydrate();
+        desired = withoutAccounts(
+          await buildEmailPushConfig(useSettingsStore.getState().pushNotifyInboxOnly, {
+            primary: client.accountId,
+            mailboxes: await detachedMailboxes(client),
+          }),
+          refused,
+        );
+      } catch {
+        desired = null;
+      }
+    }
+    const filterChanged = desired !== null && !sameEmailPush(current.emailPush, desired);
+    if (!filterChanged && hasTimeToSpare(current.expires)) {
       await AsyncStorage.setItem(subscriptionExpiresKey(accountId), current.expires!);
       return 'fine';
     }
     const expires = expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS);
-    const setRes = await client.request(
-      [['PushSubscription/set', { update: { [subscriptionId]: { expires } } }, '0']],
-      using,
-    );
-    const body = requireMethodResult(setRes, '0', 'PushSubscription/set');
-    assertSetResult(body, [subscriptionId], 'push subscription');
+    const write = async (patch: Record<string, unknown>) => {
+      const setRes = await client.request(
+        [['PushSubscription/set', { update: { [subscriptionId]: patch } }, '0']],
+        using,
+      );
+      const result = requireMethodResult(setRes, '0', 'PushSubscription/set');
+      assertSetResult(result, [subscriptionId], 'push subscription');
+      return result;
+    };
+    // Narrowed along emailPushFallbacks while the server refuses the map as
+    // `forbidden`; any other failure (a network error may have applied the
+    // write) is rethrown and reads as 'failed'.
+    let body: Awaited<ReturnType<typeof write>>;
+    if (filterChanged && desired) {
+      const written = await writeWithEmailPush(
+        desired,
+        (filter) => write(filter ? { expires, emailPush: filter } : { expires }),
+        { primary: client.accountId, accounts: client.currentSession?.accounts },
+      );
+      body = written.result;
+      await rememberRefusedEmailPushAccounts(accountId, refused, desired, written.emailPush);
+    } else {
+      body = await write({ expires });
+    }
     const updated = body.updated?.[subscriptionId] as { expires?: unknown } | null | undefined;
     if (updated === undefined) return 'failed';
     // The server reports the expiry back when it clamped the one asked for.

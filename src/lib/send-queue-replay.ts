@@ -13,14 +13,17 @@
 //   positive proof that it was submitted (then completed, and its own draft
 //   removed); anything else - no copy, draft-only copies, an incomplete or
 //   failed lookup - leaves it `uncertain` for the user to decide in the
-//   Outbox, and it is looked at again at most every RECONCILE_BACKOFF_MS;
+//   Outbox, and it is looked at again at most every RECONCILE_BACKOFF_MS
+//   after a lookup that went through (a failed one leaves the stamp as it was);
 // - the user's "Send again" looks for proof first (checkSentBeforeResend) and
 //   requeues only after a lookup that went through without finding any;
 // - an entry whose attempt started less than RECONCILE_GRACE_MS ago is not
 //   reconciled yet: the server may still be processing that request;
 // - a queued entry that cannot be sent (unreadable schedule, no Sent or no
 //   Drafts folder, a JMAP account the session does not serve) is held with a
-//   reason the Outbox shows, and skipped until the user's Retry clears it.
+//   reason the Outbox shows, and skipped until the user's Retry clears it;
+//   the one exception is `account_unavailable` on an entry never attempted,
+//   released once the session serves that account again (releaseAccountHold).
 // A queue replays only through its own account: entries of another app
 // account wait until it is active again (no detached clients).
 
@@ -39,6 +42,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { toast } from '../stores/toast-store';
 import { activeAppAccountId, clientServesActiveAccount } from './active-client-account';
 import { trustRecipients, trustedSendersBookSyncOn } from './trust-recipients';
+import { isStaleLoad } from './network-error';
 
 /** How far before the attempt the copy lookup starts (generous: device clocks drift). */
 export const RECONCILE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -57,6 +61,10 @@ export type SendErrorOutcome = 'failed' | 'uncertain' | 'auth';
  *   send request (a 401, or a token refresh before or after a 401), i.e.
  *   before the server ran any method; the clean-ups after the response
  *   swallow their errors.
+ *   `StaleLoadError` counts the same: jmapClient throws it only before the
+ *   request is sent (the client moved to another connection first) or for a
+ *   401 on a connection that is gone, so nothing ran either way, and the
+ *   flush stops because the connection it ran on is gone.
  * - `uncertain`: everything else - NetworkError, a TypeError from fetch,
  *   RequestTimeoutError, SendUnconfirmedError, RateLimitError, an HTTP error
  *   or unparsable reply, and any error class not listed here.
@@ -65,7 +73,7 @@ export function classifySendError(err: unknown): SendErrorOutcome {
   if (err instanceof SendRefusedError || err instanceof RecipientsRejectedError || err instanceof ScheduleTooLateError) {
     return 'failed';
   }
-  if (err instanceof AuthenticationError) return 'auth';
+  if (err instanceof AuthenticationError || isStaleLoad(err)) return 'auth';
   return 'uncertain';
 }
 
@@ -170,6 +178,18 @@ export class ProofLookupError extends Error {
   constructor(message = 'Could not check whether this message was already sent') {
     super(message);
     this.name = 'ProofLookupError';
+  }
+}
+
+/**
+ * The user's Send again came within RECONCILE_GRACE_MS of the attempt: the
+ * server may still be processing it, so nothing is checked or changed. A
+ * ProofLookupError too, for callers that only know that one.
+ */
+export class ResendTooRecentError extends ProofLookupError {
+  constructor(message = 'This message was sent moments ago') {
+    super(message);
+    this.name = 'ResendTooRecentError';
   }
 }
 
@@ -288,22 +308,26 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
   }
   const last = entry.lastReconcileAt ? Date.parse(entry.lastReconcileAt) : NaN;
   if (!Number.isNaN(last) && Date.now() - last < RECONCILE_BACKOFF_MS) return 'left';
-  try {
-    await useSendQueueStore.getState().noteReconcile(entry.id);
-  } catch (err) {
-    // Changed meanwhile (completed, requeued, discarded): not this pass's to settle.
-    console.warn('[send-queue] could not note the reconcile; skipped:', err);
-    return 'left';
-  }
 
   let proof: SendProof;
   try {
     proof = await lookupSendProof(entry, started);
   } catch (err) {
+    // No stamp: a lookup that never went through says nothing, so the next
+    // pass may look again; the previous stamp stays as it was.
     console.warn('[send-queue] reconciliation inconclusive, left for the user:', err);
     return 'left';
   }
-  if (proof.status !== 'proven') return 'left';
+  if (proof.status !== 'proven') {
+    // The lookup went through (to the end or to its cap): back off.
+    try {
+      await useSendQueueStore.getState().noteReconcile(entry.id);
+    } catch (err) {
+      // Changed meanwhile (completed, requeued, discarded): nothing to stamp.
+      console.warn('[send-queue] could not note the reconcile:', err);
+    }
+    return 'left';
+  }
   try {
     await completeOnProof(entry, proof.proofIds, true);
   } catch (err) {
@@ -318,14 +342,16 @@ async function reconcile(entry: QueuedSend): Promise<ReconcileResult> {
  * whatever the backoff. With proof the entry is completed (its draft
  * removed) and this resolves `already_sent`; the caller tells the user. After
  * a lookup that went through the whole window without proof it resolves
- * `not_found` and changes nothing: the caller may requeue. Anything else -
- * a failed or capped lookup, an attempt too young to judge - rejects with
- * ProofLookupError and changes nothing. A complete that the entry no longer
+ * `not_found` and changes nothing: the caller may requeue. An attempt too
+ * young to judge rejects with ResendTooRecentError without a lookup; a failed
+ * or capped lookup, or an unreadable attempt time, rejects with
+ * ProofLookupError. Both change nothing. A complete that the entry no longer
  * allows rejects with SendQueueStateError.
  */
 export async function checkSentBeforeResend(entry: QueuedSend): Promise<'already_sent' | 'not_found'> {
   const started = attemptStart(entry);
-  if (started === null || Date.now() - started < RECONCILE_GRACE_MS) throw new ProofLookupError();
+  if (started === null) throw new ProofLookupError();
+  if (Date.now() - started < RECONCILE_GRACE_MS) throw new ResendTooRecentError();
   let proof: SendProof;
   try {
     proof = await lookupSendProof(entry, started);
@@ -348,6 +374,26 @@ async function holdEntry(entry: QueuedSend, reason: HeldReason): Promise<void> {
     await useSendQueueStore.getState().hold(entry.id, reason);
   } catch (err) {
     console.warn('[send-queue] could not hold an entry:', err);
+  }
+}
+
+/**
+ * Clear an `account_unavailable` hold once the session serves that account
+ * again, so the entry goes back to plain `queued` and is sent through the
+ * usual markSending compare-and-set. Only for an entry never attempted (no
+ * `attemptStartedAt`: it was held before markSending, so no request for it
+ * was ever made); every other hold waits for the user. The store re-checks
+ * all of that when the release runs. Resolves true when the hold was cleared.
+ */
+async function releaseAccountHold(entry: QueuedSend): Promise<boolean> {
+  if (entry.state !== 'queued' || entry.heldReason !== 'account_unavailable' || entry.attemptStartedAt) return false;
+  if (!canReplay(entry.appAccountId) || !servesJmapAccount(entry.jmapAccountId)) return false;
+  try {
+    await useSendQueueStore.getState().releaseHold(entry.id);
+    return true;
+  } catch (err) {
+    console.warn('[send-queue] could not release a held entry:', err);
+    return false;
   }
 }
 
@@ -455,10 +501,15 @@ async function flushOnce(): Promise<'done' | 'stopped'> {
 
   for (const snapshot of ordered) {
     if (!canReplay(appId)) return 'stopped';
-    const entry = liveEntry(appId, snapshot.id);
+    let entry = liveEntry(appId, snapshot.id);
     if (!entry || entry.appAccountId !== appId) continue;
-    // Held entries wait for the user's Retry.
-    if (entry.state === 'queued' && entry.heldReason) continue;
+    // Held entries wait for the user's Retry, except one held only because
+    // its account was not served, which goes on once it is again.
+    if (entry.state === 'queued' && entry.heldReason) {
+      if (!(await releaseAccountHold(entry))) continue;
+      entry = liveEntry(appId, snapshot.id);
+      if (!entry || entry.state !== 'queued' || entry.heldReason || !canReplay(appId)) continue;
+    }
     if (!servesJmapAccount(entry.jmapAccountId)) {
       if (entry.state === 'queued') await holdEntry(entry, 'account_unavailable');
       continue;

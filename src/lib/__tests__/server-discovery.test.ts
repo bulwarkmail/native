@@ -11,6 +11,7 @@ vi.mock('../client-cert', () => ({
 import {
   normalizeServerUrl,
   emailDomain,
+  stripTrailingDot,
   isEmailAddress,
   serverCandidates,
   probeJmapServer,
@@ -118,6 +119,30 @@ describe('emailDomain', () => {
   it('rejects an internationalized domain that cannot be a host name', () => {
     expect(emailDomain('user@bü cher.de')).toBeNull();
     expect(emailDomain('user@xn--zz.de')).toBeNull();
+  });
+});
+
+describe('trailing dot on the domain', () => {
+  it('accepts a single trailing dot (a fully qualified domain)', () => {
+    expect(emailDomain('ada@example.com.')).toBe('example.com');
+    expect(isEmailAddress('ada@example.com.')).toBe(true);
+    expect(emailDomain('ada@Bücher.DE.')).toBe('xn--bcher-kva.de');
+  });
+
+  it('still rejects two dots, an empty label or a dotted bare label', () => {
+    expect(emailDomain('ada@example.com..')).toBeNull();
+    expect(emailDomain('ada@example..com')).toBeNull();
+    expect(emailDomain('ada@.example.com')).toBeNull();
+    expect(emailDomain('ada@example.')).toBeNull();
+    expect(emailDomain('ada@.')).toBeNull();
+  });
+
+  it('stripTrailingDot removes one dot from the domain only', () => {
+    expect(stripTrailingDot('ada@example.com.')).toBe('ada@example.com');
+    expect(stripTrailingDot(' ada@example.com. ')).toBe('ada@example.com');
+    expect(stripTrailingDot('ada@example.com..')).toBe('ada@example.com.');
+    expect(stripTrailingDot('ada@example.com')).toBe('ada@example.com');
+    expect(stripTrailingDot('ada.')).toBe('ada.');
   });
 });
 

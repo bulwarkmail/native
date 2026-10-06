@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend, queuedEntryFor, findAlreadyQueued, ownerStillActive, OutboxCheckError,
+  attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend, queuedEntryFor, findAlreadyQueued, ownerStillActive, OutboxCheckError, quickReplyOwnerActive,
 } from '../queue-send';
 import type { OutgoingEmail } from '../../api/email';
 import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
@@ -128,5 +128,16 @@ describe('ownerStillActive (quick reply owner)', () => {
     expect(ownerStillActive('a', null)).toBe(false);
     expect(ownerStillActive(null, null)).toBe(false);
     expect(ownerStillActive(undefined, 'a')).toBe(false);
+  });
+});
+
+describe('quickReplyOwnerActive', () => {
+  it('needs the owner to be both the active account and the one shown', () => {
+    expect(quickReplyOwnerActive('a', 'a', 'a')).toBe(true);
+    // a switch to b has started: the app shows b, the client is still on a
+    expect(quickReplyOwnerActive('a', 'a', 'b')).toBe(false);
+    // the switch landed: the box (remounted) still belongs to a's message
+    expect(quickReplyOwnerActive('a', 'b', 'b')).toBe(false);
+    expect(quickReplyOwnerActive(undefined, 'a', 'a')).toBe(false);
   });
 });

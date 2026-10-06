@@ -19,6 +19,32 @@ describe('parseUnsubscribeUrls', () => {
   });
 });
 
+describe('parseUnsubscribeUrls schemes and candidates', () => {
+  it('matches the scheme case-insensitively', () => {
+    expect(parseUnsubscribeUrls('<HTTPS://x.example/u>').http).toBe('HTTPS://x.example/u');
+    expect(parseUnsubscribeUrls('<MAILTO:leave@x.example>').mailto).toBe('MAILTO:leave@x.example');
+    expect(isValidUnsubscribeUrl('MAILTO:a@b.co')).toBe(true);
+    expect(isValidUnsubscribeUrl('Http://x.example')).toBe(true);
+  });
+  it('uses the first valid mailto when an earlier one fails the strict parse', () => {
+    const r = parseUnsubscribeUrls('<mailto:a@x.example,b@y.example>, <mailto:x%3E%2C%3Cvictim@evil.com>, <mailto:leave@list.example>');
+    expect(r.mailto).toBe('mailto:leave@list.example');
+    expect(r.preferred).toBe('mailto');
+    expect(parseUnsubscribeUrls('<mailto:a@x.example,b@y.example>').preferred).toBeUndefined();
+  });
+  it('uses the first valid http url', () => {
+    expect(parseUnsubscribeUrls('<ftp://x>, <https://ok.example/u>').http).toBe('https://ok.example/u');
+  });
+  it('parses a 200 KB header in linear time', () => {
+    const big = (unit: string) => unit.repeat(Math.ceil(200_000 / unit.length));
+    for (const header of [big('<'), big('<mailto:a'), big('<mailto:a.a@'), big('<mailto:' + 'a.'.repeat(50) + '@a-'), `<mailto:${big('a,')}@x.example>`]) {
+      const start = performance.now();
+      parseUnsubscribeUrls(header);
+      expect(performance.now() - start).toBeLessThan(1000);
+    }
+  });
+});
+
 describe('isValidUnsubscribeUrl', () => {
   it('accepts http(s) and mailto with a valid address only', () => {
     expect(isValidUnsubscribeUrl('https://x.example/u')).toBe(true);

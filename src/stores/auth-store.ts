@@ -33,6 +33,10 @@ import {
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
 import { deviceSyncSignedIn, releaseDeviceSyncBeforeSignOut } from '../device-sync/app/lifecycle';
+import { singleFlightByKey } from '../lib/session-retry';
+// jmapClient's `StaleLoadError`, matched by name (suites that mock the client
+// module need not export the class).
+import { isStaleLoad } from '../lib/network-error';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -283,7 +287,8 @@ async function completeOAuthHandoff(
   try {
     connected = await jmapClient.connectWithOAuth(result.serverUrl, result.tokens);
   } catch (err) {
-    if (previous) jmapClient.restoreSnapshot(previous);
+    // Superseded by a newer load: that one owns the client; don't undo it.
+    if (previous && !(isStaleLoad(err))) jmapClient.restoreSnapshot(previous);
     throw err;
   }
   const { session, username, accountId } = connected;
@@ -376,7 +381,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         session = await jmapClient.connect(serverUrl, username, password, opts?.totp);
       } catch (err) {
-        if (previous) jmapClient.restoreSnapshot(previous);
+        // Superseded by a newer load: that one owns the client; don't undo it.
+        if (previous && !(isStaleLoad(err))) jmapClient.restoreSnapshot(previous);
         throw err;
       }
 
@@ -416,6 +422,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Device sync (#34): drop a "sign in again" notice, resume a suspended account.
       void deviceSyncSignedIn(accountId);
     } catch (err) {
+      if (isStaleLoad(err)) {
+        // A newer load took the client over; it sets its own state.
+        set({ isLoading: false });
+        throw err;
+      }
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         // Keep what the user (or the webmail hand-off) supplied so the code
         // step doesn't make them retype the password.
@@ -453,6 +464,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       session = await jmapClient.connectWithToken(base, token);
     } catch (err) {
+      if (isStaleLoad(err)) {
+        // A newer load took the client over; it sets its own state.
+        set({ isLoading: false });
+        throw err;
+      }
       if (previous) jmapClient.restoreSnapshot(previous);
       // A 401 is a rejected token; a 403 reaches us as a failed session fetch.
       // The missing-username error and a second-factor demand are not a bad
@@ -809,6 +825,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
     } catch (err) {
+      if (isStaleLoad(err)) {
+        // A newer load (another switch, a session retry) owns the client and
+        // sets its own state: restoring the previous one would undo it.
+        set({ isLoading: false });
+        return;
+      }
       if (err instanceof AuthenticationError) {
         await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
         accountStore.removeAccount(accountId);
@@ -945,17 +967,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return false;
         }
       } catch (err) {
-        if (err instanceof NetworkError) {
+        if (isStaleLoad(err) && get().session) {
+          // A newer load already brought a session up; it set its own state.
+          set({ isLoading: false, hasRestoredSession: true });
+          return true;
+        }
+        // Superseded without a session yet: stay signed in offline, as for an
+        // unreachable server, and let the session retry take over.
+        if (err instanceof NetworkError || isStaleLoad(err)) {
           // Server unreachable. Keep credentials, mark account offline, and
           // surface the cached UI so the user can still browse persisted
           // mail / contacts / calendar. The login screen would lose their
           // settings without recourse, which is the bug we're fixing here.
           accountStore.setActiveAccount(target.id);
-          accountStore.updateAccount(target.id, {
-            isConnected: false,
-            hasError: true,
-            errorMessage: err.message,
-          });
+          if (err instanceof NetworkError) {
+            accountStore.updateAccount(target.id, {
+              isConnected: false,
+              hasError: true,
+              errorMessage: err.message,
+            });
+          }
           set({
             isAuthenticated: true,
             isLoading: false,
@@ -1010,46 +1041,64 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { activeAccountId, session } = get();
     if (!activeAccountId) return false;
     if (session) return true;
-    const accountStore = useAccountStore.getState();
-    const target = accountStore.getAccountById(activeAccountId);
-    if (!target) return false;
-    try {
-      const ok = await jmapClient.loadAccount(activeAccountId);
-      if (!ok) return false;
-      accountStore.updateAccount(activeAccountId, {
-        isConnected: true,
-        hasError: false,
-        errorMessage: undefined,
-      });
-      const fresh = jmapClient.currentSession!;
-      applyConnectedState(set, fresh, target.serverUrl, target.username, activeAccountId);
-      refetchFeatureStores();
-      return true;
-    } catch (err) {
-      if (err instanceof AuthenticationError) {
-        // Now we know the credentials are bad — fall back to logout flow.
-        await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
-        accountStore.removeAccount(activeAccountId);
-        set({
-          isAuthenticated: false,
-          isLoading: false,
-          hasRestoredSession: true,
-          error: 'Session expired',
-          serverUrl: null,
-          username: null,
-          session: null,
-          accountId: null,
-          activeAccountId: null,
-          client: null,
-        });
-      }
-      // NetworkError or anything else: stay where we are.
-      return false;
-    }
+    // Concurrent callers (the retry timer, an online edge, the 401 handler)
+    // share one attempt: two overlapping loadAccount calls, a success then a
+    // failure, could leave the client without a session while this store
+    // holds a live one.
+    return retrySessionFlight(activeAccountId);
   },
 
   clearError: () => set({ error: null }),
 }));
+
+// One attempt to bring back the session of `activeAccountId`; see retrySession.
+async function attemptSessionRetry(activeAccountId: string): Promise<boolean> {
+  if (useAuthStore.getState().session) return true;
+  const accountStore = useAccountStore.getState();
+  const target = accountStore.getAccountById(activeAccountId);
+  if (!target) return false;
+  try {
+    const ok = await jmapClient.loadAccount(activeAccountId);
+    if (!ok) return false;
+    // The user switched accounts meanwhile; that switch sets its own state.
+    if (useAuthStore.getState().activeAccountId !== activeAccountId) return false;
+    accountStore.updateAccount(activeAccountId, {
+      isConnected: true,
+      hasError: false,
+      errorMessage: undefined,
+    });
+    const fresh = jmapClient.currentSession!;
+    applyConnectedState(useAuthStore.setState, fresh, target.serverUrl, target.username, activeAccountId);
+    refetchFeatureStores();
+    return true;
+  } catch (err) {
+    // StaleLoadError: a newer load owns the client; stay. NetworkError: stay.
+    if (err instanceof AuthenticationError) {
+      // Now we know the credentials are bad — fall back to logout flow.
+      await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
+      accountStore.removeAccount(activeAccountId);
+      // Only if that account is still the active one: after a switch, the
+      // user is signed in to the other account, which this says nothing about.
+      if (useAuthStore.getState().activeAccountId !== activeAccountId) return false;
+      useAuthStore.setState({
+        isAuthenticated: false,
+        isLoading: false,
+        hasRestoredSession: true,
+        error: 'Session expired',
+        serverUrl: null,
+        username: null,
+        session: null,
+        accountId: null,
+        activeAccountId: null,
+        client: null,
+      });
+    }
+    // NetworkError or anything else: stay where we are.
+    return false;
+  }
+}
+
+const retrySessionFlight = singleFlightByKey(attemptSessionRetry);
 
 // A 401 on a live session (revoked password/token, expired refresh token)
 // used to leave the user on a dead session until relaunch: nothing outside

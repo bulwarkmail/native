@@ -263,7 +263,8 @@ export interface CalendarState {
   ) => Promise<void>;
   // Resolves with what got in and what the server refused; rejects with an
   // ImportRefusedError when nothing got in because everything was refused.
-  importEvents: (events: Partial<CalendarEvent>[], calendarId: string) => Promise<ImportResult>;
+  /** `stillValid`, when given, is checked before every write; once false the import stops quietly. */
+  importEvents: (events: Partial<CalendarEvent>[], calendarId: string, stillValid?: () => boolean) => Promise<ImportResult>;
   createCalendar: (name: string, color?: string, description?: string) => Promise<Calendar>;
   updateCalendar: (id: string, updates: CalendarUpdates) => Promise<void>;
   removeCalendar: (id: string) => Promise<void>;
@@ -937,7 +938,7 @@ export const useCalendarStore = create<CalendarState>()(
     if (touchesSeries) await get().refresh();
   },
 
-  importEvents: async (events, calendarId) => {
+  importEvents: async (events, calendarId, stillValid) => {
     if (events.length === 0) return { imported: 0, refused: [] };
     // Shared calendars live in the owner's account and carry a namespaced
     // store id — resolve the raw server id + owning account so dedup and
@@ -952,6 +953,12 @@ export const useCalendarStore = create<CalendarState>()(
     // - new UID -> create
     let toCreate = events;
     let linked = 0;
+    let aborted = false;
+    const ok = () => {
+      if (!stillValid || stillValid()) return true;
+      aborted = true;
+      return false;
+    };
     try {
       const existingIds = await queryEvents([], '', '', accountId);
       const existing = existingIds.length > 0 ? await fetchEvents(existingIds, accountId) : [];
@@ -965,6 +972,7 @@ export const useCalendarStore = create<CalendarState>()(
           continue;
         }
         if (found.calendarIds?.[serverCalendarId]) continue;
+        if (!ok()) break;
         try {
           await apiUpdateEvent(
             found.id,
@@ -978,7 +986,7 @@ export const useCalendarStore = create<CalendarState>()(
           refused.push({ event: e, reason: errorReason(err) });
         }
       }
-      toCreate = fresh;
+      toCreate = aborted ? [] : fresh;
     } catch {
       // Couldn't dedupe — proceed and let the server reject genuine dupes.
     }
@@ -987,6 +995,7 @@ export const useCalendarStore = create<CalendarState>()(
     try {
       // Batch in chunks of 50 to avoid oversized requests.
       for (let i = 0; i < prepared.length; i += 50) {
+        if (!ok()) break;
         try {
           const result = await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
           count += result.created;

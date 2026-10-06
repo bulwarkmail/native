@@ -101,6 +101,19 @@ export async function findAlreadyQueued(ownerAppAccountId: string | null | undef
   return queuedEntryFor(Object.values(useSendQueueStore.getState().entries).flat(), refs);
 }
 
+/**
+ * The quick reply's owner (the viewer's account) is the active one in the auth
+ * store and the one the app shows: during a switch they differ, and the box may
+ * have remounted showing another account while its message is the owner's.
+ */
+export function quickReplyOwnerActive(
+  owner: string | null | undefined,
+  authActive: string | null | undefined,
+  shownActive: string | null | undefined,
+): boolean {
+  return ownerStillActive(owner, authActive) && ownerStillActive(owner, shownActive);
+}
+
 /** The quick reply's owner (the app account active at mount) is still the active one. */
 export function ownerStillActive(ownerAtMount: string | null | undefined, activeNow: string | null | undefined): boolean {
   return !!ownerAtMount && ownerAtMount === activeNow;

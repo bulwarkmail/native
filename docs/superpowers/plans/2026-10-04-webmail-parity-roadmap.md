@@ -169,9 +169,9 @@ Phase 1 is done on `parity/phase-1-security-send`. The final review rated the it
   - An empty size row is silently dropped.
 - **Recipients:** the colon test doesn't reach `findTopLevelColon` (the input needs a trailing `;`).
 - **Unsubscribe:**
-  - Uppercase `MAILTO:`/`HTTPS:` are ignored.
-  - The first mailto that fails the strict parse hides the banner even when a later one would work.
-  - There are three copies of `parseMailtoUrl`/`isValidEmail` (`unsubscribe.ts`, `mailto.ts`, `recipients.ts`).
+  - Uppercase `MAILTO:`/`HTTPS:` are ignored. *(Fixed in hardening pass 1.)*
+  - The first mailto that fails the strict parse hides the banner even when a later one would work. *(Fixed in hardening pass 1.)*
+  - There are three copies of `parseMailtoUrl`/`isValidEmail` (`unsubscribe.ts`, `mailto.ts`, `recipients.ts`). *(Fixed in hardening pass 1.)*
 - **TNEF:**
   - Add a positive multi-value parse test.
   - Port webmail's truncated-attribute test.
@@ -183,7 +183,7 @@ Phase 1 is done on `parity/phase-1-security-send`. The final review rated the it
 Phase 2 is done on `parity/phase-2-data-correctness`. The final review left these open.
 
 - **Fix before or right after merge:**
-  - A vCard with both `ORG-DIRECTORY` and `SOURCE` loses SOURCE on import.
+  - A vCard with both `ORG-DIRECTORY` and `SOURCE` loses SOURCE on import. *(Fixed in hardening pass 1.)*
     - The `directories` guard in `src/lib/contact-wire.ts` skips the flat `source` whenever the card already has a `directories` map.
     - Webmail adds both.
     - Fix: for `directories` only, add the source entry unless a `kind: 'entry'` with that URI already exists. Add a test for `{ directories: { d0 }, source }`.
@@ -205,8 +205,8 @@ Phase 2 is done on `parity/phase-2-data-correctness`. The final review left thes
   - Usernames that differ only by case get orphaned outboxes.
 - **Calendar subscriptions:**
   - Legacy subscriptions whose calendar was deleted, or renamed while several accounts are signed in, stay stuck.
-  - An in-flight `syncFeedIntoCalendar` across an account switch runs its delete diff against the new session. Give this priority.
-  - `syncAll` has no connection guard.
+  - An in-flight `syncFeedIntoCalendar` across an account switch runs its delete diff against the new session. Give this priority. *(Fixed in hardening pass 1.)*
+  - `syncAll` has no connection guard. *(Fixed in hardening pass 1.)*
 - **Calendar:**
   - Deleting "this and following" has no fallback when invitations are refused.
   - Generic alerts show the bare server reason (`forbidden`).
@@ -232,18 +232,18 @@ Phase 3 is done on `parity/phase-3-reliability`. The final review rated these "l
   - `notUpdated notFound` on renewal retries every 15 min.
   - Setup from settings or onboarding doesn't call `markPushRenewed`.
 - **Mail list:**
-  - The selection is cleared after a failed bulk action.
-  - A failed cross-account move shows no toast.
+  - The selection is cleared after a failed bulk action. *(Fixed in hardening pass 1.)*
+  - A failed cross-account move shows no toast. *(Fixed in hardening pass 1.)*
   - A failed search while offline shows the "nothing cached" text.
   - There is no default-scope chip.
   - The widgets' unread tag query uses `limit: 0` (`src/widgets/jmap.ts:282`).
 - **Accounts:**
-  - TOTP code fields aren't cleared after a failed submit.
+  - TOTP code fields aren't cleared after a failed submit. *(Fixed in hardening pass 1.)*
   - `otpEnabled` is briefly stale after a toggle.
   - The `disable_hint` text doesn't mention the code.
-  - An email address ending in a dot (`ada@example.com.`) is rejected.
-  - The TOTP step shows the punycode address.
-- **Calendar:** in `addSubscription`, the catch path's `deleteCalendar` is not guarded against an account switch.
+  - An email address ending in a dot (`ada@example.com.`) is rejected. *(Fixed in hardening pass 1.)*
+  - The TOTP step shows the punycode address. *(Fixed in hardening pass 1.)*
+- **Calendar:** in `addSubscription`, the catch path's `deleteCalendar` is not guarded against an account switch. *(Fixed in hardening pass 1.)*
 - **Tests:** no render harness, so the wiring in the composer, security page, MoveSheet and calendar is covered by typecheck and device checks only.
 
 ## Phase 4a follow-ups (left open at merge, 2026-10-04)
@@ -257,10 +257,10 @@ Phase 4a is done on `parity/phase-4a-features`. The final review rated these "la
 - **Upstream (webmail):** four quadratic regexes on sender text. Two are in `lib/verification-code.ts` `normalize()` (`/[\p{L}\p{N}-]*(?:\.\.\.|…)\s*$/u` and `/\S*@\S+/g`). One is the trailing-punctuation regex in `lib/event-links.ts`. The fourth is the pre-existing `MEANINGFUL_HTML_RE` shape, fixed natively in 2a37bb5.
 - **Locales:** the vendored webmail locale predates 7e1a659, so several webmail keys were added to `locales/rn/en.json` with webmail's English. Run `sync-locales` to bring in their translations.
 - **Push:**
-  - Non-active accounts keep their old Inbox-only filter until they are next active (`renewDetachedPushSubscription` writes only `expires`).
+  - Non-active accounts keep their old Inbox-only filter until they are next active (`renewDetachedPushSubscription` writes only `expires`). *(Fixed in hardening pass 1.)*
   - A primary account with no Inbox in Inbox-only mode makes setup throw, as in webmail; the old subscription keeps working.
   - A failed re-sync only warns, so the toggle can show on while the server filter is unchanged.
-  - Settings `hydrate()` is not single-flight.
+  - Settings `hydrate()` is not single-flight. *(Fixed in hardening pass 1.)*
   - FCM and SSE both dispatching a change can fire bus listeners twice (a duplicate refetch only).
 - **Mail:**
   - The list chip has no long-press forward.
@@ -279,7 +279,7 @@ Phase 4a is done on `parity/phase-4a-features`. The final review rated these "la
 - **Composer:**
   - The "Search the server" row shows even without a Sent mailbox (as in webmail).
   - The search handling in ComposeScreen has no test.
-  - Directory suggestions load only when the account entry's username and server match the client's exactly. A trimmed or untrimmed username would quietly hide them.
+  - Directory suggestions load only when the account entry's username and server match the client's exactly. A trimmed or untrimmed username would quietly hide them. *(Fixed in hardening pass 1.)*
 - **Tests:** the wall-clock timing tests now allow 1 s, against 2.8–22 s for the old quadratic cases.
 
 ## Phase 4b follow-ups (left open at merge, 2026-10-04)
@@ -296,16 +296,48 @@ Phase 4b is done on `parity/phase-4b-rules-outbox`: rules from a message, and an
 - **Upstream (webmail):** a fifth quadratic regex, `stripSubjectPrefixes` in `lib/filters/quick-rules.ts`, on long runs of spaces. Report it with the four from Phase 4a.
 - **Send queue:**
   - The proof lookup pages by position, so a deletion between pages can skip the proof copy. "Send again" then resends after the user's confirmation.
-  - A send is held when its account is unavailable, and it then waits for the user's Retry even after the account is back.
-  - "Send again" within 2 minutes of an attempt shows the generic "could not check" text.
-  - A failed lookup still stamps the 15-minute backoff.
-  - Rows that are corrupt on disk are counted at sign-out and in the widget.
+  - A send is held when its account is unavailable, and it then waits for the user's Retry even after the account is back. *(Fixed in hardening pass 1.)*
+  - "Send again" within 2 minutes of an attempt shows the generic "could not check" text. *(Fixed in hardening pass 1.)*
+  - A failed lookup still stamps the 15-minute backoff. *(Fixed in hardening pass 1.)*
+  - Rows that are corrupt on disk are counted at sign-out and in the widget. *(Fixed in hardening pass 1.)*
   - Toasts for failed, uncertain and held sends repeat once per launch.
   - A draft still can't be saved offline.
 - **Rules:**
   - Undo's check-then-write is not atomic; it needs `ifInState`, as in webmail.
-  - `fetchFilters` replies can land out of order: a push refetch after Undo can put the undone rule back into the Settings screen's memory.
+  - `fetchFilters` replies can land out of order: a push refetch after Undo can put the undone rule back into the Settings screen's memory. *(Fixed in hardening pass 1.)*
   - The presets can be tapped before the hand-edited-script check returns; the write still refuses.
   - The rules target snapshots the mailboxes when the sheet opens.
   - There is no "New folder…" in the rule pickers, and no "Edit rule" toast action.
   - RulesFlow and the Outbox screen have no render tests.
+
+## Hardening pass 1 (merged from `parity/hardening-1`, 2026-10-06)
+
+The pass closed the items marked *(Fixed in hardening pass 1.)* above, and two problems found along the way.
+
+**The device test of 2026-10-06.** A mail server on the local network can fail Android's internet probe. The app now counts the server answering as being online, and it keeps retrying a missing session on a backoff.
+
+**Account isolation in the JMAP client.** A background security check flagged one account's credentials reaching another account's server during account switches. The client now holds one connection context `{gen, credentials, session, accountId}`, which is swapped atomically.
+- Every request, and every multi-request operation, is pinned to the connection it started on, and refused before sending (`StaleLoadError`) if a newer connection replaced it.
+- Actions on the account the app shows wait until the client serves it.
+- Folder actions, the viewer, undo-send, archive reorganising, read receipts, scheduled sends, widget actions and quick reply are tied to their own account.
+- Probe suites check that no host ever receives another account's header or ids. The main one is `src/api/__tests__/jmap-client-no-mixed-accounts.test.ts`.
+
+Follow-ups left open:
+
+- **Before release (device checks):**
+  - A server on the local network with no internet access: send, receive, and recovery after the server restarts.
+  - Switch accounts while a message is open, while a folder is being emptied, and during a slow cross-account move.
+  - Widget archive and trash while the app switches accounts.
+- **Account isolation:**
+  - CalendarScreen's event detail sheet isn't tied to an account. Delete or edit after a switch can act on the other account's same-id event.
+  - The contacts, sieve, identity and vacation API helpers use the live client unscoped. Their stores reset on a switch, so the risk is low.
+  - Reply or forward, unsubscribe-by-mail and the invitation's Import/RSVP from a viewer left open across a switch act in the account now shown.
+  - A delegated shared account can finish part of an operation as B on A's account. The effect is on the intended account; only the attribution differs.
+  - An A→B→A switch during a calendar feed sync passes its check.
+- **Smaller:**
+  - "Always" read receipts during a switch show an error once and don't retry.
+  - An undo-send in flight when a switch lands cancels the send without reopening the draft.
+  - ScheduledScreen's Edit reads the account after an await.
+  - The open viewer refuses changes after a switch rather than queueing them, and drops its delayed mark-read.
+  - Legacy outbox ops and stamped ones aren't coalesced.
+  - The selection after a partial cross-account failure.

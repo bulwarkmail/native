@@ -54,6 +54,25 @@ export function isTransientNetworkError(err: unknown): boolean {
   return TRANSIENT_MESSAGE_HINTS.some((hint) => msg.includes(hint));
 }
 
+/**
+ * True for jmapClient's `StaleLoadError`: the client moved to another
+ * connection (account switch, sign-in, sign-out) before the request was sent.
+ * Nothing reached the server, and the work belongs to a connection that is
+ * gone: drop it without an error, a retry or a toast.
+ */
+export function isStaleLoad(err: unknown): boolean {
+  return err instanceof Error && err.name === 'StaleLoadError';
+}
+
+/**
+ * A stale stop because the request named a JMAP account the live session
+ * does not have. On the account the request was built for, that means the
+ * account itself is gone (a shared account no longer visible), not a switch.
+ */
+export function isAccountNotInSession(err: unknown): boolean {
+  return isStaleLoad(err) && (err as { reason?: string }).reason === 'account-not-in-session';
+}
+
 /** True when the failure means the session/credentials are unusable. */
 export function isAuthError(err: unknown): boolean {
   return err instanceof Error && (err.name === 'AuthenticationError' || err.name === 'TotpRequiredError');

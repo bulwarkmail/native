@@ -18,7 +18,8 @@ export interface LivenessOptions {
   streamHealthy: () => boolean;
   /** Whether the app is in the foreground. */
   isActive: () => boolean;
-  /** Whether the device has a network. */
+  /** Whether the device has a network interface (NetInfo `connected`, not
+   *  `online`: the echo is how a LAN server is found when the internet probe fails). */
   isOnline: () => boolean;
   /** Called with the connection state after each verdict. */
   onConnected: (connected: boolean) => void;

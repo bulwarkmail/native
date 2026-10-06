@@ -259,3 +259,27 @@ describe('saving scripts the webmail wrote', () => {
     expect(api.updateSieveScript.mock.calls[0][1]).toBe(webmailResave('stalwart-full.sieve'));
   });
 });
+
+describe('filter-store fetch ordering', () => {
+  it('a stale fetch does not overwrite a newer one', async () => {
+    const gate = () => { let r!: () => void; const p = new Promise<void>((x) => { r = x; }); return { p, r }; };
+    const a = gate();
+    const b = gate();
+    api.getSieveScripts
+      .mockResolvedValueOnce([{ id: 's1', name: 'filters', blobId: 'bA', isActive: true }])
+      .mockResolvedValueOnce([{ id: 's1', name: 'filters', blobId: 'bB', isActive: true }]);
+    api.getSieveScriptContent.mockImplementation(async (blobId: string) => {
+      if (blobId === 'bA') { await a.p; return generateScript([makeRule({ id: 'old', name: 'Old' })]); }
+      await b.p;
+      return generateScript([makeRule({ id: 'new', name: 'New' })]);
+    });
+    const first = useFilterStore.getState().fetchFilters();
+    const second = useFilterStore.getState().fetchFilters();
+    b.r();
+    await second;
+    a.r();
+    await first;
+    expect(useFilterStore.getState().rules.map((r) => r.id)).toEqual(['new']);
+    expect(useFilterStore.getState().isLoading).toBe(false);
+  });
+});

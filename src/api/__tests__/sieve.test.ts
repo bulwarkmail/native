@@ -4,6 +4,9 @@ vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'own',
     authHeader: 'Basic x',
+    // Connection-scoped header (jmap-client requestContext / authHeaderFor).
+    requestContext: () => ({ gen: 1, authHeader: 'Basic x' }),
+    authHeaderFor: () => 'Basic x', isCurrent: () => true,
     request: vi.fn(),
     currentSession: null as unknown,
   },

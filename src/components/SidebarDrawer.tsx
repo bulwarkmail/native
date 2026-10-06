@@ -15,7 +15,7 @@ import {
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
-import { useEmailStore, spannedAccounts } from '../stores/email-store';
+import { useEmailStore, spannedAccounts, requireShownAccountScope } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -35,6 +35,8 @@ import { jmapClient } from '../api/jmap-client';
 import {
   markMailboxAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
+import { inAccount, type OpScope } from '../api/op-scope';
+import { isStaleLoad } from '../lib/network-error';
 import { useTagCountsStore } from '../stores/tag-counts-store';
 import { trashAndJunkIds } from '../lib/search-scope';
 import { useNavigation } from '@react-navigation/native';
@@ -320,6 +322,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const clearSearchAndFilters = useEmailStore((s) => s.clearSearchAndFilters);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const refreshEmails = useEmailStore((s) => s.refreshEmails);
+  // The account whose folders the sidebar lists (the email store's view,
+  // which an account switch swaps before the client serves the new account).
+  const shownAccountId = useEmailStore((s) => s.activeAccountId);
   const username = useAuthStore((s) => s.username);
   const serverUrl = useAuthStore((s) => s.serverUrl);
   const switchAccount = useAuthStore((s) => s.switchAccount);
@@ -461,29 +466,50 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     id: mb.originalId ?? mb.id,
     accountId: mb.isShared ? mb.accountId : undefined,
   });
-  const runFolderAction = async (label: string, work: () => Promise<unknown>, affectsCurrent: boolean) => {
+  // A folder action on app account `owner`'s folders (the ones listed when
+  // its sheet or prompt opened). Its connection is taken at the tap and
+  // passed to every request: during an account switch the list shows one
+  // account while the client serves another, whose folders and messages
+  // share ids (Stalwart numbers them per account), so an unscoped request
+  // would empty, delete or rename the other account's folder. Refused
+  // while `owner` is not the account shown and served.
+  const runFolderAction = async (
+    label: string,
+    owner: string | null,
+    work: (at: OpScope) => Promise<unknown>,
+    affectsCurrent: boolean,
+  ) => {
+    let at: OpScope;
+    try {
+      at = requireShownAccountScope(owner);
+    } catch (err) {
+      Alert.alert(label, err instanceof Error ? err.message : String(err));
+      return;
+    }
     setBusy(true);
     try {
-      await work();
+      await work(at);
       await fetchMailboxes();
       if (affectsCurrent) await refreshEmails();
     } catch (err) {
-      Alert.alert(label, err instanceof Error ? err.message : String(err));
+      // Stopped before sending because the client moved to another account.
+      if (!isStaleLoad(err)) Alert.alert(label, err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   };
-  const markRead = (ids: string[]) => {
+  const markRead = (ids: string[], owner: string | null) => {
     const targets = ids
       .map((id) => mailboxes.find((m) => m.id === id))
       .filter((m): m is Mailbox => !!m && m.unreadEmails > 0);
     const affectsCurrent = !!currentMailboxId && ids.includes(currentMailboxId);
     void runFolderAction(
       t('mailbox_context_menu.toast_error_mark_read', 'Failed to mark as read'),
-      async () => {
+      owner,
+      async (at) => {
         for (const mb of targets) {
           const ref = refFor(mb);
-          await markMailboxAsRead(ref.id, ref.accountId);
+          await markMailboxAsRead(ref.id, inAccount(at, ref.accountId));
         }
       },
       affectsCurrent,
@@ -495,11 +521,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     const name = localizeMailboxName(mb.role, mb.name, t);
     const ref = refFor(mb);
     const subtree = mailboxSubtreeIds(mailboxes, mb.id);
+    // The account these folders belong to, for every action of this sheet.
+    const owner = shownAccountId;
     const actions: SheetAction[] = [
-      { key: 'read', label: t('mailbox_context_menu.mark_folder_read', 'Mark folder as read'), icon: CheckCheck, onPress: () => markRead([mb.id]) },
+      { key: 'read', label: t('mailbox_context_menu.mark_folder_read', 'Mark folder as read'), icon: CheckCheck, onPress: () => markRead([mb.id], owner) },
     ];
     if (subtree.length > 1) {
-      actions.push({ key: 'tree', label: t('mailbox_context_menu.mark_folder_tree_read', 'Mark folder & subfolders as read'), icon: CheckCheck, onPress: () => markRead(subtree) });
+      actions.push({ key: 'tree', label: t('mailbox_context_menu.mark_folder_tree_read', 'Mark folder & subfolders as read'), icon: CheckCheck, onPress: () => markRead(subtree, owner) });
     }
     if (!mb.isShared) {
       actions.push({
@@ -511,7 +539,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
           t('mailbox_context_menu.mark_all_confirm_message', 'Mark every unread message in your personal account as read?'),
           [
             { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-            { text: t('mailbox_context_menu.mark_all_folders_read', 'Mark all folders as read'), onPress: () => markRead(ownMailboxes(mailboxes).map((m) => m.id)) },
+            { text: t('mailbox_context_menu.mark_all_folders_read', 'Mark all folders as read'), onPress: () => markRead(ownMailboxes(mailboxes).map((m) => m.id), owner) },
           ],
         ),
       });
@@ -532,7 +560,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               style: 'destructive',
               onPress: () => void runFolderAction(
                 t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
-                () => emptyMailbox(ref.id, ref.accountId),
+                owner,
+                (at) => emptyMailbox(ref.id, inAccount(at, ref.accountId)),
                 currentMailboxId === mb.id,
               ),
             },
@@ -551,8 +580,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
           confirmLabel: t('mailbox_context_menu.create', 'Create'),
           onSubmit: (value) => void runFolderAction(
             t('mailbox_context_menu.toast_error_create', 'Failed to create folder'),
-            async () => {
-              await createMailbox({ name: value, parentId: ref.id }, ref.accountId);
+            owner,
+            async (at) => {
+              await createMailbox({ name: value, parentId: ref.id }, inAccount(at, ref.accountId));
               setExpandedFolders((prev) => {
                 const next = new Set(prev); next.add(mb.id); void persistExpanded(next); return next;
               });
@@ -574,7 +604,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
           confirmLabel: t('mailbox_context_menu.rename_confirm', 'Rename'),
           onSubmit: (value) => void runFolderAction(
             t('mailbox_context_menu.toast_error_rename', 'Failed to rename folder'),
-            () => updateMailbox(ref.id, { name: value }, ref.accountId),
+            owner,
+            (at) => updateMailbox(ref.id, { name: value }, inAccount(at, ref.accountId)),
             false,
           ),
         }),
@@ -596,8 +627,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               style: 'destructive',
               onPress: () => void runFolderAction(
                 t('mailbox_context_menu.toast_error_delete', 'Failed to delete folder'),
-                async () => {
-                  await deleteMailbox(ref.id, ref.accountId, { onDestroyRemoveEmails: mb.totalEmails > 0 });
+                owner,
+                async (at) => {
+                  await deleteMailbox(ref.id, inAccount(at, ref.accountId), { onDestroyRemoveEmails: mb.totalEmails > 0 });
                   if (currentMailboxId === mb.id) {
                     const inbox = ownMailboxes(mailboxes).find((m) => m.role === 'inbox');
                     if (inbox) void selectMailbox(inbox.id);
@@ -616,12 +648,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     const accountId = node.accountId;
     if (!accountId) return;
     const canCreate = node.children.some((n) => n.myRights?.mayCreateChild !== false);
+    const owner = shownAccountId;
     const actions: SheetAction[] = [
       {
         key: 'read',
         label: t('mailbox_context_menu.mark_folder_tree_read', 'Mark folder & subfolders as read'),
         icon: CheckCheck,
-        onPress: () => markRead(mailboxes.filter((m) => m.isShared && m.accountId === accountId).map((m) => m.id)),
+        onPress: () => markRead(mailboxes.filter((m) => m.isShared && m.accountId === accountId).map((m) => m.id), owner),
       },
     ];
     if (canCreate) {
@@ -635,7 +668,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
           confirmLabel: t('mailbox_context_menu.create', 'Create'),
           onSubmit: (value) => void runFolderAction(
             t('mailbox_context_menu.toast_error_create', 'Failed to create folder'),
-            () => createMailbox({ name: value }, accountId),
+            owner,
+            (at) => createMailbox({ name: value }, inAccount(at, accountId)),
             false,
           ),
         }),

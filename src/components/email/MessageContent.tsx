@@ -19,6 +19,8 @@ import { calendarBannerShownFor } from '../../lib/attachment-display';
 export interface MessageContentProps {
   email: Email;
   jmapAccountId?: string;
+  /** The app account the viewer shows this message in (see EmailThreadScreen). */
+  appAccountId?: string;
   identities: Identity[];
   currentMailboxRole?: string | null;
   /** On screen rather than pre-rendered by the pager (gates auto-sent read receipts). */
@@ -54,7 +56,7 @@ export interface MessageContentProps {
  * cards.
  */
 export function MessageContent({
-  email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
+  email, jmapAccountId, appAccountId, identities, currentMailboxRole, active, themeOverride, onSwipe, onZoomChange,
   onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled, fill,
 }: MessageContentProps) {
   const c = useColors();
@@ -103,6 +105,7 @@ export function MessageContent({
           email={email}
           requestedBy={headerInfo.readReceiptRequestedBy}
           jmapAccountId={jmapAccountId}
+          appAccountId={appAccountId}
           currentMailboxRole={currentMailboxRole}
           active={active}
           onHandled={onEmailPatched}

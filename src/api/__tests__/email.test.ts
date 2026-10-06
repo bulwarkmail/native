@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
+    // The live connection; a helper sending several requests binds each to it.
+    connectionGen: 4,
     request: vi.fn(),
     getAccountName: vi.fn(() => 'me@example.com'),
     getSharedMailAccounts: vi.fn(() => []),
@@ -667,7 +669,7 @@ describe('queryEmailFields', () => {
         '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
         properties: ['id', 'keywords'],
       }, '1'],
-    ]);
+    ], undefined, { gen: 4 });
   });
 
   it('pages until a short page', async () => {

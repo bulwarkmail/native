@@ -44,13 +44,14 @@ vi.mock('../locale-store', () => ({
 
 // Online with nothing queued: run the online runner straight away.
 vi.mock('../outbox-store', () => {
-  const applyOrQueueBatch = vi.fn(async (_ops: unknown[], onlineRun?: () => Promise<void>) => {
-    if (onlineRun) await onlineRun();
+  const applyOrQueueBatch = vi.fn(async (_ops: unknown[], onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => {
+    // The scope the real outbox hands over: the connection, own account.
+    if (onlineRun) await onlineRun({ gen: 0, accountId: 'acc-1' });
     return { queued: false };
   });
   return {
     applyOrQueueBatch,
-    applyOrQueue: async (op: unknown, onlineRun?: () => Promise<void>) => applyOrQueueBatch([op], onlineRun),
+    applyOrQueue: async (op: unknown, onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => applyOrQueueBatch([op], onlineRun),
     useOutboxStore: {
       getState: () => ({ entries: [], count: () => 0, setAccount: vi.fn(async () => undefined), flush: vi.fn() }),
     },
@@ -97,8 +98,18 @@ vi.mock('../../api/jmap-client', () => ({
 import * as emailApi from '../../api/email';
 import { applyOrQueueBatch } from '../outbox-store';
 import { useEmailStore, type ViewedEmail } from '../email-store';
+
+/** The scope an action passes: JMAP account `accountId` on the connection it started on. */
+const onAccount = (accountId: string) => expect.objectContaining({ accountId });
+import { registerServedAccount } from './helpers/served-account';
 import { useSettingsStore } from '../settings-store';
 import type { Email, Mailbox } from '../../api/types';
+
+// The mocked client serves this account, shown as active; the store checks
+// that before acting.
+beforeEach(() => {
+  useEmailStore.setState({ activeAccountId: registerServedAccount('test@example.com', 'https://mail.example.com') });
+});
 
 const mockDeleteEmail = emailApi.deleteEmail as ReturnType<typeof vi.fn>;
 const mockMoveEmail = emailApi.moveEmail as ReturnType<typeof vi.fn>;
@@ -136,7 +147,7 @@ describe('viewer actions on another account\'s message (B3)', () => {
 
     await useEmailStore.getState().deleteEmail('e1', 'grp-1:t', 'grp-1:a', TEAM_VIEWED);
 
-    expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', 'grp-1');
+    expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', onAccount('grp-1'));
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
     const undo = useEmailStore.getState().pendingUndo!;
     expect(undo.accountId).toBe('grp-1');
@@ -145,7 +156,7 @@ describe('viewer actions on another account\'s message (B3)', () => {
     // Undo restores it in the team account, and does not slot it into the
     // user's own Inbox although its raw folder id matches.
     await useEmailStore.getState().undoLast();
-    expect(mockRestore).toHaveBeenCalledWith([{ id: 'e1', mailboxIds: { a: true } }], 'grp-1');
+    expect(mockRestore).toHaveBeenCalledWith([{ id: 'e1', mailboxIds: { a: true } }], onAccount('grp-1'));
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
   });
 
@@ -155,7 +166,7 @@ describe('viewer actions on another account\'s message (B3)', () => {
 
     await useEmailStore.getState().deleteEmail('e1', 't', 'a', { email: OWN_ROW, accountId: undefined });
 
-    expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', undefined);
+    expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', onAccount('acc-1'));
     expect(useEmailStore.getState().emails).toEqual([teamRow]);
   });
 
@@ -174,7 +185,7 @@ describe('viewer actions on another account\'s message (B3)', () => {
 
     await useEmailStore.getState().moveToMailbox('e1', 'grp-1:a', 'grp-1:x', TEAM_VIEWED);
 
-    expect(mockMoveEmail).toHaveBeenCalledWith('e1', 'a', 'x', 'grp-1');
+    expect(mockMoveEmail).toHaveBeenCalledWith('e1', 'a', 'x', onAccount('grp-1'));
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
   });
 
@@ -192,7 +203,7 @@ describe('viewer actions on another account\'s message (B3)', () => {
 
     await useEmailStore.getState().deleteEmail('e1', 't', 'a', { email: OWN_ROW, accountId: undefined });
 
-    expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', undefined);
+    expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 't', 'a', onAccount('acc-1'));
     expect(useEmailStore.getState().emails).toEqual([]);
   });
 });
@@ -203,7 +214,7 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
 
     await useEmailStore.getState().markSpam(['e1'], TEAM_VIEWED);
 
-    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', 'grp-1', { markRead: false });
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', onAccount('grp-1'), { markRead: false });
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
     const undo = useEmailStore.getState().pendingUndo!;
     expect(undo).toMatchObject({ kind: 'spam', accountId: 'grp-1', keywordPatch: { $junk: true, $notjunk: null } });
@@ -216,7 +227,7 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
 
     await useEmailStore.getState().markSpam(['e1'], { email: OWN_ROW, accountId: undefined });
 
-    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', undefined, { markRead: true });
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', onAccount('acc-1'), { markRead: true });
     useSettingsStore.getState().updateSetting('deleteAction', 'trash');
   });
 
@@ -226,7 +237,7 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
 
     await useEmailStore.getState().unmarkSpam(['e1'], { email: junked, accountId: 'grp-1' });
 
-    expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'a', 'grp-1');
+    expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'a', onAccount('grp-1'));
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
   });
 });
@@ -240,7 +251,7 @@ describe('viewer Archive of a message the list does not hold', () => {
 
     await useEmailStore.getState().archiveEmail('e1', { email: opened, accountId: undefined });
 
-    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', expect.any(Array), undefined);
+    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', expect.any(Array), onAccount('acc-1'));
     expect(useEmailStore.getState().pendingUndo).toMatchObject({ kind: 'archive', accountId: undefined });
   });
 
@@ -253,7 +264,7 @@ describe('viewer Archive of a message the list does not hold', () => {
     // Year/month foldering matches against the team's folders by raw id.
     const teamRaw = mockArchive.mock.calls[0][3] as Mailbox[];
     expect(teamRaw.map((m) => m.id)).toEqual(['a', 't', 'x', 'j']);
-    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', teamRaw, 'grp-1');
+    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', teamRaw, onAccount('grp-1'));
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
     expect(useEmailStore.getState().pendingUndo?.accountId).toBe('grp-1');
   });
@@ -269,7 +280,7 @@ describe('viewer star, tag and unread go through the store', () => {
     expect(mockApplyOrQueueBatch.mock.calls[0][0]).toEqual([
       { kind: 'keywords', emailId: 'e1', accountId: 'grp-1', patch: { $flagged: true } },
     ]);
-    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $flagged: true }, 'grp-1');
+    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $flagged: true }, onAccount('grp-1'));
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
   });
 
@@ -278,7 +289,7 @@ describe('viewer star, tag and unread go through the store', () => {
 
     await useEmailStore.getState().setKeywordForEmails(['e1'], '$label1', true, { email: OWN_ROW, accountId: undefined });
 
-    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $label1: true }, undefined);
+    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $label1: true }, onAccount('acc-1'));
     expect(useEmailStore.getState().emails[0].keywords).toEqual({ $label1: true });
   });
 
@@ -298,7 +309,53 @@ describe('viewer star, tag and unread go through the store', () => {
 
     await useEmailStore.getState().setKeywordForEmails(['e1'], '$seen', false, { email: OWN_ROW, accountId: undefined });
 
-    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: null }, undefined);
+    expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: null }, onAccount('acc-1'));
     expect(useEmailStore.getState().emails).toEqual([]);
+  });
+});
+
+// R16: a viewer of account A stays open when a notification tap switches the
+// app to B. The store then holds B's list, folders and queue, and B's message
+// with the same id ("e1", as Stalwart numbers per account) is another one. A's
+// viewer names its app account, and its actions are refused rather than run
+// or queued as B's "own" mail.
+describe("a viewer of one account after the app switched to another (R16)", () => {
+  const B = 'bob@b.example.com';
+  const B_ROW = { id: 'e1', subject: "B's message", keywords: {}, mailboxIds: { a: true } } as unknown as Email;
+  let A: string;
+  beforeEach(() => {
+    A = registerServedAccount('test@example.com', 'https://mail.example.com');
+    // The switch shows B (its cached list) while the client still serves A.
+    useEmailStore.setState({ activeAccountId: B, mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [B_ROW] });
+  });
+  const viewedOnA = (): ViewedEmail => ({ email: OWN_ROW, appAccountId: A });
+  const nothingDone = () => {
+    expect(mockApplyOrQueueBatch).not.toHaveBeenCalled();
+    for (const m of [mockDeleteEmail, mockMoveEmail, mockMarkAsSpam, mockUndoSpam, mockArchive, mockPatchKeywords]) {
+      expect(m).not.toHaveBeenCalled();
+    }
+    expect(useEmailStore.getState().emails).toEqual([B_ROW]);
+  };
+
+  it.each([
+    ['mark read (the delayed mark-read)', () => useEmailStore.getState().markRead('e1', undefined, A)],
+    ['star', () => useEmailStore.getState().setKeywordForEmails(['e1'], '$flagged', true, viewedOnA())],
+    ['mark unread', () => useEmailStore.getState().setKeywordForEmails(['e1'], '$seen', false, viewedOnA())],
+    ['delete', () => useEmailStore.getState().deleteEmail('e1', 't', 'a', viewedOnA())],
+    ['archive', () => useEmailStore.getState().archiveEmail('e1', viewedOnA())],
+    ['move', () => useEmailStore.getState().moveToMailbox('e1', 'a', 'x', viewedOnA())],
+    ['copy', () => useEmailStore.getState().copyToMailbox('e1', 'x', viewedOnA())],
+    ['report spam', () => useEmailStore.getState().markSpam(['e1'], viewedOnA())],
+    ['not spam', () => useEmailStore.getState().unmarkSpam(['e1'], viewedOnA())],
+  ])('%s is refused, sending and queueing nothing for B', async (_name, act) => {
+    await expect(act()).rejects.toThrow(/Switch back to it/);
+    nothingDone();
+  });
+
+  it("still acts while the app shows the viewer's account", async () => {
+    useEmailStore.setState({ activeAccountId: A, emails: [OWN_ROW] });
+    await useEmailStore.getState().markRead('e1', undefined, A);
+    expect(mockApplyOrQueueBatch).toHaveBeenCalledTimes(1);
+    expect(useEmailStore.getState().emails[0].keywords).toEqual({ $seen: true });
   });
 });

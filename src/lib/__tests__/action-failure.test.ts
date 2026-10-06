@@ -22,6 +22,15 @@ describe('withFailureToast', () => {
     expect(toastError).toHaveBeenCalledWith('Failed', 'nope');
   });
 
+  it('an action dropped after an account switch (StaleLoadError) shows no toast', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const stale = new Error('Superseded by a newer account load');
+    stale.name = 'StaleLoadError';
+    await withFailureToast(Promise.reject(stale), 'Failed');
+    reportActionFailure('Failed', stale);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it('a queued action shows no toast', async () => {
     const out = await withFailureToast(Promise.resolve({ queued: true }), 'Failed');
     expect(out).toEqual({ queued: true });

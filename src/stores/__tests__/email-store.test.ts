@@ -64,14 +64,15 @@ vi.mock('../outbox-store', async () => {
     if (op.kind === 'mailboxes') return api.setEmailMailboxes(op.emailId, op.mailboxIds, op.accountId);
     if (op.kind === 'destroy') return api.destroyEmails([op.emailId], op.accountId);
   };
-  const applyOrQueueBatch = async (ops: any[], onlineRun?: () => Promise<void>) => {
-    if (onlineRun) await onlineRun();
+  const applyOrQueueBatch = async (ops: any[], onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => {
+    // The scope the real outbox hands over: the connection, own account.
+    if (onlineRun) await onlineRun({ gen: 0, accountId: 'acc-1' });
     else await Promise.all(ops.map(runOp));
     return { queued: false };
   };
   return {
     applyOrQueueBatch,
-    applyOrQueue: async (op: any, onlineRun?: () => Promise<void>) => applyOrQueueBatch([op], onlineRun),
+    applyOrQueue: async (op: any, onlineRun?: (at: { gen: number; accountId: string }) => Promise<void>) => applyOrQueueBatch([op], onlineRun),
     useOutboxStore: {
       getState: () => ({
         entries: [],
@@ -155,7 +156,16 @@ const TEST_ACCOUNT_ID = generateAccountId('test@example.com', 'https://mail.exam
 
 import * as emailApi from '../../api/email';
 import { useEmailStore } from '../email-store';
+import { registerServedAccount } from './helpers/served-account';
+
+/** The scope an action passes: JMAP account `accountId` on the connection it started on. */
+const onAccount = (accountId: string) => expect.objectContaining({ accountId });
 import { useSettingsStore } from '../settings-store';
+
+// The mocked client serves this account; the store checks that before acting.
+beforeEach(() => {
+  registerServedAccount('test@example.com', 'https://mail.example.com');
+});
 
 const mockGetMailboxesWithState = emailApi.getMailboxesWithState as ReturnType<typeof vi.fn>;
 const mockGetSharedMailboxes = emailApi.getSharedMailboxes as ReturnType<typeof vi.fn>;
@@ -230,6 +240,16 @@ describe('email-store', () => {
       await useEmailStore.getState().fetchMailboxes();
 
       expect(useEmailStore.getState().error).toBe('Network error');
+    });
+
+    it('sets no error for a request dropped after an account switch (StaleLoadError)', async () => {
+      const stale = new Error('Superseded by a newer account load');
+      stale.name = 'StaleLoadError';
+      mockGetMailboxesWithState.mockRejectedValue(stale);
+
+      await useEmailStore.getState().fetchMailboxes();
+
+      expect(useEmailStore.getState().error).toBeNull();
     });
   });
 
@@ -435,7 +455,7 @@ describe('email-store', () => {
 
       await useEmailStore.getState().moveToMailbox('e1', 'inbox', 'archive');
 
-      expect(mockMoveEmail).toHaveBeenCalledWith('e1', 'inbox', 'archive', undefined);
+      expect(mockMoveEmail).toHaveBeenCalledWith('e1', 'inbox', 'archive', onAccount('acc-1'));
       expect(useEmailStore.getState().emails).toHaveLength(1);
       expect(useEmailStore.getState().emails[0].id).toBe('e2');
     });
@@ -856,7 +876,7 @@ describe('email-store', () => {
       await useEmailStore.getState().markRead('e9', 'grp-1');
       await useEmailStore.getState().markRead('e8');
 
-      expect(mockPatchKeywords).toHaveBeenNthCalledWith(1, ['e9'], { $seen: true }, 'grp-1');
+      expect(mockPatchKeywords).toHaveBeenNthCalledWith(1, ['e9'], { $seen: true }, onAccount('grp-1'));
       expect(mockPatchKeywords).toHaveBeenNthCalledWith(2, ['e8'], { $seen: true }, undefined);
     });
 
@@ -886,14 +906,14 @@ describe('email-store', () => {
       });
 
       await useEmailStore.getState().setKeywordForEmails(['e1', 'e2'], '$label:work', true);
-      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e1', 'e2'], { '$label:work': true }, undefined);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e1', 'e2'], { '$label:work': true }, onAccount('acc-1'));
       expect(useEmailStore.getState().emails.map((e) => e.keywords)).toEqual([
         { $seen: true, '$label:work': true },
         { $flagged: true, '$label:work': true },
       ]);
 
       await useEmailStore.getState().setKeywordForEmails(['e2'], '$label:work', false);
-      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e2'], { '$label:work': null }, undefined);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e2'], { '$label:work': null }, onAccount('acc-1'));
       expect(useEmailStore.getState().emails[1].keywords).toEqual({ $flagged: true });
     });
 
@@ -914,7 +934,7 @@ describe('email-store', () => {
       await useEmailStore.getState().deleteEmailsBatch(['e1', 'e2'], 'mb-trash', 'mb-1');
 
       expect(mockPatchKeywords).toHaveBeenCalledTimes(1);
-      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: true }, undefined);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1'], { $seen: true }, onAccount('acc-1'));
       useSettingsStore.getState().updateSetting('deleteAction', 'trash');
     });
   });
@@ -932,7 +952,7 @@ describe('email-store', () => {
       await useEmailStore.getState().setKeywordForEmails(['e1', 'e2', 'e3'], '$seen', true);
 
       expect(mockPatchKeywords).toHaveBeenCalledTimes(1);
-      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1', 'e2', 'e3'], { $seen: true }, undefined);
+      expect(mockPatchKeywords).toHaveBeenCalledWith(['e1', 'e2', 'e3'], { $seen: true }, onAccount('acc-1'));
       expect(useEmailStore.getState().emails.map((e) => e.keywords)).toEqual([
         { $seen: true },
         { $flagged: true, $seen: true },
@@ -949,7 +969,7 @@ describe('email-store', () => {
       await useEmailStore.getState().setKeywordForEmails(['e2', 'e3'], '$flagged', true);
       expect(useEmailStore.getState().retainedIds).toEqual([]);
       await useEmailStore.getState().setKeywordForEmails(['e2', 'e3'], '$flagged', false);
-      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e2', 'e3'], { $flagged: null }, undefined);
+      expect(mockPatchKeywords).toHaveBeenLastCalledWith(['e2', 'e3'], { $flagged: null }, onAccount('acc-1'));
       expect(useEmailStore.getState().retainedIds).toEqual(['e2', 'e3']);
 
       useEmailStore.setState({ emails: three(), filters: { isUnread: false }, retainedIds: [] });
@@ -1450,19 +1470,19 @@ describe('email-store', () => {
 
       await useEmailStore.getState().markSpam(['e1']);
 
-      expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'mb-junk', undefined, { markRead: true });
+      expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'mb-junk', onAccount('acc-1'), { markRead: true });
       expect(useEmailStore.getState().emails).toHaveLength(0);
       const undo = useEmailStore.getState().pendingUndo!;
       expect(undo.kind).toBe('spam');
       expect(undo.items[0].originalKeywords).toEqual({ $notjunk: true });
 
       await useEmailStore.getState().undoLast();
-      expect(mockRestore).toHaveBeenCalledWith([{ id: 'e1', mailboxIds: { 'mb-1': true } }], undefined);
+      expect(mockRestore).toHaveBeenCalledWith([{ id: 'e1', mailboxIds: { 'mb-1': true } }], onAccount('acc-1'));
       // Only the keywords the spam action touched go back; `$seen` was set by
       // trash-and-read on a message that was unread before.
       expect(mockPatchPerEmail).toHaveBeenCalledWith(
         [{ id: 'e1', patch: { $junk: null, $notjunk: true, $seen: null } }],
-        undefined,
+        onAccount('acc-1'),
       );
       expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1']);
       useSettingsStore.getState().updateSetting('deleteAction', 'trash');
@@ -1478,7 +1498,7 @@ describe('email-store', () => {
 
       await useEmailStore.getState().unmarkSpam(['e1']);
 
-      expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'mb-1', undefined);
+      expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'mb-1', onAccount('acc-1'));
       expect(useEmailStore.getState().emails).toHaveLength(0);
       expect(useEmailStore.getState().pendingUndo?.items[0].originalKeywords).toEqual({ $junk: true });
     });
@@ -1551,7 +1571,7 @@ describe('email-store', () => {
 
       await useEmailStore.getState().deleteEmail('e1', 'grp-1:s-trash', 'grp-1:s-inbox');
 
-      expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 's-trash', 's-inbox', 'grp-1');
+      expect(mockDeleteEmail).toHaveBeenCalledWith('e1', 's-trash', 's-inbox', onAccount('grp-1'));
       expect(useEmailStore.getState().emails).toHaveLength(0);
     });
 
@@ -1567,8 +1587,8 @@ describe('email-store', () => {
       await useEmailStore.getState().moveToMailbox('e1', 'grp-1:s-inbox', 'mb-1');
 
       expect(mockMoveEmail).not.toHaveBeenCalled();
-      expect(mockImport).toHaveBeenCalledWith('blob-new', 'mb-1', { $seen: true }, undefined, '2026-01-02T03:04:05Z');
-      expect(mockDestroy).toHaveBeenCalledWith(['e1'], 'grp-1');
+      expect(mockImport).toHaveBeenCalledWith('blob-new', 'mb-1', { $seen: true }, onAccount('acc-1'), '2026-01-02T03:04:05Z');
+      expect(mockDestroy).toHaveBeenCalledWith(['e1'], onAccount('grp-1'));
       const state = useEmailStore.getState();
       expect(state.error).toBeNull();
       expect(state.emails).toHaveLength(0);

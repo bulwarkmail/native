@@ -1,24 +1,27 @@
 // List-Unsubscribe (RFC 2369 / RFC 8058) and mailto: parsing. Port of the
 // relevant parts of the webmail's `lib/validation.ts`.
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import {
+  decodeMailtoComponent, isValidEmail, parseMailtoUrl as parseSharedMailtoUrl, splitMailtoUrl,
+} from './mailto';
 
-export function isValidEmail(value: string): boolean {
-  return EMAIL_RE.test((value ?? '').trim());
-}
+export { isValidEmail };
 
+const MAILTO_SCHEME = /^mailto:/i;
+const HTTP_SCHEME = /^https?:\/\//i;
+
+/**
+ * A usable unsubscribe target: an http(s) URL (scheme in any case) or a
+ * mailto: that parseUnsubscribeMailto accepts, so "valid" here means the
+ * banner can really act on it.
+ */
 export function isValidUnsubscribeUrl(url: string): boolean {
   if (!url?.trim()) return false;
-
-  if (url.startsWith('mailto:')) {
-    const email = url.substring(7);
-    const emailPart = email.split('?')[0];
-    return isValidEmail(emailPart);
-  }
+  if (MAILTO_SCHEME.test(url)) return parseUnsubscribeMailto(url) !== null;
 
   try {
     const parsed = new URL(url);
-    return ['http:', 'https:'].includes(parsed.protocol);
+    return ['http:', 'https:'].includes(parsed.protocol.toLowerCase());
   } catch {
     return false;
   }
@@ -37,15 +40,20 @@ export interface UnsubscribeUrls {
 export function parseUnsubscribeUrls(header: string): UnsubscribeUrls {
   if (!header?.trim()) return {};
 
-  const matches = header.match(/<([^>]+)>/g);
-  if (!matches) return {};
+  // Same cut as /<([^>]+)>/g, scanned by hand: the regex rescans to the end
+  // for every `<` of a header full of them, which is quadratic.
+  const urls: string[] = [];
+  for (let open = header.indexOf('<'); open !== -1;) {
+    const close = header.indexOf('>', open + 1);
+    if (close === -1) break;
+    if (close > open + 1) urls.push(header.slice(open + 1, close).trim());
+    open = header.indexOf('<', close + 1);
+  }
 
-  const urls = matches.map((m) => m.slice(1, -1).trim());
-
-  const http = urls.find((u) =>
-    (u.startsWith('http://') || u.startsWith('https://')) && isValidUnsubscribeUrl(u),
-  );
-  const mailto = urls.find((u) => u.startsWith('mailto:') && isValidUnsubscribeUrl(u));
+  // The first *valid* candidate of each kind: an earlier one that fails the
+  // strict parse must not hide a later one that works.
+  const http = urls.find((u) => HTTP_SCHEME.test(u) && isValidUnsubscribeUrl(u));
+  const mailto = urls.find((u) => MAILTO_SCHEME.test(u) && isValidUnsubscribeUrl(u));
 
   const preferred = http ? 'http' : (mailto ? 'mailto' : undefined);
 
@@ -71,65 +79,23 @@ export interface MailtoFields {
 }
 
 /**
- * Parse a mailto: URL into its parts so the client can send the message
- * itself. Query values are percent-decoded manually rather than via
- * URLSearchParams because RFC 6068 uses %-encoding only - a literal "+" in a
- * subject or address must stay a plus, not become a space.
+ * The shared strict mailto: parser, with the optional-field shape this
+ * module's callers (message-body links) expect.
  */
 export function parseMailtoUrl(url: string): MailtoFields | null {
-  if (!url || !/^mailto:/i.test(url)) return null;
-
-  const rest = url.slice(7);
-  const queryIndex = rest.indexOf('?');
-  const addressPart = queryIndex === -1 ? rest : rest.slice(0, queryIndex);
-  const query = queryIndex === -1 ? '' : rest.slice(queryIndex + 1);
-
-  const decode = (value: string): string => {
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-  };
-
-  const to = addressPart
-    .split(',')
-    .map((a) => decode(a).trim())
-    .filter((a) => isValidEmail(a));
-
-  let subject: string | undefined;
-  let body: string | undefined;
-  const cc: string[] = [];
-  for (const pair of query.split('&')) {
-    const eq = pair.indexOf('=');
-    if (eq === -1) continue;
-    const key = pair.slice(0, eq).toLowerCase();
-    const value = decode(pair.slice(eq + 1));
-    if (key === 'subject') subject = value;
-    else if (key === 'body') body = value;
-    else if (key === 'to') {
-      for (const a of value.split(',')) if (isValidEmail(a.trim())) to.push(a.trim());
-    } else if (key === 'cc') {
-      for (const a of value.split(',')) if (isValidEmail(a.trim())) cc.push(a.trim());
-    }
-  }
-
-  if (to.length === 0 && cc.length === 0) return null;
-  return { to, cc: cc.length ? cc : undefined, subject, body };
+  const parsed = parseSharedMailtoUrl(url);
+  if (!parsed) return null;
+  return { to: parsed.to, cc: parsed.cc.length ? parsed.cc : undefined, subject: parsed.subject, body: parsed.body };
 }
 
 export const UNSUBSCRIBE_SUBJECT_MAX = 200;
 export const UNSUBSCRIBE_BODY_MAX = 500;
 
-// One dot-atom address (RFC 5322 atext local part, LDH domain labels). The
-// loose isValidEmail lets "x>,<victim@evil.com" through as one recipient that
-// a server may split in two. Non-ASCII (including bidi/invisible characters)
-// is rejected, which is acceptable for a list-unsubscribe address.
-const ATEXT = "[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+";
-const LABEL = '[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?';
-const PLAIN_ADDRESS = new RegExp(`^${ATEXT}(?:\\.${ATEXT})*@${LABEL}(?:\\.${LABEL})+$`);
+// An unsubscribe address is held to more than isValidEmail: ASCII only
+// (bidi/invisible characters in a domain would pass as punycode) and a dotted
+// domain.
 function isPlainAddress(address: string): boolean {
-  return address.length <= 254 && PLAIN_ADDRESS.test(address);
+  return isValidEmail(address) && /^[\x21-\x7e]+@[^@]*\.[^@]*$/.test(address);
 }
 
 /**
@@ -143,17 +109,10 @@ export function parseUnsubscribeMailto(url: string): { to: [string]; subject?: s
   const parsed = parseMailtoUrl(url);
   if (!parsed) return null;
 
-  const rest = url.slice(7);
-  const queryIndex = rest.indexOf('?');
-  const addressPart = queryIndex === -1 ? rest : rest.slice(0, queryIndex);
+  const addressPart = splitMailtoUrl(url)?.addressPart ?? '';
   const addresses = addressPart.split(',').filter((a) => a.trim() !== '');
   if (addresses.length !== 1) return null;
-  let to: string;
-  try {
-    to = decodeURIComponent(addresses[0]).trim();
-  } catch {
-    to = addresses[0].trim();
-  }
+  const to = decodeMailtoComponent(addresses[0]).trim();
   if (!isPlainAddress(to)) return null;
 
   const subject = parsed.subject?.replace(/[\r\n]+/g, ' ').replace(/\p{Cf}/gu, '').trim().slice(0, UNSUBSCRIBE_SUBJECT_MAX) || undefined;

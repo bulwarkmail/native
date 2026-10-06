@@ -19,6 +19,8 @@ import { useCalendarStore } from './calendar-store';
 import { t } from './locale-store';
 import { useAuthStore } from './auth-store';
 import { useAccountStore } from './account-store';
+import { useNetworkStore } from './network-store';
+import { clientServesActiveAccount } from '../lib/active-client-account';
 
 export interface CalendarSubscription {
   id: string;
@@ -200,22 +202,65 @@ async function fetchAndParseFeed(url: string): Promise<Partial<CalendarEvent>[]>
   return events.filter((e) => !!e.start);
 }
 
+/** The accounts a sync started for; every server write re-checks them. */
+export interface SyncScope {
+  appAccountId: string | null;
+  jmapAccountId: string | null;
+}
+
+export function captureSyncScope(): SyncScope {
+  return {
+    appAccountId: useAccountStore.getState().activeAccountId ?? null,
+    jmapAccountId: currentAccountId(),
+  };
+}
+
+/**
+ * True while the client still serves the active app account and both the app
+ * account and the JMAP account are the ones captured. The single client is
+ * reconnected on an account switch, so ids captured before an await can
+ * otherwise end up pointing at another account's session.
+ */
+export function syncStillValid(captured: SyncScope): boolean {
+  if (!captured.appAccountId || !captured.jmapAccountId) return false;
+  return (
+    clientServesActiveAccount()
+    && (useAccountStore.getState().activeAccountId ?? null) === captured.appAccountId
+    && currentAccountId() === captured.jmapAccountId
+  );
+}
+
 // Reconcile the local calendar with the remote feed: drop events whose UID
 // disappeared upstream (unlinking rather than deleting when the event also
 // lives in another calendar), then import the current set (importEvents
 // dedupes by UID, so unchanged events are left in place). Returns false when
-// `stale()` reported an account switch: the delete and import steps must not
-// run against the new account's session.
-async function syncFeedIntoCalendar(calendarId: string, url: string, stale: () => boolean): Promise<boolean> {
-  const parsed = await fetchAndParseFeed(url);
-  if (stale()) return false;
+// the account changed: every server write is preceded by syncStillValid, and
+// a failed check stops with no write and no error (the next sync redoes it).
+async function syncFeedIntoCalendar(
+  calendarId: string,
+  url: string,
+  captured: SyncScope = captureSyncScope(),
+  owner: string | null = currentOwner(),
+): Promise<boolean> {
+  const valid = () => syncStillValid(captured) && currentOwner() === owner;
+  if (!valid()) return false;
+  let parsed: Partial<CalendarEvent>[];
+  try {
+    parsed = await fetchAndParseFeed(url);
+  } catch (err) {
+    // The upload and parse ran against whichever account was current; a
+    // failure after a switch is not this subscription's error.
+    if (!valid()) return false;
+    throw err;
+  }
+  if (!valid()) return false;
   const parsedUids = new Set(parsed.map((e) => e.uid).filter(Boolean) as string[]);
 
   try {
     const ids = await queryEvents([calendarId], '', '');
-    if (stale()) return false;
+    if (!valid()) return false;
     const existing = ids.length > 0 ? await getEvents(ids) : [];
-    if (stale()) return false;
+    if (!valid()) return false;
     const gone = existing.filter((e) => e.uid && !parsedUids.has(e.uid));
     const toDelete: string[] = [];
     for (const e of gone) {
@@ -223,23 +268,21 @@ async function syncFeedIntoCalendar(calendarId: string, url: string, stale: () =
       delete others[calendarId];
       if (Object.keys(others).length === 0) toDelete.push(e.id);
       else {
+        if (!valid()) return false;
         await updateEvent(e.id, { calendarIds: others });
-        if (stale()) return false;
       }
     }
-    if (toDelete.length > 0) await deleteEvents(toDelete);
+    if (toDelete.length > 0) {
+      if (!valid()) return false;
+      await deleteEvents(toDelete);
+    }
   } catch {
     // Non-fatal: if we can't enumerate existing events, still import new ones.
   }
 
-  if (stale()) return false;
-  await useCalendarStore.getState().importEvents(parsed, calendarId);
-  return true;
-}
-
-/** True once the signed-in login or JMAP account differs from when the sync began. */
-function staleSince(owner: string | null, accountId: string | null): () => boolean {
-  return () => currentOwner() !== owner || currentAccountId() !== accountId;
+  if (!valid()) return false;
+  await useCalendarStore.getState().importEvents(parsed, calendarId, valid);
+  return valid();
 }
 
 export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
@@ -249,6 +292,8 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
       syncing: {},
 
       addSubscription: async ({ name, url, color, refreshIntervalMinutes }) => {
+        const captured = captureSyncScope();
+        const owner = currentOwner();
         // Create a dedicated local calendar to hold the feed's events.
         const calendar = await createCalendar(name, color);
         const sub: CalendarSubscription = {
@@ -257,8 +302,8 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
           url: url.trim(),
           color,
           calendarId: calendar.id,
-          accountId: currentAccountId() ?? undefined,
-          owner: currentOwner() ?? undefined,
+          accountId: captured.jmapAccountId ?? undefined,
+          owner: owner ?? undefined,
           refreshIntervalMinutes: refreshIntervalMinutes ?? DEFAULT_REFRESH_INTERVAL_MINUTES,
           lastSyncAt: null,
           lastError: null,
@@ -267,7 +312,7 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
         await useCalendarStore.getState().fetchCalendars();
         try {
           set({ syncing: { ...get().syncing, [sub.id]: true } });
-          const synced = await syncFeedIntoCalendar(sub.calendarId, sub.url, staleSince(sub.owner ?? null, sub.accountId ?? null));
+          const synced = await syncFeedIntoCalendar(sub.calendarId, sub.url, captured, owner);
           if (!synced) {
             // The account changed mid-sync: keep the subscription for its owner
             // to refresh later, and leave the other account's session alone.
@@ -279,12 +324,15 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
           return { ...sub, lastSyncAt: Date.now() };
         } catch (err) {
           // Roll back: a bad URL / 404 must not leave a phantom calendar behind.
-          try {
-            await deleteCalendar(calendar.id);
-          } catch {
-            // best-effort
+          // Only while still in the account that created it; otherwise leave it.
+          if (syncStillValid(captured) && currentOwner() === owner) {
+            try {
+              await deleteCalendar(calendar.id);
+            } catch {
+              // best-effort
+            }
+            await useCalendarStore.getState().fetchCalendars();
           }
-          await useCalendarStore.getState().fetchCalendars();
           throw err instanceof Error ? err : new Error(t('calendar.subscription.error', 'Failed to add subscription'));
         } finally {
           set({ syncing: { ...get().syncing, [sub.id]: false } });
@@ -335,7 +383,7 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
         if (get().syncing[id]) return;
         set({ syncing: { ...get().syncing, [id]: true } });
         try {
-          const synced = await syncFeedIntoCalendar(sub.calendarId, sub.url, staleSince(currentOwner(), currentAccountId()));
+          const synced = await syncFeedIntoCalendar(sub.calendarId, sub.url);
           if (!synced) return;
           set({
             subscriptions: get().subscriptions.map((s) =>
@@ -355,6 +403,7 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
       },
 
       syncAll: async () => {
+        if (!jmapClient.isConnected || !useNetworkStore.getState().online) return;
         const subs = selectAccountSubscriptions(get().subscriptions, currentOwner(), currentAccountId(), currentCalendars());
         for (const sub of subs) {
           await get().syncSubscription(sub.id);

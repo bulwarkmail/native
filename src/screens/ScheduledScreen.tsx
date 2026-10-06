@@ -16,7 +16,9 @@ import {
   type ScheduledEmail,
 } from '../api/email';
 import { jmapClient, ScheduleTooLateError } from '../api/jmap-client';
-import { useEmailStore } from '../stores/email-store';
+import { useEmailStore, requireShownAccountScope, isShownAccount } from '../stores/email-store';
+import type { OpScope } from '../api/op-scope';
+import { isStaleLoad } from '../lib/network-error';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
@@ -57,11 +59,23 @@ export default function ScheduledScreen({ navigation }: Props) {
     return extra > 0 ? `${name} +${extra}` : name;
   };
 
+  // The app account the list was loaded in. Its submission and message ids
+  // repeat in other accounts, so an action runs only on a scope taken for it.
+  const itemsOfRef = React.useRef<string | null>(null);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setItems(await listScheduledEmails());
+      // Read while the client serves the account shown, and still shown once
+      // read; otherwise (a switch around the load) the items may be another
+      // account's, and actions on them are refused.
+      const of = useEmailStore.getState().activeAccountId;
+      let servedAtStart = true;
+      try { requireShownAccountScope(of); } catch { servedAtStart = false; }
+      const list = await listScheduledEmails();
+      itemsOfRef.current = servedAtStart && isShownAccount(of) ? of : null;
+      setItems(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('email_list.error', 'Error'));
     } finally {
@@ -73,11 +87,20 @@ export default function ScheduledScreen({ navigation }: Props) {
     void load();
   }, [load]);
 
-  const runAction = async (item: ScheduledEmail, action: () => Promise<void>, failTitle: string) => {
+  const runAction = async (item: ScheduledEmail, action: (at: OpScope) => Promise<void>, failTitle: string) => {
+    let at: OpScope;
+    try {
+      at = requireShownAccountScope(itemsOfRef.current, item.accountId);
+    } catch (e) {
+      Alert.alert(failTitle, e instanceof Error ? e.message : String(e));
+      return;
+    }
     setBusyId(item.emailSubmissionId);
     try {
-      await action();
+      await action(at);
     } catch (e) {
+      // Stopped unsent: the client moved to another account meanwhile.
+      if (isStaleLoad(e)) return;
       if (e instanceof ScheduleTooLateError) {
         Alert.alert(
           t('email_composer.schedule_too_late_title', 'Too far ahead'),
@@ -103,8 +126,8 @@ export default function ScheduledScreen({ navigation }: Props) {
           text: t('email_list.cancel_scheduled_send', 'Cancel send'),
           style: 'destructive',
           onPress: () => {
-            void runAction(item, async () => {
-              await cancelScheduledSend(item.emailSubmissionId, item.accountId);
+            void runAction(item, async (at) => {
+              await cancelScheduledSend(item.emailSubmissionId, at);
               if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
                 useSendUndoStore.getState().clear();
               }
@@ -117,8 +140,8 @@ export default function ScheduledScreen({ navigation }: Props) {
   };
 
   const onSendNow = (item: ScheduledEmail) => {
-    void runAction(item, async () => {
-      await rescheduleScheduledSend(item, 0);
+    void runAction(item, async (at) => {
+      await rescheduleScheduledSend({ ...item, accountId: at }, 0);
       if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
         useSendUndoStore.getState().clear();
       }
@@ -143,8 +166,8 @@ export default function ScheduledScreen({ navigation }: Props) {
       );
       return;
     }
-    void runAction(item, async () => {
-      const result = await rescheduleScheduledSend(item, seconds);
+    void runAction(item, async (at) => {
+      const result = await rescheduleScheduledSend({ ...item, accountId: at }, seconds);
       const pending = useSendUndoStore.getState().pending;
       if (pending?.emailSubmissionId === item.emailSubmissionId) useSendUndoStore.getState().clear();
       setItems((prev) => prev
@@ -158,8 +181,8 @@ export default function ScheduledScreen({ navigation }: Props) {
   // Cancel the submission, move the message back into Drafts and open it in
   // the composer (webmail cancelScheduledEmailForEdit).
   const onEdit = (item: ScheduledEmail) => {
-    void runAction(item, async () => {
-      await cancelScheduledSend(item.emailSubmissionId, item.accountId);
+    void runAction(item, async (at) => {
+      await cancelScheduledSend(item.emailSubmissionId, at);
       if (useSendUndoStore.getState().pending?.emailSubmissionId === item.emailSubmissionId) {
         useSendUndoStore.getState().clear();
       }
@@ -175,10 +198,10 @@ export default function ScheduledScreen({ navigation }: Props) {
           item.emailId,
           drafts.originalId ?? drafts.id,
           sent ? (sent.originalId ?? sent.id) : undefined,
-          item.accountId,
+          at,
         );
       }
-      const email = await getFullEmail(item.emailId, item.accountId);
+      const email = await getFullEmail(item.emailId, at);
       removeItem(item.emailSubmissionId);
       navigation.replace('Compose', { draft: draftContextFromEmail(email, shared ? item.accountId : undefined) });
     }, t('scheduled.edit_failed', 'Could not open the message for editing'));

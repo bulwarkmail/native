@@ -18,6 +18,7 @@ import { getBirthday, getContactDisplayName, getDateParts } from '../lib/contact
 import { notificationLocale } from '../lib/push-background-task';
 import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
+import { parseQueuedSendRow } from '../stores/send-queue-store';
 import { LIGHT_COLORS } from '../theme/tokens';
 import { addDays, startOfDay } from './format';
 import { startOfWeek } from './derive';
@@ -72,7 +73,8 @@ async function readRecentSearches(): Promise<string[]> {
   }
 }
 
-async function readPendingChanges(accountId: string): Promise<number> {
+/** Pending mutations plus queued sends for the widget's badge (read-only). */
+export async function readPendingChanges(accountId: string): Promise<number> {
   try {
     const raw = await AsyncStorage.getItem(`webmail:outbox:v1:${accountId}`);
     const list = raw ? JSON.parse(raw) : null;
@@ -82,11 +84,17 @@ async function readPendingChanges(accountId: string): Promise<number> {
   }
 }
 
-/** Queued sends: rows `webmail:sendqueue:v1:<appAccountId>:<entryId>`, counted by key (read-only). */
+/**
+ * Queued sends: rows `webmail:sendqueue:v1:<appAccountId>:<entryId>` that
+ * hydrate would load (parseQueuedSendRow), so a corrupt row the Outbox never
+ * shows is not counted either (read-only).
+ */
 async function countQueuedSends(accountId: string): Promise<number> {
   try {
     const prefix = `webmail:sendqueue:v1:${accountId}:`;
-    return (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':')).length;
+    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'));
+    const rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
+    return rows.filter(([k, raw]) => parseQueuedSendRow(accountId, k, raw) !== null).length;
   } catch {
     return 0;
   }

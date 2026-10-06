@@ -181,4 +181,22 @@ describe('settings-store', () => {
       expect(after.trustedSenders).toEqual([]);
     });
   });
+  describe('single-flight hydrate', () => {
+    it('reads storage once for concurrent calls and does not revert a later change', async () => {
+      await AsyncStorage.setItem('webmail:settings:v1', JSON.stringify({ density: 'compact' }));
+      const spy = vi.spyOn(AsyncStorage, 'getItem');
+      useSettingsStore.setState({ hydrated: false });
+      const first = useSettingsStore.getState().hydrate();
+      const second = useSettingsStore.getState().hydrate();
+      await first;
+      useSettingsStore.getState().setDensity('extra-compact');
+      await second;
+      const reads = spy.mock.calls.filter(([k]) => k === 'webmail:settings:v1').length;
+      spy.mockRestore();
+      expect(reads).toBe(1);
+      expect(useSettingsStore.getState().density).toBe('extra-compact');
+      await useSettingsStore.getState().hydrate();
+      expect(useSettingsStore.getState().density).toBe('extra-compact');
+    });
+  });
 });

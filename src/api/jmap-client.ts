@@ -16,6 +16,7 @@ import {
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
+import { isTransportFailure, reportServerResponse, reportServerUnreachable } from '../lib/server-reachability';
 
 // Refresh OAuth access tokens this many ms before they actually expire so
 // in-flight requests don't race the expiry window.
@@ -136,10 +137,116 @@ export {
 const STALWART_ADVERTISED_MAX_DELAYED_SEND = 30 * 24 * 60 * 60;
 const STALWART_DEFAULT_MAX_HOLD = 7 * 24 * 60 * 60;
 
+/**
+ * Everything one connection is: the credentials, the session they opened and
+ * the account. Replaced in a single assignment, never edited field by field,
+ * so a request that read it once has a server, a header and an account that
+ * belong together. `gen` is the load that committed it; a token refresh for
+ * the same connection keeps it.
+ */
+interface ConnectionContext {
+  readonly gen: number;
+  readonly credentials: StoredCredentials | null;
+  readonly session: JMAPSession | null;
+  readonly accountId: string | null;
+}
+
+/** What external code needs for one fetch of its own; see `requestContext`. */
+export interface RequestContext {
+  readonly gen: number;
+  readonly authHeader: string;
+  readonly apiUrl: string | null;
+  readonly uploadUrl: string | null;
+  readonly downloadUrl: string | null;
+  readonly eventSourceUrl: string | null;
+  readonly accountId: string | null;
+}
+
+/** The credentials a request authenticates with, and how to keep them fresh. */
+interface RequestScope {
+  /** Throws `StaleLoadError` once the connection this request is for is gone. */
+  assertCurrent(): void;
+  isCurrent(): boolean;
+  credentials(): StoredCredentials;
+  /** Proactive (`force` false) or after-401 (`force` true) token refresh. */
+  refresh(force: boolean): Promise<boolean>;
+}
+
+function authHeaderOf(creds: StoredCredentials): string {
+  if (creds.accessToken) return `Bearer ${creds.accessToken}`;
+  return `Basic ${btoa(`${creds.username}:${creds.password}`)}`;
+}
+
+function oauthTokensOf(creds: StoredCredentials | null): OAuthTokens | null {
+  if (!creds?.accessToken || !creds.refreshToken || !creds.tokenEndpoint || !creds.clientId) return null;
+  return {
+    accessToken: creds.accessToken,
+    refreshToken: creds.refreshToken,
+    expiresAt: creds.expiresAt,
+    tokenEndpoint: creds.tokenEndpoint,
+    clientId: creds.clientId,
+    source: creds.tokenSource,
+  };
+}
+
+function pickTokens(creds: StoredCredentials): Partial<StoredCredentials> {
+  return {
+    accessToken: creds.accessToken,
+    refreshToken: creds.refreshToken,
+    expiresAt: creds.expiresAt,
+    tokenEndpoint: creds.tokenEndpoint,
+    clientId: creds.clientId,
+  };
+}
+
+function withTokens(creds: StoredCredentials, next: OAuthTokens): StoredCredentials {
+  return {
+    ...creds,
+    accessToken: next.accessToken,
+    // Some IdPs rotate refresh tokens; others reuse. Fall back to the
+    // existing one when the response omits it.
+    refreshToken: next.refreshToken ?? creds.refreshToken,
+    expiresAt: next.expiresAt,
+    tokenEndpoint: next.tokenEndpoint,
+    clientId: next.clientId,
+  };
+}
+
+const sameAccount = (a: StoredCredentials | null, b: StoredCredentials | null): boolean =>
+  !!a && !!b && a.serverUrl === b.serverUrl && a.username === b.username;
+
+/**
+ * Throws `StaleLoadError` (nothing sent) when a method call names, as
+ * `accountId` or (for a `Foo/copy`) `fromAccountId`, a JMAP account the session
+ * does not have.
+ */
+function assertAccountsInSession(session: JMAPSession, methodCalls: JMAPMethodCall[]): void {
+  const accounts = session.accounts ?? {};
+  for (const [, args] of methodCalls) {
+    for (const field of ['accountId', 'fromAccountId'] as const) {
+      const id = args?.[field];
+      if (typeof id === 'string' && !Object.prototype.hasOwnProperty.call(accounts, id)) {
+        throw new StaleLoadError('account-not-in-session');
+      }
+    }
+  }
+}
+
+/**
+ * The latest tokens a refresh produced for one app account, and every
+ * refresh token that was spent getting there (rotated away, or reused by an
+ * IdP that does not rotate).
+ */
+interface RotatedTokens {
+  latest: StoredCredentials;
+  spent: Set<string>;
+}
+
 export class JMAPClient {
-  private session: JMAPSession | null = null;
-  private credentials: StoredCredentials | null = null;
-  private _accountId: string | null = null;
+  private ctx: ConnectionContext = { gen: 0, credentials: null, session: null, accountId: null };
+  private get session(): JMAPSession | null { return this.ctx.session; }
+  private get credentials(): StoredCredentials | null { return this.ctx.credentials; }
+  private get _accountId(): string | null { return this.ctx.accountId; }
   private firstTouchGate = new FirstTouchGate();
   private rateLimitedUntil = 0;
   private authFailureListeners = new Set<(err: AuthenticationError) => void>();
@@ -147,6 +254,155 @@ export class JMAPClient {
   private tokenRefreshListeners = new Set<() => void>();
   /** Hold limits learned from rejected scheduled sends, per server (seconds). */
   private learnedHoldLimits = new Map<string, number>();
+  /** Per app account: the newest refreshed tokens (see `restoreSnapshot`). */
+  private rotatedTokens = new Map<string, RotatedTokens>();
+  /** Whether this client's round trips feed the network store's
+   *  `serverReachable`. Only the app's active connection (`jmapClient`) does:
+   *  detached clients (push renewal, device sync, widgets) serve other
+   *  accounts, whose servers say nothing about the active one. */
+  private readonly reportsReachability: boolean;
+
+  /**
+   * Bumped synchronously whenever a load, connect, snapshot restore or reset
+   * starts. A load commits its context only while it is still the newest; a
+   * request runs only while the context it started with is still the live
+   * one (same `gen`). Either stops with `StaleLoadError` before sending.
+   */
+  private loadGeneration = 0;
+
+  constructor(opts?: { reportsReachability?: boolean }) {
+    this.reportsReachability = opts?.reportsReachability ?? false;
+  }
+
+  private beginLoad(): number {
+    return ++this.loadGeneration;
+  }
+
+  /** Throws `StaleLoadError` when a newer load or reset replaced generation `gen`. */
+  private assertCurrentLoad(gen: number): void {
+    if (gen !== this.loadGeneration) throw new StaleLoadError();
+  }
+
+  /** Swap the whole connection in one assignment. */
+  private commit(next: ConnectionContext): void {
+    this.ctx = next;
+    this.firstTouchGate.reset();
+  }
+
+  /** Scope of a request made on the live connection `ctx`. */
+  private liveScope(ctx: ConnectionContext = this.ctx): RequestScope {
+    const isCurrent = () => this.ctx.gen === ctx.gen;
+    return {
+      isCurrent,
+      assertCurrent: () => {
+        if (!isCurrent()) throw new StaleLoadError();
+      },
+      // Same connection, possibly a refreshed token.
+      credentials: () => {
+        if (!isCurrent()) throw new StaleLoadError();
+        if (!this.ctx.credentials) throw new Error('No credentials');
+        return this.ctx.credentials;
+      },
+      refresh: (force) => (force ? this.forceRefreshToken() : this.ensureFreshToken().then(() => true)),
+    };
+  }
+
+  /**
+   * Scope of a load's own requests: its local credentials, valid while the
+   * load is the newest. A token refreshed here is stored for that account.
+   */
+  private loadScope(gen: number, initial: StoredCredentials): RequestScope & { latest(): StoredCredentials } {
+    let creds = initial;
+    const isCurrent = () => gen === this.loadGeneration;
+    const refresh = async (force: boolean): Promise<boolean> => {
+      const tokens = oauthTokensOf(creds);
+      if (!tokens) return false;
+      if (!force && (tokens.expiresAt == null || tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return true;
+      let next: OAuthTokens;
+      try {
+        next = await refreshOAuthAccessToken(tokens);
+      } catch (err) {
+        if (force && err instanceof TransientRefreshError) throw new NetworkError(err.message);
+        return false;
+      }
+      const base = creds;
+      creds = withTokens(base, next);
+      if (creds.accessToken !== base.accessToken) this.noteRotation(base, creds);
+      await this.storeRotatedTokens(base, creds);
+      return true;
+    };
+    return {
+      isCurrent,
+      assertCurrent: () => {
+        if (!isCurrent()) throw new StaleLoadError();
+      },
+      // Checked before every send: a superseded load sends nothing more.
+      credentials: () => {
+        if (!isCurrent()) throw new StaleLoadError();
+        return creds;
+      },
+      refresh,
+      latest: () => creds,
+    };
+  }
+
+  /**
+   * Snapshot for one fetch made outside this client (blob upload, event
+   * stream, downloads): the live connection's header and URLs, which belong
+   * together. Call `assertCurrent(ctx.gen)` right before the fetch.
+   */
+  requestContext(): RequestContext {
+    const ctx = this.ctx;
+    if (!ctx.credentials) throw new Error('No credentials');
+    return {
+      gen: ctx.gen,
+      authHeader: authHeaderOf(ctx.credentials),
+      apiUrl: ctx.session?.apiUrl ?? null,
+      uploadUrl: ctx.session?.uploadUrl ?? null,
+      downloadUrl: ctx.session?.downloadUrl ?? null,
+      eventSourceUrl: ctx.session?.eventSourceUrl ?? null,
+      accountId: ctx.accountId,
+    };
+  }
+
+  /**
+   * The live connection's generation, for an operation to take once at its
+   * start and pass to each of its requests (`request(…, { gen })`).
+   */
+  get connectionGen(): number {
+    return this.ctx.gen;
+  }
+
+  /**
+   * Throws `StaleLoadError` unless connection `gen` is still live and its
+   * session has JMAP account `accountId` (a fetch made outside `request`,
+   * such as an upload, gets the same check a method call does).
+   */
+  assertAccountInSession(gen: number, accountId: string): void {
+    this.assertCurrent(gen);
+    if (!this.ctx.session) throw new StaleLoadError();
+    assertAccountsInSession(this.ctx.session, [['Blob/upload', { accountId }, '0']]);
+  }
+
+  /** Whether the connection `gen` came from is still the live one. */
+  isCurrent(gen: number): boolean {
+    return this.ctx.gen === gen && !!this.ctx.credentials;
+  }
+
+  /** Throws `StaleLoadError` once the connection `gen` came from is gone. */
+  assertCurrent(gen: number): void {
+    if (this.ctx.gen !== gen || !this.ctx.credentials) throw new StaleLoadError();
+  }
+
+  /**
+   * The Authorization header of connection `gen`, as it is now (a refreshed
+   * token included), for a fetch about to be sent to a URL taken from that
+   * connection. Throws `StaleLoadError` once the connection is gone.
+   */
+  authHeaderFor(gen: number): string {
+    this.assertCurrent(gen);
+    return authHeaderOf(this.ctx.credentials!);
+  }
 
   get accountId(): string {
     if (!this._accountId) {
@@ -242,11 +498,31 @@ export class JMAPClient {
   // client uses. The value is recomputed each access and never cached.
   get authHeader(): string {
     if (!this.credentials) throw new Error('No credentials');
-    if (this.credentials.accessToken) {
-      return `Bearer ${this.credentials.accessToken}`;
+    return authHeaderOf(this.credentials);
+  }
+
+  /**
+   * Open a session with `creds` for load `gen`, using only those credentials
+   * (never the live connection's) for every fetch it makes. Returns the
+   * session with its URLs rewritten and the credentials as they ended up (a
+   * token refresh on the way may have replaced them). Throws `StaleLoadError`
+   * once a newer load started.
+   */
+  private async openSession(
+    gen: number,
+    creds: StoredCredentials,
+  ): Promise<{ session: JMAPSession; credentials: StoredCredentials }> {
+    const scope = this.loadScope(gen, creds);
+    let doc: JMAPSession;
+    try {
+      doc = await this.fetchSession(creds.serverUrl, scope);
+    } catch (err) {
+      if (err instanceof StaleLoadError || !scope.isCurrent()) throw new StaleLoadError();
+      throw err;
     }
-    const encoded = btoa(`${this.credentials.username}:${this.credentials.password}`);
-    return `Basic ${encoded}`;
+    scope.assertCurrent();
+    const credentials = scope.latest();
+    return { session: this.rewriteSessionUrls(doc, credentials.serverUrl, credentials), credentials };
   }
 
   /**
@@ -255,6 +531,9 @@ export class JMAPClient {
    * code. With a code, Stalwart 0.16+ no longer accepts the legacy
    * `password$totp` Basic convention, so the structured login endpoint is used
    * to obtain OAuth tokens (see `connectWithTotp`).
+   *
+   * Nothing changes until the sign-in succeeded: the live connection keeps
+   * serving its own account meanwhile and on failure.
    */
   async connect(
     serverUrl: string,
@@ -266,19 +545,17 @@ export class JMAPClient {
     if (totp) {
       return this.connectWithTotp(baseUrl, username, password, totp);
     }
-    this.credentials = { serverUrl: baseUrl, username, password };
+    const gen = this.beginLoad();
+    const { session, credentials } = await this.openSession(gen, { serverUrl: baseUrl, username, password });
+    const accountId = this.resolveAccountId(session);
 
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
-    this.firstTouchGate.reset();
-
-    const accountId = generateAccountId(username, baseUrl);
     await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
+      credentialsKey(generateAccountId(username, baseUrl)),
+      JSON.stringify(credentials),
     );
-
-    return this.session;
+    this.assertCurrentLoad(gen);
+    this.commit({ gen, credentials, session, accountId });
+    return session;
   }
 
   /**
@@ -310,38 +587,32 @@ export class JMAPClient {
   }
 
   // Sign in with an access token the user pasted (for example a Fastmail API
-  // token). The token authenticates the session fetch as a Bearer credential,
-  // so it is set before the fetch (`usesBearerAuth` decides which off-origin
-  // session URLs are kept). The username comes from the session; without one
-  // there is no stable account id, so nothing is stored. The token is only
-  // ever written to SecureStore: it is never logged or put in an error.
+  // token). The token authenticates the session fetch as a Bearer credential
+  // (`usesBearerAuth` of these credentials decides which off-origin session
+  // URLs are kept). The username comes from the session; without one there is
+  // no stable account id, so nothing is stored. The token is only ever
+  // written to SecureStore: it is never logged or put in an error.
   async connectWithToken(serverUrl: string, accessToken: string): Promise<JMAPSession> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
-    const previous = this.snapshot();
-    this.credentials = { serverUrl: baseUrl, username: '', password: '', accessToken, tokenSource: 'manual' };
-
-    try {
-      this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-      this._accountId = this.resolveAccountId(this.session);
-      this.firstTouchGate.reset();
-
-      const username = this.session.username?.trim();
-      if (!username) {
-        throw new AuthenticationError('The server did not name the account');
-      }
-      this.credentials.username = username;
-
-      const accountId = generateAccountId(username, baseUrl);
-      await SecureStore.setItemAsync(
-        credentialsKey(accountId),
-        JSON.stringify(this.credentials),
-      );
-    } catch (err) {
-      this.restoreSnapshot(previous);
-      throw err;
+    const gen = this.beginLoad();
+    const opened = await this.openSession(gen, {
+      serverUrl: baseUrl, username: '', password: '', accessToken, tokenSource: 'manual',
+    });
+    const { session } = opened;
+    const username = session.username?.trim();
+    if (!username) {
+      throw new AuthenticationError('The server did not name the account');
     }
+    const credentials: StoredCredentials = { ...opened.credentials, username };
+    const accountId = this.resolveAccountId(session);
 
-    return this.session;
+    await SecureStore.setItemAsync(
+      credentialsKey(generateAccountId(username, baseUrl)),
+      JSON.stringify(credentials),
+    );
+    this.assertCurrentLoad(gen);
+    this.commit({ gen, credentials, session, accountId });
+    return session;
   }
 
   // OAuth login via webmail handoff. The webmail did the OAuth dance against
@@ -355,7 +626,8 @@ export class JMAPClient {
     preferredUsername?: string,
   ): Promise<{ session: JMAPSession; username: string; accountId: string }> {
     const baseUrl = serverUrl.replace(/\/+$/, '');
-    this.credentials = {
+    const gen = this.beginLoad();
+    const opened = await this.openSession(gen, {
       serverUrl: baseUrl,
       username: '',
       password: '',
@@ -365,99 +637,124 @@ export class JMAPClient {
       tokenEndpoint: tokens.tokenEndpoint,
       clientId: tokens.clientId,
       tokenSource: tokens.source,
-    };
-
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
-    this.firstTouchGate.reset();
+    });
+    const { session } = opened;
 
     // The JMAP session document carries the authenticated user's identifier
     // — use it as the username so per-account storage keys are stable across
     // restarts and OAuth re-logins.
     const username =
-      preferredUsername || this.session.username || tokens.accessToken.slice(0, 8);
-    this.credentials.username = username;
+      preferredUsername || session.username || tokens.accessToken.slice(0, 8);
+    const credentials: StoredCredentials = { ...opened.credentials, username };
+    const jmapAccountId = this.resolveAccountId(session);
 
     const accountId = generateAccountId(username, baseUrl);
     await SecureStore.setItemAsync(
       credentialsKey(accountId),
-      JSON.stringify(this.credentials),
+      JSON.stringify(credentials),
     );
+    this.assertCurrentLoad(gen);
+    this.commit({ gen, credentials, session, accountId: jmapAccountId });
 
-    return { session: this.session, username, accountId };
+    return { session, username, accountId };
   }
 
-  private async persistRefreshedTokens(next: OAuthTokens): Promise<void> {
-    if (!this.credentials) return;
-    if (this.credentials.accessToken === next.accessToken) return;
-    this.credentials = {
-      ...this.credentials,
-      accessToken: next.accessToken,
-      // Some IdPs rotate refresh tokens; others reuse. Fall back to the
-      // existing one when the response omits it.
-      refreshToken: next.refreshToken ?? this.credentials.refreshToken,
-      expiresAt: next.expiresAt,
-      tokenEndpoint: next.tokenEndpoint,
-      clientId: next.clientId,
-    };
-    const accountId = generateAccountId(
-      this.credentials.username,
-      this.credentials.serverUrl,
-    );
-    await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
-    );
-    for (const l of this.tokenRefreshListeners) {
-      try { l(); } catch { /* ignore */ }
-    }
+  /** Remember that `base`'s refresh token was spent to get `updated`. */
+  private noteRotation(base: StoredCredentials, updated: StoredCredentials): void {
+    if (!base.refreshToken) return;
+    const id = generateAccountId(base.username, base.serverUrl);
+    const prev = this.rotatedTokens.get(id);
+    // Same chain: this refresh started from the tokens the last one produced
+    // (or from one already spent); otherwise a new chain starts here.
+    const sameChain = !!prev
+      && prev.latest.tokenEndpoint === base.tokenEndpoint
+      && prev.latest.clientId === base.clientId
+      && (prev.latest.refreshToken === base.refreshToken || prev.spent.has(base.refreshToken));
+    const spent = sameChain ? new Set(prev!.spent) : new Set<string>();
+    spent.add(base.refreshToken);
+    this.rotatedTokens.set(id, { latest: updated, spent });
   }
 
-  private currentOAuthTokens(): OAuthTokens | null {
-    if (
-      !this.credentials?.accessToken ||
-      !this.credentials.refreshToken ||
-      !this.credentials.tokenEndpoint ||
-      !this.credentials.clientId
-    ) {
-      return null;
+  /**
+   * The credentials to put back for a snapshot: the newest rotated tokens of
+   * the same account and token chain when its refresh token was spent since,
+   * so the next refresh never presents a rotated-away refresh token.
+   */
+  private withLatestTokens(creds: StoredCredentials | null): StoredCredentials | null {
+    if (!creds?.refreshToken) return creds;
+    const rec = this.rotatedTokens.get(generateAccountId(creds.username, creds.serverUrl));
+    if (!rec || !sameAccount(rec.latest, creds)) return creds;
+    if (rec.latest.tokenEndpoint !== creds.tokenEndpoint || rec.latest.clientId !== creds.clientId) return creds;
+    if (!rec.spent.has(creds.refreshToken) || rec.latest.accessToken === creds.accessToken) return creds;
+    return { ...creds, ...pickTokens(rec.latest) };
+  }
+
+  /**
+   * Store refreshed tokens for `base`'s account. Unless `always`, only when
+   * that account still has stored credentials (one signed out meanwhile is
+   * not brought back).
+   */
+  private async storeRotatedTokens(base: StoredCredentials, updated: StoredCredentials, always = false): Promise<void> {
+    const key = credentialsKey(generateAccountId(base.username, base.serverUrl));
+    if (!always && !(await SecureStore.getItemAsync(key))) return;
+    await SecureStore.setItemAsync(key, JSON.stringify(updated));
+  }
+
+  /**
+   * Refresh the live connection's OAuth token: proactively (`force` false,
+   * only near expiry) or after a 401. The new tokens are stored for the
+   * account they belong to; the live connection takes them while it is still
+   * that account on the token that was refreshed, so a rotated refresh token
+   * is never lost. Resolves whether a request on the connection it started
+   * with may retry.
+   */
+  private async refreshLive(force: boolean): Promise<boolean> {
+    const ctx = this.ctx;
+    const base = ctx.credentials;
+    const tokens = oauthTokensOf(base);
+    if (!base || !tokens) return false;
+    if (!force && (tokens.expiresAt == null || tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return true;
+    let next: OAuthTokens;
+    try {
+      next = await refreshOAuthAccessToken(tokens);
+    } catch (err) {
+      if (force && err instanceof TransientRefreshError) {
+        throw new NetworkError(err.message);
+      }
+      return false;
     }
-    return {
-      accessToken: this.credentials.accessToken,
-      refreshToken: this.credentials.refreshToken,
-      expiresAt: this.credentials.expiresAt,
-      tokenEndpoint: this.credentials.tokenEndpoint,
-      clientId: this.credentials.clientId,
-      source: this.credentials.tokenSource,
-    };
+    if (next.accessToken === base.accessToken) return this.ctx.gen === ctx.gen;
+    const updated = withTokens(base, next);
+    this.noteRotation(base, updated);
+    const live = this.ctx;
+    const liveTakesThem = sameAccount(live.credentials, base)
+      && live.credentials!.accessToken === base.accessToken
+      && live.credentials!.refreshToken === base.refreshToken;
+    if (liveTakesThem) {
+      // Same connection (or the same account restored): same generation.
+      this.ctx = { ...live, credentials: updated };
+    }
+    await this.storeRotatedTokens(base, updated, liveTakesThem && live.gen === ctx.gen);
+    if (liveTakesThem) {
+      for (const l of this.tokenRefreshListeners) {
+        try { l(); } catch { /* ignore */ }
+      }
+    }
+    return this.ctx.gen === ctx.gen;
   }
 
   /** OAuth bundle stored for `accountId` (null for password accounts). */
   async getStoredOAuthTokens(accountId: string): Promise<OAuthTokens | null> {
-    const creds = await this.getStoredCredentials(accountId);
-    if (!creds?.accessToken || !creds.refreshToken || !creds.tokenEndpoint || !creds.clientId) return null;
-    return {
-      accessToken: creds.accessToken,
-      refreshToken: creds.refreshToken,
-      expiresAt: creds.expiresAt,
-      tokenEndpoint: creds.tokenEndpoint,
-      clientId: creds.clientId,
-      source: creds.tokenSource,
-    };
+    return oauthTokensOf(await this.getStoredCredentials(accountId));
   }
 
   // Proactive refresh: when the access token is about to expire, swap it for
   // a fresh one. Quiet no-op for password credentials. Public so long-lived
-  // consumers of `authHeader` (SSE stream, file downloads) can make sure the
-  // header they capture is not about to expire.
+  // consumers of `requestContext()` (SSE stream, file downloads) can make
+  // sure the header they capture is not about to expire.
   async ensureFreshToken(): Promise<void> {
-    const tokens = this.currentOAuthTokens();
-    if (!tokens) return;
-    if (tokens.expiresAt == null) return;
-    if (tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
     try {
-      const next = await refreshOAuthAccessToken(tokens);
-      await this.persistRefreshedTokens(next);
+      await this.refreshLive(false);
     } catch {
       // Surface as AuthenticationError on the next 401; refresh may be
       // temporarily failing (network) and the reactive retry path catches it.
@@ -470,18 +767,7 @@ export class JMAPClient {
   // the account instead of evicting it (webmail 1.7.6 "keep the session when
   // the auth server is briefly unreachable").
   async forceRefreshToken(): Promise<boolean> {
-    const tokens = this.currentOAuthTokens();
-    if (!tokens) return false;
-    try {
-      const next = await refreshOAuthAccessToken(tokens);
-      await this.persistRefreshedTokens(next);
-      return true;
-    } catch (err) {
-      if (err instanceof TransientRefreshError) {
-        throw new NetworkError(err.message);
-      }
-      return false;
-    }
+    return this.refreshLive(true);
   }
 
   /**
@@ -490,42 +776,48 @@ export class JMAPClient {
    * account. No-op for bearer sessions.
    */
   async updatePassword(newPassword: string): Promise<void> {
-    if (!this.credentials || this.credentials.accessToken) return;
-    this.credentials = { ...this.credentials, password: newPassword };
-    const accountId = generateAccountId(
-      this.credentials.username,
-      this.credentials.serverUrl,
-    );
+    const ctx = this.ctx;
+    if (!ctx.credentials || ctx.credentials.accessToken) return;
+    const credentials = { ...ctx.credentials, password: newPassword };
+    this.ctx = { ...ctx, credentials };
     await SecureStore.setItemAsync(
-      credentialsKey(accountId),
-      JSON.stringify(this.credentials),
+      credentialsKey(generateAccountId(credentials.username, credentials.serverUrl)),
+      JSON.stringify(credentials),
     );
   }
 
   // Legacy single-slot restore - kept for backward-compat tests. New code
   // should use loadAccount(accountId) driven by the account registry.
   async restoreSession(): Promise<boolean> {
+    const gen = this.beginLoad();
     const stored = await SecureStore.getItemAsync(LEGACY_CREDENTIALS_KEY);
+    this.assertCurrentLoad(gen);
     if (!stored) return false;
 
     try {
       const creds: StoredCredentials = JSON.parse(stored);
-      this.credentials = creds;
-      this.session = this.rewriteSessionUrls(
-        await this.fetchSession(creds.serverUrl),
-        creds.serverUrl,
-      );
-      this._accountId = this.resolveAccountId(this.session);
-      this.firstTouchGate.reset();
+      const { session, credentials } = await this.openSession(gen, creds);
+      this.commit({ gen, credentials, session, accountId: this.resolveAccountId(session) });
       return true;
-    } catch {
+    } catch (err) {
+      if (err instanceof StaleLoadError || gen !== this.loadGeneration) throw new StaleLoadError();
       await this.logout();
       return false;
     }
   }
 
+  /**
+   * Point the client at a registered account. Resolves false when no usable
+   * credentials are stored. Rejects with `StaleLoadError`, having changed
+   * nothing, when a newer load, connect, snapshot restore or reset started
+   * meanwhile: that one owns the client, and the caller must not evict,
+   * sign out or apply anything. Until it commits, the previous connection
+   * keeps serving its own account, header and URLs together.
+   */
   async loadAccount(accountId: string): Promise<boolean> {
+    const gen = this.beginLoad();
     const stored = await SecureStore.getItemAsync(credentialsKey(accountId));
+    this.assertCurrentLoad(gen);
     if (!stored) return false;
 
     let creds: StoredCredentials;
@@ -539,19 +831,16 @@ export class JMAPClient {
     // Errors past this point propagate so callers can distinguish
     // unrecoverable (AuthenticationError) from transient (NetworkError) and
     // avoid clearing credentials when the server is just unreachable.
-    this.credentials = creds;
-    this.firstTouchGate.reset();
+    let opened: { session: JMAPSession; credentials: StoredCredentials };
     try {
-      this.session = this.rewriteSessionUrls(
-        await this.fetchSession(creds.serverUrl),
-        creds.serverUrl,
-      );
+      opened = await this.openSession(gen, creds);
     } catch (err) {
-      // Don't leave a half-populated client behind; the caller needs to know
-      // the session is unavailable. Credentials stay in memory so a retry
-      // after the network comes back doesn't need a re-login.
-      this.session = null;
-      this._accountId = null;
+      // Superseded: the newer load owns the client; touch nothing.
+      if (err instanceof StaleLoadError || gen !== this.loadGeneration) throw new StaleLoadError();
+      // The client now points at this account without a session, so callers
+      // know the session is unavailable. Credentials stay in memory so a
+      // retry after the network comes back doesn't need a re-login.
+      this.commit({ gen, credentials: creds, session: null, accountId: null });
       if (err instanceof AuthenticationError) throw err;
       if (err instanceof NetworkError) throw err;
       // Anything else is treated as transport-level. Wrapping rather than
@@ -560,7 +849,8 @@ export class JMAPClient {
         err instanceof Error ? err.message : 'Server unreachable',
       );
     }
-    this._accountId = this.resolveAccountId(this.session);
+    const { session, credentials } = opened;
+    this.commit({ gen, credentials, session, accountId: this.resolveAccountId(session) });
     return true;
   }
 
@@ -569,25 +859,34 @@ export class JMAPClient {
    * the previous account back without a network round-trip.
    */
   snapshot(): ClientSnapshot {
-    return {
-      session: this.session,
-      credentials: this.credentials,
-      accountId: this._accountId,
-    };
+    return this.ctx;
   }
 
+  /**
+   * Put a snapshot back. Loads in flight are superseded. Requests made on the
+   * snapshot's own connection may continue (same account, server and header);
+   * those made on the connection it replaces stop.
+   */
   restoreSnapshot(snap: ClientSnapshot): void {
-    this.session = snap.session;
-    this.credentials = snap.credentials;
-    this._accountId = snap.accountId;
-    this.firstTouchGate.reset();
+    const gen = this.beginLoad();
+    if (snap === this.ctx) return;
+    this.commit({
+      gen: snap.gen ?? gen,
+      // A refresh while the snapshot was out (say, a 401 on it during the
+      // failed switch) may have rotated its tokens: put the newest back.
+      credentials: this.withLatestTokens(snap.credentials),
+      session: snap.session,
+      accountId: snap.accountId,
+    });
   }
 
   async clearAccountCredentials(accountId: string): Promise<void> {
+    this.rotatedTokens.delete(accountId);
     await SecureStore.deleteItemAsync(credentialsKey(accountId));
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
+    for (const id of accountIds) this.rotatedTokens.delete(id);
     await Promise.all([
       SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
       ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
@@ -622,7 +921,7 @@ export class JMAPClient {
   // URL polyfill mutates inputs (appends trailing slashes, normalises
   // characters) and would corrupt the RFC 6570 templates {accountId}/{blobId}
   // before the caller has a chance to substitute values into them.
-  private rewriteSessionUrls(session: JMAPSession, serverUrl: string): JMAPSession {
+  private rewriteSessionUrls(session: JMAPSession, serverUrl: string, creds: StoredCredentials): JMAPSession {
     const serverOrigin = extractOrigin(serverUrl);
     // The origin the server itself names for its API, taken before apiUrl is
     // rewritten. A download/upload/event URL on a different https origin is
@@ -632,9 +931,8 @@ export class JMAPClient {
     // Only bearer-token sign-ins (OAuth, token) may keep an off-origin URL:
     // those URLs receive the Authorization header, and with Basic auth that
     // would send the password to another host. Fastmail and similar servers
-    // are bearer-only, so password accounts lose nothing. Every connect path
-    // sets `credentials` before it calls this.
-    const keepOffOrigin = this.usesBearerAuth;
+    // are bearer-only, so password accounts lose nothing.
+    const keepOffOrigin = !!creds.accessToken;
     const rewrite = (url: string | undefined): string | undefined =>
       keepOffOrigin && isHostedElsewhere(url, reportedOrigin)
         ? url
@@ -651,10 +949,8 @@ export class JMAPClient {
   // Reset in-memory state without touching persisted credentials (used on
   // account switch so the active account's stored creds remain available).
   reset(): void {
-    this.session = null;
-    this.credentials = null;
-    this._accountId = null;
-    this.firstTouchGate.reset();
+    const gen = this.beginLoad();
+    this.commit({ gen, credentials: null, session: null, accountId: null });
     this.rateLimitedUntil = 0;
   }
 
@@ -680,7 +976,10 @@ export class JMAPClient {
     url: string,
     init: RequestInit | undefined,
     timeoutMs: number,
+    scope: RequestScope,
   ): Promise<Response> {
+    // Only the active connection's own requests say anything about its server.
+    const reports = () => this.reportsReachability && scope.isCurrent();
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const external = init?.signal ?? undefined;
     if (controller && external) {
@@ -693,9 +992,18 @@ export class JMAPClient {
       controller?.abort();
     }, timeoutMs);
     try {
-      return await secureFetch(url, { ...init, ...(controller ? { signal: controller.signal } : {}), timeoutMs });
+      const response = await secureFetch(url, { ...init, ...(controller ? { signal: controller.signal } : {}), timeoutMs });
+      // Any HTTP response, whatever its status, means the server is reachable
+      // (stores/network-store counts that as online when the probe fails).
+      if (reports()) reportServerResponse();
+      return response;
     } catch (error) {
-      if (timedOut) throw new RequestTimeoutError(timeoutMs);
+      if (timedOut) {
+        if (reports()) reportServerUnreachable();
+        throw new RequestTimeoutError(timeoutMs);
+      }
+      // The caller's own abort (a cancelled upload) says nothing about the server.
+      if (reports() && !external?.aborted && isTransportFailure(error)) reportServerUnreachable();
       throw error;
     } finally {
       clearTimeout(timer);
@@ -708,11 +1016,17 @@ export class JMAPClient {
    * reactive refresh on 401, rate-limit bookkeeping on 429. Returns the
    * response for the caller to interpret; throws `NetworkError` /
    * `RequestTimeoutError` / `RateLimitError`.
+   *
+   * Every fetch it makes authenticates with `scope`'s credentials (by default
+   * the live connection as it is now) and is checked first: once that
+   * connection is gone it throws `StaleLoadError` instead of sending, so a
+   * header never reaches another account's server.
    */
   async authenticatedFetch(
     url: string,
     init?: RequestInit,
     opts?: { timeoutMs?: number; idempotent?: boolean },
+    scope: RequestScope = this.liveScope(),
   ): Promise<Response> {
     if (this.isRateLimited()) {
       throw new RateLimitError(this.rateLimitRemainingMs());
@@ -720,38 +1034,51 @@ export class JMAPClient {
     const timeoutMs = opts?.timeoutMs ?? REQUEST_TIMEOUT_MS;
     const idempotent = opts?.idempotent ?? true;
 
-    await this.ensureFreshToken();
+    try {
+      await scope.refresh(false);
+    } catch {
+      // A failing proactive refresh surfaces as a 401 below.
+    }
     const withAuth = (): RequestInit => ({
       ...init,
-      headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: this.authHeader },
+      headers: {
+        ...(init?.headers as Record<string, string> | undefined),
+        Authorization: authHeaderOf(scope.credentials()),
+      },
     });
+    const send = (): Promise<Response> => this.timedFetch(url, withAuth(), timeoutMs, scope);
 
     let response: Response;
     try {
-      response = await this.timedFetch(url, withAuth(), timeoutMs);
+      response = await send();
     } catch (error) {
-      if (error instanceof RequestTimeoutError) throw error;
+      if (error instanceof RequestTimeoutError || error instanceof StaleLoadError) throw error;
       if (!idempotent || (error as Error)?.name === 'AbortError') {
         throw toNetworkError(error);
       }
       // Transient proxy/connection blip: one retry after a short pause.
       await new Promise((r) => setTimeout(r, TRANSIENT_RETRY_DELAY_MS));
       try {
-        response = await this.timedFetch(url, withAuth(), timeoutMs);
+        response = await send();
       } catch (retryError) {
-        if (retryError instanceof RequestTimeoutError) throw retryError;
+        if (retryError instanceof RequestTimeoutError || retryError instanceof StaleLoadError) throw retryError;
         throw toNetworkError(retryError);
       }
     }
 
-    if (response.status === 401 && (await this.forceRefreshToken())) {
+    // Refreshing after the connection moved on would refresh another account's token.
+    if (response.status === 401 && scope.isCurrent() && (await scope.refresh(true))) {
       try {
-        response = await this.timedFetch(url, withAuth(), timeoutMs);
+        response = await send();
       } catch (error) {
-        if (error instanceof RequestTimeoutError) throw error;
+        if (error instanceof RequestTimeoutError || error instanceof StaleLoadError) throw error;
         throw toNetworkError(error);
       }
     }
+
+    // A rejected request made on a connection that is gone: nothing ran, and
+    // its 401 must not sign the current account out.
+    if (response.status === 401 && !scope.isCurrent()) throw new StaleLoadError();
 
     if (response.status === 429) {
       const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'));
@@ -764,7 +1091,7 @@ export class JMAPClient {
 
   // ── Session Discovery ─────────────────────────────────
 
-  private async fetchSession(baseUrl: string): Promise<JMAPSession> {
+  private async fetchSession(baseUrl: string, scope: RequestScope): Promise<JMAPSession> {
     // Stalwart's discovery endpoint /.well-known/jmap 307-redirects to
     // /jmap/session. On iOS, NSURLSession drops the Authorization header when
     // it auto-follows that redirect, so the app receives an unauthenticated,
@@ -775,10 +1102,10 @@ export class JMAPClient {
     const fallback = `${baseUrl}/.well-known/jmap`;
     let requested = primary;
     const fetchSessionDoc = async () => {
-      const r = await this.authenticatedFetch(primary, { headers: { Accept: 'application/json' } });
+      const r = await this.authenticatedFetch(primary, { headers: { Accept: 'application/json' } }, undefined, scope);
       if (r.status !== 404) return r;
       requested = fallback;
-      return this.authenticatedFetch(fallback, { headers: { Accept: 'application/json' } });
+      return this.authenticatedFetch(fallback, { headers: { Accept: 'application/json' } }, undefined, scope);
     };
     let response = await fetchSessionDoc();
 
@@ -800,7 +1127,7 @@ export class JMAPClient {
         throw new Error(`Session discovery failed: redirected to ${finalUrl}`);
       }
       refetched = true;
-      return this.authenticatedFetch(finalUrl, { headers: { Accept: 'application/json' } });
+      return this.authenticatedFetch(finalUrl, { headers: { Accept: 'application/json' } }, undefined, scope);
     };
     if (redirected && response.status === 401) {
       response = await refetchRedirected();
@@ -876,19 +1203,6 @@ export class JMAPClient {
   }
 
   /**
-   * Re-read the session document (capabilities, shared accounts,
-   * eventSourceUrl) without disturbing credentials. Used by the keep-alive
-   * and after a basic-auth 401 that may just be a stale session.
-   */
-  async refreshSession(): Promise<JMAPSession> {
-    if (!this.credentials) throw new Error('No credentials');
-    const baseUrl = this.credentials.serverUrl;
-    this.session = this.rewriteSessionUrls(await this.fetchSession(baseUrl), baseUrl);
-    this._accountId = this.resolveAccountId(this.session);
-    return this.session;
-  }
-
-  /**
    * Cheap liveness probe (`Core/echo`). Resolves true when the server answered,
    * false on transport failure. Used by the foreground keep-alive.
    */
@@ -905,32 +1219,53 @@ export class JMAPClient {
 
   // ── API Request ───────────────────────────────────────
 
+  /**
+   * `opts.gen`: the connection the operation this request belongs to started
+   * on (see `connectionGen`). Once another one is live, nothing is sent
+   * (`StaleLoadError`): the ids an operation carries are only meaningful on
+   * its own connection, and two servers can both have an account `c`.
+   */
   async request(
     methodCalls: JMAPMethodCall[],
     using?: string[],
+    opts?: { gen?: number },
   ): Promise<JMAPResponseBody> {
-    if (!this.session) throw new Error('Not connected');
+    // One connection for the whole request: its server, header and account.
+    const ctx = this.ctx;
+    if (opts?.gen !== undefined && opts.gen !== ctx.gen) throw new StaleLoadError();
+    if (!ctx.session) throw new Error('Not connected');
+    // Every account the calls name must be one this session has: a later
+    // request of an operation started on another connection (a batched set,
+    // an archive, a move, an undo) carries that connection's account ids.
+    assertAccountsInSession(ctx.session, methodCalls);
     // Log the states our own mail writes move between, so the mail store can
     // recognise their push echo (see api/own-writes).
     const settled = beginOwnWrite(methodCalls);
     try {
-      const response = await this.postRequest(methodCalls, using);
-      recordOwnEmailWrites(this.serverUrl ?? '', methodCalls, response.methodResponses);
+      const response = await this.postRequest(ctx, methodCalls, using);
+      recordOwnEmailWrites(ctx.credentials?.serverUrl ?? '', methodCalls, response.methodResponses);
       return response;
     } finally {
       settled();
     }
   }
 
-  private async postRequest(methodCalls: JMAPMethodCall[], using?: string[]): Promise<JMAPResponseBody> {
-    if (!this.session) throw new Error('Not connected');
+  private async postRequest(
+    ctx: ConnectionContext,
+    methodCalls: JMAPMethodCall[],
+    using?: string[],
+  ): Promise<JMAPResponseBody> {
+    if (!ctx.session) throw new Error('Not connected');
+    // The concurrency-refusal replays and the first-touch gate wait; every
+    // send re-checks that this connection is still the live one.
+    const scope = this.liveScope(ctx);
 
     const body: JMAPRequestBody = {
       using: using ?? [CAPABILITIES.CORE, CAPABILITIES.MAIL],
       methodCalls,
     };
     const serialized = JSON.stringify(body);
-    const apiUrl = this.session.apiUrl;
+    const apiUrl = ctx.session.apiUrl;
     const idempotent = isReplaySafe(methodCalls);
 
     for (let attempt = 0; ; attempt++) {
@@ -943,6 +1278,7 @@ export class JMAPClient {
             body: serialized,
           },
           { idempotent },
+          scope,
         ),
       );
 
@@ -1233,11 +1569,17 @@ export class JMAPClient {
     name?: string,
     type?: string,
     accountId?: string,
+    /** The operation's connection (see `request`); none: the live one. */
+    gen?: number,
   ): Promise<ArrayBuffer> {
+    if (gen !== undefined && gen !== this.ctx.gen) throw new StaleLoadError();
+    // The URL and the header from one connection.
+    const scope = this.liveScope();
+    if (accountId && this.session) assertAccountsInSession(this.session, [['Blob/download', { accountId }, '0']]);
     const url = this.getBlobDownloadUrl(blobId, name, type, accountId);
     const response = await this.authenticatedFetch(url, undefined, {
       timeoutMs: BLOB_TIMEOUT_MS,
-    });
+    }, scope);
     if (response.status === 401) {
       const err = new AuthenticationError('Session expired');
       this.notifyAuthFailure(err);
@@ -1252,6 +1594,8 @@ export interface ClientSnapshot {
   session: JMAPSession | null;
   credentials: StoredCredentials | null;
   accountId: string | null;
+  /** The connection's generation, when taken from `snapshot()`. */
+  gen?: number;
 }
 
 // ── URL helpers ──────────────────────────────────────────
@@ -1343,6 +1687,25 @@ export class NetworkError extends Error {
 
 // No response headers within the deadline. The request may have reached the
 // server (a send may have gone out), so callers must not blindly retry.
+/**
+ * A load (or a request made for it) was superseded: a newer load, connect,
+ * snapshot restore or reset pointed the client elsewhere meanwhile. Nothing
+ * was changed or sent; the newer load owns the client.
+ */
+export class StaleLoadError extends Error {
+  /**
+   * `account-not-in-session`: the request named a JMAP account the live
+   * session does not have (it was built for the connection switched away
+   * from). Nothing was sent either way.
+   */
+  readonly reason: 'superseded' | 'account-not-in-session';
+  constructor(reason: 'superseded' | 'account-not-in-session' = 'superseded') {
+    super('Superseded by a newer account load');
+    this.name = 'StaleLoadError';
+    this.reason = reason;
+  }
+}
+
 export class RequestTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
@@ -1360,4 +1723,4 @@ export class RateLimitError extends Error {
 }
 
 // Singleton instance
-export const jmapClient = new JMAPClient();
+export const jmapClient = new JMAPClient({ reportsReachability: true });

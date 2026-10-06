@@ -22,12 +22,16 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '../lib/uuid';
-import { isTransientNetworkError, isAuthError } from '../lib/network-error';
+import { isTransientNetworkError, isAuthError, isStaleLoad, isAccountNotInSession } from '../lib/network-error';
+import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
+import { toast } from './toast-store';
+import { t } from './locale-store';
 import { useNetworkStore } from './network-store';
 import { jmapClient } from '../api/jmap-client';
 import {
   patchKeywordsForEmails, setEmailMailboxes, destroyEmails, archiveEmails, unprefixMailboxId,
 } from '../api/email';
+import { inAccount, type OpScope } from '../api/op-scope';
 import type { KeywordPatch } from '../lib/keyword-patch';
 import type { ArchiveMode } from './settings-store';
 
@@ -91,7 +95,8 @@ interface OutboxState {
 
   setAccount: (accountId: string | null) => Promise<void>;
   hydrate: () => Promise<void>;
-  enqueue: (op: OutboxOp) => void;
+  /** `actedAt`: when the user made `op`, if before now (see `coalesce`). */
+  enqueue: (op: OutboxOp, actedAt?: number) => void;
   count: () => number;
   pendingForEmail: (emailId: string) => OutboxEntry[];
   flush: () => Promise<void>;
@@ -146,19 +151,29 @@ async function load(accountId: string, suffix = ''): Promise<OutboxEntry[]> {
   return [];
 }
 
-async function runOp(op: OutboxOp): Promise<void> {
+/**
+ * Run `op` on the connection and JMAP account `at` names, passed explicitly
+ * to every API call: the op's own account, or for a legacy op (see `flush`)
+ * the primary account of the connection that serves the outbox's account.
+ * Every request of the op is bound to that connection.
+ */
+async function runOp(op: OutboxOp, at: OpScope): Promise<void> {
+  const accountId = at.accountId;
   switch (op.kind) {
     case 'keywords':
-      return patchKeywordsForEmails([op.emailId], op.patch, op.accountId);
+      return patchKeywordsForEmails([op.emailId], op.patch, at);
     case 'mailboxes':
-      return setEmailMailboxes(op.emailId, op.mailboxIds, op.accountId);
+      return setEmailMailboxes(op.emailId, op.mailboxIds, at);
     case 'archive': {
       // The foldering needs the account's current folder list; read it from
       // the email store lazily (it imports this module, so no static import).
       const { useEmailStore } = await import('./email-store');
       const all = useEmailStore.getState().mailboxes;
+      // Own mail is stamped with the primary account id; any other id
+      // selects that shared account's folders (none listed: none reused).
+      const own = !accountId || accountId === primaryAccountId();
       const scoped = all
-        .filter((m) => (op.accountId ? m.isShared && m.accountId === op.accountId : !m.isShared))
+        .filter((m) => (own ? !m.isShared : m.isShared && m.accountId === accountId))
         .map((m) => (m.isShared
           ? { ...m, id: m.originalId ?? m.id, parentId: m.parentId ? unprefixMailboxId(m.parentId, m.accountId) : m.parentId }
           : m));
@@ -167,19 +182,181 @@ async function runOp(op: OutboxOp): Promise<void> {
         op.archiveMailboxId,
         op.mode,
         scoped,
-        op.accountId,
+        at,
       );
       return;
     }
     case 'destroy':
-      return destroyEmails([op.emailId], op.accountId);
+      return destroyEmails([op.emailId], at);
   }
+}
+
+/**
+ * The live connection and its primary JMAP account, taken in one step, or
+ * null when the client has none. Callers take it right after checking that
+ * the connection serves the outbox's account (`servesAccount`).
+ */
+function connectionScope(): OpScope | null {
+  const accountId = primaryAccountId();
+  return accountId ? { gen: jmapClient.connectionGen, accountId } : null;
+}
+
+/** The client's primary JMAP account id, or undefined when it has none. */
+function primaryAccountId(): string | undefined {
+  try {
+    return jmapClient.accountId || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `op` with its JMAP account id made explicit. Own mail (no id) gets the
+ * client's primary account id, taken now, and only while the client serves
+ * the outbox's account; otherwise the op is left as it is and is handled at
+ * replay like a legacy op.
+ */
+function stampAccount(op: OutboxOp, at?: OpScope | null): OutboxOp {
+  if (op.accountId) return op;
+  if (at !== undefined) return at ? { ...op, accountId: at.accountId } : op;
+  const outboxAccount = useOutboxStore.getState().activeAccountId;
+  if (!outboxAccount || !servesAccount(outboxAccount)) return op;
+  const primary = primaryAccountId();
+  return primary ? { ...op, accountId: primary } : op;
 }
 
 // A move-like op replaces the whole mailboxIds map; `mailboxes` and `archive`
 // therefore coalesce with each other (the latest wins).
 function opFamily(op: OutboxOp): string {
   return op.kind === 'archive' ? 'mailboxes' : op.kind;
+}
+
+/**
+ * `entries` with `op` queued, coalesced per message (see `enqueue`), or null
+ * when nothing changes (a destroy is queued already). `actedAt`, when given,
+ * is when the user made `op` (an action queued only after its online attempt
+ * failed): an entry queued after that is the later action and wins.
+ */
+function coalesce(entries: OutboxEntry[], op: OutboxOp, actedAt?: number): OutboxEntry[] | null {
+  const createdAt = actedAt ?? Date.now();
+  let next = [...entries];
+  // Message identity is (account, id): JMAP ids are only unique within an
+  // account, and the queue can hold ops for shared accounts alongside own.
+  const sameMessage = (other: OutboxOp) =>
+    other.emailId === op.emailId && other.accountId === op.accountId;
+
+  if (op.kind === 'destroy') {
+    // Destroy is terminal — drop any pending edits for this message and
+    // append the destroy so it runs last.
+    next = next.filter((e) => !sameMessage(e.op));
+    next.push({ id: generateUUID(), op, createdAt, attempts: 0 });
+    return next;
+  }
+  // A queued destroy wins; further edits to a doomed message are pointless.
+  if (next.some((e) => sameMessage(e.op) && e.op.kind === 'destroy')) return null;
+  // Coalesce: replace any pending op of the same family for this message
+  // (full-state replace makes the latest one authoritative; keyword
+  // patches merge, the later value winning per keyword). Keep its
+  // position so creation order is preserved for replay.
+  const idx = next.findIndex((e) => sameMessage(e.op) && opFamily(e.op) === opFamily(op));
+  if (idx >= 0) {
+    const prev = next[idx].op;
+    const prevIsLater = actedAt !== undefined && next[idx].createdAt > actedAt;
+    let merged: OutboxOp;
+    if (prev.kind === 'keywords' && op.kind === 'keywords') {
+      merged = { ...op, patch: prevIsLater ? { ...op.patch, ...prev.patch } : { ...prev.patch, ...op.patch } };
+    } else {
+      merged = prevIsLater ? prev : op;
+    }
+    next[idx] = { ...next[idx], op: merged, attempts: 0, lastError: undefined };
+  } else {
+    next.push({ id: generateUUID(), op, createdAt, attempts: 0 });
+  }
+  return next;
+}
+
+/**
+ * Serialised writes to the stored queue of an account that is not the
+ * active one; its load waits for them so none is lost to a switch back.
+ */
+const offBucketWrites = new Map<string, Promise<void>>();
+
+function settledOffBucket(accountId: string): Promise<void> {
+  return offBucketWrites.get(accountId) ?? Promise.resolve();
+}
+
+/**
+ * Queue `ops` in `accountId`'s stored queue without touching the active
+ * account's bucket. Existing entries are kept (and coalesced with like
+ * `enqueue`); the parked (`:failed`) list is not touched. If the account is
+ * active again by the time this runs, the ops go through `enqueue`.
+ */
+function enqueueForAccount(accountId: string, ops: OutboxOp[], createdAt: number): Promise<boolean> {
+  const intoMemory = () => {
+    for (const op of ops) useOutboxStore.getState().enqueue(op, createdAt);
+  };
+  const run = async (): Promise<'memory' | 'stored' | null> => {
+    const store = useOutboxStore.getState();
+    if (store.activeAccountId === accountId && store.hydrated) {
+      intoMemory();
+      return 'memory';
+    }
+    const key = storageKey(accountId);
+    let entries: OutboxEntry[];
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) throw new Error('not a list');
+      entries = (parsed as OutboxEntry[]).map(upgradeEntry);
+    } catch (err) {
+      // Unreadable: writing would overwrite whatever is there. The change is
+      // lost, so the user is told rather than left believing it will finish.
+      console.warn('[outbox] could not queue for an inactive account', err);
+      toast.error(t('outbox.change_not_saved', 'This change could not be saved'));
+      return null;
+    }
+    for (const op of ops) entries = coalesce(entries, op, createdAt) ?? entries;
+    await AsyncStorage.setItem(key, JSON.stringify(entries));
+    return 'stored';
+  };
+  const write = settledOffBucket(accountId).then(run).catch((err) => {
+    console.warn('[outbox] queue for an inactive account failed', err);
+    return null;
+  });
+  // The account's load waits for the write only (not for the step below,
+  // which waits for that load).
+  const done = write.then(() => undefined);
+  offBucketWrites.set(accountId, done);
+  void done.then(() => {
+    if (offBucketWrites.get(accountId) === done) offBucketWrites.delete(accountId);
+  });
+  return write.then(async (where) => {
+    // Switched back while it ran, and that load may have read the queue
+    // before the write: add the ops in memory too once it is loaded (the
+    // coalescing collapses a second copy of an op into the first).
+    if (where === 'stored' && useOutboxStore.getState().activeAccountId === accountId) {
+      await untilHydratedOrLeft(accountId);
+      if (useOutboxStore.getState().activeAccountId === accountId) {
+        intoMemory();
+        // Its setAccount flush may have run before these were in memory.
+        void useOutboxStore.getState().flush();
+      }
+    }
+    return where !== null;
+  });
+}
+
+/** Resolves once `accountId`'s bucket is loaded, or another account is active. */
+function untilHydratedOrLeft(accountId: string): Promise<void> {
+  const ready = (s: OutboxState) => s.activeAccountId !== accountId || s.hydrated;
+  if (ready(useOutboxStore.getState())) return Promise.resolve();
+  return new Promise((resolve) => {
+    const unsub = useOutboxStore.subscribe((s) => {
+      if (!ready(s)) return;
+      unsub();
+      resolve();
+    });
+  });
 }
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -230,6 +407,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     retryAttempt = 0;
     set({ activeAccountId: accountId, entries: [], failed: [], hydrated: false, paused: false });
     if (accountId) {
+      await settledOffBucket(accountId);
       const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
       // Re-check in case another setAccount raced past us.
       if (get().activeAccountId !== accountId) return;
@@ -247,47 +425,20 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       set({ hydrated: true });
       return;
     }
+    await settledOffBucket(accountId);
     const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
     if (get().activeAccountId !== accountId) return;
     set({ entries, failed, hydrated: true });
   },
 
-  enqueue: (op) => {
+  enqueue: (op, actedAt) => {
     const accountId = get().activeAccountId;
     if (!accountId) {
       console.warn('[outbox] enqueue with no active account; dropping op', op.kind);
       return;
     }
-    let entries = [...get().entries];
-    // Message identity is (account, id): JMAP ids are only unique within an
-    // account, and the queue can hold ops for shared accounts alongside own.
-    const sameMessage = (other: OutboxOp) =>
-      other.emailId === op.emailId && other.accountId === op.accountId;
-
-    if (op.kind === 'destroy') {
-      // Destroy is terminal — drop any pending edits for this message and
-      // append the destroy so it runs last.
-      entries = entries.filter((e) => !sameMessage(e.op));
-      entries.push({ id: generateUUID(), op, createdAt: Date.now(), attempts: 0 });
-    } else {
-      // A queued destroy wins; further edits to a doomed message are pointless.
-      if (entries.some((e) => sameMessage(e.op) && e.op.kind === 'destroy')) return;
-      // Coalesce: replace any pending op of the same family for this message
-      // (full-state replace makes the latest one authoritative; keyword
-      // patches merge, the later value winning per keyword). Keep its
-      // position so creation order is preserved for replay.
-      const idx = entries.findIndex((e) => sameMessage(e.op) && opFamily(e.op) === opFamily(op));
-      if (idx >= 0) {
-        const prev = entries[idx].op;
-        const merged: OutboxOp = prev.kind === 'keywords' && op.kind === 'keywords'
-          ? { ...op, patch: { ...prev.patch, ...op.patch } }
-          : op;
-        entries[idx] = { ...entries[idx], op: merged, attempts: 0, lastError: undefined };
-      } else {
-        entries.push({ id: generateUUID(), op, createdAt: Date.now(), attempts: 0 });
-      }
-    }
-
+    const entries = coalesce(get().entries, stampAccount(op), actedAt);
+    if (!entries) return;
     set({ entries });
     persist(accountId, entries);
   },
@@ -304,6 +455,10 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     // Need a live client that's actually serving this account, and a network.
     if (!jmapClient.isConnected) return;
     if (!useNetworkStore.getState().online) return;
+    // The connection must serve this account: during a switch the client can
+    // already be on the next account while the outbox is still on this one.
+    // Not an error; the next trigger (setAccount, online edge) retries.
+    if (!servesAccount(accountId)) return;
 
     set({ flushing: true });
     let brokeTransient = false;
@@ -318,16 +473,34 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
         if (get().activeAccountId !== accountId) break;     // account switched
         if (!useNetworkStore.getState().online) break;       // went offline
         if (!jmapClient.isConnected) break;
+        if (!servesAccount(accountId)) break;                // client switched
 
         const entry = get().entries.find((e) => e.id === snapshot.id);
         if (!entry) continue;                                // removed/coalesced
 
+        // An op without an account id was queued by an older build (own
+        // mail), or while the client did not serve this account. It runs
+        // against the primary account of the connection that serves this
+        // outbox, checked just above; it is not migrated on disk.
+        // The connection checked just above, taken once for every request of
+        // this op (an archive may send several, after an await).
+        const at = connectionScope();
+        if (!at) break;
+        const target = inAccount(at, entry.op.accountId);
+
         try {
-          await runOp(entry.op);
+          await runOp(entry.op, target);
           removeEntry(accountId, entry.id);
           retryAttempt = 0;
         } catch (err) {
           if (get().activeAccountId !== accountId) break;
+          // Not sent: the client moved to another connection first. The op
+          // stays as it is (no error, no attempt counted) for the next flush.
+          // Except when the client does serve this account and the op names
+          // a JMAP account its session no longer has (a shared account taken
+          // away): that is the server's answer, counted like a rejection so
+          // the op is parked rather than blocking the queue forever.
+          if (isStaleLoad(err) && !(isAccountNotInSession(err) && servesAccount(accountId))) break;
           if (isAuthError(err)) {
             // Revoked password / expired session: nothing will succeed until
             // the user signs in again. Keep the queue and stop trying.
@@ -392,6 +565,8 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   },
 
   clearAccount: async (accountId) => {
+    // A queue write for it still running would bring the key back.
+    await settledOffBucket(accountId);
     // Only the active account's ops live in memory; another account's
     // removal must leave them alone.
     if (get().activeAccountId === accountId) {
@@ -404,6 +579,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
 }));
 
 // ── Internal helpers that mutate+persist the live list ──────────────────────
+
+/** The client serves app account `accountId`, and the app shows it as active. */
+function servesAccount(accountId: string): boolean {
+  return activeAppAccountId() === accountId && clientServesActiveAccount();
+}
 
 function removeEntry(accountId: string, id: string): void {
   const store = useOutboxStore.getState();
@@ -453,33 +633,71 @@ export interface ApplyResult {
 // path (e.g. batch move) while still degrading to the idempotent primitives
 // offline — which replay with the same semantics (an `archive` op re-applies
 // the year/month foldering on replay).
+//
+// The online path runs only while the connection serves the outbox's account.
+// During a switch the app can already show the next account (whose rows the
+// user acts on) while the client still serves the previous one; an op run
+// then would land on the previous account's message with the same id. Such
+// ops are queued and replayed once the account is served. `onlineRun` gets
+// the connection the action runs on (`at`, own primary account), taken here
+// once, and passes it (or `inAccount(at, …)`) to every API call it makes.
 export async function applyOrQueueBatch(
   ops: OutboxOp[],
-  onlineRun?: () => Promise<void>,
+  onlineRun?: (at: OpScope) => Promise<void>,
 ): Promise<ApplyResult> {
   if (ops.length === 0) return { queued: false };
   const store = useOutboxStore.getState();
-  const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
+  // The account this action is made on, and when: an account switch during
+  // the online run must not move its ops to the account switched to.
+  const accountId = store.activeAccountId;
+  const startedAt = Date.now();
+  const at = accountId && servesAccount(accountId) ? connectionScope() : null;
+  // Each op names its JMAP account, own mail included (taken now, while the
+  // client serves this account; unserved, left for replay to fill in).
+  ops = ops.map((op) => stampAccount(op, at));
+  const network = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
+  const online = network && at !== null;
   const hasQueued = ops.some((op) =>
     store.entries.some((e) => e.op.emailId === op.emailId),
   );
 
   if (online && !hasQueued) {
     try {
-      await (onlineRun ? onlineRun() : Promise.all(ops.map(runOp)).then(() => undefined));
+      const scope = at!;
+      await (onlineRun
+        ? onlineRun(scope)
+        : Promise.all(ops.map((op) => runOp(op, inAccount(scope, op.accountId)))).then(() => undefined));
       return { queued: false };
     } catch (err) {
       // A real server/validation error should bubble up exactly like before.
-      // Only fall through to the queue when the failure is connectivity.
-      if (!isTransientNetworkError(err)) throw err;
+      // Only fall through to the queue when the failure is connectivity, or a
+      // stop before sending because the client moved to another connection.
+      const stale = isStaleLoad(err);
+      if (!stale && !isTransientNetworkError(err)) throw err;
+      if (accountId && useOutboxStore.getState().activeAccountId !== accountId) {
+        // The user switched away meanwhile. The ops go to the queue of the
+        // account they were made on (they carry their JMAP account; flush only
+        // replays them while that account is active). The caller still sees
+        // the failure, so it applies nothing to the account now shown.
+        if (await enqueueForAccount(accountId, ops, startedAt)) {
+          toast.info(t('outbox.finish_on_switch_back', 'This change will finish when you switch back to that account'));
+        }
+        throw err;
+      }
     }
   }
 
-  for (const op of ops) store.enqueue(op);
-  if (online) void store.flush();
+  if (accountId && !useOutboxStore.getState().hydrated) {
+    // Its queue is still loading: queueing in memory now would be replaced by
+    // the load, and persisting would overwrite the stored queue.
+    await enqueueForAccount(accountId, ops, startedAt);
+  } else {
+    for (const op of ops) useOutboxStore.getState().enqueue(op, startedAt);
+  }
+  if (network) void useOutboxStore.getState().flush();
   return { queued: true };
 }
 
-export function applyOrQueue(op: OutboxOp, onlineRun?: () => Promise<void>): Promise<ApplyResult> {
+export function applyOrQueue(op: OutboxOp, onlineRun?: (at: OpScope) => Promise<void>): Promise<ApplyResult> {
   return applyOrQueueBatch([op], onlineRun);
 }

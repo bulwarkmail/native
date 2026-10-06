@@ -219,9 +219,13 @@ describe('sign-out guard', () => {
   });
 
   it('counts persisted rows per account in every state, hydrated or not', async () => {
-    await AsyncStorage.setItem(qkey(A, 'e1'), JSON.stringify({ state: 'uncertain' }));
-    await AsyncStorage.setItem(qkey(A, 'e2'), JSON.stringify({ state: 'failed' }));
-    await AsyncStorage.setItem(qkey(B, 'e3'), JSON.stringify({ state: 'queued' }));
+    const valid = (acct: string, id: string, state: string) => JSON.stringify({
+      id, appAccountId: acct, jmapAccountId: 'j', identityId: 'i', outgoing: { messageId: `${id}@x` },
+      messageId: `${id}@x`, createdAt: '2026-10-04T00:00:00Z', state,
+    });
+    await AsyncStorage.setItem(qkey(A, 'e1'), valid(A, 'e1', 'uncertain'));
+    await AsyncStorage.setItem(qkey(A, 'e2'), valid(A, 'e2', 'failed'));
+    await AsyncStorage.setItem(qkey(B, 'e3'), valid(B, 'e3', 'queued'));
     await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, '[1]');
     expect(await countQueuedSends([A, B, 'c@x'])).toEqual([2, 1, 0]);
   });

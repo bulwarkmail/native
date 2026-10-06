@@ -368,8 +368,11 @@
     }
   },
   "email_list": {
+    "account_not_ready": "This account is still loading. Try again in a moment.",
+    "account_switched_back": "This belongs to another account. Switch back to it and try again.",
     "copy_offline": "Copying needs a connection",
     "copy_same_account": "Messages can only be copied within the same account",
+    "cross_account_move_interrupted": "The moved copy may also remain in the original folder.",
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
@@ -680,6 +683,7 @@
     "already_queued": "This message is already in the Outbox",
     "already_sent": "Already sent",
     "already_sent_hint": "This message had already gone out. It was not sent again.",
+    "change_not_saved": "This change could not be saved",
     "check_failed_send": "Couldn't check the Outbox. Try sending again.",
     "confirm_discard": "Discard this message? It will not be sent.",
     "confirm_discard_uncertain": "This message may already have been sent. Discard it from the Outbox?",
@@ -695,10 +699,12 @@
       "draft_restored": "The draft could not be saved. The message is back in the Outbox.",
       "proof_check_failed": "Could not check whether this message was already sent. Nothing was sent. Try again later.",
       "sending": "This message is being sent.",
+      "too_recent": "This message was sent moments ago. Wait a minute, then check Sent before sending it again.",
       "wrong_account": "Switch to the sending account first."
     },
     "failed": "A message was not sent",
     "failed_hint": "Check the Outbox to retry, save it as a draft or discard it.",
+    "finish_on_switch_back": "This change will finish when you switch back to that account",
     "held": {
       "account_unavailable": "Not sent: this account is not available",
       "bad_schedule": "Not sent: the scheduled time could not be read",
@@ -909,6 +915,7 @@
       "archive_mode": {
         "no_archive": "No archive folder found.",
         "reorganize_result": "Moved {moved} of {total} emails.",
+        "reorganize_stopped": "Stopped after moving {moved} of {total} emails: the account changed.",
         "reorganizing": "Reorganizing…"
       },
       "attachment_click_action": {

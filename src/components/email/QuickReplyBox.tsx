@@ -9,6 +9,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
 import { useSendUndoStore } from '../../stores/send-undo-store';
+import { opScope } from '../../api/op-scope';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
 import { useNetworkStore } from '../../stores/network-store';
 import { useAuthStore } from '../../stores/auth-store';
@@ -18,7 +19,7 @@ import type { RootStackParamList } from '../../navigation/types';
 import { useAccountStore } from '../../stores/account-store';
 import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../../stores/send-queue-store';
 import {
-  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, ownerStillActive, OutboxCheckError,
+  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, quickReplyOwnerActive, OutboxCheckError,
 } from '../../lib/queue-send';
 import { generateUUID } from '../../lib/uuid';
 import { generateMessageId } from '../../lib/email-threading';
@@ -40,6 +41,12 @@ import { buildQuoteHeader, quoteHeaderLabels } from '../../lib/quote-header';
 interface Props {
   email: Email;
   jmapAccountId?: string;
+  /**
+   * The app account the viewer was opened in, which owns `email`. The box can
+   * remount after an account switch (the message cache is per account), and
+   * must still belong to the message it replies to, not the account now shown.
+   */
+  ownerAppAccountId?: string;
   /** Open the full composer with the draft text carried over. */
   onMoreOptions: (draft: string) => void;
   /** Reflect `$answered` in the caller's cache. */
@@ -51,7 +58,7 @@ interface Props {
  * to the sender with the original quoted, sent through the identity that
  * received the message. "More options" hands the text to the full composer.
  */
-export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: Props) {
+export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreOptions, onSent }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -66,19 +73,26 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const [sending, setSending] = React.useState(false);
   const sendingRef = React.useRef(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  // The app account this box was opened in. A reply is sent (or queued) only
-  // while it is still the active one: the message and its ids belong to it.
-  const ownerRef = React.useRef(useAuthStore.getState().activeAccountId);
+  // The app account that owns the message: the viewer's when given, else the
+  // one active as the box opened. A reply is sent (or queued) only while that
+  // account is both the active one and the one the app shows: the message and
+  // its ids belong to it.
+  const ownerRef = React.useRef(ownerAppAccountId ?? useAuthStore.getState().activeAccountId);
   // The Message-ID of the reply being written, kept across a failed attempt
   // and dropped once it was sent or queued.
   const messageIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => { setText(''); messageIdRef.current = null; }, [email.id]);
 
-  const ownerActiveNow = () => ownerStillActive(ownerRef.current, useAuthStore.getState().activeAccountId);
-  const alertOwnerChanged = () => {
+  const ownerActiveNow = () => quickReplyOwnerActive(
+    ownerRef.current, useAuthStore.getState().activeAccountId, useEmailStore.getState().activeAccountId,
+  );
+  const ownerLabel = () => {
     const entry = ownerRef.current ? useAccountStore.getState().getAccountById(ownerRef.current) : undefined;
-    const account = entry?.email || entry?.username || ownerRef.current || '';
+    return entry?.email || entry?.username || ownerRef.current || '';
+  };
+  const alertOwnerChanged = () => {
+    const account = ownerLabel();
     Alert.alert(
       t('email_composer.account_switched_title', 'Account changed'),
       t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account }),
@@ -213,29 +227,34 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           } else if (err instanceof AlreadyQueuedError) {
             toastAlreadyQueued();
           } else {
-            const { title, message } = sendErrorAlert(err, t);
+            const { title, message } = sendErrorAlert(err, t, { account: ownerLabel() });
             Alert.alert(title, message);
           }
         }
         return;
       }
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
+      // The send and the `$answered` flag after it on one connection: the
+      // owner's, checked active just above. Flagged after a switch, the
+      // replied-to id would name the other account's message.
+      const at = opScope(jmapAccountId);
       const result = await sendEmail(
         outgoing,
         identity.id,
         sent.originalId ?? sent.id,
         holdFor,
-        { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: jmapAccountId },
+        { draftsMailboxId: drafts ? (drafts.originalId ?? drafts.id) : undefined, accountId: at },
       );
       // Held for the undo-send delay: the undo bar offers Undo / Send now.
       // Recorded before the flag below so its round trip doesn't eat the window.
       useSendUndoStore.getState().recordHeldSend(result, holdFor, {
         identityId: identity.id,
+        appAccountId: ownerAppAccountId ?? undefined,
         accountId: jmapAccountId,
         from: [{ name: identity.name, email: identity.email }],
       });
       try {
-        await patchKeywordsForEmails([email.id], { $answered: true }, jmapAccountId);
+        await patchKeywordsForEmails([email.id], { $answered: true }, at);
       } catch { /* the reply is out; the flag is cosmetic */ }
       onSent?.({ ...email, keywords: { ...email.keywords, $answered: true } });
       setText('');
@@ -254,7 +273,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
       if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
     } catch (err) {
-      const { title, message } = sendErrorAlert(err, t);
+      const { title, message } = sendErrorAlert(err, t, { account: ownerLabel() });
       Alert.alert(title, message);
     } finally {
       setSending(false);

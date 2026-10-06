@@ -13,6 +13,7 @@ import {
   type EmailFilenameOptions,
 } from './download-filename';
 import { getClientCertAlias, secureFetch } from './client-cert';
+import { observeServerFetch } from './server-reachability';
 import { sniffImageMime } from './email-html';
 
 const RFC822 = 'message/rfc822';
@@ -175,12 +176,17 @@ function isUnauthorizedError(err: unknown): boolean {
 // be refreshed here: proactively before the header is captured, and once
 // reactively when the server still answers 401 (a token that expired between
 // the check and the request).
+// `gen` is the connection `url` came from (taken in the same tick); the
+// header is read from that connection right before each request.
 async function downloadInto(
   url: string,
+  gen: number,
   dest: File,
   parent: Directory,
 ): Promise<File> {
-  await jmapClient.ensureFreshToken();
+  // Only the connection `url` came from: a proactive refresh after a switch
+  // would refresh the new account's token.
+  if (jmapClient.isCurrent(gen)) await jmapClient.ensureFreshToken();
   const alias = await getClientCertAlias();
   ensureDir(parent);
   const attempt = async (): Promise<File> => {
@@ -189,14 +195,14 @@ async function downloadInto(
       // have a fully-typed `File` referencing the same uri, so we ignore the
       // return value and re-use our `dest` reference for downstream code.
       await File.downloadFileAsync(url, dest, {
-        headers: { Authorization: jmapClient.authHeader },
+        headers: { Authorization: jmapClient.authHeaderFor(gen) },
         idempotent: true,
       });
       return dest;
     }
-    const response = await secureFetch(url, {
-      headers: { Authorization: jmapClient.authHeader },
-    });
+    const response = await observeServerFetch(secureFetch(url, {
+      headers: { Authorization: jmapClient.authHeaderFor(gen) },
+    }), undefined, () => jmapClient.isCurrent(gen));
     if (!response.ok) {
       throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: response.status }));
     }
@@ -209,8 +215,11 @@ async function downloadInto(
   try {
     return await attempt();
   } catch (err) {
-    if (isUnauthorizedError(err) && (await jmapClient.forceRefreshToken())) {
-      return attempt();
+    if (isUnauthorizedError(err)) {
+      // A 401 from a connection switched away from: refreshing now would
+      // refresh the new account's token. Stop (StaleLoadError) instead.
+      jmapClient.assertCurrent(gen);
+      if (await jmapClient.forceRefreshToken()) return attempt();
     }
     throw err;
   }
@@ -227,7 +236,7 @@ export async function cacheBlobFile(
   const dir = exportsDir();
   const dest = new File(dir, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
-  return downloadInto(url, dest, dir);
+  return downloadInto(url, jmapClient.requestContext().gen, dest, dir);
 }
 
 export async function shareAttachment(
@@ -282,7 +291,7 @@ export async function downloadAttachment(
   const mimeType = type || 'application/octet-stream';
   const dest = new File(Paths.document, filename);
   const url = getDownloadUrl(blobId, filename, mimeType, accountId);
-  const downloaded = await downloadInto(url, dest, Paths.document);
+  const downloaded = await downloadInto(url, jmapClient.requestContext().gen, dest, Paths.document);
   await offerSavedFile(downloaded, filename, mimeType);
 }
 
@@ -337,8 +346,9 @@ export async function cachePreviewFile(
   const dir = newPreviewDir();
   const filename = safeAttachmentName(name, type);
   const url = getDownloadUrl(blobId, filename, type || 'application/octet-stream', accountId);
+  const gen = jmapClient.requestContext().gen;
   try {
-    return await downloadInto(url, new File(dir, filename), dir);
+    return await downloadInto(url, gen, new File(dir, filename), dir);
   } catch (err) {
     try {
       if (dir.exists) dir.delete();
@@ -436,11 +446,14 @@ export async function shareAttachmentViaSheet(
   await shareLocalFile(downloaded, mimeType, filename, { forceSheet: true });
 }
 
-async function authedBlobFetch(url: string): Promise<Response> {
-  await jmapClient.ensureFreshToken();
-  let r = await secureFetch(url, { headers: { Authorization: jmapClient.authHeader } });
+// `gen`: the connection `url` came from, taken in the same tick.
+async function authedBlobFetch(url: string, gen: number): Promise<Response> {
+  if (jmapClient.isCurrent(gen)) await jmapClient.ensureFreshToken();
+  let r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
+  // Refresh only the connection `url` came from (see downloadInto).
+  if (r.status === 401) jmapClient.assertCurrent(gen);
   if (r.status === 401 && (await jmapClient.forceRefreshToken())) {
-    r = await secureFetch(url, { headers: { Authorization: jmapClient.authHeader } });
+    r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
   }
   if (!r.ok) throw new Error(t('files.download_failed_status', 'Download failed (HTTP {status})', { status: r.status }));
   return r;
@@ -448,7 +461,7 @@ async function authedBlobFetch(url: string): Promise<Response> {
 
 export async function fetchRawEmail(blobId: string, accountId?: string): Promise<string> {
   const url = getDownloadUrl(blobId, 'email.eml', RFC822, accountId);
-  const r = await authedBlobFetch(url);
+  const r = await authedBlobFetch(url, jmapClient.requestContext().gen);
   return r.text();
 }
 
@@ -460,7 +473,7 @@ export async function fetchBlobBytes(
   accountId?: string,
 ): Promise<Uint8Array> {
   const url = getDownloadUrl(blobId, name ?? 'blob', type ?? 'application/octet-stream', accountId);
-  const r = await authedBlobFetch(url);
+  const r = await authedBlobFetch(url, jmapClient.requestContext().gen);
   return new Uint8Array(await r.arrayBuffer());
 }
 

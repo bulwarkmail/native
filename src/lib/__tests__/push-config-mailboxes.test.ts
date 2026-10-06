@@ -66,6 +66,24 @@ describe('push filter folders', () => {
   });
 });
 
+describe('push filter from explicit folders', () => {
+  it("uses the given account's folders, not the singleton's or the store's", async () => {
+    const provider = vi.fn(async () => null);
+    provideLoadedMailboxes(provider);
+    const config = await buildEmailPushConfig(true, {
+      primary: 'bob',
+      mailboxes: [{ id: 'bob-inbox', role: 'inbox', accountId: 'bob' }] as never,
+    });
+    expect(provider).not.toHaveBeenCalled();
+    expect(getMailboxes).not.toHaveBeenCalled();
+    expect(Object.keys(config)).toEqual(['bob']);
+    expect(config.bob.filter).toEqual({
+      operator: 'AND',
+      conditions: [{ notKeyword: '$junk' }, { inMailbox: 'bob-inbox' }],
+    });
+  });
+});
+
 describe('inbox-only push filter', () => {
   const mailboxes = [
     { id: 'inbox', role: 'inbox', accountId: 'jmap-primary' },

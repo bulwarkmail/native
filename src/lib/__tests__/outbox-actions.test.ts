@@ -16,8 +16,10 @@ vi.mock('../active-client-account', () => ({ clientServesActiveAccount: () => st
 const proof = vi.hoisted(() => ({ result: 'not_found' as 'not_found' | 'already_sent' | Error }));
 vi.mock('../send-queue-replay', () => {
   class ProofLookupError extends Error { constructor() { super('lookup'); this.name = 'ProofLookupError'; } }
+  class ResendTooRecentError extends ProofLookupError { constructor() { super(); this.name = 'ResendTooRecentError'; } }
   return {
     ProofLookupError,
+    ResendTooRecentError,
     flushSendQueue: vi.fn(async () => { calls.push('flush'); }),
     checkSentBeforeResend: vi.fn(async () => {
       calls.push('proof');
@@ -41,7 +43,7 @@ vi.mock('../../stores/send-queue-store', () => ({
 }));
 
 import { requeueAndFlush, saveEntryAsDraft, sendAgain, outboxErrorMessage, OutboxActionError } from '../outbox-actions';
-import { ProofLookupError } from '../send-queue-replay';
+import { ProofLookupError, ResendTooRecentError } from '../send-queue-replay';
 import { createDraft } from '../../api/email';
 
 const e = (s: string) => ({ id: '1', appAccountId: 'A', jmapAccountId: 'jA', state: s, outgoing: { subject: 'x' } }) as never;
@@ -179,6 +181,18 @@ describe('send again (uncertain)', () => {
     expect(err).toBeInstanceOf(OutboxActionError);
     expect(err.code).toBe('proof_check_failed');
     expect(outboxErrorMessage(err)).toMatchObject({ key: 'outbox.error.proof_check_failed' });
+    expect(calls).toEqual(['proof']);
+  });
+
+  it('an attempt too recent to check gets its own code and text, and does nothing', async () => {
+    proof.result = new ResendTooRecentError();
+    const err = await sendAgain(e('uncertain')).catch((x) => x);
+    expect(err).toBeInstanceOf(OutboxActionError);
+    expect(err.code).toBe('too_recent');
+    expect(outboxErrorMessage(err)).toEqual({
+      key: 'outbox.error.too_recent',
+      fallback: 'This message was sent moments ago. Wait a minute, then check Sent before sending it again.',
+    });
     expect(calls).toEqual(['proof']);
   });
 

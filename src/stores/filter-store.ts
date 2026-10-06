@@ -50,6 +50,10 @@ interface FilterStore {
   clearState: () => void;
 }
 
+// Latest fetchFilters call per account: an older reply must not land after a
+// newer one (a refetch after an Undo would bring the undone rule back).
+const fetchGeneration = new Map<string, number>();
+
 export const useFilterStore = create<FilterStore>()((set, get) => ({
   rules: [],
   isLoading: false,
@@ -75,7 +79,10 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     set({ isLoading: true, error: null, isSupported: true, selectedAccountId: resolvedId });
     // A reply for an account the user already switched away from must not
     // land in the store: the next save would write it into the other account.
-    const stale = () => get().selectedAccountId !== resolvedId;
+    const generation = (fetchGeneration.get(resolvedId) ?? 0) + 1;
+    fetchGeneration.set(resolvedId, generation);
+    const stale = () =>
+      get().selectedAccountId !== resolvedId || fetchGeneration.get(resolvedId) !== generation;
     try {
       const capabilities = getSieveCapabilities(resolvedId);
       set({ sieveCapabilities: capabilities });

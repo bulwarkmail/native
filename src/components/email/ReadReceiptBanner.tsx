@@ -6,7 +6,8 @@ import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useEmailStore } from '../../stores/email-store';
+import { useEmailStore, requireShownAccountScope, isShownAccount } from '../../stores/email-store';
+import type { OpScope } from '../../api/op-scope';
 import { toast } from '../../stores/toast-store';
 import { sendReadReceipt, patchKeywordsForEmails } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
@@ -18,6 +19,11 @@ interface Props {
   /** Bare address from Disposition-Notification-To. */
   requestedBy: string;
   jmapAccountId?: string;
+  /**
+   * The app account the message is shown in (the viewer's). Defaults to the
+   * one shown when the banner mounted.
+   */
+  appAccountId?: string;
   /** Role of the folder the message was opened from (receipts only in received folders). */
   currentMailboxRole?: string | null;
   /** The message is on screen, not in a neighbour page the pager pre-renders. */
@@ -37,7 +43,7 @@ const autoAttempted = new Set<string>();
  * the request is suppressed in every client, not just here. Never offered
  * for the user's own copies, trash or spam.
  */
-export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMailboxRole, active, onHandled }: Props) {
+export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, appAccountId, currentMailboxRole, active, onHandled }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -47,6 +53,12 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [busy, setBusy] = React.useState(false);
   const [handledLocally, setHandledLocally] = React.useState(false);
+  // The app account this message was shown in. The identities and Sent folder
+  // read here are the shown account's, and the receipt and `$mdnsent` name
+  // the message by an id that repeats in other accounts, so both go out only
+  // while that account is shown and served, on a scope taken then.
+  const [mountedIn] = React.useState(() => useEmailStore.getState().activeAccountId);
+  const ownerAppAccountId = appAccountId ?? mountedIn;
 
   React.useEffect(() => { setHandledLocally(false); }, [email.id]);
   // Held for the account after the first read, even when it has none.
@@ -63,15 +75,17 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
     && eligibleFolder
     && !!identity;
 
-  const flagSent = React.useCallback(async () => {
+  const flagSent = React.useCallback(async (at?: OpScope) => {
     try {
-      await patchKeywordsForEmails([email.id], { $mdnsent: true }, jmapAccountId);
+      await patchKeywordsForEmails([email.id], { $mdnsent: true }, at ?? requireShownAccountScope(ownerAppAccountId, jmapAccountId));
     } catch { /* best effort - the local flag still hides the banner */ }
     onHandled({ ...email, keywords: { ...email.keywords, $mdnsent: true } });
-  }, [email, jmapAccountId, onHandled]);
+  }, [email, jmapAccountId, ownerAppAccountId, onHandled]);
 
   const send = React.useCallback(async (automatic: boolean) => {
     if (!identity) return;
+    // Never from another account's identity: refused once another is shown.
+    const at = requireShownAccountScope(ownerAppAccountId, jmapAccountId);
     // Sent of the account the receipt is submitted from: the message's.
     const scoped = mailboxesOfAccount(mailboxes, jmapAccountId);
     const sent = scoped.find((m) => m.role === 'sent');
@@ -82,7 +96,7 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
       fromName: identity.name,
       identityId: identity.id,
       sentMailboxId: sent.originalId ?? sent.id,
-      accountId: jmapAccountId,
+      accountId: at,
       originalMessageId: email.messageId,
       originalSubject: email.subject,
       originalRecipient: identity.email,
@@ -94,12 +108,12 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
         { recipient: identity.email },
       ),
     });
-    await flagSent();
-  }, [identity, mailboxes, requestedBy, jmapAccountId, email.messageId, email.subject, t, flagSent]);
+    await flagSent(at);
+  }, [identity, mailboxes, requestedBy, jmapAccountId, ownerAppAccountId, email.messageId, email.subject, t, flagSent]);
 
   // "always" mode: auto-send once when the message is actually displayed.
   React.useEffect(() => {
-    if (readReceiptResponse !== 'always' || !shouldOffer || !active) return;
+    if (readReceiptResponse !== 'always' || !shouldOffer || !active || !isShownAccount(ownerAppAccountId)) return;
     const key = `${jmapAccountId ?? jmapClient.accountId}:${email.id}`;
     if (autoAttempted.has(key)) return;
     autoAttempted.add(key);
@@ -112,7 +126,7 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, currentMa
         err instanceof Error ? err.message : String(err),
       );
     });
-  }, [readReceiptResponse, shouldOffer, active, jmapAccountId, email.id, send, t]);
+  }, [readReceiptResponse, shouldOffer, active, ownerAppAccountId, jmapAccountId, email.id, send, t]);
 
   if (!shouldOffer || readReceiptResponse === 'always') return null;
 

@@ -30,7 +30,7 @@ import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
   useEmailStore, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
-  type EmailFilters,
+  requireShownAccountScope, type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
@@ -39,6 +39,10 @@ import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { withFailureToast } from '../lib/action-failure';
+import { isStaleLoad } from '../lib/network-error';
+import {
+  selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection, type AccountSelection,
+} from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
@@ -408,8 +412,6 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     [mailboxes, currentMailboxId],
   );
   const currentRole = currentMailbox?.role ?? null;
-  // The JMAP account behind the open folder (undefined = the user's own).
-  const currentOwnerAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
 
@@ -519,6 +521,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             ? t('email_list.import.none', 'No messages were imported.')
             : t('email_list.import.success', '{count, plural, one {# message imported.} other {# messages imported.}}', { count: imported }),
       );
+    } catch (err) {
+      // Refused before anything was sent (the account is still loading).
+      Alert.alert(t('email_list.import.title', 'Import'), err instanceof Error ? err.message : String(err));
     } finally {
       setImporting(false);
     }
@@ -532,8 +537,19 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
   const [rulesOpen, setRulesOpen] = React.useState(false);
 
-  // Selection state
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  // Selection state, kept with the account it was made in: once another
+  // account is shown it selects nothing (row keys repeat across accounts).
+  const activeAccountId = useEmailStore((s) => s.activeAccountId);
+  const [selection, setSelection] = React.useState<AccountSelection>(
+    () => ({ accountId: useEmailStore.getState().activeAccountId, ids: new Set() }),
+  );
+  const selectedIds = React.useMemo(() => selectionIn(selection, activeAccountId), [selection, activeAccountId]);
+  const setSelectedIds = React.useCallback(
+    (next: ReadonlySet<string> | ((prev: ReadonlySet<string>) => ReadonlySet<string>)) => {
+      setSelection((prev) => updateSelection(prev, useEmailStore.getState().activeAccountId, next));
+    },
+    [],
+  );
   const selectionMode = selectedIds.size > 0;
   const allSelected =
     visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(rowKeyOf(e)));
@@ -730,6 +746,31 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+  // One bulk action at a time: a second tap on a slow one (a cross-account
+  // move) must not run it again.
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+  const bulkBusyRef = React.useRef(false);
+  // The acted-on ids leave the selection up front; a failure puts exactly those
+  // back (those still listed) so the user can retry, keeping later changes.
+  const runBulk = async (run: () => Promise<unknown>, failureTitle: string) => {
+    if (bulkBusyRef.current) return;
+    bulkBusyRef.current = true;
+    setBulkBusy(true);
+    const acted = new Set(selectedIds);
+    const actedIn = useEmailStore.getState().activeAccountId;
+    const pending = run();
+    setSelectedIds((prev) => selectionWithout(prev, acted));
+    try {
+      if (!(await settled(pending, failureTitle))) {
+        // Not into another account the user switched to meanwhile.
+        const { activeAccountId: shownNow, emails: rows } = useEmailStore.getState();
+        setSelection((prev) => selectionAfterFailureIn(prev, actedIn, shownNow, acted, new Set(rows.map(rowKeyOf))));
+      }
+    } finally {
+      bulkBusyRef.current = false;
+      setBulkBusy(false);
+    }
+  };
 
   const toggleSelectAllVisible = React.useCallback(() => {
     setSelectedIds((prev) => {
@@ -742,7 +783,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // Clear selection when mailbox changes
   React.useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentMailboxId]);
+  }, [currentMailboxId, setSelectedIds]);
+  // And when the account changes: `selectionIn` already shows none for the
+  // new one; this keeps the old one from coming back on a switch back.
+  React.useEffect(() => {
+    setSelection({ accountId: activeAccountId, ids: new Set() });
+  }, [activeAccountId]);
 
   // `selectedIds` holds the representative rows' keys (`rowKeyOf`, unique
   // across the accounts of a list spanning accounts); every action expands to
@@ -765,13 +811,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   // One Email/set for the whole selection, not a request per message.
   const handleBulkMarkReadToggle = async () => {
-    await withFailureToast(setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead), t('notifications.error_updating', 'Failed to update email'));
-    clearSelection();
+    await runBulk(() => setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead), t('notifications.error_updating', 'Failed to update email'));
   };
 
   const handleBulkStar = async () => {
-    await withFailureToast(setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred), t('notifications.error_updating', 'Failed to update email'));
-    clearSelection();
+    await runBulk(() => setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred), t('notifications.error_updating', 'Failed to update email'));
   };
 
   const handleBulkDelete = async () => {
@@ -788,20 +832,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       permanentlyDeleteJunk,
     });
     if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
-    await withFailureToast(deleteEmailsBatch(ids, trash.id, currentMailboxId), t('notifications.delete_failed', 'Failed to delete'));
-    clearSelection();
+    await runBulk(() => deleteEmailsBatch(ids, trash.id, currentMailboxId), t('notifications.delete_failed', 'Failed to delete'));
   };
 
   const handleBulkArchive = async () => {
-    await withFailureToast(archiveEmailsBatch(selectedMessageIds), t('notifications.move_failed', 'Move failed'));
-    clearSelection();
+    await runBulk(() => archiveEmailsBatch(selectedMessageIds), t('notifications.move_failed', 'Move failed'));
   };
 
   const handleBulkSpam = async () => {
     const ids = selectedMessageIds;
-    if (inJunk) await withFailureToast(unmarkSpam(ids), t('email_viewer.spam.error', 'Failed to report spam'));
-    else await withFailureToast(markSpam(ids), t('email_viewer.spam.error', 'Failed to report spam'));
-    clearSelection();
+    const title = t('email_viewer.spam.error', 'Failed to report spam');
+    await runBulk(() => (inJunk ? unmarkSpam(ids) : markSpam(ids)), title);
   };
 
   const canArchiveSelection =
@@ -812,8 +853,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const handleBatchMovePick = (toId: string) => {
     const ids = selectedMessageIds;
     setBatchMoveOpen(false);
-    clearSelection();
-    void withFailureToast(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
+    void runBulk(() => moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
   };
 
   // A copy leaves the selection (and the messages) as they are, like the webmail.
@@ -952,6 +992,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (currentRole === 'trash' || inJunk) && !!currentMailbox && (currentMailbox.totalEmails > 0 || emails.length > 0);
   const handleEmptyFolder = () => {
     if (!currentMailbox || emptying) return;
+    // The account whose folder is on screen now. The emptying is bound to it
+    // and to the connection serving it at the confirm: during an account
+    // switch the list shows one account while the client serves another,
+    // whose Trash shares this folder's id (Stalwart numbers per account).
+    const owner = activeAccountId;
+    const folder = currentMailbox;
     Alert.alert(
       t('email_list.empty_folder.confirm_title', 'Empty folder'),
       t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
@@ -961,13 +1007,22 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           text: t('email_list.empty_folder.confirm_button', 'Empty folder'),
           style: 'destructive',
           onPress: () => {
+            let at;
+            try {
+              at = requireShownAccountScope(owner, folder.isShared ? folder.accountId : undefined);
+            } catch (err) {
+              Alert.alert(t('email_list.error', 'Error'), err instanceof Error ? err.message : String(err));
+              return;
+            }
             setEmptying(true);
-            void apiEmptyMailbox(currentMailbox.originalId ?? currentMailbox.id, currentOwnerAccountId)
+            void apiEmptyMailbox(folder.originalId ?? folder.id, at)
               .then(async () => {
                 clearSelection();
                 await Promise.all([refreshEmails(), fetchMailboxes()]);
               })
               .catch((err: unknown) => {
+                // Stopped before sending: the client moved to another account.
+                if (isStaleLoad(err)) return;
                 Alert.alert(
                   t('email_list.error', 'Error'),
                   err instanceof Error ? err.message : t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
@@ -1014,6 +1069,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             {t('email_list.batch_actions.selected_messages', '{count, plural, one {1 email} other {# emails}} selected', { count: selectedIds.size })}
           </Text>
           <Pressable
+            disabled={bulkBusy}
             onPress={() => { void handleBulkStar(); }}
             style={styles.headerButton}
             hitSlop={6}
@@ -1027,6 +1083,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             />
           </Pressable>
           <Pressable
+            disabled={bulkBusy}
             onPress={() => { void handleBulkMarkReadToggle(); }}
             style={styles.headerButton}
             hitSlop={6}
@@ -1042,6 +1099,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             )}
           </Pressable>
           <Pressable
+            disabled={bulkBusy}
             onPress={() => setTagSheetOpen(true)}
             style={styles.headerButton}
             hitSlop={6}
@@ -1051,6 +1109,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             <Tag size={20} color={c.text} />
           </Pressable>
           <Pressable
+            disabled={bulkBusy}
             onPress={() => setBatchMoveOpen(true)}
             style={styles.headerButton}
             hitSlop={6}
@@ -1060,6 +1119,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             <FolderInput size={20} color={c.text} />
           </Pressable>
           <Pressable
+            disabled={bulkBusy}
             onPress={() => setBatchCopyOpen(true)}
             style={styles.headerButton}
             hitSlop={6}
@@ -1070,7 +1130,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           </Pressable>
           {canSpamSelection && (
             <Pressable
-              onPress={() => { void handleBulkSpam(); }}
+              disabled={bulkBusy}
+            onPress={() => { void handleBulkSpam(); }}
               style={styles.headerButton}
               hitSlop={6}
               accessibilityRole="button"
@@ -1085,7 +1146,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           )}
           {canArchiveSelection && (
             <Pressable
-              onPress={() => { void handleBulkArchive(); }}
+              disabled={bulkBusy}
+            onPress={() => { void handleBulkArchive(); }}
               style={styles.headerButton}
               hitSlop={6}
               accessibilityRole="button"
@@ -1106,6 +1168,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             </Pressable>
           )}
           <Pressable
+            disabled={bulkBusy}
             onPress={() => { void handleBulkDelete(); }}
             style={styles.headerButton}
             hitSlop={6}

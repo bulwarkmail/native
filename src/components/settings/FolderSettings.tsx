@@ -20,9 +20,10 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { ownMailboxes, mailboxSubtreeIds } from '../../lib/mailbox-tree';
 import { localizeMailboxName } from '../../lib/mailbox-label';
-import { useEmailStore } from '../../stores/email-store';
+import { useEmailStore, requireShownAccountScope } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { createMailbox, updateMailbox, deleteMailbox } from '../../api/email';
+import { inAccount } from '../../api/op-scope';
 import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
 
@@ -45,9 +46,12 @@ const NO_PARENT = '__root__';
 const OWN_ACCOUNT = '__own__';
 const NO_ROLE = '__none__';
 
+// `owner`: the app account whose folders the editor was opened on. During an
+// account switch the list shows one account while the client serves another,
+// whose folders share ids, so a save runs only on a scope taken for `owner`.
 type Editor =
-  | { kind: 'create' }
-  | { kind: 'edit'; mailbox: Mailbox };
+  | { kind: 'create'; owner: string | null }
+  | { kind: 'edit'; mailbox: Mailbox; owner: string | null };
 
 /** "Parent / Child" path used to label folders in the pickers. */
 function pathOf(all: Mailbox[], mb: Mailbox, t: (k: string, f?: string) => string): string {
@@ -69,6 +73,7 @@ export function FolderSettings() {
   const allMailboxes = useEmailStore((s) => s.mailboxes);
   const mailboxes = React.useMemo(() => ownMailboxes(allMailboxes), [allMailboxes]);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
+  const shownAccountId = useEmailStore((s) => s.activeAccountId);
 
   const [editor, setEditor] = useState<Editor | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -119,7 +124,7 @@ export function FolderSettings() {
   const totalUnread = mailboxes.reduce((sum, m) => sum + (m.unreadEmails ?? 0), 0);
 
   const openCreate = () => {
-    setEditor({ kind: 'create' });
+    setEditor({ kind: 'create', owner: shownAccountId });
     setDraftName('');
     setDraftParent(NO_PARENT);
     setDraftAccount(OWN_ACCOUNT);
@@ -127,7 +132,7 @@ export function FolderSettings() {
   };
 
   const openEdit = (mailbox: Mailbox) => {
-    setEditor({ kind: 'edit', mailbox });
+    setEditor({ kind: 'edit', mailbox, owner: shownAccountId });
     setDraftName(mailbox.name);
     setDraftParent(mailbox.parentId ?? NO_PARENT);
     setDraftAccount(OWN_ACCOUNT);
@@ -142,9 +147,17 @@ export function FolderSettings() {
       Alert.alert(t('settings.folders.name_required', 'Name required'));
       return;
     }
+    if (!editor) return;
+    let at;
+    try {
+      at = requireShownAccountScope(editor.owner);
+    } catch (err) {
+      Alert.alert(t('settings.folders.save_failed', 'Save failed'), err instanceof Error ? err.message : String(err));
+      return;
+    }
     setSaving(true);
     try {
-      if (editor?.kind === 'create') {
+      if (editor.kind === 'create') {
         const accountId = draftAccount === OWN_ACCOUNT ? undefined : draftAccount;
         const parentId = draftParent === NO_PARENT ? null : draftParent;
         const raw = parentId
@@ -152,9 +165,9 @@ export function FolderSettings() {
           : null;
         await createMailbox(
           { name, parentId: raw, ...(draftRole !== NO_ROLE ? { role: draftRole } : {}) },
-          accountId,
+          inAccount(at, accountId),
         );
-      } else if (editor?.kind === 'edit') {
+      } else {
         const mb = editor.mailbox;
         const changes: { name?: string; parentId?: string | null; role?: string | null } = {};
         if (name !== mb.name && !mb.role) changes.name = name;
@@ -162,7 +175,7 @@ export function FolderSettings() {
         if ((mb.parentId ?? null) !== nextParent) changes.parentId = nextParent;
         const nextRole = draftRole === NO_ROLE ? null : draftRole;
         if ((mb.role ?? null) !== nextRole) changes.role = nextRole;
-        if (Object.keys(changes).length > 0) await updateMailbox(mb.id, changes);
+        if (Object.keys(changes).length > 0) await updateMailbox(mb.id, changes, at);
       }
       closeEditor();
       // A reparent moves the whole subtree: re-read the tree rather than
@@ -176,6 +189,7 @@ export function FolderSettings() {
   };
 
   const confirmDelete = (mailbox: Mailbox) => {
+    const owner = shownAccountId;
     if (mailbox.role) {
       Alert.alert(t('settings.folders.cannot_delete', 'Cannot delete'), t('settings.folders.system_folder_delete', 'System folders cannot be removed.'));
       return;
@@ -187,7 +201,7 @@ export function FolderSettings() {
         t('settings.folders.not_empty_message', `"${name}" contains ${mailbox.totalEmails} emails. Delete anyway?`, { name, count: mailbox.totalEmails }),
         [
           { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-          { text: t('common.delete', 'Delete'), style: 'destructive', onPress: () => { void performDelete(mailbox, true); } },
+          { text: t('common.delete', 'Delete'), style: 'destructive', onPress: () => { void performDelete(mailbox, true, owner); } },
         ],
       );
       return;
@@ -197,15 +211,22 @@ export function FolderSettings() {
       t('mailbox_context_menu.delete_confirm_message', `Permanently delete the folder "${name}"? This action cannot be undone.`, { name }),
       [
         { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('common.delete', 'Delete'), style: 'destructive', onPress: () => { void performDelete(mailbox, false); } },
+        { text: t('common.delete', 'Delete'), style: 'destructive', onPress: () => { void performDelete(mailbox, false, owner); } },
       ],
     );
   };
 
-  const performDelete = async (mailbox: Mailbox, removeEmails: boolean) => {
+  const performDelete = async (mailbox: Mailbox, removeEmails: boolean, owner: string | null) => {
+    let at;
+    try {
+      at = requireShownAccountScope(owner);
+    } catch (err) {
+      Alert.alert(t('mailbox_context_menu.toast_error_delete', 'Failed to delete folder'), err instanceof Error ? err.message : String(err));
+      return;
+    }
     setBusyId(mailbox.id);
     try {
-      await deleteMailbox(mailbox.id, undefined, { onDestroyRemoveEmails: removeEmails });
+      await deleteMailbox(mailbox.id, at, { onDestroyRemoveEmails: removeEmails });
       await fetchMailboxes();
     } catch (err) {
       Alert.alert(t('mailbox_context_menu.toast_error_delete', 'Failed to delete folder'), err instanceof Error ? err.message : String(err));

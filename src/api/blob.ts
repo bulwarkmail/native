@@ -1,7 +1,9 @@
 import { File } from 'expo-file-system';
 import type * as LegacyFileSystemTypes from 'expo-file-system/legacy';
-import { jmapClient } from './jmap-client';
+import { jmapClient, StaleLoadError } from './jmap-client';
+import { opScope, type AccountRef } from './op-scope';
 import { getClientCertAlias, secureFetch } from '../lib/client-cert';
+import { observeServerFetch, reportServerResponse } from '../lib/server-reachability';
 
 // The legacy expo-file-system API (streaming upload tasks with progress and
 // cancellation) is required lazily: it touches native globals at import time,
@@ -65,10 +67,28 @@ function parseUploadResponse(
   throw new Error('Upload succeeded but response did not include a blobId');
 }
 
-function uploadUrlFor(accountId: string): string {
-  const session = jmapClient.currentSession;
-  if (!session) throw new Error('Not connected');
-  return session.uploadUrl.replace('{accountId}', encodeURIComponent(accountId));
+// The upload URL and the connection it came from; the header is taken from
+// that same connection right before the request (`authHeaderFor`), so an
+// account switch in between can't send one account's header to the other's
+// server.
+interface UploadTarget {
+  url: string;
+  gen: number;
+}
+
+/**
+ * The upload URL for JMAP account `accountId` on connection `gen` (the
+ * operation's, see `OpScope`). Throws `StaleLoadError`, sending nothing, once
+ * another connection is live or when its session has no such account: bytes
+ * read from one account must never be uploaded to another's server.
+ */
+function uploadTargetFor(accountId: string, gen: number | undefined): UploadTarget {
+  // The URL and the generation from one connection.
+  const ctx = jmapClient.requestContext();
+  if (gen !== undefined && gen !== ctx.gen) throw new StaleLoadError();
+  if (!ctx.uploadUrl) throw new Error('Not connected');
+  jmapClient.assertAccountInSession(ctx.gen, accountId);
+  return { url: ctx.uploadUrl.replace('{accountId}', encodeURIComponent(accountId)), gen: ctx.gen };
 }
 
 // Upload a local file to the JMAP upload endpoint.
@@ -85,7 +105,7 @@ export async function uploadBlob(
   options: UploadBlobOptions = {},
 ): Promise<UploadResult> {
   const accountId = jmapClient.accountId;
-  const uploadUrl = uploadUrlFor(accountId);
+  const uploadUrl = uploadTargetFor(accountId, undefined);
   const contentType = type || 'application/octet-stream';
   const { signal } = options;
   if (signal?.aborted) throw abortError();
@@ -144,19 +164,19 @@ async function uploadFileStreamed(
   fileUri: string,
   contentType: string,
   accountId: string,
-  uploadUrl: string,
+  uploadUrl: UploadTarget,
   { onProgress, signal }: UploadBlobOptions,
 ): Promise<UploadResult> {
   if (signal?.aborted) throw abortError();
   const task = LegacyFileSystem.createUploadTask(
-    uploadUrl,
+    uploadUrl.url,
     fileUri,
     {
       httpMethod: 'POST',
       uploadType: LegacyFileSystem.FileSystemUploadType.BINARY_CONTENT,
       headers: {
         'Content-Type': contentType,
-        Authorization: jmapClient.authHeader,
+        Authorization: jmapClient.authHeaderFor(uploadUrl.gen),
       },
     },
     onProgress
@@ -173,6 +193,9 @@ async function uploadFileStreamed(
     signal?.removeEventListener('abort', onAbort);
   }
   if (signal?.aborted || !result) throw abortError();
+  // The server answered (whatever the status). A failed task is not reported
+  // as unreachable: its error does not say whether the request left.
+  if (jmapClient.isCurrent(uploadUrl.gen)) reportServerResponse();
 
   if (result.status < 200 || result.status >= 300) {
     const detail = (result.body || '').slice(0, 300);
@@ -192,7 +215,7 @@ async function uploadBlobBuffered(
   uri: string,
   contentType: string,
   accountId: string,
-  uploadUrl: string,
+  uploadUrl: UploadTarget,
   signal?: AbortSignal,
 ): Promise<UploadResult> {
   // Read via the file-system API so this works for both `file://` (image
@@ -203,15 +226,15 @@ async function uploadBlobBuffered(
   const bytes = await new File(uri).bytes();
   if (signal?.aborted) throw abortError();
 
-  const response = await secureFetch(uploadUrl, {
+  const response = await observeServerFetch(secureFetch(uploadUrl.url, {
     method: 'POST',
     headers: {
       'Content-Type': contentType,
-      Authorization: jmapClient.authHeader,
+      Authorization: jmapClient.authHeaderFor(uploadUrl.gen),
     },
     body: bytes.buffer as ArrayBuffer,
     signal,
-  });
+  }), signal, () => jmapClient.isCurrent(uploadUrl.gen));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -228,20 +251,22 @@ export async function uploadBytes(
   bytes: Uint8Array,
   type: string,
   // Blobs are account-scoped: a message imported into a shared/group account's
-  // folder has to be uploaded to that account, not the user's own.
-  accountId?: string,
+  // folder has to be uploaded to that account, not the user's own. A scope
+  // binds the upload to the connection the caller's operation started on.
+  account?: AccountRef,
 ): Promise<UploadResult> {
-  const targetAccountId = accountId ?? jmapClient.accountId;
-  const uploadUrl = uploadUrlFor(targetAccountId);
+  const at = opScope(account);
+  const targetAccountId = at.accountId;
+  const uploadUrl = uploadTargetFor(targetAccountId, at.gen);
 
-  const response = await secureFetch(uploadUrl, {
+  const response = await observeServerFetch(secureFetch(uploadUrl.url, {
     method: 'POST',
     headers: {
       'Content-Type': type || 'application/octet-stream',
-      Authorization: jmapClient.authHeader,
+      Authorization: jmapClient.authHeaderFor(uploadUrl.gen),
     },
     body: bytes.buffer as ArrayBuffer,
-  });
+  }), undefined, () => jmapClient.isCurrent(uploadUrl.gen));
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');

@@ -19,7 +19,9 @@ import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
 import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
-import { useEmailStore, listRowsOfAccount } from '../stores/email-store';
+import {
+  useEmailStore, listRowsOfAccount, isShownAccount, requireShownAccountScope, AccountNotServedError,
+} from '../stores/email-store';
 import { reportActionFailure, withFailureToast } from '../lib/action-failure';
 import {
   useSettingsStore,
@@ -44,6 +46,7 @@ import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
 import { accountScopedId } from '../lib/thread-utils';
+import { runWhileAccountShown } from '../lib/account-bound-timer';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -73,6 +76,20 @@ function EmailViewer({ route, navigation }: Props) {
   // another account holding a different message under the same id (B3).
   // Fixed for this instance: a new target mounts a new one.
   const [ownerAccountId] = React.useState(route.params.jmapAccountId);
+  // The app account this viewer shows mail of: the one the app showed when
+  // it opened. A notification tap or deep link can switch the app to another
+  // account under it, whose list, folders and queue the store then holds, and
+  // whose message with the same id is another one (Stalwart numbers per
+  // account). Changes are made only while the app shows this account
+  // (`mayChange`), and every one names it to the store.
+  const [viewerAppAccountId] = React.useState(() => useEmailStore.getState().activeAccountId ?? undefined);
+  // Read live at the action, not at render: the switch may not have
+  // re-rendered the screen yet.
+  const mayChange = React.useCallback((): boolean => {
+    if (isShownAccount(viewerAppAccountId)) return true;
+    reportActionFailure(t('notifications.error_updating', 'Failed to update email'), new AccountNotServedError('switched'));
+    return false;
+  }, [viewerAppAccountId, t]);
   // The displayed email is tracked in local state (not a route param) so that
   // swiping / Prev-Next can switch messages in place without remounting the
   // screen — which is what produced the loading flash on every change.
@@ -312,11 +329,16 @@ function EmailViewer({ route, navigation }: Props) {
   // the list holds the message's account, or its row in an "All folders"
   // list or a tag view (#1082); the store would otherwise read the id as a
   // row of the open folder's account (B3), so go to the server.
+  // Either way bound to the viewer's account: refused once another is shown,
+  // and the direct patch runs on the connection serving this one.
   const markSeen = React.useCallback(
-    (id: string) => (listAccountId === ownerAccountId || listRowsOfAccount(ownerAccountId).some((e) => e.id === id)
-      ? markRead(id, ownerAccountId)
-      : patchKeywordsForEmails([id], { $seen: true }, ownerAccountId)),
-    [listAccountId, ownerAccountId, markRead],
+    async (id: string) => {
+      if (listAccountId === ownerAccountId || listRowsOfAccount(ownerAccountId).some((e) => e.id === id)) {
+        return markRead(id, ownerAccountId, viewerAppAccountId);
+      }
+      return patchKeywordsForEmails([id], { $seen: true }, requireShownAccountScope(viewerAppAccountId, ownerAccountId));
+    },
+    [listAccountId, ownerAccountId, viewerAppAccountId, markRead],
   );
 
   // Star, tag and unread go through the store as well, which knows the
@@ -325,27 +347,24 @@ function EmailViewer({ route, navigation }: Props) {
   // of another one).
   const setKeyword = React.useCallback(
     (target: Email, token: string, on: boolean) =>
-      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId }),
-    [setKeywordForEmails, ownerAccountId],
+      setKeywordForEmails([target.id], token, on, { email: target, accountId: ownerAccountId, appAccountId: viewerAppAccountId }),
+    [setKeywordForEmails, ownerAccountId, viewerAppAccountId],
   );
 
   // Mark a message read per the user's delay setting: -1 never, 0 instantly,
   // >0 after that many milliseconds. Returns a cancel function.
   const scheduleMarkRead = React.useCallback((target: Email): (() => void) => {
     if (target.keywords?.$seen || markAsReadDelay === -1) return () => undefined;
-    const apply = () => {
+    // Only while the app shows this viewer's account: cancelled as soon as
+    // it shows another, whose message with this id is a different one.
+    return runWhileAccountShown(useEmailStore, viewerAppAccountId, markAsReadDelay, () => {
       // The keywords as they are now: a star or tag set during the delay stays.
       const current = peekDetail(target.id, ownerAccountId) ?? target;
       updateLocalKeywords(target.id, { ...current.keywords, $seen: true });
-      void markSeen(target.id);
-    };
-    if (markAsReadDelay > 0) {
-      const timer = setTimeout(apply, markAsReadDelay);
-      return () => clearTimeout(timer);
-    }
-    apply();
-    return () => undefined;
-  }, [markAsReadDelay, markSeen, updateLocalKeywords, ownerAccountId]);
+      // Quiet, as before: an automatic mark-read is not the user's action.
+      markSeen(target.id).catch((err) => console.warn('[viewer] mark read failed', err));
+    });
+  }, [markAsReadDelay, markSeen, updateLocalKeywords, ownerAccountId, viewerAppAccountId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -414,7 +433,7 @@ function EmailViewer({ route, navigation }: Props) {
   const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
 
   const onToggleKeyword = (token: string) => {
-    if (!email) return;
+    if (!email || !mayChange()) return;
     const next = { ...email.keywords };
     if (next[token]) delete next[token];
     else next[token] = true;
@@ -428,6 +447,7 @@ function EmailViewer({ route, navigation }: Props) {
   // Toggle the star on a specific message — used both by the toolbar (current
   // message) and by each pane's own subject star / card header.
   const toggleStarFor = React.useCallback((target: Email) => {
+    if (!mayChange()) return;
     const next = { ...target.keywords };
     if (next.$flagged) delete next.$flagged;
     else next.$flagged = true;
@@ -436,12 +456,12 @@ function EmailViewer({ route, navigation }: Props) {
       updateLocalKeywords(target.id, target.keywords);
       reportActionFailure(t('notifications.error_updating', 'Failed to update email'), err);
     });
-  }, [updateLocalKeywords, setKeyword, t]);
+  }, [updateLocalKeywords, setKeyword, mayChange, t]);
 
   const onToggleStar = () => { if (email) toggleStarFor(email); };
 
   const onToggleUnread = () => {
-    if (!email) return;
+    if (!email || !mayChange()) return;
     const failed = (err: unknown) => {
       updateLocalKeywords(email.id, email.keywords);
       reportActionFailure(t('notifications.error_updating', 'Failed to update email'), err);
@@ -464,14 +484,14 @@ function EmailViewer({ route, navigation }: Props) {
   }, [ownerAccountId]);
 
   const performDelete = () => {
-    if (!email || !sourceMailbox || !trashMailbox) return;
-    deleteEmail(email.id, trashMailbox.id, sourceMailbox.id, { email, accountId: ownerAccountId })
+    if (!email || !sourceMailbox || !trashMailbox || !mayChange()) return;
+    deleteEmail(email.id, trashMailbox.id, sourceMailbox.id, { email, accountId: ownerAccountId, appAccountId: viewerAppAccountId })
       .catch((err) => reportActionFailure(t('notifications.error_deleting', 'Failed to delete email'), err));
     navigation.goBack();
   };
 
   const onDelete = () => {
-    if (!email) return;
+    if (!email || !mayChange()) return;
     if (!trashMailbox || !sourceMailbox) {
       Alert.alert(
         t('email_list.error', 'Error'),
@@ -498,8 +518,8 @@ function EmailViewer({ route, navigation }: Props) {
   };
 
   const onArchive = () => {
-    if (!email || !canArchive) return;
-    archiveEmailAction(email.id, { email, accountId: ownerAccountId })
+    if (!email || !canArchive || !mayChange()) return;
+    archiveEmailAction(email.id, { email, accountId: ownerAccountId, appAccountId: viewerAppAccountId })
       .catch((err) => reportActionFailure(t('notifications.error_archiving', 'Failed to archive email'), err));
     navigation.goBack();
   };
@@ -510,7 +530,8 @@ function EmailViewer({ route, navigation }: Props) {
   const onToggleSpam = () => {
     if (!email || !canToggleSpam) return;
     setMoreMenuOpen(false);
-    const viewed = { email, accountId: ownerAccountId };
+    if (!mayChange()) return;
+    const viewed = { email, accountId: ownerAccountId, appAccountId: viewerAppAccountId };
     if (isInJunk) {
       unmarkSpam([email.id], viewed)
         .catch((err) => reportActionFailure(t('email_viewer.spam.error_not_spam', 'Failed to restore email'), err));
@@ -525,7 +546,8 @@ function EmailViewer({ route, navigation }: Props) {
     if (!email || !sourceMailbox || toId === sourceMailbox.id) return;
     setMoveMenuOpen(false);
     setMoreMenuOpen(false);
-    moveToMailbox(email.id, sourceMailbox.id, toId, { email, accountId: ownerAccountId })
+    if (!mayChange()) return;
+    moveToMailbox(email.id, sourceMailbox.id, toId, { email, accountId: ownerAccountId, appAccountId: viewerAppAccountId })
       .catch((err) => reportActionFailure(t('notifications.move_failed', 'Move failed'), err));
     navigation.goBack();
   };
@@ -535,8 +557,9 @@ function EmailViewer({ route, navigation }: Props) {
     if (!email || !sourceMailbox || toId === sourceMailbox.id) return;
     setCopyMenuOpen(false);
     setMoreMenuOpen(false);
+    if (!mayChange()) return;
     void withFailureToast(
-      copyToMailbox(email.id, toId, { email, accountId: ownerAccountId }),
+      copyToMailbox(email.id, toId, { email, accountId: ownerAccountId, appAccountId: viewerAppAccountId }),
       t('notifications.copy_failed', 'Copy failed'),
     );
   };
@@ -773,6 +796,7 @@ function EmailViewer({ route, navigation }: Props) {
                   threadSizeHint={!disableThreading ? threadSizeOf(item) : undefined}
                   threading={!disableThreading}
                   jmapAccountId={ownerAccountId}
+                  appAccountId={viewerAppAccountId}
                   currentMailboxRole={currentMailboxRole}
                   identities={identities}
                   themeOverrides={themeOverrides}
@@ -941,6 +965,8 @@ interface EmailPaneProps {
   threadSizeHint?: number;
   threading: boolean;
   jmapAccountId?: string;
+  /** The app account the viewer shows mail of. */
+  appAccountId?: string;
   currentMailboxRole: string | null;
   identities: Identity[];
   themeOverrides: Record<string, 'light' | 'dark'>;
@@ -965,7 +991,7 @@ interface EmailPaneProps {
 // members' headers; bodies are only downloaded for the cards that are open.
 function EmailPane({
   id, active, bodyEnabled, onBodySettled, threadIdHint, email, row, threadIds, memberOf, threadSizeHint,
-  threading, jmapAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
+  threading, jmapAccountId, appAccountId, currentMailboxRole, identities, themeOverrides, ensureDetail, ensureDetails,
   ensureThread, scheduleMarkRead, styles, bottomBarHeight, onToggleStar, onAddressPress,
   onEmailPatched, onReply, onSwipe, onZoomChange,
 }: EmailPaneProps) {
@@ -1124,6 +1150,7 @@ function EmailPane({
               onToggleExpanded={() => toggleCard(m.id)}
               onReply={onReply}
               jmapAccountId={jmapAccountId}
+              appAccountId={appAccountId}
               identities={identities}
               currentMailboxRole={currentMailboxRole}
               active={active}
@@ -1143,6 +1170,7 @@ function EmailPane({
           <QuickReplyBox
             email={newest}
             jmapAccountId={jmapAccountId}
+            ownerAppAccountId={appAccountId}
             onMoreOptions={() => onReply('reply', newest)}
             onSent={onEmailPatched}
           />
