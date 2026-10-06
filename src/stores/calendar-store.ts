@@ -717,15 +717,19 @@ export const useCalendarStore = create<CalendarState>()(
     if (calendarsInFlight?.key === key) return calendarsInFlight.promise;
     const promise = (async () => {
       try {
-        // The identities load alongside, so an event organized as one of
-        // them is the user's before the editor or settings were ever opened.
+        // The identities load alongside the first time, so an event organized
+        // as one of them is the user's before the editor or settings were
+        // ever opened; a ParticipantIdentity push refreshes them later.
+        const needIdentities = !get().participantIdentities[load.scope.accountId];
         const [calendars] = await Promise.all([
           fetchCalendars(load.scope),
-          get().fetchParticipantIdentities({
-            appAccountId: load.appAccountId,
-            jmapAccountId: load.scope.accountId,
-            scope: load.scope,
-          }),
+          needIdentities
+            ? get().fetchParticipantIdentities({
+              appAccountId: load.appAccountId,
+              jmapAccountId: load.scope.accountId,
+              scope: load.scope,
+            })
+            : undefined,
         ]);
         if (!loadIsCurrent(load)) return false;
         set({ calendars: calendars ?? [] });
@@ -932,10 +936,22 @@ export const useCalendarStore = create<CalendarState>()(
     }
     let calendarChanged = false;
     let eventChanged = false;
+    const identityAccounts: string[] = [];
     for (const [accountId, types] of Object.entries(change.changed ?? {})) {
       if (!known.has(accountId)) continue;
       if ('Calendar' in types) calendarChanged = true;
       if ('CalendarEvent' in types) eventChanged = true;
+      if ('ParticipantIdentity' in types) identityAccounts.push(accountId);
+    }
+    // The organizer addresses changed (another client): reload them for the
+    // account that pushed, on the shown account's connection.
+    const load = identityAccounts.length > 0 ? beginLoad() : null;
+    if (load) {
+      await Promise.all(identityAccounts.map((accountId) => get().fetchParticipantIdentities({
+        appAccountId: load.appAccountId,
+        jmapAccountId: accountId,
+        scope: inAccount(load.scope, accountId),
+      })));
     }
     if (!calendarChanged && !eventChanged) return;
 

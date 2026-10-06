@@ -415,4 +415,23 @@ describe('residual minors', () => {
     expect(useCalendarStore.getState().loading).toBe(false);
     expect(useCalendarStore.getState().loadedRange).toEqual({ after: AFTER, before: BEFORE });
   });
+
+  it('fetches the identities with the calendars only while they are not loaded', async () => {
+    mockGetCalendars.mockResolvedValue([]);
+    await useCalendarStore.getState().fetchCalendars();
+    await useCalendarStore.getState().fetchCalendars();
+    expect(mockIdentities).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes the identities when the server pushes a ParticipantIdentity change', async () => {
+    const list = [{ id: 'i2', name: '', calendarAddress: 'mailto:new@a.example', isDefault: true }];
+    useCalendarStore.setState({ participantIdentities: { c: [] } });
+    mockIdentities.mockResolvedValueOnce(list);
+    await useCalendarStore.getState().handleStateChange({
+      '@type': 'StateChange', changed: { c: { ParticipantIdentity: 's2' } },
+    } as never);
+    expect(mockIdentities).toHaveBeenCalledWith({ gen: 7, accountId: 'c' });
+    expect(useCalendarStore.getState().participantIdentities).toEqual({ c: list });
+    expect(mockGetCalendars).not.toHaveBeenCalled();
+  });
 });
