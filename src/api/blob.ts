@@ -1,6 +1,7 @@
 import { File } from 'expo-file-system';
 import type * as LegacyFileSystemTypes from 'expo-file-system/legacy';
-import { jmapClient } from './jmap-client';
+import { jmapClient, StaleLoadError } from './jmap-client';
+import { opScope, type AccountRef } from './op-scope';
 import { getClientCertAlias, secureFetch } from '../lib/client-cert';
 import { observeServerFetch, reportServerResponse } from '../lib/server-reachability';
 
@@ -75,11 +76,19 @@ interface UploadTarget {
   gen: number;
 }
 
-function uploadTargetFor(accountId: string): UploadTarget {
-  const session = jmapClient.currentSession;
-  if (!session) throw new Error('Not connected');
-  const { gen } = jmapClient.requestContext();
-  return { url: session.uploadUrl.replace('{accountId}', encodeURIComponent(accountId)), gen };
+/**
+ * The upload URL for JMAP account `accountId` on connection `gen` (the
+ * operation's, see `OpScope`). Throws `StaleLoadError`, sending nothing, once
+ * another connection is live or when its session has no such account: bytes
+ * read from one account must never be uploaded to another's server.
+ */
+function uploadTargetFor(accountId: string, gen: number | undefined): UploadTarget {
+  // The URL and the generation from one connection.
+  const ctx = jmapClient.requestContext();
+  if (gen !== undefined && gen !== ctx.gen) throw new StaleLoadError();
+  if (!ctx.uploadUrl) throw new Error('Not connected');
+  jmapClient.assertAccountInSession(ctx.gen, accountId);
+  return { url: ctx.uploadUrl.replace('{accountId}', encodeURIComponent(accountId)), gen: ctx.gen };
 }
 
 // Upload a local file to the JMAP upload endpoint.
@@ -96,7 +105,7 @@ export async function uploadBlob(
   options: UploadBlobOptions = {},
 ): Promise<UploadResult> {
   const accountId = jmapClient.accountId;
-  const uploadUrl = uploadTargetFor(accountId);
+  const uploadUrl = uploadTargetFor(accountId, undefined);
   const contentType = type || 'application/octet-stream';
   const { signal } = options;
   if (signal?.aborted) throw abortError();
@@ -242,11 +251,13 @@ export async function uploadBytes(
   bytes: Uint8Array,
   type: string,
   // Blobs are account-scoped: a message imported into a shared/group account's
-  // folder has to be uploaded to that account, not the user's own.
-  accountId?: string,
+  // folder has to be uploaded to that account, not the user's own. A scope
+  // binds the upload to the connection the caller's operation started on.
+  account?: AccountRef,
 ): Promise<UploadResult> {
-  const targetAccountId = accountId ?? jmapClient.accountId;
-  const uploadUrl = uploadTargetFor(targetAccountId);
+  const at = opScope(account);
+  const targetAccountId = at.accountId;
+  const uploadUrl = uploadTargetFor(targetAccountId, at.gen);
 
   const response = await observeServerFetch(secureFetch(uploadUrl.url, {
     method: 'POST',

@@ -365,6 +365,25 @@ export class JMAPClient {
     };
   }
 
+  /**
+   * The live connection's generation, for an operation to take once at its
+   * start and pass to each of its requests (`request(…, { gen })`).
+   */
+  get connectionGen(): number {
+    return this.ctx.gen;
+  }
+
+  /**
+   * Throws `StaleLoadError` unless connection `gen` is still live and its
+   * session has JMAP account `accountId` (a fetch made outside `request`,
+   * such as an upload, gets the same check a method call does).
+   */
+  assertAccountInSession(gen: number, accountId: string): void {
+    this.assertCurrent(gen);
+    if (!this.ctx.session) throw new StaleLoadError();
+    assertAccountsInSession(this.ctx.session, [['Blob/upload', { accountId }, '0']]);
+  }
+
   /** Whether the connection `gen` came from is still the live one. */
   isCurrent(gen: number): boolean {
     return this.ctx.gen === gen && !!this.ctx.credentials;
@@ -1200,12 +1219,20 @@ export class JMAPClient {
 
   // ── API Request ───────────────────────────────────────
 
+  /**
+   * `opts.gen`: the connection the operation this request belongs to started
+   * on (see `connectionGen`). Once another one is live, nothing is sent
+   * (`StaleLoadError`): the ids an operation carries are only meaningful on
+   * its own connection, and two servers can both have an account `c`.
+   */
   async request(
     methodCalls: JMAPMethodCall[],
     using?: string[],
+    opts?: { gen?: number },
   ): Promise<JMAPResponseBody> {
     // One connection for the whole request: its server, header and account.
     const ctx = this.ctx;
+    if (opts?.gen !== undefined && opts.gen !== ctx.gen) throw new StaleLoadError();
     if (!ctx.session) throw new Error('Not connected');
     // Every account the calls name must be one this session has: a later
     // request of an operation started on another connection (a batched set,
@@ -1542,7 +1569,10 @@ export class JMAPClient {
     name?: string,
     type?: string,
     accountId?: string,
+    /** The operation's connection (see `request`); none: the live one. */
+    gen?: number,
   ): Promise<ArrayBuffer> {
+    if (gen !== undefined && gen !== this.ctx.gen) throw new StaleLoadError();
     // The URL and the header from one connection.
     const scope = this.liveScope();
     if (accountId && this.session) assertAccountsInSession(this.session, [['Blob/download', { accountId }, '0']]);

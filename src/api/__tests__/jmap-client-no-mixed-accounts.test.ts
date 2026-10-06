@@ -7,7 +7,13 @@ vi.mock('expo-secure-store', () => ({
   deleteItemAsync: vi.fn(async (k: string) => { store.delete(k); }),
 }));
 
-import { JMAPClient, StaleLoadError } from '../jmap-client';
+// blob.ts (uploads) loads a native file-system module at import time.
+vi.mock('expo-file-system', () => ({ File: class {} }));
+
+import { JMAPClient, StaleLoadError, jmapClient } from '../jmap-client';
+import { archiveEmails, destroyEmails, moveEmails, sendEmail } from '../email';
+import { uploadBytes } from '../blob';
+import { opScope } from '../op-scope';
 import { generateAccountId } from '../../lib/account-utils';
 import type { JMAPSession } from '../types';
 
@@ -305,5 +311,192 @@ describe('no request mixes accounts', () => {
     // Calls without an account id (Core/echo) are not affected.
     await client.request([['Core/echo', { hello: true }, '0']]);
     expect(calls.filter((c) => c.host === 'a.example.com' && c.path === '/jmap/')).toHaveLength(3);
+  });
+});
+
+// R15: one operation stays on one connection. Self-hosted servers number their
+// accounts the same way (Stalwart: sequential per server, so both first users
+// are `c`), and on Stalwart mailbox and email ids repeat too. A request of A's
+// operation sent after a switch to B would pass B's session check and move or
+// destroy B's message with the same id.
+describe('an operation stays on the connection it started on (R15)', () => {
+  /** A session for account `c` on `host`, sets one object per request. */
+  const sessionC = (host: string): JMAPSession => ({
+    ...session(host, 'c'),
+    capabilities: {
+      'urn:ietf:params:jmap:core': { maxObjectsInSet: 1 },
+      'urn:ietf:params:jmap:mail': {},
+      'urn:ietf:params:jmap:submission': {},
+    },
+  } as JMAPSession);
+  /** Method calls each host received, in order. */
+  let posted: Array<{ host: string; calls: Array<[string, Record<string, unknown>, string]> }>;
+  const postedTo = (host: string) => posted.filter((p) => p.host === host);
+
+  /**
+   * Both servers serve account `c`. `onPost` answers A's API requests; B
+   * answers every method with an empty success.
+   */
+  async function bothOnC(onPost: (calls: Array<[string, Record<string, unknown>, string]>, n: number) => Promise<unknown>) {
+    posted = [];
+    let n = 0;
+    const api = (host: string, answer: (c: Array<[string, Record<string, unknown>, string]>) => Promise<unknown>) =>
+      async (call: Call, init?: RequestInit) => {
+        if (call.path.startsWith('/jmap/session')) return response(200, sessionC(host));
+        if (call.path === '/jmap/') {
+          const body = JSON.parse(String(init?.body)) as { methodCalls: Array<[string, Record<string, unknown>, string]> };
+          posted.push({ host, calls: body.methodCalls });
+          return answer(body.methodCalls);
+        }
+        return response(200, {});
+      };
+    handlers['a.example.com'] = api('a.example.com', (c) => onPost(c, n++)) as never;
+    handlers['b.example.com'] = api('b.example.com', async (c) => response(200, {
+      methodResponses: c.map(([name, , id]) => [name, { updated: {}, destroyed: [], created: {} }, id]),
+    })) as never;
+    expect(await jmapClient.loadAccount(idA)).toBe(true);
+    expect(jmapClient.accountId).toBe('c');
+    calls = [];
+  }
+
+  /** The user switches to B (which also has account `c`). */
+  const switchToB = async () => {
+    expect(await jmapClient.loadAccount(idB)).toBe(true);
+    expect(jmapClient.accountId).toBe('c');
+  };
+
+  const setOk = (c: Array<[string, Record<string, unknown>, string]>) => response(200, {
+    methodResponses: c.map(([name, args, id]) => [name, {
+      updated: Object.fromEntries(Object.keys((args.update as object | undefined) ?? {}).map((k) => [k, null])),
+      destroyed: (args.destroy as string[] | undefined) ?? [],
+      created: { 'year-2026': { id: 'mb-2026' } },
+    }, id]),
+  });
+
+  beforeEach(() => {
+    // The fetch mock hands the request init to the handler (for the body).
+    const inner = global.fetch as unknown as (url: string, init?: RequestInit) => Promise<unknown>;
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      const u = new URL(url);
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      const call = { host: u.host, path: u.pathname, auth };
+      calls.push(call);
+      if (auth !== OWN_HEADER[u.host]) foreign.push(call);
+      return (handlers[u.host] as unknown as (c: Call, i?: RequestInit) => Promise<unknown>)(call, init);
+    }) as unknown as typeof fetch;
+    void inner;
+  });
+  afterEach(() => {
+    jmapClient.reset();
+  });
+
+  it('a batched move whose first slice ran on A sends no later slice to B', async () => {
+    await bothOnC(async (c, n) => {
+      if (n === 0) await switchToB();
+      return setOk(c);
+    });
+    await expect(moveEmails(['m1', 'm2', 'm3'], 'inbox', 'trash')).rejects.toBeInstanceOf(StaleLoadError);
+    expect(postedTo('a.example.com')).toHaveLength(1);
+    expect(postedTo('b.example.com')).toEqual([]);
+  });
+
+  it('a batched destroy whose first slice ran on A destroys nothing on B', async () => {
+    await bothOnC(async (c, n) => {
+      if (n === 0) await switchToB();
+      return setOk(c);
+    });
+    await expect(destroyEmails(['m1', 'm2'])).rejects.toBeInstanceOf(StaleLoadError);
+    expect(postedTo('b.example.com')).toEqual([]);
+  });
+
+  it('an operation bound to A that starts after the switch sends nothing', async () => {
+    await bothOnC(async (c) => setOk(c));
+    // Captured when the action started, on A.
+    const at = opScope();
+    await switchToB();
+    await expect(destroyEmails(['m1'], at)).rejects.toBeInstanceOf(StaleLoadError);
+    expect(postedTo('b.example.com')).toEqual([]);
+  });
+
+  it("an archive's second request (the next batch) does not go to B", async () => {
+    await bothOnC(async (c, n) => {
+      if (n === 0) await switchToB();
+      return setOk(c);
+    });
+    const at2026 = '2026-03-04T05:06:07Z';
+    await expect(archiveEmails(
+      [{ id: 'm1', receivedAt: at2026 }, { id: 'm2', receivedAt: at2026 }],
+      'archive',
+      'year',
+      [],
+    )).rejects.toBeInstanceOf(StaleLoadError);
+    expect(postedTo('a.example.com')).toHaveLength(1);
+    expect(postedTo('b.example.com')).toEqual([]);
+  });
+
+  it("sendEmail's draft clean-up after a switch destroys nothing on B", async () => {
+    await bothOnC(async (c, n) => {
+      if (n > 0) return setOk(c);
+      // The send goes out on A; the user switches before its answer arrives.
+      await switchToB();
+      return response(200, {
+        methodResponses: [
+          ['Email/set', { created: { draft: { id: 'sent-1' } } }, '0'],
+          ['EmailSubmission/set', { created: { 'sub-1': { id: 'sub-1' } } }, '1'],
+          ['EmailSubmission/get', { list: [{ deliveryStatus: {} }] }, 'deliveryStatus'],
+        ],
+      });
+    });
+    const result = await sendEmail(
+      { from: [{ email: 'alice@a.example.com' }], to: [{ email: 'x@example.com' }], subject: 'hi', textBody: 'hi' } as never,
+      'ident-1',
+      'sent',
+      undefined,
+      { draftId: 'draft-7' },
+    );
+    // Sent (the send is not reported as failed), and the old draft is left
+    // for later rather than destroyed in the account switched to.
+    expect(result.emailSubmissionId).toBe('sub-1');
+    expect(result.filingWarning).toMatch(/old draft cleanup failed/);
+    expect(postedTo('b.example.com')).toEqual([]);
+  });
+
+  it('an upload after a switch mid-download is refused, sending nothing to B', async () => {
+    await bothOnC(async (c) => setOk(c));
+    const at = opScope();
+    const download = deferred<unknown>();
+    const inner = handlers['a.example.com'];
+    handlers['a.example.com'] = async (call) => (call.path.startsWith('/download/') ? download.promise : inner(call));
+    const bytes = jmapClient.fetchBlobArrayBuffer('blob-1', undefined, 'message/rfc822', at.accountId, at.gen);
+    await waitForCall((c) => c.path.startsWith('/download/'));
+    await switchToB();
+    download.resolve(response(200, {}));
+    const raw = await bytes;
+    calls = [];
+    await expect(uploadBytes(new Uint8Array(raw), 'message/rfc822', at)).rejects.toBeInstanceOf(StaleLoadError);
+    expect(calls).toEqual([]);
+  });
+
+  it("an upload to an account the connection's session does not have is refused", async () => {
+    await bothOnC(async (c) => setOk(c));
+    calls = [];
+    await expect(uploadBytes(new Uint8Array([1]), 'message/rfc822', 'team')).rejects.toBeInstanceOf(StaleLoadError);
+    expect(calls).toEqual([]);
+  });
+
+  it('a download bound to A after the switch is not sent', async () => {
+    await bothOnC(async (c) => setOk(c));
+    const at = opScope();
+    await switchToB();
+    calls = [];
+    await expect(jmapClient.fetchBlobArrayBuffer('blob-1', undefined, 'message/rfc822', at.accountId, at.gen))
+      .rejects.toBeInstanceOf(StaleLoadError);
+    expect(calls).toEqual([]);
+  });
+
+  it('an operation that stays on its connection still runs every request', async () => {
+    await bothOnC(async (c) => setOk(c));
+    await moveEmails(['m1', 'm2', 'm3'], 'inbox', 'trash', opScope());
+    expect(postedTo('a.example.com')).toHaveLength(3);
   });
 });

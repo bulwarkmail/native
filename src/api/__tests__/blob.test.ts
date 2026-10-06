@@ -38,7 +38,13 @@ vi.mock('../jmap-client', () => ({
     },
     authHeader: 'Basic dXNlcjpwYXNz',
     // Connection-scoped header (jmap-client requestContext / authHeaderFor).
-    requestContext: () => ({ gen: 1, authHeader: 'Basic dXNlcjpwYXNz' }),
+    requestContext: () => ({
+      gen: 1, authHeader: 'Basic dXNlcjpwYXNz', accountId: 'acc-1',
+      uploadUrl: 'https://mail.example.com/upload/{accountId}/',
+    }),
+    connectionGen: 1,
+    // The upload's account must be in the connection's session.
+    assertAccountInSession: vi.fn(),
     authHeaderFor: () => 'Basic dXNlcjpwYXNz', isCurrent: () => true,
   },
 }));
