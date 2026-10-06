@@ -55,7 +55,7 @@ import {
   type RecurrenceEditScope,
 } from '../components/calendar/RecurrenceScopeDialog';
 import { CalendarSidebarDrawer } from '../components/calendar/CalendarSidebarDrawer';
-import { calendarTaskEvents, isTaskEvent, runUnlessInFlight, taskIdOfEvent, withoutDoneTasks } from '../lib/calendar-tasks';
+import { calendarTaskEvents, isTaskEvent, runUnlessInFlight, taskIdOfEvent, withoutDoneTasks, withoutTasks } from '../lib/calendar-tasks';
 import { TasksSheet } from '../components/calendar/TasksSheet';
 import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
 import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
@@ -203,6 +203,7 @@ export default function CalendarScreen() {
   const calendarFreeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const calendarTimeFormat = useSettingsStore((s) => s.calendarTimeFormat);
   const showBirthdayCalendar = useSettingsStore((s) => s.showBirthdayCalendar);
+  const birthdayCalendarColor = useSettingsStore((s) => s.birthdayCalendarColor);
   const enableCalendarTasks = useSettingsStore((s) => s.enableCalendarTasks);
   const sharedCalendarColors = useSettingsStore((s) => s.sharedCalendarColors);
   const setSharedCalendarColor = useSettingsStore((s) => s.setSharedCalendarColor);
@@ -438,8 +439,8 @@ export default function CalendarScreen() {
   }, [storeCalendars, sharedCalendarColors, setSharedCalendarColor]);
 
   const allCalendars = React.useMemo(
-    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar()] : displayCalendars),
-    [displayCalendars, showBirthdayCalendar],
+    () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar(undefined, birthdayCalendarColor)] : displayCalendars),
+    [displayCalendars, showBirthdayCalendar, birthdayCalendarColor],
   );
   // Tasks with a due date are overlaid on the grid (webmail's
   // showTasksOnCalendar, #1107): in a month cell, the week view's all-day
@@ -502,7 +503,13 @@ export default function CalendarScreen() {
     [events, calendarTimeZone],
   );
 
-  // The agenda and the day list draw no completion circle: open tasks only.
+  // The agenda lists no tasks (webmail); the month's day list shows open ones.
+  const agendaEvents = React.useMemo(() => withoutTasks(events), [events]);
+  const agendaEventsByDay = React.useMemo(
+    () => (agendaEvents === events ? eventsByDay : buildEventDayIndex(agendaEvents)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agendaEvents, events, eventsByDay, calendarTimeZone],
+  );
   const listEvents = React.useMemo(() => withoutDoneTasks(events), [events]);
   const listEventsByDay = React.useMemo(
     () => (listEvents === events ? eventsByDay : buildEventDayIndex(listEvents)),
@@ -1310,8 +1317,8 @@ export default function CalendarScreen() {
             loadingEdge={loadingEdge}
             isLoading={rangeLoading}
             onVisibleDateChange={setVisibleDate}
-            events={listEvents}
-            eventsByDay={listEventsByDay}
+            events={agendaEvents}
+            eventsByDay={agendaEventsByDay}
             calendars={calendars}
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
@@ -1332,6 +1339,7 @@ export default function CalendarScreen() {
             <DayEventList
               date={selectedDate}
               eventsByDay={listEventsByDay}
+              onToggleTask={handleToggleTask}
               calendars={calendars}
               timeFormat={calendarTimeFormat}
               currentUserEmails={currentUserEmails}
@@ -1462,6 +1470,7 @@ function DayEventList({
   calendars,
   timeFormat,
   currentUserEmails,
+  onToggleTask,
   onSelectEvent,
   refreshing,
   onRefresh,
@@ -1471,6 +1480,7 @@ function DayEventList({
   calendars: Calendar[];
   timeFormat?: TimeFormat;
   currentUserEmails?: string[];
+  onToggleTask?: (taskId: string) => void;
   onSelectEvent?: (event: CalendarEvent) => void;
   refreshing: boolean;
   onRefresh: () => void;
@@ -1510,6 +1520,7 @@ function DayEventList({
           calendars={calendars}
           timeFormat={timeFormat}
           currentUserEmails={currentUserEmails}
+          onToggleTask={onToggleTask}
           onPress={onSelectEvent}
         />
       ))}

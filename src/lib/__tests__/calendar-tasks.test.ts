@@ -7,6 +7,7 @@ import {
   isTaskEvent,
   runUnlessInFlight,
   withoutDoneTasks,
+  withoutTasks,
   taskDueDayKey,
   taskIdOfEvent,
 } from '../calendar-tasks';
@@ -165,5 +166,15 @@ describe('runUnlessInFlight', () => {
     runUnlessInFlight(inFlight, 'a', () => Promise.reject(new Error('no')));
     await Promise.resolve(); await Promise.resolve();
     expect(inFlight.has('a')).toBe(false);
+  });
+});
+
+describe('withoutTasks', () => {
+  it('drops every task item, open or done, and keeps events', () => {
+    const items = calendarTaskEvents([makeTask('open'), makeTask('done', { progress: 'completed' })], ['cal-1']);
+    const event = makeTask('ev', { '@type': 'Event' });
+    expect(withoutTasks([...items, event]).map((e) => e.id)).toEqual(['ev']);
+    const plain = [event];
+    expect(withoutTasks(plain)).toBe(plain);
   });
 });

@@ -95,11 +95,7 @@ export function calendarTaskEvents(tasks: CalendarEvent[], visibleCalendarIds: s
   return out;
 }
 
-/**
- * The agenda and the month's day list have no completion circle, and webmail's
- * agenda lists no tasks at all: they keep the open tasks they showed before
- * and leave the done ones to the grids, where they are struck through.
- */
+/** The month's day list shows open tasks (with a circle); done ones stay in the grids. */
 export function withoutDoneTasks(events: CalendarEvent[]): CalendarEvent[] {
   return events.some((e) => isTaskEvent(e) && isTaskDone(e))
     ? events.filter((e) => !(isTaskEvent(e) && isTaskDone(e)))
@@ -123,4 +119,9 @@ export function runUnlessInFlight(
     () => { inFlight.delete(key); },
   );
   return true;
+}
+
+/** The agenda lists no tasks, as in webmail. */
+export function withoutTasks(events: CalendarEvent[]): CalendarEvent[] {
+  return events.some(isTaskEvent) ? events.filter((e) => !isTaskEvent(e)) : events;
 }
