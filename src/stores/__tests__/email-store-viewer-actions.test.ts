@@ -313,3 +313,49 @@ describe('viewer star, tag and unread go through the store', () => {
     expect(useEmailStore.getState().emails).toEqual([]);
   });
 });
+
+// R16: a viewer of account A stays open when a notification tap switches the
+// app to B. The store then holds B's list, folders and queue, and B's message
+// with the same id ("e1", as Stalwart numbers per account) is another one. A's
+// viewer names its app account, and its actions are refused rather than run
+// or queued as B's "own" mail.
+describe("a viewer of one account after the app switched to another (R16)", () => {
+  const B = 'bob@b.example.com';
+  const B_ROW = { id: 'e1', subject: "B's message", keywords: {}, mailboxIds: { a: true } } as unknown as Email;
+  let A: string;
+  beforeEach(() => {
+    A = registerServedAccount('test@example.com', 'https://mail.example.com');
+    // The switch shows B (its cached list) while the client still serves A.
+    useEmailStore.setState({ activeAccountId: B, mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [B_ROW] });
+  });
+  const viewedOnA = (): ViewedEmail => ({ email: OWN_ROW, appAccountId: A });
+  const nothingDone = () => {
+    expect(mockApplyOrQueueBatch).not.toHaveBeenCalled();
+    for (const m of [mockDeleteEmail, mockMoveEmail, mockMarkAsSpam, mockUndoSpam, mockArchive, mockPatchKeywords]) {
+      expect(m).not.toHaveBeenCalled();
+    }
+    expect(useEmailStore.getState().emails).toEqual([B_ROW]);
+  };
+
+  it.each([
+    ['mark read (the delayed mark-read)', () => useEmailStore.getState().markRead('e1', undefined, A)],
+    ['star', () => useEmailStore.getState().setKeywordForEmails(['e1'], '$flagged', true, viewedOnA())],
+    ['mark unread', () => useEmailStore.getState().setKeywordForEmails(['e1'], '$seen', false, viewedOnA())],
+    ['delete', () => useEmailStore.getState().deleteEmail('e1', 't', 'a', viewedOnA())],
+    ['archive', () => useEmailStore.getState().archiveEmail('e1', viewedOnA())],
+    ['move', () => useEmailStore.getState().moveToMailbox('e1', 'a', 'x', viewedOnA())],
+    ['copy', () => useEmailStore.getState().copyToMailbox('e1', 'x', viewedOnA())],
+    ['report spam', () => useEmailStore.getState().markSpam(['e1'], viewedOnA())],
+    ['not spam', () => useEmailStore.getState().unmarkSpam(['e1'], viewedOnA())],
+  ])('%s is refused, sending and queueing nothing for B', async (_name, act) => {
+    await expect(act()).rejects.toThrow(/Switch back to it/);
+    nothingDone();
+  });
+
+  it("still acts while the app shows the viewer's account", async () => {
+    useEmailStore.setState({ activeAccountId: A, emails: [OWN_ROW] });
+    await useEmailStore.getState().markRead('e1', undefined, A);
+    expect(mockApplyOrQueueBatch).toHaveBeenCalledTimes(1);
+    expect(useEmailStore.getState().emails[0].keywords).toEqual({ $seen: true });
+  });
+});

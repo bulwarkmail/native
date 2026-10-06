@@ -154,6 +154,26 @@ function currentAccountId(state: EmailState): string | undefined {
 export interface ViewedEmail {
   email: Email;
   accountId?: string;
+  /**
+   * The app account the viewer showed the message in (captured when it
+   * opened). "Own mail" (`accountId` unset) means that account's: once the
+   * app shows another one, the store's list, folders and queue are that
+   * account's, and its message with the same id is a different one, so the
+   * action is refused (see `assertViewerShown`).
+   */
+  appAccountId?: string;
+}
+
+/**
+ * Refuse ("switch back") a viewer's action on the mail of app account
+ * `appAccountId` once the app shows another account. Checked synchronously
+ * when the action starts, before it reads the list or queues anything, so the
+ * store's "current" account is the viewer's for the rest of it.
+ */
+function assertViewerShown(appAccountId: string | undefined): void {
+  if (appAccountId && appAccountId !== useEmailStore.getState().activeAccountId) {
+    throw new AccountNotServedError('switched');
+  }
 }
 
 // The message an action works on, and whether the loaded list holds it: the
@@ -476,7 +496,11 @@ export interface EmailState {
     mailboxId: string,
   ) => Promise<{ imported: number; failed: number }>;
   handleStateChange: (change: StateChange) => Promise<void>;
-  markRead: (emailId: string, accountId?: string) => Promise<void>;
+  /**
+   * Mark one message read. `appAccountId`: the viewer's app account (see
+   * `ViewedEmail.appAccountId`); refused once another account is shown.
+   */
+  markRead: (emailId: string, accountId?: string, appAccountId?: string) => Promise<void>;
   markUnread: (emailId: string) => Promise<void>;
   toggleStar: (emailId: string, starred: boolean) => Promise<void>;
   togglePin: (emailId: string, pinned: boolean) => Promise<void>;
@@ -1441,7 +1465,8 @@ export const useEmailStore = create<EmailState>()(
     void get().refreshEmails();
   },
 
-  markRead: async (emailId, accountId) => {
+  markRead: async (emailId, accountId, appAccountId) => {
+    assertViewerShown(appAccountId);
     const state = get();
     // The list names its row by `rowKeyOf`; the viewer by id and account, as
     // ids repeat across the accounts of a list spanning accounts (#1082).
@@ -1536,6 +1561,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   markSpam: async (emailIds, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1585,6 +1611,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   unmarkSpam: async (emailIds, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1630,6 +1657,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1685,6 +1713,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   copyToMailbox: async (emailId, toMailboxId, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     const { email } = actionTarget(state, emailId, viewed);
     if (isGoneSpanningRow(emailId, email) || !email) return;
@@ -1695,6 +1724,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   archiveEmail: async (emailId, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1759,6 +1789,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   deleteEmail: async (emailId, trashMailboxId, currentMailboxId, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -2059,6 +2090,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   setKeywordForEmails: async (emailIds, token, on, viewed) => {
+    assertViewerShown(viewed?.appAccountId);
     const state = get();
     const { targets, listed } = actionTargets(state, emailIds, viewed);
     if (targets.length === 0) return;
