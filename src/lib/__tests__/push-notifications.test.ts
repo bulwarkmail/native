@@ -76,7 +76,13 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
       // client sees as folders.
       emailPush: null as unknown,
       mailboxes: [{ id: 'bob-inbox', role: 'inbox' }, { id: 'bob-junk', role: 'junk' }] as unknown[],
-      failEmailPushWrite: false,
+      // Shared accounts of the session, each with its folders (null: the
+      // Mailbox/get for it errors).
+      shared: {} as Record<string, unknown[] | null>,
+      // Accounts whose entry in an emailPush map the server answers
+      // `forbidden` to; 'network' makes a write carrying emailPush throw.
+      refuse: [] as string[],
+      networkOnEmailPush: false,
     },
   };
 });
@@ -96,7 +102,7 @@ vi.mock('../../api/jmap-client', () => ({
       return 'bob-jmap';
     }
     getSharedMailAccounts() {
-      return [];
+      return Object.keys(DETACHED.shared).map((id) => ({ id, name: id }));
     }
     async loadAccount(id: string) {
       DETACHED.log.push(['load', id]);
@@ -107,10 +113,19 @@ vi.mock('../../api/jmap-client', () => ({
       DETACHED.log.push([name, args]);
       if (DETACHED.down) throw new Error('server unreachable');
       if (name === 'Mailbox/get') {
-        return { methodResponses: [[name, { list: DETACHED.mailboxes }, id]] };
+        return {
+          methodResponses: calls.map(([, a, callId]) => {
+            const list = a.accountId === 'bob-jmap' ? DETACHED.mailboxes : DETACHED.shared[a.accountId];
+            return list ? ['Mailbox/get', { list }, callId] : ['error', { type: 'serverFail' }, callId];
+          }),
+        };
       }
-      if (name === 'PushSubscription/set' && DETACHED.failEmailPushWrite && 'emailPush' in (Object.values(args.update)[0] as object)) {
-        return { methodResponses: [['error', { type: 'forbidden' }, id]] };
+      if (name === 'PushSubscription/set') {
+        const patch = Object.values(args.update)[0] as { emailPush?: Record<string, unknown> };
+        if (patch.emailPush && DETACHED.networkOnEmailPush) throw new Error('connection reset');
+        if (patch.emailPush && DETACHED.refuse.some((a) => a in patch.emailPush!)) {
+          return { methodResponses: [['error', { type: 'forbidden' }, id]] };
+        }
       }
       if (name === 'PushSubscription/get') {
         const list = DETACHED.gone ? [] : [{ id: args.ids[0], types: DETACHED.types, expires: DETACHED.expires, emailPush: DETACHED.emailPush }];
@@ -989,7 +1004,10 @@ describe('renewDetachedPushSubscription', () => {
     DETACHED.granted = null;
     DETACHED.session = SYNC_SESSION;
     DETACHED.emailPush = null;
-    DETACHED.failEmailPushWrite = false;
+    DETACHED.refuse = [];
+    DETACHED.networkOnEmailPush = false;
+    DETACHED.shared = {};
+    DETACHED.mailboxes = [{ id: 'bob-inbox', role: 'inbox' }, { id: 'bob-junk', role: 'junk' }];
   });
 
   afterEach(() => {
@@ -1103,21 +1121,61 @@ describe('renewDetachedPushSubscription', () => {
       expect(sets()).toHaveLength(1);
     });
 
-    it('keeps the never-matching rule for an account with no visible Inbox', async () => {
+    it('renews the expiry alone when its own Inbox cannot be seen', async () => {
       useSettingsStore.setState({ pushNotifyInboxOnly: true });
       DETACHED.mailboxes = [{ id: 'bob-junk', role: 'junk' }];
-      // Its own primary account must have an Inbox: failing to see it is a
-      // load failure, so the expiry is renewed and the filter left alone.
+      // The primary account always has an Inbox: failing to see it is a
+      // load failure, not an account to mute.
       expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
       expect(Object.keys(sets()[0][1].update['bob-sub'])).toEqual(['expires']);
-      DETACHED.mailboxes = [{ id: 'bob-inbox', role: 'inbox' }, { id: 'bob-junk', role: 'junk' }];
     });
 
-    it('still renews the expiry when the server refuses the filter', async () => {
+    it('gives a shared account with no visible Inbox the never-matching rule', async () => {
       useSettingsStore.setState({ pushNotifyInboxOnly: true });
-      DETACHED.failEmailPushWrite = true;
+      DETACHED.shared = { team: [{ id: 'team-sent', role: 'sent' }] };
       expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
-      expect(sets().map((s) => Object.keys(s[1].update['bob-sub']))).toEqual([['expires', 'emailPush'], ['expires']]);
+      const patch = sets()[0][1].update['bob-sub'];
+      expect(patch.emailPush).toEqual({
+        ...filterOf([{ notKeyword: '$junk' }, { inMailbox: 'bob-inbox' }]),
+        team: {
+          filter: { operator: 'AND', conditions: [{ notKeyword: '$junk' }, { hasKeyword: '$junk' }] },
+          properties: ['id', 'threadId'],
+          urgency: 'high',
+        },
+      });
+    });
+
+    it("renews the expiry alone when a shared account's folders cannot be read", async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.shared = { team: null };
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(sets().map((s) => Object.keys(s[1].update['bob-sub']))).toEqual([['expires']]);
+    });
+
+    it('narrows a refused shared account, records it, and skips it next time', async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.shared = { team: [{ id: 'team-inbox', role: 'inbox' }] };
+      DETACHED.refuse = ['team'];
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(sets().map((s) => Object.keys(s[1].update['bob-sub'].emailPush as object))).toEqual([
+        ['bob-jmap', 'team'],
+        ['bob-jmap'],
+      ]);
+      expect(JSON.parse((await AsyncStorage.getItem(`push:emailPushRefused:v1:${OTHER}`))!)).toEqual(['team']);
+
+      // What the server now holds has no team entry and the next renewal does not ask for one.
+      DETACHED.emailPush = filterOf([{ notKeyword: '$junk' }, { inMailbox: 'bob-inbox' }]);
+      DETACHED.log = [];
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('renewed');
+      expect(sets().map((s) => Object.keys(s[1].update['bob-sub']))).toEqual([['expires']]);
+    });
+
+    it('does not write twice after a network error, and reports failed', async () => {
+      useSettingsStore.setState({ pushNotifyInboxOnly: true });
+      DETACHED.networkOnEmailPush = true;
+      expect(await renewDetachedPushSubscription(OTHER)).toBe('failed');
+      expect(sets()).toHaveLength(1);
+      expect(await AsyncStorage.getItem(OTHER_EXPIRES_KEY)).toBeNull();
     });
 
     it("never reads the active account's folders", async () => {

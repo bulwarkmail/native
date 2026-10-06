@@ -442,9 +442,16 @@ export function emailPushFallbacks(
 async function writeWithEmailPush<T>(
   emailPush: Record<string, EmailPushConfig> | null,
   write: (emailPush: Record<string, EmailPushConfig> | null) => Promise<T>,
+  // The login the write is for; the singleton's unless a detached client's
+  // is given.
+  login?: { primary: string; accounts: Record<string, JMAPAccountInfo> | undefined },
 ): Promise<{ result: T; emailPush: Record<string, EmailPushConfig> | null }> {
   const attempts = emailPush
-    ? emailPushFallbacks(emailPush, jmapClient.accountId, jmapClient.currentSession?.accounts)
+    ? emailPushFallbacks(
+        emailPush,
+        login ? login.primary : jmapClient.accountId,
+        login ? login.accounts : jmapClient.currentSession?.accounts,
+      )
     : [null];
   for (let i = 0; ; i++) {
     try {
@@ -1357,7 +1364,7 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
 }
 
 // The folders of a detached client's own account and the shared accounts in
-// its session, for the push filter. An account that errors is left out.
+// its session, for the push filter. Throws when any account's get fails.
 async function detachedMailboxes(client: JMAPClient): Promise<Mailbox[]> {
   const accountIds = [client.accountId, ...client.getSharedMailAccounts().map((a) => a.id)];
   const res = await client.request(
@@ -1365,11 +1372,11 @@ async function detachedMailboxes(client: JMAPClient): Promise<Mailbox[]> {
     [CAPABILITIES.CORE, CAPABILITIES.MAIL],
   );
   const out: Mailbox[] = [];
-  for (const [name, body, callId] of res.methodResponses) {
-    if (name !== 'Mailbox/get') continue;
-    const accountId = accountIds[Number(callId)];
-    if (!accountId) continue;
-    for (const m of (body.list as Mailbox[] | undefined) ?? []) out.push({ ...m, accountId });
+  // Every account's folders or none: leaving one out would drop it from the
+  // map, and the server then falls back to unfiltered pushes for it.
+  for (let i = 0; i < accountIds.length; i++) {
+    const body = requireMethodResult(res, String(i), 'Mailbox/get');
+    for (const m of (body.list as Mailbox[] | undefined) ?? []) out.push({ ...m, accountId: accountIds[i] });
   }
   return out;
 }
@@ -1405,9 +1412,9 @@ export async function renewDetachedPushSubscription(
     // The account's own "Inbox only" filter, from its own folders. Best
     // effort: when it can't be built the expiry is still renewed.
     let desired: Record<string, EmailPushConfig> | null = null;
+    const refused = withEmailPush ? await readRefusedEmailPushAccounts(accountId) : [];
     if (withEmailPush) {
       try {
-        const refused = await readRefusedEmailPushAccounts(accountId);
         await useSettingsStore.getState().hydrate();
         desired = withoutAccounts(
           await buildEmailPushConfig(useSettingsStore.getState().pushNotifyInboxOnly, {
@@ -1435,10 +1442,18 @@ export async function renewDetachedPushSubscription(
       assertSetResult(result, [subscriptionId], 'push subscription');
       return result;
     };
+    // Narrowed along emailPushFallbacks while the server refuses the map as
+    // `forbidden`; any other failure (a network error may have applied the
+    // write) is rethrown and reads as 'failed'.
     let body: Awaited<ReturnType<typeof write>>;
-    if (filterChanged) {
-      // A refused filter must not cost the expiry.
-      body = await write({ expires, emailPush: desired }).catch(() => write({ expires }));
+    if (filterChanged && desired) {
+      const written = await writeWithEmailPush(
+        desired,
+        (filter) => write(filter ? { expires, emailPush: filter } : { expires }),
+        { primary: client.accountId, accounts: client.currentSession?.accounts },
+      );
+      body = written.result;
+      await rememberRefusedEmailPushAccounts(accountId, refused, desired, written.emailPush);
     } else {
       body = await write({ expires });
     }
