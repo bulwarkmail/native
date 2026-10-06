@@ -695,6 +695,7 @@
       "draft_restored": "The draft could not be saved. The message is back in the Outbox.",
       "proof_check_failed": "Could not check whether this message was already sent. Nothing was sent. Try again later.",
       "sending": "This message is being sent.",
+      "too_recent": "This message was sent moments ago. Wait a minute, then check Sent before sending it again.",
       "wrong_account": "Switch to the sending account first."
     },
     "failed": "A message was not sent",

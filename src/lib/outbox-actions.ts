@@ -7,7 +7,7 @@ import { useAccountStore } from '../stores/account-store';
 import { useSendQueueStore, SendQueueStateError, type QueuedSend } from '../stores/send-queue-store';
 import { clientServesActiveAccount } from './active-client-account';
 import { generateUUID } from './uuid';
-import { checkSentBeforeResend, flushSendQueue, ProofLookupError } from './send-queue-replay';
+import { checkSentBeforeResend, flushSendQueue, ProofLookupError, ResendTooRecentError } from './send-queue-replay';
 
 export class OutboxActionError extends Error {
   constructor(message: string, readonly code: string = 'changed') {
@@ -51,6 +51,8 @@ export async function requeueAndFlush(entry: QueuedSend, expectedState: RetryFro
  * `already_sent` (the caller says so); only after a lookup that went through
  * without proof is it requeued and replayed (`requeued`). A failed or
  * inconclusive lookup changes nothing: OutboxActionError('proof_check_failed').
+ * Within a couple of minutes of the attempt nothing is checked or changed:
+ * OutboxActionError('too_recent').
  */
 export async function sendAgain(entry: QueuedSend): Promise<'already_sent' | 'requeued'> {
   requireActive(entry);
@@ -60,6 +62,9 @@ export async function sendAgain(entry: QueuedSend): Promise<'already_sent' | 're
   try {
     outcome = await checkSentBeforeResend(live);
   } catch (err) {
+    if (err instanceof ResendTooRecentError) {
+      throw new OutboxActionError('This message was sent moments ago', 'too_recent');
+    }
     if (err instanceof ProofLookupError) {
       throw new OutboxActionError('Could not check whether this message was already sent', 'proof_check_failed');
     }
@@ -138,6 +143,10 @@ export function outboxErrorMessage(err: unknown): OutboxMessage | { raw: string 
       case 'draft_failed_restored': return { key: 'outbox.error.draft_restored', fallback: 'The draft could not be saved. The message is back in the Outbox.' };
       case 'draft_lost': return { key: 'outbox.error.draft_lost', fallback: 'The draft could not be saved and the message could not be restored.' };
       case 'wrong_account': return { key: 'outbox.error.wrong_account', fallback: 'Switch to the sending account first.' };
+      case 'too_recent': return {
+        key: 'outbox.error.too_recent',
+        fallback: 'This message was sent moments ago. Wait a minute, then check Sent before sending it again.',
+      };
       case 'proof_check_failed': return {
         key: 'outbox.error.proof_check_failed',
         fallback: 'Could not check whether this message was already sent. Nothing was sent. Try again later.',

@@ -51,7 +51,7 @@ import { toast } from '../../stores/toast-store';
 import { useNetworkStore } from '../../stores/network-store';
 import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
 import {
-  flushSendQueue, hasNewEntry, checkSentBeforeResend, ProofLookupError, RECONCILE_BACKOFF_MS,
+  flushSendQueue, hasNewEntry, checkSentBeforeResend, ProofLookupError, ResendTooRecentError, RECONCILE_BACKOFF_MS,
 } from '../send-queue-replay';
 
 const mockSend = sendEmail as unknown as ReturnType<typeof vi.fn>;
@@ -456,10 +456,33 @@ describe('reconcile backoff', () => {
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('a failed lookup also waits out the backoff', async () => {
+  it('a failed lookup writes no stamp: the next flush looks again', async () => {
     await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
     mockFind.mockRejectedValueOnce(new Error('net'));
     await flushSendQueue();
+    expect(entries()[0].lastReconcileAt).toBeUndefined();
+    expect(JSON.parse((await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1'))!).lastReconcileAt).toBeUndefined();
+    await flushSendQueue();
+    expect(mockFind).toHaveBeenCalledTimes(2);
+    expect(typeof entries()[0].lastReconcileAt).toBe('string');
+  });
+
+  it('a failed lookup leaves the previous stamp as it was', async () => {
+    const old = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO(), lastReconcileAt: old }));
+    mockBoxes.mockRejectedValueOnce(new Error('net'));
+    await flushSendQueue();
+    expect(mockBoxes).toHaveBeenCalledTimes(1);
+    expect(entries()[0].lastReconcileAt).toBe(old);
+    expect(JSON.parse((await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1'))!).lastReconcileAt).toBe(old);
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('a lookup that went through, capped or not, is stamped', async () => {
+    await seed(entry({ state: 'uncertain', attemptStartedAt: HOUR_AGO() }));
+    findReturns({ copies: [], complete: false });
+    await flushSendQueue();
+    expect(typeof entries()[0].lastReconcileAt).toBe('string');
     await flushSendQueue();
     expect(mockFind).toHaveBeenCalledTimes(1);
   });
@@ -564,10 +587,22 @@ describe('checkSentBeforeResend (the user\'s Send again)', () => {
     expect(stateOf('q1')).toBe('uncertain');
   });
 
-  it('an attempt that started moments ago is not checked yet: rejects without a lookup', async () => {
+  it('an attempt that started moments ago is not checked yet: rejects as too recent, without a lookup', async () => {
     const e = await uncertain({ attemptStartedAt: new Date().toISOString() });
-    await expect(checkSentBeforeResend(e)).rejects.toBeInstanceOf(ProofLookupError);
+    const err = await checkSentBeforeResend(e).catch((x) => x);
+    expect(err).toBeInstanceOf(ResendTooRecentError);
+    // Still a refusal that changed nothing, for any caller that only knows ProofLookupError.
+    expect(err).toBeInstanceOf(ProofLookupError);
     expect(mockFind).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('uncertain');
+  });
+
+  it('a failed lookup is not reported as too recent', async () => {
+    const e = await uncertain();
+    mockFind.mockRejectedValue(new Error('net'));
+    const err = await checkSentBeforeResend(e).catch((x) => x);
+    expect(err).toBeInstanceOf(ProofLookupError);
+    expect(err).not.toBeInstanceOf(ResendTooRecentError);
   });
 });
 
@@ -846,6 +881,52 @@ describe('flushSendQueue: preconditions and accounts', () => {
     expect(mockSend).not.toHaveBeenCalled();
     expect(stateOf('q1')).toBe('queued');
     expect(heldOf('q1')).toBe('account_unavailable');
+  });
+
+  it('an account_unavailable entry is released and sent once when its account is served again', async () => {
+    await seed(entry({ jmapAccountId: 'jOther' }));
+    await flushSendQueue();
+    expect(heldOf('q1')).toBe('account_unavailable');
+    // Still not served: it stays held.
+    await flushSendQueue();
+    expect(heldOf('q1')).toBe('account_unavailable');
+    expect(mockSend).not.toHaveBeenCalled();
+
+    client.getSubmissionAccountIds.mockReturnValue(['jA', 'jOther']);
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0][4]).toMatchObject({ accountId: 'jOther' });
+    expect(entries()).toEqual([]);
+    await flushSendQueue();
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('never releases an account_unavailable hold while the client does not serve the active account', async () => {
+    await seed(entry({ heldReason: 'account_unavailable' }));
+    await useSendQueueStore.getState().hydrateAccount('A');
+    mockServes.mockReturnValue(false);
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(heldOf('q1')).toBe('account_unavailable');
+  });
+
+  it('never releases the other hold reasons, even with every account served', async () => {
+    const reasons = ['bad_schedule', 'no_sent', 'no_drafts'] as const;
+    for (const [i, reason] of reasons.entries()) await seed(entry({ id: `h${i}`, heldReason: reason }));
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(reasons.map((_, i) => heldOf(`h${i}`))).toEqual([...reasons]);
+  });
+
+  it('never releases an account_unavailable entry that was ever attempted', async () => {
+    await seed(entry({ heldReason: 'account_unavailable', attemptStartedAt: HOUR_AGO() }));
+    await flushSendQueue();
+    await flushSendQueue();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(stateOf('q1')).toBe('queued');
+    expect(heldOf('q1')).toBe('account_unavailable');
+    expect(JSON.parse((await AsyncStorage.getItem('webmail:sendqueue:v1:A:q1'))!).heldReason).toBe('account_unavailable');
   });
 
   it('leaves an uncertain entry of an unserved JMAP account alone (no hold, no lookup)', async () => {

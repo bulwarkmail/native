@@ -1,15 +1,17 @@
 // Asks before a sign-out or account removal throws away queued sends.
-// Counting reads storage by key prefix, so accounts whose queue was never
-// hydrated this session still count. Every state counts: `queued` and
-// `failed` were never sent, `uncertain` and `sending` may or may not have been.
-// A `sending` row is named apart: its request is in flight and may still go
-// out whatever the user picks.
+// Counting reads the rows from storage, so accounts whose queue was never
+// hydrated this session still count. Only rows hydrate would load count
+// (parseQueuedSendRow): a corrupt row is never shown or sent, and it stays on
+// disk either way. Every state counts: `queued` and `failed` were never sent,
+// `uncertain` and `sending` may or may not have been. A `sending` row is named
+// apart: its request is in flight and may still go out whatever the user picks.
 
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../stores/locale-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
+import { parseQueuedSendRow, type QueuedSend } from '../stores/send-queue-store';
 
 const KEY_PREFIX = 'webmail:sendqueue:v1:';
 
@@ -18,18 +20,28 @@ export function signOutNeedsConfirm(counts: readonly number[]): boolean {
   return counts.some((n) => n > 0);
 }
 
-/** Queued sends per account id, from the persisted rows. A storage error counts as 1: ask rather than risk it. */
-export async function countQueuedSends(appAccountIds: readonly string[]): Promise<number[]> {
-  let keys: readonly string[];
+/** Every account's stored rows that hydrate would load, or null on a storage error. */
+async function readQueuedSends(appAccountIds: readonly string[]): Promise<QueuedSend[][] | null> {
+  let rows: ReadonlyArray<readonly [string, string | null]>;
   try {
-    keys = await AsyncStorage.getAllKeys();
+    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(KEY_PREFIX));
+    rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
   } catch {
-    return appAccountIds.map(() => 1);
+    return null;
   }
   return appAccountIds.map((id) => {
     const prefix = `${KEY_PREFIX}${id}:`;
-    return keys.filter((k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':')).length;
+    return rows
+      .filter(([k]) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'))
+      .map(([k, raw]) => parseQueuedSendRow(id, k, raw))
+      .filter((e): e is QueuedSend => e !== null);
   });
+}
+
+/** Queued sends per account id, from the persisted rows. A storage error counts as 1: ask rather than risk it. */
+export async function countQueuedSends(appAccountIds: readonly string[]): Promise<number[]> {
+  const loaded = await readQueuedSends(appAccountIds);
+  return loaded ? loaded.map((list) => list.length) : appAccountIds.map(() => 1);
 }
 
 export interface QueuedSendStates {
@@ -41,29 +53,13 @@ export interface QueuedSendStates {
 
 /**
  * Like countQueuedSends, with the `sending` rows counted apart. A storage
- * error counts as one unsent row (ask rather than risk it); a row that cannot
- * be read counts as unsent.
+ * error counts as one unsent row (ask rather than risk it); a corrupt row is
+ * not counted.
  */
 export async function countQueuedSendStates(appAccountIds: readonly string[]): Promise<QueuedSendStates[]> {
-  let rows: ReadonlyArray<readonly [string, string | null]>;
-  try {
-    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(KEY_PREFIX));
-    rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
-  } catch {
-    return appAccountIds.map(() => ({ total: 1, sending: 0 }));
-  }
-  return appAccountIds.map((id) => {
-    const prefix = `${KEY_PREFIX}${id}:`;
-    const mine = rows.filter(([k]) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'));
-    const sending = mine.filter(([, raw]) => {
-      try {
-        return (JSON.parse(raw ?? 'null') as { state?: unknown } | null)?.state === 'sending';
-      } catch {
-        return false;
-      }
-    }).length;
-    return { total: mine.length, sending };
-  });
+  const loaded = await readQueuedSends(appAccountIds);
+  if (!loaded) return appAccountIds.map(() => ({ total: 1, sending: 0 }));
+  return loaded.map((list) => ({ total: list.length, sending: list.filter((e) => e.state === 'sending').length }));
 }
 
 type Choice = 'cancel' | 'outbox' | 'confirm';

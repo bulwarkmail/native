@@ -41,7 +41,13 @@ function utf8Length(str: string): number {
 
 const STATES: readonly string[] = ['queued', 'sending', 'uncertain', 'failed'];
 
-function parseRow(appAccountId: string, key: string, raw: string | null): QueuedSend | null {
+/**
+ * The entry a stored row holds, or null when hydrate would skip it: unreadable
+ * JSON, a row under another key or account, an unknown state, or no message.
+ * Shared by everything that counts queued sends, so a count never includes a
+ * row the Outbox cannot show.
+ */
+export function parseQueuedSendRow(appAccountId: string, key: string, raw: string | null): QueuedSend | null {
   if (!raw) return null;
   try {
     const e = JSON.parse(raw) as QueuedSend;
@@ -65,7 +71,9 @@ export type QueuedSendState = 'queued' | 'sending' | 'uncertain' | 'failed';
  * Why replay holds a `queued` entry instead of sending it: its schedule cannot
  * be read, the account has no Sent or no Drafts folder, or the session does
  * not serve its JMAP account. A held entry waits for the user (Retry, Save as
- * draft, Discard); it is never sent until the user's Retry clears the hold.
+ * draft, Discard); it is never sent until the user's Retry clears the hold,
+ * with one exception: replay clears `account_unavailable` on an entry that was
+ * never attempted once the session serves that account again (releaseHold).
  */
 export type HeldReason = 'bad_schedule' | 'no_sent' | 'no_drafts' | 'account_unavailable';
 
@@ -144,6 +152,12 @@ interface SendQueueState {
   requeue: (id: string) => Promise<void>;
   /** queued -> queued with `heldReason`: replay cannot send it; it waits for the user. */
   hold: (id: string, reason: HeldReason) => Promise<void>;
+  /**
+   * queued (held `account_unavailable`, never attempted) -> queued: replay saw
+   * the account served again. Refused for any other hold reason, for an entry
+   * with an `attemptStartedAt`, and in any other state.
+   */
+  releaseHold: (id: string) => Promise<void>;
   /** uncertain -> uncertain with `lastReconcileAt` now: replay looked for proof. */
   noteReconcile: (id: string) => Promise<void>;
   /**
@@ -229,7 +243,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':'),
     );
     const rows = keys.length ? await AsyncStorage.multiGet(keys) : [];
-    return rows.some(([key, raw]) => parseRow(appAccountId, key, raw)?.messageId === messageId);
+    return rows.some(([key, raw]) => parseQueuedSendRow(appAccountId, key, raw)?.messageId === messageId);
   };
 
   return {
@@ -247,7 +261,7 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
         const inMemory = new Set(memory.map((e) => e.id));
         const loaded: QueuedSend[] = [];
         for (const [key, raw] of rows) {
-          const parsed = parseRow(appAccountId, key, raw);
+          const parsed = parseQueuedSendRow(appAccountId, key, raw);
           if (!parsed || inMemory.has(parsed.id)) continue; // corrupt rows stay on disk untouched
           let entry = parsed;
           if (entry.state === 'sending') {
@@ -323,6 +337,18 @@ export const useSendQueueStore = create<SendQueueState>((set, get) => {
       ),
 
     hold: (id, reason) => transition(id, ['queued'], (e) => ({ ...e, heldReason: reason })),
+
+    // The only way out of a hold without the user: the entry was held before
+    // markSending, so no request for it was ever made.
+    releaseHold: (id) =>
+      transition(
+        id,
+        (e) => e.state === 'queued' && e.heldReason === 'account_unavailable' && !e.attemptStartedAt,
+        (e) => {
+          const { heldReason: _released, ...rest } = e;
+          return rest;
+        },
+      ),
 
     noteReconcile: (id) => transition(id, ['uncertain'], (e) => ({ ...e, lastReconcileAt: new Date().toISOString() })),
 

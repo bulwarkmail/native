@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  useSendQueueStore, SendTooLargeToQueueError, SendQueueStateError, AlreadyQueuedError, type QueuedSend,
+  useSendQueueStore, SendTooLargeToQueueError, SendQueueStateError, AlreadyQueuedError, parseQueuedSendRow, type QueuedSend,
 } from '../send-queue-store';
 
 const row = (a: string, id: string) => `webmail:sendqueue:v1:${a}:${id}`;
@@ -121,6 +121,16 @@ describe('send-queue-store', () => {
     expect(await AsyncStorage.getItem(row('a1', 'bad2'))).not.toBeNull();
     await useSendQueueStore.getState().markSending('q1');
     expect(await AsyncStorage.getItem(row('a1', 'bad'))).toBe('{not json');
+  });
+
+  it('parseQueuedSendRow is the hydrate validation: a valid row parses, a corrupt or misplaced one does not', () => {
+    const ok = entry();
+    expect(parseQueuedSendRow('a1', row('a1', 'q1'), JSON.stringify(ok))).toEqual(ok);
+    expect(parseQueuedSendRow('a1', row('a1', 'q1'), '{not json')).toBeNull();
+    expect(parseQueuedSendRow('a1', row('a1', 'q1'), null)).toBeNull();
+    expect(parseQueuedSendRow('a1', row('a1', 'q1'), JSON.stringify({ ...ok, state: 'nope' }))).toBeNull();
+    expect(parseQueuedSendRow('a1', row('a1', 'other'), JSON.stringify(ok))).toBeNull();
+    expect(parseQueuedSendRow('a2', row('a2', 'q1'), JSON.stringify(ok))).toBeNull();
   });
 
   it('keeps accounts apart and clearAccount removes only its rows', async () => {
@@ -407,6 +417,46 @@ describe('send-queue-store', () => {
       await s.discard('q1');
       expect(mem('a1')).toEqual([]);
       expect(await stored('a1', 'q1')).toBeNull();
+    });
+
+    it('releaseHold clears an account_unavailable hold on a never-attempted queued entry, persisted', async () => {
+      const s = await setup();
+      await s.hold('q1', 'account_unavailable');
+      await s.releaseHold('q1');
+      expect(mem('a1')[0]).toMatchObject({ state: 'queued' });
+      expect(mem('a1')[0].heldReason).toBeUndefined();
+      expect((await stored('a1', 'q1')).heldReason).toBeUndefined();
+      await s.markSending('q1');
+    });
+
+    it('releaseHold refuses any other hold reason, an unheld entry, and other states', async () => {
+      const s = await setup();
+      const bad = (p: Promise<void>) => expect(p).rejects.toBeInstanceOf(SendQueueStateError);
+      await bad(s.releaseHold('q1'));
+      for (const reason of ['bad_schedule', 'no_sent', 'no_drafts'] as const) {
+        await s.hold('q1', reason);
+        await bad(s.releaseHold('q1'));
+        expect(mem('a1')[0].heldReason).toBe(reason);
+        expect((await stored('a1', 'q1')).heldReason).toBe(reason);
+        await s.requeue('q1');
+      }
+      await s.markSending('q1');
+      await bad(s.releaseHold('q1'));
+      await s.markUncertain('q1', 'net');
+      await bad(s.releaseHold('q1'));
+      await bad(s.releaseHold('nope'));
+    });
+
+    it('releaseHold refuses an account_unavailable entry that was ever attempted', async () => {
+      await AsyncStorage.setItem(row('a1', 'q1'), JSON.stringify(entry({
+        heldReason: 'account_unavailable', attemptStartedAt: '2026-10-04T00:01:00Z',
+      })));
+      const s = useSendQueueStore.getState();
+      await s.hydrateAccount('a1');
+      await expect(s.releaseHold('q1')).rejects.toBeInstanceOf(SendQueueStateError);
+      expect(mem('a1')[0].heldReason).toBe('account_unavailable');
+      expect((await stored('a1', 'q1')).heldReason).toBe('account_unavailable');
+      await expect(s.markSending('q1')).rejects.toBeInstanceOf(SendQueueStateError);
     });
 
     it('noteReconcile stamps an uncertain entry only; a new attempt or a requeue clears the stamp', async () => {
