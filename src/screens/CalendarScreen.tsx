@@ -105,12 +105,15 @@ import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
 import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
+import { createAccountCapture } from '../lib/captured-account';
 import { buildNoteUpdate } from '../lib/event-note';
 import { toast } from '../stores/toast-store';
-import { useEmailStore, requireShownAccountScope, isShownAccount } from '../stores/email-store';
+import { useEmailStore, requireShownAccountScope, isShownAccount, AccountNotServedError } from '../stores/email-store';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
+
+const withCapturedAccount = createAccountCapture(isShownAccount, () => new AccountNotServedError('switched'));
 
 type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 type PendingAction =
@@ -120,10 +123,12 @@ type PendingAction =
       updates: Partial<CalendarEvent>;
       calendarId: string;
       sendScheduling?: boolean;
+      account: EventAccount;
     }
-  | { kind: 'delete'; event: CalendarEvent }
+  | { kind: 'delete'; event: CalendarEvent; account: EventAccount }
   | {
       kind: 'rsvp';
+      account: EventAccount;
       event: CalendarEvent;
       participantId: string;
       status: 'accepted' | 'declined' | 'tentative';
@@ -273,16 +278,19 @@ export default function CalendarScreen() {
   );
   /** The account the open sheets belong to, for a write that isn't about one event. */
   const screenAccount = React.useCallback(
-    (): EventAccount => ({ appAccountId: eventAppAccountId.current }),
+    (): EventAccount => {
+      eventAppAccountId.current ??= useEmailStore.getState().activeAccountId;
+      return { appAccountId: eventAppAccountId.current };
+    },
     [],
   );
   /** The account pair a write on `event` names, from the account its sheet opened in. */
   const accountOf = React.useCallback(
     (event: CalendarEvent): EventAccount => ({
-      appAccountId: eventAppAccountId.current,
+      appAccountId: screenAccount().appAccountId,
       jmapAccountId: event.accountId || undefined,
     }),
-    [],
+    [screenAccount],
   );
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
   const [modalDate, setModalDate] = React.useState<Date | undefined>(undefined);
@@ -302,7 +310,9 @@ export default function CalendarScreen() {
   React.useEffect(() => {
     if (lastShownAccountId.current === shownAccountId) return;
     lastShownAccountId.current = shownAccountId;
-    eventAppAccountId.current = shownAccountId;
+    // Not rewritten to the new account: a flow that decided its account before
+    // the switch carries that value; the next sheet captures the new one.
+    eventAppAccountId.current = null;
     setDetailEventState(null);
     setModalVisible(false);
     setPendingAction(null);
@@ -670,11 +680,12 @@ export default function CalendarScreen() {
 
   const handleDeleteFromDetail = React.useCallback((event: CalendarEvent) => {
     if (isReadOnlyEvent(event)) { setDetailEvent(null); return; }
+    const account = accountOf(event);
     setDetailEvent(null);
     if (isRecurringSeriesMember(event)) {
-      setPendingAction({ kind: 'delete', event });
+      setPendingAction({ kind: 'delete', event, account });
     } else {
-      deleteEvent(event.id, { account: accountOf(event) }).catch(reportError);
+      deleteEvent(event.id, { account }).catch(reportError);
     }
   }, [deleteEvent, isReadOnlyEvent, reportError, accountOf]);
 
@@ -682,7 +693,7 @@ export default function CalendarScreen() {
   // master plus its untouched rules so the caller can start a new series (or
   // roll back). Port of webmail's truncateRecurrenceAtEvent.
   const truncateRecurrenceAtEvent = React.useCallback(
-    async (event: CalendarEvent) => {
+    async (event: CalendarEvent, account: EventAccount) => {
       const master = await getMasterEvent(event);
       if (!master) return null;
       const originalRules = master.recurrenceRules
@@ -690,10 +701,10 @@ export default function CalendarScreen() {
         : null;
       await updateEvent(master.id, {
         recurrenceRules: truncateRecurrenceRules(master.recurrenceRules, event),
-      }, { account: accountOf(event) });
+      }, { account });
       return { master, originalRules };
     },
-    [getMasterEvent, updateEvent, accountOf],
+    [getMasterEvent, updateEvent],
   );
 
   // Send an answer and show it in the open detail sheet. 'occurrence'
@@ -704,8 +715,9 @@ export default function CalendarScreen() {
       participantId: string,
       status: 'accepted' | 'declined' | 'tentative',
       scope: 'occurrence' | 'series',
+      account: EventAccount,
     ) => {
-      await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev), undefined, scope, accountOf(ev));
+      await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev), undefined, scope, account);
       setDetailEvent((cur) =>
         cur && cur.id === ev.id && cur.participants?.[participantId]
           ? {
@@ -718,7 +730,7 @@ export default function CalendarScreen() {
           : cur,
       );
     },
-    [rsvpEvent, accountOf],
+    [rsvpEvent],
   );
 
   const handleScopeSelect = React.useCallback(
@@ -726,10 +738,11 @@ export default function CalendarScreen() {
       const action = pendingAction;
       setPendingAction(null);
       if (!action) return;
-      const { event } = action;
+      // Decided when the question was asked, before any wait.
+      const { event, account } = action;
       if (action.kind === 'rsvp') {
         try {
-          await submitRsvp(event, action.participantId, action.status, scope === 'this' ? 'occurrence' : 'series');
+          await submitRsvp(event, action.participantId, action.status, scope === 'this' ? 'occurrence' : 'series', account);
         } catch (err) {
           Alert.alert(
             t('calendar.notifications.rsvp_error', 'Failed to update response'),
@@ -756,13 +769,13 @@ export default function CalendarScreen() {
           }
           // One connection for the whole "this and following" sequence.
           const series: EventAccount = {
-            ...accountOf(event),
+            ...account,
             ...(scope === 'this_and_future'
-              ? { scope: requireShownAccountScope(eventAppAccountId.current, event.accountId || undefined) }
+              ? { scope: requireShownAccountScope(account.appAccountId, account.jmapAccountId) }
               : {}),
           };
           const write = async (send: boolean | undefined) => {
-            const opts = { sendSchedulingMessages: send, account: accountOf(event) };
+            const opts = { sendSchedulingMessages: send, account };
             switch (scope) {
               case 'this': {
                 // The store keeps the change on this occurrence: through its
@@ -810,18 +823,18 @@ export default function CalendarScreen() {
             case 'this': {
               // The store destroys a server occurrence, or excludes one the
               // device expanded on its base event.
-              await deleteEvent(event.id, { account: accountOf(event) });
+              await deleteEvent(event.id, { account });
               break;
             }
             case 'this_and_future': {
-              const result = await truncateRecurrenceAtEvent(event);
+              const result = await truncateRecurrenceAtEvent(event, account);
               if (!result) throw new Error('Master event not found');
               break;
             }
             case 'all': {
               const master = await getMasterEvent(event);
               if (!master) throw new Error('Master event not found');
-              await deleteEvent(master.id, { account: accountOf(event) });
+              await deleteEvent(master.id, { account });
               break;
             }
           }
@@ -838,7 +851,7 @@ export default function CalendarScreen() {
         // Best effort — the next navigation refetches anyway.
       }
     },
-    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, submitRsvp, accountOf, t],
+    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, submitRsvp, t],
   );
 
   const handleSave = React.useCallback(
@@ -848,6 +861,9 @@ export default function CalendarScreen() {
       options?: { sendSchedulingMessages?: boolean },
     ) => {
       const sendScheduling = options?.sendSchedulingMessages;
+      // Decided now, before the scheduling prompt (an Alert outlives a switch),
+      // and checked again at each write.
+      return withCapturedAccount(() => (modalEvent ? accountOf(modalEvent) : screenAccount()), async (account, check) => {
       if (modalEvent) {
         const updates: Partial<CalendarEvent> = { ...data };
         // Moving the event to another calendar: the store remaps the store id
@@ -858,12 +874,13 @@ export default function CalendarScreen() {
         if (isRecurringSeriesMember(modalEvent)) {
           // Ask which occurrences the edit applies to; the actual write
           // happens in handleScopeSelect.
-          setPendingAction({ kind: 'edit', event: modalEvent, updates, calendarId, sendScheduling });
+          setPendingAction({ kind: 'edit', event: modalEvent, updates, calendarId, sendScheduling, account });
           return true;
         }
         const outcome = await saveWithSchedulingFallback(
           async (send) => {
-            await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: send, account: accountOf(modalEvent) });
+            check();
+            await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: send, account });
           },
           sendScheduling,
           (reason) => confirmSaveWithoutInvitations(reason, t),
@@ -872,25 +889,28 @@ export default function CalendarScreen() {
       } else {
         const outcome = await saveWithSchedulingFallback(
           async (send) => {
-            await createEvent(data, calendarId, { sendSchedulingMessages: send, account: { appAccountId: eventAppAccountId.current } });
+            check();
+            await createEvent(data, calendarId, { sendSchedulingMessages: send, account });
           },
           sendScheduling,
           (reason) => confirmSaveWithoutInvitations(reason, t),
         );
         return outcome !== 'cancelled';
       }
+      });
     },
-    [modalEvent, createEvent, updateEvent, accountOf, t],
+    [modalEvent, createEvent, updateEvent, accountOf, screenAccount, t],
   );
 
   const handleDeleteFromModal = React.useCallback(
     async (event: CalendarEvent) => {
+      const account = accountOf(event);
       setModalVisible(false);
       if (isRecurringSeriesMember(event)) {
-        setPendingAction({ kind: 'delete', event });
+        setPendingAction({ kind: 'delete', event, account });
         return;
       }
-      await deleteEvent(event.id, { account: accountOf(event) }).catch(reportError);
+      await deleteEvent(event.id, { account }).catch(reportError);
     },
     [deleteEvent, reportError, accountOf],
   );
@@ -986,13 +1006,14 @@ export default function CalendarScreen() {
     async (event: CalendarEvent, note: string): Promise<boolean> => {
       const updates = buildNoteUpdate(event, note, displayNow());
       if (!updates) return false;
+      const account = accountOf(event);
       if (isRecurringSeriesMember(event)) {
         setDetailEvent(null);
-        setPendingAction({ kind: 'edit', event, updates, calendarId: getPrimaryCalendarId(event) ?? '' });
+        setPendingAction({ kind: 'edit', event, updates, calendarId: getPrimaryCalendarId(event) ?? '', account });
         return true;
       }
       try {
-        await updateEvent(event.id, updates, { account: accountOf(event) });
+        await updateEvent(event.id, updates, { account });
         setDetailEvent((cur) => (cur && cur.id === event.id ? { ...cur, ...updates } : cur));
         toast.success(t('calendar.detail.note_saved', 'Note added'));
         return true;
@@ -1007,14 +1028,15 @@ export default function CalendarScreen() {
   const handleCalendarEditSave = React.useCallback(
     async (values: CalendarEditValues) => {
       if (!calendarEditTarget) return;
+      const account = screenAccount();
       if (calendarEditTarget.mode === 'create') {
-        await createCalendar(values.name, values.color, values.description, screenAccount());
+        await createCalendar(values.name, values.color, values.description, account);
       } else {
         await updateCalendar(calendarEditTarget.calendar.id, {
           name: values.name,
           color: values.color,
           description: values.description || null,
-        });
+        }, account);
       }
     },
     [calendarEditTarget, createCalendar, updateCalendar, screenAccount],
@@ -1319,11 +1341,12 @@ export default function CalendarScreen() {
         onRsvp={async (ev, participantId, status) => {
           // An answer on one occurrence of a series asks whether it covers
           // just that occurrence or the whole series (webmail #1086).
+          const account = accountOf(ev);
           if (ev.recurrenceId) {
-            setPendingAction({ kind: 'rsvp', event: ev, participantId, status });
+            setPendingAction({ kind: 'rsvp', event: ev, participantId, status, account });
             return;
           }
-          await submitRsvp(ev, participantId, status, 'series');
+          await submitRsvp(ev, participantId, status, 'series', account);
         }}
       />
 

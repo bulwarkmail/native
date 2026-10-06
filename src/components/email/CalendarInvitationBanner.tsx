@@ -28,7 +28,7 @@ import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
-import { useEmailStore, requireShownAccountScope } from '../../stores/email-store';
+import { requireShownAccountScope } from '../../stores/email-store';
 import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
 
 type BannerState = 'loading' | 'parsed' | 'done' | 'error';
@@ -39,8 +39,8 @@ interface Props {
   // Account the email lives in (a shared mailbox's owner); the .ics blob is
   // parsed against it. Undefined for the user's own mailboxes.
   jmapAccountId?: string;
-  // The app account the message is shown in; defaults to the one shown when
-  // the banner mounted. Every lookup and write goes out only while it is shown.
+  // The app account the message is shown in. Every lookup and write goes out
+  // only while it is shown and served; missing, they are refused.
   appAccountId?: string;
 }
 
@@ -76,8 +76,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const subscriptions = useAccountSubscriptions();
   const importEvents = useCalendarStore((s) => s.importEvents);
   const rsvpEvent = useCalendarStore((s) => s.rsvpEvent);
-  const [mountedIn] = React.useState(() => useEmailStore.getState().activeAccountId);
-  const ownerAppAccountId = appAccountId ?? mountedIn;
+  // No live fallback: without the account the message was shown in, a write
+  // is refused by the store rather than sent for whichever account is shown.
+  const ownerAppAccountId = appAccountId;
   const attachment = React.useMemo(() => findCalendarAttachment(email), [email]);
   // Login address + identities + aliases, so invitations addressed to an
   // alias still show the RSVP buttons. Only an invitation looks the aliases up.
