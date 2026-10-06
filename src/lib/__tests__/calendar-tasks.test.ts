@@ -5,6 +5,8 @@ import {
   groupTasksByDueDay,
   isTaskDone,
   isTaskEvent,
+  runUnlessInFlight,
+  withoutDoneTasks,
   taskDueDayKey,
   taskIdOfEvent,
 } from '../calendar-tasks';
@@ -129,5 +131,39 @@ describe('calendarTaskEvents', () => {
       hiddenCount: 1,
       expandable: true,
     });
+  });
+});
+
+describe('withoutDoneTasks', () => {
+  it('drops done task items but keeps open tasks and events', () => {
+    const items = calendarTaskEvents(
+      [makeTask('open'), makeTask('done', { progress: 'completed' }), makeTask('gone', { progress: 'cancelled' })],
+      ['cal-1'],
+    );
+    const event = makeTask('ev', { '@type': 'Event', progress: 'completed' });
+    expect(withoutDoneTasks([...items, event]).map((e) => e.id)).toEqual(['task:open', 'ev']);
+  });
+});
+
+describe('runUnlessInFlight', () => {
+  it('ignores a second tap on the same task until the first settles', async () => {
+    const inFlight = new Set<string>();
+    let release: () => void = () => {};
+    let calls = 0;
+    const run = () => { calls++; return new Promise<void>((r) => { release = r; }); };
+    expect(runUnlessInFlight(inFlight, 'a', run)).toBe(true);
+    expect(runUnlessInFlight(inFlight, 'a', run)).toBe(false);
+    expect(runUnlessInFlight(inFlight, 'b', () => Promise.resolve())).toBe(true);
+    expect(calls).toBe(1);
+    release();
+    await Promise.resolve(); await Promise.resolve();
+    expect(runUnlessInFlight(inFlight, 'a', () => Promise.resolve())).toBe(true);
+  });
+
+  it('frees the task when the update fails', async () => {
+    const inFlight = new Set<string>();
+    runUnlessInFlight(inFlight, 'a', () => Promise.reject(new Error('no')));
+    await Promise.resolve(); await Promise.resolve();
+    expect(inFlight.has('a')).toBe(false);
   });
 });

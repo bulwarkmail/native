@@ -94,3 +94,33 @@ export function calendarTaskEvents(tasks: CalendarEvent[], visibleCalendarIds: s
   }
   return out;
 }
+
+/**
+ * The agenda and the month's day list have no completion circle, and webmail's
+ * agenda lists no tasks at all: they keep the open tasks they showed before
+ * and leave the done ones to the grids, where they are struck through.
+ */
+export function withoutDoneTasks(events: CalendarEvent[]): CalendarEvent[] {
+  return events.some((e) => isTaskEvent(e) && isTaskDone(e))
+    ? events.filter((e) => !(isTaskEvent(e) && isTaskDone(e)))
+    : events;
+}
+
+/**
+ * Runs `run` for `key` unless a run for it is still going: a fast double tap
+ * on a task's circle sends one update, not two overlapping flips. Returns
+ * whether it started.
+ */
+export function runUnlessInFlight(
+  inFlight: Set<string>,
+  key: string,
+  run: () => Promise<unknown>,
+): boolean {
+  if (inFlight.has(key)) return false;
+  inFlight.add(key);
+  void run().then(
+    () => { inFlight.delete(key); },
+    () => { inFlight.delete(key); },
+  );
+  return true;
+}

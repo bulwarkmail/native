@@ -55,7 +55,7 @@ import {
   type RecurrenceEditScope,
 } from '../components/calendar/RecurrenceScopeDialog';
 import { CalendarSidebarDrawer } from '../components/calendar/CalendarSidebarDrawer';
-import { calendarTaskEvents, isTaskEvent, taskIdOfEvent } from '../lib/calendar-tasks';
+import { calendarTaskEvents, isTaskEvent, runUnlessInFlight, taskIdOfEvent, withoutDoneTasks } from '../lib/calendar-tasks';
 import { TasksSheet } from '../components/calendar/TasksSheet';
 import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
 import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
@@ -502,6 +502,14 @@ export default function CalendarScreen() {
     [events, calendarTimeZone],
   );
 
+  // The agenda and the day list draw no completion circle: open tasks only.
+  const listEvents = React.useMemo(() => withoutDoneTasks(events), [events]);
+  const listEventsByDay = React.useMemo(
+    () => (listEvents === events ? eventsByDay : buildEventDayIndex(listEvents)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listEvents, events, eventsByDay, calendarTimeZone],
+  );
+
   // A new calendar time zone also changes how the server reads floating
   // times and the range bounds: reload what is loaded.
   const loadedTimeZoneRef = React.useRef(calendarTimeZone);
@@ -927,14 +935,19 @@ export default function CalendarScreen() {
 
   // The store flips the checkbox optimistically and reverts it when the
   // server refuses; say so instead of leaving the user guessing.
+  // A task whose toggle is still going ignores further taps.
+  const toggleInFlightRef = React.useRef(new Set<string>());
   const handleToggleTask = React.useCallback(
     (id: string) => {
-      toggleTaskComplete(id, screenAccount()).catch((err: unknown) => {
-        Alert.alert(
-          t('calendar.tasks.update_error', 'Failed to update task'),
-          err instanceof Error ? err.message : undefined,
-        );
-      });
+      const account = screenAccount();
+      runUnlessInFlight(toggleInFlightRef.current, id, () =>
+        toggleTaskComplete(id, account).catch((err: unknown) => {
+          Alert.alert(
+            t('calendar.tasks.update_error', 'Failed to update task'),
+            err instanceof Error ? err.message : undefined,
+          );
+        }),
+      );
     },
     [toggleTaskComplete, screenAccount, t],
   );
@@ -1297,8 +1310,8 @@ export default function CalendarScreen() {
             loadingEdge={loadingEdge}
             isLoading={rangeLoading}
             onVisibleDateChange={setVisibleDate}
-            events={events}
-            eventsByDay={eventsByDay}
+            events={listEvents}
+            eventsByDay={listEventsByDay}
             calendars={calendars}
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
@@ -1318,7 +1331,7 @@ export default function CalendarScreen() {
             </View>
             <DayEventList
               date={selectedDate}
-              eventsByDay={eventsByDay}
+              eventsByDay={listEventsByDay}
               calendars={calendars}
               timeFormat={calendarTimeFormat}
               currentUserEmails={currentUserEmails}
