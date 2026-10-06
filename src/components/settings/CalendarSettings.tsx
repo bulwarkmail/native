@@ -11,7 +11,6 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { useCalendarStore } from '../../stores/calendar-store';
 import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
-import { useAccountStore } from '../../stores/account-store';
 import { jmapClient } from '../../api/jmap-client';
 import { useColors } from '../../theme/colors';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
@@ -20,6 +19,8 @@ import { BIRTHDAY_CALENDAR_COLOR } from '../../lib/birthday-calendar';
 import { formatDisplayHour } from '../../lib/calendar-display-range';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
+import { newInvitationOrganizer } from '../../lib/calendar-participants';
+import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 
@@ -47,6 +48,9 @@ const COMMON_TIME_ZONES = [
   'Asia/Seoul', 'Asia/Tokyo', 'Australia/Perth', 'Australia/Adelaide', 'Australia/Sydney',
   'Pacific/Auckland',
 ];
+
+// The select's entry for the login address when no identity has it.
+const LOGIN_ADDRESS_OPTION = '__login_address__';
 
 export function CalendarSettings() {
   const t = useLocaleStore((s) => s.t);
@@ -89,14 +93,12 @@ export function CalendarSettings() {
     if (!ownJmapAccountId || useCalendarStore.getState().participantIdentities[ownJmapAccountId]) return;
     void fetchIdentities({ appAccountId: useEmailStore.getState().activeAccountId });
   }, [ownJmapAccountId, fetchIdentities]);
-  // What organizes new invitations: the flagged default, else the login
-  // address (the fallback), else the first identity.
-  const loginEmail = useAccountStore((s) => s.getActiveAccount()?.email ?? '');
-  const defaultIdentityId =
-    identities?.find((i) => i.isDefault)?.id
-    ?? identities?.find((i) => i.calendarAddress.replace(/^mailto:/i, '').toLowerCase() === loginEmail.toLowerCase())?.id
-    ?? identities?.[0]?.id
-    ?? '';
+  // What organizes new invitations, exactly as a save decides it: the
+  // flagged default, else the login address (shown as its own entry when no
+  // identity has it).
+  const userEmails = useUserCalendarAddresses(false);
+  const organizer = newInvitationOrganizer(identities, userEmails);
+  const organizerValue = organizer.identityId ?? LOGIN_ADDRESS_OPTION;
 
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
@@ -169,8 +171,9 @@ export function CalendarSettings() {
             )}
           >
             <Select
-              value={defaultIdentityId}
+              value={organizerValue}
               onChange={(id) => {
+                if (id === LOGIN_ADDRESS_OPTION) return;
                 setDefaultIdentity(id, { appAccountId: useEmailStore.getState().activeAccountId }).catch((err) => {
                   toast.error(
                     err instanceof Error && err.message
@@ -179,10 +182,15 @@ export function CalendarSettings() {
                   );
                 });
               }}
-              options={identities.map((i) => {
-                const address = i.calendarAddress.replace(/^mailto:/i, '');
-                return { value: i.id, label: i.name && i.name !== address ? `${i.name} <${address}>` : address };
-              })}
+              options={[
+                ...identities.map((i) => {
+                  const address = i.calendarAddress.replace(/^mailto:/i, '');
+                  return { value: i.id, label: i.name && i.name !== address ? `${i.name} <${address}>` : address };
+                }),
+                ...(organizer.identityId === null && organizer.address
+                  ? [{ value: LOGIN_ADDRESS_OPTION, label: organizer.address }]
+                  : []),
+              ]}
             />
           </SettingItem>
         )}

@@ -84,19 +84,42 @@ export function defaultIdentityAddress(
   return found ? found.calendarAddress.trim().replace(/^mailto:/i, '') : '';
 }
 
+type IdentityLike = { id?: string; calendarAddress: string; isDefault: boolean };
+
+const bareAddress = (address: string) => address.trim().replace(/^mailto:/i, '');
+
+/**
+ * What organizes a new invitation: the user's default ParticipantIdentity
+ * (one with an address), and without one the first login address, with the
+ * identity that has that address (`identityId` null when none has it). The
+ * settings select shows exactly this, and a save uses `address`.
+ */
+export function newInvitationOrganizer(
+  identities: ReadonlyArray<IdentityLike> | undefined,
+  userEmails: string[],
+): { address: string; identityId: string | null } {
+  const flagged = identities?.find((i) => i.isDefault && i.calendarAddress.trim());
+  if (flagged) return { address: bareAddress(flagged.calendarAddress), identityId: flagged.id ?? null };
+  const address = userEmails[0] || '';
+  const lower = address.toLowerCase();
+  const holder = address
+    ? identities?.find((i) => bareAddress(i.calendarAddress).toLowerCase() === lower)
+    : undefined;
+  return { address, identityId: holder?.id ?? null };
+}
+
 /**
  * The address that organizes an event on save. An event that already has an
  * organizer keeps it; a new event, or one gaining participants for the first
- * time, uses the user's default ParticipantIdentity, and without one the
- * first login address.
+ * time, uses `newInvitationOrganizer`.
  */
 export function organizerAddressForSave(
   event: Partial<CalendarEvent> | null | undefined,
-  identities: ReadonlyArray<{ calendarAddress: string; isDefault: boolean }> | undefined,
+  identities: ReadonlyArray<IdentityLike> | undefined,
   userEmails: string[],
 ): string {
   const existing = event?.organizerCalendarAddress?.trim().replace(/^mailto:/i, '');
-  return existing || defaultIdentityAddress(identities) || userEmails[0] || '';
+  return existing || newInvitationOrganizer(identities, userEmails).address;
 }
 
 /**

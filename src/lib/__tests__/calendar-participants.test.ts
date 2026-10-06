@@ -13,6 +13,7 @@ import {
   seedAttendees,
   defaultIdentityAddress,
   organizerAddressForSave,
+  newInvitationOrganizer,
   participantsLockedFor,
 } from '../calendar-participants';
 
@@ -252,6 +253,53 @@ describe('organizerAddressForSave', () => {
     expect(organizerAddressForSave(null, undefined, ['login@example.com', 'x@example.com'])).toBe('login@example.com');
     expect(organizerAddressForSave(null, [{ calendarAddress: 'mailto:a@b.c', isDefault: false }], ['login@example.com'])).toBe('login@example.com');
     expect(organizerAddressForSave(null, [], [])).toBe('');
+  });
+});
+
+describe('newInvitationOrganizer (the settings select and the save agree)', () => {
+  const login = ['login@example.com'];
+
+  it('is the flagged default identity, by id and address', () => {
+    const ids = [
+      { id: 'a', calendarAddress: 'mailto:login@example.com', isDefault: false },
+      { id: 'b', calendarAddress: 'mailto:Work@example.com', isDefault: true },
+    ];
+    expect(newInvitationOrganizer(ids, login)).toEqual({ address: 'Work@example.com', identityId: 'b' });
+  });
+
+  it('without a default is the login address, and the identity that has it', () => {
+    const ids = [
+      { id: 'a', calendarAddress: 'mailto:other@example.com', isDefault: false },
+      { id: 'b', calendarAddress: 'mailto:LOGIN@example.com', isDefault: false },
+    ];
+    expect(newInvitationOrganizer(ids, login)).toEqual({ address: 'login@example.com', identityId: 'b' });
+  });
+
+  it('names no identity when the login address is none of them (not the first one)', () => {
+    const ids = [
+      { id: 'a', calendarAddress: 'mailto:other@example.com', isDefault: false },
+      { id: 'b', calendarAddress: 'mailto:more@example.com', isDefault: false },
+    ];
+    expect(newInvitationOrganizer(ids, login)).toEqual({ address: 'login@example.com', identityId: null });
+  });
+
+  it('skips a default without an address, like the save', () => {
+    const ids = [
+      { id: 'a', calendarAddress: '  ', isDefault: true },
+      { id: 'b', calendarAddress: 'mailto:login@example.com', isDefault: false },
+    ];
+    expect(newInvitationOrganizer(ids, login)).toEqual({ address: 'login@example.com', identityId: 'b' });
+  });
+
+  it('is what a new event is saved with', () => {
+    const cases = [
+      [{ id: 'a', calendarAddress: 'mailto:other@example.com', isDefault: false }],
+      [{ id: 'a', calendarAddress: 'mailto:w@example.com', isDefault: true }],
+      [],
+    ];
+    for (const ids of cases) {
+      expect(organizerAddressForSave(null, ids, login)).toBe(newInvitationOrganizer(ids, login).address);
+    }
   });
 });
 
