@@ -20,10 +20,22 @@ export interface CalendarReminderTarget {
 // A tapped reminder arrives before CalendarScreen is mounted (cold start) or
 // while it shows something else. The target is parked here and consumed by
 // the screen, like pending-settings-tab.
+/** A date link: the view (when the link names one) and the day to show. */
+export interface CalendarViewTarget {
+  view?: 'month' | 'week' | 'day' | 'agenda';
+  /** `YYYY-MM-DD`, validated by the link parser; today when absent. */
+  date?: string;
+}
+
 interface PendingCalendarOpenState {
   target: CalendarReminderTarget | null;
   set: (target: CalendarReminderTarget | null) => void;
   consume: () => CalendarReminderTarget | null;
+  // Parked beside `target`, not in it: showing a date touches no event, sheet
+  // or account, so the reminder path stays as it is.
+  view: CalendarViewTarget | null;
+  setView: (view: CalendarViewTarget | null) => void;
+  consumeView: () => CalendarViewTarget | null;
 }
 
 export const usePendingCalendarOpen = create<PendingCalendarOpenState>((set, get) => ({
@@ -34,8 +46,19 @@ export const usePendingCalendarOpen = create<PendingCalendarOpenState>((set, get
     if (target) set({ target: null });
     return target;
   },
+  view: null,
+  setView: (view) => set({ view }),
+  consumeView: () => {
+    const view = get().view;
+    if (view) set({ view: null });
+    return view;
+  },
 }));
 
 export function setPendingCalendarOpen(target: CalendarReminderTarget | null): void {
   usePendingCalendarOpen.getState().set(target);
+}
+
+export function setPendingCalendarView(view: CalendarViewTarget | null): void {
+  usePendingCalendarOpen.getState().setView(view);
 }

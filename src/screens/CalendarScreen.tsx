@@ -103,6 +103,7 @@ import { useUserCalendarAddresses } from '../lib/calendar-user-addresses';
 import { useAccountSubscriptions, useCalendarSubscriptionsStore } from '../stores/calendar-subscriptions-store';
 import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
+import { usePendingCalendarOpen } from '../navigation/pending-calendar-open';
 import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
 import { createAccountCapture } from '../lib/captured-account';
@@ -353,6 +354,22 @@ export default function CalendarScreen() {
     },
     onTask: (id) => { setTasksInitialId(id); setTasksVisible(true); },
   });
+  // A date link (`/calendar/<view>/<date>`) shows that day, in that view
+  // when it names one. Only the visible date and view change.
+  const pendingView = usePendingCalendarOpen((s) => s.view);
+  React.useEffect(() => {
+    if (!pendingView) return;
+    const link = usePendingCalendarOpen.getState().consumeView();
+    if (!link) return;
+    const date = link.date ? parseDayKey(link.date) : displayNow();
+    if (isNaN(date.getTime())) return;
+    const mode = link.view ?? viewMode;
+    setViewMode(mode);
+    setSelectedDate(date);
+    setVisibleDate(null);
+    setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
+    setWindowState(freshScrollWindowState(mode, date));
+  }, [pendingView, viewMode]);
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
   const setDefaultCalendar = useCalendarStore((s) => s.setDefaultCalendar);
   const createCalendar = useCalendarStore((s) => s.createCalendar);
