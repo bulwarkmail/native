@@ -12,7 +12,8 @@
     },
     "colors": {
       "indigo": "Indigo",
-      "teal": "Teal"
+      "teal": "Teal",
+      "yellow": "Yellow"
     },
     "detail": {
       "add_note_short": "Note",
@@ -106,6 +107,7 @@
       "until_date": "Until {date}"
     },
     "settings": {
+      "birthday_calendar_color": "Birthday calendar colour",
       "device_sync_desc": "Show your calendars in the Calendar app and other apps on this device. Changes sync both ways.",
       "device_sync_title": "Sync to this device",
       "hide_non_working_days": "Hide non-working days",

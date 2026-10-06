@@ -252,6 +252,8 @@ interface PersistedSettings {
   // Same key semantics as the webmail's `timeZone` setting.
   calendarTimeZone: string;
   showBirthdayCalendar: boolean;
+  // Hex colour of the virtual birthday calendar (webmail's key and default).
+  birthdayCalendarColor: string;
   enableCalendarTasks: boolean;
   showTasksOnCalendar: boolean;
   // Per-viewer color overrides for shared calendars, keyed by
@@ -419,6 +421,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   calendarWorkingDays: [1, 2, 3, 4, 5],
   calendarTimeZone: 'auto',
   showBirthdayCalendar: false,
+  birthdayCalendarColor: '#eab308',
   enableCalendarTasks: false,
   showTasksOnCalendar: true,
   sharedCalendarColors: {},
@@ -603,6 +606,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   calendarDayStartHour: intBetween(0, 23),
   calendarDayEndHour: intBetween(1, 24),
   calendarWorkingDays: isValidWorkingDays,
+  birthdayCalendarColor: (v) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v),
   filesFolderLayout: oneOf(['inline', 'sidebar']),
   filesDefaultViewMode: oneOf(['list', 'grid']),
   filesDefaultSortKey: oneOf(['name', 'size', 'modified']),

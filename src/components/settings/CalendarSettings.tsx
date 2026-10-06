@@ -15,6 +15,8 @@ import { useAccountStore } from '../../stores/account-store';
 import { jmapClient } from '../../api/jmap-client';
 import { useColors } from '../../theme/colors';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-utils';
+import { BIRTHDAY_CALENDAR_COLOR } from '../../lib/birthday-calendar';
 import { formatDisplayHour } from '../../lib/calendar-display-range';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
@@ -67,6 +69,7 @@ export function CalendarSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
+  const birthdayColor = useSettingsStore((s) => s.birthdayCalendarColor);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
 
@@ -338,6 +341,26 @@ export function CalendarSettings() {
           />
         </SettingItem>
 
+        {birthdayCal && (
+          <SettingItem label={t('calendar.settings.birthday_calendar_color', 'Birthday calendar colour')}>
+            <View style={styles.dayChips} accessibilityRole="radiogroup">
+              {[BIRTHDAY_CALENDAR_COLOR, ...CALENDAR_COLOR_PALETTE].map((color) => {
+                const selected = birthdayColor.toLowerCase() === color.toLowerCase();
+                return (
+                  <Pressable
+                    key={color}
+                    accessibilityRole="radio"
+                    accessibilityLabel={color === BIRTHDAY_CALENDAR_COLOR ? t('calendar.colors.yellow', 'Yellow') : calendarColorName(color, t)}
+                    accessibilityState={{ selected }}
+                    onPress={() => update('birthdayCalendarColor', color)}
+                    style={[styles.swatch, { backgroundColor: color }, selected && styles.swatchSelected]}
+                  />
+                );
+              })}
+            </View>
+          </SettingItem>
+        )}
+
         <SettingItem
           label={t('calendar.settings.enable_tasks', 'Enable tasks')}
           description={t('calendar.settings.enable_tasks_desc', 'Show a tasks view in the calendar for managing to-dos')}
@@ -391,6 +414,8 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1,
       borderColor: c.border,
     },
+    swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
+    swatchSelected: { borderColor: c.text },
     dayChipSelected: { backgroundColor: c.primary, borderColor: c.primary },
     dayChipText: { ...typography.small, color: c.text },
     dayChipTextSelected: { color: c.textInverse, fontWeight: '600' },

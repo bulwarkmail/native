@@ -6,11 +6,11 @@ export const BIRTHDAY_CALENDAR_ID = '__birthday-calendar__';
 export const BIRTHDAY_CALENDAR_COLOR = '#eab308'; // yellow
 
 // A read-only virtual calendar holding generated birthday events.
-export function createBirthdayCalendar(name = 'Birthdays'): Calendar {
+export function createBirthdayCalendar(name = 'Birthdays', color?: string): Calendar {
   return {
     id: BIRTHDAY_CALENDAR_ID,
     name,
-    color: BIRTHDAY_CALENDAR_COLOR,
+    color: color || BIRTHDAY_CALENDAR_COLOR,
     sortOrder: 999,
     isSubscribed: true,
     isVisible: true,
@@ -107,7 +107,7 @@ export function generateBirthdayEvents(
           showWithoutTime: true,
           status: 'confirmed',
           freeBusyStatus: 'free',
-          color: BIRTHDAY_CALENDAR_COLOR,
+          // No event colour: it takes the birthday calendar's own colour.
         });
       }
     }
