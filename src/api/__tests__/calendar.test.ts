@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
+    connectionGen: 3,
+    hasAccountCapability: vi.fn(() => true),
     request: vi.fn(),
     getMaxObjectsInGet: () => 500,
   },
@@ -24,6 +26,9 @@ import {
   resetSyntheticIdSupport,
   queryExpandedEvents,
   hydrateExpandedOccurrences,
+  scanCalendarObjects,
+  getParticipantIdentities,
+  setDefaultParticipantIdentity,
 } from '../calendar';
 import { SchedulingDeniedError } from '../jmap-result';
 
@@ -63,7 +68,30 @@ describe('calendar operations', () => {
           ['CalendarEvent/set', { accountId: 'acc-1', update: { h333333: {} } }, 'synthetic-id-probe'],
         ],
         expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
+        { gen: 3 },
       );
+    });
+
+    it('sends every request on the connection the caller started on', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['Calendar/get', { list: [] }, '0']] });
+      await getCalendars({ gen: 9, accountId: 'acc-9' });
+      expect(mockRequest.mock.calls[0][0][0][1]).toEqual({ accountId: 'acc-9' });
+      expect(mockRequest.mock.calls[0][2]).toEqual({ gen: 9 });
+    });
+  });
+
+  describe('reads bound to a scope', () => {
+    it('queryEvents, queryExpandedEvents and scanCalendarObjects go out on the scope', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['CalendarEvent/query', { ids: [] }, '0']] });
+      const at = { gen: 9, accountId: 'acc-9' };
+      await queryEvents(['cal-1'], '', '', at);
+      await queryExpandedEvents('2026-03-01T00:00:00Z', '2026-03-02T00:00:00Z', at);
+      await scanCalendarObjects(at);
+      for (const call of mockRequest.mock.calls) {
+        expect(call[0][0][1].accountId).toBe('acc-9');
+        expect(call[2]).toEqual({ gen: 9 });
+      }
+      expect(mockRequest).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -624,5 +652,42 @@ describe('calendar operations', () => {
 
       await expect(clearCalendarEvents('cal-1')).rejects.toThrow(/forbidden/);
     });
+  });
+});
+
+describe('ParticipantIdentity', () => {
+  it('loads an account\'s identities, flagging the default', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['ParticipantIdentity/get', { list: [
+        { id: 'i1', name: 'Me', calendarAddress: 'mailto:me@example.com', isDefault: true },
+        { id: 'i2', calendarAddress: 'mailto:alias@example.com' },
+      ] }, '0']],
+    });
+    const list = await getParticipantIdentities('acc-2');
+    expect(list).toEqual([
+      { id: 'i1', name: 'Me', calendarAddress: 'mailto:me@example.com', isDefault: true },
+      { id: 'i2', name: '', calendarAddress: 'mailto:alias@example.com', isDefault: false },
+    ]);
+    expect(mockRequest).toHaveBeenCalledWith(
+      [['ParticipantIdentity/get', { accountId: 'acc-2' }, '0']],
+      expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
+      { gen: 3 },
+    );
+  });
+
+  it('sends nothing without the calendars capability', async () => {
+    (jmapClient.hasAccountCapability as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+    expect(await getParticipantIdentities()).toEqual([]);
+    expect(mockRequest).not.toHaveBeenCalled();
+  });
+
+  it('makes an identity the default with onSuccessSetIsDefault', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['ParticipantIdentity/set', { updated: null }, '0']] });
+    await setDefaultParticipantIdentity('i2');
+    expect(mockRequest).toHaveBeenCalledWith(
+      [['ParticipantIdentity/set', { accountId: 'acc-1', onSuccessSetIsDefault: 'i2' }, '0']],
+      expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
+      { gen: 3 },
+    );
   });
 });

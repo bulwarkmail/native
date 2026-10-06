@@ -62,12 +62,18 @@ import {
   buildParticipantMap,
   getParticipantList,
   seedAttendees,
+  organizerAddressForSave,
+  collectUserCalendarAddresses,
+  participantsLockedFor,
   type Attendee,
 } from '../../lib/calendar-participants';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
+import { useServedAccount } from '../../lib/served-account';
+import { useCalendarStore } from '../../stores/calendar-store';
+import { identityAddresses } from '../../lib/calendar-user-addresses';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -213,6 +219,35 @@ export function EventModal({
   const [showEndTime, setShowEndTime] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
+  // The user's default ParticipantIdentity organizes new invitations. It is
+  // loaded for the shown account once the client serves it (re-run on a
+  // switch, retried when the new connection lands); '' until then.
+  const served = useServedAccount();
+  const ownJmapAccountId = served.jmapAccountId;
+  // Free/busy is asked for that account (the editor closes on a switch).
+  const availabilityAccount = React.useMemo(
+    () => ({ jmapAccountId: ownJmapAccountId, appAccountId: served.appAccountId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ownJmapAccountId, served.appAccountId, visible],
+  );
+  const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
+  const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
+  // The identities count as the user, so an event organized as one is theirs.
+  const userEmails = React.useMemo(
+    () => collectUserCalendarAddresses(currentUserEmails, identityAddresses(identities)),
+    [currentUserEmails, identities],
+  );
+  // Someone else's event the user may write to (mayWriteAll): its guests and
+  // scheduling stay as they are; only the user's own RSVP changes them (the
+  // detail sheet).
+  const participantsLocked = participantsLockedFor(event, userEmails);
+  React.useEffect(() => {
+    if (!visible || !ownJmapAccountId) return;
+    if (!useCalendarStore.getState().participantIdentities[ownJmapAccountId]) {
+      void fetchIdentities({ appAccountId: served.appAccountId, jmapAccountId: ownJmapAccountId });
+    }
+  }, [visible, ownJmapAccountId, served.appAccountId, fetchIdentities]);
+
   // Reset the form when the editor opens or switches to another event only.
   // `calendars` and `currentUserEmails` get new identities when a calendar
   // push or the alias lookup lands, which used to wipe what the user typed.
@@ -228,7 +263,7 @@ export function EventModal({
       setStart(times.start);
       setEnd(times.end);
       setCalendarId(getPrimaryCalendarId(event) || calendars[0]?.id || '');
-      setAttendees(seedAttendees(event, currentUserEmails));
+      setAttendees(seedAttendees(event, userEmails, organizerAddressForSave(event, identities, userEmails)));
       const detected = detectRecurrence(event);
       setRecurrence(detected);
       setCustomRule(detected === 'custom' ? event.recurrenceRules?.[0] ?? null : null);
@@ -328,8 +363,10 @@ export function EventModal({
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };
-      const organizerEmail = currentUserEmails[0];
-      if (attendees.length > 0 && organizerEmail) {
+      const organizerEmail = organizerAddressForSave(event, identities, currentUserEmails);
+      if (participantsLocked) {
+        // Not ours to change: leave participants and organizer untouched.
+      } else if (attendees.length > 0 && organizerEmail) {
         // A new event has no participants yet, so it would store an empty
         // organizer name; fall back to the contact card / account name.
         const organizerName =
@@ -339,6 +376,7 @@ export function EventModal({
         data.participants = buildParticipantMap(
           { name: organizerName, email: organizerEmail },
           attendees,
+          event?.participants,
         );
         // Stalwart (calcard) derives the iCalendar ORGANIZER property solely from
         // organizerCalendarAddress; without it no ORGANIZER is emitted and iTIP
@@ -361,7 +399,7 @@ export function EventModal({
       // `false` means the save was cancelled (declined to save without
       // invitations): keep the editor open.
       const saved = await onSave(data, calendarId, {
-        sendSchedulingMessages: attendees.length > 0 && sendInvitations,
+        sendSchedulingMessages: !participantsLocked && attendees.length > 0 && sendInvitations,
       });
       if (saved !== false) onClose();
     } catch (err) {
@@ -741,14 +779,22 @@ export function EventModal({
             icon={<Users size={16} color={c.textMuted} />}
             label={t('calendar.participants.title', 'Participants')}
           >
-            <ParticipantInput
-              attendees={attendees}
-              onAdd={(a) => setAttendees((prev) => [...prev, a])}
-              onRemove={(email) =>
-                setAttendees((prev) => prev.filter((a) => a.email.toLowerCase() !== email.toLowerCase()))
-              }
-            />
-            {attendees.length > 0 && (
+            {participantsLocked ? (
+              attendees.map((a) => (
+                <Text key={a.email} style={styles.fieldText}>{a.name || a.email}</Text>
+              ))
+            ) : (
+              <ParticipantInput
+                attendees={attendees}
+                availabilityAccount={visible ? availabilityAccount : undefined}
+                window={visible && !allDay && end > start ? { start, end } : allDay && end >= start ? { start, end: new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1) } : null}
+                onAdd={(a) => setAttendees((prev) => [...prev, a])}
+                onRemove={(email) =>
+                  setAttendees((prev) => prev.filter((a) => a.email.toLowerCase() !== email.toLowerCase()))
+                }
+              />
+            )}
+            {!participantsLocked && attendees.length > 0 && (
               <View style={styles.allDayRow}>
                 <Text style={[styles.fieldText, { flex: 1 }]}>
                   {t('calendar.participants.send_invitations', 'Send invitations to participants')}

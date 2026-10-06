@@ -7,7 +7,7 @@ import type { EmailAddress } from '../api/types';
 import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
-import { setPendingCalendarOpen } from './pending-calendar-open';
+import { setPendingCalendarOpen, setPendingCalendarView, type CalendarViewTarget } from './pending-calendar-open';
 import { setPendingMailSearch } from './pending-mail-search';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
@@ -38,12 +38,46 @@ export type DeepLink =
   // `jmapAccountId`: the JMAP account owning the event (`?account=`), for
   // one on a calendar shared with the user; `accountId`: the signed-in
   // account it belongs to (`?appAccount=`, from widgets).
-  | { kind: 'calendar'; eventId?: string; date?: string; jmapAccountId?: string; accountId?: string }
+  | { kind: 'calendar'; eventId?: string; view?: CalendarViewTarget['view']; date?: string; jmapAccountId?: string; accountId?: string }
   | { kind: 'contact'; contactId: string }
   | { kind: 'contacts' }
   | { kind: 'files' }
   | { kind: 'settings'; tab?: string }
   | { kind: 'compose'; to: EmailAddress[]; cc: EmailAddress[]; bcc?: EmailAddress[]; subject?: string; body?: string };
+
+const CALENDAR_VIEWS = ['month', 'week', 'day', 'agenda'] as const;
+
+/** `YYYY-MM-DD` when it is a real day (2026-02-31 is not), else undefined. */
+function validLinkDate(value: string): string | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return undefined;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return undefined;
+  return value;
+}
+
+export interface CalendarLinkState {
+  view: CalendarViewTarget['view'] | 'tasks';
+  date?: Date | string | null;
+  eventId?: string | null;
+  /** JMAP account owning the event, for one on a shared calendar. */
+  accountId?: string | null;
+}
+
+/** The webmail's `buildCalendarPath`: `/calendar/<view>[/<date>]` or `/calendar/event/<id>`. */
+export function buildCalendarPath(state: CalendarLinkState): string {
+  if (state.eventId) {
+    const path = `/calendar/event/${encodeURIComponent(state.eventId)}`;
+    return state.accountId ? `${path}?account=${encodeURIComponent(state.accountId)}` : path;
+  }
+  const { date } = state;
+  if (!date) return `/calendar/${state.view}`;
+  const day = typeof date === 'string'
+    ? date
+    : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return `/calendar/${state.view}/${day}`;
+}
 
 function decodeSegment(value: string): string {
   try {
@@ -148,8 +182,15 @@ export function parseDeepLink(url: string): DeepLink | null {
           ...(appAccountId ? { accountId: appAccountId } : {}),
         };
       }
-      const date = [kind, value].find((s) => s && /^\d{4}-\d{2}-\d{2}$/.test(s));
-      return { kind: 'calendar', date };
+      // `/calendar/<view>[/<date>]`, or a bare `/calendar/<date>` that keeps
+      // the user's view. A bad date is dropped (today); `tasks`, which has
+      // no grid here, and unknown views just open the tab.
+      if (kind && (CALENDAR_VIEWS as readonly string[]).includes(kind)) {
+        const date = value ? validLinkDate(decodeSegment(value)) : undefined;
+        return { kind: 'calendar', view: kind as CalendarViewTarget['view'], ...(date ? { date } : {}) };
+      }
+      const bare = kind ? validLinkDate(decodeSegment(kind)) : undefined;
+      return { kind: 'calendar', ...(bare ? { date: bare } : {}) };
     }
     case 'contacts': {
       if (kind && kind !== 'new') return { kind: 'contact', contactId: decodeSegment(kind) };
@@ -296,6 +337,9 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
           accountId: link.jmapAccountId,
         });
       }
+      // A date or view link parks what to show; a link without one clears
+      // any view an earlier link left unread.
+      setPendingCalendarView(link.date || link.view ? { view: link.view, date: link.date } : null);
       navigation.navigate('MainTabs', { screen: 'Calendar' } as never);
       return true;
     case 'contact':

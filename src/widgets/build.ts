@@ -203,32 +203,23 @@ async function buildCalendar(
 ): Promise<WidgetSnapshot['calendar']> {
   const calendarsSupported = jmapClient.hasAccountCapability(CAPABILITIES.CALENDARS);
   if (!calendarsSupported) return { supported: false, events: [], invitations: [], birthdays: await buildBirthdays(now) };
-  const { useCalendarStore, loadEventsInRange } = require('../stores/calendar-store') as typeof import('../stores/calendar-store');
-  // Always refetch: the persisted list can predate a calendar deleted and
-  // re-created on the server under the same id, which would put events under
-  // the old name and colour.
-  try {
-    await useCalendarStore.getState().fetchCalendars();
-  } catch {
-    // fall back to the cached list
-  }
-  const { calendars, hiddenCalendarIds } = useCalendarStore.getState();
-  const visible = calendars.filter((c) => !hiddenCalendarIds.includes(c.id));
-  const byId = new Map(calendars.map((c) => [c.id, { name: c.name, color: c.color }]));
-
+  const { loadWidgetCalendar } = require('./calendar-load') as typeof import('./calendar-load');
   const first = new Date(now);
   first.setDate(1);
   const rangeStart = startOfWeek(first.getTime(), useSettingsStore.getState().calendarFirstDayOfWeek === 0 ? 0 : 1);
   const rangeEnd = Math.max(addDays(startOfDay(now), 36), addDays(rangeStart, 42));
-  let raw: CalendarEvent[];
+  // Loaded for `accountId` only; never the store's cached calendars, which
+  // may be another account's. Not loaded: keep what the widget showed.
+  let loaded: Awaited<ReturnType<typeof loadWidgetCalendar>>;
   try {
-    raw = visible.length === 0
-      ? []
-      : await loadEventsInRange(calendars, visible.map((c) => c.id), new Date(rangeStart).toISOString(), new Date(rangeEnd).toISOString());
+    loaded = await loadWidgetCalendar(accountId, new Date(rangeStart).toISOString(), new Date(rangeEnd).toISOString());
   } catch (err) {
     console.warn('[widgets] calendar refresh failed', err);
-    return { ...previous.calendar, birthdays: await buildBirthdays(now) };
+    loaded = null;
   }
+  if (!loaded) return { ...previous.calendar, birthdays: await buildBirthdays(now) };
+  const { calendars, events: raw } = loaded;
+  const byId = new Map(calendars.map((c) => [c.id, { name: c.name, color: c.color }]));
   const live = raw.filter((e) => e.status !== 'cancelled');
   const events = live
     .map((e) => toEventItem(e, byId, selfEmails, accountId))
@@ -292,11 +283,12 @@ async function buildBirthdays(now: number): Promise<Birthday[]> {
 
 async function buildTasks(previous: WidgetSnapshot, accountId: string, reload: boolean): Promise<WidgetSnapshot['tasks']> {
   if (!useSettingsStore.getState().enableCalendarTasks) return { supported: false, items: [] };
-  const { useCalendarStore } = require('../stores/calendar-store') as typeof import('../stores/calendar-store');
+  const { loadWidgetTasks } = require('./calendar-load') as typeof import('./calendar-load');
   try {
-    const store = useCalendarStore.getState();
-    if (reload || store.tasks.length === 0) await store.fetchTasks();
-    const { tasks, calendars } = useCalendarStore.getState();
+    // `accountId`'s tasks only: the ids it stamps on the items must be its own.
+    const loaded = await loadWidgetTasks(accountId, reload);
+    if (!loaded) return previous.tasks;
+    const { tasks, calendars } = loaded;
     const byId = new Map(calendars.map((c) => [c.id, c]));
     const items: TaskItem[] = tasks
       .filter((t) => t.progress !== 'cancelled')

@@ -32,6 +32,9 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     isConnected: true,
+    connectionGen: 7,
+    username: 'test@example.com',
+    serverUrl: 'https://mail.example.com',
   },
 }));
 
@@ -42,6 +45,8 @@ import {
   selectVisibleEvents,
   ImportRefusedError,
 } from '../calendar-store';
+import { useEmailStore } from '../email-store';
+import { registerServedAccount } from './helpers/served-account';
 
 const mockGetCalendars = calendarApi.getCalendars as ReturnType<typeof vi.fn>;
 const mockQueryEvents = calendarApi.queryEvents as ReturnType<typeof vi.fn>;
@@ -56,9 +61,16 @@ const mockSupportsSynthetic = calendarApi.supportsSyntheticCalendarIds as Return
 const mockQueryExpanded = calendarApi.queryExpandedEvents as ReturnType<typeof vi.fn>;
 const mockHydrate = calendarApi.hydrateExpandedOccurrences as ReturnType<typeof vi.fn>;
 
+/** The connection the loads run on (gen 7), in the user's own account. */
+const OWN = { gen: 7, accountId: 'acc-1' };
+/** The JMAP account a request was scoped to. */
+const acct = (ref: unknown) => (typeof ref === 'object' && ref ? (ref as { accountId: string }).accountId : ref);
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockScan.mockResolvedValue([]);
+  // Loads run for the account the app shows, on the connection serving it.
+  useEmailStore.setState({ activeAccountId: registerServedAccount('test@example.com', 'https://mail.example.com') });
   useCalendarStore.setState({
     calendars: [],
     events: [],
@@ -131,11 +143,11 @@ describe('calendar-store', () => {
           { id: 'shared-cal', name: 'Team', accountId: 'acc-2', isShared: true } as any,
         ],
       });
-      mockQueryEvents.mockImplementation(async (_ids: string[], _a: string, _b: string, accountId?: string) =>
-        accountId === 'acc-2' ? ['ev1'] : [],
+      mockQueryEvents.mockImplementation(async (_ids: string[], _a: string, _b: string, ref?: unknown) =>
+        acct(ref) === 'acc-2' ? ['ev1'] : [],
       );
-      mockGetEvents.mockImplementation(async (_ids: string[], accountId?: string) =>
-        accountId === 'acc-2'
+      mockGetEvents.mockImplementation(async (_ids: string[], ref?: unknown) =>
+        acct(ref) === 'acc-2'
           ? [{ id: 'ev1', title: 'Standup', start: '2026-03-15T10:00:00', calendarIds: { 'shared-cal': true } }]
           : [],
       );
@@ -188,7 +200,7 @@ describe('calendar-store', () => {
       await useCalendarStore.getState().fetchTasks();
 
       expect(useCalendarStore.getState().taskOnlyCalendarIds).toEqual(['cal-tasks']);
-      expect(mockGetEvents).toHaveBeenCalledWith(['t1', 't3', 't2'], undefined);
+      expect(mockGetEvents).toHaveBeenCalledWith(['t1', 't3', 't2'], OWN);
       expect(useCalendarStore.getState().tasks.map((t) => t.id)).toEqual(['t1', 't3', 't2']);
     });
 
@@ -214,11 +226,11 @@ describe('calendar-store', () => {
           { id: 'acc-2:todo', originalId: 'todo', accountId: 'acc-2', isShared: true },
         ] as any,
       });
-      mockScan.mockImplementation(async (accountId?: string) =>
-        accountId === 'acc-2' ? [{ id: 't1', '@type': 'Task', calendarIds: { todo: true } }] : [],
+      mockScan.mockImplementation(async (ref?: unknown) =>
+        acct(ref) === 'acc-2' ? [{ id: 't1', '@type': 'Task', calendarIds: { todo: true } }] : [],
       );
-      mockGetEvents.mockImplementation(async (ids: string[], accountId?: string) =>
-        accountId === 'acc-2' ? [{ id: 't1', title: 'Shared todo', calendarIds: { todo: true } }] : [],
+      mockGetEvents.mockImplementation(async (ids: string[], ref?: unknown) =>
+        acct(ref) === 'acc-2' ? [{ id: 't1', title: 'Shared todo', calendarIds: { todo: true } }] : [],
       );
 
       await useCalendarStore.getState().fetchTasks();
@@ -241,12 +253,12 @@ describe('calendar-store', () => {
         ],
       });
       const queried: Record<string, string[]> = {};
-      mockQueryEvents.mockImplementation(async (ids: string[], _a: string, _b: string, accountId?: string) => {
-        queried[accountId ?? 'primary'] = ids;
-        return accountId === 'acc-2' ? ['fam1'] : [];
+      mockQueryEvents.mockImplementation(async (ids: string[], _a: string, _b: string, ref?: unknown) => {
+        queried[String(acct(ref) ?? 'primary')] = ids;
+        return acct(ref) === 'acc-2' ? ['fam1'] : [];
       });
-      mockGetEvents.mockImplementation(async (_ids: string[], accountId?: string) =>
-        accountId === 'acc-2'
+      mockGetEvents.mockImplementation(async (_ids: string[], ref?: unknown) =>
+        acct(ref) === 'acc-2'
           ? [{ id: 'fam1', title: 'Soccer', start: '2026-03-20T15:00:00', calendarIds: { default: true } }]
           : [],
       );
@@ -275,7 +287,7 @@ describe('calendar-store', () => {
       await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
 
       // 4th arg is the owning account — undefined for primary-account calendars.
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', OWN);
     });
 
     it('should skip refetch when loaded range covers requested', async () => {
@@ -301,7 +313,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().ensureRange('2026-04-01', '2026-04-30');
 
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-04-01', '2026-04-30', undefined);
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-04-01', '2026-04-30', OWN);
       expect(useCalendarStore.getState().loadedRange).toEqual({ after: '2026-04-01', before: '2026-04-30' });
     });
 
@@ -318,7 +330,7 @@ describe('calendar-store', () => {
       await Promise.all([a, b]);
 
       expect(mockGetCalendars).toHaveBeenCalledTimes(1);
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', OWN);
     });
 
     it('should fetch calendars first when none are loaded', async () => {
@@ -328,7 +340,7 @@ describe('calendar-store', () => {
       await useCalendarStore.getState().ensureRange('2026-03-01', '2026-03-31');
 
       expect(mockGetCalendars).toHaveBeenCalled();
-      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', undefined);
+      expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], '2026-03-01', '2026-03-31', OWN);
     });
   });
 
@@ -777,9 +789,9 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().fetchEvents(['cal-1'], RANGE.after, RANGE.before);
 
-      expect(mockQueryExpanded).toHaveBeenCalledWith(RANGE.after, RANGE.before, undefined);
+      expect(mockQueryExpanded).toHaveBeenCalledWith(RANGE.after, RANGE.before, OWN);
       expect(mockQueryEvents).not.toHaveBeenCalled();
-      expect(mockGetEvents).toHaveBeenCalledWith(['s1', 's2', 's3'], undefined, { expanded: true });
+      expect(mockGetEvents).toHaveBeenCalledWith(['s1', 's2', 's3'], OWN, { expanded: true });
       expect(mockHydrate.mock.calls[0][0].map((e: any) => e.id)).toEqual(['s1', 's2']);
       // Hydrated occurrences carry the rule but are not expanded again.
       expect(useCalendarStore.getState().events.map((e) => e.id)).toEqual(['s1', 's2']);
@@ -795,7 +807,7 @@ describe('calendar-store', () => {
 
       await useCalendarStore.getState().fetchEvents(['cal-1'], RANGE.after, RANGE.before);
 
-      expect(mockGetEvents).toHaveBeenCalledWith(['m'], undefined);
+      expect(mockGetEvents).toHaveBeenCalledWith(['m'], OWN);
       const events = useCalendarStore.getState().events;
       expect(events.length).toBeGreaterThan(1);
       expect(events.every((e) => e.originalId === 'm')).toBe(true);

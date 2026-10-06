@@ -4,6 +4,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { jmapClient } from '../api/jmap-client';
 import { fetchPrincipal } from '../api/account-security';
 import { collectUserCalendarAddresses } from './calendar-participants';
+import { useCalendarStore } from '../stores/calendar-store';
 
 // Account aliases come from x:Account/get (Stalwart's principal object) and
 // only change when an admin edits the account, so they're fetched once per
@@ -30,6 +31,13 @@ function fetchAliases(accountId: string): Promise<string[]> {
     });
   aliasInFlight.set(accountId, p);
   return p;
+}
+
+/** The scheduling addresses of the user's ParticipantIdentity list (no `mailto:`). */
+export function identityAddresses(
+  identities: ReadonlyArray<{ calendarAddress: string }> | undefined,
+): string[] {
+  return (identities ?? []).map((i) => i.calendarAddress.replace(/^mailto:/i, ''));
 }
 
 /** Test hook: forget cached aliases (also useful after re-login). */
@@ -60,14 +68,16 @@ export function useUserCalendarAddresses(loadAliases = true): string[] {
     return () => { aliasListeners.delete(bump); };
   }, [accountId, loadAliases]);
 
+  const participantIdentities = useCalendarStore((s) => (accountId ? s.participantIdentities[accountId] : undefined));
   const aliases = accountId ? aliasCache.get(accountId) ?? [] : [];
   return React.useMemo(
     () => collectUserCalendarAddresses(
       [activeEmail],
       identities.map((i) => i.email),
       aliases,
+      identityAddresses(participantIdentities),
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeEmail, identities, aliases.join('|')],
+    [activeEmail, identities, aliases.join('|'), participantIdentities],
   );
 }

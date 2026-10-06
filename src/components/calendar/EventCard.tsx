@@ -13,6 +13,7 @@ import {
 } from '../../lib/calendar-utils';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { isInactiveEvent } from '../../lib/calendar-participants';
+import { TaskCircle, taskControlFor } from './EventBlock';
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -20,6 +21,8 @@ interface EventCardProps {
   timeFormat?: TimeFormat;
   /** The user's addresses, to draw events they declined as inactive. */
   currentUserEmails?: string[];
+  /** Toggles a task done from its circle; gets the task's id. Tasks draw the circle in place of the dot. */
+  onToggleTask?: (taskId: string) => void;
   onPress?: (event: CalendarEvent) => void;
   onLongPress?: (event: CalendarEvent) => void;
 }
@@ -33,7 +36,7 @@ function participantCount(event: CalendarEvent): number {
  * colour before the title, no card and no bar. Declined and cancelled events
  * get a hollow dot and a struck-through, muted title.
  */
-export function EventCard({ event, calendars, timeFormat, currentUserEmails, onPress, onLongPress }: EventCardProps) {
+export function EventCard({ event, calendars, timeFormat, currentUserEmails, onToggleTask, onPress, onLongPress }: EventCardProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
@@ -46,6 +49,7 @@ export function EventCard({ event, calendars, timeFormat, currentUserEmails, onP
   const count = participantCount(event);
   const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
   const inactive = isInactiveEvent(event, currentUserEmails);
+  const task = taskControlFor(event, onToggleTask, t);
 
   return (
     <Pressable
@@ -53,10 +57,16 @@ export function EventCard({ event, calendars, timeFormat, currentUserEmails, onP
       onPress={() => onPress?.(event)}
       onLongPress={() => onLongPress?.(event)}
     >
+      {task ? (
+        <View style={styles.taskMark}>
+          <TaskCircle task={task} color={color} size={EVENT_DOT} />
+        </View>
+      ) : (
       <View style={[styles.dot, inactive ? [styles.dotHollow, { borderColor: color }] : { backgroundColor: color }]} />
+      )}
       <View style={styles.body}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, inactive && styles.titleInactive]} numberOfLines={1}>
+          <Text style={[styles.title, (inactive || task?.done) && styles.titleInactive]} numberOfLines={1}>
             {event.title || t('calendar.events.no_title', '(No title)')}
           </Text>
           {event.showWithoutTime && (
@@ -120,6 +130,7 @@ function makeStyles(c: ThemePalette) {
     borderRadius: EVENT_DOT / 2,
     marginTop: (typography.bodyMedium.lineHeight - EVENT_DOT) / 2,
   },
+  taskMark: { marginTop: (typography.bodyMedium.lineHeight - EVENT_DOT) / 2 },
   dotHollow: { borderWidth: 1.5 },
   body: { flex: 1, gap: 4 },
   headerRow: {

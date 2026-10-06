@@ -341,3 +341,29 @@ Follow-ups left open:
   - The open viewer refuses changes after a switch rather than queueing them, and drops its delayed mark-read.
   - Legacy outbox ops and stamped ones aren't coalesced.
   - The selection after a partial cross-account failure.
+
+## Phase 6a follow-ups (calendar sweep, 2026-10-06)
+
+Phase 6a is done on `parity/phase-6a-calendar`. Every calendar write and load is now tied to its own account:
+- writes take an account captured before any wait and checked at each write (`withCapturedAccount`);
+- loads that outlive a switch are dropped (`beginLoad` / `loadIsCurrent`);
+- widgets load the account they ask for.
+
+That closes the Hardening pass 1 calendar follow-up. Left open:
+
+- **Not in scope:**
+  - `supported-calendar-component-set` at calendar creation (needs a CalDAV client);
+  - the Jalali grid (needs the `fa` locale);
+  - calendar types in the background push subscription.
+- **Small:**
+  - The drawer's colour option for the birthday calendar (webmail picks it there; native has the setting).
+  - A recurring note is lost if its scope dialog is cancelled.
+  - With the app closed, participant identities aren't fetched (widgets don't use them).
+  - `queryEvents` / `getMasterEvent` reads use the live connection, while their writes are pinned.
+  - The recurrence summary test is English only.
+- **Device checks:**
+  - free/busy against Stalwart (`Principal/getAvailability` account and `showDetails`);
+  - the task circle and strike-through layout;
+  - the calendar and task widgets refreshing with the app closed;
+  - a note on an event with guests sends no mail.
+- **Tests:** CalendarScreen, EventModal, the invitation banner and the task circle wiring have no render-harness test.

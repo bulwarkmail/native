@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { CalendarEvent } from '../../api/types';
 import type { EventBlockColors } from '../../lib/event-colors';
+import { isTaskDone, isTaskEvent, taskIdOfEvent } from '../../lib/calendar-tasks';
 
 // Events in the week and day grids, shared by the paged WeekView and the
 // scrolling TimeGridScrollView. Every event is a solid block of its calendar
@@ -40,6 +42,55 @@ function corners(
     };
 }
 
+/** A task item's completion circle (webmail's CalendarTaskChip). */
+export interface TaskControl {
+  done: boolean;
+  /** Accessibility label: "Mark as done" or "Mark as not done". */
+  label: string;
+  onToggle: () => void;
+}
+
+/** The completion control for a task item on the grid; undefined for an event. */
+export function taskControlFor(
+  event: CalendarEvent,
+  onToggleTask: ((taskId: string) => void) | undefined,
+  t: (key: string, fallback: string) => string,
+): TaskControl | undefined {
+  if (!isTaskEvent(event)) return undefined;
+  const done = isTaskDone(event);
+  return {
+    done,
+    label: done
+      ? t('calendar.tasks.mark_incomplete', 'Mark as not done')
+      : t('calendar.tasks.mark_complete', 'Mark as done'),
+    onToggle: () => onToggleTask?.(taskIdOfEvent(event)),
+  };
+}
+
+/**
+ * The circle at the start of a task: tapping it toggles done, without
+ * opening the task. Hollow while open, filled once done.
+ */
+export function TaskCircle({ task, color, size = 11 }: { task: TaskControl; color: string; size?: number }) {
+  return (
+    <Pressable
+      onPress={task.onToggle}
+      hitSlop={6}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: task.done }}
+      accessibilityLabel={task.label}
+      style={styles.taskCircleHit}
+    >
+      <View
+        style={[
+          { width: size, height: size, borderRadius: size / 2, borderWidth: 1, borderColor: color },
+          task.done && { backgroundColor: color },
+        ]}
+      />
+    </Pressable>
+  );
+}
+
 interface TimedEventBlockProps {
   title: string;
   /** Start time for the second line; null leaves it out. */
@@ -53,6 +104,8 @@ interface TimedEventBlockProps {
   continuesAfter: boolean;
   /** Position and size in the day column. */
   style: StyleProp<ViewStyle>;
+  /** Set for a task: draws its completion circle. */
+  task?: TaskControl;
   onPress?: () => void;
 }
 
@@ -65,6 +118,7 @@ export function TimedEventBlock({
   continuesBefore,
   continuesAfter,
   style,
+  task,
   onPress,
 }: TimedEventBlockProps) {
   const inactive = colors.border !== null;
@@ -89,12 +143,15 @@ export function TimedEventBlock({
           ]}
         />
       )}
-      <Text
-        style={[styles.blockTitle, { color: colors.text }, inactive && styles.struck]}
-        numberOfLines={1}
-      >
-        {title}
-      </Text>
+      <View style={styles.taskRow}>
+        {task && <TaskCircle task={task} color={colors.text} />}
+        <Text
+          style={[styles.blockTitle, styles.taskTitle, { color: colors.text }, inactive && styles.struck]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+      </View>
       {timeLabel !== null && (
         <Text style={[styles.blockTime, { color: colors.text }]} numberOfLines={1}>
           {timeLabel}
@@ -113,6 +170,8 @@ interface AllDayEventBarProps {
   continuesAfter: boolean;
   /** Position and size in the all-day strip. */
   style: StyleProp<ViewStyle>;
+  /** Set for a task: draws its completion circle. */
+  task?: TaskControl;
   onPress?: () => void;
 }
 
@@ -123,6 +182,7 @@ export function AllDayEventBar({
   continuesBefore,
   continuesAfter,
   style,
+  task,
   onPress,
 }: AllDayEventBarProps) {
   const inactive = colors.border !== null;
@@ -137,10 +197,13 @@ export function AllDayEventBar({
         style,
       ]}
     >
-      <Text style={[styles.barTitle, { color: colors.text }]} numberOfLines={1}>
-        {continuesBefore ? '… ' : ''}
-        <Text style={inactive && styles.struck}>{title}</Text>
-      </Text>
+      <View style={styles.taskRow}>
+        {task && <TaskCircle task={task} color={colors.text} />}
+        <Text style={[styles.barTitle, styles.taskTitle, { color: colors.text }]} numberOfLines={1}>
+          {continuesBefore ? '… ' : ''}
+          <Text style={inactive && styles.struck}>{title}</Text>
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -157,6 +220,9 @@ const styles = StyleSheet.create({
   blockTitle: { fontSize: 12, lineHeight: 15, fontWeight: '500' },
   blockTime: { fontSize: 10.5, lineHeight: 13, fontWeight: '400', opacity: 0.85 },
   struck: { textDecorationLine: 'line-through' },
+  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  taskTitle: { flexShrink: 1 },
+  taskCircleHit: { justifyContent: 'center' },
   bar: {
     position: 'absolute',
     paddingHorizontal: 4,

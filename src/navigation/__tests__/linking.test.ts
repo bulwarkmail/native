@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { acceptSignInLink, handleDeepLink, parseDeepLink, parseSignInLink, shareToDeepLink } from '../linking';
+import { acceptSignInLink, buildCalendarPath, handleDeepLink, parseDeepLink, parseSignInLink, shareToDeepLink } from '../linking';
 import { usePendingSignInLinkStore } from '../pending-sign-in-link';
 import { usePendingSettingsTab } from '../pending-settings-tab';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
@@ -22,7 +22,7 @@ describe('parseDeepLink', () => {
 
   it('parses calendar, contacts, files and settings links', () => {
     expect(parseDeepLink('bulwarkmobile://calendar/event/E1')).toEqual({ kind: 'calendar', eventId: 'E1' });
-    expect(parseDeepLink('bulwarkmobile://calendar/week/2026-08-29')).toEqual({ kind: 'calendar', date: '2026-08-29' });
+    expect(parseDeepLink('bulwarkmobile://calendar/week/2026-08-29')).toEqual({ kind: 'calendar', view: 'week', date: '2026-08-29' });
     expect(parseDeepLink('bulwarkmobile://contacts')).toEqual({ kind: 'contacts' });
     expect(parseDeepLink('bulwarkmobile://files')).toEqual({ kind: 'files' });
     expect(parseDeepLink('bulwarkmobile://settings/notifications')).toEqual({ kind: 'settings', tab: 'notifications' });
@@ -145,12 +145,45 @@ describe('handleDeepLink', () => {
     });
     expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Calendar' });
 
-    // A date or view link just opens the tab.
-    await handleDeepLink(
-      { kind: 'calendar', date: '2026-08-29' },
-      { navigation: navigation as never, resolveThreadId: async () => null },
-    );
+    // An event link carries no view to show.
+    expect(usePendingCalendarOpen.getState().consumeView()).toBeNull();
+  });
+
+  it('parses a calendar view and date, tolerating a bad date or view', () => {
+    expect(parseDeepLink('bulwarkmobile://calendar/day/2026-08-06')).toEqual({ kind: 'calendar', view: 'day', date: '2026-08-06' });
+    expect(parseDeepLink('https://mail.example.com/calendar/agenda')).toEqual({ kind: 'calendar', view: 'agenda' });
+    // A bare date keeps whatever view the user has.
+    expect(parseDeepLink('bulwarkmobile://calendar/2026-08-06')).toEqual({ kind: 'calendar', date: '2026-08-06' });
+    // Impossible or malformed dates are dropped; the view still applies.
+    expect(parseDeepLink('bulwarkmobile://calendar/week/2026-02-31')).toEqual({ kind: 'calendar', view: 'week' });
+    expect(parseDeepLink('bulwarkmobile://calendar/month/soon')).toEqual({ kind: 'calendar', view: 'month' });
+    expect(parseDeepLink('bulwarkmobile://calendar/2026-13-01')).toEqual({ kind: 'calendar' });
+    // Webmail's tasks view has no grid here: only the tab opens.
+    expect(parseDeepLink('bulwarkmobile://calendar/tasks')).toEqual({ kind: 'calendar' });
+    expect(parseDeepLink('bulwarkmobile://calendar/nonsense/2026-08-06')).toEqual({ kind: 'calendar' });
+  });
+
+  it('builds calendar paths like the webmail', () => {
+    expect(buildCalendarPath({ view: 'week', date: new Date(2026, 7, 6) })).toBe('/calendar/week/2026-08-06');
+    expect(buildCalendarPath({ view: 'agenda' })).toBe('/calendar/agenda');
+    expect(buildCalendarPath({ view: 'month', eventId: 'a b', accountId: 'acc-2' })).toBe('/calendar/event/a%20b?account=acc-2');
+    for (const path of ['/calendar/day/2026-08-06', '/calendar/month']) {
+      expect(buildCalendarPath(parseDeepLink(`bulwarkmobile:/${path}`) as never)).toBe(path);
+    }
+  });
+
+  it('hands a date link to the Calendar tab as a view to show', async () => {
+    const navigation = nav();
+    const nv = { navigation: navigation as never, resolveThreadId: async () => null };
+    await handleDeepLink({ kind: 'calendar', view: 'week', date: '2026-08-29' }, nv);
     expect(usePendingCalendarOpen.getState().consume()).toBeNull();
+    expect(usePendingCalendarOpen.getState().consumeView()).toEqual({ view: 'week', date: '2026-08-29' });
+    expect(usePendingCalendarOpen.getState().consumeView()).toBeNull();
+    expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Calendar' });
+    // The bare tab link parks nothing, and drops a stale view.
+    await handleDeepLink({ kind: 'calendar', view: 'day' }, nv);
+    await handleDeepLink({ kind: 'calendar' }, nv);
+    expect(usePendingCalendarOpen.getState().consumeView()).toBeNull();
   });
 
   it('switches to the signed-in account a widget event link names first', async () => {

@@ -8,11 +8,18 @@ import {
   type TimeFormat,
 } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useCalendarStore } from '../../stores/calendar-store';
+import { toast } from '../../stores/toast-store';
 import { useColors } from '../../theme/colors';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-utils';
+import { BIRTHDAY_CALENDAR_COLOR } from '../../lib/birthday-calendar';
 import { formatDisplayHour } from '../../lib/calendar-display-range';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
+import { newInvitationOrganizer } from '../../lib/calendar-participants';
+import { useServedAccount } from '../../lib/served-account';
+import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 
@@ -41,6 +48,9 @@ const COMMON_TIME_ZONES = [
   'Pacific/Auckland',
 ];
 
+// The select's entry for the login address when no identity has it.
+const LOGIN_ADDRESS_OPTION = '__login_address__';
+
 export function CalendarSettings() {
   const t = useLocaleStore((s) => s.t);
   const hydrated = useSettingsStore((s) => s.hydrated);
@@ -62,8 +72,28 @@ export function CalendarSettings() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
+  const birthdayColor = useSettingsStore((s) => s.birthdayCalendarColor);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
+
+  // Which of the user's calendar addresses organizes new invitations
+  // (ParticipantIdentity), loaded for the account the settings show.
+  // Re-run on a switch, and retried once the new account is served ('' until then).
+  const served = useServedAccount();
+  const ownJmapAccountId = served.jmapAccountId;
+  const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
+  const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
+  const setDefaultIdentity = useCalendarStore((s) => s.setDefaultParticipantIdentity);
+  useEffect(() => {
+    if (!ownJmapAccountId || useCalendarStore.getState().participantIdentities[ownJmapAccountId]) return;
+    void fetchIdentities({ appAccountId: served.appAccountId, jmapAccountId: ownJmapAccountId });
+  }, [ownJmapAccountId, served.appAccountId, fetchIdentities]);
+  // What organizes new invitations, exactly as a save decides it: the
+  // flagged default, else the login address (shown as its own entry when no
+  // identity has it).
+  const userEmails = useUserCalendarAddresses(false);
+  const organizer = newInvitationOrganizer(identities, userEmails);
+  const organizerValue = organizer.identityId ?? LOGIN_ADDRESS_OPTION;
 
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
@@ -126,6 +156,39 @@ export function CalendarSettings() {
             ]}
           />
         </SettingItem>
+
+        {identities && identities.length > 1 && (
+          <SettingItem
+            label={t('calendar.settings.organizer_identity', 'Organize invitations as')}
+            description={t(
+              'calendar.settings.organizer_identity_desc',
+              'The calendar address used as organizer when you invite people to events.',
+            )}
+          >
+            <Select
+              value={organizerValue}
+              onChange={(id) => {
+                if (id === LOGIN_ADDRESS_OPTION) return;
+                setDefaultIdentity(id, { appAccountId: served.appAccountId, jmapAccountId: ownJmapAccountId }).catch((err) => {
+                  toast.error(
+                    err instanceof Error && err.message
+                      ? err.message
+                      : t('calendar.settings.organizer_identity_failed', 'Failed to change the organizer address'),
+                  );
+                });
+              }}
+              options={[
+                ...identities.map((i) => {
+                  const address = i.calendarAddress.replace(/^mailto:/i, '');
+                  return { value: i.id, label: i.name && i.name !== address ? `${i.name} <${address}>` : address };
+                }),
+                ...(organizer.identityId === null && organizer.address
+                  ? [{ value: LOGIN_ADDRESS_OPTION, label: organizer.address }]
+                  : []),
+              ]}
+            />
+          </SettingItem>
+        )}
 
         <SettingItem label={t('calendar.settings.week_starts_on', 'Week starts on')}>
           <Select
@@ -281,6 +344,26 @@ export function CalendarSettings() {
           />
         </SettingItem>
 
+        {birthdayCal && (
+          <SettingItem label={t('calendar.settings.birthday_calendar_color', 'Birthday calendar colour')}>
+            <View style={styles.dayChips} accessibilityRole="radiogroup">
+              {[BIRTHDAY_CALENDAR_COLOR, ...CALENDAR_COLOR_PALETTE].map((color) => {
+                const selected = birthdayColor.toLowerCase() === color.toLowerCase();
+                return (
+                  <Pressable
+                    key={color}
+                    accessibilityRole="radio"
+                    accessibilityLabel={color === BIRTHDAY_CALENDAR_COLOR ? t('calendar.colors.yellow', 'Yellow') : calendarColorName(color, t)}
+                    accessibilityState={{ selected }}
+                    onPress={() => update('birthdayCalendarColor', color)}
+                    style={[styles.swatch, { backgroundColor: color }, selected && styles.swatchSelected]}
+                  />
+                );
+              })}
+            </View>
+          </SettingItem>
+        )}
+
         <SettingItem
           label={t('calendar.settings.enable_tasks', 'Enable tasks')}
           description={t('calendar.settings.enable_tasks_desc', 'Show a tasks view in the calendar for managing to-dos')}
@@ -334,6 +417,8 @@ function makeStyles(c: ThemePalette) {
       borderWidth: 1,
       borderColor: c.border,
     },
+    swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
+    swatchSelected: { borderColor: c.text },
     dayChipSelected: { backgroundColor: c.primary, borderColor: c.primary },
     dayChipText: { ...typography.small, color: c.text },
     dayChipTextSelected: { color: c.textInverse, fontWeight: '600' },

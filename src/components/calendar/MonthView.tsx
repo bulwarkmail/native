@@ -28,6 +28,8 @@ import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { displayNow } from '../../lib/calendar-timezone';
+import { isTaskDone } from '../../lib/calendar-tasks';
+import { TaskCircle, taskControlFor } from './EventBlock';
 
 type WeekStart = 0 | 1 | 6;
 
@@ -51,6 +53,8 @@ interface MonthViewProps {
   timeFormat?: TimeFormat;
   /** The user's addresses, to draw events they declined as inactive. */
   currentUserEmails?: string[];
+  /** Toggles a task done from its circle; gets the task's id. */
+  onToggleTask?: (taskId: string) => void;
   onSelectDate: (date: Date) => void;
   onLongPressDate?: (date: Date) => void;
 }
@@ -115,6 +119,8 @@ export interface MonthWeekRowProps {
   height?: number;
   locale: Locale;
   styles: MonthStyles;
+  /** Toggles a task done from its circle; gets the task's id. */
+  onToggleTask?: (taskId: string) => void;
   onSelectDate: (date: Date) => void;
   onLongPressDate?: (date: Date) => void;
 }
@@ -135,10 +141,12 @@ function MonthWeekRowInner({
   height,
   locale,
   styles,
+  onToggleTask,
   onSelectDate,
   onLongPressDate,
 }: MonthWeekRowProps) {
   const c = useColors();
+  const { t } = useCalendarLocale();
   return (
     <View style={[styles.weekRow, height !== undefined && { height, overflow: 'hidden' }]}>
       {showWeekNumbers && (
@@ -209,18 +217,21 @@ function MonthWeekRowInner({
                 {visible.map((event, idx) => {
                   // Solid bars in the calendar colour; declined and
                   // cancelled events outlined (repos/branding/APP.md).
-                  const inactive = isInactiveEvent(event, currentUserEmails);
+                  const inactive = isInactiveEvent(event, currentUserEmails) || isTaskDone(event);
+                  const task = taskControlFor(event, onToggleTask, t);
                   const colors = eventBlockColors(getEventColor(event, calendars), inactive, c);
                   return (
                     <View
                       key={`${event.id}-${idx}`}
                       style={[
                         styles.chip,
+                        task && styles.chipTask,
                         { backgroundColor: colors.fill },
                         colors.border !== null && [styles.chipInactive, { borderColor: colors.border }],
                       ]}
                     >
-                      <Text style={[styles.chipText, { color: colors.text }]} numberOfLines={1}>
+                      {task && <TaskCircle task={task} color={colors.text} size={8} />}
+                      <Text style={[styles.chipText, styles.chipTextFlex, { color: colors.text }]} numberOfLines={1}>
                         {event.showWithoutTime
                           ? null
                           : `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `}
@@ -254,6 +265,7 @@ function MonthViewInner({
   showTimeInMonthView = false,
   timeFormat,
   currentUserEmails,
+  onToggleTask,
   onSelectDate,
   onLongPressDate,
 }: MonthViewProps) {
@@ -299,6 +311,7 @@ function MonthViewInner({
           currentUserEmails={currentUserEmails}
           locale={locale}
           styles={styles}
+          onToggleTask={onToggleTask}
           onSelectDate={onSelectDate}
           onLongPressDate={onLongPressDate}
         />
@@ -374,6 +387,9 @@ function makeStyles(c: ThemePalette) {
   },
   // The 1px outline takes the place of a pixel of padding, so outlined and
   // solid bars are the same size.
+  // A task's chip: the circle, then the title.
+  chipTask: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  chipTextFlex: { flexShrink: 1 },
   chipInactive: { borderWidth: 1, paddingHorizontal: 1, paddingVertical: 0 },
   // Colour comes from eventBlockColors(): computed from the calendar colour,
   // never a theme colour.

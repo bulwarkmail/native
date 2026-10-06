@@ -1,5 +1,6 @@
 import { jmapClient } from '../api/jmap-client';
 import { useAccountStore } from '../stores/account-store';
+import { generateAccountId } from './account-utils';
 
 const trimUrl = (url: string | null | undefined) => (url ?? '').trim().replace(/\/+$/, '');
 
@@ -60,4 +61,17 @@ export function clientServesAccount(appAccountId: string | null | undefined): bo
  */
 export function clientServesActiveAccount(): boolean {
   return clientServesAccount(activeAppAccountId());
+}
+
+/**
+ * `clientServesAccount`, for a run that may start before the account registry
+ * has loaded (a widget refresh with the app closed): an account the registry
+ * doesn't list yet is matched by its id, which is derived from the server and
+ * user (`generateAccountId`, like the widgets' `singletonServes`).
+ */
+export function clientServesRegistryAccount(appAccountId: string | null | undefined): boolean {
+  if (!appAccountId || !jmapClient.isConnected) return false;
+  if (useAccountStore.getState().getAccountById(appAccountId)) return clientServesAccount(appAccountId);
+  const { username, serverUrl } = jmapClient;
+  return !!username && !!serverUrl && generateAccountId(username, serverUrl) === appAccountId;
 }

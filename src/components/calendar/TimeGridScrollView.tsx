@@ -56,7 +56,8 @@ import {
   windowDays,
   type TimeGridMode,
 } from '../../lib/calendar-time-grid';
-import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock, taskControlFor } from './EventBlock';
+import { isTaskDone } from '../../lib/calendar-tasks';
 import { allDayRowCounts, allDayStripLayout } from '../../lib/calendar-all-day';
 import { AllDayToggle, AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
 import { useDisplayHours } from './use-display-hours';
@@ -94,6 +95,8 @@ interface TimeGridScrollViewProps {
   onVisibleDateChange?: (date: Date) => void;
   onSelectDate?: (date: Date) => void;
   onSelectEvent?: (event: CalendarEvent) => void;
+  /** Toggles a task done from its circle; gets the task's id. */
+  onToggleTask?: (taskId: string) => void;
   onCreateAtTime?: (date: Date) => void;
 }
 
@@ -123,6 +126,7 @@ function TimeGridScrollViewBody({
   onVisibleDateChange,
   onSelectDate,
   onSelectEvent,
+  onToggleTask,
   onCreateAtTime,
 }: TimeGridScrollViewProps) {
   const c = useColors();
@@ -379,12 +383,13 @@ function TimeGridScrollViewBody({
         colors={c}
         styles={styles}
         onSelectEvent={onSelectEvent}
+        onToggleTask={onToggleTask}
         onLongPressAt={onCreateAtTime ? handleLongPressAt : undefined}
       />
     ),
     [
       layoutsFor, hours, gridHeight, revealMinutes, colWidth, todayKey, nowMinutes, calendars, timeFormat, currentUserEmails, c, styles,
-      onSelectEvent, onCreateAtTime, handleLongPressAt,
+      onSelectEvent, onToggleTask, onCreateAtTime, handleLongPressAt,
     ],
   );
 
@@ -478,11 +483,12 @@ function TimeGridScrollViewBody({
                 title={segment.event.title || t('calendar.events.no_title', '(No title)')}
                 colors={eventBlockColors(
                   getEventColor(segment.event, calendars),
-                  isInactiveEvent(segment.event, currentUserEmails),
+                  isInactiveEvent(segment.event, currentUserEmails) || isTaskDone(segment.event),
                   c,
                 )}
                 continuesBefore={segment.continuesBefore}
                 continuesAfter={segment.continuesAfter}
+                task={taskControlFor(segment.event, onToggleTask, t)}
                 onPress={() => onSelectEvent?.(segment.event)}
                 style={{
                   left: segment.startIndex * colWidth + 1,
@@ -638,6 +644,7 @@ const DayColumn = React.memo(function DayColumn({
   colors,
   styles,
   onSelectEvent,
+  onToggleTask,
   onLongPressAt,
 }: {
   day: Date;
@@ -656,6 +663,7 @@ const DayColumn = React.memo(function DayColumn({
   colors: ThemePalette;
   styles: GridStyles;
   onSelectEvent?: (event: CalendarEvent) => void;
+  onToggleTask?: (taskId: string) => void;
   onLongPressAt?: (day: Date, hour: number) => void;
 }) {
   const { t } = useCalendarLocale();
@@ -696,12 +704,13 @@ const DayColumn = React.memo(function DayColumn({
               : null}
             colors={eventBlockColors(
               getEventColor(event, calendars),
-              isInactiveEvent(event, currentUserEmails),
+              isInactiveEvent(event, currentUserEmails) || isTaskDone(event),
               colors,
             )}
             ringColor={colors.background}
             continuesBefore={continuesBefore || clippedStart}
             continuesAfter={continuesAfter || clippedEnd}
+            task={taskControlFor(event, onToggleTask, t)}
             onPress={() => onSelectEvent?.(event)}
             style={{ top, height, left: `${column * widthPct}%`, width: `${widthPct}%` }}
           />

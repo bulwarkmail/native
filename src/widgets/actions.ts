@@ -161,9 +161,9 @@ export async function handleWidgetAction(name: string, data: Data, widgetId: num
         // In the live app the snapshot's tasks come from the calendar store,
         // which did not see this change; reload it before the refresh that
         // follows reads it, or that refresh would undo the tick.
-        if (client === jmapClient) {
-          const { useCalendarStore } = require('../stores/calendar-store') as typeof import('../stores/calendar-store');
-          await useCalendarStore.getState().fetchTasks().catch(() => undefined);
+        if (client === jmapClient && accountId) {
+          const { reloadWidgetTasks } = require('./calendar-load') as typeof import('./calendar-load');
+          await reloadWidgetTasks(accountId).catch(() => undefined);
         }
         return true;
       });

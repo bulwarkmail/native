@@ -60,12 +60,20 @@ describe('settings-store', () => {
       expect(s.autoSelectReplyIdentity).toBe(false);
       expect(s.replyIdentityMatch).toBe('domain');
       expect(s.showBirthdayCalendar).toBe(false);
+      expect(s.birthdayCalendarColor).toBe('#eab308');
       expect(s.attachmentReminderKeywords).toContain('anhang');
       expect(s.attachmentReminderKeywords).toContain('添付');
     });
   });
 
   describe('mergeWithDefaults', () => {
+    it('keeps a valid birthday calendar colour and drops anything else', () => {
+      expect(mergeWithDefaults({ birthdayCalendarColor: '#3B82F6' }).birthdayCalendarColor).toBe('#3B82F6');
+      for (const bad of ['blue', '#12', 'url(x)', '#12345g', 5]) {
+        expect(mergeWithDefaults({ birthdayCalendarColor: bad as never }).birthdayCalendarColor).toBe('#eab308');
+      }
+    });
+
     it('rejects values outside the allowed set', () => {
       const out = mergeWithDefaults({
         density: 'x' as never,

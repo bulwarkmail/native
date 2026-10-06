@@ -65,6 +65,64 @@ export function getEventOrganizerEmails(event: Partial<CalendarEvent>): string[]
 }
 
 /**
+ * Whether the editor must leave an existing event's guests and scheduling
+ * alone: it has participants and the user (any of their addresses, identities
+ * included) is not the organizer.
+ */
+export function participantsLockedFor(
+  event: Partial<CalendarEvent> | null | undefined,
+  userEmails: string[],
+): boolean {
+  return !!event?.participants && !isOrganizer(event, userEmails);
+}
+
+/** The default identity's address (no `mailto:`), or '' when there is none. */
+export function defaultIdentityAddress(
+  identities: ReadonlyArray<{ calendarAddress: string; isDefault: boolean }> | undefined,
+): string {
+  const found = identities?.find((i) => i.isDefault && i.calendarAddress.trim());
+  return found ? found.calendarAddress.trim().replace(/^mailto:/i, '') : '';
+}
+
+type IdentityLike = { id?: string; calendarAddress: string; isDefault: boolean };
+
+const bareAddress = (address: string) => address.trim().replace(/^mailto:/i, '');
+
+/**
+ * What organizes a new invitation: the user's default ParticipantIdentity
+ * (one with an address), and without one the first login address, with the
+ * identity that has that address (`identityId` null when none has it). The
+ * settings select shows exactly this, and a save uses `address`.
+ */
+export function newInvitationOrganizer(
+  identities: ReadonlyArray<IdentityLike> | undefined,
+  userEmails: string[],
+): { address: string; identityId: string | null } {
+  const flagged = identities?.find((i) => i.isDefault && i.calendarAddress.trim());
+  if (flagged) return { address: bareAddress(flagged.calendarAddress), identityId: flagged.id ?? null };
+  const address = userEmails[0] || '';
+  const lower = address.toLowerCase();
+  const holder = address
+    ? identities?.find((i) => bareAddress(i.calendarAddress).toLowerCase() === lower)
+    : undefined;
+  return { address, identityId: holder?.id ?? null };
+}
+
+/**
+ * The address that organizes an event on save. An event that already has an
+ * organizer keeps it; a new event, or one gaining participants for the first
+ * time, uses `newInvitationOrganizer`.
+ */
+export function organizerAddressForSave(
+  event: Partial<CalendarEvent> | null | undefined,
+  identities: ReadonlyArray<IdentityLike> | undefined,
+  userEmails: string[],
+): string {
+  const existing = event?.organizerCalendarAddress?.trim().replace(/^mailto:/i, '');
+  return existing || newInvitationOrganizer(identities, userEmails).address;
+}
+
+/**
  * Merge the user's calendar addresses (login address, identities, account
  * aliases) so isOrganizer() recognises alias-organized events as the user's
  * own. De-duplicated case-insensitively (first casing kept); blanks dropped.
@@ -271,7 +329,14 @@ export interface Attendee {
 export function buildParticipantMap(
   organizer: { name: string; email: string },
   attendees: Attendee[],
+  // The event's stored participants when editing: each one that stays keeps
+  // its id and every property (status, roles, extra fields); only entries
+  // for added attendees are created and removed attendees dropped.
+  existing?: Record<string, Participant> | null,
 ): Record<string, Participant> {
+  if (existing && Object.keys(existing).length > 0) {
+    return mergeParticipantMap(organizer, attendees, existing);
+  }
   const participants: Record<string, Participant> = {};
 
   // A blank name would be serialized as `CN=` in the invitation; leave it out.
@@ -323,6 +388,33 @@ export function buildParticipantMap(
   return participants;
 }
 
+function mergeParticipantMap(
+  organizer: { name: string; email: string },
+  attendees: Attendee[],
+  existing: Record<string, Participant>,
+): Record<string, Participant> {
+  const fresh = buildParticipantMap(organizer, attendees);
+  const wanted = new Map<string, Participant>();
+  for (const p of Object.values(fresh)) wanted.set(getParticipantEmail(p).trim().toLowerCase(), p);
+  const result: Record<string, Participant> = {};
+  const kept = new Set<string>();
+  // Existing entries whose address is still wanted stay as they are.
+  for (const [id, p] of Object.entries(existing)) {
+    const key = getParticipantEmail(p).trim().toLowerCase();
+    if (!key || kept.has(key)) continue;
+    if (wanted.has(key)) {
+      result[id] = p;
+      kept.add(key);
+    }
+  }
+  // Newly wanted addresses (the organizer when none matched, added attendees).
+  for (const [key, p] of wanted) {
+    if (kept.has(key)) continue;
+    result[generateUUID()] = p;
+  }
+  return result;
+}
+
 /**
  * The attendee rows an editor should start from: every participant except the
  * organizer (who is re-added by buildParticipantMap on save), without
@@ -331,12 +423,15 @@ export function buildParticipantMap(
 export function seedAttendees(
   event: Partial<CalendarEvent> | null | undefined,
   userEmails: string[],
+  // The address that organizes the event on save, left out of the rows.
+  organizerAddress?: string,
 ): Attendee[] {
   if (!event?.participants) return [];
   const excluded = new Set<string>();
   if (isOrganizer(event, userEmails) && userEmails[0]) {
     excluded.add(userEmails[0].toLowerCase());
   }
+  if (organizerAddress) excluded.add(organizerAddress.trim().replace(/^mailto:/i, '').toLowerCase());
   const out: Attendee[] = [];
   for (const p of getParticipantList(event)) {
     if (p.isOrganizer) continue;

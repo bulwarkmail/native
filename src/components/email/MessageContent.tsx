@@ -124,7 +124,7 @@ export function MessageContent({
         <View style={styles.codeBlock}><VerificationCodeChip code={verificationCode} /></View>
       )}
 
-      <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
+      <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} appAccountId={appAccountId} />
 
       <View style={[styles.body, fill && styles.fill]}>
         {deferBody ? (
