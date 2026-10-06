@@ -105,6 +105,8 @@ import { startCalendarNotificationSync } from '../lib/calendar-notifications';
 import { useCalendarReminderOpen } from '../lib/calendar-reminder-open';
 import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
+import { buildNoteUpdate } from '../lib/event-note';
+import { toast } from '../stores/toast-store';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
@@ -904,6 +906,31 @@ export default function CalendarScreen() {
     [reportError],
   );
 
+  // Append a timestamped note to the description (webmail's quick note). Only
+  // the description is written. A series member asks "this occurrence / all"
+  // through the same dialog an edit does; the write happens in handleScopeSelect.
+  const handleAddNote = React.useCallback(
+    async (event: CalendarEvent, note: string): Promise<boolean> => {
+      const updates = buildNoteUpdate(event, note, displayNow());
+      if (!updates) return false;
+      if (isRecurringSeriesMember(event)) {
+        setDetailEvent(null);
+        setPendingAction({ kind: 'edit', event, updates, calendarId: getPrimaryCalendarId(event) ?? '' });
+        return true;
+      }
+      try {
+        await updateEvent(event.id, updates);
+        setDetailEvent((cur) => (cur && cur.id === event.id ? { ...cur, ...updates } : cur));
+        toast.success(t('calendar.detail.note_saved', 'Note added'));
+        return true;
+      } catch (err) {
+        reportError(err);
+        return false;
+      }
+    },
+    [updateEvent, reportError, t],
+  );
+
   const handleCalendarEditSave = React.useCallback(
     async (values: CalendarEditValues) => {
       if (!calendarEditTarget) return;
@@ -1215,6 +1242,7 @@ export default function CalendarScreen() {
         onDuplicate={(ev) => { if (!isReadOnlyEvent(ev)) void handleDuplicateFromDetail(ev); }}
         onExport={handleExportFromDetail}
         onCopyLink={handleCopyLink}
+        onAddNote={(ev, note) => (isReadOnlyEvent(ev) ? false : handleAddNote(ev, note))}
         onRsvp={async (ev, participantId, status) => {
           // An answer on one occurrence of a series asks whether it covers
           // just that occurrence or the whole series (webmail #1086).

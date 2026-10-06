@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -28,7 +29,9 @@ import {
   HelpCircle,
   MapPin,
   Link2,
+  NotebookPen,
   Pencil,
+  Type as TypeIcon,
   Repeat,
   Share2,
   Trash2,
@@ -79,6 +82,10 @@ interface EventDetailSheetProps {
   // Copy the meeting link; only offered when the event has one.
   onCopyLink?: (event: CalendarEvent, link: string) => void;
   onRsvp?: (event: CalendarEvent, participantId: string, status: RsvpStatus) => void | Promise<void>;
+  // Append a timestamped note to the description. The screen builds the update
+  // (and asks "this occurrence / all" for a series); resolve true once saved so
+  // the sheet clears the field, false to keep the text for another try.
+  onAddNote?: (event: CalendarEvent, note: string) => boolean | void | Promise<boolean | void>;
 }
 
 function formatRange(event: CalendarEvent, timeFormat: TimeFormat | undefined, locale: Locale): string {
@@ -131,10 +138,21 @@ export function EventDetailSheet({
   onExport,
   onCopyLink,
   onRsvp,
+  onAddNote,
 }: EventDetailSheetProps) {
   const c = useColors();
   const { locale, t } = useCalendarLocale();
   const [rsvpBusy, setRsvpBusy] = React.useState(false);
+  const [noteOpen, setNoteOpen] = React.useState(false);
+  const [noteText, setNoteText] = React.useState('');
+  const [noteBusy, setNoteBusy] = React.useState(false);
+  const eventId = event?.id;
+  // A note in progress belongs to the event it was started on.
+  React.useEffect(() => {
+    setNoteOpen(false);
+    setNoteText('');
+    setNoteBusy(false);
+  }, [eventId]);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   // Bare addresses (the organizer above all — Stalwart drops its display
   // name) render with the contact card's name instead of the raw email.
@@ -208,6 +226,12 @@ export function EventDetailSheet({
       () => toast.error(t('calendar.detail.location_copy_failed', 'Could not copy the location')),
     );
   };
+  const copyTitle = () => {
+    Clipboard.setStringAsync(event.title || '').then(
+      () => toast.success(t('calendar.detail.title_copied', 'Title copied')),
+      () => toast.error(t('calendar.detail.title_copy_failed', 'Could not copy the title')),
+    );
+  };
   const isCancelled = event.status === 'cancelled';
 
   // Can the signed-in user RSVP? Only when they appear as a non-organizer
@@ -228,6 +252,20 @@ export function EventDetailSheet({
     onRsvp && myParticipantId && !userIsOrganizer && editability !== 'read-only',
   );
   const myStatus = myParticipantId ? event.participants?.[myParticipantId]?.participationStatus : undefined;
+
+  const saveNote = async () => {
+    if (!onAddNote || noteBusy || !noteText.trim()) return;
+    setNoteBusy(true);
+    try {
+      const saved = await onAddNote(event, noteText);
+      if (saved !== false) {
+        setNoteText('');
+        setNoteOpen(false);
+      }
+    } finally {
+      setNoteBusy(false);
+    }
+  };
 
   const doRsvp = async (status: RsvpStatus) => {
     if (!onRsvp || !myParticipantId || rsvpBusy) return;
@@ -332,6 +370,37 @@ export function EventDetailSheet({
               />
             )}
 
+            {noteOpen && onAddNote && canEdit && (
+              <View style={styles.noteBlock}>
+                <TextInput
+                  style={styles.noteInput}
+                  value={noteText}
+                  onChangeText={setNoteText}
+                  placeholder={t('calendar.detail.add_note', 'Add a note...')}
+                  placeholderTextColor={c.textMuted}
+                  multiline
+                  autoFocus
+                  editable={!noteBusy}
+                />
+                <View style={styles.noteButtons}>
+                  <Pressable
+                    onPress={() => { setNoteOpen(false); setNoteText(''); }}
+                    disabled={noteBusy}
+                    style={styles.noteCancel}
+                  >
+                    <Text style={styles.actionLabel}>{t('common.cancel', 'Cancel')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { void saveNote(); }}
+                    disabled={noteBusy || !noteText.trim()}
+                    style={[styles.noteSave, (noteBusy || !noteText.trim()) && { opacity: 0.5 }]}
+                  >
+                    <Text style={styles.joinBtnText}>{t('calendar.detail.save_note', 'Save')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
             {canRsvp && (
               <View style={styles.rsvpBlock}>
                 <Text style={styles.rsvpPrompt}>{t('calendar.participants.rsvp_label', 'Your response')}</Text>
@@ -399,8 +468,7 @@ export function EventDetailSheet({
             )}
           </ScrollView>
 
-          {(canEdit || onDuplicate || onExport || (onCopyLink && videoUri)) && (
-            <View style={styles.actions}>
+          <View style={styles.actions}>
               {onEdit && canEdit && (
                 <ActionButton
                   icon={<Pencil size={18} color={c.text} />}
@@ -422,6 +490,18 @@ export function EventDetailSheet({
                   onPress={() => onExport(event)}
                 />
               )}
+              <ActionButton
+                icon={<TypeIcon size={18} color={c.text} />}
+                label={t('calendar.events.copy_title', 'Copy title')}
+                onPress={copyTitle}
+              />
+              {onAddNote && canEdit && (
+                <ActionButton
+                  icon={<NotebookPen size={18} color={c.text} />}
+                  label={t('calendar.detail.add_note_short', 'Note')}
+                  onPress={() => setNoteOpen((open) => !open)}
+                />
+              )}
               {onCopyLink && videoUri && (
                 <ActionButton
                   icon={<Link2 size={18} color={c.text} />}
@@ -438,7 +518,6 @@ export function EventDetailSheet({
                 />
               )}
             </View>
-          )}
         </SafeAreaView>
       </Animated.View>
     </Modal>
@@ -690,18 +769,40 @@ function makeStyles(c: ThemePalette) {
 
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     borderTopWidth: 1,
     borderTopColor: c.border,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
   },
   actionBtn: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '22%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
     gap: 4,
     borderRadius: radius.sm,
+  },
+  noteBlock: { gap: spacing.sm },
+  noteInput: {
+    ...typography.body,
+    color: c.text,
+    minHeight: 72,
+    textAlignVertical: 'top',
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.sm,
+    backgroundColor: c.surface,
+  },
+  noteButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
+  noteCancel: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  noteSave: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+    backgroundColor: c.primaryBg,
   },
   actionBtnPressed: { backgroundColor: c.surfaceHover },
   actionLabel: { ...typography.caption, color: c.text },
