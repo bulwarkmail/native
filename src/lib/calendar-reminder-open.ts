@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CalendarEvent } from '../api/types';
 import { getEvents } from '../api/calendar';
+import { inAccount, type OpScope } from '../api/op-scope';
 import {
   loadEventsInRange,
   mapServerEventToStoreEvent,
@@ -8,6 +9,8 @@ import {
 } from '../stores/calendar-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useToastStore } from '../stores/toast-store';
+import { isShownAccount, requireShownAccountScope } from '../stores/email-store';
+import { useServedAccount } from './served-account';
 import { seriesIdOf } from './recurrence-instances';
 import {
   usePendingCalendarOpen,
@@ -21,6 +24,17 @@ import {
 // an expanded occurrence only lives as long as the loaded window.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The account a reminder or event link is opened in, taken when the target is
+ * consumed: the app account shown then, and the connection serving it. Ids
+ * repeat across accounts (Stalwart numbers them per account), so every read
+ * goes out on `scope`, and nothing is opened once another account is shown.
+ */
+export interface ReminderAccount {
+  appAccountId: string;
+  scope: OpScope;
+}
 
 function matchesTarget(event: CalendarEvent, target: CalendarReminderTarget): boolean {
   if (event.id === target.eventId) return true;
@@ -37,12 +51,15 @@ function matchesTarget(event: CalendarEvent, target: CalendarReminderTarget): bo
  */
 export async function resolveReminderEvent(
   target: CalendarReminderTarget,
+  account: ReminderAccount,
 ): Promise<CalendarEvent | null> {
   const store = useCalendarStore.getState();
   const loaded = store.events.find((e) => matchesTarget(e, target));
   if (loaded) return loaded;
 
   if (store.calendars.length === 0) await store.fetchCalendars();
+  // The calendars are another account's now.
+  if (!isShownAccount(account.appAccountId)) return null;
   const { calendars } = useCalendarStore.getState();
   if (target.startMs !== undefined && calendars.length > 0) {
     try {
@@ -51,6 +68,7 @@ export async function resolveReminderEvent(
         calendars.map((c) => c.id),
         new Date(target.startMs - DAY_MS).toISOString(),
         new Date(target.startMs + DAY_MS).toISOString(),
+        account.scope,
       );
       const found = around.find((e) => matchesTarget(e, target));
       if (found) return found;
@@ -58,14 +76,15 @@ export async function resolveReminderEvent(
       // Try the event itself below.
     }
   }
-  if (!target.serverId) return null;
-  const [event] = await getEvents([target.serverId], target.accountId);
+  if (!target.serverId || !isShownAccount(account.appAccountId)) return null;
+  const [event] = await getEvents([target.serverId], inAccount(account.scope, target.accountId));
   return event ? mapServerEventToStoreEvent(event, calendars, target.accountId) : null;
 }
 
 /** The task a reminder points at, loading the tasks when they aren't yet. */
 export async function resolveReminderTask(
   target: CalendarReminderTarget,
+  account: ReminderAccount,
 ): Promise<CalendarEvent | null> {
   const find = () => useCalendarStore.getState().tasks.find((task) =>
     task.id === target.eventId
@@ -75,37 +94,49 @@ export async function resolveReminderTask(
   const loaded = find();
   if (loaded) return loaded;
   const store = useCalendarStore.getState();
+  // The store loads for the account it shows, on its own connection.
   if (store.calendars.length === 0) await store.fetchCalendars();
+  if (!isShownAccount(account.appAccountId)) return null;
   await useCalendarStore.getState().fetchTasks();
+  if (!isShownAccount(account.appAccountId)) return null;
   return find() ?? null;
 }
 
 export interface ReminderOpenHandlers {
-  onEvent: (event: CalendarEvent) => void;
-  onTask: (taskId: string) => void;
+  /** `account`: the one the target was opened in; the sheet opens with it. */
+  onEvent: (event: CalendarEvent, account: ReminderAccount) => void;
+  onTask: (taskId: string, account: ReminderAccount) => void;
 }
 
-/** Open what the reminder points at; says so when it is gone. */
+/**
+ * Open what the reminder points at, in `account`; says so when it is gone.
+ * Once another account is shown it opens nothing and says nothing: what was
+ * found belongs to the account that was left.
+ */
 export async function openReminderTarget(
   target: CalendarReminderTarget,
   handlers: ReminderOpenHandlers,
+  account: ReminderAccount,
 ): Promise<boolean> {
   try {
     if (target.kind === 'task') {
-      const task = await resolveReminderTask(target);
+      const task = await resolveReminderTask(target, account);
+      if (!isShownAccount(account.appAccountId)) return false;
       if (task) {
-        handlers.onTask(task.id);
+        handlers.onTask(task.id, account);
         return true;
       }
     } else {
-      const event = await resolveReminderEvent(target);
+      const event = await resolveReminderEvent(target, account);
+      if (!isShownAccount(account.appAccountId)) return false;
       if (event) {
-        handlers.onEvent(event);
+        handlers.onEvent(event, account);
         return true;
       }
     }
   } catch {
     // Offline or refused: report it like a missing event.
+    if (!isShownAccount(account.appAccountId)) return false;
   }
   const t = useLocaleStore.getState().t;
   useToastStore.getState().addToast({
@@ -125,13 +156,23 @@ export function useCalendarReminderOpen(handlers: ReminderOpenHandlers): void {
   const pending = usePendingCalendarOpen((s) => s.target);
   const handlersRef = React.useRef(handlers);
   handlersRef.current = handlers;
+  // A target parked during a switch waits until the shown account is served.
+  const served = useServedAccount();
   React.useEffect(() => {
-    if (!pending) return;
+    if (!pending || !served.appAccountId || !served.jmapAccountId) return;
+    let account: ReminderAccount;
+    try {
+      account = { appAccountId: served.appAccountId, scope: requireShownAccountScope(served.appAccountId) };
+    } catch {
+      return;
+    }
     const target = usePendingCalendarOpen.getState().consume();
     if (!target) return;
+    // Scheduled for another account (its switch failed or was undone).
+    if (target.appAccountId && target.appAccountId !== account.appAccountId) return;
     void openReminderTarget(target, {
-      onEvent: (event) => handlersRef.current.onEvent(event),
-      onTask: (id) => handlersRef.current.onTask(id),
-    });
-  }, [pending]);
+      onEvent: (event, at) => handlersRef.current.onEvent(event, at),
+      onTask: (id, at) => handlersRef.current.onTask(id, at),
+    }, account);
+  }, [pending, served]);
 }

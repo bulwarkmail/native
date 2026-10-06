@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   loadEventsInRange: vi.fn(),
   getEvents: vi.fn(),
   addToast: vi.fn(),
+  shown: 'app-a' as string | null,
 }));
 
 vi.mock('../../stores/calendar-store', () => ({
@@ -23,6 +24,13 @@ vi.mock('../../api/calendar', () => ({ getEvents: h.getEvents }));
 vi.mock('../../stores/toast-store', () => ({
   useToastStore: { getState: () => ({ addToast: h.addToast }) },
 }));
+vi.mock('../../stores/email-store', () => ({
+  isShownAccount: (id: string | null | undefined) => !!id && id === h.shown,
+  requireShownAccountScope: () => ({ gen: 7, accountId: 'acc-1' }),
+}));
+vi.mock('../served-account', () => ({
+  useServedAccount: () => ({ appAccountId: h.shown, jmapAccountId: 'acc-1' }),
+}));
 vi.mock('../../stores/locale-store', () => ({
   useLocaleStore: { getState: () => ({ t: (_key: string, fallback: string) => fallback }) },
 }));
@@ -34,9 +42,12 @@ import {
 } from '../calendar-reminder-open';
 
 const START = new Date('2026-09-24T10:00:00Z').getTime();
+/** Taken when the target was consumed: app account A on connection 7. */
+const ACCOUNT = { appAccountId: 'app-a', scope: { gen: 7, accountId: 'acc-1' } };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.shown = 'app-a';
   h.store.events = [];
   h.store.tasks = [];
   h.loadEventsInRange.mockResolvedValue([]);
@@ -48,7 +59,7 @@ describe('resolveReminderEvent', () => {
     const ev = { id: 'ev1', title: 'Standup' };
     h.store.events = [ev];
 
-    expect(await resolveReminderEvent({ kind: 'event', eventId: 'ev1', serverId: 'ev1', startMs: START })).toBe(ev);
+    expect(await resolveReminderEvent({ kind: 'event', eventId: 'ev1', serverId: 'ev1', startMs: START }, ACCOUNT)).toBe(ev);
     expect(h.loadEventsInRange).not.toHaveBeenCalled();
   });
 
@@ -63,11 +74,13 @@ describe('resolveReminderEvent', () => {
     const found = await resolveReminderEvent({
       kind: 'event', eventId: 'stale-id', serverId: 'ev1', accountId: 'acc-2',
       recurrenceId: '2026-09-24T10:00:00Z', startMs: START,
-    });
+    }, ACCOUNT);
 
     expect(found).toBe(occurrence);
-    const [, ids, after, before] = h.loadEventsInRange.mock.calls[0];
+    const [, ids, after, before, at] = h.loadEventsInRange.mock.calls[0];
     expect(ids).toEqual(['cal-1', 'acc-2:cal-9']);
+    // On the connection the target was consumed on.
+    expect(at).toEqual({ gen: 7, accountId: 'acc-1' });
     expect(new Date(after).getTime()).toBeLessThan(START);
     expect(new Date(before).getTime()).toBeGreaterThan(START);
   });
@@ -77,14 +90,31 @@ describe('resolveReminderEvent', () => {
 
     const found = await resolveReminderEvent({
       kind: 'event', eventId: 'acc-2:ev1', serverId: 'ev1', accountId: 'acc-2', startMs: START,
-    });
+    }, ACCOUNT);
 
-    expect(h.getEvents).toHaveBeenCalledWith(['ev1'], 'acc-2');
+    expect(h.getEvents).toHaveBeenCalledWith(['ev1'], { gen: 7, accountId: 'acc-2' });
     expect(found).toMatchObject({ id: 'acc-2:ev1', title: 'Moved' });
   });
 
   it('returns null for a deleted event', async () => {
-    expect(await resolveReminderEvent({ kind: 'event', eventId: 'gone', serverId: 'gone', startMs: START })).toBeNull();
+    expect(await resolveReminderEvent({ kind: 'event', eventId: 'gone', serverId: 'gone', startMs: START }, ACCOUNT)).toBeNull();
+  });
+
+  it('reads nothing more once the calendars it waited for belong to another account', async () => {
+    const saved = h.store.calendars;
+    h.store.calendars = [];
+    h.store.fetchCalendars.mockImplementationOnce(async () => {
+      h.shown = 'app-b';
+      h.store.calendars = saved;
+    });
+    try {
+      expect(await resolveReminderEvent({ kind: 'event', eventId: 'ev1', serverId: 'ev1', startMs: START }, ACCOUNT))
+        .toBeNull();
+      expect(h.loadEventsInRange).not.toHaveBeenCalled();
+      expect(h.getEvents).not.toHaveBeenCalled();
+    } finally {
+      h.store.calendars = saved;
+    }
   });
 });
 
@@ -94,7 +124,7 @@ describe('resolveReminderTask', () => {
       h.store.tasks = [{ id: 't1', title: 'Pay rent' }];
     });
 
-    expect(await resolveReminderTask({ kind: 'task', eventId: 't1', serverId: 't1' }))
+    expect(await resolveReminderTask({ kind: 'task', eventId: 't1', serverId: 't1' }, ACCOUNT))
       .toMatchObject({ id: 't1' });
     expect(h.store.fetchTasks).toHaveBeenCalledTimes(1);
   });
@@ -107,11 +137,12 @@ describe('openReminderTarget', () => {
     const onEvent = vi.fn();
     const onTask = vi.fn();
 
-    expect(await openReminderTarget({ kind: 'event', eventId: 'ev1' }, { onEvent, onTask })).toBe(true);
-    expect(await openReminderTarget({ kind: 'task', eventId: 't1' }, { onEvent, onTask })).toBe(true);
+    expect(await openReminderTarget({ kind: 'event', eventId: 'ev1' }, { onEvent, onTask }, ACCOUNT)).toBe(true);
+    expect(await openReminderTarget({ kind: 'task', eventId: 't1' }, { onEvent, onTask }, ACCOUNT)).toBe(true);
 
-    expect(onEvent).toHaveBeenCalledWith({ id: 'ev1' });
-    expect(onTask).toHaveBeenCalledWith('t1');
+    // With the account the target was consumed in, for the sheet to open with.
+    expect(onEvent).toHaveBeenCalledWith({ id: 'ev1' }, ACCOUNT);
+    expect(onTask).toHaveBeenCalledWith('t1', ACCOUNT);
     expect(h.addToast).not.toHaveBeenCalled();
   });
 
@@ -122,9 +153,28 @@ describe('openReminderTarget', () => {
     expect(await openReminderTarget(
       { kind: 'event', eventId: 'ev1', serverId: 'ev1' },
       { onEvent, onTask: vi.fn() },
+      ACCOUNT,
     )).toBe(false);
 
     expect(onEvent).not.toHaveBeenCalled();
     expect(h.addToast).toHaveBeenCalledWith({ type: 'error', title: 'This event is no longer available.' });
+  });
+
+  it('opens nothing once another account is shown, and says nothing', async () => {
+    h.getEvents.mockImplementation(async () => {
+      h.shown = 'app-b';
+      return [{ id: 'ev1', title: 'A\'s event' }];
+    });
+    const onEvent = vi.fn();
+    const onTask = vi.fn();
+
+    expect(await openReminderTarget({ kind: 'event', eventId: 'ev1', serverId: 'ev1' }, { onEvent, onTask }, ACCOUNT))
+      .toBe(false);
+    h.store.tasks = [{ id: 't1' }];
+    expect(await openReminderTarget({ kind: 'task', eventId: 't1' }, { onEvent, onTask }, ACCOUNT)).toBe(false);
+
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(onTask).not.toHaveBeenCalled();
+    expect(h.addToast).not.toHaveBeenCalled();
   });
 });

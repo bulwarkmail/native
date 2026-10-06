@@ -346,14 +346,23 @@ export default function CalendarScreen() {
   // A tapped reminder notification opens its event or task here.
   // Set to jumpTo below; a reminder resolves asynchronously.
   const jumpToRef = React.useRef<(date: Date) => void>(() => {});
+  // The sheet opens bound to the account the target was opened in (not
+  // whichever is shown when it resolves), and not at all once that one isn't.
   useCalendarReminderOpen({
-    onEvent: (event) => {
-      setDetailEvent(event);
+    onEvent: (event, account) => {
+      if (!isShownAccount(account.appAccountId)) return;
+      eventAppAccountId.current = account.appAccountId;
+      setDetailEventState(event);
       // Its day comes into view behind the sheet.
       const start = getEventStartDate(event);
       if (!isNaN(start.getTime())) jumpToRef.current(start);
     },
-    onTask: (id) => { setTasksInitialId(id); setTasksVisible(true); },
+    onTask: (id, account) => {
+      if (!isShownAccount(account.appAccountId)) return;
+      eventAppAccountId.current = account.appAccountId;
+      setTasksInitialId(id);
+      setTasksVisible(true);
+    },
   });
   // A date link (`/calendar/<view>/<date>`) shows that day, in that view
   // when it names one. Only the visible date and view change.
