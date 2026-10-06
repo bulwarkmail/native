@@ -5,6 +5,7 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors, useResolvedTheme } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { getAccountInitials } from '../../lib/avatar-utils';
+import { toUnicodeEmail } from '../../lib/idn';
 
 // The white mark disappears on the light palette, so pick per theme.
 const LOGO_LIGHT = require('../../../assets/logos/Bulwark Logo Dark.png');
@@ -63,7 +64,7 @@ export default function SigningInStep({ phase, serverUrl, email }: SigningInStep
           />
         )}
 
-        {email ? <Text style={styles.email}>{email}</Text> : null}
+        {email ? <Text style={styles.email}>{toUnicodeEmail(email)}</Text> : null}
         <Text style={styles.title}>{copy[phase].title}</Text>
         <Text style={styles.detail}>{copy[phase].detail}</Text>
 

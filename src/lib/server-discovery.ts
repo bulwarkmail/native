@@ -85,9 +85,20 @@ export function normalizeServerUrl(input: string): string | null {
   return value;
 }
 
+/**
+ * The address trimmed, with one trailing dot dropped from its domain
+ * (`ada@example.com.` is the fully qualified form of `ada@example.com`).
+ * A second dot is left in place so `example.com..` stays invalid.
+ */
+export function stripTrailingDot(email: string): string {
+  const value = email.trim();
+  const at = value.lastIndexOf('@');
+  return at >= 0 && value.endsWith('.') ? value.slice(0, -1) : value;
+}
+
 /** The domain of `email` in its lowercase ASCII (punycode) form, or null. */
 export function emailDomain(email: string): string | null {
-  const match = EMAIL_RE.exec(email.trim());
+  const match = EMAIL_RE.exec(stripTrailingDot(email));
   return match ? toAsciiDomain(match[1]) : null;
 }
 
