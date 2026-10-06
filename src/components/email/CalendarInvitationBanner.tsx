@@ -29,6 +29,8 @@ import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { requireShownAccountScope } from '../../stores/email-store';
+import { importAndRespond, importInvitation } from '../../lib/invitation-actions';
+import type { OpScope } from '../../api/op-scope';
 import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
 
 type BannerState = 'loading' | 'parsed' | 'done' | 'error';
@@ -107,6 +109,14 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     if (!invitationKey || !part || !enabled) return;
     setState('loading');
     setServerMatch(null);
+    // The look-up goes out on the connection serving the message's account
+    // when the banner loaded, or not at all.
+    let lookupScope: OpScope | null = null;
+    try {
+      lookupScope = requireShownAccountScope(ownerAppAccountId);
+    } catch {
+      lookupScope = null;
+    }
     (async () => {
       try {
         const events = await parseCalendarBlob(part.blobId, jmapAccountId);
@@ -120,10 +130,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         // The store only holds the calendar's loaded window; look the event
         // up on the server so one already there counts as existing and the
         // RSVP goes to it. Best-effort, must not block the banner.
-        if (parsed.uid && !useCalendarStore.getState().events.some((e) => e.uid === parsed.uid)) {
-          // Looked up on the connection serving the message's account, or not at all.
-          Promise.resolve()
-            .then(() => findEventsByUid(parsed.uid!, requireShownAccountScope(ownerAppAccountId)))
+        if (lookupScope && parsed.uid && !useCalendarStore.getState().events.some((e) => e.uid === parsed.uid)) {
+          findEventsByUid(parsed.uid, lookupScope)
             .then((found) => { if (!cancelled && found[0]) setServerMatch(found[0]); })
             .catch(() => undefined);
         }
@@ -204,21 +212,18 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     setBusy(true);
     setNotice(null);
     try {
-      let target = existing;
-      if (!target) {
-        // Make sure the event exists in a local calendar (dedupes by UID),
-        // then find it on the server for its id and participant: the store
-        // never sees an event outside the loaded window.
-        await importEvents([event], targetCalendar.id, undefined, { appAccountId: ownerAppAccountId });
-        target = event.uid ? (await findEventsByUid(event.uid, requireShownAccountScope(ownerAppAccountId)))[0] ?? null : null;
-        if (target) setServerMatch(target);
-      }
-      const participant = target ? findParticipantByEmail(target, currentUserEmails) : null;
-      // Never claim success when no response went out.
-      if (!target || !participant) throw new Error('No event to respond to');
-      await rsvpEvent(target.id, participant.id, status, buildReplyTo(event), target, 'series', {
+      // Import (deduped by UID) unless it is there, find it, answer: all on
+      // one scope taken now. Throws when no response went out.
+      await importAndRespond({
+        event,
+        existing,
+        calendarId: targetCalendar.id,
+        status,
+        userEmails: currentUserEmails,
+        replyTo: buildReplyTo(event),
         appAccountId: ownerAppAccountId,
-        jmapAccountId: target.accountId || undefined,
+        actions: { importEvents, findEventsByUid, rsvpEvent },
+        onFound: setServerMatch,
       });
       setRsvpStatus(status);
       setNotice(t('calendar.invitation.response_sent', 'Response sent'));
@@ -235,7 +240,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     setBusy(true);
     setNotice(null);
     try {
-      const { imported } = await importEvents([event], targetCalendar.id, undefined, { appAccountId: ownerAppAccountId });
+      const { imported } = await importInvitation(event, targetCalendar.id, ownerAppAccountId, importEvents);
       setNotice(
         imported > 0
           ? t('calendar.invitation.added', 'Added to calendar')
