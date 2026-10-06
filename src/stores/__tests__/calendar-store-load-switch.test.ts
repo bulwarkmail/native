@@ -327,3 +327,67 @@ describe('calendars and identities', () => {
     expect(useCalendarStore.getState().loadedRange).toEqual({ after: AFTER, before: BEFORE });
   });
 });
+
+describe('a pinned load (a widget run without the app open)', () => {
+  const pin = () => ({ appAccountId: A });
+
+  it('loads the pinned account although the mail store shows none', async () => {
+    useEmailStore.setState({ activeAccountId: null });
+    mockGetCalendars.mockResolvedValueOnce([{ id: 'a-cal', name: 'Alice' }]);
+    mockScan.mockResolvedValueOnce([{ id: '7', '@type': 'Task', calendarIds: { 'cal-1': true } }]);
+    mockGetEvents.mockResolvedValueOnce([{ id: '7', '@type': 'Task', title: 'alice task' }]);
+    expect(await useCalendarStore.getState().fetchCalendars(pin())).toBe(true);
+    useCalendarStore.setState({ calendars: [cal] });
+    expect(await useCalendarStore.getState().fetchTasks(pin())).toBe(true);
+    expect(mockGetCalendars).toHaveBeenCalledWith({ gen: 7, accountId: 'c' });
+    expect(mockScan).toHaveBeenCalledWith({ gen: 7, accountId: 'c' });
+    expect(useCalendarStore.getState().tasks.map((t) => t.title)).toEqual(['alice task']);
+  });
+
+  it('loads it although the mail store shows another account', async () => {
+    useEmailStore.setState({ activeAccountId: B });
+    mockGetCalendars.mockResolvedValueOnce([{ id: 'a-cal', name: 'Alice' }]);
+    expect(await useCalendarStore.getState().fetchCalendars(pin())).toBe(true);
+    expect(useCalendarStore.getState().calendars.map((c) => c.id)).toEqual(['a-cal']);
+  });
+
+  it('loads nothing when the client serves another account than the pinned one', async () => {
+    useEmailStore.setState({ activeAccountId: null });
+    expect(await useCalendarStore.getState().fetchCalendars({ appAccountId: B })).toBe(false);
+    expect(await useCalendarStore.getState().fetchTasks({ appAccountId: B })).toBe(false);
+    expect(mockGetCalendars).not.toHaveBeenCalled();
+    expect(mockScan).not.toHaveBeenCalled();
+  });
+
+  it('serves a pinned account the registry has not loaded, by the client\'s server and user', async () => {
+    useAccountStore.setState({ accounts: [], activeAccountId: null });
+    useEmailStore.setState({ activeAccountId: null });
+    mockGetCalendars.mockResolvedValueOnce([]);
+    expect(await useCalendarStore.getState().fetchCalendars(pin())).toBe(true);
+    expect(await useCalendarStore.getState().fetchCalendars({ appAccountId: B })).toBe(false);
+  });
+
+  it('drops a pinned load whose client moved to another account meanwhile', async () => {
+    const aCalendars = deferred<unknown[]>();
+    mockGetCalendars.mockReturnValueOnce(aCalendars.promise);
+    const pending = useCalendarStore.getState().fetchCalendars(pin());
+    client.username = 'bob@b.example';
+    client.serverUrl = 'https://b.example';
+    aCalendars.resolve([{ id: 'a-cal' }]);
+    expect(await pending).toBe(false);
+    expect(useCalendarStore.getState().calendars).toEqual([cal]);
+  });
+
+  it('runs on the scope it is given', async () => {
+    mockGetCalendars.mockResolvedValueOnce([]);
+    await useCalendarStore.getState().fetchCalendars({ appAccountId: A, scope: { gen: 7, accountId: 'c' } });
+    expect(mockGetCalendars).toHaveBeenCalledWith({ gen: 7, accountId: 'c' });
+  });
+
+  it('an unpinned load still needs the shown account', async () => {
+    useEmailStore.setState({ activeAccountId: null });
+    expect(await useCalendarStore.getState().fetchCalendars()).toBe(false);
+    expect(mockGetCalendars).not.toHaveBeenCalled();
+  });
+});
+

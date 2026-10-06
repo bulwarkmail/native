@@ -36,6 +36,7 @@ import { jmapClient } from '../api/jmap-client';
 import { inAccount, opScope, type AccountRef, type OpScope } from '../api/op-scope';
 import { isShownAccount, requireShownAccountScope, useEmailStore } from './email-store';
 import { isStaleLoad } from '../lib/network-error';
+import { clientServesRegistryAccount } from '../lib/active-client-account';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
 import {
@@ -230,11 +231,14 @@ export interface CalendarState {
   // longer the one shown; a server without the method leaves the list empty).
   fetchParticipantIdentities: (account: EventAccount) => Promise<void>;
   setDefaultParticipantIdentity: (id: string, account: EventAccount) => Promise<void>;
-  fetchCalendars: () => Promise<void>;
+  // Resolves true once the store holds that account's fresh calendars (or
+  // tasks); false when the load didn't run, failed or was superseded. With
+  // `pin`, for the named account instead of the shown one (see LoadPin).
+  fetchCalendars: (pin?: LoadPin) => Promise<boolean>;
   fetchEvents: (calendarIds: string[], after: string, before: string) => Promise<void>;
   // Scan every calendar object (all accounts) to list tasks and find the
   // tasks-only calendars; independent of the visible date range.
-  fetchTasks: () => Promise<void>;
+  fetchTasks: (pin?: LoadPin) => Promise<boolean>;
   ensureRange: (after: string, before: string) => Promise<void>;
   // Grow the loaded window to [after, before]: only the parts outside it are
   // fetched and merged in (the freely scrolling views, #759). A range that
@@ -315,6 +319,20 @@ interface LoadContext {
   scope: OpScope;
   /** `loadEpoch` when the load started. */
   epoch: number;
+  /** Pinned by its caller (`LoadPin`) rather than taken from the shown account. */
+  pinned: boolean;
+}
+
+/**
+ * A load for an account its caller names, not the one the app shows: a
+ * widget refresh, which runs with the app closed (no account shown, or a
+ * stale one from the mail cache) for the registry's active account. It runs
+ * only while the client serves that account, on `scope` (taken now when
+ * omitted), and is kept only while the client still serves it.
+ */
+export interface LoadPin {
+  appAccountId: string;
+  scope?: OpScope;
 }
 
 // Bumped by reset(): a load from before it belongs to the session it ended.
@@ -325,30 +343,39 @@ let loadEpoch = 0;
  * the client serves another account (a switch in progress: the refetch once
  * it is served loads the new account).
  */
-function beginLoad(): LoadContext | null {
+function beginLoad(pin?: LoadPin): LoadContext | null {
+  if (!jmapClient.isConnected) return null;
+  if (pin) {
+    if (!clientServesRegistryAccount(pin.appAccountId)) return null;
+    return { appAccountId: pin.appAccountId, scope: pin.scope ?? opScope(), epoch: loadEpoch, pinned: true };
+  }
   const appAccountId = useEmailStore.getState().activeAccountId;
-  if (!appAccountId || !jmapClient.isConnected) return null;
+  if (!appAccountId) return null;
   try {
-    return { appAccountId, scope: requireShownAccountScope(appAccountId), epoch: loadEpoch };
+    return { appAccountId, scope: requireShownAccountScope(appAccountId), epoch: loadEpoch, pinned: false };
   } catch {
     return null;
   }
 }
 
-/** Whether a load's result may still be stored: same session, account shown, same connection. */
+/**
+ * Whether a load's result may still be stored: same session, same
+ * connection, and the account still shown (a pinned load: still served).
+ */
 function loadIsCurrent(load: LoadContext): boolean {
   return load.epoch === loadEpoch
-    && isShownAccount(load.appAccountId)
-    && jmapClient.connectionGen === load.scope.gen;
+    && jmapClient.connectionGen === load.scope.gen
+    && (load.pinned ? clientServesRegistryAccount(load.appAccountId) : isShownAccount(load.appAccountId));
 }
 
-const loadKey = (load: LoadContext) => `${load.epoch}|${load.appAccountId}|${load.scope.gen}|${load.scope.accountId}`;
+const loadKey = (load: LoadContext) =>
+  `${load.pinned ? 'pin' : 'shown'}|${load.epoch}|${load.appAccountId}|${load.scope.gen}|${load.scope.accountId}`;
 
 // In-flight dedupe for the two whole-account loads (see fetchCalendars),
 // per load context: a caller for another account or connection never joins
 // (or is handed) a load that isn't its own.
-let calendarsInFlight: { key: string; promise: Promise<void> } | null = null;
-let tasksInFlight: { key: string; promise: Promise<void> } | null = null;
+let calendarsInFlight: { key: string; promise: Promise<boolean> } | null = null;
+let tasksInFlight: { key: string; promise: Promise<boolean> } | null = null;
 
 function persistHidden(ids: string[]): void {
   void AsyncStorage.setItem(HIDDEN_CALENDARS_STORAGE_KEY, JSON.stringify(ids)).catch(
@@ -665,14 +692,14 @@ export const useCalendarStore = create<CalendarState>()(
     set({ hydrated: true });
   },
 
-  fetchCalendars: async () => {
+  fetchCalendars: async (pin) => {
     // CalendarScreen fires this on mount; on cold start that happens before
     // restoreSession has connected jmapClient. Bail rather than surfacing
     // a "Not authenticated" error - the refetch driven by the auth-store
     // will run this again once the session is live.
-    if (!jmapClient.isConnected) return;
-    const load = beginLoad();
-    if (!load) return;
+    if (!jmapClient.isConnected) return false;
+    const load = beginLoad(pin);
+    if (!load) return false;
     // First-touch gate (#907): the screen mount, ensureRange and the
     // auth-store all kick this off at once, and on a clustered Stalwart
     // concurrent first Calendar/* requests can each lazily create a default
@@ -691,11 +718,13 @@ export const useCalendarStore = create<CalendarState>()(
             scope: load.scope,
           }),
         ]);
-        if (!loadIsCurrent(load)) return;
+        if (!loadIsCurrent(load)) return false;
         set({ calendars: calendars ?? [] });
+        return true;
       } catch (err) {
-        if (isStaleLoad(err) || !loadIsCurrent(load)) return;
+        if (isStaleLoad(err) || !loadIsCurrent(load)) return false;
         set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
+        return false;
       } finally {
         if (calendarsInFlight?.key === key) calendarsInFlight = null;
       }
@@ -725,10 +754,10 @@ export const useCalendarStore = create<CalendarState>()(
     }
   },
 
-  fetchTasks: async () => {
-    if (!jmapClient.isConnected) return;
-    const load = beginLoad();
-    if (!load) return;
+  fetchTasks: async (pin) => {
+    if (!jmapClient.isConnected) return false;
+    const load = beginLoad(pin);
+    if (!load) return false;
     const key = loadKey(load);
     if (tasksInFlight?.key === key) return tasksInFlight.promise;
     const promise = (async () => {
@@ -767,11 +796,13 @@ export const useCalendarStore = create<CalendarState>()(
             noteCalendarAccessError(accountId, err);
           }
         }
-        if (!loadIsCurrent(load)) return;
+        if (!loadIsCurrent(load)) return false;
         set({ tasks, taskOnlyCalendarIds: taskOnly });
+        return true;
       } catch (err) {
-        if (isStaleLoad(err) || !loadIsCurrent(load)) return;
+        if (isStaleLoad(err) || !loadIsCurrent(load)) return false;
         set({ error: err instanceof Error ? err.message : 'Failed to load tasks' });
+        return false;
       } finally {
         if (tasksInFlight?.key === key) tasksInFlight = null;
       }
