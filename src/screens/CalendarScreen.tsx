@@ -55,6 +55,7 @@ import {
   type RecurrenceEditScope,
 } from '../components/calendar/RecurrenceScopeDialog';
 import { CalendarSidebarDrawer } from '../components/calendar/CalendarSidebarDrawer';
+import { calendarTaskEvents, isTaskEvent, taskIdOfEvent } from '../lib/calendar-tasks';
 import { TasksSheet } from '../components/calendar/TasksSheet';
 import { ICalImportSheet } from '../components/calendar/ICalImportSheet';
 import { ICalSubscriptionSheet } from '../components/calendar/ICalSubscriptionSheet';
@@ -83,7 +84,6 @@ import {
   eventsOnDayFromIndex,
   getEventStartDate,
   getPrimaryCalendarId,
-  getTaskDueDate,
   pickUnusedCalendarColor,
   sharedCalendarColorKey,
   type EventDayIndex,
@@ -441,32 +441,16 @@ export default function CalendarScreen() {
     () => (showBirthdayCalendar ? [...displayCalendars, createBirthdayCalendar()] : displayCalendars),
     [displayCalendars, showBirthdayCalendar],
   );
-  // Tasks with a due date are overlaid on the grid as chips (webmail's
-  // showTasksOnCalendar); tapping one opens the tasks sheet on that task.
+  // Tasks with a due date are overlaid on the grid (webmail's
+  // showTasksOnCalendar, #1107): in a month cell, the week view's all-day
+  // strip or the time grid, with a completion circle; completed ones struck
+  // through. Only tasks of calendars the drawer shows; tapping one opens the
+  // tasks sheet on that task.
   const taskEvents = React.useMemo<CalendarEvent[]>(() => {
     if (!enableCalendarTasks || !showTasksOnCalendar) return [];
-    const out: CalendarEvent[] = [];
-    for (const task of tasks) {
-      if (!task.due || task.progress === 'completed' || task.progress === 'cancelled') continue;
-      const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(task.due);
-      const allDay = !!task.showWithoutTime || dateOnly;
-      out.push({
-        ...task,
-        id: `task:${task.id}`,
-        start: dateOnly ? `${task.due}T00:00:00` : task.due,
-        showWithoutTime: allDay,
-        duration: allDay ? 'P1D' : 'PT30M',
-        // The due is wall time in the task's zone; place the chip at the
-        // instant, like events.
-        utcStart: allDay ? undefined : getTaskDueDate(task)?.toISOString(),
-        utcEnd: undefined,
-        title: `☐ ${task.title || ''}`.trim(),
-        recurrenceRules: undefined,
-        recurrenceId: undefined,
-      });
-    }
-    return out;
-  }, [tasks, enableCalendarTasks, showTasksOnCalendar]);
+    const shown = allCalendars.filter((c) => !hiddenCalendarIds.includes(c.id)).map((c) => c.id);
+    return calendarTaskEvents(tasks, shown);
+  }, [tasks, enableCalendarTasks, showTasksOnCalendar, allCalendars, hiddenCalendarIds]);
   const allEvents = React.useMemo(
     () => (birthdayEvents.length > 0 || taskEvents.length > 0
       ? [...storeEvents, ...birthdayEvents, ...taskEvents]
@@ -645,8 +629,8 @@ export default function CalendarScreen() {
 
   // Task chips route to the tasks sheet; everything else opens the detail sheet.
   const handleSelectEvent = React.useCallback((event: CalendarEvent) => {
-    if (event.id.startsWith('task:')) {
-      setTasksInitialId(event.id.slice('task:'.length));
+    if (isTaskEvent(event)) {
+      setTasksInitialId(taskIdOfEvent(event));
       setTasksVisible(true);
       return;
     }
@@ -1243,6 +1227,7 @@ export default function CalendarScreen() {
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
             onSelectDate={handleSelectDate}
+            onToggleTask={handleToggleTask}
             onLongPressDate={openCreate}
           />
         )}
@@ -1259,6 +1244,7 @@ export default function CalendarScreen() {
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
             onSelectDate={handleSelectDate}
+            onToggleTask={handleToggleTask}
             onLongPressDate={openCreate}
           />
         )}
@@ -1279,6 +1265,7 @@ export default function CalendarScreen() {
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
             onSelectDate={handleSelectDate}
+            onToggleTask={handleToggleTask}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
           />
@@ -1294,6 +1281,7 @@ export default function CalendarScreen() {
             timeFormat={calendarTimeFormat}
             currentUserEmails={currentUserEmails}
             onSelectDate={handleSelectDate}
+            onToggleTask={handleToggleTask}
             onSelectEvent={handleSelectEvent}
             onCreateAtTime={openCreate}
           />

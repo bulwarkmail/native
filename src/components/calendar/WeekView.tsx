@@ -35,7 +35,8 @@ import {
 } from '../../lib/calendar-display-range';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
-import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock, taskControlFor } from './EventBlock';
+import { isTaskDone } from '../../lib/calendar-tasks';
 import { allDayRowCounts, allDayStripLayout } from '../../lib/calendar-all-day';
 import { AllDayToggle, AllHoursToggle, HiddenEventsIndicator } from './DisplayHoursControls';
 import { useDisplayHours } from './use-display-hours';
@@ -54,6 +55,8 @@ interface WeekViewProps {
   eventsByDay?: EventDayIndex;
   onSelectDate?: (date: Date) => void;
   onSelectEvent?: (event: CalendarEvent) => void;
+  /** Toggles a task done from its circle; gets the task's id. */
+  onToggleTask?: (taskId: string) => void;
   onCreateAtTime?: (date: Date) => void;
   weekStartsOn?: 0 | 1 | 6;
   timeFormat?: '12h' | '24h';
@@ -69,6 +72,7 @@ function WeekViewInner({
   eventsByDay,
   onSelectDate,
   onSelectEvent,
+  onToggleTask,
   onCreateAtTime,
   weekStartsOn = 0,
   timeFormat = '24h',
@@ -255,11 +259,12 @@ function WeekViewInner({
                     title={segment.event.title || t('calendar.events.no_title', '(No title)')}
                     colors={eventBlockColors(
                       getEventColor(segment.event, calendars),
-                      isInactiveEvent(segment.event, currentUserEmails),
+                      isInactiveEvent(segment.event, currentUserEmails) || isTaskDone(segment.event),
                       c,
                     )}
                     continuesBefore={segment.continuesBefore}
                     continuesAfter={segment.continuesAfter}
+                    task={taskControlFor(segment.event, onToggleTask, t)}
                     onPress={() => onSelectEvent?.(segment.event)}
                     style={{
                       left: `${leftPct}%`,
@@ -348,12 +353,13 @@ function WeekViewInner({
                             : null}
                           colors={eventBlockColors(
                             getEventColor(event, calendars),
-                            isInactiveEvent(event, currentUserEmails),
+                            isInactiveEvent(event, currentUserEmails) || isTaskDone(event),
                             c,
                           )}
                           ringColor={c.background}
                           continuesBefore={continuesBefore || clippedStart}
                           continuesAfter={continuesAfter || clippedEnd}
+                          task={taskControlFor(event, onToggleTask, t)}
                           onPress={() => onSelectEvent?.(event)}
                           style={{ top, height, left: `${leftPct}%`, width: `${widthPct}%` }}
                         />

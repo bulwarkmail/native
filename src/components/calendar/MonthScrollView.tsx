@@ -61,6 +61,8 @@ interface MonthScrollViewProps {
   onExtendEnd?: () => void;
   /** Reports a day of the month in view whenever that month changes. */
   onVisibleDateChange?: (date: Date) => void;
+  /** Toggles a task done from its circle; gets the task's id. */
+  onToggleTask?: (taskId: string) => void;
   onSelectDate: (date: Date) => void;
   onLongPressDate?: (date: Date) => void;
 }
@@ -89,6 +91,7 @@ function MonthScrollViewInner({
   onExtendStart,
   onExtendEnd,
   onVisibleDateChange,
+  onToggleTask,
   onSelectDate,
   onLongPressDate,
 }: MonthScrollViewProps) {
@@ -199,6 +202,7 @@ function MonthScrollViewInner({
           height={rowHeight}
           locale={locale}
           styles={styles}
+          onToggleTask={onToggleTask}
           onSelectDate={onSelectDate}
           onLongPressDate={onLongPressDate}
         />
@@ -217,6 +221,7 @@ function MonthScrollViewInner({
       rowHeight,
       locale,
       styles,
+      onToggleTask,
       onSelectDate,
       onLongPressDate,
     ],
