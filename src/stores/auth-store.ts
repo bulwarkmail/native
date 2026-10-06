@@ -208,6 +208,13 @@ function refuseAddWhenFull(set: (partial: Partial<AuthState>) => void, opts?: { 
 // to, gets the client back, and an account the registry never took keeps no
 // credentials behind. Otherwise every request would go out as the new
 // account while the app still shows the old one.
+// jmapClient's `StaleLoadError`: a newer load superseded this one and owns the
+// client. Matched by name so suites that mock the client module need not
+// export the class.
+function isStaleLoad(err: unknown): boolean {
+  return err instanceof Error && err.name === 'StaleLoadError';
+}
+
 // connectWithToken's error for a session that names no user (webmail's text).
 const NO_ACCOUNT_NAME = 'The server did not name the account';
 
@@ -284,7 +291,8 @@ async function completeOAuthHandoff(
   try {
     connected = await jmapClient.connectWithOAuth(result.serverUrl, result.tokens);
   } catch (err) {
-    if (previous) jmapClient.restoreSnapshot(previous);
+    // Superseded by a newer load: that one owns the client; don't undo it.
+    if (previous && !(isStaleLoad(err))) jmapClient.restoreSnapshot(previous);
     throw err;
   }
   const { session, username, accountId } = connected;
@@ -377,7 +385,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         session = await jmapClient.connect(serverUrl, username, password, opts?.totp);
       } catch (err) {
-        if (previous) jmapClient.restoreSnapshot(previous);
+        // Superseded by a newer load: that one owns the client; don't undo it.
+        if (previous && !(isStaleLoad(err))) jmapClient.restoreSnapshot(previous);
         throw err;
       }
 
@@ -417,6 +426,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Device sync (#34): drop a "sign in again" notice, resume a suspended account.
       void deviceSyncSignedIn(accountId);
     } catch (err) {
+      if (isStaleLoad(err)) {
+        // A newer load took the client over; it sets its own state.
+        set({ isLoading: false });
+        throw err;
+      }
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         // Keep what the user (or the webmail hand-off) supplied so the code
         // step doesn't make them retype the password.
@@ -454,6 +468,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       session = await jmapClient.connectWithToken(base, token);
     } catch (err) {
+      if (isStaleLoad(err)) {
+        // A newer load took the client over; it sets its own state.
+        set({ isLoading: false });
+        throw err;
+      }
       if (previous) jmapClient.restoreSnapshot(previous);
       // A 401 is a rejected token; a 403 reaches us as a failed session fetch.
       // The missing-username error and a second-factor demand are not a bad
@@ -810,6 +829,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
     } catch (err) {
+      if (isStaleLoad(err)) {
+        // A newer load (another switch, a session retry) owns the client and
+        // sets its own state: restoring the previous one would undo it.
+        set({ isLoading: false });
+        return;
+      }
       if (err instanceof AuthenticationError) {
         await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
         accountStore.removeAccount(accountId);
@@ -946,17 +971,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return false;
         }
       } catch (err) {
-        if (err instanceof NetworkError) {
+        if (isStaleLoad(err) && get().session) {
+          // A newer load already brought a session up; it set its own state.
+          set({ isLoading: false, hasRestoredSession: true });
+          return true;
+        }
+        // Superseded without a session yet: stay signed in offline, as for an
+        // unreachable server, and let the session retry take over.
+        if (err instanceof NetworkError || isStaleLoad(err)) {
           // Server unreachable. Keep credentials, mark account offline, and
           // surface the cached UI so the user can still browse persisted
           // mail / contacts / calendar. The login screen would lose their
           // settings without recourse, which is the bug we're fixing here.
           accountStore.setActiveAccount(target.id);
-          accountStore.updateAccount(target.id, {
-            isConnected: false,
-            hasError: true,
-            errorMessage: err.message,
-          });
+          if (err instanceof NetworkError) {
+            accountStore.updateAccount(target.id, {
+              isConnected: false,
+              hasError: true,
+              errorMessage: err.message,
+            });
+          }
           set({
             isAuthenticated: true,
             isLoading: false,
@@ -1042,10 +1076,14 @@ async function attemptSessionRetry(activeAccountId: string): Promise<boolean> {
     refetchFeatureStores();
     return true;
   } catch (err) {
+    // StaleLoadError: a newer load owns the client; stay. NetworkError: stay.
     if (err instanceof AuthenticationError) {
       // Now we know the credentials are bad — fall back to logout flow.
       await jmapClient.clearAccountCredentials(activeAccountId).catch(() => undefined);
       accountStore.removeAccount(activeAccountId);
+      // Only if that account is still the active one: after a switch, the
+      // user is signed in to the other account, which this says nothing about.
+      if (useAuthStore.getState().activeAccountId !== activeAccountId) return false;
       useAuthStore.setState({
         isAuthenticated: false,
         isLoading: false,

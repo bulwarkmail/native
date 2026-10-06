@@ -71,7 +71,7 @@ import { useSettingsStore } from './src/stores/settings-store';
 import { useLocaleStore } from './src/stores/locale-store';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
-import { shouldRetrySession, startSessionRetry } from './src/lib/session-retry';
+import { sessionRetryAction, shouldRetrySession, startSessionRetry } from './src/lib/session-retry';
 import { useUpdatesStore } from './src/stores/updates-store';
 import { UpdateBanner } from './src/components/UpdateBanner';
 import { PushOnboardingPrompt } from './src/components/PushOnboardingPrompt';
@@ -447,10 +447,13 @@ export default function App() {
   // live data without needing to relaunch. The online edge alone is not
   // enough: a cold start while the LAN server restarts leaves no session and
   // no edge to come, so keep retrying on a backoff (5 s doubling to 60 s)
-  // while an interface is up, and at once when the app comes to the
-  // foreground (lib/session-retry). retrySession is single-flight.
+  // while an interface is up and the app is in the foreground, and at once
+  // on the foreground (lib/session-retry). Every retry, the online edge's
+  // included, goes through the retrier so none starts during a login,
+  // restore or switch. retrySession is single-flight.
   React.useEffect(() => {
     if (!isAuthenticated) return;
+    let appActive = AppState.currentState !== 'background' && AppState.currentState !== 'inactive';
     const retrier = startSessionRetry({
       shouldRetry: () => {
         const auth = useAuthStore.getState();
@@ -459,24 +462,33 @@ export default function App() {
           hasSession: auth.session != null,
           connected: useNetworkStore.getState().connected,
           isLoading: auth.isLoading,
+          appActive,
         });
       },
       retry: () => useAuthStore.getState().retrySession(),
     });
+    const apply = (action: 'kick' | 'poke' | 'none') => {
+      if (action === 'kick') retrier.kick();
+      else if (action === 'poke') retrier.poke();
+    };
     retrier.poke();
     const unsubscribers = [
-      useNetworkStore.subscribe((state, prev) => {
-        if (state.online && !prev.online && !useAuthStore.getState().session) {
-          void useAuthStore.getState().retrySession();
-        }
-        if (state.connected !== prev.connected) retrier.poke();
-      }),
-      useAuthStore.subscribe((state, prev) => {
-        if (state.session !== prev.session || state.isLoading !== prev.isLoading) retrier.poke();
-      }),
+      useNetworkStore.subscribe((state, prev) => apply(sessionRetryAction({
+        kind: 'network',
+        online: state.online,
+        prevOnline: prev.online,
+        connected: state.connected,
+        prevConnected: prev.connected,
+      }))),
+      useAuthStore.subscribe((state, prev) => apply(sessionRetryAction({
+        kind: 'auth',
+        sessionChanged: state.session !== prev.session,
+        loadingChanged: state.isLoading !== prev.isLoading,
+      }))),
     ];
     const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') retrier.kick();
+      appActive = state === 'active';
+      apply(sessionRetryAction({ kind: 'appState', active: appActive }));
     });
     return () => {
       retrier.stop();

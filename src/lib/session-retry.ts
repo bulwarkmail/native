@@ -20,8 +20,34 @@ export function shouldRetrySession(s: {
   connected: boolean;
   /** A login, restore or account switch is running; it decides on its own. */
   isLoading: boolean;
+  /** The app is in the foreground; the foreground kick resumes the retries. */
+  appActive: boolean;
 }): boolean {
-  return s.isAuthenticated && !s.hasSession && s.connected && !s.isLoading;
+  return s.isAuthenticated && !s.hasSession && s.connected && !s.isLoading && s.appActive;
+}
+
+export type SessionRetryEvent =
+  | { kind: 'network'; online: boolean; prevOnline: boolean; connected: boolean; prevConnected: boolean }
+  | { kind: 'auth'; sessionChanged: boolean; loadingChanged: boolean }
+  | { kind: 'appState'; active: boolean };
+
+/**
+ * What the retrier does for an app event. Every retry goes through the
+ * retrier, so `shouldRetrySession` (the pause during a login, restore or
+ * switch, and in the background) applies to all of them: an online edge
+ * kicks rather than calling retrySession itself, because since the server's
+ * own answers count toward `online`, that edge can come from inside a switch.
+ */
+export function sessionRetryAction(event: SessionRetryEvent): 'kick' | 'poke' | 'none' {
+  switch (event.kind) {
+    case 'network':
+      if (event.online && !event.prevOnline) return 'kick';
+      return event.connected !== event.prevConnected ? 'poke' : 'none';
+    case 'auth':
+      return event.sessionChanged || event.loadingChanged ? 'poke' : 'none';
+    case 'appState':
+      return event.active ? 'kick' : 'none';
+  }
 }
 
 /**
