@@ -156,6 +156,9 @@ describe('selectAccountSubscriptions', () => {
   });
 });
 
+const parsedWithEvent = (api: typeof import('../../api/calendar')) =>
+  vi.mocked(api.parseCalendarBlob).mockResolvedValue([{ uid: 'n', start: '2026-03-02T09:00:00' }] as never);
+
 describe('subscription store', () => {
   it('stamps the owner on a new subscription', async () => {
     const { createCalendar } = await import('../../api/calendar');
@@ -194,9 +197,9 @@ describe('subscription store', () => {
       vi.mocked(api.parseCalendarBlob).mockResolvedValue([]);
       vi.mocked(api.queryEvents).mockResolvedValue(['e1']);
       vi.mocked(api.getEvents).mockResolvedValue([{ id: 'e1', uid: 'gone', calendarIds: { c1: true } }] as never);
-      vi.mocked(api.deleteEvents).mockClear();
-      vi.mocked(api.updateEvent).mockClear();
-      importEvents.mockClear();
+      vi.mocked(api.deleteEvents).mockReset();
+      vi.mocked(api.updateEvent).mockReset();
+      importEvents.mockReset();
       vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
         switchAccount();
         return { ok: true, headers: { get: () => '0' }, text: async () => 'BEGIN:VCALENDAR' } as never;
@@ -232,10 +235,47 @@ describe('subscription store', () => {
       expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastError).toBeNull();
     });
 
+    it('a switch during the first updateEvent leaves the second unsent', async () => {
+      const api = await syncWithFeed(() => {});
+      vi.mocked(api.getEvents).mockResolvedValue([
+        { id: 'e1', uid: 'g1', calendarIds: { c1: true, c2: true } },
+        { id: 'e2', uid: 'g2', calendarIds: { c1: true, c2: true } },
+      ] as never);
+      vi.mocked(api.updateEvent).mockReset();
+      vi.mocked(api.deleteEvents).mockReset();
+      vi.mocked(api.updateEvent).mockImplementation((async () => { accountState.activeAccountId = 'app-2'; }) as never);
+      importEvents.mockClear();
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'a', owner: ALICE, url: 'https://x/f.ics' })], syncing: {} });
+      await useCalendarSubscriptionsStore.getState().syncSubscription('a');
+      expect(api.updateEvent).toHaveBeenCalledTimes(1);
+      expect(api.deleteEvents).not.toHaveBeenCalled();
+      expect(importEvents).not.toHaveBeenCalled();
+    });
+
+    it('a switch after deleteEvents means importEvents writes nothing', async () => {
+      const api = await syncWithFeed(() => {});
+      vi.mocked(api.deleteEvents).mockImplementation((async () => { accountState.activeAccountId = 'app-2'; }) as never);
+      importEvents.mockClear();
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'a', owner: ALICE, url: 'https://x/f.ics' })], syncing: {} });
+      await useCalendarSubscriptionsStore.getState().syncSubscription('a');
+      expect(importEvents).not.toHaveBeenCalled();
+      expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).toBeNull();
+    });
+
+    it('an upload error after a switch is not recorded as the subscription error', async () => {
+      const api = await syncWithFeed(() => {});
+      const { uploadBytes } = await import('../../api/blob');
+      vi.mocked(uploadBytes).mockImplementation((async () => { accountState.activeAccountId = 'app-2'; throw new Error('wrong account'); }) as never);
+      useCalendarSubscriptionsStore.setState({ subscriptions: [sub({ id: 'a', owner: ALICE, url: 'https://x/f.ics' })], syncing: {} });
+      await useCalendarSubscriptionsStore.getState().syncSubscription('a');
+      expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastError).toBeNull();
+    });
+
     it('a sync with no switch still deletes and imports', async () => {
       const api = await syncWithFeed(() => {});
       expect(api.deleteEvents).toHaveBeenCalledWith(['e1']);
       expect(importEvents).toHaveBeenCalled();
+      expect(importEvents.mock.calls[0][2]).toBeTypeOf('function');
       expect(useCalendarSubscriptionsStore.getState().subscriptions[0].lastSyncAt).not.toBeNull();
     });
   });
@@ -255,10 +295,14 @@ describe('subscription store', () => {
     const api = await import('../../api/calendar');
     vi.mocked(api.createCalendar).mockResolvedValue({ id: 'c1', name: 'N' } as never);
     vi.mocked(api.deleteCalendar).mockClear();
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      accountState.activeAccountId = 'app-2';
-      throw new Error('boom');
-    });
+    const { uploadBytes } = await import('../../api/blob');
+    vi.mocked(uploadBytes).mockResolvedValue({ blobId: 'b' } as never);
+    vi.mocked(api.parseCalendarBlob).mockResolvedValue([]);
+    vi.mocked(api.queryEvents).mockResolvedValue([]);
+    importEvents.mockReset();
+    importEvents.mockImplementation(async () => { accountState.activeAccountId = 'app-2'; throw new Error('boom'); });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, headers: { get: () => '0' }, text: async () => 'BEGIN:VCALENDAR' } as never);
+    parsedWithEvent(api);
     await expect(useCalendarSubscriptionsStore.getState().addSubscription({ name: 'N', url: 'https://x/f.ics' })).rejects.toThrow('boom');
     expect(api.deleteCalendar).not.toHaveBeenCalled();
   });

@@ -243,7 +243,16 @@ async function syncFeedIntoCalendar(
   owner: string | null = currentOwner(),
 ): Promise<boolean> {
   const valid = () => syncStillValid(captured) && currentOwner() === owner;
-  const parsed = await fetchAndParseFeed(url);
+  if (!valid()) return false;
+  let parsed: Partial<CalendarEvent>[];
+  try {
+    parsed = await fetchAndParseFeed(url);
+  } catch (err) {
+    // The upload and parse ran against whichever account was current; a
+    // failure after a switch is not this subscription's error.
+    if (!valid()) return false;
+    throw err;
+  }
   if (!valid()) return false;
   const parsedUids = new Set(parsed.map((e) => e.uid).filter(Boolean) as string[]);
 
@@ -272,8 +281,8 @@ async function syncFeedIntoCalendar(
   }
 
   if (!valid()) return false;
-  await useCalendarStore.getState().importEvents(parsed, calendarId);
-  return true;
+  await useCalendarStore.getState().importEvents(parsed, calendarId, valid);
+  return valid();
 }
 
 export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
@@ -293,8 +302,8 @@ export const useCalendarSubscriptionsStore = create<SubscriptionsState>()(
           url: url.trim(),
           color,
           calendarId: calendar.id,
-          accountId: currentAccountId() ?? undefined,
-          owner: currentOwner() ?? undefined,
+          accountId: captured.jmapAccountId ?? undefined,
+          owner: owner ?? undefined,
           refreshIntervalMinutes: refreshIntervalMinutes ?? DEFAULT_REFRESH_INTERVAL_MINUTES,
           lastSyncAt: null,
           lastError: null,

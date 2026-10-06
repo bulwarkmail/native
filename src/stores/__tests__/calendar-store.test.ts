@@ -627,6 +627,36 @@ describe('calendar-store', () => {
       expect(created.participants.p.calendarAddress).toBe('mailto:x@y');
       expect(created.participants.p.sendTo).toBeUndefined();
     });
+
+    it('stops before the next link update and the remaining create chunks once stillValid is false', async () => {
+      useCalendarStore.setState({ calendars: [{ id: 'cal-1' }, { id: 'cal-2' }] as any });
+      mockQueryEvents.mockResolvedValue(['e1', 'e2']);
+      mockGetEvents.mockResolvedValue([
+        { id: 'e1', uid: 'u1', calendarIds: { 'cal-1': true } },
+        { id: 'e2', uid: 'u2', calendarIds: { 'cal-1': true } },
+      ]);
+      let valid = true;
+      mockUpdateEvent.mockImplementation(async () => { valid = false; });
+      const batch = calendarApi.batchCreateEvents as ReturnType<typeof vi.fn>;
+      batch.mockReset();
+      batch.mockResolvedValue({ created: 50, refused: [] });
+      await useCalendarStore.getState().importEvents(
+        [{ uid: 'u1', start: '2026-03-02T09:00:00' }, { uid: 'u2', start: '2026-03-02T09:00:00' }],
+        'cal-2',
+        () => valid,
+      );
+      expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+      expect(batch).not.toHaveBeenCalled();
+
+      // Between create chunks: the first chunk goes, the second does not.
+      mockUpdateEvent.mockReset();
+      mockQueryEvents.mockResolvedValue([]);
+      valid = true;
+      batch.mockImplementation(async () => { valid = false; return { created: 50, refused: [] }; });
+      const many = Array.from({ length: 120 }, (_, i) => ({ uid: `n${i}`, start: '2026-03-02T09:00:00' }));
+      await useCalendarStore.getState().importEvents(many, 'cal-2', () => valid);
+      expect(batch).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('importEvents refusals', () => {
