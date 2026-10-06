@@ -260,7 +260,7 @@ device.
   - What WEB does: stops when a value fails to parse or makes no progress, and bounds the count with `readValueCount` (`lib/tnef.ts`).
   - What RN does: `parseMAPIProps` (`src/lib/tnef.ts:168-220`) can loop up to a sender-chosen 32-bit count on a truncated value, blocking the JS thread.
 
-- [ ] **No "Rules" entry on a message** — `P2` — `missing` (1.12.0)
+- [x] **No "Rules" entry on a message** — `P2` — `missing` (1.12.0) — fixed in 4416c9f, 4f680ec, 28cb856, cdfac42, 33a2eaa, 16c785b, 79674f2, 2d4d9e8, 568732b, 7256acd — "apply to existing" refuses oversize rules and checks the account before each batch; Undo refuses after an account switch; no "New folder…" or "Edit rule" toast action
   - What WEB does: creates a filter rule from the message (move by sender, domain or list, mark read, tag, block), suggests conditions, can apply it to existing mail, with undo (`components/email/rules-menu.tsx`, `lib/filters/quick-rules.ts`, `lib/filters/retroactive.ts`, `stores/quick-rule-store.ts`).
   - What RN does: nothing; would hang off `src/components/email/ActionSheet.tsx` and prefill `src/components/filters/FilterRuleModal.tsx`.
 

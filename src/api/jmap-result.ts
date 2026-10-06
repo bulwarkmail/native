@@ -129,6 +129,19 @@ export class RecipientsRejectedError extends Error {
 }
 
 /**
+ * The server answered a send and refused it before any submission was created
+ * (a method error, or an Email/set or EmailSubmission/set SetError such as
+ * blobNotFound, forbiddenFrom or an invalid identity), so nothing went out.
+ * Any other send error leaves the outcome unknown.
+ */
+export class SendRefusedError extends Error {
+  constructor(message: string, readonly type?: string) {
+    super(message);
+    this.name = 'SendRefusedError';
+  }
+}
+
+/**
  * The send request came back without an EmailSubmission: nothing confirms the
  * message left, and it may still have. The draft is kept.
  */

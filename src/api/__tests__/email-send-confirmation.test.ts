@@ -19,6 +19,7 @@ import {
   formatRejectedRecipients,
   RecipientsRejectedError,
   rejectedRecipients,
+  SendRefusedError,
   SendUnconfirmedError,
 } from '../jmap-result';
 
@@ -132,6 +133,50 @@ describe('sendEmail delivery confirmation', () => {
     ] });
     mockRequest.mockResolvedValueOnce(DESTROYED);
     await expect(sendEmail(OUTGOING, 'id-1', 'sent-1')).rejects.toThrow('Not allowed');
+  });
+});
+
+describe('sendEmail: refusals that prove nothing was submitted (SendRefusedError)', () => {
+  it('Email/set notCreated', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [
+      ['Email/set', { notCreated: { draft: { type: 'blobNotFound', description: 'Blob gone' } } }, '0'],
+      ['error', { type: 'invalidResultReference' }, '1'],
+    ] });
+    const err = await sendEmail(OUTGOING, 'id-1', 'sent-1').catch((e) => e);
+    expect(err).toBeInstanceOf(SendRefusedError);
+    expect(err.message).toBe('Blob gone');
+    expect(err.type).toBe('blobNotFound');
+  });
+
+  it('EmailSubmission/set notCreated (forbiddenFrom, invalid identity)', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [
+      ['Email/set', { created: { draft: { id: 'email-9' } } }, '0'],
+      ['EmailSubmission/set', { notCreated: { 'sub-1': { type: 'forbiddenFrom', description: 'Not allowed' } } }, '1'],
+    ] });
+    mockRequest.mockResolvedValueOnce(DESTROYED);
+    const err = await sendEmail(OUTGOING, 'id-1', 'sent-1').catch((e) => e);
+    expect(err).toBeInstanceOf(SendRefusedError);
+    expect(err.type).toBe('forbiddenFrom');
+  });
+
+  it('a method error before any submission exists', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [
+      ['error', { type: 'invalidArguments', description: 'bad' }, '0'],
+    ] });
+    const err = await sendEmail(OUTGOING, 'id-1', 'sent-1').catch((e) => e);
+    expect(err).toBeInstanceOf(SendRefusedError);
+    expect(err.message).toBe('bad');
+  });
+
+  it('a submission created without an id is unconfirmed, not refused, and its copy is kept', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [
+      ['Email/set', { created: { draft: { id: 'email-9' } } }, '0'],
+      ['EmailSubmission/set', { created: { 'sub-1': {} } }, '1'],
+      ['error', { type: 'serverFail' }, '1'],
+    ] });
+    const err = await sendEmail(OUTGOING, 'id-1', 'sent-1').catch((e) => e);
+    expect(err).toBeInstanceOf(SendUnconfirmedError);
+    expect(destroyedIds()).toEqual([]);
   });
 });
 

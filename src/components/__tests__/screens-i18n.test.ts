@@ -29,6 +29,7 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'screens/login/ServerStep.tsx': ['mail.example.com'],
   'screens/login/SigningInStep.tsx': [],
   'screens/ScheduledScreen.tsx': [],
+  'screens/OutboxScreen.tsx': [],
   'screens/EmailSourceScreen.tsx': [],
   'components/OfflineBanner.tsx': [],
   'components/OfflineCacheBanner.tsx': [],

@@ -21,6 +21,9 @@ import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
+import { useSendQueueStore } from '../stores/send-queue-store';
+import { queuedSendCount } from '../lib/outbox-rows';
+import { signOutWithGuard, signOutAllWithGuard, removeAccountWithGuard } from '../lib/sign-out-guard';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
@@ -319,8 +322,6 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const refreshEmails = useEmailStore((s) => s.refreshEmails);
   const username = useAuthStore((s) => s.username);
   const serverUrl = useAuthStore((s) => s.serverUrl);
-  const logout = useAuthStore((s) => s.logout);
-  const logoutAll = useAuthStore((s) => s.logoutAll);
   const switchAccount = useAuthStore((s) => s.switchAccount);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const accounts = useAccountStore((s) => s.accounts);
@@ -332,6 +333,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const keywordsHydrated = useKeywordsStore((s) => s.hydrated);
   const hydrateKeywords = useKeywordsStore((s) => s.hydrate);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const outboxCount = useSendQueueStore((st) => queuedSendCount(st.entries));
 
   const [foldersExpanded, setFoldersExpanded] = React.useState(true);
   const [tagsExpanded, setTagsExpanded] = React.useState(true);
@@ -736,18 +738,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const confirmRemoveAccount = (acc: { id: string; email: string; username: string }) => {
     const label = acc.email || acc.username;
-    Alert.alert(
-      t('sidebar.remove_account', 'Remove account'),
-      t('sidebar.remove_account_confirm', `Remove ${label} from this device? You can add it back later.`, { account: label }),
-      [
-        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-        {
-          text: t('sidebar.remove_account', 'Remove account'),
-          style: 'destructive',
-          onPress: () => { void useAuthStore.getState().removeAccount(acc.id); },
-        },
-      ],
-    );
+    void removeAccountWithGuard(acc.id, () => { onClose(); navigation.navigate('Outbox'); }, {
+      title: t('sidebar.remove_account', 'Remove account'),
+      message: t('sidebar.remove_account_confirm', `Remove ${label} from this device? You can add it back later.`, { account: label }),
+      confirmLabel: t('sidebar.remove_account', 'Remove account'),
+    });
   };
 
   const tagViewActive = !!filters.keyword;
@@ -934,7 +929,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   styles.accountMenuAction,
                   pressed && styles.accountMenuActionPressed,
                 ]}
-                onPress={() => { setAccountMenuOpen(false); onClose(); void logout(); }}
+                onPress={() => {
+                  setAccountMenuOpen(false);
+                  onClose();
+                  void signOutWithGuard(useAuthStore.getState().activeAccountId, () => navigation.navigate('Outbox'));
+                }}
               >
                 <LogOut size={16} color={c.textSecondary} />
                 <Text style={styles.accountMenuActionText} numberOfLines={1}>
@@ -947,7 +946,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     styles.accountMenuAction,
                     pressed && styles.accountMenuActionPressed,
                   ]}
-                  onPress={() => { setAccountMenuOpen(false); onClose(); void logoutAll(); }}
+                  onPress={() => {
+                    setAccountMenuOpen(false);
+                    onClose();
+                    void signOutAllWithGuard(() => navigation.navigate('Outbox'));
+                  }}
                 >
                   <LogOut size={16} color={c.error} />
                   <Text style={[styles.accountMenuActionText, { color: c.error }]}>
@@ -982,6 +985,15 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               <Clock size={16} color={c.textSecondary} />
               <Text style={styles.quickRowLabel}>{t('sidebar.scheduled', 'Scheduled')}</Text>
             </Pressable>
+            {outboxCount > 0 && (
+              <Pressable
+                style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
+                onPress={() => { onClose(); navigation.navigate('Outbox'); }}
+              >
+                <Send size={16} color={c.textSecondary} />
+                <Text style={styles.quickRowLabel}>{t('outbox.title_count', 'Outbox ({count})', { count: outboxCount })}</Text>
+              </Pressable>
+            )}
 
             {/* Unified per-role and cross views */}
             {showUnified && (

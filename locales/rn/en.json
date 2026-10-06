@@ -273,7 +273,22 @@
   "context_menu": {
     "color_tag": "Tag",
     "copy_to": "Copy to…",
-    "remove_color": "Remove tag"
+    "remove_color": "Remove tag",
+    "rules": {
+      "block": "{count, plural, one {Block sender} other {Block # senders}}",
+      "create": "Create rule…",
+      "cross_account": "Select messages from one account",
+      "manage": "Manage rules",
+      "mark_read_from": "Always mark as read from {sender}",
+      "move_from": "Always move messages from {sender}",
+      "move_from_domain": "Always move messages from @{domain}",
+      "move_from_list": "Always move messages from this list",
+      "no_junk": "This account has no Junk folder",
+      "opaque_hint": "Your filters were edited by hand. Open Filters settings",
+      "senders_count": "{count, plural, one {# sender} other {# senders}}",
+      "tag_with": "Always tag with",
+      "title": "Rules"
+    }
   },
   "deep_link": {
     "open_failed": "Couldn't open this"
@@ -631,7 +646,19 @@
   },
   "notifications": {
     "copy_failed": "Copy failed",
-    "delete_failed": "Failed to delete"
+    "delete_failed": "Failed to delete",
+    "rule_already_covered": "Already covered by rule “{name}”",
+    "rule_applied": "{count, plural, =0 {No messages needed changes} one {Rule applied to # message} other {Rule applied to # messages}}",
+    "rule_apply_existing": "{count, plural, one {Apply to # existing message} other {Apply to # existing messages}}",
+    "rule_apply_failed": "Could not apply the rule to existing messages",
+    "rule_apply_partial": "Could not finish applying the rule. Some messages may already have been changed.",
+    "rule_created": "Rule created",
+    "rule_merged": "Added to rule “{name}”",
+    "rule_switch_back": "Switch back to {account} to finish this",
+    "rule_undo": "Undo",
+    "rule_undo_conflict": "Your filters have changed since. Undo the change in Filters settings.",
+    "rule_undo_failed": "Could not undo the rule change",
+    "rule_undone": "Rule change undone"
   },
   "offline": {
     "banner": "You are offline",
@@ -647,6 +674,60 @@
       "unable_to_download": "Unable to download",
       "up_to_date": "Already up to date"
     }
+  },
+  "outbox": {
+    "action_failed": "That did not work",
+    "already_queued": "This message is already in the Outbox",
+    "already_sent": "Already sent",
+    "already_sent_hint": "This message had already gone out. It was not sent again.",
+    "check_failed_send": "Couldn't check the Outbox. Try sending again.",
+    "confirm_discard": "Discard this message? It will not be sent.",
+    "confirm_discard_uncertain": "This message may already have been sent. Discard it from the Outbox?",
+    "confirm_draft_uncertain": "This message may already have been sent. Check your Sent folder before saving it as a draft. Save as draft?",
+    "confirm_resend": "This message may already have been sent. Check your Sent folder before sending it again. Send again?",
+    "discard": "Discard",
+    "draft_saved": "Saved to Drafts",
+    "empty": "Nothing waiting to be sent",
+    "empty_hint": "Messages you send while offline wait here until you are back online.",
+    "error": {
+      "changed": "This message changed. Check the Outbox.",
+      "draft_lost": "The draft could not be saved and the message could not be restored.",
+      "draft_restored": "The draft could not be saved. The message is back in the Outbox.",
+      "proof_check_failed": "Could not check whether this message was already sent. Nothing was sent. Try again later.",
+      "sending": "This message is being sent.",
+      "wrong_account": "Switch to the sending account first."
+    },
+    "failed": "A message was not sent",
+    "failed_hint": "Check the Outbox to retry, save it as a draft or discard it.",
+    "held": {
+      "account_unavailable": "Not sent: this account is not available",
+      "bad_schedule": "Not sent: the scheduled time could not be read",
+      "no_drafts": "Not sent: this account has no Drafts folder",
+      "no_sent": "Not sent: this account has no Sent folder",
+      "unknown": "Not sent: this message cannot be sent now"
+    },
+    "open": "Open Outbox",
+    "open_short": "Open",
+    "queued": "Will send when you're back online",
+    "retry": "Retry",
+    "save_draft": "Save as draft",
+    "send_again": "Send again",
+    "sent": "Sent: {subject}",
+    "setting_desc": "Messages sent while offline, waiting to go out.",
+    "signout_confirm": "{count, plural, one {# unsent message will be deleted. Sign out anyway?} other {# unsent messages will be deleted. Sign out anyway?}}",
+    "signout_sending": "A message is being sent and may still go out.",
+    "state": {
+      "failed": "Not sent: {error}",
+      "failed_unknown": "Not sent",
+      "queued": "Waiting for connection",
+      "sending": "Sending…",
+      "uncertain": "May have been sent — check Sent",
+      "waiting_account": "Waiting — switch to {account} to send"
+    },
+    "title": "Outbox",
+    "title_count": "Outbox ({count})",
+    "too_large": "This message is too large to send offline",
+    "uncertain": "A message may not have been sent. Check Outbox."
   },
   "push_prompt": {
     "body": "Turn on background notifications so new messages reach you while the app is closed.",
@@ -882,6 +963,8 @@
       "title": "Experimental Feature"
     },
     "filters": {
+      "apply_existing": "Also apply to existing messages in this folder",
+      "apply_existing_unsupported": "Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.",
       "comparators": {
         "address_is": "is the address",
         "domain_is": "has the domain"
@@ -890,11 +973,28 @@
         "all": "All messages"
       },
       "invalid_size": "Enter a size as a whole number, optionally followed by K, M or G (for example 500K or 10M).",
+      "quick_rule_names": {
+        "block": "Block {sender}",
+        "custom": "Mail from {sender}",
+        "custom_plain": "New rule",
+        "mark_read": "Mark as read from {sender}",
+        "move_domain": "Move from @{domain} to {folder}",
+        "move_list": "Move list {list} to {folder}",
+        "move_sender": "Move from {sender} to {folder}",
+        "senders": "{count, plural, one {# sender} other {# senders}}",
+        "tag": "Tag as {tag} from {sender}"
+      },
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
         "line_count": "{count, plural, one {# line} other {# lines}}"
-      }
+      },
+      "suggest_cc": "Cc {address}",
+      "suggest_domain": "@{domain}",
+      "suggest_list": "List-Id",
+      "suggest_subject": "Subject “{subject}”",
+      "suggest_to": "To {address}",
+      "suggestions": "Suggestions"
     },
     "folders": {
       "account": "Account",

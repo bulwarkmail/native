@@ -76,7 +76,17 @@ async function readPendingChanges(accountId: string): Promise<number> {
   try {
     const raw = await AsyncStorage.getItem(`webmail:outbox:v1:${accountId}`);
     const list = raw ? JSON.parse(raw) : null;
-    return Array.isArray(list) ? list.length : 0;
+    return (Array.isArray(list) ? list.length : 0) + (await countQueuedSends(accountId));
+  } catch {
+    return 0;
+  }
+}
+
+/** Queued sends: rows `webmail:sendqueue:v1:<appAccountId>:<entryId>`, counted by key (read-only). */
+async function countQueuedSends(accountId: string): Promise<number> {
+  try {
+    const prefix = `webmail:sendqueue:v1:${accountId}:`;
+    return (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefix) && !k.slice(prefix.length).includes(':')).length;
   } catch {
     return 0;
   }

@@ -10,6 +10,19 @@ import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
 import { useSendUndoStore } from '../../stores/send-undo-store';
 import { sendEmail, patchKeywordsForEmails } from '../../api/email';
+import { useNetworkStore } from '../../stores/network-store';
+import { useAuthStore } from '../../stores/auth-store';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/types';
+import { useAccountStore } from '../../stores/account-store';
+import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../../stores/send-queue-store';
+import {
+  buildQueuedSend, hasQueueAccounts, shouldQueueSend, attachmentsUploaded, findAlreadyQueued, ownerStillActive, OutboxCheckError,
+} from '../../lib/queue-send';
+import { generateUUID } from '../../lib/uuid';
+import { generateMessageId } from '../../lib/email-threading';
+import type { OutgoingEmail } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
 import { buildReplySubject } from '../../lib/subject-prefix';
@@ -51,15 +64,63 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const sendingRef = React.useRef(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // The app account this box was opened in. A reply is sent (or queued) only
+  // while it is still the active one: the message and its ids belong to it.
+  const ownerRef = React.useRef(useAuthStore.getState().activeAccountId);
+  // The Message-ID of the reply being written, kept across a failed attempt
+  // and dropped once it was sent or queued.
+  const messageIdRef = React.useRef<string | null>(null);
 
-  React.useEffect(() => { setText(''); }, [email.id]);
+  React.useEffect(() => { setText(''); messageIdRef.current = null; }, [email.id]);
+
+  const ownerActiveNow = () => ownerStillActive(ownerRef.current, useAuthStore.getState().activeAccountId);
+  const alertOwnerChanged = () => {
+    const entry = ownerRef.current ? useAccountStore.getState().getAccountById(ownerRef.current) : undefined;
+    const account = entry?.email || entry?.username || ownerRef.current || '';
+    Alert.alert(
+      t('email_composer.account_switched_title', 'Account changed'),
+      t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account }),
+    );
+  };
+  const toastAlreadyQueued = () => {
+    toast.warning(t('outbox.already_queued', 'This message is already in the Outbox'), {
+      action: { label: t('outbox.open', 'Open Outbox'), onPress: () => navigation.navigate('Outbox') },
+    });
+  };
 
   const from = email.from?.[0];
   if (!from?.email || email.keywords?.$draft) return null;
 
   const send = async () => {
     const body = text.trim();
-    if (!body || sending) return;
+    if (!body || sending || sendingRef.current) return;
+    sendingRef.current = true;
+    try {
+      await sendInner(body);
+    } finally {
+      sendingRef.current = false;
+    }
+  };
+
+  const sendInner = async (body: string) => {
+    if (!ownerActiveNow()) {
+      alertOwnerChanged();
+      return;
+    }
+    let alreadyQueued: Awaited<ReturnType<typeof findAlreadyQueued>>;
+    try {
+      alreadyQueued = await findAlreadyQueued(ownerRef.current, { messageId: messageIdRef.current });
+    } catch (err) {
+      if (!(err instanceof OutboxCheckError)) throw err;
+      toast.error(t('outbox.check_failed_send', "Couldn't check the Outbox. Try sending again."));
+      return;
+    }
+    if (alreadyQueued) {
+      toastAlreadyQueued();
+      return;
+    }
     const ownEmails = identities.map((i) => i.email).filter(Boolean);
     // The own identity the message was delivered to (or, for our own message,
     // the one that sent it). Never the catch-all From rewrite: this box has no
@@ -100,22 +161,67 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
         labels: quoteHeaderLabels(t),
       });
       const threading = computeReplyThreadingHeaders(email);
+      const outgoing: OutgoingEmail = {
+        from: [{ name: identity.name, email: identity.email }],
+        to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
+        cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
+        subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
+        // Signed as the composer signs a plain-text reply; an alias without a
+        // signature of its own carries the primary identity's.
+        textBody: signPlainTextReply(body, `${header.text}${quoted}`, signatureIdentityFor(identity, identities), {
+          position: signaturePosition,
+          separator: signatureSeparatorEnabled,
+        }),
+        inReplyTo: threading?.inReplyTo,
+        references: threading?.references,
+      };
+      // Re-checked after the awaits above, right before any request or queueing.
+      if (!ownerActiveNow()) {
+        alertOwnerChanged();
+        return;
+      }
+      // Offline at the moment of sending, before any request: queue it.
+      const ownerAppAccountId = ownerRef.current;
+      const queueJmapAccountId = jmapAccountId ?? (jmapClient.isConnected ? jmapClient.accountId : '');
+      if (!useNetworkStore.getState().online) {
+        if (
+          !hasQueueAccounts(ownerAppAccountId, queueJmapAccountId)
+          || !shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(outgoing) })
+        ) {
+          const { title, message } = sendErrorAlert(new Error('offline'), t);
+          Alert.alert(title, message);
+          return;
+        }
+        try {
+          if (!messageIdRef.current) messageIdRef.current = generateMessageId(identity.email);
+          outgoing.messageId = messageIdRef.current;
+          await useSendQueueStore.getState().enqueue(buildQueuedSend({
+            id: generateUUID(),
+            appAccountId: ownerAppAccountId!,
+            jmapAccountId: queueJmapAccountId,
+            identityId: identity.id,
+            outgoing,
+            replyTo: { emailIds: [email.id], keyword: '$answered', jmapAccountId },
+          }));
+          messageIdRef.current = null;
+          setText('');
+          Keyboard.dismiss();
+          toast.info(t('outbox.queued', "Will send when you're back online"));
+        } catch (err) {
+          if (err instanceof SendTooLargeToQueueError) {
+            Alert.alert(t('common.error', 'Error'), t('outbox.too_large', 'This message is too large to send offline'));
+          } else if (err instanceof AlreadyQueuedError) {
+            toastAlreadyQueued();
+          } else {
+            const { title, message } = sendErrorAlert(err, t);
+            Alert.alert(title, message);
+          }
+        }
+        return;
+      }
       const holdFor = jmapClient.undoSendHold(sendDelaySeconds, jmapAccountId);
       const result = await sendEmail(
-        {
-          from: [{ name: identity.name, email: identity.email }],
-          to: recipients.to.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
-          cc: recipients.cc.filter((r) => !!r.email).map((r) => ({ email: r.email!, name: r.name })),
-          subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
-          // Signed as the composer signs a plain-text reply; an alias without a
-          // signature of its own carries the primary identity's.
-          textBody: signPlainTextReply(body, `${header.text}${quoted}`, signatureIdentityFor(identity, identities), {
-            position: signaturePosition,
-            separator: signatureSeparatorEnabled,
-          }),
-          inReplyTo: threading?.inReplyTo,
-          references: threading?.references,
-        },
+        outgoing,
         identity.id,
         sent.originalId ?? sent.id,
         holdFor,

@@ -10,11 +10,12 @@ import {
   ArrowLeft, Star, Trash2, MoreVertical, Reply, ReplyAll, Forward,
   ChevronLeft, ChevronRight, Archive, Mail, MailOpen,
   FolderInput, Copy, ShieldAlert, ShieldCheck, X, Check,
-  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus,
+  Code, Download, Tag, Sun, Moon, FileInput, UserRoundPlus, Filter,
 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { MoveSheet } from '../components/MoveSheet';
+import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
 import { ThreadMessageCard, ThreadCardPlaceholder } from '../components/email/ThreadMessageCard';
 import { QuickReplyBox } from '../components/email/QuickReplyBox';
 import { AddressActionSheet } from '../components/email/AddressActionSheet';
@@ -142,6 +143,7 @@ function EmailViewer({ route, navigation }: Props) {
   const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const [copyMenuOpen, setCopyMenuOpen] = React.useState(false);
   const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
+  const [rulesOpen, setRulesOpen] = React.useState(false);
   const [addressSheet, setAddressSheet] = React.useState<EmailAddress | null>(null);
   // Per-message override of the light/dark rendering (More sheet toggle).
   const [themeOverrides, setThemeOverrides] = React.useState<Record<string, 'light' | 'dark'>>({});
@@ -400,6 +402,12 @@ function EmailViewer({ route, navigation }: Props) {
     () => mailboxOfEmail(scopedMailboxes, email?.mailboxIds, currentMailboxId),
     [scopedMailboxes, email, currentMailboxId],
   );
+  // Rules for the message's own account (the viewer's, never the open folder's).
+  const rulesEmails = React.useMemo(() => (email ? [email] : []), [email]);
+  const { availability: rulesAvailability } = useRulesTarget(rulesEmails, {
+    fromViewer: true,
+    viewedAccountId: ownerAccountId,
+  });
   const isInTrash = !!(trashMailbox && sourceMailbox?.id === trashMailbox.id);
   const canArchive = !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
   // Not spam files back into the Inbox, so it needs one.
@@ -827,6 +835,7 @@ function EmailViewer({ route, navigation }: Props) {
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
         canTag={keywordDefs.length > 0}
+        canRules={rulesAvailability === 'available'}
         renderDark={activeRenderDark}
         hasSender={!!email?.from?.[0]?.email}
         onArchive={() => { setMoreMenuOpen(false); onArchive(); }}
@@ -834,6 +843,7 @@ function EmailViewer({ route, navigation }: Props) {
         onMove={() => { setMoreMenuOpen(false); setMoveMenuOpen(true); }}
         onCopy={() => { setMoreMenuOpen(false); setCopyMenuOpen(true); }}
         onTag={() => { setMoreMenuOpen(false); setTagMenuOpen(true); }}
+        onRules={() => { setMoreMenuOpen(false); setRulesOpen(true); }}
         onToggleSpam={onToggleSpam}
         onToggleTheme={() => {
           setMoreMenuOpen(false);
@@ -888,6 +898,14 @@ function EmailViewer({ route, navigation }: Props) {
         currentMailboxId={sourceMailbox?.id ?? null}
         onPick={onCopyToMailbox}
         title={t('context_menu.copy_to', 'Copy to…')}
+      />
+
+      <RulesFlow
+        visible={rulesOpen && !!email}
+        onClose={() => setRulesOpen(false)}
+        emails={rulesEmails}
+        fromViewer
+        viewedAccountId={ownerAccountId}
       />
 
       <TagMenuSheet
@@ -1182,6 +1200,7 @@ interface MoreMenuSheetProps {
   canMarkUnread: boolean;
   canMove: boolean;
   canTag: boolean;
+  canRules: boolean;
   showSpam: boolean;
   isInJunk: boolean;
   canViewSource: boolean;
@@ -1192,6 +1211,7 @@ interface MoreMenuSheetProps {
   onToggleUnread: () => void;
   onMove: () => void;
   onCopy: () => void;
+  onRules: () => void;
   onTag: () => void;
   onToggleSpam: () => void;
   onToggleTheme: () => void;
@@ -1202,9 +1222,9 @@ interface MoreMenuSheetProps {
 }
 
 function MoreMenuSheet({
-  visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
+  visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag, canRules,
   showSpam, isInJunk, canViewSource, canExport, renderDark, hasSender,
-  onArchive, onToggleUnread, onMove, onCopy, onTag, onToggleSpam, onToggleTheme, onSenderActions,
+  onArchive, onToggleUnread, onMove, onCopy, onRules, onTag, onToggleSpam, onToggleTheme, onSenderActions,
   onForwardAsAttachment, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
@@ -1283,6 +1303,14 @@ function MoreMenuSheet({
               icon={<FolderInput size={18} color={c.textSecondary} />}
               label={t('email_viewer.move_to', 'Move to...')}
               onPress={onMove}
+              trailing={<ChevronRight size={16} color={c.textMuted} />}
+            />
+          )}
+          {canRules && (
+            <MoreMenuItem
+              icon={<Filter size={18} color={c.textSecondary} />}
+              label={t('context_menu.rules.title', 'Rules')}
+              onPress={onRules}
               trailing={<ChevronRight size={16} color={c.textMuted} />}
             />
           )}

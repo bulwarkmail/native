@@ -7,6 +7,7 @@ import {
   rejectedRecipients,
   requireMethodResult,
   ScheduleTooLateError,
+  SendRefusedError,
   SendUnconfirmedError,
   type RejectedRecipient,
 } from './jmap-result';
@@ -1410,6 +1411,53 @@ export async function queryEmailsByFilter(
   return (requireMethodResult(res, '0', 'Email/query').ids as string[]) ?? [];
 }
 
+/**
+ * Every email matching `filter`, newest first, with just `properties` (plus
+ * `id`). Each page is one request: an `Email/query` and an `Email/get` that
+ * back-references its ids. The page size is held to the server's
+ * maxObjectsInGet, and `max` is a hard cap on the total even if the server
+ * returns more than it was asked for. `accountId` is always explicit.
+ */
+export async function queryEmailFields(
+  filter: Record<string, unknown>,
+  properties: string[],
+  { accountId, pageSize = 500, max = 10000 }: { accountId: string; pageSize?: number; max?: number },
+): Promise<Array<Record<string, unknown>>> {
+  const perPage = Math.max(1, Math.min(pageSize, maxInGet()));
+  const seen = new Set<string>();
+  const list: Array<Record<string, unknown>> = [];
+  let position = 0;
+  while (list.length < max) {
+    const requested = Math.min(perPage, max - list.length);
+    const res = await jmapClient.request([
+      ['Email/query', {
+        accountId,
+        filter,
+        sort: [{ property: 'receivedAt', isAscending: false }],
+        position,
+        limit: requested,
+      }, '0'],
+      ['Email/get', {
+        accountId,
+        '#ids': { resultOf: '0', name: 'Email/query', path: '/ids' },
+        properties: ['id', ...properties],
+      }, '1'],
+    ]);
+    const ids = (requireMethodResult(res, '0', 'Email/query').ids as string[] | undefined) ?? [];
+    const records = (requireMethodResult(res, '1', 'Email/get').list as Array<Record<string, unknown>> | undefined) ?? [];
+    for (const record of records) {
+      if (list.length >= max) break;
+      const id = record.id;
+      if (typeof id !== 'string' || seen.has(id)) continue;
+      seen.add(id);
+      list.push(record);
+    }
+    if (ids.length < requested) break;
+    position += requested;
+  }
+  return list;
+}
+
 export interface OutgoingAttachment {
   blobId: string;
   type: string;
@@ -1642,6 +1690,9 @@ export async function sendEmail(
   let filingWarning: string | undefined;
   let failure: Error | undefined;
   let deliveryStatus: Record<string, { delivered?: string; smtpReply?: string }> | undefined;
+  // The server reported the submission created, even if without an id: from
+  // here on nothing proves the message did not leave.
+  let submissionCreated = false;
   for (const [methodName, result, callId] of res.methodResponses) {
     // Only reports: its error (a failed set leaves the reference dangling)
     // must not be taken for a failed send or a filing problem.
@@ -1656,19 +1707,23 @@ export async function sendEmail(
       // later error is the implicit `onSuccessUpdateEmail` Email/set that
       // Stalwart appends failing to file it. Failing the send here made the
       // user retry and send the message twice.
-      if (emailSubmissionId) {
+      if (emailSubmissionId || submissionCreated) {
         const err = result as { description?: string; type?: string };
         filingWarning = filingWarning ?? (err.description || err.type || 'post-send filing failed');
         continue;
       }
-      failure = new Error((result as { description?: string }).description ?? 'Send failed');
+      const err = result as { description?: string; type?: string };
+      failure = new SendRefusedError(err.description ?? 'Send failed', err.type);
       break;
     }
     if (methodName === 'Email/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string; properties?: string[] }> }).notCreated?.draft;
-      if (notCreated) {
+      if (notCreated && (emailSubmissionId || submissionCreated)) {
+        // Not the message create (that came first): the submission exists.
+        filingWarning = filingWarning ?? (notCreated.description || notCreated.type || 'post-send filing failed');
+      } else if (notCreated) {
         const props = notCreated.properties?.length ? ` (properties: ${notCreated.properties.join(', ')})` : '';
-        throw new Error(`${notCreated.description ?? notCreated.type ?? 'Failed to create message'}${props}`);
+        throw new SendRefusedError(`${notCreated.description ?? notCreated.type ?? 'Failed to create message'}${props}`, notCreated.type);
       }
       // Stalwart answers a submission carrying `onSuccessUpdateEmail` with a
       // SECOND `Email/set` response (reusing the submission's call id) that
@@ -1688,10 +1743,12 @@ export async function sendEmail(
     if (methodName === 'EmailSubmission/set') {
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
       if (notCreated) {
-        failure = submissionError(notCreated, 'Failed to submit message');
+        const refused = submissionError(notCreated, 'Failed to submit message');
+        failure = refused instanceof ScheduleTooLateError ? refused : new SendRefusedError(refused.message, notCreated.type);
         break;
       }
       const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
+      if (created) submissionCreated = true;
       emailSubmissionId = created?.id;
       sendAt = created?.sendAt;
     }

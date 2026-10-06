@@ -1,3 +1,4 @@
+import { signOutWithGuard } from './src/lib/sign-out-guard';
 import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -56,6 +57,7 @@ import ContactFormScreen from './src/screens/ContactFormScreen';
 import GroupDetailScreen from './src/screens/GroupDetailScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ScheduledScreen from './src/screens/ScheduledScreen';
+import OutboxScreen from './src/screens/OutboxScreen';
 import UnifiedInboxScreen from './src/screens/UnifiedInboxScreen';
 import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
@@ -92,6 +94,9 @@ import { addShareListener, getInitialShare, shareAttachments } from './src/lib/s
 import { OfflineCacheBanner } from './src/components/OfflineCacheBanner';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
+import { useSendQueueStore } from './src/stores/send-queue-store';
+import { flushSendQueue, hasNewEntry } from './src/lib/send-queue-replay';
+import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
@@ -236,7 +241,6 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const inboxUnreadCount = useEmailStore(
     (state) => state.mailboxes.find((mailbox) => mailbox.role === 'inbox')?.unreadEmails ?? 0,
   );
-  const logout = useAuthStore((state) => state.logout);
   const hasCalendar = useHasCalendar();
   const hasContacts = useHasContacts();
   const hasFiles = useHasFiles();
@@ -376,7 +380,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       >
-        {() => <SettingsScreen onLogout={logout} />}
+        {() => <SettingsScreen onLogout={() => { void signOutWithGuard(useAuthStore.getState().activeAccountId, () => navigation.navigate('Outbox')); }} />}
       </Tab.Screen>
     </Tab.Navigator>
     </View>
@@ -487,13 +491,48 @@ export default function App() {
   // Drain the offline action queue (outbox) as soon as we have a live session,
   // and again whenever the network comes back. The flush itself no-ops when
   // there's nothing queued or the client isn't ready.
+  // The offline send queue replays at the same points (it hydrates the active
+  // account itself and waits while the client serves another account), plus
+  // when a new session or active account lands and right after an enqueue.
   React.useEffect(() => {
     if (!haveLiveSession) return;
     void useOutboxStore.getState().flush();
-    return useNetworkStore.subscribe((state, prev) => {
-      if (state.online && !prev.online) void useOutboxStore.getState().flush();
-    });
+    void flushSendQueue();
+    const unsubscribers = [
+      useNetworkStore.subscribe((state, prev) => {
+        if (state.online && !prev.online) {
+          void useOutboxStore.getState().flush();
+          void flushSendQueue();
+        }
+      }),
+      useAuthStore.subscribe((state, prev) => {
+        if (state.session && state.session !== prev.session) void flushSendQueue();
+      }),
+      useAccountStore.subscribe((state, prev) => {
+        if (state.activeAccountId !== prev.activeAccountId) void flushSendQueue();
+      }),
+      useSendQueueStore.subscribe((state, prev) => {
+        if (useNetworkStore.getState().online && hasNewEntry(state.entries, prev.entries)) void flushSendQueue();
+      }),
+    ];
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [haveLiveSession]);
+
+  // One toast per send that ended up failed or uncertain, and the Outbox
+  // badge counts: load every account's queue so both see all of it.
+  const accountIds = useAccountStore((s) => s.accounts.map((a) => a.id).join('\n'));
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    for (const a of useAccountStore.getState().accounts) {
+      void useSendQueueStore.getState().hydrateAccount(a.id).catch(() => undefined);
+    }
+  }, [isAuthenticated, accountIds]);
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    return startOutboxToasts(() => {
+      if (navigationRef.isReady()) navigationRef.navigate('Outbox' as never);
+    });
+  }, [isAuthenticated]);
 
   // Toasts for invitations the server delivered (queued by the store).
   React.useEffect(() => {
@@ -781,6 +820,7 @@ export default function App() {
       void email.fetchMailboxes();
       if (email.currentMailboxId) void email.refreshEmails();
       void useOutboxStore.getState().flush();
+      void flushSendQueue();
       void useCalendarEventNotificationStore.getState().fetch();
     };
 
@@ -898,6 +938,7 @@ export default function App() {
         />
         <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
         <Stack.Screen name="Scheduled" component={ScheduledScreen} />
+        <Stack.Screen name="Outbox" component={OutboxScreen} />
         <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
         <Stack.Screen
           name="AddAccount"

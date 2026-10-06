@@ -272,7 +272,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - What RN does: `settings-store.ts:105-106` has `trustedSenders`, but `ComposeScreen.tsx` never touches it (`grep -i trusted` → none).
   - Fix hint: after a successful reply push `finalTo`/`finalCc` emails into `trustedSenders` (dedupe).
 
-- [ ] **Offline send is not queued** — `P3` — `missing` (RN-only opportunity) — deferred: needs a new outbox op kind carrying the whole Email/set + submission payload; drafts now autosave to the server instead
+- [x] **Offline send is not queued** — `P3` — `missing` (RN-only opportunity) — fixed in bb3b795, 70309e5, e5b0c86, f516e9c, b3e418d, 943f729, 6bf2b98, 9b4b0bf, 051d433, 28c5a29, 08919dc, feaaeb8, 9b75238, eeb5e2a, b6716e6, 66f83db, b418aab, 3cc0fe8, 1cbe67e, 6fb3125 — a separate send queue (not an outbox op kind) with an Outbox screen; a send whose outcome is unknown is never resent automatically
   - What RN does: `outbox-store.ts:40-43` only knows `keywords|mailboxes|destroy` ops; `performSend` fails with a network error when offline (`ComposeScreen.tsx:975-979`) and the composed text is lost unless the user keeps the screen open. WEB has no offline outbox either, so this is not a parity item, but once drafts exist the natural mobile behaviour is "save draft locally, submit when online".
   - Fix hint: add a `send` op kind carrying the Email/set create + submission payload, flushed by `outbox-store.flush`.
 

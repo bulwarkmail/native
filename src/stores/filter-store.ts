@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import type { FilterRule, SieveCapabilities, VacationSieveConfig } from '../lib/sieve/types';
 import { parseScript } from '../lib/sieve/parser';
 import { generateScript, VACATION_SCRIPT_NAME } from '../lib/sieve/generator';
+import { supportsInclude, writeFiltersScript } from '../lib/filters/account-filters';
 import {
-  createSieveScript,
   getSieveAccountId,
   getSieveCapabilities,
   getSieveScriptContent,
@@ -164,12 +164,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
           extensions: sieveCapabilities?.sieveExtensions,
         });
 
-      if (activeScriptId) {
-        await updateSieveScript(activeScriptId, content, true, accountId);
-      } else {
-        const script = await createSieveScript('filters', content, true, accountId);
-        set({ activeScriptId: script.id });
-      }
+      const written = await writeFiltersScript(accountId, content, activeScriptId);
+      if (!activeScriptId) set({ activeScriptId: written.scriptId });
 
       set({ isSaving: false, rawScript: content });
     } catch (error) {
@@ -260,10 +256,6 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     selectedAccountId: null,
   }),
 }));
-
-function supportsInclude(capabilities: SieveCapabilities | null): boolean {
-  return capabilities?.sieveExtensions?.includes('include') ?? false;
-}
 
 async function loadManagedScript(accountId: string) {
   const scripts = await getSieveScripts(accountId);

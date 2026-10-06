@@ -35,6 +35,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
+import { trustRecipients } from '../lib/trust-recipients';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import {
@@ -50,10 +51,14 @@ import {
 } from '../api/email';
 import { jmapClient } from '../api/jmap-client';
 import { formatRejectedRecipients } from '../api/jmap-result';
-import { sendErrorAlert, withoutRefused } from '../lib/send-errors';
+import { sendErrorAlert } from '../lib/send-errors';
 import { uploadBlob, uploadBytes } from '../api/blob';
 import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients';
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
+import { useNetworkStore } from '../stores/network-store';
+import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../stores/send-queue-store';
+import { attachmentsUploaded, buildQueuedSend, findAlreadyQueued, hasQueueAccounts, OutboxCheckError, shouldQueueSend } from '../lib/queue-send';
+import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { escapeHtml, stripDangerousTags } from '../lib/email-html';
 import {
@@ -2355,6 +2360,80 @@ export default function ComposeScreen({ route, navigation }: Props) {
       alertAccountSwitched();
       return;
     }
+    // This message (its Message-ID, or its server draft) already waits in the
+    // Outbox, e.g. a draft reopened after it was queued offline: sending it
+    // from here, online or queued, would send it twice. Keep the composer open.
+    let alreadyQueued: Awaited<ReturnType<typeof findAlreadyQueued>>;
+    try {
+      alreadyQueued = await findAlreadyQueued(owner?.appAccountId, { messageId: messageIdRef.current, draftId: draftIdRef.current });
+    } catch (err) {
+      if (!(err instanceof OutboxCheckError)) throw err;
+      toast.error(t('outbox.check_failed_send', "Couldn't check the Outbox. Try sending again."));
+      return;
+    }
+    if (alreadyQueued) {
+      toast.warning(t('outbox.already_queued', 'This message is already in the Outbox'), {
+        action: { label: t('outbox.open', 'Open Outbox'), onPress: () => navigation.navigate('Outbox') },
+      });
+      return;
+    }
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
+    // Offline at the moment of sending, before any request: queue it. An
+    // online send never takes this path, and a network error during one keeps
+    // the "Send failed" alert below (never auto-queue after a request).
+    if (!useNetworkStore.getState().online) {
+      if (!owner || !hasQueueAccounts(owner.appAccountId, owner.jmapAccountId)) {
+        // Nothing to queue against; never fall through to an online send.
+        const { title, message } = sendErrorAlert(new Error('offline'), t);
+        Alert.alert(title, message);
+        return;
+      }
+      const queued = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
+      if (shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(queued) })) {
+        setSending(true);
+        try {
+          await useSendQueueStore.getState().enqueue(buildQueuedSend({
+            id: generateUUID(),
+            appAccountId: owner.appAccountId,
+            jmapAccountId: owner.jmapAccountId,
+            identityId: primaryIdentity.id,
+            outgoing: queued,
+            draftId: draftIdRef.current,
+            scheduledAt,
+            replyTo: replyTo?.originalEmailId
+              ? {
+                  emailIds: [replyTo.originalEmailId],
+                  keyword: mode === 'forward' ? '$forwarded' : '$answered',
+                  jmapAccountId: replyTo.jmapAccountId,
+                }
+              : undefined,
+          }));
+          toast.info(t('outbox.queued', "Will send when you're back online"));
+          allowLeaveRef.current = true;
+          navigation.goBack();
+        } catch (e) {
+          if (e instanceof SendTooLargeToQueueError) {
+            Alert.alert(
+              t('email_composer.send_failed', 'Send failed'),
+              t('outbox.too_large', 'This message is too large to send offline'),
+            );
+          } else if (e instanceof AlreadyQueuedError) {
+            toast.warning(t('outbox.already_queued', 'This message is already in the Outbox'), {
+              action: { label: t('outbox.open', 'Open Outbox'), onPress: () => navigation.navigate('Outbox') },
+            });
+          } else {
+            const { title, message } = sendErrorAlert(e, t);
+            Alert.alert(title, message);
+          }
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
+    }
     setSending(true);
     try {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
@@ -2388,14 +2467,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       // People you reply to are people you trust: allow their remote content
       // from now on (webmail 1.5.x).
       if (isReplyLike && mode !== 'forward') {
-        const settings = useSettingsStore.getState();
-        const contacts = useContactsStore.getState();
-        for (const r of withoutRefused([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients)) {
-          settings.addTrustedSender(r.email);
-          if (stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts)) {
-            contacts.addToTrustedSendersBook(r.name ? `${r.name} <${r.email}>` : r.email).catch(() => undefined);
-          }
-        }
+        trustRecipients([...outgoing.to, ...(outgoing.cc ?? [])], result.rejectedRecipients, {
+          syncToBook: stillOwner && isTrustedSendersSyncOn(trustedSendersAddressBook, hasContacts),
+        });
       }
       // Some recipients were refused though the message went to the rest.
       if (result.rejectedRecipients?.length) {

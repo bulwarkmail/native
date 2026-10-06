@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Linking, Alert, ActivityIndicator } from 'react-native';
 import Constants from 'expo-constants';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -14,6 +17,8 @@ import { ALL_DEBUG_CATEGORIES, useSettingsStore, type DebugCategory } from '../.
 import { useLocaleStore } from '../../stores/locale-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { useOutboxStore } from '../../stores/outbox-store';
+import { useSendQueueStore } from '../../stores/send-queue-store';
+import { queuedSendCount } from '../../lib/outbox-rows';
 import { useUpdatesStore } from '../../stores/updates-store';
 import { runOfflineSync, formatBytes } from '../../lib/offline-sync';
 import { clearCachedData } from '../../lib/clear-cached-data';
@@ -46,6 +51,8 @@ export function AboutDataSettings() {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const queuedChanges = useOutboxStore((s) => s.entries.length);
   const flushOutbox = useOutboxStore((s) => s.flush);
+  const queuedSends = useSendQueueStore((s) => queuedSendCount(s.entries));
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const cacheCount = useOfflineCacheStore((s) => s.totalCount());
   const cacheBytes = useOfflineCacheStore((s) => s.totalSize());
   const cacheHydrated = useOfflineCacheStore((s) => s.hydrated);
@@ -251,6 +258,15 @@ export function AboutDataSettings() {
             onChange={(v) => updateSetting('offlineCacheMaxMB', Number(v))}
             options={maxMbOptions}
           />
+        </SettingItem>
+
+        <SettingItem
+          label={t('outbox.title', 'Outbox')}
+          description={t('outbox.setting_desc', 'Messages sent while offline, waiting to go out.')}
+        >
+          <Button variant="outline" size="sm" onPress={() => navigation.navigate('Outbox')}>
+            {queuedSends > 0 ? t('outbox.title_count', 'Outbox ({count})', { count: queuedSends }) : t('outbox.open_short', 'Open')}
+          </Button>
         </SettingItem>
 
         <View style={styles.cacheStatsBox}>

@@ -180,6 +180,30 @@ export async function updateSieveScript(
   throw new Error('Failed to update Sieve script');
 }
 
+async function setActiveScript(args: Record<string, unknown>, accountId: string, what: string): Promise<void> {
+  const res = await jmapClient.request(
+    [['SieveScript/set', { accountId, ...args }, '0']],
+    SIEVE_USING,
+  );
+  const resp = res.methodResponses?.[0];
+  if (resp && resp[0] === 'SieveScript/set') return;
+  const detail = (resp?.[1] as { description?: string } | undefined)?.description;
+  throw new Error(detail ?? `Failed to ${what} Sieve script`);
+}
+
+/** Make `scriptId` the account's active script (switches off the current one). */
+export function activateSieveScript(
+  scriptId: string,
+  accountId: string = getSieveAccountId(),
+): Promise<void> {
+  return setActiveScript({ onSuccessActivateScript: scriptId }, accountId, 'activate');
+}
+
+/** Switch the account's active script off, leaving no script active (RFC 9661 §2.2). */
+export function deactivateSieveScript(accountId: string = getSieveAccountId()): Promise<void> {
+  return setActiveScript({ onSuccessDeactivateScript: true }, accountId, 'deactivate');
+}
+
 export async function deleteSieveScript(
   scriptId: string,
   accountId: string = getSieveAccountId(),
