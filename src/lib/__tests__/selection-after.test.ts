@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../stores/toast-store', () => ({ toast: { error: vi.fn() } }));
 
-import { selectionAfterFailure, selectionWithout, settled } from '../selection-after';
+import {
+  selectionAfterFailure, selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection,
+  type AccountSelection,
+} from '../selection-after';
 
 describe('selectionWithout', () => {
   it('removes exactly the acted-on ids and keeps the rest', () => {
@@ -37,5 +40,32 @@ describe('settled', () => {
     const { toast } = await import('../../stores/toast-store');
     expect(await settled(Promise.reject(new Error('x')), 'Failed')).toBe(false);
     expect(toast.error).toHaveBeenCalledWith('Failed', 'x');
+  });
+});
+
+// M2 (R15): row keys repeat across accounts, so a selection never carries
+// into another account, and a failed bulk action does not re-select its keys
+// in the account switched to.
+describe('a selection belongs to the account it was made in', () => {
+  const inA: AccountSelection = { accountId: 'A', ids: new Set(['m1', 'm2']) };
+
+  it('is cleared (selects nothing) once another account is shown', () => {
+    expect([...selectionIn(inA, 'A')].sort()).toEqual(['m1', 'm2']);
+    expect([...selectionIn(inA, 'B')]).toEqual([]);
+  });
+
+  it('an update made while B is shown starts from nothing, not from A\'s ids', () => {
+    const next = updateSelection(inA, 'B', (prev) => new Set([...prev, 'm3']));
+    expect(next.accountId).toBe('B');
+    expect([...next.ids]).toEqual(['m3']);
+  });
+
+  it('a failed bulk action puts its ids back only while its account is shown', () => {
+    const acted = new Set(['m1', 'm2']);
+    const present = new Set(['m1', 'm2', 'm3']);
+    const afterSwitch: AccountSelection = { accountId: 'B', ids: new Set() };
+    expect(selectionAfterFailureIn(afterSwitch, 'A', 'B', acted, present)).toBe(afterSwitch);
+    const same = selectionAfterFailureIn({ accountId: 'A', ids: new Set() }, 'A', 'A', acted, present);
+    expect([...same.ids].sort()).toEqual(['m1', 'm2']);
   });
 });

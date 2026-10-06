@@ -39,7 +39,9 @@ import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { withFailureToast } from '../lib/action-failure';
-import { selectionAfterFailure, selectionWithout, settled } from '../lib/selection-after';
+import {
+  selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection, type AccountSelection,
+} from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
@@ -536,8 +538,19 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
   const [rulesOpen, setRulesOpen] = React.useState(false);
 
-  // Selection state
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  // Selection state, kept with the account it was made in: once another
+  // account is shown it selects nothing (row keys repeat across accounts).
+  const activeAccountId = useEmailStore((s) => s.activeAccountId);
+  const [selection, setSelection] = React.useState<AccountSelection>(
+    () => ({ accountId: useEmailStore.getState().activeAccountId, ids: new Set() }),
+  );
+  const selectedIds = React.useMemo(() => selectionIn(selection, activeAccountId), [selection, activeAccountId]);
+  const setSelectedIds = React.useCallback(
+    (next: ReadonlySet<string> | ((prev: ReadonlySet<string>) => ReadonlySet<string>)) => {
+      setSelection((prev) => updateSelection(prev, useEmailStore.getState().activeAccountId, next));
+    },
+    [],
+  );
   const selectionMode = selectedIds.size > 0;
   const allSelected =
     visibleEmails.length > 0 && visibleEmails.every((e) => selectedIds.has(rowKeyOf(e)));
@@ -745,11 +758,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     bulkBusyRef.current = true;
     setBulkBusy(true);
     const acted = new Set(selectedIds);
+    const actedIn = useEmailStore.getState().activeAccountId;
     const pending = run();
     setSelectedIds((prev) => selectionWithout(prev, acted));
     try {
       if (!(await settled(pending, failureTitle))) {
-        setSelectedIds((prev) => selectionAfterFailure(prev, acted, new Set(useEmailStore.getState().emails.map(rowKeyOf))));
+        // Not into another account the user switched to meanwhile.
+        const { activeAccountId: shownNow, emails: rows } = useEmailStore.getState();
+        setSelection((prev) => selectionAfterFailureIn(prev, actedIn, shownNow, acted, new Set(rows.map(rowKeyOf))));
       }
     } finally {
       bulkBusyRef.current = false;
@@ -768,7 +784,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // Clear selection when mailbox changes
   React.useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentMailboxId]);
+  }, [currentMailboxId, setSelectedIds]);
+  // And when the account changes: `selectionIn` already shows none for the
+  // new one; this keeps the old one from coming back on a switch back.
+  React.useEffect(() => {
+    setSelection({ accountId: activeAccountId, ids: new Set() });
+  }, [activeAccountId]);
 
   // `selectedIds` holds the representative rows' keys (`rowKeyOf`, unique
   // across the accounts of a list spanning accounts); every action expands to

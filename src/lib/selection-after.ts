@@ -20,6 +20,49 @@ export function selectionAfterFailure(
   return next;
 }
 
+/**
+ * A list selection and the app account it was made in. Row keys repeat across
+ * accounts (on Stalwart, ids are sequential per account), so a selection is
+ * never carried into another account: there it would name other messages.
+ */
+export interface AccountSelection {
+  readonly accountId: string | null;
+  readonly ids: ReadonlySet<string>;
+}
+
+const NOTHING: ReadonlySet<string> = new Set();
+
+/** The ids selected while `accountId` is shown: none once the account changed. */
+export function selectionIn(selection: AccountSelection, accountId: string | null): ReadonlySet<string> {
+  return selection.accountId === accountId ? selection.ids : NOTHING;
+}
+
+/** `selection` set (or updated from what `accountId` shows) in account `accountId`. */
+export function updateSelection(
+  selection: AccountSelection,
+  accountId: string | null,
+  next: ReadonlySet<string> | ((prev: ReadonlySet<string>) => ReadonlySet<string>),
+): AccountSelection {
+  const ids = typeof next === 'function' ? next(selectionIn(selection, accountId)) : next;
+  return { accountId, ids };
+}
+
+/**
+ * After a bulk action made in `actedIn` failed: `selectionAfterFailure`, but
+ * only while that account is still shown (`shownNow`). Once the user switched,
+ * the acted-on keys are another account's rows and are not re-selected.
+ */
+export function selectionAfterFailureIn(
+  selection: AccountSelection,
+  actedIn: string | null,
+  shownNow: string | null,
+  acted: ReadonlySet<string>,
+  present: ReadonlySet<string>,
+): AccountSelection {
+  if (actedIn !== shownNow) return selection;
+  return { accountId: shownNow, ids: selectionAfterFailure(selectionIn(selection, shownNow), acted, present) };
+}
+
 // Runs the action, reports a rejection as a toast, and says whether it resolved.
 export async function settled(p: Promise<unknown>, failureTitle: string): Promise<boolean> {
   let ok = true;

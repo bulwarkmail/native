@@ -681,6 +681,7 @@
     "already_queued": "This message is already in the Outbox",
     "already_sent": "Already sent",
     "already_sent_hint": "This message had already gone out. It was not sent again.",
+    "change_not_saved": "This change could not be saved",
     "check_failed_send": "Couldn't check the Outbox. Try sending again.",
     "confirm_discard": "Discard this message? It will not be sent.",
     "confirm_discard_uncertain": "This message may already have been sent. Discard it from the Outbox?",

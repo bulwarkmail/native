@@ -461,8 +461,12 @@ describe('an online action interrupted by an account switch', () => {
     } finally {
       getItem.mockImplementation(original);
     }
-    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e7']);
-    expect((await stored(ACCOUNT)).map((e: { op: { emailId: string } }) => e.op.emailId)).toEqual(['e7']);
+    // Back on the account, which the client serves: the op is kept, and the
+    // flush after it is added replays it (once) rather than leaving it to
+    // wait for the next trigger (M1).
+    await vi.waitFor(() => expect(setEmailMailboxes).toHaveBeenCalledTimes(1));
+    expect(setEmailMailboxes).toHaveBeenCalledWith('e7', { archive: true }, onAccount('jmap-own'));
+    await vi.waitFor(() => expect(useOutboxStore.getState().entries).toEqual([]));
   });
 
   it('is not lost when it is queued while the queue is still loading', async () => {
@@ -672,5 +676,26 @@ describe('the online path runs only on the connection serving the account (C1)',
     const run = vi.fn(async (_at: unknown) => undefined);
     await applyOrQueue({ kind: 'destroy', emailId: 'e1' }, run);
     expect(run).toHaveBeenCalledWith(onAccount('jmap-own'));
+  });
+});
+
+// M3: an action stopped by a switch whose account's stored queue can't be read
+// is not dropped without a word.
+describe('a change that cannot be stored for the account left (M3)', () => {
+  it('tells the user it could not be saved', async () => {
+    useToastStore.setState({ toasts: [] });
+    await AsyncStorage.setItem(`webmail:outbox:v1:${ACCOUNT}`, '{not json');
+    const run = vi.fn(async () => {
+      await useOutboxStore.getState().setAccount('acc-2');
+      throw Object.assign(new Error('Superseded by a newer account load'), { name: 'StaleLoadError' });
+    });
+    await expect(applyOrQueue({ kind: 'destroy', emailId: 'e1' }, run)).rejects.toMatchObject({ name: 'StaleLoadError' });
+    expect(useToastStore.getState().toasts.map((t) => t.message ?? t.title))
+      .toContain('This change could not be saved');
+    // The unreadable queue is left as it was, never overwritten.
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${ACCOUNT}`)).toBe('{not json');
+    await AsyncStorage.removeItem(`webmail:outbox:v1:${ACCOUNT}`);
+    await useOutboxStore.getState().setAccount('acc-2');
+    await useOutboxStore.getState().clear();
   });
 });

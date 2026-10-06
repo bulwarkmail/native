@@ -309,8 +309,10 @@ function enqueueForAccount(accountId: string, ops: OutboxOp[], createdAt: number
       if (!Array.isArray(parsed)) throw new Error('not a list');
       entries = (parsed as OutboxEntry[]).map(upgradeEntry);
     } catch (err) {
-      // Unreadable: writing would overwrite whatever is there.
+      // Unreadable: writing would overwrite whatever is there. The change is
+      // lost, so the user is told rather than left believing it will finish.
       console.warn('[outbox] could not queue for an inactive account', err);
+      toast.error(t('outbox.change_not_saved', 'This change could not be saved'));
       return null;
     }
     for (const op of ops) entries = coalesce(entries, op, createdAt) ?? entries;
@@ -334,7 +336,11 @@ function enqueueForAccount(accountId: string, ops: OutboxOp[], createdAt: number
     // coalescing collapses a second copy of an op into the first).
     if (where === 'stored' && useOutboxStore.getState().activeAccountId === accountId) {
       await untilHydratedOrLeft(accountId);
-      if (useOutboxStore.getState().activeAccountId === accountId) intoMemory();
+      if (useOutboxStore.getState().activeAccountId === accountId) {
+        intoMemory();
+        // Its setAccount flush may have run before these were in memory.
+        void useOutboxStore.getState().flush();
+      }
     }
     return where !== null;
   });
