@@ -40,6 +40,7 @@ import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
 import { isStaleLoad } from '../lib/network-error';
 import { sizeFilterBytes } from '../lib/search-utils';
+import { collectSnippets, snippetKey, type RowSnippet, type SnippetMap } from '../lib/search-snippet';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
@@ -461,6 +462,12 @@ export interface EmailState {
   error: string | null;
   searchQuery: string;
   filters: EmailFilters;
+  /**
+   * The words the search on screen matched, per row (`snippetKey`: account
+   * and id, as ids repeat across accounts). Empty outside a search; cleared
+   * when the search ends and when the shown account changes.
+   */
+  searchSnippets: SnippetMap;
   pendingUndo: UndoEntry | null;
   /**
    * Rows (by `rowKeyOf`) the user just read/unstarred/untagged while an
@@ -782,6 +789,8 @@ interface SpanningPage {
   threads: Thread[];
   /** JMAP account id → error, for the accounts that did not answer. */
   errors: Record<string, string>;
+  /** The highlights of the rows, keyed by account and id. */
+  snippets: SnippetMap;
 }
 
 // One page from every account the list spans, each account starting at its
@@ -806,7 +815,7 @@ async function fetchSpanningPage(
       sort: await resolveSort(state, accountId),
       filter: excludeTrashAndJunk ? withoutTrashAndJunk(state, accountId ?? primary, filter) : filter,
     }))),
-    { limit, filter, threads },
+    { limit, filter, threads, snippets: true },
   );
   let pages = await run(spannedAccounts(state.mailboxes));
   const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
@@ -816,7 +825,7 @@ async function fetchSpanningPage(
     pages = pages.map((p) => retried.find((r) => r.accountId === p.accountId) ?? p);
   }
 
-  const page: SpanningPage = { list: [], total: 0, threads: [], errors: {} };
+  const page: SpanningPage = { list: [], total: 0, threads: [], errors: {}, snippets: {} };
   let firstError: Error | undefined;
   for (const p of pages) {
     const stamp = p.accountId ?? primary;
@@ -827,6 +836,7 @@ async function fetchSpanningPage(
     }
     page.total += p.total;
     for (const e of p.list) page.list.push({ ...e, jmapAccountId: stamp });
+    collectSnippets(page.snippets, stamp, p.snippets);
     for (const th of p.threads) page.threads.push({ ...th, id: `${stamp}:${th.id}` });
   }
   if (firstError && Object.keys(page.errors).length === pages.length) throw firstError;
@@ -863,6 +873,15 @@ export function deleteDestroysAcrossAccounts(emailIds: string[]): boolean | null
 /** The JMAP account a row of the list on screen lives under; undefined = the user's own. */
 export function accountIdOfRow(email: Email): string | undefined {
   return rowAccountId(useEmailStore.getState(), email);
+}
+
+/**
+ * The highlights of a row of the search on screen, if the server marked any.
+ * Looked up by the row's own account and id: ids repeat across accounts.
+ */
+export function snippetForRow(snippets: SnippetMap, email: Email): RowSnippet | undefined {
+  const account = rowAccountId(useEmailStore.getState(), email) ?? jmapClient.accountId;
+  return snippets[snippetKey(account, email.id)];
 }
 
 /**
@@ -929,8 +948,9 @@ function restoredBaseView(state: EmailState): Partial<EmailState> {
   const snap = state.currentMailboxId
     ? state.mailboxSnapshots[state.currentMailboxId]
     : undefined;
-  if (!snap) return {};
-  return { emails: snap.emails, totalEmails: snap.total, queryState: snap.queryState };
+  // The search is over, so are its highlights.
+  if (!snap) return { searchSnippets: {} };
+  return { emails: snap.emails, totalEmails: snap.total, queryState: snap.queryState, searchSnippets: {} };
 }
 
 function snapshotFromActive(state: EmailState): AccountSnapshot {
@@ -1042,6 +1062,7 @@ export const useEmailStore = create<EmailState>()(
   error: null,
   searchQuery: '',
   filters: {},
+  searchSnippets: {},
   pendingUndo: null,
   retainedIds: [],
   threadCounts: {},
@@ -1071,6 +1092,7 @@ export const useEmailStore = create<EmailState>()(
       // to the previous account's intent.
       searchQuery: '',
       filters: {},
+      searchSnippets: {},
       pendingUndo: null,
       retainedIds: [],
       threadCounts: {},
@@ -1107,6 +1129,7 @@ export const useEmailStore = create<EmailState>()(
         queryState: undefined,
         searchQuery: '',
         filters: {},
+        searchSnippets: {},
         pendingUndo: null,
       });
       void useOfflineCacheStore.getState().setAccount(null);
@@ -1130,6 +1153,7 @@ export const useEmailStore = create<EmailState>()(
       queryState: undefined,
       searchQuery: '',
       filters: {},
+      searchSnippets: {},
       pendingUndo: null,
       error: null,
       loading: false,
@@ -1217,7 +1241,7 @@ export const useEmailStore = create<EmailState>()(
     }
 
     set({
-      ...(clearSearch ? { searchQuery: '', filters: {} } : {}),
+      ...(clearSearch ? { searchQuery: '', filters: {}, searchSnippets: {} } : {}),
       currentMailboxId: mailboxId,
       emails: seededEmails,
       totalEmails: seededTotal,
@@ -1278,20 +1302,24 @@ export const useEmailStore = create<EmailState>()(
           // so load-more doesn't keep asking for it.
           totalEmails: page.total + Object.keys(page.errors).reduce((n, id) => n + (loaded[id] ?? 0), 0),
           threadCounts: withThreadCounts(now.threadCounts, page.threads),
+          searchSnippets: { ...now.searchSnippets, ...page.snippets },
           accountErrors: page.errors,
           loading: false,
         });
         return;
       }
-      const { list, total, threads } = await queryEmailPage(scope.mailboxId, {
+      const { list, total, threads, snippets } = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
         sort: await resolveSort(state, scope.accountId),
         filter,
         accountId: scope.accountId,
         threads: !useSettingsStore.getState().disableThreading,
+        snippets: true,
       });
       if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      const pageSnippets: SnippetMap = {};
+      collectSnippets(pageSnippets, scope.accountId ?? jmapClient.accountId, snippets);
       // A message that arrived between pages shifts positions and would come
       // back a second time — drop ids we already show (duplicate keys).
       const existingIds = new Set(get().emails.map((e) => e.id));
@@ -1304,6 +1332,7 @@ export const useEmailStore = create<EmailState>()(
         emails: merged,
         totalEmails: total,
         threadCounts: withThreadCounts(get().threadCounts, threads),
+        searchSnippets: { ...get().searchSnippets, ...pageSnippets },
         loading: false,
       };
       if (isBaseView(searchQuery, filters)) {
@@ -2276,6 +2305,7 @@ export const useEmailStore = create<EmailState>()(
     error: null,
     searchQuery: '',
     filters: {},
+    searchSnippets: {},
     retainedIds: [],
     threadCounts: {},
     accountErrors: {},
@@ -3107,6 +3137,7 @@ async function refreshEmailsImpl(): Promise<void> {
           emails: mergeRetainedRows(get().emails, landed.list, get().retainedIds),
           totalEmails: landed.total,
           threadCounts: withThreadCounts(get().threadCounts, page.threads),
+          searchSnippets: page.snippets,
           accountErrors: page.errors,
           loading: false,
         });
@@ -3115,18 +3146,20 @@ async function refreshEmailsImpl(): Promise<void> {
       const threads = !useSettingsStore.getState().disableThreading;
       let queryRes: Awaited<ReturnType<typeof queryEmailPage>>;
       try {
-        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads });
+        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads, snippets: true });
       } catch (err) {
         // The server refused a hasKeyword comparator (unsupportedSort): drop
         // the keyword levels for this account and re-run with the rest.
         if (!isUnsupportedSort(err)) throw err;
         markKeywordSortUnsupported(scope.accountId ?? jmapClient.accountId);
         sort = await resolveSort(state, scope.accountId);
-        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads });
+        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads, snippets: true });
       }
 
       if (viewChanged()) return;
       const landed = withoutRemovedMeanwhile(queryRes.list, queryRes.total, listedBeforeQuery);
+      const snippetMap: SnippetMap = {};
+      if (!baseView) collectSnippets(snippetMap, scope.accountId ?? jmapClient.accountId, queryRes.snippets);
 
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
@@ -3134,6 +3167,7 @@ async function refreshEmailsImpl(): Promise<void> {
         emails: baseView ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
         totalEmails: landed.total,
         threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
+        searchSnippets: snippetMap,
         loading: false,
       };
       if (baseView) {

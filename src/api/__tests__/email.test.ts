@@ -255,7 +255,76 @@ describe('email operations', () => {
         list: [{ id: 'e2', threadId: 't1' }, { id: 'e1', threadId: 't1' }],
         state: 's-1',
         threads: [{ id: 't1', emailIds: ['e1', 'e2', 'e3'] }],
+        snippets: [],
       });
+    });
+
+    it('back-references SearchSnippet/get for a page whose filter has search words', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+          ['SearchSnippet/get', { list: [{ emailId: 'e1', subject: '<mark>Hi</mark>', preview: null }] }, 'snippets'],
+        ],
+      });
+
+      const result = await queryEmailPage('mb-1', { filter: { text: 'hi' }, snippets: true, accountId: 'grp-1' });
+
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls[2]).toEqual(['SearchSnippet/get', {
+        accountId: 'grp-1',
+        filter: { inMailbox: 'mb-1', text: 'hi' },
+        '#emailIds': { resultOf: '0', name: 'Email/query', path: '/ids' },
+      }, 'snippets']);
+      expect(result.snippets).toEqual([{ emailId: 'e1', subject: '<mark>Hi</mark>', preview: null }]);
+    });
+
+    it('skips SearchSnippet/get without search words, and survives it failing', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+        ],
+      });
+      await queryEmailPage('mb-1', { filter: { hasKeyword: '$flagged' }, snippets: true });
+      expect(mockRequest.mock.calls[0][0].map((c: unknown[]) => c[0])).toEqual(['Email/query', 'Email/get']);
+
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+          ['error', { type: 'unknownMethod' }, 'snippets'],
+        ],
+      });
+      const result = await queryEmailPage('mb-1', { filter: { text: 'x' }, snippets: true });
+      expect(result.list).toHaveLength(1);
+      expect(result.snippets).toEqual([]);
+    });
+
+    it('asks each account of a folder-less page for its snippets', async () => {
+      (jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>).mockReturnValueOnce(16);
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0:q'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }] }, '0:g'],
+          ['SearchSnippet/get', { list: [{ emailId: 'e1', subject: '<mark>a</mark>' }] }, '0:s'],
+          ['Email/query', { ids: ['e1'], total: 1 }, '1:q'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't9' }] }, '1:g'],
+          ['SearchSnippet/get', { list: [{ emailId: 'e1', subject: '<mark>b</mark>' }] }, '1:s'],
+        ],
+      });
+      const sort = [{ property: 'receivedAt', isAscending: false }];
+      const pages = await queryEmailPagesAcrossAccounts(
+        [{ position: 0, sort }, { accountId: 'grp-1', position: 0, sort }],
+        { limit: 25, filter: { text: 'a' }, snippets: true },
+      );
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls.map((c: unknown[]) => c[2])).toEqual(['0:q', '0:g', '0:s', '1:q', '1:g', '1:s']);
+      expect(calls[5][1]).toMatchObject({ accountId: 'grp-1', '#emailIds': { resultOf: '1:q', path: '/ids' } });
+      expect(pages.map((p) => (p.ok ? p.snippets : null))).toEqual([
+        [{ emailId: 'e1', subject: '<mark>a</mark>' }],
+        [{ emailId: 'e1', subject: '<mark>b</mark>' }],
+      ]);
     });
 
     it('asks several accounts for a folder-less page in one request (#1082)', async () => {
@@ -287,7 +356,7 @@ describe('email operations', () => {
       expect(calls[4][1]['#ids']).toEqual({ resultOf: '1:q', name: 'Email/query', path: '/ids' });
       expect(pages[0]).toEqual({
         accountId: undefined, ok: true, total: 3,
-        list: [{ id: 'e1', threadId: 't1' }], threads: [{ id: 't1', emailIds: ['e1'] }],
+        list: [{ id: 'e1', threadId: 't1' }], threads: [{ id: 't1', emailIds: ['e1'] }], snippets: [],
       });
       expect(pages[1]).toMatchObject({ accountId: 'grp-1', ok: false, error: { type: 'forbidden' } });
     });

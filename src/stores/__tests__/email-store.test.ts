@@ -155,7 +155,7 @@ import { generateAccountId } from '../../lib/account-utils';
 const TEST_ACCOUNT_ID = generateAccountId('test@example.com', 'https://mail.example.com');
 
 import * as emailApi from '../../api/email';
-import { useEmailStore } from '../email-store';
+import { useEmailStore, snippetForRow } from '../email-store';
 import { registerServedAccount } from './helpers/served-account';
 
 /** The scope an action passes: JMAP account `accountId` on the connection it started on. */
@@ -1286,6 +1286,76 @@ describe('email-store', () => {
         expect(useEmailStore.getState().emails[2].keywords).toEqual({ $flagged: true });
         expect(useEmailStore.getState().emailStates['mb-1']).toBe('em-3');
       });
+    });
+  });
+
+  describe('search snippets', () => {
+    const mark = (text: string) => `<mark>${text}</mark>`;
+    const rowA = { id: 'e1', threadId: 't1', keywords: {} };
+    const sharedFolder = { id: 'grp-1:mb', name: 'Shared', isShared: true, accountId: 'grp-1' } as any;
+    const deferred = <T,>() => {
+      let resolve!: (v: T) => void;
+      const promise = new Promise<T>((r) => { resolve = r; });
+      return { promise, resolve };
+    };
+
+    it('keeps each account\'s highlights apart when ids repeat, and drops them with the search', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1', mailboxes: [sharedFolder] });
+      mockQueryAcross.mockImplementation(async (targets: Array<{ accountId?: string }>) =>
+        targets.map((t) => ({
+          accountId: t.accountId, ok: true, total: 1, threads: [],
+          list: [rowA],
+          snippets: [{ emailId: 'e1', subject: mark(t.accountId ?? 'own'), preview: null }],
+        })));
+
+      useEmailStore.getState().setSearchQuery('invoice');
+      await vi.waitFor(() => expect(Object.keys(useEmailStore.getState().searchSnippets)).toHaveLength(2));
+
+      const { searchSnippets, emails } = useEmailStore.getState();
+      expect(emails.map((e) => [e.jmapAccountId, e.id]).sort()).toEqual([['acc-1', 'e1'], ['grp-1', 'e1']]);
+      const own = emails.find((e) => e.jmapAccountId === 'acc-1')!;
+      const shared = emails.find((e) => e.jmapAccountId === 'grp-1')!;
+      expect(snippetForRow(searchSnippets, own)?.subject).toEqual([{ text: 'own', marked: true }]);
+      expect(snippetForRow(searchSnippets, shared)?.subject).toEqual([{ text: 'grp-1', marked: true }]);
+
+      mockQueryEmailPage.mockResolvedValue({ ids: [], total: 0, list: [], threads: [], snippets: [] });
+      useEmailStore.getState().setSearchQuery('');
+      expect(useEmailStore.getState().searchSnippets).toEqual({});
+    });
+
+    it('stores a single-account search\'s highlights under the account queried, and clears them on an account switch', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1' });
+      mockQueryEmailPage.mockResolvedValue({
+        ids: ['e1'], total: 1, queryState: 'q', state: 's', list: [rowA], threads: [],
+        snippets: [{ emailId: 'e1', subject: null, preview: `a ${mark('hit')}` }],
+      });
+
+      useEmailStore.getState().setFilters({ subject: 'hit' });
+      await vi.waitFor(() => expect(useEmailStore.getState().emails).toHaveLength(1));
+
+      expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ snippets: true }));
+      const state = useEmailStore.getState();
+      expect(Object.keys(state.searchSnippets)).toEqual([JSON.stringify(['acc-1', 'e1'])]);
+      expect(snippetForRow(state.searchSnippets, state.emails[0])?.preview)
+        .toEqual([{ text: 'a ', marked: false }, { text: 'hit', marked: true }]);
+
+      useEmailStore.getState().setActiveAccount('another-account');
+      expect(useEmailStore.getState().searchSnippets).toEqual({});
+    });
+
+    it('drops highlights when a search lands for an account no longer shown', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1' });
+      const answer = deferred<any>();
+      mockQueryAcross.mockReturnValueOnce(answer.promise);
+      useEmailStore.getState().setSearchQuery('invoice');
+      await vi.waitFor(() => expect(mockQueryAcross).toHaveBeenCalled());
+      useEmailStore.getState().setActiveAccount('another-account');
+      answer.resolve([{
+        accountId: undefined, ok: true, total: 1, threads: [], list: [rowA],
+        snippets: [{ emailId: 'e1', subject: mark('late') }],
+      }]);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(useEmailStore.getState().searchSnippets).toEqual({});
     });
   });
 

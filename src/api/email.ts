@@ -18,6 +18,7 @@ import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
+import { filterHasSnippetTerms, type SearchSnippetResult } from '../lib/search-snippet';
 import { opScope, type AccountRef, type OpScope } from './op-scope';
 
 export const EMAIL_LIST_PROPERTIES = [
@@ -379,6 +380,8 @@ function buildMailboxQueryFilter(
 }
 
 interface EmailQueryOptions {
+  /** Also ask SearchSnippet/get for the words the filter matched. */
+  snippets?: boolean;
   position?: number;
   limit?: number;
   sort?: Array<{ property: string; isAscending: boolean; keyword?: string }>;
@@ -386,6 +389,32 @@ interface EmailQueryOptions {
   /** Owning JMAP account when the mailbox belongs to a shared account. */
   accountId?: string;
   collapseThreads?: boolean;
+}
+
+/** SearchSnippet/get for the ids of the query `queryCallId`; only when the filter has words to mark. */
+function snippetCall(
+  accountId: unknown,
+  filter: unknown,
+  queryCallId: string,
+  callId: string,
+): JMAPMethodCall | null {
+  if (!filterHasSnippetTerms(filter as Record<string, unknown> | undefined)) return null;
+  return ['SearchSnippet/get', {
+    accountId,
+    filter,
+    '#emailIds': { resultOf: queryCallId, name: 'Email/query', path: '/ids' },
+  }, callId];
+}
+
+/** The snippets a response carries; highlighting only decorates, so a failed call yields none. */
+function snippetsOf(res: { methodResponses?: Array<[string, unknown, string]> }, callId: string): SearchSnippetResult[] {
+  for (const [name, body, id] of res.methodResponses ?? []) {
+    if (id === callId && name === 'SearchSnippet/get') {
+      const list = (body as { list?: unknown } | null)?.list;
+      return Array.isArray(list) ? (list as SearchSnippetResult[]) : [];
+    }
+  }
+  return [];
 }
 
 function emailQueryArgs(mailboxId: string | undefined, options?: EmailQueryOptions): Record<string, unknown> {
@@ -437,6 +466,8 @@ export async function queryEmailPage(
   list: Email[];
   state?: string;
   threads: Thread[];
+  /** SearchSnippet/get results, with `snippets` and a filter that has search words. */
+  snippets: SearchSnippetResult[];
 }> {
   // The chained Email/get takes every id the query returns, so a page can't
   // be larger than the server lets one /get fetch.
@@ -459,6 +490,8 @@ export async function queryEmailPage(
       '#ids': { resultOf: '1', name: 'Email/get', path: '/list/*/threadId' },
     }, '2']);
   }
+  const snippet = options?.snippets ? snippetCall(accountId, args.filter, '0', 'snippets') : null;
+  if (snippet) calls.push(snippet);
   const res = await jmapClient.request(calls);
   const query = requireMethodResult(res, '0', 'Email/query');
   const got = requireMethodResult(res, '1', 'Email/get');
@@ -479,6 +512,7 @@ export async function queryEmailPage(
     list: ids.flatMap((id) => byId.get(id) ?? []),
     state: got.state as string | undefined,
     threads,
+    snippets: snippet ? snippetsOf(res, 'snippets') : [],
   };
 }
 
@@ -496,7 +530,7 @@ export interface AccountPageTarget {
 }
 
 export type AccountPage =
-  | { accountId?: string; ok: true; total: number; list: Email[]; threads: Thread[] }
+  | { accountId?: string; ok: true; total: number; list: Email[]; threads: Thread[]; snippets: SearchSnippetResult[] }
   | { accountId?: string; ok: false; error: Error };
 
 /**
@@ -509,15 +543,16 @@ export type AccountPage =
  */
 export async function queryEmailPagesAcrossAccounts(
   targets: AccountPageTarget[],
-  options: { limit: number; filter?: Record<string, unknown>; threads?: boolean },
+  options: { limit: number; filter?: Record<string, unknown>; threads?: boolean; snippets?: boolean },
 ): Promise<AccountPage[]> {
-  const callsPerTarget = options.threads ? 3 : 2;
+  const callsPerTarget = (options.threads ? 3 : 2) + (options.snippets ? 1 : 0);
   const perRequest = Math.max(1, Math.floor(jmapClient.getMaxCallsInRequest() / callsPerTarget));
   const limit = Math.min(options.limit, maxInGet());
   const out: AccountPage[] = new Array(targets.length);
   const indexed = targets.map((target, index) => ({ target, index }));
   await Promise.all(batched(indexed, perRequest).map(async (chunk) => {
     const calls: JMAPMethodCall[] = [];
+    const withSnippets = new Set<number>();
     for (const { target, index } of chunk) {
       const args = emailQueryArgs(undefined, {
         position: target.position,
@@ -537,6 +572,11 @@ export async function queryEmailPagesAcrossAccounts(
           accountId: args.accountId,
           '#ids': { resultOf: `${index}:g`, name: 'Email/get', path: '/list/*/threadId' },
         }, `${index}:t`]);
+      }
+      const snippet = options.snippets ? snippetCall(args.accountId, args.filter, `${index}:q`, `${index}:s`) : null;
+      if (snippet) {
+        calls.push(snippet);
+        withSnippets.add(index);
       }
     }
     let res: Awaited<ReturnType<typeof jmapClient.request>>;
@@ -564,6 +604,7 @@ export async function queryEmailPagesAcrossAccounts(
           total: (query.total as number) ?? 0,
           list: ((query.ids as string[]) ?? []).flatMap((id) => byId.get(id) ?? []),
           threads,
+          snippets: withSnippets.has(index) ? snippetsOf(res, `${index}:s`) : [],
         };
       } catch (err) {
         out[index] = {

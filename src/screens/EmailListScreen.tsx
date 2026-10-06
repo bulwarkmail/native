@@ -24,12 +24,14 @@ import { OfflineBanner } from '../components/OfflineBanner';
 import {
   ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
+import { HighlightedText } from '../components/email/HighlightedText';
+import type { RowSnippet } from '../lib/search-snippet';
 import { VerificationCodeChip } from '../components/email/VerificationCodeChip';
 import { chipCodeFor } from '../lib/verification-code';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
-  useEmailStore, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  useEmailStore, snippetForRow, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
   requireShownAccountScope, type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
@@ -105,6 +107,7 @@ const EmailRow = React.memo(function EmailRow({
   disableAvatarImages,
   answered,
   forwarded,
+  snippet,
   onPress,
   onLongPress,
   selected,
@@ -123,6 +126,8 @@ const EmailRow = React.memo(function EmailRow({
   disableAvatarImages: boolean;
   answered: boolean;
   forwarded: boolean;
+  /** What the open search matched in this row, if the server marked anything. */
+  snippet?: RowSnippet;
   onPress: (id: string) => void;
   onLongPress: (id: string) => void;
   selected: boolean;
@@ -246,7 +251,9 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 2: Subject + tag pills */}
         <View style={styles.subjectRow}>
           <Text style={[styles.emailSubject, dyn.body, unread && styles.textBold]} numberOfLines={1}>
-            {singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
+            {snippet?.subject
+              ? <HighlightedText runs={snippet.subject} markStyle={styles.searchHit} />
+              : singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
           </Text>
           {tags.slice(0, 3).map((tag) => (
             <View key={tag.id} style={[styles.tagPill, { backgroundColor: tag.bg }]}>
@@ -262,7 +269,9 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
         {showPreview && density.showPreview && (
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
-            {singleLine(item.preview)}
+            {snippet?.preview
+              ? <HighlightedText runs={snippet.preview} markStyle={styles.searchHit} />
+              : singleLine(item.preview)}
           </Text>
         )}
         {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} />}
@@ -356,6 +365,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const storeSearchQuery = useEmailStore((s) => s.searchQuery);
   const filters = useEmailStore((s) => s.filters);
   const accountErrors = useEmailStore((s) => s.accountErrors);
+  const searchSnippets = useEmailStore((s) => s.searchSnippets);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const ensureMailboxes = useEmailStore((s) => s.ensureMailboxes);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
@@ -725,6 +735,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           disableAvatarImages={inJunk && !showAvatarsInJunk}
           answered={flags?.answered ?? false}
           forwarded={flags?.forwarded ?? false}
+          snippet={snippetForRow(searchSnippets, item)}
           selected={selectedIds.has(rowKeyOf(item))}
           selectionMode={selectionMode}
           onPress={handleRowPress}
@@ -738,7 +749,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showVerificationCodes, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
-      loadAttachments, openAttachment,
+      loadAttachments, openAttachment, searchSnippets,
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
@@ -2414,6 +2425,8 @@ function makeStyles(c: ThemePalette) {
   // Unread state: text foreground + font-bold
   textUnread: { fontWeight: '600', color: c.text },
   textBold: { fontWeight: '700' },
+  // A word the search matched, in the row's subject or preview.
+  searchHit: { fontWeight: '700', color: c.text, backgroundColor: c.tags.yellow.bg },
   // Tag pill: text-[10px], rounded-full, px-1.5 py-0.5, gap-1
   tagPill: {
     flexDirection: 'row',
