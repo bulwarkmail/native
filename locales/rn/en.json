@@ -18,7 +18,6 @@
       "add_note_short": "Note",
       "location_copied": "Location copied",
       "location_copy_failed": "Could not copy the location",
-      "title_copied": "Title copied",
       "title_copy_failed": "Could not copy the title"
     },
     "drawer": {

@@ -228,7 +228,7 @@ export function EventDetailSheet({
   };
   const copyTitle = () => {
     Clipboard.setStringAsync(event.title || '').then(
-      () => toast.success(t('calendar.detail.title_copied', 'Title copied')),
+      () => toast.success(t('calendar.notifications.title_copied', 'Title copied')),
       () => toast.error(t('calendar.detail.title_copy_failed', 'Could not copy the title')),
     );
   };
