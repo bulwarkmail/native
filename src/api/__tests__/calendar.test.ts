@@ -26,6 +26,7 @@ import {
   resetSyntheticIdSupport,
   queryExpandedEvents,
   hydrateExpandedOccurrences,
+  scanCalendarObjects,
   getParticipantIdentities,
   setDefaultParticipantIdentity,
 } from '../calendar';
@@ -67,7 +68,30 @@ describe('calendar operations', () => {
           ['CalendarEvent/set', { accountId: 'acc-1', update: { h333333: {} } }, 'synthetic-id-probe'],
         ],
         expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
+        { gen: 3 },
       );
+    });
+
+    it('sends every request on the connection the caller started on', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['Calendar/get', { list: [] }, '0']] });
+      await getCalendars({ gen: 9, accountId: 'acc-9' });
+      expect(mockRequest.mock.calls[0][0][0][1]).toEqual({ accountId: 'acc-9' });
+      expect(mockRequest.mock.calls[0][2]).toEqual({ gen: 9 });
+    });
+  });
+
+  describe('reads bound to a scope', () => {
+    it('queryEvents, queryExpandedEvents and scanCalendarObjects go out on the scope', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['CalendarEvent/query', { ids: [] }, '0']] });
+      const at = { gen: 9, accountId: 'acc-9' };
+      await queryEvents(['cal-1'], '', '', at);
+      await queryExpandedEvents('2026-03-01T00:00:00Z', '2026-03-02T00:00:00Z', at);
+      await scanCalendarObjects(at);
+      for (const call of mockRequest.mock.calls) {
+        expect(call[0][0][1].accountId).toBe('acc-9');
+        expect(call[2]).toEqual({ gen: 9 });
+      }
+      expect(mockRequest).toHaveBeenCalledTimes(3);
     });
   });
 

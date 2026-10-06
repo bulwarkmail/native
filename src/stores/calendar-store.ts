@@ -33,8 +33,9 @@ import {
   resetSyntheticIdSupport,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
-import { inAccount, type AccountRef, type OpScope } from '../api/op-scope';
-import { isShownAccount, requireShownAccountScope } from './email-store';
+import { inAccount, opScope, type AccountRef, type OpScope } from '../api/op-scope';
+import { isShownAccount, requireShownAccountScope, useEmailStore } from './email-store';
+import { isStaleLoad } from '../lib/network-error';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
 import {
@@ -301,9 +302,53 @@ export interface CalendarState {
   reset: () => void;
 }
 
-// In-flight dedupe for the two whole-account loads (see fetchCalendars).
-let calendarsInFlight: Promise<void> | null = null;
-let tasksInFlight: Promise<void> | null = null;
+/**
+ * The account and connection one load runs for, taken when it starts. Ids
+ * repeat across accounts (Stalwart numbers them per account), so a load that
+ * lands after a switch would put the account being left's event "9" or task
+ * "7" in the new account's store, where a Delete or a tick acts on the new
+ * account's own "9" or "7". Every request of the load goes out on `scope`,
+ * and its result is kept only while `loadIsCurrent`.
+ */
+interface LoadContext {
+  appAccountId: string;
+  scope: OpScope;
+  /** `loadEpoch` when the load started. */
+  epoch: number;
+}
+
+// Bumped by reset(): a load from before it belongs to the session it ended.
+let loadEpoch = 0;
+
+/**
+ * A load for the shown account, on the connection serving it; null while
+ * the client serves another account (a switch in progress: the refetch once
+ * it is served loads the new account).
+ */
+function beginLoad(): LoadContext | null {
+  const appAccountId = useEmailStore.getState().activeAccountId;
+  if (!appAccountId || !jmapClient.isConnected) return null;
+  try {
+    return { appAccountId, scope: requireShownAccountScope(appAccountId), epoch: loadEpoch };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a load's result may still be stored: same session, account shown, same connection. */
+function loadIsCurrent(load: LoadContext): boolean {
+  return load.epoch === loadEpoch
+    && isShownAccount(load.appAccountId)
+    && jmapClient.connectionGen === load.scope.gen;
+}
+
+const loadKey = (load: LoadContext) => `${load.epoch}|${load.appAccountId}|${load.scope.gen}|${load.scope.accountId}`;
+
+// In-flight dedupe for the two whole-account loads (see fetchCalendars),
+// per load context: a caller for another account or connection never joins
+// (or is handed) a load that isn't its own.
+let calendarsInFlight: { key: string; promise: Promise<void> } | null = null;
+let tasksInFlight: { key: string; promise: Promise<void> } | null = null;
 
 function persistHidden(ids: string[]): void {
   void AsyncStorage.setItem(HIDDEN_CALENDARS_STORAGE_KEY, JSON.stringify(ids)).catch(
@@ -337,6 +382,8 @@ export async function loadEventsInRange(
   calendarIds: string[],
   after: string,
   before: string,
+  // The connection every request goes out on; omitted, the live one, taken now.
+  at: OpScope = opScope(),
 ): Promise<CalendarEvent[]> {
   // Group the requested calendars by owning account: the primary account
   // (calendars without an accountId tag) plus one group per shared
@@ -357,41 +404,43 @@ export async function loadEventsInRange(
   if (groups.size === 0) groups.set(undefined, []);
 
   const expand = !!after && !!before
-    && await supportsSyntheticCalendarIds().catch(() => false);
+    && await supportsSyntheticCalendarIds(at).catch(() => false);
   const raw: CalendarEvent[] = [];
   for (const [accountId, ids] of groups) {
     if (accountId && isCalendarAccessDenied(accountId)) continue;
+    const ref = inAccount(at, accountId);
     try {
       let fetched: CalendarEvent[] | null = null;
       if (expand) {
         // null: the server won't expand a range this long; the series are
         // then fetched whole and expanded below.
-        const expandedIds = await queryExpandedEvents(after, before, accountId);
+        const expandedIds = await queryExpandedEvents(after, before, ref);
         if (expandedIds) {
           const occurrences = expandedIds.length > 0
-            ? (await fetchEvents(expandedIds, accountId, { expanded: true })) ?? []
+            ? (await fetchEvents(expandedIds, ref, { expanded: true })) ?? []
             : [];
           // The expanded query spans the account; keep the asked-for calendars.
           const wanted = new Set(ids);
           const inCalendars = wanted.size === 0
             ? occurrences
             : occurrences.filter((e) => Object.keys(e.calendarIds || {}).some((id) => wanted.has(id)));
-          fetched = await hydrateExpandedOccurrences(inCalendars, accountId);
+          fetched = await hydrateExpandedOccurrences(inCalendars, ref);
         }
       }
       if (!fetched) {
         // The window is sent as after/before so accounts with more than
         // 1000 objects don't silently lose events and navigating past the
         // loaded range doesn't re-download everything.
-        const eventIds = (await queryEvents(ids, after, before, accountId)) ?? [];
+        const eventIds = (await queryEvents(ids, after, before, ref)) ?? [];
         if (eventIds.length === 0) continue;
-        fetched = (await fetchEvents(eventIds, accountId)) ?? [];
+        fetched = (await fetchEvents(eventIds, ref)) ?? [];
       }
       raw.push(...fetched.map((e) => mapServerEventToStoreEvent(e, calendars, accountId)));
     } catch (err) {
       // A failing shared account must not hide the user's own events;
-      // remember an access rejection so it isn't re-probed every fetch.
-      if (!accountId) throw err;
+      // remember an access rejection so it isn't re-probed every fetch. A
+      // connection that is gone fails the whole load.
+      if (!accountId || isStaleLoad(err)) throw err;
       noteCalendarAccessError(accountId, err);
     }
   }
@@ -622,39 +671,67 @@ export const useCalendarStore = create<CalendarState>()(
     // a "Not authenticated" error - the refetch driven by the auth-store
     // will run this again once the session is live.
     if (!jmapClient.isConnected) return;
+    const load = beginLoad();
+    if (!load) return;
     // First-touch gate (#907): the screen mount, ensureRange and the
     // auth-store all kick this off at once, and on a clustered Stalwart
     // concurrent first Calendar/* requests can each lazily create a default
     // calendar. Share one in-flight request instead.
-    if (calendarsInFlight) return calendarsInFlight;
-    calendarsInFlight = (async () => {
+    const key = loadKey(load);
+    if (calendarsInFlight?.key === key) return calendarsInFlight.promise;
+    const promise = (async () => {
       try {
-        const calendars = (await fetchCalendars()) ?? [];
-        set({ calendars });
+        // The identities load alongside, so an event organized as one of
+        // them is the user's before the editor or settings were ever opened.
+        const [calendars] = await Promise.all([
+          fetchCalendars(load.scope),
+          get().fetchParticipantIdentities({
+            appAccountId: load.appAccountId,
+            jmapAccountId: load.scope.accountId,
+            scope: load.scope,
+          }),
+        ]);
+        if (!loadIsCurrent(load)) return;
+        set({ calendars: calendars ?? [] });
       } catch (err) {
+        if (isStaleLoad(err) || !loadIsCurrent(load)) return;
         set({ error: err instanceof Error ? err.message : 'Failed to load calendars' });
       } finally {
-        calendarsInFlight = null;
+        if (calendarsInFlight?.key === key) calendarsInFlight = null;
       }
     })();
-    return calendarsInFlight;
+    calendarsInFlight = { key, promise };
+    return promise;
   },
 
   fetchEvents: async (calendarIds, after, before) => {
     if (!jmapClient.isConnected) return;
+    const load = beginLoad();
+    if (!load) return;
     set({ loading: true, error: null });
     try {
-      const events = await loadEventsInRange(get().calendars, calendarIds, after, before);
+      const events = await loadEventsInRange(get().calendars, calendarIds, after, before, load.scope);
+      // Superseded (another account, connection or session): neither the
+      // events nor the "loaded" mark are the shown account's.
+      if (!loadIsCurrent(load)) return;
       set({ events, loadedRange: { after, before }, loading: false });
     } catch (err) {
+      if (!loadIsCurrent(load)) return;
+      if (isStaleLoad(err)) {
+        set({ loading: false });
+        return;
+      }
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
     }
   },
 
   fetchTasks: async () => {
     if (!jmapClient.isConnected) return;
-    if (tasksInFlight) return tasksInFlight;
-    tasksInFlight = (async () => {
+    const load = beginLoad();
+    if (!load) return;
+    const key = loadKey(load);
+    if (tasksInFlight?.key === key) return tasksInFlight.promise;
+    const promise = (async () => {
       try {
         const calendars = get().calendars;
         const accountIds = new Set<string | undefined>([undefined]);
@@ -663,8 +740,9 @@ export const useCalendarStore = create<CalendarState>()(
         const taskOnly: string[] = [];
         for (const accountId of accountIds) {
           if (accountId && isCalendarAccessDenied(accountId)) continue;
+          const ref = inAccount(load.scope, accountId);
           try {
-            const scanned = await scanCalendarObjects(accountId);
+            const scanned = await scanCalendarObjects(ref);
             // Classify VTODO-only task lists from the full (undated) object
             // set: a calendar counts as a task list when every object in it
             // is a task. Empty calendars stay ordinary event calendars. (#28)
@@ -682,26 +760,31 @@ export const useCalendarStore = create<CalendarState>()(
               .map((o) => o.id as string)
               .filter(Boolean);
             if (taskIds.length === 0) continue;
-            const fetched = (await fetchEvents(taskIds, accountId)) ?? [];
+            const fetched = (await fetchEvents(taskIds, ref)) ?? [];
             tasks.push(...fetched.map((e) => mapServerEventToStoreEvent(e, calendars, accountId)));
           } catch (err) {
-            if (!accountId) throw err;
+            if (!accountId || isStaleLoad(err)) throw err;
             noteCalendarAccessError(accountId, err);
           }
         }
+        if (!loadIsCurrent(load)) return;
         set({ tasks, taskOnlyCalendarIds: taskOnly });
       } catch (err) {
+        if (isStaleLoad(err) || !loadIsCurrent(load)) return;
         set({ error: err instanceof Error ? err.message : 'Failed to load tasks' });
       } finally {
-        tasksInFlight = null;
+        if (tasksInFlight?.key === key) tasksInFlight = null;
       }
     })();
-    return tasksInFlight;
+    tasksInFlight = { key, promise };
+    return promise;
   },
 
   ensureRange: async (after, before) => {
     const { loadedRange } = get();
     if (loadedRange && rangeCovers(loadedRange, after, before)) return;
+    const load = beginLoad();
+    if (!load) return;
 
     // Queries are windowed now, so load exactly the requested range instead
     // of an ever-growing union (which re-downloaded everything each time).
@@ -709,6 +792,8 @@ export const useCalendarStore = create<CalendarState>()(
       // Calendars haven't loaded yet - fetch them (deduped), then events.
       await get().fetchCalendars();
     }
+    // The calendars may be another account's now, or none for having been dropped.
+    if (!loadIsCurrent(load)) return;
     const calendarIds = get().calendars.map((c) => c.id);
     if (calendarIds.length === 0) {
       set({ loadedRange: { after, before } });
@@ -716,7 +801,7 @@ export const useCalendarStore = create<CalendarState>()(
     }
     const needTasks = get().tasks.length === 0 && get().taskOnlyCalendarIds.length === 0;
     await get().fetchEvents(calendarIds, after, before);
-    if (needTasks) void get().fetchTasks();
+    if (needTasks && loadIsCurrent(load)) void get().fetchTasks();
   },
 
   extendRange: async (after, before) => {
@@ -733,9 +818,12 @@ export const useCalendarStore = create<CalendarState>()(
       return;
     }
     if (!jmapClient.isConnected) return;
+    const load = beginLoad();
+    if (!load) return;
     // Calendars haven't loaded yet (cold start with a cached window): fetch
     // them (deduped) first, like ensureRange.
     if (get().calendars.length === 0) await get().fetchCalendars();
+    if (!loadIsCurrent(load)) return;
     const calendars = get().calendars;
     const calendarIds = calendars.map((c) => c.id);
     if (calendarIds.length === 0) {
@@ -746,8 +834,10 @@ export const useCalendarStore = create<CalendarState>()(
     try {
       const incoming: CalendarEvent[] = [];
       for (const piece of plan.pieces) {
-        incoming.push(...(await loadEventsInRange(calendars, calendarIds, piece.after, piece.before)));
+        incoming.push(...(await loadEventsInRange(calendars, calendarIds, piece.after, piece.before, load.scope)));
       }
+      // Superseded: these events and this window are not the shown account's.
+      if (!loadIsCurrent(load)) return;
       // A jump elsewhere replaced the window meanwhile: these pieces no
       // longer border it. (A refresh of the same window is fine.)
       if (!sameRange(get().loadedRange, loaded)) {
@@ -760,6 +850,11 @@ export const useCalendarStore = create<CalendarState>()(
         loading: false,
       });
     } catch (err) {
+      if (!loadIsCurrent(load)) return;
+      if (isStaleLoad(err)) {
+        set({ loading: false });
+        return;
+      }
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load events' });
     }
   },
@@ -1029,7 +1124,7 @@ export const useCalendarStore = create<CalendarState>()(
       return false;
     };
     try {
-      const existingIds = await queryEvents([], '', '', accountId);
+      const existingIds = await queryEvents([], '', '', ref);
       const existing = existingIds.length > 0 ? await fetchEvents(existingIds, ref) : [];
       const byUid = new Map<string, CalendarEvent>();
       for (const e of existing) if (e.uid) byUid.set(e.uid, e);
@@ -1173,12 +1268,14 @@ export const useCalendarStore = create<CalendarState>()(
   fetchParticipantIdentities: async (account) => {
     try {
       const { accountId, ref } = writeAccount(account, undefined);
+      // The account the list is for, decided now (not when it lands).
+      const key = accountId ?? opScope(ref).accountId;
       const list = await apiGetParticipantIdentities(ref);
       if (!stillShown(account)) return;
       set({
         participantIdentities: {
           ...get().participantIdentities,
-          [accountId ?? jmapClient.accountId]: list,
+          [key]: list,
         },
       });
     } catch {
@@ -1283,6 +1380,11 @@ export const useCalendarStore = create<CalendarState>()(
     resetSyntheticIdSupport();
     syntheticIdRejected = false;
     knownMasters.clear();
+    // Loads in flight belong to the session that ended: they store nothing,
+    // and the next caller starts its own instead of being handed theirs.
+    loadEpoch++;
+    calendarsInFlight = null;
+    tasksInFlight = null;
     set({
       calendars: [],
       events: [],

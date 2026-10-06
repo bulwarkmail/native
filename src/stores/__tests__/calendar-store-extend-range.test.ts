@@ -25,11 +25,16 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
     isConnected: true,
+    connectionGen: 7,
+    username: 'test@example.com',
+    serverUrl: 'https://mail.example.com',
   },
 }));
 
 import * as calendarApi from '../../api/calendar';
 import { useCalendarStore } from '../calendar-store';
+import { useEmailStore } from '../email-store';
+import { registerServedAccount } from './helpers/served-account';
 
 const mockQueryEvents = calendarApi.queryEvents as ReturnType<typeof vi.fn>;
 const mockGetEvents = calendarApi.getEvents as ReturnType<typeof vi.fn>;
@@ -39,6 +44,9 @@ const SEP = '2026-09-01T00:00:00.000Z';
 const OCT = '2026-10-01T00:00:00.000Z';
 const NOV = '2026-11-01T00:00:00.000Z';
 
+/** The connection the loads run on (gen 7), in the user's own account. */
+const OWN = { gen: 7, accountId: 'acc-1' };
+
 function event(id: string, start: string) {
   return { id, uid: id, title: id, start, duration: 'PT1H', calendarIds: { 'cal-1': true } };
 }
@@ -46,6 +54,8 @@ function event(id: string, start: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockScan.mockResolvedValue([]);
+  // Loads run for the account the app shows, on the connection serving it.
+  useEmailStore.setState({ activeAccountId: registerServedAccount('test@example.com', 'https://mail.example.com') });
   useCalendarStore.setState({
     calendars: [{ id: 'cal-1', name: 'Personal' } as never],
     events: [],
@@ -63,7 +73,7 @@ describe('calendar-store extendRange (#759)', () => {
   it('loads the whole range when nothing is loaded yet', async () => {
     mockQueryEvents.mockResolvedValue([]);
     await useCalendarStore.getState().extendRange(SEP, OCT);
-    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], SEP, OCT, undefined);
+    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], SEP, OCT, OWN);
     expect(useCalendarStore.getState().loadedRange).toEqual({ after: SEP, before: OCT });
   });
 
@@ -78,7 +88,7 @@ describe('calendar-store extendRange (#759)', () => {
     await useCalendarStore.getState().extendRange(SEP, NOV);
 
     expect(mockQueryEvents).toHaveBeenCalledTimes(1);
-    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], OCT, NOV, undefined);
+    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], OCT, NOV, OWN);
     const state = useCalendarStore.getState();
     expect(state.events.map((e) => e.id)).toEqual(['a', 'b']);
     expect(state.loadedRange).toEqual({ after: SEP, before: NOV });
@@ -109,7 +119,7 @@ describe('calendar-store extendRange (#759)', () => {
     await useCalendarStore.getState().extendRange(SEP, NOV);
 
     expect(mockGetCalendars).toHaveBeenCalledTimes(1);
-    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], OCT, NOV, undefined);
+    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], OCT, NOV, OWN);
     expect(useCalendarStore.getState().loadedRange).toEqual({ after: SEP, before: NOV });
   });
 
@@ -129,7 +139,7 @@ describe('calendar-store extendRange (#759)', () => {
 
     await useCalendarStore.getState().extendRange(far.after, far.before);
 
-    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], far.after, far.before, undefined);
+    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], far.after, far.before, OWN);
     expect(useCalendarStore.getState().loadedRange).toEqual(far);
     expect(useCalendarStore.getState().events).toEqual([]);
   });
@@ -145,7 +155,7 @@ describe('calendar-store extendRange (#759)', () => {
 
     await useCalendarStore.getState().extendRange(jump.after, jump.before);
 
-    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], jump.after, jump.before, undefined);
+    expect(mockQueryEvents).toHaveBeenCalledWith(['cal-1'], jump.after, jump.before, OWN);
     expect(useCalendarStore.getState().loadedRange).toEqual(jump);
   });
 
