@@ -11,6 +11,7 @@ import type { JMAPClient } from '../api/jmap-client';
 import { refreshSnapshot, singletonServes } from './build';
 import { markRead, moveTo, openClient, rsvp, setTaskDone } from './jmap';
 import { loadLocal, saveLocal } from './local-state';
+import { pinToConnection } from './pinned-client';
 import type { PendingChange } from './pending';
 import type { ActionNotice } from './snapshot';
 import { redrawAll } from './render';
@@ -19,7 +20,8 @@ import { currentView, settle, track } from './state';
 
 async function clientFor(registryAccountId: string | null | undefined): Promise<JMAPClient | null> {
   if (!registryAccountId) return null;
-  if (singletonServes(registryAccountId)) return jmapClient;
+  // The app's own client, held to this connection for the whole action.
+  if (singletonServes(registryAccountId)) return pinToConnection(jmapClient);
   return openClient(registryAccountId);
 }
 
