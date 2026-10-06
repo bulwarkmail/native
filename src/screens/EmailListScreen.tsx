@@ -39,6 +39,7 @@ import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { withFailureToast } from '../lib/action-failure';
+import { selectionAfter, settled } from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
@@ -730,6 +731,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+  // After a bulk action: clear on success, keep the ids on failure so the user can retry.
+  const finishBulk = React.useCallback((ok: boolean) => {
+    setSelectedIds((prev) => selectionAfter(ok, prev) as Set<string>);
+  }, []);
 
   const toggleSelectAllVisible = React.useCallback(() => {
     setSelectedIds((prev) => {
@@ -765,13 +770,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
 
   // One Email/set for the whole selection, not a request per message.
   const handleBulkMarkReadToggle = async () => {
-    await withFailureToast(setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead), t('notifications.error_updating', 'Failed to update email'));
-    clearSelection();
+    finishBulk(await settled(setKeywordForEmails(selectedMessageIds, '$seen', !allSelectedAreRead), t('notifications.error_updating', 'Failed to update email')));
   };
 
   const handleBulkStar = async () => {
-    await withFailureToast(setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred), t('notifications.error_updating', 'Failed to update email'));
-    clearSelection();
+    finishBulk(await settled(setKeywordForEmails(selectedMessageIds, '$flagged', !allSelectedAreStarred), t('notifications.error_updating', 'Failed to update email')));
   };
 
   const handleBulkDelete = async () => {
@@ -788,20 +791,17 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       permanentlyDeleteJunk,
     });
     if (permanent && !(await confirmPermanentDelete(ids.length, t))) return;
-    await withFailureToast(deleteEmailsBatch(ids, trash.id, currentMailboxId), t('notifications.delete_failed', 'Failed to delete'));
-    clearSelection();
+    finishBulk(await settled(deleteEmailsBatch(ids, trash.id, currentMailboxId), t('notifications.delete_failed', 'Failed to delete')));
   };
 
   const handleBulkArchive = async () => {
-    await withFailureToast(archiveEmailsBatch(selectedMessageIds), t('notifications.move_failed', 'Move failed'));
-    clearSelection();
+    finishBulk(await settled(archiveEmailsBatch(selectedMessageIds), t('notifications.move_failed', 'Move failed')));
   };
 
   const handleBulkSpam = async () => {
     const ids = selectedMessageIds;
-    if (inJunk) await withFailureToast(unmarkSpam(ids), t('email_viewer.spam.error', 'Failed to report spam'));
-    else await withFailureToast(markSpam(ids), t('email_viewer.spam.error', 'Failed to report spam'));
-    clearSelection();
+    const title = t('email_viewer.spam.error', 'Failed to report spam');
+    finishBulk(await settled(inJunk ? unmarkSpam(ids) : markSpam(ids), title));
   };
 
   const canArchiveSelection =
@@ -812,8 +812,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const handleBatchMovePick = (toId: string) => {
     const ids = selectedMessageIds;
     setBatchMoveOpen(false);
-    clearSelection();
-    void withFailureToast(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed'));
+    void settled(moveEmailsToMailbox(ids, toId), t('notifications.move_failed', 'Move failed')).then(finishBulk);
   };
 
   // A copy leaves the selection (and the messages) as they are, like the webmail.

@@ -1586,8 +1586,9 @@ export const useEmailStore = create<EmailState>()(
       try {
         await crossAccountMove([email], from, to);
       } catch (err) {
+        // The caller reports it as a failed move (toast), like a same-account one.
         set({ error: err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed') });
-        return;
+        throw err;
       }
       if (listed) set({ emails: get().emails.filter((e) => rowKeyOf(e) !== rowKey) });
       dropFromCache([emailId], from.accountId);
@@ -1841,7 +1842,7 @@ export const useEmailStore = create<EmailState>()(
         await crossAccountMove(targets, source, to);
       } catch (err) {
         set({ error: err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed') });
-        return;
+        throw err;
       }
       const moved = new Set(targets.map(rowKeyOf));
       set({ emails: get().emails.filter((e) => !moved.has(rowKeyOf(e))) });
@@ -2369,6 +2370,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   const gone: Email[] = [];
   const copies: Array<{ accountId?: string; emails: Email[] }> = [];
   let missing: string | null = null;
+  let moveFailure: unknown;
   let refreshFolders = false;
   const keywordPatch: KeywordPatch | undefined =
     action === 'spam' ? { $junk: true, $notjunk: null, ...(settings.deleteAction === 'trash-and-read' ? { $seen: true } : {}) }
@@ -2481,6 +2483,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       dropFromCache(copy.emails.map((e) => e.id), copy.accountId);
     } catch (err) {
       missing = err instanceof Error ? err.message : t('notifications.move_failed', 'Move failed');
+      moveFailure ??= err;
     }
   }
   for (const update of cacheUpdates) update();
@@ -2516,6 +2519,8 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       : {}),
     ...(missing ? { error: missing } : {}),
   });
+  // A cross-account move that failed is the caller's to report.
+  if (moveFailure !== undefined) throw moveFailure;
 }
 
 // ── Refresh implementations (wrapped by coalesceRefresh above) ─────────

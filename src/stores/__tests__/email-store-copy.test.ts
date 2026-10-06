@@ -267,3 +267,23 @@ describe('a failed copy', () => {
     }
   });
 });
+
+describe('a failed cross-account move', () => {
+  it('rejects so the caller can report it as a failed move, and keeps the row', async () => {
+    mockImport.mockRejectedValue(new Error('boom'));
+
+    await withFailureToast(useEmailStore.getState().moveToMailbox('e1', 'a', 'grp-1:x'), 'Move failed');
+
+    expect(toast.error).toHaveBeenCalledWith('Move failed', 'boom');
+    expect(mockDestroy).not.toHaveBeenCalled();
+    expect(useEmailStore.getState().emails).toEqual([ROW, ROW2]);
+  });
+
+  it('rejects a batch move the same way', async () => {
+    mockImport.mockRejectedValue(new Error('boom'));
+
+    await expect(useEmailStore.getState().moveEmailsToMailbox(['e1', 'e2'], 'grp-1:x')).rejects.toThrow('boom');
+    expect(mockDestroy).not.toHaveBeenCalled();
+    expect(useEmailStore.getState().emails).toEqual([ROW, ROW2]);
+  });
+});
