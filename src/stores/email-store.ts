@@ -263,11 +263,44 @@ function servedScope(): OpScope | null {
 
 /** `servedScope()`, or the "try again" refusal of an action that can't wait in the outbox. */
 function requireServedScope(): OpScope {
-  const at = servedScope();
-  if (!at) {
-    throw new Error(t('email_list.account_not_ready', 'This account is still loading. Try again in a moment.'));
+  return requireShownAccountScope(useEmailStore.getState().activeAccountId);
+}
+
+/** Why an action on one account's mail was refused (see `requireShownAccountScope`). */
+export class AccountNotServedError extends Error {
+  constructor(readonly reason: 'switched' | 'loading') {
+    super(reason === 'switched'
+      ? t('email_list.account_switched_back', 'This belongs to another account. Switch back to it and try again.')
+      : t('email_list.account_not_ready', 'This account is still loading. Try again in a moment.'));
+    this.name = 'AccountNotServedError';
   }
-  return at;
+}
+
+/**
+ * The connection an action on app account `appAccountId`'s mail runs on
+ * (JMAP account `jmapAccountId`, undefined for its own), taken now, for a
+ * screen that captured that account when it showed its folders or message.
+ * Refused ("switch back") once the app shows another account, and ("try
+ * again") while the client still serves another one: during a switch the
+ * screen's data and the connection belong to different accounts, and ids
+ * repeat across accounts (Stalwart numbers them per account), so the action
+ * would land on the other account's same-id folder or message. Pass the
+ * scope to every request the action makes.
+ */
+export function requireShownAccountScope(
+  appAccountId: string | null | undefined,
+  jmapAccountId?: string,
+): OpScope {
+  if (!appAccountId || appAccountId !== useEmailStore.getState().activeAccountId) {
+    throw new AccountNotServedError(appAccountId ? 'switched' : 'loading');
+  }
+  if (!jmapClientServesActiveAccount(appAccountId)) throw new AccountNotServedError('loading');
+  return inAccount(opScope(), jmapAccountId);
+}
+
+/** Whether app account `appAccountId` is the one the app shows now. */
+export function isShownAccount(appAccountId: string | null | undefined): boolean {
+  return !!appAccountId && appAccountId === useEmailStore.getState().activeAccountId;
 }
 
 /**

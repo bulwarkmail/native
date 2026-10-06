@@ -11,7 +11,10 @@ vi.mock('expo-secure-store', () => ({
 vi.mock('expo-file-system', () => ({ File: class {} }));
 
 import { JMAPClient, StaleLoadError, jmapClient } from '../jmap-client';
-import { archiveEmails, destroyEmails, moveEmails, sendEmail } from '../email';
+import {
+  archiveEmails, createMailbox, deleteMailbox, destroyEmails, emptyMailbox, markMailboxAsRead, moveEmails,
+  sendEmail, updateMailbox,
+} from '../email';
 import { uploadBytes } from '../blob';
 import { opScope } from '../op-scope';
 import { generateAccountId } from '../../lib/account-utils';
@@ -492,6 +495,28 @@ describe('an operation stays on the connection it started on (R15)', () => {
     await expect(jmapClient.fetchBlobArrayBuffer('blob-1', undefined, 'message/rfc822', at.accountId, at.gen))
       .rejects.toBeInstanceOf(StaleLoadError);
     expect(calls).toEqual([]);
+  });
+
+  // Extra round (R16): screens that take a scope at the tap and pass it on.
+  it.each([
+    ['empty folder', (at: ReturnType<typeof opScope>) => emptyMailbox('trash', at)],
+    ['delete folder with its messages', (at: ReturnType<typeof opScope>) => deleteMailbox('f1', at, { onDestroyRemoveEmails: true })],
+    ['rename folder', (at: ReturnType<typeof opScope>) => updateMailbox('f1', { name: 'x' }, at)],
+    ['create folder', (at: ReturnType<typeof opScope>) => createMailbox({ name: 'x', parentId: 'f1' }, at)],
+    ['mark folder read', (at: ReturnType<typeof opScope>) => markMailboxAsRead('inbox', at)],
+  ])('%s, bound to A at the tap, sends nothing to B after a switch', async (_name, act) => {
+    await bothOnC(async (c) => setOk(c));
+    const at = opScope();
+    await switchToB();
+    await expect(act(at)).rejects.toBeInstanceOf(StaleLoadError);
+    expect(postedTo('b.example.com')).toEqual([]);
+  });
+
+  it('a folder action bound to A still runs while A is served', async () => {
+    await bothOnC(async (c) => setOk(c));
+    await deleteMailbox('f1', opScope(), { onDestroyRemoveEmails: true });
+    await updateMailbox('f1', { name: 'x' }, opScope());
+    expect(postedTo('a.example.com')).toHaveLength(2);
   });
 
   it('an operation that stays on its connection still runs every request', async () => {

@@ -30,7 +30,7 @@ import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
   useEmailStore, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
-  type EmailFilters,
+  requireShownAccountScope, type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
 import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
@@ -39,6 +39,7 @@ import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { withFailureToast } from '../lib/action-failure';
+import { isStaleLoad } from '../lib/network-error';
 import {
   selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection, type AccountSelection,
 } from '../lib/selection-after';
@@ -411,8 +412,6 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     [mailboxes, currentMailboxId],
   );
   const currentRole = currentMailbox?.role ?? null;
-  // The JMAP account behind the open folder (undefined = the user's own).
-  const currentOwnerAccountId = currentMailbox?.isShared ? currentMailbox.accountId : undefined;
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   const showRecipient = currentRole === 'sent' || currentRole === 'drafts';
 
@@ -993,6 +992,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (currentRole === 'trash' || inJunk) && !!currentMailbox && (currentMailbox.totalEmails > 0 || emails.length > 0);
   const handleEmptyFolder = () => {
     if (!currentMailbox || emptying) return;
+    // The account whose folder is on screen now. The emptying is bound to it
+    // and to the connection serving it at the confirm: during an account
+    // switch the list shows one account while the client serves another,
+    // whose Trash shares this folder's id (Stalwart numbers per account).
+    const owner = activeAccountId;
+    const folder = currentMailbox;
     Alert.alert(
       t('email_list.empty_folder.confirm_title', 'Empty folder'),
       t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
@@ -1002,13 +1007,22 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           text: t('email_list.empty_folder.confirm_button', 'Empty folder'),
           style: 'destructive',
           onPress: () => {
+            let at;
+            try {
+              at = requireShownAccountScope(owner, folder.isShared ? folder.accountId : undefined);
+            } catch (err) {
+              Alert.alert(t('email_list.error', 'Error'), err instanceof Error ? err.message : String(err));
+              return;
+            }
             setEmptying(true);
-            void apiEmptyMailbox(currentMailbox.originalId ?? currentMailbox.id, currentOwnerAccountId)
+            void apiEmptyMailbox(folder.originalId ?? folder.id, at)
               .then(async () => {
                 clearSelection();
                 await Promise.all([refreshEmails(), fetchMailboxes()]);
               })
               .catch((err: unknown) => {
+                // Stopped before sending: the client moved to another account.
+                if (isStaleLoad(err)) return;
                 Alert.alert(
                   t('email_list.error', 'Error'),
                   err instanceof Error ? err.message : t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),

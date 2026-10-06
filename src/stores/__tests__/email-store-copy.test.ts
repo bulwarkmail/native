@@ -111,7 +111,7 @@ import * as emailApi from '../../api/email';
 import { toast } from '../toast-store';
 import { withFailureToast } from '../../lib/action-failure';
 import { jmapClient } from '../../api/jmap-client';
-import { useEmailStore } from '../email-store';
+import { useEmailStore, requireShownAccountScope, AccountNotServedError } from '../email-store';
 import { registerServedAccount } from './helpers/served-account';
 import type { Email, Mailbox } from '../../api/types';
 
@@ -346,6 +346,35 @@ describe('direct actions while the client serves another account (C1)', () => {
     await expect(useEmailStore.getState().importEmails([{ uri: 'file:///a.eml', name: 'a.eml', mimeType: 'message/rfc822' }] as never, 'a'))
       .rejects.toThrow(NOT_READY);
     nothingSent();
+  });
+});
+
+// R16: a screen that showed one account's folders or message binds its action
+// to that account, at the tap. Ids repeat across accounts (Stalwart numbers
+// them per account), so the account and connection must both match.
+describe('requireShownAccountScope', () => {
+  const A = () => useEmailStore.getState().activeAccountId!;
+
+  it('binds the action to the connection serving the shown account', () => {
+    expect(requireShownAccountScope(A())).toEqual({ gen: 7, accountId: 'acc-1' });
+    expect(requireShownAccountScope(A(), 'grp-1')).toEqual({ gen: 7, accountId: 'grp-1' });
+  });
+
+  it('refuses ("switch back") once another account is shown', () => {
+    const a = A();
+    // A notification tap shows B; the client still serves A.
+    useEmailStore.setState({ activeAccountId: 'bob@b.example.com' });
+    expect(() => requireShownAccountScope(a)).toThrow(/Switch back to it/);
+    expect(() => requireShownAccountScope(a)).toThrow(AccountNotServedError);
+  });
+
+  it('refuses ("try again") the shown account while the client serves another', () => {
+    useEmailStore.setState({ activeAccountId: 'bob@b.example.com' });
+    expect(() => requireShownAccountScope('bob@b.example.com')).toThrow('This account is still loading. Try again in a moment.');
+  });
+
+  it('refuses when no account was captured', () => {
+    expect(() => requireShownAccountScope(null)).toThrow(/Try again/);
   });
 });
 

@@ -236,9 +236,10 @@ export async function getMailboxChanges(
 
 export async function createMailbox(
   data: { name: string; parentId?: string | null; role?: string | null },
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<string> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const cid = 'new-mailbox';
   // Subscribe explicitly: IMAP clients that list folders via LSUB
   // (Thunderbird) hide unsubscribed mailboxes, and the server default is
@@ -249,7 +250,7 @@ export async function createMailbox(
     isSubscribed: true,
   };
   if (data.role !== undefined) create.role = data.role;
-  const res = await jmapClient.request([
+  const res = await requestOn(at, [
     ['Mailbox/set', { accountId, create: { [cid]: create } }, '0'],
   ]);
   const result = requireMethodResult(res, '0', 'Mailbox/set');
@@ -267,10 +268,11 @@ export async function createMailbox(
 export async function updateMailbox(
   id: string,
   changes: { name?: string; parentId?: string | null; role?: string | null; sortOrder?: number },
-  accountIdOverride?: string,
+  account?: AccountRef,
 ): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
-  const res = await jmapClient.request([
+  const at = opScope(account);
+  const { accountId } = at;
+  const res = await requestOn(at, [
     ['Mailbox/set', { accountId, update: { [id]: changes } }, '0'],
   ]);
   const body = requireMethodResult(res, '0', 'Mailbox/set');
@@ -286,13 +288,14 @@ export async function updateMailbox(
 
 export async function deleteMailbox(
   id: string,
-  accountIdOverride?: string,
+  account?: AccountRef,
   opts?: { onDestroyRemoveEmails?: boolean },
 ): Promise<void> {
-  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const at = opScope(account);
+  const { accountId } = at;
   const args: Record<string, unknown> = { accountId, destroy: [id] };
   if (opts?.onDestroyRemoveEmails) args.onDestroyRemoveEmails = true;
-  const res = await jmapClient.request([['Mailbox/set', args, '0']]);
+  const res = await requestOn(at, [['Mailbox/set', args, '0']]);
   const body = requireMethodResult(res, '0', 'Mailbox/set');
   const failure = body.notDestroyed?.[id] as
     | { type?: string; description?: string }
