@@ -117,12 +117,12 @@ end of each area's Verified list. Phase 1 of the [roadmap](docs/superpowers/plan
 | 02 | Mail list, folders, unified views, search, tags | [docs/parity/02-mail-list-folders.md](docs/parity/02-mail-list-folders.md) | 76 | 58 | 18 | 1 | 24 | 51 |
 | 03 | Email viewer, thread view, rendering, attachments | [docs/parity/03-email-viewer.md](docs/parity/03-email-viewer.md) | 52 | 50 | 2 | 7 | 17 | 27 |
 | 04 | Composer, drafts, sending, identities, templates, scheduled send | [docs/parity/04-composer-send.md](docs/parity/04-composer-send.md) | 60 | 52 | 8 | 7 | 16 | 37 |
-| 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 61 | 50 | 11 | 5 | 23 | 33 |
+| 05 | Calendar and tasks | [docs/parity/05-calendar.md](docs/parity/05-calendar.md) | 61 | 58 | 3 | 5 | 23 | 33 |
 | 06 | Contacts and address books | [docs/parity/06-contacts.md](docs/parity/06-contacts.md) | 53 | 49 | 4 | 1 | 21 | 31 |
 | 07 | Filters (Sieve), vacation responder, Files | [docs/parity/07-filters-vacation-files.md](docs/parity/07-filters-vacation-files.md) | 38 | 33 | 5 | 3 | 11 | 24 |
 | 08 | Settings, sync, push, i18n, themes, updates, misc UI | [docs/parity/08-settings-push-i18n-ui.md](docs/parity/08-settings-push-i18n-ui.md) | 54 | 42 | 12 | 0 | 15 | 39 |
 | 09 | JMAP client core, live sync, offline, security, S/MIME | [docs/parity/09-jmap-core-sync-security.md](docs/parity/09-jmap-core-sync-security.md) | 57 | 56 | 1 | 7 | 23 | 27 |
-| | **Total** | | **489** | **426** | **63** | **35** | **162** | **291** |
+| | **Total** | | **489** | **434** | **55** | **35** | **162** | **291** |
 
 Counts are of the `- [ ]` and `- [x]` items per file as of 2026-10-04. Done and
 Open split them by tick; the P columns count the priority tags on those items

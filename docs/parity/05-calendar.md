@@ -83,7 +83,7 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
   - What RN does: fixed preset list, multiple allowed, non-offset alerts are dropped from the UI but kept until save (`src/components/calendar/EventModal.tsx:299-312`, `src/lib/calendar-alerts.ts:51-70`). Note the "kept until save" comment is wrong: `remindersToAlerts` rebuilds the map from presets only, so an absolute-trigger alert is lost on the next save.
   - Fix hint: add a custom value+unit row; when rebuilding alerts, carry over alerts whose trigger has no `offset`.
 
-- [ ] **Duplicate event, export .ics, copy meeting link / title, add note** — `P3` — `missing` — duplicate (+1 day, opens editor), share as .ics (`eventToICS` port + expo-sharing) and copy meeting link done in 5fe8e40; deferred: copy title, append-a-note
+- [x] **Duplicate event, export .ics, copy meeting link / title, add note** — `P3` — `missing` — duplicate (+1 day, opens editor), share as .ics (`eventToICS` port + expo-sharing) and copy meeting link done in 5fe8e40; deferred: copy title, append-a-note — copy title and add note done in dd1032d, c29b91d (notes never mail guests: 4b05d08)
   - What WEB does: popover/context-menu actions duplicate (+1 day, opens editor), export via `downloadEventICS`, copy meeting link, copy title, append a timestamped note to the description (ref `components/calendar/calendar-app.tsx:1017-1125`, `lib/calendar-ics-export.ts:96, 176`).
   - What RN does: `EventDetailSheet` has an `onDuplicate` prop that `CalendarScreen` never passes (`src/components/calendar/EventDetailSheet.tsx:59, 336-342`); no export/copy/note.
   - Fix hint: wire `onDuplicate` (clone like WEB `handleDuplicateFromDetail`), add "Share .ics" via `expo-sharing` + a port of `eventToICS`, add "Copy link" with `Clipboard`.
@@ -169,7 +169,7 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
 
 ### Views / navigation / locale
 
-- [ ] **Entire calendar UI is hard-coded English although RN has i18n** — `P2` — `missing` — partial in 0f80e98: screen, month/week/agenda views, event card/sheet/modal, drawer, scope dialog, settings, banner and calendar/share sheets use `t()` + date-fns locales; TasksSheet (09c24fa), `formatReminder` (2abea97) and ICalImportSheet (b7f7110) localized too; deferred: ICalSubscriptionSheet and RecurrenceEditor still hard-code English
+- [x] **Entire calendar UI is hard-coded English although RN has i18n** — `P2` — `missing` — partial in 0f80e98: screen, month/week/agenda views, event card/sheet/modal, drawer, scope dialog, settings, banner and calendar/share sheets use `t()` + date-fns locales; TasksSheet (09c24fa), `formatReminder` (2abea97) and ICalImportSheet (b7f7110) localized too; deferred: ICalSubscriptionSheet and RecurrenceEditor still hard-code English — ICalSubscriptionSheet and RecurrenceEditor done in 84fef14
   - What WEB does: everything through `next-intl` (`t('calendar.*')`), month/day names and popover dates localized (changelog 1.6.x "Localize event start date in detail popover and event modal").
   - What RN does: `src/i18n/index.ts` + `useLocaleStore` are used by 18 other files, but none of `src/components/calendar/*`, `src/screens/CalendarScreen.tsx` or `CalendarSettings.tsx` import it; all labels ("Today", "No events", "Does not repeat", "Going?", RSVP labels, drawer titles, etc.) and `date-fns` `format()` calls without a `locale` are English (`CalendarScreen.tsx:408, 448, 504, 640-641`, `EventModal.tsx:60-67, 326, ...`, `MonthView.tsx:25-26`, `AgendaView.tsx:33-37`).
   - Fix hint: add a `calendar.*` namespace to `locales/*.json` (WEB's keys can be copied) and pass a date-fns locale from the locale store into `format()`.
@@ -214,7 +214,7 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
   - What RN does: `formatRange` uses `eventTimeRange` -> `getEventEndDate` (exclusive), so a single-day all-day event on Mar 1 prints "Mar 1 – Mar 2" and a two-day one "Mar 1 – Mar 3" (`src/components/calendar/EventDetailSheet.tsx:63-74`, `src/lib/calendar-utils.ts:84-90`).
   - Fix hint: for `allDay` use `getEventDisplayEndDate(event)` before comparing/formatting.
 
-- [ ] **Deep links to calendar/event** — `P3` — `missing` — partly: incoming links are parsed since 5802cae (`src/navigation/linking.ts`), and an event link opens the event since 9282ee6; a date link only opens the Calendar tab
+- [x] **Deep links to calendar/event** — `P3` — `missing` — partly: incoming links are parsed since 5802cae (`src/navigation/linking.ts`), and an event link opens the event since 9282ee6; a date link only opens the Calendar tab — date and view links done in 24094ae; links open in their own account since fcca2d7
   - What WEB does: `parseCalendarPath`/`buildCalendarPath` handle `/calendar/<view>/<date>?event=` (ref `lib/deep-links.ts:272-300`, changelog 1.8.3 "Deep links for mail, calendar, contacts, files").
   - What RN does: `Calendar: undefined` route params (`src/navigation/types.ts:33`); `handleDeepLink` hands an event to the Calendar tab through `pending-calendar-open`, the same path a tapped reminder takes, but ignores the date.
   - Fix hint: accept `{ date?, eventId? }` params on the Calendar route and open the detail sheet.
@@ -267,7 +267,7 @@ RN has a solid read path (month/week/agenda, shared-calendar namespacing, per-vi
 
 ### Settings
 
-- [ ] **No custom time-zone setting (#755); no birthday-calendar colour; no "Day" view on mobile (see above)** — `P3` — `missing` — time-zone setting (`calendarTimeZone`, used for saved events and JMAP queries) done in 58a6f45 + 0f80e98; the editors and views work in calendar-zone wall time since a8e6f6e and 8af163a, and floating task dues since 1a651a9; deferred: birthday-calendar colour setting
+- [x] **No custom time-zone setting (#755); no birthday-calendar colour; no "Day" view on mobile (see above)** — `P3` — `missing` — time-zone setting (`calendarTimeZone`, used for saved events and JMAP queries) done in 58a6f45 + 0f80e98; the editors and views work in calendar-zone wall time since a8e6f6e and 8af163a, and floating task dues since 1a651a9; deferred: birthday-calendar colour setting — birthday-calendar colour done in dcd2dc0 (settings; the drawer recolor for it is a follow-up)
   - What WEB does: `timeZone: 'auto' | IANA` overriding browser detection, used for display (`displayNow`, `toDisplayDate`) and for the `timeZone` on saved events (ref `lib/timezone.ts:29-75`, `stores/settings-store.ts:317, 553`, changelog 1.9.2 #755); `birthdayCalendarColor` (`settings-store.ts:377, 609`).
   - What RN does: device zone only (`src/api/calendar.ts:15-21`); birthday colour fixed (`src/lib/birthday-calendar.ts:7`).
   - Fix hint: add `timeZone` to the settings store (synced with WEB's key so it round-trips through settings sync), pass it as the JMAP `timeZone` arg and into saved events; convert display via `Intl` like WEB's `getWallClock`.
@@ -296,13 +296,13 @@ device.
   - What WEB does: `stores/calendar-event-notification-store.ts`, `components/layout/calendar-event-notification-toaster.tsx`.
   - What RN does: only names the type in `src/api/first-touch-gate.ts:28`.
 
-- [ ] **No attendee free/busy (`Principal/getAvailability`)** — `P3` — `missing` (1.10.0, WEB `components/calendar/participant-availability.tsx`)
+- [x] **No attendee free/busy (`Principal/getAvailability`)** — `P3` — `missing` (1.10.0, WEB `components/calendar/participant-availability.tsx`) — done in 647739a, cabf620
   - What RN does: nothing in `ParticipantInput.tsx` / `EventModal.tsx`.
 
-- [ ] **No default `ParticipantIdentity` for organizing** — `P3` — `missing` (1.10.0, WEB `stores/calendar-store.ts:577-660`, `components/settings/calendar-settings.tsx:23-104`)
+- [x] **No default `ParticipantIdentity` for organizing** — `P3` — `missing` (1.10.0, WEB `stores/calendar-store.ts:577-660`, `components/settings/calendar-settings.tsx:23-104`) — done in cceb0b0, 0c87eea, 286f3aa, 042243f — webmail only stores the default; native also organizes new invitations as it, and locks participants for non-organizers
   - What RN does: the organizer is always `currentUserEmails[0]` (`src/components/calendar/EventModal.tsx:330`).
 
-- [ ] **Tasks with a due date are not shown in the month view (#1107)** — `P3` — `missing` (1.11.0, WEB `calendar-month-view.tsx`, `task-chip.tsx`, `lib/calendar-tasks.ts`)
+- [x] **Tasks with a due date are not shown in the month view (#1107)** — `P3` — `missing` (1.11.0, WEB `calendar-month-view.tsx`, `task-chip.tsx`, `lib/calendar-tasks.ts`) — done in bbd390f, e87c616, bd05bd5 (no tasks in the agenda, as webmail)
   - What RN does: tasks only appear in the tasks sheet (`MonthView.tsx`, `MonthScrollView.tsx`).
 
 - [x] **Join links in location/description are not detected; location doesn't open maps (#1095)** — `P3` — `missing` (1.12.0) — fixed in f543b96 — app-scheme-only meetings (`msteams:`) get no button, since the URL allow-list refuses them
@@ -312,7 +312,7 @@ device.
 - [x] **Day and week views cannot be limited to working hours and days (#1164)** — `P3` — `missing` (0b4d0b0) — fixed in e05a85b — on by default (08–20), as in WEB
   - What RN does: `TimeGridScrollView.tsx`, `WeekView.tsx`, no setting.
 
-- [ ] **The week view's all-day strip grows without limit; no tasks in it (#1122)** — `P3` — `partial` (1.12.0) — collapse to 3 rows done in 710269b, e2dfc6d; still open: tasks in the strip
+- [x] **The week view's all-day strip grows without limit; no tasks in it (#1122)** — `P3` — `partial` (1.12.0) — collapse to 3 rows done in 710269b, e2dfc6d; still open: tasks in the strip — tasks in the strip done in bbd390f
   - What WEB does: collapses to 3 rows with a toggle and shows tasks.
   - What RN does: `src/components/calendar/WeekView.tsx:96-104`.
 
