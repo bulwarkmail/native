@@ -11,6 +11,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useToastStore } from '../stores/toast-store';
 import { isShownAccount, requireShownAccountScope } from '../stores/email-store';
 import { useServedAccount } from './served-account';
+import { isStaleLoad } from './network-error';
 import { seriesIdOf } from './recurrence-instances';
 import {
   usePendingCalendarOpen,
@@ -134,9 +135,11 @@ export async function openReminderTarget(
         return true;
       }
     }
-  } catch {
+  } catch (err) {
+    // Dropped because its connection is gone (a switch or sign-out): the
+    // event isn't missing, so nothing is said.
+    if (isStaleLoad(err) || !isShownAccount(account.appAccountId)) return false;
     // Offline or refused: report it like a missing event.
-    if (!isShownAccount(account.appAccountId)) return false;
   }
   const t = useLocaleStore.getState().t;
   useToastStore.getState().addToast({

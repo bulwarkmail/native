@@ -177,4 +177,16 @@ describe('openReminderTarget', () => {
     expect(onTask).not.toHaveBeenCalled();
     expect(h.addToast).not.toHaveBeenCalled();
   });
+
+  it('says nothing when the read was dropped for a connection that is gone', async () => {
+    h.getEvents.mockRejectedValue(Object.assign(new Error('stale'), { name: 'StaleLoadError' }));
+    const onEvent = vi.fn();
+    expect(await openReminderTarget(
+      { kind: 'event', eventId: 'ev1', serverId: 'ev1' },
+      { onEvent, onTask: vi.fn() },
+      ACCOUNT,
+    )).toBe(false);
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(h.addToast).not.toHaveBeenCalled();
+  });
 });
