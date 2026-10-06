@@ -725,6 +725,7 @@ function identityScope(): string | null {
   }
 }
 
+let hydrateInFlight: Promise<void> | null = null;
 let identitiesInFlight: { scope: string | null; promise: Promise<void> } | null = null;
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -769,19 +770,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return get().fetchIdentities();
   },
 
-  hydrate: async () => {
-    if (get().hydrated) return;
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-        set({ ...mergeWithDefaults(parsed), hydrated: true });
-        return;
+  hydrate: () => {
+    if (get().hydrated) return Promise.resolve();
+    // One load for every caller: a second read finishing after the user
+    // changed a setting would put the stored value back.
+    if (hydrateInFlight) return hydrateInFlight;
+    const promise = (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
+          set({ ...mergeWithDefaults(parsed), hydrated: true });
+          return;
+        }
+      } catch (err) {
+        console.warn('[settings-store] hydrate failed', err);
       }
-    } catch (err) {
-      console.warn('[settings-store] hydrate failed', err);
-    }
-    set({ hydrated: true });
+      set({ hydrated: true });
+    })().finally(() => { hydrateInFlight = null; });
+    hydrateInFlight = promise;
+    return promise;
   },
 
   updateSetting: (key, value) => {
