@@ -14,8 +14,9 @@ import {
   type MessageSpacing,
   type ReadReceiptResponse,
 } from '../../stores/settings-store';
-import { useEmailStore } from '../../stores/email-store';
-import { archiveEmails, queryEmails, getEmails } from '../../api/email';
+import { useEmailStore, requireShownAccountScope, isShownAccount } from '../../stores/email-store';
+import { reorganizeArchive } from '../../lib/reorganize-archive';
+import { clientServesAccount } from '../../lib/active-client-account';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
 
@@ -57,7 +58,7 @@ export function ReadingSettings() {
   }, [hydrated, hydrate]);
 
   const handleReorganizeArchive = async () => {
-    const { mailboxes, fetchMailboxes } = useEmailStore.getState();
+    const { mailboxes, fetchMailboxes, activeAccountId } = useEmailStore.getState();
     // Reorganising runs against the user's own archive only.
     const archiveMailbox = ownMailboxes(mailboxes).find(
       (m) => m.role === 'archive' || m.name.toLowerCase() === 'archive',
@@ -66,45 +67,32 @@ export function ReadingSettings() {
       setReorganizeResult(t('settings.email_behavior.archive_mode.no_archive', "No archive folder found."));
       return;
     }
+    // Every request on the connection serving the account shown now: an
+    // account switch mid-way must not file the other account's same-id
+    // messages into folders that are not its own.
+    let at;
+    try {
+      at = requireShownAccountScope(activeAccountId);
+    } catch (err) {
+      setReorganizeResult(err instanceof Error ? err.message : String(err));
+      return;
+    }
 
     setReorganizing(true);
     setReorganizeResult(null);
 
     try {
-      // Drain the archive in pages so we don't OOM on huge mailboxes.
-      const PAGE = 100;
-      let position = 0;
-      let total = 0;
-      let moved = 0;
-
-      while (true) {
-        const { ids, total: pageTotal } = await queryEmails(archiveMailbox.id, {
-          position,
-          limit: PAGE,
-        });
-        if (position === 0) total = pageTotal;
-        if (ids.length === 0) break;
-
-        const list = await getEmails(ids);
-        const refreshed = ownMailboxes(useEmailStore.getState().mailboxes);
-        await archiveEmails(
-          list.map((e) => ({ id: e.id, receivedAt: e.receivedAt })),
-          archiveMailbox.id,
-          archiveMode,
-          refreshed,
-        );
-        moved += list.length;
-
-        // Newly-created year/month folders need to be visible to the next batch
-        // so we don't try to create the same folder twice.
-        await fetchMailboxes();
-
-        // Items just got moved out of the root archive view; the next page
-        // starts again at position 0 of the now-shorter list.
-        if (ids.length < PAGE) break;
-      }
-
-      setReorganizeResult(t('settings.email_behavior.archive_mode.reorganize_result', 'Moved {moved} of {total} emails.', { moved, total }));
+      const { moved, total, stopped } = await reorganizeArchive({
+        at,
+        archiveMailboxId: archiveMailbox.id,
+        mode: archiveMode,
+        mailboxes: () => ownMailboxes(useEmailStore.getState().mailboxes),
+        refreshMailboxes: fetchMailboxes,
+        stillServed: () => isShownAccount(activeAccountId) && clientServesAccount(activeAccountId),
+      });
+      setReorganizeResult(stopped
+        ? t('settings.email_behavior.archive_mode.reorganize_stopped', 'Stopped after moving {moved} of {total} emails: the account changed.', { moved, total })
+        : t('settings.email_behavior.archive_mode.reorganize_result', 'Moved {moved} of {total} emails.', { moved, total }));
     } catch (err) {
       setReorganizeResult(err instanceof Error ? err.message : t('settings.email_behavior.archive_mode.reorganize_error', "Failed to reorganize archive"));
     } finally {

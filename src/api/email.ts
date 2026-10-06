@@ -407,8 +407,12 @@ function emailQueryArgs(mailboxId: string | undefined, options?: EmailQueryOptio
 export async function queryEmails(
   mailboxId: string | undefined,
   options?: EmailQueryOptions,
+  /** Binds the query to an operation's connection and account (see `OpScope`). */
+  account?: AccountRef,
 ): Promise<{ ids: string[]; total: number; queryState?: string }> {
-  const res = await jmapClient.request([['Email/query', emailQueryArgs(mailboxId, options), '0']]);
+  const at = account === undefined ? null : opScope(account);
+  const call: JMAPMethodCall = ['Email/query', emailQueryArgs(mailboxId, at ? { ...options, accountId: at.accountId } : options), '0'];
+  const res = at ? await requestOn(at, [call]) : await jmapClient.request([call]);
   const body = requireMethodResult(res, '0', 'Email/query');
   return {
     ids: (body.ids as string[]) ?? [],

@@ -914,6 +914,7 @@
       "archive_mode": {
         "no_archive": "No archive folder found.",
         "reorganize_result": "Moved {moved} of {total} emails.",
+        "reorganize_stopped": "Stopped after moving {moved} of {total} emails: the account changed.",
         "reorganizing": "Reorganizing…"
       },
       "attachment_click_action": {
