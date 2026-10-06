@@ -40,7 +40,7 @@ import { displayNow, isDisplayToday } from '../lib/calendar-timezone';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { Button } from '../components';
-import { useCalendarStore } from '../stores/calendar-store';
+import { useCalendarStore, type EventAccount } from '../stores/calendar-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { MonthView } from '../components/calendar/MonthView';
 import { MonthScrollView } from '../components/calendar/MonthScrollView';
@@ -107,6 +107,7 @@ import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
 import { buildNoteUpdate } from '../lib/event-note';
 import { toast } from '../stores/toast-store';
+import { useEmailStore } from '../stores/email-store';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
@@ -253,7 +254,31 @@ export default function CalendarScreen() {
     return { after: after.toISOString(), before: before.toISOString() };
   }, [scrollWindow]);
 
-  const [detailEvent, setDetailEvent] = React.useState<CalendarEvent | null>(null);
+  const [detailEvent, setDetailEventState] = React.useState<CalendarEvent | null>(null);
+  // The app account the open event sheet / editor / scope question belongs to,
+  // taken when it opened. Ids repeat across accounts (Stalwart numbers them
+  // per account), so every write names it and the store refuses once another
+  // account is shown (see `EventAccount`); the sheets close on a switch below.
+  const eventAppAccountId = React.useRef<string | null>(null);
+  const captureEventAccount = React.useCallback(() => {
+    eventAppAccountId.current = useEmailStore.getState().activeAccountId;
+  }, []);
+  const setDetailEvent = React.useCallback<React.Dispatch<React.SetStateAction<CalendarEvent | null>>>(
+    (next) => {
+      // Opening an event (not updating the open one) binds it to the shown account.
+      if (next && typeof next !== 'function') captureEventAccount();
+      setDetailEventState(next);
+    },
+    [captureEventAccount],
+  );
+  /** The account pair a write on `event` names, from the account its sheet opened in. */
+  const accountOf = React.useCallback(
+    (event: CalendarEvent): EventAccount => ({
+      appAccountId: eventAppAccountId.current,
+      jmapAccountId: event.accountId || undefined,
+    }),
+    [],
+  );
   const [modalEvent, setModalEvent] = React.useState<CalendarEvent | null>(null);
   const [modalDate, setModalDate] = React.useState<Date | undefined>(undefined);
   const [modalVisible, setModalVisible] = React.useState(false);
@@ -263,6 +288,20 @@ export default function CalendarScreen() {
   const [importVisible, setImportVisible] = React.useState(false);
   const [subscriptionsVisible, setSubscriptionsVisible] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
+
+  // Another account is shown: whatever was open belongs to the one before.
+  // Close it, so a Delete, Edit or answer can't land on the other account's
+  // event with the same id.
+  const shownAccountId = useEmailStore((st) => st.activeAccountId);
+  const lastShownAccountId = React.useRef(shownAccountId);
+  React.useEffect(() => {
+    if (lastShownAccountId.current === shownAccountId) return;
+    lastShownAccountId.current = shownAccountId;
+    eventAppAccountId.current = null;
+    setDetailEventState(null);
+    setModalVisible(false);
+    setPendingAction(null);
+  }, [shownAccountId]);
 
   const hydrate = useCalendarStore((s) => s.hydrate);
   const fetchCalendarsAction = useCalendarStore((s) => s.fetchCalendars);
@@ -559,10 +598,11 @@ export default function CalendarScreen() {
   }, []);
 
   const openCreate = React.useCallback((date?: Date) => {
+    captureEventAccount();
     setModalEvent(null);
     setModalDate(date);
     setModalVisible(true);
-  }, []);
+  }, [captureEventAccount]);
 
   // Task chips route to the tasks sheet; everything else opens the detail sheet.
   const handleSelectEvent = React.useCallback((event: CalendarEvent) => {
@@ -575,10 +615,13 @@ export default function CalendarScreen() {
   }, []);
 
   const openEditDirect = React.useCallback((event: CalendarEvent) => {
+    // Opened from the detail sheet (which captured the account), or on an event
+    // that was just created in the shown account.
+    if (!eventAppAccountId.current) captureEventAccount();
     setModalEvent(event);
     setModalDate(undefined);
     setModalVisible(true);
-  }, []);
+  }, [captureEventAccount]);
 
   // Client-side iCal subscriptions mirror a remote feed into a local
   // calendar; edits there would be wiped by the next sync, so they're
@@ -620,9 +663,9 @@ export default function CalendarScreen() {
     if (isRecurringSeriesMember(event)) {
       setPendingAction({ kind: 'delete', event });
     } else {
-      deleteEvent(event.id).catch(reportError);
+      deleteEvent(event.id, { account: accountOf(event) }).catch(reportError);
     }
-  }, [deleteEvent, isReadOnlyEvent, reportError]);
+  }, [deleteEvent, isReadOnlyEvent, reportError, accountOf]);
 
   // "This and following": end the master at the occurrence and hand back the
   // master plus its untouched rules so the caller can start a new series (or
@@ -636,10 +679,10 @@ export default function CalendarScreen() {
         : null;
       await updateEvent(master.id, {
         recurrenceRules: truncateRecurrenceRules(master.recurrenceRules, event),
-      });
+      }, { account: accountOf(event) });
       return { master, originalRules };
     },
-    [getMasterEvent, updateEvent],
+    [getMasterEvent, updateEvent, accountOf],
   );
 
   // Send an answer and show it in the open detail sheet. 'occurrence'
@@ -651,7 +694,7 @@ export default function CalendarScreen() {
       status: 'accepted' | 'declined' | 'tentative',
       scope: 'occurrence' | 'series',
     ) => {
-      await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev), undefined, scope);
+      await rsvpEvent(ev.id, participantId, status, buildReplyTo(ev), undefined, scope, accountOf(ev));
       setDetailEvent((cur) =>
         cur && cur.id === ev.id && cur.participants?.[participantId]
           ? {
@@ -664,7 +707,7 @@ export default function CalendarScreen() {
           : cur,
       );
     },
-    [rsvpEvent],
+    [rsvpEvent, accountOf],
   );
 
   const handleScopeSelect = React.useCallback(
@@ -701,7 +744,7 @@ export default function CalendarScreen() {
             };
           }
           const write = async (send: boolean | undefined) => {
-            const opts = { sendSchedulingMessages: send };
+            const opts = { sendSchedulingMessages: send, account: accountOf(event) };
             switch (scope) {
               case 'this': {
                 // The store keeps the change on this occurrence: through its
@@ -721,7 +764,11 @@ export default function CalendarScreen() {
                   newSeries: newEventData,
                   calendarId: action.calendarId || getPrimaryCalendarId(master) || '',
                   send,
-                  api: { updateEvent, createEvent },
+                  // Both writes name the account the sheet opened in.
+                  api: {
+                    updateEvent: (id, changes, o) => updateEvent(id, changes, { ...o, account: accountOf(event) }),
+                    createEvent: (data, calId, o) => createEvent(data, calId, { ...o, account: accountOf(event) }),
+                  },
                 });
                 break;
               }
@@ -744,7 +791,7 @@ export default function CalendarScreen() {
             case 'this': {
               // The store destroys a server occurrence, or excludes one the
               // device expanded on its base event.
-              await deleteEvent(event.id);
+              await deleteEvent(event.id, { account: accountOf(event) });
               break;
             }
             case 'this_and_future': {
@@ -755,7 +802,7 @@ export default function CalendarScreen() {
             case 'all': {
               const master = await getMasterEvent(event);
               if (!master) throw new Error('Master event not found');
-              await deleteEvent(master.id);
+              await deleteEvent(master.id, { account: accountOf(event) });
               break;
             }
           }
@@ -772,7 +819,7 @@ export default function CalendarScreen() {
         // Best effort — the next navigation refetches anyway.
       }
     },
-    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, submitRsvp, t],
+    [pendingAction, updateEvent, deleteEvent, createEvent, getMasterEvent, truncateRecurrenceAtEvent, refresh, submitRsvp, accountOf, t],
   );
 
   const handleSave = React.useCallback(
@@ -796,21 +843,25 @@ export default function CalendarScreen() {
           return true;
         }
         const outcome = await saveWithSchedulingFallback(
-          async (send) => { await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: send }); },
+          async (send) => {
+            await updateEvent(modalEvent.id, updates, { sendSchedulingMessages: send, account: accountOf(modalEvent) });
+          },
           sendScheduling,
           (reason) => confirmSaveWithoutInvitations(reason, t),
         );
         return outcome !== 'cancelled';
       } else {
         const outcome = await saveWithSchedulingFallback(
-          async (send) => { await createEvent(data, calendarId, { sendSchedulingMessages: send }); },
+          async (send) => {
+            await createEvent(data, calendarId, { sendSchedulingMessages: send, account: { appAccountId: eventAppAccountId.current } });
+          },
           sendScheduling,
           (reason) => confirmSaveWithoutInvitations(reason, t),
         );
         return outcome !== 'cancelled';
       }
     },
-    [modalEvent, createEvent, updateEvent, t],
+    [modalEvent, createEvent, updateEvent, accountOf, t],
   );
 
   const handleDeleteFromModal = React.useCallback(
@@ -820,9 +871,9 @@ export default function CalendarScreen() {
         setPendingAction({ kind: 'delete', event });
         return;
       }
-      await deleteEvent(event.id).catch(reportError);
+      await deleteEvent(event.id, { account: accountOf(event) }).catch(reportError);
     },
-    [deleteEvent, reportError],
+    [deleteEvent, reportError, accountOf],
   );
 
   const onRefresh = React.useCallback(async () => {
@@ -882,14 +933,14 @@ export default function CalendarScreen() {
       if (event.alerts) data.alerts = JSON.parse(JSON.stringify(event.alerts));
       const calendarId = getPrimaryCalendarId(event) || '';
       try {
-        const created = await createEvent(data, calendarId);
+        const created = await createEvent(data, calendarId, { account: accountOf(event) });
         const stored = useCalendarStore.getState().events.find((e) => e.id === created.id) ?? created;
         openEditDirect(stored);
       } catch (err) {
         reportError(err);
       }
     },
-    [createEvent, openEditDirect, reportError],
+    [createEvent, openEditDirect, reportError, accountOf],
   );
 
   const handleExportFromDetail = React.useCallback(
@@ -919,7 +970,7 @@ export default function CalendarScreen() {
         return true;
       }
       try {
-        await updateEvent(event.id, updates);
+        await updateEvent(event.id, updates, { account: accountOf(event) });
         setDetailEvent((cur) => (cur && cur.id === event.id ? { ...cur, ...updates } : cur));
         toast.success(t('calendar.detail.note_saved', 'Note added'));
         return true;
@@ -928,7 +979,7 @@ export default function CalendarScreen() {
         return false;
       }
     },
-    [updateEvent, reportError, t],
+    [updateEvent, reportError, accountOf, t],
   );
 
   const handleCalendarEditSave = React.useCallback(

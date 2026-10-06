@@ -31,6 +31,8 @@ import {
   resetSyntheticIdSupport,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
+import type { AccountRef } from '../api/op-scope';
+import { isShownAccount, requireShownAccountScope } from './email-store';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
 import {
@@ -236,16 +238,18 @@ export interface CalendarState {
   createEvent: (
     event: Partial<CalendarEvent>,
     calendarId: string,
-    options?: { sendSchedulingMessages?: boolean },
+    options?: { sendSchedulingMessages?: boolean; account?: EventAccount },
   ) => Promise<CalendarEvent>;
   // `changes` may be a plain partial or a JMAP patch with JSON-pointer keys
   // (e.g. `recurrenceOverrides/<recurrenceId>`).
   updateEvent: (
     id: string,
     changes: Partial<CalendarEvent> | Record<string, unknown>,
-    options?: { sendSchedulingMessages?: boolean },
+    options?: { sendSchedulingMessages?: boolean; account?: EventAccount },
   ) => Promise<void>;
-  deleteEvent: (id: string) => Promise<void>;
+  // With `options.account` (the screen's open event), refused before anything
+  // is sent once that account isn't the one shown and served.
+  deleteEvent: (id: string, options?: { account?: EventAccount }) => Promise<void>;
   // Resolve a client-side expanded occurrence (or a master) to its master
   // event, fetching it from the server when the expansion replaced it.
   getMasterEvent: (event: CalendarEvent) => Promise<CalendarEvent | null>;
@@ -260,6 +264,7 @@ export interface CalendarState {
     // 'occurrence': answer just this occurrence of a series (the server
     // stores it as an override and replies with its RECURRENCE-ID).
     scope?: 'occurrence' | 'series',
+    account?: EventAccount,
   ) => Promise<void>;
   // Resolves with what got in and what the server refused; rejects with an
   // ImportRefusedError when nothing got in because everything was refused.
@@ -439,6 +444,32 @@ export function resolveMutationTarget(
   return { realId: id, isOccurrence: false };
 }
 
+/**
+ * The account an event the user is looking at belongs to: the app account the
+ * screen showed it in, and the JMAP account its calendar lives in (undefined:
+ * the user's own). Ids repeat across accounts (Stalwart numbers them per
+ * account), so a write names this pair and is refused, nothing sent, once the
+ * app shows or the client serves another account.
+ */
+export interface EventAccount {
+  appAccountId: string | null | undefined;
+  jmapAccountId?: string;
+}
+
+/** Where a write goes: the account, and the scope binding it to its connection. */
+function writeAccount(
+  account: EventAccount | undefined,
+  targetAccountId: string | undefined,
+): { accountId: string | undefined; ref: AccountRef } {
+  if (!account) return { accountId: targetAccountId, ref: targetAccountId };
+  const accountId = account.jmapAccountId ?? targetAccountId;
+  return { accountId, ref: requireShownAccountScope(account.appAccountId, accountId) };
+}
+
+/** Whether the screen that started a write still shows the account it wrote to. */
+const stillShown = (account: EventAccount | undefined): boolean =>
+  !account || isShownAccount(account.appAccountId);
+
 // Set once CalendarEvent/set rejected a synthetic id although the probe
 // said it would take them: go straight to the base-event override then.
 let syntheticIdRejected = false;
@@ -455,7 +486,7 @@ async function updateOccurrence(
   syntheticId: string,
   updates: Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
-  accountId: string | undefined,
+  accountId: AccountRef,
 ): Promise<void> {
   const patch = withNewOverrideDetails(instance, buildOccurrencePatch(updates));
   if (!syntheticIdRejected) {
@@ -477,7 +508,7 @@ async function destroyOccurrence(
   instance: CalendarEvent,
   syntheticId: string,
   sendSchedulingMessages: boolean | undefined,
-  accountId: string | undefined,
+  accountId: AccountRef,
 ): Promise<void> {
   if (!syntheticIdRejected) {
     try {
@@ -502,21 +533,23 @@ async function updateBrowserOccurrence(
   target: MutationTarget,
   updates: Partial<CalendarEvent>,
   sendSchedulingMessages: boolean | undefined,
+  accountId: AccountRef,
 ): Promise<void> {
   const occurrence = target.storeEvent!;
   const patch = buildFallbackOverridePatch(occurrence, withNewOverrideDetails(occurrence, updates));
   if (!patch) throw new Error('Cannot resolve the occurrence to override');
-  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, accountId);
 }
 
 /** Delete one occurrence the device expanded by excluding it on its base event. */
 async function destroyBrowserOccurrence(
   target: MutationTarget,
   sendSchedulingMessages: boolean | undefined,
+  accountId: AccountRef,
 ): Promise<void> {
   const patch = buildFallbackExcludePatch(target.storeEvent!);
   if (!patch) throw new Error('Cannot resolve the occurrence to exclude');
-  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, target.accountId);
+  await apiUpdateEvent(target.realId, patch, sendSchedulingMessages, accountId);
 }
 
 /**
@@ -750,14 +783,14 @@ export const useCalendarStore = create<CalendarState>()(
     // store id for shared calendars).
     const calendars = get().calendars;
     const cal = calendars.find((c) => c.id === calendarId);
-    const accountId = cal?.accountId;
+    const { accountId, ref } = writeAccount(options?.account, cal?.accountId);
     const schedule =
       options?.sendSchedulingMessages ?? (hasSchedulingParticipants(event) ? true : undefined);
     const created = await apiCreateEvent(
       event,
       cal?.originalId || calendarId,
       schedule,
-      accountId,
+      ref,
     );
     // The /set echo lacks server-computed properties (utcStart/utcEnd, the
     // normalised recurrence rule); re-read the event so it renders at the
@@ -773,6 +806,7 @@ export const useCalendarStore = create<CalendarState>()(
     // Map the same way fetchEvents does so the optimistic insert doesn't
     // collide with the user's own events and stays visible under the right
     // calendar filter.
+    if (!stillShown(options?.account)) return full;
     const mapped = mapServerEventToStoreEvent(full, calendars, accountId);
     const { loadedRange } = get();
     const inserted =
@@ -789,7 +823,8 @@ export const useCalendarStore = create<CalendarState>()(
     // synthetic id, or as an override on the base event it was expanded
     // from. Everything else goes to the stored event.
     const target = resolveMutationTarget(get().events, id, 'occurrence');
-    const { storeEvent, realId, accountId } = target;
+    const { storeEvent, realId } = target;
+    const { accountId, ref } = writeAccount(options?.account, target.accountId);
     // Remap namespaced (shared-calendar) store ids in calendarIds back to the
     // raw server ids the owning account knows.
     const patch: Record<string, unknown> = { ...changes };
@@ -813,12 +848,15 @@ export const useCalendarStore = create<CalendarState>()(
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
     if (target.isOccurrence && storeEvent) {
-      await updateOccurrence(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, accountId);
+      await updateOccurrence(storeEvent, realId, patch as Partial<CalendarEvent>, schedule, ref);
     } else if (target.isBrowserOccurrence) {
-      await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule);
+      await updateBrowserOccurrence(target, patch as Partial<CalendarEvent>, schedule, ref);
     } else {
-      await apiUpdateEvent(realId, patch, schedule, accountId);
+      await apiUpdateEvent(realId, patch, schedule, ref);
     }
+    // The app may have switched accounts while the write was in flight; its
+    // events are not this account's.
+    if (!stillShown(options?.account)) return;
     set({
       events: get().events.map((e) => (e.id === id ? { ...e, ...(changes as Partial<CalendarEvent>) } : e)),
     });
@@ -833,22 +871,26 @@ export const useCalendarStore = create<CalendarState>()(
     }
   },
 
-  deleteEvent: async (id) => {
+  deleteEvent: async (id, options) => {
     // Deleting an occurrence removes just that one: through its synthetic
     // id, or by excluding it on the base event it was expanded from.
     const target = resolveMutationTarget(get().events, id, 'occurrence');
-    const { storeEvent, realId, accountId } = target;
+    const { storeEvent, realId } = target;
+    const { accountId, ref } = writeAccount(options?.account, target.accountId);
     const touchesSeries = (!!storeEvent && isRecurringSeriesMember(storeEvent))
       || hasServerOccurrencesOf(get().events, realId, accountId);
     const schedule = hasSchedulingParticipants(storeEvent) ? true : undefined;
     if (target.isOccurrence && storeEvent) {
-      await destroyOccurrence(storeEvent, realId, schedule, accountId);
+      await destroyOccurrence(storeEvent, realId, schedule, ref);
+      if (!stillShown(options?.account)) return;
       set({ events: get().events.filter((e) => e.id !== id) });
     } else if (target.isBrowserOccurrence) {
-      await destroyBrowserOccurrence(target, schedule);
+      await destroyBrowserOccurrence(target, schedule, ref);
+      if (!stillShown(options?.account)) return;
       set({ events: get().events.filter((e) => e.id !== id) });
     } else {
-      await apiDeleteEvents([realId], schedule, accountId);
+      await apiDeleteEvents([realId], schedule, ref);
+      if (!stillShown(options?.account)) return;
       knownMasters.delete(id);
       // Destroying a master removes every expanded occurrence of it, not
       // just the tapped one.
@@ -885,7 +927,7 @@ export const useCalendarStore = create<CalendarState>()(
     return mapped;
   },
 
-  rsvpEvent: async (eventId, participantId, status, replyTo, event, scope = 'series') => {
+  rsvpEvent: async (eventId, participantId, status, replyTo, event, scope = 'series', account) => {
     // JMAP participant ids are opaque strings (they can contain @, ., :, /);
     // the api layer RFC 6901-escapes them, so only reject empty values.
     if (!participantId) {
@@ -898,7 +940,8 @@ export const useCalendarStore = create<CalendarState>()(
     const target = resolveMutationTarget(get().events, eventId, scope);
     const storeEvent = target.storeEvent ?? event;
     const realId = target.storeEvent || !event ? target.realId : seriesIdOf(event);
-    const accountId = target.storeEvent ? target.accountId : event?.accountId ?? target.accountId;
+    const targetAccountId = target.storeEvent ? target.accountId : event?.accountId ?? target.accountId;
+    const { accountId, ref } = writeAccount(account, targetAccountId);
     const occurrence = scope === 'occurrence' && (target.isOccurrence || target.isBrowserOccurrence)
       ? target.storeEvent ?? null
       : null;
@@ -908,9 +951,9 @@ export const useCalendarStore = create<CalendarState>()(
       const patch = buildOccurrenceRsvpPatch(occurrence, participantId, status);
       if (!patch) throw new Error('Participant not found on this occurrence');
       if (target.isOccurrence) {
-        await updateOccurrence(occurrence, target.realId, patch, true, accountId);
+        await updateOccurrence(occurrence, target.realId, patch, true, ref);
       } else {
-        await updateBrowserOccurrence(target, patch, true);
+        await updateBrowserOccurrence(target, patch, true, ref);
       }
     } else {
       // Repair events that are missing the organizer (e.g. imported ones) so
@@ -919,9 +962,10 @@ export const useCalendarStore = create<CalendarState>()(
         replyTo?.imip && storeEvent && !storeEvent.organizerCalendarAddress
           ? replyTo.imip
           : undefined;
-      await apiRsvpEvent(realId, participantId, status, repair, accountId);
+      await apiRsvpEvent(realId, participantId, status, repair, ref);
     }
     requestDeviceSync(CALENDAR_AUTHORITY);
+    if (!stillShown(account)) return;
     set({
       events: get().events.map((e) => {
         if (e.id !== eventId || !e.participants?.[participantId]) return e;

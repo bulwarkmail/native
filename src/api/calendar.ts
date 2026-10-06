@@ -1,4 +1,5 @@
 import { jmapClient } from './jmap-client';
+import { opScope, type AccountRef } from './op-scope';
 import { CAPABILITIES } from './types';
 import type { Calendar, CalendarEvent, CalendarRights } from './types';
 import { assertSetResult, SchedulingDeniedError } from './jmap-result';
@@ -603,9 +604,10 @@ export async function createEvent(
   event: Partial<CalendarEvent>,
   calendarId: string,
   sendSchedulingMessages?: boolean,
-  targetAccountId?: string,
+  targetAccount?: AccountRef,
 ): Promise<CalendarEvent> {
-  const accountId = targetAccountId || jmapClient.accountId;
+  const at = opScope(targetAccount || undefined);
+  const accountId = at.accountId;
   const payload: Record<string, unknown> = { ...event, calendarIds: { [calendarId]: true } };
   stripClientOnlyFields(payload);
   cleanRecurrenceRules(payload);
@@ -614,6 +616,7 @@ export async function createEvent(
       create: { 'new-event': payload },
     }, sendSchedulingMessages), '0']],
     USING,
+    { gen: at.gen },
   );
   const result = methodResult<{
     created?: Record<string, CalendarEvent>;
@@ -684,15 +687,17 @@ export async function updateEvent(
   id: string,
   changes: Partial<CalendarEvent> | Record<string, unknown>,
   sendSchedulingMessages?: boolean,
-  targetAccountId?: string,
+  targetAccount?: AccountRef,
 ): Promise<void> {
-  const accountId = targetAccountId || jmapClient.accountId;
+  const at = opScope(targetAccount || undefined);
+  const accountId = at.accountId;
   const patch: Record<string, unknown> = { ...changes };
   stripClientOnlyFields(patch);
   cleanRecurrenceRules(patch);
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, { update: { [id]: patch } }, sendSchedulingMessages), '0']],
     USING,
+    { gen: at.gen },
   );
   const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
   const err = result.notUpdated?.[id];
@@ -707,12 +712,14 @@ export async function updateEvent(
 export async function deleteEvents(
   ids: string[],
   sendSchedulingMessages?: boolean,
-  targetAccountId?: string,
+  targetAccount?: AccountRef,
 ): Promise<void> {
-  const accountId = targetAccountId || jmapClient.accountId;
+  const at = opScope(targetAccount || undefined);
+  const accountId = at.accountId;
   const res = await jmapClient.request(
     [['CalendarEvent/set', setArgs(accountId, { destroy: ids }, sendSchedulingMessages), '0']],
     USING,
+    { gen: at.gen },
   );
   assertSetResult(methodResult(res), ids, 'event');
 }
@@ -728,9 +735,10 @@ export async function rsvpEvent(
   participantId: string,
   status: 'accepted' | 'declined' | 'tentative',
   repairOrganizerAddress?: string | null,
-  targetAccountId?: string,
+  targetAccount?: AccountRef,
 ): Promise<void> {
-  const accountId = targetAccountId || jmapClient.accountId;
+  const at = opScope(targetAccount || undefined);
+  const accountId = at.accountId;
   // Escape per RFC 6901: ~ → ~0, / → ~1.
   const escaped = participantId.replace(/~/g, '~0').replace(/\//g, '~1');
   const patch: Record<string, unknown> = {
@@ -740,6 +748,7 @@ export async function rsvpEvent(
   const res = await jmapClient.request(
     [['CalendarEvent/set', { accountId, update: { [eventId]: patch }, sendSchedulingMessages: true }, '0']],
     USING,
+    { gen: at.gen },
   );
   const result = methodResult<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(res);
   const err = result.notUpdated?.[eventId];
