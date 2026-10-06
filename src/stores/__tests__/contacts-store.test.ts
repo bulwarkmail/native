@@ -484,6 +484,21 @@ describe('contacts-store', () => {
       expect(mockGetPrincipals).toHaveBeenCalledTimes(1);
     });
 
+    it('a caller during a load waits for that load instead of returning at once', async () => {
+      let release!: (v: unknown[]) => void;
+      mockGetPrincipals.mockReturnValue(new Promise((r) => { release = r; }));
+      const first = useContactsStore.getState().loadDirectory();
+      let secondDone = false;
+      const second = useContactsStore.getState().loadDirectory().then(() => { secondDone = true; });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(secondDone).toBe(false);
+      release([dana]);
+      await Promise.all([first, second]);
+      expect(mockGetPrincipals).toHaveBeenCalledTimes(1);
+      expect(useContactsStore.getState().directoryPeople).toHaveLength(1);
+    });
+
     it('a failed load leaves no directory people and does not throw', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       mockGetPrincipals.mockRejectedValue(new Error('boom'));

@@ -1,6 +1,11 @@
 import type { BusyPeriod } from '../api/types';
 
-export type AvailabilityStatus = 'free' | 'busy' | 'tentative' | 'unknown' | 'checking';
+/**
+ * 'unknown': the address has no principal on this server; 'checking': the
+ * answer is on its way; 'failed': the directory or the free/busy request
+ * failed, so whether the person is free isn't known.
+ */
+export type AvailabilityStatus = 'free' | 'busy' | 'tentative' | 'unknown' | 'checking' | 'failed';
 
 export interface BusyBlock {
   start: number;
@@ -89,6 +94,48 @@ export function stripSegments(blocks: BusyBlock[], start: Date, end: Date): Stri
     const e = Math.min(b.end, end.getTime());
     if (e <= s) continue;
     out.push({ left: (s - lo) / span, width: (e - s) / span, tentative: b.tentative });
+  }
+  return out;
+}
+
+type Translate = (key: string, fallback: string) => string;
+
+/** What the participant row says for a status. */
+export function availabilityStatusLabel(status: AvailabilityStatus, t: Translate): string {
+  switch (status) {
+    case 'free': return t('calendar.participants.availability.free', 'Available');
+    case 'busy': return t('calendar.participants.availability.busy', 'Busy');
+    case 'tentative': return t('calendar.participants.availability.tentative', 'Tentative');
+    case 'checking': return t('calendar.participants.availability.checking', 'Checking…');
+    case 'failed': return t('calendar.participants.availability.failed', "Couldn't check availability");
+    case 'unknown': return t('calendar.participants.availability.unknown', 'Not a user on this server');
+  }
+}
+
+/** Every address with the same status and no busy blocks (checking, or a failed load). */
+export function everyoneAs(
+  emails: string[],
+  status: AvailabilityStatus,
+): Record<string, { status: AvailabilityStatus; blocks: BusyBlock[] }> {
+  return Object.fromEntries(emails.map((email) => [email, { status, blocks: [] as BusyBlock[] }]));
+}
+
+/**
+ * The principal of each directory address (lower-cased) for JMAP account
+ * `accountId`, or null when the directory isn't loaded for it (its load
+ * failed): then nobody's availability can be checked.
+ */
+export function principalIdsFromDirectory(
+  directory: {
+    directoryAccountId: string | null;
+    directoryPeople: ReadonlyArray<{ principalId?: string; email: string }>;
+  },
+  accountId: string,
+): Map<string, string> | null {
+  if (directory.directoryAccountId !== accountId) return null;
+  const out = new Map<string, string>();
+  for (const p of directory.directoryPeople) {
+    if (p.principalId) out.set(p.email.toLowerCase(), p.principalId);
   }
   return out;
 }

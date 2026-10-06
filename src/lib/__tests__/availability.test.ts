@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { availabilityFor, availabilityRange, mergeBusyBlocks, stripSegments } from '../availability';
+import {
+  availabilityFor,
+  availabilityRange,
+  availabilityStatusLabel,
+  everyoneAs,
+  mergeBusyBlocks,
+  principalIdsFromDirectory,
+  stripSegments,
+} from '../availability';
 
 const d = (s: string) => new Date(s);
 const P = (a: string, b: string, busyStatus: 'confirmed' | 'tentative' | 'unavailable' | null = null) => ({
@@ -71,5 +79,50 @@ describe('stripSegments', () => {
     const e = d('2026-10-06T12:00:00Z');
     const blocks = mergeBusyBlocks([P('2026-10-06T11:00:00Z', '2026-10-06T13:00:00Z')], s, e);
     expect(stripSegments(blocks, s, e)).toEqual([{ left: 0.5, width: 0.5, tentative: false }]);
+  });
+});
+
+describe('availabilityStatusLabel', () => {
+  const t = (key: string, fallback: string) => `${key}|${fallback}`;
+
+  it('says what each status means, with webmail\'s keys', () => {
+    expect(availabilityStatusLabel('free', t)).toBe('calendar.participants.availability.free|Available');
+    expect(availabilityStatusLabel('busy', t)).toBe('calendar.participants.availability.busy|Busy');
+    expect(availabilityStatusLabel('tentative', t)).toBe('calendar.participants.availability.tentative|Tentative');
+    expect(availabilityStatusLabel('checking', t)).toBe('calendar.participants.availability.checking|Checking…');
+  });
+
+  it('keeps "Not a user on this server" for an address without a principal only', () => {
+    expect(availabilityStatusLabel('unknown', t))
+      .toBe('calendar.participants.availability.unknown|Not a user on this server');
+    expect(availabilityStatusLabel('failed', t))
+      .toBe("calendar.participants.availability.failed|Couldn't check availability");
+  });
+});
+
+describe('everyoneAs', () => {
+  it('gives every address the same status and no blocks', () => {
+    expect(everyoneAs(['a@x.com', 'b@x.com'], 'checking')).toEqual({
+      'a@x.com': { status: 'checking', blocks: [] },
+      'b@x.com': { status: 'checking', blocks: [] },
+    });
+    expect(everyoneAs([], 'failed')).toEqual({});
+  });
+});
+
+describe('principalIdsFromDirectory', () => {
+  const people = [
+    { principalId: 'p1', email: 'Dana@Example.com' },
+    { principalId: '', email: 'nobody@example.com' },
+  ];
+
+  it('maps lower-cased addresses to principals of the account asked about', () => {
+    const map = principalIdsFromDirectory({ directoryAccountId: 'acc-1', directoryPeople: people }, 'acc-1');
+    expect(map && [...map]).toEqual([['dana@example.com', 'p1']]);
+  });
+
+  it('is null when the directory is not loaded for that account (a failed load)', () => {
+    expect(principalIdsFromDirectory({ directoryAccountId: null, directoryPeople: [] }, 'acc-1')).toBeNull();
+    expect(principalIdsFromDirectory({ directoryAccountId: 'acc-2', directoryPeople: people }, 'acc-1')).toBeNull();
   });
 });

@@ -50,8 +50,9 @@ type FetchOne = (principalId: string, range: { start: Date; end: Date }) => Prom
 
 /**
  * Remembers each answer for the life of the editor: one request per
- * participant and range, shared by concurrent callers. A failed request is
- * remembered too (null, shown as unknown) rather than retried on every edit.
+ * participant and range, shared by concurrent callers. A failed request
+ * resolves null (shown as "couldn't check") and is forgotten, so the next
+ * load asks again.
  */
 export function createAvailabilityLoader(fetchOne: FetchOne) {
   const cache = new Map<string, Promise<BusyPeriod[] | null>>();
@@ -60,8 +61,12 @@ export function createAvailabilityLoader(fetchOne: FetchOne) {
       const key = `${principalId}|${range.start.getTime()}|${range.end.getTime()}`;
       let hit = cache.get(key);
       if (!hit) {
-        hit = fetchOne(principalId, range).catch(() => null);
-        cache.set(key, hit);
+        const pending: Promise<BusyPeriod[] | null> = fetchOne(principalId, range).catch(() => {
+          if (cache.get(key) === pending) cache.delete(key);
+          return null;
+        });
+        hit = pending;
+        cache.set(key, pending);
       }
       return hit;
     },
@@ -70,7 +75,8 @@ export function createAvailabilityLoader(fetchOne: FetchOne) {
 
 /**
  * Status of each attendee over the event window. Only attendees with a
- * principal id are asked about; anyone else, and any failure, is unknown.
+ * principal id are asked about; anyone else is unknown (not a user on this
+ * server), and a failed request is 'failed'.
  */
 export async function loadAttendeeAvailability(opts: {
   emails: string[];
@@ -83,7 +89,7 @@ export async function loadAttendeeAvailability(opts: {
     const id = opts.principalIdByEmail.get(email);
     if (!id) return [email, { status: 'unknown' as const, blocks: [] }] as const;
     const periods = await opts.loader.load(id, opts.range);
-    if (!periods) return [email, { status: 'unknown' as const, blocks: [] }] as const;
+    if (!periods) return [email, { status: 'failed' as const, blocks: [] }] as const;
     return [email, {
       status: availabilityFor(periods, opts.window.start, opts.window.end),
       blocks: mergeBusyBlocks(periods, opts.window.start, opts.window.end),

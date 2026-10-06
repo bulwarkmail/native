@@ -94,6 +94,10 @@ let directoryGeneration = 0;
 // App account (account-store id) the directory was claimed for.
 let directoryOwner: string | null = null;
 
+// The directory load running now, for a caller that finds the account
+// already claimed to wait on.
+let directoryInFlight: { accountId: string; generation: number; promise: Promise<void> } | null = null;
+
 // True when the directory loaded for `accountId` belongs to the account the
 // client serves now. The JMAP id alone can repeat across servers, so the app
 // account that claimed it must still be the active one.
@@ -738,7 +742,16 @@ export const useContactsStore = create<ContactsState>()(
 
         loadDirectory: async () => {
           const accountId = jmapClient.accountId;
-          if (!jmapClient.isConnected || !accountId || get().directoryAccountId === accountId) return;
+          if (!jmapClient.isConnected || !accountId) return;
+          if (get().directoryAccountId === accountId) {
+            // Claimed by a load still running: wait for it, so the caller
+            // reads the people it brings rather than the empty claim.
+            const running = directoryInFlight;
+            if (running && running.accountId === accountId && running.generation === directoryGeneration) {
+              await running.promise;
+            }
+            return;
+          }
           // Between an account switch's reset() and the new account loading,
           // the client still serves the account being left: not now.
           if (!clientServesActiveAccount()) return;
@@ -746,6 +759,9 @@ export const useContactsStore = create<ContactsState>()(
           // Claim the account up front so concurrent callers share one load.
           directoryOwner = activeAppAccountId();
           set({ directoryAccountId: accountId, directoryPeople: [] });
+          let finish!: () => void;
+          const promise = new Promise<void>((resolve) => { finish = resolve; });
+          directoryInFlight = { accountId, generation, promise };
           try {
             const principals = await getPrincipals();
             if (generation !== directoryGeneration) return;
@@ -769,6 +785,9 @@ export const useContactsStore = create<ContactsState>()(
             if (generation === directoryGeneration && get().directoryAccountId === accountId) {
               set({ directoryAccountId: null });
             }
+          } finally {
+            if (directoryInFlight?.promise === promise) directoryInFlight = null;
+            finish();
           }
         },
 
@@ -957,6 +976,7 @@ export const useContactsStore = create<ContactsState>()(
         reset: () => {
           directoryGeneration++;
           directoryOwner = null;
+          directoryInFlight = null;
           set({
             addressBooks: [],
             contacts: [],

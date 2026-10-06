@@ -21,7 +21,13 @@ import {
   loadAttendeeAvailability,
   supportsAvailability,
 } from '../../api/availability';
-import { availabilityRange, stripSegments } from '../../lib/availability';
+import {
+  availabilityRange,
+  availabilityStatusLabel,
+  everyoneAs,
+  principalIdsFromDirectory,
+  stripSegments,
+} from '../../lib/availability';
 import type { AvailabilityStatus, BusyBlock } from '../../lib/availability';
 
 /** The account the editor opened in; free/busy is asked for it only. */
@@ -41,7 +47,9 @@ const AVAILABILITY_DEBOUNCE_MS = 500;
 type AttendeeAvailability = { status: AvailabilityStatus; blocks: BusyBlock[] };
 
 // Free/busy of the attendees over the event window. It never gates saving:
-// loading, failure and "not on this server" all read as unknown.
+// each row says "Checking…" while it loads, "Couldn't check availability"
+// when the directory or the request failed, and "Not a user on this server"
+// only for an address without a principal.
 function useAttendeeAvailability(
   attendees: Attendee[],
   account: AvailabilityAccount | undefined,
@@ -74,6 +82,8 @@ function useAttendeeAvailability(
       return;
     }
     let cancelled = false;
+    // Everyone is being checked until the answer lands (the debounce included).
+    setResults(everyoneAs(emails, 'checking'));
     // Still the account the editor opened in, on the connection it opened on.
     const stillHere = () => {
       try {
@@ -85,20 +95,20 @@ function useAttendeeAvailability(
     const timer = setTimeout(async () => {
       try {
         if (!stillHere()) return;
-        const contacts = useContactsStore.getState();
-        if (contacts.directoryAccountId !== jmapAccountId) await contacts.loadDirectory();
+        // Waits for a load another caller started, too.
+        await useContactsStore.getState().loadDirectory();
         if (!stillHere()) return;
-        const loaded = useContactsStore.getState();
-        const people = loaded.directoryAccountId === jmapAccountId ? loaded.directoryPeople : [];
-        const principalIdByEmail = new Map<string, string>();
-        for (const p of people) {
-          if (p.principalId) principalIdByEmail.set(p.email.toLowerCase(), p.principalId);
+        const principalIdByEmail = principalIdsFromDirectory(useContactsStore.getState(), jmapAccountId);
+        if (!principalIdByEmail) {
+          // The directory didn't load: nobody could be checked.
+          setResults(everyoneAs(emails, 'failed'));
+          return;
         }
         const out = await loadAttendeeAvailability({ emails, principalIdByEmail, range, window: win, loader });
         if (stillHere()) setResults(out);
       } catch {
-        // Unknown for everyone; saving is unaffected.
-        if (stillHere()) setResults({});
+        // Saving is unaffected.
+        if (stillHere()) setResults(everyoneAs(emails, 'failed'));
       }
     }, AVAILABILITY_DEBOUNCE_MS);
     return () => {
@@ -213,7 +223,8 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
         <View accessibilityLabel={t('calendar.participants.availability.title', 'Availability')} style={styles.availability}>
           {attendees.map((a) => {
             const entry = availability[a.email.trim().toLowerCase()];
-            const status: AvailabilityStatus = entry?.status ?? 'unknown';
+            // Not in the results yet: its check starts with the next run.
+            const status: AvailabilityStatus = entry?.status ?? 'checking';
             const segments = entry ? stripSegments(entry.blocks, window.start, window.end) : [];
             const dot =
               status === 'free' ? c.success
@@ -239,12 +250,7 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
                     />
                   ))}
                 </View>
-                <Text style={styles.availStatus}>
-                  {status === 'free' ? t('calendar.participants.availability.free', 'Available')
-                    : status === 'busy' ? t('calendar.participants.availability.busy', 'Busy')
-                    : status === 'tentative' ? t('calendar.participants.availability.tentative', 'Tentative')
-                    : t('calendar.participants.availability.unknown', 'Not a user on this server')}
-                </Text>
+                <Text style={styles.availStatus}>{availabilityStatusLabel(status, t)}</Text>
               </View>
             );
           })}

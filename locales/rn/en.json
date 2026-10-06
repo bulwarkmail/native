@@ -97,6 +97,11 @@
       "starts_in_hours": "{count, plural, one {Starts in # hour} other {Starts in # hours}}",
       "starts_in_minutes": "{count, plural, one {Starts in # minute} other {Starts in # minutes}}"
     },
+    "participants": {
+      "availability": {
+        "failed": "Couldn't check availability"
+      }
+    },
     "recurrence": {
       "editor_occurrences_count": "{count, plural, one {occurrence} other {occurrences}}",
       "every_count_days": "{count, plural, one {Every # day} other {Every # days}}",

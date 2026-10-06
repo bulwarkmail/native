@@ -65,18 +65,21 @@ describe('createAvailabilityLoader', () => {
     expect(fetchOne).toHaveBeenCalledTimes(3);
   });
 
-  it('reports a failure as unknown (null) and does not retry it', async () => {
-    const fetchOne = vi.fn().mockRejectedValue(new Error('boom'));
+  it('reports a failure as null and does not keep it: the next load asks again', async () => {
+    const fetchOne = vi.fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce([]);
     const loader = createAvailabilityLoader(fetchOne);
     expect(await loader.load('p1', range)).toBeNull();
-    expect(await loader.load('p1', range)).toBeNull();
-    expect(fetchOne).toHaveBeenCalledTimes(1);
+    expect(await loader.load('p1', range)).toEqual([]);
+    expect(await loader.load('p1', range)).toEqual([]);
+    expect(fetchOne).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('loadAttendeeAvailability', () => {
   const window = { start: new Date('2026-10-06T10:00:00Z'), end: new Date('2026-10-06T11:00:00Z') };
-  it('makes no request without a principal and reports free, busy, unknown', async () => {
+  it('makes no request without a principal and reports free, busy, unknown, failed', async () => {
     const fetchOne = vi.fn(async (id: string) => id === 'p1'
       ? [{ utcStart: '2026-10-06T10:30:00Z', utcEnd: '2026-10-06T12:00:00Z', busyStatus: null }]
       : id === 'p2' ? [] : Promise.reject(new Error('x')));
@@ -89,7 +92,8 @@ describe('loadAttendeeAvailability', () => {
     expect(fetchOne.mock.calls.map((c) => c[0]).sort()).toEqual(['p1', 'p2', 'p3']);
     expect(out['a@x.com'].status).toBe('busy');
     expect(out['b@x.com'].status).toBe('free');
+    // No principal: not a user on this server. A failed request: couldn't check.
     expect(out['ext@y.com'].status).toBe('unknown');
-    expect(out['bad@x.com'].status).toBe('unknown');
+    expect(out['bad@x.com'].status).toBe('failed');
   });
 });
