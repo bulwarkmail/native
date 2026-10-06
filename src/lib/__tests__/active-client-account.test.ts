@@ -27,9 +27,31 @@ describe('clientServesActiveAccount', () => {
     expect(clientServesActiveAccount()).toBe(true);
   });
 
-  it('ignores case and surrounding whitespace in the username', () => {
-    setup(one('ada@example.com', 'https://mail.example.com'), 'a1', ' Ada@Example.com ', 'https://mail.example.com');
+  it('ignores surrounding whitespace and the case of the domain in the username', () => {
+    setup(one('ada@example.com', 'https://mail.example.com'), 'a1', ' ada@Example.COM ', 'https://mail.example.com');
     expect(clientServesActiveAccount()).toBe(true);
+    setup(one('ada@example.com ', 'https://mail.example.com'), 'a1', 'ada@example.com', 'https://mail.example.com');
+    expect(clientServesActiveAccount()).toBe(true);
+    setup(one(' ada', 'https://mail.example.com'), 'a1', 'ada ', 'https://mail.example.com');
+    expect(clientServesActiveAccount()).toBe(true);
+  });
+
+  it('keeps the local part case-sensitive, including an unregistered variant mid add-account', () => {
+    // Registry holds `ada`; the client already carries `Ada` (connect sets it
+    // before the new account is registered).
+    setup(one('ada@example.com', 'https://mail.example.com'), 'a1', 'Ada@example.com', 'https://mail.example.com');
+    expect(clientServesActiveAccount()).toBe(false);
+    setup(one('ada', 'https://mail.example.com'), 'a1', 'Ada', 'https://mail.example.com');
+    expect(clientServesActiveAccount()).toBe(false);
+  });
+
+  it('does not match a URL with userinfo or a query', () => {
+    setup(one('ada', 'https://mail.example.com'), 'a1', 'ada', 'https://u:p@mail.example.com');
+    expect(clientServesActiveAccount()).toBe(false);
+    setup(one('ada', 'https://mail.example.com'), 'a1', 'ada', 'https://mail.example.com/?x=1');
+    expect(clientServesActiveAccount()).toBe(false);
+    setup(one('ada', 'https://u@mail.example.com'), 'a1', 'ada', 'https://u@mail.example.com');
+    expect(clientServesActiveAccount()).toBe(false);
   });
 
   it('ignores a trailing slash and the case of the host', () => {
@@ -67,19 +89,5 @@ describe('clientServesActiveAccount', () => {
     expect(clientServesActiveAccount()).toBe(false);
     setup(one('ada', 'https://mail.example.com'), 'a1', '', '');
     expect(clientServesActiveAccount()).toBe(false);
-  });
-
-  it('keeps registry accounts that differ only by username case apart', () => {
-    // generateAccountId keeps the username's case, so both can be registered.
-    const both: Entry[] = [
-      { id: 'Ada@mail.example.com', username: 'Ada', serverUrl: 'https://mail.example.com' },
-      { id: 'ada@mail.example.com', username: 'ada', serverUrl: 'https://mail.example.com' },
-    ];
-    setup(both, 'Ada@mail.example.com', 'ada', 'https://mail.example.com');
-    expect(clientServesActiveAccount()).toBe(false);
-    setup(both, 'Ada@mail.example.com', 'Ada', 'https://mail.example.com');
-    expect(clientServesActiveAccount()).toBe(true);
-    setup(both, 'ada@mail.example.com', 'ada', 'https://mail.example.com');
-    expect(clientServesActiveAccount()).toBe(true);
   });
 });

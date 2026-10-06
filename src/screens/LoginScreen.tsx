@@ -331,7 +331,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
       });
       finishIfSignedIn(wasAuthenticated);
     } catch (err) {
-      // A code is single-use and short-lived: a failed submit leaves a stale one.
+      // Cleared on any failed submit: a code is single-use and short-lived.
       setTotp('');
       if (err instanceof Error && err.name === 'TotpRequiredError') {
         setTotpRequired(true);

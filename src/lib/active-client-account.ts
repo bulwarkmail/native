@@ -6,19 +6,29 @@ const trimUrl = (url: string | null | undefined) => (url ?? '').trim().replace(/
 /**
  * A server URL reduced to what identifies it: scheme, host (case-insensitive,
  * with its port) and path, minus trailing slashes. A different host, port,
- * scheme or path never compares equal.
+ * scheme or path never compares equal. A URL with userinfo, a query or a
+ * fragment has no key and never matches.
  */
-function serverKey(url: string | null | undefined): string {
+function serverKey(url: string | null | undefined): string | null {
   const trimmed = trimUrl(url);
   try {
     const u = new URL(trimmed);
+    if (u.username || u.password || u.search || u.hash || /[?#]/.test(trimmed)) return null;
     return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, '')}`;
   } catch {
-    return trimmed;
+    return trimmed || null;
   }
 }
 
-const userKey = (username: string | null | undefined) => (username ?? '').trim().toLowerCase();
+/**
+ * A username trimmed, with only the domain after the last `@` lowercased:
+ * domains are case-insensitive, local parts (and bare login names) are not.
+ */
+function userKey(username: string | null | undefined): string {
+  const value = (username ?? '').trim();
+  const at = value.lastIndexOf('@');
+  return at < 0 ? value : `${value.slice(0, at)}@${value.slice(at + 1).toLowerCase()}`;
+}
 
 /** The app account id (account-store id) the app shows as active, or null. */
 export function activeAppAccountId(): string | null {
@@ -35,18 +45,10 @@ export function clientServesActiveAccount(): boolean {
   const accounts = useAccountStore.getState();
   const entry = accounts.activeAccountId ? accounts.getAccountById(accounts.activeAccountId) : undefined;
   if (!entry) return false;
-  if (serverKey(entry.serverUrl) !== serverKey(jmapClient.serverUrl)) return false;
-  if (entry.username === jmapClient.username) return true;
-
-  // Beyond an exact match only case and surrounding whitespace in the username
-  // are forgiven. The registry keeps usernames case-sensitive (`Ada` and `ada`
-  // on one host are two accounts), so when another account would match the
-  // client just as loosely the client could belong to either: stay strict.
-  const key = userKey(jmapClient.username);
-  if (!key || userKey(entry.username) !== key) return false;
-  const rivals = accounts.accounts.some((a) =>
-    a.id !== entry.id
-    && serverKey(a.serverUrl) === serverKey(entry.serverUrl)
-    && userKey(a.username) === key);
-  return !rivals;
+  const entryServer = serverKey(entry.serverUrl);
+  const user = userKey(jmapClient.username);
+  return entryServer !== null
+    && entryServer === serverKey(jmapClient.serverUrl)
+    && user !== ''
+    && userKey(entry.username) === user;
 }
