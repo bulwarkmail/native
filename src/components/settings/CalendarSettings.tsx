@@ -9,9 +9,7 @@ import {
 } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useCalendarStore } from '../../stores/calendar-store';
-import { useEmailStore } from '../../stores/email-store';
 import { toast } from '../../stores/toast-store';
-import { jmapClient } from '../../api/jmap-client';
 import { useColors } from '../../theme/colors';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { CALENDAR_COLOR_PALETTE, calendarColorName } from '../../lib/calendar-utils';
@@ -20,6 +18,7 @@ import { formatDisplayHour } from '../../lib/calendar-display-range';
 import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/calendar-timezone';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
 import { newInvitationOrganizer } from '../../lib/calendar-participants';
+import { useServedAccount } from '../../lib/served-account';
 import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
@@ -79,20 +78,16 @@ export function CalendarSettings() {
 
   // Which of the user's calendar addresses organizes new invitations
   // (ParticipantIdentity), loaded for the account the settings show.
-  const ownJmapAccountId = (() => {
-    try {
-      return jmapClient.accountId;
-    } catch {
-      return '';
-    }
-  })();
+  // Re-run on a switch, and retried once the new account is served ('' until then).
+  const served = useServedAccount();
+  const ownJmapAccountId = served.jmapAccountId;
   const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
   const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
   const setDefaultIdentity = useCalendarStore((s) => s.setDefaultParticipantIdentity);
   useEffect(() => {
     if (!ownJmapAccountId || useCalendarStore.getState().participantIdentities[ownJmapAccountId]) return;
-    void fetchIdentities({ appAccountId: useEmailStore.getState().activeAccountId });
-  }, [ownJmapAccountId, fetchIdentities]);
+    void fetchIdentities({ appAccountId: served.appAccountId, jmapAccountId: ownJmapAccountId });
+  }, [ownJmapAccountId, served.appAccountId, fetchIdentities]);
   // What organizes new invitations, exactly as a save decides it: the
   // flagged default, else the login address (shown as its own entry when no
   // identity has it).
@@ -174,7 +169,7 @@ export function CalendarSettings() {
               value={organizerValue}
               onChange={(id) => {
                 if (id === LOGIN_ADDRESS_OPTION) return;
-                setDefaultIdentity(id, { appAccountId: useEmailStore.getState().activeAccountId }).catch((err) => {
+                setDefaultIdentity(id, { appAccountId: served.appAccountId, jmapAccountId: ownJmapAccountId }).catch((err) => {
                   toast.error(
                     err instanceof Error && err.message
                       ? err.message

@@ -71,9 +71,8 @@ import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
+import { useServedAccount } from '../../lib/served-account';
 import { useCalendarStore } from '../../stores/calendar-store';
-import { useEmailStore } from '../../stores/email-store';
-import { jmapClient } from '../../api/jmap-client';
 import { identityAddresses } from '../../lib/calendar-user-addresses';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
@@ -221,19 +220,15 @@ export function EventModal({
   const [saving, setSaving] = React.useState(false);
 
   // The user's default ParticipantIdentity organizes new invitations. It is
-  // loaded for the account the editor opened in.
-  const ownJmapAccountId = (() => {
-    try {
-      return jmapClient.accountId;
-    } catch {
-      return '';
-    }
-  })();
-  // Free/busy is asked for the account the editor opened in.
+  // loaded for the shown account once the client serves it (re-run on a
+  // switch, retried when the new connection lands); '' until then.
+  const served = useServedAccount();
+  const ownJmapAccountId = served.jmapAccountId;
+  // Free/busy is asked for that account (the editor closes on a switch).
   const availabilityAccount = React.useMemo(
-    () => ({ jmapAccountId: ownJmapAccountId, appAccountId: useEmailStore.getState().activeAccountId }),
+    () => ({ jmapAccountId: ownJmapAccountId, appAccountId: served.appAccountId }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ownJmapAccountId, visible],
+    [ownJmapAccountId, served.appAccountId, visible],
   );
   const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
   const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
@@ -247,11 +242,11 @@ export function EventModal({
   // detail sheet).
   const participantsLocked = participantsLockedFor(event, userEmails);
   React.useEffect(() => {
-    if (!visible) return;
+    if (!visible || !ownJmapAccountId) return;
     if (!useCalendarStore.getState().participantIdentities[ownJmapAccountId]) {
-      void fetchIdentities({ appAccountId: useEmailStore.getState().activeAccountId });
+      void fetchIdentities({ appAccountId: served.appAccountId, jmapAccountId: ownJmapAccountId });
     }
-  }, [visible, ownJmapAccountId, fetchIdentities]);
+  }, [visible, ownJmapAccountId, served.appAccountId, fetchIdentities]);
 
   // Reset the form when the editor opens or switches to another event only.
   // `calendars` and `currentUserEmails` get new identities when a calendar
