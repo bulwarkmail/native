@@ -1317,7 +1317,13 @@ export const useEmailStore = create<EmailState>()(
         threads: !useSettingsStore.getState().disableThreading,
         snippets: true,
       });
-      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      // A page for a search the user has since changed or cleared belongs
+      // to neither the rows nor the highlights now on screen.
+      const after = get();
+      if (
+        after.activeAccountId !== activeAccountId || after.currentMailboxId !== currentMailboxId ||
+        after.searchQuery !== searchQuery || after.filters !== filters
+      ) return;
       const pageSnippets: SnippetMap = {};
       collectSnippets(pageSnippets, scope.accountId ?? jmapClient.accountId, snippets);
       // A message that arrived between pages shifts positions and would come
