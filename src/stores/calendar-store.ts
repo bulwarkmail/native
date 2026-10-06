@@ -31,7 +31,7 @@ import {
   resetSyntheticIdSupport,
 } from '../api/calendar';
 import { jmapClient } from '../api/jmap-client';
-import type { AccountRef } from '../api/op-scope';
+import { inAccount, type AccountRef, type OpScope } from '../api/op-scope';
 import { isShownAccount, requireShownAccountScope } from './email-store';
 import { expandRecurringEvents } from '../lib/recurrence-expansion';
 import { isRecurringSeriesMember } from '../lib/recurrence-overrides';
@@ -269,18 +269,24 @@ export interface CalendarState {
   // Resolves with what got in and what the server refused; rejects with an
   // ImportRefusedError when nothing got in because everything was refused.
   /** `stillValid`, when given, is checked before every write; once false the import stops quietly. */
-  importEvents: (events: Partial<CalendarEvent>[], calendarId: string, stillValid?: () => boolean) => Promise<ImportResult>;
-  createCalendar: (name: string, color?: string, description?: string) => Promise<Calendar>;
-  updateCalendar: (id: string, updates: CalendarUpdates) => Promise<void>;
-  removeCalendar: (id: string) => Promise<void>;
-  clearCalendarEvents: (id: string) => Promise<number>;
-  shareCalendar: (id: string, principalId: string, rights: CalendarRights | null) => Promise<void>;
-  setDefaultCalendar: (id: string) => Promise<void>;
+  importEvents: (
+    events: Partial<CalendarEvent>[],
+    calendarId: string,
+    stillValid?: () => boolean,
+    // The app account the import was started in (refused once it isn't shown and served).
+    account?: EventAccount,
+  ) => Promise<ImportResult>;
+  createCalendar: (name: string, color?: string, description?: string, account?: EventAccount) => Promise<Calendar>;
+  updateCalendar: (id: string, updates: CalendarUpdates, account?: EventAccount) => Promise<void>;
+  removeCalendar: (id: string, account?: EventAccount) => Promise<void>;
+  clearCalendarEvents: (id: string, account?: EventAccount) => Promise<number>;
+  shareCalendar: (id: string, principalId: string, rights: CalendarRights | null, account?: EventAccount) => Promise<void>;
+  setDefaultCalendar: (id: string, account?: EventAccount) => Promise<void>;
   // Tasks
-  createTask: (task: Partial<CalendarEvent>, calendarId: string) => Promise<void>;
-  updateTask: (id: string, changes: Partial<CalendarEvent>) => Promise<void>;
-  toggleTaskComplete: (id: string) => Promise<void>;
-  deleteTask: (id: string) => Promise<void>;
+  createTask: (task: Partial<CalendarEvent>, calendarId: string, account?: EventAccount) => Promise<void>;
+  updateTask: (id: string, changes: Partial<CalendarEvent>, account?: EventAccount) => Promise<void>;
+  toggleTaskComplete: (id: string, account?: EventAccount) => Promise<void>;
+  deleteTask: (id: string, account?: EventAccount) => Promise<void>;
   toggleCalendarVisibility: (id: string) => void;
   setCalendarHidden: (id: string, hidden: boolean) => void;
   reset: () => void;
@@ -454,6 +460,12 @@ export function resolveMutationTarget(
 export interface EventAccount {
   appAccountId: string | null | undefined;
   jmapAccountId?: string;
+  /**
+   * A scope the caller took at the start of a multi-step change: every step
+   * is sent on that connection (a step after it is gone fails, sending
+   * nothing), and still refused unless the account is shown and served.
+   */
+  scope?: OpScope;
 }
 
 /** Where a write goes: the account, and the scope binding it to its connection. */
@@ -463,7 +475,8 @@ function writeAccount(
 ): { accountId: string | undefined; ref: AccountRef } {
   if (!account) return { accountId: targetAccountId, ref: targetAccountId };
   const accountId = account.jmapAccountId ?? targetAccountId;
-  return { accountId, ref: requireShownAccountScope(account.appAccountId, accountId) };
+  const now = requireShownAccountScope(account.appAccountId, accountId);
+  return { accountId, ref: account.scope ? inAccount(account.scope, accountId) : now };
 }
 
 /** Whether the screen that started a write still shows the account it wrote to. */
@@ -797,8 +810,10 @@ export const useCalendarStore = create<CalendarState>()(
     // right instant, then expand a recurring series across the loaded range
     // instead of showing a single instance until the next refresh.
     let full = created;
+    // Switched away during the create: nothing more to read or show here.
+    if (!stillShown(options?.account)) return full;
     try {
-      const fetched = (await fetchEvents([created.id], accountId)) ?? [];
+      const fetched = (await fetchEvents([created.id], ref)) ?? [];
       if (fetched[0]) full = fetched[0];
     } catch {
       // Keep the echo; the next refresh reconciles.
@@ -982,13 +997,13 @@ export const useCalendarStore = create<CalendarState>()(
     if (touchesSeries) await get().refresh();
   },
 
-  importEvents: async (events, calendarId, stillValid) => {
+  importEvents: async (events, calendarId, stillValid, account) => {
     if (events.length === 0) return { imported: 0, refused: [] };
     // Shared calendars live in the owner's account and carry a namespaced
     // store id — resolve the raw server id + owning account so dedup and
     // create target the right place.
     const cal = get().calendars.find((c) => c.id === calendarId);
-    const accountId = cal?.accountId;
+    const { accountId, ref } = writeAccount(account, cal?.accountId);
     const serverCalendarId = cal?.originalId || calendarId;
     const refused: RefusedImport[] = [];
     // Stalwart enforces UID uniqueness across calendars (#113):
@@ -1005,7 +1020,7 @@ export const useCalendarStore = create<CalendarState>()(
     };
     try {
       const existingIds = await queryEvents([], '', '', accountId);
-      const existing = existingIds.length > 0 ? await fetchEvents(existingIds, accountId) : [];
+      const existing = existingIds.length > 0 ? await fetchEvents(existingIds, ref) : [];
       const byUid = new Map<string, CalendarEvent>();
       for (const e of existing) if (e.uid) byUid.set(e.uid, e);
       const fresh: Partial<CalendarEvent>[] = [];
@@ -1022,7 +1037,7 @@ export const useCalendarStore = create<CalendarState>()(
             found.id,
             { calendarIds: { ...(found.calendarIds || {}), [serverCalendarId]: true } },
             undefined,
-            accountId,
+            ref,
           );
           linked++;
         } catch (err) {
@@ -1041,7 +1056,7 @@ export const useCalendarStore = create<CalendarState>()(
       for (let i = 0; i < prepared.length; i += 50) {
         if (!ok()) break;
         try {
-          const result = await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, accountId);
+          const result = await apiBatchCreateEvents(prepared.slice(i, i + 50), serverCalendarId, ref);
           count += result.created;
           for (const { index, reason } of result.refused) {
             refused.push({ event: toCreate[i + index], reason });
@@ -1064,25 +1079,31 @@ export const useCalendarStore = create<CalendarState>()(
     return { imported: count + linked, refused };
   },
 
-  createCalendar: async (name, color, description) => {
-    const created = await apiCreateCalendar(name, color, description);
+  createCalendar: async (name, color, description, account) => {
+    const { ref } = writeAccount(account, undefined);
+    const created = await apiCreateCalendar(name, color, description, ref);
+    if (!stillShown(account)) return created;
     set({ calendars: [...get().calendars, created] });
     requestDeviceSync(CALENDAR_AUTHORITY);
     return created;
   },
 
-  updateCalendar: async (id, updates) => {
+  updateCalendar: async (id, updates, account) => {
     const cal = get().calendars.find((c) => c.id === id);
-    await apiUpdateCalendar(cal?.originalId || id, updates, cal?.accountId);
+    const { ref } = writeAccount(account, cal?.accountId);
+    await apiUpdateCalendar(cal?.originalId || id, updates, ref);
+    if (!stillShown(account)) return;
     set({
       calendars: get().calendars.map((c) => (c.id === id ? { ...c, ...updates } as Calendar : c)),
     });
     requestDeviceSync(CALENDAR_AUTHORITY);
   },
 
-  removeCalendar: async (id) => {
+  removeCalendar: async (id, account) => {
     const cal = get().calendars.find((c) => c.id === id);
-    await apiDeleteCalendar(cal?.originalId || id, cal?.accountId);
+    const { ref } = writeAccount(account, cal?.accountId);
+    await apiDeleteCalendar(cal?.originalId || id, ref);
+    if (!stillShown(account)) return;
     set({
       calendars: get().calendars.filter((c) => c.id !== id),
       events: get().events.filter((e) => !e.calendarIds?.[id]),
@@ -1092,21 +1113,24 @@ export const useCalendarStore = create<CalendarState>()(
     requestDeviceSync(CALENDAR_AUTHORITY);
   },
 
-  clearCalendarEvents: async (id) => {
+  clearCalendarEvents: async (id, account) => {
     const cal = get().calendars.find((c) => c.id === id);
+    const { ref } = writeAccount(account, cal?.accountId);
     try {
-      const cleared = await apiClearCalendarEvents(cal?.originalId || id, cal?.accountId);
+      const cleared = await apiClearCalendarEvents(cal?.originalId || id, ref);
       requestDeviceSync(CALENDAR_AUTHORITY);
       return cleared;
     } finally {
       // Also after a refused batch: earlier batches may have gone through.
-      await get().refresh();
+      if (stillShown(account)) await get().refresh();
     }
   },
 
-  shareCalendar: async (id, principalId, rights) => {
+  shareCalendar: async (id, principalId, rights, account) => {
     const cal = get().calendars.find((c) => c.id === id);
-    await apiSetCalendarShare(cal?.originalId || id, principalId, rights, cal?.accountId);
+    const { ref } = writeAccount(account, cal?.accountId);
+    await apiSetCalendarShare(cal?.originalId || id, principalId, rights, ref);
+    if (!stillShown(account)) return;
     set({
       calendars: get().calendars.map((c) => {
         if (c.id !== id) return c;
@@ -1118,9 +1142,11 @@ export const useCalendarStore = create<CalendarState>()(
     });
   },
 
-  setDefaultCalendar: async (id) => {
+  setDefaultCalendar: async (id, account) => {
     const cal = get().calendars.find((c) => c.id === id);
-    await apiSetDefaultCalendar(cal?.originalId || id, cal?.accountId);
+    const { ref } = writeAccount(account, cal?.accountId);
+    await apiSetDefaultCalendar(cal?.originalId || id, ref);
+    if (!stillShown(account)) return;
     set({
       calendars: get().calendars.map((c) => {
         if (c.id === id) return { ...c, isDefault: true };
@@ -1134,27 +1160,31 @@ export const useCalendarStore = create<CalendarState>()(
     });
   },
 
-  createTask: async (task, calendarId) => {
+  createTask: async (task, calendarId, account) => {
     const cal = get().calendars.find((c) => c.id === calendarId);
+    const { ref } = writeAccount(account, cal?.accountId);
     await apiCreateEvent(
       { ...task, '@type': 'Task' },
       cal?.originalId || calendarId,
       undefined,
-      cal?.accountId,
+      ref,
     );
-    await get().fetchTasks();
+    if (stillShown(account)) await get().fetchTasks();
   },
 
-  updateTask: async (id, changes) => {
+  updateTask: async (id, changes, account) => {
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiUpdateEvent(realId, changes, undefined, task?.accountId);
+    const { ref } = writeAccount(account, task?.accountId);
+    await apiUpdateEvent(realId, changes, undefined, ref);
+    if (!stillShown(account)) return;
     set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
   },
 
-  toggleTaskComplete: async (id) => {
+  toggleTaskComplete: async (id, account) => {
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
+    const { ref } = writeAccount(account, task.accountId);
     // The tasks sheet ticks cancelled tasks too, so a tap on one reopens it.
     const completed = task.progress === 'completed' || task.progress === 'cancelled';
     // Un-completing goes back to needs-action (not in-process), like webmail.
@@ -1165,20 +1195,22 @@ export const useCalendarStore = create<CalendarState>()(
       : { progress: 'completed', percentComplete: 100 };
     // Flip the checkbox right away and put it back if the server refuses.
     const patchTask = (changes: Partial<CalendarEvent>) =>
-      set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+      stillShown(account) && set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
     patchTask(next);
     try {
-      await apiUpdateEvent(task.originalId || id, next, undefined, task.accountId);
+      await apiUpdateEvent(task.originalId || id, next, undefined, ref);
     } catch (err) {
       patchTask({ progress: task.progress, percentComplete: task.percentComplete });
       throw err;
     }
   },
 
-  deleteTask: async (id) => {
+  deleteTask: async (id, account) => {
     const task = get().tasks.find((t) => t.id === id);
     const realId = task?.originalId || id;
-    await apiDeleteEvents([realId], undefined, task?.accountId);
+    const { ref } = writeAccount(account, task?.accountId);
+    await apiDeleteEvents([realId], undefined, ref);
+    if (!stillShown(account)) return;
     set({ tasks: get().tasks.filter((t) => t.id !== id) });
   },
 

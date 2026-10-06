@@ -18,6 +18,11 @@ vi.mock('../../api/calendar', () => ({
   deleteEvents: vi.fn(),
   batchCreateEvents: vi.fn(),
   setDefaultCalendar: vi.fn(),
+  createCalendar: vi.fn(),
+  updateCalendar: vi.fn(),
+  deleteCalendar: vi.fn(),
+  setCalendarShare: vi.fn(),
+  clearCalendarEvents: vi.fn(),
   rsvpEvent: vi.fn(),
   supportsSyntheticCalendarIds: vi.fn(async () => false),
   queryExpandedEvents: vi.fn(),
@@ -64,6 +69,16 @@ const mockUpdate = calendarApi.updateEvent as ReturnType<typeof vi.fn>;
 const mockDelete = calendarApi.deleteEvents as ReturnType<typeof vi.fn>;
 const mockRsvp = calendarApi.rsvpEvent as ReturnType<typeof vi.fn>;
 const mockCreate = calendarApi.createEvent as ReturnType<typeof vi.fn>;
+const mockGetEvents = calendarApi.getEvents as ReturnType<typeof vi.fn>;
+const mockCalApi = {
+  create: calendarApi.createCalendar as unknown as ReturnType<typeof vi.fn>,
+  update: calendarApi.updateCalendar as unknown as ReturnType<typeof vi.fn>,
+  remove: calendarApi.deleteCalendar as unknown as ReturnType<typeof vi.fn>,
+  share: calendarApi.setCalendarShare as unknown as ReturnType<typeof vi.fn>,
+  clear: calendarApi.clearCalendarEvents as unknown as ReturnType<typeof vi.fn>,
+  setDefault: calendarApi.setDefaultCalendar as ReturnType<typeof vi.fn>,
+  batchCreate: calendarApi.batchCreateEvents as ReturnType<typeof vi.fn>,
+};
 
 let A: string;
 beforeEach(() => {
@@ -151,5 +166,88 @@ describe('a write from the shown account', () => {
     finish();
     await pending;
     expect(useCalendarStore.getState().events).toHaveLength(1);
+  });
+});
+
+describe('a duplicate whose create outlives a switch', () => {
+  it('reads nothing back and leaves the new account\'s events alone', async () => {
+    let finish!: (e: unknown) => void;
+    mockCreate.mockReturnValue(new Promise((res) => { finish = res; }));
+    useCalendarStore.setState({ events: [{ id: 'b-ev' } as never] });
+    const pending = useCalendarStore.getState().createEvent({ title: 'x' }, 'cal-1', { account: { appAccountId: A } });
+    switchToB();
+    finish({ id: '1', title: 'x' });
+    await pending;
+    // The re-read of id "1" would return B's event with that id.
+    expect(mockGetEvents).not.toHaveBeenCalled();
+    expect(useCalendarStore.getState().events).toEqual([{ id: 'b-ev' }]);
+  });
+
+  it('re-reads on the connection the create used', async () => {
+    mockCreate.mockResolvedValue({ id: '1', title: 'x' });
+    mockGetEvents.mockResolvedValue([]);
+    await useCalendarStore.getState().createEvent({ title: 'x' }, 'cal-1', { account: { appAccountId: A } });
+    expect(mockGetEvents).toHaveBeenCalledWith(['1'], { gen: 7, accountId: 'acc-1' });
+  });
+});
+
+describe('one scope for a multi-step change', () => {
+  it('sends every step on the scope taken at the start', async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    const account = { appAccountId: A, scope: { gen: 3, accountId: 'acc-1' } };
+    await useCalendarStore.getState().updateEvent('1', { title: 'x' }, { account });
+    expect(mockUpdate).toHaveBeenCalledWith('1', { title: 'x' }, undefined, { gen: 3, accountId: 'acc-1' });
+  });
+
+  it('still refuses once another account is shown', async () => {
+    switchToB();
+    const account = { appAccountId: A, scope: { gen: 7, accountId: 'acc-1' } };
+    await expect(useCalendarStore.getState().updateEvent('1', {}, { account })).rejects.toThrow(AccountNotServedError);
+    nothingSent();
+  });
+});
+
+describe('tasks, calendars and imports opened in A refuse after a switch', () => {
+  const account = () => ({ appAccountId: A });
+
+  it('tasks', async () => {
+    useCalendarStore.setState({ tasks: [{ id: 't1', progress: 'needs-action' } as never] });
+    switchToB();
+    const st = useCalendarStore.getState();
+    await expect(st.createTask({ title: 'x' }, 'cal-1', account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.updateTask('t1', { title: 'y' }, account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.toggleTaskComplete('t1', account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.deleteTask('t1', account())).rejects.toThrow(AccountNotServedError);
+    nothingSent();
+    // The optimistic tick was never applied.
+    expect(useCalendarStore.getState().tasks[0].progress).toBe('needs-action');
+  });
+
+  it('calendars', async () => {
+    switchToB();
+    const st = useCalendarStore.getState();
+    await expect(st.createCalendar('n', undefined, undefined, account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.updateCalendar('c', { name: 'n' }, account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.removeCalendar('c', account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.shareCalendar('c', 'p', null, account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.clearCalendarEvents('c', account())).rejects.toThrow(AccountNotServedError);
+    await expect(st.setDefaultCalendar('c', account())).rejects.toThrow(AccountNotServedError);
+    for (const m of Object.values(mockCalApi)) expect(m).not.toHaveBeenCalled();
+  });
+
+  it('an import (invitation banner)', async () => {
+    switchToB();
+    await expect(useCalendarStore.getState().importEvents([{ title: 'x' } as never], 'cal-1', undefined, account()))
+      .rejects.toThrow(AccountNotServedError);
+    expect(mockCalApi.batchCreate).not.toHaveBeenCalled();
+  });
+
+  it('from the shown account they go out on its connection', async () => {
+    mockCalApi.remove.mockResolvedValue(undefined);
+    mockDelete.mockResolvedValue(undefined);
+    await useCalendarStore.getState().removeCalendar('c', account());
+    expect(mockCalApi.remove).toHaveBeenCalledWith('c', { gen: 7, accountId: 'acc-1' });
+    await useCalendarStore.getState().deleteTask('t', account());
+    expect(mockDelete).toHaveBeenCalledWith(['t'], undefined, { gen: 7, accountId: 'acc-1' });
   });
 });

@@ -28,6 +28,7 @@ import { useUserCalendarAddresses } from '../../lib/calendar-user-addresses';
 import { canCreateEventsIn } from '../../lib/calendar-editability';
 import { getCalendarColor, timePattern } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
+import { useEmailStore, requireShownAccountScope } from '../../stores/email-store';
 import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
 
 type BannerState = 'loading' | 'parsed' | 'done' | 'error';
@@ -38,6 +39,9 @@ interface Props {
   // Account the email lives in (a shared mailbox's owner); the .ics blob is
   // parsed against it. Undefined for the user's own mailboxes.
   jmapAccountId?: string;
+  // The app account the message is shown in; defaults to the one shown when
+  // the banner mounted. Every lookup and write goes out only while it is shown.
+  appAccountId?: string;
 }
 
 // Literal t() calls so the keys are harvested into the catalog.
@@ -60,7 +64,7 @@ function trustReasonText(
   }
 }
 
-export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
+export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -72,6 +76,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
   const subscriptions = useAccountSubscriptions();
   const importEvents = useCalendarStore((s) => s.importEvents);
   const rsvpEvent = useCalendarStore((s) => s.rsvpEvent);
+  const [mountedIn] = React.useState(() => useEmailStore.getState().activeAccountId);
+  const ownerAppAccountId = appAccountId ?? mountedIn;
   const attachment = React.useMemo(() => findCalendarAttachment(email), [email]);
   // Login address + identities + aliases, so invitations addressed to an
   // alias still show the RSVP buttons. Only an invitation looks the aliases up.
@@ -114,7 +120,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
         // up on the server so one already there counts as existing and the
         // RSVP goes to it. Best-effort, must not block the banner.
         if (parsed.uid && !useCalendarStore.getState().events.some((e) => e.uid === parsed.uid)) {
-          findEventsByUid(parsed.uid)
+          // Looked up on the connection serving the message's account, or not at all.
+          Promise.resolve()
+            .then(() => findEventsByUid(parsed.uid!, requireShownAccountScope(ownerAppAccountId)))
             .then((found) => { if (!cancelled && found[0]) setServerMatch(found[0]); })
             .catch(() => undefined);
         }
@@ -133,7 +141,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [invitationKey, enabled, jmapAccountId]);
+  }, [invitationKey, enabled, jmapAccountId, ownerAppAccountId]);
 
   // Import into the account's default calendar; never into a shared calendar,
   // an iCal subscription (the next feed sync would delete the event) or a
@@ -200,14 +208,17 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
         // Make sure the event exists in a local calendar (dedupes by UID),
         // then find it on the server for its id and participant: the store
         // never sees an event outside the loaded window.
-        await importEvents([event], targetCalendar.id);
-        target = event.uid ? (await findEventsByUid(event.uid))[0] ?? null : null;
+        await importEvents([event], targetCalendar.id, undefined, { appAccountId: ownerAppAccountId });
+        target = event.uid ? (await findEventsByUid(event.uid, requireShownAccountScope(ownerAppAccountId)))[0] ?? null : null;
         if (target) setServerMatch(target);
       }
       const participant = target ? findParticipantByEmail(target, currentUserEmails) : null;
       // Never claim success when no response went out.
       if (!target || !participant) throw new Error('No event to respond to');
-      await rsvpEvent(target.id, participant.id, status, buildReplyTo(event), target);
+      await rsvpEvent(target.id, participant.id, status, buildReplyTo(event), target, 'series', {
+        appAccountId: ownerAppAccountId,
+        jmapAccountId: target.accountId || undefined,
+      });
       setRsvpStatus(status);
       setNotice(t('calendar.invitation.response_sent', 'Response sent'));
       setState('done');
@@ -223,7 +234,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId }: Props) {
     setBusy(true);
     setNotice(null);
     try {
-      const { imported } = await importEvents([event], targetCalendar.id);
+      const { imported } = await importEvents([event], targetCalendar.id, undefined, { appAccountId: ownerAppAccountId });
       setNotice(
         imported > 0
           ? t('calendar.invitation.added', 'Added to calendar')

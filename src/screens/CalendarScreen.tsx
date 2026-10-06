@@ -107,7 +107,7 @@ import { writeFollowingSeries } from '../lib/following-series';
 import { saveWithSchedulingFallback } from '../lib/scheduling-denied';
 import { buildNoteUpdate } from '../lib/event-note';
 import { toast } from '../stores/toast-store';
-import { useEmailStore } from '../stores/email-store';
+import { useEmailStore, requireShownAccountScope, isShownAccount } from '../stores/email-store';
 import { shareEventICS } from '../lib/calendar-ics-export';
 import * as Clipboard from 'expo-clipboard';
 import type { Calendar, CalendarEvent, RecurrenceRule } from '../api/types';
@@ -259,7 +259,7 @@ export default function CalendarScreen() {
   // taken when it opened. Ids repeat across accounts (Stalwart numbers them
   // per account), so every write names it and the store refuses once another
   // account is shown (see `EventAccount`); the sheets close on a switch below.
-  const eventAppAccountId = React.useRef<string | null>(null);
+  const eventAppAccountId = React.useRef<string | null>(useEmailStore.getState().activeAccountId);
   const captureEventAccount = React.useCallback(() => {
     eventAppAccountId.current = useEmailStore.getState().activeAccountId;
   }, []);
@@ -270,6 +270,11 @@ export default function CalendarScreen() {
       setDetailEventState(next);
     },
     [captureEventAccount],
+  );
+  /** The account the open sheets belong to, for a write that isn't about one event. */
+  const screenAccount = React.useCallback(
+    (): EventAccount => ({ appAccountId: eventAppAccountId.current }),
+    [],
   );
   /** The account pair a write on `event` names, from the account its sheet opened in. */
   const accountOf = React.useCallback(
@@ -297,10 +302,17 @@ export default function CalendarScreen() {
   React.useEffect(() => {
     if (lastShownAccountId.current === shownAccountId) return;
     lastShownAccountId.current = shownAccountId;
-    eventAppAccountId.current = null;
+    eventAppAccountId.current = shownAccountId;
     setDetailEventState(null);
     setModalVisible(false);
     setPendingAction(null);
+    setTasksVisible(false);
+    setTasksInitialId(null);
+    setSidebarVisible(false);
+    setImportVisible(false);
+    setSubscriptionsVisible(false);
+    setCalendarEditTarget(null);
+    setShareTarget(null);
   }, [shownAccountId]);
 
   const hydrate = useCalendarStore((s) => s.hydrate);
@@ -615,13 +627,12 @@ export default function CalendarScreen() {
   }, []);
 
   const openEditDirect = React.useCallback((event: CalendarEvent) => {
-    // Opened from the detail sheet (which captured the account), or on an event
-    // that was just created in the shown account.
-    if (!eventAppAccountId.current) captureEventAccount();
+    // The account is the one the sheet that led here was opened in, never the
+    // one shown now (it may differ after a switch during a duplicate).
     setModalEvent(event);
     setModalDate(undefined);
     setModalVisible(true);
-  }, [captureEventAccount]);
+  }, []);
 
   // Client-side iCal subscriptions mirror a remote feed into a local
   // calendar; edits there would be wiped by the next sync, so they're
@@ -743,6 +754,13 @@ export default function CalendarScreen() {
                 : null,
             };
           }
+          // One connection for the whole "this and following" sequence.
+          const series: EventAccount = {
+            ...accountOf(event),
+            ...(scope === 'this_and_future'
+              ? { scope: requireShownAccountScope(eventAppAccountId.current, event.accountId || undefined) }
+              : {}),
+          };
           const write = async (send: boolean | undefined) => {
             const opts = { sendSchedulingMessages: send, account: accountOf(event) };
             switch (scope) {
@@ -764,10 +782,11 @@ export default function CalendarScreen() {
                   newSeries: newEventData,
                   calendarId: action.calendarId || getPrimaryCalendarId(master) || '',
                   send,
-                  // Both writes name the account the sheet opened in.
+                  // The truncation, the new series and a rollback all go out on
+                  // one connection, taken now; if it is gone each refuses.
                   api: {
-                    updateEvent: (id, changes, o) => updateEvent(id, changes, { ...o, account: accountOf(event) }),
-                    createEvent: (data, calId, o) => createEvent(data, calId, { ...o, account: accountOf(event) }),
+                    updateEvent: (id, changes, o) => updateEvent(id, changes, { ...o, account: series }),
+                    createEvent: (data, calId, o) => createEvent(data, calId, { ...o, account: series }),
                   },
                 });
                 break;
@@ -889,26 +908,26 @@ export default function CalendarScreen() {
   // server refuses; say so instead of leaving the user guessing.
   const handleToggleTask = React.useCallback(
     (id: string) => {
-      toggleTaskComplete(id).catch((err: unknown) => {
+      toggleTaskComplete(id, screenAccount()).catch((err: unknown) => {
         Alert.alert(
           t('calendar.tasks.update_error', 'Failed to update task'),
           err instanceof Error ? err.message : undefined,
         );
       });
     },
-    [toggleTaskComplete, t],
+    [toggleTaskComplete, screenAccount, t],
   );
 
   const handleDeleteTask = React.useCallback(
     (id: string) => {
-      deleteTask(id).catch((err: unknown) => {
+      deleteTask(id, screenAccount()).catch((err: unknown) => {
         Alert.alert(
           t('calendar.tasks.delete_error', 'Failed to delete task'),
           err instanceof Error ? err.message : undefined,
         );
       });
     },
-    [deleteTask, t],
+    [deleteTask, screenAccount, t],
   );
 
   // Clone the event one day later and open it in the editor (webmail's
@@ -916,6 +935,7 @@ export default function CalendarScreen() {
   const handleDuplicateFromDetail = React.useCallback(
     async (event: CalendarEvent) => {
       setDetailEvent(null);
+      const account = accountOf(event);
       const data: Partial<CalendarEvent> = {
         title: event.title,
         description: event.description,
@@ -933,7 +953,9 @@ export default function CalendarScreen() {
       if (event.alerts) data.alerts = JSON.parse(JSON.stringify(event.alerts));
       const calendarId = getPrimaryCalendarId(event) || '';
       try {
-        const created = await createEvent(data, calendarId, { account: accountOf(event) });
+        const created = await createEvent(data, calendarId, { account });
+        // Switched during the create: the id names another account's event now.
+        if (!isShownAccount(account.appAccountId)) return;
         const stored = useCalendarStore.getState().events.find((e) => e.id === created.id) ?? created;
         openEditDirect(stored);
       } catch (err) {
@@ -986,7 +1008,7 @@ export default function CalendarScreen() {
     async (values: CalendarEditValues) => {
       if (!calendarEditTarget) return;
       if (calendarEditTarget.mode === 'create') {
-        await createCalendar(values.name, values.color, values.description);
+        await createCalendar(values.name, values.color, values.description, screenAccount());
       } else {
         await updateCalendar(calendarEditTarget.calendar.id, {
           name: values.name,
@@ -995,7 +1017,7 @@ export default function CalendarScreen() {
         });
       }
     },
-    [calendarEditTarget, createCalendar, updateCalendar],
+    [calendarEditTarget, createCalendar, updateCalendar, screenAccount],
   );
 
   const handleSetCalendarColor = React.useCallback(
@@ -1005,9 +1027,9 @@ export default function CalendarScreen() {
         setSharedCalendarColor(sharedCalendarColorKey(cal), color);
         return;
       }
-      updateCalendar(cal.id, { color }).catch(reportError);
+      updateCalendar(cal.id, { color }, screenAccount()).catch(reportError);
     },
-    [setSharedCalendarColor, updateCalendar, reportError],
+    [setSharedCalendarColor, updateCalendar, screenAccount, reportError],
   );
 
   const handleClearCalendar = React.useCallback(
@@ -1023,12 +1045,12 @@ export default function CalendarScreen() {
           {
             text: t('calendar.management.clear_confirm', 'Remove all'),
             style: 'destructive',
-            onPress: () => { clearCalendarEvents(cal.id).catch(reportError); },
+            onPress: () => { clearCalendarEvents(cal.id, screenAccount()).catch(reportError); },
           },
         ],
       );
     },
-    [t, clearCalendarEvents, reportError],
+    [t, clearCalendarEvents, screenAccount, reportError],
   );
 
   const handleDeleteCalendar = React.useCallback(
@@ -1044,12 +1066,12 @@ export default function CalendarScreen() {
           {
             text: t('common.delete', 'Delete'),
             style: 'destructive',
-            onPress: () => { removeCalendar(cal.id).catch(reportError); },
+            onPress: () => { removeCalendar(cal.id, screenAccount()).catch(reportError); },
           },
         ],
       );
     },
-    [t, removeCalendar, reportError],
+    [t, removeCalendar, screenAccount, reportError],
   );
 
   const isSelectedToday = isDisplayToday(selectedDate);
@@ -1333,7 +1355,7 @@ export default function CalendarScreen() {
         onImport={() => { setSidebarVisible(false); setImportVisible(true); }}
         onManageSubscriptions={() => { setSidebarVisible(false); setSubscriptionsVisible(true); }}
         onCreate={() => { setSidebarVisible(false); setCalendarEditTarget({ mode: 'create' }); }}
-        onSetDefault={(cal) => { setDefaultCalendar(cal.id).catch(reportError); }}
+        onSetDefault={(cal) => { setDefaultCalendar(cal.id, screenAccount()).catch(reportError); }}
         onSetColor={handleSetCalendarColor}
         onResetColor={(cal) => {
           // Drop the local override; the auto-assign effect picks a fresh
@@ -1354,8 +1376,8 @@ export default function CalendarScreen() {
         timeFormat={calendarTimeFormat}
         initialTaskId={tasksInitialId}
         onClose={() => { setTasksVisible(false); setTasksInitialId(null); }}
-        onCreate={createTask}
-        onUpdate={updateTask}
+        onCreate={(task, calId) => createTask(task, calId, screenAccount())}
+        onUpdate={(id, changes) => updateTask(id, changes, screenAccount())}
         onToggle={handleToggleTask}
         onDelete={handleDeleteTask}
       />
@@ -1369,7 +1391,7 @@ export default function CalendarScreen() {
           (cal) => !cal.isShared && cal.id !== BIRTHDAY_CALENDAR_ID,
         )}
         onClose={() => setImportVisible(false)}
-        onImport={importEvents}
+        onImport={(events, calId) => importEvents(events, calId, undefined, screenAccount())}
       />
 
       <ICalSubscriptionSheet
@@ -1386,7 +1408,7 @@ export default function CalendarScreen() {
 
       <CalendarShareSheet
         calendar={shareTarget}
-        onShare={shareCalendar}
+        onShare={(id, principalId, rights) => shareCalendar(id, principalId, rights, screenAccount())}
         onClose={() => setShareTarget(null)}
       />
     </SafeAreaView>
