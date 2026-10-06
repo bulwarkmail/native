@@ -23,6 +23,17 @@ describe('sendErrorAlert', () => {
     expect(sendErrorAlert(new SendUnconfirmedError(), t)).toEqual(expected);
   });
 
+  // M-2: a send stopped by an account switch says so, not "Superseded…".
+  it('explains a send stopped by an account switch', () => {
+    const stale = Object.assign(new Error('Superseded by a newer account load'), { name: 'StaleLoadError' });
+    const ti = (k: string, f?: string, p?: Record<string, string | number>) =>
+      (f ?? k).replace(/\{(\w+)\}/g, (_, n) => String(p?.[n] ?? ''));
+    expect(sendErrorAlert(stale, ti, { account: 'alice@a.example.com' })).toEqual({
+      title: 'Account changed',
+      message: 'This message was started in alice@a.example.com. Switch back to it to send, save or attach files.',
+    });
+  });
+
   it('keeps the schedule-too-late copy and falls back to the error message', () => {
     expect(sendErrorAlert(new ScheduleTooLateError(), t)).toEqual({
       title: 'Too far ahead',

@@ -506,6 +506,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
     [owner],
   );
   const ownerEntry = owner ? useAccountStore.getState().getAccountById(owner.appAccountId) : undefined;
+  // The account a send stopped by a switch belongs to, for its alert.
+  const ownerLabel = (): string | undefined => (owner
+    ? composerAccountLabel(owner, useAccountStore.getState().getAccountById(owner.appAccountId) ?? ownerEntry)
+    : undefined);
 
   // Explain a blocked action and offer the way back to the owner. When there
   // is no way back (the owner left the registry, or switching did not take
@@ -2425,7 +2429,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               action: { label: t('outbox.open', 'Open Outbox'), onPress: () => navigation.navigate('Outbox') },
             });
           } else {
-            const { title, message } = sendErrorAlert(e, t);
+            const { title, message } = sendErrorAlert(e, t, { account: ownerLabel() });
             Alert.alert(title, message);
           }
         } finally {
@@ -2499,7 +2503,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       allowLeaveRef.current = true;
       navigation.goBack();
     } catch (e) {
-      const { title, message } = sendErrorAlert(e, t);
+      const { title, message } = sendErrorAlert(e, t, { account: ownerLabel() });
       Alert.alert(title, message);
     } finally {
       setSending(false);

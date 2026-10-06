@@ -184,7 +184,9 @@ async function downloadInto(
   dest: File,
   parent: Directory,
 ): Promise<File> {
-  await jmapClient.ensureFreshToken();
+  // Only the connection `url` came from: a proactive refresh after a switch
+  // would refresh the new account's token.
+  if (jmapClient.isCurrent(gen)) await jmapClient.ensureFreshToken();
   const alias = await getClientCertAlias();
   ensureDir(parent);
   const attempt = async (): Promise<File> => {
@@ -213,8 +215,11 @@ async function downloadInto(
   try {
     return await attempt();
   } catch (err) {
-    if (isUnauthorizedError(err) && (await jmapClient.forceRefreshToken())) {
-      return attempt();
+    if (isUnauthorizedError(err)) {
+      // A 401 from a connection switched away from: refreshing now would
+      // refresh the new account's token. Stop (StaleLoadError) instead.
+      jmapClient.assertCurrent(gen);
+      if (await jmapClient.forceRefreshToken()) return attempt();
     }
     throw err;
   }
@@ -443,8 +448,10 @@ export async function shareAttachmentViaSheet(
 
 // `gen`: the connection `url` came from, taken in the same tick.
 async function authedBlobFetch(url: string, gen: number): Promise<Response> {
-  await jmapClient.ensureFreshToken();
+  if (jmapClient.isCurrent(gen)) await jmapClient.ensureFreshToken();
   let r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
+  // Refresh only the connection `url` came from (see downloadInto).
+  if (r.status === 401) jmapClient.assertCurrent(gen);
   if (r.status === 401 && (await jmapClient.forceRefreshToken())) {
     r = await observeServerFetch(secureFetch(url, { headers: { Authorization: jmapClient.authHeaderFor(gen) } }), undefined, () => jmapClient.isCurrent(gen));
   }

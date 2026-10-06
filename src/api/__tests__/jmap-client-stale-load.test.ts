@@ -316,5 +316,83 @@ describe('a superseded session load (C-1)', () => {
     expect(JSON.parse(store.get(key(idA))!).refreshToken).toBe('r-a2');
     mockRefresh.mockReset();
   });
-});
 
+  // I-2: A uses OAuth. switchAccount(B) takes a snapshot; while B loads, a
+  // 401 on A rotates A's tokens (at-a1/rt-a1 -> at-a2/rt-a2). B's load fails
+  // and the snapshot is put back. Restoring rt-a1 would make the next refresh
+  // reuse a rotated-away refresh token, which an IdP with reuse detection
+  // answers by revoking the whole token family.
+  it('a failed switch keeps the tokens A rotated while B was loading (I-2)', async () => {
+    await keysCheck();
+    const aOAuth = {
+      serverUrl: A.serverUrl, username: A.username, password: '', accessToken: 'at-a1', refreshToken: 'rt-a1',
+      expiresAt: Date.now() + 3_600_000, tokenEndpoint: 'https://a.example.com/token', clientId: 'c',
+    };
+    store.set(key(idA), JSON.stringify(aOAuth));
+    const client = new JMAPClient();
+    let aApi = 0;
+    handlers['a.example.com'] = async (call) => {
+      if (!call.url.endsWith('/jmap/')) return response(200, session('a.example.com', 'alice'));
+      aApi += 1;
+      return aApi === 1 ? response(401) : response(200, { methodResponses: [] });
+    };
+    expect(await client.loadAccount(idA)).toBe(true);
+
+    const snap = client.snapshot();
+    const bSession = deferred<unknown>();
+    handlers['b.example.com'] = () => bSession.promise;
+    const loadB = client.loadAccount(idB).catch((e) => e);
+    await vi.waitFor(() => expect(calls.some((c) => c.url.includes('b.example.com'))).toBe(true));
+
+    // A request on A meets a 401 and rotates A's tokens.
+    mockRefresh.mockResolvedValueOnce({
+      accessToken: 'at-a2', refreshToken: 'rt-a2', expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: aOAuth.tokenEndpoint, clientId: 'c',
+    });
+    await client.request([['Mailbox/get', { accountId: 'alice' }, '0']]);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(store.get(key(idA))!).refreshToken).toBe('rt-a2');
+
+    // B's load fails; the switch puts A back.
+    bSession.reject(new TypeError('Network request failed'));
+    await loadB;
+    client.restoreSnapshot(snap);
+
+    expect(client.authHeader).toBe('Bearer at-a2');
+    expect(JSON.parse(store.get(key(idA))!).refreshToken).toBe('rt-a2');
+    // The next refresh presents the live refresh token, not the rotated-away one.
+    mockRefresh.mockResolvedValueOnce({
+      accessToken: 'at-a3', refreshToken: 'rt-a3', expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: aOAuth.tokenEndpoint, clientId: 'c',
+    });
+    expect(await client.forceRefreshToken()).toBe(true);
+    expect(mockRefresh.mock.calls[1][0].refreshToken).toBe('rt-a2');
+    expect(client.authHeader).toBe('Bearer at-a3');
+    mockRefresh.mockReset();
+  });
+
+  it('a restored snapshot on another token chain keeps its own tokens (I-2)', async () => {
+    await keysCheck();
+    const aOAuth = {
+      serverUrl: A.serverUrl, username: A.username, password: '', accessToken: 'at-a1', refreshToken: 'rt-a1',
+      expiresAt: Date.now() + 3_600_000, tokenEndpoint: 'https://a.example.com/token', clientId: 'c',
+    };
+    store.set(key(idA), JSON.stringify(aOAuth));
+    const client = new JMAPClient();
+    handlers['a.example.com'] = async () => response(200, session('a.example.com', 'alice'));
+    expect(await client.loadAccount(idA)).toBe(true);
+    // Another chain of A's (say, a re-sign-in) is rotated after the snapshot.
+    mockRefresh.mockResolvedValueOnce({
+      accessToken: 'at-old2', refreshToken: 'rt-old2', expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: aOAuth.tokenEndpoint, clientId: 'c',
+    });
+    const snap = client.snapshot();
+    store.set(key(idA), JSON.stringify({ ...aOAuth, accessToken: 'at-old', refreshToken: 'rt-old' }));
+    expect(await client.loadAccount(idA)).toBe(true);
+    expect(await client.forceRefreshToken()).toBe(true);
+    expect(client.authHeader).toBe('Bearer at-old2');
+    client.restoreSnapshot(snap);
+    expect(client.authHeader).toBe('Bearer at-a1');
+    mockRefresh.mockReset();
+  });
+});

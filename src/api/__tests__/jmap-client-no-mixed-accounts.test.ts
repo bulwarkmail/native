@@ -29,14 +29,18 @@ const OWN_HEADER: Record<string, string> = {
   'b.example.com': basic(B),
 };
 
-function session(host: string, account: string): JMAPSession {
+function session(host: string, account: string, shared: string[] = []): JMAPSession {
+  const accounts: JMAPSession['accounts'] = {
+    [account]: { name: account, isPersonal: true, isReadOnly: false, accountCapabilities: {} },
+  };
+  for (const id of shared) accounts[id] = { name: id, isPersonal: false, isReadOnly: false, accountCapabilities: {} };
   return {
     apiUrl: `https://${host}/jmap/`,
     downloadUrl: `https://${host}/download/{accountId}/{blobId}/{name}?type={type}`,
     uploadUrl: `https://${host}/upload/{accountId}/`,
     eventSourceUrl: `https://${host}/eventsource/`,
     primaryAccounts: { 'urn:ietf:params:jmap:mail': account },
-    accounts: { [account]: { name: account, isPersonal: true, isReadOnly: false, accountCapabilities: {} } },
+    accounts,
     capabilities: { 'urn:ietf:params:jmap:core': {}, 'urn:ietf:params:jmap:mail': {} },
     state: 's1',
     username: account,
@@ -249,5 +253,57 @@ describe('no request mixes accounts', () => {
     } finally {
       setServerReachabilitySink(null);
     }
+  });
+
+  // I-1: a multi-request operation (a batched Email/set, a year/month archive,
+  // a cross-account move, undo) captures the connection per request. Its later
+  // requests must not go to the account switched to with the old account's id,
+  // even when the new login could see that account as a shared one.
+  it('I-1: a batch split across a switch sends nothing after the switch', async () => {
+    const client = await onA();
+    handlers['b.example.com'] = async (call) => (call.path.startsWith('/jmap/session')
+      ? response(200, session('b.example.com', 'bob'))
+      : response(200, { methodResponses: [['Email/set', { updated: {} }, '0']] }));
+    handlers['a.example.com'] = async () => response(200, { methodResponses: [['Email/set', { updated: {} }, '0']] });
+    const slices = [['m1', 'm2'], ['m3', 'm4'], ['m5']];
+    const run = (async () => {
+      for (const [i, slice] of slices.entries()) {
+        // Like emailSetBatched: the account id is resolved once, up front.
+        await client.request([['Email/set', { accountId: 'alice', update: Object.fromEntries(slice.map((id) => [id, { 'keywords/$seen': true }])) }, '0']]);
+        if (i === 0) {
+          // The user switches to B between the first and the second slice.
+          expect(await client.loadAccount(idB)).toBe(true);
+          calls = [];
+        }
+      }
+    })();
+    await expect(run).rejects.toBeInstanceOf(StaleLoadError);
+    expect(calls.filter((c) => c.path === '/jmap/')).toEqual([]);
+  });
+
+  it('I-1: a copy whose fromAccountId is not in the session is not sent', async () => {
+    const client = await onA();
+    expect(await client.loadAccount(idB)).toBe(true);
+    calls = [];
+    await expect(client.request([
+      ['Email/copy', { fromAccountId: 'alice', accountId: 'bob', create: {} }, '0'],
+    ])).rejects.toBeInstanceOf(StaleLoadError);
+    await expect(client.request([
+      ['Email/get', { accountId: 'bob' }, '0'],
+      ['Email/set', { accountId: 'alice', destroy: ['m1'] }, '1'],
+    ])).rejects.toBeInstanceOf(StaleLoadError);
+    expect(calls).toEqual([]);
+  });
+
+  it('I-1: a shared-account request within the same session still goes through', async () => {
+    handlers['a.example.com'] = async (call) => (call.path.startsWith('/jmap/session')
+      ? response(200, session('a.example.com', 'alice', ['team']))
+      : response(200, { methodResponses: [] }));
+    const client = await onA();
+    await client.request([['Email/set', { accountId: 'team', destroy: ['m1'] }, '0']]);
+    await client.request([['Email/copy', { fromAccountId: 'team', accountId: 'alice', create: {} }, '0']]);
+    // Calls without an account id (Core/echo) are not affected.
+    await client.request([['Core/echo', { hello: true }, '0']]);
+    expect(calls.filter((c) => c.host === 'a.example.com' && c.path === '/jmap/')).toHaveLength(3);
   });
 });

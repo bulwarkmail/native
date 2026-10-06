@@ -13,6 +13,12 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: { isConnected: true },
 }));
 
+const { serving } = vi.hoisted(() => ({ serving: { app: null as string | null, client: false } }));
+vi.mock('../../lib/active-client-account', () => ({
+  activeAppAccountId: () => serving.app,
+  clientServesActiveAccount: () => serving.client,
+}));
+
 const patchKeywordsForEmails = vi.fn(async (..._a: any[]) => undefined);
 const setEmailMailboxes = vi.fn(async (..._a: any[]) => undefined);
 const destroyEmails = vi.fn(async (..._a: any[]) => undefined);
@@ -25,6 +31,7 @@ vi.mock('../../api/email', () => ({
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOutboxStore, applyOrQueue } from '../outbox-store';
 import { useNetworkStore } from '../network-store';
+import { useToastStore } from '../toast-store';
 
 const ACCOUNT = 'acc-1';
 
@@ -192,6 +199,28 @@ describe('flush', () => {
     }
   });
 
+  it('counts an op naming a JMAP account the serving session lost as a rejection', async () => {
+    useNetworkStore.setState({ online: false });
+    useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', accountId: 'gone', patch: { $seen: true } });
+    useNetworkStore.setState({ online: true });
+    const notInSession = Object.assign(new Error('Superseded by a newer account load'), {
+      name: 'StaleLoadError', reason: 'account-not-in-session',
+    });
+    // While the client is still switching, it is a stop like any stale one.
+    patchKeywordsForEmails.mockRejectedValueOnce(notInSession);
+    await useOutboxStore.getState().flush();
+    expect(useOutboxStore.getState().entries[0].attempts ?? 0).toBe(0);
+    // The client serves this account: the shared account is gone.
+    Object.assign(serving, { app: ACCOUNT, client: true });
+    try {
+      patchKeywordsForEmails.mockRejectedValueOnce(notInSession);
+      await useOutboxStore.getState().flush();
+      expect(useOutboxStore.getState().entries[0].attempts).toBe(1);
+    } finally {
+      Object.assign(serving, { app: null, client: false });
+    }
+  });
+
   it('drops a poison op after repeated server rejections', async () => {
     useNetworkStore.setState({ online: false });
     useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } });
@@ -308,5 +337,138 @@ describe('keyword ops queued by earlier builds', () => {
 
     expect(patchKeywordsForEmails).toHaveBeenCalledWith(['e1'], { $notjunk: true, $flagged: true, $junk: null }, undefined);
     expect(useOutboxStore.getState().failed).toHaveLength(0);
+  });
+});
+
+// (c): an online action that runs into an account switch is not dropped. It
+// goes to the queue of the account it was made on, which replays it once
+// that account is active again.
+describe('an online action interrupted by an account switch', () => {
+  const OTHER = 'acc-2';
+  const staleError = () => Object.assign(new Error('Superseded by a newer account load'), { name: 'StaleLoadError' });
+  const stored = async (id: string) => JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${id}`)) ?? 'null');
+  /** An online run during which the user switches to OTHER, then the request stops. */
+  const switchThenStale = () => vi.fn(async () => {
+    await useOutboxStore.getState().setAccount(OTHER);
+    throw staleError();
+  });
+
+  beforeEach(async () => {
+    useToastStore.setState({ toasts: [] });
+    await AsyncStorage.multiRemove([`webmail:outbox:v1:${OTHER}`, `webmail:outbox:v1:${OTHER}:failed`]);
+  });
+
+  it('lands in the original account\'s stored queue, not the active bucket', async () => {
+    const run = switchThenStale();
+    await expect(applyOrQueue({ kind: 'keywords', emailId: 'e1', accountId: 'jmap-a', patch: { $seen: true } }, run))
+      .rejects.toMatchObject({ name: 'StaleLoadError' });
+    const a = await stored(ACCOUNT);
+    expect(a).toHaveLength(1);
+    expect(a[0].op).toEqual({ kind: 'keywords', emailId: 'e1', accountId: 'jmap-a', patch: { $seen: true } });
+    // The account switched to is untouched, in memory and in storage.
+    expect(useOutboxStore.getState().activeAccountId).toBe(OTHER);
+    expect(useOutboxStore.getState().entries).toEqual([]);
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`)).toBeNull();
+    expect(useToastStore.getState().toasts.map((t) => t.title))
+      .toEqual(['This change will finish when you switch back to that account']);
+  });
+
+  it('keeps the original account\'s queued and parked entries and coalesces with them', async () => {
+    const { applyOrQueueBatch } = await import('../outbox-store');
+    useNetworkStore.setState({ online: false });
+    useOutboxStore.getState().enqueue({ kind: 'mailboxes', emailId: 'e2', mailboxIds: { trash: true } });
+    useOutboxStore.getState().enqueue({ kind: 'destroy', emailId: 'e3' });
+    await AsyncStorage.setItem(`webmail:outbox:v1:${ACCOUNT}:failed`, JSON.stringify([{ id: 'f1', op: { kind: 'destroy', emailId: 'x' }, createdAt: 1, attempts: 5 }]));
+    useNetworkStore.setState({ online: true });
+
+    // While e1/e4 run online, later actions on them are queued, then the user switches.
+    const run = vi.fn(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      useOutboxStore.getState().enqueue({ kind: 'keywords', emailId: 'e1', patch: { $flagged: true, $seen: false } });
+      useOutboxStore.getState().enqueue({ kind: 'destroy', emailId: 'e4' });
+      await useOutboxStore.getState().setAccount(OTHER);
+      throw staleError();
+    });
+    await expect(applyOrQueueBatch([
+      { kind: 'keywords', emailId: 'e1', patch: { $seen: true } },
+      { kind: 'keywords', emailId: 'e4', patch: { $seen: true } },
+    ], run)).rejects.toMatchObject({ name: 'StaleLoadError' });
+    // A second interrupted action on another message is added after them.
+    await useOutboxStore.getState().setAccount(ACCOUNT);
+    await expect(applyOrQueueBatch([{ kind: 'mailboxes', emailId: 'e5', mailboxIds: { archive: true } }], switchThenStale()))
+      .rejects.toMatchObject({ name: 'StaleLoadError' });
+
+    const a: Array<{ op: { emailId: string; kind: string; patch?: Record<string, unknown> } }> = await stored(ACCOUNT);
+    expect(a.map((e) => [e.op.emailId, e.op.kind])).toEqual([
+      ['e2', 'mailboxes'], ['e3', 'destroy'], ['e1', 'keywords'], ['e4', 'destroy'], ['e5', 'mailboxes'],
+    ]);
+    // Keyword patches merge, the later action winning (the one queued while the
+    // interrupted action ran is the later one); a queued destroy wins.
+    expect(a[2].op.patch).toEqual({ $flagged: true, $seen: false });
+    // Parked ops are never touched, nor is the account switched to.
+    expect(JSON.parse((await AsyncStorage.getItem(`webmail:outbox:v1:${ACCOUNT}:failed`))!)).toHaveLength(1);
+    expect(await AsyncStorage.getItem(`webmail:outbox:v1:${OTHER}`)).toBeNull();
+
+    // Back on the original account, the queue holds them for replay.
+    await useOutboxStore.getState().setAccount(ACCOUNT);
+    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e2', 'e3', 'e1', 'e4', 'e5']);
+  });
+
+  it('is not lost when the user switches back while it is being stored', async () => {
+    const run = switchThenStale();
+    const getItem = vi.mocked(AsyncStorage.getItem);
+    const original = getItem.getMockImplementation()!;
+    let back: Promise<void> | null = null;
+    getItem.mockImplementation(async (k: string) => {
+      // The write reads the original account's queue: switch back right then.
+      if (k === `webmail:outbox:v1:${ACCOUNT}` && !back) back = useOutboxStore.getState().setAccount(ACCOUNT);
+      return original(k);
+    });
+    try {
+      await expect(applyOrQueue({ kind: 'mailboxes', emailId: 'e7', mailboxIds: { archive: true } }, run))
+        .rejects.toMatchObject({ name: 'StaleLoadError' });
+      expect(back).not.toBeNull();
+      await back;
+    } finally {
+      getItem.mockImplementation(original);
+    }
+    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e7']);
+    expect((await stored(ACCOUNT)).map((e: { op: { emailId: string } }) => e.op.emailId)).toEqual(['e7']);
+  });
+
+  it('is not lost when it is queued while the queue is still loading', async () => {
+    const run = vi.fn(async () => {
+      await useOutboxStore.getState().setAccount(OTHER);
+      // Straight back, before the stop is handled; offline so nothing replays.
+      void useOutboxStore.getState().setAccount(ACCOUNT);
+      useNetworkStore.setState({ online: false });
+      throw staleError();
+    });
+    await AsyncStorage.setItem(`webmail:outbox:v1:${ACCOUNT}`, JSON.stringify([
+      { id: 'q1', op: { kind: 'destroy', emailId: 'e1' }, createdAt: 1, attempts: 0 },
+    ]));
+    const result = await applyOrQueue({ kind: 'mailboxes', emailId: 'e7', mailboxIds: { archive: true } }, run);
+    expect(result.queued).toBe(true);
+    await vi.waitFor(() => expect(useOutboxStore.getState().hydrated).toBe(true));
+    expect(useOutboxStore.getState().entries.map((e) => e.op.emailId)).toEqual(['e1', 'e7']);
+    await vi.waitFor(async () => expect((await stored(ACCOUNT)).map((e: { op: { emailId: string } }) => e.op.emailId)).toEqual(['e1', 'e7']));
+  });
+
+  it('a connectivity failure after a switch also goes to the original account', async () => {
+    const run = vi.fn(async () => {
+      await useOutboxStore.getState().setAccount(OTHER);
+      throw Object.assign(new Error('Network request failed'), { name: 'NetworkError' });
+    });
+    await expect(applyOrQueue({ kind: 'destroy', emailId: 'e9' }, run)).rejects.toMatchObject({ name: 'NetworkError' });
+    expect((await stored(ACCOUNT)).map((e: { op: { emailId: string } }) => e.op.emailId)).toEqual(['e9']);
+    expect(useOutboxStore.getState().entries).toEqual([]);
+  });
+
+  it('without a switch, a stale stop queues the op on the same account', async () => {
+    const run = vi.fn(async () => { throw staleError(); });
+    const result = await applyOrQueue({ kind: 'keywords', emailId: 'e1', patch: { $seen: true } }, run);
+    expect(result.queued).toBe(true);
+    expect(useOutboxStore.getState().entries).toHaveLength(1);
+    expect(useToastStore.getState().toasts).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import { RequestTimeoutError } from '../api/jmap-client';
+import { isStaleLoad } from './network-error';
 import {
   RecipientsRejectedError,
   SendUnconfirmedError,
@@ -9,8 +10,21 @@ import {
 /** The alert a failed send shows, shared by the composer and quick reply. */
 export function sendErrorAlert(
   e: unknown,
-  t: (key: string, fallback?: string) => string,
+  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string,
+  // The account the message was started in, for a send an account switch stopped.
+  opts: { account?: string } = {},
 ): { title: string; message: string } {
+  if (isStaleLoad(e)) {
+    // Nothing was sent: the app moved to another account first.
+    return {
+      title: t('email_composer.account_switched_title', 'Account changed'),
+      message: t(
+        'email_composer.account_switched_body',
+        'This message was started in {account}. Switch back to it to send, save or attach files.',
+        { account: opts.account ?? '' },
+      ),
+    };
+  }
   if (e instanceof RecipientsRejectedError) {
     return {
       title: t('email_composer.send_recipients_rejected', 'Not sent - the server rejected every recipient.'),

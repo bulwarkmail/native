@@ -700,6 +700,7 @@
     },
     "failed": "A message was not sent",
     "failed_hint": "Check the Outbox to retry, save it as a draft or discard it.",
+    "finish_on_switch_back": "This change will finish when you switch back to that account",
     "held": {
       "account_unavailable": "Not sent: this account is not available",
       "bad_schedule": "Not sent: the scheduled time could not be read",

@@ -76,9 +76,12 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
   React.useEffect(() => { setText(''); messageIdRef.current = null; }, [email.id]);
 
   const ownerActiveNow = () => ownerStillActive(ownerRef.current, useAuthStore.getState().activeAccountId);
-  const alertOwnerChanged = () => {
+  const ownerLabel = () => {
     const entry = ownerRef.current ? useAccountStore.getState().getAccountById(ownerRef.current) : undefined;
-    const account = entry?.email || entry?.username || ownerRef.current || '';
+    return entry?.email || entry?.username || ownerRef.current || '';
+  };
+  const alertOwnerChanged = () => {
+    const account = ownerLabel();
     Alert.alert(
       t('email_composer.account_switched_title', 'Account changed'),
       t('email_composer.account_switched_body', 'This message was started in {account}. Switch back to it to send, save or attach files.', { account }),
@@ -213,7 +216,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
           } else if (err instanceof AlreadyQueuedError) {
             toastAlreadyQueued();
           } else {
-            const { title, message } = sendErrorAlert(err, t);
+            const { title, message } = sendErrorAlert(err, t, { account: ownerLabel() });
             Alert.alert(title, message);
           }
         }
@@ -254,7 +257,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent }: P
       // A reply held for the undo-send delay has not gone out yet (webmail b03a0c1d).
       if (!result.scheduled) toast.success(t('notifications.email_sent', 'Email sent successfully'));
     } catch (err) {
-      const { title, message } = sendErrorAlert(err, t);
+      const { title, message } = sendErrorAlert(err, t, { account: ownerLabel() });
       Alert.alert(title, message);
     } finally {
       setSending(false);

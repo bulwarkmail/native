@@ -189,6 +189,16 @@ function oauthTokensOf(creds: StoredCredentials | null): OAuthTokens | null {
   };
 }
 
+function pickTokens(creds: StoredCredentials): Partial<StoredCredentials> {
+  return {
+    accessToken: creds.accessToken,
+    refreshToken: creds.refreshToken,
+    expiresAt: creds.expiresAt,
+    tokenEndpoint: creds.tokenEndpoint,
+    clientId: creds.clientId,
+  };
+}
+
 function withTokens(creds: StoredCredentials, next: OAuthTokens): StoredCredentials {
   return {
     ...creds,
@@ -205,6 +215,33 @@ function withTokens(creds: StoredCredentials, next: OAuthTokens): StoredCredenti
 const sameAccount = (a: StoredCredentials | null, b: StoredCredentials | null): boolean =>
   !!a && !!b && a.serverUrl === b.serverUrl && a.username === b.username;
 
+/**
+ * Throws `StaleLoadError` (nothing sent) when a method call names, as
+ * `accountId` or (for a `Foo/copy`) `fromAccountId`, a JMAP account the session
+ * does not have.
+ */
+function assertAccountsInSession(session: JMAPSession, methodCalls: JMAPMethodCall[]): void {
+  const accounts = session.accounts ?? {};
+  for (const [, args] of methodCalls) {
+    for (const field of ['accountId', 'fromAccountId'] as const) {
+      const id = args?.[field];
+      if (typeof id === 'string' && !Object.prototype.hasOwnProperty.call(accounts, id)) {
+        throw new StaleLoadError('account-not-in-session');
+      }
+    }
+  }
+}
+
+/**
+ * The latest tokens a refresh produced for one app account, and every
+ * refresh token that was spent getting there (rotated away, or reused by an
+ * IdP that does not rotate).
+ */
+interface RotatedTokens {
+  latest: StoredCredentials;
+  spent: Set<string>;
+}
+
 export class JMAPClient {
   private ctx: ConnectionContext = { gen: 0, credentials: null, session: null, accountId: null };
   private get session(): JMAPSession | null { return this.ctx.session; }
@@ -217,6 +254,8 @@ export class JMAPClient {
   private tokenRefreshListeners = new Set<() => void>();
   /** Hold limits learned from rejected scheduled sends, per server (seconds). */
   private learnedHoldLimits = new Map<string, number>();
+  /** Per app account: the newest refreshed tokens (see `restoreSnapshot`). */
+  private rotatedTokens = new Map<string, RotatedTokens>();
   /** Whether this client's round trips feed the network store's
    *  `serverReachable`. Only the app's active connection (`jmapClient`) does:
    *  detached clients (push renewal, device sync, widgets) serve other
@@ -288,6 +327,7 @@ export class JMAPClient {
       }
       const base = creds;
       creds = withTokens(base, next);
+      if (creds.accessToken !== base.accessToken) this.noteRotation(base, creds);
       await this.storeRotatedTokens(base, creds);
       return true;
     };
@@ -600,6 +640,36 @@ export class JMAPClient {
     return { session, username, accountId };
   }
 
+  /** Remember that `base`'s refresh token was spent to get `updated`. */
+  private noteRotation(base: StoredCredentials, updated: StoredCredentials): void {
+    if (!base.refreshToken) return;
+    const id = generateAccountId(base.username, base.serverUrl);
+    const prev = this.rotatedTokens.get(id);
+    // Same chain: this refresh started from the tokens the last one produced
+    // (or from one already spent); otherwise a new chain starts here.
+    const sameChain = !!prev
+      && prev.latest.tokenEndpoint === base.tokenEndpoint
+      && prev.latest.clientId === base.clientId
+      && (prev.latest.refreshToken === base.refreshToken || prev.spent.has(base.refreshToken));
+    const spent = sameChain ? new Set(prev!.spent) : new Set<string>();
+    spent.add(base.refreshToken);
+    this.rotatedTokens.set(id, { latest: updated, spent });
+  }
+
+  /**
+   * The credentials to put back for a snapshot: the newest rotated tokens of
+   * the same account and token chain when its refresh token was spent since,
+   * so the next refresh never presents a rotated-away refresh token.
+   */
+  private withLatestTokens(creds: StoredCredentials | null): StoredCredentials | null {
+    if (!creds?.refreshToken) return creds;
+    const rec = this.rotatedTokens.get(generateAccountId(creds.username, creds.serverUrl));
+    if (!rec || !sameAccount(rec.latest, creds)) return creds;
+    if (rec.latest.tokenEndpoint !== creds.tokenEndpoint || rec.latest.clientId !== creds.clientId) return creds;
+    if (!rec.spent.has(creds.refreshToken) || rec.latest.accessToken === creds.accessToken) return creds;
+    return { ...creds, ...pickTokens(rec.latest) };
+  }
+
   /**
    * Store refreshed tokens for `base`'s account. Unless `always`, only when
    * that account still has stored credentials (one signed out meanwhile is
@@ -636,6 +706,7 @@ export class JMAPClient {
     }
     if (next.accessToken === base.accessToken) return this.ctx.gen === ctx.gen;
     const updated = withTokens(base, next);
+    this.noteRotation(base, updated);
     const live = this.ctx;
     const liveTakesThem = sameAccount(live.credentials, base)
       && live.credentials!.accessToken === base.accessToken
@@ -782,17 +853,21 @@ export class JMAPClient {
     if (snap === this.ctx) return;
     this.commit({
       gen: snap.gen ?? gen,
-      credentials: snap.credentials,
+      // A refresh while the snapshot was out (say, a 401 on it during the
+      // failed switch) may have rotated its tokens: put the newest back.
+      credentials: this.withLatestTokens(snap.credentials),
       session: snap.session,
       accountId: snap.accountId,
     });
   }
 
   async clearAccountCredentials(accountId: string): Promise<void> {
+    this.rotatedTokens.delete(accountId);
     await SecureStore.deleteItemAsync(credentialsKey(accountId));
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
+    for (const id of accountIds) this.rotatedTokens.delete(id);
     await Promise.all([
       SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
       ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
@@ -1132,6 +1207,10 @@ export class JMAPClient {
     // One connection for the whole request: its server, header and account.
     const ctx = this.ctx;
     if (!ctx.session) throw new Error('Not connected');
+    // Every account the calls name must be one this session has: a later
+    // request of an operation started on another connection (a batched set,
+    // an archive, a move, an undo) carries that connection's account ids.
+    assertAccountsInSession(ctx.session, methodCalls);
     // Log the states our own mail writes move between, so the mail store can
     // recognise their push echo (see api/own-writes).
     const settled = beginOwnWrite(methodCalls);
@@ -1466,6 +1545,7 @@ export class JMAPClient {
   ): Promise<ArrayBuffer> {
     // The URL and the header from one connection.
     const scope = this.liveScope();
+    if (accountId && this.session) assertAccountsInSession(this.session, [['Blob/download', { accountId }, '0']]);
     const url = this.getBlobDownloadUrl(blobId, name, type, accountId);
     const response = await this.authenticatedFetch(url, undefined, {
       timeoutMs: BLOB_TIMEOUT_MS,
@@ -1583,9 +1663,16 @@ export class NetworkError extends Error {
  * was changed or sent; the newer load owns the client.
  */
 export class StaleLoadError extends Error {
-  constructor() {
+  /**
+   * `account-not-in-session`: the request named a JMAP account the live
+   * session does not have (it was built for the connection switched away
+   * from). Nothing was sent either way.
+   */
+  readonly reason: 'superseded' | 'account-not-in-session';
+  constructor(reason: 'superseded' | 'account-not-in-session' = 'superseded') {
     super('Superseded by a newer account load');
     this.name = 'StaleLoadError';
+    this.reason = reason;
   }
 }
 

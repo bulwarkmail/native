@@ -22,7 +22,10 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '../lib/uuid';
-import { isTransientNetworkError, isAuthError, isStaleLoad } from '../lib/network-error';
+import { isTransientNetworkError, isAuthError, isStaleLoad, isAccountNotInSession } from '../lib/network-error';
+import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
+import { toast } from './toast-store';
+import { t } from './locale-store';
 import { useNetworkStore } from './network-store';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -91,7 +94,8 @@ interface OutboxState {
 
   setAccount: (accountId: string | null) => Promise<void>;
   hydrate: () => Promise<void>;
-  enqueue: (op: OutboxOp) => void;
+  /** `actedAt`: when the user made `op`, if before now (see `coalesce`). */
+  enqueue: (op: OutboxOp, actedAt?: number) => void;
   count: () => number;
   pendingForEmail: (emailId: string) => OutboxEntry[];
   flush: () => Promise<void>;
@@ -182,6 +186,128 @@ function opFamily(op: OutboxOp): string {
   return op.kind === 'archive' ? 'mailboxes' : op.kind;
 }
 
+/**
+ * `entries` with `op` queued, coalesced per message (see `enqueue`), or null
+ * when nothing changes (a destroy is queued already). `actedAt`, when given,
+ * is when the user made `op` (an action queued only after its online attempt
+ * failed): an entry queued after that is the later action and wins.
+ */
+function coalesce(entries: OutboxEntry[], op: OutboxOp, actedAt?: number): OutboxEntry[] | null {
+  const createdAt = actedAt ?? Date.now();
+  let next = [...entries];
+  // Message identity is (account, id): JMAP ids are only unique within an
+  // account, and the queue can hold ops for shared accounts alongside own.
+  const sameMessage = (other: OutboxOp) =>
+    other.emailId === op.emailId && other.accountId === op.accountId;
+
+  if (op.kind === 'destroy') {
+    // Destroy is terminal — drop any pending edits for this message and
+    // append the destroy so it runs last.
+    next = next.filter((e) => !sameMessage(e.op));
+    next.push({ id: generateUUID(), op, createdAt, attempts: 0 });
+    return next;
+  }
+  // A queued destroy wins; further edits to a doomed message are pointless.
+  if (next.some((e) => sameMessage(e.op) && e.op.kind === 'destroy')) return null;
+  // Coalesce: replace any pending op of the same family for this message
+  // (full-state replace makes the latest one authoritative; keyword
+  // patches merge, the later value winning per keyword). Keep its
+  // position so creation order is preserved for replay.
+  const idx = next.findIndex((e) => sameMessage(e.op) && opFamily(e.op) === opFamily(op));
+  if (idx >= 0) {
+    const prev = next[idx].op;
+    const prevIsLater = actedAt !== undefined && next[idx].createdAt > actedAt;
+    let merged: OutboxOp;
+    if (prev.kind === 'keywords' && op.kind === 'keywords') {
+      merged = { ...op, patch: prevIsLater ? { ...op.patch, ...prev.patch } : { ...prev.patch, ...op.patch } };
+    } else {
+      merged = prevIsLater ? prev : op;
+    }
+    next[idx] = { ...next[idx], op: merged, attempts: 0, lastError: undefined };
+  } else {
+    next.push({ id: generateUUID(), op, createdAt, attempts: 0 });
+  }
+  return next;
+}
+
+/**
+ * Serialised writes to the stored queue of an account that is not the
+ * active one; its load waits for them so none is lost to a switch back.
+ */
+const offBucketWrites = new Map<string, Promise<void>>();
+
+function settledOffBucket(accountId: string): Promise<void> {
+  return offBucketWrites.get(accountId) ?? Promise.resolve();
+}
+
+/**
+ * Queue `ops` in `accountId`'s stored queue without touching the active
+ * account's bucket. Existing entries are kept (and coalesced with like
+ * `enqueue`); the parked (`:failed`) list is not touched. If the account is
+ * active again by the time this runs, the ops go through `enqueue`.
+ */
+function enqueueForAccount(accountId: string, ops: OutboxOp[], createdAt: number): Promise<boolean> {
+  const intoMemory = () => {
+    for (const op of ops) useOutboxStore.getState().enqueue(op, createdAt);
+  };
+  const run = async (): Promise<'memory' | 'stored' | null> => {
+    const store = useOutboxStore.getState();
+    if (store.activeAccountId === accountId && store.hydrated) {
+      intoMemory();
+      return 'memory';
+    }
+    const key = storageKey(accountId);
+    let entries: OutboxEntry[];
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) throw new Error('not a list');
+      entries = (parsed as OutboxEntry[]).map(upgradeEntry);
+    } catch (err) {
+      // Unreadable: writing would overwrite whatever is there.
+      console.warn('[outbox] could not queue for an inactive account', err);
+      return null;
+    }
+    for (const op of ops) entries = coalesce(entries, op, createdAt) ?? entries;
+    await AsyncStorage.setItem(key, JSON.stringify(entries));
+    return 'stored';
+  };
+  const write = settledOffBucket(accountId).then(run).catch((err) => {
+    console.warn('[outbox] queue for an inactive account failed', err);
+    return null;
+  });
+  // The account's load waits for the write only (not for the step below,
+  // which waits for that load).
+  const done = write.then(() => undefined);
+  offBucketWrites.set(accountId, done);
+  void done.then(() => {
+    if (offBucketWrites.get(accountId) === done) offBucketWrites.delete(accountId);
+  });
+  return write.then(async (where) => {
+    // Switched back while it ran, and that load may have read the queue
+    // before the write: add the ops in memory too once it is loaded (the
+    // coalescing collapses a second copy of an op into the first).
+    if (where === 'stored' && useOutboxStore.getState().activeAccountId === accountId) {
+      await untilHydratedOrLeft(accountId);
+      if (useOutboxStore.getState().activeAccountId === accountId) intoMemory();
+    }
+    return where !== null;
+  });
+}
+
+/** Resolves once `accountId`'s bucket is loaded, or another account is active. */
+function untilHydratedOrLeft(accountId: string): Promise<void> {
+  const ready = (s: OutboxState) => s.activeAccountId !== accountId || s.hydrated;
+  if (ready(useOutboxStore.getState())) return Promise.resolve();
+  return new Promise((resolve) => {
+    const unsub = useOutboxStore.subscribe((s) => {
+      if (!ready(s)) return;
+      unsub();
+      resolve();
+    });
+  });
+}
+
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryAttempt = 0;
 
@@ -230,6 +356,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     retryAttempt = 0;
     set({ activeAccountId: accountId, entries: [], failed: [], hydrated: false, paused: false });
     if (accountId) {
+      await settledOffBucket(accountId);
       const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
       // Re-check in case another setAccount raced past us.
       if (get().activeAccountId !== accountId) return;
@@ -247,47 +374,20 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       set({ hydrated: true });
       return;
     }
+    await settledOffBucket(accountId);
     const [entries, failed] = await Promise.all([load(accountId), load(accountId, FAILED_SUFFIX)]);
     if (get().activeAccountId !== accountId) return;
     set({ entries, failed, hydrated: true });
   },
 
-  enqueue: (op) => {
+  enqueue: (op, actedAt) => {
     const accountId = get().activeAccountId;
     if (!accountId) {
       console.warn('[outbox] enqueue with no active account; dropping op', op.kind);
       return;
     }
-    let entries = [...get().entries];
-    // Message identity is (account, id): JMAP ids are only unique within an
-    // account, and the queue can hold ops for shared accounts alongside own.
-    const sameMessage = (other: OutboxOp) =>
-      other.emailId === op.emailId && other.accountId === op.accountId;
-
-    if (op.kind === 'destroy') {
-      // Destroy is terminal — drop any pending edits for this message and
-      // append the destroy so it runs last.
-      entries = entries.filter((e) => !sameMessage(e.op));
-      entries.push({ id: generateUUID(), op, createdAt: Date.now(), attempts: 0 });
-    } else {
-      // A queued destroy wins; further edits to a doomed message are pointless.
-      if (entries.some((e) => sameMessage(e.op) && e.op.kind === 'destroy')) return;
-      // Coalesce: replace any pending op of the same family for this message
-      // (full-state replace makes the latest one authoritative; keyword
-      // patches merge, the later value winning per keyword). Keep its
-      // position so creation order is preserved for replay.
-      const idx = entries.findIndex((e) => sameMessage(e.op) && opFamily(e.op) === opFamily(op));
-      if (idx >= 0) {
-        const prev = entries[idx].op;
-        const merged: OutboxOp = prev.kind === 'keywords' && op.kind === 'keywords'
-          ? { ...op, patch: { ...prev.patch, ...op.patch } }
-          : op;
-        entries[idx] = { ...entries[idx], op: merged, attempts: 0, lastError: undefined };
-      } else {
-        entries.push({ id: generateUUID(), op, createdAt: Date.now(), attempts: 0 });
-      }
-    }
-
+    const entries = coalesce(get().entries, op, actedAt);
+    if (!entries) return;
     set({ entries });
     persist(accountId, entries);
   },
@@ -330,7 +430,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
           if (get().activeAccountId !== accountId) break;
           // Not sent: the client moved to another connection first. The op
           // stays as it is (no error, no attempt counted) for the next flush.
-          if (isStaleLoad(err)) break;
+          // Except when the client does serve this account and the op names
+          // a JMAP account its session no longer has (a shared account taken
+          // away): that is the server's answer, counted like a rejection so
+          // the op is parked rather than blocking the queue forever.
+          if (isStaleLoad(err) && !(isAccountNotInSession(err) && servesAccount(accountId))) break;
           if (isAuthError(err)) {
             // Revoked password / expired session: nothing will succeed until
             // the user signs in again. Keep the queue and stop trying.
@@ -395,6 +499,8 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
   },
 
   clearAccount: async (accountId) => {
+    // A queue write for it still running would bring the key back.
+    await settledOffBucket(accountId);
     // Only the active account's ops live in memory; another account's
     // removal must leave them alone.
     if (get().activeAccountId === accountId) {
@@ -407,6 +513,11 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
 }));
 
 // ── Internal helpers that mutate+persist the live list ──────────────────────
+
+/** The client serves app account `accountId`, and the app shows it as active. */
+function servesAccount(accountId: string): boolean {
+  return activeAppAccountId() === accountId && clientServesActiveAccount();
+}
 
 function removeEntry(accountId: string, id: string): void {
   const store = useOutboxStore.getState();
@@ -462,6 +573,10 @@ export async function applyOrQueueBatch(
 ): Promise<ApplyResult> {
   if (ops.length === 0) return { queued: false };
   const store = useOutboxStore.getState();
+  // The account this action is made on, and when: an account switch during
+  // the online run must not move its ops to the account switched to.
+  const accountId = store.activeAccountId;
+  const startedAt = Date.now();
   const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
   const hasQueued = ops.some((op) =>
     store.entries.some((e) => e.op.emailId === op.emailId),
@@ -473,13 +588,31 @@ export async function applyOrQueueBatch(
       return { queued: false };
     } catch (err) {
       // A real server/validation error should bubble up exactly like before.
-      // Only fall through to the queue when the failure is connectivity.
-      if (!isTransientNetworkError(err)) throw err;
+      // Only fall through to the queue when the failure is connectivity, or a
+      // stop before sending because the client moved to another connection.
+      const stale = isStaleLoad(err);
+      if (!stale && !isTransientNetworkError(err)) throw err;
+      if (accountId && useOutboxStore.getState().activeAccountId !== accountId) {
+        // The user switched away meanwhile. The ops go to the queue of the
+        // account they were made on (they carry their JMAP account; flush only
+        // replays them while that account is active). The caller still sees
+        // the failure, so it applies nothing to the account now shown.
+        if (await enqueueForAccount(accountId, ops, startedAt)) {
+          toast.info(t('outbox.finish_on_switch_back', 'This change will finish when you switch back to that account'));
+        }
+        throw err;
+      }
     }
   }
 
-  for (const op of ops) store.enqueue(op);
-  if (online) void store.flush();
+  if (accountId && !useOutboxStore.getState().hydrated) {
+    // Its queue is still loading: queueing in memory now would be replaced by
+    // the load, and persisting would overwrite the stored queue.
+    await enqueueForAccount(accountId, ops, startedAt);
+  } else {
+    for (const op of ops) useOutboxStore.getState().enqueue(op, startedAt);
+  }
+  if (online) void useOutboxStore.getState().flush();
   return { queued: true };
 }
 
