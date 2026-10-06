@@ -483,6 +483,18 @@ export interface Alert {
 
 // draft-ietf-jmap-calendars §7: an invitation, update or cancellation the
 // server delivered for the user. `event` is only present when asked for.
+/**
+ * A ParticipantIdentity (draft-ietf-jmap-calendars §6): one of the calendar
+ * addresses the user may organise events as. The server flags the default.
+ */
+export interface ParticipantIdentity {
+  id: string;
+  name: string;
+  /** `mailto:` URI of the scheduling address. */
+  calendarAddress: string;
+  isDefault: boolean;
+}
+
 export interface CalendarEventNotification {
   id: string;
   created: string;

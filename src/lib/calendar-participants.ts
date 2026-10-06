@@ -64,6 +64,29 @@ export function getEventOrganizerEmails(event: Partial<CalendarEvent>): string[]
   return emails.filter(Boolean);
 }
 
+/** The default identity's address (no `mailto:`), or '' when there is none. */
+export function defaultIdentityAddress(
+  identities: ReadonlyArray<{ calendarAddress: string; isDefault: boolean }> | undefined,
+): string {
+  const found = identities?.find((i) => i.isDefault && i.calendarAddress.trim());
+  return found ? found.calendarAddress.trim().replace(/^mailto:/i, '') : '';
+}
+
+/**
+ * The address that organizes an event on save. An event that already has an
+ * organizer keeps it; a new event, or one gaining participants for the first
+ * time, uses the user's default ParticipantIdentity, and without one the
+ * first login address.
+ */
+export function organizerAddressForSave(
+  event: Partial<CalendarEvent> | null | undefined,
+  identities: ReadonlyArray<{ calendarAddress: string; isDefault: boolean }> | undefined,
+  userEmails: string[],
+): string {
+  const existing = event?.organizerCalendarAddress?.trim().replace(/^mailto:/i, '');
+  return existing || defaultIdentityAddress(identities) || userEmails[0] || '';
+}
+
 /**
  * Merge the user's calendar addresses (login address, identities, account
  * aliases) so isOrganizer() recognises alias-organized events as the user's

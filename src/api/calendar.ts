@@ -1,7 +1,7 @@
 import { jmapClient } from './jmap-client';
 import { opScope, type AccountRef } from './op-scope';
 import { CAPABILITIES } from './types';
-import type { Calendar, CalendarEvent, CalendarRights } from './types';
+import type { Calendar, CalendarEvent, CalendarRights, ParticipantIdentity } from './types';
 import { assertSetResult, SchedulingDeniedError } from './jmap-result';
 import { getEffectiveTimeZone } from '../lib/calendar-timezone';
 import { SCAN_PROPERTIES, type ScannedCalendarObject } from '../lib/calendar-component-detection';
@@ -856,6 +856,44 @@ export async function setDefaultCalendar(
   const accountId = at.accountId;
   const res = await jmapClient.request(
     [['Calendar/set', { accountId, onSuccessSetIsDefault: calendarId }, '0']],
+    USING,
+    { gen: at.gen },
+  );
+  methodResult(res);
+}
+
+/**
+ * The calendar addresses the user can organise events as in one account
+ * (ParticipantIdentity/get), the server's default flagged. Empty when the
+ * account has no calendars capability.
+ */
+export async function getParticipantIdentities(
+  targetAccount?: AccountRef,
+): Promise<ParticipantIdentity[]> {
+  const at = opScope(targetAccount || undefined);
+  if (!jmapClient.hasAccountCapability(CAPABILITIES.CALENDARS, at.accountId)) return [];
+  const res = await jmapClient.request(
+    [['ParticipantIdentity/get', { accountId: at.accountId }, '0']],
+    USING,
+    { gen: at.gen },
+  );
+  const result = methodResult<{ list?: Array<Partial<ParticipantIdentity> & { id: string }> }>(res);
+  return (result.list ?? []).map((i) => ({
+    id: i.id,
+    name: i.name ?? '',
+    calendarAddress: i.calendarAddress ?? '',
+    isDefault: i.isDefault === true,
+  }));
+}
+
+/** Make `id` the account's default identity (`onSuccessSetIsDefault`). */
+export async function setDefaultParticipantIdentity(
+  id: string,
+  targetAccount?: AccountRef,
+): Promise<void> {
+  const at = opScope(targetAccount || undefined);
+  const res = await jmapClient.request(
+    [['ParticipantIdentity/set', { accountId: at.accountId, onSuccessSetIsDefault: id }, '0']],
     USING,
     { gen: at.gen },
   );

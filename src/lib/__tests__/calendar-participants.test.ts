@@ -11,6 +11,8 @@ import {
   isInactiveEvent,
   isOrganizer,
   seedAttendees,
+  defaultIdentityAddress,
+  organizerAddressForSave,
 } from '../calendar-participants';
 
 const event: Partial<CalendarEvent> = {
@@ -216,5 +218,38 @@ describe('isDeclinedByUser / isInactiveEvent', () => {
     expect(isInactiveEvent({ status: 'cancelled' }, undefined)).toBe(true);
     expect(isInactiveEvent(declined, ['dave@example.com'])).toBe(true);
     expect(isInactiveEvent({ ...declined, status: 'confirmed' }, ['bob@example.com'])).toBe(false);
+  });
+});
+
+describe('organizerAddressForSave', () => {
+  const identities = [
+    { calendarAddress: 'mailto:me@example.com', isDefault: false },
+    { calendarAddress: 'mailto:Work@example.com', isDefault: true },
+  ];
+
+  it('reads the default identity without its mailto: scheme', () => {
+    expect(defaultIdentityAddress(identities)).toBe('Work@example.com');
+    expect(defaultIdentityAddress([])).toBe('');
+    expect(defaultIdentityAddress(undefined)).toBe('');
+  });
+
+  it('organizes a new event as the default identity', () => {
+    expect(organizerAddressForSave(null, identities, ['login@example.com'])).toBe('Work@example.com');
+  });
+
+  it('organizes an event gaining participants as the default identity', () => {
+    expect(organizerAddressForSave({ title: 'Solo' }, identities, ['login@example.com'])).toBe('Work@example.com');
+  });
+
+  it('keeps the organizer an existing event already has', () => {
+    expect(
+      organizerAddressForSave({ organizerCalendarAddress: 'mailto:old@example.com' }, identities, ['login@example.com']),
+    ).toBe('old@example.com');
+  });
+
+  it('falls back to the first login address with no identity (no capability)', () => {
+    expect(organizerAddressForSave(null, undefined, ['login@example.com', 'x@example.com'])).toBe('login@example.com');
+    expect(organizerAddressForSave(null, [{ calendarAddress: 'mailto:a@b.c', isDefault: false }], ['login@example.com'])).toBe('login@example.com');
+    expect(organizerAddressForSave(null, [], [])).toBe('');
   });
 });

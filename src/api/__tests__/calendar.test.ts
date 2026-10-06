@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'acc-1',
+    connectionGen: 3,
+    hasAccountCapability: vi.fn(() => true),
     request: vi.fn(),
     getMaxObjectsInGet: () => 500,
   },
@@ -24,6 +26,8 @@ import {
   resetSyntheticIdSupport,
   queryExpandedEvents,
   hydrateExpandedOccurrences,
+  getParticipantIdentities,
+  setDefaultParticipantIdentity,
 } from '../calendar';
 import { SchedulingDeniedError } from '../jmap-result';
 
@@ -624,5 +628,42 @@ describe('calendar operations', () => {
 
       await expect(clearCalendarEvents('cal-1')).rejects.toThrow(/forbidden/);
     });
+  });
+});
+
+describe('ParticipantIdentity', () => {
+  it('loads an account\'s identities, flagging the default', async () => {
+    mockRequest.mockResolvedValue({
+      methodResponses: [['ParticipantIdentity/get', { list: [
+        { id: 'i1', name: 'Me', calendarAddress: 'mailto:me@example.com', isDefault: true },
+        { id: 'i2', calendarAddress: 'mailto:alias@example.com' },
+      ] }, '0']],
+    });
+    const list = await getParticipantIdentities('acc-2');
+    expect(list).toEqual([
+      { id: 'i1', name: 'Me', calendarAddress: 'mailto:me@example.com', isDefault: true },
+      { id: 'i2', name: '', calendarAddress: 'mailto:alias@example.com', isDefault: false },
+    ]);
+    expect(mockRequest).toHaveBeenCalledWith(
+      [['ParticipantIdentity/get', { accountId: 'acc-2' }, '0']],
+      expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
+      { gen: 3 },
+    );
+  });
+
+  it('sends nothing without the calendars capability', async () => {
+    (jmapClient.hasAccountCapability as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+    expect(await getParticipantIdentities()).toEqual([]);
+    expect(mockRequest).not.toHaveBeenCalled();
+  });
+
+  it('makes an identity the default with onSuccessSetIsDefault', async () => {
+    mockRequest.mockResolvedValue({ methodResponses: [['ParticipantIdentity/set', { updated: null }, '0']] });
+    await setDefaultParticipantIdentity('i2');
+    expect(mockRequest).toHaveBeenCalledWith(
+      [['ParticipantIdentity/set', { accountId: 'acc-1', onSuccessSetIsDefault: 'i2' }, '0']],
+      expect.arrayContaining(['urn:ietf:params:jmap:calendars']),
+      { gen: 3 },
+    );
   });
 });

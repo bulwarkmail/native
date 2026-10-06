@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPersistStorage } from './persist-storage';
 import { t } from './locale-store';
-import type { Calendar, CalendarEvent, CalendarRights, Participant, StateChange } from '../api/types';
+import type { Calendar, CalendarEvent, CalendarRights, Participant, ParticipantIdentity, StateChange } from '../api/types';
 import { normalizeAllDayDuration } from '../lib/calendar-utils';
 import {
   type CalendarUpdates,
@@ -25,6 +25,8 @@ import {
   rsvpEvent as apiRsvpEvent,
   createCalendar as apiCreateCalendar,
   setDefaultCalendar as apiSetDefaultCalendar,
+  getParticipantIdentities as apiGetParticipantIdentities,
+  setDefaultParticipantIdentity as apiSetDefaultParticipantIdentity,
   supportsSyntheticCalendarIds,
   queryExpandedEvents,
   hydrateExpandedOccurrences,
@@ -215,11 +217,18 @@ export interface CalendarState {
   taskOnlyCalendarIds: string[];
   hiddenCalendarIds: string[];
   loadedRange: LoadedRange | null;
+  // The calendar addresses the user can organise as, per JMAP account; the
+  // flagged default organises new invitations. Never persisted.
+  participantIdentities: Record<string, ParticipantIdentity[]>;
   loading: boolean;
   error: string | null;
   hydrated: boolean;
 
   hydrate: () => Promise<void>;
+  // Load an account's identities (nothing is stored once that account is no
+  // longer the one shown; a server without the method leaves the list empty).
+  fetchParticipantIdentities: (account: EventAccount) => Promise<void>;
+  setDefaultParticipantIdentity: (id: string, account: EventAccount) => Promise<void>;
   fetchCalendars: () => Promise<void>;
   fetchEvents: (calendarIds: string[], after: string, before: string) => Promise<void>;
   // Scan every calendar object (all accounts) to list tasks and find the
@@ -586,6 +595,7 @@ export const useCalendarStore = create<CalendarState>()(
   taskOnlyCalendarIds: [],
   hiddenCalendarIds: [],
   loadedRange: null,
+  participantIdentities: {},
   loading: false,
   error: null,
   hydrated: false,
@@ -1160,6 +1170,38 @@ export const useCalendarStore = create<CalendarState>()(
     });
   },
 
+  fetchParticipantIdentities: async (account) => {
+    try {
+      const { accountId, ref } = writeAccount(account, undefined);
+      const list = await apiGetParticipantIdentities(ref);
+      if (!stillShown(account)) return;
+      set({
+        participantIdentities: {
+          ...get().participantIdentities,
+          [accountId ?? jmapClient.accountId]: list,
+        },
+      });
+    } catch {
+      // A server without ParticipantIdentity rejects the method, and a
+      // switched account is nothing to load for: organizers then fall back
+      // to the login address.
+    }
+  },
+
+  setDefaultParticipantIdentity: async (id, account) => {
+    const { accountId, ref } = writeAccount(account, undefined);
+    await apiSetDefaultParticipantIdentity(id, ref);
+    if (!stillShown(account)) return;
+    const key = accountId ?? jmapClient.accountId;
+    const all = get().participantIdentities;
+    set({
+      participantIdentities: {
+        ...all,
+        [key]: (all[key] ?? []).map((i) => ({ ...i, isDefault: i.id === id })),
+      },
+    });
+  },
+
   createTask: async (task, calendarId, account) => {
     const cal = get().calendars.find((c) => c.id === calendarId);
     const { ref } = writeAccount(account, cal?.accountId);
@@ -1247,6 +1289,7 @@ export const useCalendarStore = create<CalendarState>()(
       tasks: [],
       taskOnlyCalendarIds: [],
       loadedRange: null,
+      participantIdentities: {},
       loading: false,
       error: null,
     });

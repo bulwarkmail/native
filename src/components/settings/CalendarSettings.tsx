@@ -8,6 +8,10 @@ import {
   type TimeFormat,
 } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useCalendarStore } from '../../stores/calendar-store';
+import { useEmailStore } from '../../stores/email-store';
+import { toast } from '../../stores/toast-store';
+import { jmapClient } from '../../api/jmap-client';
 import { useColors } from '../../theme/colors';
 import { spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { formatDisplayHour } from '../../lib/calendar-display-range';
@@ -64,6 +68,24 @@ export function CalendarSettings() {
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
   const tasksEnabled = useSettingsStore((s) => s.enableCalendarTasks);
   const showTasksOnCal = useSettingsStore((s) => s.showTasksOnCalendar);
+
+  // Which of the user's calendar addresses organizes new invitations
+  // (ParticipantIdentity), loaded for the account the settings show.
+  const ownJmapAccountId = (() => {
+    try {
+      return jmapClient.accountId;
+    } catch {
+      return '';
+    }
+  })();
+  const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
+  const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
+  const setDefaultIdentity = useCalendarStore((s) => s.setDefaultParticipantIdentity);
+  useEffect(() => {
+    if (!ownJmapAccountId || useCalendarStore.getState().participantIdentities[ownJmapAccountId]) return;
+    void fetchIdentities({ appAccountId: useEmailStore.getState().activeAccountId });
+  }, [ownJmapAccountId, fetchIdentities]);
+  const defaultIdentityId = identities?.find((i) => i.isDefault)?.id ?? identities?.[0]?.id ?? '';
 
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
@@ -126,6 +148,33 @@ export function CalendarSettings() {
             ]}
           />
         </SettingItem>
+
+        {identities && identities.length > 1 && (
+          <SettingItem
+            label={t('calendar.settings.organizer_identity', 'Organize invitations as')}
+            description={t(
+              'calendar.settings.organizer_identity_desc',
+              'The calendar address used as organizer when you invite people to events.',
+            )}
+          >
+            <Select
+              value={defaultIdentityId}
+              onChange={(id) => {
+                setDefaultIdentity(id, { appAccountId: useEmailStore.getState().activeAccountId }).catch((err) => {
+                  toast.error(
+                    err instanceof Error && err.message
+                      ? err.message
+                      : t('calendar.settings.organizer_identity_failed', 'Failed to change the organizer address'),
+                  );
+                });
+              }}
+              options={identities.map((i) => {
+                const address = i.calendarAddress.replace(/^mailto:/i, '');
+                return { value: i.id, label: i.name && i.name !== address ? `${i.name} <${address}>` : address };
+              })}
+            />
+          </SettingItem>
+        )}
 
         <SettingItem label={t('calendar.settings.week_starts_on', 'Week starts on')}>
           <Select

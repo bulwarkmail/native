@@ -62,12 +62,16 @@ import {
   buildParticipantMap,
   getParticipantList,
   seedAttendees,
+  organizerAddressForSave,
   type Attendee,
 } from '../../lib/calendar-participants';
 import { Button } from '..';
 import { ParticipantInput } from './ParticipantInput';
 import { useContactNameResolver } from '../../lib/contact-name-resolver';
 import { RecurrenceEditor } from './RecurrenceEditor';
+import { useCalendarStore } from '../../stores/calendar-store';
+import { useEmailStore } from '../../stores/email-store';
+import { jmapClient } from '../../api/jmap-client';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -213,6 +217,29 @@ export function EventModal({
   const [showEndTime, setShowEndTime] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
+  // The user's default ParticipantIdentity organizes new invitations. It is
+  // loaded for the account the editor opened in.
+  const identityAccount = React.useRef<string | null | undefined>(undefined);
+  const ownJmapAccountId = (() => {
+    try {
+      return jmapClient.accountId;
+    } catch {
+      return '';
+    }
+  })();
+  const identities = useCalendarStore((s) => s.participantIdentities[ownJmapAccountId]);
+  const fetchIdentities = useCalendarStore((s) => s.fetchParticipantIdentities);
+  React.useEffect(() => {
+    if (!visible) {
+      identityAccount.current = undefined;
+      return;
+    }
+    identityAccount.current = useEmailStore.getState().activeAccountId;
+    if (!useCalendarStore.getState().participantIdentities[ownJmapAccountId]) {
+      void fetchIdentities({ appAccountId: identityAccount.current });
+    }
+  }, [visible, ownJmapAccountId, fetchIdentities]);
+
   // Reset the form when the editor opens or switches to another event only.
   // `calendars` and `currentUserEmails` get new identities when a calendar
   // push or the alias lookup lands, which used to wipe what the user typed.
@@ -328,7 +355,7 @@ export function EventModal({
         locations: clearedOr(buildLocations(location), 'locations'),
         virtualLocations: clearedOr(buildVirtualLocations(videoUrl), 'virtualLocations'),
       };
-      const organizerEmail = currentUserEmails[0];
+      const organizerEmail = organizerAddressForSave(event, identities, currentUserEmails);
       if (attendees.length > 0 && organizerEmail) {
         // A new event has no participants yet, so it would store an empty
         // organizer name; fall back to the contact card / account name.

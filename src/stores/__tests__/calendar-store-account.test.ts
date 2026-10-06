@@ -28,6 +28,8 @@ vi.mock('../../api/calendar', () => ({
   queryExpandedEvents: vi.fn(),
   hydrateExpandedOccurrences: vi.fn(async (events: unknown[]) => events),
   resetSyntheticIdSupport: vi.fn(),
+  getParticipantIdentities: vi.fn(),
+  setDefaultParticipantIdentity: vi.fn(),
 }));
 
 vi.mock('../../api/email', () => ({}));
@@ -249,5 +251,62 @@ describe('tasks, calendars and imports opened in A refuse after a switch', () =>
     expect(mockCalApi.remove).toHaveBeenCalledWith('c', { gen: 7, accountId: 'acc-1' });
     await useCalendarStore.getState().deleteTask('t', account());
     expect(mockDelete).toHaveBeenCalledWith(['t'], undefined, { gen: 7, accountId: 'acc-1' });
+  });
+});
+
+describe('participant identities are loaded and kept per account', () => {
+  const getIds = calendarApi.getParticipantIdentities as ReturnType<typeof vi.fn>;
+  const setDefault = calendarApi.setDefaultParticipantIdentity as ReturnType<typeof vi.fn>;
+  const list = [
+    { id: 'i1', name: '', calendarAddress: 'mailto:a@example.com', isDefault: true },
+    { id: 'i2', name: '', calendarAddress: 'mailto:b@example.com', isDefault: false },
+  ];
+  beforeEach(() => useCalendarStore.setState({ participantIdentities: {} }));
+
+  it('stores the list under the account it was loaded for', async () => {
+    getIds.mockResolvedValue(list);
+    await useCalendarStore.getState().fetchParticipantIdentities({ appAccountId: A, jmapAccountId: 'acc-9' });
+    expect(useCalendarStore.getState().participantIdentities).toEqual({ 'acc-9': list });
+    expect(getIds).toHaveBeenCalledWith(expect.objectContaining({ accountId: 'acc-9' }));
+  });
+
+  it('drops a list that lands after the app switched account', async () => {
+    getIds.mockImplementation(async () => {
+      switchToB();
+      return list;
+    });
+    await useCalendarStore.getState().fetchParticipantIdentities({ appAccountId: A, jmapAccountId: 'acc-9' });
+    expect(useCalendarStore.getState().participantIdentities).toEqual({});
+  });
+
+  it('leaves the list empty when the server rejects the method', async () => {
+    getIds.mockRejectedValue(new Error('unknownMethod'));
+    await useCalendarStore.getState().fetchParticipantIdentities({ appAccountId: A, jmapAccountId: 'acc-9' });
+    expect(useCalendarStore.getState().participantIdentities).toEqual({});
+  });
+
+  it('refuses to change the default once another account is shown', async () => {
+    useCalendarStore.setState({ participantIdentities: { 'acc-9': list } });
+    switchToB();
+    await expect(
+      useCalendarStore.getState().setDefaultParticipantIdentity('i2', { appAccountId: A, jmapAccountId: 'acc-9' }),
+    ).rejects.toBeTruthy();
+    expect(setDefault).not.toHaveBeenCalled();
+  });
+
+  it('flags the new default in that account only', async () => {
+    const other = [{ id: 'z', name: '', calendarAddress: 'mailto:z@example.com', isDefault: true }];
+    useCalendarStore.setState({ participantIdentities: { 'acc-9': list, 'acc-8': other } });
+    setDefault.mockResolvedValue(undefined);
+    await useCalendarStore.getState().setDefaultParticipantIdentity('i2', { appAccountId: A, jmapAccountId: 'acc-9' });
+    const state = useCalendarStore.getState().participantIdentities;
+    expect(state['acc-9'].map((i) => i.isDefault)).toEqual([false, true]);
+    expect(state['acc-8']).toEqual(other);
+  });
+
+  it('is cleared when the store resets for an account change', () => {
+    useCalendarStore.setState({ participantIdentities: { 'acc-9': list } });
+    useCalendarStore.getState().reset();
+    expect(useCalendarStore.getState().participantIdentities).toEqual({});
   });
 });
