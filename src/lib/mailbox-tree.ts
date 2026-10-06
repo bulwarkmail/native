@@ -356,3 +356,27 @@ export function findJunkMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
     return names.includes(lower) || names.some((n) => lower.includes(n));
   });
 }
+
+/** Every node of `tree` in order, nothing collapsed. */
+export function flattenAll(tree: MailboxNode[]): MailboxNode[] {
+  const expanded = new Set<string>();
+  const collect = (nodes: MailboxNode[]) => {
+    for (const n of nodes) {
+      if (n.children.length > 0) {
+        expanded.add(n.id);
+        collect(n.children);
+      }
+    }
+  };
+  collect(tree);
+  return flattenVisible(tree, expanded);
+}
+
+/**
+ * The rows of the search folder picker: all of the account's folders as a
+ * tree (roles first), then each shared account under its own header, so a
+ * group's "Inbox" is not mistaken for the user's own (webmail #1082).
+ */
+export function searchScopeRows(mailboxes: Mailbox[]): MailboxNode[] {
+  return flattenAll(buildMailboxTree(mailboxes));
+}

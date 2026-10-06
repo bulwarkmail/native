@@ -11,6 +11,7 @@ import {
   orderMoveTree,
   OWN_ACCOUNT_NODE_PREFIX,
   ownMailboxes,
+  searchScopeRows,
   SHARED_ACCOUNT_NODE_PREFIX,
 } from '../mailbox-tree';
 import type { Mailbox } from '../../api/types';
@@ -250,5 +251,41 @@ describe('findArchiveMailbox (#578)', () => {
       own('past', 'Archived'),
       own('proj', 'Project archive 2019'),
     ])).toBeUndefined();
+  });
+});
+
+describe('searchScopeRows (the search folder picker)', () => {
+  it('lists every folder as a tree, roles first, subfolders right after their parent', () => {
+    const rows = searchScopeRows([
+      own('projects', 'Projects'),
+      own('client-b', 'Client B', { parentId: 'projects' }),
+      own('inbox', 'Inbox', { role: 'inbox' }),
+      own('invoices', 'Invoices', { parentId: 'client-b' }),
+      own('client-a', 'Client A', { parentId: 'projects' }),
+      own('archive', 'Archive', { role: 'archive' }),
+    ]);
+    expect(rows.map((n) => [n.id, n.depth])).toEqual([
+      ['inbox', 0], ['archive', 0], ['projects', 0],
+      ['client-a', 1], ['client-b', 1], ['invoices', 2],
+    ]);
+  });
+
+  it('does not cap the list, so a folder past the twelfth is reachable', () => {
+    const many = Array.from({ length: 30 }, (_, i) => own(`f${i}`, `Folder ${String(i).padStart(2, '0')}`));
+    expect(searchScopeRows(many)).toHaveLength(30);
+  });
+
+  it('puts a shared account under its own header, after the own folders', () => {
+    const rows = searchScopeRows([
+      shared('g1', 'Support', 'inbox', 'Inbox', { role: 'inbox' }),
+      own('inbox', 'Inbox', { role: 'inbox' }),
+      shared('g1', 'Support', 'open', 'Open', { parentId: 'g1:inbox' }),
+    ]);
+    expect(rows.map((n) => [n.id, n.depth, Boolean(n.isAccountNode)])).toEqual([
+      ['inbox', 0, false],
+      [`${SHARED_ACCOUNT_NODE_PREFIX}g1`, 0, true],
+      ['g1:inbox', 1, false],
+      ['g1:open', 2, false],
+    ]);
   });
 });

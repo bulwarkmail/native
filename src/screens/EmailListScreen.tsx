@@ -966,6 +966,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     const id = filters.keyword.replace(/^\$label:/, '').replace(/^\$color:/, '');
     return keywordDefs.find((k) => k.id === id)?.label ?? id;
   }, [filters.keyword, keywordDefs]);
+  const [scopePickerOpen, setScopePickerOpen] = React.useState(false);
   const setFolderScope = (scope: string) => setFilters(withFolderScope(filters, scope));
 
   const cycleTriStateTo = (key: 'hasAttachment' | 'isStarred' | 'isUnread', next: boolean | undefined) => {
@@ -1701,17 +1702,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         active={folderScope === 'current'}
                         onPress={() => setFolderScope('current')}
                       />
-                      {scopedMailboxes
-                        .filter((m) => m.id !== currentMailboxId)
-                        .slice(0, 12)
-                        .map((m) => (
-                          <ScopeChip
-                            key={m.id}
-                            label={localizeMailboxName(m.role, m.name, t)}
-                            active={folderScope === m.id}
-                            onPress={() => setFolderScope(m.id)}
-                          />
-                        ))}
+                      <ScopeChip
+                        label={scopeFolderName ?? `${t('advanced_search.folder', 'Folder')}…`}
+                        active={scopeFolderName !== null}
+                        onPress={() => setScopePickerOpen(true)}
+                      />
                     </View>
                   </View>
 
@@ -1820,6 +1815,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
+        <MoveSheet
+          visible={scopePickerOpen}
+          onClose={() => setScopePickerOpen(false)}
+          mailboxes={mailboxes}
+          mode="search"
+          title={t('advanced_search.folder', 'Folder')}
+          currentMailboxId={scopeFolderName !== null ? folderScope : null}
+          onPick={(id) => { setScopePickerOpen(false); setFolderScope(id); }}
+        />
       </Modal>
 
       {datePickerField !== null && (() => {
