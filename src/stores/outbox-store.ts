@@ -150,19 +150,29 @@ async function load(accountId: string, suffix = ''): Promise<OutboxEntry[]> {
   return [];
 }
 
-async function runOp(op: OutboxOp): Promise<void> {
+/**
+ * Run `op` against JMAP account `accountId`, passed explicitly to every API
+ * call: the op's own account, or for a legacy op (see `flush`) the primary
+ * account of the connection that serves the outbox's account. `undefined`
+ * only on the online path when the client could not be checked (see
+ * `applyOrQueueBatch`), where it means the client's primary as before.
+ */
+async function runOp(op: OutboxOp, accountId: string | undefined = op.accountId): Promise<void> {
   switch (op.kind) {
     case 'keywords':
-      return patchKeywordsForEmails([op.emailId], op.patch, op.accountId);
+      return patchKeywordsForEmails([op.emailId], op.patch, accountId);
     case 'mailboxes':
-      return setEmailMailboxes(op.emailId, op.mailboxIds, op.accountId);
+      return setEmailMailboxes(op.emailId, op.mailboxIds, accountId);
     case 'archive': {
       // The foldering needs the account's current folder list; read it from
       // the email store lazily (it imports this module, so no static import).
       const { useEmailStore } = await import('./email-store');
       const all = useEmailStore.getState().mailboxes;
+      // Own mail is stamped with the primary account id; any other id
+      // selects that shared account's folders (none listed: none reused).
+      const own = !accountId || accountId === primaryAccountId();
       const scoped = all
-        .filter((m) => (op.accountId ? m.isShared && m.accountId === op.accountId : !m.isShared))
+        .filter((m) => (own ? !m.isShared : m.isShared && m.accountId === accountId))
         .map((m) => (m.isShared
           ? { ...m, id: m.originalId ?? m.id, parentId: m.parentId ? unprefixMailboxId(m.parentId, m.accountId) : m.parentId }
           : m));
@@ -171,13 +181,36 @@ async function runOp(op: OutboxOp): Promise<void> {
         op.archiveMailboxId,
         op.mode,
         scoped,
-        op.accountId,
+        accountId,
       );
       return;
     }
     case 'destroy':
-      return destroyEmails([op.emailId], op.accountId);
+      return destroyEmails([op.emailId], accountId);
   }
+}
+
+/** The client's primary JMAP account id, or undefined when it has none. */
+function primaryAccountId(): string | undefined {
+  try {
+    return jmapClient.accountId || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `op` with its JMAP account id made explicit. Own mail (no id) gets the
+ * client's primary account id, taken now, and only while the client serves
+ * the outbox's account; otherwise the op is left as it is and is handled at
+ * replay like a legacy op.
+ */
+function stampAccount(op: OutboxOp): OutboxOp {
+  if (op.accountId) return op;
+  const outboxAccount = useOutboxStore.getState().activeAccountId;
+  if (!outboxAccount || !servesAccount(outboxAccount)) return op;
+  const primary = primaryAccountId();
+  return primary ? { ...op, accountId: primary } : op;
 }
 
 // A move-like op replaces the whole mailboxIds map; `mailboxes` and `archive`
@@ -386,7 +419,7 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
       console.warn('[outbox] enqueue with no active account; dropping op', op.kind);
       return;
     }
-    const entries = coalesce(get().entries, op, actedAt);
+    const entries = coalesce(get().entries, stampAccount(op), actedAt);
     if (!entries) return;
     set({ entries });
     persist(accountId, entries);
@@ -404,6 +437,10 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
     // Need a live client that's actually serving this account, and a network.
     if (!jmapClient.isConnected) return;
     if (!useNetworkStore.getState().online) return;
+    // The connection must serve this account: during a switch the client can
+    // already be on the next account while the outbox is still on this one.
+    // Not an error; the next trigger (setAccount, online edge) retries.
+    if (!servesAccount(accountId)) return;
 
     set({ flushing: true });
     let brokeTransient = false;
@@ -418,12 +455,20 @@ export const useOutboxStore = create<OutboxState>((set, get) => ({
         if (get().activeAccountId !== accountId) break;     // account switched
         if (!useNetworkStore.getState().online) break;       // went offline
         if (!jmapClient.isConnected) break;
+        if (!servesAccount(accountId)) break;                // client switched
 
         const entry = get().entries.find((e) => e.id === snapshot.id);
         if (!entry) continue;                                // removed/coalesced
 
+        // An op without an account id was queued by an older build (own
+        // mail), or while the client did not serve this account. It runs
+        // against the primary account of the connection that serves this
+        // outbox, checked just above; it is not migrated on disk.
+        const target = entry.op.accountId ?? primaryAccountId();
+        if (!target) break;
+
         try {
-          await runOp(entry.op);
+          await runOp(entry.op, target);
           removeEntry(accountId, entry.id);
           retryAttempt = 0;
         } catch (err) {
@@ -577,6 +622,9 @@ export async function applyOrQueueBatch(
   // the online run must not move its ops to the account switched to.
   const accountId = store.activeAccountId;
   const startedAt = Date.now();
+  // Each op names its JMAP account, own mail included (taken now, while the
+  // client serves this account; see stampAccount).
+  ops = ops.map(stampAccount);
   const online = useNetworkStore.getState().online && jmapClient.isConnected && !store.paused;
   const hasQueued = ops.some((op) =>
     store.entries.some((e) => e.op.emailId === op.emailId),
@@ -584,7 +632,7 @@ export async function applyOrQueueBatch(
 
   if (online && !hasQueued) {
     try {
-      await (onlineRun ? onlineRun() : Promise.all(ops.map(runOp)).then(() => undefined));
+      await (onlineRun ? onlineRun() : Promise.all(ops.map((op) => runOp(op))).then(() => undefined));
       return { queued: false };
     } catch (err) {
       // A real server/validation error should bubble up exactly like before.
