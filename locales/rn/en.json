@@ -895,6 +895,9 @@
       "plain_text_mode": {
         "description_mobile": "Compose and read in plain text only."
       },
+      "recipient_mentions": {
+        "description_mobile": "Typing @ in the message offers its recipients and inserts the chosen one's first name."
+      },
       "restore_last_folder": {
         "description": "Open the folder you were last in when the app starts. When off, the app opens on the Inbox.",
         "label": "Reopen the last folder on start"

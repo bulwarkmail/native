@@ -220,3 +220,15 @@ describe('restoreLastFolder', () => {
     expect(mergeWithDefaults({ restoreLastFolder: 'yes' } as never).restoreLastFolder).toBe(false);
   });
 });
+
+describe('recipientMentionsEnabled', () => {
+  it('is on by default and exported under the webmail name', () => {
+    expect(mergeWithDefaults({} as never).recipientMentionsEnabled).toBe(true);
+    expect(toExportShape(mergeWithDefaults({} as never))).toHaveProperty('recipientMentionsEnabled', true);
+  });
+
+  it('reads back what was stored and rejects a non-boolean', () => {
+    expect(mergeWithDefaults({ recipientMentionsEnabled: false } as never).recipientMentionsEnabled).toBe(false);
+    expect(mergeWithDefaults({ recipientMentionsEnabled: 'no' } as never).recipientMentionsEnabled).toBe(true);
+  });
+});

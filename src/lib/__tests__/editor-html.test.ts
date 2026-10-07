@@ -132,36 +132,79 @@ describe('editor page messages', () => {
     const listeners: Record<string, Listener[]> = {};
     const docListeners: Record<string, Listener[]> = {};
     const posted: Array<{ type: string; payload: unknown }> = [];
+    type FakeNode = { nodeType?: number; tagName?: string; data?: string; parentNode?: unknown };
+    // The editor holds either markup set as a whole or one text node (for
+    // the @-mention tests), serialized as the DOM would: text escaped.
+    let html = '';
+    let textNode: FakeNode | null = null;
     const editor = {
-      innerHTML: '',
+      get innerHTML() {
+        return textNode ? textNode.data!.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : html;
+      },
+      set innerHTML(value: string) { html = value; textNode = null; },
       get textContent() { return this.innerHTML.replace(/<[^>]*>/g, ''); },
       scrollHeight: 100,
       querySelector: () => null,
       setAttribute: () => undefined,
       focus: () => undefined,
-      contains: (node: unknown) => node === editor,
+      contains: (node: unknown) => {
+        for (let n = node as FakeNode | undefined; n; n = n.parentNode as FakeNode | undefined) {
+          if (n === (editor as unknown)) return true;
+        }
+        return false;
+      },
       addEventListener: (name: string, fn: Listener) => { (listeners[name] ??= []).push(fn); },
     };
     // The caret: a range in the editor that the page saves on paste and
     // restores before inserting.
     const caret = { startContainer: editor as unknown, id: 'caret' };
     const ranges: unknown[] = [caret];
+    type FakeRange = {
+      startContainer?: unknown; startOffset?: number; endContainer?: unknown; endOffset?: number; id?: string;
+    };
+    const collapsedRange = (r: FakeRange) =>
+      r.endContainer === undefined || (r.endContainer === r.startContainer && r.endOffset === r.startOffset);
     const selection = {
       get rangeCount() { return ranges.length; },
       anchorNode: null,
-      getRangeAt: () => ({ cloneRange: () => ({ ...(ranges[0] as object), id: 'saved' }) }),
+      getRangeAt: () => {
+        const r = ranges[0] as FakeRange;
+        return { ...r, collapsed: collapsedRange(r), cloneRange: () => ({ ...r, id: 'saved' }) };
+      },
       removeAllRanges: () => { ranges.length = 0; },
       addRange: (r: unknown) => { ranges.push(r); },
     };
+    const caretAt = (node: unknown, offset: number) => {
+      ranges.length = 0;
+      ranges.push({ startContainer: node, startOffset: offset });
+    };
     const executed: Array<{ command: string; value: unknown; range: unknown }> = [];
     const commandState: Record<string, boolean> = {};
+    /** What execCommand returns; false plays a WebView where it does nothing. */
+    const execWorks = { value: true };
     const document = {
       activeElement: editor as unknown,
       getElementById: () => editor,
       addEventListener: (name: string, fn: Listener) => { (docListeners[name] ??= []).push(fn); },
       queryCommandState: (name: string) => !!commandState[name],
+      createRange: () => {
+        const r: FakeRange & Record<string, unknown> = {
+          setStart(node: unknown, offset: number) { r.startContainer = node; r.startOffset = offset; },
+          setEnd(node: unknown, offset: number) { r.endContainer = node; r.endOffset = offset; },
+          collapse() { r.endContainer = r.startContainer; r.endOffset = r.startOffset; },
+        };
+        return r;
+      },
       execCommand: (command: string, _ui: boolean, value: unknown) => {
-        executed.push({ command, value, range: ranges[0] });
+        const range = ranges[0] as FakeRange | undefined;
+        executed.push({ command, value, range: range && { ...range } });
+        if (!execWorks.value) return false;
+        // insertText over a selection in a text node, as the browser does it.
+        const node = range?.startContainer as FakeNode | undefined;
+        if (command === 'insertText' && node?.nodeType === 3 && range!.endContainer === node) {
+          node.data = node.data!.slice(0, range!.startOffset) + String(value) + node.data!.slice(range!.endOffset);
+          caretAt(node, range!.startOffset! + String(value).length);
+        }
         return true;
       },
     };
@@ -175,6 +218,22 @@ describe('editor page messages', () => {
     new Function('window', 'document', script)(window, document);
     const changes = () => posted.filter((m) => m.type === 'change').map((m) => m.payload);
     const selections = () => posted.filter((m) => m.type === 'selection');
+    const mentions = () => posted.filter((m) => m.type === 'mention').map((m) => m.payload);
+    /**
+     * Makes the editor one text node (inside `parent`, if given) with the
+     * caret at `caret` (default: its end), as if the user typed it.
+     */
+    const typeText = (data: string, opts: { parent?: FakeNode; caret?: number } = {}) => {
+      if (opts.parent) opts.parent.parentNode = editor;
+      const node: FakeNode = textNode?.data !== undefined && !opts.parent && textNode.parentNode === editor
+        ? textNode
+        : { nodeType: 3, parentNode: opts.parent ?? editor };
+      node.data = data;
+      textNode = node;
+      caretAt(node, opts.caret ?? data.length);
+      listeners.input.forEach((fn) => fn());
+      return node;
+    };
     const pastes = () => posted.filter((m) => m.type === 'pastePlain').map((m) => (m.payload as { text: string }).text);
     /** The id the page gave its latest paste, which RN's answer must carry. */
     const lastPasteId = () => (posted.filter((m) => m.type === 'pastePlain').pop()!.payload as { id: number }).id;
@@ -194,7 +253,7 @@ describe('editor page messages', () => {
     const moveCaret = () => { ranges.length = 0; ranges.push({ startContainer: editor, id: 'moved' }); };
     return {
       changes, selections, pastes, lastPasteId, type, fire, paste, moveCaret, commandState, posted, executed,
-      rne: () => window.__rne,
+      mentions, typeText, caretAt, execWorks, document, rne: () => window.__rne,
     };
   }
 
@@ -320,6 +379,109 @@ describe('editor page messages', () => {
       page.paste({ 'text/plain': '- One' });
       page.paste({ 'text/plain': '- Two' });
       expect(page.executed.map((e) => [e.command, e.value])).toEqual([['insertText', '- One']]);
+    });
+  });
+
+  // Task 10: "@" at the start of a word asks RN for the recipients; RN sends
+  // back the chosen label, which goes in as text.
+  describe('@-mention', () => {
+    it('posts the query for an @ at the start of a word', () => {
+      const page = boot();
+      page.typeText('Hi @');
+      page.typeText('Hi @ma');
+      expect(page.mentions()).toEqual([{ query: '' }, { query: 'ma' }]);
+      for (const text of ['@jo', 'Hi\u00a0@jo']) {
+        const other = boot();
+        other.typeText(text);
+        expect(other.mentions(), text).toEqual([{ query: 'jo' }]);
+      }
+    });
+
+    it('posts nothing for an @ inside a word, in code, pre or a link', () => {
+      const page = boot();
+      page.typeText('info@x');
+      page.typeText('a.b@dornig');
+      expect(page.mentions()).toEqual([]);
+      for (const tagName of ['CODE', 'PRE', 'A']) {
+        const other = boot();
+        other.typeText('Hi @ma', { parent: { nodeType: 1, tagName } });
+        expect(other.mentions(), tagName).toEqual([]);
+      }
+    });
+
+    it('posts the query only when it changes, and null when the run ends', () => {
+      const page = boot();
+      page.typeText('Hi @ma');
+      page.fire('selectionchange');
+      expect(page.mentions()).toEqual([{ query: 'ma' }]);
+      page.typeText('Hi @ma ');
+      expect(page.mentions()).toEqual([{ query: 'ma' }, null]);
+      page.typeText('Hi @ma x');
+      expect(page.mentions()).toEqual([{ query: 'ma' }, null]);
+    });
+
+    it('posts null when the caret leaves the run or the editor loses focus', () => {
+      const page = boot();
+      const node = page.typeText('Hi @ma');
+      page.caretAt(node, 2);
+      page.fire('selectionchange');
+      expect(page.mentions()).toEqual([{ query: 'ma' }, null]);
+      page.typeText('Hi @ma');
+      page.fire('blur');
+      expect(page.mentions()).toEqual([{ query: 'ma' }, null, { query: 'ma' }, null]);
+      expect(page.posted.at(-1)).toEqual({ type: 'blur', payload: null });
+    });
+
+    it('replaces the run with the label as literal text and posts the change', () => {
+      const page = boot();
+      const node = page.typeText('Hi @ma');
+      const before = page.changes().length;
+      page.rne().insertMention('<b>Max</b>');
+      expect(page.executed).toEqual([{
+        command: 'insertText', value: '@<b>Max</b> ', range: expect.objectContaining({ startOffset: 3, endOffset: 6 }),
+      }]);
+      expect(node.data).toBe('Hi @<b>Max</b> ');
+      expect(page.changes().slice(before)).toEqual(['Hi @&lt;b&gt;Max&lt;/b&gt; ']);
+      expect(page.mentions().at(-1)).toBeNull();
+    });
+
+    it('adds no space when one follows', () => {
+      const page = boot();
+      const node = page.typeText('Hi @ma there', { caret: 6 });
+      page.rne().insertMention('Max');
+      expect(node.data).toBe('Hi @Max there');
+    });
+
+    it('writes the text node itself where insertText does nothing', () => {
+      const page = boot();
+      const node = page.typeText('Hi @ma');
+      page.execWorks.value = false;
+      page.rne().insertMention('<b>Max</b>');
+      expect(node.data).toBe('Hi @<b>Max</b> ');
+      expect(page.executed.map((e) => e.command)).toEqual(['insertText']);
+      expect(page.changes().at(-1)).toBe('Hi @&lt;b&gt;Max&lt;/b&gt; ');
+    });
+
+    it('replaces the whole run when the user typed on, and nothing once the @ is gone', () => {
+      const page = boot();
+      page.typeText('Hi @ma');
+      page.typeText('Hi @max');
+      page.rne().insertMention('Max');
+      expect(page.executed.map((e) => e.value)).toEqual(['@Max ']);
+
+      const gone = boot();
+      const node = gone.typeText('Hi @ma');
+      node.data = 'Hi ma';
+      gone.rne().insertMention('Max');
+      expect(gone.executed).toEqual([]);
+      expect(node.data).toBe('Hi ma');
+    });
+
+    it('does nothing without an open run', () => {
+      const page = boot();
+      page.typeText('info@x');
+      page.rne().insertMention('Max');
+      expect(page.executed).toEqual([]);
     });
   });
 });

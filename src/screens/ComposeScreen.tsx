@@ -62,6 +62,7 @@ import { attachmentsUploaded, buildQueuedSend, findAlreadyQueued, hasQueueAccoun
 import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { escapeHtml, stripDangerousTags } from '../lib/email-html';
+import { buildMentionCandidates, filterMentionCandidates, type MentionCandidate } from '../lib/recipient-mentions';
 import {
   buildInitialHtml, htmlToPlainText, rewriteInlineImages, extractUserAuthoredText,
   rewriteCidImagesForEditor, replaceInlineImagePlaceholders, sniffImageMime, QUOTED_BLOCK_START,
@@ -309,6 +310,43 @@ function SuggestionList({
         </Pressable>
       )}
     </View>
+  );
+}
+
+/**
+ * The recipients an "@" typed in the body can name, above the format bar.
+ * Tap only: Enter and Tab stay with the editor, because Android soft
+ * keyboards report them as keyCode 229 and a keydown pick would misfire.
+ */
+function MentionList({
+  candidates, onPick,
+}: {
+  candidates: MentionCandidate[];
+  onPick: (candidate: MentionCandidate) => void;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
+  return (
+    <ScrollView
+      style={styles.mentionList}
+      keyboardShouldPersistTaps="always"
+      accessibilityLabel={t('email_composer.mention_recipients', 'Recipients')}
+    >
+      {candidates.map((m) => (
+        <Pressable
+          key={m.email}
+          onPress={() => onPick(m)}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.suggestionRow, pressed && styles.suggestionRowPressed]}
+        >
+          <Text style={styles.suggestionName} numberOfLines={1}>{`@${m.label}`}</Text>
+          <Text style={[styles.suggestionEmail, styles.suggestionText]} numberOfLines={1}>
+            {[m.name, m.email].filter(Boolean).join(' · ')}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -628,6 +666,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
+  const recipientMentionsEnabled = useSettingsStore((s) => s.recipientMentionsEnabled);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
@@ -838,6 +877,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   });
 
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  // What follows an "@" the caret is on in the rich body, or null.
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
   const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
@@ -864,6 +905,21 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const inputFor = (field: Field | null) =>
     field === 'to' ? toInput : field === 'cc' ? ccInput : field === 'bcc' ? bccInput : '';
   const suggestionQuery = inputFor(activeField);
+
+  // "@" in the body offers To and Cc - never Bcc, which naming in the body
+  // would disclose.
+  const mentionCandidates = React.useMemo(
+    () => buildMentionCandidates(toRecipients, ccRecipients),
+    [toRecipients, ccRecipients],
+  );
+  const mentionMatches = React.useMemo(
+    () => (recipientMentionsEnabled && !plainTextMode && mentionQuery !== null
+      ? filterMentionCandidates(mentionCandidates, mentionQuery)
+      : []),
+    [recipientMentionsEnabled, plainTextMode, mentionQuery, mentionCandidates],
+  );
+  // A format switch replaces the editor; its open "@" goes with it.
+  React.useEffect(() => { setMentionQuery(null); }, [plainTextMode]);
   const alreadySelected = React.useMemo(
     () => new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
@@ -2793,9 +2849,17 @@ export default function ComposeScreen({ route, navigation }: Props) {
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
+              onMention={(m) => setMentionQuery(m ? m.query : null)}
             />
           )}
         </ScrollView>
+
+        {mentionMatches.length > 0 && (
+          <MentionList
+            candidates={mentionMatches}
+            onPick={(m) => editorRef.current?.insertMention(m.label)}
+          />
+        )}
 
         <ScrollView
           horizontal
@@ -3422,6 +3486,14 @@ function makeStyles(c: ThemePalette) {
   progressTrack: { height: 3, borderRadius: 2, backgroundColor: c.borderLight, marginTop: 4, overflow: 'hidden' },
   progressFill: { height: 3, backgroundColor: c.primary },
 
+  // About four rows above the format bar.
+  mentionList: {
+    maxHeight: 168,
+    flexGrow: 0,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    backgroundColor: c.card,
+  },
   formatBar: {
     borderTopWidth: 1,
     borderTopColor: c.border,

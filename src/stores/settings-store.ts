@@ -173,6 +173,8 @@ interface PersistedSettings {
   requestReadReceiptDefault: boolean;
   // Confirm before sending a message without a subject (#684).
   emptySubjectWarningEnabled: boolean;
+  // Typing "@" in the rich body offers the To and Cc recipients.
+  recipientMentionsEnabled: boolean;
   // Draft autosave debounce, milliseconds.
   autoSaveDraftInterval: number;
   // Character separating user from tag (e.g. "user+tag@"), RFC 5233.
@@ -376,6 +378,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   signatureSeparatorEnabled: true,
   requestReadReceiptDefault: false,
   emptySubjectWarningEnabled: true,
+  recipientMentionsEnabled: true,
   autoSaveDraftInterval: 60000,
   subAddressDelimiter: '+',
   preferredIdentityIds: {},

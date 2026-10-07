@@ -252,14 +252,18 @@ export function buildEditorHtml(opts: {
   editor.addEventListener('input', function () {
     scheduleChange();
     reportHeight();
+    updateMention();
   });
   editor.addEventListener('blur', function () {
     flushChange();
+    endMention();
     post('blur', null);
   });
   editor.addEventListener('focus', function () { post('focus', null); });
   document.addEventListener('selectionchange', function () {
-    if (document.activeElement === editor) reportSelection();
+    if (document.activeElement !== editor) return;
+    reportSelection();
+    updateMention();
   });
 
   // ── Plain-text list paste ──────────────────────────────────────────
@@ -349,6 +353,64 @@ export function buildEditorHtml(opts: {
     pendingPaste = { id: id, text: text, range: range, timer: setTimeout(function () { settlePaste(null); }, PASTE_FALLBACK_MS) };
     post('pastePlain', { id: id, text: text });
   });
+
+  // ── @-mention of a recipient ───────────────────────────────────────
+  // While the caret ends an "@query" run the page posts 'mention' with the
+  // query, and null once it ends; RN offers the matching recipients and
+  // calls insertMention with the chosen label. The "@" counts only at the
+  // start of a word (the node's start, or after a space or NBSP), so
+  // info@example.com never triggers, and never in code or a link.
+  // The open run: { node, start, end, query }, start at the "@".
+  var mention = null;
+  var postedMention = null;
+
+  function mentionAllowedIn(node) {
+    for (var p = node.parentNode; p; p = p.parentNode) {
+      if (p === editor) return true;
+      if (p.nodeType === 1 && (p.tagName === 'PRE' || p.tagName === 'CODE' || p.tagName === 'A')) return false;
+    }
+    return false;
+  }
+
+  // The "@query" run in text node 'node' that ends at 'end', or null.
+  function mentionRunAt(node, end) {
+    if (!node || node.nodeType !== 3 || !mentionAllowedIn(node)) return null;
+    var data = node.data;
+    if (end > data.length) return null;
+    for (var i = end - 1; i >= 0; i--) {
+      var code = data.charCodeAt(i);
+      if (code === 64) {
+        var prev = i > 0 ? data.charCodeAt(i - 1) : 32;
+        if (prev !== 32 && prev !== 160) return null;
+        return { node: node, start: i, end: end, query: data.slice(i + 1, end) };
+      }
+      if (isSpace(code)) return null;
+    }
+    return null;
+  }
+
+  function findMention() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var range = sel.getRangeAt(0);
+    if (!range.collapsed) return null;
+    return mentionRunAt(range.startContainer, range.startOffset);
+  }
+
+  function updateMention() {
+    mention = findMention();
+    var query = mention ? mention.query : null;
+    if (query === postedMention) return;
+    postedMention = query;
+    post('mention', query === null ? null : { query: query });
+  }
+
+  function endMention() {
+    mention = null;
+    if (postedMention === null) return;
+    postedMention = null;
+    post('mention', null);
+  }
 
   // ── Bridge: receive commands from RN ───────────────────────────────
   window.__rne = {
@@ -453,6 +515,45 @@ export function buildEditorHtml(opts: {
       post('htmlSnapshot', { id: id, html: editor.innerHTML });
     },
     focus: function () { editor.focus(); },
+    // Replaces the open "@query" run with "@label " as text - never as HTML,
+    // since the label comes from recipients' display names, which a reply
+    // takes from the incoming message. The run is checked again first: the
+    // user may have typed on while RN picked the label.
+    insertMention: function (label) {
+      var m = mention;
+      var run = m && editor.contains(m.node) ? mentionRunAt(m.node, m.end) : null;
+      if (!run || run.start !== m.start || typeof label !== 'string' || !label) return;
+      var node = run.node;
+      var spaceFollows = run.end < node.data.length && isSpace(node.data.charCodeAt(run.end));
+      var text = '@' + label + (spaceFollows ? '' : ' ');
+      editor.focus();
+      var sel = window.getSelection();
+      var range = document.createRange();
+      range.setStart(node, run.start);
+      range.setEnd(node, run.end);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // insertText keeps the edit undoable; where it fails, write the text
+      // node directly.
+      var inserted = false;
+      try { inserted = document.execCommand('insertText', false, text); } catch (e) {}
+      if (inserted && spaceFollows && sel.modify) {
+        // Past the space that was already there, ready for the next word.
+        sel.modify('move', 'forward', 'character');
+      } else if (!inserted) {
+        var data = node.data;
+        node.data = data.slice(0, run.start) + text + data.slice(run.end);
+        var caret = document.createRange();
+        caret.setStart(node, run.start + text.length + (spaceFollows ? 1 : 0));
+        caret.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(caret);
+      }
+      updateMention();
+      reportChange();
+      reportHeight();
+      reportSelection();
+    },
     // RN's answer to 'pastePlain' with that paste's id: the list HTML, or
     // null to paste the text as text. An answer for a paste no longer waiting
     // (it timed out, or a newer paste replaced it) is dropped.

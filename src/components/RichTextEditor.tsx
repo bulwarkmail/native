@@ -66,6 +66,17 @@ export interface RichTextEditorHandle {
    */
   getHtml(timeoutMs?: number): Promise<string>;
   focus(): void;
+  /**
+   * Replace the "@query" the caret ends (see `onMention`) with "@label " as
+   * text. Does nothing if that run is gone by the time the page gets it.
+   */
+  insertMention(label: string): void;
+}
+
+/** An "@query" run at the caret, which a recipient's label can replace. */
+export interface RichTextMention {
+  /** What follows the "@", possibly empty. */
+  query: string;
 }
 
 interface Props {
@@ -77,10 +88,12 @@ interface Props {
   onSelectionChange?: (state: RichTextSelectionState) => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  /** The caret starts, changes or leaves an "@query" run (null when it ends). */
+  onMention?: (mention: RichTextMention | null) => void;
 }
 
 const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function RichTextEditor(
-  { initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur },
+  { initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur, onMention },
   ref,
 ) {
   const c = useColors();
@@ -91,6 +104,8 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   const onSelectionRef = React.useRef(onSelectionChange);
   const onFocusRef = React.useRef(onFocus);
   const onBlurRef = React.useRef(onBlur);
+  const onMentionRef = React.useRef(onMention);
+  onMentionRef.current = onMention;
   onChangeRef.current = onChange;
   onSelectionRef.current = onSelectionChange;
   onFocusRef.current = onFocus;
@@ -177,6 +192,9 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     focus: () => {
       call(`window.__rne && window.__rne.focus()`);
     },
+    insertMention: (label) => {
+      call(`window.__rne && window.__rne.insertMention(${JSON.stringify(label)})`);
+    },
   }), [call]);
 
   const onMessage = (event: WebViewMessageEvent) => {
@@ -235,6 +253,11 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       case 'blur':
         onBlurRef.current?.();
         break;
+      case 'mention': {
+        const p = data.payload as { query?: unknown } | null;
+        onMentionRef.current?.(typeof p?.query === 'string' ? { query: p.query } : null);
+        break;
+      }
     }
   };
 
