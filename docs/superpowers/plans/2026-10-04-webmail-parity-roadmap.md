@@ -402,3 +402,56 @@ Left open:
   - the row accessibility actions with VoiceOver and TalkBack;
   - empty folder on a server with no Trash role;
   - opening a global search hit from another account.
+
+## Phase 6c follow-ups (composer and contacts, 2026-10-07)
+
+Phase 6c is done on `parity/phase-6c-composer-contacts`. It closes 9 items across areas 04 and 06, plus webmail's new "Attach from Files" (#1179).
+
+**Composer:**
+- identity refresh;
+- DSN and REQUIRETLS;
+- sending as the From override with the identity as fallback;
+- pasted lists;
+- @-mentions.
+
+**Contacts:**
+- address book sharing;
+- list filters;
+- event-guest suggestions;
+- new and edit contact links.
+
+The webmail locale catalogs are re-vendored at `ccf6bf7`. `scripts/sync-locales.mjs --from <dir>` now works without the parent repo.
+
+**Fixes that came out of the reviews:**
+- The contact edit form deleted the photo, and overwrote newer fields, when it was seeded from the cached card. It could also take another account's card that had the same id.
+- "Send now", Reschedule and undo dropped REQUIRETLS and DSN.
+- A send reported as both created and refused could have been submitted twice.
+- The composer's attachment preview, and its inline-image fetch, read from the live account rather than the composer's own.
+
+Left open:
+
+- **New parity item:** vacation forwarding and reply audience (07, #1152).
+- **Deliberate divergences:**
+  - only the sending account's own files can be attached;
+  - the mention list is tap-only;
+  - picking a group as an event guest adds its members;
+  - editing a contact needs a live load from the server.
+- **Small:**
+  - The reschedule refusal text is English.
+  - The contact form's "couldn't load" reads the store's shared error.
+  - The edit screen doesn't retry on its own after a failed load beyond reconnect.
+  - A paste that lands while focus is elsewhere can't be undone.
+  - A mention pick is dropped if a pending paste split the text node.
+  - The Files picker dedupe doesn't survive reopening a draft.
+  - UpdatesSettings keeps its own byte formatter.
+  - The identity of a wildcard (`*@`) From gets no fallback notice.
+- **Tests:** there are no render-harness tests for ContactForm, ParticipantInput, the filter and share sheets, the mention list, the Files picker or the toolbar toggles.
+- **Device checks:**
+  - iOS: does paste fire with `clipboardData` from the long-press menu;
+  - undo after an async paste;
+  - Hermes NFD folding in mention search ("jose" finds "José");
+  - an IME composition during a mention pick;
+  - whether tapping a mention row blurs the WebView;
+  - the Files picker opening after the Attach menu on iOS;
+  - DSN and REQUIRETLS against Stalwart;
+  - a From override that Stalwart refuses, falling back to the identity.

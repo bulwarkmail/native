@@ -73,7 +73,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: shows the trash icon whenever `books.length > 1 && mayDelete !== false` (`src/components/settings/ContactsSettings.tsx:209`); the server then rejects and the user sees a raw error.
   - Fix hint: add `!book.isDefault` to the guard.
 
-- [ ] **Address book share / visibility (subscription) management missing** — `P3` — `missing`
+- [x] **Address book share / visibility (subscription) management missing** — `P3` — `missing` — fixed in 3b25238, c1236d7, 22e4e14 — sharing only; webmail has no visibility toggle
   - deferred: `shareWith`/`myRights` are now requested explicitly (580e010) and typed on `AddressBook`; no sharing sheet on mobile yet (reuse the calendar-sharing sheet when it exists).
   - What WEB does: `shareAddressBook` via `shareWith/<principal>` patch + ShareCollectionDialog (`stores/contact-store.ts:1064-1085`, `components/contacts/contacts-app.tsx:1142-1158`); sidebar shows a shared indicator (`contacts-sidebar.tsx:879-881`).
   - What RN does: nothing; `getAddressBooks` requests no `properties` so `shareWith` is whatever the server defaults to (`src/api/contacts.ts:17-24`; WEB requests `ADDRESS_BOOK_PROPERTIES` incl. `shareWith`, `lib/jmap/client.ts:252-261`, #257).
@@ -146,7 +146,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: filter = contacts with no `addressBookIds` (`src/stores/contacts-store.ts:439-440`; `src/screens/ContactsScreen.tsx:146-149`), drawer row passes `count={0}` (`src/components/contacts/ContactsSidebarDrawer.tsx:128-136`) so the count never shows; on Stalwart every card has a book so the view is always empty.
   - Fix hint: redefine as "no keywords", move the row under the Tags section, compute the count.
 
-- [ ] **Contact list filters (org / title / location / domain / birthday month / has email-phone-photo) missing** — `P3` — `missing`
+- [x] **Contact list filters (org / title / location / domain / birthday month / has email-phone-photo) missing** — `P3` — `missing` — fixed in a0dd790, 6bb93b4
   - deferred: optional; free-text search only.
   - What WEB does: filter drawer with tri-state chips (`components/contacts/contact-list.tsx:18-76, 154-228, 350-456`; changelog 1.5.x "Revamp contact detail view with filters").
   - What RN does: free-text search only (`src/lib/contact-utils.ts:216-241`).
@@ -189,7 +189,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
 
 ### Composer autocomplete
 
-- [ ] **Autocomplete lacks groups, recent recipients (Sent), on-demand server search and directory principals** — `P2` — `missing`
+- [x] **Autocomplete lacks groups, recent recipients (Sent), on-demand server search and directory principals** — `P2` — `missing` — fixed in 714cb18, 1b98d84 — event guests get the composer's suggestions; picking a group adds its members
   - store-side done in 26a34d5 (`getAutocomplete` with group entries + recent recipients, `loadRecentRecipients`/`searchRecipients` fed by `src/api/recent-recipients.ts`, `getGroupRecipients`, #672 normalisation); the composer uses `getAutocomplete` and the recent Sent recipients since 5b72c4d. Directory principals and the "Search the server" row were added in d1a44c1, 143c99d, 5c820e8. Still open: the calendar's `ParticipantInput`, which still offers contacts only.
   - What WEB does: `getAutocomplete` merges contacts, group entries (as one chip with `memberCount`), RFC 9670 directory principals and recent Sent recipients, deduped and sanitised (#672) (`stores/contact-store.ts:622-707, 23-49`; `loadRecentRecipients` `:1118-1142` fed from `mail-app.tsx:423`; `searchRecipients` `:1144-1154` used by `components/email/email-composer.tsx:1175-1212`; group chip insertion `:1218-1233`; changelogs 1.6.x "Recipient autocomplete from Sent, with on-demand server search", 1.7.x group chips).
   - What RN does: suggestions come only from `individuals` matched with `matchesContactSearch` (`src/screens/ComposeScreen.tsx:367-392`); groups are explicitly filtered out and nothing else is consulted. `ParticipantInput` (calendar) likewise flattens contacts only (`src/components/calendar/ParticipantInput.tsx:34-51`).
@@ -209,7 +209,7 @@ RN covers the visible surface reasonably well (list with alphabetical index, det
   - What RN does: none (see previous item).
   - Fix hint: same sheet as above; show the matching card's phone/org and an "Open" that navigates to `ContactDetail`.
 
-- [ ] **Contact deep links (`/contacts/<id>[/edit]`, `/contacts/new`)** — `P3` — `missing`
+- [x] **Contact deep links (`/contacts/<id>[/edit]`, `/contacts/new`)** — `P3` — `missing` — fixed in d979c72, b9e05e1, 1aa4891 — an edit form never saves before its contact has loaded from the server
   - partly: `/contacts/<id>` opens the contact since 5802cae; `/contacts/new` and `/contacts/<id>/edit` only open the Contacts tab.
   - What WEB does: `parseContactsPath`/`buildContactsPath` (`lib/deep-links.ts:323-329`), applied once on mount (`components/contacts/contacts-app.tsx:182-224`).
   - What RN does: `src/navigation/linking.ts` (5802cae) maps `/contacts/<id>` to `ContactDetail { contactId }` and every other contacts path to the tab; it never opens `ContactForm`.
