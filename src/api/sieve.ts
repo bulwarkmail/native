@@ -1,4 +1,5 @@
 import { jmapClient } from './jmap-client';
+import type { AccountRef, OpScope } from './op-scope';
 import { CAPABILITIES, type JMAPAccountInfo } from './types';
 import { secureFetch } from '../lib/client-cert';
 import { observeServerFetch } from '../lib/server-reachability';
@@ -18,11 +19,29 @@ function requireSession() {
 
 // Sieve lives on its own JMAP account (RFC 9661). Fall back to the mail account
 // when the server does not advertise a dedicated one (Stalwart uses the same id).
-// Every call below takes an optional accountId so the filters of a shared/group
+// Every call below takes an optional account so the filters of a shared/group
 // account can be managed too (webmail: "Shared with me" in Account settings).
 export function getSieveAccountId(): string {
   const session = jmapClient.currentSession;
   return session?.primaryAccounts?.[CAPABILITIES.SIEVE] ?? jmapClient.accountId;
+}
+
+/**
+ * The scope a Sieve call acts on: the one given, or the Sieve account named
+ * (undefined: the user's own) on the live connection. A call with a scope
+ * stops with `StaleLoadError` once its connection is gone, before sending.
+ */
+export function sieveScope(account?: AccountRef): OpScope {
+  if (typeof account === 'object' && account !== null) return account;
+  return { gen: jmapClient.connectionGen, accountId: account ?? getSieveAccountId() };
+}
+
+/**
+ * Sieve account `accountId` (undefined: the user's own) on the connection of
+ * `at`. The user's own Sieve account need not be the mail account `at` names.
+ */
+export function sieveScopeIn(at: OpScope, accountId: string | undefined): OpScope {
+  return { gen: at.gen, accountId: accountId ?? getSieveAccountId() };
 }
 
 // Gate on the ACCOUNT capability, not only the server-wide session capability:
@@ -50,18 +69,36 @@ export function isSieveSupported(accountId?: string): boolean {
   );
 }
 
-export function getSieveCapabilities(accountId?: string): SieveCapabilities | null {
+/**
+ * The Sieve capabilities of an account. A shared/group account Stalwart lists
+ * without its Sieve capabilities (see accountSupportsSieve) runs on the same
+ * server as the user's own Sieve account, so it takes that one's: without
+ * them the filters script would be written without what the server has (the
+ * spam guard, folder ids, the vacation include). A scope from a connection
+ * that is gone throws `StaleLoadError`.
+ */
+export function getSieveCapabilities(account?: AccountRef): SieveCapabilities | null {
+  if (typeof account === 'object' && account !== null) jmapClient.assertCurrent(account.gen);
   const session = jmapClient.currentSession;
   if (!session) return null;
-  const info = session.accounts?.[accountId ?? getSieveAccountId()];
-  const caps = info?.accountCapabilities?.[CAPABILITIES.SIEVE];
-  return (caps as SieveCapabilities) ?? null;
+  const accountId = sieveScope(account).accountId;
+  const info = session.accounts?.[accountId];
+  const caps = info?.accountCapabilities?.[CAPABILITIES.SIEVE] as SieveCapabilities | undefined;
+  if (caps) return caps;
+  const own = getSieveAccountId();
+  if (info && !info.isPersonal && accountId !== own) {
+    const ownCaps = session.accounts?.[own]?.accountCapabilities?.[CAPABILITIES.SIEVE];
+    return (ownCaps as SieveCapabilities) ?? null;
+  }
+  return null;
 }
 
-export async function getSieveScripts(accountId: string = getSieveAccountId()): Promise<SieveScript[]> {
+export async function getSieveScripts(account?: AccountRef): Promise<SieveScript[]> {
+  const { gen, accountId } = sieveScope(account);
   const res = await jmapClient.request(
     [['SieveScript/get', { accountId }, '0']],
     SIEVE_USING,
+    { gen },
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/get') {
@@ -72,8 +109,12 @@ export async function getSieveScripts(accountId: string = getSieveAccountId()): 
 
 export async function getSieveScriptContent(
   blobId: string,
-  accountId: string = getSieveAccountId(),
+  account?: AccountRef,
 ): Promise<string> {
+  const { gen, accountId } = sieveScope(account);
+  // The URL and header of the scope's own connection, which must still have
+  // the account (the same check a method call gets).
+  jmapClient.assertAccountInSession(gen, accountId);
   const session = requireSession();
   // Blobs are scoped per account, so a shared account's script is downloaded
   // against that account's id.
@@ -82,8 +123,6 @@ export async function getSieveScriptContent(
     .replace('{blobId}', encodeURIComponent(blobId))
     .replace('{name}', encodeURIComponent('script.sieve'))
     .replace('{type}', encodeURIComponent('application/sieve'));
-  // The header from the connection the URL came from (same tick).
-  const { gen } = jmapClient.requestContext();
 
   const response = await observeServerFetch(secureFetch(url, {
     headers: { Authorization: jmapClient.authHeaderFor(gen) },
@@ -92,13 +131,14 @@ export async function getSieveScriptContent(
   return response.text();
 }
 
-async function uploadSieveBlob(content: string, accountId: string): Promise<string> {
+async function uploadSieveBlob(content: string, at: OpScope): Promise<string> {
+  const { gen, accountId } = at;
+  jmapClient.assertAccountInSession(gen, accountId);
   const session = requireSession();
   const uploadUrl = session.uploadUrl.replace(
     '{accountId}',
     encodeURIComponent(accountId),
   );
-  const { gen } = jmapClient.requestContext();
 
   const response = await observeServerFetch(secureFetch(uploadUrl, {
     method: 'POST',
@@ -128,9 +168,11 @@ export async function createSieveScript(
   name: string,
   content: string,
   activate = true,
-  accountId: string = getSieveAccountId(),
+  account?: AccountRef,
 ): Promise<SieveScript> {
-  const blobId = await uploadSieveBlob(content, accountId);
+  const at = sieveScope(account);
+  const { gen, accountId } = at;
+  const blobId = await uploadSieveBlob(content, at);
 
   const setArgs: Record<string, unknown> = {
     accountId,
@@ -138,7 +180,7 @@ export async function createSieveScript(
   };
   if (activate) setArgs.onSuccessActivateScript = '#new-script';
 
-  const res = await jmapClient.request([['SieveScript/set', setArgs, '0']], SIEVE_USING);
+  const res = await jmapClient.request([['SieveScript/set', setArgs, '0']], SIEVE_USING, { gen });
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/set') {
     const result = resp[1] as {
@@ -150,7 +192,7 @@ export async function createSieveScript(
     }
     const createdId = result.created?.['new-script']?.id;
     if (createdId) {
-      const scripts = await getSieveScripts(accountId);
+      const scripts = await getSieveScripts(at);
       const script = scripts.find((s) => s.id === createdId);
       if (script) return script;
     }
@@ -162,9 +204,11 @@ export async function updateSieveScript(
   scriptId: string,
   content: string,
   activate = true,
-  accountId: string = getSieveAccountId(),
+  account?: AccountRef,
 ): Promise<void> {
-  const blobId = await uploadSieveBlob(content, accountId);
+  const at = sieveScope(account);
+  const { gen, accountId } = at;
+  const blobId = await uploadSieveBlob(content, at);
 
   const setArgs: Record<string, unknown> = {
     accountId,
@@ -172,7 +216,7 @@ export async function updateSieveScript(
   };
   if (activate) setArgs.onSuccessActivateScript = scriptId;
 
-  const res = await jmapClient.request([['SieveScript/set', setArgs, '0']], SIEVE_USING);
+  const res = await jmapClient.request([['SieveScript/set', setArgs, '0']], SIEVE_USING, { gen });
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/set') {
     const result = resp[1] as { notUpdated?: Record<string, { description?: string }> };
@@ -184,10 +228,12 @@ export async function updateSieveScript(
   throw new Error('Failed to update Sieve script');
 }
 
-async function setActiveScript(args: Record<string, unknown>, accountId: string, what: string): Promise<void> {
+async function setActiveScript(args: Record<string, unknown>, account: AccountRef, what: string): Promise<void> {
+  const { gen, accountId } = sieveScope(account);
   const res = await jmapClient.request(
     [['SieveScript/set', { accountId, ...args }, '0']],
     SIEVE_USING,
+    { gen },
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/set') return;
@@ -198,23 +244,25 @@ async function setActiveScript(args: Record<string, unknown>, accountId: string,
 /** Make `scriptId` the account's active script (switches off the current one). */
 export function activateSieveScript(
   scriptId: string,
-  accountId: string = getSieveAccountId(),
+  account?: AccountRef,
 ): Promise<void> {
-  return setActiveScript({ onSuccessActivateScript: scriptId }, accountId, 'activate');
+  return setActiveScript({ onSuccessActivateScript: scriptId }, account, 'activate');
 }
 
 /** Switch the account's active script off, leaving no script active (RFC 9661 §2.2). */
-export function deactivateSieveScript(accountId: string = getSieveAccountId()): Promise<void> {
-  return setActiveScript({ onSuccessDeactivateScript: true }, accountId, 'deactivate');
+export function deactivateSieveScript(account?: AccountRef): Promise<void> {
+  return setActiveScript({ onSuccessDeactivateScript: true }, account, 'deactivate');
 }
 
 export async function deleteSieveScript(
   scriptId: string,
-  accountId: string = getSieveAccountId(),
+  account?: AccountRef,
 ): Promise<void> {
+  const { gen, accountId } = sieveScope(account);
   const res = await jmapClient.request(
     [['SieveScript/set', { accountId, destroy: [scriptId] }, '0']],
     SIEVE_USING,
+    { gen },
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/set') {
@@ -229,12 +277,14 @@ export async function deleteSieveScript(
 
 export async function validateSieveScript(
   content: string,
-  accountId: string = getSieveAccountId(),
+  account?: AccountRef,
 ): Promise<{ isValid: boolean; errors?: string[] }> {
-  const blobId = await uploadSieveBlob(content, accountId);
+  const at = sieveScope(account);
+  const blobId = await uploadSieveBlob(content, at);
   const res = await jmapClient.request(
-    [['SieveScript/validate', { accountId, blobId }, '0']],
+    [['SieveScript/validate', { accountId: at.accountId, blobId }, '0']],
     SIEVE_USING,
+    { gen: at.gen },
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'SieveScript/validate') {

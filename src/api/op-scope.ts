@@ -34,3 +34,8 @@ export function opScope(account?: AccountRef): OpScope {
 export function inAccount(at: OpScope, accountId: string | undefined): OpScope {
   return accountId && accountId !== at.accountId ? { gen: at.gen, accountId } : at;
 }
+
+/** Whether the connection `at` was taken on is still the live one. */
+export function isCurrentScope(at: OpScope): boolean {
+  return jmapClient.isCurrent(at.gen);
+}

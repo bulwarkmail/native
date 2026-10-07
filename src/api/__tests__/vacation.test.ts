@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../jmap-client', () => ({
   jmapClient: {
     accountId: 'own',
+    connectionGen: 4,
     request: vi.fn(),
     currentSession: null as unknown,
   },
@@ -82,6 +83,22 @@ describe('account scoping', () => {
       accountId: 'team',
       update: { singleton: { isEnabled: true } },
     });
+  });
+
+  it('sends each request on the connection of the scope it was given', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['VacationResponse/get', { list: [] }, '0']] });
+    await getVacationResponse({ gen: 3, accountId: 'team' });
+    expect(mockRequest.mock.calls[0][0][0][1]).toEqual({ accountId: 'team', ids: ['singleton'] });
+    expect(mockRequest.mock.calls[0][2]).toEqual({ gen: 3 });
+
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['VacationResponse/set', { updated: {} }, '0']] });
+    await setVacationResponse({ isEnabled: true }, { gen: 3, accountId: 'own' });
+    expect(mockRequest.mock.calls[1][2]).toEqual({ gen: 3 });
+
+    // Without one, the live connection's.
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['VacationResponse/get', { list: [] }, '0']] });
+    await getVacationResponse();
+    expect(mockRequest.mock.calls[2][2]).toEqual({ gen: 4 });
   });
 
   it('defaults to the own mail account', async () => {

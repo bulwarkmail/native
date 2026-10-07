@@ -11,6 +11,7 @@ import {
   getSieveScripts,
   updateSieveScript,
 } from '../../api/sieve';
+import type { AccountRef } from '../../api/op-scope';
 
 /**
  * One account's filters script, read and written against an explicit
@@ -160,18 +161,19 @@ async function refreshFilterStore(accountId: string): Promise<void> {
  * Upload `content` as the account's filters script and make it the active
  * one: the existing script is updated, or a "filters" script is created.
  * Shared by the Settings save and by rules made from a message. An undefined
- * accountId is the user's own Sieve account.
+ * account is the user's own Sieve account; a scope binds both calls to its
+ * connection.
  */
 export async function writeFiltersScript(
-  accountId: string | undefined,
+  account: AccountRef,
   content: string,
   scriptId: string | null,
 ): Promise<{ scriptId: string }> {
   if (scriptId) {
-    await updateSieveScript(scriptId, content, true, accountId);
+    await updateSieveScript(scriptId, content, true, account);
     return { scriptId };
   }
-  const script = await createSieveScript('filters', content, true, accountId);
+  const script = await createSieveScript('filters', content, true, account);
   return { scriptId: script.id };
 }
 

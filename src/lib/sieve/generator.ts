@@ -184,7 +184,7 @@ function generateActions(actions: FilterAction[], useMailboxId: boolean): string
 const SPAM_GUARD = 'not spamtest :percent :value "ge" :comparator "i;ascii-numeric" "50"';
 const SPAM_GUARD_REQUIRES = ['spamtestplus', 'relational', 'comparator-i;ascii-numeric'];
 
-function supportsSpamGuard(extensions: string[] | undefined): boolean {
+export function supportsSpamGuard(extensions: string[] | undefined): boolean {
   return ['spamtestplus', 'relational'].every(e => extensions?.includes(e));
 }
 
