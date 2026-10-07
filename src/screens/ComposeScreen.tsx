@@ -49,6 +49,7 @@ import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
+import { loadComposerIdentities } from '../lib/identity-cache';
 import {
   sendEmail, createDraft, destroyEmails, patchKeywordsForEmails, type OutgoingAttachment, type OutgoingEmail,
 } from '../api/email';
@@ -1078,20 +1079,31 @@ export default function ComposeScreen({ route, navigation }: Props) {
     inputSetterFor(field)('');
   };
 
+  // Identities come from the server; when that fails (opened offline) the
+  // owner's cached list stands in so From fills and the send can queue. Only
+  // the owner's own cache is read. Until a fresh list arrives, coming back
+  // online asks again, and the fresh list replaces the cached one.
+  const online = useNetworkStore((s) => s.online);
+  const [identitiesFresh, setIdentitiesFresh] = React.useState(false);
   React.useEffect(() => {
+    if (identitiesFresh) return;
+    // Switched away: the client serves another account now.
+    if (owner && !ownerActiveNow()) return;
     let cancelled = false;
     void (async () => {
-      try {
-        const list = await getIdentities();
-        if (!cancelled) setIdentities(list);
-      } catch (e) {
-        if (!cancelled) {
-          setIdentityError(e instanceof Error ? e.message : 'Failed to load identities');
-        }
-      }
+      const result = await loadComposerIdentities(owner?.appAccountId, async () => {
+        const list = await getIdentities(owner?.jmapAccountId || undefined);
+        if (owner && !ownerActiveNow()) throw new Error('Account switched');
+        return list;
+      });
+      if (cancelled) return;
+      if (result.source === 'fresh') setIdentitiesFresh(true);
+      // A failed retry keeps the cached list already shown.
+      if (result.source !== 'none') setIdentities(result.identities);
+      setIdentityError(result.error);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [online, identitiesFresh, owner, ownerActiveNow]);
 
   // Once the identities are known, recompute the reply recipients so every
   // own alias is dropped from a reply-all (the initial seed only knew the

@@ -1,5 +1,5 @@
 // What signing an account out forgets on the device: its offline message
-// bodies and calendar subscriptions and, with the last account, every calendar
+// bodies, cached sending identities and calendar subscriptions and, with the last account, every calendar
 // subscription (ownerless ones included) and the search history. Unsent outbox
 // changes are kept; queued sends are kept unless discardQueuedSends is set. Settings, locale, templates and keywords stay, as in the
 // webmail's sign-out cleanup.
@@ -10,6 +10,7 @@ import { useOutboxStore } from './outbox-store';
 import { useSendQueueStore } from './send-queue-store';
 import { useCalendarSubscriptionsStore, subscriptionOwner } from './calendar-subscriptions-store';
 import { useSearchHistoryStore } from './search-history-store';
+import { removeIdentityCache } from '../lib/identity-cache';
 
 export interface SignedOutAccount {
   /** Registry id: the key the offline cache and outbox store their data under. */
@@ -73,6 +74,7 @@ export async function forgetAccountData(
   opts: { lastAccount?: boolean; discardQueuedSends?: boolean } = {},
 ): Promise<void> {
   await step(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
+  await step(() => removeIdentityCache(account.appAccountId));
   await step(async () => {
     // Queued and failed ops are the user's unsent changes: keep them so they
     // replay when this account signs in again.

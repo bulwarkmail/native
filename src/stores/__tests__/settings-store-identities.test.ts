@@ -10,6 +10,7 @@ vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
 vi.mock('../../api/identity', () => ({ getIdentities: vi.fn() }));
 
 import { getIdentities } from '../../api/identity';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSettingsStore } from '../settings-store';
 
 const mockGetIdentities = getIdentities as ReturnType<typeof vi.fn>;
@@ -127,5 +128,50 @@ describe('refreshIdentities', () => {
     expect(useSettingsStore.getState().identities).toEqual([me]);
     expect(useSettingsStore.getState().error).toBeNull();
     expect(useSettingsStore.getState().loading).toBe(false);
+  });
+});
+
+describe('identity cache', () => {
+  const key = (id: string) => `webmail:identities:v1:${id}`;
+  // The client's login: the app account id is generateAccountId(username, serverUrl).
+  const ME = 'me@mail.example';
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it('caches a fetched list for the client\'s app account', async () => {
+    mockGetIdentities.mockResolvedValue([me]);
+    await useSettingsStore.getState().fetchIdentities();
+    expect(JSON.parse((await AsyncStorage.getItem(key(ME)))!).map((i: { id: string }) => i.id)).toEqual(['i1']);
+  });
+
+  it('caches a refreshed list', async () => {
+    mockGetIdentities.mockResolvedValueOnce([me]);
+    await useSettingsStore.getState().fetchIdentities();
+    mockGetIdentities.mockResolvedValueOnce([me, { id: 'i2', name: 'Two', email: 'two@example.com' }]);
+    await useSettingsStore.getState().refreshIdentities();
+    expect(JSON.parse((await AsyncStorage.getItem(key(ME)))!)).toHaveLength(2);
+  });
+
+  it('does not cache a list that lands after switching accounts', async () => {
+    let release!: (list: unknown[]) => void;
+    mockGetIdentities.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const pending = useSettingsStore.getState().fetchIdentities();
+    client.serverUrl = 'https://other.example';
+    release([me]);
+    await pending;
+    expect(await AsyncStorage.getAllKeys()).toEqual([]);
+  });
+
+  it('writes nothing when the login is unknown', async () => {
+    client.username = null as unknown as string;
+    try {
+      mockGetIdentities.mockResolvedValue([me]);
+      await useSettingsStore.getState().fetchIdentities();
+      expect(await AsyncStorage.getAllKeys()).toEqual([]);
+    } finally {
+      client.username = 'me';
+    }
   });
 });

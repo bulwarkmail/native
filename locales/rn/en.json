@@ -952,6 +952,7 @@
       "not_empty_message": "\"{name}\" contains {count} emails. Delete anyway?",
       "not_empty_title": "Folder not empty",
       "own_account": "My folders",
+      "parent_folder": "Parent folder",
       "role": "Special use",
       "role_hint": "Assign a special-use role (Archive, Junk, …) to this folder. Each role can be held by one folder.",
       "save_failed": "Save failed",
