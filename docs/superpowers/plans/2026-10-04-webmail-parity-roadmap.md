@@ -367,3 +367,38 @@ That closes the Hardening pass 1 calendar follow-up. Left open:
   - the calendar and task widgets refreshing with the app closed;
   - a note on an event with guests sends no mail.
 - **Tests:** CalendarScreen, EventModal, the invitation banner and the task circle wiring have no render-harness test.
+
+## Phase 6b follow-ups (mail list, search and global search, 2026-10-06)
+
+Phase 6b is done on `parity/phase-6b-mail-list` and closes 13 items in area 02:
+- search sends terms as typed, filters by size, highlights matches, and scopes to any folder from a tree;
+- empty folder works on any folder;
+- list polish: tag colours, previews, screen-reader labels and actions, steady rows;
+- the Inbox opens on start;
+- global search covers mail, contacts, calendar and files.
+
+Account identity fixes that came out of the reviews:
+- a search scoped to another account's folder now stamps its rows with that account;
+- Trash and Junk are found by role or exact name only (a folder named "Robin" was treated as Trash, and deleting from it destroyed mail);
+- a contacts load an account switch overtook no longer lands in the new account.
+
+Left open:
+
+- **Small:**
+  - A screen reader's "Open attachment" actions appear only once the row re-renders after its chips load.
+  - After a failed chip fetch, a row shows no chips until it remounts; there is no retry when the network returns.
+  - Selection mode still offers the chip and copy-code actions.
+  - Global search checks cancellation only when a read returns. Mail targets run in parallel.
+  - The local pass checks `body:` against the preview.
+  - Re-opening global search with the same query doesn't reset an edited field.
+  - Emptying Trash or Junk says nothing if an account switch stops it partway.
+  - Cold start can briefly show the last folder before the Inbox.
+  - Unified rows are not tinted with their account colour.
+- **Tests:**
+  - No provider test drives global search's local pass over a search scoped to another account (covered through `accountIdOfRow`).
+  - No render-harness test for the global search screen, the folder picker, scroll-to-top or the row accessibility actions.
+- **Device checks:**
+  - the folder picker sheet nested in the filter dialog on iOS;
+  - the row accessibility actions with VoiceOver and TalkBack;
+  - empty folder on a server with no Trash role;
+  - opening a global search hit from another account.
