@@ -2,7 +2,7 @@
 // (https://<webmail>/mail/message/<id> etc. - same path grammar as the
 // webmail's lib/deep-links.ts) and `mailto:` URLs. Parsing is pure so it can
 // be unit-tested; `handleDeepLink` performs the navigation.
-import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
+import type { NavigationContainerRefWithCurrent, StackActionType } from '@react-navigation/native';
 import type { EmailAddress } from '../api/types';
 import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
@@ -320,6 +320,14 @@ export interface DeepLinkNavigator {
   switchAccount?: (accountId: string) => Promise<boolean>;
 }
 
+/**
+ * `StackActions.push('ContactForm', params)`, built here: importing the
+ * action creators would load React Native into this pure module.
+ */
+function pushContactForm(params: RootStackParamList['ContactForm']): StackActionType {
+  return { type: 'PUSH', payload: { name: 'ContactForm', params } };
+}
+
 /** Navigate for a parsed link. Returns false when nothing could be opened. */
 export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Promise<boolean> {
   const { navigation } = nav;
@@ -385,14 +393,17 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
     case 'contact':
       navigation.navigate('ContactDetail', { contactId: link.contactId });
       // The form goes over the card, so Back from it lands on the card.
-      if (link.edit) navigation.navigate('ContactForm', { contactId: link.contactId });
+      // Pushed: navigating would hand a form already on top (another card's
+      // edit, a new contact) these params while it keeps its own values.
+      if (link.edit) navigation.dispatch(pushContactForm({ contactId: link.contactId }));
       return true;
     case 'contactNew': {
       const prefill = {
         ...(link.email ? { email: link.email } : {}),
         ...(link.name ? { name: link.name } : {}),
       };
-      navigation.navigate('ContactForm', Object.keys(prefill).length > 0 ? { prefill } : {});
+      // Pushed, like an edit link: an open form must not turn into this one.
+      navigation.dispatch(pushContactForm(Object.keys(prefill).length > 0 ? { prefill } : {}));
       return true;
     }
     case 'contacts':

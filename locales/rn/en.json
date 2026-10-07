@@ -209,6 +209,7 @@
       "display_name_optional": "Display name (optional)",
       "display_name_placeholder": "Custom display name",
       "edit_named": "Edit {name}",
+      "edit_needs_connection": "Editing a contact needs a connection",
       "gender_unspecified": "Unspecified",
       "grammatical_gender": "Grammatical gender",
       "invalid_date_message": "\"{date}\" is not a date. Use YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD.",

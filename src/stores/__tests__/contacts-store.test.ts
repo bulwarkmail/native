@@ -219,6 +219,18 @@ describe('contacts-store', () => {
       expect(useContactsStore.getState().contacts).toHaveLength(2);
     });
 
+    it('binds the write to the scope the caller took, and keeps the card out of the next account\'s list', async () => {
+      useContactsStore.setState({ contacts: [card('c1')], addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockCreateContact.mockImplementationOnce(async () => {
+        useContactsStore.getState().reset();
+        return { id: 'c-new', addressBookIds: { 'ab-1': true } };
+      });
+      const result = await useContactsStore.getState().createContact({}, 'ab-1', { gen: 3, accountId: 'acc-1' });
+      expect(mockCreateContact).toHaveBeenCalledWith({}, 'ab-1', undefined, { gen: 3 });
+      expect(result.id).toBe('c-new');
+      expect(useContactsStore.getState().contacts).toEqual([]);
+    });
+
     it('routes a shared book to its account and namespaces the result', async () => {
       useContactsStore.setState({
         addressBooks: [
@@ -269,6 +281,24 @@ describe('contacts-store', () => {
       mockUpdateContact.mockResolvedValue(undefined);
       await useContactsStore.getState().updateContact('acc-team:c1', { addressBookIds: { 'acc-team:ab': true } });
       expect(mockUpdateContact).toHaveBeenCalledWith('c1', { addressBookIds: { ab: true } }, 'acc-team');
+    });
+
+    it('binds the write to the scope the caller took', async () => {
+      useContactsStore.setState({ contacts: [card('c1')] });
+      mockUpdateContact.mockResolvedValue(undefined);
+      await useContactsStore.getState().updateContact('c1', { kind: 'org' }, { gen: 7, accountId: 'acc-1' });
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', { kind: 'org' }, undefined, { gen: 7 });
+    });
+
+    it('does not merge into the next account\'s card with the same id after a switch', async () => {
+      useContactsStore.setState({ contacts: [card('c1', { kind: 'individual' })] });
+      mockUpdateContact.mockImplementationOnce(async () => {
+        // The switch lands while the write is out: the new account has a "c1" too.
+        useContactsStore.getState().reset();
+        useContactsStore.setState({ contacts: [card('c1', { kind: 'individual' })] });
+      });
+      await useContactsStore.getState().updateContact('c1', { kind: 'org' });
+      expect(useContactsStore.getState().contacts[0].kind).toBe('individual');
     });
   });
 

@@ -14,19 +14,16 @@ import {
   Camera, X as XIcon, Globe, Heart, UserCircle, Plus, ChevronDown, ChevronRight, Book, Users,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../navigation/types';
-import type {
-  ContactCard, ContactEmail, ContactPhone, ContactAddress, ContactOrganization,
-  ContactAnniversary, ContactNote, ContactMedia, ContactOnlineService,
-  ContactPersonalInfo, ContactNickname,
-} from '../api/types';
+import type { ContactCard } from '../api/types';
 import { useContactsStore, selectGroupMembers } from '../stores/contacts-store';
 import {
   getContactKeywords, getContactDisplayName, getContactPrimaryEmail,
-  stringToPartialDate, deriveFullName, isGroup,
+  stringToPartialDate, isGroup,
 } from '../lib/contact-utils';
-import { canSaveContactForm, contactFormSeed, type FormState } from '../lib/contact-form-seed';
-import { requireShownAccountScope, useEmailStore } from '../stores/email-store';
-import { contactLinkPatch } from '../lib/contact-wire';
+import {
+  canSaveContactForm, contactFormPatchBase, contactFormSeed, formToPatch, shouldSeedContactForm, type FormState,
+} from '../lib/contact-form-seed';
+import { isShownAccount, requireShownAccountScope, useEmailStore } from '../stores/email-store';
 import Dialog from '../components/Dialog';
 import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
@@ -35,235 +32,6 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ContactForm'>;
 type Route = RouteProp<RootStackParamList, 'ContactForm'>;
-
-/** Group-membership key for a card (RFC 9553 members are keyed by UID). */
-function memberKey(contact: ContactCard): string {
-  return contact.uid || contact.originalId || contact.id;
-}
-
-function memberKeyMatches(key: string, contact: ContactCard): boolean {
-  const bare = key.startsWith('urn:uuid:') ? key.slice(9) : key;
-  const bareUid = contact.uid?.startsWith('urn:uuid:') ? contact.uid.slice(9) : contact.uid;
-  return key === contact.id || bare === contact.id
-    || (!!contact.originalId && (key === contact.originalId || bare === contact.originalId))
-    || (!!contact.uid && (key === contact.uid || bare === bareUid));
-}
-
-/**
- * Build the JMAP patch. In edit mode every collection the form owns that ended
- * up empty is sent as `null` so the server clears it - omitting the key would
- * mean "unchanged" and the removed phone/address/note would come right back.
- */
-function formToPatch(
-  form: FormState,
-  existing: ContactCard | undefined,
-  asGroup: boolean,
-  allContacts: ContactCard[],
-): Partial<ContactCard> {
-  const isEdit = !!existing;
-  const orgName = form.orgs[0]?.name.trim() || '';
-
-  // Organization cards carry no personal name components; the org name goes
-  // into `name.full` below. A group name lives in `given`.
-  const components: Array<{ kind: string; value: string }> = [];
-  if (!form.isOrg) {
-    if (form.prefix.trim()) components.push({ kind: 'title', value: form.prefix.trim() });
-    if (form.given.trim()) components.push({ kind: 'given', value: form.given.trim() });
-    if (form.middle.trim()) components.push({ kind: 'given2', value: form.middle.trim() });
-    if (form.surname.trim()) components.push({ kind: 'surname', value: form.surname.trim() });
-    if (form.suffix.trim()) components.push({ kind: 'generation', value: form.suffix.trim() });
-  }
-
-  // Always send `name.full`: the vCard FN is built from it and is mandatory
-  // (#430). Without personal name components, carry the organization name
-  // so servers and other clients have something to display.
-  const full = form.full.trim() || (form.isOrg ? orgName : deriveFullName(components));
-  const name: ContactCard['name'] | undefined =
-    components.length > 0 || full
-      ? { ...(components.length > 0 ? { components, isOrdered: true } : {}), ...(full ? { full } : {}) }
-      : undefined;
-
-  const nicknames: Record<string, ContactNickname> = {};
-  form.nicknames.map((n) => n.trim()).filter(Boolean).forEach((n, i) => {
-    nicknames[`n${i}`] = { name: n };
-  });
-
-  const emails: Record<string, ContactEmail> = {};
-  form.emails.filter((e) => e.address.trim()).forEach((e, i) => {
-    emails[`e${i + 1}`] = {
-      address: e.address.trim(),
-      ...(e.context ? { contexts: { [e.context]: true } } : {}),
-    };
-  });
-
-  const phones: Record<string, ContactPhone> = {};
-  form.phones.filter((p) => p.number.trim()).forEach((p, i) => {
-    phones[`p${i + 1}`] = {
-      number: p.number.trim(),
-      ...(p.context ? { contexts: { [p.context]: true } } : {}),
-      ...(p.feature ? { features: { [p.feature]: true } } : {}),
-    };
-  });
-
-  const addresses: Record<string, ContactAddress> = {};
-  form.addresses
-    .filter((a) => a.street.trim() || a.locality.trim() || a.country.trim() || a.region.trim() || a.postcode.trim())
-    .forEach((a, i) => {
-      const comps: Array<{ kind: string; value: string }> = [];
-      if (a.street.trim()) comps.push({ kind: 'name', value: a.street.trim() });
-      if (a.locality.trim()) comps.push({ kind: 'locality', value: a.locality.trim() });
-      if (a.region.trim()) comps.push({ kind: 'region', value: a.region.trim() });
-      if (a.postcode.trim()) comps.push({ kind: 'postcode', value: a.postcode.trim() });
-      if (a.country.trim()) comps.push({ kind: 'country', value: a.country.trim() });
-      addresses[`a${i + 1}`] = {
-        components: comps,
-        isOrdered: true,
-        defaultSeparator: ', ',
-        ...(a.context ? { contexts: { [a.context]: true } } : {}),
-      };
-    });
-
-  const organizations: Record<string, ContactOrganization> = {};
-  const titles: Record<string, { name: string; kind?: 'title' | 'role' }> = {};
-  form.orgs.forEach((o, i) => {
-    if (o.name.trim() || o.department.trim()) {
-      const units = o.department.trim() ? [{ name: o.department.trim() }] : undefined;
-      organizations[`o${i + 1}`] = {
-        ...(o.name.trim() ? { name: o.name.trim() } : {}),
-        ...(units ? { units } : {}),
-      };
-    }
-    if (o.jobTitle.trim()) {
-      titles[`t${i + 1}`] = { name: o.jobTitle.trim(), kind: 'title' };
-    }
-    if (o.role.trim()) {
-      titles[`r${i + 1}`] = { name: o.role.trim(), kind: 'role' };
-    }
-  });
-
-  const anniversaries: Record<string, ContactAnniversary> = {};
-  form.anniversaries.forEach((a, i) => {
-    const date = stringToPartialDate(a.date);
-    if (!date) return;
-    anniversaries[`an${i + 1}`] = { kind: a.kind as ContactAnniversary['kind'], date };
-  });
-
-  const onlineServices: Record<string, ContactOnlineService> = {};
-  form.online.filter((s) => s.uri.trim()).forEach((s, i) => {
-    onlineServices[`os${i + 1}`] = {
-      uri: s.uri.trim(),
-      ...(s.service.trim() ? { service: s.service.trim() } : {}),
-      ...(s.label.trim() ? { label: s.label.trim() } : {}),
-    };
-  });
-
-  const personalInfo: Record<string, ContactPersonalInfo> = {};
-  form.personalInfo.filter((p) => p.value.trim()).forEach((p, i) => {
-    personalInfo[`pi${i + 1}`] = {
-      kind: p.kind as ContactPersonalInfo['kind'],
-      value: p.value.trim(),
-      ...(p.level ? { level: p.level as 'high' | 'medium' | 'low' } : {}),
-    };
-  });
-
-  const notes: Record<string, ContactNote> = {};
-  form.notes.forEach((n, i) => {
-    if (n.note.trim()) notes[`n${i + 1}`] = { note: n.note.trim() };
-  });
-
-  const keywords: Record<string, boolean> = {};
-  form.keywords.forEach((k) => {
-    if (k.trim()) keywords[k.trim()] = true;
-  });
-
-  // Media: keep every non-photo entry (logo, sound) the card already has and
-  // write the photo back under its original key.
-  const media: Record<string, ContactMedia> = {};
-  let photoKey = 'photo';
-  if (existing?.media) {
-    for (const [key, m] of Object.entries(existing.media)) {
-      if (m.kind === 'photo') photoKey = key;
-      else media[key] = m;
-    }
-  }
-  if (form.photoUri.trim()) {
-    media[photoKey] = {
-      kind: 'photo',
-      uri: form.photoUri.trim(),
-      ...(form.photoMediaType ? { mediaType: form.photoMediaType } : {}),
-    };
-  }
-
-  const speakToAs =
-    form.grammaticalGender || form.pronouns.trim()
-      ? {
-        ...(form.grammaticalGender ? { grammaticalGender: form.grammaticalGender } : {}),
-        ...(form.pronouns.trim()
-          ? { pronouns: { p0: { pronouns: form.pronouns.trim() } } }
-          : {}),
-      }
-      : undefined;
-
-  // Collections: value when non-empty; `null` on edit when the card had one
-  // before (clears it server-side); omitted otherwise.
-  const collection = (key: keyof ContactCard, value: Record<string, unknown>): Record<string, unknown> => {
-    if (Object.keys(value).length > 0) return { [key]: value };
-    if (isEdit && existing?.[key] !== undefined) return { [key]: null };
-    return {};
-  };
-
-  // Only send `kind` when this form owns the answer: switching a card between
-  // person and organization. Leave other kinds (group, location, ...) untouched.
-  const kind: Partial<ContactCard> = asGroup
-    ? { kind: 'group' }
-    : form.isOrg
-      ? { kind: 'org' }
-      : existing?.kind === 'org' ? { kind: 'individual' } : {};
-
-  const patch: Record<string, unknown> = {
-    ...kind,
-    ...(name ? { name } : isEdit && existing?.name ? { name: null } : {}),
-    ...collection('nicknames', nicknames),
-    ...collection('emails', emails),
-    ...collection('phones', phones),
-    ...collection('addresses', addresses),
-    ...collection('organizations', organizations),
-    ...collection('titles', titles),
-    ...collection('anniversaries', anniversaries),
-    ...collection('onlineServices', onlineServices),
-    ...collection('personalInfo', personalInfo),
-    ...collection('notes', notes),
-    ...collection('keywords', keywords),
-    ...(speakToAs ? { speakToAs } : isEdit && existing?.speakToAs ? { speakToAs: null } : {}),
-    ...contactLinkPatch(existing, {
-      calendarUri: form.calendarUri.trim(),
-      schedulingUri: form.schedulingUri.trim(),
-      freeBusyUri: form.freeBusyUri.trim(),
-    }),
-    ...collection('media', media),
-  };
-
-  if (asGroup) {
-    // Start from the stored map so members we cannot resolve locally survive;
-    // drop the resolved ones that were deselected and add the new picks.
-    const members: Record<string, boolean> = { ...(existing?.members || {}) };
-    const selected = form.members
-      .map((id) => allContacts.find((c) => c.id === id))
-      .filter((c): c is ContactCard => !!c);
-    for (const key of Object.keys(members)) {
-      const owner = allContacts.find((c) => memberKeyMatches(key, c));
-      if (owner && !selected.some((s) => s.id === owner.id)) delete members[key];
-    }
-    for (const contact of selected) {
-      if (!Object.keys(members).some((key) => memberKeyMatches(key, contact))) {
-        members[memberKey(contact)] = true;
-      }
-    }
-    patch.members = members;
-  }
-
-  return patch as Partial<ContactCard>;
-}
 
 type Option = { value: string; label: string };
 
@@ -484,13 +252,19 @@ export default function ContactFormScreen() {
   const createContact = useContactsStore((s) => s.createContact);
   const updateContact = useContactsStore((s) => s.updateContact);
   const getDefaultAddressBookId = useContactsStore((s) => s.getDefaultAddressBookId);
+  // Set once cards were read from the server (null for the persisted cache,
+  // which keeps no photos, and after a reset).
+  const liveCards = useContactsStore((s) => s.contactsGen !== null);
+  // The card being edited, only from a live load: one from the cache would
+  // seed the form without its photo, or with values the server has replaced.
   const existing = React.useMemo(
-    () => (contactId ? allContacts.find((c) => c.id === contactId) : undefined),
-    [allContacts, contactId],
+    () => (contactId && liveCards ? allContacts.find((c) => c.id === contactId) : undefined),
+    [allContacts, contactId, liveCards],
   );
-  // A group card gets the group form whichever way it was opened (a link
-  // names only the id): the person form would save it without its members.
-  const asGroup = !!asGroupParam || (!!existing && isGroup(existing));
+  // A card gets the form of its kind whichever way it was opened (a link
+  // names only the id): the person form would save a group without its
+  // members, the group form a person without their details.
+  const asGroup = existing ? isGroup(existing) : !!asGroupParam;
   const existingKeywords = React.useMemo(() => {
     const counts = new Map<string, number>();
     for (const contact of allContacts) {
@@ -515,31 +289,35 @@ export default function ContactFormScreen() {
       : initialMemberIds ?? [],
   });
   const [form, setForm] = React.useState<FormState>(() => seedFor(existing));
-  // The card the form was seeded from; an edit opened before its card loaded
-  // starts blank and is seeded when the card arrives.
-  const seededId = React.useRef(existing?.id);
+  // The card the form shows, and what an edit's patch is relative to (see
+  // `contactFormPatchBase`). An edit opened before its card loaded starts
+  // blank and cannot save until it is seeded from the card.
+  const [seededFrom, setSeededFrom] = React.useState(existing);
   const [keywordInput, setKeywordInput] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [dirty, setDirty] = React.useState(!!prefill || !!initialMemberIds?.length);
-  // An edit whose card is not in the store asks for the contacts once, and
-  // says "not found" when that load (or an earlier full one) lacks it.
+  // An edit whose card is not in the store asks for the contacts, and says
+  // why it cannot show it once that load is over.
   const [lookedUp, setLookedUp] = React.useState(false);
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
   const [datePickerIndex, setDatePickerIndex] = React.useState<number | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!existing || seededId.current === existing.id) return;
-    seededId.current = existing.id;
-    // Nothing to keep: the fields are hidden until the card is there.
-    if (!dirty) setForm(seedFor(existing));
-    // Seed once, when the card first arrives; later store updates leave the form alone.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existing?.id]);
+  // Seeded during render, so no frame ever shows (or saves) a form that
+  // does not match `seededFrom`: React re-renders before committing.
+  if (shouldSeedContactForm({ seededFrom, existing, dirty })) {
+    setSeededFrom(existing);
+    setForm(seedFor(existing));
+  }
 
   const awaitingCard = isEdit && !existing;
   React.useEffect(() => {
-    if (!awaitingCard || lookedUp) return;
+    // Look again should the card go (a reset) and not come back.
+    if (!awaitingCard) {
+      setLookedUp(false);
+      return;
+    }
+    if (lookedUp) return;
     let active = true;
     void useContactsStore.getState().fetchContactsIfStale().finally(() => {
       if (active) setLookedUp(true);
@@ -565,8 +343,8 @@ export default function ContactFormScreen() {
   };
 
   const handleSave = async () => {
-    // Never patch (or create in place of) a card that is not loaded.
-    if (!canSaveContactForm({ isEdit, existing })) return;
+    // Never patch (or create in place of) a card the form does not show.
+    if (!canSaveContactForm({ isEdit, existing, seededFrom })) return;
     const orgName = form.orgs[0]?.name.trim() || '';
     if (asGroup) {
       if (!form.given.trim()) {
@@ -630,16 +408,22 @@ export default function ContactFormScreen() {
     }
     setSaving(true);
     try {
-      // Checked right before the request goes out (the store's calls act on
-      // the account the client serves now).
-      requireShownAccountScope(formAccountId);
-      const patch = formToPatch(form, existing, asGroup, allContacts);
+      // Bound to the connection serving the form's account, so the write is
+      // refused once another one replaced it.
+      const at = requireShownAccountScope(formAccountId);
+      const patch = formToPatch(form, contactFormPatchBase({ isEdit, seededFrom }), asGroup, allContacts);
       // Past `canSaveContactForm`, an edit always has its card here.
       if (existing) {
-        await updateContact(existing.id, patch);
+        await updateContact(existing.id, patch, at);
         navigation.goBack();
       } else {
-        const created = await createContact(patch, form.addressBookId);
+        const created = await createContact(patch, form.addressBookId, at);
+        // Switched meanwhile: the new card's id would open the other
+        // account's card with that id.
+        if (!isShownAccount(formAccountId)) {
+          navigation.goBack();
+          return;
+        }
         if (asGroup) navigation.replace('GroupDetail', { groupId: created.id });
         else navigation.replace('ContactDetail', { contactId: created.id });
       }
@@ -849,7 +633,7 @@ export default function ContactFormScreen() {
     />
   );
 
-  if (!canSaveContactForm({ isEdit, existing })) {
+  if (!canSaveContactForm({ isEdit, existing, seededFrom })) {
     // No card yet: neither fields nor Save, so a blank form can never be
     // saved over it.
     return (
@@ -867,9 +651,17 @@ export default function ContactFormScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
         </View>
         <View style={styles.missing}>
-          {lookedUp
-            ? <Text style={styles.missingText}>{t('contacts.detail.not_found', 'Contact not found')}</Text>
-            : <ActivityIndicator color={c.primary} accessibilityLabel={t('common.loading', 'Loading...')} />}
+          {!lookedUp ? (
+            <ActivityIndicator color={c.primary} accessibilityLabel={t('common.loading', 'Loading...')} />
+          ) : liveCards ? (
+            <Text style={styles.missingText}>{t('contacts.detail.not_found', 'Contact not found')}</Text>
+          ) : (
+            // Only the cache so far (offline, or the load failed): it keeps
+            // no photos, so an edit from it would clear the photo.
+            <Text style={styles.missingText}>
+              {t('contacts.form.edit_needs_connection', 'Editing a contact needs a connection')}
+            </Text>
+          )}
         </View>
       </SafeAreaView>
     );

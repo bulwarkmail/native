@@ -25,6 +25,7 @@ import {
 import { queryRecentRecipients, searchSentRecipients, type RecentRecipient } from '../api/recent-recipients';
 import { getPrincipals } from '../api/principals';
 import { jmapClient } from '../api/jmap-client';
+import type { OpScope } from '../api/op-scope';
 import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
 import {
   getContactDisplayName,
@@ -154,8 +155,12 @@ export interface ContactsState {
   refresh: () => Promise<void>;
   handleStateChange: (change: StateChange) => Promise<void>;
 
-  createContact: (contact: Partial<ContactCard>, addressBookId: string) => Promise<ContactCard>;
-  updateContact: (id: string, changes: Partial<ContactCard>) => Promise<void>;
+  /**
+   * `at`: the scope the caller's operation took (`requireShownAccountScope`);
+   * the write is refused once another connection replaced it.
+   */
+  createContact: (contact: Partial<ContactCard>, addressBookId: string, at?: OpScope) => Promise<ContactCard>;
+  updateContact: (id: string, changes: Partial<ContactCard>, at?: OpScope) => Promise<void>;
   deleteContact: (id: string) => Promise<void>;
   bulkDelete: (ids: string[]) => Promise<void>;
   importContacts: (
@@ -317,6 +322,11 @@ let trustedSendersInFlight: InFlightLoad | null = null;
 
 function startLoad(): StoreLoad {
   return { gen: jmapClient.connectionGen, epoch: loadEpoch };
+}
+
+/** The trailing `{ gen }` argument of a write bound to `at`; none for an unscoped one. */
+function requestGen(at: OpScope | undefined): [] | [{ gen: number }] {
+  return at ? [{ gen: at.gen }] : [];
 }
 
 /** Whether `load` is still this store's: same connection, no reset since. */
@@ -526,18 +536,28 @@ export const useContactsStore = create<ContactsState>()(
           }
         },
 
-        createContact: async (contact, addressBookId) => {
+        createContact: async (contact, addressBookId, at) => {
           const { originalId, accountId, book } = bookTarget(addressBookId);
-          const created = tagCreated(await apiCreateContact(contact, originalId, accountId), book);
+          const epoch = loadEpoch;
+          const created = tagCreated(
+            await apiCreateContact(contact, originalId, accountId, ...requestGen(at)),
+            book,
+          );
+          // An account switch meanwhile: the list is another account's now.
+          if (epoch !== loadEpoch) return created;
           set({ contacts: [...get().contacts, created] });
           requestDeviceSync(CONTACTS_AUTHORITY);
           return created;
         },
 
-        updateContact: async (id, changes) => {
+        updateContact: async (id, changes, at) => {
           const contact = get().contacts.find((c) => c.id === id);
           const { originalId, accountId } = contactTarget(id);
-          await apiUpdateContact(originalId, cleanPatch(contact, changes), accountId);
+          const epoch = loadEpoch;
+          await apiUpdateContact(originalId, cleanPatch(contact, changes), accountId, ...requestGen(at));
+          // An account switch meanwhile: card ids repeat across accounts, so
+          // merging would write these changes onto the new account's card.
+          if (epoch !== loadEpoch) return;
           set({
             contacts: get().contacts.map((c) => {
               if (c.id !== id) return c;

@@ -162,7 +162,9 @@ describe('handleDeepLink', () => {
   const nav = () => ({
     isReady: () => true,
     navigate: vi.fn(),
+    dispatch: vi.fn(),
   });
+  const push = (params: object) => ({ type: 'PUSH', payload: { name: 'ContactForm', params } });
 
   it('resolves a message to its thread before opening the reader', async () => {
     const navigation = nav();
@@ -260,16 +262,17 @@ describe('handleDeepLink', () => {
       { kind: 'contact', contactId: 'C9', edit: true },
       { navigation: navigation as never, resolveThreadId: async () => null },
     )).toBe(true);
-    expect(navigation.navigate.mock.calls).toEqual([
-      ['ContactDetail', { contactId: 'C9' }],
-      ['ContactForm', { contactId: 'C9' }],
-    ]);
+    expect(navigation.navigate.mock.calls).toEqual([['ContactDetail', { contactId: 'C9' }]]);
+    expect(navigation.dispatch.mock.calls).toEqual([[push({ contactId: 'C9' })]]);
+    // The card is opened before the form goes over it.
+    expect(navigation.navigate.mock.invocationCallOrder[0]).toBeLessThan(navigation.dispatch.mock.invocationCallOrder[0]);
   });
 
   it('opens just the card for a contact link without /edit', async () => {
     const navigation = nav();
     await handleDeepLink({ kind: 'contact', contactId: 'C9' }, { navigation: navigation as never, resolveThreadId: async () => null });
     expect(navigation.navigate.mock.calls).toEqual([['ContactDetail', { contactId: 'C9' }]]);
+    expect(navigation.dispatch).not.toHaveBeenCalled();
   });
 
   it('opens a new-contact form with the link\'s email and name', async () => {
@@ -278,10 +281,36 @@ describe('handleDeepLink', () => {
       { kind: 'contactNew', email: 'a@b', name: 'A B' },
       { navigation: navigation as never, resolveThreadId: async () => null },
     );
-    expect(navigation.navigate).toHaveBeenCalledWith('ContactForm', { prefill: { email: 'a@b', name: 'A B' } });
+    expect(navigation.dispatch).toHaveBeenCalledWith(push({ prefill: { email: 'a@b', name: 'A B' } }));
     const blank = nav();
     await handleDeepLink({ kind: 'contactNew' }, { navigation: blank as never, resolveThreadId: async () => null });
-    expect(blank.navigate).toHaveBeenCalledWith('ContactForm', {});
+    expect(blank.dispatch).toHaveBeenCalledWith(push({}));
+  });
+
+  it('pushes a new form over one already open instead of handing it the new params', async () => {
+    // A navigator whose top screen is an edit of C1: NAVIGATE to the same
+    // screen name would replace that form's params and keep its values.
+    const stack = [{ name: 'ContactForm', params: { contactId: 'C1' } as object }];
+    const navigation = {
+      isReady: () => true,
+      navigate: vi.fn((name: string, params: object) => {
+        if (stack[stack.length - 1].name === name) stack[stack.length - 1].params = params;
+        else stack.push({ name, params });
+      }),
+      dispatch: vi.fn((action: { type: string; payload: { name: string; params: object } }) => {
+        if (action.type === 'PUSH') stack.push({ name: action.payload.name, params: action.payload.params });
+      }),
+    };
+    await handleDeepLink({ kind: 'contactNew', email: 'a@b' }, { navigation: navigation as never, resolveThreadId: async () => null });
+    expect(stack).toEqual([
+      { name: 'ContactForm', params: { contactId: 'C1' } },
+      { name: 'ContactForm', params: { prefill: { email: 'a@b' } } },
+    ]);
+    await handleDeepLink({ kind: 'contact', contactId: 'C9', edit: true }, { navigation: navigation as never, resolveThreadId: async () => null });
+    expect(stack.slice(2)).toEqual([
+      { name: 'ContactDetail', params: { contactId: 'C9' } },
+      { name: 'ContactForm', params: { contactId: 'C9' } },
+    ]);
   });
 
   it('switches to a contact link\'s account first, and opens nothing when it is not signed in', async () => {
@@ -292,7 +321,8 @@ describe('handleDeepLink', () => {
       { navigation: navigation as never, resolveThreadId: async () => null, switchAccount },
     );
     expect(switchAccount).toHaveBeenCalledWith('acc');
-    expect(navigation.navigate).toHaveBeenCalledTimes(2);
+    expect(navigation.navigate).toHaveBeenCalledTimes(1);
+    expect(navigation.dispatch).toHaveBeenCalledTimes(1);
 
     const refused = nav();
     for (const link of [
@@ -304,6 +334,7 @@ describe('handleDeepLink', () => {
       })).toBe(false);
     }
     expect(refused.navigate).not.toHaveBeenCalled();
+    expect(refused.dispatch).not.toHaveBeenCalled();
   });
 
   it('parks the settings tab and opens the Settings tab', async () => {
