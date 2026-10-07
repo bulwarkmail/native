@@ -272,6 +272,10 @@ device.
   - What WEB does: `releaseFixedWidthTables` (`lib/email-fit-width.ts`).
   - What RN does: a `<table width="800">` is scaled down (`src/lib/email-html.ts:452-466`, `src/components/EmailBodyView.tsx:264`).
 
+- [ ] **No "unverified sender" warning** — `P3` — `missing` (1.13.0, 88893463, eb84810f)
+  - What WEB does: a warning above a message whose DKIM/SPF/DMARC checks fail, a badge by the sender, and no "Always trust this sender" for it; multi-DKIM parsing (`lib/email-headers.ts:36-90,237-252`, `email-viewer.tsx`); 7 `email_viewer.sender_check.*` keys (not vendored yet).
+  - What RN does: `isAuthenticationSpoofed` only hides the "via" badge (`src/lib/email-headers.ts:99-104`, `MessageHeader.tsx:107`).
+
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Body isolation: sandboxed WebView with `default-src 'none'` CSP, `originWhitelist` about:blank, links opened externally, no cookies/storage/file access (`src/components/EmailBodyView.tsx:675-724`, `src/lib/email-html.ts:236-256`) — matches WEB's srcDoc iframe + CSP approach (1.6.7).
 - `hasMeaningfulHtmlBody` text-alternative preference (`src/lib/email-html.ts:353-362`) — same regex as WEB `lib/signature-utils.ts` (only the same-partId guard is missing, see P1 finding).

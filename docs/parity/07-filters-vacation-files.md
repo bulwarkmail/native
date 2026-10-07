@@ -139,11 +139,11 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What RN does: `FilesSettings.tsx:161-171`, `219-224` offer both toggles and preview them, but `FilesScreen` never reads `filesFolderLayout` or `filesShowThumbnails` (only `showIcons/coloredIcons/showHiddenFiles/sort/view`, `:131-136`).
   - Fix hint: either implement thumbnails (`<Image source={{ uri: getFileNodeDownloadUrl(node), headers: { Authorization } }}>` for image extensions) and drop the folder-layout radio (sidebar is N/A on a phone), or hide both settings.
 
-- [ ] **Legacy flat-name migration not run on RN** — `P3` — `missing` (changelog 1.7.3 #379; WEB `stores/file-store.ts:286-479`) — deferred: WEB runs the one-time migration; not ported to mobile
+- [x] **Legacy flat-name migration not run on RN** — `P3` — `missing` (changelog 1.7.3 #379; WEB `stores/file-store.ts:286-479`) — deferred: WEB runs the one-time migration; not ported to mobile — closed as webmail-only (decision 2026-10-07): it renames, moves and deletes files, and webmail runs it whenever Files is opened there
   - What WEB does: on first listing, reparents nodes named with `/`, `∕`, `⁄`, `／` separators and replaces blob-backed "dir marker" files with real folders, with a progress overlay (`files-app.tsx:245-263`, `710-734`).
   - What RN does: reads only the real hierarchy (`src/api/files.ts:6-14` comment acknowledges WEB migrates). A user who never opens WEB sees legacy files as flat names at the root. Acceptable if WEB is always used at least once; otherwise port `migrateLegacyFlatNodes`.
 
-- [ ] **Deep link `/files/<folder>` and `?preview=` not handled** — `P3` — `missing` (changelog 1.8.1 "Deep links for mail, calendar, contacts, files") — partly: `/files` links open the Files tab since 5802cae; folder paths and `?preview=` are ignored
+- [x] **Deep link `/files/<folder>` and `?preview=` not handled** — `P3` — `missing` (changelog 1.8.1 "Deep links for mail, calendar, contacts, files") — partly: `/files` links open the Files tab since 5802cae; folder paths and `?preview=` are ignored — fixed in 219e808, f7cda31
   - What WEB does: `parseFilesPath`/`buildFilesPath` walk the drive to the folder and open the preview (`components/files/files-app.tsx:190-278`; `lib/deep-links.ts:381`).
   - What RN does: `src/navigation/linking.ts` (5802cae) turns any `/files/...` link into `{ kind: 'files' }` and opens the tab; `Files: undefined` in `src/navigation/types.ts:35`.
   - Fix hint: parse the rest of the path in `linking.ts`, pass it to `Files` as a `path` param and walk `allNodes` by names.
@@ -153,7 +153,7 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What RN does: `FilesScreen.tsx` ("New folder", "Delete this item?", "Shared by", "Upload unavailable"…, e.g. `:148`, `:310`, `:521`, `:621`, `:722-727`, `:825-849`) and `ShareSheet.tsx` (`:41-45`, `:160-166`, `:175`, `:219-242`) use literals, even though RN `locales/en/common.json` already has a `files` block (`:1513`) with most of these keys.
   - Fix hint: wire `useLocaleStore(s => s.t)` with the existing keys; add `share/shared/shared_with_me/shared_by` from WEB.
 
-- [ ] **Stability warning banner not shown** — `P3` — `partial` — deferred: product call, not shown on mobile
+- [x] **Stability warning banner not shown** — `P3` — `partial` — deferred: product call, not shown on mobile — fixed in 656c2c4 as a dismissible row at the Files root (decision 2026-10-07)
   - What WEB does: persistent yellow "stability_warning" above the browser (`files-app.tsx:617-620`; changelog 1.4.10 "Update file feature disabled messages and add stability warnings").
   - What RN does: nothing. Optional; product call.
 
@@ -184,17 +184,19 @@ device.
   - What WEB does: has a `field: 'all'` condition ("matches every message") and `address_is` / `domain_is` comparators.
   - What RN does: the generator throws "Unsupported filter condition field" for `all` (`src/lib/sieve/generator.ts:86-88`), so once such a rule exists every native filter save fails; `address_is` / `domain_is` fall through to `header :contains` (`:107`), silently loosening the rule. Neither is in the UI (`src/lib/sieve/types.ts:23-38`, `FilterRuleModal.tsx:42`).
 
-- [ ] **Forward actions ignore the server's redirect limit** — `P3` — `missing` (1.11.0, 6da2bf9)
+- [x] **Forward actions ignore the server's redirect limit** — `P3` — `missing` (1.11.0, 6da2bf9) — fixed in ad02c89
   - What WEB does: counts forwards per message against `maxNumberRedirects` (1 on Stalwart) and warns (`lib/filters/forward-limit.ts`, `components/settings/filter-settings.tsx:259-261,540`).
   - What RN does: never reads `maxNumberRedirects` (`src/lib/sieve/types.ts:20`); extra forwards are dropped without notice.
 
-- [ ] **No warning before saving an auto-reply Stalwart would refuse as too long** — `P3` — `missing` (1.11.0)
+- [x] **No warning before saving an auto-reply Stalwart would refuse as too long** — `P3` — `missing` (1.11.0) — fixed in 0b61ed1
   - What WEB does: subject 511 bytes, body 2047 (`components/settings/vacation-settings.tsx:16,90-98`).
   - What RN does: `src/components/settings/VacationSettings.tsx` saves and fails.
 
-- [ ] **Vacation reply has no forwarding or reply-audience settings** — `P3` — `missing` (#1152)
+- [x] **Vacation reply has no forwarding or reply-audience settings** — `P3` — `missing` (#1152) — fixed in eeaa90a, 2ca8898, eb00a2c, 588c2a9, 54e777b, 5a057d6, d1e59ae — hidden on shared accounts, as in webmail
   - What WEB does: `settings.vacation.forward.*` and `settings.vacation.audience.*` in the vacation pane.
   - What RN does: `src/components/settings/VacationSettings.tsx` has neither; settings search skips those keys (`src/lib/settings-search.ts`).
+
+- [x] **Filter rule active periods and Sieve metadata v2 (#1152)** — `P3` — `missing` (1.13.0) — fixed in eeaa90a, 68c2481, 4892366, 6038b0d — before this, native treated webmail's v2 scripts as hand-edited, and turning the auto-reply on from native could stop every filter
 
 - [x] **Files: smaller 1.11 fixes not ported** — `P3` — `bugfix-parity` (1.11.0, WEB `lib/jmap/client.ts`) — fixed in 227f4a2, 83b8828, 3bd15f3, 138b041
   - A new folder whose name is taken fails instead of becoming "name (2)" (`src/api/files.ts:248-262`, no `onExists: "rename"`; WEB `createFileNodeIn` ~`:8072-8105`).

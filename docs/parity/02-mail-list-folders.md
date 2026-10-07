@@ -364,6 +364,8 @@ device.
 - [x] **Global search across mail, contacts, calendar and files (#641, #847)** — `P3` — `missing` (1.10.0, product decision) — fixed in c7b92dd, b538850, 741f612, fd033bb, 80ea6bf — mail searches every signed-in account; contacts, calendar and files search the shown account
   - What WEB does: `lib/global-search/`, `stores/global-search-store.ts`. Earlier audits called it Pro/desktop-only; the changelog describes a cross-surface search.
 
+- [x] **Searching All mail leaves out Sent and other folders** — `P3` — `bugfix-parity` (1.13.0, 832651bc) — fixed in b5aba27 — a search from the unified All-mail view now covers every folder but Trash and Junk
+
 ## Verified at parity (do not redo)
 - Folder tree: nesting, per-account grouping of shared/group accounts with unread roll-up, expanded state persisted, role priority sort (`src/lib/mailbox-tree.ts`, `SidebarDrawer.tsx`); create/rename/delete own folders with server error surfaced (`FolderSettings.tsx`); delete-with-emails confirm.
 - Shared/group folders: queries and every mutation (read/star/pin/tag/move/archive/delete/undo/import) routed to the owner account with the unprefixed id (`refFor`, `src/stores/email-store.ts:64-99`); thread screen fetches by owner (`EmailThreadScreen.tsx:90-96`); state-change handling per account (`email-store.ts:981-1015`).
