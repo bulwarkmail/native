@@ -53,6 +53,7 @@ import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
 import { useContactsStore } from '../contacts-store';
 import { useEmailStore } from '../email-store';
+import { useSettingsStore } from '../settings-store';
 import { useFilterStore } from '../filter-store';
 import { useVacationStore } from '../vacation-store';
 import type { Email } from '../../api/types';
@@ -381,6 +382,40 @@ describe('auth-store', () => {
 
       expect(restored).toBe(true);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    describe('start folder', () => {
+      const mbx = (id: string, role: string) => ({
+        id, name: role, role, totalEmails: 0, unreadEmails: 0, totalThreads: 0, unreadThreads: 0,
+        myRights: {}, isShared: false,
+      });
+      const restoreWithCachedFolder = async (restoreLastFolder: boolean) => {
+        useAccountStore.setState({
+          accounts: [{
+            id: 'acc-1', serverUrl: 'https://mail.example.com', username: 'user', displayName: 'user',
+            email: 'user', avatarColor: '#000', lastLoginAt: 0, isConnected: false, hasError: false, isDefault: true,
+          }],
+          activeAccountId: 'acc-1',
+          defaultAccountId: 'acc-1',
+        });
+        useSettingsStore.setState({ restoreLastFolder, hydrated: true });
+        useEmailStore.getState().reset();
+        // As hydrated from the cache: acc-1 shown, last in Sent.
+        useEmailStore.setState({
+          activeAccountId: 'acc-1', mailboxes: [mbx('m1', 'inbox'), mbx('m2', 'sent')] as never, currentMailboxId: 'm2',
+        });
+        mockLoadAccount.mockResolvedValue(true);
+        await useAuthStore.getState().restoreSession();
+        return useEmailStore.getState().currentMailboxId;
+      };
+
+      it('opens the Inbox on a cold start', async () => {
+        expect(await restoreWithCachedFolder(false)).toBe('m1');
+      });
+
+      it('reopens the last folder when restoreLastFolder is on', async () => {
+        expect(await restoreWithCachedFolder(true)).toBe('m2');
+      });
     });
 
     it('sweeps offline mail of accounts no longer registered', async () => {

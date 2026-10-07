@@ -102,6 +102,10 @@ import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
 
+// Read the settings now, beside the stores that hydrate on import, so the start
+// folder is known by the time the session restores.
+void useSettingsStore.getState().hydrate();
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();

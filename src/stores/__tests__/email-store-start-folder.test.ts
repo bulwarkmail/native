@@ -15,7 +15,8 @@ vi.mock('../locale-store', () => ({
 vi.mock('../outbox-store', () => ({
   useOutboxStore: { getState: () => ({ setAccount: vi.fn(async () => undefined), flush: vi.fn(async () => undefined) }) },
 }));
-vi.mock('../settings-store', () => ({ useSettingsStore: { getState: () => ({}) } }));
+const settings = vi.hoisted(() => ({ restoreLastFolder: false }));
+vi.mock('../settings-store', () => ({ useSettingsStore: { getState: () => settings } }));
 vi.mock('../offline-cache-store', () => ({
   useOfflineCacheStore: { getState: () => ({ hydrated: true, hydrate: vi.fn(), setAccount: vi.fn(async () => undefined), totalCount: () => 0 }) },
 }));
@@ -41,6 +42,7 @@ function snapshot(mailboxes: Mailbox[], current: string | null): AccountSnapshot
 }
 
 beforeEach(() => {
+  settings.restoreLastFolder = false;
   useEmailStore.getState().reset();
   useEmailStore.setState({ accountSnapshots: {}, activeAccountId: null });
 });
@@ -63,6 +65,7 @@ describe('opening folder on start', () => {
   });
 
   it('reopens the remembered folder when asked to', () => {
+    settings.restoreLastFolder = true;
     start('A', { A: a });
     useEmailStore.getState().openStartFolder(true);
     expect(useEmailStore.getState().currentMailboxId).toBe('m2');
@@ -78,8 +81,8 @@ describe('opening folder on start', () => {
   it('uses the active account\'s own memory when ids repeat across accounts', () => {
     // B remembers m1 (its Sent); A remembers m2 (its Sent). Same ids, other folders.
     const b = snapshot([mb('m2', 'inbox'), mb('m1', 'sent')], 'm1');
+    settings.restoreLastFolder = true;
     start('B', { A: a, B: b });
-    useEmailStore.getState().openStartFolder(true);
     expect(useEmailStore.getState().currentMailboxId).toBe('m1');
     expect(useEmailStore.getState().mailboxes.find((m) => m.id === 'm1')?.role).toBe('sent');
   });
@@ -111,5 +114,50 @@ describe('opening folder on start', () => {
     useEmailStore.setState({ currentMailboxId: 'm2' });
     useEmailStore.getState().openStartFolder(false);
     expect(useEmailStore.getState().currentMailboxId).toBe('m2');
+  });
+
+  it('opens each account on its Inbox the first time it is shown, ids colliding', () => {
+    // A remembers m2 (Sent), B remembers m1 (Sent); m1/m2 mean different folders in each.
+    const b = snapshot([mb('m2', 'inbox'), mb('m1', 'sent')], 'm1');
+    start('A', { A: a, B: b });
+    useEmailStore.getState().openStartFolder(false);
+    expect(useEmailStore.getState().currentMailboxId).toBe('m1'); // A's Inbox
+    useEmailStore.getState().setActiveAccount('B');
+    expect(useEmailStore.getState().currentMailboxId).toBe('m2'); // B's Inbox
+    expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['other-1']);
+  });
+
+  it('keeps the folder left when switching back to an account already shown', () => {
+    const b = snapshot([mb('m2', 'inbox'), mb('m1', 'sent')], 'm1');
+    start('A', { A: a, B: b });
+    useEmailStore.getState().openStartFolder(false);
+    useEmailStore.setState({ currentMailboxId: 'm2' }); // A: user moved to Sent
+    useEmailStore.getState().setActiveAccount('B');
+    useEmailStore.getState().setActiveAccount('A');
+    expect(useEmailStore.getState().currentMailboxId).toBe('m2');
+  });
+
+  it('keeps a remembered folder on first show when restoreLastFolder is on', () => {
+    settings.restoreLastFolder = true;
+    start('A', { A: a });
+    expect(useEmailStore.getState().currentMailboxId).toBe('m2');
+  });
+
+  it('settles an account when a folder is picked in it, so a switch back keeps the pick', async () => {
+    const b = snapshot([mb('m2', 'inbox'), mb('m1', 'sent')], 'm1');
+    start('A', { A: a, B: b });
+    void useEmailStore.getState().selectMailbox('m2');
+    useEmailStore.getState().setActiveAccount('B');
+    useEmailStore.getState().setActiveAccount('A');
+    expect(useEmailStore.getState().currentMailboxId).toBe('m2');
+  });
+
+  it('tucks the folder it leaves into its snapshot', () => {
+    useEmailStore.setState({
+      activeAccountId: 'A', mailboxes: a.mailboxes, mailboxSnapshots: { m1: a.mailboxSnapshots.m1 },
+      currentMailboxId: 'm2', emails: [row('fresh')], totalEmails: 5,
+    });
+    useEmailStore.getState().openStartFolder(false);
+    expect(useEmailStore.getState().mailboxSnapshots.m2.emails.map((e) => e.id)).toEqual(['fresh']);
   });
 });

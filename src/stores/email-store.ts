@@ -60,16 +60,18 @@ import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from '
 import { useTagCountsStore } from './tag-counts-store';
 import { toast } from './toast-store';
 
+// Accounts whose start folder is settled this launch: their Inbox was opened
+// (or their last folder kept) on first show, or a folder was chosen, so a
+// deep link or notification tap keeps what it picked and a switch back keeps
+// the folder left.
+const startFolderSettled = new Set<string>();
+
 // ── Refresh coalescing ─────────────────────────────────────────────────
 // Push events, mount effects and post-action follow-ups all call
 // fetchMailboxes()/refreshEmails(); overlapping runs only multiply requests
 // (and trip maxConcurrentRequests / 429 on Stalwart). Share the in-flight run
 // per key and queue at most one re-run, like the webmail's `coalesceRefresh`
 // (#780).
-// Set once a folder is chosen or the start folder is settled this launch: a
-// deep link or notification tap that selected one first keeps it.
-let startFolderSettled = false;
-
 const inflightRefresh = new Map<string, Promise<void>>();
 const queuedRefresh = new Set<string>();
 
@@ -1071,6 +1073,10 @@ export const useEmailStore = create<EmailState>()(
       loading: false,
     });
 
+    // First time this account is shown this session: open its Inbox (or its
+    // remembered folder when the user asked for that).
+    get().openStartFolder(useSettingsStore.getState().restoreLastFolder);
+
     // Point the offline body cache at the same account so the viewer's
     // cache-first open and selectMailbox's seed read from the right bucket. Fire-
     // and-forget — the cache returns empty until hydration completes,
@@ -1086,6 +1092,7 @@ export const useEmailStore = create<EmailState>()(
   removeAccount: (accountId) => {
     const state = get();
     const { [accountId]: _drop, ...rest } = state.accountSnapshots;
+    startFolderSettled.delete(accountId);
     if (state.activeAccountId === accountId) {
       set({
         accountSnapshots: rest,
@@ -1155,10 +1162,12 @@ export const useEmailStore = create<EmailState>()(
   },
 
   openStartFolder: (restoreLast) => {
-    if (startFolderSettled) return;
-    startFolderSettled = true;
     const state = get();
-    if (!state.activeAccountId || state.mailboxes.length === 0) return;
+    if (!state.activeAccountId || startFolderSettled.has(state.activeAccountId)) return;
+    // Nothing cached yet: the list screen picks the Inbox when folders load,
+    // and the account is settled once one is chosen.
+    if (state.mailboxes.length === 0) return;
+    startFolderSettled.add(state.activeAccountId);
     // `mailboxes` and `currentMailboxId` are the active account's own
     // (ids repeat across accounts), so the lookup stays inside it.
     const remembered = state.currentMailboxId
@@ -1168,8 +1177,18 @@ export const useEmailStore = create<EmailState>()(
       ? remembered
       : ownMailboxes(state.mailboxes).find((m) => m.role === 'inbox');
     if (!target || target.id === state.currentMailboxId) return;
-    const snap = state.mailboxSnapshots[target.id];
+    // Tuck the folder being left, as selectMailbox does, so it isn't blank
+    // on the next visit.
+    let mailboxSnapshots = state.mailboxSnapshots;
+    if (state.currentMailboxId && isBaseView(state.searchQuery, state.filters)) {
+      mailboxSnapshots = {
+        ...mailboxSnapshots,
+        [state.currentMailboxId]: { emails: state.emails, total: state.totalEmails, queryState: state.queryState },
+      };
+    }
+    const snap = mailboxSnapshots[target.id];
     set({
+      mailboxSnapshots,
       currentMailboxId: target.id,
       emails: snap?.emails ?? [],
       totalEmails: snap?.total ?? 0,
@@ -1183,7 +1202,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   selectMailbox: async (mailboxId) => {
-    startFolderSettled = true;
+    if (get().activeAccountId) startFolderSettled.add(get().activeAccountId!);
     const state = get();
     // Tuck the previously-visible mailbox into its snapshot so a return-trip
     // can restore it without a network call. Only do this for the base view —
@@ -2302,24 +2321,24 @@ export const useEmailStore = create<EmailState>()(
   },
 
   reset: () => {
-    startFolderSettled = false;
+    startFolderSettled.clear();
     set({
-    mailboxes: [],
-    mailboxState: undefined,
-    emailStates: {},
-    currentMailboxId: null,
-    mailboxSnapshots: {},
-    emails: [],
-    totalEmails: 0,
-    queryState: undefined,
-    loading: false,
-    error: null,
-    searchQuery: '',
-    filters: {},
-    searchSnippets: {},
-    retainedIds: [],
-    threadCounts: {},
-    accountErrors: {},
+      mailboxes: [],
+      mailboxState: undefined,
+      emailStates: {},
+      currentMailboxId: null,
+      mailboxSnapshots: {},
+      emails: [],
+      totalEmails: 0,
+      queryState: undefined,
+      loading: false,
+      error: null,
+      searchQuery: '',
+      filters: {},
+      searchSnippets: {},
+      retainedIds: [],
+      threadCounts: {},
+      accountErrors: {},
   });
   },
     }),
