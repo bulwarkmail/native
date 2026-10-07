@@ -214,9 +214,16 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       case 'pastePlain': {
         // A plain-text paste with a list: convert it here, where the parser
         // is ordinary TS, and hand the page the HTML (or null for text).
-        if (typeof data.payload !== 'string') break;
-        const pasted = plainTextPasteHtml(data.payload);
-        call(`window.__rne && window.__rne.insertPasted(${JSON.stringify(pasted)}, ${JSON.stringify(data.payload)})`);
+        const p = data.payload as { id?: unknown; text?: unknown } | null;
+        if (typeof p?.id !== 'number' || typeof p.text !== 'string') break;
+        let pasted: string | null;
+        try {
+          pasted = plainTextPasteHtml(p.text);
+        } catch {
+          // Answer at once with text rather than leave the page to time out.
+          pasted = null;
+        }
+        call(`window.__rne && window.__rne.insertPasted(${JSON.stringify(pasted)}, ${p.id})`);
         break;
       }
       case 'selection':

@@ -152,8 +152,9 @@ export function buildEditorHtml(opts: {
   var CHANGE_THROTTLE_MS = ${CHANGE_THROTTLE_MS};
   var lastChangeAt = 0;
   var changeTimer = null;
-  // A plain-text list paste waiting for RN: { text, range, timer }.
+  // A plain-text list paste waiting for RN: { id, text, range, timer }.
   var pendingPaste = null;
+  var pasteSeq = 0;
 
   // Checked on every keystroke, so it avoids serializing innerHTML.
   function refreshEmpty() {
@@ -271,6 +272,13 @@ export function buildEditorHtml(opts: {
   var PASTE_FALLBACK_MS = ${PASTE_FALLBACK_MS};
   function isGap(code) { return code === 32 || code === 9; }
   function isLineEnd(code) { return code === 10 || code === 13; }
+  // The whitespace the parser's regex counts as space: an item needs some
+  // other character after its marker.
+  function isSpace(code) {
+    return (code >= 9 && code <= 13) || code === 32 || code === 160 || code === 5760
+      || (code >= 8192 && code <= 8202) || code === 8232 || code === 8233 || code === 8239
+      || code === 8287 || code === 12288 || code === 65279;
+  }
   function hasListLine(text) {
     var i = 0;
     var n = text.length;
@@ -289,7 +297,7 @@ export function buildEditorHtml(opts: {
       }
       if (marker && isGap(text.charCodeAt(i))) {
         while (i < n && isGap(text.charCodeAt(i))) i++;
-        if (i < n && !isLineEnd(text.charCodeAt(i))) return true;
+        if (i < n && !isSpace(text.charCodeAt(i))) return true;
       }
       while (i < n && !isLineEnd(text.charCodeAt(i))) i++;
       i++;
@@ -298,7 +306,9 @@ export function buildEditorHtml(opts: {
   }
 
   // Puts the caret back where the paste happened. If the user moved it while
-  // RN worked, the paste still lands at the saved spot.
+  // RN worked, the paste still lands at the saved spot. The saved range is
+  // live, but text typed at that spot meanwhile doesn't move its start, so
+  // the typed text ends up after the paste.
   function restoreRange(range) {
     var sel = window.getSelection();
     if (!range || !sel || !editor.contains(range.startContainer)) return;
@@ -310,6 +320,8 @@ export function buildEditorHtml(opts: {
     var paste = pendingPaste;
     pendingPaste = null;
     clearTimeout(paste.timer);
+    // execCommand only edits the focused editor, and the answer (or the
+    // fallback timer) can arrive after the user left it.
     editor.focus();
     restoreRange(paste.range);
     try {
@@ -333,8 +345,9 @@ export function buildEditorHtml(opts: {
     var range = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
     e.preventDefault();
     // A dead bridge must not swallow the paste.
-    pendingPaste = { text: text, range: range, timer: setTimeout(function () { settlePaste(null); }, PASTE_FALLBACK_MS) };
-    post('pastePlain', text);
+    var id = ++pasteSeq;
+    pendingPaste = { id: id, text: text, range: range, timer: setTimeout(function () { settlePaste(null); }, PASTE_FALLBACK_MS) };
+    post('pastePlain', { id: id, text: text });
   });
 
   // ── Bridge: receive commands from RN ───────────────────────────────
@@ -440,11 +453,11 @@ export function buildEditorHtml(opts: {
       post('htmlSnapshot', { id: id, html: editor.innerHTML });
     },
     focus: function () { editor.focus(); },
-    // RN's answer to 'pastePlain': the list HTML, or null to paste the text
-    // as text. An answer for a paste no longer waiting (it timed out, or a
-    // newer paste replaced it) is dropped.
-    insertPasted: function (html, text) {
-      if (!pendingPaste || pendingPaste.text !== text) return;
+    // RN's answer to 'pastePlain' with that paste's id: the list HTML, or
+    // null to paste the text as text. An answer for a paste no longer waiting
+    // (it timed out, or a newer paste replaced it) is dropped.
+    insertPasted: function (html, id) {
+      if (!pendingPaste || pendingPaste.id !== id) return;
       settlePaste(html);
     },
   };

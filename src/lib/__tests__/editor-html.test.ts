@@ -175,7 +175,9 @@ describe('editor page messages', () => {
     new Function('window', 'document', script)(window, document);
     const changes = () => posted.filter((m) => m.type === 'change').map((m) => m.payload);
     const selections = () => posted.filter((m) => m.type === 'selection');
-    const pastes = () => posted.filter((m) => m.type === 'pastePlain').map((m) => m.payload);
+    const pastes = () => posted.filter((m) => m.type === 'pastePlain').map((m) => (m.payload as { text: string }).text);
+    /** The id the page gave its latest paste, which RN's answer must carry. */
+    const lastPasteId = () => (posted.filter((m) => m.type === 'pastePlain').pop()!.payload as { id: number }).id;
     const type = (html: string) => { editor.innerHTML = html; listeners.input.forEach((fn) => fn()); };
     const fire = (name: string) => (listeners[name] ?? docListeners[name]).forEach((fn) => fn());
     /** Fires a paste with the given clipboard; returns whether the page took it over. */
@@ -191,7 +193,8 @@ describe('editor page messages', () => {
     /** Moves the caret somewhere else, as the user would while the paste is in flight. */
     const moveCaret = () => { ranges.length = 0; ranges.push({ startContainer: editor, id: 'moved' }); };
     return {
-      changes, selections, pastes, type, fire, paste, moveCaret, commandState, posted, executed, rne: () => window.__rne,
+      changes, selections, pastes, lastPasteId, type, fire, paste, moveCaret, commandState, posted, executed,
+      rne: () => window.__rne,
     };
   }
 
@@ -242,7 +245,8 @@ describe('editor page messages', () => {
 
     it('leaves plain text without a list to the default paste', () => {
       const page = boot();
-      for (const text of ['Hello there', 'Costs - roughly\n-- \nLinus', '-x\n1.5 litres\n1234. no', '- ', '']) {
+      const blanks = ['- \u000b', '- \f', '1. \u00a0', '* \u2028', '- \u2029', '- \u3000'];
+      for (const text of ['Hello there', 'Costs - roughly\n-- \nLinus', '-x\n1.5 litres\n1234. no', '- ', '', ...blanks]) {
         expect(page.paste({ 'text/plain': text })).toBe(false);
       }
       expect(page.pastes()).toEqual([]);
@@ -253,6 +257,7 @@ describe('editor page messages', () => {
         const page = boot();
         expect(page.paste({ 'text/plain': text }), text).toBe(true);
         expect(page.pastes()).toEqual([text]);
+        expect(page.lastPasteId()).toEqual(expect.any(Number));
         expect(page.executed).toEqual([]);
       }
     });
@@ -267,7 +272,7 @@ describe('editor page messages', () => {
       page.paste({ 'text/plain': '- One' });
       page.moveCaret();
       const before = page.changes().length;
-      page.rne().insertPasted('<ul><li>One</li></ul>', '- One');
+      page.rne().insertPasted('<ul><li>One</li></ul>', page.lastPasteId());
       expect(page.executed).toEqual([
         { command: 'insertHTML', value: '<ul><li>One</li></ul>', range: expect.objectContaining({ id: 'saved' }) },
       ]);
@@ -277,7 +282,7 @@ describe('editor page messages', () => {
     it('inserts the text as text when RN found no list', () => {
       const page = boot();
       page.paste({ 'text/plain': '- <b>x</b>' });
-      page.rne().insertPasted(null, '- <b>x</b>');
+      page.rne().insertPasted(null, page.lastPasteId());
       expect(page.executed).toEqual([
         { command: 'insertText', value: '- <b>x</b>', range: expect.objectContaining({ id: 'saved' }) },
       ]);
@@ -286,24 +291,28 @@ describe('editor page messages', () => {
     it('pastes the text itself when RN never answers, and ignores a late answer', () => {
       const page = boot();
       page.paste({ 'text/plain': '- One' });
+      const id = page.lastPasteId();
       vi.advanceTimersByTime(PASTE_FALLBACK_MS);
       expect(page.executed).toEqual([
         { command: 'insertText', value: '- One', range: expect.objectContaining({ id: 'saved' }) },
       ]);
-      page.rne().insertPasted('<ul><li>One</li></ul>', '- One');
+      page.rne().insertPasted('<ul><li>One</li></ul>', id);
       expect(page.executed).toHaveLength(1);
     });
 
     it('ignores an answer for a paste it is not waiting on', () => {
       const page = boot();
-      page.rne().insertPasted('<script>x</script>', 'nothing pasted');
-      page.paste({ 'text/plain': '- Two' });
-      page.rne().insertPasted('<ul><li>One</li></ul>', '- One');
-      expect(page.executed).toEqual([]);
-      page.rne().insertPasted('<ul><li>Two</li></ul>', '- Two');
-      expect(page.executed.map((e) => e.value)).toEqual(['<ul><li>Two</li></ul>']);
+      page.rne().insertPasted('<script>x</script>', 1);
+      page.paste({ 'text/plain': '- One' });
+      const first = page.lastPasteId();
       vi.advanceTimersByTime(PASTE_FALLBACK_MS);
-      expect(page.executed).toHaveLength(1);
+      page.paste({ 'text/plain': '- Two' });
+      page.rne().insertPasted('<ul><li>One</li></ul>', first);
+      expect(page.executed.map((e) => e.value)).toEqual(['- One']);
+      page.rne().insertPasted('<ul><li>Two</li></ul>', page.lastPasteId());
+      expect(page.executed.map((e) => e.value)).toEqual(['- One', '<ul><li>Two</li></ul>']);
+      vi.advanceTimersByTime(PASTE_FALLBACK_MS);
+      expect(page.executed).toHaveLength(2);
     });
 
     it('settles a paste still in flight as text before taking the next one', () => {

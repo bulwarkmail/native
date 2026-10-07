@@ -158,8 +158,8 @@ function listHtml(block: Extract<PlainBlock, { type: 'list' }>): string {
 /**
  * The HTML for pasting `text`, with its "- " / "1. " items as real lists and
  * every other line as a paragraph (a blank line an empty one), or null when
- * the text has no list or is too long or deep to convert: the caller then pastes it
- * as text.
+ * the text has no list or is too long or deep to convert: the caller then
+ * pastes it as text.
  */
 export function plainTextPasteHtml(text: string): string | null {
   if (!text || text.length > PLAIN_PASTE_MAX_CHARS) return null;
