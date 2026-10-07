@@ -21,8 +21,11 @@ import {
   stringToPartialDate, isGroup,
 } from '../lib/contact-utils';
 import {
-  canSaveContactForm, contactFormPatchBase, contactFormSeed, formToPatch, shouldSeedContactForm, type FormState,
+  canSaveContactForm, contactFormMissingState, contactFormPatchBase, contactFormSeed, formToPatch,
+  shouldSeedContactForm, type FormState,
 } from '../lib/contact-form-seed';
+import { useNetworkStore } from '../stores/network-store';
+import { jmapClient } from '../api/jmap-client';
 import { isShownAccount, requireShownAccountScope, useEmailStore } from '../stores/email-store';
 import Dialog from '../components/Dialog';
 import ContactPickerSheet from '../components/contacts/ContactPickerSheet';
@@ -255,11 +258,18 @@ export default function ContactFormScreen() {
   // Set once cards were read from the server (null for the persisted cache,
   // which keeps no photos, and after a reset).
   const liveCards = useContactsStore((s) => s.contactsGen !== null);
+  // The account this form edits or creates in. Card ids repeat across
+  // accounts, so a save after a switch would land on the other account's
+  // card with the same id (or in its books): refused instead.
+  const [formAccountId] = React.useState(() => useEmailStore.getState().activeAccountId);
+  const shownAccountId = useEmailStore((s) => s.activeAccountId);
+  const formAccountShown = !!formAccountId && shownAccountId === formAccountId;
   // The card being edited, only from a live load: one from the cache would
   // seed the form without its photo, or with values the server has replaced.
+  // None while another account is shown: the store holds its cards then.
   const existing = React.useMemo(
-    () => (contactId && liveCards ? allContacts.find((c) => c.id === contactId) : undefined),
-    [allContacts, contactId, liveCards],
+    () => (contactId && liveCards && formAccountShown ? allContacts.find((c) => c.id === contactId) : undefined),
+    [allContacts, contactId, liveCards, formAccountShown],
   );
   // A card gets the form of its kind whichever way it was opened (a link
   // names only the id): the person form would save a group without its
@@ -277,11 +287,6 @@ export default function ContactFormScreen() {
       .sort((a, b) => a.keyword.localeCompare(b.keyword));
   }, [allContacts]);
 
-  // The account this form edits or creates in. Card ids repeat across
-  // accounts, so a save after a switch would land on the other account's
-  // card with the same id (or in its books): refused instead.
-  const [formAccountId] = React.useState(() => useEmailStore.getState().activeAccountId);
-
   const seedFor = (card: typeof existing): FormState => contactFormSeed(card, prefill, {
     addressBookId: initialBook || getDefaultAddressBookId() || '',
     memberIds: card
@@ -293,24 +298,35 @@ export default function ContactFormScreen() {
   // `contactFormPatchBase`). An edit opened before its card loaded starts
   // blank and cannot save until it is seeded from the card.
   const [seededFrom, setSeededFrom] = React.useState(existing);
+  // The account `seededFrom` came from (see `shouldSeedContactForm`).
+  const [seededAccountId, setSeededAccountId] = React.useState(formAccountId);
+  const seedAccounts = { formAccount: formAccountId, shownAccount: shownAccountId, seededAccount: seededAccountId };
   const [keywordInput, setKeywordInput] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [dirty, setDirty] = React.useState(!!prefill || !!initialMemberIds?.length);
   // An edit whose card is not in the store asks for the contacts, and says
   // why it cannot show it once that load is over.
   const [lookedUp, setLookedUp] = React.useState(false);
+  // How the last lookup ended, and how many retries were asked for.
+  const [loadFailed, setLoadFailed] = React.useState(false);
+  const [connected, setConnected] = React.useState(true);
+  const [lookupAttempt, setLookupAttempt] = React.useState(0);
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
   const [datePickerIndex, setDatePickerIndex] = React.useState<number | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = React.useState(false);
 
   // Seeded during render, so no frame ever shows (or saves) a form that
   // does not match `seededFrom`: React re-renders before committing.
-  if (shouldSeedContactForm({ seededFrom, existing, dirty })) {
+  if (shouldSeedContactForm({ seededFrom, existing, dirty, ...seedAccounts })) {
     setSeededFrom(existing);
+    setSeededAccountId(shownAccountId);
     setForm(seedFor(existing));
   }
 
-  const awaitingCard = isEdit && !existing;
+  // Looked up only while the form's account is shown: a load now would be
+  // another account's contacts.
+  const awaitingCard = isEdit && !existing && formAccountShown;
+  const online = useNetworkStore((s) => s.online);
   React.useEffect(() => {
     // Look again should the card go (a reset) and not come back.
     if (!awaitingCard) {
@@ -319,11 +335,32 @@ export default function ContactFormScreen() {
     }
     if (lookedUp) return;
     let active = true;
-    void useContactsStore.getState().fetchContactsIfStale().finally(() => {
-      if (active) setLookedUp(true);
+    // A retry loads again even when the last load is recent: it failed, or
+    // ran before the card existed.
+    const contacts = useContactsStore.getState();
+    const load = lookupAttempt === 0 ? contacts.fetchContactsIfStale() : contacts.fetchContacts();
+    void load.finally(() => {
+      if (!active) return;
+      setLoadFailed(!!useContactsStore.getState().error);
+      setConnected(jmapClient.isConnected);
+      setLookedUp(true);
     });
     return () => { active = false; };
-  }, [awaitingCard, lookedUp]);
+  }, [awaitingCard, lookedUp, lookupAttempt]);
+  const retryLookup = React.useCallback(() => {
+    setLookupAttempt((n) => n + 1);
+    setLookedUp(false);
+  }, []);
+  const missingState = contactFormMissingState({
+    formAccountShown, lookedUp, liveCards, online, connected, loadFailed,
+  });
+  // Back online after a lookup that needed a connection: look again.
+  const wasOnline = React.useRef(online);
+  React.useEffect(() => {
+    const cameBack = online && !wasOnline.current;
+    wasOnline.current = online;
+    if (cameBack && awaitingCard && lookedUp && !liveCards) retryLookup();
+  }, [online, awaitingCard, lookedUp, liveCards, retryLookup]);
 
   React.useEffect(() => {
     if (!form.addressBookId) {
@@ -344,7 +381,7 @@ export default function ContactFormScreen() {
 
   const handleSave = async () => {
     // Never patch (or create in place of) a card the form does not show.
-    if (!canSaveContactForm({ isEdit, existing, seededFrom })) return;
+    if (!canSaveContactForm({ isEdit, existing, seededFrom, ...seedAccounts })) return;
     const orgName = form.orgs[0]?.name.trim() || '';
     if (asGroup) {
       if (!form.given.trim()) {
@@ -633,7 +670,7 @@ export default function ContactFormScreen() {
     />
   );
 
-  if (!canSaveContactForm({ isEdit, existing, seededFrom })) {
+  if (!canSaveContactForm({ isEdit, existing, seededFrom, ...seedAccounts })) {
     // No card yet: neither fields nor Save, so a blank form can never be
     // saved over it.
     return (
@@ -651,16 +688,31 @@ export default function ContactFormScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
         </View>
         <View style={styles.missing}>
-          {!lookedUp ? (
+          {missingState === 'loading' ? (
             <ActivityIndicator color={c.primary} accessibilityLabel={t('common.loading', 'Loading...')} />
-          ) : liveCards ? (
-            <Text style={styles.missingText}>{t('contacts.detail.not_found', 'Contact not found')}</Text>
           ) : (
-            // Only the cache so far (offline, or the load failed): it keeps
-            // no photos, so an edit from it would clear the photo.
-            <Text style={styles.missingText}>
-              {t('contacts.form.edit_needs_connection', 'Editing a contact needs a connection')}
-            </Text>
+            <>
+              <Text style={styles.missingText}>
+                {missingState === 'switched'
+                  ? t('email_list.account_switched_back', 'This belongs to another account. Switch back to it and try again.')
+                  : missingState === 'not_found'
+                    ? t('contacts.detail.not_found', 'Contact not found')
+                    : missingState === 'load_failed'
+                      ? t('contacts.form.edit_load_failed', "Couldn't load this contact")
+                      // Only the cache so far: it keeps no photos, so an
+                      // edit from it would clear the photo.
+                      : t('contacts.form.edit_needs_connection', 'Editing a contact needs a connection')}
+              </Text>
+              {missingState !== 'switched' && (
+                <Pressable
+                  onPress={retryLookup}
+                  style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.addBtnLabel}>{t('errors.retry', 'Retry')}</Text>
+                </Pressable>
+              )}
+            </>
           )}
         </View>
       </SafeAreaView>
@@ -1472,7 +1524,7 @@ function formatDateAsISO(d: Date): string {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
     missingText: { ...typography.body, color: c.textMuted },
     scrollContent: {
       paddingVertical: spacing.md,

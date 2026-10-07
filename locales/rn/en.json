@@ -208,6 +208,7 @@
       "date_placeholder": "YYYY-MM-DD, YYYY-MM, YYYY or --MM-DD",
       "display_name_optional": "Display name (optional)",
       "display_name_placeholder": "Custom display name",
+      "edit_load_failed": "Couldn't load this contact",
       "edit_named": "Edit {name}",
       "edit_needs_connection": "Editing a contact needs a connection",
       "gender_unspecified": "Unspecified",

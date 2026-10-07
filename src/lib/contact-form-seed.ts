@@ -503,19 +503,33 @@ export function contactFormSeed(
 }
 
 /**
+ * The accounts a form's seed is checked against. Card ids repeat across
+ * accounts, so an id match alone would take another account's card.
+ */
+export interface ContactFormAccounts {
+  /** The app account the form edits or creates in. */
+  formAccount: string | null | undefined;
+  /** The app account shown now, whose card `existing` is. */
+  shownAccount: string | null | undefined;
+  /** The app account `seededFrom` came from. */
+  seededAccount: string | null | undefined;
+}
+
+/**
  * Whether the form shows `existing` now: when it was not seeded from this
  * card yet (whatever the user did meanwhile: the fields were hidden), or when
  * the card changed (a refresh, the server's copy replacing the cached one)
  * before the user typed. Once they have typed the form keeps their values and
- * the card they started from.
+ * the card they started from. Never from another account's card: while
+ * another account is shown, its card with the same id is not this one.
  */
-export function shouldSeedContactForm({ seededFrom, existing, dirty }: {
+export function shouldSeedContactForm({ seededFrom, existing, dirty, formAccount, shownAccount, seededAccount }: {
   seededFrom: ContactCard | undefined;
   existing: ContactCard | undefined;
   dirty: boolean;
-}): boolean {
-  if (!existing) return false;
-  if (seededFrom?.id !== existing.id) return true;
+} & ContactFormAccounts): boolean {
+  if (!existing || !formAccount || shownAccount !== formAccount) return false;
+  if (seededFrom?.id !== existing.id || seededAccount !== formAccount) return true;
   return !dirty && seededFrom !== existing;
 }
 
@@ -534,14 +548,42 @@ export function contactFormPatchBase({ isEdit, seededFrom }: {
 }
 
 /**
- * Whether the form may save: an edit only once it shows its card. Without
- * it an edit must neither patch (a blank form clears the card) nor fall
- * through to creating a new card.
+ * Whether the form may save: an edit only once it shows its card, seeded in
+ * the form's account while that account is shown. Without it an edit must
+ * neither patch (a blank form clears the card, another account's values
+ * overwrite this one's) nor fall through to creating a new card.
  */
-export function canSaveContactForm({ isEdit, existing, seededFrom }: {
+export function canSaveContactForm({ isEdit, existing, seededFrom, formAccount, shownAccount, seededAccount }: {
   isEdit: boolean;
   existing: ContactCard | undefined;
   seededFrom?: ContactCard;
-}): boolean {
-  return !isEdit || (!!existing && seededFrom?.id === existing.id);
+} & ContactFormAccounts): boolean {
+  if (!isEdit) return true;
+  return !!existing && !!formAccount && shownAccount === formAccount
+    && seededAccount === formAccount && seededFrom?.id === existing.id;
+}
+
+/** What an edit form without its card says instead of the fields. */
+export type ContactFormMissingState = 'switched' | 'loading' | 'not_found' | 'needs_connection' | 'load_failed';
+
+/**
+ * Why an edit form has no card to show: another account is shown (its cards
+ * are not this form's), the lookup is still running, the live cards lack it,
+ * there is no connection (only the cache, which keeps no photos, so an edit
+ * from it would clear the photo), or the server was reached but the load
+ * failed.
+ */
+export function contactFormMissingState({ formAccountShown, lookedUp, liveCards, online, connected, loadFailed }: {
+  formAccountShown: boolean;
+  lookedUp: boolean;
+  liveCards: boolean;
+  online: boolean;
+  connected: boolean;
+  loadFailed: boolean;
+}): ContactFormMissingState {
+  if (!formAccountShown) return 'switched';
+  if (!lookedUp) return 'loading';
+  if (liveCards) return 'not_found';
+  if (!online || !connected) return 'needs_connection';
+  return loadFailed ? 'load_failed' : 'needs_connection';
 }
