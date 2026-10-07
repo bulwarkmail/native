@@ -42,8 +42,10 @@ import { runPresetRule, saveEditorRule, targetStillActive } from '../../lib/filt
 import {
   NO_JUNK_HINT_KEY,
   rulesSheetItems,
+  targetFiltersFor,
   type RulesSheetItem,
   type RulesSheetItemId,
+  type TargetFilters,
 } from '../../lib/filters/rules-sheet';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { generateUUID } from '../../lib/uuid';
@@ -88,14 +90,6 @@ export function useRulesTarget(
 
 type View_ = 'root' | 'move_sender' | 'move_domain' | 'move_list' | 'tag' | 'editor';
 type MoveKind = 'move_sender' | 'move_domain' | 'move_list';
-
-interface ForwardInfo {
-  sieveAccountId: string;
-  maxRedirects: number | null;
-  periodsSupported: boolean;
-  before: number;
-  after: number;
-}
 
 interface EditorState {
   rule: FilterRule;
@@ -174,36 +168,39 @@ function RulesFlowBody({
     [senders, listId],
   );
 
-  // Whether the account's script can take a rule: asked of the server for
-  // this account, not read from the filter store. Unknown counts as open: a
-  // write on a hand-edited script reports it.
+  // Whether the account's script can take a rule, and the forwards around a
+  // new rule for the server's redirect limit ("Create rule…" puts it first,
+  // behind the out of office forwarding): asked of the server for this
+  // account, not read from the filter store. Kept with the target it was read
+  // for (its key names the login too: Sieve ids repeat across logins), and
+  // used only while that is still the target. Unknown counts as open: a write
+  // on a hand-edited script reports it.
   const sieveAccountId = target?.sieveAccountId;
-  const [opaque, setOpaque] = React.useState(false);
-  // The forwards around a new rule, for the server's redirect limit: "Create
-  // rule…" puts it first, behind the out of office forwarding. Kept with the
-  // account it was read for, and used only while that is still the target.
-  const [forwardInfo, setForwardInfo] = React.useState<ForwardInfo | null>(null);
+  const targetKey = target?.key;
+  const [read, setRead] = React.useState<TargetFilters | null>(null);
   React.useEffect(() => {
-    setOpaque(false);
-    setForwardInfo(null);
-    if (!sieveAccountId) return;
+    setRead(null);
+    if (!sieveAccountId || !targetKey) return;
     let cancelled = false;
     readAccountFilters(sieveAccountId)
       .then((filters) => {
         if (cancelled) return;
-        setOpaque(filters.parsed.isOpaque);
-        if (filters.parsed.isOpaque) return;
-        setForwardInfo({
-          sieveAccountId,
-          maxRedirects: filters.capabilities?.maxNumberRedirects ?? null,
-          periodsSupported: supportsPeriods(filters.capabilities?.sieveExtensions),
-          ...forwardsForRule(filters.parsed.rules, filters.parsed.vacationForward, undefined, 0),
+        setRead({
+          targetKey,
+          opaque: filters.parsed.isOpaque,
+          forwards: filters.parsed.isOpaque ? null : {
+            maxRedirects: filters.capabilities?.maxNumberRedirects ?? null,
+            periodsSupported: supportsPeriods(filters.capabilities?.sieveExtensions),
+            ...forwardsForRule(filters.parsed.rules, filters.parsed.vacationForward, undefined, 0),
+          },
         });
       })
       .catch(() => { /* the write reports it */ });
     return () => { cancelled = true; };
-  }, [sieveAccountId]);
-  const forwards = forwardInfo && forwardInfo.sieveAccountId === sieveAccountId ? forwardInfo : null;
+  }, [sieveAccountId, targetKey]);
+  const shownRead = targetFiltersFor(read, targetKey);
+  const opaque = shownRead?.opaque ?? false;
+  const forwards = shownRead?.forwards ?? null;
 
   const mailboxes = target?.mailboxes;
   const junk = React.useMemo(() => (mailboxes ? findJunkMailbox(mailboxes) : undefined), [mailboxes]);
