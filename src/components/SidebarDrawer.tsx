@@ -15,11 +15,11 @@ import {
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
-import { useEmailStore, spannedAccounts, requireShownAccountScope } from '../stores/email-store';
+import { useEmailStore, spannedAccounts, requireShownAccountScope, emptyFolder } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
-import { planEmptyFolder, runEmptyFolder } from '../lib/empty-folder';
+import { planEmptyFolder } from '../lib/empty-folder';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
@@ -497,8 +497,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       if (!isStaleLoad(err)) {
         Alert.alert(label, err instanceof Error ? err.message : String(err));
         // A run that stopped part-way (a bulk move) has still changed counts.
-        void fetchMailboxes();
-        if (affectsCurrent) void refreshEmails();
+        Promise.all([fetchMailboxes(), affectsCurrent ? refreshEmails() : undefined]).catch((refreshErr: unknown) => {
+          console.warn('[SidebarDrawer] refresh after a failed folder action failed:', refreshErr);
+        });
       }
     } finally {
       setBusy(false);
@@ -572,7 +573,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               onPress: () => void runFolderAction(
                 t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
                 owner,
-                (at) => runEmptyFolder(plan, mb, at),
+                (at) => emptyFolder(plan, mb, at),
                 currentMailboxId === mb.id,
               ),
             },

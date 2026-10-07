@@ -20,6 +20,8 @@ import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
 import { filterHasSnippetTerms, type SearchSnippetResult } from '../lib/search-snippet';
 import { opScope, type AccountRef, type OpScope } from './op-scope';
+import { isStaleLoad } from '../lib/network-error';
+import { t } from '../stores/locale-store';
 
 export const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -350,7 +352,7 @@ export async function moveMailboxContents(
   account?: AccountRef,
   markAsRead = false,
 ): Promise<{ moved: number; failed: number; interrupted?: boolean }> {
-  if (fromMailboxId === toMailboxId) throw new Error('Cannot move a folder into itself');
+  if (fromMailboxId === toMailboxId) throw new Error(t('mailbox_context_menu.error_move_into_itself', 'Cannot move a folder into itself'));
   const at = opScope(account);
   const { accountId } = at;
   const batchSize = Math.min(500, maxInSet());
@@ -386,7 +388,7 @@ export async function moveMailboxContents(
     }
   } catch (err) {
     // The shown account changed after some batches moved: say so.
-    if (moved > 0 && err instanceof Error && err.name === 'StaleLoadError') return { moved, failed: 0, interrupted: true };
+    if (moved > 0 && isStaleLoad(err)) return { moved, failed: 0, interrupted: true };
     throw err;
   }
   return { moved, failed: 0 };

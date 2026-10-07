@@ -7,7 +7,7 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, Copy as CopyIcon,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, Copy as CopyIcon, HardDrive,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -31,7 +31,7 @@ import { chipCodeFor } from '../lib/verification-code';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
-  useEmailStore, snippetForRow, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  useEmailStore, emptyFolder, snippetForRow, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
   requireShownAccountScope, type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
@@ -63,7 +63,7 @@ import {
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail } from '../api/email';
-import { planEmptyFolder, runEmptyFolder } from '../lib/empty-folder';
+import { planEmptyFolder } from '../lib/empty-folder';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
@@ -1128,7 +1128,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               return;
             }
             setEmptying(true);
-            void runEmptyFolder(plan, folder, at)
+            void emptyFolder(plan, folder, at)
               .then(async () => {
                 clearSelection();
                 await Promise.all([refreshEmails(), fetchMailboxes()]);
@@ -1137,7 +1137,9 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                 // Stopped before sending: the client moved to another account.
                 if (isStaleLoad(err)) return;
                 // A move that stopped part-way has still changed the folder.
-                void Promise.all([refreshEmails(), fetchMailboxes()]);
+                Promise.all([refreshEmails(), fetchMailboxes()]).catch((refreshErr: unknown) => {
+                  console.warn('[EmailListScreen] refresh after a failed empty failed:', refreshErr);
+                });
                 Alert.alert(
                   t('email_list.error', 'Error'),
                   err instanceof Error ? err.message : t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
@@ -1544,15 +1546,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           ) : null}
           {sizeFilterBytes(filters.minSizeKb) !== null && (
             <FilterChip
-              icon={<Paperclip size={12} color={c.textSecondary} />}
-              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} KB` })}
+              icon={<HardDrive size={12} color={c.textSecondary} />}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} ${t('email_composer.file_size_kb', 'KB')}` })}
               onRemove={() => setFilterField('minSizeKb', undefined)}
             />
           )}
           {sizeFilterBytes(filters.maxSizeKb) !== null && (
             <FilterChip
-              icon={<Paperclip size={12} color={c.textSecondary} />}
-              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} KB` })}
+              icon={<HardDrive size={12} color={c.textSecondary} />}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} ${t('email_composer.file_size_kb', 'KB')}` })}
               onRemove={() => setFilterField('maxSizeKb', undefined)}
             />
           )}

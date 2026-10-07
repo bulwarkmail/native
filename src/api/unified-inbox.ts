@@ -242,6 +242,17 @@ export function resetUnifiedCache(accountId?: string): void {
   }
 }
 
+/**
+ * Forget the folder lists read for registry account `accountId` (both the
+ * session entry's and the live-scope search's), so the next read sees a
+ * folder created, renamed or removed since. Called on a Mailbox change;
+ * otherwise a list stands for MAILBOX_CACHE_TTL_MS.
+ */
+export function invalidateUnifiedMailboxes(accountId: string): void {
+  entries.get(accountId)?.mailboxes.clear();
+  scopedMailboxes.get(accountId)?.clear();
+}
+
 function isLiveAccount(accountId: string): boolean {
   if (!jmapClient.isConnected) return false;
   const username = jmapClient.username;

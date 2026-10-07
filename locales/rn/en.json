@@ -668,6 +668,9 @@
     "token_placeholder": "Paste your API token",
     "token_toggle": "Sign in with an access token"
   },
+  "mailbox_context_menu": {
+    "error_move_into_itself": "Cannot move a folder into itself"
+  },
   "notifications": {
     "copy_failed": "Copy failed",
     "delete_failed": "Failed to delete",

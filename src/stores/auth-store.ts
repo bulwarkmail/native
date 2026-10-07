@@ -959,6 +959,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // data from a previous session.
       useEmailStore.getState().setActiveAccount(target.id);
       // A cold start opens the Inbox, or the last folder when the user asked.
+      // Called here, not left to setActiveAccount: that returns early when
+      // the persisted state already names this account (the usual cold
+      // start), so its own view reset would never run.
       useEmailStore.getState().openStartFolder(useSettingsStore.getState().restoreLastFolder);
 
       try {

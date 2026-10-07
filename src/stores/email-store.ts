@@ -4,6 +4,7 @@ import { createPersistStorage, memoizeSlice } from './persist-storage';
 import { boundEmailCache, type PersistedEmailCache } from './email-cache-persist';
 import type { Email, Mailbox, StateChange, Thread } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
+import { invalidateUnifiedMailboxes } from '../api/unified-inbox';
 import {
   getMailboxes as fetchMailboxes,
   getMailboxesWithState,
@@ -47,6 +48,7 @@ import {
 } from '../lib/mailbox-tree';
 import { defaultSearchScopeFor, exclusionFilter, trashAndJunkIds } from '../lib/search-scope';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
+import { runEmptyFolder, type EmptyFolderPlan } from '../lib/empty-folder';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { clientServesAccount } from '../lib/active-client-account';
@@ -694,6 +696,28 @@ function rowAccountId(state: EmailState, email: Email | undefined): string | und
   return currentAccountId(state);
 }
 
+// The stamp the rows of a single-account page need: the picker offers every
+// account's folders, so a search can be scoped to a folder of another account
+// than the open folder's. Its rows live there, and ids repeat across accounts,
+// so they carry that account's stamp like the rows of a list spanning
+// accounts; otherwise `rowAccountId` would send them to the open folder's.
+// Undefined when the page is the open folder's account's.
+function foreignScopeStamp(state: EmailState, scope: QueryScope): string | undefined {
+  const own = jmapClient.accountId;
+  const scoped = scope.accountId ?? own;
+  return scoped === (currentAccountId(state) ?? own) ? undefined : scoped;
+}
+
+// A single-account page stamped with `stamp` (if any): its rows, and its
+// threads scoped by the stamp the way `threadKeyOf` names them.
+function stampPage(list: Email[], threads: Thread[], stamp: string | undefined): { list: Email[]; threads: Thread[] } {
+  if (!stamp) return { list, threads };
+  return {
+    list: list.map((e) => ({ ...e, jmapAccountId: stamp })),
+    threads: threads.map((th) => ({ ...th, id: `${stamp}:${th.id}` })),
+  };
+}
+
 // The folders of one JMAP account (undefined = the user's own).
 function accountMailboxes(mailboxes: Mailbox[], accountId: string | undefined): Mailbox[] {
   return accountId
@@ -872,6 +896,26 @@ export function viewerParamsForRow(email: Email): { jmapAccountId?: string; emai
     jmapAccountId: rowAccountId(state, email),
     emailIds: collapseThreads(rows, useSettingsStore.getState().disableThreading).map((e) => e.id),
   };
+}
+
+/**
+ * "Empty folder" on `mailbox` under scope `at` (taken at the tap), for both
+ * the folder banner and the sidebar. Rows held in place after they stopped
+ * matching (read in the Unread view) are no longer in the folder once it is
+ * emptied, so they are let go before the caller's refresh, which would
+ * otherwise splice them back in as ghosts. Also after a run that stopped
+ * part-way: what it moved is gone too.
+ */
+export async function emptyFolder(plan: EmptyFolderPlan, mailbox: Mailbox, at: OpScope): Promise<void> {
+  const { activeAccountId } = useEmailStore.getState();
+  try {
+    await runEmptyFolder(plan, mailbox, at);
+  } finally {
+    const now = useEmailStore.getState();
+    if (now.activeAccountId === activeAccountId && now.currentMailboxId === mailbox.id && now.retainedIds.length > 0) {
+      useEmailStore.setState({ retainedIds: [] });
+    }
+  }
 }
 
 // Splice rows the user just read/unstarred back into a freshly re-queried
@@ -1331,7 +1375,7 @@ export const useEmailStore = create<EmailState>()(
         });
         return;
       }
-      const { list, total, threads, snippets } = await queryEmailPage(scope.mailboxId, {
+      const pageRes = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
         sort: await resolveSort(state, scope.accountId),
@@ -1340,6 +1384,8 @@ export const useEmailStore = create<EmailState>()(
         threads: !useSettingsStore.getState().disableThreading,
         snippets: true,
       });
+      const { total, snippets } = pageRes;
+      const { list, threads } = stampPage(pageRes.list, pageRes.threads, foreignScopeStamp(state, scope));
       // A page for a search the user has since changed or cleared belongs
       // to neither the rows nor the highlights now on screen.
       const after = get();
@@ -1350,9 +1396,9 @@ export const useEmailStore = create<EmailState>()(
       const pageSnippets: SnippetMap = {};
       collectSnippets(pageSnippets, scope.accountId ?? jmapClient.accountId, snippets);
       // A message that arrived between pages shifts positions and would come
-      // back a second time — drop ids we already show (duplicate keys).
-      const existingIds = new Set(get().emails.map((e) => e.id));
-      const newEmails = list.filter((e) => !existingIds.has(e.id));
+      // back a second time — drop rows we already show (duplicate keys).
+      const existingKeys = new Set(get().emails.map(rowKeyOf));
+      const newEmails = list.filter((e) => !existingKeys.has(rowKeyOf(e)));
       const merged = [...get().emails, ...newEmails];
       // The server's current count: a read in the Unread view has shrunk it
       // since the list was loaded, and a stale total keeps load-more asking
@@ -1469,6 +1515,8 @@ export const useEmailStore = create<EmailState>()(
     if (ownMailboxChanged || sharedMailboxChanged) {
       const activeAccountId = get().activeAccountId;
       if (activeAccountId) {
+        // A search from the global search screen reads its own folder lists.
+        invalidateUnifiedMailboxes(activeAccountId);
         await syncMailboxes(activeAccountId, { own: ownMailboxChanged, shared: sharedMailboxChanged });
       }
     }
@@ -2340,7 +2388,7 @@ export const useEmailStore = create<EmailState>()(
       retainedIds: [],
       threadCounts: {},
       accountErrors: {},
-  });
+    });
   },
     }),
     {
@@ -3127,13 +3175,19 @@ async function refreshEmailsImpl(): Promise<void> {
           if (viewChanged()) return;
           const { list: trimmed, total: nextTotal } =
             withoutRemovedMeanwhile(visible, queryChanges.total, listedBeforeQuery);
+          // A held row the server reports gone from the folder (removed and
+          // not re-added, or destroyed) is let go rather than spliced back.
+          const readded = new Set(addedIds);
+          const gone = new Set([...destroyedExtra, ...queryChanges.removed.filter((id) => !readded.has(id))]);
+          const held = get().retainedIds.filter((key) => !gone.has(key));
 
           set({
             // The snapshot stays in the server's order for the next delta;
             // the list keeps rows the user just read where they were.
             emails: ordersByUnread(state)
-              ? mergeRetainedRows(get().emails, trimmed, get().retainedIds)
+              ? mergeRetainedRows(get().emails, trimmed, held)
               : trimmed,
+            ...(held.length !== get().retainedIds.length ? { retainedIds: held } : {}),
             totalEmails: nextTotal,
             queryState: nextQueryState,
             emailStates: withEmailState(
@@ -3193,7 +3247,8 @@ async function refreshEmailsImpl(): Promise<void> {
       }
 
       if (viewChanged()) return;
-      const landed = withoutRemovedMeanwhile(queryRes.list, queryRes.total, listedBeforeQuery);
+      const stamped = stampPage(queryRes.list, queryRes.threads, foreignScopeStamp(state, scope));
+      const landed = withoutRemovedMeanwhile(stamped.list, queryRes.total, listedBeforeQuery);
       const snippetMap: SnippetMap = {};
       if (!baseView) collectSnippets(snippetMap, scope.accountId ?? jmapClient.accountId, queryRes.snippets);
 
@@ -3202,7 +3257,7 @@ async function refreshEmailsImpl(): Promise<void> {
         // until the view is re-opened, instead of vanishing under them.
         emails: baseView && !ordersByUnread(state) ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
         totalEmails: landed.total,
-        threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
+        threadCounts: withThreadCounts(get().threadCounts, stamped.threads),
         searchSnippets: snippetMap,
         loading: false,
       };

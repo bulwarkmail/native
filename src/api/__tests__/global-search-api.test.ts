@@ -36,7 +36,7 @@ vi.mock('../jmap-client', () => ({
 vi.mock('../blob', () => ({ getDownloadUrl: vi.fn(), uploadBlob: vi.fn(), uploadBytes: vi.fn() }));
 
 import { jmapClient } from '../jmap-client';
-import { resetUnifiedCache, searchAccountEmails } from '../unified-inbox';
+import { invalidateUnifiedMailboxes, resetUnifiedCache, searchAccountEmails } from '../unified-inbox';
 import { searchContacts } from '../contacts';
 import { searchEventsAcrossAccounts } from '../calendar';
 import {
@@ -158,6 +158,40 @@ describe('searchAccountEmails', () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe('searchAccountEmails folder lists (final review M8)', () => {
+  const folderNames: string[][] = [];
+  beforeEach(() => {
+    folderNames.length = 0;
+    let mailboxes = [{ id: 'in', name: 'Inbox', role: 'inbox' }];
+    mockRequest.mockImplementation(async (calls: Call[]) => {
+      const [name] = calls[0];
+      if (name === 'Mailbox/get') {
+        const list = mailboxes;
+        // A folder created after the first read.
+        mailboxes = [...mailboxes, { id: 'new', name: 'Projects', role: null as unknown as string }];
+        return { methodResponses: [['Mailbox/get', { list }, '0']] };
+      }
+      return { methodResponses: [['Email/query', { ids: [], total: 0 }, '0'], ['Email/get', { list: [] }, '1']] };
+    });
+  });
+  const search = () => searchAccountEmails('me@a.example', {
+    filter: (mailboxes) => { folderNames.push(mailboxes.map((m) => m.name)); return { text: 'x' }; },
+    limit: 10,
+    at: { gen: 4, accountId: 'acc-1' },
+  });
+
+  it('re-reads the folders of an account after a Mailbox change, so a new folder is seen', async () => {
+    await search();
+    await search();
+    // Cached between the two.
+    expect(folderNames).toEqual([['Inbox'], ['Inbox']]);
+
+    invalidateUnifiedMailboxes('me@a.example');
+    await search();
+    expect(folderNames[2]).toEqual(['Inbox', 'Projects']);
+  });
+});
 
 describe('searchContacts', () => {
   it('asks each contacts account for one page of text matches on the scope', async () => {

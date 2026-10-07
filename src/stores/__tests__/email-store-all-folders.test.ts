@@ -32,6 +32,9 @@ vi.mock('../../api/jmap-client', () => ({
   },
 }));
 
+// The global search's own folder lists: dropped on a Mailbox change.
+vi.mock('../../api/unified-inbox', () => ({ invalidateUnifiedMailboxes: vi.fn() }));
+
 vi.mock('../locale-store', () => ({
   t: (_key: string, fallback?: string) => fallback ?? _key,
   useLocaleStore: { getState: () => ({ locale: 'en', t: (_k: string, f?: string) => f ?? _k }) },
@@ -93,11 +96,14 @@ import { generateAccountId } from '../../lib/account-utils';
 import * as settingsModule from '../settings-store';
 import {
   useEmailStore, viewerParamsForRow, deleteDestroysAcrossAccounts, accountIdOfRow, listRowsOfAccount,
-  withFolderScope,
+  withFolderScope, snippetForRow, emptyFolder, requireShownAccountScope,
 } from '../email-store';
+import { snippetKey } from '../../lib/search-snippet';
+import { planEmptyFolder } from '../../lib/empty-folder';
 import { registerServedAccount } from './helpers/served-account';
 import { expandThreadSelection, rowKeyOf } from '../../lib/thread-utils';
 import { useTagCountsStore } from '../tag-counts-store';
+import { invalidateUnifiedMailboxes } from '../../api/unified-inbox';
 import type { Email, Mailbox } from '../../api/types';
 
 // The mocked client serves this account; the store checks that before acting.
@@ -223,7 +229,8 @@ describe('"All folders" search across the own and the team account (#1082)', () 
     expect(queries).toHaveLength(1);
     expect(queries[0][1]).toMatchObject({ accountId: 'team', filter: { inMailbox: 't-inbox', text: 'zephyr' } });
     expect(ids()).toEqual(['m1', 'm2', 'm3', 'm4']);
-    expect(useEmailStore.getState().emails[0].jmapAccountId).toBeUndefined();
+    // The rows live in the team account, not the open (own) Inbox's.
+    expect(useEmailStore.getState().emails.map((e) => e.jmapAccountId)).toEqual(['team', 'team', 'team', 'team']);
   });
 
   it('asks only the own account when no shared folders are in the sidebar', async () => {
@@ -511,6 +518,179 @@ describe('same-id rows of two accounts (#1082)', () => {
   });
 });
 
+// The folder picker offers every account's folders, so a search can be
+// scoped to a folder of another account than the open one's. Its rows live
+// in that account: they carry its stamp, or opening and acting on them would
+// reach the open folder's account, where the same ids name other messages.
+describe('a search scoped to another account\'s folder (final review C1)', () => {
+  beforeEach(() => {
+    // Same ids in both accounts, as Stalwart numbers them.
+    server.current = createFakeJmap({
+      c: [mail('x1', 'inbox', 20, 'zephyr own one'), mail('x2', 'inbox', 10, 'zephyr own two')],
+      team: [mail('x1', 't-inbox', 21, 'zephyr team one'), mail('x2', 't-inbox', 11, 'zephyr team two')],
+    });
+  });
+
+  const openAccount = () => {
+    const { currentMailboxId, mailboxes } = useEmailStore.getState();
+    const open = mailboxes.find((m) => m.id === currentMailboxId)!;
+    return open.isShared ? open.accountId! : 'c';
+  };
+  // Every row whose account differs from the open folder's carries its stamp.
+  const expectStampedWhereForeign = () => {
+    for (const e of useEmailStore.getState().emails) {
+      const account = accountIdOfRow(e) ?? 'c';
+      if (account !== openAccount()) expect(e.jmapAccountId).toBe(account);
+    }
+  };
+
+  describe('own folder open, team folder picked', () => {
+    beforeEach(async () => {
+      useEmailStore.setState({ currentMailboxId: 'inbox', filters: { folder: 'team:t-inbox' } });
+      await search('zephyr');
+    });
+    const row = (id: string) => useEmailStore.getState().emails.find((e) => e.id === id)!;
+
+    it('stamps the rows with the team account', () => {
+      expect(useEmailStore.getState().emails.map(rowKeyOf)).toEqual(['team:x1', 'team:x2']);
+      expect(useEmailStore.getState().emails.map((e) => e.subject)).toEqual(['zephyr team one', 'zephyr team two']);
+      expectStampedWhereForeign();
+    });
+
+    it('opens a row in the team account', () => {
+      expect(accountIdOfRow(row('x1'))).toBe('team');
+      expect(viewerParamsForRow(row('x1'))).toEqual({ jmapAccountId: 'team', emailIds: ['x1', 'x2'] });
+    });
+
+    it('deletes a row in the team account', async () => {
+      await useEmailStore.getState().deleteEmail(rowKeyOf(row('x1')), 'trash', 'inbox');
+
+      expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+        ['team', { x1: { mailboxIds: { 't-trash': true } } }],
+      ]);
+      expect(server.current!.accounts.c.find((e) => e.id === 'x1')!.mailboxIds).toEqual({ inbox: true });
+    });
+
+    it('stars a row in the team account', async () => {
+      await useEmailStore.getState().toggleStar(rowKeyOf(row('x2')), true);
+
+      expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+        ['team', { x2: { 'keywords/$flagged': true } }],
+      ]);
+      expect(server.current!.accounts.c.find((e) => e.id === 'x2')!.keywords).toEqual({});
+    });
+
+    it('finds the row\'s highlights under the team account', () => {
+      const { searchSnippets } = useEmailStore.getState();
+      expect(snippetForRow(searchSnippets, row('x1'))).toBe(searchSnippets[snippetKey('team', 'x1')]);
+      expect(snippetForRow(searchSnippets, row('x1'))).toBeDefined();
+    });
+
+    it('stamps the rows load more brings', async () => {
+      settings.emailsPerPage = 1;
+      await search('zephyr team');
+      expect(ids()).toEqual(['x1']);
+
+      await useEmailStore.getState().loadMoreEmails();
+      expect(useEmailStore.getState().emails.map(rowKeyOf)).toEqual(['team:x1', 'team:x2']);
+      expect(useEmailStore.getState().threadCounts).toMatchObject({ 'team:t-x2': 1 });
+      expectStampedWhereForeign();
+      const { searchSnippets } = useEmailStore.getState();
+      expect(snippetForRow(searchSnippets, row('x2'))).toBe(searchSnippets[snippetKey('team', 'x2')]);
+      expect(snippetForRow(searchSnippets, row('x2'))).toBeDefined();
+    });
+  });
+
+  describe('team folder open, own folder picked', () => {
+    beforeEach(async () => {
+      useEmailStore.setState({ currentMailboxId: 'team:t-inbox', filters: { folder: 'inbox' } });
+      await search('zephyr');
+    });
+    const row = (id: string) => useEmailStore.getState().emails.find((e) => e.id === id)!;
+
+    it('stamps the rows with the own account', () => {
+      expect(useEmailStore.getState().emails.map(rowKeyOf)).toEqual(['c:x1', 'c:x2']);
+      expect(useEmailStore.getState().emails.map((e) => e.subject)).toEqual(['zephyr own one', 'zephyr own two']);
+      expectStampedWhereForeign();
+    });
+
+    it('opens a row in the own account', () => {
+      expect(accountIdOfRow(row('x1'))).toBeUndefined();
+      const params = viewerParamsForRow(row('x1'));
+      // The key is present, so it overrides the open (team) folder's account.
+      expect('jmapAccountId' in params).toBe(true);
+      expect(params).toEqual({ jmapAccountId: undefined, emailIds: ['x1', 'x2'] });
+    });
+
+    it('deletes a row in the own account', async () => {
+      await useEmailStore.getState().deleteEmail(rowKeyOf(row('x1')), 'team:t-trash', 'team:t-inbox');
+
+      expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+        ['c', { x1: { mailboxIds: { trash: true } } }],
+      ]);
+      expect(server.current!.accounts.team.find((e) => e.id === 'x1')!.mailboxIds).toEqual({ 't-inbox': true });
+    });
+
+    it('marks a row read in the own account', async () => {
+      await useEmailStore.getState().markRead(rowKeyOf(row('x2')));
+
+      expect(server.current!.callsOf('Email/set').map(([, a]) => [a.accountId, a.update])).toEqual([
+        ['c', { x2: { 'keywords/$seen': true } }],
+      ]);
+      expect(server.current!.accounts.team.find((e) => e.id === 'x2')!.keywords).toEqual({});
+    });
+
+    it('finds the row\'s highlights under the own account', () => {
+      const { searchSnippets } = useEmailStore.getState();
+      expect(snippetForRow(searchSnippets, row('x1'))).toBe(searchSnippets[snippetKey('c', 'x1')]);
+      expect(snippetForRow(searchSnippets, row('x1'))).toBeDefined();
+    });
+  });
+
+  it('leaves the rows of a search in the open folder\'s account unstamped', async () => {
+    useEmailStore.setState({
+      currentMailboxId: 'archive', filters: { folder: 'inbox' },
+    });
+    await search('zephyr');
+    expect(server.current!.callsOf('Email/query')[0][1]).toMatchObject({ accountId: 'c' });
+    expect(useEmailStore.getState().emails.map(rowKeyOf)).toEqual(['x1', 'x2']);
+  });
+});
+
+// Rows held in place after they stopped matching (read in the Unread view)
+// came back as ghosts once "Empty folder" had destroyed them: the refresh
+// spliced them back in.
+describe('Empty folder and held rows (final review I2)', () => {
+  it('drops the held rows of the emptied folder', async () => {
+    server.current = createFakeJmap({
+      c: [mail('d1', 'trash', 20, 'old one'), mail('d2', 'trash', 10, 'old two')],
+      team: [],
+    });
+    useEmailStore.setState({ currentMailboxId: 'trash', filters: { isUnread: true } });
+    await useEmailStore.getState().refreshEmails();
+    await useEmailStore.getState().markRead('d1');
+    expect(useEmailStore.getState().retainedIds).toEqual(['d1']);
+
+    const trash = MAILBOXES.find((m) => m.id === 'trash')!;
+    const at = requireShownAccountScope(useEmailStore.getState().activeAccountId);
+    await emptyFolder(planEmptyFolder(MAILBOXES, trash, 'trash'), trash, at);
+    expect(server.current!.accounts.c).toEqual([]);
+    expect(useEmailStore.getState().retainedIds).toEqual([]);
+
+    await useEmailStore.getState().refreshEmails();
+    expect(ids()).toEqual([]);
+  });
+
+  it('keeps the held rows of another folder than the emptied one', async () => {
+    useEmailStore.setState({ currentMailboxId: 'inbox', retainedIds: ['o1'] });
+    const trash = MAILBOXES.find((m) => m.id === 'trash')!;
+    const at = requireShownAccountScope(useEmailStore.getState().activeAccountId);
+    await emptyFolder(planEmptyFolder(MAILBOXES, trash, 'trash'), trash, at);
+
+    expect(useEmailStore.getState().retainedIds).toEqual(['o1']);
+  });
+});
+
 describe('tag view across the own and the team account (#1038)', () => {
   const RED = '$label:red';
 
@@ -625,6 +805,23 @@ describe('tag badges (PF6)', () => {
       '@type': 'StateChange', changed: { team: { Email: 's2' } },
     } as never);
     expect(useTagCountsStore.getState().generation).toBe(before + 1);
+  });
+});
+
+describe('global search folder lists (final review M8)', () => {
+  it('are dropped for the shown account on a Mailbox change, not on an Email change', async () => {
+    const shown = useEmailStore.getState().activeAccountId;
+    vi.mocked(invalidateUnifiedMailboxes).mockClear();
+
+    await useEmailStore.getState().handleStateChange({
+      '@type': 'StateChange', changed: { c: { Email: 's2' } },
+    } as never);
+    expect(invalidateUnifiedMailboxes).not.toHaveBeenCalled();
+
+    await useEmailStore.getState().handleStateChange({
+      '@type': 'StateChange', changed: { team: { Mailbox: 'm2' } },
+    } as never);
+    expect(invalidateUnifiedMailboxes).toHaveBeenCalledWith(shown);
   });
 });
 
