@@ -103,6 +103,9 @@ import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
 
+// Webmail's use-identity-sync cadence.
+const IDENTITY_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+
 // Read the settings now, beside the stores that hydrate on import, so the start
 // folder is known by the time the session restores.
 void useSettingsStore.getState().hydrate();
@@ -871,6 +874,7 @@ export default function App() {
       void useOutboxStore.getState().flush();
       void flushSendQueue();
       void useCalendarEventNotificationStore.getState().fetch();
+      void useSettingsStore.getState().refreshIdentities();
     };
 
     // Foreground liveness for the per-account connection dot: the open
@@ -903,6 +907,12 @@ export default function App() {
       if (changedAccountId === primary) void useCalendarEventNotificationStore.getState().fetch();
     });
 
+    // Identities added or removed elsewhere: re-read the held list while the
+    // app stays open. The cleanup (also on account switch) stops it.
+    const identityTimer = setInterval(() => {
+      if (appActive) void useSettingsStore.getState().refreshIdentities();
+    }, IDENTITY_SYNC_INTERVAL_MS);
+
     const subscription = AppState.addEventListener('change', (state) => {
       const nowActive = state === 'active';
       if (nowActive === appActive) return;
@@ -931,6 +941,7 @@ export default function App() {
     return () => {
       mounted = false;
       unsubscribeNotices();
+      clearInterval(identityTimer);
       subscription.remove();
       unsubscribeNetwork();
       liveness.stop();
