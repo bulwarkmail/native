@@ -550,9 +550,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         ),
       });
     }
-    if (mb.myRights?.mayRemoveItems !== false) {
-      // What the tap will do, decided once so the text and the run agree.
-      const plan = planEmptyFolder(mailboxes, mb, useSettingsStore.getState().deleteAction);
+    // What the tap will do, decided once so the text and the run agree.
+    const plan = planEmptyFolder(mailboxes, mb, useSettingsStore.getState().deleteAction);
+    // No Trash to move into: offering the action would only fail.
+    if (mb.myRights?.mayRemoveItems !== false && plan.kind !== 'no-trash') {
       actions.push({
         key: 'empty',
         label: t('mailbox_context_menu.empty_folder', 'Empty folder'),

@@ -349,7 +349,7 @@ export async function moveMailboxContents(
   toMailboxId: string,
   account?: AccountRef,
   markAsRead = false,
-): Promise<{ moved: number; failed: number }> {
+): Promise<{ moved: number; failed: number; interrupted?: boolean }> {
   if (fromMailboxId === toMailboxId) throw new Error('Cannot move a folder into itself');
   const at = opScope(account);
   const { accountId } = at;
@@ -357,25 +357,37 @@ export async function moveMailboxContents(
   const patch: Record<string, unknown> = { mailboxIds: { [toMailboxId]: true } };
   if (markAsRead) patch['keywords/$seen'] = true;
   let moved = 0;
-  for (;;) {
-    const q = requireMethodResult(
-      await requestOn(at, [['Email/query', { accountId, filter: { inMailbox: fromMailboxId }, limit: batchSize }, '0']]),
-      '0',
-      'Email/query',
-    );
-    const ids = (q.ids as string[] | undefined) ?? [];
-    if (ids.length === 0) break;
-    const set = requireMethodResult(
-      await requestOn(at, [
-        ['Email/set', { accountId, update: Object.fromEntries(ids.map((id) => [id, patch])) }, '0'],
-      ]),
-      '0',
-      'Email/set',
-    );
-    const failed = Object.keys((set.notUpdated as Record<string, unknown> | undefined) ?? {}).length;
-    moved += ids.length - failed;
-    if (failed > 0) return { moved, failed };
-    if (ids.length < batchSize) break;
+  // Ids already sent: a server that reports success without moving them would
+  // return them again forever.
+  const seen = new Set<string>();
+  try {
+    for (;;) {
+      const q = requireMethodResult(
+        await requestOn(at, [['Email/query', { accountId, filter: { inMailbox: fromMailboxId }, limit: batchSize }, '0']]),
+        '0',
+        'Email/query',
+      );
+      const ids = (q.ids as string[] | undefined) ?? [];
+      if (ids.length === 0) break;
+      if (ids.some((id) => seen.has(id))) return { moved, failed: ids.filter((id) => seen.has(id)).length };
+      ids.forEach((id) => seen.add(id));
+      const set = requireMethodResult(
+        await requestOn(at, [
+          ['Email/set', { accountId, update: Object.fromEntries(ids.map((id) => [id, patch])) }, '0'],
+        ]),
+        '0',
+        'Email/set',
+      );
+      const updated = Object.keys((set.updated as Record<string, unknown> | undefined) ?? {}).length;
+      moved += updated;
+      const failed = ids.length - updated;
+      if (failed > 0) return { moved, failed };
+      if (ids.length < batchSize) break;
+    }
+  } catch (err) {
+    // The shown account changed after some batches moved: say so.
+    if (moved > 0 && err instanceof Error && err.name === 'StaleLoadError') return { moved, failed: 0, interrupted: true };
+    throw err;
   }
   return { moved, failed: 0 };
 }

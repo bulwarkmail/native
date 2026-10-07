@@ -874,6 +874,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     });
   }, [visibleEmails]);
 
+  // An emptied folder (from the sidebar too) leaves nothing to stay selected.
+  React.useEffect(() => {
+    if (visibleEmails.length === 0) setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()));
+  }, [visibleEmails.length, setSelectedIds]);
   // Clear selection when mailbox changes
   React.useEffect(() => {
     setSelectedIds(new Set());
@@ -1093,7 +1097,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // in the api helper).
   const [emptying, setEmptying] = React.useState(false);
   const canEmptyFolder =
-    (currentRole === 'trash' || inJunk) && !!currentMailbox && (currentMailbox.totalEmails > 0 || emails.length > 0);
+    (currentRole === 'trash' || inJunk) && !!currentMailbox && currentMailbox.myRights?.mayRemoveItems !== false && (currentMailbox.totalEmails > 0 || emails.length > 0);
   const handleEmptyFolder = () => {
     if (!currentMailbox || emptying) return;
     // The account whose folder is on screen now. The emptying is bound to it

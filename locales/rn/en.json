@@ -386,7 +386,10 @@
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
     "empty_folder": {
-      "confirm_message_trash": "All emails in this folder will be moved to the Trash."
+      "confirm_message_trash": "All emails in this folder will be moved to the Trash.",
+      "interrupted": "The account changed while the folder was being emptied. {moved, plural, one {# email was} other {# emails were}} moved to Trash; the folder may be only partly emptied.",
+      "no_trash": "Trash mailbox not found - cannot move emails to trash",
+      "partial": "{moved, plural, one {# email} other {# emails}} moved to Trash, {failed, plural, one {# email} other {# emails}} could not be moved. The rest were left in the folder."
     },
     "error": "Error",
     "filter_chip": "{field}: {value}",

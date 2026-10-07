@@ -3,6 +3,7 @@ import type { DeleteAction } from '../stores/settings-store';
 import { emptyMailbox, moveMailboxContents } from '../api/email';
 import type { OpScope } from '../api/op-scope';
 import { inAccount } from '../api/op-scope';
+import { t } from '../stores/locale-store';
 import { findTrashMailbox, mailboxesOfAccount } from './mailbox-tree';
 
 export type EmptyFolderPlan =
@@ -40,14 +41,26 @@ export function planEmptyFolder(
 export async function runEmptyFolder(plan: EmptyFolderPlan, mailbox: Mailbox, at: OpScope): Promise<void> {
   const accountId = mailbox.isShared ? mailbox.accountId : undefined;
   const from = mailbox.originalId ?? mailbox.id;
-  if (plan.kind === 'no-trash') throw new Error('Trash mailbox not found - cannot move emails to trash');
+  if (plan.kind === 'no-trash') throw new Error(t('email_list.empty_folder.no_trash', 'Trash mailbox not found - cannot move emails to trash'));
   if (plan.kind === 'destroy') {
     await emptyMailbox(from, inAccount(at, accountId));
     return;
   }
   const to = plan.trash.originalId ?? plan.trash.id;
-  const { moved, failed } = await moveMailboxContents(from, to, inAccount(at, accountId), plan.markRead);
+  const { moved, failed, interrupted } = await moveMailboxContents(from, to, inAccount(at, accountId), plan.markRead);
   if (failed > 0) {
-    throw new Error(`${moved} moved to Trash, ${failed} could not be moved. The rest were left in the folder.`);
+    throw new Error(t(
+      'email_list.empty_folder.partial',
+      '{moved, plural, one {# email} other {# emails}} moved to Trash, {failed, plural, one {# email} other {# emails}} could not be moved. The rest were left in the folder.',
+      { moved, failed },
+    ));
+  }
+  if (interrupted) {
+    // Not a stale-load error: the user must hear the folder is only part emptied.
+    throw new Error(t(
+      'email_list.empty_folder.interrupted',
+      'The account changed while the folder was being emptied. {moved, plural, one {# email was} other {# emails were}} moved to Trash; the folder may be only partly emptied.',
+      { moved },
+    ));
   }
 }

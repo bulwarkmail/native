@@ -323,15 +323,18 @@ export function flattenVisible(
   return out;
 }
 
-export function findTrashMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
-  const roleMatch = mailboxes.find((m) => m.role === 'trash');
-  if (roleMatch) return roleMatch;
+// Whole folder names only: a substring match took "Robin", "Cabinet" and
+// "Combined" for the Trash, and a bulk move or destroy then hit them.
+const TRASH_NAMES = ['trash', 'bin', 'deleted', 'deleted items', 'deleted messages', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
+const JUNK_NAMES = ['junk', 'spam', 'junk email', 'junk e-mail', 'indésirables', 'indésirable', 'courrier indésirable'];
 
-  const names = ['trash', 'bin', 'deleted', 'deleted items', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
-  return mailboxes.find((m) => {
-    const lower = m.name.toLowerCase();
-    return names.includes(lower) || names.some((n) => lower.includes(n));
-  });
+function byExactName(mailboxes: Mailbox[], names: string[]): Mailbox | undefined {
+  return mailboxes.find((m) => !m.role && names.includes(m.name.trim().toLowerCase()));
+}
+
+/** The Trash: the `trash` role, else a role-less folder with a Trash name, exactly. */
+export function findTrashMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
+  return mailboxes.find((m) => m.role === 'trash') ?? byExactName(mailboxes, TRASH_NAMES);
 }
 
 /**
@@ -347,14 +350,7 @@ export function findArchiveMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
 }
 
 export function findJunkMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
-  const roleMatch = mailboxes.find((m) => m.role === 'junk' || m.role === 'spam');
-  if (roleMatch) return roleMatch;
-
-  const names = ['junk', 'spam', 'indésirables', 'indésirable', 'courrier indésirable'];
-  return mailboxes.find((m) => {
-    const lower = m.name.toLowerCase();
-    return names.includes(lower) || names.some((n) => lower.includes(n));
-  });
+  return mailboxes.find((m) => m.role === 'junk' || m.role === 'spam') ?? byExactName(mailboxes, JUNK_NAMES);
 }
 
 /** Every node of `tree` in order, nothing collapsed. */

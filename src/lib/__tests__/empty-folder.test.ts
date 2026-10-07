@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { planEmptyFolder } from '../empty-folder';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { emptyMailbox, moveMailboxContents } = vi.hoisted(() => ({
+  emptyMailbox: vi.fn(async () => 0),
+  moveMailboxContents: vi.fn(async () => ({ moved: 2, failed: 0 })),
+}));
+vi.mock('../../api/email', () => ({ emptyMailbox, moveMailboxContents }));
+
+import { planEmptyFolder, runEmptyFolder } from '../empty-folder';
+import { findTrashMailbox, findJunkMailbox } from '../mailbox-tree';
 import type { Mailbox } from '../../api/types';
 
 const rights = {} as Mailbox['myRights'];
@@ -47,5 +55,57 @@ describe('planEmptyFolder', () => {
   });
   it('marks read with the trash-and-read action', () => {
     expect(planEmptyFolder(own, own[3], 'trash-and-read')).toMatchObject({ kind: 'trash', markRead: true });
+  });
+});
+
+describe('exact Trash and Junk names', () => {
+  const inbox = mb({ id: 'inbox', role: 'inbox' });
+  it.each(['Robin', 'Cabinet', 'Binance receipts', 'Combined', 'Undeleted'])('%s is not the Trash: emptied it moves to the real Trash, not destroyed', (name) => {
+    const f = mb({ id: 'f', name });
+    const p = planEmptyFolder([inbox, f], f, 'trash');
+    expect(p.kind).toBe('no-trash');
+    const withTrash = [inbox, f, mb({ id: 't', role: 'trash' })];
+    expect(planEmptyFolder(withTrash, f, 'trash')).toMatchObject({ kind: 'trash' });
+  });
+  it.each(['Robin', 'Cabinet', 'Binance receipts', 'Combined', 'Undeleted'])('%s is never picked as the destination', (name) => {
+    expect(findTrashMailbox([inbox, mb({ id: 'f', name })])).toBeUndefined();
+    expect(findJunkMailbox([inbox, mb({ id: 'f', name: name + ' spam x' })])).toBeUndefined();
+  });
+  it('Deleted Items and Bin still resolve exactly', () => {
+    expect(findTrashMailbox([inbox, mb({ id: 'd', name: ' Deleted Items ' })])?.id).toBe('d');
+    expect(findTrashMailbox([inbox, mb({ id: 'b', name: 'Bin' })])?.id).toBe('b');
+    expect(findJunkMailbox([inbox, mb({ id: 'j', name: 'Junk Email' })])?.id).toBe('j');
+  });
+  it('Junk is not matched by a substring', () => {
+    expect(findJunkMailbox([inbox, mb({ id: 'x', name: 'Spamalot' }), mb({ id: 'y', name: 'Junkyard' })])).toBeUndefined();
+  });
+  it('a role-less Trash name is destroyed when emptied (it is the Trash)', () => {
+    const bin = mb({ id: 'b', name: 'Bin' });
+    expect(planEmptyFolder([inbox, bin], bin, 'trash').kind).toBe('destroy');
+  });
+});
+
+describe('runEmptyFolder', () => {
+  const at = { accountId: 'acc-1', gen: 1 } as never;
+  beforeEach(() => { emptyMailbox.mockClear(); moveMailboxContents.mockClear(); });
+
+  it('moves a shared folder in its own account to that account Trash', async () => {
+    const plan = planEmptyFolder([...own, ...shared], shared[2], 'trash');
+    await runEmptyFolder(plan, shared[2], at);
+    expect(moveMailboxContents).toHaveBeenCalledWith('docs', 'trash', expect.objectContaining({ accountId: 'g1' }), false);
+  });
+  it('destroys with the original id in the shared account', async () => {
+    await runEmptyFolder({ kind: 'destroy' }, shared[1], at);
+    expect(emptyMailbox).toHaveBeenCalledWith('trash', expect.objectContaining({ accountId: 'g1' }));
+  });
+  it('throws on no-trash and on a partial failure', async () => {
+    await expect(runEmptyFolder({ kind: 'no-trash' }, own[3], at)).rejects.toThrow();
+    moveMailboxContents.mockResolvedValueOnce({ moved: 1, failed: 2 });
+    await expect(runEmptyFolder({ kind: 'trash', trash: own[1], markRead: false }, own[3], at)).rejects.toThrow(/1 email moved.*2 emails/);
+    expect(emptyMailbox).not.toHaveBeenCalled();
+  });
+  it('tells the user when the account changed mid-run', async () => {
+    moveMailboxContents.mockResolvedValueOnce({ moved: 3, failed: 0, interrupted: true } as never);
+    await expect(runEmptyFolder({ kind: 'trash', trash: own[1], markRead: false }, own[3], at)).rejects.toThrow(/partly/);
   });
 });
