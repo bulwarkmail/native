@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Уся пошта"
+      },
+      "cross_starred": {
+        "label_mobile": "Усі позначені"
+      },
+      "cross_unread": {
+        "label_mobile": "Усі непрочитані"
+      },
       "language": {
         "restart_for_direction": "Перезапустіть застосунок, щоб застосувати новий напрямок тексту.",
         "system_default": "Як у системі"

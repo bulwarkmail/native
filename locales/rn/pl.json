@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Cała poczta"
+      },
+      "cross_starred": {
+        "label_mobile": "Wszystkie oznaczone gwiazdką"
+      },
+      "cross_unread": {
+        "label_mobile": "Wszystkie nieprzeczytane"
+      },
       "language": {
         "restart_for_direction": "Uruchom aplikację ponownie, aby zastosować nowy kierunek tekstu.",
         "system_default": "Ustawienie systemowe"

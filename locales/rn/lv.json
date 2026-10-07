@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Visas vēstules"
+      },
+      "cross_starred": {
+        "label_mobile": "Visi ar zvaigzni"
+      },
+      "cross_unread": {
+        "label_mobile": "Visi nelasītie"
+      },
       "language": {
         "restart_for_direction": "Restartējiet lietotni, lai lietotu jauno teksta virzienu.",
         "system_default": "Sistēmas noklusējums"

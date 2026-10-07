@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Všetka pošta"
+      },
+      "cross_starred": {
+        "label_mobile": "Všetky s hviezdičkou"
+      },
+      "cross_unread": {
+        "label_mobile": "Všetky neprečítané"
+      },
       "language": {
         "restart_for_direction": "Na použitie nového smeru textu reštartujte aplikáciu.",
         "system_default": "Podľa systému"

@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "모든 메일"
+      },
+      "cross_starred": {
+        "label_mobile": "모든 별표"
+      },
+      "cross_unread": {
+        "label_mobile": "모든 읽지 않음"
+      },
       "language": {
         "restart_for_direction": "새 텍스트 방향을 적용하려면 앱을 다시 시작해 주세요.",
         "system_default": "시스템 기본값"

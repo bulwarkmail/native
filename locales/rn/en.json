@@ -639,6 +639,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "All mail"
+      },
+      "cross_starred": {
+        "label_mobile": "All starred"
+      },
+      "cross_unread": {
+        "label_mobile": "All unread"
+      },
       "language": {
         "restart_for_direction": "Restart the app to apply the new text direction.",
         "system_default": "System default"

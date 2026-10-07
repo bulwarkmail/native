@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "すべてのメール"
+      },
+      "cross_starred": {
+        "label_mobile": "すべてのスター付き"
+      },
+      "cross_unread": {
+        "label_mobile": "すべての未読"
+      },
       "language": {
         "restart_for_direction": "新しい文字の方向を適用するには、アプリを再起動してください。",
         "system_default": "システムのデフォルト"

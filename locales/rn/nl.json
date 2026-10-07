@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Alle e-mail"
+      },
+      "cross_starred": {
+        "label_mobile": "Alle met ster"
+      },
+      "cross_unread": {
+        "label_mobile": "Alle ongelezen"
+      },
       "language": {
         "restart_for_direction": "Start de app opnieuw om de nieuwe tekstrichting toe te passen.",
         "system_default": "Systeemstandaard"

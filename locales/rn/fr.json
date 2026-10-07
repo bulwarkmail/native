@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Tout le courrier"
+      },
+      "cross_starred": {
+        "label_mobile": "Tous les favoris"
+      },
+      "cross_unread": {
+        "label_mobile": "Tous les non lus"
+      },
       "language": {
         "restart_for_direction": "Redémarrez l'application pour appliquer le nouveau sens du texte.",
         "system_default": "Par défaut du système"

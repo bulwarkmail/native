@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Бүх шуудан"
+      },
+      "cross_starred": {
+        "label_mobile": "Бүх одтой"
+      },
+      "cross_unread": {
+        "label_mobile": "Бүгд уншаагүй"
+      },
       "language": {
         "restart_for_direction": "Текстийн шинэ чиглэлийг хэрэгжүүлэхийн тулд аппыг дахин эхлүүлнэ үү.",
         "system_default": "Системийн өгөгдмөл"

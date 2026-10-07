@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "全部郵件"
+      },
+      "cross_starred": {
+        "label_mobile": "全部已加星號"
+      },
+      "cross_unread": {
+        "label_mobile": "全部未讀"
+      },
       "language": {
         "restart_for_direction": "請重新啟動應用程式以套用新的文字方向。",
         "system_default": "系統預設"

@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Tutta la posta"
+      },
+      "cross_starred": {
+        "label_mobile": "Tutti gli speciali"
+      },
+      "cross_unread": {
+        "label_mobile": "Tutti i non letti"
+      },
       "language": {
         "restart_for_direction": "Riavvia l'app per applicare la nuova direzione del testo.",
         "system_default": "Predefinita di sistema"

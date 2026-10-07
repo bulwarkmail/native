@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Al post"
+      },
+      "cross_starred": {
+        "label_mobile": "Alle med stjerne"
+      },
+      "cross_unread": {
+        "label_mobile": "Alle ulæste"
+      },
       "language": {
         "restart_for_direction": "Genstart appen for at anvende den nye tekstretning.",
         "system_default": "Systemstandard"
