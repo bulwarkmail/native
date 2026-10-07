@@ -25,6 +25,7 @@ import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
 import { supportsPeriods } from '../../lib/sieve/period';
 import { periodLabel } from '../../lib/filters/rule-period';
+import { clientServesAccount } from '../../lib/active-client-account';
 
 type Translate = (key: string, fallback?: string) => string;
 type PeriodLabel = ReturnType<typeof periodLabel>;
@@ -200,6 +201,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   useEffect(() => {
     void selectAccount(managedAccountId, () =>
       useAuthStore.getState().activeAccountId === activeAccountId &&
+      clientServesAccount(activeAccountId) &&
       useManagedAccountStore.getState().managedAccountId === managedAccountId);
   }, [managedAccountId, selectAccount, activeAccountId]);
 

@@ -283,10 +283,14 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
       // load them again on the live one. Nothing is written there; the user
       // makes the change again on what the server has now.
       if (isStaleLoad(error) && stillShown?.()) {
+        const before = loaded;
         await get().fetchFilters(get().selectedAccountId ?? undefined);
-        set({ isSaving: false });
-        if (epoch !== storeEpoch) throw error;
-        throw new FiltersReloadedError();
+        // Only a reload that landed for the same screen asks for the change
+        // again; otherwise this is a plain failure (rolled back by the caller).
+        if (epoch === storeEpoch && loaded !== before && stillShown()) {
+          set({ isSaving: false });
+          throw new FiltersReloadedError();
+        }
       }
       set({
         isSaving: false,
