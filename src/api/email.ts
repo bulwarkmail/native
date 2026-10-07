@@ -2237,6 +2237,12 @@ export async function cancelScheduledSend(emailSubmissionId: string, account?: A
   }
 }
 
+/** SMTP extension parameters, as JMAP carries them (a bare keyword is null). */
+type SmtpParameters = Record<string, string | null>;
+
+/** The FUTURERELEASE hold parameters (RFC 4865); only one may be given. */
+const HOLD_PARAMETERS = new Set(['HOLDFOR', 'HOLDUNTIL']);
+
 /**
  * Change when a scheduled message goes out, or send it now with
  * `holdForSeconds` = 0. A replacement submission for the same Email, with the
@@ -2260,37 +2266,49 @@ export async function rescheduleScheduledSend(
     accountId?: AccountRef;
   },
   holdForSeconds: number,
-  recipients?: EmailAddress[],
 ): Promise<{ emailSubmissionId?: string; sendAt?: string }> {
   const at = opScope(scheduled.accountId);
   const { accountId } = at;
-  // "Send now" is a 1-second hold, so the replacement can still be withdrawn.
+  // "Send now" is a 1-second hold, so the replacement can still be withdrawn
+  // if the original turns out to have gone out already.
   const holdFor = Math.max(1, Math.ceil(holdForSeconds));
-  // Reuse the held submission's envelope: it names every recipient,
-  // Cc and Bcc included, and the envelope sender a catch-all From went
-  // out through. Rebuilding it from the Email's To dropped Cc and Bcc.
-  // The Email's To/Cc/Bcc are the fallback when the server has none.
+  // Reuse the held submission's envelope: it names every recipient, Cc and
+  // Bcc included, the envelope sender a catch-all From went out through, and
+  // the options the user sent with (REQUIRETLS, DSN). Only the hold changes.
+  // Without it the replacement would quietly drop those options, so a held
+  // send whose envelope can't be read is refused instead.
   const lookup = await requestOn(at, 
-    [
-      ['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0'],
-      ['Email/get', { accountId, ids: [scheduled.emailId], properties: ['to', 'cc', 'bcc'] }, '1'],
-    ],
-    [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.SUBMISSION],
+    [['EmailSubmission/get', { accountId, ids: [scheduled.emailSubmissionId], properties: ['envelope'] }, '0']],
+    [CAPABILITIES.CORE, CAPABILITIES.SUBMISSION],
   );
   const envelope = (requireMethodResult(lookup, '0', 'EmailSubmission/get').list as Array<{
-    envelope?: { mailFrom?: { email?: string }; rcptTo?: Array<{ email?: string }> } | null;
+    envelope?: {
+      mailFrom?: { email?: string; parameters?: SmtpParameters | null } | null;
+      rcptTo?: Array<{ email?: string; parameters?: SmtpParameters | null }> | null;
+    } | null;
   }> | undefined)?.[0]?.envelope;
-  const held = requireMethodResult(lookup, '1', 'Email/get').list as Email[] | undefined;
-  const headerRecipients = [...(held?.[0]?.to ?? []), ...(held?.[0]?.cc ?? []), ...(held?.[0]?.bcc ?? [])];
-  const source = recipients ?? (envelope?.rcptTo?.length ? envelope.rcptTo : headerRecipients);
-  const rcpt = source.map((r) => ({ email: (r.email ?? '').trim() })).filter((r) => r.email);
+  const rcpt = (envelope?.rcptTo ?? [])
+    .map((r) => {
+      const address = (r.email ?? '').trim();
+      return r.parameters && Object.keys(r.parameters).length > 0
+        ? { email: address, parameters: { ...r.parameters } }
+        : { email: address };
+    })
+    .filter((r) => r.email);
+  if (!envelope?.mailFrom || rcpt.length === 0) {
+    throw new Error('Failed to reschedule: the held envelope could not be read');
+  }
+  const mailFromParameters: SmtpParameters = { HOLDFOR: String(holdFor) };
+  for (const [name, value] of Object.entries(envelope.mailFrom.parameters ?? {})) {
+    if (!HOLD_PARAMETERS.has(name.toUpperCase())) mailFromParameters[name] = value;
+  }
   const create = {
     emailId: scheduled.emailId,
     identityId: scheduled.identityId,
     envelope: {
       mailFrom: {
-        email: envelope?.mailFrom?.email || scheduled.from?.[0]?.email,
-        parameters: { HOLDFOR: String(holdFor) },
+        email: envelope.mailFrom.email || scheduled.from?.[0]?.email,
+        parameters: mailFromParameters,
       },
       rcptTo: rcpt,
     },

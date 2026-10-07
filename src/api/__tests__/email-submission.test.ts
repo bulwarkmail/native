@@ -28,6 +28,8 @@ const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A failing test must not leave queued answers for the next one.
+  mockRequest.mockReset();
 });
 
 const SCHEDULED = {
@@ -43,7 +45,6 @@ const LOOKUP = {
     ['EmailSubmission/get', {
       list: [{ id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] } }],
     }, '0'],
-    ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'to@example.com' }] }] }, '1'],
   ],
 };
 const REPLACED = [['EmailSubmission/set', {
@@ -78,7 +79,6 @@ describe('rescheduleScheduledSend', () => {
               },
             }],
           }, '0'],
-          ['Email/get', { list: [{ id: 'e-1', to: [{ email: 'to@example.com' }], cc: [{ email: 'cc@example.com' }] }] }, '1'],
         ],
       })
       .mockResolvedValueOnce({ methodResponses: REPLACED })
@@ -96,29 +96,88 @@ describe('rescheduleScheduledSend', () => {
     });
   });
 
-  it("falls back to the message's To, Cc and Bcc when the submission has no envelope", async () => {
-    mockRequest
-      .mockResolvedValueOnce({
-        methodResponses: [
-          ['EmailSubmission/get', { list: [{ id: 'sub-1', envelope: null }] }, '0'],
-          ['Email/get', {
-            list: [{
-              id: 'e-1',
-              to: [{ email: 'to@example.com' }],
-              cc: [{ name: 'Cc', email: 'cc@example.com' }],
-              bcc: [{ email: ' bcc@example.com ' }],
-            }],
-          }, '1'],
+  it.each([
+    ['has no envelope', { id: 'sub-1', envelope: null }],
+    ['is not listed', undefined],
+    ['has an envelope without MAIL FROM', { id: 'sub-1', envelope: { rcptTo: [{ email: 'to@example.com' }] } }],
+    ['has an envelope without recipients', { id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [] } }],
+  ])('refuses rather than build a weaker envelope when the held submission %s', async (_name, held) => {
+    mockRequest.mockResolvedValueOnce({
+      methodResponses: [['EmailSubmission/get', { list: held ? [held] : [] }, '0']],
+    });
+
+    await expect(rescheduleScheduledSend(SCHEDULED, 60)).rejects.toThrow(/held envelope/);
+    // Nothing was created and the original was left alone.
+    expect(setCalls()).toEqual([]);
+  });
+
+  describe('keeps the held send options (REQUIRETLS, DSN)', () => {
+    const heldWith = (mailFrom: Record<string, string | null> | null, rcpt: Record<string, string | null> | null) => ({
+      methodResponses: [['EmailSubmission/get', {
+        list: [{
+          id: 'sub-1',
+          envelope: {
+            mailFrom: { email: 'me@example.com', parameters: mailFrom },
+            rcptTo: [
+              { email: 'to@example.com', parameters: rcpt },
+              { email: 'bcc@example.com', parameters: rcpt },
+            ],
+          },
+        }],
+      }, '0']],
+    });
+    const replacementEnvelope = () => mockRequest.mock.calls[1][0][0][1].create.replacement.envelope;
+    const run = async (held: ReturnType<typeof heldWith>, seconds: number) => {
+      mockRequest
+        .mockResolvedValueOnce(held)
+        .mockResolvedValueOnce({ methodResponses: REPLACED })
+        .mockResolvedValueOnce(CANCELLED);
+      await rescheduleScheduledSend(SCHEDULED, seconds);
+      return replacementEnvelope();
+    };
+
+    it.each([
+      ['Send now', 0, '1'],
+      ['Reschedule', 7200, '7200'],
+    ])('%s keeps REQUIRETLS', async (_name, seconds, holdFor) => {
+      const envelope = await run(heldWith({ HOLDFOR: '30', REQUIRETLS: null }, null), seconds);
+      expect(envelope).toEqual({
+        mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: holdFor, REQUIRETLS: null } },
+        rcptTo: [{ email: 'to@example.com' }, { email: 'bcc@example.com' }],
+      });
+    });
+
+    it.each([
+      ['Send now', 0, '1'],
+      ['Reschedule', 7200, '7200'],
+    ])('%s keeps the delivery notification request (DSN)', async (_name, seconds, holdFor) => {
+      const envelope = await run(
+        heldWith({ HOLDFOR: '30', RET: 'HDRS', ENVID: 'env-1' }, { NOTIFY: 'SUCCESS,FAILURE,DELAY' }),
+        seconds,
+      );
+      expect(envelope).toEqual({
+        mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: holdFor, RET: 'HDRS', ENVID: 'env-1' } },
+        rcptTo: [
+          { email: 'to@example.com', parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } },
+          { email: 'bcc@example.com', parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } },
         ],
-      })
-      .mockResolvedValueOnce({ methodResponses: REPLACED })
-      .mockResolvedValueOnce(CANCELLED);
+      });
+    });
 
-    await rescheduleScheduledSend(SCHEDULED, 60);
+    it('replaces a held HOLDUNTIL rather than send two holds', async () => {
+      const envelope = await run(heldWith({ HOLDUNTIL: '2026-10-08T08:00:00Z', REQUIRETLS: null }, null), 600);
+      expect(envelope.mailFrom.parameters).toEqual({ HOLDFOR: '600', REQUIRETLS: null });
+    });
 
-    expect(mockRequest.mock.calls[1][0][0][1].create.replacement.envelope).toEqual({
-      mailFrom: { email: 'news@shop.example', parameters: { HOLDFOR: '60' } },
-      rcptTo: [{ email: 'to@example.com' }, { email: 'cc@example.com' }, { email: 'bcc@example.com' }],
+    it.each([
+      ['Send now', 0, '1'],
+      ['Reschedule', 7200, '7200'],
+    ])('%s of a held send with no options builds the same envelope as before', async (_name, seconds, holdFor) => {
+      const envelope = await run(heldWith({ HOLDFOR: '30' }, null), seconds);
+      expect(envelope).toEqual({
+        mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: holdFor } },
+        rcptTo: [{ email: 'to@example.com' }, { email: 'bcc@example.com' }],
+      });
     });
   });
 
@@ -367,7 +426,6 @@ describe('hold-limit rejections', () => {
       .mockResolvedValueOnce({
         methodResponses: [
           ['EmailSubmission/get', { list: [{ id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'to@example.com' }] } }] }, '0'],
-          ['Email/get', { list: [] }, '1'],
         ],
       })
       .mockResolvedValueOnce({
