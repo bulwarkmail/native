@@ -1118,6 +1118,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   clearAllAccounts: () => {
+    startFolderSettled.clear();
     set({
       accountSnapshots: {},
       activeAccountId: null,
