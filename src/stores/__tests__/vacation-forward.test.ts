@@ -367,6 +367,7 @@ describe('readVacationFilters', () => {
       notRunning: false,
       otherForwards: 1,
       filtersStopped: false,
+      filtersOpaque: false,
       includeAvailable: true,
     });
   });
@@ -696,6 +697,24 @@ describe('filters the vacation script stopped are reported', () => {
     await useVacationStore.getState().save({ isEnabled: true });
     expect(server.active()).toBe('vacation');
     expect(useVacationStore.getState()).toMatchObject({ filtersStopped: true, includeAvailable: false });
+  });
+
+  it('as edited by hand when the stopped script is one Bulwark cannot read', async () => {
+    stalwart([
+      { name: 'filters', content: HAND_EDITED, isActive: false },
+      { name: 'vacation', content: VACATION_SCRIPT, isActive: true },
+    ]);
+    expect(await read()).toMatchObject({ filtersStopped: true, filtersOpaque: true, includeAvailable: false });
+    await useVacationStore.getState().fetch();
+    expect(useVacationStore.getState()).toMatchObject({ filtersStopped: true, filtersOpaque: true });
+  });
+
+  it('not as edited by hand for a script Bulwark wrote', async () => {
+    stalwart([
+      { name: 'filters', content: filters([rule('a')]), isActive: false },
+      { name: 'vacation', content: VACATION_SCRIPT, isActive: true },
+    ]);
+    expect(await read()).toMatchObject({ filtersStopped: true, filtersOpaque: false });
   });
 
   it('where the server\'s capabilities are not known', async () => {

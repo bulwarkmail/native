@@ -408,6 +408,12 @@ export interface VacationFilters {
    */
   filtersStopped: boolean;
   /**
+   * The filters script was edited by hand, so Bulwark cannot include the
+   * auto-reply in it: stopped filters must be restarted from the webmail or
+   * the Filters settings, not by a save here.
+   */
+  filtersOpaque: boolean;
+  /**
    * A save can restart stopped filters: the server has `include` and the
    * script is one Bulwark can read and write back. Otherwise they stay
    * paused while the auto-reply is on.
@@ -459,6 +465,7 @@ export async function readVacationFilters(accountId: string | undefined, at?: Op
     // A script edited by hand counts as having rules that are on.
     filtersStopped: !!vacationScript?.isActive && !!target && !target.isActive &&
       (parsed ? parsed.rules.some((r) => r.enabled) : true),
+    filtersOpaque: !!target && !parsed,
     includeAvailable: filtersUsable,
   };
 }

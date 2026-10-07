@@ -45,6 +45,7 @@ function input(overrides: Partial<FiltersFormInput> = {}): FiltersFormInput {
     notRunning: false,
     periodChanged: false,
     filtersStopped: false,
+    filtersOpaque: false,
     includeAvailable: true,
     ...overrides,
   };
@@ -213,6 +214,12 @@ describe('vacationFiltersWarnings', () => {
     expect(warn({ filtersStopped: true, includeAvailable: false }).keys)
       .toEqual(['settings.vacation.warnings.filters_stopped_paused']);
   });
+
+  it('says hand-edited filters were stopped, not that the server cannot run both', () => {
+    const stopped = { filtersStopped: true, filtersOpaque: true, includeAvailable: false };
+    expect(warn(stopped).keys).toEqual(['settings.vacation.warnings.filters_stopped_opaque']);
+    expect(vacationFiltersForm(input(stopped)).restartable).toBe(false);
+  });
 });
 
 describe('vacation error messages', () => {
@@ -277,6 +284,7 @@ describe('vacation error messages', () => {
       input({ notRunning: true }),
       input({ filtersStopped: true, includeAvailable: true }),
       input({ filtersStopped: true, includeAvailable: false }),
+      input({ filtersStopped: true, filtersOpaque: true, includeAvailable: false }),
     ];
     for (const i of all) vacationFiltersWarnings(vacationFiltersForm(i), i, t);
     for (const err of [new OpaqueFiltersError(), new SieveCapabilitiesUnknownError(), new StaleLoadError(), new Error('x')]) {

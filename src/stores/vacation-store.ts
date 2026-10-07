@@ -68,6 +68,8 @@ export interface VacationState {
   otherForwards: number;
   /** Stalwart's vacation script runs in place of filters that have rules on (see readVacationFilters). */
   filtersStopped: boolean;
+  /** The filters script was edited by hand (see readVacationFilters). */
+  filtersOpaque: boolean;
   /** A save can run the filters next to the auto-reply (see readVacationFilters). */
   includeAvailable: boolean;
   isLoading: boolean;
@@ -95,6 +97,7 @@ const FILTERS_INITIAL = {
   notRunning: false,
   otherForwards: 0,
   filtersStopped: false,
+  filtersOpaque: false,
   includeAvailable: false,
 };
 
@@ -125,6 +128,7 @@ function fromFilters(filters: VacationFilters) {
     notRunning: filters.notRunning,
     otherForwards: filters.otherForwards,
     filtersStopped: filters.filtersStopped,
+    filtersOpaque: filters.filtersOpaque,
     includeAvailable: filters.includeAvailable,
   };
 }
@@ -134,6 +138,7 @@ function runState(filters: VacationFilters) {
   return {
     notRunning: filters.notRunning,
     filtersStopped: filters.filtersStopped,
+    filtersOpaque: filters.filtersOpaque,
     includeAvailable: filters.includeAvailable,
   };
 }

@@ -47,6 +47,8 @@ export interface FiltersFormInput {
   /** The dates differ from the stored ones: a save moves the forward's period with them. */
   periodChanged: boolean;
   filtersStopped: boolean;
+  /** The filters script was edited by hand: only the webmail or the Filters settings restart it. */
+  filtersOpaque: boolean;
   includeAvailable: boolean;
 }
 
@@ -133,7 +135,9 @@ export function vacationFiltersWarnings(form: FiltersForm, i: FiltersFormInput, 
   if (i.notRunning && (form.showForward || form.canNarrow)) {
     warnings.push(t('settings.vacation.warnings.not_running', 'Forwarding or the reply recipients are saved but not active right now. Save to turn them back on.'));
   }
-  if (i.filtersStopped) {
+  if (i.filtersStopped && i.filtersOpaque) {
+    warnings.push(t('settings.vacation.warnings.filters_stopped_opaque', 'Your filters were edited by hand and are not running while the auto-reply is on. Restart them from webmail or in Filters.'));
+  } else if (i.filtersStopped) {
     warnings.push(i.includeAvailable
       ? t('settings.vacation.warnings.filters_stopped_restart', 'Your filters are not running while the auto-reply is on. Save to run them again.')
       : t('settings.vacation.warnings.filters_stopped_paused', 'Your filters are paused while the auto-reply is on: this server cannot run both.'));

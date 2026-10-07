@@ -1252,6 +1252,7 @@
       },
       "warnings": {
         "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\"",
+        "filters_stopped_opaque": "Your filters were edited by hand and are not running while the auto-reply is on. Restart them from webmail or in Filters.",
         "filters_stopped_paused": "Your filters are paused while the auto-reply is on: this server cannot run both.",
         "filters_stopped_restart": "Your filters are not running while the auto-reply is on. Save to run them again."
       }

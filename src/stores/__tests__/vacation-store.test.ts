@@ -42,6 +42,7 @@ const FILTERS = vi.hoisted(() => ({
   notRunning: false,
   otherForwards: 0,
   filtersStopped: false,
+  filtersOpaque: false,
   includeAvailable: true,
 }));
 

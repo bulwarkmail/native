@@ -144,6 +144,7 @@ export function VacationSettings() {
     notRunning: store.notRunning,
     periodChanged,
     filtersStopped: store.filtersStopped,
+    filtersOpaque: store.filtersOpaque,
     includeAvailable: store.includeAvailable,
   };
   const filters = vacationFiltersForm(filtersInput);
