@@ -24,6 +24,7 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/contacts/AddressBookPickerSheet.tsx': [],
   'components/contacts/ContactPickerSheet.tsx': [],
   'components/contacts/TagAssignSheet.tsx': [],
+  'components/contacts/ContactFilterSheet.tsx': [],
   'components/contacts/ContactListRow.tsx': [],
   'components/contacts/FieldBlock.tsx': [],
 };
