@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Pluginy",
-      "themes": "Motivy",
       "updates": "Aktualizace"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Výchozí světlé a tmavé palety.",
       "default_name": "Bulwark",
-      "mobile_description": "Vyberte barevný motiv. Motivy se řídí nastavením světlý/tmavý ve Vzhledu; vlastní balíčky motivů se spravují ve webmailu.",
-      "title": "Motivy"
+      "mobile_description": "Vyberte barevný motiv. Motivy se řídí nastavením světlý/tmavý ve Vzhledu; vlastní balíčky motivů se spravují ve webmailu."
     },
     "vacation": {
       "warnings": {

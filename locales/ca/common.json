@@ -17,17 +17,24 @@
     "reconnecting": "S'ha perdut la connexió. S'està intentant reconnectar…",
     "error": {
       "invalid_credentials": "El correu electrònic o la contrasenya no són vàlids. Comproveu les credencials i torneu-ho a provar.",
+      "invalid_token": "El servidor no ha acceptat aquest token d'accés. Comproveu que sigui complet i que no hagi caducat ni s'hagi revocat.",
       "connection_failed": "No s'ha pogut contactar amb el servidor. Comproveu la connexió a Internet i torneu-ho a provar.",
       "cors_blocked": "El servidor és accessible, però està bloquejant les sol·licituds d'origen creuat. Comproveu la configuració CORS del servidor JMAP i permeteu aquest domini.",
       "server_error": "El servidor no està disponible temporalment. Torneu-ho a provar més tard.",
       "generic": "S'ha produït un error inesperat. Si el problema persisteix, contacteu amb l'administrador.",
       "totp_required": "Cal un codi d'autenticació de dos factors. Introduïu-lo a continuació.",
       "totp_invalid": "El codi d'autenticació no és vàlid. Comproveu l'aplicació d'autenticació i torneu-ho a provar.",
-      "oauth_discovery_failed": "El SSO està activat, però no s'ha pogut contactar amb el proveïdor d'identitat. Comproveu la configuració d'OAuth."
+      "oauth_discovery_failed": "El SSO està activat, però no s'ha pogut contactar amb el proveïdor d'identitat. Comproveu la configuració d'OAuth.",
+      "token_exchange_failed": "La contrasenya i el codi s'han acceptat, però el servidor de correu s'ha negat a iniciar una sessió per a aquesta aplicació. Demaneu a l'administrador que revisi la configuració del client OAuth."
     },
     "show_password": "Mostra la contrasenya",
     "hide_password": "Amaga la contrasenya",
     "totp_toggle": "Tinc un codi 2FA",
+    "token_toggle": "Inicia la sessió amb un token d'accés",
+    "password_toggle": "Inicia la sessió amb una contrasenya",
+    "token_label": "Token d'accés",
+    "token_placeholder": "Enganxeu el vostre token d'API",
+    "token_hint": "Creeu un token d'API a la configuració del vostre proveïdor de correu i enganxeu-lo aquí.",
     "remember_me": "Recorda'm",
     "config_error": {
       "title": "Error de configuració",
@@ -114,6 +121,7 @@
     "unified_archive": "Tot l'arxiu",
     "unified_junk": "Tot el correu brossa",
     "all_accounts": "Tots els comptes",
+    "all_accounts_loading": "Carregant comptes: {loaded} de {total}",
     "unified_mailbox": "Bústia unificada",
     "expand": "Desplega",
     "collapse": "Replega",
@@ -254,6 +262,7 @@
       "button": "Buida la carpeta",
       "confirm_title": "Buida la carpeta",
       "confirm_message": "Tots els correus d'aquesta carpeta se suprimiran definitivament. Aquesta acció no es pot desfer.",
+      "confirm_message_trash": "Tots els correus d'aquesta carpeta es mouran a la paperera.",
       "confirm_button": "Buida la carpeta",
       "junk_hint": "Podeu buidar la carpeta de correu brossa per eliminar definitivament tots els missatges.",
       "trash_hint": "Podeu buidar la paperera per eliminar definitivament tots els missatges."
@@ -310,6 +319,8 @@
     "view_source": "Mostra el codi font",
     "fullscreen": "Pantalla completa",
     "exit_fullscreen": "Surt de la pantalla completa",
+    "view_in_dark_mode": "Veure en mode fosc",
+    "view_in_light_mode": "Veure en mode clar",
     "export_email": "Exporta com a .eml",
     "forward_as_attachment": "Reenvia com a fitxer adjunt",
     "import_email": "Importa .eml o .zip",
@@ -578,7 +589,12 @@
       "copied": "Copiat!",
       "copy_failed": "No s'ha pogut copiar"
     },
-    "send_now": "Envia ara"
+    "send_now": "Envia ara",
+    "verification_code": {
+      "copy": "Copia el codi {code}",
+      "copied": "Codi copiat",
+      "copy_failed": "No s'ha pogut copiar el codi"
+    }
   },
   "email_composer": {
     "read_receipt_on": "Confirmació de lectura sol·licitada (feu clic per desactivar-la)",
@@ -608,6 +624,12 @@
     "attach": "Adjunta",
     "attach_photos": "Fotos i vídeos",
     "attach_files": "Fitxers",
+    "attach_from_files": "Adjunta des de Fitxers",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Adjunta} one {Adjunta 1 fitxer} other {Adjunta # fitxers}}",
+      "empty_folder": "Aquesta carpeta és buida",
+      "load_failed": "No s'han pogut carregar els teus fitxers"
+    },
     "discard": "Descarta",
     "discard_draft_title": "Voleu descartar l'esborrany?",
     "discard_draft_confirm": "Teniu canvis sense desar. Voleu descartar aquest esborrany?",
@@ -667,6 +689,8 @@
     "show_less": "Mostra'n menys",
     "send_failed": "No s'ha pogut enviar el correu",
     "send_timeout": "El servidor ha deixat de respondre. Comproveu la carpeta Enviats abans de tornar a enviar: el missatge pot haver sortit.",
+    "send_recipients_rejected": "No s'ha enviat: el servidor ha rebutjat tots els destinataris.",
+    "send_some_recipients_rejected": "S'ha enviat, però no a aquests destinataris: el servidor els ha rebutjat.",
     "continue_draft": "Continua l'esborrany",
     "close_draft_title": "Voleu desar o descartar l'esborrany?",
     "close_draft_message": "Teniu canvis sense desar. Voleu desar-los com a esborrany o descartar-los?",
@@ -708,6 +732,7 @@
     "recipient_name_placeholder": "Nom mostrat",
     "autocomplete_search_server": "Cerca al servidor",
     "autocomplete_searching": "Cercant...",
+    "mention_recipients": "Destinataris",
     "toolbar": {
       "bold": "Negreta",
       "italic": "Cursiva",
@@ -801,6 +826,8 @@
     "emails_moved": "{count} correus moguts",
     "moved_to_mailbox": "Mogut a {mailbox}",
     "move_failed": "No s'ha pogut moure",
+    "emails_copied": "{count} correus copiats",
+    "copy_failed": "No s'ha pogut copiar",
     "move_error": "No s'han pogut moure els correus a la carpeta seleccionada",
     "email_tagged": "Correu etiquetat",
     "emails_tagged": "{count} correus etiquetats",
@@ -814,8 +841,8 @@
     "identity_delete_failed": "No s'ha pogut suprimir la identitat: {error}",
     "identity_unauthorized": "No teniu autorització per enviar des d'aquesta adreça electrònica",
     "identity_not_found": "No s'ha trobat la identitat",
-    "vacation_saved": "S'ha desat la configuració de la resposta automàtica",
-    "vacation_save_failed": "No s'ha pogut desar la configuració de la resposta automàtica",
+    "vacation_saved": "S'ha desat la configuració d'absència",
+    "vacation_save_failed": "No s'ha pogut desar la configuració d'absència",
     "filters_saved": "Filtres desats correctament",
     "filters_save_failed": "No s'han pogut desar els filtres",
     "filters_deleted": "Regla de filtre suprimida",
@@ -825,7 +852,20 @@
     "templates_import_empty": "No s'ha trobat cap plantilla al fitxer",
     "export_email_error": "No s'ha pogut exportar el correu",
     "import_email_success": "Correu importat correctament",
-    "import_email_error": "No s'ha pogut importar el correu"
+    "import_email_error": "No s'ha pogut importar el correu",
+    "rule_created": "S'ha creat la regla",
+    "rule_merged": "S'ha afegit a la regla «{name}»",
+    "rule_already_covered": "Ja ho cobreix la regla «{name}»",
+    "rule_apply_existing": "{count, plural, one {Aplica a # missatge existent} other {Aplica a # missatges existents}}",
+    "rule_applied": "{count, plural, =0 {Cap missatge necessitava canvis} one {S'ha aplicat la regla a # missatge} other {S'ha aplicat la regla a # missatges}}",
+    "rule_apply_failed": "No s'ha pogut aplicar la regla als missatges existents",
+    "rule_edit": "Edita la regla",
+    "rule_undo": "Desfés",
+    "rule_undone": "S'ha desfet el canvi de la regla",
+    "rule_undo_failed": "No s'ha pogut desfer el canvi de la regla",
+    "rule_undo_conflict": "Els teus filtres han canviat des d'aleshores. Desfés el canvi a la configuració dels filtres.",
+    "rule_folder_failed": "No s'ha pogut crear la carpeta",
+    "vacation_filters_save_failed": "S'ha desat la configuració d'absència, però no s'han pogut desar el reenviament ni els destinataris de la resposta"
   },
   "date": {
     "today": "Avui",
@@ -913,7 +953,7 @@
       "privacy": "Privadesa i seguretat",
       "account": "Compte",
       "identities": "Identitats",
-      "vacation": "Resposta automàtica",
+      "vacation": "Absència",
       "advanced": "Avançat",
       "calendar": "Calendari",
       "filters": "Filtres",
@@ -928,12 +968,25 @@
       "sidebar_apps": "Aplicacions de la barra lateral",
       "notifications": "Notificacions",
       "layout": "Disposició",
+      "themes": "Temes",
       "reading": "Lectura",
       "composing": "Redacció",
       "downloads": "Baixades",
       "content_senders": "Contingut i remitents",
       "about_data": "Quant a i dades",
       "debug": "Depuració"
+    },
+    "themes": {
+      "title": "Temes",
+      "description": "Trieu entre els temes desplegats pel vostre administrador i els predefinits integrats.",
+      "locked": "La selecció de tema està bloquejada per un administrador.",
+      "forced": "El tema «{name}» l'imposa l'administrador i no es pot canviar",
+      "admin_theme": "Tema de l'administrador",
+      "activated": "Tema activat",
+      "default_restored": "S'ha restaurat el tema predeterminat",
+      "default_name": "Predeterminat",
+      "default_badge": "Predeterminat",
+      "admin_enforced": "Imposat per l'administrador"
     },
     "tab_groups": {
       "general": "General",
@@ -1072,6 +1125,10 @@
       "tint_list_rows": {
         "label": "Acoloreix les files de la llista segons l'etiqueta",
         "description": "Ombreja cada fila de missatge amb el color de la primera etiqueta. Desactiveu-ho per mantenir les files planes; els punts i les etiquetes encara mostraran el color."
+      },
+      "tint_list_rows_by_account": {
+        "label": "Tint List Rows by Account Color",
+        "description": "In the unified view, shade each row with its account color instead of showing the account dot. Takes precedence over the tag tint; tags keep their color on their chips."
       },
       "show_folder_total_count": {
         "label": "Mostra el nombre total de missatges",
@@ -1339,6 +1396,10 @@
         "description": "Mostra la previsualització del correu a la llista",
         "focus_description": "Mostra el text de previsualització incrustat dins la llista de missatges d'una línia centrada"
       },
+      "show_verification_codes": {
+        "label": "Mostra els codis de verificació",
+        "description": "Ofereix el codi dels correus d'inici de sessió i de confirmació per copiar-lo amb un clic, a la llista durant un dia i al missatge"
+      },
       "disable_threading": {
         "label": "Desactiva l'agrupació en converses",
         "description": "Mostra els correus com a missatges individuals en lloc d'agrupar-los per conversa"
@@ -1467,6 +1528,10 @@
         "label": "Avís d'assumpte buit",
         "description": "Demana confirmació abans d'enviar un missatge sense assumpte."
       },
+      "recipient_mentions": {
+        "label": "Esmentar destinataris amb @",
+        "description": "En escriure @ al missatge s'ofereixen els destinataris i s'insereix el nom de pila del triat. Retorn o Tab tria el nom ressaltat."
+      },
       "hide_inline_image_attachments": {
         "label": "Amaga les imatges incrustades dels fitxers adjunts",
         "description": "Les imatges incrustades al cos del missatge no es llisten com a fitxers adjunts separats"
@@ -1561,6 +1626,7 @@
       "auth_method_label": "Autenticació",
       "auth_method_oauth": "Inici de sessió únic (OAuth/OIDC)",
       "auth_method_basic": "Contrasenya",
+      "auth_method_token": "Token d'accés",
       "demo_account": "Compte de demostració",
       "email": {
         "label": "Adreça electrònica",
@@ -1709,14 +1775,36 @@
       },
       "link_device": {
         "title": "Enllaça l'aplicació mòbil",
-        "description": "Inicieu la sessió a l'aplicació mòbil Bulwark Mail sense escriure res. Genereu un codi QR aquí i escanegeu-lo des de la pantalla d'inici de sessió de l'aplicació.",
+        "description": "Inicieu la sessió a l'aplicació Bulwark Mail del telèfon sense escriure-hi la contrasenya. El telèfon obté el seu propi inici de sessió, de manera que tancar la sessió aquí no la tanca al telèfon.",
         "generate": "Mostra el codi QR",
         "regenerate": "Mostra un codi nou",
-        "instructions": "Obriu l'aplicació Bulwark Mail, toqueu «Escaneja el codi QR» a la pantalla d'inici de sessió i apunteu la càmera aquí.",
+        "instructions": "Obriu l'aplicació Bulwark Mail i toqueu «Scan a sign-in code» a la pantalla d'inici de sessió (o «Add account» → «Scan a sign-in code» si ja heu iniciat la sessió) i, després, apunteu la càmera aquí.",
         "expires_in": "Aquest codi caduca d'aquí a {seconds} segons. Només es pot utilitzar una vegada.",
         "expired": "Aquest codi ha caducat.",
-        "generating": "Generant…",
-        "error": "No s'ha pogut crear el codi d'aparellament. Torneu-ho a provar."
+        "error": "No s'ha pogut crear el codi d'aparellament. Torneu-ho a provar.",
+        "password_prompt": "Introduïu la contrasenya per confirmar que sou vós. El telèfon obté el seu propi inici de sessió; la contrasenya no s'envia al telèfon.",
+        "show_password": "Mostra la contrasenya",
+        "hide_password": "Amaga la contrasenya",
+        "continue": "Continua",
+        "error_wrong_password": "Contrasenya incorrecta. Torneu-ho a provar.",
+        "totp_prompt": "Introduïu el codi de l'aplicació d'autenticació.",
+        "error_password_or_code": "La contrasenya o el codi són incorrectes.",
+        "error_not_signed_in": "La sessió ha caducat. Torneu a iniciar la sessió per enllaçar un dispositiu.",
+        "error_impersonation": "No es poden enllaçar dispositius mentre consulteu la bústia d'un altre usuari.",
+        "error_too_many_attempts": "Massa intents. Espereu un moment i torneu-ho a provar.",
+        "error_session_secret": "L'enllaç de dispositius no està configurat en aquest servidor (falta SESSION_SECRET). Poseu-vos en contacte amb l'administrador.",
+        "error_server_unreachable": "No s'ha pogut connectar amb el servidor de correu. Torneu-ho a provar.",
+        "error_pairing_unavailable": "El vostre servidor de correu no permet enllaçar dispositius d'aquesta manera. Poseu-vos en contacte amb l'administrador.",
+        "qr_alt": "Codi QR d'inici de sessió",
+        "link_label": "Enllaç d'inici de sessió",
+        "copy_link": "Copia l'enllaç d'inici de sessió",
+        "copied": "Copiat",
+        "copy_hint": "No teniu càmera? Copieu l'enllaç i enganxeu-lo a l'aplicació amb «Paste sign-in link».",
+        "success_title": "Sessió iniciada al telèfon",
+        "success_body": "Podeu tancar aquesta pàgina. Per enllaçar un altre dispositiu, mostreu un codi nou.",
+        "link_another": "Enllaça un altre dispositiu",
+        "use_sso": "Utilitza l'inici de sessió únic",
+        "error_insecure_server": "L'aplicació mòbil només es connecta a servidors de correu per https, i aquest fa servir http."
       },
       "public_keys": {
         "name_label": "Nom de la clau pública",
@@ -1744,28 +1832,24 @@
       }
     },
     "vacation": {
-      "title": "Resposta automàtica",
-      "description": "Respon automàticament als correus entrants mentre esteu fora",
+      "title": "Absència",
+      "description": "Gestiona automàticament els correus entrants mentre esteu fora",
       "loading": "Carregant la configuració de la resposta automàtica...",
       "not_supported": "El servidor de correu no admet respostes automàtiques.",
       "fetch_error": "No s'ha pogut carregar la configuració de la resposta automàtica. Torneu-ho a provar.",
       "status": {
-        "label": "Resposta automàtica",
+        "label": "Respon automàticament",
         "description": "Envia una resposta automàtica a les persones que us envien correu",
         "active": "Activa",
         "inactive": "Inactiva"
       },
       "date_range": {
-        "title": "Interval de dates",
-        "description": "Opcionalment, limiteu la resposta automàtica a un període específic",
         "start": "Data d'inici",
         "start_description": "Deixeu-ho buit per no establir cap límit inicial",
         "end": "Data de finalització",
         "end_description": "Deixeu-ho buit per no establir cap límit final"
       },
       "message": {
-        "title": "Missatge de resposta automàtica",
-        "description": "El missatge que s'enviarà com a resposta",
         "subject_label": "Assumpte",
         "subject_description": "Línia d'assumpte de la resposta automàtica",
         "subject_placeholder": "Fora de l'oficina",
@@ -1785,10 +1869,32 @@
       "saving": "Desant...",
       "warnings": {
         "end_before_start": "La data de finalització ha de ser posterior a la data d'inici",
+        "invalid_date": "Introdueix una data d'inici i de finalització vàlides amb l'hora, o deixa el camp buit",
         "start_in_past": "La data d'inici és al passat",
         "empty_body": "El cos del missatge està buit - els destinataris rebran una resposta en blanc",
         "subject_too_long": "L'assumpte és massa llarg per al servidor (com a màxim {max} bytes).",
-        "body_too_long": "El missatge és massa llarg per al servidor (com a màxim {max} bytes, amb el format inclòs)."
+        "body_too_long": "El missatge és massa llarg per al servidor (com a màxim {max} bytes, amb el format inclòs).",
+        "forward_address": "Introdueix una adreça vàlida per al reenviament",
+        "not_running": "El reenviament o els destinataris de la resposta estan desats però ara no estan actius. Desa per tornar-los a activar."
+      },
+      "forward": {
+        "title": "Reenviament",
+        "description": "Reenvia els missatges entrants a una altra adreça, amb resposta automàtica o sense, dins del període indicat a dalt (sense data de finalització, fins que es desactivi). El correu brossa no es reenvia.",
+        "enabled_label": "Reenvia els missatges",
+        "to_label": "Reenvia a",
+        "to_placeholder": "correu@exemple.com",
+        "keep_label": "Mantén a la safata d'entrada",
+        "keep_description": "Si no, el missatge només es reenvia: no es conserva en aquesta bústia i no s'hi aplica cap regla de filtre."
+      },
+      "audience": {
+        "label": "Respon a",
+        "description": "Remitents interns: {domains}",
+        "all": "Tots els remitents",
+        "internal": "Només remitents interns",
+        "external": "Només remitents externs"
+      },
+      "auto_reply": {
+        "title": "Resposta automàtica"
       }
     },
     "folders": {
@@ -1813,6 +1919,15 @@
       "reorder": "Arrossegueu per reordenar",
       "reorder_error": "No s'han pogut reordenar les carpetes",
       "move_error": "No s'ha pogut moure la carpeta",
+      "select_folder": "Selecciona {name}",
+      "select_hint": "Selecciona. Maj+clic selecciona totes les carpetes fins a l'última on has fet clic.",
+      "selected_count": "{count, plural, one {# carpeta seleccionada} other {# carpetes seleccionades}}",
+      "move_to": "Mou a...",
+      "move_to_top_level": "Nivell superior",
+      "move": "Mou",
+      "clear_selection": "Esborra la selecció",
+      "folders_moved": "{count, plural, one {# carpeta moguda} other {# carpetes mogudes}}",
+      "move_partial_error": "{count, plural, one {No s'ha pogut moure # carpeta} other {No s'han pogut moure # carpetes}}",
       "subfolder_of": "Dins de {name}",
       "subfolder_name": "Nom de la subcarpeta",
       "new_folder_name": "Nom de la carpeta",
@@ -1899,7 +2014,34 @@
         "button": "Importa"
       },
       "about": {
-        "title": "Bulwark Webmail"
+        "title": "Bulwark Webmail",
+        "source_code": "Codi font"
+      },
+      "spam_siege": {
+        "title": "Spam Siege",
+        "intro": "Fes clic a la brossa i al phishing abans que arribin a la teva safata d'entrada. Deixa passar el correu real. Si perds els tres escuts, la safata cau.",
+        "kinds": {
+          "spam": "Brossa",
+          "phishing": "Phishing",
+          "legit": "Correu real"
+        },
+        "click_to_block": "Fes clic per bloquejar",
+        "let_through": "Deixa'l passar",
+        "start": "Comença",
+        "play_again": "Torna a jugar",
+        "score": "Punts",
+        "combo": "Bonificació de ratxa",
+        "shields_left": "Queden {count} de {total} escuts",
+        "seconds": "{seconds} s",
+        "best": "Rècord: {score}",
+        "new_best": "Nou rècord",
+        "held": "La safata ha resistit",
+        "overrun": "La safata ha caigut",
+        "stats": {
+          "caught": "Bloquejats",
+          "delivered": "Lliurats",
+          "mistakes": "Errors"
+        }
       }
     },
     "sidebar_apps": {
@@ -2020,7 +2162,8 @@
         "subject": "Assumpte",
         "header": "Capçalera personalitzada",
         "size": "Mida",
-        "body": "Cos"
+        "body": "Cos",
+        "all": "Tots els missatges"
       },
       "comparators": {
         "has_any": "és present",
@@ -2033,7 +2176,9 @@
         "ends_with": "acaba amb",
         "matches": "coincideix amb el patró",
         "greater_than": "és més gran que",
-        "less_than": "és menys que"
+        "less_than": "és menys que",
+        "address_is": "és l'adreça",
+        "domain_is": "té el domini"
       },
       "action_types": {
         "move": "Mou a una carpeta",
@@ -2108,7 +2253,38 @@
         "actions_count": "{count, plural, one {# acció} other {# accions}}"
       },
       "origin_external": "Extern",
-      "managed_by_tooltip": "Gestionat per {source}. Editeu-ho en aquesta aplicació, o utilitzeu l'editor Sieve en brut."
+      "managed_by_tooltip": "Gestionat per {source}. Editeu-ho en aquesta aplicació, o utilitzeu l'editor Sieve en brut.",
+      "quick_rule_names": {
+        "move_sender": "Mou de {sender} a {folder}",
+        "move_domain": "Mou de @{domain} a {folder}",
+        "move_list": "Mou la llista {list} a {folder}",
+        "mark_read": "Marca com a llegits els de {sender}",
+        "tag": "Etiqueta com a {tag} els de {sender}",
+        "block": "Bloca {sender}",
+        "custom": "Missatges de {sender}",
+        "custom_plain": "Regla nova",
+        "senders": "{count, plural, one {# remitent} other {# remitents}}"
+      },
+      "suggestions": "Suggeriments",
+      "suggest_subject": "Assumpte «{subject}»",
+      "suggest_to": "Per a {address}",
+      "suggest_cc": "A/c {address}",
+      "suggest_list": "List-Id",
+      "suggest_domain": "@{domain}",
+      "apply_existing": "Aplica-ho també als missatges que ja hi ha en aquesta carpeta",
+      "apply_existing_unsupported": "Només les regles que comproven el remitent, els destinataris, l'assumpte o les capçaleres, i que mouen, copien, marquen com a llegit, destaquen o etiqueten, es poden aplicar a missatges existents.",
+      "period_title": "Interval de dates",
+      "period_start": "Data d'inici",
+      "period_end": "Data de finalització",
+      "validation_period_order": "La data de finalització ha de ser posterior a la data d'inici",
+      "period_toggle": "Activa només durant un període",
+      "period_hint": "S'aplica als missatges que arriben durant aquest període. Deixa un camp buit per no limitar aquell extrem.",
+      "validation_period_empty": "Introdueix una data d'inici o de finalització per al període",
+      "validation_period_invalid": "Introdueix una data vàlida amb l'hora per al període, o deixa el camp buit",
+      "apply_existing_period": "Una regla amb període només actua sobre els missatges que arriben dins d'aquest període, de manera que no es pot aplicar als missatges existents.",
+      "period_status_scheduled": "programada",
+      "period_status_active": "activa",
+      "period_status_expired": "caducada"
     },
     "templates": {
       "title": "Plantilles de correu",
@@ -2230,6 +2406,7 @@
     "pin": "Fixa",
     "unpin": "Desfixa",
     "move_to": "Mou a...",
+    "copy_to_account": "Copia a un compte...",
     "archive": "Arxiva",
     "delete": "Suprimeix",
     "mark_as_spam": "Denuncia com a brossa",
@@ -2240,7 +2417,22 @@
     "cancel_scheduled_send": "Cancel·la l'enviament",
     "reschedule_send": "Reprograma",
     "cancel_and_edit": "Cancel·la i edita",
-    "cancel_and_compose_again": "Cancel·la i torna a redactar"
+    "cancel_and_compose_again": "Cancel·la i torna a redactar",
+    "rules": {
+      "title": "Regles",
+      "move_from": "Mou sempre els missatges de {sender}",
+      "move_from_domain": "Mou sempre els missatges de @{domain}",
+      "move_from_list": "Mou sempre els missatges d'aquesta llista",
+      "mark_read_from": "Marca sempre com a llegits els missatges de {sender}",
+      "tag_with": "Etiqueta sempre amb",
+      "block": "{count, plural, one {Bloca el remitent} other {Bloca # remitents}}",
+      "no_junk": "Aquest compte no té carpeta de correu brossa",
+      "create": "Crea una regla…",
+      "manage": "Gestiona les regles",
+      "senders_count": "{count, plural, one {# remitent} other {# remitents}}",
+      "cross_account": "Selecciona missatges d'un sol compte",
+      "opaque_hint": "Els teus filtres s'han editat a mà. Obre la configuració dels filtres"
+    }
   },
   "mailbox_context_menu": {
     "mark_folder_read": "Marca la carpeta com a llegida",
@@ -2796,6 +2988,10 @@
       "tasks_hint": "Tasques (k)"
     },
     "events": {
+      "hidden_before": "{count, plural, one {# esdeveniment anterior} other {# esdeveniments anteriors}}",
+      "hidden_after": "{count, plural, one {# esdeveniment posterior} other {# esdeveniments posteriors}}",
+      "show_all_hours": "Mostra totes les hores",
+      "show_display_hours": "Mostra només {start} – {end}",
       "create": "Crea un esdeveniment",
       "edit": "Edita l'esdeveniment",
       "delete": "Suprimeix l'esdeveniment",
@@ -2803,6 +2999,8 @@
       "no_events": "Cap esdeveniment",
       "all_day": "Tot el dia",
       "more": "+{count} més",
+      "show_more": "Mostra'n més",
+      "show_less": "Mostra'n menys",
       "no_title": "(Sense títol)",
       "resize": "Redimensiona l'esdeveniment",
       "duplicate": "Duplica",
@@ -2825,6 +3023,7 @@
       "save_note": "Desa",
       "note_saved": "Nota afegida",
       "open_link": "Obre l'enllaç",
+      "copy_location": "Copia la ubicació",
       "meeting_link": "Enllaç de la reunió",
       "tentative": "Provisional",
       "cancelled": "Cancel·lat",
@@ -2952,6 +3151,14 @@
       "unit": "Unitat del recordatori"
     },
     "settings": {
+      "limit_hours": "Limita les hores visibles",
+      "limit_hours_desc": "Mostra només aquestes hores a les vistes de dia i setmana. Els esdeveniments fora d'aquestes hores continuen accessibles amb les fletxes de dalt i de baix de cada dia.",
+      "visible_hours": "Hores visibles",
+      "visible_hours_start": "Inici de les hores visibles",
+      "visible_hours_end": "Final de les hores visibles",
+      "hide_non_working_days": "Amaga els dies no laborables",
+      "hide_non_working_days_desc": "Treu de la vista setmanal els dies que no treballes. Els seus esdeveniments continuen apareixent a les vistes de mes, dia i agenda.",
+      "working_days": "Dies laborables",
       "title": "Configuració del calendari",
       "default_view": "Vista predeterminada",
       "week_starts_on": "La setmana comença el",
@@ -2975,7 +3182,7 @@
       "enable_tasks": "Activa les tasques",
       "enable_tasks_desc": "Mostra una vista de tasques al calendari per gestionar pendents",
       "show_tasks_on_calendar": "Mostra les tasques al calendari",
-      "show_tasks_on_calendar_desc": "Mostra etiquetes de tasca a les vistes de dia i setmana del calendari",
+      "show_tasks_on_calendar_desc": "Mostra les tasques a les vistes de mes, setmana i dia del calendari",
       "hover_preview": "Previsualització en passar el cursor",
       "hover_preview_desc": "Mostra una finestra emergent de detalls en passar el cursor per sobre dels esdeveniments",
       "hover_preview_instant": "Instantània",
@@ -3276,6 +3483,7 @@
     "body_placeholder": "El cos conté...",
     "folder": "Carpeta",
     "all_folders": "Totes les carpetes",
+    "all_folders_except_spam_trash": "Totes les carpetes excepte Correu brossa i Paperera",
     "has_attachment": "Fitxers adjunts",
     "date_after": "Després de",
     "date_before": "Abans de",

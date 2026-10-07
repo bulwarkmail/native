@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Plugin",
-      "themes": "Temi",
       "updates": "Aggiornamenti"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Le palette chiara e scura predefinite.",
       "default_name": "Bulwark",
-      "mobile_description": "Scegli un tema di colori. I temi seguono l'impostazione chiaro/scuro di Aspetto; i pacchetti di temi personalizzati si gestiscono nella webmail.",
-      "title": "Temi"
+      "mobile_description": "Scegli un tema di colori. I temi seguono l'impostazione chiaro/scuro di Aspetto; i pacchetti di temi personalizzati si gestiscono nella webmail."
     },
     "vacation": {
       "warnings": {

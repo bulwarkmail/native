@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Pluginuri",
-      "themes": "Teme",
       "updates": "Actualizări"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Paletele implicite, luminoasă și întunecată.",
       "default_name": "Bulwark",
-      "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail.",
-      "title": "Teme"
+      "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail."
     },
     "vacation": {
       "warnings": {

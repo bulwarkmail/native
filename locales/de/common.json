@@ -17,17 +17,24 @@
     "reconnecting": "Verbindung verloren. Verbindung wird wiederhergestellt…",
     "error": {
       "invalid_credentials": "Ungültige E-Mail-Adresse oder Passwort",
+      "invalid_token": "Der Server hat dieses Zugriffstoken nicht akzeptiert. Prüfen Sie, ob es vollständig ist und nicht abgelaufen oder widerrufen wurde.",
       "connection_failed": "Verbindung zum Server fehlgeschlagen",
       "cors_blocked": "Der Server ist erreichbar, blockiert aber Cross-Origin-Anfragen. Überprüfen Sie die CORS-Einstellungen Ihres JMAP-Servers und erlauben Sie diese Domain.",
       "server_error": "Der Server ist vorübergehend nicht erreichbar. Bitte versuchen Sie es später erneut.",
       "generic": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
       "totp_required": "Ein Zwei-Faktor-Authentifizierungscode ist erforderlich. Bitte geben Sie Ihren Code unten ein.",
       "totp_invalid": "Ungültiger Authentifizierungscode. Überprüfen Sie Ihre Authenticator-App.",
-      "oauth_discovery_failed": "SSO ist aktiviert, aber der Identitätsanbieter ist nicht erreichbar. Überprüfen Sie Ihre OAuth-Konfiguration."
+      "oauth_discovery_failed": "SSO ist aktiviert, aber der Identitätsanbieter ist nicht erreichbar. Überprüfen Sie Ihre OAuth-Konfiguration.",
+      "token_exchange_failed": "Passwort und Code wurden akzeptiert, aber der Mailserver hat für diese App keine Sitzung gestartet. Bitten Sie Ihre Administration, die OAuth-Client-Einstellungen zu prüfen."
     },
     "show_password": "Passwort anzeigen",
     "hide_password": "Passwort verbergen",
     "totp_toggle": "Ich habe einen 2FA-Code",
+    "token_toggle": "Mit Zugriffstoken anmelden",
+    "password_toggle": "Mit Passwort anmelden",
+    "token_label": "Zugriffstoken",
+    "token_placeholder": "API-Token einfügen",
+    "token_hint": "Erstellen Sie in den Einstellungen Ihres E-Mail-Anbieters ein API-Token und fügen Sie es hier ein.",
     "remember_me": "Angemeldet bleiben",
     "config_error": {
       "title": "Konfigurationsfehler",
@@ -114,6 +121,7 @@
     "unified_archive": "Alle Archive",
     "unified_junk": "Alle Spam",
     "all_accounts": "Alle Konten",
+    "all_accounts_loading": "Konten werden geladen: {loaded} von {total}",
     "unified_mailbox": "Gemeinsames Postfach",
     "expand": "Erweitern",
     "collapse": "Einklappen",
@@ -254,6 +262,7 @@
       "button": "Ordner leeren",
       "confirm_title": "Ordner leeren",
       "confirm_message": "Alle E-Mails in diesem Ordner werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirm_message_trash": "Alle E-Mails in diesem Ordner werden in den Papierkorb verschoben.",
       "confirm_button": "Ordner leeren",
       "junk_hint": "Sie können den Spam-Ordner leeren, um alle Nachrichten dauerhaft zu entfernen.",
       "trash_hint": "Sie können den Papierkorb leeren, um alle Nachrichten dauerhaft zu entfernen."
@@ -310,6 +319,8 @@
     "view_source": "Quelltext anzeigen",
     "fullscreen": "Vollbild",
     "exit_fullscreen": "Vollbild beenden",
+    "view_in_dark_mode": "Im dunklen Modus anzeigen",
+    "view_in_light_mode": "Im hellen Modus anzeigen",
     "export_email": "Als .eml exportieren",
     "forward_as_attachment": "Als Anhang weiterleiten",
     "import_email": ".eml oder .zip importieren",
@@ -578,7 +589,12 @@
       "copied": "Kopiert!",
       "copy_failed": "Kopieren fehlgeschlagen"
     },
-    "send_now": "Jetzt senden"
+    "send_now": "Jetzt senden",
+    "verification_code": {
+      "copy": "Code {code} kopieren",
+      "copied": "Code kopiert",
+      "copy_failed": "Code konnte nicht kopiert werden"
+    }
   },
   "email_composer": {
     "read_receipt_on": "Lesebestätigung angefordert (klicken zum Deaktivieren)",
@@ -608,6 +624,12 @@
     "attach": "Anhängen",
     "attach_photos": "Fotos & Videos",
     "attach_files": "Dateien",
+    "attach_from_files": "Aus Dateien anhängen",
+    "files_picker": {
+      "attach": "{count, plural, =0 {Anhängen} one {1 Datei anhängen} other {# Dateien anhängen}}",
+      "empty_folder": "Dieser Ordner ist leer",
+      "load_failed": "Ihre Dateien konnten nicht geladen werden"
+    },
     "discard": "Verwerfen",
     "discard_draft_title": "Entwurf verwerfen?",
     "discard_draft_confirm": "Sie haben ungespeicherte Änderungen. Möchten Sie diesen Entwurf verwerfen?",
@@ -671,6 +693,8 @@
     "smime_unlock_button": "Entsperren",
     "smime_passphrase_placeholder": "S/MIME-Passphrase",
     "send_timeout": "Der Server antwortet nicht mehr. Prüfen Sie den Ordner „Gesendet“, bevor Sie erneut senden – die Nachricht wurde möglicherweise bereits verschickt.",
+    "send_recipients_rejected": "Nicht gesendet – der Server hat alle Empfänger abgelehnt.",
+    "send_some_recipients_rejected": "Gesendet, aber nicht an diese Empfänger – der Server hat sie abgelehnt.",
     "continue_draft": "Entwurf fortsetzen",
     "close_draft_title": "Entwurf speichern oder verwerfen?",
     "close_draft_message": "Sie haben ungespeicherte Änderungen. Möchten Sie diese als Entwurf speichern oder verwerfen?",
@@ -708,6 +732,7 @@
     "recipient_name_placeholder": "Anzeigename",
     "autocomplete_search_server": "Auf dem Server suchen",
     "autocomplete_searching": "Suche läuft...",
+    "mention_recipients": "Empfänger",
     "toolbar": {
       "bold": "Fett",
       "italic": "Kursiv",
@@ -801,6 +826,8 @@
     "emails_moved": "{count} E-Mails verschoben",
     "moved_to_mailbox": "Nach {mailbox} verschoben",
     "move_failed": "Verschieben fehlgeschlagen",
+    "emails_copied": "{count} E-Mails kopiert",
+    "copy_failed": "Kopieren fehlgeschlagen",
     "move_error": "E-Mails konnten nicht in den ausgewählten Ordner verschoben werden",
     "email_tagged": "E-Mail markiert",
     "emails_tagged": "{count} E-Mails markiert",
@@ -814,8 +841,8 @@
     "identity_delete_failed": "Identität löschen fehlgeschlagen: {error}",
     "identity_unauthorized": "Sie sind nicht autorisiert, von dieser E-Mail-Adresse zu senden",
     "identity_not_found": "Identität nicht gefunden",
-    "vacation_saved": "Abwesenheitsnotiz-Einstellungen gespeichert",
-    "vacation_save_failed": "Fehler beim Speichern der Abwesenheitsnotiz-Einstellungen",
+    "vacation_saved": "Abwesenheits-Einstellungen gespeichert",
+    "vacation_save_failed": "Fehler beim Speichern der Abwesenheits-Einstellungen",
     "filters_saved": "Filter erfolgreich gespeichert",
     "filters_save_failed": "Fehler beim Speichern der Filter",
     "filters_deleted": "Filterregel gelöscht",
@@ -825,7 +852,20 @@
     "templates_import_empty": "Keine Vorlagen in der Datei gefunden",
     "export_email_error": "Fehler beim Exportieren der E-Mail",
     "import_email_success": "E-Mail erfolgreich importiert",
-    "import_email_error": "Fehler beim Importieren der E-Mail"
+    "import_email_error": "Fehler beim Importieren der E-Mail",
+    "rule_created": "Regel erstellt",
+    "rule_merged": "Zur Regel „{name}“ hinzugefügt",
+    "rule_already_covered": "Bereits durch die Regel „{name}“ abgedeckt",
+    "rule_apply_existing": "{count, plural, one {Auf # vorhandene Nachricht anwenden} other {Auf # vorhandene Nachrichten anwenden}}",
+    "rule_applied": "{count, plural, =0 {Keine Nachricht musste geändert werden} one {Regel auf # Nachricht angewendet} other {Regel auf # Nachrichten angewendet}}",
+    "rule_apply_failed": "Die Regel konnte nicht auf vorhandene Nachrichten angewendet werden",
+    "rule_edit": "Regel bearbeiten",
+    "rule_undo": "Rückgängig",
+    "rule_undone": "Regeländerung rückgängig gemacht",
+    "rule_undo_failed": "Die Regeländerung konnte nicht rückgängig gemacht werden",
+    "rule_undo_conflict": "Ihre Filter wurden inzwischen geändert. Machen Sie die Änderung in den Filter-Einstellungen rückgängig.",
+    "rule_folder_failed": "Der Ordner konnte nicht erstellt werden",
+    "vacation_filters_save_failed": "Abwesenheits-Einstellungen gespeichert, Weiterleitung und Antwortempfänger konnten aber nicht gespeichert werden"
   },
   "date": {
     "today": "Heute",
@@ -910,7 +950,7 @@
       "privacy": "Datenschutz & Sicherheit",
       "account": "Konto",
       "identities": "Identitäten",
-      "vacation": "Abwesenheitsnotiz",
+      "vacation": "Abwesenheit",
       "advanced": "Erweitert",
       "calendar": "Kalender",
       "filters": "Filter",
@@ -925,12 +965,25 @@
       "sidebar_apps": "Sidebar-Apps",
       "notifications": "Benachrichtigungen",
       "layout": "Layout",
+      "themes": "Designs",
       "reading": "Lesen",
       "composing": "Verfassen",
       "downloads": "Downloads",
       "content_senders": "Inhalte & Absender",
       "about_data": "Über & Daten",
       "debug": "Debug"
+    },
+    "themes": {
+      "title": "Designs",
+      "description": "Wählen Sie aus den von Ihrem Administrator bereitgestellten Designs und den integrierten Vorlagen.",
+      "locked": "Die Designauswahl wurde von einem Administrator gesperrt.",
+      "forced": "Das Design „{name}“ wird vom Administrator vorgegeben und kann nicht geändert werden",
+      "admin_theme": "Administrator-Design",
+      "activated": "Design aktiviert",
+      "default_restored": "Standarddesign wiederhergestellt",
+      "default_name": "Standard",
+      "default_badge": "Standard",
+      "admin_enforced": "Vom Administrator erzwungen"
     },
     "tab_groups": {
       "general": "Allgemein",
@@ -1069,6 +1122,10 @@
       "tint_list_rows": {
         "label": "Nachrichtenzeilen mit Tag-Farbe einfärben",
         "description": "Die einzelnen Nachrichtenzeilen mit der Farbe ihres ersten Tags einfärben. Deaktivieren Sie diese Option, um die Zeilen neutral zu halten; Tag-Punkte und -Markierungen zeigen die Farbe weiterhin an."
+      },
+      "tint_list_rows_by_account": {
+        "label": "Tint List Rows by Account Color",
+        "description": "In the unified view, shade each row with its account color instead of showing the account dot. Takes precedence over the tag tint; tags keep their color on their chips."
       },
       "show_folder_total_count": {
         "label": "Gesamtzahl der Nachrichten anzeigen",
@@ -1336,6 +1393,10 @@
         "description": "E-Mail-Vorschau in der Liste anzeigen",
         "focus_description": "Inline-Vorschautext in der fokussierten einzeiligen Nachrichtenliste anzeigen"
       },
+      "show_verification_codes": {
+        "label": "Bestätigungscodes anzeigen",
+        "description": "Code aus Anmelde- und Bestätigungs-E-Mails zum Kopieren mit einem Klick anbieten, in der Liste einen Tag lang und in der Nachricht"
+      },
       "disable_threading": {
         "label": "Konversationsgruppierung deaktivieren",
         "description": "E-Mails als einzelne Nachrichten statt nach Konversation gruppiert anzeigen"
@@ -1464,6 +1525,10 @@
         "label": "Warnung bei leerem Betreff",
         "description": "Vor dem Senden einer Nachricht ohne Betreff nachfragen."
       },
+      "recipient_mentions": {
+        "label": "Empfänger mit @ erwähnen",
+        "description": "@ in der Nachricht bietet ihre Empfänger an und fügt den Vornamen des gewählten ein. Enter oder Tab übernimmt den markierten Namen."
+      },
       "hide_inline_image_attachments": {
         "label": "Eingebettete Bilder in Anhangsliste ausblenden",
         "description": "Im Nachrichtentext eingebettete Bilder werden nicht als separate Anhänge aufgeführt"
@@ -1558,6 +1623,7 @@
       "auth_method_label": "Authentifizierung",
       "auth_method_oauth": "Single Sign-On (OAuth/OIDC)",
       "auth_method_basic": "Passwort",
+      "auth_method_token": "Zugriffstoken",
       "demo_account": "Demokonto",
       "email": {
         "label": "E-Mail-Adresse",
@@ -1702,14 +1768,36 @@
       },
       "link_device": {
         "title": "Mobile App verknüpfen",
-        "description": "Melden Sie sich in der Bulwark Mail App an, ohne etwas einzutippen. Erzeugen Sie hier einen QR-Code und scannen Sie ihn auf dem Anmeldebildschirm der App.",
+        "description": "Melden Sie sich in der Bulwark Mail App auf Ihrem Smartphone an, ohne dort Ihr Passwort einzugeben. Ihr Smartphone erhält eine eigene Anmeldung – wenn Sie sich hier abmelden, bleibt es angemeldet.",
         "generate": "QR-Code anzeigen",
         "regenerate": "Neuen Code anzeigen",
-        "instructions": "Öffnen Sie die Bulwark Mail App, tippen Sie auf dem Anmeldebildschirm auf \"QR-Code scannen\" und richten Sie die Kamera hierauf.",
+        "instructions": "Öffnen Sie die Bulwark Mail App und tippen Sie auf dem Anmeldebildschirm auf \"Scan a sign-in code\" (oder auf \"Add account\" → \"Scan a sign-in code\", wenn Sie bereits angemeldet sind). Richten Sie dann die Kamera hierauf.",
         "expires_in": "Dieser Code läuft in {seconds} Sekunden ab. Er kann nur einmal verwendet werden.",
         "expired": "Dieser Code ist abgelaufen.",
-        "generating": "Wird erstellt…",
-        "error": "Kopplungscode konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
+        "error": "Kopplungscode konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
+        "password_prompt": "Geben Sie zur Bestätigung Ihr Passwort ein. Ihr Smartphone erhält eine eigene Anmeldung; Ihr Passwort wird nicht an das Smartphone übertragen.",
+        "show_password": "Passwort anzeigen",
+        "hide_password": "Passwort verbergen",
+        "continue": "Weiter",
+        "error_wrong_password": "Falsches Passwort. Bitte versuchen Sie es erneut.",
+        "totp_prompt": "Geben Sie den Code aus Ihrer Authenticator-App ein.",
+        "error_password_or_code": "Das Passwort oder der Code ist falsch.",
+        "error_not_signed_in": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um ein Gerät zu verknüpfen.",
+        "error_impersonation": "Geräte können nicht verknüpft werden, während Sie das Postfach eines anderen Benutzers ansehen.",
+        "error_too_many_attempts": "Zu viele Versuche. Warten Sie einen Moment und versuchen Sie es erneut.",
+        "error_session_secret": "Das Verknüpfen von Geräten ist auf diesem Server nicht eingerichtet (SESSION_SECRET fehlt). Wenden Sie sich an Ihren Administrator.",
+        "error_server_unreachable": "Ihr Mailserver ist nicht erreichbar. Bitte versuchen Sie es erneut.",
+        "error_pairing_unavailable": "Ihr Mailserver erlaubt das Verknüpfen von Geräten auf diese Weise nicht. Wenden Sie sich an Ihren Administrator.",
+        "qr_alt": "QR-Code zur Anmeldung",
+        "link_label": "Anmeldelink",
+        "copy_link": "Anmeldelink kopieren",
+        "copied": "Kopiert",
+        "copy_hint": "Keine Kamera? Kopieren Sie den Link und fügen Sie ihn in der App über \"Paste sign-in link\" ein.",
+        "success_title": "Auf Ihrem Smartphone angemeldet",
+        "success_body": "Sie können diese Seite schließen. Um ein weiteres Gerät zu verknüpfen, lassen Sie einen neuen Code anzeigen.",
+        "link_another": "Weiteres Gerät verknüpfen",
+        "use_sso": "Stattdessen Single Sign-On verwenden",
+        "error_insecure_server": "Die App verbindet sich nur über https mit Mailservern, und dieser verwendet http."
       },
       "public_keys": {
         "name_label": "Name des öffentlichen Schlüssels",
@@ -1737,28 +1825,24 @@
       }
     },
     "vacation": {
-      "title": "Abwesenheitsnotiz",
-      "description": "Automatisch auf eingehende E-Mails antworten, während Sie abwesend sind",
+      "title": "Abwesenheit",
+      "description": "Automatisch auf eingehende E-Mails reagieren, während Sie abwesend sind",
       "loading": "Abwesenheitseinstellungen werden geladen...",
       "not_supported": "Ihr Mailserver unterstützt keine Abwesenheitsantworten.",
       "fetch_error": "Fehler beim Laden der Abwesenheitseinstellungen. Bitte versuchen Sie es erneut.",
       "status": {
-        "label": "Abwesenheitsnotiz",
+        "label": "Automatisch antworten",
         "description": "Senden Sie eine automatische Antwort an Personen, die Ihnen eine E-Mail senden",
         "active": "Aktiv",
         "inactive": "Inaktiv"
       },
       "date_range": {
-        "title": "Zeitraum",
-        "description": "Optional die automatische Antwort auf einen bestimmten Zeitraum beschränken",
         "start": "Startdatum",
         "start_description": "Leer lassen für kein Startlimit",
         "end": "Enddatum",
         "end_description": "Leer lassen für kein Endlimit"
       },
       "message": {
-        "title": "Automatische Antwortnachricht",
-        "description": "Die Nachricht, die als Antwort gesendet wird",
         "subject_label": "Betreff",
         "subject_description": "Betreffzeile der automatischen Antwort",
         "subject_placeholder": "Abwesenheitsnotiz",
@@ -1778,10 +1862,32 @@
       "saving": "Speichern...",
       "warnings": {
         "end_before_start": "Das Enddatum muss nach dem Startdatum liegen",
+        "invalid_date": "Bitte ein gültiges Start- und Enddatum mit Uhrzeit angeben oder das Feld leer lassen",
         "start_in_past": "Das Startdatum liegt in der Vergangenheit",
         "empty_body": "Der Nachrichtentext ist leer - Empfänger erhalten eine leere Antwort",
         "subject_too_long": "Der Betreff ist für den Server zu lang (höchstens {max} Byte).",
-        "body_too_long": "Die Nachricht ist für den Server zu lang (höchstens {max} Byte, inklusive Formatierung)."
+        "body_too_long": "Die Nachricht ist für den Server zu lang (höchstens {max} Byte, inklusive Formatierung).",
+        "forward_address": "Bitte eine gültige Adresse für die Weiterleitung angeben",
+        "not_running": "Weiterleitung oder Antwortempfänger sind gespeichert, aber gerade nicht aktiv. Speichern aktiviert sie wieder."
+      },
+      "forward": {
+        "title": "Weiterleitung",
+        "description": "Leitet eingehende Nachrichten an eine andere Adresse weiter, mit oder ohne automatische Antwort, im Zeitraum oben (ohne Enddatum, bis sie ausgeschaltet wird). Spam wird nicht weitergeleitet.",
+        "enabled_label": "Nachrichten weiterleiten",
+        "to_label": "Weiterleiten an",
+        "to_placeholder": "email@beispiel.de",
+        "keep_label": "Im Posteingang behalten",
+        "keep_description": "Sonst wird die Nachricht nur weitergeleitet: Sie bleibt nicht in diesem Postfach, und keine Filterregel läuft für sie."
+      },
+      "audience": {
+        "label": "Antworten an",
+        "description": "Interne Absender: {domains}",
+        "all": "Alle Absender",
+        "internal": "Nur interne Absender",
+        "external": "Nur externe Absender"
+      },
+      "auto_reply": {
+        "title": "Automatische Antwort"
       }
     },
     "folders": {
@@ -1806,6 +1912,15 @@
       "reorder": "Zum Neuanordnen ziehen",
       "reorder_error": "Ordner konnten nicht neu angeordnet werden",
       "move_error": "Ordner konnte nicht verschoben werden",
+      "select_folder": "{name} auswählen",
+      "select_hint": "Auswählen. Umschalt+Klick wählt alle Ordner bis zum zuletzt angeklickten aus.",
+      "selected_count": "{count, plural, one {# Ordner} other {# Ordner}} ausgewählt",
+      "move_to": "Verschieben nach...",
+      "move_to_top_level": "Oberste Ebene",
+      "move": "Verschieben",
+      "clear_selection": "Auswahl aufheben",
+      "folders_moved": "{count, plural, one {# Ordner verschoben} other {# Ordner verschoben}}",
+      "move_partial_error": "{count, plural, one {# Ordner konnte} other {# Ordner konnten}} nicht verschoben werden",
       "subfolder_of": "In {name}",
       "subfolder_name": "Name des Unterordners",
       "new_folder_name": "Ordnername",
@@ -1892,7 +2007,34 @@
         "button": "Importieren"
       },
       "about": {
-        "title": "Bulwark Webmail"
+        "title": "Bulwark Webmail",
+        "source_code": "Quellcode"
+      },
+      "spam_siege": {
+        "title": "Spam Siege",
+        "intro": "Klicken Sie Spam und Phishing an, bevor sie Ihren Posteingang erreichen. Echte E-Mails lassen Sie durch. Sind alle drei Schilde verloren, fällt der Posteingang.",
+        "kinds": {
+          "spam": "Spam",
+          "phishing": "Phishing",
+          "legit": "Echte E-Mail"
+        },
+        "click_to_block": "Klicken zum Blockieren",
+        "let_through": "Durchlassen",
+        "start": "Starten",
+        "play_again": "Nochmal spielen",
+        "score": "Punkte",
+        "combo": "Serienbonus",
+        "shields_left": "{count} von {total} Schilden übrig",
+        "seconds": "{seconds} s",
+        "best": "Bestwert: {score}",
+        "new_best": "Neuer Bestwert",
+        "held": "Posteingang gehalten",
+        "overrun": "Posteingang überrannt",
+        "stats": {
+          "caught": "Blockiert",
+          "delivered": "Zugestellt",
+          "mistakes": "Fehler"
+        }
       }
     },
     "sidebar_apps": {
@@ -2013,7 +2155,8 @@
         "subject": "Betreff",
         "header": "Benutzerdefinierter Header",
         "size": "Größe",
-        "body": "Nachrichtentext"
+        "body": "Nachrichtentext",
+        "all": "Alle Nachrichten"
       },
       "comparators": {
         "has_any": "vorhanden",
@@ -2026,7 +2169,9 @@
         "ends_with": "endet mit",
         "matches": "entspricht dem Muster",
         "greater_than": "ist größer als",
-        "less_than": "ist kleiner als"
+        "less_than": "ist kleiner als",
+        "address_is": "ist die Adresse",
+        "domain_is": "hat die Domain"
       },
       "action_types": {
         "move": "In Ordner verschieben",
@@ -2101,7 +2246,38 @@
         "actions_count": "{count, plural, one {# Aktion} other {# Aktionen}}"
       },
       "origin_external": "Extern",
-      "managed_by_tooltip": "Verwaltet von {source}. Bearbeiten Sie sie in dieser App oder verwenden Sie den rohen Sieve-Editor."
+      "managed_by_tooltip": "Verwaltet von {source}. Bearbeiten Sie sie in dieser App oder verwenden Sie den rohen Sieve-Editor.",
+      "quick_rule_names": {
+        "move_sender": "Von {sender} nach {folder} verschieben",
+        "move_domain": "Von @{domain} nach {folder} verschieben",
+        "move_list": "Liste {list} nach {folder} verschieben",
+        "mark_read": "Von {sender} als gelesen markieren",
+        "tag": "Von {sender} mit Label {tag} versehen",
+        "block": "{sender} blockieren",
+        "custom": "Nachrichten von {sender}",
+        "custom_plain": "Neue Regel",
+        "senders": "{count, plural, one {# Absender} other {# Absendern}}"
+      },
+      "suggestions": "Vorschläge",
+      "suggest_subject": "Betreff „{subject}“",
+      "suggest_to": "An {address}",
+      "suggest_cc": "Cc {address}",
+      "suggest_list": "List-Id",
+      "suggest_domain": "@{domain}",
+      "apply_existing": "Auch auf vorhandene Nachrichten in diesem Ordner anwenden",
+      "apply_existing_unsupported": "Nur Regeln, die Absender, Empfänger, Betreff oder Kopfzeilen prüfen und verschieben, kopieren, als gelesen markieren, mit Stern markieren oder mit Label versehen, lassen sich auf vorhandene Nachrichten anwenden.",
+      "period_title": "Zeitraum",
+      "period_start": "Startdatum",
+      "period_end": "Enddatum",
+      "validation_period_order": "Das Enddatum muss nach dem Startdatum liegen",
+      "period_toggle": "Nur in einem Zeitraum aktiv",
+      "period_hint": "Gilt für Nachrichten, die in diesem Zeitraum eintreffen. Ein leeres Feld lässt den Zeitraum an dieser Seite offen.",
+      "validation_period_empty": "Bitte ein Start- oder Enddatum für den Zeitraum angeben",
+      "validation_period_invalid": "Bitte für den Zeitraum ein gültiges Datum mit Uhrzeit angeben oder das Feld leer lassen",
+      "apply_existing_period": "Eine Regel mit Zeitraum wirkt nur auf Nachrichten, die in diesem Zeitraum eintreffen, und lässt sich daher nicht auf vorhandene Nachrichten anwenden.",
+      "period_status_scheduled": "geplant",
+      "period_status_active": "aktiv",
+      "period_status_expired": "abgelaufen"
     },
     "templates": {
       "title": "E-Mail-Vorlagen",
@@ -2230,6 +2406,7 @@
     "pin": "Anheften",
     "unpin": "Lösen",
     "move_to": "Verschieben nach...",
+    "copy_to_account": "In Konto kopieren...",
     "archive": "Archivieren",
     "delete": "Löschen",
     "mark_as_spam": "Spam melden",
@@ -2240,7 +2417,22 @@
     "cancel_scheduled_send": "Senden abbrechen",
     "reschedule_send": "Neu planen",
     "cancel_and_edit": "Abbrechen und bearbeiten",
-    "cancel_and_compose_again": "Abbrechen und neu verfassen"
+    "cancel_and_compose_again": "Abbrechen und neu verfassen",
+    "rules": {
+      "title": "Regeln",
+      "move_from": "Nachrichten von {sender} immer verschieben",
+      "move_from_domain": "Nachrichten von @{domain} immer verschieben",
+      "move_from_list": "Nachrichten dieser Liste immer verschieben",
+      "mark_read_from": "Nachrichten von {sender} immer als gelesen markieren",
+      "tag_with": "Immer mit Label versehen",
+      "block": "{count, plural, one {Absender blockieren} other {# Absender blockieren}}",
+      "no_junk": "Dieses Konto hat keinen Spam-Ordner",
+      "create": "Regel erstellen…",
+      "manage": "Regeln verwalten",
+      "senders_count": "{count, plural, one {# Absender} other {# Absendern}}",
+      "cross_account": "Nachrichten aus nur einem Konto auswählen",
+      "opaque_hint": "Ihre Filter wurden von Hand bearbeitet. Öffnen Sie die Filter-Einstellungen"
+    }
   },
   "mailbox_context_menu": {
     "mark_folder_read": "Ordner als gelesen markieren",
@@ -2796,6 +2988,10 @@
       "tasks_hint": "Aufgaben (k)"
     },
     "events": {
+      "hidden_before": "{count, plural, one {# früherer Termin} other {# frühere Termine}}",
+      "hidden_after": "{count, plural, one {# späterer Termin} other {# spätere Termine}}",
+      "show_all_hours": "Alle Stunden anzeigen",
+      "show_display_hours": "Nur {start} – {end} anzeigen",
       "create": "Termin erstellen",
       "edit": "Termin bearbeiten",
       "delete": "Termin löschen",
@@ -2803,6 +2999,8 @@
       "no_events": "Keine Termine",
       "all_day": "Ganztägig",
       "more": "+{count} weitere",
+      "show_more": "Mehr anzeigen",
+      "show_less": "Weniger anzeigen",
       "no_title": "(Kein Titel)",
       "resize": "Termingröße ändern",
       "duplicate": "Duplizieren",
@@ -2825,6 +3023,7 @@
       "save_note": "Speichern",
       "note_saved": "Notiz hinzugefügt",
       "open_link": "Link öffnen",
+      "copy_location": "Ort kopieren",
       "meeting_link": "Besprechungslink",
       "tentative": "Vorläufig",
       "cancelled": "Abgesagt",
@@ -2952,6 +3151,14 @@
       "unit": "Erinnerungseinheit"
     },
     "settings": {
+      "limit_hours": "Sichtbare Stunden begrenzen",
+      "limit_hours_desc": "In der Tages- und Wochenansicht nur diese Stunden anzeigen. Termine außerhalb bleiben über die Pfeile oben und unten an jedem Tag erreichbar.",
+      "visible_hours": "Sichtbare Stunden",
+      "visible_hours_start": "Beginn der sichtbaren Stunden",
+      "visible_hours_end": "Ende der sichtbaren Stunden",
+      "hide_non_working_days": "Arbeitsfreie Tage ausblenden",
+      "hide_non_working_days_desc": "Tage, an denen du nicht arbeitest, in der Wochenansicht weglassen. Ihre Termine erscheinen weiterhin in der Monats-, Tages- und Agendaansicht.",
+      "working_days": "Arbeitstage",
       "title": "Kalendereinstellungen",
       "default_view": "Standardansicht",
       "week_starts_on": "Woche beginnt am",
@@ -2975,7 +3182,7 @@
       "enable_tasks": "Aufgaben aktivieren",
       "enable_tasks_desc": "Eine Aufgabenansicht im Kalender zum Verwalten von To-dos anzeigen",
       "show_tasks_on_calendar": "Aufgaben im Kalender anzeigen",
-      "show_tasks_on_calendar_desc": "Aufgabenmarkierungen in der Tages- und Wochenansicht anzeigen",
+      "show_tasks_on_calendar_desc": "Aufgaben in der Monats-, Wochen- und Tagesansicht anzeigen",
       "hover_preview": "Ereignis-Hover-Vorschau",
       "hover_preview_desc": "Ein Detail-Popover anzeigen, wenn über Kalender-Ereignisse gehovert wird",
       "hover_preview_instant": "Sofort",
@@ -3234,6 +3441,7 @@
     "body_placeholder": "Inhalt enthält...",
     "folder": "Ordner",
     "all_folders": "Alle Ordner",
+    "all_folders_except_spam_trash": "Alle Ordner außer Spam und Papierkorb",
     "has_attachment": "Anhänge",
     "date_after": "Nach dem",
     "date_before": "Vor dem",

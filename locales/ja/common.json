@@ -17,17 +17,24 @@
     "reconnecting": "接続が切れました。再接続を試みています…",
     "error": {
       "invalid_credentials": "メールアドレスまたはパスワードが無効です",
+      "invalid_token": "サーバーがこのアクセストークンを受け付けませんでした。トークンが完全であること、期限切れや取り消しになっていないことを確認してください。",
       "connection_failed": "サーバーへの接続に失敗しました",
       "cors_blocked": "サーバーには到達できますが、クロスオリジンリクエストがブロックされています。JMAPサーバーのCORS設定を確認し、このドメインを許可してください。",
       "server_error": "サーバーが一時的に利用できません。後でもう一度お試しください。",
       "generic": "エラーが発生しました。もう一度お試しください。",
       "totp_required": "二要素認証コードが必要です。以下にコードを入力してください。",
       "totp_invalid": "認証コードが無効です。認証アプリを確認してください。",
-      "oauth_discovery_failed": "SSOは有効ですが、IDプロバイダーに接続できません。OAuth設定を確認してください。"
+      "oauth_discovery_failed": "SSOは有効ですが、IDプロバイダーに接続できません。OAuth設定を確認してください。",
+      "token_exchange_failed": "パスワードとコードは受け付けられましたが、メールサーバーがこのアプリのセッション開始を拒否しました。管理者に OAuth クライアントの設定を確認してもらってください。"
     },
     "show_password": "パスワードを表示",
     "hide_password": "パスワードを隠す",
     "totp_toggle": "2FAコードを入力",
+    "token_toggle": "アクセストークンでログイン",
+    "password_toggle": "パスワードでログイン",
+    "token_label": "アクセストークン",
+    "token_placeholder": "APIトークンを貼り付け",
+    "token_hint": "メールプロバイダーの設定でAPIトークンを作成し、ここに貼り付けてください。",
     "remember_me": "ログイン状態を保持",
     "config_error": {
       "title": "設定エラー",
@@ -114,6 +121,7 @@
     "unified_archive": "すべてのアーカイブ",
     "unified_junk": "すべての迷惑メール",
     "all_accounts": "すべてのアカウント",
+    "all_accounts_loading": "アカウントを読み込み中: {total} 件中 {loaded} 件",
     "unified_mailbox": "統合メールボックス",
     "expand": "展開",
     "collapse": "折りたたむ",
@@ -254,6 +262,7 @@
       "button": "フォルダを空にする",
       "confirm_title": "フォルダを空にする",
       "confirm_message": "このフォルダ内のすべてのメールが完全に削除されます。この操作は取り消せません。",
+      "confirm_message_trash": "このフォルダー内のすべてのメールがゴミ箱に移動されます。",
       "confirm_button": "フォルダを空にする",
       "junk_hint": "迷惑メールフォルダを空にして、すべてのメールを完全に削除できます。",
       "trash_hint": "ゴミ箱を空にして、すべてのメールを完全に削除できます。"
@@ -310,6 +319,8 @@
     "view_source": "ソースを表示",
     "fullscreen": "全画面表示",
     "exit_fullscreen": "全画面表示を終了",
+    "view_in_dark_mode": "ダークモードで表示",
+    "view_in_light_mode": "ライトモードで表示",
     "export_email": ".emlとしてエクスポート",
     "forward_as_attachment": "添付ファイルとして転送",
     "import_email": ".eml または .zip をインポート",
@@ -578,7 +589,12 @@
       "copied": "コピーしました！",
       "copy_failed": "コピーに失敗しました"
     },
-    "send_now": "今すぐ送信"
+    "send_now": "今すぐ送信",
+    "verification_code": {
+      "copy": "コード {code} をコピー",
+      "copied": "コードをコピーしました",
+      "copy_failed": "コードをコピーできませんでした"
+    }
   },
   "email_composer": {
     "read_receipt_on": "開封確認を要求中（クリックで無効化）",
@@ -608,6 +624,12 @@
     "attach": "添付",
     "attach_photos": "Photos & Videos",
     "attach_files": "Files",
+    "attach_from_files": "ファイルから添付",
+    "files_picker": {
+      "attach": "{count, plural, =0 {添付} other {# 件のファイルを添付}}",
+      "empty_folder": "このフォルダーは空です",
+      "load_failed": "ファイルを読み込めませんでした"
+    },
     "discard": "破棄",
     "discard_draft_title": "下書きを破棄しますか？",
     "discard_draft_confirm": "未保存の変更があります。この下書きを破棄しますか？",
@@ -671,6 +693,8 @@
     "smime_unlock_button": "ロック解除",
     "smime_passphrase_placeholder": "S/MIME パスフレーズ",
     "send_timeout": "サーバーが応答しなくなりました。再送信する前に送信済みフォルダーを確認してください。メッセージはすでに送信されている可能性があります。",
+    "send_recipients_rejected": "送信されませんでした。サーバーがすべての宛先を拒否しました。",
+    "send_some_recipients_rejected": "送信しましたが、次の宛先には届きません。サーバーが拒否しました。",
     "continue_draft": "下書きを続ける",
     "close_draft_title": "下書きを保存または破棄しますか？",
     "close_draft_message": "未保存の変更があります。下書きとして保存しますか、それとも破棄しますか？",
@@ -708,6 +732,7 @@
     "recipient_name_placeholder": "表示名",
     "autocomplete_search_server": "サーバーを検索",
     "autocomplete_searching": "検索中...",
+    "mention_recipients": "宛先",
     "toolbar": {
       "bold": "太字",
       "italic": "斜体",
@@ -801,6 +826,8 @@
     "emails_moved": "{count}件のメールを移動しました",
     "moved_to_mailbox": "{mailbox}に移動しました",
     "move_failed": "移動に失敗しました",
+    "emails_copied": "{count}件のメールをコピーしました",
+    "copy_failed": "コピーに失敗しました",
     "move_error": "選択したフォルダにメールを移動できませんでした",
     "email_tagged": "メールにタグを付けました",
     "emails_tagged": "{count}件のメールにタグを付けました",
@@ -814,8 +841,8 @@
     "identity_delete_failed": "送信者情報の削除に失敗しました: {error}",
     "identity_unauthorized": "このメールアドレスからの送信は許可されていません",
     "identity_not_found": "送信者情報が見つかりません",
-    "vacation_saved": "不在応答の設定を保存しました",
-    "vacation_save_failed": "不在応答の設定の保存に失敗しました",
+    "vacation_saved": "不在の設定を保存しました",
+    "vacation_save_failed": "不在の設定の保存に失敗しました",
     "filters_saved": "フィルターを保存しました",
     "filters_save_failed": "フィルターの保存に失敗しました",
     "filters_deleted": "フィルタールールが削除されました",
@@ -825,7 +852,20 @@
     "templates_import_empty": "ファイルにテンプレートが見つかりません",
     "export_email_error": "メールのエクスポートに失敗しました",
     "import_email_success": "メールを正常にインポートしました",
-    "import_email_error": "メールのインポートに失敗しました"
+    "import_email_error": "メールのインポートに失敗しました",
+    "rule_created": "ルールを作成しました",
+    "rule_merged": "ルール「{name}」に追加しました",
+    "rule_already_covered": "ルール「{name}」ですでに対象になっています",
+    "rule_apply_existing": "{count, plural, other {既存の # 件に適用}}",
+    "rule_applied": "{count, plural, =0 {変更が必要なメールはありませんでした} other {# 件のメールにルールを適用しました}}",
+    "rule_apply_failed": "既存のメールにルールを適用できませんでした",
+    "rule_edit": "ルールを編集",
+    "rule_undo": "元に戻す",
+    "rule_undone": "ルールの変更を元に戻しました",
+    "rule_undo_failed": "ルールの変更を元に戻せませんでした",
+    "rule_undo_conflict": "その後フィルターが変更されています。フィルター設定で変更を元に戻してください。",
+    "rule_folder_failed": "フォルダを作成できませんでした",
+    "vacation_filters_save_failed": "不在の設定を保存しましたが、転送と返信する相手の保存に失敗しました"
   },
   "date": {
     "today": "今日",
@@ -910,7 +950,7 @@
       "privacy": "プライバシーとセキュリティ",
       "account": "アカウント",
       "identities": "送信者情報",
-      "vacation": "不在応答",
+      "vacation": "不在",
       "advanced": "詳細設定",
       "calendar": "カレンダー",
       "filters": "フィルター",
@@ -925,12 +965,25 @@
       "sidebar_apps": "サイドバーアプリ",
       "notifications": "通知",
       "layout": "レイアウト",
+      "themes": "テーマ",
       "reading": "閲覧",
       "composing": "作成",
       "downloads": "ダウンロード",
       "content_senders": "コンテンツと送信者",
       "about_data": "情報とデータ",
       "debug": "デバッグ"
+    },
+    "themes": {
+      "title": "テーマ",
+      "description": "管理者が配布したテーマと組み込みのプリセットから選択",
+      "locked": "テーマの選択は管理者によってロックされています。",
+      "forced": "テーマ「{name}」は管理者によって固定されているため、変更できません",
+      "admin_theme": "管理者テーマ",
+      "activated": "テーマを適用しました",
+      "default_restored": "デフォルトのテーマに戻しました",
+      "default_name": "デフォルト",
+      "default_badge": "デフォルト",
+      "admin_enforced": "管理者により固定"
     },
     "tab_groups": {
       "general": "一般",
@@ -1069,6 +1122,10 @@
       "tint_list_rows": {
         "label": "Tint List Rows by Tag Color",
         "description": "Shade each message row with its first tag color. Disable to keep rows plain; tag dots and chips still show the color."
+      },
+      "tint_list_rows_by_account": {
+        "label": "Tint List Rows by Account Color",
+        "description": "In the unified view, shade each row with its account color instead of showing the account dot. Takes precedence over the tag tint; tags keep their color on their chips."
       },
       "show_folder_total_count": {
         "label": "メッセージの総数を表示",
@@ -1371,6 +1428,10 @@
         "description": "リストにメールのプレビューを表示",
         "focus_description": "集中型1行メッセージリスト内にインラインプレビューテキストを表示"
       },
+      "show_verification_codes": {
+        "label": "確認コードを表示",
+        "description": "サインインや確認のメールに含まれるコードをワンクリックでコピーできるようにします（一覧では1日間、メッセージ内では常に）"
+      },
       "attachment_click_action": {
         "label": "添付ファイルクリック時の動作",
         "description": "添付ファイルをクリックしたときに、プレビューを開くかすぐにダウンロードするかを選択します",
@@ -1463,6 +1524,10 @@
       "empty_subject_warning": {
         "label": "件名なしの警告",
         "description": "件名のないメッセージを送信する前に確認します。"
+      },
+      "recipient_mentions": {
+        "label": "@で宛先をメンション",
+        "description": "本文で@を入力すると宛先の候補が表示され、選んだ相手の名前が挿入されます。EnterまたはTabで強調表示された名前を選びます。"
       },
       "hide_inline_image_attachments": {
         "label": "添付ファイル一覧からインライン画像を隠す",
@@ -1558,6 +1623,7 @@
       "auth_method_label": "認証方法",
       "auth_method_oauth": "シングルサインオン (OAuth/OIDC)",
       "auth_method_basic": "パスワード",
+      "auth_method_token": "アクセストークン",
       "demo_account": "デモアカウント",
       "email": {
         "label": "メールアドレス",
@@ -1702,14 +1768,36 @@
       },
       "link_device": {
         "title": "モバイルアプリを連携",
-        "description": "入力なしで Bulwark Mail モバイルアプリにサインインできます。ここで QR コードを生成し、アプリのログイン画面からスキャンしてください。",
+        "description": "スマートフォンの Bulwark Mail アプリに、そこでパスワードを入力せずにサインインできます。スマートフォンには独自のサインインが発行されるため、ここでサインアウトしてもスマートフォンはサインアウトされません。",
         "generate": "QRコードを表示",
         "regenerate": "新しいコードを表示",
-        "instructions": "Bulwark Mail アプリを開き、ログイン画面で「QRコードをスキャン」をタップして、カメラをここに向けてください。",
+        "instructions": "Bulwark Mail アプリを開き、サインイン画面で「Scan a sign-in code」をタップして（すでにサインインしている場合は「Add account」→「Scan a sign-in code」）、カメラをここに向けてください。",
         "expires_in": "このコードは{seconds}秒で期限切れになります。一度しか使用できません。",
         "expired": "このコードは期限切れです。",
-        "generating": "生成中…",
-        "error": "ペアリングコードを作成できませんでした。もう一度お試しください。"
+        "error": "ペアリングコードを作成できませんでした。もう一度お試しください。",
+        "password_prompt": "本人確認のためパスワードを入力してください。スマートフォンには独自のサインインが発行され、パスワードがスマートフォンに送信されることはありません。",
+        "show_password": "パスワードを表示",
+        "hide_password": "パスワードを隠す",
+        "continue": "続行",
+        "error_wrong_password": "パスワードが正しくありません。もう一度お試しください。",
+        "totp_prompt": "認証アプリに表示されているコードを入力してください。",
+        "error_password_or_code": "パスワードまたはコードが正しくありません。",
+        "error_not_signed_in": "セッションの有効期限が切れました。デバイスを連携するには、もう一度サインインしてください。",
+        "error_impersonation": "他のユーザーのメールボックスを表示している間は、デバイスを連携できません。",
+        "error_too_many_attempts": "試行回数が多すぎます。しばらく待ってからもう一度お試しください。",
+        "error_session_secret": "このサーバーではデバイス連携が設定されていません（SESSION_SECRET がありません）。管理者にお問い合わせください。",
+        "error_server_unreachable": "メールサーバーに接続できませんでした。もう一度お試しください。",
+        "error_pairing_unavailable": "お使いのメールサーバーでは、この方法でデバイスを連携できません。管理者にお問い合わせください。",
+        "qr_alt": "サインイン用 QR コード",
+        "link_label": "サインインリンク",
+        "copy_link": "サインインリンクをコピー",
+        "copied": "コピーしました",
+        "copy_hint": "カメラがない場合は、リンクをコピーしてアプリの「Paste sign-in link」から貼り付けてください。",
+        "success_title": "スマートフォンでサインインしました",
+        "success_body": "このページは閉じてかまいません。別のデバイスを連携するには、新しいコードを表示してください。",
+        "link_another": "別のデバイスを連携",
+        "use_sso": "代わりにシングルサインオンを使う",
+        "error_insecure_server": "モバイルアプリは https のメールサーバーにしか接続できませんが、このサーバーは http を使っています。"
       },
       "public_keys": {
         "name_label": "公開鍵の名前",
@@ -1737,28 +1825,24 @@
       }
     },
     "vacation": {
-      "title": "不在応答",
-      "description": "不在時に受信メールへ自動返信します",
+      "title": "不在",
+      "description": "不在時に受信メールを自動で処理します",
       "loading": "不在応答設定を読み込み中...",
       "not_supported": "メールサーバーは不在応答をサポートしていません。",
       "fetch_error": "不在応答設定の読み込みに失敗しました。もう一度お試しください。",
       "status": {
-        "label": "不在応答",
+        "label": "自動で返信する",
         "description": "メールを送信してきた方に自動返信を送信します",
         "active": "有効",
         "inactive": "無効"
       },
       "date_range": {
-        "title": "期間",
-        "description": "オプションで自動返信を特定の期間に限定します",
         "start": "開始日",
         "start_description": "空白のままにすると開始制限なし",
         "end": "終了日",
         "end_description": "空白のままにすると終了制限なし"
       },
       "message": {
-        "title": "自動返信メッセージ",
-        "description": "返信として送信されるメッセージ",
         "subject_label": "件名",
         "subject_description": "自動返信の件名",
         "subject_placeholder": "不在通知",
@@ -1778,10 +1862,32 @@
       "saving": "保存中...",
       "warnings": {
         "end_before_start": "終了日は開始日より後に設定してください",
+        "invalid_date": "開始日と終了日は時刻付きの有効な日付を入力するか、欄を空のままにしてください",
         "start_in_past": "開始日が過去の日付です",
         "empty_body": "メッセージ本文が空です - 受信者には空の返信が届きます",
         "subject_too_long": "件名がサーバーの上限を超えています（最大 {max} バイト）。",
-        "body_too_long": "メッセージがサーバーの上限を超えています（書式を含めて最大 {max} バイト）。"
+        "body_too_long": "メッセージがサーバーの上限を超えています（書式を含めて最大 {max} バイト）。",
+        "forward_address": "転送先に有効なアドレスを入力してください",
+        "not_running": "転送または返信する相手は保存されていますが、現在は有効になっていません。保存すると再び有効になります。"
+      },
+      "forward": {
+        "title": "転送",
+        "description": "受信したメッセージを、不在応答の有無にかかわらず、上の期間内に別のアドレスへ転送します（終了日がない場合はオフにするまで）。迷惑メールは転送されません。",
+        "enabled_label": "メッセージを転送する",
+        "to_label": "転送先",
+        "to_placeholder": "email@example.com",
+        "keep_label": "受信トレイに保持",
+        "keep_description": "オフの場合、メッセージは転送されるだけで、このメールボックスには残らず、フィルタールールも適用されません。"
+      },
+      "audience": {
+        "label": "返信する相手",
+        "description": "内部の送信者: {domains}",
+        "all": "すべての送信者",
+        "internal": "内部の送信者のみ",
+        "external": "外部の送信者のみ"
+      },
+      "auto_reply": {
+        "title": "自動応答"
       }
     },
     "folders": {
@@ -1806,6 +1912,15 @@
       "reorder": "ドラッグして並べ替え",
       "reorder_error": "フォルダーの並べ替えに失敗しました",
       "move_error": "フォルダーの移動に失敗しました",
+      "select_folder": "{name} を選択",
+      "select_hint": "選択。Shift+クリックで最後にクリックしたフォルダーまでをすべて選択します。",
+      "selected_count": "{count, plural, other {# 個のフォルダー}}を選択中",
+      "move_to": "移動先...",
+      "move_to_top_level": "最上位",
+      "move": "移動",
+      "clear_selection": "選択を解除",
+      "folders_moved": "{count, plural, other {# 個のフォルダーを移動しました}}",
+      "move_partial_error": "{count, plural, other {# 個のフォルダー}}を移動できませんでした",
       "subfolder_of": "{name} の中",
       "subfolder_name": "サブフォルダー名",
       "new_folder_name": "フォルダー名",
@@ -1892,7 +2007,34 @@
         "button": "インポート"
       },
       "about": {
-        "title": "Bulwark Webmail"
+        "title": "Bulwark Webmail",
+        "source_code": "ソースコード"
+      },
+      "spam_siege": {
+        "title": "Spam Siege",
+        "intro": "スパムやフィッシングが受信トレイに届く前にクリックしてブロックしましょう。本物のメールはそのまま通してください。盾を3つすべて失うと受信トレイは陥落します。",
+        "kinds": {
+          "spam": "迷惑メール",
+          "phishing": "フィッシング",
+          "legit": "本物のメール"
+        },
+        "click_to_block": "クリックでブロック",
+        "let_through": "そのまま通す",
+        "start": "スタート",
+        "play_again": "もう一度",
+        "score": "スコア",
+        "combo": "連続ボーナス",
+        "shields_left": "盾 残り{count}/{total}",
+        "seconds": "{seconds}秒",
+        "best": "ベスト: {score}",
+        "new_best": "ベスト更新",
+        "held": "受信トレイを守り抜いた",
+        "overrun": "受信トレイが陥落",
+        "stats": {
+          "caught": "ブロック",
+          "delivered": "配信",
+          "mistakes": "ミス"
+        }
       }
     },
     "sidebar_apps": {
@@ -2013,7 +2155,8 @@
         "subject": "件名",
         "header": "カスタムヘッダー",
         "size": "サイズ",
-        "body": "本文"
+        "body": "本文",
+        "all": "すべてのメール"
       },
       "comparators": {
         "has_any": "あり",
@@ -2026,7 +2169,9 @@
         "ends_with": "で終わる",
         "matches": "パターンに一致",
         "greater_than": "より大きい",
-        "less_than": "より小さい"
+        "less_than": "より小さい",
+        "address_is": "のアドレスが次と一致",
+        "domain_is": "のドメインが次と一致"
       },
       "action_types": {
         "move": "フォルダーに移動",
@@ -2101,7 +2246,38 @@
         "actions_count": "{count, plural, other {#個のアクション}}"
       },
       "origin_external": "外部",
-      "managed_by_tooltip": "{source} によって管理されています。そのアプリで編集するか、生の Sieve エディターを使用してください。"
+      "managed_by_tooltip": "{source} によって管理されています。そのアプリで編集するか、生の Sieve エディターを使用してください。",
+      "quick_rule_names": {
+        "move_sender": "{sender} から {folder} へ移動",
+        "move_domain": "@{domain} から {folder} へ移動",
+        "move_list": "リスト {list} を {folder} へ移動",
+        "mark_read": "{sender} からのメールを既読にする",
+        "tag": "{sender} からのメールにラベル {tag}",
+        "block": "{sender} をブロック",
+        "custom": "{sender} からのメール",
+        "custom_plain": "新しいルール",
+        "senders": "{count, plural, other {送信者 # 人}}"
+      },
+      "suggestions": "候補",
+      "suggest_subject": "件名「{subject}」",
+      "suggest_to": "宛先 {address}",
+      "suggest_cc": "CC {address}",
+      "suggest_list": "List-Id",
+      "suggest_domain": "@{domain}",
+      "apply_existing": "このフォルダにある既存のメールにも適用",
+      "apply_existing_unsupported": "既存のメールに適用できるのは、差出人・宛先・件名・ヘッダーを条件とし、移動・コピー・既読・スター・ラベルを実行するルールだけです。",
+      "period_title": "期間",
+      "period_start": "開始日",
+      "period_end": "終了日",
+      "validation_period_order": "終了日は開始日より後に設定してください",
+      "period_toggle": "期間を限定して有効にする",
+      "period_hint": "この期間に届いたメッセージに適用されます。空欄にすると、その側は制限なしになります。",
+      "validation_period_empty": "期間の開始日または終了日を入力してください",
+      "validation_period_invalid": "期間には時刻付きの有効な日付を入力するか、欄を空のままにしてください",
+      "apply_existing_period": "期間付きのルールは期間内に届いたメッセージにのみ適用されるため、既存のメッセージには適用できません。",
+      "period_status_scheduled": "予定",
+      "period_status_active": "有効",
+      "period_status_expired": "期限切れ"
     },
     "templates": {
       "title": "メールテンプレート",
@@ -2230,6 +2406,7 @@
     "pin": "ピン留め",
     "unpin": "ピン留めを外す",
     "move_to": "移動...",
+    "copy_to_account": "アカウントにコピー...",
     "archive": "アーカイブ",
     "delete": "削除",
     "mark_as_spam": "迷惑メールを報告",
@@ -2240,7 +2417,22 @@
     "cancel_scheduled_send": "送信をキャンセル",
     "reschedule_send": "再予約",
     "cancel_and_edit": "キャンセルして編集",
-    "cancel_and_compose_again": "キャンセルして新規作成"
+    "cancel_and_compose_again": "キャンセルして新規作成",
+    "rules": {
+      "title": "ルール",
+      "move_from": "{sender} からのメールを常に移動",
+      "move_from_domain": "@{domain} からのメールを常に移動",
+      "move_from_list": "このリストのメールを常に移動",
+      "mark_read_from": "{sender} からのメールを常に既読にする",
+      "tag_with": "常にラベルを付ける",
+      "block": "{count, plural, =1 {送信者をブロック} other {送信者 # 人をブロック}}",
+      "no_junk": "このアカウントには迷惑メールフォルダがありません",
+      "create": "ルールを作成…",
+      "manage": "ルールを管理",
+      "senders_count": "{count, plural, other {送信者 # 人}}",
+      "cross_account": "1 つのアカウントのメールを選択してください",
+      "opaque_hint": "フィルターは手動で編集されています。フィルター設定を開いてください"
+    }
   },
   "mailbox_context_menu": {
     "mark_folder_read": "フォルダーを既読にする",
@@ -2796,6 +2988,10 @@
       "tasks_hint": "タスク (k)"
     },
     "events": {
+      "hidden_before": "{count, plural, other {これより前の予定 # 件}}",
+      "hidden_after": "{count, plural, other {これより後の予定 # 件}}",
+      "show_all_hours": "すべての時間を表示",
+      "show_display_hours": "{start}～{end} のみ表示",
       "create": "予定を作成",
       "edit": "予定を編集",
       "delete": "予定を削除",
@@ -2803,6 +2999,8 @@
       "no_events": "予定なし",
       "all_day": "終日",
       "more": "他{count}件",
+      "show_more": "展開する",
+      "show_less": "折りたたむ",
       "no_title": "(タイトルなし)",
       "resize": "イベントのサイズ変更",
       "duplicate": "複製",
@@ -2825,6 +3023,7 @@
       "save_note": "保存",
       "note_saved": "メモを追加しました",
       "open_link": "リンクを開く",
+      "copy_location": "場所をコピー",
       "meeting_link": "会議リンク",
       "tentative": "仮",
       "cancelled": "キャンセル済み",
@@ -2952,6 +3151,14 @@
       "unit": "リマインダー単位"
     },
     "settings": {
+      "limit_hours": "表示する時間帯を制限",
+      "limit_hours_desc": "日表示と週表示でこの時間帯だけを表示します。範囲外の予定には各日の上下にある矢印からアクセスできます。",
+      "visible_hours": "表示する時間帯",
+      "visible_hours_start": "表示開始時刻",
+      "visible_hours_end": "表示終了時刻",
+      "hide_non_working_days": "休日を非表示",
+      "hide_non_working_days_desc": "勤務しない曜日を週表示から除外します。その日の予定は月表示・日表示・予定リストに引き続き表示されます。",
+      "working_days": "勤務日",
       "title": "カレンダー設定",
       "default_view": "デフォルトの表示",
       "week_starts_on": "週の開始曜日",
@@ -2975,7 +3182,7 @@
       "enable_tasks": "タスクを有効化",
       "enable_tasks_desc": "カレンダーにタスク表示を追加して、ToDoを管理します",
       "show_tasks_on_calendar": "カレンダーにタスクを表示",
-      "show_tasks_on_calendar_desc": "日表示と週表示にタスクチップを表示します",
+      "show_tasks_on_calendar_desc": "月表示・週表示・日表示にタスクを表示します",
       "hover_preview": "イベントホバープレビュー",
       "hover_preview_desc": "カレンダーイベントにマウスを合わせたときに詳細ポップオーバーを表示",
       "hover_preview_instant": "即時",
@@ -3234,6 +3441,7 @@
     "body_placeholder": "本文に含む...",
     "folder": "フォルダー",
     "all_folders": "すべてのフォルダー",
+    "all_folders_except_spam_trash": "迷惑メールとゴミ箱を除くすべてのフォルダー",
     "has_attachment": "添付ファイル",
     "date_after": "以降",
     "date_before": "以前",

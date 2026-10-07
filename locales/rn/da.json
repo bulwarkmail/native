@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Temaer",
       "updates": "Opdateringer"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Standardpaletterne til lys og mørk.",
       "default_name": "Bulwark",
-      "mobile_description": "Vælg et farvetema. Temaer følger indstillingen for lys/mørk under Udseende; brugerdefinerede temapakker administreres i webmailen.",
-      "title": "Temaer"
+      "mobile_description": "Vælg et farvetema. Temaer følger indstillingen for lys/mørk under Udseende; brugerdefinerede temapakker administreres i webmailen."
     },
     "vacation": {
       "warnings": {

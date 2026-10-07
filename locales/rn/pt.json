@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Temas",
       "updates": "Atualizações"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "As paletas clara e escura padrão.",
       "default_name": "Bulwark",
-      "mobile_description": "Escolha um tema de cores. Os temas seguem a configuração clara/escura de Aparência; pacotes de temas personalizados são gerenciados no webmail.",
-      "title": "Temas"
+      "mobile_description": "Escolha um tema de cores. Os temas seguem a configuração clara/escura de Aparência; pacotes de temas personalizados são gerenciados no webmail."
     },
     "vacation": {
       "warnings": {

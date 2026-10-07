@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Wtyczki",
-      "themes": "Motywy",
       "updates": "Aktualizacje"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Domyślne jasne i ciemne palety kolorów.",
       "default_name": "Bulwark",
-      "mobile_description": "Wybierz motyw kolorystyczny. Motywy stosują ustawienie jasny/ciemny z sekcji Wygląd; własnymi pakietami motywów zarządza się w webmailu.",
-      "title": "Motywy"
+      "mobile_description": "Wybierz motyw kolorystyczny. Motywy stosują ustawienie jasny/ciemny z sekcji Wygląd; własnymi pakietami motywów zarządza się w webmailu."
     },
     "vacation": {
       "warnings": {

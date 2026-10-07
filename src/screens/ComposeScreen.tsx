@@ -1710,13 +1710,13 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // Server limits: refuse files the upload endpoint would reject and keep
   // the per-message attachment total under the mail capability's ceiling.
-  const checkAttachmentSize = (size: number, inline: boolean): boolean => {
+  const checkAttachmentSize = (name: string, size: number, inline: boolean): boolean => {
     const maxUpload = jmapClient.getMaxSizeUpload();
     if (maxUpload && size > maxUpload) {
       Alert.alert(
         t('email_composer.attach', 'Attach'),
-        t('email_composer.attachment_too_large', 'This file is larger than the server allows ({size} > {max}).', {
-          size: formatBytes(size), max: formatBytes(maxUpload),
+        t('email_composer.attachment_too_large', '"{name}" is larger than the server allows ({max} per file)', {
+          name, max: formatBytes(maxUpload),
         }),
       );
       return false;
@@ -1800,7 +1800,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const addFileAsset = (asset: { name: string; type: string; size: number; uri: string }) => {
-    if (!checkAttachmentSize(asset.size, false)) return;
+    if (!checkAttachmentSize(asset.name, asset.size, false)) return;
     void startUpload(addUploadEntry({ ...asset, inline: false }));
   };
 
@@ -1907,7 +1907,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     for (const asset of assets) {
       const mime = asset.mimeType ?? 'image/jpeg';
       const fallbackName = asset.fileName || `image-${Date.now()}.${mime.split('/')[1] ?? 'jpg'}`;
-      if (!checkAttachmentSize(asset.fileSize ?? 0, true)) continue;
+      if (!checkAttachmentSize(fallbackName, asset.fileSize ?? 0, true)) continue;
       const cid = genCid();
       // Read the picked image as a data URL so it shows up immediately in the
       // editor. At send time the data URL is rewritten to `cid:<id>` and the

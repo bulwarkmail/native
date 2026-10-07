@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Spraudņi",
-      "themes": "Tēmas",
       "updates": "Atjauninājumi"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Noklusējuma gaišās un tumšās paletes.",
       "default_name": "Bulwark",
-      "mobile_description": "Izvēlieties krāsu tēmu. Tēmas seko gaišā/tumšā režīma iestatījumam sadaļā Izskats; pielāgotas tēmu pakotnes tiek pārvaldītas tīmekļa pastā.",
-      "title": "Tēmas"
+      "mobile_description": "Izvēlieties krāsu tēmu. Tēmas seko gaišā/tumšā režīma iestatījumam sadaļā Izskats; pielāgotas tēmu pakotnes tiek pārvaldītas tīmekļa pastā."
     },
     "vacation": {
       "warnings": {

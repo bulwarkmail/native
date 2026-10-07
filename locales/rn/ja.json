@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "プラグイン",
-      "themes": "テーマ",
       "updates": "アップデート"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "デフォルトのライト／ダークパレットです。",
       "default_name": "Bulwark",
-      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。",
-      "title": "テーマ"
+      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。"
     },
     "vacation": {
       "warnings": {

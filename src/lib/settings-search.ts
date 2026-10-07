@@ -111,7 +111,16 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'identities.form.text_signature_label',
     'identities.form.html_signature_label',
   ],
-  vacation: ['settings.vacation'],
+  // Not the whole namespace: the webmail's forwarding and reply-audience
+  // settings (settings.vacation.forward / .audience) have no native control.
+  vacation: [
+    'settings.vacation.title',
+    'settings.vacation.description',
+    'settings.vacation.status',
+    'settings.vacation.date_range',
+    'settings.vacation.message',
+    'settings.vacation.preview',
+  ],
   filters: [
     'settings.filters.title',
     'settings.filters.add_rule',

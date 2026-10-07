@@ -1,5 +1,5 @@
 // Vendor the webmail locale catalogs into ./locales/<lang>/common.json.
-// Run from the RN repo root: `node scripts/sync-locales.mjs [--check]`.
+// Run from the RN repo root: `node scripts/sync-locales.mjs [--check] [--from <dir>]`.
 //
 // The webmail catalog is the source of truth and is copied verbatim. Keys the
 // native app needs that the webmail does not have live in ./locales/rn/<lang>.json
@@ -11,13 +11,20 @@
 // the standalone RN repo), this is a no-op — vendored files stay as-is.
 import { readdir, mkdir, copyFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RN_LOCALES = join(__dirname, '..', 'locales');
 const RN_OVERLAYS = join(RN_LOCALES, 'rn');
-const WEBMAIL_LOCALES = join(__dirname, '..', '..', '..', 'locales');
+// Source directory: `--from <dir>`, else $WEBMAIL_LOCALES, else the parent repo's locales.
+const fromIdx = process.argv.indexOf('--from');
+const fromArg = fromIdx >= 0 ? process.argv[fromIdx + 1] : undefined;
+if (fromIdx >= 0 && (!fromArg || fromArg.startsWith('--'))) {
+  console.error('--from needs a directory');
+  process.exit(2);
+}
+const WEBMAIL_LOCALES = resolve(fromArg ?? process.env.WEBMAIL_LOCALES ?? join(__dirname, '..', '..', '..', 'locales'));
 const CHECK_ONLY = process.argv.includes('--check');
 
 if (!existsSync(WEBMAIL_LOCALES)) {

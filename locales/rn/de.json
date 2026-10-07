@@ -1086,7 +1086,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Designs",
       "updates": "Updates"
     },
     "templates": {
@@ -1104,8 +1103,7 @@
     "themes": {
       "default_description": "Die Standardpaletten für Hell und Dunkel.",
       "default_name": "Bulwark",
-      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet.",
-      "title": "Designs"
+      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet."
     },
     "vacation": {
       "warnings": {
