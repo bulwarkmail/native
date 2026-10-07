@@ -105,3 +105,24 @@ export function resolveFilesPath(
   const file = preview ? (childrenOf(parent).find((n) => n.blobId != null && n.name === preview) ?? null) : null;
   return { path, file };
 }
+
+export interface FilesOpenPlan {
+  /** What to show: null when the folder or node is gone. */
+  resolved: ResolvedFilesOpen | null;
+  /** Something is missing, so a listing that may be stale deserves one refresh. */
+  missing: boolean;
+  /** The toast to show once settled, or null. A missing file still opens its folder. */
+  toast: 'deep_link.folder_not_found' | 'deep_link.file_not_found' | null;
+}
+
+/** What the Files tab does for `target` against one account's listing. */
+export function planFilesOpen(nodes: FileNode[], target: FilesOpenTarget): FilesOpenPlan {
+  if (target.by === 'path') {
+    const found = resolveFilesPath(nodes, target.segments, target.preview);
+    if (found === 'folder_missing') return { resolved: null, missing: true, toast: 'deep_link.folder_not_found' };
+    const fileMissing = target.preview != null && !found.file;
+    return { resolved: found, missing: fileMissing, toast: fileMissing ? 'deep_link.file_not_found' : null };
+  }
+  const resolved = resolveFilesOpen(nodes, target);
+  return { resolved, missing: !resolved, toast: resolved ? null : 'deep_link.file_not_found' };
+}

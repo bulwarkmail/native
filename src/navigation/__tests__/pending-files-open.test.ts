@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FileNode } from '../../api/types';
-import { resolveFilesOpen, resolveFilesPath, setPendingFilesOpen, usePendingFilesOpen } from '../pending-files-open';
+import { planFilesOpen, resolveFilesOpen, resolveFilesPath, setPendingFilesOpen, usePendingFilesOpen } from '../pending-files-open';
 
 function node(id: string, name: string, parentId: string | null, folder: boolean, extra: Partial<FileNode> = {}): FileNode {
   return { id, name, parentId, blobId: folder ? null : `blob-${id}`, type: folder ? 'folder' : 'text/plain', ...extra } as FileNode;
@@ -87,11 +87,40 @@ describe('resolveFilesPath', () => {
 
   it('ignores shared nodes', () => {
     expect(resolveFilesPath(tree, ['Shared'], null)).toBe('folder_missing');
+    // A shared folder with the same name never wins over our own.
+    const dup = [...tree, node('own:s5', 'Docs', null, true, { isShared: true })];
+    expect(resolveFilesPath(dup, ['Docs', 'Work'], null)).toEqual({
+      path: [{ id: 'd1', name: 'Docs' }, { id: 'd2', name: 'Work' }],
+      file: null,
+    });
     expect(resolveFilesPath(tree, ['Docs'], 'only-shared.txt')).toEqual({ path: [{ id: 'd1', name: 'Docs' }], file: null });
   });
 
   it('reports a missing folder, and opens the folder when the file is missing', () => {
     expect(resolveFilesPath(tree, ['Docs', 'Nope'], null)).toBe('folder_missing');
     expect(resolveFilesPath(tree, ['Docs'], 'gone.pdf')).toEqual({ path: [{ id: 'd1', name: 'Docs' }], file: null });
+  });
+});
+
+describe('planFilesOpen', () => {
+  const link = (segments: string[], preview: string | null) => ({ appAccountId: 'a', by: 'path' as const, segments, preview });
+
+  it('toasts folder_not_found and opens nothing for a missing folder', () => {
+    expect(planFilesOpen(nodes, link(['Nope'], null))).toEqual({ resolved: null, missing: true, toast: 'deep_link.folder_not_found' });
+  });
+
+  it('toasts file_not_found but still opens the folder', () => {
+    const plan = planFilesOpen(nodes, link(['Docs'], 'gone.pdf'));
+    expect(plan.toast).toBe('deep_link.file_not_found');
+    expect(plan.resolved?.path).toEqual([{ id: 'd1', name: 'Docs' }]);
+  });
+
+  it('is quiet when the file is there or no file was asked for', () => {
+    expect(planFilesOpen(nodes, link(['Docs', 'Work'], 'a.txt')).toast).toBeNull();
+    expect(planFilesOpen(nodes, link(['Docs'], null))).toMatchObject({ missing: false, toast: null });
+  });
+
+  it('keeps the id target toast', () => {
+    expect(planFilesOpen(nodes, { appAccountId: 'a', nodeId: 'zz', folderPath: '/', fileName: 'x' }).toast).toBe('deep_link.file_not_found');
   });
 });

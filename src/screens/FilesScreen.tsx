@@ -69,7 +69,7 @@ import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
 import { isStaleLoad } from '../lib/network-error';
-import { resolveFilesOpen, resolveFilesPath, usePendingFilesOpen } from '../navigation/pending-files-open';
+import { planFilesOpen, usePendingFilesOpen } from '../navigation/pending-files-open';
 import { useToastStore } from '../stores/toast-store';
 
 // A file row carries the display name alongside the rest of the node.
@@ -308,34 +308,23 @@ export default function FilesScreen() {
       return;
     }
     if (loading || refreshing || nodesFor !== activeAccountId) return;
-    const byPath = pendingOpen.by === 'path';
-    const found = byPath
-      ? resolveFilesPath(allNodes, pendingOpen.segments, pendingOpen.preview)
-      : resolveFilesOpen(allNodes, pendingOpen);
-    const resolved = found === 'folder_missing' ? null : found;
-    // A link's file missing from a found folder is looked for after a refresh too.
-    const missing = !resolved || (byPath && pendingOpen.preview != null && !resolved.file);
-    if (missing && refreshedForOpen.current !== pendingOpen) {
+    const plan = planFilesOpen(allNodes, pendingOpen);
+    const resolved = plan.resolved;
+    if (plan.missing && refreshedForOpen.current !== pendingOpen) {
       refreshedForOpen.current = pendingOpen;
       void loadFiles('refresh');
       return;
     }
     usePendingFilesOpen.getState().consume();
-    if (!resolved) {
+    if (plan.toast) {
       useToastStore.getState().addToast({
         type: 'error',
-        title: byPath
+        title: plan.toast === 'deep_link.folder_not_found'
           ? t('deep_link.folder_not_found', 'This folder is no longer available.')
           : t('deep_link.file_not_found', 'This file is no longer available.'),
       });
-      return;
     }
-    if (byPath && pendingOpen.preview != null && !resolved.file) {
-      useToastStore.getState().addToast({
-        type: 'error',
-        title: t('deep_link.file_not_found', 'This file is no longer available.'),
-      });
-    }
+    if (!resolved) return;
     setPath(resolved.path);
     setSearchQuery('');
     setSelection(new Set());
