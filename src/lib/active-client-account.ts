@@ -54,6 +54,14 @@ export function clientServesAccount(appAccountId: string | null | undefined): bo
 }
 
 /**
+ * The JMAP account id recorded for app account `appAccountId` the last time
+ * the client served it; for a composer on an offline cold start.
+ */
+export function recordedJmapAccountId(appAccountId: string): string | undefined {
+  return useAccountStore.getState().getAccountById(appAccountId)?.jmapAccountId;
+}
+
+/**
  * During an account switch the client's session lags the account store (and
  * the other way round), so work started in that window may be for the account
  * being left. True only when the client's credentials belong to the account

@@ -43,8 +43,9 @@ import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
 import {
   composerAccountLabel, composerOwnerAtMount, composerSwitchBackActions, isComposerOwnerActive,
-  liveComposerOwnerCheck, type SwitchBackAction,
+  liveComposerOwnerCheck, queueJmapAccountId, type SwitchBackAction,
 } from '../lib/composer-account';
+import { clientServesAccount, recordedJmapAccountId } from '../lib/active-client-account';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
@@ -565,9 +566,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // a switch can land during any await (a confirm, an in-flight save).
   const ownerRef = React.useRef<ReturnType<typeof composerOwnerAtMount> | undefined>(undefined);
   if (ownerRef.current === undefined) {
+    const activeAppAccountId = useAuthStore.getState().activeAccountId;
     ownerRef.current = composerOwnerAtMount({
-      activeAppAccountId: useAuthStore.getState().activeAccountId,
-      activeJmapAccountId: jmapClient.isConnected ? jmapClient.accountId : null,
+      activeAppAccountId,
+      activeJmapAccountId: jmapClient.isConnected && clientServesAccount(activeAppAccountId) ? jmapClient.accountId : null,
+      recordedJmapAccountId,
     });
   }
   const owner = ownerRef.current;
@@ -2651,7 +2654,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // online send never takes this path, and a network error during one keeps
     // the "Send failed" alert below (never auto-queue after a request).
     if (!useNetworkStore.getState().online) {
-      if (!owner || !hasQueueAccounts(owner.appAccountId, owner.jmapAccountId)) {
+      // Read now, not at mount: the composer may have opened before the
+      // connection came up.
+      const queueAccountId = queueJmapAccountId(owner, {
+        liveJmapAccountId: jmapClient.connectedAccountId,
+        clientServesOwner: !!owner && clientServesAccount(owner.appAccountId),
+        recorded: recordedJmapAccountId,
+      });
+      if (!owner || !hasQueueAccounts(owner.appAccountId, queueAccountId)) {
         // Nothing to queue against; never fall through to an online send.
         const { title, message } = sendErrorAlert(new Error('offline'), t);
         Alert.alert(title, message);
@@ -2664,7 +2674,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           await useSendQueueStore.getState().enqueue(buildQueuedSend({
             id: generateUUID(),
             appAccountId: owner.appAccountId,
-            jmapAccountId: owner.jmapAccountId,
+            jmapAccountId: queueAccountId,
             identityId: (submissionIdentity ?? primaryIdentity).id,
             outgoing: queued,
             draftId: draftIdRef.current,
