@@ -39,7 +39,12 @@ export type DeepLink =
   // one on a calendar shared with the user; `accountId`: the signed-in
   // account it belongs to (`?appAccount=`, from widgets).
   | { kind: 'calendar'; eventId?: string; view?: CalendarViewTarget['view']; date?: string; jmapAccountId?: string; accountId?: string }
-  | { kind: 'contact'; contactId: string }
+  // `accountId`: the signed-in account the card belongs to (`?account=`).
+  // Card ids repeat across accounts, so without one the link opens on the
+  // account shown. `edit` opens the edit form over the card.
+  | { kind: 'contact'; contactId: string; edit?: boolean; accountId?: string }
+  // A new-contact form, prefilled from `?email=` / `?name=`.
+  | { kind: 'contactNew'; email?: string; name?: string; accountId?: string }
   | { kind: 'contacts' }
   | { kind: 'files' }
   | { kind: 'settings'; tab?: string }
@@ -192,10 +197,8 @@ export function parseDeepLink(url: string): DeepLink | null {
       const bare = kind ? validLinkDate(decodeSegment(kind)) : undefined;
       return { kind: 'calendar', ...(bare ? { date: bare } : {}) };
     }
-    case 'contacts': {
-      if (kind && kind !== 'new') return { kind: 'contact', contactId: decodeSegment(kind) };
-      return { kind: 'contacts' };
-    }
+    case 'contacts':
+      return parseContactsPath(segments.slice(1), search, accountId) ?? { kind: 'contacts' };
     case 'files':
       return { kind: 'files' };
     case 'settings':
@@ -218,6 +221,43 @@ export function parseDeepLink(url: string): DeepLink | null {
     default:
       return null;
   }
+}
+
+/**
+ * The webmail's `parseContactsPath`: `/contacts/new`, `/contacts/<id>[/edit]`,
+ * and the legacy query form its email viewer used to build (`?contactId=`,
+ * `&view=edit`, `?addEmail=`, `?addName=`), which plugins and bookmarks still
+ * emit. Null for the plain list.
+ */
+function parseContactsPath(segments: string[], search: URLSearchParams, accountId?: string): DeepLink | null {
+  const account = accountId ? { accountId } : {};
+  const [first, second] = segments;
+  const create = (email: string | null, name: string | null): DeepLink => ({
+    kind: 'contactNew',
+    ...(email ? { email } : {}),
+    ...(name ? { name } : {}),
+    ...account,
+  });
+  const contact = (contactId: string, edit: boolean): DeepLink => ({
+    kind: 'contact',
+    contactId,
+    ...(edit ? { edit: true } : {}),
+    ...account,
+  });
+
+  if (first === 'new') {
+    return create(search.get('email') ?? search.get('addEmail'), search.get('name') ?? search.get('addName'));
+  }
+  if (first) {
+    const id = decodeSegment(first);
+    if (id) return contact(id, second === 'edit');
+  }
+  const legacyId = search.get('contactId');
+  if (legacyId) return contact(legacyId, search.get('view') === 'edit');
+  const addEmail = search.get('addEmail');
+  const addName = search.get('addName');
+  if (addEmail || addName) return create(addEmail, addName);
+  return null;
 }
 
 function isSignInSchemeUrl(url: string): boolean {
@@ -344,7 +384,17 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       return true;
     case 'contact':
       navigation.navigate('ContactDetail', { contactId: link.contactId });
+      // The form goes over the card, so Back from it lands on the card.
+      if (link.edit) navigation.navigate('ContactForm', { contactId: link.contactId });
       return true;
+    case 'contactNew': {
+      const prefill = {
+        ...(link.email ? { email: link.email } : {}),
+        ...(link.name ? { name: link.name } : {}),
+      };
+      navigation.navigate('ContactForm', Object.keys(prefill).length > 0 ? { prefill } : {});
+      return true;
+    }
     case 'contacts':
       navigation.navigate('MainTabs', { screen: 'Contacts' } as never);
       return true;

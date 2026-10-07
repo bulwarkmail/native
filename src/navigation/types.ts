@@ -90,7 +90,7 @@ export type RootStackParamList = {
     contactId?: string;
     addressBookId?: string;
     asGroup?: boolean;
-    prefill?: { email: string; name?: string };
+    prefill?: { email?: string; name?: string };
     /** Pre-selected member ids when creating a group. */
     memberIds?: string[];
   };

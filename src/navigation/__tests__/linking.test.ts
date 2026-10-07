@@ -98,6 +98,59 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('bulwarkmobile://mail/search')).toEqual({ kind: 'search', query: '' });
   });
 
+  describe('contact links (the webmail\'s parseContactsPath)', () => {
+    it('opens a blank new-contact form for /contacts/new', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/new')).toEqual({ kind: 'contactNew' });
+      expect(parseDeepLink('bulwarkmobile://contacts/new')).toEqual({ kind: 'contactNew' });
+    });
+
+    it('prefills the new-contact form from ?email= and ?name=', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/new?email=a@b&name=A%20B'))
+        .toEqual({ kind: 'contactNew', email: 'a@b', name: 'A B' });
+      // The legacy names work on /new too.
+      expect(parseDeepLink('https://mail.example.com/contacts/new?addEmail=a@b&addName=A'))
+        .toEqual({ kind: 'contactNew', email: 'a@b', name: 'A' });
+      expect(parseDeepLink('https://mail.example.com/contacts/new?name=Only%20Name'))
+        .toEqual({ kind: 'contactNew', name: 'Only Name' });
+    });
+
+    it('reads the legacy ?addEmail= / ?addName= query as a new contact', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts?addEmail=a@b&from=email'))
+        .toEqual({ kind: 'contactNew', email: 'a@b' });
+      expect(parseDeepLink('https://mail.example.com/contacts?addName=Ann'))
+        .toEqual({ kind: 'contactNew', name: 'Ann' });
+    });
+
+    it('opens the edit form for /contacts/<id>/edit', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/C9/edit')).toEqual({ kind: 'contact', contactId: 'C9', edit: true });
+      expect(parseDeepLink('bulwarkmobile://contacts/C%2F9/edit')).toEqual({ kind: 'contact', contactId: 'C/9', edit: true });
+      // Any other second segment is just the card.
+      expect(parseDeepLink('https://mail.example.com/contacts/C9/other')).toEqual({ kind: 'contact', contactId: 'C9' });
+    });
+
+    it('reads the legacy ?contactId=&view=edit query', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts?contactId=C9&view=edit'))
+        .toEqual({ kind: 'contact', contactId: 'C9', edit: true });
+      expect(parseDeepLink('https://mail.example.com/contacts?contactId=C9'))
+        .toEqual({ kind: 'contact', contactId: 'C9' });
+    });
+
+    it('drops a locale prefix', () => {
+      expect(parseDeepLink('https://mail.example.com/de/contacts/C9/edit')).toEqual({ kind: 'contact', contactId: 'C9', edit: true });
+      expect(parseDeepLink('https://mail.example.com/pt-BR/contacts/new?email=a@b'))
+        .toEqual({ kind: 'contactNew', email: 'a@b' });
+    });
+
+    it('carries ?account= as the signed-in account to switch to', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/C9/edit?account=acc'))
+        .toEqual({ kind: 'contact', contactId: 'C9', edit: true, accountId: 'acc' });
+      expect(parseDeepLink('https://mail.example.com/contacts/new?email=a@b&account=acc'))
+        .toEqual({ kind: 'contactNew', email: 'a@b', accountId: 'acc' });
+      expect(parseDeepLink('https://mail.example.com/contacts?contactId=C9&account=acc'))
+        .toEqual({ kind: 'contact', contactId: 'C9', accountId: 'acc' });
+    });
+  });
+
   it('rejects unknown links', () => {
     expect(parseDeepLink('bulwarkmobile://whatever')).toBeNull();
     expect(parseDeepLink('garbage')).toBeNull();
@@ -199,6 +252,58 @@ describe('handleDeepLink', () => {
     expect(await handleDeepLink(link!, {
       navigation: navigation as never, resolveThreadId: async () => null, switchAccount: async () => false,
     })).toBe(false);
+  });
+
+  it('opens the contact card under its edit form, so Back lands on the card', async () => {
+    const navigation = nav();
+    expect(await handleDeepLink(
+      { kind: 'contact', contactId: 'C9', edit: true },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    )).toBe(true);
+    expect(navigation.navigate.mock.calls).toEqual([
+      ['ContactDetail', { contactId: 'C9' }],
+      ['ContactForm', { contactId: 'C9' }],
+    ]);
+  });
+
+  it('opens just the card for a contact link without /edit', async () => {
+    const navigation = nav();
+    await handleDeepLink({ kind: 'contact', contactId: 'C9' }, { navigation: navigation as never, resolveThreadId: async () => null });
+    expect(navigation.navigate.mock.calls).toEqual([['ContactDetail', { contactId: 'C9' }]]);
+  });
+
+  it('opens a new-contact form with the link\'s email and name', async () => {
+    const navigation = nav();
+    await handleDeepLink(
+      { kind: 'contactNew', email: 'a@b', name: 'A B' },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    );
+    expect(navigation.navigate).toHaveBeenCalledWith('ContactForm', { prefill: { email: 'a@b', name: 'A B' } });
+    const blank = nav();
+    await handleDeepLink({ kind: 'contactNew' }, { navigation: blank as never, resolveThreadId: async () => null });
+    expect(blank.navigate).toHaveBeenCalledWith('ContactForm', {});
+  });
+
+  it('switches to a contact link\'s account first, and opens nothing when it is not signed in', async () => {
+    const navigation = nav();
+    const switchAccount = vi.fn(async () => true);
+    await handleDeepLink(
+      { kind: 'contact', contactId: 'C9', edit: true, accountId: 'acc' },
+      { navigation: navigation as never, resolveThreadId: async () => null, switchAccount },
+    );
+    expect(switchAccount).toHaveBeenCalledWith('acc');
+    expect(navigation.navigate).toHaveBeenCalledTimes(2);
+
+    const refused = nav();
+    for (const link of [
+      { kind: 'contact' as const, contactId: 'C9', edit: true, accountId: 'gone' },
+      { kind: 'contactNew' as const, email: 'a@b', accountId: 'gone' },
+    ]) {
+      expect(await handleDeepLink(link, {
+        navigation: refused as never, resolveThreadId: async () => null, switchAccount: async () => false,
+      })).toBe(false);
+    }
+    expect(refused.navigate).not.toHaveBeenCalled();
   });
 
   it('parks the settings tab and opens the Settings tab', async () => {
