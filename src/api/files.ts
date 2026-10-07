@@ -152,6 +152,51 @@ export function isCrossAccountId(id: string | null | undefined): boolean {
   return id != null && id.includes(':');
 }
 
+/** A FileNode's content as a message attachment: its blob, referenced as is. */
+export interface FileNodeAttachment {
+  blobId: string;
+  name: string;
+  type: string;
+  size: number;
+}
+
+export type FileNodeAttachmentRefusal = 'folder' | 'other_account' | 'too_large';
+
+/**
+ * Whether `node` lives in JMAP account `accountId` itself. A node from a
+ * listing that names no account, or from someone else's account shared with
+ * the user, does not.
+ */
+export function isOwnFileNode(node: Pick<FileNode, 'accountId' | 'isShared'>, accountId: string): boolean {
+  return !!accountId && !node.isShared && node.accountId === accountId;
+}
+
+/**
+ * A file from the Files app as an attachment to a message sent from JMAP
+ * account `accountId` (webmail #1179). Its blob is already on the server, so
+ * Email/set references the blobId with no download or upload. A blob id only
+ * names a blob in its own account, and Stalwart's ids repeat across
+ * accounts, so a node from any other account is refused: the same id there
+ * could name another file of ours. `maxSizeUpload` is the server's per-file
+ * ceiling (0 = none).
+ */
+export function fileNodeAttachment(
+  node: FileNode,
+  accountId: string,
+  maxSizeUpload: number,
+):
+  | { ok: true; attachment: FileNodeAttachment }
+  | { ok: false; reason: FileNodeAttachmentRefusal } {
+  if (isFolder(node)) return { ok: false, reason: 'folder' };
+  if (!isOwnFileNode(node, accountId)) return { ok: false, reason: 'other_account' };
+  const size = node.size ?? 0;
+  if (maxSizeUpload > 0 && size > maxSizeUpload) return { ok: false, reason: 'too_large' };
+  return {
+    ok: true,
+    attachment: { blobId: node.blobId!, name: node.name, type: node.type || 'application/octet-stream', size },
+  };
+}
+
 /** Ids asked for per FileNode/query page; Stalwart clamps it to queryMaxResults (5000 by default). */
 const FILE_NODE_QUERY_PAGE = 5000;
 /** Safety bound on how many FileNode ids one listing pages through. */

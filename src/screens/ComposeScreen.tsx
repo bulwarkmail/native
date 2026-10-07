@@ -23,6 +23,8 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../theme/colors';
 import { Button, IdentitySheet } from '../components';
 import { TemplateSheet } from '../components/TemplateSheet';
+import FilePickerSheet from '../components/files/FilePickerSheet';
+import { fileNodeAttachment, supportsFiles } from '../api/files';
 import RichTextEditor, {
   type RichTextEditorHandle,
   type RichTextSelectionState,
@@ -88,7 +90,7 @@ import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
-import type { EmailAddress, Identity } from '../api/types';
+import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Compose'>;
@@ -1834,7 +1836,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // Server limits: refuse files the upload endpoint would reject and keep
   // the per-message attachment total under the mail capability's ceiling.
-  const checkAttachmentSize = (name: string, size: number, inline: boolean): boolean => {
+  // `alsoAdding` counts files of the same pick that were let in before this
+  // one and are not in `attachments` yet.
+  const checkAttachmentSize = (name: string, size: number, inline: boolean, alsoAdding = 0): boolean => {
     const maxUpload = jmapClient.getMaxSizeUpload();
     if (maxUpload && size > maxUpload) {
       Alert.alert(
@@ -1847,7 +1851,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const maxTotal = jmapClient.getMaxSizeAttachmentsPerEmail();
     if (!inline && maxTotal) {
-      const total = attachments.filter((a) => !a.inline && !a.error).reduce((n, a) => n + a.size, 0) + size;
+      const total = attachments.filter((a) => !a.inline && !a.error).reduce((n, a) => n + a.size, 0) + alsoAdding + size;
       if (total > maxTotal) {
         Alert.alert(
           t('email_composer.attach', 'Attach'),
@@ -2020,11 +2024,53 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // Files from the Files app are already blobs on the server, so they are
+  // attached by blobId with no download or upload (webmail #1179). Only the
+  // owner's own files: a blob id names a blob in its own account only, so
+  // the picker shows other accounts' shared files disabled and
+  // fileNodeAttachment refuses them again here.
+  const [filesPickerOpen, setFilesPickerOpen] = React.useState(false);
+  const openFilesPicker = () => {
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
+    setFilesPickerOpen(true);
+  };
+
+  const handleFilesPicked = (nodes: FileNode[]) => {
+    setFilesPickerOpen(false);
+    if (!owner) return;
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
+    const maxUpload = jmapClient.getMaxSizeUpload();
+    const picked: AttachmentEntry[] = [];
+    let adding = 0;
+    for (const node of nodes) {
+      const result = fileNodeAttachment(node, owner.jmapAccountId, maxUpload);
+      if (!result.ok) {
+        // Says why, with the composer's own wording for a local file.
+        if (result.reason === 'too_large') checkAttachmentSize(node.name, node.size ?? 0, false);
+        continue;
+      }
+      const { blobId, name, type, size } = result.attachment;
+      if (!checkAttachmentSize(name, size, false, adding)) continue;
+      adding += size;
+      picked.push({ localId: genLocalId(), name, type, size, uri: '', inline: false, blobId, uploading: false });
+    }
+    if (picked.length > 0) setAttachments((prev) => [...prev, ...picked]);
+  };
+
   const [attachMenuOpen, setAttachMenuOpen] = React.useState(false);
   const attachOptions: SheetOption[] = [
     { label: t('email_composer.attach_photos', 'Photos & Videos'), onPress: () => { void pickPhotoAttachments(); } },
     { label: t('email_composer.attach_camera', 'Camera'), onPress: () => { void takePhotoAttachment(); } },
     { label: t('email_composer.attach_files', 'Files'), onPress: () => { void pickFileAttachments(); } },
+    ...(owner && supportsFiles()
+      ? [{ label: t('email_composer.attach_from_files', 'Attach from Files'), onPress: openFilesPicker }]
+      : []),
   ];
 
   const insertInlineImages = async (assets: Array<{ uri: string; mimeType?: string | null; fileName?: string | null; fileSize?: number | null }>) => {
@@ -3104,6 +3150,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         onClose={() => setAttachMenuOpen(false)}
         cancelLabel={t('email_composer.cancel', 'Cancel')}
       />
+
+      {owner && (
+        <FilePickerSheet
+          visible={filesPickerOpen}
+          owner={owner}
+          ownerActiveNow={ownerActiveNow}
+          onClose={() => setFilesPickerOpen(false)}
+          onPick={handleFilesPicked}
+        />
+      )}
 
       <OptionsSheet
         visible={!!chipMenu}

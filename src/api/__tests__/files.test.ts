@@ -32,6 +32,7 @@ import {
   copyFileNode,
   createFolder,
   deleteFileNodes,
+  fileNodeAttachment,
   getAllFileNodes,
   getAllFileNodesAcrossAccounts,
   getFileNodeDownloadUrl,
@@ -829,5 +830,45 @@ describe('createFolder name decoding (#869)', () => {
     });
     const node = await createFolder('Spares Catalog', null);
     expect(node.name).toBe('Spares Catalog');
+  });
+});
+
+describe('fileNodeAttachment (#1179)', () => {
+  const own = {
+    id: 'f1', name: 'report.pdf', parentId: null, type: 'application/pdf',
+    blobId: 'b1', size: 1000, accountId: 'c', isShared: false,
+  };
+
+  it('turns a file in the owner\'s account into an attachment of its blob', () => {
+    expect(fileNodeAttachment(own, 'c', 0)).toEqual({
+      ok: true,
+      attachment: { blobId: 'b1', name: 'report.pdf', type: 'application/pdf', size: 1000 },
+    });
+  });
+
+  it('falls back to octet-stream when the node has no type', () => {
+    const result = fileNodeAttachment({ ...own, type: '' }, 'c', 0);
+    expect(result.ok && result.attachment.type).toBe('application/octet-stream');
+  });
+
+  it('refuses a node shared from another account: its blob id names a blob there', () => {
+    const shared = { ...own, id: 'e:f1', accountId: 'e', accountName: 'userb@example.org', isShared: true };
+    expect(fileNodeAttachment(shared, 'c', 0)).toEqual({ ok: false, reason: 'other_account' });
+  });
+
+  it('refuses a node of a listing read for another account, whose ids collide with ours', () => {
+    expect(fileNodeAttachment(own, 'd', 0)).toEqual({ ok: false, reason: 'other_account' });
+    expect(fileNodeAttachment({ ...own, accountId: undefined }, 'c', 0)).toEqual({ ok: false, reason: 'other_account' });
+    expect(fileNodeAttachment(own, '', 0)).toEqual({ ok: false, reason: 'other_account' });
+  });
+
+  it('refuses a folder', () => {
+    expect(fileNodeAttachment({ ...own, type: 'd', blobId: null, size: 0 }, 'c', 0))
+      .toEqual({ ok: false, reason: 'folder' });
+  });
+
+  it('refuses a file over the per-file limit, and takes one at the limit', () => {
+    expect(fileNodeAttachment(own, 'c', 999)).toEqual({ ok: false, reason: 'too_large' });
+    expect(fileNodeAttachment(own, 'c', 1000).ok).toBe(true);
   });
 });

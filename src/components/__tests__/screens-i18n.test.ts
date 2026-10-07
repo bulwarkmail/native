@@ -12,6 +12,7 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'screens/FilesScreen.tsx': [],
   'components/files/ShareSheet.tsx': [],
   'components/files/FilePreviewModal.tsx': [],
+  'components/files/FilePickerSheet.tsx': [],
   // The empty date filter shows the input format.
   'screens/EmailListScreen.tsx': ['YYYY-MM-DD'],
   // The link prompt shows an example URL.
