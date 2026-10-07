@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPersistStorage, memoizeSlice } from './persist-storage';
-import type { ContactCard, AddressBook, StateChange, EmailAddress } from '../api/types';
+import type { ContactCard, AddressBook, AddressBookRights, StateChange, EmailAddress } from '../api/types';
 import {
   getAddressBooks as fetchPrimaryAddressBooks,
   getAllAddressBooks as fetchAllAddressBooks,
@@ -16,6 +16,7 @@ import {
   updateAddressBook as apiUpdateAddressBook,
   deleteAddressBook as apiDeleteAddressBook,
   setDefaultAddressBook as apiSetDefaultAddressBook,
+  setAddressBookShare as apiSetAddressBookShare,
   getContactsInBook,
   getContactsAccountId,
   getContactCapableAccountIds,
@@ -27,6 +28,7 @@ import { getPrincipals } from '../api/principals';
 import { jmapClient } from '../api/jmap-client';
 import type { OpScope } from '../api/op-scope';
 import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
+import { isShownAccount, requireShownAccountScope } from './email-store';
 import {
   getContactDisplayName,
   getContactKeywords,
@@ -185,6 +187,17 @@ export interface ContactsState {
   renameAddressBook: (id: string, name: string) => Promise<void>;
   deleteAddressBook: (id: string) => Promise<void>;
   setDefaultAddressBook: (id: string) => Promise<void>;
+  /**
+   * Grant `principalId` `rights` on one of the user's own books (null:
+   * revoke), in app account `owner` (the one the share sheet opened in).
+   * Refused once another account is shown, and for a book shared with the user.
+   */
+  shareAddressBook: (
+    id: string,
+    principalId: string,
+    rights: AddressBookRights | null,
+    owner: { appAccountId: string | null },
+  ) => Promise<void>;
   /** The book new contacts / imports should land in when none is chosen. */
   getDefaultAddressBookId: () => string | null;
 
@@ -797,6 +810,26 @@ export const useContactsStore = create<ContactsState>()(
                 return { ...b, isDefault: false };
               }
               return b;
+            }),
+          });
+        },
+
+        shareAddressBook: async (id, principalId, rights, owner) => {
+          const at = requireShownAccountScope(owner.appAccountId);
+          const { originalId, book } = bookTarget(id);
+          // Only the owner shares a book (as in the webmail).
+          if (!book || book.isShared) throw new Error('Only your own address books can be shared');
+          const epoch = loadEpoch;
+          await apiSetAddressBookShare(originalId, principalId, rights, at);
+          // An account switch meanwhile: book ids repeat across accounts.
+          if (epoch !== loadEpoch || !isShownAccount(owner.appAccountId)) return;
+          set({
+            addressBooks: get().addressBooks.map((b) => {
+              if (b.id !== id) return b;
+              const next = { ...(b.shareWith ?? {}) };
+              if (rights === null) delete next[principalId];
+              else next[principalId] = rights;
+              return { ...b, shareWith: next };
             }),
           });
         },

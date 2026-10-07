@@ -27,6 +27,8 @@ const TRANSLATED_FILES: Record<string, string[]> = {
   'components/contacts/ContactFilterSheet.tsx': [],
   'components/contacts/ContactListRow.tsx': [],
   'components/contacts/FieldBlock.tsx': [],
+  // Shared with the calendar's share sheet.
+  'components/ShareCollectionSheet.tsx': [],
 };
 
 describe('translated contacts screens', () => {

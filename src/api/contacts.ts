@@ -1,10 +1,10 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { ContactCard, AddressBook } from './types';
+import type { ContactCard, AddressBook, AddressBookRights } from './types';
 import { generateUUID } from '../lib/uuid';
 import { contactFromWire, contactToWire } from '../lib/contact-wire';
 import { isStaleLoad } from '../lib/network-error';
-import { opScope, type AccountRef } from './op-scope';
+import { opScope, type AccountRef, type OpScope } from './op-scope';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -405,6 +405,36 @@ export async function setDefaultAddressBook(id: string, accountId?: string): Pro
     USING,
   );
   methodResult(res);
+}
+
+/**
+ * Grant `principalId` `rights` on an address book, or revoke its access with
+ * null (RFC 9610 `shareWith`). Sent on the connection `at` names, in its
+ * account. Throws when the server refuses the update or does not confirm it.
+ */
+export async function setAddressBookShare(
+  addressBookId: string,
+  principalId: string,
+  rights: AddressBookRights | null,
+  at: OpScope,
+): Promise<void> {
+  const res = await jmapClient.request(
+    [['AddressBook/set', {
+      accountId: at.accountId,
+      update: { [addressBookId]: { [`shareWith/${principalId}`]: rights } },
+    }, '0']],
+    USING,
+    { gen: at.gen },
+  );
+  const result = methodResult<{
+    updated?: Record<string, unknown>;
+    notUpdated?: Record<string, SetError>;
+  }>(res);
+  const err = result.notUpdated?.[addressBookId];
+  if (err) throw new Error(setErrorMessage(err, 'Failed to update sharing'));
+  if (!result.updated || !(addressBookId in result.updated)) {
+    throw new Error('Server did not confirm the share update');
+  }
 }
 
 export async function deleteAddressBook(

@@ -3,16 +3,19 @@ import { Alert, Share, Text, View, StyleSheet, Pressable, TextInput } from 'reac
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
-  Download, Upload, Plus, Pencil, Trash2, Check, X, BookUser, Star,
+  Download, Upload, Plus, Pencil, Trash2, Check, X, BookUser, Star, Users,
 } from 'lucide-react-native';
 import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
 import Button from '../Button';
 import Dialog from '../Dialog';
 import { ContactImportSheet, AddressBookPickerSheet } from '../contacts';
+import { ShareCollectionSheet } from '../ShareCollectionSheet';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useContactsStore, selectAddressBooksWithCount } from '../../stores/contacts-store';
+import { jmapClient } from '../../api/jmap-client';
+import { CAPABILITIES, type AddressBook } from '../../api/types';
 import { contactsToVCard } from '../../lib/vcard';
 import { isGroup } from '../../lib/contact-utils';
 import { deviceSyncAvailable } from '../../device-sync/app/available';
@@ -43,6 +46,7 @@ export function ContactsSettings() {
   const renameAddressBook = useContactsStore((s) => s.renameAddressBook);
   const deleteAddressBook = useContactsStore((s) => s.deleteAddressBook);
   const setDefaultAddressBook = useContactsStore((s) => s.setDefaultAddressBook);
+  const shareAddressBook = useContactsStore((s) => s.shareAddressBook);
   const getDefaultAddressBookId = useContactsStore((s) => s.getDefaultAddressBookId);
 
   const [exporting, setExporting] = React.useState(false);
@@ -55,7 +59,10 @@ export function ContactsSettings() {
   const [adding, setAdding] = React.useState(false);
   const [newName, setNewName] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [shareTarget, setShareTarget] = React.useState<AddressBook | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string; count: number } | null>(null);
+  // Sharing needs the server's principal directory to pick people from.
+  const canShareBooks = jmapClient.hasCapability(CAPABILITIES.PRINCIPALS);
   // Android with the native module only (#34).
   const deviceSync = React.useMemo(() => deviceSyncAvailable(), []);
 
@@ -289,6 +296,17 @@ export function ContactsSettings() {
                     <Pencil size={15} color={c.textSecondary} />
                   </Pressable>
                 )}
+                {canShareBooks && !book.isShared && book.myRights?.mayShare && (
+                  <Pressable
+                    onPress={() => setShareTarget(book)}
+                    hitSlop={6}
+                    style={styles.iconBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('contacts.address_books.share', 'Share address book')}
+                  >
+                    <Users size={15} color={c.textSecondary} />
+                  </Pressable>
+                )}
                 {/* The default book and shared books cannot be deleted (the server rejects it). */}
                 {book.myRights?.mayDelete !== false && !book.isDefault && !book.isShared && books.length > 1 && (
                   <Pressable
@@ -387,6 +405,14 @@ export function ContactsSettings() {
         currentBookId={resolvedImportTarget}
         title={t('contacts.import.into_address_book', 'Import into address book')}
         onPick={(id) => { setImportTargetBookId(id); setImportTargetOpen(false); }}
+      />
+
+      <ShareCollectionSheet
+        kind="addressBook"
+        target={shareTarget}
+        onShare={(id, principalId, rights, appAccountId) =>
+          shareAddressBook(id, principalId, rights, { appAccountId })}
+        onClose={() => setShareTarget(null)}
       />
 
       <Dialog

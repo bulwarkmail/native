@@ -155,6 +155,11 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       label={book.name}
       count={book.count}
       badge={book.isDefault ? t('contacts.address_books.default', 'Default') : undefined}
+      indicator={!book.isShared && Object.keys(book.shareWith ?? {}).length > 0 ? (
+        <View accessible accessibilityLabel={t('contacts.address_books.share', 'Share address book')}>
+          <Users size={13} color={c.textMuted} />
+        </View>
+      ) : undefined}
       active={isSameCategory(selectedCategory, { type: 'addressBook', addressBookId: book.id })}
       onPress={() => select({ type: 'addressBook', addressBookId: book.id })}
     />
@@ -342,7 +347,7 @@ function SectionHeader({
 }
 
 function CategoryRow({
-  icon, label, count, active, onPress, onLongPress, badge, muted,
+  icon, label, count, active, onPress, onLongPress, badge, indicator, muted,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -351,6 +356,8 @@ function CategoryRow({
   onPress: () => void;
   onLongPress?: () => void;
   badge?: string;
+  /** A status icon after the label (e.g. a book shared with others). */
+  indicator?: React.ReactNode;
   muted?: boolean;
 }) {
   const c = useColors();
@@ -374,6 +381,7 @@ function CategoryRow({
       >
         {label}
       </Text>
+      {indicator}
       {!!badge && <Text style={styles.rowBadge}>{badge}</Text>}
       {count > 0 && <Text style={styles.rowCount}>{count}</Text>}
     </Pressable>
