@@ -80,7 +80,13 @@ import { parseScript } from '../../lib/sieve/parser';
 import { OpaqueFiltersError, updateAccountFilters } from '../../lib/filters/account-filters';
 import { insertRuleAtTop } from '../../lib/filters/quick-rules';
 import { sieveScope } from '../../api/sieve';
-import { readVacationFilters, syncVacationWithFilters, useFilterStore, type VacationSync } from '../filter-store';
+import {
+  readVacationFilters,
+  SieveCapabilitiesUnknownError,
+  syncVacationWithFilters,
+  useFilterStore,
+  type VacationSync,
+} from '../filter-store';
 import { VacationFiltersError, useVacationStore } from '../vacation-store';
 
 const EXTENSIONS = ['fileinto', 'mailbox', 'mailboxid', 'imap4flags', 'include', 'envelope', 'copy', 'date', 'relational', 'spamtestplus', 'comparator-i;ascii-numeric'];
@@ -360,7 +366,27 @@ describe('readVacationFilters', () => {
       audienceAvailable: true,
       notRunning: false,
       otherForwards: 1,
+      filtersStopped: false,
+      includeAvailable: true,
     });
+  });
+
+  it('says when the vacation script runs in place of filters with rules that are on', async () => {
+    const stopped = async (rules: FilterRule[], filtersActive = false, content = filters(rules)) => {
+      env.router.reset();
+      stalwart([
+        { name: 'filters', content, isActive: filtersActive },
+        { name: 'vacation', content: VACATION_SCRIPT, isActive: !filtersActive },
+      ]);
+      return (await read()).filtersStopped;
+    };
+    expect(await stopped([rule('a')])).toBe(true);
+    // Nothing that is on would run anyway.
+    expect(await stopped([rule('a', { enabled: false })])).toBe(false);
+    expect(await stopped([])).toBe(false);
+    expect(await stopped([rule('a')], true)).toBe(false);
+    // A script edited by hand counts as filters that are on.
+    expect(await stopped([], false, HAND_EDITED)).toBe(true);
   });
 
   it('reports the most forwards one message can collect in the rules, not all of them', async () => {
@@ -433,9 +459,8 @@ describe('every other write keeps the forwarding', () => {
   ]);
 
   it('a rule made from a message', async () => {
-    // Rules made from a message name the account; this router wants a scope.
     const server = withForwarding();
-    await updateAccountFilters(sieveScope('b') as never, (rules) => insertRuleAtTop(rules, rule('new')));
+    await updateAccountFilters(sieveScope('b'), (rules) => insertRuleAtTop(rules, rule('new')));
     const written = server.content('filters');
     expect(written).toContain('# Rule: Rule new');
     expect(written.split(FORWARD_MARKER).length).toBe(2);
@@ -616,6 +641,120 @@ describe('vacation store', () => {
     answer(other);
     await beforeSwitch;
     expect(useVacationStore.getState()).toMatchObject({ subject: '', forward: null, isLoading: false });
+  });
+});
+
+describe('filters the vacation script stopped are reported', () => {
+  it('after a save whose sync failed', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    await useVacationStore.getState().fetch();
+    server.api.updateSieveScript.mockRejectedValueOnce(new Error('connection lost'));
+    await expect(useVacationStore.getState().save({ isEnabled: true })).rejects.toBeInstanceOf(VacationFiltersError);
+    expect(server.active()).toBe('vacation');
+    // Only plain rules: nothing for notRunning to tell.
+    expect(useVacationStore.getState()).toMatchObject({ notRunning: false, filtersStopped: true, includeAvailable: true });
+
+    await useVacationStore.getState().save({ isEnabled: true });
+    expect(server.active()).toBe('filters');
+    expect(useVacationStore.getState().filtersStopped).toBe(false);
+  });
+
+  it('after a switch mid-save, once the account is shown again', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    await useVacationStore.getState().fetch();
+    const respond = server.vacation.setVacationResponse.getMockImplementation()!;
+    server.vacation.setVacationResponse.mockImplementationOnce(async (updates, account) => {
+      await respond(updates, account);
+      switchLogin('login-b');
+    });
+    await useVacationStore.getState().save({ isEnabled: true });
+    expect(server.active()).toBe('vacation');
+
+    switchLogin('login-a');
+    await useVacationStore.getState().fetch();
+    expect(useVacationStore.getState()).toMatchObject({ appAccountId: 'login-a', isEnabled: true, filtersStopped: true });
+  });
+
+  it('where the server cannot include the auto-reply, so the filters stay paused', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }], { extensions: ['fileinto', 'imap4flags'] });
+    await useVacationStore.getState().fetch();
+    await useVacationStore.getState().save({ isEnabled: true });
+    expect(server.active()).toBe('vacation');
+    expect(useVacationStore.getState()).toMatchObject({ filtersStopped: true, includeAvailable: false });
+  });
+
+  it('where the server\'s capabilities are not known', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    server.api.getSieveCapabilities.mockReturnValue(null as never);
+    await useVacationStore.getState().fetch();
+    await useVacationStore.getState().save({ isEnabled: true });
+    expect(server.writes()).toBe(0);
+    expect(useVacationStore.getState()).toMatchObject({ filtersStopped: true, includeAvailable: false });
+  });
+});
+
+describe('a reconnect of the same login during a save', () => {
+  it('syncs once more on the live connection, from the scripts as they are then', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    await useVacationStore.getState().fetch();
+    const respond = server.vacation.setVacationResponse.getMockImplementation()!;
+    server.vacation.setVacationResponse.mockImplementationOnce(async (updates, account) => {
+      await respond(updates, account);
+      // Same login, still shown: only the connection is new.
+      env.connection.replace();
+    });
+    await useVacationStore.getState().save({ isEnabled: true });
+    expect(server.active()).toBe('filters');
+    expect(server.content('filters')).toContain(INCLUDE);
+    expect(useVacationStore.getState()).toMatchObject({ isEnabled: true, filtersStopped: false });
+  });
+
+  it('says so when the filters part keeps going stale', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    await useVacationStore.getState().fetch();
+    const respond = server.vacation.setVacationResponse.getMockImplementation()!;
+    const list = server.api.getSieveScripts.getMockImplementation()!;
+    server.vacation.setVacationResponse.mockImplementationOnce(async (updates, account) => {
+      await respond(updates, account);
+      env.connection.replace();
+      // Every later read lands on a connection replaced right after it.
+      server.api.getSieveScripts.mockImplementation(async () => {
+        const scripts = await list();
+        env.connection.replace();
+        return scripts;
+      });
+    });
+    await expect(useVacationStore.getState().save({ isEnabled: true })).rejects.toBeInstanceOf(VacationFiltersError);
+    expect(server.writes()).toBe(0);
+    expect(server.active()).toBe('vacation');
+  });
+});
+
+describe('turning the auto-reply off without the server\'s capabilities', () => {
+  const included = (rules: FilterRule[]) => stalwart([
+    { name: 'filters', content: filters(rules, { includeVacation: true }), isActive: true },
+    { name: 'vacation', content: VACATION_SCRIPT, isActive: false },
+  ]);
+
+  it('is refused before the response is saved when the script cannot be generated without them', async () => {
+    const server = included([rule('m', { actions: [{ type: 'move', value: 'News', mailboxId: 'mb-news' }] })]);
+    await useVacationStore.getState().fetch();
+    expect(useVacationStore.getState().isEnabled).toBe(true);
+    server.api.getSieveCapabilities.mockReturnValue(null as never);
+    await expect(useVacationStore.getState().save({ isEnabled: false })).rejects.toBeInstanceOf(SieveCapabilitiesUnknownError);
+    expect(server.vacation.setVacationResponse).not.toHaveBeenCalled();
+    expect(server.writes()).toBe(0);
+    expect(server.content('filters')).toContain(INCLUDE);
+  });
+
+  it('drops the include when the script comes out the same without them', async () => {
+    const server = included([rule('a')]);
+    await useVacationStore.getState().fetch();
+    server.api.getSieveCapabilities.mockReturnValue(null as never);
+    await useVacationStore.getState().save({ isEnabled: false });
+    expect(server.vacation.setVacationResponse).toHaveBeenCalledTimes(1);
+    expect(server.content('filters')).not.toContain(INCLUDE);
+    expect(parseScript(server.content('filters')).rules.map((r) => r.id)).toEqual(['a']);
   });
 });
 

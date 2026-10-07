@@ -7,6 +7,8 @@ vi.mock('../../../api/sieve', () => {
     (router.current.module as Record<string, (...a: unknown[]) => unknown>)[name](...args);
   return {
     getSieveAccountId: () => 'own',
+    // The router reads the account out of the scope.
+    sieveScope: (a?: unknown) => (a && typeof a === 'object' ? a : { gen: 1, accountId: a ?? 'own' }),
     isSieveSupported: () => true,
     getSieveCapabilities: route('getSieveCapabilities'),
     getSieveScripts: route('getSieveScripts'),

@@ -9,6 +9,7 @@ import {
   getSieveCapabilities,
   getSieveScriptContent,
   getSieveScripts,
+  sieveScope,
   updateSieveScript,
 } from '../../api/sieve';
 import type { AccountRef } from '../../api/op-scope';
@@ -74,9 +75,15 @@ export function supportsInclude(capabilities: SieveCapabilities | null): boolean
   return capabilities?.sieveExtensions?.includes('include') ?? false;
 }
 
-export async function readAccountFilters(accountId: string): Promise<AccountFilters> {
-  const capabilities = getSieveCapabilities(accountId);
-  const allScripts = await getSieveScripts(accountId);
+/**
+ * `account`: a Sieve account id, or a scope that binds every read to its
+ * connection (undefined: the user's own Sieve account on the live one).
+ */
+export async function readAccountFilters(account: AccountRef): Promise<AccountFilters> {
+  const at = sieveScope(account);
+  const { accountId } = at;
+  const capabilities = getSieveCapabilities(at);
+  const allScripts = await getSieveScripts(at);
   // The server-managed 'vacation' script (RFC 9661 §4) can only be changed
   // through VacationResponse/set.
   const scripts = allScripts.filter((s) => s.name !== VACATION_SCRIPT_NAME);
@@ -99,7 +106,7 @@ export async function readAccountFilters(accountId: string): Promise<AccountFilt
     };
   }
 
-  const content = await getSieveScriptContent(script.blobId, accountId);
+  const content = await getSieveScriptContent(script.blobId, at);
   const parsed = parseScript(content);
   return {
     accountId,
@@ -184,21 +191,24 @@ export async function writeFiltersScript(
  * changed since) is never uploaded. `modify` returns null when there is
  * nothing to write. Hand-edited scripts are refused: they are never
  * rewritten from a rule. `stillValid` is checked right before the write;
- * when it says no, nothing is written (SwitchedAwayError).
+ * when it says no, nothing is written (SwitchedAwayError). The read and the
+ * write run on one connection: the scope given, or the live one now.
  */
 export async function updateAccountFilters(
-  accountId: string,
+  account: AccountRef,
   modify: (rules: FilterRule[], filters: AccountFilters) => FilterRule[] | null,
   stillValid?: () => boolean,
 ): Promise<FiltersChange | null> {
-  const filters = await readAccountFilters(accountId);
+  const at = sieveScope(account);
+  const { accountId } = at;
+  const filters = await readAccountFilters(at);
   if (filters.parsed.isOpaque) throw new OpaqueFiltersError();
   const rules = modify(filters.parsed.rules, filters);
   if (!rules) return null;
 
   const written = renderFiltersScript(rules, filters);
   recheck(stillValid);
-  const { scriptId } = await writeFiltersScript(accountId, written, filters.script?.id ?? null);
+  const { scriptId } = await writeFiltersScript(at, written, filters.script?.id ?? null);
   void refreshFilterStore(accountId);
   return {
     accountId,

@@ -368,6 +368,30 @@ describe('filter-store saves only what it loaded, as the server can run it', () 
     expect(api.createSieveScript).not.toHaveBeenCalled();
   });
 
+  it('refuses without them to save forwarding from the vacation card', async () => {
+    api.getSieveCapabilities.mockReturnValue(null);
+    api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
+    api.getSieveScriptContent.mockResolvedValue(generateScript([makeRule({ actions: [{ type: 'mark_read' }] })], undefined, {
+      extensions: STALWART_EXTENSIONS,
+      vacationForward: { enabled: true, to: 'kollege@example.com', keepCopy: false },
+    }));
+    await useFilterStore.getState().selectAccount(null);
+    await expect(useFilterStore.getState().saveFilters()).rejects.toBeInstanceOf(SieveCapabilitiesUnknownError);
+    expect(api.updateSieveScript).not.toHaveBeenCalled();
+  });
+
+  it('saves without them what comes out the same either way', async () => {
+    api.getSieveCapabilities.mockReturnValue(null);
+    // Flags only, and a move that is off: nothing depends on the server.
+    serveScript([
+      makeRule({ actions: [{ type: 'mark_read' }] }),
+      makeRule({ id: 'off', name: 'Off', enabled: false }),
+    ]);
+    await useFilterStore.getState().selectAccount(null);
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', expect.any(String), true, scope('own'));
+  });
+
   it('still saves a hand-edited script as it is, capabilities or not', async () => {
     api.getSieveCapabilities.mockReturnValue(null);
     serveScript([makeRule()]);

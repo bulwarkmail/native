@@ -230,7 +230,9 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
       }
       // Without them the forwarding block and folder moves would lose their
       // spam guard, and moves their folder ids: wait for them instead.
-      if (!isOpaque && !sieveCapabilities) throw new SieveCapabilitiesUnknownError();
+      if (!isOpaque && !sieveCapabilities && dependsOnCapabilities(rules, vacationForward, includeVacation)) {
+        throw new SieveCapabilitiesUnknownError();
+      }
       // Both writes (upload and set) on the connection the rules came from.
       const { at } = loaded;
 
@@ -402,6 +404,19 @@ export interface VacationFilters {
    * it shares the server's redirect limit with these.
    */
   otherForwards: number;
+  /**
+   * Stalwart's own vacation script runs in place of the filters script, which
+   * has rules that are on: none of them runs (a save cut short, a switch
+   * mid-save, or a server that cannot include the auto-reply). Unlike
+   * notRunning, this covers plain rules too.
+   */
+  filtersStopped: boolean;
+  /**
+   * The filters script can run the auto-reply through `include`, so a save
+   * restarts stopped filters; without it they stay paused while the
+   * auto-reply is on.
+   */
+  includeAvailable: boolean;
 }
 
 /** See VacationFilters.notRunning. */
@@ -445,7 +460,28 @@ export async function readVacationFilters(accountId: string | undefined, at?: Op
     audienceAvailable: filtersUsable && !!capabilities?.sieveExtensions?.includes('envelope'),
     notRunning: storedButIdle(!!target?.isActive, !!vacationScript?.isActive, forward, audience),
     otherForwards: worstCaseForwards(parsed?.rules ?? []),
+    // A script edited by hand counts as having rules that are on.
+    filtersStopped: !!vacationScript?.isActive && !!target && !target.isActive &&
+      (parsed ? parsed.rules.some((r) => r.enabled) : true),
+    includeAvailable: supportsInclude(capabilities),
   };
+}
+
+/**
+ * Whether the script generated for these depends on the server's
+ * capabilities: the spam guard and folder ids of moves and copies, the
+ * forwarding block's spam guard, a redirect, the vacation include. Without
+ * any of them the script comes out the same with or without capabilities.
+ * External rules are written back verbatim.
+ */
+export function dependsOnCapabilities(
+  rules: FilterRule[],
+  forward: VacationForward | null | undefined,
+  includeVacation: boolean,
+): boolean {
+  return includeVacation || !!forward?.enabled || rules.some((rule) =>
+    rule.enabled && rule.origin !== 'external' && rule.origin !== 'opaque' &&
+    rule.actions.some((a) => a.type === 'move' || a.type === 'copy' || a.type === 'forward'));
 }
 
 function same<T>(a: T | null, b: T | null, normalize: (value: T) => T): boolean {
@@ -511,18 +547,58 @@ async function planVacationSync(sync: VacationSync, at: OpScope) {
   return { capabilities, canInclude, vacationScript, target, parsed, opaque, nextForward, nextAudience, changed };
 }
 
+type VacationSyncPlan = Awaited<ReturnType<typeof planVacationSync>>;
+
+/**
+ * Whether the sync rewrites a readable script, `enabled` saying whether the
+ * auto-reply is on. Turning it off never moves the vacation script into the
+ * filters' place, so for that the answer before the response is saved is
+ * the answer after it.
+ */
+function syncWrites(plan: VacationSyncPlan, enabled: boolean): boolean {
+  const { canInclude, vacationScript, target, parsed, nextForward, nextAudience, changed } = plan;
+  if (enabled && !canInclude) return false;
+  const rules = parsed?.rules ?? [];
+  const forwarding = !!nextForward?.enabled;
+  if (enabled) {
+    // Act when the vacation script took over from filters that must keep
+    // running, or when something changed. An auto-reply for some senders
+    // only must run from the filters script: on its own it answers everyone.
+    const tookOver = !!vacationScript?.isActive && !target?.isActive;
+    const needsFilters = rules.length > 0 || forwarding || !!nextAudience;
+    return changed || (tookOver && needsFilters);
+  }
+  // Forwarding also runs without the auto-reply, from an active filters
+  // script; turning the auto-reply off can leave no script active.
+  const forwardingIdle = forwarding && !target?.isActive;
+  return changed || !!parsed?.includeVacation || forwardingIdle;
+}
+
+/** The sync would have to write a script it cannot generate without the server's capabilities. */
+function lacksCapabilities(plan: VacationSyncPlan, enabled: boolean): boolean {
+  return !plan.capabilities && dependsOnCapabilities(plan.parsed?.rules ?? [], plan.nextForward, enabled);
+}
+
 /**
  * Run before VacationResponse/set, with nothing written yet: throws what
  * `syncVacationWithFilters` would refuse once the response is saved. Also
  * refuses (OpaqueFiltersError) to turn the auto-reply on while a filters
  * script edited by hand is the active one: Stalwart would switch it off for
  * its own vacation script, and the script cannot take an `include` of it, so
- * every filter would stop. `opaque`: the filters script was edited by hand,
+ * every filter would stop. And it refuses (SieveCapabilitiesUnknownError) to
+ * turn it off when the sync would then have to rewrite a script it cannot
+ * generate yet. `opaque`: the filters script was edited by hand,
  * so the sync after the save has nothing it may do.
  */
 export async function checkVacationSync(sync: VacationSync, at: OpScope): Promise<{ opaque: boolean }> {
   const plan = await planVacationSync(sync, at);
   if (plan.opaque && sync.enabled && plan.target?.isActive) throw new OpaqueFiltersError();
+  // Turning the auto-reply off must drop the include (or run the forwarding)
+  // from a script that cannot be generated yet: say so before the response
+  // is saved, rather than leave the include behind.
+  if (!sync.enabled && !plan.opaque && syncWrites(plan, false) && lacksCapabilities(plan, false)) {
+    throw new SieveCapabilitiesUnknownError();
+  }
   return { opaque: plan.opaque };
 }
 
@@ -547,39 +623,24 @@ export async function syncVacationWithFilters(sync: VacationSync, at: OpScope = 
   const { enabled, forward, audience } = sync;
   if (enabled && !supportsInclude(getSieveCapabilities(at)) && forward === undefined && audience === undefined) return;
 
-  const {
-    capabilities, canInclude, vacationScript, target, parsed, opaque, nextForward, nextAudience, changed,
-  } = await planVacationSync(sync, at);
+  const plan = await planVacationSync(sync, at);
+  const { capabilities, vacationScript, target, parsed, opaque, nextForward, nextAudience } = plan;
   if (opaque) {
     // The vacation script took over from it, and it cannot include that.
     if (enabled && vacationScript?.isActive && !target?.isActive) throw new OpaqueFiltersError();
     return;
   }
-  if (enabled && !canInclude) return;
+  if (!syncWrites(plan, enabled)) return;
+  if (lacksCapabilities(plan, enabled)) throw new SieveCapabilitiesUnknownError();
 
   const rules = parsed?.rules ?? [];
   const forwarding = !!nextForward?.enabled;
-  if (enabled) {
-    // Act when the vacation script took over from filters that must keep
-    // running, or when something changed. An auto-reply for some senders
-    // only must run from the filters script: on its own it answers everyone.
-    const tookOver = !!vacationScript?.isActive && !target?.isActive;
-    const needsFilters = rules.length > 0 || forwarding || !!nextAudience;
-    if (!changed && !(tookOver && needsFilters)) return;
-  } else {
-    // Forwarding also runs without the auto-reply, from an active filters
-    // script; turning the auto-reply off can leave no script active.
-    const forwardingIdle = forwarding && !target?.isActive;
-    if (!changed && !parsed?.includeVacation && !forwardingIdle) return;
-  }
-  if (!capabilities) throw new SieveCapabilitiesUnknownError();
-
   const content = generateScript(rules, parsed?.vacation, {
     externalRequires: parsed?.externalRequires,
     includeVacation: enabled,
     vacationForward: nextForward,
     vacationAudience: nextAudience,
-    extensions: capabilities.sieveExtensions,
+    extensions: capabilities?.sieveExtensions,
   });
   const activate = enabled || forwarding || !!target?.isActive;
   if (target) {

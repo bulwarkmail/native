@@ -41,6 +41,8 @@ const FILTERS = vi.hoisted(() => ({
   audienceAvailable: false,
   notRunning: false,
   otherForwards: 0,
+  filtersStopped: false,
+  includeAvailable: true,
 }));
 
 import * as vacation from '../../api/vacation';

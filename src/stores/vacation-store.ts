@@ -61,6 +61,10 @@ export interface VacationState {
   notRunning: boolean;
   /** The most forwards the filter rules let one message collect (see readVacationFilters). */
   otherForwards: number;
+  /** Stalwart's vacation script runs in place of filters that have rules on (see readVacationFilters). */
+  filtersStopped: boolean;
+  /** A save can run the filters next to the auto-reply (see readVacationFilters). */
+  includeAvailable: boolean;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
@@ -84,6 +88,8 @@ const FILTERS_INITIAL = {
   audienceAvailable: false,
   notRunning: false,
   otherForwards: 0,
+  filtersStopped: false,
+  includeAvailable: false,
 };
 
 const INITIAL = {
@@ -112,6 +118,17 @@ function fromFilters(filters: VacationFilters) {
     audienceAvailable: filters.audienceAvailable,
     notRunning: filters.notRunning,
     otherForwards: filters.otherForwards,
+    filtersStopped: filters.filtersStopped,
+    includeAvailable: filters.includeAvailable,
+  };
+}
+
+/** Whether the filters run, which a failed save changes while the card keeps what the user set. */
+function runState(filters: VacationFilters) {
+  return {
+    notRunning: filters.notRunning,
+    filtersStopped: filters.filtersStopped,
+    includeAvailable: filters.includeAvailable,
   };
 }
 
@@ -231,22 +248,33 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     let filtersState: Partial<VacationState> = {};
     if (withSieve && !skipSync) {
       let synced = false;
+      let readAt = at;
       try {
-        await syncVacationWithFilters(sync, sieveAt);
+        try {
+          await syncVacationWithFilters(sync, sieveAt);
+        } catch (err) {
+          // The connection was replaced, but the account is still the one
+          // shown (a reconnect of the same login): the response is saved and
+          // the filters may be stopped, so try once more on the live
+          // connection. The sync reads the scripts afresh before it writes.
+          if (!isStaleLoad(err) || superseded()) throw err;
+          readAt = requireShownAccountScope(state.appAccountId, managed);
+          await syncVacationWithFilters(sync, sieveScopeIn(readAt, managed));
+        }
         synced = true;
       } catch (err) {
-        // The connection was switched away: nothing more was written, and
-        // the card belongs to another account now.
-        if (!isStaleLoad(err)) {
+        // A stale stop for an account no longer shown wrote nothing more, and
+        // the card belongs to another account now; anything else is told.
+        if (!isStaleLoad(err) || !superseded()) {
           console.warn('[vacation] Failed to keep filters active next to the vacation response:', err);
           filtersError = new VacationFiltersError(err);
         }
       }
       // What the filters script holds now, and whether it runs. After a
       // failed save the card keeps what the user set, to save it again.
-      const filters = await readVacationFilters(managed, at).catch(() => null);
+      const filters = await readVacationFilters(managed, readAt).catch(() => null);
       if (filters) {
-        filtersState = synced ? fromFilters(filters) : { notRunning: filters.notRunning };
+        filtersState = synced ? fromFilters(filters) : runState(filters);
       } else if (synced) {
         filtersState = {
           ...(forwardSettings !== undefined ? { forward: sync.forward ?? null } : {}),
