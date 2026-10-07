@@ -24,7 +24,7 @@ import { useColors } from '../theme/colors';
 import { Button, IdentitySheet } from '../components';
 import { TemplateSheet } from '../components/TemplateSheet';
 import FilePickerSheet from '../components/files/FilePickerSheet';
-import { fileNodeAttachment, supportsFiles } from '../api/files';
+import { planFileNodePick, supportsFiles } from '../api/files';
 import { formatBytes } from '../lib/format-bytes';
 import RichTextEditor, {
   type RichTextEditorHandle,
@@ -112,6 +112,8 @@ type AttachmentEntry = {
   inline: boolean;
   cid?: string;
   blobId?: string;
+  /** The Files app node it was picked from (see `planFileNodePick`). */
+  fileNodeId?: string;
   uploading: boolean;
   /** 0..1 while uploading, when the transport reports it. */
   progress?: number;
@@ -2086,7 +2088,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // attached by blobId with no download or upload (webmail #1179). Only the
   // owner's own files: a blob id names a blob in its own account only, so
   // the picker shows other accounts' shared files disabled and
-  // fileNodeAttachment refuses them again here.
+  // planFileNodePick refuses them again here.
   const [filesPickerOpen, setFilesPickerOpen] = React.useState(false);
   const openFilesPicker = () => {
     if (!ownerActiveNow()) {
@@ -2104,39 +2106,33 @@ export default function ComposeScreen({ route, navigation }: Props) {
       return;
     }
     const maxUpload = jmapClient.getMaxSizeUpload();
-    // A file already on the message, or picked twice, is attached once.
-    const blobIds = new Set(attachments.filter((a) => !a.inline && a.blobId).map((a) => a.blobId));
-    const picked: AttachmentEntry[] = [];
-    const tooLarge: string[] = [];
-    let overTotal = false;
-    let adding = 0;
-    for (const node of nodes) {
-      const result = fileNodeAttachment(node, owner.jmapAccountId, maxUpload);
-      if (!result.ok) {
-        if (result.reason === 'too_large') tooLarge.push(node.name);
-        continue;
-      }
-      const { blobId, name, type, size } = result.attachment;
-      if (blobIds.has(blobId)) continue;
-      if (exceedsAttachmentTotal(size, adding)) {
-        overTotal = true;
-        continue;
-      }
-      blobIds.add(blobId);
-      adding += size;
-      picked.push({ localId: genLocalId(), name, type, size, uri: '', inline: false, blobId, uploading: false });
-    }
+    const plan = planFileNodePick(nodes, {
+      accountId: owner.jmapAccountId,
+      maxSizeUpload: maxUpload,
+      attachedNodeIds: attachments.flatMap((a) => (a.fileNodeId ? [a.fileNodeId] : [])),
+      fitsTotal: (size, adding) => !exceedsAttachmentTotal(size, adding),
+    });
+    const picked = plan.attach.map(({ nodeId, blobId, name, type, size }): AttachmentEntry => (
+      { localId: genLocalId(), name, type, size, uri: '', inline: false, blobId, fileNodeId: nodeId, uploading: false }
+    ));
     if (picked.length > 0) setAttachments((prev) => [...prev, ...picked]);
-    // One alert for the whole pick, naming every file left out for its size.
+    // One alert for the whole pick, naming every file left out.
     const problems: string[] = [];
-    if (tooLarge.length > 0) {
+    if (plan.alreadyAttached.length > 0) {
+      problems.push(t(
+        'email_composer.files_already_attached',
+        '{count, plural, one {This file is} other {These files are}} already attached: {names}',
+        { count: plan.alreadyAttached.length, names: plan.alreadyAttached.join(', ') },
+      ));
+    }
+    if (plan.tooLarge.length > 0) {
       problems.push(t(
         'email_composer.files_too_large',
         '{count, plural, one {This file is} other {These files are}} larger than the server allows ({max} per file): {names}',
-        { count: tooLarge.length, max: formatBytes(maxUpload), names: tooLarge.join(', ') },
+        { count: plan.tooLarge.length, max: formatBytes(maxUpload), names: plan.tooLarge.join(', ') },
       ));
     }
-    if (overTotal) problems.push(attachmentsTotalMessage());
+    if (plan.overTotal) problems.push(attachmentsTotalMessage());
     if (problems.length > 0) Alert.alert(t('email_composer.attach', 'Attach'), problems.join('\n\n'));
   };
 

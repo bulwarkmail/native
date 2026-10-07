@@ -33,6 +33,7 @@ import {
   createFolder,
   deleteFileNodes,
   fileNodeAttachment,
+  planFileNodePick,
   getAllFileNodes,
   getAllFileNodesAcrossAccounts,
   getFileNodeDownloadUrl,
@@ -870,5 +871,46 @@ describe('fileNodeAttachment (#1179)', () => {
   it('refuses a file over the per-file limit, and takes one at the limit', () => {
     expect(fileNodeAttachment(own, 'c', 999)).toEqual({ ok: false, reason: 'too_large' });
     expect(fileNodeAttachment(own, 'c', 1000).ok).toBe(true);
+  });
+});
+
+describe('planFileNodePick', () => {
+  const file = (id: string, name: string, blobId: string, size = 100) => ({
+    id, name, parentId: null, type: 'text/plain', blobId, size, accountId: 'c', isShared: false,
+  });
+  const fitsAll = () => true;
+
+  it('attaches two identical files with different names, each once', () => {
+    // Same content, so the same blob: deduping by blob dropped the second name.
+    const plan = planFileNodePick([file('f1', 'a.txt', 'b1'), file('f2', 'copy of a.txt', 'b1')], {
+      accountId: 'c', maxSizeUpload: 0, attachedNodeIds: [], fitsTotal: fitsAll,
+    });
+    expect(plan.attach.map((a) => [a.nodeId, a.name, a.blobId])).toEqual([['f1', 'a.txt', 'b1'], ['f2', 'copy of a.txt', 'b1']]);
+    expect(plan.alreadyAttached).toEqual([]);
+  });
+
+  it('skips a node already on the message, or picked twice, and names it', () => {
+    const plan = planFileNodePick([file('f1', 'a.txt', 'b1'), file('f2', 'b.txt', 'b2'), file('f2', 'b.txt', 'b2')], {
+      accountId: 'c', maxSizeUpload: 0, attachedNodeIds: ['f1'], fitsTotal: fitsAll,
+    });
+    expect(plan.attach.map((a) => a.nodeId)).toEqual(['f2']);
+    expect(plan.alreadyAttached).toEqual(['a.txt']);
+  });
+
+  it('names files over the per-file limit and stops at the total limit', () => {
+    const plan = planFileNodePick([file('f1', 'big.bin', 'b1', 5000), file('f2', 'a.txt', 'b2', 60), file('f3', 'b.txt', 'b3', 60)], {
+      accountId: 'c', maxSizeUpload: 1000, attachedNodeIds: [], fitsTotal: (size, adding) => size + adding <= 100,
+    });
+    expect(plan.attach.map((a) => a.nodeId)).toEqual(['f2']);
+    expect(plan.tooLarge).toEqual(['big.bin']);
+    expect(plan.overTotal).toBe(true);
+  });
+
+  it('leaves out folders and other accounts\' files without a word', () => {
+    const plan = planFileNodePick([
+      { ...file('d1', 'Docs', ''), blobId: null, type: 'd' },
+      { ...file('e:f1', 'theirs.txt', 'b9'), accountId: 'e', isShared: true },
+    ], { accountId: 'c', maxSizeUpload: 0, attachedNodeIds: [], fitsTotal: fitsAll });
+    expect(plan).toEqual({ attach: [], tooLarge: [], alreadyAttached: [], overTotal: false });
   });
 });

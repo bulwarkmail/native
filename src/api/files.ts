@@ -197,6 +197,61 @@ export function fileNodeAttachment(
   };
 }
 
+/** What a pick in the Files picker adds to a message, and what it leaves out. */
+export interface FileNodePick {
+  /** The attachments to add, each with the node it came from. */
+  attach: Array<FileNodeAttachment & { nodeId: string }>;
+  /** Names of files over the per-file limit. */
+  tooLarge: string[];
+  /** Names of files already on the message. */
+  alreadyAttached: string[];
+  /** Whether a file was left out because the message would grow too large. */
+  overTotal: boolean;
+}
+
+/**
+ * Sorts a Files picker pick for a message from JMAP account `accountId`.
+ * A node already on the message (`attachedNodeIds`), or picked twice, goes
+ * on once. Two files with the same content share a blob, so only the node
+ * id tells them apart. `fitsTotal(size, adding)` says whether a file of
+ * `size` fits with `adding` bytes already planned. Folders and other
+ * accounts' files are left out silently: the picker does not offer them.
+ */
+export function planFileNodePick(
+  nodes: FileNode[],
+  { accountId, maxSizeUpload, attachedNodeIds, fitsTotal }: {
+    accountId: string;
+    maxSizeUpload: number;
+    attachedNodeIds: Iterable<string>;
+    fitsTotal: (size: number, adding: number) => boolean;
+  },
+): FileNodePick {
+  const attached = new Set(attachedNodeIds);
+  const planned = new Set<string>();
+  const plan: FileNodePick = { attach: [], tooLarge: [], alreadyAttached: [], overTotal: false };
+  let adding = 0;
+  for (const node of nodes) {
+    if (planned.has(node.id)) continue;
+    if (attached.has(node.id)) {
+      plan.alreadyAttached.push(node.name);
+      continue;
+    }
+    const result = fileNodeAttachment(node, accountId, maxSizeUpload);
+    if (!result.ok) {
+      if (result.reason === 'too_large') plan.tooLarge.push(node.name);
+      continue;
+    }
+    if (!fitsTotal(result.attachment.size, adding)) {
+      plan.overTotal = true;
+      continue;
+    }
+    planned.add(node.id);
+    adding += result.attachment.size;
+    plan.attach.push({ ...result.attachment, nodeId: node.id });
+  }
+  return plan;
+}
+
 /** Ids asked for per FileNode/query page; Stalwart clamps it to queryMaxResults (5000 by default). */
 const FILE_NODE_QUERY_PAGE = 5000;
 /** Safety bound on how many FileNode ids one listing pages through. */
