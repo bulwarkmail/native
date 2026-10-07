@@ -244,6 +244,31 @@ describe('saving scripts the webmail wrote', () => {
     expect(api.updateSieveScript).toHaveBeenCalledWith('s1', webmailResave('stalwart-full.sieve'), true, 'own');
   });
 
+  it('keeps a version 2 script with periods, forwarding and a reply audience byte for byte', async () => {
+    const script = webmailFixture('v2-period-forward-audience.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([{ id: 's1', name: 'filters', blobId: 'b1', isActive: true }]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await useFilterStore.getState().selectAccount(null);
+    expect(useFilterStore.getState().isOpaque).toBe(false);
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+
+  it('keeps the forwarding and the reply audience when the filters take back over from the vacation script', async () => {
+    const script = webmailFixture('v2-period-forward-audience.sieve');
+    api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });
+    api.getSieveScripts.mockResolvedValue([
+      { id: 's1', name: 'filters', blobId: 'b1', isActive: false },
+      { id: 'v1', name: 'vacation', blobId: 'bv', isActive: true },
+    ]);
+    api.getSieveScriptContent.mockResolvedValue(script);
+
+    await syncVacationWithFilters(true);
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', script, true, 'own');
+  });
+
   it('keeps the rule data through an edit on the phone', async () => {
     const script = webmailFixture('stalwart-full.sieve');
     api.getSieveCapabilities.mockReturnValue({ ...WITH_INCLUDE, sieveExtensions: STALWART_EXTENSIONS });

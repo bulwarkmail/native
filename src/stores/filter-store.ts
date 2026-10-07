@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import type { FilterRule, SieveCapabilities, VacationSieveConfig } from '../lib/sieve/types';
+import type {
+  FilterRule,
+  SieveCapabilities,
+  VacationAudience,
+  VacationForward,
+  VacationSieveConfig,
+} from '../lib/sieve/types';
 import { parseScript } from '../lib/sieve/parser';
 import { generateScript, VACATION_SCRIPT_NAME } from '../lib/sieve/generator';
 import { supportsInclude, writeFiltersScript } from '../lib/filters/account-filters';
@@ -32,6 +38,9 @@ interface FilterStore {
   externalRequires: string[];
   /** The script runs the server's vacation script via `include`. */
   includeVacation: boolean;
+  /** The vacation card's forwarding and reply audience, kept through every save. */
+  vacationForward: VacationForward | null;
+  vacationAudience: VacationAudience | null;
   selectedAccountId: string | null;
 
   fetchFilters: (accountId?: string) => Promise<void>;
@@ -67,6 +76,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
   vacationSettings: null,
   externalRequires: [],
   includeVacation: false,
+  vacationForward: null,
+  vacationAudience: null,
   selectedAccountId: null,
 
   fetchFilters: async (accountId) => {
@@ -109,6 +120,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
           rawScript: '',
           isOpaque: false,
           includeVacation: vacationActive,
+          vacationForward: null,
+          vacationAudience: null,
         });
         return;
       }
@@ -128,6 +141,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
         vacationSettings: result.vacation || null,
         externalRequires: result.externalRequires,
         includeVacation: !result.isOpaque && (!!result.includeVacation || vacationActive),
+        vacationForward: result.vacationForward ?? null,
+        vacationAudience: result.vacationAudience ?? null,
       });
     } catch (error) {
       if (stale()) return;
@@ -150,6 +165,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
       vacationSettings: null,
       externalRequires: [],
       includeVacation: false,
+      vacationForward: null,
+      vacationAudience: null,
     });
     await get().fetchFilters(accountId ?? undefined);
   },
@@ -159,7 +176,7 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     try {
       const {
         isOpaque, rawScript, rules, activeScriptId, vacationSettings, externalRequires, includeVacation,
-        selectedAccountId, sieveCapabilities,
+        vacationForward, vacationAudience, selectedAccountId, sieveCapabilities,
       } = get();
       const accountId = selectedAccountId ?? undefined;
 
@@ -168,6 +185,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
         : generateScript(rules, vacationSettings || undefined, {
           externalRequires,
           includeVacation,
+          vacationForward,
+          vacationAudience,
           extensions: sieveCapabilities?.sieveExtensions,
         });
 
@@ -245,7 +264,9 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
   // atomically with the new content (mirrors the webmail save-sieve flow).
   setOpaqueScript: (content) => set({ isOpaque: true, rawScript: content, rules: [] }),
 
-  resetToVisualBuilder: () => set({ isOpaque: false, rawScript: '', rules: [], externalRequires: [] }),
+  resetToVisualBuilder: () => set({
+    isOpaque: false, rawScript: '', rules: [], externalRequires: [], vacationForward: null, vacationAudience: null,
+  }),
 
   clearState: () => set({
     rules: [],
@@ -260,6 +281,8 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     vacationSettings: null,
     externalRequires: [],
     includeVacation: false,
+    vacationForward: null,
+    vacationAudience: null,
     selectedAccountId: null,
   }),
 }));
@@ -311,6 +334,8 @@ export async function syncVacationWithFilters(enabled: boolean, accountId?: stri
   const content = generateScript(parsed.rules, parsed.vacation, {
     externalRequires: parsed.externalRequires,
     includeVacation: enabled,
+    vacationForward: parsed.vacationForward,
+    vacationAudience: parsed.vacationAudience,
     extensions: capabilities?.sieveExtensions,
   });
   await updateSieveScript(target.id, content, enabled || target.isActive, sieveAccountId);

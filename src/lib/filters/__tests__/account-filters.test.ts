@@ -102,6 +102,26 @@ describe('updateAccountFilters', () => {
     expect(written.indexOf('# Rule: Rule old')).toBeLessThan(written.indexOf('X-Spam'));
   });
 
+  it('keeps the vacation forwarding, the reply audience and rule periods of a version 2 script', async () => {
+    const forward = { enabled: true, to: 'colleague@example.com', keepCopy: true, activeFrom: '2026-10-05T06:00:00.000Z' };
+    const audience = { only: 'internal' as const, domains: ['example.com', 'example.org'] };
+    const timed = rule('timed', { activeUntil: '2026-10-16T16:00:00.000Z' });
+    const account = makeAccount('b', [{
+      name: 'filters',
+      content: generateScript([timed], undefined, { includeVacation: true, vacationForward: forward, vacationAudience: audience }),
+      isActive: true,
+    }]);
+
+    await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new')));
+
+    const parsed = parseScript(account.content('filters'));
+    expect(parsed.isOpaque).toBe(false);
+    expect(parsed.vacationForward).toEqual(forward);
+    expect(parsed.vacationAudience).toEqual(audience);
+    expect(parsed.rules.map((r) => [r.id, r.activeUntil])).toEqual([['new', undefined], ['timed', timed.activeUntil]]);
+    expect(account.content('filters')).toContain('# Vacation forwarding');
+  });
+
   it('refuses an opaque script (a hand-edited one) and writes nothing', async () => {
     const account = makeAccount('b', [{ name: 'filters', content: 'require "fileinto";', isActive: true }]);
     expect((await readAccountFilters('b')).parsed.isOpaque).toBe(true);

@@ -5,8 +5,13 @@ import type {
   FilterConditionField,
   FilterMetadata,
   FilterRule,
+  VacationAudience,
+  VacationForward,
   VacationSieveConfig,
 } from './types';
+import { isPeriodBoundary } from './period';
+import { VACATION_FORWARD_MARKER_RE, isValidVacationForward } from './vacation-forward';
+import { isValidVacationAudience } from './vacation-audience';
 
 // Ported from the webmail's lib/sieve/parser.ts. Parses a Sieve script back
 // into structured rules. Bulwark-authored scripts carry an `@metadata` JSON
@@ -20,6 +25,10 @@ export interface ParseResult {
   externalRequires: string[];
   /** The script runs the server's "vacation" script via `include`. */
   includeVacation?: boolean;
+  /** Forwarding from the vacation card, on or off. */
+  vacationForward?: VacationForward;
+  /** Who gets the auto-reply, when not everyone. */
+  vacationAudience?: VacationAudience;
 }
 
 const OPAQUE: ParseResult = { rules: [], isOpaque: true, externalRequires: [] };
@@ -67,6 +76,12 @@ function isValidRule(rule: unknown): rule is FilterRule {
     !Array.isArray(r.actions) ||
     typeof r.stopProcessing !== 'boolean'
   ) return false;
+
+  // A period that cannot be read would be dropped on the next save and the
+  // rule would act all the time; treating the script as hand-edited leaves
+  // it untouched instead.
+  if (r.activeFrom !== undefined && !isPeriodBoundary(r.activeFrom)) return false;
+  if (r.activeUntil !== undefined && !isPeriodBoundary(r.activeUntil)) return false;
 
   return r.conditions.every(isValidCondition) && r.actions.every(isValidAction);
 }
@@ -821,11 +836,20 @@ export function parseScript(content: string): ParseResult {
       return OPAQUE;
     }
 
-    if (!metadata || metadata.version !== 1) return OPAQUE;
+    // Version 2 only marks fields older builds do not know (see FilterMetadata).
+    if (!metadata || (metadata.version !== 1 && metadata.version !== 2)) return OPAQUE;
     if (!Array.isArray(metadata.rules)) return OPAQUE;
 
     for (const rule of metadata.rules) {
       if (!isValidRule(rule)) return OPAQUE;
+    }
+    // Forwarding that cannot be read could be written back without its
+    // period; as with a rule, the script then counts as edited by hand.
+    if (metadata.vacationForward !== undefined && !isValidVacationForward(metadata.vacationForward)) {
+      return OPAQUE;
+    }
+    if (metadata.vacationAudience !== undefined && !isValidVacationAudience(metadata.vacationAudience)) {
+      return OPAQUE;
     }
 
     // Scan the portion AFTER the metadata block for external rules. A prior
@@ -865,6 +889,9 @@ export function parseScript(content: string): ParseResult {
         if (bulwarkRules.some(b => oneLine(b.name) === name)) return false;
       }
       if (/#\s*Vacation auto-reply/i.test(raw)) return false;
+      // The generator writes the forwarding block from the metadata again.
+      // Only written while switched on, so only then is such a block Bulwark's.
+      if (metadata.vacationForward?.enabled && VACATION_FORWARD_MARKER_RE.test(raw)) return false;
       return true;
     });
 
@@ -882,6 +909,8 @@ export function parseScript(content: string): ParseResult {
       vacation: metadata.vacation,
       externalRequires,
       ...(metadata.includeVacation === true ? { includeVacation: true } : {}),
+      ...(metadata.vacationForward ? { vacationForward: metadata.vacationForward } : {}),
+      ...(metadata.vacationAudience ? { vacationAudience: metadata.vacationAudience } : {}),
     };
   }
 

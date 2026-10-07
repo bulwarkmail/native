@@ -28,6 +28,10 @@ export const WEBMAIL_FIXTURES: WebmailFixture[] = [
   },
   // Everything at once, plus a hand-written rule the webmail kept.
   { file: 'stalwart-full.sieve', extensions: STALWART_EXTENSIONS },
+  // Metadata version 2, from webmail 1.13.0 (3d48b122): rules with periods,
+  // vacation forwarding that is on and keeps a copy, and an auto-reply only
+  // for senders from two own domains.
+  { file: 'v2-period-forward-audience.sieve', extensions: STALWART_EXTENSIONS },
 ];
 
 export function readWebmailFixture(file: string): string {
