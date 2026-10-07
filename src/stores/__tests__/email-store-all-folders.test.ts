@@ -13,6 +13,7 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     isConnected: true,
     accountId: 'c',
+    connectedAccountId: 'c',
     username: 'me@example.com',
     serverUrl: 'https://mail.example.com',
     // No hasKeyword sort option: the list sort stays plain receivedAt and no

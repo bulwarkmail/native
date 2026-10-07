@@ -691,7 +691,8 @@ export function spannedAccounts(mailboxes: Mailbox[]): Array<string | undefined>
 // stamp in a list that spans accounts, else the folder on screen.
 function rowAccountId(state: EmailState, email: Email | undefined): string | undefined {
   if (email?.jmapAccountId) {
-    return email.jmapAccountId === jmapClient.accountId ? undefined : email.jmapAccountId;
+    // Not `accountId`: rows render before the client connects on a cold start.
+    return email.jmapAccountId === jmapClient.connectedAccountId ? undefined : email.jmapAccountId;
   }
   return currentAccountId(state);
 }
@@ -869,8 +870,8 @@ export function accountIdOfRow(email: Email): string | undefined {
  * Looked up by the row's own account and id: ids repeat across accounts.
  */
 export function snippetForRow(snippets: SnippetMap, email: Email): RowSnippet | undefined {
-  const account = rowAccountId(useEmailStore.getState(), email) ?? jmapClient.accountId;
-  return snippets[snippetKey(account, email.id)];
+  const account = rowAccountId(useEmailStore.getState(), email) ?? jmapClient.connectedAccountId;
+  return account ? snippets[snippetKey(account, email.id)] : undefined;
 }
 
 /**

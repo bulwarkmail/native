@@ -114,7 +114,11 @@ export function ReadReceiptBanner({ email, requestedBy, jmapAccountId, appAccoun
   // "always" mode: auto-send once when the message is actually displayed.
   React.useEffect(() => {
     if (readReceiptResponse !== 'always' || !shouldOffer || !active || !isShownAccount(ownerAppAccountId)) return;
-    const key = `${jmapAccountId ?? jmapClient.accountId}:${email.id}`;
+    // Not `accountId`: a message opened from a notification can render before
+    // the client connects. Without an account there is nothing to send yet.
+    const account = jmapAccountId ?? jmapClient.connectedAccountId;
+    if (!account) return;
+    const key = `${account}:${email.id}`;
     if (autoAttempted.has(key)) return;
     autoAttempted.add(key);
     setHandledLocally(true);
