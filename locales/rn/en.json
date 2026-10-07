@@ -626,6 +626,7 @@
   },
   "notifications": {
     "delete_failed": "Failed to delete",
+    "filters_capabilities_unknown": "The server has not said yet what your filters can do. Try again in a moment.",
     "rule_apply_partial": "Could not finish applying the rule. Some messages may already have been changed.",
     "rule_switch_back": "Switch back to {account} to finish this",
     "vacation_filters_restart_failed": "Out of office settings saved, but your filters could not be restarted"

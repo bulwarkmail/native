@@ -11,7 +11,13 @@ import { generateScript, supportsSpamGuard, VACATION_SCRIPT_NAME } from '../lib/
 import { supportsPeriods } from '../lib/sieve/period';
 import { isValidVacationForward, withVacationPeriod } from '../lib/sieve/vacation-forward';
 import { isValidVacationAudience, normalizeVacationAudience } from '../lib/sieve/vacation-audience';
-import { OpaqueFiltersError, supportsInclude, writeFiltersScript } from '../lib/filters/account-filters';
+import {
+  dependsOnCapabilities,
+  OpaqueFiltersError,
+  SieveCapabilitiesUnknownError,
+  supportsInclude,
+  writeFiltersScript,
+} from '../lib/filters/account-filters';
 import { worstCaseForwards } from '../lib/filters/forward-limit';
 import { isCurrentScope, type OpScope } from '../api/op-scope';
 import {
@@ -34,17 +40,7 @@ import {
 // `selectedAccountId` is the Sieve account being edited: the user's own, or
 // a shared/group account.
 
-/**
- * The server's Sieve capabilities are not known, so a script generated now
- * would leave out what it has (the spam guard, folder ids, the vacation
- * include). Nothing was written.
- */
-export class SieveCapabilitiesUnknownError extends Error {
-  constructor() {
-    super('The server\'s Sieve capabilities are not known yet');
-    this.name = 'SieveCapabilitiesUnknownError';
-  }
-}
+export { dependsOnCapabilities, SieveCapabilitiesUnknownError };
 
 /** The filters on screen are not the ones loaded for this account (cleared, or never loaded). */
 export class FiltersNotLoadedError extends Error {
@@ -465,23 +461,6 @@ export async function readVacationFilters(accountId: string | undefined, at?: Op
       (parsed ? parsed.rules.some((r) => r.enabled) : true),
     includeAvailable: filtersUsable,
   };
-}
-
-/**
- * Whether the script generated for these depends on the server's
- * capabilities: the spam guard and folder ids of moves and copies, the
- * forwarding block's spam guard, a redirect, the vacation include. Without
- * any of them the script comes out the same with or without capabilities.
- * External rules are written back verbatim.
- */
-export function dependsOnCapabilities(
-  rules: FilterRule[],
-  forward: VacationForward | null | undefined,
-  includeVacation: boolean,
-): boolean {
-  return includeVacation || !!forward?.enabled || rules.some((rule) =>
-    rule.enabled && rule.origin !== 'external' && rule.origin !== 'opaque' &&
-    rule.actions.some((a) => a.type === 'move' || a.type === 'copy' || a.type === 'forward'));
 }
 
 function same<T>(a: T | null, b: T | null, normalize: (value: T) => T): boolean {

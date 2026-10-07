@@ -16,6 +16,7 @@ import {
   FiltersChangedError,
   OpaqueFiltersError,
   restoreAccountFilters,
+  SieveCapabilitiesUnknownError,
   SwitchedAwayError,
   updateAccountFilters,
   type FiltersChange,
@@ -60,6 +61,13 @@ function reportWriteError(error: unknown, target: QuickRuleTarget): void {
   }
   if (error instanceof OpaqueFiltersError) {
     toast.error(t('context_menu.rules.opaque_hint', 'Your filters were edited by hand. Open Filters settings'));
+    return;
+  }
+  if (error instanceof SieveCapabilitiesUnknownError) {
+    toast.error(
+      t('notifications.filters_save_failed', 'Failed to save filters'),
+      t('notifications.filters_capabilities_unknown', 'The server has not said yet what your filters can do. Try again in a moment.'),
+    );
     return;
   }
   toast.error(

@@ -1,4 +1,4 @@
-import type { FilterRule, SieveCapabilities, SieveScript } from '../sieve/types';
+import type { FilterRule, SieveCapabilities, SieveScript, VacationForward } from '../sieve/types';
 import { parseScript, type ParseResult } from '../sieve/parser';
 import { generateScript, VACATION_SCRIPT_NAME } from '../sieve/generator';
 import {
@@ -61,6 +61,35 @@ export class SwitchedAwayError extends Error {
 /** Throws SwitchedAwayError unless `stillValid` (when given) still holds. Called right before each write. */
 function recheck(stillValid: (() => boolean) | undefined): void {
   if (stillValid && !stillValid()) throw new SwitchedAwayError();
+}
+
+/**
+ * The server's Sieve capabilities are not known, so a script generated now
+ * would leave out what it has (the spam guard, folder ids, the vacation
+ * include). Nothing was written.
+ */
+export class SieveCapabilitiesUnknownError extends Error {
+  constructor() {
+    super('The server\'s Sieve capabilities are not known yet');
+    this.name = 'SieveCapabilitiesUnknownError';
+  }
+}
+
+/**
+ * Whether the script generated for these depends on the server's
+ * capabilities: the spam guard and folder ids of moves and copies, the
+ * forwarding block's spam guard, a redirect, the vacation include. Without
+ * any of them the script comes out the same with or without capabilities.
+ * External rules are written back verbatim.
+ */
+export function dependsOnCapabilities(
+  rules: FilterRule[],
+  forward: VacationForward | null | undefined,
+  includeVacation: boolean,
+): boolean {
+  return includeVacation || !!forward?.enabled || rules.some((rule) =>
+    rule.enabled && rule.origin !== 'external' && rule.origin !== 'opaque' &&
+    rule.actions.some((a) => a.type === 'move' || a.type === 'copy' || a.type === 'forward'));
 }
 
 /** The script changed after the write that is being undone. */
@@ -190,7 +219,9 @@ export async function writeFiltersScript(
  * before the write, so a stale copy (the store's, or one another device has
  * changed since) is never uploaded. `modify` returns null when there is
  * nothing to write. Hand-edited scripts are refused: they are never
- * rewritten from a rule. `stillValid` is checked right before the write;
+ * rewritten from a rule, and so is a script that needs the server's
+ * capabilities while they are unknown (SieveCapabilitiesUnknownError).
+ * `stillValid` is checked right before the write;
  * when it says no, nothing is written (SwitchedAwayError). The read and the
  * write run on one connection: the scope given, or the live one now.
  */
@@ -205,6 +236,11 @@ export async function updateAccountFilters(
   if (filters.parsed.isOpaque) throw new OpaqueFiltersError();
   const rules = modify(filters.parsed.rules, filters);
   if (!rules) return null;
+  // Without them the forwarding block would lose its spam guard, and moves
+  // their folder ids: refused, as the Settings save and the vacation sync do.
+  if (!filters.capabilities && dependsOnCapabilities(rules, filters.parsed.vacationForward, filters.includeVacation)) {
+    throw new SieveCapabilitiesUnknownError();
+  }
 
   const written = renderFiltersScript(rules, filters);
   recheck(stillValid);

@@ -32,6 +32,7 @@ import {
   OpaqueFiltersError,
   readAccountFilters,
   restoreAccountFilters,
+  SieveCapabilitiesUnknownError,
   SwitchedAwayError,
   updateAccountFilters,
 } from '../account-filters';
@@ -139,6 +140,22 @@ describe('updateAccountFilters', () => {
     expect(account.active()).toBe('filters');
     expect(change!.previous.scriptId).toBeNull();
     expect(parseScript(account.content('filters')).rules[0].id).toBe('new');
+  });
+
+  it('refuses a move rule while the server\'s capabilities are unknown, and writes nothing', async () => {
+    const account = makeAccount('b', [{ name: 'filters', content: bulwarkScript([rule('old', { actions: [{ type: 'mark_read' }] })]), isActive: true }]);
+    account.api.getSieveCapabilities.mockReturnValue(null as never);
+    // Without them the move would lose its folder id and its spam guard.
+    await expect(updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new'))))
+      .rejects.toBeInstanceOf(SieveCapabilitiesUnknownError);
+    expect(account.writes()).toBe(0);
+  });
+
+  it('still writes a rule that does not depend on the capabilities while they are unknown', async () => {
+    const account = makeAccount('b', [{ name: 'filters', content: bulwarkScript([]), isActive: true }]);
+    account.api.getSieveCapabilities.mockReturnValue(null as never);
+    await updateAccountFilters('b', (rules) => insertRuleAtTop(rules, rule('new', { actions: [{ type: 'mark_read' }] })));
+    expect(parseScript(account.content('filters')).rules.map((r) => r.id)).toEqual(['new']);
   });
 
   it('writes nothing when modify returns null', async () => {

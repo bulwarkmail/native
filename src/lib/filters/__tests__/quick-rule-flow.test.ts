@@ -194,6 +194,18 @@ describe('runPresetRule', () => {
     expect(lastToast()).toMatchObject({ type: 'error', title: 'Your filters were edited by hand. Open Filters settings' });
   });
 
+  it('refuses a move while the server\'s capabilities are unknown and says why', async () => {
+    const account = sieveOf('own', [{ name: 'filters', content: generateScript([]), isActive: true }]);
+    account.api.getSieveCapabilities.mockReturnValue(null as never);
+    await runPresetRule({ target: targetFor('own'), preset: { kind: 'move_sender', mailbox: news }, subject: subject('anna@acme.com') });
+    expect(account.writes()).toBe(0);
+    expect(lastToast()).toMatchObject({
+      type: 'error',
+      title: 'Failed to save filters',
+      message: 'The server has not said yet what your filters can do. Try again in a moment.',
+    });
+  });
+
   it('writes nothing for a shared account or one without Sieve', async () => {
     const account = sieveOf('team', [{ name: 'filters', content: generateScript([]), isActive: true }]);
     await runPresetRule({ target: targetFor('team', { shared: true }), preset: { kind: 'mark_read' }, subject: subject('a@acme.com') });
