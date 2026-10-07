@@ -452,6 +452,18 @@ describe('contacts-store', () => {
       expect(useContactsStore.getState().addressBooks).toEqual([{ id: 'ab-1', name: 'Other' }]);
     });
 
+    it('writes nothing locally when another account is shown by the time the share lands, even before a reset', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockSetAddressBookShare.mockImplementationOnce(async () => {
+        // The switch has started (another account shown) but the store has not been reset yet.
+        shown.app = 'app-2';
+      });
+
+      await useContactsStore.getState().shareAddressBook('ab-1', 'p-2', read, owner);
+
+      expect(useContactsStore.getState().addressBooks).toEqual([{ id: 'ab-1', name: 'P' }]);
+    });
+
     it('refuses a book shared with the user', async () => {
       useContactsStore.setState({
         addressBooks: [{ id: 'acc-team:ab', originalId: 'ab', accountId: 'acc-team', name: 'Team', isShared: true }],

@@ -26,6 +26,9 @@ import { spacing, radius, typography, type ThemePalette } from '../theme/tokens'
 import { useColors } from '../theme/colors';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { useEmailStore } from '../stores/email-store';
+import { jmapClient } from '../api/jmap-client';
+import { clientServesAccount, clientServesActiveAccount } from '../lib/active-client-account';
+import { principalsListUsable } from '../lib/share-principals';
 
 // The webmail's sharing presets (same rights, same names).
 const PRESET_LABEL_KEYS: Record<RolePreset, [string, string]> = {
@@ -112,13 +115,23 @@ export function ShareCollectionSheet<K extends ShareKind>({
     setShares(target.shareWith ?? {});
     setSearch('');
     setPrincipals([]);
+    // getPrincipals asks the live connection, which may still serve another
+    // account during a switch, or be replaced before the list lands: either
+    // way the list is another server's directory, so it is never shown.
+    const opened = { appAccountId, gen: jmapClient.connectionGen };
+    const usable = () => principalsListUsable(opened, {
+      appAccountId: useEmailStore.getState().activeAccountId ?? null,
+      gen: jmapClient.connectionGen,
+      served: appAccountId ? clientServesAccount(appAccountId) : clientServesActiveAccount(),
+    });
+    if (!usable()) {
+      setLoading(false);
+      return () => { current = false; };
+    }
     setLoading(true);
-    // getPrincipals asks the live connection: a list that lands after a
-    // switch is the other account's directory.
-    const keep = () => current && (useEmailStore.getState().activeAccountId ?? null) === appAccountId;
     getPrincipals()
-      .then((list) => { if (keep()) setPrincipals(list); })
-      .catch(() => { if (keep()) setPrincipals([]); })
+      .then((list) => { if (current && usable()) setPrincipals(list); })
+      .catch(() => { if (current && usable()) setPrincipals([]); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [target]);
