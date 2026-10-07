@@ -344,3 +344,44 @@ describe('participantsLockedFor', () => {
     expect(participantsLockedFor(null, [])).toBe(false);
   });
 });
+
+import { participantSuggestions, groupPickAttendees, participantQuery } from '../calendar-participants';
+
+describe('participantSuggestions', () => {
+  const s = (email: string, name = '') => ({ name, email });
+  it('excludes existing guests case-insensitively', () => {
+    const out = participantSuggestions([s('A@x.com'), s('b@x.com')], new Set(['a@x.com']));
+    expect(out.map((r) => r.email)).toEqual(['b@x.com']);
+  });
+  it('caps at 8 by default and honours a limit', () => {
+    const all = Array.from({ length: 12 }, (_, i) => s(`p${i}@x.com`));
+    expect(participantSuggestions(all, new Set())).toHaveLength(8);
+    expect(participantSuggestions(all, new Set(), 3)).toHaveLength(3);
+  });
+  it('keeps groups, which have no address of their own', () => {
+    const g = { name: 'Team', email: '', group: { id: 'g1', memberCount: 2 } };
+    expect(participantSuggestions([g, s('a@x.com')], new Set(['a@x.com']))).toEqual([g]);
+  });
+});
+
+describe('groupPickAttendees', () => {
+  it('expands to members that are not already guests', () => {
+    const out = groupPickAttendees(
+      [{ name: 'A', email: 'a@x.com' }, { name: '', email: 'B@x.com' }, { name: 'C', email: 'c@x.com' }],
+      new Set(['b@x.com']),
+    );
+    expect(out).toEqual([{ name: 'A', email: 'a@x.com' }, { name: 'C', email: 'c@x.com' }]);
+  });
+  it('drops duplicates within the group', () => {
+    const out = groupPickAttendees([{ name: '', email: 'a@x.com' }, { name: '', email: 'A@x.com' }], new Set());
+    expect(out).toHaveLength(1);
+  });
+});
+
+describe('participantQuery', () => {
+  it('gives nothing to look up under 2 characters', () => {
+    expect(participantQuery(' a ')).toBe('');
+    expect(participantQuery('')).toBe('');
+    expect(participantQuery(' al ')).toBe('al');
+  });
+});
