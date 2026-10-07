@@ -13,7 +13,7 @@ import {
 } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
-import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
+import type { Attachment, Email, EmailAddress, JMAPMethodCall, JMAPResponseBody, Mailbox, Thread } from './types';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
@@ -1621,11 +1621,17 @@ export interface OutgoingEmail {
   messageId?: string;
   requestReadReceipt?: boolean;
   /**
-   * SMTP MAIL FROM when it must differ from the header From - a catch-all
-   * alias on an owned domain is sent through the identity's envelope while
-   * the visible From keeps the alias (webmail #246).
+   * The SMTP MAIL FROM asked for when it differs from the header From: a
+   * From override asks for itself (webmail #1009); a sub-address, and a row
+   * queued before #1009, name the identity's address (webmail #246).
    */
   envelopeMailFrom?: string;
+  /**
+   * MAIL FROM to submit with once instead when the server refuses
+   * `envelopeMailFrom` (forbiddenMailFrom / forbiddenFrom): the identity's
+   * address, behind a From override. Absent on rows queued before #1009.
+   */
+  envelopeFallbackMailFrom?: string;
   /**
    * Ask the next hops for delivery status notifications (RFC 3461 RET /
    * NOTIFY). Only set when the sending account offers DSN; never on drafts.
@@ -1810,73 +1816,30 @@ export interface SendEmailOptions {
   accountId?: AccountRef;
 }
 
-export async function sendEmail(
-  email: OutgoingEmail,
-  identityId: string,
-  sentMailboxId: string,
-  // When > 0 the message is held for this many seconds before delivery via the
-  // SMTP HOLDFOR parameter (FUTURERELEASE). Used for both explicit "send later"
-  // scheduling and the global send-delay (undo-send) window.
-  holdForSeconds?: number,
-  opts?: SendEmailOptions,
-): Promise<SendEmailResult> {
-  // One connection for the send and its clean-up: a destroy sent after a
-  // switch would remove the message with the same id in the other account.
-  const at = opScope(opts?.accountId);
-  const { accountId } = at;
-  const emailCreate = buildEmailCreate(email);
-  const viaDrafts = !!opts?.draftsMailboxId;
-  if (viaDrafts) {
-    emailCreate.mailboxIds = { [opts!.draftsMailboxId!]: true };
-    emailCreate.keywords = { $seen: true, $draft: true };
-  } else {
-    emailCreate.mailboxIds = { [sentMailboxId]: true };
-    emailCreate.keywords = { $seen: true };
-  }
+interface ParsedSend {
+  emailId?: string;
+  emailSubmissionId?: string;
+  sendAt?: string;
+  filingWarning?: string;
+  failure?: Error;
+  /** An explicit `notCreated` for the submission: nothing was queued. */
+  refusal?: { description?: string; type?: string };
+  deliveryStatus?: Record<string, { delivered?: string; smtpReply?: string }>;
+}
 
-  const submissionCreate: Record<string, unknown> = { emailId: '#draft', identityId };
-  // For a deferred send the envelope must be set explicitly so the HOLDFOR
-  // mail-from parameter rides along (JMAP §7.3: an omitted envelope makes the
-  // server derive mailFrom from the Identity, dropping our parameter). An
-  // explicit envelope sender (catch-all From override), DSN and REQUIRETLS
-  // need it as well. The options come from `email` alone (a queued row's own
-  // copy), never from the server's current capabilities.
-  const holdFor = holdForSeconds && holdForSeconds > 0 ? Math.ceil(holdForSeconds) : 0;
-  const envelope = buildSubmissionEnvelope(email, holdFor);
-  if (envelope) submissionCreate.envelope = envelope;
-
-  const submissionArgs: Record<string, unknown> = {
-    accountId,
-    create: { 'sub-1': submissionCreate },
-  };
-  if (viaDrafts) {
-    submissionArgs.onSuccessUpdateEmail = {
-      '#sub-1': {
-        mailboxIds: { [sentMailboxId]: true },
-        [keywordPointer('$draft')]: null,
-      },
-    };
-  }
-
-  const res = await requestOn(at, 
-    [
-      ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
-      ['EmailSubmission/set', submissionArgs, '1'],
-      // Stalwart runs RCPT TO while creating the submission and records a
-      // refused recipient as delivered "no" instead of failing the create, so
-      // the set response alone reads as a success. A creation-id reference:
-      // Stalwart does not evaluate `#ids` result references into /set responses.
-      ['EmailSubmission/get', { accountId, ids: ['#sub-1'], properties: ['deliveryStatus'] }, DELIVERY_STATUS_CALL_ID],
-    ],
-    SUBMISSION_USING,
-  );
-
+/**
+ * Read a send's responses. A refused message create throws; a refused
+ * submission comes back as `failure` (and `refusal` when it was a
+ * `notCreated`), for the caller to clean up after.
+ */
+function parseSendResponse(res: JMAPResponseBody): ParsedSend {
   let emailId: string | undefined;
   let emailSubmissionId: string | undefined;
   let sendAt: string | undefined;
   let filingWarning: string | undefined;
   let failure: Error | undefined;
-  let deliveryStatus: Record<string, { delivered?: string; smtpReply?: string }> | undefined;
+  let refusal: ParsedSend['refusal'];
+  let deliveryStatus: ParsedSend['deliveryStatus'];
   // The server reported the submission created, even if without an id: from
   // here on nothing proves the message did not leave.
   let submissionCreated = false;
@@ -1932,6 +1895,7 @@ export async function sendEmail(
       if (notCreated) {
         const refused = submissionError(notCreated, 'Failed to submit message');
         failure = refused instanceof ScheduleTooLateError ? refused : new SendRefusedError(refused.message, notCreated.type);
+        refusal = notCreated;
         break;
       }
       const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
@@ -1940,6 +1904,113 @@ export async function sendEmail(
       sendAt = created?.sendAt;
     }
   }
+  return { emailId, emailSubmissionId, sendAt, filingWarning, failure, refusal, deliveryStatus };
+}
+
+const MAIL_FROM_REFUSALS = new Set(['forbiddenMailFrom', 'forbiddenFrom']);
+
+/**
+ * Whether a send refused for its MAIL FROM is submitted once more with
+ * `envelopeFallbackMailFrom`: only after an explicit refusal of that kind,
+ * with the created copy known and a fallback that differs from the address
+ * refused.
+ */
+function fallbackMailFromApplies(email: OutgoingEmail, first: ParsedSend): boolean {
+  const fallback = email.envelopeFallbackMailFrom?.trim().toLowerCase();
+  const requested = (email.envelopeMailFrom || email.from[0]?.email || '').trim().toLowerCase();
+  return !!first.refusal?.type
+    && MAIL_FROM_REFUSALS.has(first.refusal.type)
+    && !(first.failure instanceof ScheduleTooLateError)
+    && !!first.emailId
+    && !!fallback
+    && fallback !== requested;
+}
+
+export async function sendEmail(
+  email: OutgoingEmail,
+  identityId: string,
+  sentMailboxId: string,
+  // When > 0 the message is held for this many seconds before delivery via the
+  // SMTP HOLDFOR parameter (FUTURERELEASE). Used for both explicit "send later"
+  // scheduling and the global send-delay (undo-send) window.
+  holdForSeconds?: number,
+  opts?: SendEmailOptions,
+): Promise<SendEmailResult> {
+  // One connection for the send and its clean-up: a destroy sent after a
+  // switch would remove the message with the same id in the other account.
+  const at = opScope(opts?.accountId);
+  const { accountId } = at;
+  const emailCreate = buildEmailCreate(email);
+  const viaDrafts = !!opts?.draftsMailboxId;
+  if (viaDrafts) {
+    emailCreate.mailboxIds = { [opts!.draftsMailboxId!]: true };
+    emailCreate.keywords = { $seen: true, $draft: true };
+  } else {
+    emailCreate.mailboxIds = { [sentMailboxId]: true };
+    emailCreate.keywords = { $seen: true };
+  }
+
+  const submissionCreate: Record<string, unknown> = { emailId: '#draft', identityId };
+  // For a deferred send the envelope must be set explicitly so the HOLDFOR
+  // mail-from parameter rides along (JMAP §7.3: an omitted envelope makes the
+  // server derive mailFrom from the Identity, dropping our parameter). An
+  // explicit envelope sender (From override or sub-address), DSN and
+  // REQUIRETLS need it as well. The options come from `email` alone (a queued row's own
+  // copy), never from the server's current capabilities.
+  const holdFor = holdForSeconds && holdForSeconds > 0 ? Math.ceil(holdForSeconds) : 0;
+  const envelope = buildSubmissionEnvelope(email, holdFor);
+  if (envelope) submissionCreate.envelope = envelope;
+
+  const submissionArgs: Record<string, unknown> = {
+    accountId,
+    create: { 'sub-1': submissionCreate },
+  };
+  if (viaDrafts) {
+    submissionArgs.onSuccessUpdateEmail = {
+      '#sub-1': {
+        mailboxIds: { [sentMailboxId]: true },
+        [keywordPointer('$draft')]: null,
+      },
+    };
+  }
+
+  const res = await requestOn(at, 
+    [
+      ['Email/set', { accountId, create: { draft: emailCreate } }, '0'],
+      ['EmailSubmission/set', submissionArgs, '1'],
+      // Stalwart runs RCPT TO while creating the submission and records a
+      // refused recipient as delivered "no" instead of failing the create, so
+      // the set response alone reads as a success. A creation-id reference:
+      // Stalwart does not evaluate `#ids` result references into /set responses.
+      ['EmailSubmission/get', { accountId, ids: ['#sub-1'], properties: ['deliveryStatus'] }, DELIVERY_STATUS_CALL_ID],
+    ],
+    SUBMISSION_USING,
+  );
+
+  const first = parseSendResponse(res);
+  let parsed = first;
+  // The server may refuse a MAIL FROM other than the identity's own address
+  // (RFC 8621 §7.5.1 forbiddenMailFrom; Stalwart says forbiddenFrom). Only an
+  // explicit refusal of the submission proves nothing was queued, so only
+  // then is the copy submitted once more with the fallback - on the same
+  // connection and account, never re-scoped (#1009). A hold-limit refusal is
+  // not about the address and keeps its ScheduleTooLateError.
+  if (fallbackMailFromApplies(email, first)) {
+    const retryCreate: Record<string, unknown> = { emailId: first.emailId, identityId };
+    const retryEnvelope = buildSubmissionEnvelope(email, holdFor, email.envelopeFallbackMailFrom!.trim());
+    if (retryEnvelope) retryCreate.envelope = retryEnvelope;
+    const retry = await requestOn(at,
+      [
+        ['EmailSubmission/set', { ...submissionArgs, create: { 'sub-1': retryCreate } }, '1'],
+        ['EmailSubmission/get', { accountId, ids: ['#sub-1'], properties: ['deliveryStatus'] }, DELIVERY_STATUS_CALL_ID],
+      ],
+      SUBMISSION_USING,
+    );
+    // The copy is the first request's; the retry only reports the submission.
+    parsed = { ...parseSendResponse(retry), emailId: first.emailId };
+  }
+  const { emailId, emailSubmissionId, sendAt, failure, deliveryStatus } = parsed;
+  let { filingWarning } = parsed;
 
   // Nothing went out. A message created before the submission was refused
   // must not stay behind: nobody tracked that copy, so a retry left a

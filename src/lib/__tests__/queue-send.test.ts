@@ -4,6 +4,7 @@ import {
   attachmentsUploaded, hasQueueAccounts, buildQueuedSend, shouldQueueSend, queuedEntryFor, findAlreadyQueued, ownerStillActive, OutboxCheckError, quickReplyOwnerActive,
 } from '../queue-send';
 import type { OutgoingEmail } from '../../api/email';
+import { overrideEnvelope, pickSubmissionIdentity } from '../envelope-sender';
 import { useSendQueueStore, type QueuedSend } from '../../stores/send-queue-store';
 
 const outgoing: OutgoingEmail = {
@@ -38,6 +39,22 @@ describe('buildQueuedSend', () => {
     expect(e).not.toHaveProperty('sendAt');
     expect(e).not.toHaveProperty('draftId');
     expect(e).not.toHaveProperty('replyTo');
+  });
+
+  it('keeps a From override\'s MAIL FROM, its fallback and the identity that submits it (#1009)', () => {
+    const identities = [
+      { id: 'main', name: 'Me', email: 'a@x.test', mayDelete: false },
+      { id: 'info', name: 'Info', email: 'info@x.test', mayDelete: true },
+    ];
+    const submitter = pickSubmissionIdentity(identities, identities[0], 'alias@x.test');
+    const e = buildQueuedSend({
+      id: 'x', appAccountId: 'a', jmapAccountId: 'j', identityId: submitter.id, draftId: null,
+      outgoing: { ...outgoing, from: [{ email: 'alias@x.test' }], ...overrideEnvelope(identities, identities[0], 'alias@x.test') },
+    });
+    expect(e.identityId).toBe('main');
+    expect(e.outgoing).toMatchObject({ envelopeMailFrom: 'alias@x.test', envelopeFallbackMailFrom: 'a@x.test' });
+    // An override some identity owns is submitted through that identity.
+    expect(pickSubmissionIdentity(identities, identities[0], 'INFO@x.test').id).toBe('info');
   });
 });
 

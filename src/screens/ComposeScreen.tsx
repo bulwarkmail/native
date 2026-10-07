@@ -57,6 +57,7 @@ import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients'
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { useNetworkStore } from '../stores/network-store';
 import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../stores/send-queue-store';
+import { envelopeFallbackIdentity, overrideEnvelope, pickSubmissionIdentity } from '../lib/envelope-sender';
 import { attachmentsUploaded, buildQueuedSend, findAlreadyQueued, hasQueueAccounts, OutboxCheckError, shouldQueueSend } from '../lib/queue-send';
 import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
@@ -1383,24 +1384,40 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // ── Outgoing message assembly ─────────────────────────────────────────
 
-  const senderAddress = React.useCallback((identity: Identity): { from: EmailAddress; envelopeMailFrom?: string } => {
+  const senderAddress = React.useCallback((identity: Identity): {
+    from: EmailAddress; envelopeMailFrom?: string; envelopeFallbackMailFrom?: string;
+  } => {
     const name = sanitizeDisplayName(identity.name);
-    let from: EmailAddress;
     if (fromOverride?.email.trim()) {
       const overrideName = sanitizeDisplayName(fromOverride.name);
-      from = overrideName ? { name: overrideName, email: fromOverride.email.trim() } : { email: fromOverride.email.trim() };
-    } else {
-      const email = subAddressTag ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter) : identity.email;
-      from = name ? { name, email } : { email };
+      const from = overrideName ? { name: overrideName, email: fromOverride.email.trim() } : { email: fromOverride.email.trim() };
+      // The override is asked for as the envelope sender too, with the
+      // identity's address once as the fallback (webmail #1009).
+      return { from, ...overrideEnvelope(identities, identity, fromOverride.email) };
     }
-    // A From that isn't the identity's own address still goes out through
-    // the identity's envelope sender.
-    const envelopeMailFrom = from.email.toLowerCase() !== identity.email.toLowerCase() ? identity.email : undefined;
+    const email = subAddressTag ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter) : identity.email;
+    const from = name ? { name, email } : { email };
+    // A sub-address still goes out through the identity's envelope sender.
+    const envelopeMailFrom = email.toLowerCase() !== identity.email.toLowerCase() ? identity.email : undefined;
     return { from, envelopeMailFrom };
-  }, [fromOverride, subAddressTag, subAddressDelimiter]);
+  }, [fromOverride, subAddressTag, subAddressDelimiter, identities]);
+
+  // The identity a send goes through: one that owns the override address
+  // wins. Both the send and a queued row name it, so the Outbox can prove an
+  // uncertain send by its submission.
+  const submissionIdentity = React.useMemo(
+    () => (primaryIdentity ? pickSubmissionIdentity(identities, primaryIdentity, fromOverride?.email) : null),
+    [identities, primaryIdentity, fromOverride],
+  );
+  // The address a server refusing the override as envelope sender gets
+  // instead, said under the From row before sending.
+  const overrideFallbackAddress = React.useMemo(
+    () => (primaryIdentity ? envelopeFallbackIdentity(identities, primaryIdentity, fromOverride?.email) : null),
+    [identities, primaryIdentity, fromOverride],
+  );
 
   const buildOutgoing = React.useCallback((identity: Identity, liveHtml: string, opts: { forDraft: boolean }): OutgoingEmail => {
-    const { from, envelopeMailFrom } = senderAddress(identity);
+    const { from, envelopeMailFrom, envelopeFallbackMailFrom } = senderAddress(identity);
     if (!messageIdRef.current) messageIdRef.current = generateMessageId(identity.email);
 
     let htmlBody: string | undefined;
@@ -1470,6 +1487,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       messageId: messageIdRef.current,
       requestReadReceipt,
       envelopeMailFrom,
+      ...(envelopeFallbackMailFrom ? { envelopeFallbackMailFrom } : {}),
       // Sends only: a draft never carries them (webmail does not persist
       // them). Not re-checked against the capability: a server that stopped
       // offering REQUIRETLS refuses the send instead of it going out weaker.
@@ -2415,7 +2433,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             id: generateUUID(),
             appAccountId: owner.appAccountId,
             jmapAccountId: owner.jmapAccountId,
-            identityId: primaryIdentity.id,
+            identityId: (submissionIdentity ?? primaryIdentity).id,
             outgoing: queued,
             draftId: draftIdRef.current,
             scheduledAt,
@@ -2455,7 +2473,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
       const result = await sendEmail(
         outgoing,
-        primaryIdentity.id,
+        (submissionIdentity ?? primaryIdentity).id,
         sentMailbox.id,
         holdForSeconds,
         { draftsMailboxId: draftsMailbox?.id, draftId: draftIdRef.current ?? undefined },
@@ -2504,7 +2522,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       } else if (result.scheduled) {
         // Undo-send window: the undo bar offers Undo / Send now.
         useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
-          identityId: primaryIdentity.id,
+          identityId: (submissionIdentity ?? primaryIdentity).id,
           appAccountId: owner?.appAccountId,
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
@@ -2714,6 +2732,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
               </Pressable>
             )}
           </View>
+          {!!overrideFallbackAddress && (
+            <Text style={styles.envelopeNotice}>
+              {t(
+                'email_composer.from_override.envelope_notice',
+                "If your server doesn't accept this address as the envelope sender, {identity} is used there instead, and recipients can see it in the Return-Path header.",
+                { identity: overrideFallbackAddress },
+              )}
+            </Text>
+          )}
 
           {renderRecipientField('to', t('email_composer.to', 'To'), t('email_composer.to_placeholder', 'Recipient email addresses'), 6)}
           {ccVisible && renderRecipientField('cc', t('email_composer.cc', 'Cc'), t('email_composer.cc_placeholder', 'Cc recipients'), 5)}
@@ -3169,7 +3196,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             </View>
             {overrideEnabled && (
               <>
-                <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity - only the visible From header changes.')}</Text>
+                <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity.')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={overrideName}
@@ -3273,6 +3300,16 @@ function makeStyles(c: ThemePalette) {
   fromText: { ...typography.body, color: c.text, flexShrink: 1 },
   fromTextOverride: { fontStyle: 'italic' },
   fromOptionsBtn: { paddingTop: 10, paddingHorizontal: 4 },
+  envelopeNotice: {
+    ...typography.caption,
+    color: c.textMuted,
+    // Lined up with the From value, past the field label.
+    paddingLeft: spacing.lg + 56 + spacing.md,
+    paddingRight: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: c.borderLight,
+  },
   recipientField: {
     flex: 1,
     flexDirection: 'row',

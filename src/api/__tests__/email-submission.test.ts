@@ -20,7 +20,9 @@ import {
   buildSubmissionEnvelope, cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail,
   submissionEnvelopeParameters,
 } from '../email';
-import { ScheduleTooLateError } from '../jmap-result';
+import {
+  RecipientsRejectedError, ScheduleTooLateError, SendRefusedError, SendUnconfirmedError,
+} from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 
@@ -563,5 +565,226 @@ describe('buildSubmissionEnvelope', () => {
   it('drops blank recipients and uses the given MAIL FROM over the envelope sender', () => {
     expect(buildSubmissionEnvelope({ ...EMAIL, envelopeMailFrom: 'id@example.com', requireTls: true }, 0, 'other@example.com'))
       .toEqual({ mailFrom: { email: 'other@example.com', parameters: { REQUIRETLS: null } }, rcptTo: [{ email: 'a@x.test' }] });
+  });
+});
+
+describe('sendEmail: the From override as MAIL FROM, the identity as fallback (#1009)', () => {
+  const client = jmapClient as unknown as { connectionGen: number; accountId: string };
+  const OUTGOING = {
+    from: [{ email: 'alias@example.com', name: 'Alias' }],
+    to: [{ email: 'you@example.com' }],
+    subject: 'Hello',
+    textBody: 'Hi',
+    envelopeMailFrom: 'alias@example.com',
+    envelopeFallbackMailFrom: 'me@example.com',
+  };
+  const OPTS = { draftsMailboxId: 'drafts-mb', draftId: 'old-draft', accountId: 'shared-1' };
+  const refusedWith = (refusal: Record<string, unknown>, created: Record<string, unknown> = { draft: { id: 'e-new' } }) => ({
+    methodResponses: [
+      ['Email/set', { created }, '0'],
+      ['EmailSubmission/set', { notCreated: { 'sub-1': refusal } }, '1'],
+      // The dangling #sub-1 reference: only a report.
+      ['error', { type: 'invalidResultReference' }, 'deliveryStatus'],
+    ],
+  });
+  const FORBIDDEN_FROM = refusedWith({ type: 'forbiddenFrom', description: 'Not your address' });
+  const RETRY_OK = {
+    methodResponses: [
+      ['EmailSubmission/set', { created: { 'sub-1': { id: 's-2', sendAt: '2026-10-07T10:01:00Z' } } }, '1'],
+      ['Email/set', { updated: { 'e-new': null } }, '1'],
+      ['EmailSubmission/get', { list: [{ deliveryStatus: { 'you@example.com': { delivered: 'queued' } } }] }, 'deliveryStatus'],
+    ],
+  };
+  const DESTROYED = { methodResponses: [['Email/set', { destroyed: ['e-new'] }, '0']] };
+  const methods = (i: number) => (mockRequest.mock.calls[i][0] as Array<[string]>).map(([m]) => m);
+  const submissionAt = (i: number) => ((mockRequest.mock.calls[i][0] as Array<[string, Record<string, unknown>]>)
+    .find(([m]) => m === 'EmailSubmission/set')![1]);
+  const destroyCalls = () => mockRequest.mock.calls
+    .map((c) => c[0][0])
+    .filter(([method, args]: [string, { destroy?: string[] }]) => method === 'Email/set' && args.destroy)
+    .map(([, args]: [string, { accountId: string; destroy: string[] }]) => [args.accountId, args.destroy]);
+
+  beforeEach(() => {
+    // A once-answer left over by a failed test must not leak into the next.
+    mockRequest.mockReset();
+    client.connectionGen = 7;
+    client.accountId = 'acc-1';
+  });
+  afterEach(() => {
+    client.accountId = 'acc-1';
+    delete (client as { connectionGen?: number }).connectionGen;
+  });
+
+  it('asks for the override as MAIL FROM', async () => {
+    mockRequest.mockResolvedValueOnce(RETRY_OK);
+    await sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS).catch(() => undefined);
+    expect((submissionAt(0).create as Record<string, Record<string, unknown>>)['sub-1'].envelope).toEqual({
+      mailFrom: { email: 'alias@example.com' },
+      rcptTo: [{ email: 'you@example.com' }],
+    });
+  });
+
+  it.each(['forbiddenFrom', 'forbiddenMailFrom'])(
+    'a %s refusal submits the same copy once more, with the identity as MAIL FROM, on the same connection and account',
+    async (type) => {
+      mockRequest
+        .mockImplementationOnce(async () => {
+          // A switch lands while the first request runs: the retry must not follow it.
+          client.connectionGen = 8;
+          client.accountId = 'acc-other';
+          return refusedWith({ type, description: 'Not your address' });
+        })
+        .mockResolvedValueOnce(RETRY_OK)
+        .mockResolvedValueOnce({ methodResponses: [['Email/set', { destroyed: ['old-draft'] }, '0']] });
+
+      const result = await sendEmail(
+        { ...OUTGOING, requestDsn: true, requireTls: true }, 'identity-1', 'sent-mb', 59.5, OPTS,
+      );
+
+      expect(mockRequest).toHaveBeenCalledTimes(3);
+      expect(mockRequest.mock.calls.map((c) => c[2])).toEqual([{ gen: 7 }, { gen: 7 }, { gen: 7 }]);
+      expect(methods(1)).toEqual(['EmailSubmission/set', 'EmailSubmission/get']);
+      const retry = submissionAt(1);
+      expect(retry).toEqual({
+        accountId: 'shared-1',
+        create: {
+          'sub-1': {
+            emailId: 'e-new',
+            identityId: 'identity-1',
+            envelope: {
+              mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '60', REQUIRETLS: null, RET: 'HDRS' } },
+              rcptTo: [{ email: 'you@example.com', parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } }],
+            },
+          },
+        },
+        onSuccessUpdateEmail: submissionAt(0).onSuccessUpdateEmail,
+      });
+      expect((mockRequest.mock.calls[1][0] as Array<[string, Record<string, unknown>]>)[1][1])
+        .toEqual({ accountId: 'shared-1', ids: ['#sub-1'], properties: ['deliveryStatus'] });
+      expect(result).toMatchObject({
+        scheduled: true, emailId: 'e-new', emailSubmissionId: 's-2', sendAt: '2026-10-07T10:01:00Z',
+      });
+      expect(result.filingWarning).toBeUndefined();
+      // Only the previous draft goes, once the message is out.
+      expect(destroyCalls()).toEqual([['shared-1', ['old-draft']]]);
+    },
+  );
+
+  it('a refused retry removes the copy and fails: never a third submission', async () => {
+    mockRequest
+      .mockResolvedValueOnce(FORBIDDEN_FROM)
+      .mockResolvedValueOnce({ methodResponses: [
+        ['EmailSubmission/set', { notCreated: { 'sub-1': { type: 'forbiddenFrom', description: 'Still not yours' } } }, '1'],
+        ['error', { type: 'invalidResultReference' }, 'deliveryStatus'],
+      ] })
+      .mockResolvedValueOnce(DESTROYED);
+
+    const err = await sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS).catch((e) => e);
+    expect(err).toBeInstanceOf(SendRefusedError);
+    expect(err.message).toBe('Still not yours');
+    expect(err.type).toBe('forbiddenFrom');
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    expect(destroyCalls()).toEqual([['shared-1', ['e-new']]]);
+  });
+
+  it.each([
+    ['forbiddenToSend', { type: 'forbiddenToSend', description: 'Quota exceeded' }],
+    ['invalidProperties', { type: 'invalidProperties', description: 'Bad envelope' }],
+    ['tooLarge', { type: 'tooLarge', description: 'Too big' }],
+    ['no type', { description: 'Refused' }],
+  ])('another refusal (%s) is not retried', async (_name, refusal) => {
+    mockRequest.mockResolvedValueOnce(refusedWith(refusal)).mockResolvedValueOnce(DESTROYED);
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toBeInstanceOf(SendRefusedError);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(destroyCalls()).toEqual([['shared-1', ['e-new']]]);
+  });
+
+  it('a hold-limit refusal is not about the address: not retried', async () => {
+    mockRequest
+      .mockResolvedValueOnce(refusedWith({
+        type: 'forbiddenMailFrom',
+        description: 'Server rejected MAIL-FROM: 501 5.5.4 Requested hold time exceeds maximum of 172800 seconds.',
+      }))
+      .mockResolvedValueOnce(DESTROYED);
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', 400_000, OPTS)).rejects.toBeInstanceOf(ScheduleTooLateError);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(destroyCalls()).toEqual([['shared-1', ['e-new']]]);
+  });
+
+  it('a method-level forbiddenFrom error is not a refused create: not retried', async () => {
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+        ['error', { type: 'forbiddenFrom', description: 'Not your address' }, '1'],
+      ] })
+      .mockResolvedValueOnce(DESTROYED);
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toThrow('Not your address');
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('a legacy queued row (identity MAIL FROM, no fallback) behaves as before: not retried', async () => {
+    mockRequest.mockResolvedValueOnce(FORBIDDEN_FROM).mockResolvedValueOnce(DESTROYED);
+    const legacy = { ...OUTGOING, envelopeMailFrom: 'me@example.com', envelopeFallbackMailFrom: undefined };
+    await expect(sendEmail(legacy, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toThrow('Not your address');
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect((submissionAt(0).create as Record<string, Record<string, unknown>>)['sub-1'].envelope)
+      .toEqual({ mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'you@example.com' }] });
+    expect(destroyCalls()).toEqual([['shared-1', ['e-new']]]);
+  });
+
+  it('a fallback equal to the requested MAIL FROM, in any case, is not retried', async () => {
+    mockRequest.mockResolvedValueOnce(FORBIDDEN_FROM).mockResolvedValueOnce(DESTROYED);
+    await expect(sendEmail({ ...OUTGOING, envelopeFallbackMailFrom: ' ALIAS@example.com ' }, 'identity-1', 'sent-mb', undefined, OPTS))
+      .rejects.toThrow('Not your address');
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('without a known created copy, nothing is retried', async () => {
+    mockRequest.mockResolvedValueOnce(refusedWith({ type: 'forbiddenFrom', description: 'Not your address' }, {}));
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toThrow('Not your address');
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['a transport error', new Error('Network request failed')],
+    ['a timeout', Object.assign(new Error('timed out'), { name: 'RequestTimeoutError' })],
+  ])('%s on the first request is not retried, and nothing is removed', async (_name, error) => {
+    mockRequest.mockRejectedValueOnce(error);
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toBe(error);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('an unconfirmed first send is not retried', async () => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [['Email/set', { created: { draft: { id: 'e-new' } } }, '0']] });
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toBeInstanceOf(SendUnconfirmedError);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('a transport error on the retry is uncertain: the copy stays and nothing more is sent', async () => {
+    const error = new Error('Network request failed');
+    mockRequest.mockResolvedValueOnce(FORBIDDEN_FROM).mockRejectedValueOnce(error);
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toBe(error);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(destroyCalls()).toEqual([]);
+  });
+
+  it('a retry answered without a submission is unconfirmed: the copy stays', async () => {
+    mockRequest.mockResolvedValueOnce(FORBIDDEN_FROM).mockResolvedValueOnce({ methodResponses: [] });
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toBeInstanceOf(SendUnconfirmedError);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(destroyCalls()).toEqual([]);
+  });
+
+  it('a retry whose every recipient is refused removes the copy', async () => {
+    mockRequest
+      .mockResolvedValueOnce(FORBIDDEN_FROM)
+      .mockResolvedValueOnce({ methodResponses: [
+        ['EmailSubmission/set', { created: { 'sub-1': { id: 's-2' } } }, '1'],
+        ['EmailSubmission/get', { list: [{ deliveryStatus: { 'you@example.com': { delivered: 'no', smtpReply: '550' } } }] }, 'deliveryStatus'],
+      ] })
+      .mockResolvedValueOnce(DESTROYED);
+    await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toBeInstanceOf(RecipientsRejectedError);
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    expect(destroyCalls()).toEqual([['shared-1', ['e-new']]]);
   });
 });

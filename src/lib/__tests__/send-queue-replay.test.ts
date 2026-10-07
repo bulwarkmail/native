@@ -706,6 +706,40 @@ describe('flushSendQueue: sending queued entries', () => {
       expect(entries()[0].outgoing.requireTls).toBe(true);
     });
 
+    it('a From override row replays with its MAIL FROM, its fallback and its own identity (#1009)', async () => {
+      const e = entry({ identityId: 'iInfo' });
+      await seed({
+        ...e,
+        outgoing: {
+          ...e.outgoing, from: [{ email: 'alias@a.test' }],
+          envelopeMailFrom: 'alias@a.test', envelopeFallbackMailFrom: 'me@a.test', requireTls: true,
+        },
+      });
+      await flushSendQueue();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const [outgoing, identityId] = mockSend.mock.calls[0];
+      expect(identityId).toBe('iInfo');
+      expect(outgoing).toMatchObject({ envelopeMailFrom: 'alias@a.test', envelopeFallbackMailFrom: 'me@a.test', requireTls: true });
+      expect(await envelopeOf(mockSend.mock.calls[0])).toEqual({
+        mailFrom: { email: 'alias@a.test', parameters: { REQUIRETLS: null } },
+        rcptTo: [{ email: 'you@x.test' }, { email: 'cc@x.test' }],
+      });
+      expect(entries()).toEqual([]);
+    });
+
+    it('an uncertain From override row is proven by a submission from its identity', async () => {
+      const e = entry({ identityId: 'iInfo', state: 'sending', attemptStartedAt: HOUR_AGO() });
+      await seed({
+        ...e,
+        outgoing: { ...e.outgoing, from: [{ email: 'alias@a.test' }], envelopeMailFrom: 'alias@a.test', envelopeFallbackMailFrom: 'me@a.test' },
+      });
+      findReturns({ copies: [copy({ from: [{ email: 'alias@a.test' }], mailboxIds: { 'm-drafts': true } })], complete: true });
+      mockSubs.mockResolvedValue([{ id: 's1', emailId: 'c1', identityId: 'iInfo', undoStatus: 'final' }]);
+      await flushSendQueue();
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(entries()).toEqual([]);
+    });
+
     it('an old row without the fields replays without them', async () => {
       await seed(entry());
       await flushSendQueue();
