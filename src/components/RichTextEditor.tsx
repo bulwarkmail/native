@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
 import { buildEditorHtml, MIN_EDITOR_HEIGHT } from '../lib/editor-html';
+import { plainTextPasteHtml } from '../lib/plain-text-paste';
 
 export type RichTextCommand =
   | 'bold'
@@ -208,6 +209,14 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
           clearTimeout(entry.timer);
           entry.resolve(typeof p?.html === 'string' ? p.html : '');
         }
+        break;
+      }
+      case 'pastePlain': {
+        // A plain-text paste with a list: convert it here, where the parser
+        // is ordinary TS, and hand the page the HTML (or null for text).
+        if (typeof data.payload !== 'string') break;
+        const pasted = plainTextPasteHtml(data.payload);
+        call(`window.__rne && window.__rne.insertPasted(${JSON.stringify(pasted)}, ${JSON.stringify(data.payload)})`);
         break;
       }
       case 'selection':

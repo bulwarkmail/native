@@ -10,6 +10,7 @@
 // page verbatim; write escape-free code or double the backslash.
 
 import type { ThemePalette } from '../theme/tokens';
+import { PLAIN_PASTE_MAX_CHARS } from './plain-text-paste';
 
 // Minimum visible editor height (px). The editor auto-grows beyond this as the
 // user types, and the parent ScrollView handles overflow.
@@ -19,6 +20,10 @@ export const MIN_EDITOR_HEIGHT = 220;
 // Readers that need the current body - send, save, format switch - ask the
 // page with `getHtml` instead of waiting for the next post.
 export const CHANGE_THROTTLE_MS = 400;
+
+// How long a plain-text list paste waits for RN to send back its HTML
+// (`__rne.insertPasted`) before the page pastes the text as it is.
+export const PASTE_FALLBACK_MS = 1500;
 
 /**
  * The editor page's Content-Security-Policy, mirroring the viewer's
@@ -147,6 +152,8 @@ export function buildEditorHtml(opts: {
   var CHANGE_THROTTLE_MS = ${CHANGE_THROTTLE_MS};
   var lastChangeAt = 0;
   var changeTimer = null;
+  // A plain-text list paste waiting for RN: { text, range, timer }.
+  var pendingPaste = null;
 
   // Checked on every keystroke, so it avoids serializing innerHTML.
   function refreshEmpty() {
@@ -254,6 +261,82 @@ export function buildEditorHtml(opts: {
     if (document.activeElement === editor) reportSelection();
   });
 
+  // ── Plain-text list paste ──────────────────────────────────────────
+  // RN turns a pasted "- " / "1. " list into a real list (plain-text-paste.ts)
+  // and sends the HTML back to insertPasted. Only the cheap check lives here,
+  // written with char codes because regex escapes would be cooked away (see
+  // the header): does a line start, after spaces or tabs, with "-", "*", "•"
+  // or 1-3 digits and "." or ")", then a space or tab and some text?
+  var PLAIN_PASTE_MAX_CHARS = ${PLAIN_PASTE_MAX_CHARS};
+  var PASTE_FALLBACK_MS = ${PASTE_FALLBACK_MS};
+  function isGap(code) { return code === 32 || code === 9; }
+  function isLineEnd(code) { return code === 10 || code === 13; }
+  function hasListLine(text) {
+    var i = 0;
+    var n = text.length;
+    while (i < n) {
+      while (i < n && isGap(text.charCodeAt(i))) i++;
+      var code = text.charCodeAt(i);
+      var marker = code === 45 || code === 42 || code === 8226;
+      if (marker) {
+        i++;
+      } else {
+        var digits = 0;
+        while (digits < 4 && i < n && text.charCodeAt(i) >= 48 && text.charCodeAt(i) <= 57) { i++; digits++; }
+        code = text.charCodeAt(i);
+        marker = digits >= 1 && digits <= 3 && (code === 46 || code === 41);
+        if (marker) i++;
+      }
+      if (marker && isGap(text.charCodeAt(i))) {
+        while (i < n && isGap(text.charCodeAt(i))) i++;
+        if (i < n && !isLineEnd(text.charCodeAt(i))) return true;
+      }
+      while (i < n && !isLineEnd(text.charCodeAt(i))) i++;
+      i++;
+    }
+    return false;
+  }
+
+  // Puts the caret back where the paste happened. If the user moved it while
+  // RN worked, the paste still lands at the saved spot.
+  function restoreRange(range) {
+    var sel = window.getSelection();
+    if (!range || !sel || !editor.contains(range.startContainer)) return;
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function settlePaste(html) {
+    var paste = pendingPaste;
+    pendingPaste = null;
+    clearTimeout(paste.timer);
+    editor.focus();
+    restoreRange(paste.range);
+    try {
+      if (html) document.execCommand('insertHTML', false, html);
+      else document.execCommand('insertText', false, paste.text);
+    } catch (e) {}
+    reportChange();
+    reportHeight();
+    reportSelection();
+  }
+
+  editor.addEventListener('paste', function (e) {
+    var data = e.clipboardData;
+    if (!data) return;
+    // Copied rich content keeps the WebView's own paste.
+    if (data.getData('text/html')) return;
+    var text = data.getData('text/plain');
+    if (!text || text.length > PLAIN_PASTE_MAX_CHARS || !hasListLine(text)) return;
+    if (pendingPaste) settlePaste(null);
+    var sel = window.getSelection();
+    var range = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    e.preventDefault();
+    // A dead bridge must not swallow the paste.
+    pendingPaste = { text: text, range: range, timer: setTimeout(function () { settlePaste(null); }, PASTE_FALLBACK_MS) };
+    post('pastePlain', text);
+  });
+
   // ── Bridge: receive commands from RN ───────────────────────────────
   window.__rne = {
     exec: function (command, value) {
@@ -357,6 +440,13 @@ export function buildEditorHtml(opts: {
       post('htmlSnapshot', { id: id, html: editor.innerHTML });
     },
     focus: function () { editor.focus(); },
+    // RN's answer to 'pastePlain': the list HTML, or null to paste the text
+    // as text. An answer for a paste no longer waiting (it timed out, or a
+    // newer paste replaced it) is dropped.
+    insertPasted: function (html, text) {
+      if (!pendingPaste || pendingPaste.text !== text) return;
+      settlePaste(html);
+    },
   };
 
   reportHeight();
