@@ -13,6 +13,8 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useVacationStore } from '../../stores/vacation-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { jmapClient } from '../../api/jmap-client';
+import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-limits';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { stripDangerousTags, escapeHtml } from '../../lib/email-html';
 import {
@@ -88,11 +90,24 @@ export function VacationSettings() {
     return fromParsed < todayStart;
   }, [fromParsed]);
 
+  // What a save would send, derived the way handleSave does from the HTML
+  // state (handleSave re-reads the live editor first).
+  const sizeLimits = jmapClient.hasAccountCapability('urn:stalwart:jmap', managedAccountId ?? undefined)
+    ? STALWART_VACATION_LIMITS
+    : null;
+  const oversize = useMemo(() => {
+    const html = hasHtmlContent ? stripDangerousTags(htmlBody) : null;
+    const textBody = body.trim() || !html ? body : htmlToPlainText(html);
+    return vacationOversize({ subject: subject.trim(), textBody, html }, sizeLimits);
+  }, [hasHtmlContent, htmlBody, body, subject, sizeLimits]);
+
   const warnings: string[] = [];
   if (endBeforeStart) warnings.push(t('settings.vacation.warnings.end_before_start', 'End date must be after start date'));
   if (startInPast) warnings.push(t('settings.vacation.warnings.start_in_past', 'Start date is in the past'));
   if (formatError) warnings.push(t('settings.vacation.warnings.date_format', 'Dates must be "YYYY-MM-DD" or "YYYY-MM-DD HH:MM"'));
   if (emptyBody) warnings.push(t('settings.vacation.warnings.empty_body', 'Message body is empty - recipients will receive a blank reply'));
+  if (oversize.subject) warnings.push(t('settings.vacation.warnings.subject_too_long', 'Subject is too long - the server accepts at most {max} bytes', { max: STALWART_VACATION_LIMITS.subject }));
+  if (oversize.body) warnings.push(t('settings.vacation.warnings.body_too_long', 'Message is too long - the server accepts at most {max} bytes', { max: STALWART_VACATION_LIMITS.body }));
 
   // Mirrors the webmail's hasChanges: Save stays disabled until something
   // actually differs from what the server holds.
@@ -104,7 +119,8 @@ export function VacationSettings() {
     body !== store.textBody ||
     (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '');
 
-  const canSave = hasChanges && !endBeforeStart && !formatError && !store.isSaving;
+  const canSave = hasChanges && !endBeforeStart && !formatError &&
+    !oversize.subject && !oversize.body && !store.isSaving;
 
   const handleSave = useCallback(async () => {
     // Read the live editor DOM rather than trusting onChange state (issue #9).
