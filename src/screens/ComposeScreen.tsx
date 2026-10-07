@@ -1857,16 +1857,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // header X. `usePreventRemove` (not a bare `beforeRemove` listener) also
   // blocks the iOS modal swipe-down, which is dismissed natively otherwise.
   // Re-dispatching the intercepted action doesn't come back here.
-  React.useEffect(() => { console.warn('[DBG] preventRemove armed', isDirty, needsSave); }, [isDirty, needsSave]);
-  React.useEffect(() => {
-    const sub = require('react-native').BackHandler.addEventListener('hardwareBackPress', () => {
-      console.warn('[DBG] hardwareBackPress seen in composer; canGoBack=', navigation.canGoBack());
-      return false;
-    });
-    return () => sub.remove();
-  }, [navigation]);
   usePreventRemove(isDirty || needsSave, ({ data }) => {
-    console.warn('[DBG] preventRemove callback', data.action.type, allowLeaveRef.current);
     if (allowLeaveRef.current) {
       navigation.dispatch(data.action);
       return;

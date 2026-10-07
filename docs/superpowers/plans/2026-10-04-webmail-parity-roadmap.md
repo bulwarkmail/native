@@ -455,3 +455,42 @@ Left open:
   - the Files picker opening after the Attach menu on iOS;
   - DSN and REQUIRETLS against Stalwart;
   - a From override that Stalwart refuses, falling back to the identity.
+
+## Device check pass 1 (2026-10-07)
+
+Run on the Android 17 x86_64 emulator and a Galaxy S24+ (SM-S926U, Android 16), against Stalwart at `mail.home.brytelands.io`, on branch `fix/device-checks-1`.
+
+**Bugs found and fixed:**
+- **Cold start crash** (fixed in `80217dd`, merged with 6c). Rows drawn from the saved list asked `jmapClient.accountId` before connect.
+- **Actions dropped after every cold start.** Move, flag, archive and delete changed the list on screen, then came back on the next refresh. The outbox and offline cache were never pointed at the account when the persisted state already named it (`[outbox] enqueue with no active account; dropping op`).
+- **Composer opened offline couldn't send or queue.** It had no identities; they are now cached per app account and cleared on sign-out.
+- **Raw placeholders.** The folder form showed "Inside {name}", and a move with no folder name showed "{count} emails moved". A scan of every `t()` call without params against the catalog found no others.
+
+**Passed:**
+- **Sending:**
+  - offline send queue: opened online, sent offline, delivered once;
+  - kill right after reconnecting: 3 runs, each delivered once;
+  - DSN and REQUIRETLS: Stalwart accepted both, and the DSN came back;
+  - From override: the notice shows and the message is delivered once. Which path ran isn't visible, because Stalwart stores no Return-Path on local delivery.
+- **Composer:**
+  - @-mention pick by tap;
+  - accent folding, so `@jose` finds José on the S24+;
+  - pasted lists on the S24+.
+- **Mail list and search:**
+  - new-contact deep link;
+  - global search open;
+  - empty an ordinary folder into Trash.
+- **Notifications, with the app fully closed:**
+  - the push posts a notification and the home widget updates;
+  - tapping the notification opens the message.
+
+**Not reproducible:** Back from a composer with unsaved text after a cold start exits the app on the emulator, but only with `adb input text` key injection. With a real keyboard on the S24+ the save-or-discard prompt shows.
+
+**Still to check:**
+- **Two accounts:** a switch in the middle of an action; a queued send waiting for its own account; global search hits from another account.
+- **Accessibility:** TalkBack row actions.
+- **Offline cold start:** send from the composer. The composer owner has no JMAP account id until the client connects, so the queue refuses.
+- **Contact edit link:** no UI shows a contact id.
+- **iOS:** everything.
+
+**Note:** the folder form needs two taps on Save while the keyboard is open; the first only dismisses the keyboard.
