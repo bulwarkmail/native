@@ -232,29 +232,32 @@ export async function updateAccountFilters(
  * each write; when it says no, nothing more is written (SwitchedAwayError).
  */
 export async function restoreAccountFilters(change: FiltersChange, stillValid?: () => boolean): Promise<void> {
-  const { accountId, scriptId, previous } = change;
-  const scripts = await getSieveScripts(accountId);
+  const { scriptId, previous } = change;
+  // The read and every write of the undo on one connection.
+  const at = sieveScope(change.accountId);
+  const { accountId } = at;
+  const scripts = await getSieveScripts(at);
   const current = scripts.find((s) => s.id === scriptId);
   if (!current) throw new FiltersChangedError();
-  const content = await getSieveScriptContent(current.blobId, accountId);
+  const content = await getSieveScriptContent(current.blobId, at);
   if (content !== change.written) throw new FiltersChangedError();
 
   const restoreActive = async () => {
     if (previous.activeScriptId === scriptId) return;
     recheck(stillValid);
-    if (previous.activeScriptId) await activateSieveScript(previous.activeScriptId, accountId);
-    else await deactivateSieveScript(accountId);
+    if (previous.activeScriptId) await activateSieveScript(previous.activeScriptId, at);
+    else await deactivateSieveScript(at);
   };
 
   if (previous.scriptId) {
     recheck(stillValid);
-    await updateSieveScript(scriptId, previous.content, previous.activeScriptId === scriptId, accountId);
+    await updateSieveScript(scriptId, previous.content, previous.activeScriptId === scriptId, at);
     await restoreActive();
   } else {
     // An active script cannot be destroyed (RFC 9661), so switch back first.
     await restoreActive();
     recheck(stillValid);
-    await deleteSieveScript(scriptId, accountId);
+    await deleteSieveScript(scriptId, at);
   }
   void refreshFilterStore(accountId);
 }

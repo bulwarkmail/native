@@ -389,6 +389,21 @@ describe('readVacationFilters', () => {
     expect(await stopped([], false, HAND_EDITED)).toBe(true);
   });
 
+  it('offers a save to restart them only where a save can', async () => {
+    const restartable = async (content: string, extensions = EXTENSIONS) => {
+      env.router.reset();
+      stalwart([
+        { name: 'filters', content, isActive: false },
+        { name: 'vacation', content: VACATION_SCRIPT, isActive: true },
+      ], { extensions });
+      return (await read()).includeAvailable;
+    };
+    expect(await restartable(filters([rule('a')]))).toBe(true);
+    // A script edited by hand is never rewritten, include or not.
+    expect(await restartable(HAND_EDITED)).toBe(false);
+    expect(await restartable(filters([rule('a')]), ['fileinto'])).toBe(false);
+  });
+
   it('reports the most forwards one message can collect in the rules, not all of them', async () => {
     const forwarding = (id: string, stopProcessing: boolean) =>
       rule(id, { actions: [{ type: 'forward', value: 'chef@example.com' }], stopProcessing });
@@ -707,6 +722,32 @@ describe('a reconnect of the same login during a save', () => {
     expect(server.active()).toBe('filters');
     expect(server.content('filters')).toContain(INCLUDE);
     expect(useVacationStore.getState()).toMatchObject({ isEnabled: true, filtersStopped: false });
+  });
+
+  it('re-plans after a stale stop that landed once the server had applied the write, and writes nothing more', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    await useVacationStore.getState().fetch();
+    const update = server.api.updateSieveScript.getMockImplementation()!;
+    server.api.updateSieveScript.mockImplementationOnce(async (id: string, content: string, activate?: boolean) => {
+      await update(id, content, activate);
+      // The answer is lost to a reconnect: applied, but reported as stale.
+      env.connection.replace();
+      throw new MockStaleLoadError();
+    });
+    await useVacationStore.getState().save({
+      isEnabled: true,
+      fromDate: '2026-10-05T06:00:00.000Z',
+      toDate: '2026-10-16T16:00:00.000Z',
+      forward: { enabled: true, to: 'kollege@example.com', keepCopy: false },
+    });
+    // The retry read the applied script, found nothing to do, and wrote nothing.
+    expect(server.api.updateSieveScript).toHaveBeenCalledTimes(1);
+    expect(server.writes()).toBe(1);
+    expect(server.active()).toBe('filters');
+    const written = server.content('filters');
+    expect(written).toContain(INCLUDE);
+    expect(parseScript(written).vacationForward).toEqual(forward());
+    expect(useVacationStore.getState()).toMatchObject({ forward: forward(), filtersStopped: false, error: null });
   });
 
   it('says so when the filters part keeps going stale', async () => {

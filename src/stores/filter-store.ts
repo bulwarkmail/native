@@ -412,9 +412,9 @@ export interface VacationFilters {
    */
   filtersStopped: boolean;
   /**
-   * The filters script can run the auto-reply through `include`, so a save
-   * restarts stopped filters; without it they stay paused while the
-   * auto-reply is on.
+   * A save can restart stopped filters: the server has `include` and the
+   * script is one Bulwark can read and write back. Otherwise they stay
+   * paused while the auto-reply is on.
    */
   includeAvailable: boolean;
 }
@@ -463,7 +463,7 @@ export async function readVacationFilters(accountId: string | undefined, at?: Op
     // A script edited by hand counts as having rules that are on.
     filtersStopped: !!vacationScript?.isActive && !!target && !target.isActive &&
       (parsed ? parsed.rules.some((r) => r.enabled) : true),
-    includeAvailable: supportsInclude(capabilities),
+    includeAvailable: filtersUsable,
   };
 }
 
@@ -628,12 +628,10 @@ export async function syncVacationWithFilters(sync: VacationSync, at: OpScope = 
     return;
   }
   if (!syncWrites(plan, enabled)) return;
-  if (lacksCapabilities(plan, enabled)) {
-    // Turning the auto-reply off: the include stays. It is `:optional`, and
-    // with the response off it runs nothing, so nothing is lost.
-    if (!enabled) return;
-    throw new SieveCapabilitiesUnknownError();
-  }
+  // Only turning the auto-reply off gets here without capabilities (on, it
+  // needs `include`): the include stays. It is `:optional`, and with the
+  // response off it runs nothing, so nothing is lost.
+  if (lacksCapabilities(plan, enabled)) return;
 
   const rules = parsed?.rules ?? [];
   const forwarding = !!nextForward?.enabled;
