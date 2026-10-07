@@ -913,14 +913,22 @@ export function viewerParamsForRow(email: Email): { jmapAccountId?: string; emai
 // Unread/Starred view at their previous position (webmail `mergeRetainedRows`).
 function mergeRetainedRows(previous: Email[], fresh: Email[], retainedIds: string[]): Email[] {
   if (retainedIds.length === 0) return fresh;
-  const freshKeys = new Set(fresh.map(rowKeyOf));
   const retained = new Set(retainedIds);
-  const out = [...fresh];
+  const freshByKey = new Map(fresh.map((e) => [rowKeyOf(e), e] as const));
+  // A retained row the query still returns (a read message in "unread first"
+  // order sorts lower now) goes back to where the user last saw it.
+  const out = fresh.filter((e) => !retained.has(rowKeyOf(e)) || !previous.some((p) => rowKeyOf(p) === rowKeyOf(e)));
   previous.forEach((e, index) => {
-    if (!retained.has(rowKeyOf(e)) || freshKeys.has(rowKeyOf(e))) return;
-    out.splice(Math.min(index, out.length), 0, e);
+    if (!retained.has(rowKeyOf(e))) return;
+    out.splice(Math.min(index, out.length), 0, freshByKey.get(rowKeyOf(e)) ?? e);
   });
   return out;
+}
+
+// Whether the list order puts unread messages first (or last): reading a row
+// would move it, so it is retained in place like in the Unread view.
+function ordersByUnread(state: EmailState): boolean {
+  return orderFor(state).some((l) => l.criterion === 'unread');
 }
 
 // Rows that left the list while a refresh's query was out were deleted, moved
@@ -1272,7 +1280,10 @@ export const useEmailStore = create<EmailState>()(
     // Rows kept on screen after they stopped matching the query (read in the
     // Unread view, unstarred in Starred, untagged in a tag view) are no longer
     // part of the server's result; counting them would skip as many messages.
-    const retained = new Set(state.retainedIds);
+    // Rows only held in place by the list order ("unread first") are still
+    // in the server's result, just further down, so they do count.
+    const leavesQuery = filters.isUnread !== undefined || filters.isStarred !== undefined || !!filters.keyword;
+    const retained = new Set(leavesQuery ? state.retainedIds : []);
     const position = emails.filter((e) => !retained.has(rowKeyOf(e))).length;
     if (!currentMailboxId || loading || position >= totalEmails) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
@@ -1538,7 +1549,7 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.map((e) =>
         rowKeyOf(e) === key ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
-      ...(state.filters.isUnread === true ? { retainedIds: retain(get().retainedIds, [key]) } : {}),
+      ...(state.filters.isUnread === true || ordersByUnread(state) ? { retainedIds: retain(get().retainedIds, [key]) } : {}),
     });
     patchCache(id, { keywords: patch }, owner);
   },
@@ -1558,7 +1569,7 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.map((e) =>
         rowKeyOf(e) === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
-      ...(state.filters.isUnread === false ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
+      ...(state.filters.isUnread === false || ordersByUnread(state) ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
     });
     patchCache(email.id, { keywords: patch }, rowAccountId(state, email));
   },
@@ -2164,7 +2175,7 @@ export const useEmailStore = create<EmailState>()(
       ),
       // Reading inside Unread, unstarring inside Starred or untagging inside
       // that tag's view keeps the rows until it's re-opened.
-      ...(listed && leavesView(state.filters, token, on)
+      ...(listed && (leavesView(state.filters, token, on) || (token === '$seen' && ordersByUnread(state)))
         ? { retainedIds: retain(get().retainedIds, [...touched]) }
         : {}),
     });
@@ -3103,7 +3114,11 @@ async function refreshEmailsImpl(): Promise<void> {
             withoutRemovedMeanwhile(visible, queryChanges.total, listedBeforeQuery);
 
           set({
-            emails: trimmed,
+            // The snapshot stays in the server's order for the next delta;
+            // the list keeps rows the user just read where they were.
+            emails: ordersByUnread(state)
+              ? mergeRetainedRows(get().emails, trimmed, get().retainedIds)
+              : trimmed,
             totalEmails: nextTotal,
             queryState: nextQueryState,
             emailStates: withEmailState(
@@ -3170,7 +3185,7 @@ async function refreshEmailsImpl(): Promise<void> {
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
         // until the view is re-opened, instead of vanishing under them.
-        emails: baseView ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
+        emails: baseView && !ordersByUnread(state) ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
         totalEmails: landed.total,
         threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
         searchSnippets: snippetMap,

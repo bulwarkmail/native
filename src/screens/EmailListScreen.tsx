@@ -983,6 +983,11 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // A search handed over by a deep link (the search widget): run it, or with
   // no query just put the cursor in the search field.
   const searchInputRef = React.useRef<TextInput>(null);
+  // A folder opens at its top, not where the previous one was scrolled to.
+  const listRef = React.useRef<FlatList<Email>>(null);
+  React.useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [currentMailboxId]);
   const pendingSearch = usePendingMailSearch((s) => s.query);
   React.useEffect(() => {
     if (pendingSearch === null) return;
@@ -1650,6 +1655,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={visibleEmails}
           keyExtractor={emailKeyExtractor}
           renderItem={renderEmailRow}

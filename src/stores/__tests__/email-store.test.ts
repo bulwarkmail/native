@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/email', () => ({
   getMailboxes: vi.fn(),
@@ -915,6 +915,56 @@ describe('email-store', () => {
 
       // Re-opening the view (new filters) forgets the retained rows.
       useEmailStore.getState().setFilters({ isUnread: true });
+      expect(useEmailStore.getState().retainedIds).toEqual([]);
+    });
+
+    describe('unread-first order', () => {
+      beforeEach(() => {
+        useSettingsStore.getState().updateSetting('messageListOrder', [{ criterion: 'unread', direction: 'desc' }]);
+        useSettingsStore.getState().updateSetting('messageListOrderScope', 'all');
+      });
+      afterEach(() => {
+        useSettingsStore.getState().updateSetting('messageListOrder', []);
+        useSettingsStore.getState().updateSetting('messageListOrderScope', 'inbox');
+      });
+
+      it('keeps an opened message where it was until the folder changes', async () => {
+        useEmailStore.setState({
+          currentMailboxId: 'mb-1',
+          filters: {},
+          emails: [{ id: 'e1', keywords: {} } as any, { id: 'e2', keywords: {} } as any, { id: 'e3', keywords: { $seen: true } } as any],
+          totalEmails: 3,
+        });
+        await useEmailStore.getState().markRead('e1');
+        expect(useEmailStore.getState().retainedIds).toEqual(['e1']);
+
+        // The server now puts the read e1 after the unread e2.
+        mockQueryEmails.mockResolvedValue({ ids: ['e2', 'e1', 'e3'], total: 3, queryState: 'q' });
+        mockGetEmailsWithState.mockResolvedValue({
+          list: [{ id: 'e2', keywords: {} }, { id: 'e1', keywords: { $seen: true } }, { id: 'e3', keywords: { $seen: true } }],
+          state: 's',
+        });
+        await useEmailStore.getState().refreshEmails();
+        expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3']);
+      });
+
+      it('does not count a message held in place against the next page', async () => {
+        useEmailStore.setState({
+          currentMailboxId: 'mb-1', filters: {}, retainedIds: ['e1'], loading: false, totalEmails: 5,
+          emails: [{ id: 'e1', keywords: { $seen: true } } as any, { id: 'e2', keywords: {} } as any],
+        });
+        mockQueryEmailPage.mockResolvedValue({ ids: [], total: 5, list: [], threads: [] });
+        await useEmailStore.getState().loadMoreEmails();
+        expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ position: 2 }));
+      });
+    });
+
+    it('does not hold a read message in place in the chronological order', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1', filters: {},
+        emails: [{ id: 'e1', keywords: {} } as any], totalEmails: 1,
+      });
+      await useEmailStore.getState().markRead('e1');
       expect(useEmailStore.getState().retainedIds).toEqual([]);
     });
 
