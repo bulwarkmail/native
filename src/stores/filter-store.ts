@@ -529,9 +529,16 @@ async function planVacationSync(sync: VacationSync, at: OpScope) {
   const storedForward = parsed?.vacationForward ?? null;
   const storedAudience = parsed?.vacationAudience ?? null;
   const requestedForward = sync.forward === undefined ? storedForward : sync.forward;
-  const nextForward = requestedForward && sync.period
+  let nextForward = requestedForward && sync.period
     ? withVacationPeriod(requestedForward, sync.period)
     : requestedForward;
+  // Turning the auto-reply off is never refused: a stored forwarding that
+  // cannot take the new dates (no `include`, or a date the generator cannot
+  // write) keeps the period it has.
+  if (!sync.enabled && sync.forward === undefined && !sameForward(storedForward, nextForward) &&
+    (opaque || !canInclude || (nextForward && !isValidVacationForward(nextForward)))) {
+    nextForward = storedForward;
+  }
   const nextAudience = sync.audience === undefined ? storedAudience : sync.audience;
   const changed =
     !sameForward(storedForward, nextForward) ||

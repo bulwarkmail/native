@@ -817,6 +817,41 @@ describe('the auto-reply without the server\'s capabilities', () => {
   });
 });
 
+describe('turning the auto-reply off is never refused', () => {
+  it('keeps the stored forwarding as it is on a server without include', async () => {
+    const stored = filters([rule('a')], { includeVacation: true, vacationForward: forward() });
+    const server = stalwart([
+      { name: 'filters', content: stored, isActive: false },
+      { name: 'vacation', content: VACATION_SCRIPT, isActive: true },
+    ], { extensions: EXTENSIONS.filter((e) => e !== 'include') });
+    await useVacationStore.getState().fetch();
+    await useVacationStore.getState().save({ isEnabled: false, fromDate: '2026-11-02T07:00:00.000Z' });
+    expect(server.vacation.setVacationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ isEnabled: false }), expect.anything(),
+    );
+    // The forwarding keeps the period it was stored with.
+    expect(parseScript(server.content('filters')).vacationForward).toEqual(forward());
+    expect(useVacationStore.getState()).toMatchObject({ isEnabled: false, isSaving: false, error: null });
+  });
+
+  it('keeps the stored forwarding as it is when the new end is past year 9999', async () => {
+    const server = stalwart([
+      { name: 'filters', content: filters([rule('a')], { includeVacation: true, vacationForward: forward() }), isActive: true },
+      { name: 'vacation', content: VACATION_SCRIPT, isActive: false },
+    ]);
+    await useVacationStore.getState().fetch();
+    await useVacationStore.getState().save({ isEnabled: false, toDate: '+010000-01-01T00:59:00.000Z' });
+    expect(server.vacation.setVacationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ isEnabled: false }), expect.anything(),
+    );
+    const written = server.content('filters');
+    expect(written).not.toContain(INCLUDE);
+    expect(parseScript(written).vacationForward).toEqual(forward());
+    expect(server.active()).toBe('filters');
+    expect(useVacationStore.getState()).toMatchObject({ isEnabled: false, isSaving: false, error: null });
+  });
+});
+
 describe('the vacation store and the account it was loaded for', () => {
   it('refuses to turn the auto-reply on over a hand-edited filters script, and writes nothing', async () => {
     const server = stalwart([{ name: 'filters', content: HAND_EDITED, isActive: true }]);
