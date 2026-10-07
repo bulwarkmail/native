@@ -49,6 +49,7 @@ import {
   getFileNameRules, renameFileNode, supportsSharing, uploadFileNode,
 } from '../api/files';
 import { jmapClient } from '../api/jmap-client';
+import { opScope } from '../api/op-scope';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
 import { observeServerFetch } from '../lib/server-reachability';
@@ -230,10 +231,16 @@ export default function FilesScreen() {
       else setLoading(true);
       setError(null);
       const listedFor = useAuthStore.getState().activeAccountId;
+      // Bound to this connection: a listing an account switch overtook is
+      // refused (StaleLoadError) rather than shown as the new account's.
+      const at = opScope();
       try {
         // One fetch across all accessible accounts: own files plus nodes other
         // principals shared with us (tagged isShared, ids namespaced).
-        const nodes = await getAllFileNodesAcrossAccounts();
+        const nodes = await getAllFileNodesAcrossAccounts(at);
+        // A shared account's stale stop is skipped inside the listing, so
+        // check the connection once more before showing what came back.
+        if (!jmapClient.isCurrent(at.gen)) return;
         setAllNodes(nodes);
         setNodesFor(listedFor);
       } catch (e) {

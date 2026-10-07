@@ -120,16 +120,19 @@ export default function GlobalSearchScreen({ navigation, route }: Props) {
     if (opening.current) return;
     opening.current = true;
     if (trimmed) addRecentSearch(trimmed);
+    // Backed out while the switch ran: openHit checks `active` and opens
+    // (or parks) nothing.
     const nav: OpenHitNavigation = {
       openThread: (params) => navigation.navigate('EmailThread', params),
       openContact: (contactId) => navigation.navigate('ContactDetail', { contactId }),
       openTab: (tab) => navigation.navigate('MainTabs', { screen: tab } as never),
+      active: () => mounted.current,
     };
     // openHit resolves with its outcome and never rejects; the catch only
     // keeps a failing toast from becoming an unhandled rejection.
     void openHit(hit, nav)
       .then((result) => {
-        if (!result.opened && mounted.current) {
+        if (!result.opened && result.message && mounted.current) {
           useToastStore.getState().addToast({ type: 'error', title: result.message });
         }
       })

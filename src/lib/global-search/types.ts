@@ -56,9 +56,10 @@ export interface ContactHit extends HitBase {
   kind: 'contacts';
   contact: ContactCard;
   /**
-   * Id under which the contact store knows this card in the app
-   * (`${appAccountId}::${id}`, or `${owner}:${id}` for a shared book inside
-   * that). This is what the contacts surface's deep link expects.
+   * Id under which the contact store knows this card: the raw id for the
+   * login's own books, `${owner}:${id}` for a shared book. The store holds
+   * the shown account's cards only, so it is unique there alone - and is
+   * what ContactDetail takes once that account is shown.
    */
   storeId: string;
 }

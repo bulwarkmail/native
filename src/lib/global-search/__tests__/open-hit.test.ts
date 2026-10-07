@@ -24,6 +24,8 @@ const client = { connectionGen: 1, accountId: 'ja', served: 'login-a' as string 
 const emailState = { activeAccountId: 'login-a' as string | null };
 const contactsState = {
   contacts: [] as Array<{ id: string; name: string }>,
+  /** Connection the cards were read on (the real store stamps it on a full load). */
+  contactsGen: null as number | null,
   fetchContacts: vi.fn(async () => {}),
 };
 
@@ -92,8 +94,8 @@ function mailHit(appAccountId: string, jmapAccountId: string, id = '1'): MailHit
   };
 }
 
-function nav() {
-  return { openThread: vi.fn(), openContact: vi.fn(), openTab: vi.fn() };
+function nav(active = true) {
+  return { openThread: vi.fn(), openContact: vi.fn(), openTab: vi.fn(), active: () => active };
 }
 
 const SWITCH_BACK = 'This belongs to another account. Switch back to it and try again.';
@@ -104,6 +106,7 @@ beforeEach(() => {
   client.served = 'login-a';
   emailState.activeAccountId = 'login-a';
   contactsState.contacts = [];
+  contactsState.contactsGen = null;
   contactsState.fetchContacts.mockReset();
   contactsState.fetchContacts.mockImplementation(async () => {});
   switchAccount.mockReset();
@@ -183,6 +186,21 @@ describe('openHit: mail', () => {
   });
 });
 
+describe('openHit: the opener left', () => {
+  it('opens and parks nothing once the search screen is gone, and says nothing', async () => {
+    const n = nav(false);
+    expect(await openHit(mailHit('login-b', 'jb'), n)).toEqual({ opened: false, message: null });
+    expect(n.openThread).not.toHaveBeenCalled();
+    const event: CalendarHit = {
+      kind: 'calendar', appAccountId: 'login-b', jmapAccountId: 'jb', id: 'e1', accountLabel: '', title: '',
+      subtitle: '', date: null, source: 'remote', isRecurring: false, event: { id: 'e1' } as never,
+    };
+    expect(await openHit(event, n)).toEqual({ opened: false, message: null });
+    expect(usePendingCalendarOpen.getState().target).toBeNull();
+    expect(n.openTab).not.toHaveBeenCalled();
+  });
+});
+
 describe('openHit: contacts', () => {
   const hit = (appAccountId: string): ContactHit => ({
     kind: 'contacts', appAccountId, jmapAccountId: servers[appAccountId].jmap, id: 'c1', accountLabel: '',
@@ -192,6 +210,7 @@ describe('openHit: contacts', () => {
   it('loads the contacts of the account it switched to, then opens the card', async () => {
     contactsState.fetchContacts.mockImplementation(async () => {
       contactsState.contacts = [{ id: 'c1', name: 'B card' }];
+      contactsState.contactsGen = client.connectionGen;
     });
     const n = nav();
     const result = await openHit(hit('login-b'), n);
@@ -203,6 +222,7 @@ describe('openHit: contacts', () => {
 
   it('opens a loaded card without fetching', async () => {
     contactsState.contacts = [{ id: 'c1', name: 'A card' }];
+    contactsState.contactsGen = 1;
     const n = nav();
     await openHit(hit('login-a'), n);
     expect(contactsState.fetchContacts).not.toHaveBeenCalled();
@@ -212,6 +232,7 @@ describe('openHit: contacts', () => {
   it('opens nothing once another account is shown while the contacts load', async () => {
     contactsState.fetchContacts.mockImplementation(async () => {
       contactsState.contacts = [{ id: 'c1', name: 'B card' }];
+      contactsState.contactsGen = client.connectionGen;
       serve('login-b');
     });
     const n = nav();

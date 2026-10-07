@@ -69,14 +69,18 @@ export function searchRows(outcome: SearchOutcome, scope: SearchScope, expanded:
   return rows;
 }
 
-/** Whether to say "No results": a finished search with something to search for found nothing in scope. */
+/**
+ * Whether to say "No results": a finished search with something to search
+ * for found nothing in scope, and every account answered (an account that
+ * couldn't be searched has its error row instead: nothing is known of it).
+ */
 export function showNoResults(
   outcome: SearchOutcome,
   scope: SearchScope,
   state: { isSearching: boolean; isEmpty: boolean },
 ): boolean {
   if (state.isSearching || state.isEmpty) return false;
-  return kindsFor(scope).every((kind) => outcome.hits[kind].length === 0);
+  return kindsFor(scope).every((kind) => outcome.hits[kind].length === 0 && outcome.status[kind].errors.length === 0);
 }
 
 /** The account-store fields a search account is built from. */

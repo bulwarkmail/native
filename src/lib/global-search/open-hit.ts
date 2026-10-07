@@ -27,10 +27,21 @@ export interface OpenHitNavigation {
   openThread: (params: RootStackParamList['EmailThread']) => void;
   openContact: (contactId: string) => void;
   openTab: (tab: 'Calendar' | 'Files') => void;
+  /**
+   * Whether the opener still wants the hit (the search screen is mounted).
+   * Checked once the switch and the reads are done: the user who backed out
+   * meanwhile gets nothing opened, and nothing left parked for a tab.
+   */
+  active: () => boolean;
 }
 
 /** Opened, or why not (a text to show the user). */
-export type OpenHitResult = { opened: true } | { opened: false; message: string };
+export type OpenHitResult =
+  | { opened: true }
+  /** `message` is null when the opener left: nothing to say. */
+  | { opened: false; message: string | null };
+
+const ABANDONED: OpenHitResult = { opened: false, message: null };
 
 const OPENED: OpenHitResult = { opened: true };
 
@@ -55,6 +66,7 @@ async function openMail(hit: MailHit, at: OpScope, nav: OpenHitNavigation): Prom
   // A group or shared message lives under another JMAP account (#839).
   const jmapAccountId = hit.jmapAccountId !== at.accountId ? hit.jmapAccountId : undefined;
   // The viewer paints the header from this row and starts on the body now.
+  if (!nav.active()) return ABANDONED;
   prefetchMessage(email, jmapAccountId);
   nav.openThread({
     emailId: email.id,
@@ -69,19 +81,25 @@ async function openMail(hit: MailHit, at: OpScope, nav: OpenHitNavigation): Prom
 }
 
 async function openContact(hit: ContactHit, at: OpScope, nav: OpenHitNavigation): Promise<OpenHitResult> {
-  // The contacts store holds the shown account's cards only (a switch resets
-  // it), so a card found there after the switch is this account's.
-  const find = () => useContactsStore.getState().contacts.some((c) => c.id === hit.storeId);
+  // Card ids repeat across accounts, so a card only counts when the store's
+  // cards were read on this account's connection (not the persisted cache,
+  // not a load the switch overtook).
+  const find = () => {
+    const state = useContactsStore.getState();
+    return state.contactsGen === at.gen && state.contacts.some((c) => c.id === hit.storeId);
+  };
   if (!find()) {
     await useContactsStore.getState().fetchContacts();
     if (!scopeStillShown(hit.appAccountId, at)) return switchedAway();
   }
   if (!find()) return refused('contacts.detail.not_found', 'Contact not found');
+  if (!nav.active()) return ABANDONED;
   nav.openContact(hit.storeId);
   return OPENED;
 }
 
 function openEvent(hit: CalendarHit, at: OpScope, nav: OpenHitNavigation): OpenHitResult {
+  if (!nav.active()) return ABANDONED;
   // The calendar store names its own events by their raw id and a shared
   // calendar's as `${owner}:${id}`, stamped with that owner (no owner on its
   // own events); a hit from the loaded window carries the store id itself.
@@ -102,6 +120,7 @@ function openEvent(hit: CalendarHit, at: OpScope, nav: OpenHitNavigation): OpenH
 }
 
 function openFile(hit: FileHit, nav: OpenHitNavigation): OpenHitResult {
+  if (!nav.active()) return ABANDONED;
   setPendingFilesOpen({
     appAccountId: hit.appAccountId,
     nodeId: hit.node.id,

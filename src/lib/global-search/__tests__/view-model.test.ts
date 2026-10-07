@@ -91,6 +91,13 @@ describe('showNoResults', () => {
     expect(showNoResults(found, 'all', { isSearching: false, isEmpty: false })).toBe(false);
     // A hit outside the scope doesn't count.
     expect(showNoResults(found, 'mail', { isSearching: false, isEmpty: false })).toBe(true);
+    // An account that couldn't be searched isn't "no results".
+    const failed = outcomeWith((o) => {
+      o.status.mail.errors = [{ appAccountId: 'login-b', accountLabel: 'Bob', message: 'x' }];
+    });
+    expect(showNoResults(failed, 'all', { isSearching: false, isEmpty: false })).toBe(false);
+    // ...unless it is outside the scope.
+    expect(showNoResults(failed, 'files', { isSearching: false, isEmpty: false })).toBe(true);
   });
 });
 
