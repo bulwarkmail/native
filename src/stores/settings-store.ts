@@ -173,6 +173,8 @@ interface PersistedSettings {
   requestReadReceiptDefault: boolean;
   // Confirm before sending a message without a subject (#684).
   emptySubjectWarningEnabled: boolean;
+  // Typing "@" in the rich body offers the To and Cc recipients.
+  recipientMentionsEnabled: boolean;
   // Draft autosave debounce, milliseconds.
   autoSaveDraftInterval: number;
   // Character separating user from tag (e.g. "user+tag@"), RFC 5233.
@@ -376,6 +378,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   signatureSeparatorEnabled: true,
   requestReadReceiptDefault: false,
   emptySubjectWarningEnabled: true,
+  recipientMentionsEnabled: true,
   autoSaveDraftInterval: 60000,
   subAddressDelimiter: '+',
   preferredIdentityIds: {},
@@ -487,6 +490,12 @@ export interface SettingsState extends PersistedSettings {
    * yet. An account without identities is not asked again on every call.
    */
   ensureIdentities: () => Promise<void>;
+  /**
+   * Re-read identities already held for the signed-in account (the server
+   * side may have added or removed one). Silent: no loading flag, errors and
+   * the old list are left alone. Does nothing for an account never loaded.
+   */
+  refreshIdentities: () => Promise<void>;
   hydrate: () => Promise<void>;
 
   // Generic setter — preferred for new code.
@@ -776,6 +785,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // send through one this account does not have).
     if (held !== null && held !== scope) set({ identities: [], identitiesFor: null });
     return get().fetchIdentities();
+  },
+
+  refreshIdentities: async () => {
+    const scope = identityScope();
+    if (scope === null || get().identitiesFor !== scope) return;
+    try {
+      const identities = await fetchIdentities();
+      // Another account, or a reset, meanwhile: not ours to write.
+      if (identityScope() !== scope || get().identitiesFor !== scope) return;
+      set({ identities });
+    } catch {
+      // Background refresh: keep the list we have.
+    }
   },
 
   hydrate: () => {

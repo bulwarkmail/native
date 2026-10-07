@@ -15,6 +15,8 @@ vi.mock('../../api/jmap-client', () => {
       isConnected: true,
       accountId: 'jA',
       getSubmissionAccountIds: vi.fn(() => ['jA']),
+      // The server has since dropped every extension: replay must not care.
+      supportsSubmissionExtension: vi.fn(() => false),
       request: vi.fn(),
     },
   };
@@ -62,7 +64,10 @@ const mockSubs = findSubmissionsForEmails as unknown as ReturnType<typeof vi.fn>
 const mockBoxes = resolveSendMailboxes as unknown as ReturnType<typeof vi.fn>;
 const mockActive = activeAppAccountId as unknown as ReturnType<typeof vi.fn>;
 const mockServes = clientServesActiveAccount as unknown as ReturnType<typeof vi.fn>;
-const client = jmapClient as unknown as { isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn>; request: ReturnType<typeof vi.fn> };
+const client = jmapClient as unknown as {
+  isConnected: boolean; accountId: string; getSubmissionAccountIds: ReturnType<typeof vi.fn>;
+  supportsSubmissionExtension: ReturnType<typeof vi.fn>; request: ReturnType<typeof vi.fn>;
+};
 
 const HOUR_AGO = () => new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const OK = { scheduled: false, emailId: 'sent-1', emailSubmissionId: 'sub-1' };
@@ -667,6 +672,82 @@ describe('flushSendQueue: sending queued entries', () => {
     expect(opts).toEqual({ draftsMailboxId: 'm-drafts', draftId: 'dr-1', accountId: 'jA' });
     expect(mockBoxes).toHaveBeenCalledWith('jA');
     expect(entries()).toEqual([]);
+  });
+
+  describe('delivery notifications and REQUIRETLS ride on the row', () => {
+    const envelopeOf = async (call: unknown[]) => {
+      const { buildSubmissionEnvelope } = await vi.importActual<typeof import('../../api/email')>('../../api/email');
+      return buildSubmissionEnvelope(call[0] as QueuedSend['outgoing'], call[3] as number);
+    };
+
+    it('a row with requireTls and requestDsn replays with the same envelope, even with the capability gone', async () => {
+      const e = entry();
+      await seed({ ...e, outgoing: { ...e.outgoing, requireTls: true, requestDsn: true } });
+      await flushSendQueue();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const [outgoing] = mockSend.mock.calls[0];
+      expect(outgoing).toMatchObject({ requireTls: true, requestDsn: true });
+      expect(await envelopeOf(mockSend.mock.calls[0])).toEqual({
+        mailFrom: { email: 'me@a.test', parameters: { REQUIRETLS: null, RET: 'HDRS' } },
+        rcptTo: ['you@x.test', 'cc@x.test'].map((email) => ({ email, parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } })),
+      });
+      expect(client.supportsSubmissionExtension).not.toHaveBeenCalled();
+      expect(entries()).toEqual([]);
+    });
+
+    it('a server refusing REQUIRETLS fails the entry: never resent without it', async () => {
+      const e = entry();
+      await seed({ ...e, outgoing: { ...e.outgoing, requireTls: true } });
+      mockSend.mockRejectedValueOnce(new SendRefusedError('forbiddenMailFrom', 'REQUIRETLS not supported'));
+      await flushSendQueue();
+      await flushSendQueue();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(stateOf('q1')).toBe('failed');
+      expect(entries()[0].outgoing.requireTls).toBe(true);
+    });
+
+    it('a From override row replays with its MAIL FROM, its fallback and its own identity (#1009)', async () => {
+      const e = entry({ identityId: 'iInfo' });
+      await seed({
+        ...e,
+        outgoing: {
+          ...e.outgoing, from: [{ email: 'alias@a.test' }],
+          envelopeMailFrom: 'alias@a.test', envelopeFallbackMailFrom: 'me@a.test', requireTls: true,
+        },
+      });
+      await flushSendQueue();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const [outgoing, identityId] = mockSend.mock.calls[0];
+      expect(identityId).toBe('iInfo');
+      expect(outgoing).toMatchObject({ envelopeMailFrom: 'alias@a.test', envelopeFallbackMailFrom: 'me@a.test', requireTls: true });
+      expect(await envelopeOf(mockSend.mock.calls[0])).toEqual({
+        mailFrom: { email: 'alias@a.test', parameters: { REQUIRETLS: null } },
+        rcptTo: [{ email: 'you@x.test' }, { email: 'cc@x.test' }],
+      });
+      expect(entries()).toEqual([]);
+    });
+
+    it('an uncertain From override row is proven by a submission from its identity', async () => {
+      const e = entry({ identityId: 'iInfo', state: 'sending', attemptStartedAt: HOUR_AGO() });
+      await seed({
+        ...e,
+        outgoing: { ...e.outgoing, from: [{ email: 'alias@a.test' }], envelopeMailFrom: 'alias@a.test', envelopeFallbackMailFrom: 'me@a.test' },
+      });
+      findReturns({ copies: [copy({ from: [{ email: 'alias@a.test' }], mailboxIds: { 'm-drafts': true } })], complete: true });
+      mockSubs.mockResolvedValue([{ id: 's1', emailId: 'c1', identityId: 'iInfo', undoStatus: 'final' }]);
+      await flushSendQueue();
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(entries()).toEqual([]);
+    });
+
+    it('an old row without the fields replays without them', async () => {
+      await seed(entry());
+      await flushSendQueue();
+      const [outgoing] = mockSend.mock.calls[0];
+      expect(outgoing).not.toHaveProperty('requireTls');
+      expect(outgoing).not.toHaveProperty('requestDsn');
+      expect(await envelopeOf(mockSend.mock.calls[0])).toBeUndefined();
+    });
   });
 
   it('persists sending before the request is made', async () => {

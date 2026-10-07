@@ -10,6 +10,7 @@
 // page verbatim; write escape-free code or double the backslash.
 
 import type { ThemePalette } from '../theme/tokens';
+import { PLAIN_PASTE_MAX_CHARS } from './plain-text-paste';
 
 // Minimum visible editor height (px). The editor auto-grows beyond this as the
 // user types, and the parent ScrollView handles overflow.
@@ -19,6 +20,10 @@ export const MIN_EDITOR_HEIGHT = 220;
 // Readers that need the current body - send, save, format switch - ask the
 // page with `getHtml` instead of waiting for the next post.
 export const CHANGE_THROTTLE_MS = 400;
+
+// How long a plain-text list paste waits for RN to send back its HTML
+// (`__rne.insertPasted`) before the page pastes the text as it is.
+export const PASTE_FALLBACK_MS = 1500;
 
 /**
  * The editor page's Content-Security-Policy, mirroring the viewer's
@@ -147,6 +152,9 @@ export function buildEditorHtml(opts: {
   var CHANGE_THROTTLE_MS = ${CHANGE_THROTTLE_MS};
   var lastChangeAt = 0;
   var changeTimer = null;
+  // A plain-text list paste waiting for RN: { id, text, range, timer }.
+  var pendingPaste = null;
+  var pasteSeq = 0;
 
   // Checked on every keystroke, so it avoids serializing innerHTML.
   function refreshEmpty() {
@@ -244,15 +252,268 @@ export function buildEditorHtml(opts: {
   editor.addEventListener('input', function () {
     scheduleChange();
     reportHeight();
+    updateMention();
   });
+  // Whether the user is in the editor. The page can't see RN's fields, so a
+  // tap on Subject or To shows up here only as the editor's blur.
+  var editorFocused = document.activeElement === editor;
   editor.addEventListener('blur', function () {
+    editorFocused = false;
     flushChange();
+    endMention();
     post('blur', null);
   });
-  editor.addEventListener('focus', function () { post('focus', null); });
-  document.addEventListener('selectionchange', function () {
-    if (document.activeElement === editor) reportSelection();
+  editor.addEventListener('focus', function () {
+    editorFocused = true;
+    post('focus', null);
   });
+  document.addEventListener('selectionchange', function () {
+    if (document.activeElement !== editor) return;
+    reportSelection();
+    updateMention();
+  });
+
+  // ── Plain-text list paste ──────────────────────────────────────────
+  // RN turns a pasted "- " / "1. " list into a real list (plain-text-paste.ts)
+  // and sends the HTML back to insertPasted. Only the cheap check lives here,
+  // written with char codes because regex escapes would be cooked away (see
+  // the header): does a line start, after spaces or tabs, with "-", "*", "•"
+  // or 1-3 digits and "." or ")", then a space or tab and some text?
+  var PLAIN_PASTE_MAX_CHARS = ${PLAIN_PASTE_MAX_CHARS};
+  var PASTE_FALLBACK_MS = ${PASTE_FALLBACK_MS};
+  function isGap(code) { return code === 32 || code === 9; }
+  function isLineEnd(code) { return code === 10 || code === 13; }
+  // The whitespace the parser's regex counts as space: an item needs some
+  // other character after its marker.
+  function isSpace(code) {
+    return (code >= 9 && code <= 13) || code === 32 || code === 160 || code === 5760
+      || (code >= 8192 && code <= 8202) || code === 8232 || code === 8233 || code === 8239
+      || code === 8287 || code === 12288 || code === 65279;
+  }
+  function hasListLine(text) {
+    var i = 0;
+    var n = text.length;
+    while (i < n) {
+      while (i < n && isGap(text.charCodeAt(i))) i++;
+      var code = text.charCodeAt(i);
+      var marker = code === 45 || code === 42 || code === 8226;
+      if (marker) {
+        i++;
+      } else {
+        var digits = 0;
+        while (digits < 4 && i < n && text.charCodeAt(i) >= 48 && text.charCodeAt(i) <= 57) { i++; digits++; }
+        code = text.charCodeAt(i);
+        marker = digits >= 1 && digits <= 3 && (code === 46 || code === 41);
+        if (marker) i++;
+      }
+      if (marker && isGap(text.charCodeAt(i))) {
+        while (i < n && isGap(text.charCodeAt(i))) i++;
+        if (i < n && !isSpace(text.charCodeAt(i))) return true;
+      }
+      while (i < n && !isLineEnd(text.charCodeAt(i))) i++;
+      i++;
+    }
+    return false;
+  }
+
+  // Puts the caret back where the paste happened. If the user moved it while
+  // RN worked, the paste still lands at the saved spot. The saved range is
+  // live, but text typed at that spot meanwhile doesn't move its start, so
+  // the typed text ends up after the paste.
+  function restoreRange(range) {
+    var sel = window.getSelection();
+    if (!range || !sel || !editor.contains(range.startContainer)) return;
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // The lines of 'text', split at CR, LF or CRLF.
+  function splitLines(text) {
+    var lines = [];
+    var from = 0;
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      if (!isLineEnd(code)) continue;
+      lines.push(text.slice(from, i));
+      if (code === 13 && text.charCodeAt(i + 1) === 10) i++;
+      from = i + 1;
+    }
+    lines.push(text.slice(from));
+    return lines;
+  }
+
+  // Puts the paste at its saved range straight into the DOM, leaving focus
+  // and the selection alone. Not undoable, unlike execCommand, which edits
+  // only the focused editor. The text goes in as text nodes, never as HTML.
+  function insertAtRange(range, html, text) {
+    var content;
+    if (html) {
+      content = range.createContextualFragment(html);
+    } else {
+      content = document.createDocumentFragment();
+      var lines = splitLines(text);
+      for (var i = 0; i < lines.length; i++) {
+        if (i > 0) content.appendChild(document.createElement('br'));
+        if (lines[i]) content.appendChild(document.createTextNode(lines[i]));
+      }
+    }
+    range.deleteContents();
+    range.insertNode(content);
+  }
+
+  function settlePaste(html) {
+    var paste = pendingPaste;
+    pendingPaste = null;
+    clearTimeout(paste.timer);
+    var range = paste.range;
+    if (!editorFocused && range && editor.contains(range.startContainer)) {
+      // The answer (or the fallback timer) came after the user left the
+      // editor: focusing it would pull them out of Subject or To.
+      try { insertAtRange(range, html, paste.text); } catch (e) {}
+    } else {
+      // execCommand only edits the focused editor.
+      editor.focus();
+      restoreRange(range);
+      try {
+        if (html) document.execCommand('insertHTML', false, html);
+        else document.execCommand('insertText', false, paste.text);
+      } catch (e) {}
+    }
+    reportChange();
+    reportHeight();
+    reportSelection();
+  }
+
+  editor.addEventListener('paste', function (e) {
+    var data = e.clipboardData;
+    if (!data) return;
+    // Copied rich content keeps the WebView's own paste.
+    if (data.getData('text/html')) return;
+    var text = data.getData('text/plain');
+    if (!text || text.length > PLAIN_PASTE_MAX_CHARS || !hasListLine(text)) return;
+    if (pendingPaste) settlePaste(null);
+    var sel = window.getSelection();
+    var range = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    e.preventDefault();
+    // A dead bridge must not swallow the paste.
+    var id = ++pasteSeq;
+    pendingPaste = { id: id, text: text, range: range, timer: setTimeout(function () { settlePaste(null); }, PASTE_FALLBACK_MS) };
+    post('pastePlain', { id: id, text: text });
+  });
+
+  // ── @-mention of a recipient ───────────────────────────────────────
+  // While the caret ends an "@query" run the page posts 'mention' with the
+  // query, and null once it ends; RN offers the matching recipients and
+  // calls insertMention with the chosen label. The "@" counts only at the
+  // start of a word (after a space or NBSP, or at the start of its block),
+  // so info@example.com never triggers, and never in code or a link.
+  // The open run: { node, start, end, query }, start at the "@". A blur
+  // posts null but keeps it, because a tap on RN's list can blur the editor
+  // before the pick arrives; insertMention re-checks it against the DOM.
+  var mention = null;
+  var postedMention = null;
+
+  function mentionAllowedIn(node) {
+    for (var p = node.parentNode; p; p = p.parentNode) {
+      if (p === editor) return true;
+      if (p.nodeType === 1 && (p.tagName === 'PRE' || p.tagName === 'CODE' || p.tagName === 'A')) return false;
+    }
+    return false;
+  }
+
+  // Elements that end a word: blocks, line breaks and images.
+  var WORD_BREAK_TAGS = ' P DIV LI UL OL BLOCKQUOTE H1 H2 H3 H4 H5 H6 PRE TABLE TBODY THEAD TFOOT TR TD TH CAPTION'
+    + ' SECTION ARTICLE ASIDE HEADER FOOTER NAV FIGURE FIGCAPTION ADDRESS DL DT DD BR HR IMG ';
+  function breaksWord(el) { return WORD_BREAK_TAGS.indexOf(' ' + el.tagName + ' ') !== -1; }
+
+  // The last character of the text before 'node' in the same block (a space
+  // when there is none), so "info" + "<b>@x</b>" reads as one word.
+  function charBefore(node) {
+    var n = node;
+    for (;;) {
+      while (!n.previousSibling) {
+        n = n.parentNode;
+        if (!n || n === editor || (n.nodeType === 1 && breaksWord(n))) return 32;
+      }
+      n = n.previousSibling;
+      for (;;) {
+        if (n.nodeType === 3) {
+          if (n.data.length) return n.data.charCodeAt(n.data.length - 1);
+          break;
+        }
+        if (n.nodeType !== 1) break;
+        if (breaksWord(n)) return 32;
+        if (!n.lastChild) break;
+        n = n.lastChild;
+      }
+    }
+  }
+
+  // The "@query" run in text node 'node' that ends at 'end', or null.
+  function mentionRunAt(node, end) {
+    if (!node || node.nodeType !== 3 || !mentionAllowedIn(node)) return null;
+    var data = node.data;
+    if (end > data.length) return null;
+    for (var i = end - 1; i >= 0; i--) {
+      var code = data.charCodeAt(i);
+      if (code === 64) {
+        var prev = i > 0 ? data.charCodeAt(i - 1) : charBefore(node);
+        if (prev !== 32 && prev !== 160) return null;
+        return { node: node, start: i, end: end, query: data.slice(i + 1, end) };
+      }
+      if (isSpace(code)) return null;
+    }
+    return null;
+  }
+
+  function findMention() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var range = sel.getRangeAt(0);
+    if (!range.collapsed) return null;
+    return mentionRunAt(range.startContainer, range.startOffset);
+  }
+
+  function updateMention() {
+    mention = findMention();
+    var query = mention ? mention.query : null;
+    if (query === postedMention) return;
+    postedMention = query;
+    post('mention', query === null ? null : { query: query });
+  }
+
+  function endMention() {
+    if (postedMention === null) return;
+    postedMention = null;
+    post('mention', null);
+  }
+
+  // A list paste still waiting for RN goes in first, as text, before the
+  // pick replaces 'run': its range was saved before the "@" was typed, so it
+  // belongs in front of the mention, and settling later it would land
+  // around the replaced run. Text it adds in front of the run, in the run's
+  // node, moves the run along. The run moved, or gone (the browser split
+  // the node), drops the pick: null.
+  function settlePasteBefore(run) {
+    var node = run.node;
+    var saved = pendingPaste.range;
+    var inFront = !!saved && saved.startContainer === node && saved.startOffset <= run.start;
+    var fromEnd = node.data.length - run.end;
+    settlePaste(null);
+    if (!editor.contains(node)) return null;
+    var end = inFront ? node.data.length - fromEnd : run.end;
+    var start = end - (run.end - run.start);
+    if (start < 0 || node.data.slice(start, end) !== '@' + run.query) return null;
+    return { node: node, start: start, end: end, query: run.query };
+  }
+
+  function placeCaret(sel, node, offset) {
+    var caret = document.createRange();
+    caret.setStart(node, offset);
+    caret.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(caret);
+  }
 
   // ── Bridge: receive commands from RN ───────────────────────────────
   window.__rne = {
@@ -357,6 +618,64 @@ export function buildEditorHtml(opts: {
       post('htmlSnapshot', { id: id, html: editor.innerHTML });
     },
     focus: function () { editor.focus(); },
+    // Replaces the open "@query" run with "@label " as text - never as HTML,
+    // since the label comes from recipients' display names, which a reply
+    // takes from the incoming message. The run is checked again first: the
+    // user may have typed on while RN picked the label.
+    insertMention: function (label) {
+      var m = mention;
+      var run = m && editor.contains(m.node) ? mentionRunAt(m.node, m.end) : null;
+      if (!run || run.start !== m.start) {
+        mention = null;
+        return;
+      }
+      if (typeof label !== 'string' || !label) return;
+      editor.focus();
+      if (pendingPaste) run = settlePasteBefore(run);
+      if (!run) {
+        mention = null;
+        updateMention();
+        return;
+      }
+      var node = run.node;
+      var spaceFollows = run.end < node.data.length && isSpace(node.data.charCodeAt(run.end));
+      var text = '@' + label + (spaceFollows ? '' : ' ');
+      var sel = window.getSelection();
+      var range = document.createRange();
+      range.setStart(node, run.start);
+      range.setEnd(node, run.end);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // insertText keeps the edit undoable; where it fails, write the text
+      // node directly.
+      var inserted = false;
+      try { inserted = document.execCommand('insertText', false, text); } catch (e) {}
+      if (inserted && spaceFollows) {
+        // Past the space that was already there, ready for the next word.
+        if (sel.modify) {
+          sel.modify('move', 'forward', 'character');
+        } else if (sel.rangeCount) {
+          var at = sel.getRangeAt(0);
+          var atNode = at.startContainer;
+          if (atNode.nodeType === 3 && at.startOffset < atNode.data.length) placeCaret(sel, atNode, at.startOffset + 1);
+        }
+      } else if (!inserted) {
+        var data = node.data;
+        node.data = data.slice(0, run.start) + text + data.slice(run.end);
+        placeCaret(sel, node, run.start + text.length + (spaceFollows ? 1 : 0));
+      }
+      updateMention();
+      reportChange();
+      reportHeight();
+      reportSelection();
+    },
+    // RN's answer to 'pastePlain' with that paste's id: the list HTML, or
+    // null to paste the text as text. An answer for a paste no longer waiting
+    // (it timed out, or a newer paste replaced it) is dropped.
+    insertPasted: function (html, id) {
+      if (!pendingPaste || pendingPaste.id !== id) return;
+      settlePaste(html);
+    },
   };
 
   reportHeight();

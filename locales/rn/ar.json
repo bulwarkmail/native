@@ -19,9 +19,6 @@
       "shared_with_me": "مشترك معي",
       "subscribed": "المشترَك فيها"
     },
-    "event_modal": {
-      "participant_placeholder": "إضافة مشارك عبر البريد الإلكتروني"
-    },
     "events": {
       "copy_link_short": "رابط",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "الإضافات",
-      "themes": "السمات",
       "updates": "التحديثات"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "لوحات الألوان الفاتحة والداكنة الافتراضية.",
       "default_name": "Bulwark",
-      "mobile_description": "اختر سمة ألوان. تتبع السمات إعداد الوضع الفاتح/الداكن من المظهر؛ وتُدار حزم السمات المخصصة في بريد الويب.",
-      "title": "السمات"
+      "mobile_description": "اختر سمة ألوان. تتبع السمات إعداد الوضع الفاتح/الداكن من المظهر؛ وتُدار حزم السمات المخصصة في بريد الويب."
     },
     "vacation": {
+      "date_range": {
+        "description": "يمكنك اختياريًا تحديد الرد التلقائي بفترة معينة",
+        "title": "النطاق الزمني"
+      },
+      "message": {
+        "description": "الرسالة التي ستُرسل كرد",
+        "title": "رسالة الرد التلقائي"
+      },
       "warnings": {
         "date_format": "يجب أن تكون التواريخ بالصيغة \"YYYY-MM-DD\" أو \"YYYY-MM-DD HH:MM\""
       }

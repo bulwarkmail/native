@@ -5,6 +5,7 @@ import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
 import { batched, requireMethodResult } from './jmap-result';
 import { decodeFileNodeName, numberedFileName } from '../lib/filenode-name';
 import { fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
+import { t } from '../stores/locale-store';
 import { isStaleLoad } from '../lib/network-error';
 import { opScope, type AccountRef } from './op-scope';
 
@@ -150,6 +151,106 @@ function fileUsing(): string[] {
 // (cross-account) node.
 export function isCrossAccountId(id: string | null | undefined): boolean {
   return id != null && id.includes(':');
+}
+
+/** A FileNode's content as a message attachment: its blob, referenced as is. */
+export interface FileNodeAttachment {
+  blobId: string;
+  name: string;
+  type: string;
+  size: number;
+}
+
+export type FileNodeAttachmentRefusal = 'folder' | 'other_account' | 'too_large';
+
+/**
+ * Whether `node` lives in JMAP account `accountId` itself. A node from a
+ * listing that names no account, or from someone else's account shared with
+ * the user, does not.
+ */
+export function isOwnFileNode(node: Pick<FileNode, 'accountId' | 'isShared'>, accountId: string): boolean {
+  return !!accountId && !node.isShared && node.accountId === accountId;
+}
+
+/**
+ * A file from the Files app as an attachment to a message sent from JMAP
+ * account `accountId` (webmail #1179). Its blob is already on the server, so
+ * Email/set references the blobId with no download or upload. A blob id only
+ * names a blob in its own account, and Stalwart's ids repeat across
+ * accounts, so a node from any other account is refused: the same id there
+ * could name another file of ours. `maxSizeUpload` is the server's per-file
+ * ceiling (0 = none).
+ */
+export function fileNodeAttachment(
+  node: FileNode,
+  accountId: string,
+  maxSizeUpload: number,
+):
+  | { ok: true; attachment: FileNodeAttachment }
+  | { ok: false; reason: FileNodeAttachmentRefusal } {
+  if (isFolder(node)) return { ok: false, reason: 'folder' };
+  if (!isOwnFileNode(node, accountId)) return { ok: false, reason: 'other_account' };
+  const size = node.size ?? 0;
+  if (maxSizeUpload > 0 && size > maxSizeUpload) return { ok: false, reason: 'too_large' };
+  return {
+    ok: true,
+    attachment: { blobId: node.blobId!, name: node.name, type: node.type || 'application/octet-stream', size },
+  };
+}
+
+/** What a pick in the Files picker adds to a message, and what it leaves out. */
+export interface FileNodePick {
+  /** The attachments to add, each with the node it came from. */
+  attach: Array<FileNodeAttachment & { nodeId: string }>;
+  /** Names of files over the per-file limit. */
+  tooLarge: string[];
+  /** Names of files already on the message. */
+  alreadyAttached: string[];
+  /** Whether a file was left out because the message would grow too large. */
+  overTotal: boolean;
+}
+
+/**
+ * Sorts a Files picker pick for a message from JMAP account `accountId`.
+ * A node already on the message (`attachedNodeIds`), or picked twice, goes
+ * on once. Two files with the same content share a blob, so only the node
+ * id tells them apart. `fitsTotal(size, adding)` says whether a file of
+ * `size` fits with `adding` bytes already planned. Folders and other
+ * accounts' files are left out silently: the picker does not offer them.
+ */
+export function planFileNodePick(
+  nodes: FileNode[],
+  { accountId, maxSizeUpload, attachedNodeIds, fitsTotal }: {
+    accountId: string;
+    maxSizeUpload: number;
+    attachedNodeIds: Iterable<string>;
+    fitsTotal: (size: number, adding: number) => boolean;
+  },
+): FileNodePick {
+  const attached = new Set(attachedNodeIds);
+  const planned = new Set<string>();
+  const plan: FileNodePick = { attach: [], tooLarge: [], alreadyAttached: [], overTotal: false };
+  let adding = 0;
+  for (const node of nodes) {
+    if (planned.has(node.id)) continue;
+    if (attached.has(node.id)) {
+      plan.alreadyAttached.push(node.name);
+      continue;
+    }
+    const result = fileNodeAttachment(node, accountId, maxSizeUpload);
+    if (!result.ok) {
+      if (result.reason === 'too_large') plan.tooLarge.push(node.name);
+      continue;
+    }
+    if (!fitsTotal(result.attachment.size, adding)) {
+      plan.overTotal = true;
+      continue;
+    }
+    planned.add(node.id);
+    adding += result.attachment.size;
+    plan.attach.push({ ...result.attachment, nodeId: node.id });
+  }
+  return plan;
 }
 
 /** Ids asked for per FileNode/query page; Stalwart clamps it to queryMaxResults (5000 by default). */
@@ -576,10 +677,10 @@ export async function setFileNodeShare(
   ));
   const result = requireMethodResult(res, '0', 'FileNode/set');
   if (result.notUpdated?.[fileNodeId]) {
-    throw new Error(result.notUpdated[fileNodeId].description || 'Failed to update file share');
+    throw new Error(result.notUpdated[fileNodeId].description || t('sharing.share_failed', 'Failed to update sharing'));
   }
   if (!result.updated || !(fileNodeId in result.updated)) {
-    throw new Error('Server did not confirm the share update');
+    throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
   }
 }
 

@@ -19,9 +19,6 @@
       "shared_with_me": "Udostępnione mi",
       "subscribed": "Subskrybowane"
     },
-    "event_modal": {
-      "participant_placeholder": "Dodaj uczestnika po adresie e-mail"
-    },
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Wtyczki",
-      "themes": "Motywy",
       "updates": "Aktualizacje"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Domyślne jasne i ciemne palety kolorów.",
       "default_name": "Bulwark",
-      "mobile_description": "Wybierz motyw kolorystyczny. Motywy stosują ustawienie jasny/ciemny z sekcji Wygląd; własnymi pakietami motywów zarządza się w webmailu.",
-      "title": "Motywy"
+      "mobile_description": "Wybierz motyw kolorystyczny. Motywy stosują ustawienie jasny/ciemny z sekcji Wygląd; własnymi pakietami motywów zarządza się w webmailu."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opcjonalnie ogranicz automatyczną odpowiedź do określonego okresu",
+        "title": "Zakres dat"
+      },
+      "message": {
+        "description": "Wiadomość, która zostanie wysłana jako odpowiedź",
+        "title": "Wiadomość automatycznej odpowiedzi"
+      },
       "warnings": {
         "date_format": "Daty muszą mieć format „YYYY-MM-DD” lub „YYYY-MM-DD HH:MM”"
       }

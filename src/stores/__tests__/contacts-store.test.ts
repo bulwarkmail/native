@@ -13,6 +13,7 @@ vi.mock('../../api/contacts', () => ({
   updateAddressBook: vi.fn(),
   deleteAddressBook: vi.fn(),
   setDefaultAddressBook: vi.fn(),
+  setAddressBookShare: vi.fn(),
   getContactsInBook: vi.fn(),
   getContactsAccountId: () => 'acc-1',
   getContactCapableAccountIds: () => ['acc-1', 'acc-team'],
@@ -21,6 +22,16 @@ vi.mock('../../api/contacts', () => ({
     const { originalId: _o, accountId: _a, accountName: _n, isShared: _s, ...rest } = c;
     return rest;
   },
+}));
+
+// The app account the app shows; the store's account checks read it.
+const shown = vi.hoisted(() => ({ app: 'app-1' as string | null }));
+vi.mock('../email-store', () => ({
+  requireShownAccountScope: (appAccountId: string | null, jmapAccountId?: string) => {
+    if (!appAccountId || appAccountId !== shown.app) throw new Error('This belongs to another account.');
+    return { gen: 5, accountId: jmapAccountId ?? 'acc-1' };
+  },
+  isShownAccount: (appAccountId: string | null) => !!appAccountId && appAccountId === shown.app,
 }));
 
 vi.mock('../../api/recent-recipients', () => ({
@@ -82,6 +93,7 @@ const mockDeleteContacts = contactsApi.deleteContacts as ReturnType<typeof vi.fn
 const mockCreateAddressBook = contactsApi.createAddressBook as ReturnType<typeof vi.fn>;
 const mockDeleteAddressBook = contactsApi.deleteAddressBook as ReturnType<typeof vi.fn>;
 const mockSetDefaultAddressBook = contactsApi.setDefaultAddressBook as ReturnType<typeof vi.fn>;
+const mockSetAddressBookShare = contactsApi.setAddressBookShare as ReturnType<typeof vi.fn>;
 const mockGetContactsInBook = contactsApi.getContactsInBook as ReturnType<typeof vi.fn>;
 const mockGetPrincipals = principalsApi.getPrincipals as ReturnType<typeof vi.fn>;
 const mockSearchSent = recentApi.searchSentRecipients as ReturnType<typeof vi.fn>;
@@ -92,6 +104,7 @@ const card = (id: string, extra: Partial<ContactCard> = {}): ContactCard =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  shown.app = 'app-1';
   useContactsStore.getState().reset();
 });
 
@@ -219,6 +232,18 @@ describe('contacts-store', () => {
       expect(useContactsStore.getState().contacts).toHaveLength(2);
     });
 
+    it('binds the write to the scope the caller took, and keeps the card out of the next account\'s list', async () => {
+      useContactsStore.setState({ contacts: [card('c1')], addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockCreateContact.mockImplementationOnce(async () => {
+        useContactsStore.getState().reset();
+        return { id: 'c-new', addressBookIds: { 'ab-1': true } };
+      });
+      const result = await useContactsStore.getState().createContact({}, 'ab-1', { gen: 3, accountId: 'acc-1' });
+      expect(mockCreateContact).toHaveBeenCalledWith({}, 'ab-1', undefined, { gen: 3 });
+      expect(result.id).toBe('c-new');
+      expect(useContactsStore.getState().contacts).toEqual([]);
+    });
+
     it('routes a shared book to its account and namespaces the result', async () => {
       useContactsStore.setState({
         addressBooks: [
@@ -269,6 +294,24 @@ describe('contacts-store', () => {
       mockUpdateContact.mockResolvedValue(undefined);
       await useContactsStore.getState().updateContact('acc-team:c1', { addressBookIds: { 'acc-team:ab': true } });
       expect(mockUpdateContact).toHaveBeenCalledWith('c1', { addressBookIds: { ab: true } }, 'acc-team');
+    });
+
+    it('binds the write to the scope the caller took', async () => {
+      useContactsStore.setState({ contacts: [card('c1')] });
+      mockUpdateContact.mockResolvedValue(undefined);
+      await useContactsStore.getState().updateContact('c1', { kind: 'org' }, { gen: 7, accountId: 'acc-1' });
+      expect(mockUpdateContact).toHaveBeenCalledWith('c1', { kind: 'org' }, undefined, { gen: 7 });
+    });
+
+    it('does not merge into the next account\'s card with the same id after a switch', async () => {
+      useContactsStore.setState({ contacts: [card('c1', { kind: 'individual' })] });
+      mockUpdateContact.mockImplementationOnce(async () => {
+        // The switch lands while the write is out: the new account has a "c1" too.
+        useContactsStore.getState().reset();
+        useContactsStore.setState({ contacts: [card('c1', { kind: 'individual' })] });
+      });
+      await useContactsStore.getState().updateContact('c1', { kind: 'org' });
+      expect(useContactsStore.getState().contacts[0].kind).toBe('individual');
     });
   });
 
@@ -360,6 +403,74 @@ describe('contacts-store', () => {
         ],
       });
       expect(useContactsStore.getState().getDefaultAddressBookId()).toBe('ab-2');
+    });
+  });
+
+  describe('shareAddressBook', () => {
+    const owner = { appAccountId: 'app-1' };
+    const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+
+    it('shares on the owner\'s connection and records the grant', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P', shareWith: { 'p-1': read } }] });
+      mockSetAddressBookShare.mockResolvedValue(undefined);
+
+      await useContactsStore.getState().shareAddressBook('ab-1', 'p-2', read, owner);
+
+      expect(mockSetAddressBookShare).toHaveBeenCalledWith('ab-1', 'p-2', read, { gen: 5, accountId: 'acc-1' });
+      expect(useContactsStore.getState().addressBooks[0].shareWith).toEqual({ 'p-1': read, 'p-2': read });
+    });
+
+    it('drops the grant on a revoke', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P', shareWith: { 'p-1': read, 'p-2': read } }] });
+      mockSetAddressBookShare.mockResolvedValue(undefined);
+
+      await useContactsStore.getState().shareAddressBook('ab-1', 'p-1', null, owner);
+
+      expect(mockSetAddressBookShare).toHaveBeenCalledWith('ab-1', 'p-1', null, { gen: 5, accountId: 'acc-1' });
+      expect(useContactsStore.getState().addressBooks[0].shareWith).toEqual({ 'p-2': read });
+    });
+
+    it('is refused while another account is shown', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      shown.app = 'app-2';
+
+      await expect(useContactsStore.getState().shareAddressBook('ab-1', 'p-2', read, owner)).rejects.toThrow();
+      expect(mockSetAddressBookShare).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing locally when the account switched while the share was out', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockSetAddressBookShare.mockImplementationOnce(async () => {
+        // The next account has an "ab-1" too.
+        shown.app = 'app-2';
+        useContactsStore.getState().reset();
+        useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'Other' }] });
+      });
+
+      await useContactsStore.getState().shareAddressBook('ab-1', 'p-2', read, owner);
+
+      expect(useContactsStore.getState().addressBooks).toEqual([{ id: 'ab-1', name: 'Other' }]);
+    });
+
+    it('writes nothing locally when another account is shown by the time the share lands, even before a reset', async () => {
+      useContactsStore.setState({ addressBooks: [{ id: 'ab-1', name: 'P' }] });
+      mockSetAddressBookShare.mockImplementationOnce(async () => {
+        // The switch has started (another account shown) but the store has not been reset yet.
+        shown.app = 'app-2';
+      });
+
+      await useContactsStore.getState().shareAddressBook('ab-1', 'p-2', read, owner);
+
+      expect(useContactsStore.getState().addressBooks).toEqual([{ id: 'ab-1', name: 'P' }]);
+    });
+
+    it('refuses a book shared with the user', async () => {
+      useContactsStore.setState({
+        addressBooks: [{ id: 'acc-team:ab', originalId: 'ab', accountId: 'acc-team', name: 'Team', isShared: true }],
+      });
+
+      await expect(useContactsStore.getState().shareAddressBook('acc-team:ab', 'p-2', read, owner)).rejects.toThrow();
+      expect(mockSetAddressBookShare).not.toHaveBeenCalled();
     });
   });
 

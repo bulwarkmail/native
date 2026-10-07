@@ -19,9 +19,6 @@
       "shared_with_me": "Partajate cu mine",
       "subscribed": "Abonate"
     },
-    "event_modal": {
-      "participant_placeholder": "Adăugați un participant după e-mail"
-    },
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Pluginuri",
-      "themes": "Teme",
       "updates": "Actualizări"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Paletele implicite, luminoasă și întunecată.",
       "default_name": "Bulwark",
-      "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail.",
-      "title": "Teme"
+      "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opțional, limitați răspunsul automat la o anumită perioadă",
+        "title": "Interval de date"
+      },
+      "message": {
+        "description": "Mesajul care va fi trimis ca răspuns",
+        "title": "Mesaj de răspuns automat"
+      },
       "warnings": {
         "date_format": "Datele trebuie să fie în formatul \"YYYY-MM-DD\" sau \"YYYY-MM-DD HH:MM\""
       }

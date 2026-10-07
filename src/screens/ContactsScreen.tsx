@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2,
+  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2, SlidersHorizontal,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../navigation/types';
 import type { ContactCard } from '../api/types';
@@ -31,12 +31,20 @@ import {
   type ContactCategory,
 } from '../stores/contacts-store';
 import { getContactDisplayName, getContactSortName, isGroup, matchesContactSearch } from '../lib/contact-utils';
+import {
+  EMPTY_CONTACT_FILTERS,
+  countActiveFilters,
+  matchesContactFilters,
+  type ContactListFilters,
+} from '../lib/contact-filters';
+import { useAuthStore } from '../stores/auth-store';
 import { contactsToVCard } from '../lib/vcard';
 import {
   ContactListRow,
   AddressBookPickerSheet,
   ContactImportSheet,
   TagAssignSheet,
+  ContactFilterSheet,
 } from '../components/contacts';
 import Dialog from '../components/Dialog';
 import ContactsSidebarDrawer from '../components/contacts/ContactsSidebarDrawer';
@@ -126,6 +134,15 @@ export default function ContactsScreen() {
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [searchActive, setSearchActive] = React.useState(false);
+  const [filters, setFilters] = React.useState<ContactListFilters>(EMPTY_CONTACT_FILTERS);
+  const [filterSheetOpen, setFilterSheetOpen] = React.useState(false);
+  const activeFilterCount = countActiveFilters(filters);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  // Filters describe the shown account's address book; start clean on a switch.
+  React.useEffect(() => {
+    setFilters(EMPTY_CONTACT_FILTERS);
+    setFilterSheetOpen(false);
+  }, [activeAccountId]);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [selection, setSelection] = React.useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = React.useState(false);
@@ -185,9 +202,11 @@ export default function ContactsScreen() {
   );
 
   const visible = React.useMemo(() => {
-    if (!searchQuery) return sorted;
-    return sorted.filter((c) => matchesContactSearch(c, searchQuery));
-  }, [sorted, searchQuery]);
+    if (!searchQuery && activeFilterCount === 0) return sorted;
+    return sorted.filter(
+      (c) => matchesContactSearch(c, searchQuery) && matchesContactFilters(c, filters),
+    );
+  }, [sorted, searchQuery, filters, activeFilterCount]);
 
   const sections = React.useMemo<Section[]>(() => {
     if (groupByLetter) return groupContacts(visible, sortByLastName);
@@ -451,6 +470,26 @@ export default function ContactsScreen() {
                 <Search size={20} color={c.text} />
               </Pressable>
               <Pressable
+                onPress={() => setFilterSheetOpen(true)}
+                style={styles.headerIconBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={activeFilterCount > 0
+                  ? t('contacts.filters.toggle_active', 'Filters ({count} active)', { count: activeFilterCount })
+                  : t('contacts.filters.toggle', 'Filters')}
+              >
+                <SlidersHorizontal size={20} color={activeFilterCount > 0 ? c.primary : c.text} />
+                {activeFilterCount > 0 && (
+                  <View
+                    style={styles.filterBadge}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable
                 onPress={openImport}
                 style={styles.headerIconBtn}
                 hitSlop={8}
@@ -607,6 +646,13 @@ export default function ContactsScreen() {
         onPick={(id) => { void handleBulkMove(id); }}
       />
 
+      <ContactFilterSheet
+        visible={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        filters={filters}
+        onChange={setFilters}
+      />
+
       <TagAssignSheet
         visible={tagSheetOpen}
         onClose={() => setTagSheetOpen(false)}
@@ -669,6 +715,19 @@ function makeStyles(c: ThemePalette) {
     justifyContent: 'center',
     borderRadius: radius.full,
   },
+  filterBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.primary,
+  },
+  filterBadgeText: { fontSize: 10, fontWeight: '700', color: c.primaryForeground },
   addBtn: {
     width: 36,
     height: 36,

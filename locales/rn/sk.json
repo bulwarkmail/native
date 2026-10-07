@@ -19,9 +19,6 @@
       "shared_with_me": "Zdieľané so mnou",
       "subscribed": "Odoberané"
     },
-    "event_modal": {
-      "participant_placeholder": "Pridať účastníka podľa e-mailu"
-    },
     "events": {
       "copy_link_short": "Odkaz",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Pluginy",
-      "themes": "Témy",
       "updates": "Aktualizácie"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Predvolené svetlé a tmavé palety.",
       "default_name": "Bulwark",
-      "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile.",
-      "title": "Témy"
+      "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile."
     },
     "vacation": {
+      "date_range": {
+        "description": "Voliteľne obmedzte automatickú odpoveď na určité obdobie",
+        "title": "Časové obdobie"
+      },
+      "message": {
+        "description": "Správa, ktorá bude odoslaná ako odpoveď",
+        "title": "Správa automatickej odpovede"
+      },
       "warnings": {
         "date_format": "Dátumy musia byť vo formáte „YYYY-MM-DD“ alebo „YYYY-MM-DD HH:MM“"
       }

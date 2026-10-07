@@ -139,7 +139,7 @@ Legend for refs: WEB paths are relative to `the webmail repo`, RN paths to `the 
   - What RN does: `IdentitySettings.tsx:209-215` DraftIdentity has name/email/textSignature only.
   - Fix hint: add multiline `htmlSignature` (or keep text-only but at least Reply-To/Bcc comma lists validated with the ported `isValidEmail`).
 
-- [ ] **Identity sync (visibility/interval refresh) missing** — `P3` — `partial` — deferred: composer refetches on every mount; acceptable per finding
+- [x] **Identity sync (visibility/interval refresh) missing** — `P3` — `partial` — deferred: composer refetches on every mount; acceptable per finding — fixed in cc569a7 — identities refresh when the app returns and every 30 minutes
   - What WEB does: `hooks/use-identity-sync.ts` refreshes identities on tab focus and every 30 min.
   - What RN does: `ComposeScreen.tsx:406-419` refetches on every composer mount (adequate), but `settings-store.identities` (`src/stores/settings-store.ts:424-431`) only refreshes when the Identities settings pane mounts. Acceptable; listed for completeness.
   - Fix hint: optional `AppState` foreground refresh.
@@ -304,23 +304,25 @@ device.
   - What RN does: `createDraft`/`sendEmail` resolve the account when they run (`src/api/email.ts:1545,1695`); the composer stays mounted when a notification tap or deep link switches account (`App.tsx:111-115`, `navigation/linking.ts:247`). Autosave and send then go to the new account with the old identity, and the old draft is destroyed in the wrong account.
   - Fix hint: capture the account id when the composer opens and pass it through (`ComposeScreen.tsx:744-757`), or close the composer on switch.
 
-- [ ] **No delivery status notification (DSN) / REQUIRETLS option** — `P3` — `missing` (1.10.0)
+- [x] **No delivery status notification (DSN) / REQUIRETLS option** — `P3` — `missing` (1.10.0) — fixed in c67f2cd, 49720dc, de20fe2, 4574a24 — the options also survive "Send now", Reschedule and undo
   - What WEB does: `components/email/email-composer.tsx:615,2565,3410-3420`; reads back `deliveryStatus` (`lib/jmap/client.ts:717-760`).
   - What RN does: none in the `sendEmail` envelope (`src/api/email.ts:~1537-1556`); `src/api/jmap-client.ts:1043-1079` already parses `submissionExtensions`.
 
 - [x] **A failed filing of the Sent copy is not shown** — `P3` — `bugfix-parity` (1.11.0) — fixed in 89ca029
   - What RN does: only logs `filingWarning` (`ComposeScreen.tsx:2117-2118`); WEB warns so the mail isn't sent twice.
 
-- [ ] **No Return-Path note for a From override (#1009)** — `P3` — `missing` (1.11.0)
+- [x] **No Return-Path note for a From override (#1009)** — `P3` — `missing` (1.11.0) — fixed in 7673910, 99ba2af
   - What WEB does: says the identity's address shows in the Return-Path, and tries the override as envelope sender with a fallback (`email-composer.tsx:809-817,2383-2392`, `lib/jmap/client.ts:4116-4140`).
   - What RN does: `ComposeScreen.tsx:1200`, `src/api/email.ts:1562-1568`.
 
-- [ ] **Pasted plain-text lists are not turned into real lists** — `P3` — `missing` (1.12.0)
+- [x] **Pasted plain-text lists are not turned into real lists** — `P3` — `missing` (1.12.0) — fixed in ba02d24, 0b9a693, 460f333 — only pastes that contain a list are converted
   - What WEB does: lines starting with `- `, `* `, `• `, `1. `, `1) ` become lists on paste.
   - What RN does: no paste handler in the contenteditable editor (`src/components/RichTextEditor.tsx`, `src/lib/editor-html.ts`).
 
-- [ ] **No @-mention of a recipient in the body** — `P3` — `missing` (2b5110e, 26cbca7)
+- [x] **No @-mention of a recipient in the body** — `P3` — `missing` (2b5110e, 26cbca7) — fixed in c18d8fa, e6596ed, 460f333 — tap-only list; Enter/Tab keep their normal meaning on mobile keyboards
   - What WEB does: `@` + first name inserts a recipient mention, with a setting to turn it off and screen-reader announcements.
+
+- [x] **No "Attach from Files" in the composer (#1179)** — `P3` — `missing` (92f1973b) — fixed in e03d9de, 8b3af2f, 48c27ce — only the sending account's own files can be attached; files shared from other accounts are shown disabled (webmail allows them)
 
 ## Verified at parity (brief list, so the fixer knows what NOT to redo)
 - Scheduled send via `EmailSubmission` envelope `HOLDFOR` with explicit `rcptTo` (bare addresses, names stripped) and `maxDelayedSend`/FUTURERELEASE capability checks: `src/api/email.ts:828-844`, `src/api/jmap-client.ts:513-531`, `ComposeScreen.tsx:796-821` — matches `lib/jmap/client.ts:592-612`, `:3245-3258`. The capability check read only the session-level object, which Stalwart leaves empty, so scheduling and the undo delay were off on Stalwart until e28e8b4 (#57, audit B8); holds are capped at Stalwart's 7-day limit since 4e7ae2f.

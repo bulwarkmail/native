@@ -84,3 +84,48 @@ describe('identities', () => {
     expect(useSettingsStore.getState().identitiesFor).toBeNull();
   });
 });
+
+describe('refreshIdentities', () => {
+  const other = { id: 'i2', name: 'Other', email: 'other@example.com' };
+
+  it('reads again when the list is held for the current account', async () => {
+    mockGetIdentities.mockResolvedValueOnce([me]).mockResolvedValueOnce([me, other]);
+    await useSettingsStore.getState().ensureIdentities();
+
+    await useSettingsStore.getState().refreshIdentities();
+
+    expect(mockGetIdentities).toHaveBeenCalledTimes(2);
+    expect(useSettingsStore.getState().identities).toEqual([me, other]);
+  });
+
+  it('does nothing when identities were never loaded', async () => {
+    await useSettingsStore.getState().refreshIdentities();
+
+    expect(mockGetIdentities).not.toHaveBeenCalled();
+  });
+
+  it('drops a result that lands after switching accounts', async () => {
+    mockGetIdentities.mockResolvedValueOnce([me]);
+    await useSettingsStore.getState().ensureIdentities();
+    let release!: (list: unknown[]) => void;
+    mockGetIdentities.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const pending = useSettingsStore.getState().refreshIdentities();
+
+    client.accountId = 'acc-2';
+    release([other]);
+    await pending;
+
+    expect(useSettingsStore.getState().identities).toEqual([me]);
+  });
+
+  it('keeps the old list and the error state when the read fails', async () => {
+    mockGetIdentities.mockResolvedValueOnce([me]).mockRejectedValueOnce(new Error('offline'));
+    await useSettingsStore.getState().ensureIdentities();
+
+    await useSettingsStore.getState().refreshIdentities();
+
+    expect(useSettingsStore.getState().identities).toEqual([me]);
+    expect(useSettingsStore.getState().error).toBeNull();
+    expect(useSettingsStore.getState().loading).toBe(false);
+  });
+});

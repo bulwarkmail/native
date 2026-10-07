@@ -138,6 +138,23 @@ const STALWART_ADVERTISED_MAX_DELAYED_SEND = 30 * 24 * 60 * 60;
 const STALWART_DEFAULT_MAX_HOLD = 7 * 24 * 60 * 60;
 
 /**
+ * Whether a `submissionExtensions` value lists `name`, in any letter case.
+ * Servers send either an array of names or a map of name to parameters; a
+ * map entry whose value is false or null counts as absent (webmail parity).
+ */
+export function hasSubmissionExtension(ext: unknown, name: string): boolean {
+  const target = name.toUpperCase();
+  if (Array.isArray(ext)) {
+    return ext.some((item) => typeof item === 'string' && item.toUpperCase() === target);
+  }
+  if (ext && typeof ext === 'object') {
+    return Object.entries(ext as Record<string, unknown>)
+      .some(([key, value]) => key.toUpperCase() === target && value !== false && value != null);
+  }
+  return false;
+}
+
+/**
  * Everything one connection is: the credentials, the session they opened and
  * the account. Replaced in a single assignment, never edited field by field,
  * so a request that read it once has a server, a header and an account that
@@ -1514,19 +1531,17 @@ export class JMAPClient {
     return Math.min(delaySeconds, this.getMaxDelayedSend(accountId));
   }
 
+  /**
+   * Whether the sending account advertises an SMTP extension in its
+   * `submissionExtensions` (RFC 8621 §1.3.2), e.g. "DSN" or "REQUIRETLS".
+   */
+  supportsSubmissionExtension(name: string, accountId?: string): boolean {
+    return hasSubmissionExtension(this.submissionCapability(accountId)?.submissionExtensions, name);
+  }
+
   hasDelayedSend(accountId?: string): boolean {
-    const cap = this.submissionCapability(accountId);
-    if (!cap) return false;
-    const ext = cap.submissionExtensions;
-    // submissionExtensions is a map of extension name → params. FUTURERELEASE
-    // (RFC 4865) is the SMTP extension that backs deferred delivery.
-    const hasFutureRelease =
-      !!ext &&
-      typeof ext === 'object' &&
-      Object.keys(ext as Record<string, unknown>).some(
-        (k) => k.toUpperCase() === 'FUTURERELEASE',
-      );
-    return hasFutureRelease && this.getMaxDelayedSend(accountId) > 0;
+    // FUTURERELEASE (RFC 4865) is the SMTP extension that backs deferred delivery.
+    return this.supportsSubmissionExtension('FUTURERELEASE', accountId) && this.getMaxDelayedSend(accountId) > 0;
   }
 
   // ── Stored credentials (per-account) ──────────────────

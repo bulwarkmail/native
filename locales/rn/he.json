@@ -19,9 +19,6 @@
       "shared_with_me": "משותפים איתי",
       "subscribed": "מנויים"
     },
-    "event_modal": {
-      "participant_placeholder": "הוסף משתתף לפי אימייל"
-    },
     "events": {
       "copy_link_short": "קישור",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "תוספים",
-      "themes": "ערכות נושא",
       "updates": "עדכונים"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "ערכות הצבעים הבהירה והכהה המוגדרות כברירת מחדל.",
       "default_name": "Bulwark",
-      "mobile_description": "בחר ערכת צבעים. ערכות הנושא פועלות לפי הגדרת בהיר/כהה במראה; חבילות ערכות נושא מותאמות מנוהלות בדואר האינטרנט.",
-      "title": "ערכות נושא"
+      "mobile_description": "בחר ערכת צבעים. ערכות הנושא פועלות לפי הגדרת בהיר/כהה במראה; חבילות ערכות נושא מותאמות מנוהלות בדואר האינטרנט."
     },
     "vacation": {
+      "date_range": {
+        "description": "אפשר להגביל את המענה האוטומטי לתקופה מסוימת",
+        "title": "טווח תאריכים"
+      },
+      "message": {
+        "description": "ההודעה שתישלח כתשובה",
+        "title": "הודעת תשובה אוטומטית"
+      },
       "warnings": {
         "date_format": "תאריכים חייבים להיות בפורמט \"YYYY-MM-DD\" או \"YYYY-MM-DD HH:MM\""
       }

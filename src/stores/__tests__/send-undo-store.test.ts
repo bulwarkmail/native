@@ -198,6 +198,20 @@ describe('send-undo-store', () => {
       expect(draft.jmapAccountId).toBeUndefined();
     });
 
+    // An undo to fix a typo must not quietly drop the security option.
+    it('reopens with the delivery options the message was sent with', async () => {
+      const draft = await restoreUndoneSend(entry({ requireTls: true, requestDsn: true }), MAILBOXES, APP);
+      expect(draft).toMatchObject({ requireTls: true, requestDsn: true });
+      const plain = await restoreUndoneSend(entry(), MAILBOXES, APP);
+      expect(plain).not.toHaveProperty('requireTls');
+      expect(plain).not.toHaveProperty('requestDsn');
+    });
+
+    it('records the delivery options with the held send', () => {
+      useSendUndoStore.getState().recordHeldSend(HELD, 10, { identityId: 'id-1', appAccountId: APP, requireTls: true });
+      expect(useSendUndoStore.getState().pending).toMatchObject({ requireTls: true });
+    });
+
     it('still opens the message when the account has no Drafts folder', async () => {
       const draft = await restoreUndoneSend(entry({ accountId: 'team' }), MAILBOXES.slice(0, 2), APP);
       expect(api.restoreEmailToDraft).not.toHaveBeenCalled();

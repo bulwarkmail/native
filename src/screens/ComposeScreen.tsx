@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch, type AlertButton,
+  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch, InteractionManager, type AlertButton,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Search, Tag, Type, Highlighter,
+  Users, Search, Tag, Type, Highlighter, PackageCheck, LockKeyhole,
 } from 'lucide-react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +23,9 @@ import { spacing, radius, typography, componentSizes, type ThemePalette } from '
 import { useColors } from '../theme/colors';
 import { Button, IdentitySheet } from '../components';
 import { TemplateSheet } from '../components/TemplateSheet';
+import FilePickerSheet from '../components/files/FilePickerSheet';
+import { planFileNodePick, supportsFiles } from '../api/files';
+import { formatBytes } from '../lib/format-bytes';
 import RichTextEditor, {
   type RichTextEditorHandle,
   type RichTextSelectionState,
@@ -57,10 +60,12 @@ import { buildReplyRecipients, type ReplySource } from '../lib/reply-recipients'
 import { buildReplySubject, buildForwardSubject } from '../lib/subject-prefix';
 import { useNetworkStore } from '../stores/network-store';
 import { useSendQueueStore, SendTooLargeToQueueError, AlreadyQueuedError } from '../stores/send-queue-store';
+import { envelopeFallbackIdentity, overrideEnvelope, pickSubmissionIdentity } from '../lib/envelope-sender';
 import { attachmentsUploaded, buildQueuedSend, findAlreadyQueued, hasQueueAccounts, OutboxCheckError, shouldQueueSend } from '../lib/queue-send';
 import { generateUUID } from '../lib/uuid';
 import { computeReplyThreadingHeaders, generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { escapeHtml, stripDangerousTags } from '../lib/email-html';
+import { buildMentionCandidates, filterMentionCandidates, type MentionCandidate } from '../lib/recipient-mentions';
 import {
   buildInitialHtml, htmlToPlainText, rewriteInlineImages, extractUserAuthoredText,
   rewriteCidImagesForEditor, replaceInlineImagePlaceholders, sniffImageMime, QUOTED_BLOCK_START,
@@ -86,7 +91,7 @@ import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
-import type { EmailAddress, Identity } from '../api/types';
+import type { EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Compose'>;
@@ -107,6 +112,8 @@ type AttachmentEntry = {
   inline: boolean;
   cid?: string;
   blobId?: string;
+  /** The Files app node it was picked from (see `planFileNodePick`). */
+  fileNodeId?: string;
   uploading: boolean;
   /** 0..1 while uploading, when the transport reports it. */
   progress?: number;
@@ -123,12 +130,6 @@ const TEXT_COLORS = [
   '#000000', '#5f6368', '#9aa0a6', '#c5221f', '#e8710a', '#f9ab00', '#188038', '#1967d2',
   '#7627bb', '#c2185b', '#795548', '#fa5252', '#fd7e14', '#40c057', '#4dabf7', '#e64980',
 ];
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function genCid(): string {
   return `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 10)}@bulwark.local`;
@@ -311,6 +312,47 @@ function SuggestionList({
   );
 }
 
+/**
+ * The recipients an "@" typed in the body can name, above the format bar.
+ * Tap only: Enter and Tab stay with the editor, because Android soft
+ * keyboards report them as keyCode 229 and a keydown pick would misfire.
+ */
+function MentionList({
+  candidates, onPick, onPressIn, onPressOut,
+}: {
+  candidates: MentionCandidate[];
+  onPick: (candidate: MentionCandidate) => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
+}) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
+  return (
+    <ScrollView
+      style={styles.mentionList}
+      keyboardShouldPersistTaps="always"
+      accessibilityLabel={t('email_composer.mention_recipients', 'Recipients')}
+    >
+      {candidates.map((m) => (
+        <Pressable
+          key={m.email}
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          onPress={() => onPick(m)}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.suggestionRow, pressed && styles.suggestionRowPressed]}
+        >
+          <Text style={styles.suggestionName} numberOfLines={1}>{`@${m.label}`}</Text>
+          <Text style={[styles.suggestionEmail, styles.suggestionText]} numberOfLines={1}>
+            {[m.name, m.email].filter(Boolean).join(' · ')}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 function AttachmentChip({
   attachment, onRemove, onPress,
 }: {
@@ -383,7 +425,10 @@ function ToolbarButton({
       onPress={onPress}
       hitSlop={4}
       disabled={disabled}
+      accessibilityRole="button"
       accessibilityLabel={label}
+      // A toggle (one given `active`) says whether it is on.
+      accessibilityState={{ ...(active !== undefined ? { selected: active } : {}), disabled: !!disabled }}
       style={[styles.formatBtn, active && styles.formatBtnActive, disabled && styles.formatBtnDisabled]}
     >
       {icon}
@@ -394,6 +439,11 @@ function ToolbarButton({
 interface SheetOption {
   label: string;
   destructive?: boolean;
+  /**
+   * Opens a Modal of the app's own, so it runs only once this sheet is gone:
+   * iOS does not present a Modal while another one is dismissing.
+   */
+  opensModal?: boolean;
   onPress: () => void;
 }
 
@@ -409,8 +459,32 @@ function OptionsSheet({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // An option that opens a Modal, held until this one has dismissed: on iOS
+  // the Modal's onDismiss, elsewhere (no onDismiss) after the close settles.
+  const afterDismissRef = React.useRef<(() => void) | null>(null);
+  const runAfterDismiss = () => {
+    const run = afterDismissRef.current;
+    afterDismissRef.current = null;
+    run?.();
+  };
+  const choose = (opt: SheetOption) => {
+    if (!opt.opensModal) {
+      onClose();
+      opt.onPress();
+      return;
+    }
+    afterDismissRef.current = opt.onPress;
+    onClose();
+    if (Platform.OS !== 'ios') InteractionManager.runAfterInteractions(runAfterDismiss);
+  };
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={Platform.OS === 'ios' ? runAfterDismiss : undefined}
+    >
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.scheduleCard} onPress={() => {}}>
           {!!title && <Text style={styles.modalTitle} numberOfLines={2}>{title}</Text>}
@@ -418,7 +492,7 @@ function OptionsSheet({
             <Pressable
               key={opt.label}
               style={styles.scheduleRow}
-              onPress={() => { onClose(); opt.onPress(); }}
+              onPress={() => choose(opt)}
             >
               <Text style={[styles.scheduleRowLabel, opt.destructive && { color: c.error }]}>{opt.label}</Text>
             </Pressable>
@@ -627,6 +701,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
+  const recipientMentionsEnabled = useSettingsStore((s) => s.recipientMentionsEnabled);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const preferredIdentityIds = useSettingsStore((s) => s.preferredIdentityIds);
@@ -822,6 +897,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [activeField, setActiveField] = React.useState<Field | null>(null);
   const [attachments, setAttachments] = React.useState<AttachmentEntry[]>(initialAttachments);
   const [requestReadReceipt, setRequestReadReceipt] = React.useState(requestReadReceiptDefault);
+  // Per message, like webmail: not saved with drafts, offered only when the
+  // owner's sending account advertises the SMTP extension.
+  const [requestDsn, setRequestDsn] = React.useState(!!draft?.requestDsn);
+  const [requireTls, setRequireTls] = React.useState(!!draft?.requireTls);
+  const canRequestDsn = jmapClient.supportsSubmissionExtension('DSN', owner?.jmapAccountId);
+  const canRequireTls = jmapClient.supportsSubmissionExtension('REQUIRETLS', owner?.jmapAccountId);
   const [subAddressTag, setSubAddressTag] = React.useState('');
   const [fromOverride, setFromOverride] = React.useState<{ name: string; email: string } | null>(null);
   const [selState, setSelState] = React.useState<RichTextSelectionState>({
@@ -831,6 +912,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
   });
 
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  // What follows an "@" the caret is on in the rich body, or null.
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+  // Like isPickingSuggestion: a tap on the "@" list can blur the editor, whose
+  // null would unmount the list mid-press. While a row is pressed that null
+  // is held back (heldMentionEnd) and applied if the press ends without a pick.
+  const pickingMention = React.useRef(false);
+  const heldMentionEnd = React.useRef(false);
+  // The grace timer of the last press that ended without a pick.
+  const mentionPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
@@ -857,6 +947,68 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const inputFor = (field: Field | null) =>
     field === 'to' ? toInput : field === 'cc' ? ccInput : field === 'bcc' ? bccInput : '';
   const suggestionQuery = inputFor(activeField);
+
+  // "@" in the body offers To and Cc - never Bcc, which naming in the body
+  // would disclose.
+  const mentionCandidates = React.useMemo(
+    () => buildMentionCandidates(toRecipients, ccRecipients),
+    [toRecipients, ccRecipients],
+  );
+  const mentionMatches = React.useMemo(
+    () => (recipientMentionsEnabled && !plainTextMode && mentionQuery !== null
+      ? filterMentionCandidates(mentionCandidates, mentionQuery)
+      : []),
+    [recipientMentionsEnabled, plainTextMode, mentionQuery, mentionCandidates],
+  );
+  // A format switch replaces the editor; its open "@" goes with it.
+  React.useEffect(() => { setMentionQuery(null); }, [plainTextMode]);
+  const onMention = React.useCallback((m: { query: string } | null) => {
+    if (!m && pickingMention.current) {
+      heldMentionEnd.current = true;
+      return;
+    }
+    heldMentionEnd.current = false;
+    setMentionQuery(m ? m.query : null);
+  }, []);
+  const pickMention = (m: MentionCandidate) => {
+    editorRef.current?.insertMention(m.label);
+    pickingMention.current = false;
+    heldMentionEnd.current = false;
+    // The page posts nothing more when a blur already ended the run.
+    setMentionQuery(null);
+  };
+  const clearMentionPressTimer = () => {
+    if (mentionPressTimer.current) clearTimeout(mentionPressTimer.current);
+    mentionPressTimer.current = null;
+  };
+  const startMentionPress = () => {
+    // An earlier press's grace timer must not end this one.
+    clearMentionPressTimer();
+    pickingMention.current = true;
+  };
+  const endMentionPress = () => {
+    // onPress may come after onPressOut; give it the same grace as To/Cc.
+    clearMentionPressTimer();
+    mentionPressTimer.current = setTimeout(() => {
+      mentionPressTimer.current = null;
+      if (!pickingMention.current) return;
+      pickingMention.current = false;
+      if (heldMentionEnd.current) {
+        heldMentionEnd.current = false;
+        setMentionQuery(null);
+      }
+    }, 200);
+  };
+  // The list is gone (no matches, or it unmounted mid-press): no press of it
+  // is running, so the editor's next null must not be held back.
+  const mentionListShown = mentionMatches.length > 0;
+  React.useEffect(() => {
+    if (mentionListShown) return;
+    clearMentionPressTimer();
+    pickingMention.current = false;
+    heldMentionEnd.current = false;
+  }, [mentionListShown]);
+  React.useEffect(() => clearMentionPressTimer, []);
   const alreadySelected = React.useMemo(
     () => new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
@@ -1010,7 +1162,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const att = seedAttachments.find((a) => a.cid && stripMessageIdBrackets(a.cid) === cid && a.blobId);
         if (!att?.blobId) continue;
         try {
-          const buf = await jmapClient.fetchBlobArrayBuffer(att.blobId, att.name, att.type, seedOwnerAccountId);
+          // Blob ids repeat across accounts: after a switch the same id
+          // would name another account's blob.
+          if (!ownerActiveNow()) throw new Error('account changed');
+          const buf = await jmapClient.fetchBlobArrayBuffer(
+            att.blobId, att.name, att.type, seedOwnerAccountId ?? (owner?.jmapAccountId || undefined),
+          );
           const bytes = new Uint8Array(buf);
           const mime = att.type?.toLowerCase().startsWith('image/') ? att.type : (sniffImageMime(bytes) ?? 'image/png');
           map.set(cid, `data:${mime};base64,${bytesToBase64(bytes)}`);
@@ -1377,24 +1534,41 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // ── Outgoing message assembly ─────────────────────────────────────────
 
-  const senderAddress = React.useCallback((identity: Identity): { from: EmailAddress; envelopeMailFrom?: string } => {
+  const senderAddress = React.useCallback((identity: Identity): {
+    from: EmailAddress; envelopeMailFrom?: string; envelopeFallbackMailFrom?: string;
+  } => {
     const name = sanitizeDisplayName(identity.name);
-    let from: EmailAddress;
     if (fromOverride?.email.trim()) {
       const overrideName = sanitizeDisplayName(fromOverride.name);
-      from = overrideName ? { name: overrideName, email: fromOverride.email.trim() } : { email: fromOverride.email.trim() };
-    } else {
-      const email = subAddressTag ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter) : identity.email;
-      from = name ? { name, email } : { email };
+      const from = overrideName ? { name: overrideName, email: fromOverride.email.trim() } : { email: fromOverride.email.trim() };
+      // The override is asked for as the envelope sender too, with the
+      // identity's address once as the fallback (webmail #1009).
+      return { from, ...overrideEnvelope(identities, identity, fromOverride.email) };
     }
-    // A From that isn't the identity's own address still goes out through
-    // the identity's envelope sender.
-    const envelopeMailFrom = from.email.toLowerCase() !== identity.email.toLowerCase() ? identity.email : undefined;
+    const email = subAddressTag ? generateSubAddress(identity.email, subAddressTag, subAddressDelimiter) : identity.email;
+    const from = name ? { name, email } : { email };
+    // A sub-address still goes out through the identity's envelope sender.
+    const envelopeMailFrom = email.toLowerCase() !== identity.email.toLowerCase() ? identity.email : undefined;
     return { from, envelopeMailFrom };
-  }, [fromOverride, subAddressTag, subAddressDelimiter]);
+  }, [fromOverride, subAddressTag, subAddressDelimiter, identities]);
+
+  // The identity a send goes through: one that owns the override address
+  // wins. Both the send and a queued row name it, so the Outbox can prove an
+  // uncertain send by its submission.
+  const submissionIdentity = React.useMemo(
+    () => (primaryIdentity ? pickSubmissionIdentity(identities, primaryIdentity, fromOverride?.email) : null),
+    [identities, primaryIdentity, fromOverride],
+  );
+  // The address a server refusing the override as envelope sender gets
+  // instead, said under the From row before sending.
+  const overrideFallbackAddress = React.useMemo(
+    () => (primaryIdentity ? envelopeFallbackIdentity(identities, primaryIdentity, fromOverride?.email) : null),
+    [identities, primaryIdentity, fromOverride],
+  );
 
   const buildOutgoing = React.useCallback((identity: Identity, liveHtml: string, opts: { forDraft: boolean }): OutgoingEmail => {
-    const { from, envelopeMailFrom } = senderAddress(identity);
+    const { from, envelopeMailFrom, envelopeFallbackMailFrom } = senderAddress(identity);
+    const replyToIdentity = submissionIdentity ?? identity;
     if (!messageIdRef.current) messageIdRef.current = generateMessageId(identity.email);
 
     let htmlBody: string | undefined;
@@ -1454,7 +1628,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       cc: finalCc.length ? expandRecipients(finalCc).map(toAddress) : undefined,
       bcc: bccAll.length ? bccAll : undefined,
       // The identity's Reply-To rides along on every message sent with it.
-      replyTo: identity.replyTo?.length ? identity.replyTo : undefined,
+      // An identity that owns the From override sends it, with its own
+      // Reply-To (webmail #1009).
+      replyTo: replyToIdentity.replyTo?.length ? replyToIdentity.replyTo : undefined,
       subject,
       htmlBody,
       textBody,
@@ -1464,8 +1640,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
       messageId: messageIdRef.current,
       requestReadReceipt,
       envelopeMailFrom,
+      ...(envelopeFallbackMailFrom ? { envelopeFallbackMailFrom } : {}),
+      // Sends only: a draft never carries them (webmail does not persist
+      // them). Not re-checked against the capability: a server that stopped
+      // offering REQUIRETLS refuses the send instead of it going out weaker.
+      ...(!opts.forDraft && requestDsn ? { requestDsn: true } : {}),
+      ...(!opts.forDraft && requireTls ? { requireTls: true } : {}),
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt,
+    requestDsn, requireTls, submissionIdentity]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -1710,29 +1893,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   // Server limits: refuse files the upload endpoint would reject and keep
   // the per-message attachment total under the mail capability's ceiling.
-  const checkAttachmentSize = (size: number, inline: boolean): boolean => {
+  // `alsoAdding` counts files of the same pick that were let in before this
+  // one and are not in `attachments` yet.
+  const exceedsAttachmentTotal = (size: number, alsoAdding = 0): boolean => {
+    const maxTotal = jmapClient.getMaxSizeAttachmentsPerEmail();
+    if (!maxTotal) return false;
+    return attachments.filter((a) => !a.inline && !a.error).reduce((n, a) => n + a.size, 0) + alsoAdding + size > maxTotal;
+  };
+
+  const attachmentsTotalMessage = (): string => t(
+    'email_composer.attachments_too_large_total',
+    'The attachments would exceed the {max} this server allows per message.',
+    { max: formatBytes(jmapClient.getMaxSizeAttachmentsPerEmail()) },
+  );
+
+  const checkAttachmentSize = (name: string, size: number, inline: boolean): boolean => {
     const maxUpload = jmapClient.getMaxSizeUpload();
     if (maxUpload && size > maxUpload) {
       Alert.alert(
         t('email_composer.attach', 'Attach'),
-        t('email_composer.attachment_too_large', 'This file is larger than the server allows ({size} > {max}).', {
-          size: formatBytes(size), max: formatBytes(maxUpload),
+        t('email_composer.attachment_too_large', '"{name}" is larger than the server allows ({max} per file)', {
+          name, max: formatBytes(maxUpload),
         }),
       );
       return false;
     }
-    const maxTotal = jmapClient.getMaxSizeAttachmentsPerEmail();
-    if (!inline && maxTotal) {
-      const total = attachments.filter((a) => !a.inline && !a.error).reduce((n, a) => n + a.size, 0) + size;
-      if (total > maxTotal) {
-        Alert.alert(
-          t('email_composer.attach', 'Attach'),
-          t('email_composer.attachments_too_large_total', 'The attachments would exceed the {max} this server allows per message.', {
-            max: formatBytes(maxTotal),
-          }),
-        );
-        return false;
-      }
+    if (!inline && exceedsAttachmentTotal(size)) {
+      Alert.alert(t('email_composer.attach', 'Attach'), attachmentsTotalMessage());
+      return false;
     }
     return true;
   };
@@ -1800,7 +1988,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   const addFileAsset = (asset: { name: string; type: string; size: number; uri: string }) => {
-    if (!checkAttachmentSize(asset.size, false)) return;
+    if (!checkAttachmentSize(asset.name, asset.size, false)) return;
     void startUpload(addUploadEntry({ ...asset, inline: false }));
   };
 
@@ -1896,18 +2084,73 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // Files from the Files app are already blobs on the server, so they are
+  // attached by blobId with no download or upload (webmail #1179). Only the
+  // owner's own files: a blob id names a blob in its own account only, so
+  // the picker shows other accounts' shared files disabled and
+  // planFileNodePick refuses them again here.
+  const [filesPickerOpen, setFilesPickerOpen] = React.useState(false);
+  const openFilesPicker = () => {
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
+    setFilesPickerOpen(true);
+  };
+
+  const handleFilesPicked = (nodes: FileNode[]) => {
+    setFilesPickerOpen(false);
+    if (!owner) return;
+    if (!ownerActiveNow()) {
+      alertAccountSwitched();
+      return;
+    }
+    const maxUpload = jmapClient.getMaxSizeUpload();
+    const plan = planFileNodePick(nodes, {
+      accountId: owner.jmapAccountId,
+      maxSizeUpload: maxUpload,
+      attachedNodeIds: attachments.flatMap((a) => (a.fileNodeId ? [a.fileNodeId] : [])),
+      fitsTotal: (size, adding) => !exceedsAttachmentTotal(size, adding),
+    });
+    const picked = plan.attach.map(({ nodeId, blobId, name, type, size }): AttachmentEntry => (
+      { localId: genLocalId(), name, type, size, uri: '', inline: false, blobId, fileNodeId: nodeId, uploading: false }
+    ));
+    if (picked.length > 0) setAttachments((prev) => [...prev, ...picked]);
+    // One alert for the whole pick, naming every file left out.
+    const problems: string[] = [];
+    if (plan.alreadyAttached.length > 0) {
+      problems.push(t(
+        'email_composer.files_already_attached',
+        '{count, plural, one {This file is} other {These files are}} already attached: {names}',
+        { count: plan.alreadyAttached.length, names: plan.alreadyAttached.join(', ') },
+      ));
+    }
+    if (plan.tooLarge.length > 0) {
+      problems.push(t(
+        'email_composer.files_too_large',
+        '{count, plural, one {This file is} other {These files are}} larger than the server allows ({max} per file): {names}',
+        { count: plan.tooLarge.length, max: formatBytes(maxUpload), names: plan.tooLarge.join(', ') },
+      ));
+    }
+    if (plan.overTotal) problems.push(attachmentsTotalMessage());
+    if (problems.length > 0) Alert.alert(t('email_composer.attach', 'Attach'), problems.join('\n\n'));
+  };
+
   const [attachMenuOpen, setAttachMenuOpen] = React.useState(false);
   const attachOptions: SheetOption[] = [
     { label: t('email_composer.attach_photos', 'Photos & Videos'), onPress: () => { void pickPhotoAttachments(); } },
     { label: t('email_composer.attach_camera', 'Camera'), onPress: () => { void takePhotoAttachment(); } },
     { label: t('email_composer.attach_files', 'Files'), onPress: () => { void pickFileAttachments(); } },
+    ...(owner && supportsFiles()
+      ? [{ label: t('email_composer.attach_from_files', 'Attach from Files'), opensModal: true, onPress: openFilesPicker }]
+      : []),
   ];
 
   const insertInlineImages = async (assets: Array<{ uri: string; mimeType?: string | null; fileName?: string | null; fileSize?: number | null }>) => {
     for (const asset of assets) {
       const mime = asset.mimeType ?? 'image/jpeg';
       const fallbackName = asset.fileName || `image-${Date.now()}.${mime.split('/')[1] ?? 'jpg'}`;
-      if (!checkAttachmentSize(asset.fileSize ?? 0, true)) continue;
+      if (!checkAttachmentSize(fallbackName, asset.fileSize ?? 0, true)) continue;
       const cid = genCid();
       // Read the picked image as a data URL so it shows up immediately in the
       // editor. At send time the data URL is rewritten to `cid:<id>` and the
@@ -1954,12 +2197,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // Open a chip: local files straight from their URI, server blobs after a
-  // download into the cache.
+  // download into the cache. A blob id names a blob in the owner's account
+  // only; once another account is active the same id names one of its blobs.
   const previewAttachment = async (entry: AttachmentEntry) => {
     try {
       let uri = entry.uri;
       if (!uri && entry.blobId) {
-        const buf = await jmapClient.fetchBlobArrayBuffer(entry.blobId, entry.name, entry.type);
+        if (!ownerActiveNow()) {
+          alertAccountSwitched();
+          return;
+        }
+        const buf = await jmapClient.fetchBlobArrayBuffer(
+          entry.blobId, entry.name, entry.type, owner?.jmapAccountId || undefined,
+        );
         const dir = FileSystem.cacheDirectory ?? '';
         uri = `${dir}${entry.localId}-${entry.name.replace(/[^\w.-]+/g, '_')}`;
         await FileSystem.writeAsStringAsync(uri, bytesToBase64(new Uint8Array(buf)), {
@@ -2219,14 +2469,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
       );
       return null;
     }
-    if (!jmapClient.hasDelayedSend()) {
+    if (!jmapClient.hasDelayedSend(owner?.jmapAccountId)) {
       Alert.alert(
         t('email_composer.schedule_unsupported_title', 'Scheduling unavailable'),
         t('email_composer.schedule_unsupported_body', 'This mail server does not support scheduled send.'),
       );
       return null;
     }
-    const max = jmapClient.getMaxDelayedSend();
+    const max = jmapClient.getMaxDelayedSend(owner?.jmapAccountId);
     if (max > 0 && seconds > max) {
       Alert.alert(
         t('email_composer.schedule_too_late_title', 'Too far ahead'),
@@ -2240,7 +2490,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // The Send button: applies the global undo-send delay when the server
   // supports it (capped at its hold limit), otherwise sends immediately.
   const onSend = () => {
-    const holdFor = jmapClient.undoSendHold(sendDelaySeconds);
+    const holdFor = jmapClient.undoSendHold(sendDelaySeconds, owner?.jmapAccountId);
     void performSend(holdFor);
   };
 
@@ -2260,7 +2510,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
     tomorrowMorning.setHours(8, 0, 0, 0);
     // Only offer times within the server's hold limit.
-    const maxMs = jmapClient.getMaxDelayedSend() * 1000;
+    const maxMs = jmapClient.getMaxDelayedSend(owner?.jmapAccountId) * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
@@ -2271,7 +2521,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const startCustomPicker = () => {
     // An hour ahead, or the latest time the server can hold it if sooner.
-    const latest = jmapClient.latestHoldDate()?.getTime() ?? Infinity;
+    const latest = jmapClient.latestHoldDate(owner?.jmapAccountId)?.getTime() ?? Infinity;
     customDraftRef.current = new Date(Math.min(Date.now() + 3600 * 1000, latest));
     setScheduleSheetOpen(false);
     setCustomStage(Platform.OS === 'ios' ? 'datetime' : 'date');
@@ -2403,7 +2653,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             id: generateUUID(),
             appAccountId: owner.appAccountId,
             jmapAccountId: owner.jmapAccountId,
-            identityId: primaryIdentity.id,
+            identityId: (submissionIdentity ?? primaryIdentity).id,
             outgoing: queued,
             draftId: draftIdRef.current,
             scheduledAt,
@@ -2443,7 +2693,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const outgoing = buildOutgoing(primaryIdentity, liveBodyHtml, { forDraft: false });
       const result = await sendEmail(
         outgoing,
-        primaryIdentity.id,
+        (submissionIdentity ?? primaryIdentity).id,
         sentMailbox.id,
         holdForSeconds,
         { draftsMailboxId: draftsMailbox?.id, draftId: draftIdRef.current ?? undefined },
@@ -2492,10 +2742,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       } else if (result.scheduled) {
         // Undo-send window: the undo bar offers Undo / Send now.
         useSendUndoStore.getState().recordHeldSend(result, holdForSeconds, {
-          identityId: primaryIdentity.id,
+          identityId: (submissionIdentity ?? primaryIdentity).id,
           appAccountId: owner?.appAccountId,
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
+          ...(outgoing.requestDsn ? { requestDsn: true } : {}),
+          ...(outgoing.requireTls ? { requireTls: true } : {}),
         });
       } else {
         // Held sends get the undo bar instead (webmail b03a0c1d).
@@ -2637,7 +2889,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <Paperclip size={20} color={c.text} />
           </Pressable>
           {/* Only offer scheduling when the server can hold the message (webmail parity). */}
-          {jmapClient.hasDelayedSend() && (
+          {jmapClient.hasDelayedSend(owner?.jmapAccountId) && (
             <Pressable
               onPress={() => setScheduleSheetOpen(true)}
               style={styles.headerBtn}
@@ -2702,6 +2954,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
               </Pressable>
             )}
           </View>
+          {!!overrideFallbackAddress && (
+            <Text style={styles.envelopeNotice}>
+              {t(
+                'email_composer.from_override.envelope_notice',
+                "If your server doesn't accept this address as the envelope sender, {identity} is used there instead, and recipients can see it in the Return-Path header.",
+                { identity: overrideFallbackAddress },
+              )}
+            </Text>
+          )}
 
           {renderRecipientField('to', t('email_composer.to', 'To'), t('email_composer.to_placeholder', 'Recipient email addresses'), 6)}
           {ccVisible && renderRecipientField('cc', t('email_composer.cc', 'Cc'), t('email_composer.cc_placeholder', 'Cc recipients'), 5)}
@@ -2751,9 +3012,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
+              onMention={onMention}
             />
           )}
         </ScrollView>
+
+        {mentionListShown && (
+          <MentionList
+            candidates={mentionMatches}
+            onPick={pickMention}
+            onPressIn={startMentionPress}
+            onPressOut={endMentionPress}
+          />
+        )}
 
         <ScrollView
           horizontal
@@ -2766,6 +3037,22 @@ export default function ComposeScreen({ route, navigation }: Props) {
             icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
           <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
             icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
+          {/* A toggle that is on stays visible if the server stops offering the
+              extension, so the user can turn it off rather than meet a refusal. */}
+          {(canRequestDsn || requestDsn) && (
+            <ToolbarButton active={requestDsn} onPress={() => setRequestDsn((v) => !v)}
+              label={requestDsn
+                ? t('email_composer.dsn_on', 'Delivery notification requested (click to disable)')
+                : t('email_composer.dsn_off', 'Request a delivery notification')}
+              icon={<PackageCheck size={18} color={requestDsn ? c.primary : c.textSecondary} />} />
+          )}
+          {(canRequireTls || requireTls) && (
+            <ToolbarButton active={requireTls} onPress={() => setRequireTls((v) => !v)}
+              label={requireTls
+                ? t('email_composer.require_tls_on', 'Encrypted delivery required (click to disable)')
+                : t('email_composer.require_tls_off', 'Require encrypted delivery (TLS)')}
+              icon={<LockKeyhole size={18} color={requireTls ? c.primary : c.textSecondary} />} />
+          )}
           <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
             label={plainTextMode
               ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
@@ -2946,6 +3233,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
         cancelLabel={t('email_composer.cancel', 'Cancel')}
       />
 
+      {owner && (
+        <FilePickerSheet
+          visible={filesPickerOpen}
+          owner={owner}
+          ownerActiveNow={ownerActiveNow}
+          onClose={() => setFilesPickerOpen(false)}
+          onPick={handleFilesPicked}
+        />
+      )}
+
       <OptionsSheet
         visible={!!chipMenu}
         title={chipMenuRecipient ? (chipMenuRecipient.group ? chipMenuRecipient.name : (chipMenuRecipient.name ? `${chipMenuRecipient.name} <${chipMenuRecipient.email}>` : chipMenuRecipient.email)) : undefined}
@@ -3002,7 +3299,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 mode="datetime"
                 display="spinner"
                 minimumDate={new Date()}
-                maximumDate={jmapClient.latestHoldDate()}
+                maximumDate={jmapClient.latestHoldDate(owner?.jmapAccountId)}
                 onChange={onCustomPickerChange}
               />
               <View style={styles.modalActions}>
@@ -3029,7 +3326,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           mode={customStage === 'time' ? 'time' : 'date'}
           display="default"
           minimumDate={customStage === 'date' ? new Date() : undefined}
-          maximumDate={customStage === 'date' ? jmapClient.latestHoldDate() : undefined}
+          maximumDate={customStage === 'date' ? jmapClient.latestHoldDate(owner?.jmapAccountId) : undefined}
           onChange={onCustomPickerChange}
         />
       )}
@@ -3141,7 +3438,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             </View>
             {overrideEnabled && (
               <>
-                <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity - only the visible From header changes.')}</Text>
+                <Text style={styles.modalLabel}>{t('email_composer.from_override.toggle_tooltip', 'Edit the From name and address freely. Mail is still sent through your identity.')}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={overrideName}
@@ -3245,6 +3542,16 @@ function makeStyles(c: ThemePalette) {
   fromText: { ...typography.body, color: c.text, flexShrink: 1 },
   fromTextOverride: { fontStyle: 'italic' },
   fromOptionsBtn: { paddingTop: 10, paddingHorizontal: 4 },
+  envelopeNotice: {
+    ...typography.caption,
+    color: c.textMuted,
+    // Lined up with the From value, past the field label.
+    paddingLeft: spacing.lg + 56 + spacing.md,
+    paddingRight: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: c.borderLight,
+  },
   recipientField: {
     flex: 1,
     flexDirection: 'row',
@@ -3354,6 +3661,14 @@ function makeStyles(c: ThemePalette) {
   progressTrack: { height: 3, borderRadius: 2, backgroundColor: c.borderLight, marginTop: 4, overflow: 'hidden' },
   progressFill: { height: 3, backgroundColor: c.primary },
 
+  // About four rows above the format bar.
+  mentionList: {
+    maxHeight: 168,
+    flexGrow: 0,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    backgroundColor: c.card,
+  },
   formatBar: {
     borderTopWidth: 1,
     borderTopColor: c.border,

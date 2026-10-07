@@ -31,6 +31,7 @@ import {
   updateAddressBook,
   setDefaultAddressBook,
   deleteAddressBook,
+  setAddressBookShare,
 } from '../contacts';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -426,6 +427,50 @@ describe('contacts operations', () => {
         methodResponses: [['AddressBook/set', { notDestroyed: { 'ab-1': { description: 'in use' } } }, '0']],
       });
       await expect(deleteAddressBook('ab-1')).rejects.toThrow('in use');
+    });
+  });
+  describe('setAddressBookShare', () => {
+    const at = { gen: 4, accountId: 'acc-1' };
+
+    it('patches the principal\'s shareWith entry on the scope\'s connection', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { updated: { 'ab-1': null } }, '0']],
+      });
+      const rights = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+
+      await setAddressBookShare('ab-1', 'p-7', rights, at);
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        [['AddressBook/set', { accountId: 'acc-1', update: { 'ab-1': { 'shareWith/p-7': rights } } }, '0']],
+        ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
+        { gen: 4 },
+      );
+    });
+
+    it('revokes with null, in the account the scope names', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { updated: { 'ab-1': null } }, '0']],
+      });
+
+      await setAddressBookShare('ab-1', 'p-7', null, { gen: 9, accountId: 'acc-team' });
+
+      const [calls, , opts] = mockRequest.mock.calls[0];
+      expect(calls[0][1]).toEqual({ accountId: 'acc-team', update: { 'ab-1': { 'shareWith/p-7': null } } });
+      expect(opts).toEqual({ gen: 9 });
+    });
+
+    it('throws the server\'s reason when the update is refused', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { notUpdated: { 'ab-1': { type: 'forbidden', description: 'no share right' } } }, '0']],
+      });
+      await expect(setAddressBookShare('ab-1', 'p-7', null, at)).rejects.toThrow('no share right');
+    });
+
+    it('throws when the server does not confirm the update', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [['AddressBook/set', { updated: {} }, '0']],
+      });
+      await expect(setAddressBookShare('ab-1', 'p-7', null, at)).rejects.toThrow();
     });
   });
 });

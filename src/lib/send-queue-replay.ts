@@ -57,7 +57,7 @@ export type SendErrorOutcome = 'failed' | 'uncertain' | 'auth';
  *   (method error or SetError: `SendRefusedError`), refused every recipient
  *   (`RecipientsRejectedError`, the copy is removed and nothing left), or
  *   refused the hold (`ScheduleTooLateError`).
- * - `auth`: `AuthenticationError` (the entry is released back to `queued`). sendEmail can only raise it from its one
+ * - `auth`: `AuthenticationError` (the entry is released back to `queued`). sendEmail can only raise it from a
  *   send request (a 401, or a token refresh before or after a 401), i.e.
  *   before the server ran any method; the clean-ups after the response
  *   swallow their errors.
@@ -65,6 +65,12 @@ export type SendErrorOutcome = 'failed' | 'uncertain' | 'auth';
  *   request is sent (the client moved to another connection first) or for a
  *   401 on a connection that is gone, so nothing ran either way, and the
  *   flush stops because the connection it ran on is gone.
+ *   There can be two send requests: a From override refused as MAIL FROM is
+ *   submitted once more with the identity's address (#1009). Releasing after
+ *   either error on that retry is still safe, because the first submission
+ *   was explicitly refused (nothing queued) and the retry never ran. The
+ *   first request's copy then stays behind, untracked, in the old account's
+ *   Drafts; the next attempt creates a fresh one.
  * - `uncertain`: everything else - NetworkError, a TypeError from fetch,
  *   RequestTimeoutError, SendUnconfirmedError, RateLimitError, an HTTP error
  *   or unparsable reply, and any error class not listed here.

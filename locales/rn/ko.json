@@ -19,9 +19,6 @@
       "shared_with_me": "나와 공유됨",
       "subscribed": "구독 중"
     },
-    "event_modal": {
-      "participant_placeholder": "이메일로 참석자 추가"
-    },
     "events": {
       "copy_link_short": "링크",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "플러그인",
-      "themes": "테마",
       "updates": "업데이트"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "기본 라이트 및 다크 팔레트예요.",
       "default_name": "Bulwark",
-      "mobile_description": "색상 테마를 선택하세요. 테마는 화면 설정의 라이트/다크 설정을 따르며, 사용자 지정 테마 패키지는 웹메일에서 관리해요.",
-      "title": "테마"
+      "mobile_description": "색상 테마를 선택하세요. 테마는 화면 설정의 라이트/다크 설정을 따르며, 사용자 지정 테마 패키지는 웹메일에서 관리해요."
     },
     "vacation": {
+      "date_range": {
+        "description": "자동 응답을 보낼 특정 기간을 설정할 수 있어요",
+        "title": "기간 설정"
+      },
+      "message": {
+        "description": "답장으로 보낼 메시지 내용을 작성해 주세요",
+        "title": "자동 응답 메시지"
+      },
       "warnings": {
         "date_format": "날짜는 \"YYYY-MM-DD\" 또는 \"YYYY-MM-DD HH:MM\" 형식이어야 해요"
       }

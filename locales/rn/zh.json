@@ -19,9 +19,6 @@
       "shared_with_me": "与我共享",
       "subscribed": "已订阅"
     },
-    "event_modal": {
-      "participant_placeholder": "通过邮箱地址添加参与者"
-    },
     "events": {
       "copy_link_short": "链接",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "插件",
-      "themes": "主题",
       "updates": "更新"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "默认的浅色和深色配色。",
       "default_name": "Bulwark",
-      "mobile_description": "选择颜色主题。主题会跟随“外观”中的浅色/深色设置；自定义主题包需在网页邮箱中管理。",
-      "title": "主题"
+      "mobile_description": "选择颜色主题。主题会跟随“外观”中的浅色/深色设置；自定义主题包需在网页邮箱中管理。"
     },
     "vacation": {
+      "date_range": {
+        "description": "可选择仅在指定时间段内启用自动回复",
+        "title": "日期范围"
+      },
+      "message": {
+        "description": "作为回复发送的邮件内容",
+        "title": "自动回复正文"
+      },
       "warnings": {
         "date_format": "日期格式必须为“YYYY-MM-DD”或“YYYY-MM-DD HH:MM”"
       }

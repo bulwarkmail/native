@@ -19,9 +19,6 @@
       "shared_with_me": "Sdíleno se mnou",
       "subscribed": "Odebírané"
     },
-    "event_modal": {
-      "participant_placeholder": "Přidat účastníka podle e-mailu"
-    },
     "events": {
       "copy_link_short": "Odkaz",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Pluginy",
-      "themes": "Motivy",
       "updates": "Aktualizace"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Výchozí světlé a tmavé palety.",
       "default_name": "Bulwark",
-      "mobile_description": "Vyberte barevný motiv. Motivy se řídí nastavením světlý/tmavý ve Vzhledu; vlastní balíčky motivů se spravují ve webmailu.",
-      "title": "Motivy"
+      "mobile_description": "Vyberte barevný motiv. Motivy se řídí nastavením světlý/tmavý ve Vzhledu; vlastní balíčky motivů se spravují ve webmailu."
     },
     "vacation": {
+      "date_range": {
+        "description": "Volitelně omezte automatickou odpověď na určité období",
+        "title": "Časové období"
+      },
+      "message": {
+        "description": "Zpráva, která bude odeslána jako odpověď",
+        "title": "Zpráva automatické odpovědi"
+      },
       "warnings": {
         "date_format": "Data musí být ve formátu „YYYY-MM-DD“ nebo „YYYY-MM-DD HH:MM“"
       }

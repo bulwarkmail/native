@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
 import { buildEditorHtml, MIN_EDITOR_HEIGHT } from '../lib/editor-html';
+import { plainTextPasteHtml } from '../lib/plain-text-paste';
 
 export type RichTextCommand =
   | 'bold'
@@ -65,6 +66,17 @@ export interface RichTextEditorHandle {
    */
   getHtml(timeoutMs?: number): Promise<string>;
   focus(): void;
+  /**
+   * Replace the "@query" the caret ends (see `onMention`) with "@label " as
+   * text. Does nothing if that run is gone by the time the page gets it.
+   */
+  insertMention(label: string): void;
+}
+
+/** An "@query" run at the caret, which a recipient's label can replace. */
+export interface RichTextMention {
+  /** What follows the "@", possibly empty. */
+  query: string;
 }
 
 interface Props {
@@ -76,10 +88,12 @@ interface Props {
   onSelectionChange?: (state: RichTextSelectionState) => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  /** The caret starts, changes or leaves an "@query" run (null when it ends). */
+  onMention?: (mention: RichTextMention | null) => void;
 }
 
 const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function RichTextEditor(
-  { initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur },
+  { initialHtml = '', placeholder = '', blockRemoteImages = false, onChange, onSelectionChange, onFocus, onBlur, onMention },
   ref,
 ) {
   const c = useColors();
@@ -90,6 +104,8 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
   const onSelectionRef = React.useRef(onSelectionChange);
   const onFocusRef = React.useRef(onFocus);
   const onBlurRef = React.useRef(onBlur);
+  const onMentionRef = React.useRef(onMention);
+  onMentionRef.current = onMention;
   onChangeRef.current = onChange;
   onSelectionRef.current = onSelectionChange;
   onFocusRef.current = onFocus;
@@ -176,6 +192,9 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
     focus: () => {
       call(`window.__rne && window.__rne.focus()`);
     },
+    insertMention: (label) => {
+      call(`window.__rne && window.__rne.insertMention(${JSON.stringify(label)})`);
+    },
   }), [call]);
 
   const onMessage = (event: WebViewMessageEvent) => {
@@ -210,6 +229,21 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
         }
         break;
       }
+      case 'pastePlain': {
+        // A plain-text paste with a list: convert it here, where the parser
+        // is ordinary TS, and hand the page the HTML (or null for text).
+        const p = data.payload as { id?: unknown; text?: unknown } | null;
+        if (typeof p?.id !== 'number' || typeof p.text !== 'string') break;
+        let pasted: string | null;
+        try {
+          pasted = plainTextPasteHtml(p.text);
+        } catch {
+          // Answer at once with text rather than leave the page to time out.
+          pasted = null;
+        }
+        call(`window.__rne && window.__rne.insertPasted(${JSON.stringify(pasted)}, ${p.id})`);
+        break;
+      }
       case 'selection':
         onSelectionRef.current?.((data.payload as RichTextSelectionState) ?? EMPTY_STATE);
         break;
@@ -219,6 +253,11 @@ const RichTextEditor = React.forwardRef<RichTextEditorHandle, Props>(function Ri
       case 'blur':
         onBlurRef.current?.();
         break;
+      case 'mention': {
+        const p = data.payload as { query?: unknown } | null;
+        onMentionRef.current?.(typeof p?.query === 'string' ? { query: p.query } : null);
+        break;
+      }
     }
   };
 

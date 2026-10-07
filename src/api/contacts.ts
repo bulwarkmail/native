@@ -1,10 +1,11 @@
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
-import type { ContactCard, AddressBook } from './types';
+import type { ContactCard, AddressBook, AddressBookRights } from './types';
 import { generateUUID } from '../lib/uuid';
 import { contactFromWire, contactToWire } from '../lib/contact-wire';
 import { isStaleLoad } from '../lib/network-error';
-import { opScope, type AccountRef } from './op-scope';
+import { opScope, type AccountRef, type OpScope } from './op-scope';
+import { t } from '../stores/locale-store';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -157,7 +158,15 @@ export async function queryContacts(
   return allIds;
 }
 
-export async function getContacts(ids: string[], accountId?: string): Promise<ContactCard[]> {
+/**
+ * `opts.gen`: the connection the caller's operation runs on (`OpScope.gen`);
+ * the request is refused (StaleLoadError) once another connection replaced it.
+ */
+export interface RequestGen {
+  gen?: number;
+}
+
+export async function getContacts(ids: string[], accountId?: string, opts?: RequestGen): Promise<ContactCard[]> {
   if (ids.length === 0) return [];
   const account = accountId || getContactsAccountId();
   const batchSize = jmapClient.getMaxObjectsInGet();
@@ -167,6 +176,7 @@ export async function getContacts(ids: string[], accountId?: string): Promise<Co
     const res = await jmapClient.request(
       [['ContactCard/get', { accountId: account, ids: batch }, '0']],
       USING,
+      opts,
     );
     const list = methodResult<{ list: ContactCard[] }>(res).list ?? [];
     all.push(...list.map(contactFromWire));
@@ -247,8 +257,8 @@ export async function searchContacts(text: string, limit: number, account?: Acco
   return all;
 }
 
-export async function getContact(id: string, accountId?: string): Promise<ContactCard | null> {
-  const list = await getContacts([id], accountId);
+export async function getContact(id: string, accountId?: string, opts?: RequestGen): Promise<ContactCard | null> {
+  const list = await getContacts([id], accountId, opts);
   return list[0] ?? null;
 }
 
@@ -256,6 +266,7 @@ export async function createContact(
   contact: Partial<ContactCard>,
   addressBookId: string,
   accountId?: string,
+  opts?: RequestGen,
 ): Promise<ContactCard> {
   const account = accountId || getContactsAccountId();
   const data = contactToWire(contact, 'create');
@@ -273,6 +284,7 @@ export async function createContact(
       },
     }, '0']],
     USING,
+    opts,
   );
   const result = methodResult<{
     created?: Record<string, Partial<ContactCard>>;
@@ -286,7 +298,7 @@ export async function createContact(
   // updated...). Re-fetch the full card so the store appends a complete row
   // instead of an "Unnamed" stub; fall back to a client-side merge.
   try {
-    const full = await getContact(created.id, account);
+    const full = await getContact(created.id, account, opts);
     if (full) return full;
   } catch {
     // fall through to the merge below
@@ -304,11 +316,13 @@ export async function updateContact(
   id: string,
   changes: Partial<ContactCard>,
   accountId?: string,
+  opts?: RequestGen,
 ): Promise<void> {
   const account = accountId || getContactsAccountId();
   const res = await jmapClient.request(
     [['ContactCard/set', { accountId: account, update: { [id]: contactToWire(changes, 'update') } }, '0']],
     USING,
+    opts,
   );
   const result = methodResult<{ notUpdated?: Record<string, SetError> }>(res);
   const err = result.notUpdated?.[id];
@@ -392,6 +406,36 @@ export async function setDefaultAddressBook(id: string, accountId?: string): Pro
     USING,
   );
   methodResult(res);
+}
+
+/**
+ * Grant `principalId` `rights` on an address book, or revoke its access with
+ * null (RFC 9610 `shareWith`). Sent on the connection `at` names, in its
+ * account. Throws when the server refuses the update or does not confirm it.
+ */
+export async function setAddressBookShare(
+  addressBookId: string,
+  principalId: string,
+  rights: AddressBookRights | null,
+  at: OpScope,
+): Promise<void> {
+  const res = await jmapClient.request(
+    [['AddressBook/set', {
+      accountId: at.accountId,
+      update: { [addressBookId]: { [`shareWith/${principalId}`]: rights } },
+    }, '0']],
+    USING,
+    { gen: at.gen },
+  );
+  const result = methodResult<{
+    updated?: Record<string, unknown>;
+    notUpdated?: Record<string, SetError>;
+  }>(res);
+  const err = result.notUpdated?.[addressBookId];
+  if (err) throw new Error(setErrorMessage(err, t('sharing.share_failed', 'Failed to update sharing')));
+  if (!result.updated || !(addressBookId in result.updated)) {
+    throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
+  }
 }
 
 export async function deleteAddressBook(

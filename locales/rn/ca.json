@@ -19,9 +19,6 @@
       "shared_with_me": "Compartits amb mi",
       "subscribed": "Subscrits"
     },
-    "event_modal": {
-      "participant_placeholder": "Afegiu un participant per correu electrònic"
-    },
     "events": {
       "copy_link_short": "Enllaç",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Connectors",
-      "themes": "Temes",
       "updates": "Actualitzacions"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Les paletes clara i fosca per defecte.",
       "default_name": "Bulwark",
-      "mobile_description": "Trieu un tema de color. Els temes segueixen el paràmetre clar/fosc d'Aparença; els paquets de temes personalitzats es gestionen al webmail.",
-      "title": "Temes"
+      "mobile_description": "Trieu un tema de color. Els temes segueixen el paràmetre clar/fosc d'Aparença; els paquets de temes personalitzats es gestionen al webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opcionalment, limiteu la resposta automàtica a un període específic",
+        "title": "Interval de dates"
+      },
+      "message": {
+        "description": "El missatge que s'enviarà com a resposta",
+        "title": "Missatge de resposta automàtica"
+      },
       "warnings": {
         "date_format": "Les dates han de tenir el format \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
       }

@@ -19,9 +19,6 @@
       "shared_with_me": "اشتراکی با من",
       "subscribed": "مشترک‌شده"
     },
-    "event_modal": {
-      "participant_placeholder": "افزودن شرکت‌کننده با ایمیل"
-    },
     "events": {
       "copy_link_short": "لینک",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "افزونه‌ها",
-      "themes": "تم‌ها",
       "updates": "به‌روزرسانی‌ها"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "پالت‌های روشن و تاریک پیش‌فرض.",
       "default_name": "Bulwark",
-      "mobile_description": "یک تم رنگی انتخاب کنید. تم‌ها از تنظیم روشن/تاریک بخش ظاهر پیروی می‌کنند؛ بسته‌های تم سفارشی در ایمیل تحت وب مدیریت می‌شوند.",
-      "title": "تم‌ها"
+      "mobile_description": "یک تم رنگی انتخاب کنید. تم‌ها از تنظیم روشن/تاریک بخش ظاهر پیروی می‌کنند؛ بسته‌های تم سفارشی در ایمیل تحت وب مدیریت می‌شوند."
     },
     "vacation": {
+      "date_range": {
+        "description": "محدود کردن پاسخ خودکار به یک بازه زمانی خاص",
+        "title": "بازه زمانی"
+      },
+      "message": {
+        "description": "پیامی که به عنوان پاسخ ارسال خواهد شد",
+        "title": "پیام پاسخ خودکار"
+      },
       "warnings": {
         "date_format": "تاریخ‌ها باید به‌صورت \"YYYY-MM-DD\" یا \"YYYY-MM-DD HH:MM\" باشند"
       }

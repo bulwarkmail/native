@@ -65,4 +65,21 @@ describe('RN overlay translations', () => {
       expect(problems).toEqual([]);
     });
   }
+
+  // Keys webmail dropped that native still shows: the translations they had
+  // in the vendored catalog moved into the overlays, so no language falls
+  // back to English for them.
+  const KEPT_FROM_WEBMAIL = [
+    'settings.vacation.date_range.title',
+    'settings.vacation.date_range.description',
+    'settings.vacation.message.title',
+    'settings.vacation.message.description',
+  ];
+  for (const { code } of SUPPORTED_LOCALES) {
+    if (code === 'en') continue;
+    it(`${code} keeps its translation of the section headings webmail dropped`, () => {
+      const overlay = readOverlay(code);
+      expect(KEPT_FROM_WEBMAIL.filter((key) => typeof overlay.get(key) !== 'string')).toEqual([]);
+    });
+  }
 });

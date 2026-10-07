@@ -19,9 +19,6 @@
       "shared_with_me": "與我共用",
       "subscribed": "已訂閱"
     },
-    "event_modal": {
-      "participant_placeholder": "依電子郵件地址新增參與者"
-    },
     "events": {
       "copy_link_short": "連結",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "外掛程式",
-      "themes": "主題",
       "updates": "更新"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "預設的淺色與深色配色。",
       "default_name": "Bulwark",
-      "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。",
-      "title": "主題"
+      "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。"
     },
     "vacation": {
+      "date_range": {
+        "description": "可選擇將自動回覆限制在特定期間",
+        "title": "日期範圍"
+      },
+      "message": {
+        "description": "作為回覆傳送的郵件內容",
+        "title": "自動回覆郵件"
+      },
       "warnings": {
         "date_format": "日期格式必須為「YYYY-MM-DD」或「YYYY-MM-DD HH:MM」"
       }

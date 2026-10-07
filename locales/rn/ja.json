@@ -19,9 +19,6 @@
       "shared_with_me": "自分と共有",
       "subscribed": "購読中"
     },
-    "event_modal": {
-      "participant_placeholder": "メールアドレスで参加者を追加"
-    },
     "events": {
       "copy_link_short": "リンク",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "プラグイン",
-      "themes": "テーマ",
       "updates": "アップデート"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "デフォルトのライト／ダークパレットです。",
       "default_name": "Bulwark",
-      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。",
-      "title": "テーマ"
+      "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。"
     },
     "vacation": {
+      "date_range": {
+        "description": "オプションで自動返信を特定の期間に限定します",
+        "title": "期間"
+      },
+      "message": {
+        "description": "返信として送信されるメッセージ",
+        "title": "自動返信メッセージ"
+      },
       "warnings": {
         "date_format": "日付は「YYYY-MM-DD」または「YYYY-MM-DD HH:MM」の形式で入力してください"
       }

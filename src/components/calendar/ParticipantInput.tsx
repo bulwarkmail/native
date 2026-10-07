@@ -12,7 +12,14 @@ import { radius, spacing, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import type { Attendee } from '../../lib/calendar-participants';
+import {
+  groupPickAttendees,
+  participantQuery,
+  participantSuggestions,
+  type Attendee,
+} from '../../lib/calendar-participants';
+import { ownMailboxes } from '../../lib/mailbox-tree';
+import type { RecipientSuggestion } from '../../stores/contacts-store';
 import { jmapClient } from '../../api/jmap-client';
 import { useEmailStore, isShownAccount } from '../../stores/email-store';
 import {
@@ -131,26 +138,8 @@ interface ParticipantInputProps {
   window?: AvailabilityWindow | null;
 }
 
-interface Suggestion {
-  email: string;
-  name?: string;
-}
-
 function emailRegex(): RegExp {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-}
-
-function flattenContactEmails(): Suggestion[] {
-  const contacts = useContactsStore.getState().contacts;
-  const out: Suggestion[] = [];
-  for (const c of contacts) {
-    const name = c.name?.full || undefined;
-    if (!c.emails) continue;
-    for (const e of Object.values(c.emails)) {
-      if (e.address) out.push({ email: e.address, name });
-    }
-  }
-  return out;
 }
 
 // Attendee rows only: the organizer participant is added by
@@ -162,25 +151,51 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
   const [draft, setDraft] = React.useState('');
   const availability = useAttendeeAvailability(attendees, availabilityAccount, window);
   const showAvailability = !!availabilityAccount && !!window && attendees.length > 0 && supportsAvailability();
-  const [allSuggestions] = React.useState(() => flattenContactEmails());
 
   const existingEmails = React.useMemo(() => {
     return new Set(attendees.map((a) => a.email.toLowerCase()));
   }, [attendees]);
 
-  const filteredSuggestions = React.useMemo(() => {
-    const q = draft.trim().toLowerCase();
-    if (!q || q.length < 2) return [];
-    return allSuggestions
-      .filter((s) => {
-        if (existingEmails.has(s.email.toLowerCase())) return false;
-        return (
-          s.email.toLowerCase().includes(q) ||
-          s.name?.toLowerCase().includes(q)
-        );
-      })
-      .slice(0, 6);
-  }, [draft, allSuggestions, existingEmails]);
+  // Re-run the lookup when the store's contacts, recent recipients or
+  // directory people load.
+  const contactsVersion = useContactsStore((s) => s.contacts);
+  const recentVersion = useContactsStore((s) => s.recentRecipients);
+  const directoryVersion = useContactsStore((s) => s.directoryPeople);
+  const mailboxes = useEmailStore((s) => s.mailboxes);
+  const sentId = React.useMemo(
+    () => ownMailboxes(mailboxes).find((m) => m.role === 'sent')?.id,
+    [mailboxes],
+  );
+  const appAccountId = availabilityAccount?.appAccountId;
+  // The store is reset on an account switch: an editor left open across one
+  // must not suggest the new account's people.
+  const shown = !availabilityAccount || isShownAccount(appAccountId);
+
+  React.useEffect(() => {
+    if (shown && sentId) void useContactsStore.getState().loadRecentRecipients(sentId);
+  }, [shown, sentId]);
+  // Directory people are suggestions too, not only an availability source.
+  React.useEffect(() => {
+    if (shown) void useContactsStore.getState().loadDirectory();
+  }, [shown]);
+
+  const filteredSuggestions = React.useMemo<RecipientSuggestion[]>(() => {
+    const q = participantQuery(draft);
+    if (!q || !shown) return [];
+    return participantSuggestions(useContactsStore.getState().getAutocomplete(q, 16), existingEmails);
+    // The versions re-run the lookup when the store loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, shown, existingEmails, contactsVersion, recentVersion, directoryVersion]);
+
+  const pickSuggestion = (s: RecipientSuggestion) => {
+    if (!s.group) {
+      addParticipant(s.email, s.name);
+      return;
+    }
+    const members = useContactsStore.getState().getGroupRecipients(s.group.id);
+    for (const m of groupPickAttendees(members, existingEmails)) onAdd(m);
+    setDraft('');
+  };
 
   const addParticipant = (email: string, name?: string) => {
     const trimmed = email.trim();
@@ -260,7 +275,7 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
       <TextInput
         value={draft}
         onChangeText={setDraft}
-        placeholder={t('calendar.event_modal.participant_placeholder', 'Add participant by email')}
+        placeholder={t('calendar.participants.email_placeholder', 'Add email address or search contacts')}
         placeholderTextColor={c.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
@@ -279,15 +294,19 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
         >
           {filteredSuggestions.map((s) => (
             <Pressable
-              key={s.email}
+              key={s.group ? `group:${s.group.id}` : s.email}
               style={({ pressed }) => [
                 styles.suggestionRow,
                 pressed && styles.suggestionRowPressed,
               ]}
-              onPress={() => addParticipant(s.email, s.name)}
+              onPress={() => pickSuggestion(s)}
             >
               {s.name && <Text style={styles.suggestionName}>{s.name}</Text>}
-              <Text style={styles.suggestionEmail}>{s.email}</Text>
+              <Text style={styles.suggestionEmail}>
+                {s.group
+                  ? t('contacts.groups.member_count', '{count, plural, =0 {No members} one {1 member} other {# members}}', { count: s.group.memberCount })
+                  : s.email}
+              </Text>
             </Pressable>
           ))}
         </ScrollView>

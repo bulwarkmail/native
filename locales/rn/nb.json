@@ -19,9 +19,6 @@
       "shared_with_me": "Delt med meg",
       "subscribed": "Abonnerte"
     },
-    "event_modal": {
-      "participant_placeholder": "Legg til deltaker via e-post"
-    },
     "events": {
       "copy_link_short": "Lenke",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Programtillegg",
-      "themes": "Temaer",
       "updates": "Oppdateringer"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Standardpalettene for lyst og mørkt.",
       "default_name": "Bulwark",
-      "mobile_description": "Velg et fargetema. Temaene følger innstillingen for lyst/mørkt under Utseende; egendefinerte temapakker administreres i nettposten.",
-      "title": "Temaer"
+      "mobile_description": "Velg et fargetema. Temaene følger innstillingen for lyst/mørkt under Utseende; egendefinerte temapakker administreres i nettposten."
     },
     "vacation": {
+      "date_range": {
+        "description": "Begrens om ønskelig autosvaret til en bestemt periode",
+        "title": "Datoperiode"
+      },
+      "message": {
+        "description": "Meldingen som sendes som svar",
+        "title": "Melding for automatisk svar"
+      },
       "warnings": {
         "date_format": "Datoer må ha formatet «YYYY-MM-DD» eller «YYYY-MM-DD HH:MM»"
       }

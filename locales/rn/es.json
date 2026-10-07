@@ -19,9 +19,6 @@
       "shared_with_me": "Compartidos conmigo",
       "subscribed": "Suscritos"
     },
-    "event_modal": {
-      "participant_placeholder": "Añadir participante por correo"
-    },
     "events": {
       "copy_link_short": "Enlace",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Temas",
       "updates": "Actualizaciones"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Las paletas clara y oscura predeterminadas.",
       "default_name": "Bulwark",
-      "mobile_description": "Elige un tema de color. Los temas siguen el ajuste claro/oscuro de Apariencia; los paquetes de temas personalizados se gestionan en el webmail.",
-      "title": "Temas"
+      "mobile_description": "Elige un tema de color. Los temas siguen el ajuste claro/oscuro de Apariencia; los paquetes de temas personalizados se gestionan en el webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opcionalmente limitar la respuesta automática a un período específico",
+        "title": "Período"
+      },
+      "message": {
+        "description": "El mensaje que se enviará como respuesta",
+        "title": "Mensaje de respuesta automática"
+      },
       "warnings": {
         "date_format": "Las fechas deben tener el formato \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
       }

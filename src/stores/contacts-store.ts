@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPersistStorage, memoizeSlice } from './persist-storage';
-import type { ContactCard, AddressBook, StateChange, EmailAddress } from '../api/types';
+import type { ContactCard, AddressBook, AddressBookRights, StateChange, EmailAddress } from '../api/types';
 import {
   getAddressBooks as fetchPrimaryAddressBooks,
   getAllAddressBooks as fetchAllAddressBooks,
@@ -16,6 +16,7 @@ import {
   updateAddressBook as apiUpdateAddressBook,
   deleteAddressBook as apiDeleteAddressBook,
   setDefaultAddressBook as apiSetDefaultAddressBook,
+  setAddressBookShare as apiSetAddressBookShare,
   getContactsInBook,
   getContactsAccountId,
   getContactCapableAccountIds,
@@ -25,7 +26,10 @@ import {
 import { queryRecentRecipients, searchSentRecipients, type RecentRecipient } from '../api/recent-recipients';
 import { getPrincipals } from '../api/principals';
 import { jmapClient } from '../api/jmap-client';
+import type { OpScope } from '../api/op-scope';
 import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
+import { isShownAccount, requireShownAccountScope } from './email-store';
+import { t } from './locale-store';
 import {
   getContactDisplayName,
   getContactKeywords,
@@ -154,8 +158,12 @@ export interface ContactsState {
   refresh: () => Promise<void>;
   handleStateChange: (change: StateChange) => Promise<void>;
 
-  createContact: (contact: Partial<ContactCard>, addressBookId: string) => Promise<ContactCard>;
-  updateContact: (id: string, changes: Partial<ContactCard>) => Promise<void>;
+  /**
+   * `at`: the scope the caller's operation took (`requireShownAccountScope`);
+   * the write is refused once another connection replaced it.
+   */
+  createContact: (contact: Partial<ContactCard>, addressBookId: string, at?: OpScope) => Promise<ContactCard>;
+  updateContact: (id: string, changes: Partial<ContactCard>, at?: OpScope) => Promise<void>;
   deleteContact: (id: string) => Promise<void>;
   bulkDelete: (ids: string[]) => Promise<void>;
   importContacts: (
@@ -180,6 +188,17 @@ export interface ContactsState {
   renameAddressBook: (id: string, name: string) => Promise<void>;
   deleteAddressBook: (id: string) => Promise<void>;
   setDefaultAddressBook: (id: string) => Promise<void>;
+  /**
+   * Grant `principalId` `rights` on one of the user's own books (null:
+   * revoke), in app account `owner` (the one the share sheet opened in).
+   * Refused once another account is shown, and for a book shared with the user.
+   */
+  shareAddressBook: (
+    id: string,
+    principalId: string,
+    rights: AddressBookRights | null,
+    owner: { appAccountId: string | null },
+  ) => Promise<void>;
   /** The book new contacts / imports should land in when none is chosen. */
   getDefaultAddressBookId: () => string | null;
 
@@ -317,6 +336,11 @@ let trustedSendersInFlight: InFlightLoad | null = null;
 
 function startLoad(): StoreLoad {
   return { gen: jmapClient.connectionGen, epoch: loadEpoch };
+}
+
+/** The trailing `{ gen }` argument of a write bound to `at`; none for an unscoped one. */
+function requestGen(at: OpScope | undefined): [] | [{ gen: number }] {
+  return at ? [{ gen: at.gen }] : [];
 }
 
 /** Whether `load` is still this store's: same connection, no reset since. */
@@ -526,18 +550,28 @@ export const useContactsStore = create<ContactsState>()(
           }
         },
 
-        createContact: async (contact, addressBookId) => {
+        createContact: async (contact, addressBookId, at) => {
           const { originalId, accountId, book } = bookTarget(addressBookId);
-          const created = tagCreated(await apiCreateContact(contact, originalId, accountId), book);
+          const epoch = loadEpoch;
+          const created = tagCreated(
+            await apiCreateContact(contact, originalId, accountId, ...requestGen(at)),
+            book,
+          );
+          // An account switch meanwhile: the list is another account's now.
+          if (epoch !== loadEpoch) return created;
           set({ contacts: [...get().contacts, created] });
           requestDeviceSync(CONTACTS_AUTHORITY);
           return created;
         },
 
-        updateContact: async (id, changes) => {
+        updateContact: async (id, changes, at) => {
           const contact = get().contacts.find((c) => c.id === id);
           const { originalId, accountId } = contactTarget(id);
-          await apiUpdateContact(originalId, cleanPatch(contact, changes), accountId);
+          const epoch = loadEpoch;
+          await apiUpdateContact(originalId, cleanPatch(contact, changes), accountId, ...requestGen(at));
+          // An account switch meanwhile: card ids repeat across accounts, so
+          // merging would write these changes onto the new account's card.
+          if (epoch !== loadEpoch) return;
           set({
             contacts: get().contacts.map((c) => {
               if (c.id !== id) return c;
@@ -777,6 +811,26 @@ export const useContactsStore = create<ContactsState>()(
                 return { ...b, isDefault: false };
               }
               return b;
+            }),
+          });
+        },
+
+        shareAddressBook: async (id, principalId, rights, owner) => {
+          const at = requireShownAccountScope(owner.appAccountId);
+          const { originalId, book } = bookTarget(id);
+          // Only the owner shares a book (as in the webmail).
+          if (!book || book.isShared) throw new Error(t('sharing.own_books_only', 'Only your own address books can be shared'));
+          const epoch = loadEpoch;
+          await apiSetAddressBookShare(originalId, principalId, rights, at);
+          // An account switch meanwhile: book ids repeat across accounts.
+          if (epoch !== loadEpoch || !isShownAccount(owner.appAccountId)) return;
+          set({
+            addressBooks: get().addressBooks.map((b) => {
+              if (b.id !== id) return b;
+              const next = { ...(b.shareWith ?? {}) };
+              if (rights === null) delete next[principalId];
+              else next[principalId] = rights;
+              return { ...b, shareWith: next };
             }),
           });
         },

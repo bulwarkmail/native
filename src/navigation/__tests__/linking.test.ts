@@ -98,6 +98,59 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('bulwarkmobile://mail/search')).toEqual({ kind: 'search', query: '' });
   });
 
+  describe('contact links (the webmail\'s parseContactsPath)', () => {
+    it('opens a blank new-contact form for /contacts/new', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/new')).toEqual({ kind: 'contactNew' });
+      expect(parseDeepLink('bulwarkmobile://contacts/new')).toEqual({ kind: 'contactNew' });
+    });
+
+    it('prefills the new-contact form from ?email= and ?name=', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/new?email=a@b&name=A%20B'))
+        .toEqual({ kind: 'contactNew', email: 'a@b', name: 'A B' });
+      // The legacy names work on /new too.
+      expect(parseDeepLink('https://mail.example.com/contacts/new?addEmail=a@b&addName=A'))
+        .toEqual({ kind: 'contactNew', email: 'a@b', name: 'A' });
+      expect(parseDeepLink('https://mail.example.com/contacts/new?name=Only%20Name'))
+        .toEqual({ kind: 'contactNew', name: 'Only Name' });
+    });
+
+    it('reads the legacy ?addEmail= / ?addName= query as a new contact', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts?addEmail=a@b&from=email'))
+        .toEqual({ kind: 'contactNew', email: 'a@b' });
+      expect(parseDeepLink('https://mail.example.com/contacts?addName=Ann'))
+        .toEqual({ kind: 'contactNew', name: 'Ann' });
+    });
+
+    it('opens the edit form for /contacts/<id>/edit', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/C9/edit')).toEqual({ kind: 'contact', contactId: 'C9', edit: true });
+      expect(parseDeepLink('bulwarkmobile://contacts/C%2F9/edit')).toEqual({ kind: 'contact', contactId: 'C/9', edit: true });
+      // Any other second segment is just the card.
+      expect(parseDeepLink('https://mail.example.com/contacts/C9/other')).toEqual({ kind: 'contact', contactId: 'C9' });
+    });
+
+    it('reads the legacy ?contactId=&view=edit query', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts?contactId=C9&view=edit'))
+        .toEqual({ kind: 'contact', contactId: 'C9', edit: true });
+      expect(parseDeepLink('https://mail.example.com/contacts?contactId=C9'))
+        .toEqual({ kind: 'contact', contactId: 'C9' });
+    });
+
+    it('drops a locale prefix', () => {
+      expect(parseDeepLink('https://mail.example.com/de/contacts/C9/edit')).toEqual({ kind: 'contact', contactId: 'C9', edit: true });
+      expect(parseDeepLink('https://mail.example.com/pt-BR/contacts/new?email=a@b'))
+        .toEqual({ kind: 'contactNew', email: 'a@b' });
+    });
+
+    it('carries ?account= as the signed-in account to switch to', () => {
+      expect(parseDeepLink('https://mail.example.com/contacts/C9/edit?account=acc'))
+        .toEqual({ kind: 'contact', contactId: 'C9', edit: true, accountId: 'acc' });
+      expect(parseDeepLink('https://mail.example.com/contacts/new?email=a@b&account=acc'))
+        .toEqual({ kind: 'contactNew', email: 'a@b', accountId: 'acc' });
+      expect(parseDeepLink('https://mail.example.com/contacts?contactId=C9&account=acc'))
+        .toEqual({ kind: 'contact', contactId: 'C9', accountId: 'acc' });
+    });
+  });
+
   it('rejects unknown links', () => {
     expect(parseDeepLink('bulwarkmobile://whatever')).toBeNull();
     expect(parseDeepLink('garbage')).toBeNull();
@@ -109,7 +162,9 @@ describe('handleDeepLink', () => {
   const nav = () => ({
     isReady: () => true,
     navigate: vi.fn(),
+    dispatch: vi.fn(),
   });
+  const push = (params: object) => ({ type: 'PUSH', payload: { name: 'ContactForm', params } });
 
   it('resolves a message to its thread before opening the reader', async () => {
     const navigation = nav();
@@ -199,6 +254,87 @@ describe('handleDeepLink', () => {
     expect(await handleDeepLink(link!, {
       navigation: navigation as never, resolveThreadId: async () => null, switchAccount: async () => false,
     })).toBe(false);
+  });
+
+  it('opens the contact card under its edit form, so Back lands on the card', async () => {
+    const navigation = nav();
+    expect(await handleDeepLink(
+      { kind: 'contact', contactId: 'C9', edit: true },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    )).toBe(true);
+    expect(navigation.navigate.mock.calls).toEqual([['ContactDetail', { contactId: 'C9' }]]);
+    expect(navigation.dispatch.mock.calls).toEqual([[push({ contactId: 'C9' })]]);
+    // The card is opened before the form goes over it.
+    expect(navigation.navigate.mock.invocationCallOrder[0]).toBeLessThan(navigation.dispatch.mock.invocationCallOrder[0]);
+  });
+
+  it('opens just the card for a contact link without /edit', async () => {
+    const navigation = nav();
+    await handleDeepLink({ kind: 'contact', contactId: 'C9' }, { navigation: navigation as never, resolveThreadId: async () => null });
+    expect(navigation.navigate.mock.calls).toEqual([['ContactDetail', { contactId: 'C9' }]]);
+    expect(navigation.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('opens a new-contact form with the link\'s email and name', async () => {
+    const navigation = nav();
+    await handleDeepLink(
+      { kind: 'contactNew', email: 'a@b', name: 'A B' },
+      { navigation: navigation as never, resolveThreadId: async () => null },
+    );
+    expect(navigation.dispatch).toHaveBeenCalledWith(push({ prefill: { email: 'a@b', name: 'A B' } }));
+    const blank = nav();
+    await handleDeepLink({ kind: 'contactNew' }, { navigation: blank as never, resolveThreadId: async () => null });
+    expect(blank.dispatch).toHaveBeenCalledWith(push({}));
+  });
+
+  it('pushes a new form over one already open instead of handing it the new params', async () => {
+    // A navigator whose top screen is an edit of C1: NAVIGATE to the same
+    // screen name would replace that form's params and keep its values.
+    const stack = [{ name: 'ContactForm', params: { contactId: 'C1' } as object }];
+    const navigation = {
+      isReady: () => true,
+      navigate: vi.fn((name: string, params: object) => {
+        if (stack[stack.length - 1].name === name) stack[stack.length - 1].params = params;
+        else stack.push({ name, params });
+      }),
+      dispatch: vi.fn((action: { type: string; payload: { name: string; params: object } }) => {
+        if (action.type === 'PUSH') stack.push({ name: action.payload.name, params: action.payload.params });
+      }),
+    };
+    await handleDeepLink({ kind: 'contactNew', email: 'a@b' }, { navigation: navigation as never, resolveThreadId: async () => null });
+    expect(stack).toEqual([
+      { name: 'ContactForm', params: { contactId: 'C1' } },
+      { name: 'ContactForm', params: { prefill: { email: 'a@b' } } },
+    ]);
+    await handleDeepLink({ kind: 'contact', contactId: 'C9', edit: true }, { navigation: navigation as never, resolveThreadId: async () => null });
+    expect(stack.slice(2)).toEqual([
+      { name: 'ContactDetail', params: { contactId: 'C9' } },
+      { name: 'ContactForm', params: { contactId: 'C9' } },
+    ]);
+  });
+
+  it('switches to a contact link\'s account first, and opens nothing when it is not signed in', async () => {
+    const navigation = nav();
+    const switchAccount = vi.fn(async () => true);
+    await handleDeepLink(
+      { kind: 'contact', contactId: 'C9', edit: true, accountId: 'acc' },
+      { navigation: navigation as never, resolveThreadId: async () => null, switchAccount },
+    );
+    expect(switchAccount).toHaveBeenCalledWith('acc');
+    expect(navigation.navigate).toHaveBeenCalledTimes(1);
+    expect(navigation.dispatch).toHaveBeenCalledTimes(1);
+
+    const refused = nav();
+    for (const link of [
+      { kind: 'contact' as const, contactId: 'C9', edit: true, accountId: 'gone' },
+      { kind: 'contactNew' as const, email: 'a@b', accountId: 'gone' },
+    ]) {
+      expect(await handleDeepLink(link, {
+        navigation: refused as never, resolveThreadId: async () => null, switchAccount: async () => false,
+      })).toBe(false);
+    }
+    expect(refused.navigate).not.toHaveBeenCalled();
+    expect(refused.dispatch).not.toHaveBeenCalled();
   });
 
   it('parks the settings tab and opens the Settings tab', async () => {

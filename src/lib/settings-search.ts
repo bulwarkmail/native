@@ -95,6 +95,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.plain_text_mode',
     'settings.email_behavior.request_read_receipt',
     'settings.email_behavior.empty_subject_warning',
+    'settings.email_behavior.recipient_mentions',
     'settings.email_behavior.signature_separator',
     'settings.email_behavior.signature_position',
     'settings.email_behavior.send_delay',
@@ -111,7 +112,16 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'identities.form.text_signature_label',
     'identities.form.html_signature_label',
   ],
-  vacation: ['settings.vacation'],
+  // Not the whole namespace: the webmail's forwarding and reply-audience
+  // settings (settings.vacation.forward / .audience) have no native control.
+  vacation: [
+    'settings.vacation.title',
+    'settings.vacation.description',
+    'settings.vacation.status',
+    'settings.vacation.date_range',
+    'settings.vacation.message',
+    'settings.vacation.preview',
+  ],
   filters: [
     'settings.filters.title',
     'settings.filters.add_rule',

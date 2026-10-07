@@ -47,6 +47,9 @@ export interface ComposeDraftContext {
   messageId?: string[] | null;
   inReplyTo?: string[] | null;
   references?: string[] | null;
+  /** Delivery options to start with: a send undone to edit keeps them. */
+  requestDsn?: boolean;
+  requireTls?: boolean;
 }
 
 export type RootStackParamList = {
@@ -90,7 +93,7 @@ export type RootStackParamList = {
     contactId?: string;
     addressBookId?: string;
     asGroup?: boolean;
-    prefill?: { email: string; name?: string };
+    prefill?: { email?: string; name?: string };
     /** Pre-selected member ids when creating a group. */
     memberIds?: string[];
   };

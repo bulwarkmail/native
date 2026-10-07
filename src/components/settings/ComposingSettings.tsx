@@ -26,6 +26,7 @@ export function ComposingSettings() {
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
+  const recipientMentionsEnabled = useSettingsStore((s) => s.recipientMentionsEnabled);
   const autoSaveDraftInterval = useSettingsStore((s) => s.autoSaveDraftInterval);
   const subAddressDelimiter = useSettingsStore((s) => s.subAddressDelimiter);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
@@ -139,6 +140,15 @@ export function ComposingSettings() {
         description={t('settings.email_behavior.empty_subject_warning.description', "Ask for confirmation before sending a message with no subject.")}
       >
         <ToggleSwitch checked={emptySubjectWarningEnabled} onChange={(v) => updateSetting('emptySubjectWarningEnabled', v)} />
+      </SettingItem>
+
+      {/* Webmail's description promises Enter or Tab picks a name; here the
+          list is tap-only (soft keyboards don't report those keys reliably). */}
+      <SettingItem
+        label={t('settings.email_behavior.recipient_mentions.label', "Mention recipients with @")}
+        description={t('settings.email_behavior.recipient_mentions.description_mobile', "Typing @ in the message offers its recipients and inserts the chosen one's first name.")}
+      >
+        <ToggleSwitch checked={recipientMentionsEnabled} onChange={(v) => updateSetting('recipientMentionsEnabled', v)} />
       </SettingItem>
 
       <View style={styles.subBlock}>

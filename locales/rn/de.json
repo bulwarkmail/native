@@ -19,9 +19,6 @@
       "shared_with_me": "Mit mir geteilt",
       "subscribed": "Abonniert"
     },
-    "event_modal": {
-      "participant_placeholder": "Teilnehmer per E-Mail hinzufügen"
-    },
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
@@ -1086,7 +1083,6 @@
     },
     "tabs": {
       "plugins": "Plugins",
-      "themes": "Designs",
       "updates": "Updates"
     },
     "templates": {
@@ -1104,10 +1100,17 @@
     "themes": {
       "default_description": "Die Standardpaletten für Hell und Dunkel.",
       "default_name": "Bulwark",
-      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet.",
-      "title": "Designs"
+      "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet."
     },
     "vacation": {
+      "date_range": {
+        "description": "Optional die automatische Antwort auf einen bestimmten Zeitraum beschränken",
+        "title": "Zeitraum"
+      },
+      "message": {
+        "description": "Die Nachricht, die als Antwort gesendet wird",
+        "title": "Automatische Antwortnachricht"
+      },
       "warnings": {
         "date_format": "Datumsangaben müssen das Format \"YYYY-MM-DD\" oder \"YYYY-MM-DD HH:MM\" haben"
       }

@@ -1,5 +1,7 @@
 import type { CalendarEvent, Participant } from '../api/types';
 import { generateUUID } from './uuid';
+import type { RecipientSuggestion } from '../stores/contacts-store';
+import type { EmailAddress } from '../api/types';
 
 // Port of the webmail's lib/calendar-participants.ts.
 
@@ -439,6 +441,44 @@ export function seedAttendees(
     if (!key || excluded.has(key)) continue;
     excluded.add(key);
     out.push({ name: p.name, email: p.email.trim() });
+  }
+  return out;
+}
+
+const PARTICIPANT_MIN_QUERY = 2;
+const PARTICIPANT_SUGGESTION_LIMIT = 8;
+
+/** The trimmed query to look guests up by; empty when it is too short to search. */
+export function participantQuery(draft: string): string {
+  const q = draft.trim();
+  return q.length < PARTICIPANT_MIN_QUERY ? '' : q;
+}
+
+/**
+ * Guest suggestions: addresses already on the event are left out
+ * (case-insensitive). Groups have no address of their own and stay.
+ */
+export function participantSuggestions(
+  all: RecipientSuggestion[],
+  existing: ReadonlySet<string>,
+  limit = PARTICIPANT_SUGGESTION_LIMIT,
+): RecipientSuggestion[] {
+  return all.filter((s) => s.group || !existing.has(s.email.toLowerCase())).slice(0, limit);
+}
+
+/**
+ * Picking a group adds its members, minus anyone already a guest. Deliberate
+ * divergence: webmail cannot pick a group (its email check rejects '').
+ */
+export function groupPickAttendees(members: EmailAddress[], existing: ReadonlySet<string>): Attendee[] {
+  const seen = new Set(existing);
+  const out: Attendee[] = [];
+  for (const m of members) {
+    const email = m.email.trim();
+    const key = email.toLowerCase();
+    if (!email || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name: m.name || '', email });
   }
   return out;
 }

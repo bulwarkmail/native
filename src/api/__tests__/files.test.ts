@@ -32,6 +32,8 @@ import {
   copyFileNode,
   createFolder,
   deleteFileNodes,
+  fileNodeAttachment,
+  planFileNodePick,
   getAllFileNodes,
   getAllFileNodesAcrossAccounts,
   getFileNodeDownloadUrl,
@@ -269,7 +271,7 @@ describe('setFileNodeShare', () => {
 
     mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', {}, '0']] });
     await expect(setFileNodeShare('node-1', 'p2', null)).rejects.toThrow(
-      'Server did not confirm the share update',
+      'The server did not confirm the share update',
     );
   });
 });
@@ -829,5 +831,86 @@ describe('createFolder name decoding (#869)', () => {
     });
     const node = await createFolder('Spares Catalog', null);
     expect(node.name).toBe('Spares Catalog');
+  });
+});
+
+describe('fileNodeAttachment (#1179)', () => {
+  const own = {
+    id: 'f1', name: 'report.pdf', parentId: null, type: 'application/pdf',
+    blobId: 'b1', size: 1000, accountId: 'c', isShared: false,
+  };
+
+  it('turns a file in the owner\'s account into an attachment of its blob', () => {
+    expect(fileNodeAttachment(own, 'c', 0)).toEqual({
+      ok: true,
+      attachment: { blobId: 'b1', name: 'report.pdf', type: 'application/pdf', size: 1000 },
+    });
+  });
+
+  it('falls back to octet-stream when the node has no type', () => {
+    const result = fileNodeAttachment({ ...own, type: '' }, 'c', 0);
+    expect(result.ok && result.attachment.type).toBe('application/octet-stream');
+  });
+
+  it('refuses a node shared from another account: its blob id names a blob there', () => {
+    const shared = { ...own, id: 'e:f1', accountId: 'e', accountName: 'userb@example.org', isShared: true };
+    expect(fileNodeAttachment(shared, 'c', 0)).toEqual({ ok: false, reason: 'other_account' });
+  });
+
+  it('refuses a node of a listing read for another account, whose ids collide with ours', () => {
+    expect(fileNodeAttachment(own, 'd', 0)).toEqual({ ok: false, reason: 'other_account' });
+    expect(fileNodeAttachment({ ...own, accountId: undefined }, 'c', 0)).toEqual({ ok: false, reason: 'other_account' });
+    expect(fileNodeAttachment(own, '', 0)).toEqual({ ok: false, reason: 'other_account' });
+  });
+
+  it('refuses a folder', () => {
+    expect(fileNodeAttachment({ ...own, type: 'd', blobId: null, size: 0 }, 'c', 0))
+      .toEqual({ ok: false, reason: 'folder' });
+  });
+
+  it('refuses a file over the per-file limit, and takes one at the limit', () => {
+    expect(fileNodeAttachment(own, 'c', 999)).toEqual({ ok: false, reason: 'too_large' });
+    expect(fileNodeAttachment(own, 'c', 1000).ok).toBe(true);
+  });
+});
+
+describe('planFileNodePick', () => {
+  const file = (id: string, name: string, blobId: string, size = 100) => ({
+    id, name, parentId: null, type: 'text/plain', blobId, size, accountId: 'c', isShared: false,
+  });
+  const fitsAll = () => true;
+
+  it('attaches two identical files with different names, each once', () => {
+    // Same content, so the same blob: deduping by blob dropped the second name.
+    const plan = planFileNodePick([file('f1', 'a.txt', 'b1'), file('f2', 'copy of a.txt', 'b1')], {
+      accountId: 'c', maxSizeUpload: 0, attachedNodeIds: [], fitsTotal: fitsAll,
+    });
+    expect(plan.attach.map((a) => [a.nodeId, a.name, a.blobId])).toEqual([['f1', 'a.txt', 'b1'], ['f2', 'copy of a.txt', 'b1']]);
+    expect(plan.alreadyAttached).toEqual([]);
+  });
+
+  it('skips a node already on the message, or picked twice, and names it', () => {
+    const plan = planFileNodePick([file('f1', 'a.txt', 'b1'), file('f2', 'b.txt', 'b2'), file('f2', 'b.txt', 'b2')], {
+      accountId: 'c', maxSizeUpload: 0, attachedNodeIds: ['f1'], fitsTotal: fitsAll,
+    });
+    expect(plan.attach.map((a) => a.nodeId)).toEqual(['f2']);
+    expect(plan.alreadyAttached).toEqual(['a.txt']);
+  });
+
+  it('names files over the per-file limit and stops at the total limit', () => {
+    const plan = planFileNodePick([file('f1', 'big.bin', 'b1', 5000), file('f2', 'a.txt', 'b2', 60), file('f3', 'b.txt', 'b3', 60)], {
+      accountId: 'c', maxSizeUpload: 1000, attachedNodeIds: [], fitsTotal: (size, adding) => size + adding <= 100,
+    });
+    expect(plan.attach.map((a) => a.nodeId)).toEqual(['f2']);
+    expect(plan.tooLarge).toEqual(['big.bin']);
+    expect(plan.overTotal).toBe(true);
+  });
+
+  it('leaves out folders and other accounts\' files without a word', () => {
+    const plan = planFileNodePick([
+      { ...file('d1', 'Docs', ''), blobId: null, type: 'd' },
+      { ...file('e:f1', 'theirs.txt', 'b9'), accountId: 'e', isShared: true },
+    ], { accountId: 'c', maxSizeUpload: 0, attachedNodeIds: [], fitsTotal: fitsAll });
+    expect(plan).toEqual({ attach: [], tooLarge: [], alreadyAttached: [], overTotal: false });
   });
 });
