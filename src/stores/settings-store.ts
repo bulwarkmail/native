@@ -295,6 +295,9 @@ interface PersistedSettings {
   // Filters UI state
   filtersExpandedView: boolean;
 
+  // Files: the storage notice at the Files root, once dismissed, stays dismissed.
+  filesStabilityNoticeDismissed: boolean;
+
   // Debug logging (see lib/debug.ts). Persisted like the webmail so a support
   // session survives restarts.
   debugMode: boolean;
@@ -453,6 +456,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   keepAppsLoaded: false,
 
   filtersExpandedView: false,
+
+  filesStabilityNoticeDismissed: false,
 
   debugMode: false,
   debugCategories: {
@@ -701,6 +706,7 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'filesColoredIcons',
   'filesShowThumbnails',
   'filesShowHiddenFiles',
+  'filesStabilityNoticeDismissed',
   'calendarDefaultView',
 ]);
 

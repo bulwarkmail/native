@@ -16,6 +16,27 @@ describe('settings-store', () => {
     useSettingsStore.getState().resetToDefaults();
   });
 
+  describe('Files storage notice', () => {
+    it('is not dismissed by default', () => {
+      expect(useSettingsStore.getState().filesStabilityNoticeDismissed).toBe(false);
+    });
+
+    it('persists a dismissal and reads it back', () => {
+      useSettingsStore.getState().updateSetting('filesStabilityNoticeDismissed', true);
+      expect(useSettingsStore.getState().filesStabilityNoticeDismissed).toBe(true);
+      expect(mergeWithDefaults({ filesStabilityNoticeDismissed: true }).filesStabilityNoticeDismissed).toBe(true);
+    });
+
+    it('falls back to not dismissed for a non-boolean value', () => {
+      expect(mergeWithDefaults({ filesStabilityNoticeDismissed: 'yes' as never }).filesStabilityNoticeDismissed).toBe(false);
+    });
+
+    it('is app-only: never exported or imported', () => {
+      expect('filesStabilityNoticeDismissed' in toExportShape(useSettingsStore.getState())).toBe(false);
+      expect(fromExportShape({ filesStabilityNoticeDismissed: true })).toEqual({});
+    });
+  });
+
   describe('calendar working hours and days (#1164)', () => {
     it('defaults to limiting the view to 08:00-20:00 on weekdays', () => {
       const s = useSettingsStore.getState();
