@@ -1418,6 +1418,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const buildOutgoing = React.useCallback((identity: Identity, liveHtml: string, opts: { forDraft: boolean }): OutgoingEmail => {
     const { from, envelopeMailFrom, envelopeFallbackMailFrom } = senderAddress(identity);
+    const replyToIdentity = submissionIdentity ?? identity;
     if (!messageIdRef.current) messageIdRef.current = generateMessageId(identity.email);
 
     let htmlBody: string | undefined;
@@ -1477,7 +1478,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       cc: finalCc.length ? expandRecipients(finalCc).map(toAddress) : undefined,
       bcc: bccAll.length ? bccAll : undefined,
       // The identity's Reply-To rides along on every message sent with it.
-      replyTo: identity.replyTo?.length ? identity.replyTo : undefined,
+      // An identity that owns the From override sends it, with its own
+      // Reply-To (webmail #1009).
+      replyTo: replyToIdentity.replyTo?.length ? replyToIdentity.replyTo : undefined,
       subject,
       htmlBody,
       textBody,
@@ -1495,7 +1498,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       ...(!opts.forDraft && requireTls ? { requireTls: true } : {}),
     };
   }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt,
-    requestDsn, requireTls]);
+    requestDsn, requireTls, submissionIdentity]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {

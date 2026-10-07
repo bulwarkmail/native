@@ -739,6 +739,32 @@ describe('sendEmail: the From override as MAIL FROM, the identity as fallback (#
     expect(mockRequest).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ['with a fallback', OUTGOING],
+    ['on a legacy row', { ...OUTGOING, envelopeMailFrom: 'me@example.com', envelopeFallbackMailFrom: undefined }],
+  ])('a submission reported both created and refused counts as created (%s): one submission, the copy kept', async (_name, outgoing) => {
+    mockRequest
+      .mockResolvedValueOnce({ methodResponses: [
+        ['Email/set', { created: { draft: { id: 'e-new' } } }, '0'],
+        ['EmailSubmission/set', {
+          created: { 'sub-1': { id: 's-1' } },
+          notCreated: { 'sub-1': { type: 'forbiddenFrom', description: 'Not your address' } },
+        }, '1'],
+        ['EmailSubmission/get', { list: [{ deliveryStatus: { 'you@example.com': { delivered: 'queued' } } }] }, 'deliveryStatus'],
+      ] })
+      .mockResolvedValueOnce({ methodResponses: [['Email/set', { destroyed: ['old-draft'] }, '0']] });
+
+    const result = await sendEmail(outgoing, 'identity-1', 'sent-mb', undefined, OPTS);
+
+    expect(result).toMatchObject({ emailId: 'e-new', emailSubmissionId: 's-1' });
+    const submissions = mockRequest.mock.calls
+      .flatMap((c) => c[0] as Array<[string]>)
+      .filter(([m]) => m === 'EmailSubmission/set');
+    expect(submissions).toHaveLength(1);
+    // Only the previous draft goes; the sent copy stays.
+    expect(destroyCalls()).toEqual([['shared-1', ['old-draft']]]);
+  });
+
   it('without a known created copy, nothing is retried', async () => {
     mockRequest.mockResolvedValueOnce(refusedWith({ type: 'forbiddenFrom', description: 'Not your address' }, {}));
     await expect(sendEmail(OUTGOING, 'identity-1', 'sent-mb', undefined, OPTS)).rejects.toThrow('Not your address');

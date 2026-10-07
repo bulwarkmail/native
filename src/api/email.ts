@@ -1819,10 +1819,12 @@ export interface SendEmailOptions {
 interface ParsedSend {
   emailId?: string;
   emailSubmissionId?: string;
+  /** The server reported the submission created, with or without an id. */
+  submissionCreated: boolean;
   sendAt?: string;
   filingWarning?: string;
   failure?: Error;
-  /** An explicit `notCreated` for the submission: nothing was queued. */
+  /** An explicit `notCreated` for the submission, none created: nothing was queued. */
   refusal?: { description?: string; type?: string };
   deliveryStatus?: Record<string, { delivered?: string; smtpReply?: string }>;
 }
@@ -1891,20 +1893,22 @@ function parseSendResponse(res: JMAPResponseBody): ParsedSend {
       }
     }
     if (methodName === 'EmailSubmission/set') {
+      const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
       const notCreated = (result as { notCreated?: Record<string, { description?: string; type?: string }> }).notCreated?.['sub-1'];
-      if (notCreated) {
+      // A submission reported created as well as refused may have left: the
+      // creation wins, so its copy is neither removed nor submitted again.
+      if (notCreated && !created) {
         const refused = submissionError(notCreated, 'Failed to submit message');
         failure = refused instanceof ScheduleTooLateError ? refused : new SendRefusedError(refused.message, notCreated.type);
         refusal = notCreated;
         break;
       }
-      const created = (result as { created?: Record<string, { id?: string; sendAt?: string }> }).created?.['sub-1'];
       if (created) submissionCreated = true;
       emailSubmissionId = created?.id;
       sendAt = created?.sendAt;
     }
   }
-  return { emailId, emailSubmissionId, sendAt, filingWarning, failure, refusal, deliveryStatus };
+  return { emailId, emailSubmissionId, submissionCreated, sendAt, filingWarning, failure, refusal, deliveryStatus };
 }
 
 const MAIL_FROM_REFUSALS = new Set(['forbiddenMailFrom', 'forbiddenFrom']);
@@ -1912,8 +1916,8 @@ const MAIL_FROM_REFUSALS = new Set(['forbiddenMailFrom', 'forbiddenFrom']);
 /**
  * Whether a send refused for its MAIL FROM is submitted once more with
  * `envelopeFallbackMailFrom`: only after an explicit refusal of that kind,
- * with the created copy known and a fallback that differs from the address
- * refused.
+ * with no submission created, the created copy known and a fallback that
+ * differs from the address refused.
  */
 function fallbackMailFromApplies(email: OutgoingEmail, first: ParsedSend): boolean {
   const fallback = email.envelopeFallbackMailFrom?.trim().toLowerCase();
@@ -1921,6 +1925,8 @@ function fallbackMailFromApplies(email: OutgoingEmail, first: ParsedSend): boole
   return !!first.refusal?.type
     && MAIL_FROM_REFUSALS.has(first.refusal.type)
     && !(first.failure instanceof ScheduleTooLateError)
+    && !first.submissionCreated
+    && !first.emailSubmissionId
     && !!first.emailId
     && !!fallback
     && fallback !== requested;
