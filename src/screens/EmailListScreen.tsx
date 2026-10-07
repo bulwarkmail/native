@@ -829,7 +829,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
-  const handleRefresh = React.useCallback(() => { void refreshEmails(); }, [refreshEmails]);
+  // A pull is the user asking for the list as the server orders it now, so
+  // rows held in place after being read take their sorted place again.
+  const handleRefresh = React.useCallback(() => {
+    useEmailStore.setState({ retainedIds: [] });
+    void refreshEmails();
+  }, [refreshEmails]);
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
@@ -984,10 +989,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // no query just put the cursor in the search field.
   const searchInputRef = React.useRef<TextInput>(null);
   // A folder opens at its top, not where the previous one was scrolled to.
+  // The account is part of the key: Stalwart ids repeat, so two accounts'
+  // inboxes can share an id.
   const listRef = React.useRef<FlatList<Email>>(null);
   React.useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [currentMailboxId]);
+  }, [currentMailboxId, activeAccountId]);
   const pendingSearch = usePendingMailSearch((s) => s.query);
   React.useEffect(() => {
     if (pendingSearch === null) return;
