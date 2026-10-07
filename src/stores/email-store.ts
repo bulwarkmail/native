@@ -2108,7 +2108,7 @@ export const useEmailStore = create<EmailState>()(
           ? (targets.length === 1
             ? t('notifications.moved_to_mailbox', `Email moved to ${targetName}`, { mailbox: targetName })
             : t('email_list.emails_moved_to', `${targets.length} emails moved to ${targetName}`, { count: targets.length, mailbox: targetName }))
-          : t('notifications.emails_moved', 'Emails moved'),
+          : t('notifications.emails_moved', `${targets.length} emails moved`, { count: targets.length }),
         createdAt: Date.now(),
         accountId: source.accountId,
         items,
@@ -2777,7 +2777,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
             ? (count === 1
               ? t('notifications.moved_to_mailbox', `Email moved to ${targetName}`, { mailbox: targetName })
               : t('email_list.emails_moved_to', `${count} emails moved to ${targetName}`, { count, mailbox: targetName }))
-            : t('notifications.emails_moved', 'Emails moved');
+            : t('notifications.emails_moved', `${count} emails moved`, { count });
   set({
     emails: get().emails.filter((e) => !goneKeys.has(rowKeyOf(e))),
     ...(count > 0

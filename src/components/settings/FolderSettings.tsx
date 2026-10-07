@@ -368,7 +368,7 @@ export function FolderSettings() {
               <Text style={styles.fieldLabel}>
                 {editor?.kind === 'edit'
                   ? t('settings.folders.move_under', 'Move under')
-                  : t('settings.folders.subfolder_of', 'Parent folder')}
+                  : t('settings.folders.parent_folder', 'Parent folder')}
               </Text>
               <Select
                 value={draftParent}
