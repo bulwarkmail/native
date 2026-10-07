@@ -9,7 +9,7 @@ import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useFilterStore } from '../../stores/filter-store';
+import { FiltersReloadedError, useFilterStore } from '../../stores/filter-store';
 import { useVacationStore } from '../../stores/vacation-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useEmailStore } from '../../stores/email-store';
@@ -198,7 +198,9 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   // keeps showing, or saving into, its script. The app account is a
   // dependency too: managedAccountId stays null across a switch.
   useEffect(() => {
-    void selectAccount(managedAccountId);
+    void selectAccount(managedAccountId, () =>
+      useAuthStore.getState().activeAccountId === activeAccountId &&
+      useManagedAccountStore.getState().managedAccountId === managedAccountId);
   }, [managedAccountId, selectAccount, activeAccountId]);
 
   // An edit in progress belongs to the account it was started in; drop it
@@ -221,7 +223,16 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const persist = useCallback(async (rollback: () => void) => {
     try {
       await saveFilters();
-    } catch {
+    } catch (err) {
+      // After a reconnect the store holds the rules as the server has them
+      // now, which the rollback must not change.
+      if (err instanceof FiltersReloadedError) {
+        Alert.alert(
+          t('settings.filters.save_failed', 'Failed to save filters'),
+          t('settings.filters.reloaded_try_again', 'Your filters were reloaded. Please make the change again.'),
+        );
+        return;
+      }
       rollback();
       Alert.alert(t('settings.filters.save_failed', 'Failed to save filters'));
     }

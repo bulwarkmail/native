@@ -20,6 +20,7 @@ import {
 } from '../lib/filters/account-filters';
 import { worstCaseForwards } from '../lib/filters/forward-limit';
 import { isCurrentScope, type OpScope } from '../api/op-scope';
+import { isStaleLoad } from '../lib/network-error';
 import {
   createSieveScript,
   getSieveCapabilities,
@@ -50,6 +51,19 @@ export class FiltersNotLoadedError extends Error {
   }
 }
 
+/**
+ * A save met a connection that was replaced, while the same account is still
+ * shown (a reconnect of the same login). Nothing was written; the filters
+ * were loaded again on the live connection, so the change has to be made
+ * again on what the server has now.
+ */
+export class FiltersReloadedError extends Error {
+  constructor() {
+    super('The filters were reloaded');
+    this.name = 'FiltersReloadedError';
+  }
+}
+
 interface FilterStore {
   rules: FilterRule[];
   isLoading: boolean;
@@ -70,8 +84,14 @@ interface FilterStore {
   selectedAccountId: string | null;
 
   fetchFilters: (accountId?: string) => Promise<void>;
-  /** Load another account's filters; null is the user's own Sieve account. */
-  selectAccount: (accountId: string | null) => Promise<void>;
+  /**
+   * Load another account's filters; null is the user's own Sieve account.
+   * `stillShown` says whether the screen still shows the app account and
+   * the managed account it was selected for: a save that meets a replaced
+   * connection then reloads them (see FiltersReloadedError).
+   */
+  selectAccount: (accountId: string | null, stillShown?: () => boolean) => Promise<void>;
+  /** Throws FiltersReloadedError when it met a reconnect and loaded the filters again. */
   saveFilters: () => Promise<void>;
   validateScript: (content: string) => Promise<{ isValid: boolean; errors?: string[] }>;
   addRule: (rule: FilterRule) => void;
@@ -97,6 +117,8 @@ let storeEpoch = 0;
 // save goes out on that connection, in that epoch, or not at all: it would
 // write an empty rule list, or one account's rules into another's script.
 let loaded: { epoch: number; at: OpScope } | null = null;
+// Whether what selectAccount was called for is still shown (see selectAccount).
+let stillShown: (() => boolean) | null = null;
 
 export const useFilterStore = create<FilterStore>()((set, get) => ({
   rules: [],
@@ -194,10 +216,11 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
     }
   },
 
-  selectAccount: async (accountId) => {
+  selectAccount: async (accountId, shown) => {
     // Drop the previous account's script first so its rules never show (or
     // get saved) under the newly selected account while the fetch runs.
     storeEpoch++;
+    stillShown = shown ?? null;
     set({
       selectedAccountId: accountId,
       rules: [],
@@ -254,6 +277,16 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
       if (epoch !== storeEpoch) {
         set({ isSaving: false });
         throw error;
+      }
+      // The connection the rules came from was replaced before the write
+      // went out, and the screen still shows the same login and account:
+      // load them again on the live one. Nothing is written there; the user
+      // makes the change again on what the server has now.
+      if (isStaleLoad(error) && stillShown?.()) {
+        await get().fetchFilters(get().selectedAccountId ?? undefined);
+        set({ isSaving: false });
+        if (epoch !== storeEpoch) throw error;
+        throw new FiltersReloadedError();
       }
       set({
         isSaving: false,
@@ -331,6 +364,7 @@ export const useFilterStore = create<FilterStore>()((set, get) => ({
   clearState: () => {
     storeEpoch++;
     loaded = null;
+    stillShown = null;
     set({
       rules: [],
       isLoading: false,

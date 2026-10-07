@@ -33,6 +33,7 @@ import {
 } from '../../lib/sieve/__tests__/fixtures/webmail';
 import {
   FiltersNotLoadedError,
+  FiltersReloadedError,
   readVacationFilters,
   SieveCapabilitiesUnknownError,
   syncVacationWithFilters,
@@ -435,5 +436,46 @@ describe('filter-store saves only what it loaded, as the server can run it', () 
     await useFilterStore.getState().saveFilters();
     // jmapClient sends nothing on a replaced connection (StaleLoadError).
     expect(api.updateSieveScript).toHaveBeenCalledWith('s1', expect.any(String), true, scope('own', 1));
+  });
+});
+
+describe('filter-store after a reconnect of the same login', () => {
+  const stale = () => Object.assign(new Error('stale'), { name: 'StaleLoadError' });
+  // jmapClient sends nothing on a replaced connection.
+  const refuseReplaced = () => api.updateSieveScript.mockImplementation(async (...args: unknown[]) => {
+    if ((args[3] as { gen: number }).gen !== conn.gen) throw stale();
+  });
+
+  it('reloads the filters on the live connection, writes nothing there, and says to try again', async () => {
+    serveScript([makeRule()]);
+    await useFilterStore.getState().selectAccount(null, () => true);
+    conn.gen = 2;
+    refuseReplaced();
+    serveScript([makeRule({ id: 'other-device', name: 'Other device' })]);
+
+    await expect(useFilterStore.getState().saveFilters()).rejects.toBeInstanceOf(FiltersReloadedError);
+    expect(api.getSieveScripts).toHaveBeenLastCalledWith(scope('own', 2));
+    expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
+    expect(api.updateSieveScript).toHaveBeenCalledWith('s1', expect.any(String), true, scope('own', 1));
+    expect(useFilterStore.getState()).toMatchObject({ error: null, isSaving: false });
+    expect(useFilterStore.getState().rules.map((r) => r.id)).toEqual(['other-device']);
+
+    // The next save goes out on the connection the rules were reloaded on.
+    await useFilterStore.getState().saveFilters();
+    expect(api.updateSieveScript).toHaveBeenLastCalledWith('s1', expect.any(String), true, scope('own', 2));
+  });
+
+  it('reloads nothing once another account is shown', async () => {
+    let shown = true;
+    serveScript([makeRule()]);
+    await useFilterStore.getState().selectAccount(null, () => shown);
+    conn.gen = 2;
+    shown = false;
+    refuseReplaced();
+    api.getSieveScripts.mockClear();
+
+    await expect(useFilterStore.getState().saveFilters()).rejects.toMatchObject({ name: 'StaleLoadError' });
+    expect(api.getSieveScripts).not.toHaveBeenCalled();
+    expect(api.updateSieveScript).toHaveBeenCalledTimes(1);
   });
 });

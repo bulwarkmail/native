@@ -937,6 +937,7 @@
       "invalid_size": "Enter a size as a whole number, optionally followed by K, M or G (for example 500K or 10M).",
       "period_clear": "Clear",
       "period_not_set": "Not set",
+      "reloaded_try_again": "Your filters were reloaded. Please make the change again.",
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
