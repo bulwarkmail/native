@@ -22,6 +22,7 @@ import { useSettingsStore, type SwipeAction } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { previewLine } from '../lib/preview-text';
 import { prefetchMessage, rememberRows } from '../lib/email-detail-cache';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
@@ -372,7 +373,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               )}
             </View>
             {item.preview ? (
-              <Text style={styles.preview} numberOfLines={1}>{singleLine(item.preview)}</Text>
+              <Text style={styles.preview} numberOfLines={1}>{previewLine(item.preview)}</Text>
             ) : null}
           </View>
         </Pressable>

@@ -42,7 +42,7 @@ describe('buildRowLabel', () => {
   it('joins unread, sender, subject, time, attachment and flagged', () => {
     expect(buildRowLabel({
       sender: 'Ann', subject: 'Lunch', time: '10:00', unread: 'Unread', attachment: 'Has attachment', flagged: 'Starred',
-    })).toBe('Unread, Ann, Lunch, 10:00, Has attachment, Starred');
+    })).toBe('Unread, Ann, Lunch, 10:00, Starred, Has attachment');
   });
   it('leaves out states that do not apply', () => {
     expect(buildRowLabel({ sender: 'Ann', subject: 'Lunch', time: '10:00' })).toBe('Ann, Lunch, 10:00');

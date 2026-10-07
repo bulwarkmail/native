@@ -410,6 +410,7 @@
     "no_tags_defined": "No tags defined. Add tags in Settings.",
     "no_trash_folder": "Could not find a Trash folder on the server. Please check your mailbox configuration.",
     "offline_nothing_cached": "No connection. Showing nothing because no mail has been cached yet.",
+    "open_attachment": "Open attachment: {name}",
     "open_draft_failed": "Could not open the draft.",
     "outbox_discard": "Discard",
     "outbox_failed": "{count} changes could not be saved to the server.",

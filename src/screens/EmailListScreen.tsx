@@ -16,17 +16,17 @@ import { useColors } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
-import { SwipeableRow } from '../components/SwipeableRow';
+import { SwipeableRow, actionLabel as swipeActionLabel } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
 import {
-  ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
+  ListAttachmentChips, MAX_CHIPS, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
 import { HighlightedText } from '../components/email/HighlightedText';
 import type { RowSnippet } from '../lib/search-snippet';
-import { VerificationCodeChip } from '../components/email/VerificationCodeChip';
+import { VerificationCodeChip, copyVerificationCode } from '../components/email/VerificationCodeChip';
 import { chipCodeFor } from '../lib/verification-code';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
@@ -51,6 +51,8 @@ import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
 import { previewLine } from '../lib/preview-text';
 import { buildRowLabel } from '../lib/list-row-label';
+import { buildRowActions, parseRowAction } from '../lib/list-row-actions';
+import { realAttachments } from '../lib/list-attachments';
 import {
   findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveOwnerAccountId, ownMailboxes, folderLabelWithAccount,
 } from '../lib/mailbox-tree';
@@ -116,6 +118,10 @@ const EmailRow = React.memo(function EmailRow({
   selectionMode,
   loadAttachments,
   onOpenAttachment,
+  swipeLeftAction,
+  swipeRightAction,
+  inJunk,
+  onSwipeAction,
 }: {
   item: Email;
   threadCount: number;
@@ -136,6 +142,11 @@ const EmailRow = React.memo(function EmailRow({
   selectionMode: boolean;
   loadAttachments?: LoadListAttachments;
   onOpenAttachment?: (email: Email, attachment: Attachment) => void;
+  /** The configured swipe actions, offered to screen readers as row actions. */
+  swipeLeftAction?: SwipeAction;
+  swipeRightAction?: SwipeAction;
+  inJunk?: boolean;
+  onSwipeAction?: (action: SwipeAction) => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -164,7 +175,7 @@ const EmailRow = React.memo(function EmailRow({
         // stable colour from its id, with the raw id so it is at least
         // visible and removable.
         : (() => {
-          const p = c.tags[unknownKeywordColor(id)];
+          const p = c.tags[unknownKeywordColor(id)] ?? c.tags.gray;
           return { id, label: id, dot: p.dot, text: p.text, bg: p.bg };
         })();
     });
@@ -186,16 +197,57 @@ const EmailRow = React.memo(function EmailRow({
     sender: senderName,
     subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
     time: dateText,
-    unread: unread ? tr('advanced_search.unread', 'Unread') : undefined,
-    attachment: item.hasAttachment ? tr('advanced_search.has_attachment', 'Has attachment') : undefined,
+    unread: unread ? tr('email_list.unread', 'unread') : undefined,
+    pinned: pinned ? tr('email_list.pinned', 'Pinned') : undefined,
     flagged: starred ? tr('email_list.starred', 'Starred') : undefined,
+    replied: answered ? tr('email_list.replied', 'Replied') : undefined,
+    forwarded: forwarded ? tr('email_list.forwarded', 'Forwarded') : undefined,
+    attachment: item.hasAttachment ? tr('email_list.has_attachment', 'Has attachment') : undefined,
+    threadCount: threadCount > 1
+      ? tr('threads.messages_tooltip', '{count, plural, one {# message in this conversation} other {# messages in this conversation}}', { count: threadCount })
+      : undefined,
+    tags: tags.map((tag) => tag.label),
   });
+  // The chips the row shows (read at render: a cache that fills later shows
+  // on the row's next render).
+  const chipAttachments = React.useMemo(
+    () => realAttachments(item.attachments ?? loadAttachments?.peek?.(item)).slice(0, MAX_CHIPS),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item, loadAttachments],
+  );
+  const swipeContext = { unread, starred, pinned, inJunk };
+  const rowActions = React.useMemo(() => buildRowActions({
+    swipeLeft: swipeLeftAction ?? 'none',
+    swipeRight: swipeRightAction ?? 'none',
+    swipeLabel: (a) => swipeActionLabel(a, swipeContext, tr),
+    copyCodeLabel: verificationCode ? tr('email_viewer.verification_code.copy', 'Copy code {code}', { code: verificationCode }) : undefined,
+    attachmentNames: chipAttachments.map((a) => a.name ?? ''),
+    openAttachmentLabel: (name) => tr('email_list.open_attachment', 'Open attachment: {name}', { name }),
+    selectLabel: tr('email_list.batch_actions.select', 'Select emails'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [swipeLeftAction, swipeRightAction, unread, starred, pinned, inJunk, verificationCode, chipAttachments, tr]);
+  const handleAccessibilityAction = React.useCallback((e: { nativeEvent: { actionName: string } }) => {
+    const parsed = parseRowAction(e.nativeEvent.actionName);
+    if (!parsed) return;
+    switch (parsed.kind) {
+      case 'swipe': onSwipeAction?.(parsed.action); break;
+      case 'code': if (verificationCode) copyVerificationCode(verificationCode, tr); break;
+      case 'attachment': {
+        const a = chipAttachments[parsed.index];
+        if (a) onOpenAttachment?.(item, a);
+        break;
+      }
+      case 'select': onLongPress(key); break;
+    }
+  }, [onSwipeAction, verificationCode, tr, chipAttachments, onOpenAttachment, item, onLongPress, key]);
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={rowLabel}
       accessibilityState={{ selected }}
+      accessibilityActions={rowActions}
+      onAccessibilityAction={handleAccessibilityAction}
       style={({ pressed }) => [
         styles.emailRow,
         { paddingVertical: density.rowPaddingVertical },
@@ -346,7 +398,13 @@ const EmailListItem = React.memo(function EmailListItem({
       context={context}
       onAction={onAction}
     >
-      <EmailRow {...rowProps} />
+      <EmailRow
+        {...rowProps}
+        swipeLeftAction={swipeLeftAction}
+        swipeRightAction={swipeRightAction}
+        inJunk={inJunk}
+        onSwipeAction={onAction}
+      />
     </SwipeableRow>
   );
 });

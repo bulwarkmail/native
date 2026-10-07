@@ -20,7 +20,7 @@ import { cacheBlobFile, downloadAttachment, fetchBlobBytes, shareAttachment, sha
 import { AttachmentPreviewModal, type PreviewItem } from './AttachmentPreviewModal';
 
 /** How many chips a row shows before collapsing the rest into a count. */
-const MAX_CHIPS = 2;
+export const MAX_CHIPS = 2;
 
 const ICONS: Record<AttachmentKind, typeof FileIcon> = {
   image: FileImage,

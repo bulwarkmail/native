@@ -7,6 +7,16 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { toast } from '../../stores/toast-store';
 
+type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+
+/** Copies a code to the clipboard and says so, as the chip does. */
+export function copyVerificationCode(code: string, t: Translate): void {
+  Clipboard.setStringAsync(code).then(
+    () => toast.success(t('email_viewer.verification_code.copied', 'Code copied')),
+    () => toast.error(t('email_viewer.verification_code.copy_failed', 'Could not copy the code')),
+  );
+}
+
 interface Props {
   code: string;
   /** Selection mode in the list: taps belong to the row. */
@@ -22,12 +32,7 @@ export const VerificationCodeChip = React.memo(function VerificationCodeChip({ c
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
 
-  const copy = React.useCallback(() => {
-    Clipboard.setStringAsync(code).then(
-      () => toast.success(t('email_viewer.verification_code.copied', 'Code copied')),
-      () => toast.error(t('email_viewer.verification_code.copy_failed', 'Could not copy the code')),
-    );
-  }, [code, t]);
+  const copy = React.useCallback(() => copyVerificationCode(code, t), [code, t]);
 
   return (
     <View style={styles.row}>

@@ -138,7 +138,8 @@ describe('requestListAttachments', () => {
     const onLoad = vi.fn();
     requestListAttachments('acc', fetch, 'a', onLoad);
     await vi.runAllTimersAsync();
-    expect(onLoad).not.toHaveBeenCalled();
+    // Waiting rows are told there is nothing, so their placeholder collapses.
+    expect(onLoad).toHaveBeenCalledWith([]);
     requestListAttachments('acc', fetch, 'a', onLoad);
     await vi.runAllTimersAsync();
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -157,5 +158,19 @@ describe('peekListAttachments', () => {
     vi.useRealTimers();
     expect(peekListAttachments('s1', 'e1')).toBe(parts);
     expect(peekListAttachments('s2', 'e1')).toBeUndefined();
+  });
+});
+
+describe('a failed fetch', () => {
+  it('answers the waiting rows with nothing and does not cache it', async () => {
+    const { peekListAttachments } = await import('../list-attachments');
+    resetListAttachmentsForTests();
+    vi.useFakeTimers();
+    const got: unknown[] = [];
+    requestListAttachments('sf', async () => { throw new Error('offline'); }, 'e9', (a) => got.push(a));
+    await vi.advanceTimersByTimeAsync(100);
+    vi.useRealTimers();
+    expect(got).toEqual([[]]);
+    expect(peekListAttachments('sf', 'e9')).toBeUndefined();
   });
 });

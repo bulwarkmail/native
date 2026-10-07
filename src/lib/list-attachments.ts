@@ -112,7 +112,9 @@ function flush(scope: string, fetch: FetchListAttachments, queue: Queue) {
       }
     })
     .catch(() => {
-      // Not cached: the next render of the row tries again.
+      // Not cached: the next mount of the row tries again. The rows waiting
+      // now get an empty answer, which collapses the room held for chips.
+      for (const listeners of batch.values()) for (const listener of listeners) listener([]);
     })
     .finally(() => {
       for (const id of batch.keys()) queue.inFlight.delete(id);
