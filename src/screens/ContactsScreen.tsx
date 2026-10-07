@@ -474,11 +474,17 @@ export default function ContactsScreen() {
                 style={styles.headerIconBtn}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel={t('contacts.filters.toggle', 'Filters')}
+                accessibilityLabel={activeFilterCount > 0
+                  ? t('contacts.filters.toggle_active', 'Filters ({count} active)', { count: activeFilterCount })
+                  : t('contacts.filters.toggle', 'Filters')}
               >
                 <SlidersHorizontal size={20} color={activeFilterCount > 0 ? c.primary : c.text} />
                 {activeFilterCount > 0 && (
-                  <View style={styles.filterBadge}>
+                  <View
+                    style={styles.filterBadge}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
                     <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
                   </View>
                 )}

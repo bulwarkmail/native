@@ -90,6 +90,27 @@ describe('matchesContactFilters', () => {
   });
 });
 
+describe('malformed cards', () => {
+  it('never throws on non-string fields', () => {
+    const bad = card({
+      name: { full: 42 },
+      organizations: { o: { name: 7, units: [{ name: {} }] } },
+      titles: { t: { name: null } },
+      addresses: { a: { full: 1, locality: [], components: [{ value: 3 }] } },
+      emails: { e: { address: 5 } },
+      anniversaries: { b: { kind: 'birth', date: '--ab' }, c: { kind: 'birth', date: 12 } },
+    });
+    const all = f({
+      organization: 'a', jobTitle: 'a', location: 'a', emailDomain: 'a', birthdayMonth: 1,
+    });
+    expect(matchesContactFilters(bad, all)).toBe(false);
+    for (const key of ['organization', 'jobTitle', 'location', 'emailDomain'] as const) {
+      expect(matchesContactFilters(bad, f({ [key]: 'a' }))).toBe(false);
+    }
+    expect(matchesContactFilters(bad, f({ birthdayMonth: 1 }))).toBe(false);
+  });
+});
+
 describe('cycleTri', () => {
   it('goes null, true, false, null', () => {
     expect(cycleTri(null)).toBe(true);

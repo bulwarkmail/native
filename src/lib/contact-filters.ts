@@ -49,6 +49,11 @@ export function countActiveFilters(f: ContactListFilters): number {
   return n;
 }
 
+// Cards come from a server (and vCard imports), so a field may not be text.
+function has(value: unknown, needle: string): boolean {
+  return typeof value === 'string' && value.toLowerCase().includes(needle);
+}
+
 function matchTri(actual: boolean, filter: TriState): boolean {
   return filter === null || actual === filter;
 }
@@ -62,6 +67,7 @@ function anniversaryMonth(date: AnniversaryDate): number | null {
     const partial = date.match(/^--(\d{2})/);
     return partial ? parseInt(partial[1], 10) : null;
   }
+  if (typeof date !== 'object' || date === null) return null;
   if ('month' in date && date.month) return date.month;
   if ('utc' in date && date.utc) {
     const d = new Date(date.utc);
@@ -82,7 +88,7 @@ export function matchesContactFilters(card: ContactCard, f: ContactListFilters):
   if (org) {
     const orgs = card.organizations ? Object.values(card.organizations) : [];
     const hit = orgs.some((o) =>
-      o.name?.toLowerCase().includes(org) || o.units?.some((u) => u.name?.toLowerCase().includes(org)),
+      has(o.name, org) || (Array.isArray(o.units) && o.units.some((u) => has(u?.name, org))),
     );
     if (!hit) return false;
   }
@@ -90,7 +96,7 @@ export function matchesContactFilters(card: ContactCard, f: ContactListFilters):
   const job = f.jobTitle.trim().toLowerCase();
   if (job) {
     const titles = card.titles ? Object.values(card.titles) : [];
-    if (!titles.some((ti) => ti.name?.toLowerCase().includes(job))) return false;
+    if (!titles.some((ti) => has(ti?.name, job))) return false;
   }
 
   const loc = f.location.trim().toLowerCase();
@@ -98,8 +104,8 @@ export function matchesContactFilters(card: ContactCard, f: ContactListFilters):
     const addresses = card.addresses ? Object.values(card.addresses) : [];
     const hit = addresses.some((a) => {
       const parts = [a.full, a.fullAddress, a.locality, a.region, a.country, a.postcode, a.street];
-      for (const comp of a.components ?? []) parts.push(comp.value);
-      return parts.some((p) => p && p.toLowerCase().includes(loc));
+      if (Array.isArray(a.components)) for (const comp of a.components) parts.push(comp?.value);
+      return parts.some((p) => has(p, loc));
     });
     if (!hit) return false;
   }
@@ -107,8 +113,9 @@ export function matchesContactFilters(card: ContactCard, f: ContactListFilters):
   const domain = f.emailDomain.trim().toLowerCase().replace(/^@/, '');
   if (domain) {
     const hit = emails.some((e) => {
-      const at = e.address?.toLowerCase().split('@');
-      return !!at && at.length > 1 && at[1].includes(domain);
+      if (typeof e?.address !== 'string') return false;
+      const at = e.address.toLowerCase().split('@');
+      return at.length > 1 && at[1].includes(domain);
     });
     if (!hit) return false;
   }
@@ -116,7 +123,7 @@ export function matchesContactFilters(card: ContactCard, f: ContactListFilters):
   if (f.birthdayMonth !== null) {
     const target = f.birthdayMonth;
     const anniversaries = card.anniversaries ? Object.values(card.anniversaries) : [];
-    if (!anniversaries.some((a) => a.kind === 'birth' && anniversaryMonth(a.date) === target)) return false;
+    if (!anniversaries.some((a) => a?.kind === 'birth' && anniversaryMonth(a.date) === target)) return false;
   }
 
   return true;

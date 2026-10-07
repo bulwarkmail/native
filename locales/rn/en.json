@@ -193,6 +193,11 @@
     "export": {
       "failed": "Export failed"
     },
+    "filters": {
+      "state_exclude": "Excluded",
+      "state_include": "Included",
+      "toggle_active": "Filters ({count} active)"
+    },
     "form": {
       "add_nickname": "Add nickname",
       "add_note": "Add note",

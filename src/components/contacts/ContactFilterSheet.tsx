@@ -70,6 +70,7 @@ export default function ContactFilterSheet({ visible, onClose, filters, onChange
         style={styles.input}
         placeholder={placeholder}
         placeholderTextColor={c.textMuted}
+        accessibilityLabel={label}
         value={filters[key]}
         onChangeText={(v) => set(key, v)}
         autoCapitalize="none"
@@ -88,6 +89,11 @@ export default function ContactFilterSheet({ visible, onClose, filters, onChange
         style={[styles.chip, v === true && styles.chipOn, v === false && styles.chipOff]}
         accessibilityRole="button"
         accessibilityState={{ selected: v !== null }}
+        accessibilityValue={v === null ? undefined : {
+          text: v
+            ? t('contacts.filters.state_include', 'Included')
+            : t('contacts.filters.state_exclude', 'Excluded'),
+        }}
       >
         <Text
           style={[
