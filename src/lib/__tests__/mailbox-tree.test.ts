@@ -3,6 +3,7 @@ import {
   buildMailboxTree,
   findArchiveMailbox,
   flattenVisible,
+  folderLabelWithAccount,
   mailboxAccountId,
   mailboxesForSiblingOf,
   mailboxesOfAccount,
@@ -287,5 +288,14 @@ describe('searchScopeRows (the search folder picker)', () => {
       ['g1:inbox', 1, false],
       ['g1:open', 2, false],
     ]);
+  });
+});
+
+describe('folderLabelWithAccount', () => {
+  it('appends the account name for a shared folder only', () => {
+    expect(folderLabelWithAccount('Inbox', { isShared: true, accountName: 'Team' })).toBe('Inbox (Team)');
+    expect(folderLabelWithAccount('Inbox', { isShared: false, accountName: 'Me' })).toBe('Inbox');
+    expect(folderLabelWithAccount('Inbox', undefined)).toBe('Inbox');
+    expect(folderLabelWithAccount('Inbox', { isShared: true })).toBe('Inbox');
   });
 });

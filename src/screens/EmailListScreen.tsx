@@ -35,7 +35,7 @@ import {
   requireShownAccountScope, type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
-import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
+import { useKeywordsStore, unknownKeywordColor, type KeywordDef } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
@@ -49,8 +49,10 @@ import {
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { previewLine } from '../lib/preview-text';
+import { buildRowLabel } from '../lib/list-row-label';
 import {
-  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveOwnerAccountId, ownMailboxes,
+  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveOwnerAccountId, ownMailboxes, folderLabelWithAccount,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
@@ -158,9 +160,13 @@ const EmailRow = React.memo(function EmailRow({
       const def = keywordDefs.find((k) => k.id === id);
       return def
         ? { id, label: def.label, dot: c.tags[def.color]?.dot ?? c.textMuted, text: c.tags[def.color]?.text ?? c.textSecondary, bg: c.tags[def.color]?.bg ?? c.muted }
-        // A tag no local definition explains (set by another client): grey,
-        // with the raw id so it is at least visible and removable.
-        : { id, label: id, dot: c.tags.gray.dot, text: c.tags.gray.text, bg: c.tags.gray.bg };
+        // A tag no local definition explains (set by another client): a
+        // stable colour from its id, with the raw id so it is at least
+        // visible and removable.
+        : (() => {
+          const p = c.tags[unknownKeywordColor(id)];
+          return { id, label: id, dot: p.dot, text: p.text, bg: p.bg };
+        })();
     });
   }, [tagIds, keywordDefs, c]);
 
@@ -175,9 +181,21 @@ const EmailRow = React.memo(function EmailRow({
   );
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
+  const dateText = formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t: tr });
+  const rowLabel = buildRowLabel({
+    sender: senderName,
+    subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
+    time: dateText,
+    unread: unread ? tr('advanced_search.unread', 'Unread') : undefined,
+    attachment: item.hasAttachment ? tr('advanced_search.has_attachment', 'Has attachment') : undefined,
+    flagged: starred ? tr('email_list.starred', 'Starred') : undefined,
+  });
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={rowLabel}
+      accessibilityState={{ selected }}
       style={({ pressed }) => [
         styles.emailRow,
         { paddingVertical: density.rowPaddingVertical },
@@ -244,7 +262,7 @@ const EmailRow = React.memo(function EmailRow({
                 <Text style={styles.threadBadgeText}>{threadCount}</Text>
               </View>
             )}
-            <Text style={[styles.emailDate, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t: tr })}</Text>
+            <Text style={[styles.emailDate, dyn.caption]}>{dateText}</Text>
           </View>
         </View>
 
@@ -271,7 +289,7 @@ const EmailRow = React.memo(function EmailRow({
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
             {snippet?.preview
               ? <HighlightedText runs={snippet.preview} markStyle={styles.searchHit} />
-              : singleLine(item.preview)}
+              : previewLine(item.preview)}
           </Text>
         )}
         {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} />}
@@ -959,7 +977,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const scopeFolderName = React.useMemo(() => {
     if (folderScope === 'all' || folderScope === 'everywhere' || folderScope === 'current') return null;
     const m = mailboxes.find((mb) => mb.id === folderScope);
-    return m ? localizeMailboxName(m.role, m.name, t) : folderScope;
+    return m ? folderLabelWithAccount(localizeMailboxName(m.role, m.name, t), m) : folderScope;
   }, [folderScope, mailboxes, t]);
   const keywordFilterLabel = React.useMemo(() => {
     if (!filters.keyword) return null;
@@ -1706,6 +1724,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         label={scopeFolderName ?? `${t('advanced_search.folder', 'Folder')}…`}
                         active={scopeFolderName !== null}
                         onPress={() => setScopePickerOpen(true)}
+                        accessibilityLabel={scopeFolderName !== null
+                          ? t('email_list.scope_folder_label', 'Folder: {name}', { name: scopeFolderName })
+                          : t('advanced_search.folder', 'Folder')}
+                        accessibilityHint={t('email_list.scope_folder_hint', 'Opens a folder picker')}
                       />
                     </View>
                   </View>
@@ -1964,7 +1986,13 @@ function FilterChip({
   );
 }
 
-function ScopeChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function ScopeChip({ label, active, onPress, accessibilityLabel, accessibilityHint }: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+}) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
@@ -1972,6 +2000,8 @@ function ScopeChip({ label, active, onPress }: { label: string; active: boolean;
       onPress={onPress}
       style={[styles.triToggle, active && styles.triToggleOn]}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ selected: active }}
     >
       <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1}>{label}</Text>

@@ -144,3 +144,18 @@ describe('requestListAttachments', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('peekListAttachments', () => {
+  it('answers from the cache per scope and id, without asking', async () => {
+    const { peekListAttachments } = await import('../list-attachments');
+    resetListAttachmentsForTests();
+    expect(peekListAttachments('s1', 'e1')).toBeUndefined();
+    vi.useFakeTimers();
+    const parts = [att()];
+    requestListAttachments('s1', async () => new Map([['e1', parts]]), 'e1', () => undefined);
+    await vi.advanceTimersByTimeAsync(100);
+    vi.useRealTimers();
+    expect(peekListAttachments('s1', 'e1')).toBe(parts);
+    expect(peekListAttachments('s2', 'e1')).toBeUndefined();
+  });
+});

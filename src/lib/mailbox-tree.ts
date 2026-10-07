@@ -380,3 +380,12 @@ export function flattenAll(tree: MailboxNode[]): MailboxNode[] {
 export function searchScopeRows(mailboxes: Mailbox[]): MailboxNode[] {
   return flattenAll(buildMailboxTree(mailboxes));
 }
+
+/**
+ * A folder's name for a chip that stands alone: a shared account's folder
+ * carries the account's name, so a shared "Inbox" is not taken for the
+ * user's own.
+ */
+export function folderLabelWithAccount(name: string, mailbox: Pick<Mailbox, 'isShared' | 'accountName'> | undefined): string {
+  return mailbox?.isShared && mailbox.accountName ? `${name} (${mailbox.accountName})` : name;
+}

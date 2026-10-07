@@ -11,6 +11,7 @@ import { realAttachments } from '../lib/list-attachments';
 import { findArchiveMailbox, findJunkMailbox, findTrashMailbox } from '../lib/mailbox-tree';
 import { generateEmailAvatarColor, getEmailInitials } from '../lib/avatar-utils';
 import { normalizeHex } from './theme';
+import { previewLine } from '../lib/preview-text';
 import type { AttachmentGroup, FolderCount, MailItem, Person, QuotaState, VacationState } from './snapshot';
 
 type Call = [string, Record<string, unknown>, string];
@@ -56,7 +57,7 @@ export function toMailItem(
     initials: getEmailInitials(from?.name ?? '', from?.email) || '?',
     color: normalizeHex(generateEmailAvatarColor(from?.name ?? '', from?.email)),
     subject: email.subject ?? '',
-    preview: (email.preview ?? '').replace(/\s+/g, ' ').trim(),
+    preview: previewLine(email.preview),
     receivedAt: Date.parse(email.receivedAt) || 0,
     unread: !email.keywords?.$seen,
     starred: !!email.keywords?.$flagged,

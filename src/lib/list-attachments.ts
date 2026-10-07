@@ -54,7 +54,14 @@ export type FetchListAttachments = (emailIds: string[]) => Promise<Map<string, A
  * Loader handed to list rows: starts a lazy fetch of the row's parts from the
  * account it lives in, returns its cancel.
  */
-export type LoadListAttachments = (email: Email, onLoad: Listener) => () => void;
+export type LoadListAttachments = ((email: Email, onLoad: Listener) => () => void) & {
+  /**
+   * The cached parts for this email, if any, without asking. Lets a row that
+   * remounts (scrolled away and back) draw its chips in its first render
+   * instead of growing a frame later.
+   */
+  peek?: (email: Email) => Attachment[] | undefined;
+};
 
 interface Queue {
   /** Waiting for the next flush, by email id. */
@@ -151,6 +158,11 @@ export function requestListAttachments(
   return () => {
     joined.delete(onLoad);
   };
+}
+
+/** The cached parts of one email in one account, or undefined. */
+export function peekListAttachments(scope: string, emailId: string): Attachment[] | undefined {
+  return cache.get(cacheKey(scope, emailId));
 }
 
 /** Test hook: forget every cached answer and queued request. */

@@ -416,6 +416,8 @@
     "recent_searches": "Recent searches",
     "remove_filter": "Remove filter {label}",
     "scope_all_folders": "All folders",
+    "scope_folder_hint": "Opens a folder picker",
+    "scope_folder_label": "Folder: {name}",
     "scope_this_folder": "This folder",
     "search_placeholder": "Search mail...",
     "showing_cached": "Showing cached mail",

@@ -120,6 +120,8 @@ export function MoveSheet({
                 key={node.id}
                 onPress={canTarget ? () => onPick(node.id) : undefined}
                 disabled={!canTarget}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isCurrent }}
                 style={({ pressed }) => [
                   styles.moveRow,
                   pressed && canTarget && styles.moveRowPressed,

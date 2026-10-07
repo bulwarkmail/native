@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/tokens';
+import { suggestKeywordColor } from '../lib/keyword-discovery';
 
 const STORAGE_KEY = 'webmail:keywords:v1';
 
@@ -26,8 +27,15 @@ export const DEFAULT_KEYWORDS: KeywordDef[] = [
   { id: 'pink',   label: 'Pink',   color: 'pink' },
 ];
 
-/** The colour a tag falls back to when its definition is gone. */
-export const FALLBACK_KEYWORD_COLOR: KeywordColor = 'gray';
+/**
+ * The colour of a tag whose definition is gone (set by another client): a
+ * stable one picked from its id, as the webmail does, so different unknown
+ * tags are told apart. Not influenced by the other definitions, so it never
+ * changes when those do.
+ */
+export function unknownKeywordColor(id: string): KeywordColor {
+  return suggestKeywordColor(id);
+}
 
 /**
  * JMAP keyword token used on emails for a given keyword id.
