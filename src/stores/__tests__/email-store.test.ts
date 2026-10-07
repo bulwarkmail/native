@@ -136,6 +136,7 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     isConnected: true,
     accountId: 'acc-1',
+    connectedAccountId: 'acc-1',
     username: 'test@example.com',
     serverUrl: 'https://mail.example.com',
     currentSession: { apiUrl: 'https://mail.example.com/jmap/' },

@@ -421,6 +421,15 @@ export class JMAPClient {
     return authHeaderOf(this.ctx.credentials!);
   }
 
+  /**
+   * The primary account, or null before `connect()`. For code that also runs
+   * on a cold start, before the connection is up (rows drawn from the saved
+   * list): `accountId` throws there.
+   */
+  get connectedAccountId(): string | null {
+    return this._accountId;
+  }
+
   get accountId(): string {
     if (!this._accountId) {
       throw new Error('Not authenticated - call connect() first');
