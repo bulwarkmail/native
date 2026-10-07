@@ -66,6 +66,10 @@ import { toast } from './toast-store';
 // (and trip maxConcurrentRequests / 429 on Stalwart). Share the in-flight run
 // per key and queue at most one re-run, like the webmail's `coalesceRefresh`
 // (#780).
+// Set once a folder is chosen or the start folder is settled this launch: a
+// deep link or notification tap that selected one first keeps it.
+let startFolderSettled = false;
+
 const inflightRefresh = new Map<string, Promise<void>>();
 const queuedRefresh = new Set<string>();
 
@@ -500,6 +504,13 @@ export interface EmailState {
    */
   ensureMailboxes: () => Promise<void>;
   selectMailbox: (mailboxId: string) => Promise<void>;
+  /**
+   * Cold start: show the Inbox of the active account, or with `restoreLast`
+   * the folder remembered for it when that folder still exists. Once per
+   * launch, and not after a folder was chosen. With no folders cached the
+   * list screen picks the Inbox when they load.
+   */
+  openStartFolder: (restoreLast: boolean) => void;
   loadMoreEmails: () => Promise<void>;
   refreshEmails: () => Promise<void>;
   importEmails: (
@@ -1143,7 +1154,36 @@ export const useEmailStore = create<EmailState>()(
     return running ?? get().fetchMailboxes();
   },
 
+  openStartFolder: (restoreLast) => {
+    if (startFolderSettled) return;
+    startFolderSettled = true;
+    const state = get();
+    if (!state.activeAccountId || state.mailboxes.length === 0) return;
+    // `mailboxes` and `currentMailboxId` are the active account's own
+    // (ids repeat across accounts), so the lookup stays inside it.
+    const remembered = state.currentMailboxId
+      ? state.mailboxes.find((m) => m.id === state.currentMailboxId)
+      : undefined;
+    const target = restoreLast && remembered
+      ? remembered
+      : ownMailboxes(state.mailboxes).find((m) => m.role === 'inbox');
+    if (!target || target.id === state.currentMailboxId) return;
+    const snap = state.mailboxSnapshots[target.id];
+    set({
+      currentMailboxId: target.id,
+      emails: snap?.emails ?? [],
+      totalEmails: snap?.total ?? 0,
+      queryState: snap?.queryState,
+      searchQuery: '',
+      filters: {},
+      searchSnippets: {},
+      retainedIds: [],
+      threadCounts: {},
+    });
+  },
+
   selectMailbox: async (mailboxId) => {
+    startFolderSettled = true;
     const state = get();
     // Tuck the previously-visible mailbox into its snapshot so a return-trip
     // can restore it without a network call. Only do this for the base view —
@@ -2261,7 +2301,9 @@ export const useEmailStore = create<EmailState>()(
     return get().activeAccountId === shown ? found : [];
   },
 
-  reset: () => set({
+  reset: () => {
+    startFolderSettled = false;
+    set({
     mailboxes: [],
     mailboxState: undefined,
     emailStates: {},
@@ -2278,7 +2320,8 @@ export const useEmailStore = create<EmailState>()(
     retainedIds: [],
     threadCounts: {},
     accountErrors: {},
-  }),
+  });
+  },
     }),
     {
       // Persist the per-account caches and the active view so the UI can

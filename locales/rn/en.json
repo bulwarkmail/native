@@ -951,6 +951,10 @@
         "exact": "Exact address only",
         "label": "Received Address Matching"
       },
+      "restore_last_folder": {
+        "description": "Open the folder you were last in when the app starts. When off, the app opens on the Inbox.",
+        "label": "Reopen the last folder on start"
+      },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."
       },

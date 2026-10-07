@@ -208,3 +208,15 @@ describe('settings-store', () => {
     });
   });
 });
+
+describe('restoreLastFolder', () => {
+  it('is off by default and stays on this device', () => {
+    expect(mergeWithDefaults({} as never).restoreLastFolder).toBe(false);
+    expect(toExportShape(mergeWithDefaults({ restoreLastFolder: true } as never))).not.toHaveProperty('restoreLastFolder');
+  });
+
+  it('reads back what was stored and rejects a non-boolean', () => {
+    expect(mergeWithDefaults({ restoreLastFolder: true } as never).restoreLastFolder).toBe(true);
+    expect(mergeWithDefaults({ restoreLastFolder: 'yes' } as never).restoreLastFolder).toBe(false);
+  });
+});
