@@ -77,16 +77,23 @@ export function pickerDate(boundary: string | undefined, fallback: number = Date
   return new Date(Math.floor(fallback / 60_000) * 60_000);
 }
 
+function sameWallMinute(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+    && a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes();
+}
+
 /**
  * A picked moment as the boundary to store: ISO UTC, or `saved` itself when
- * the same moment was picked. Null for a date that holds no moment. A moment
+ * the picker shows the same wall-clock minute. A picker works in whole local
+ * minutes, so reading an unchanged pick back would drop a saved second, or
+ * pick the other one of the two moments in the hour a DST switch repeats
+ * (webmail fromPeriodInput). Null for a date that holds no moment. A moment
  * past year 9999 comes back as an expanded-year string that resolvePeriod
  * refuses.
  */
 export function pickedBoundary(picked: Date, saved?: string): string | null {
-  const time = picked.getTime();
-  if (Number.isNaN(time)) return null;
-  if (isPeriodBoundary(saved) && Date.parse(saved) === time) return saved;
+  if (Number.isNaN(picked.getTime())) return null;
+  if (isPeriodBoundary(saved) && sameWallMinute(picked, new Date(Date.parse(saved)))) return saved;
   return picked.toISOString();
 }
 

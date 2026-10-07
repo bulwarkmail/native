@@ -27,6 +27,7 @@ import {
   ACTIONS_WITH_MAILBOX,
   ACTIONS_WITH_VALUE,
   buildMailboxTargets,
+  includeSpamToSave,
   mailboxIdFor,
   selectMailboxTarget,
   updateFilterAction,
@@ -65,7 +66,7 @@ function seedActions(rule?: FilterRule): FilterAction[] {
 }
 // The latest moment the period pickers offer: a later year has no room in the
 // four digits a stored boundary has.
-const PERIOD_PICKER_MAX = new Date(9999, 11, 31, 23, 59);
+const PERIOD_PICKER_MAX = new Date(Date.UTC(9999, 11, 31, 23, 59));
 
 type PeriodEnd = 'from' | 'until';
 
@@ -316,9 +317,7 @@ export function FilterRuleModal({
       conditions: validConditions,
       actions: validActions,
       stopProcessing,
-      // Only folder moves are kept out of Junk, so the opt-in only means
-      // something (and is only stored) while the rule has one.
-      ...(includeSpam && validActions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) ? { includeSpam: true } : {}),
+      includeSpam: includeSpamToSave(includeSpam, validActions),
     }, resolved), { applyToExisting: applyToExisting && canApplyToExisting });
   }, [name, conditions, actions, matchType, stopProcessing, includeSpam, period, rule, initialRule, start, onSave, t, mailboxTargets, applyToExisting, canApplyToExisting]);
 

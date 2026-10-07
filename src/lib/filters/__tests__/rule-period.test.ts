@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FilterRule } from '../../sieve/types';
 import { generateScript } from '../../sieve/generator';
 import { parseScript } from '../../sieve/parser';
@@ -146,6 +146,35 @@ describe('picker dates', () => {
     expect(pickedBoundary(new Date('2026-10-05T08:00:00+02:00'))).toBe('2026-10-05T06:00:00.000Z');
     const sameMoment = new Date(Date.parse('2026-10-05T06:00:30Z'));
     expect(pickedBoundary(sameMoment, '2026-10-05T08:00:30+02:00')).toBe('2026-10-05T08:00:30+02:00');
+  });
+
+  describe('in a zone with DST (America/New_York)', () => {
+    let zone: string | undefined;
+    beforeAll(() => { zone = process.env.TZ; process.env.TZ = 'America/New_York'; });
+    afterAll(() => { if (zone === undefined) delete process.env.TZ; else process.env.TZ = zone; });
+
+    // Android: open on the saved boundary, confirm the date step, then the
+    // time step, without changing either.
+    function confirmUnchanged(saved: string): string | null {
+      const draft = pickerDate(saved);
+      const day = withPickedDate(draft, new Date(draft));
+      return pickedBoundary(withPickedTime(day, new Date(draft)), saved);
+    }
+
+    it('keeps a saved second when the same minute is confirmed', () => {
+      expect(confirmUnchanged('2026-10-05T06:00:30.000Z')).toBe('2026-10-05T06:00:30.000Z');
+    });
+
+    it('keeps the second of the two moments in the hour DST repeats', () => {
+      // 01:30 EST, the repeat of 01:30 EDT (05:30Z).
+      expect(confirmUnchanged('2026-11-01T06:30:00.000Z')).toBe('2026-11-01T06:30:00.000Z');
+    });
+
+    it('stores a different minute as picked', () => {
+      const draft = pickerDate('2026-10-05T06:00:30.000Z');
+      const picked = withPickedTime(draft, new Date(2026, 9, 5, 2, 1));
+      expect(pickedBoundary(picked, '2026-10-05T06:00:30.000Z')).toBe('2026-10-05T06:01:00.000Z');
+    });
   });
 
   it('turns a moment past year 9999 into a boundary that blocks Save, and ignores an invalid date', () => {
