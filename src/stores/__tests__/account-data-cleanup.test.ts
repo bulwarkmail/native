@@ -37,6 +37,7 @@ async function seed(acct: string): Promise<string[]> {
     `webmail:offline-cache:entry:v2:${acct}:shared:e2`,
     `webmail:outbox:v1:${acct}`,
     `webmail:outbox:v1:${acct}:failed`,
+    `webmail:identities:v1:${acct}`,
   ];
   for (const k of keys) await AsyncStorage.setItem(k, '[]');
   return keys;
@@ -69,6 +70,15 @@ describe('forgetAccountData', () => {
     for (const k of bKeys) expect(await AsyncStorage.getItem(k)).not.toBeNull();
     expect(useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id)).toEqual(['s2']);
     expect(useOutboxStore.getState().entries).toHaveLength(1);
+  });
+
+  it('forgets the account\'s cached identities even when its outbox is kept', async () => {
+    await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, JSON.stringify([{ id: 'q1' }]));
+    await AsyncStorage.setItem(`webmail:identities:v1:${A}`, '[]');
+    await AsyncStorage.setItem(`webmail:identities:v1:${B}`, '[]');
+    await forgetAccountData({ appAccountId: A });
+    expect(await AsyncStorage.getItem(`webmail:identities:v1:${A}`)).toBeNull();
+    expect(await AsyncStorage.getItem(`webmail:identities:v1:${B}`)).not.toBeNull();
   });
 
   it('keeps queued outbox changes so they replay on the next sign-in', async () => {

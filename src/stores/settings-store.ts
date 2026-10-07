@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
 import { jmapClient } from '../api/jmap-client';
+import { generateAccountId } from '../lib/account-utils';
+import { writeIdentityCache } from '../lib/identity-cache';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 import { isValidHourPair, isValidWorkingDays } from '../lib/calendar-display-range';
 
@@ -742,6 +744,13 @@ function identityScope(): string | null {
   }
 }
 
+// The app account (registry id) the client is signed in to, which keys the
+// offline identity cache; null when the login is not known.
+function identityCacheAccount(): string | null {
+  const { username, serverUrl } = jmapClient;
+  return username && serverUrl ? generateAccountId(username, serverUrl) : null;
+}
+
 let hydrateInFlight: Promise<void> | null = null;
 let identitiesInFlight: { scope: string | null; promise: Promise<void> } | null = null;
 
@@ -756,6 +765,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   fetchIdentities: () => {
     const scope = identityScope();
     if (identitiesInFlight && identitiesInFlight.scope === scope) return identitiesInFlight.promise;
+    const cacheAccount = identityCacheAccount();
     let promise: Promise<void> | undefined;
     promise = (async () => {
       set({ loading: true, error: null });
@@ -767,6 +777,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           return;
         }
         set({ identities, identitiesFor: scope, loading: false });
+        // Lets a composer opened offline still send from these.
+        if (scope !== null && cacheAccount) await writeIdentityCache(cacheAccount, identities);
       } catch (err) {
         set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load identities' });
       } finally {
@@ -790,11 +802,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   refreshIdentities: async () => {
     const scope = identityScope();
     if (scope === null || get().identitiesFor !== scope) return;
+    const cacheAccount = identityCacheAccount();
     try {
       const identities = await fetchIdentities();
       // Another account, or a reset, meanwhile: not ours to write.
       if (identityScope() !== scope || get().identitiesFor !== scope) return;
       set({ identities });
+      if (cacheAccount) await writeIdentityCache(cacheAccount, identities);
     } catch {
       // Background refresh: keep the list we have.
     }
