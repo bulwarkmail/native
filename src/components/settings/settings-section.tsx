@@ -171,7 +171,8 @@ export function RadioGroup({ value, onChange, options, style }: RadioGroupProps)
 interface SelectProps {
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  /** `disabled`: shown but not pickable. */
+  options: { value: string; label: string; disabled?: boolean }[];
   style?: ViewStyle;
   /** What the control is for, read before the chosen value. */
   accessibilityLabel?: string;
@@ -210,10 +211,12 @@ export function Select({ value, onChange, options, style, accessibilityLabel }: 
                   <Pressable
                     key={opt.value}
                     accessibilityRole="menuitem"
-                    accessibilityState={{ selected }}
+                    accessibilityState={{ selected, disabled: !!opt.disabled }}
+                    disabled={opt.disabled}
                     style={({ pressed }) => [
                       styles.selectItem,
-                      pressed && styles.selectItemPressed,
+                      pressed && !opt.disabled && styles.selectItemPressed,
+                      opt.disabled && { opacity: 0.4 },
                     ]}
                     onPress={() => {
                       onChange(opt.value);

@@ -19,6 +19,7 @@ import type { Mailbox } from '../../api/types';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
 import { FilterRuleModal } from '../filters/FilterRuleModal';
+import { forwardsForRule, hasTooManyForwards, redirectLimitOf } from '../../lib/filters/forward-limit-view';
 import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
@@ -145,6 +146,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
 
   const {
     rules, isLoading, isSaving, error, isSupported, isOpaque, rawScript, vacationSettings, includeVacation,
+    vacationForward, sieveCapabilities,
     selectAccount, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
@@ -153,6 +155,16 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [showSieveEditor, setShowSieveEditor] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // A message can collect only so many forwards on this server (the selected
+  // Sieve account's limit). The rules run in the order listed, behind the out
+  // of office forwarding, so the order counts. The edited rule stays where it
+  // is; a new one goes below Bulwark's own rules.
+  const redirectLimit = redirectLimitOf(sieveCapabilities?.maxNumberRedirects);
+  const tooManyForwards = hasTooManyForwards(rules, vacationForward, redirectLimit);
+  const forwardsOfEdited = forwardsForRule(
+    rules, vacationForward, editingRule?.id, rules.filter((r) => !isReadonlyRule(r)).length,
+  );
 
   useEffect(() => {
     if (!hydrated) void hydrate();
@@ -351,6 +363,12 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
           </Pressable>
         )}
 
+        {!isOpaque && tooManyForwards && redirectLimit !== null && (
+          <Text style={styles.forwardLimit}>
+            {t('settings.filters.forward_limit', 'Forward limit per message on this server: {count}. Extra forwards are skipped.', { count: redirectLimit })}
+          </Text>
+        )}
+
         {!isOpaque && rules.length === 0 && !showVacationBanner && (
           <View style={styles.emptyState}>
             <Filter size={40} color={c.mutedForeground} style={{ opacity: 0.4 }} />
@@ -497,6 +515,9 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         visible={showRuleModal}
         rule={editingRule}
         mailboxes={mailboxes}
+        maxRedirects={redirectLimit}
+        forwardsBefore={forwardsOfEdited.before}
+        forwardsAfter={forwardsOfEdited.after}
         onSave={handleSaveRule}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />
@@ -517,6 +538,7 @@ function makeStyles(c: ThemePalette) {
     statusText: { ...typography.body, color: c.mutedForeground, paddingVertical: spacing.md },
     loadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
 
+    forwardLimit: { ...typography.caption, color: c.warning },
     opaqueBanner: {
       flexDirection: 'row',
       gap: spacing.sm,

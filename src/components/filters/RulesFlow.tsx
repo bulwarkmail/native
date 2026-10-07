@@ -16,6 +16,7 @@ import { useAccountStore } from '../../stores/account-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { fetchListIds } from '../../api/list-ids';
 import { readAccountFilters } from '../../lib/filters/account-filters';
+import { forwardsForRule } from '../../lib/filters/forward-limit-view';
 import {
   buildPrefillRule,
   buildSuggestions,
@@ -86,6 +87,13 @@ export function useRulesTarget(
 
 type View_ = 'root' | 'move_sender' | 'move_domain' | 'move_list' | 'tag' | 'editor';
 type MoveKind = 'move_sender' | 'move_domain' | 'move_list';
+
+interface ForwardInfo {
+  sieveAccountId: string;
+  maxRedirects: number | null;
+  before: number;
+  after: number;
+}
 
 interface EditorState {
   rule: FilterRule;
@@ -169,14 +177,30 @@ function RulesFlowBody({
   // write on a hand-edited script reports it.
   const sieveAccountId = target?.sieveAccountId;
   const [opaque, setOpaque] = React.useState(false);
+  // The forwards around a new rule, for the server's redirect limit: "Create
+  // rule…" puts it first, behind the out of office forwarding. Kept with the
+  // account it was read for, and used only while that is still the target.
+  const [forwardInfo, setForwardInfo] = React.useState<ForwardInfo | null>(null);
   React.useEffect(() => {
+    setOpaque(false);
+    setForwardInfo(null);
     if (!sieveAccountId) return;
     let cancelled = false;
     readAccountFilters(sieveAccountId)
-      .then((filters) => { if (!cancelled) setOpaque(filters.parsed.isOpaque); })
+      .then((filters) => {
+        if (cancelled) return;
+        setOpaque(filters.parsed.isOpaque);
+        if (filters.parsed.isOpaque) return;
+        setForwardInfo({
+          sieveAccountId,
+          maxRedirects: filters.capabilities?.maxNumberRedirects ?? null,
+          ...forwardsForRule(filters.parsed.rules, filters.parsed.vacationForward, undefined, 0),
+        });
+      })
       .catch(() => { /* the write reports it */ });
     return () => { cancelled = true; };
   }, [sieveAccountId]);
+  const forwards = forwardInfo && forwardInfo.sieveAccountId === sieveAccountId ? forwardInfo : null;
 
   const mailboxes = target?.mailboxes;
   const junk = React.useMemo(() => (mailboxes ? findJunkMailbox(mailboxes) : undefined), [mailboxes]);
@@ -355,6 +379,9 @@ function RulesFlowBody({
           suggestions={editor.suggestions}
           offerApplyToExisting={!!target.sourceMailboxId}
           mailboxes={target.mailboxes}
+          maxRedirects={forwards?.maxRedirects}
+          forwardsBefore={forwards?.before}
+          forwardsAfter={forwards?.after}
           onSave={(rule, options) => {
             const tg = live();
             if (!tg) return;
