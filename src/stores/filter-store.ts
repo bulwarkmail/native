@@ -549,12 +549,7 @@ async function planVacationSync(sync: VacationSync, at: OpScope) {
 
 type VacationSyncPlan = Awaited<ReturnType<typeof planVacationSync>>;
 
-/**
- * Whether the sync rewrites a readable script, `enabled` saying whether the
- * auto-reply is on. Turning it off never moves the vacation script into the
- * filters' place, so for that the answer before the response is saved is
- * the answer after it.
- */
+/** Whether the sync rewrites a readable script, `enabled` saying whether the auto-reply is on. */
 function syncWrites(plan: VacationSyncPlan, enabled: boolean): boolean {
   const { canInclude, vacationScript, target, parsed, nextForward, nextAudience, changed } = plan;
   if (enabled && !canInclude) return false;
@@ -586,17 +581,19 @@ function lacksCapabilities(plan: VacationSyncPlan, enabled: boolean): boolean {
  * script edited by hand is the active one: Stalwart would switch it off for
  * its own vacation script, and the script cannot take an `include` of it, so
  * every filter would stop. And it refuses (SieveCapabilitiesUnknownError) to
- * turn it off when the sync would then have to rewrite a script it cannot
- * generate yet. `opaque`: the filters script was edited by hand,
+ * turn it on while the server's capabilities are unknown and the active
+ * filters depend on them. `opaque`: the filters script was edited by hand,
  * so the sync after the save has nothing it may do.
  */
 export async function checkVacationSync(sync: VacationSync, at: OpScope): Promise<{ opaque: boolean }> {
   const plan = await planVacationSync(sync, at);
   if (plan.opaque && sync.enabled && plan.target?.isActive) throw new OpaqueFiltersError();
-  // Turning the auto-reply off must drop the include (or run the forwarding)
-  // from a script that cannot be generated yet: say so before the response
-  // is saved, rather than leave the include behind.
-  if (!sync.enabled && !plan.opaque && syncWrites(plan, false) && lacksCapabilities(plan, false)) {
+  // Turning the auto-reply on while the capabilities are unknown: the
+  // vacation script would take over from filters that cannot be generated
+  // again (moves, copies, redirects, forwarding), so they would stop until
+  // the capabilities are known. Turning it off is never refused.
+  if (sync.enabled && !plan.opaque && !plan.capabilities && plan.target?.isActive &&
+    dependsOnCapabilities(plan.parsed?.rules ?? [], plan.nextForward, false)) {
     throw new SieveCapabilitiesUnknownError();
   }
   return { opaque: plan.opaque };
@@ -631,7 +628,12 @@ export async function syncVacationWithFilters(sync: VacationSync, at: OpScope = 
     return;
   }
   if (!syncWrites(plan, enabled)) return;
-  if (lacksCapabilities(plan, enabled)) throw new SieveCapabilitiesUnknownError();
+  if (lacksCapabilities(plan, enabled)) {
+    // Turning the auto-reply off: the include stays. It is `:optional`, and
+    // with the response off it runs nothing, so nothing is lost.
+    if (!enabled) return;
+    throw new SieveCapabilitiesUnknownError();
+  }
 
   const rules = parsed?.rules ?? [];
   const forwarding = !!nextForward?.enabled;

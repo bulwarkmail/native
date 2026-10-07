@@ -730,31 +730,49 @@ describe('a reconnect of the same login during a save', () => {
   });
 });
 
-describe('turning the auto-reply off without the server\'s capabilities', () => {
-  const included = (rules: FilterRule[]) => stalwart([
-    { name: 'filters', content: filters(rules, { includeVacation: true }), isActive: true },
-    { name: 'vacation', content: VACATION_SCRIPT, isActive: false },
-  ]);
+describe('the auto-reply without the server\'s capabilities', () => {
+  const move = (id: string) => rule(id, { actions: [{ type: 'move', value: 'News', mailboxId: 'mb-news' }] });
 
-  it('is refused before the response is saved when the script cannot be generated without them', async () => {
-    const server = included([rule('m', { actions: [{ type: 'move', value: 'News', mailboxId: 'mb-news' }] })]);
+  it('is always turned off, leaving the optional include, and writes no script', async () => {
+    const server = stalwart([
+      { name: 'filters', content: filters([move('m')], { includeVacation: true }), isActive: true },
+      { name: 'vacation', content: VACATION_SCRIPT, isActive: false },
+    ]);
     await useVacationStore.getState().fetch();
     expect(useVacationStore.getState().isEnabled).toBe(true);
     server.api.getSieveCapabilities.mockReturnValue(null as never);
-    await expect(useVacationStore.getState().save({ isEnabled: false })).rejects.toBeInstanceOf(SieveCapabilitiesUnknownError);
-    expect(server.vacation.setVacationResponse).not.toHaveBeenCalled();
+    await useVacationStore.getState().save({ isEnabled: false });
+    expect(server.vacation.setVacationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ isEnabled: false }), expect.anything(),
+    );
     expect(server.writes()).toBe(0);
+    // `:optional`, with the response off: it runs nothing.
     expect(server.content('filters')).toContain(INCLUDE);
+    expect(server.active()).toBe('filters');
+    expect(useVacationStore.getState()).toMatchObject({ isEnabled: false, isSaving: false, error: null });
   });
 
-  it('drops the include when the script comes out the same without them', async () => {
-    const server = included([rule('a')]);
+  it('is not turned on over moves that would stop, refused before the response is saved', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([move('m')]), isActive: true }]);
     await useVacationStore.getState().fetch();
     server.api.getSieveCapabilities.mockReturnValue(null as never);
-    await useVacationStore.getState().save({ isEnabled: false });
-    expect(server.vacation.setVacationResponse).toHaveBeenCalledTimes(1);
-    expect(server.content('filters')).not.toContain(INCLUDE);
-    expect(parseScript(server.content('filters')).rules.map((r) => r.id)).toEqual(['a']);
+    await expect(useVacationStore.getState().save({ isEnabled: true })).rejects.toBeInstanceOf(SieveCapabilitiesUnknownError);
+    expect(server.vacation.setVacationResponse).not.toHaveBeenCalled();
+    expect(server.writes()).toBe(0);
+    expect(server.active()).toBe('filters');
+  });
+
+  it('is not turned on with forwarding, refused before the response is saved', async () => {
+    const server = stalwart([{ name: 'filters', content: filters([rule('a')]), isActive: true }]);
+    await useVacationStore.getState().fetch();
+    server.api.getSieveCapabilities.mockReturnValue(null as never);
+    await expect(useVacationStore.getState().save({
+      isEnabled: true,
+      forward: { enabled: true, to: 'kollege@example.com', keepCopy: false },
+    })).rejects.toThrow();
+    expect(server.vacation.setVacationResponse).not.toHaveBeenCalled();
+    expect(server.writes()).toBe(0);
+    expect(server.active()).toBe('filters');
   });
 });
 

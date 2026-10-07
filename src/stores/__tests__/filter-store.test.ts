@@ -252,10 +252,10 @@ describe('filter-store and the server vacation script', () => {
       expect(activate).toBe(true);
     });
 
-    it('refuses to rewrite the filters without knowing the server\'s capabilities', async () => {
+    it('leaves the optional include in place, rather than rewrite move rules without the server\'s capabilities', async () => {
       serve(false, true, true);
       api.getSieveCapabilities.mockReturnValue(null);
-      await expect(syncVacationWithFilters({ enabled: false })).rejects.toBeInstanceOf(SieveCapabilitiesUnknownError);
+      await expect(syncVacationWithFilters({ enabled: false })).resolves.toBeUndefined();
       expect(api.updateSieveScript).not.toHaveBeenCalled();
     });
   });
