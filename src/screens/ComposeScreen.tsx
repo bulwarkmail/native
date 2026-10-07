@@ -899,8 +899,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [requestReadReceipt, setRequestReadReceipt] = React.useState(requestReadReceiptDefault);
   // Per message, like webmail: not saved with drafts, offered only when the
   // owner's sending account advertises the SMTP extension.
-  const [requestDsn, setRequestDsn] = React.useState(false);
-  const [requireTls, setRequireTls] = React.useState(false);
+  const [requestDsn, setRequestDsn] = React.useState(!!draft?.requestDsn);
+  const [requireTls, setRequireTls] = React.useState(!!draft?.requireTls);
   const canRequestDsn = jmapClient.supportsSubmissionExtension('DSN', owner?.jmapAccountId);
   const canRequireTls = jmapClient.supportsSubmissionExtension('REQUIRETLS', owner?.jmapAccountId);
   const [subAddressTag, setSubAddressTag] = React.useState('');
@@ -2746,6 +2746,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
           appAccountId: owner?.appAccountId,
           from: outgoing.from,
           to: [...outgoing.to, ...(outgoing.cc ?? []), ...(outgoing.bcc ?? [])],
+          ...(outgoing.requestDsn ? { requestDsn: true } : {}),
+          ...(outgoing.requireTls ? { requireTls: true } : {}),
         });
       } else {
         // Held sends get the undo bar instead (webmail b03a0c1d).

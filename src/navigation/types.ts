@@ -47,6 +47,9 @@ export interface ComposeDraftContext {
   messageId?: string[] | null;
   inReplyTo?: string[] | null;
   references?: string[] | null;
+  /** Delivery options to start with: a send undone to edit keeps them. */
+  requestDsn?: boolean;
+  requireTls?: boolean;
 }
 
 export type RootStackParamList = {

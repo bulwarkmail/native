@@ -31,6 +31,12 @@ export interface PendingUndoSend {
   appAccountId?: string;
   from?: EmailAddress[];
   to?: EmailAddress[];
+  /**
+   * The delivery options it was sent with, so an undo reopens the composer
+   * with them still on (a user fixing a typo keeps REQUIRETLS).
+   */
+  requestDsn?: boolean;
+  requireTls?: boolean;
   /** ISO time the server will release the message. */
   sendAt?: string;
   /** Milliseconds the message is held (drives the snackbar timer). */
@@ -39,7 +45,9 @@ export interface PendingUndoSend {
 }
 
 /** What the sender knows about a held send beyond the server's answer. */
-export type HeldSendDetails = Pick<PendingUndoSend, 'identityId' | 'accountId' | 'appAccountId' | 'from' | 'to'>;
+export type HeldSendDetails = Pick<
+  PendingUndoSend, 'identityId' | 'accountId' | 'appAccountId' | 'from' | 'to' | 'requestDsn' | 'requireTls'
+>;
 
 /**
  * The connection to act on a held send on (its JMAP account, on the
@@ -176,5 +184,10 @@ export async function restoreUndoneSend(
       at,
     );
   }
-  return draftContextFromEmail(await getFullEmail(entry.emailId, at), accountId);
+  const draft = draftContextFromEmail(await getFullEmail(entry.emailId, at), accountId);
+  return {
+    ...draft,
+    ...(entry.requestDsn ? { requestDsn: true } : {}),
+    ...(entry.requireTls ? { requireTls: true } : {}),
+  };
 }
