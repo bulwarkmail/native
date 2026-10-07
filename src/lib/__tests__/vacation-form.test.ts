@@ -43,6 +43,7 @@ function input(overrides: Partial<FiltersFormInput> = {}): FiltersFormInput {
     otherForwards: 0,
     forwardLimit: 1,
     notRunning: false,
+    periodChanged: false,
     filtersStopped: false,
     includeAvailable: true,
     ...overrides,
@@ -137,11 +138,18 @@ describe('vacationFiltersForm: what a save sends', () => {
     expect(form.audience).toBeUndefined();
   });
 
-  it('counts the forward and audience as involved when sent or stored', () => {
+  it('counts the forward and audience as involved when a save rewrites them', () => {
+    const kept = { storedForward: FORWARD, forwardEnabled: true, forwardTo: FORWARD.to };
+    const audience = { storedAudience: { only: 'external' as const, domains: ['example.com'] }, audienceOnly: 'external' as const };
     expect(vacationFiltersForm(input()).filtersInvolved).toBe(false);
     expect(vacationFiltersForm(input({ audienceOnly: 'internal' })).filtersInvolved).toBe(true);
-    expect(vacationFiltersForm(input({ storedForward: FORWARD, forwardEnabled: true, forwardTo: FORWARD.to })).filtersInvolved).toBe(true);
-    expect(vacationFiltersForm(input({ storedAudience: { only: 'external', domains: ['example.com'] }, audienceOnly: 'external' })).filtersInvolved).toBe(true);
+    // Stored, untouched and running: only the dates or a restart bring them in.
+    expect(vacationFiltersForm(input(kept)).filtersInvolved).toBe(false);
+    expect(vacationFiltersForm(input({ ...kept, periodChanged: true })).filtersInvolved).toBe(true);
+    expect(vacationFiltersForm(input({ ...kept, notRunning: true })).filtersInvolved).toBe(true);
+    expect(vacationFiltersForm(input({ ...audience, notRunning: true })).filtersInvolved).toBe(true);
+    // Hidden on a managed account, so never sent or rewritten from here.
+    expect(vacationFiltersForm(input({ ...kept, managed: true, periodChanged: true, notRunning: true })).filtersInvolved).toBe(false);
   });
 });
 
@@ -232,6 +240,22 @@ describe('vacation error messages', () => {
     expect(keys).toContain('notifications.vacation_filters_restart_failed');
     expect(plain.title).not.toBe(involved.title);
     expect(plain.title).not.toBe(tEn('notifications.vacation_save_failed'));
+  });
+
+  it('picks the filters-only title by what the save rewrote', () => {
+    const err = new VacationFiltersError(new Error('x'));
+    const restart = tEn('notifications.vacation_filters_restart_failed');
+    const forwarding = tEn('notifications.vacation_filters_save_failed');
+    const title = (o: Partial<FiltersFormInput>) =>
+      vacationSaveFailure(err, vacationFiltersForm(input(o)).filtersInvolved, tEn).title;
+    // A managed account with a stored forward.
+    expect(title({ managed: true, storedForward: FORWARD, forwardEnabled: true, forwardTo: FORWARD.to, notRunning: true }))
+      .toBe(restart);
+    // The own account, its forward untouched and running: the save only restarted the filters.
+    expect(title({ storedForward: FORWARD, forwardEnabled: true, forwardTo: FORWARD.to, filtersStopped: true }))
+      .toBe(restart);
+    // A forward sent.
+    expect(title({ forwardEnabled: true, forwardTo: FORWARD.to })).toBe(forwarding);
   });
 
   it('explains a filters-only failure a hand edit caused', () => {

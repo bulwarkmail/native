@@ -44,6 +44,8 @@ export interface FiltersFormInput {
   /** The server's maxNumberRedirects; unknown or 0 sets no limit here. */
   forwardLimit: number | null | undefined;
   notRunning: boolean;
+  /** The dates differ from the stored ones: a save moves the forward's period with them. */
+  periodChanged: boolean;
   filtersStopped: boolean;
   includeAvailable: boolean;
 }
@@ -57,7 +59,10 @@ export interface FiltersForm {
   forward: ForwardSettings | null | undefined;
   /** What to send for the audience: undefined when unchanged, null for everyone. */
   audience: VacationAudience | null | undefined;
-  /** A save also touches forwarding or the audience, sent or stored. */
+  /**
+   * A save rewrites forwarding or the audience: it sends them, or the
+   * stored ones (on the own account) are not running or take the new dates.
+   */
   filtersInvolved: boolean;
   /** A save sets right what is stored but does not run. */
   restartable: boolean;
@@ -110,7 +115,7 @@ export function vacationFiltersForm(i: FiltersFormInput): FiltersForm {
     forward,
     audience,
     filtersInvolved: forward !== undefined || audience !== undefined ||
-      !!i.storedForward?.enabled || !!i.storedAudience,
+      (!i.managed && (!!i.storedForward?.enabled || !!i.storedAudience) && (i.notRunning || i.periodChanged)),
     restartable: (i.notRunning && (showForward || canNarrow)) || (i.filtersStopped && i.includeAvailable),
     blocking: forwardInvalid,
   };

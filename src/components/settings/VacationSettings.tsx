@@ -116,6 +116,14 @@ export function VacationSettings() {
     setAudienceOnly(store.audience?.only ?? 'all');
   }, [store.hasLoaded, store.appAccountId, store.accountId, store.audience]);
 
+
+  const fromParsed = parseLocalInput(fromDate);
+  const toParsed = parseLocalInput(toDate);
+  const formatError = !isValidLocalInput(fromDate) || !isValidLocalInput(toDate);
+  const fromChanged = formatError || localInputToUtcIso(fromDate) !== normalizeUtcIso(store.fromDate);
+  const toChanged = formatError || localInputToUtcIso(toDate) !== normalizeUtcIso(store.toDate);
+  const periodChanged = !formatError && (fromChanged || toChanged);
+
   // Shared or group, as Settings or the loaded form has it (they differ
   // only for a moment, while a switch loads).
   const managed = !!managedAccountId || store.accountId !== null;
@@ -132,16 +140,13 @@ export function VacationSettings() {
     audienceOnly,
     otherForwards: store.otherForwards,
     // Forwarding is offered on the own account only, so its limit applies.
-    forwardLimit: managed ? null : getSieveCapabilities()?.maxNumberRedirects,
+    forwardLimit: managed ? null : getSieveCapabilities(managedAccountId ?? undefined)?.maxNumberRedirects,
     notRunning: store.notRunning,
+    periodChanged,
     filtersStopped: store.filtersStopped,
     includeAvailable: store.includeAvailable,
   };
   const filters = vacationFiltersForm(filtersInput);
-
-  const fromParsed = parseLocalInput(fromDate);
-  const toParsed = parseLocalInput(toDate);
-  const formatError = !isValidLocalInput(fromDate) || !isValidLocalInput(toDate);
   const endBeforeStart = !!(fromParsed && toParsed && toParsed <= fromParsed);
   const htmlText = htmlEnabled ? htmlToPlainText(htmlBody).trim() : '';
   const hasHtmlContent = htmlText.length > 0;
@@ -177,8 +182,8 @@ export function VacationSettings() {
   // actually differs from what the server holds.
   const hasChanges =
     enabled !== store.isEnabled ||
-    (formatError ? true : localInputToUtcIso(fromDate) !== normalizeUtcIso(store.fromDate)) ||
-    (formatError ? true : localInputToUtcIso(toDate) !== normalizeUtcIso(store.toDate)) ||
+    fromChanged ||
+    toChanged ||
     subject !== store.subject ||
     body !== store.textBody ||
     (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '') ||
