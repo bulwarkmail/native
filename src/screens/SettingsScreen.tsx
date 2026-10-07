@@ -512,7 +512,8 @@ function makeStyles(c: ThemePalette) {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      height: componentSizes.headerHeight,
+      height: 48,
+      minHeight: 48,
       paddingHorizontal: spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
@@ -521,10 +522,10 @@ function makeStyles(c: ThemePalette) {
     headerBackBtn: {
       width: 40, height: 40,
       alignItems: 'center', justifyContent: 'center',
-      borderRadius: radius.md,
+      borderRadius: radius.full,
     },
     headerBackBtnPressed: { backgroundColor: c.accent },
-    headerLeftSpacer: { width: spacing.sm },
+    headerLeftSpacer: { width: 0 },
     headerTitle: { ...typography.h3, color: c.text },
 
     scrollArea: { flex: 1 },

@@ -436,7 +436,7 @@ export default function ContactsScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('contacts.open_categories', 'Open categories')}
             >
-              <Menu size={22} color={c.text} />
+              <Menu size={20} color={c.text} />
             </Pressable>
             <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.headerCount}>{visible.length}</Text>
@@ -642,7 +642,10 @@ function makeStyles(c: ThemePalette) {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    height: 48,
+    minHeight: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border,
     gap: spacing.sm,
   },
   headerTitle: { ...typography.h3, color: c.text, flexShrink: 1 },

@@ -537,14 +537,15 @@ function makeStyles(c: ThemePalette) {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      height: componentSizes.headerHeight,
+      height: 48,
+      minHeight: 48,
       paddingHorizontal: spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: c.border,
       gap: spacing.sm,
     },
     headerBtn: {
-      width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md,
+      width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full,
     },
     headerTitle: { ...typography.h3, color: c.text, flex: 1 },
     searchBar: {

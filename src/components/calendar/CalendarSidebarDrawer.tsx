@@ -9,8 +9,9 @@ import {
   StyleSheet,
   Text,
   View,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Check, X, Upload, Rss, Shuffle, Star, Plus, Pencil, Share2, Eraser, Trash2,
 } from 'lucide-react-native';
@@ -134,6 +135,10 @@ export function CalendarSidebarDrawer({
     isSubscriptionCalendar,
   };
 
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 0);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 0);
+
   return (
     <Modal
       visible={visible}
@@ -150,7 +155,7 @@ export function CalendarSidebarDrawer({
       <Animated.View
         style={[styles.drawer, { transform: [{ translateX: slideX }] }]}
       >
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <View style={[styles.drawerSafe, { paddingTop: topInset, paddingBottom: bottomInset }]}>
           <View style={styles.header}>
             <Pressable
               onPress={onClose}
@@ -213,7 +218,7 @@ export function CalendarSidebarDrawer({
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Animated.View>
     </Modal>
   );
@@ -417,16 +422,17 @@ function makeStyles(c: ThemePalette) {
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    height: 48,
+    minHeight: 48,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
   },
   headerClose: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.full,
   },
   headerTitle: { ...typography.h3, color: c.text },
 

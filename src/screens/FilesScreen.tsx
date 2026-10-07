@@ -24,6 +24,7 @@ import {
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // expo-document-picker is loaded lazily on first upload. Its native module
 // is registered at app launch via Expo autolinking; on builds that predate
@@ -674,7 +675,7 @@ export default function FilesScreen() {
               accessibilityRole="button"
               accessibilityLabel={t('email_list.batch_actions.clear_selection', 'Clear selection')}
             >
-              <X size={22} color={c.text} />
+              <X size={20} color={c.text} />
             </Pressable>
             <Text style={styles.title}>
               {t('files.selected_count', '{count, plural, one {# selected} other {# selected}}', { count: selection.size })}
@@ -718,7 +719,7 @@ export default function FilesScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('common.back', 'Back')}
               >
-                <ChevronLeft size={22} color={c.text} />
+                <ChevronLeft size={20} color={c.text} />
               </Pressable>
             ) : null}
             <Text style={styles.title} numberOfLines={1}>
@@ -1013,7 +1014,7 @@ export default function FilesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {renderHeader()}
       {body}
 
@@ -1128,7 +1129,7 @@ export default function FilesScreen() {
         onConfirm={() => void performDelete()}
         onCancel={() => setConfirmDelete(null)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1435,9 +1436,10 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.background,
     },
     header: {
-      paddingTop: 60,
-      paddingHorizontal: spacing.md,
-      paddingBottom: spacing.sm,
+      minHeight: 48,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xs,
+      justifyContent: 'center',
       borderBottomWidth: 1,
       borderBottomColor: c.border,
     },
@@ -1446,9 +1448,11 @@ function makeStyles(c: ThemePalette) {
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: spacing.sm,
+      minHeight: 40,
     },
     headerLeft: {
       flex: 1,
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
@@ -1459,15 +1463,17 @@ function makeStyles(c: ThemePalette) {
       gap: spacing.xs,
     },
     headerBtn: {
-      padding: spacing.xs,
-      borderRadius: radius.sm,
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.full,
     },
     headerBtnActive: {
       backgroundColor: c.primaryBg,
     },
     title: {
-      fontSize: typography.h2.fontSize,
-      fontWeight: '700' as const,
+      ...typography.h3,
       color: c.text,
       flexShrink: 1,
     },
