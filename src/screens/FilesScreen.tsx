@@ -67,6 +67,7 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
+import { isStaleLoad } from '../lib/network-error';
 
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
@@ -229,6 +230,9 @@ export default function FilesScreen() {
         const nodes = await getAllFileNodesAcrossAccounts();
         setAllNodes(nodes);
       } catch (e) {
+        // A listing begun before an account switch belongs to the previous
+        // account; the switch starts its own load.
+        if (isStaleLoad(e)) return;
         setError(e instanceof Error ? e.message : t('files.download_error', 'Failed to load files'));
       } finally {
         setLoading(false);
