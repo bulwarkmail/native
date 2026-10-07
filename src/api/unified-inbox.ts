@@ -7,6 +7,8 @@ import {
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { secureFetch } from '../lib/client-cert';
 import { refreshOAuthAccessToken, type OAuthTokens } from '../lib/oauth';
+import { isStaleLoad } from '../lib/network-error';
+import type { OpScope } from './op-scope';
 
 // Aggregated views across accounts ("All inboxes", "All Sent", All mail /
 // Unread / Starred). Because the JMAP client is a single-account singleton
@@ -225,10 +227,19 @@ interface AccountEntry {
 
 const entries = new Map<string, AccountEntry>();
 
+// Folder lists a search of the shown account read on its live scope, for an
+// account with no cached entry (see searchEntryFor).
+const scopedMailboxes = new Map<string, AccountEntry['mailboxes']>();
+
 /** Forget every cached session/mailbox list (logout, credential change, tests). */
 export function resetUnifiedCache(accountId?: string): void {
-  if (accountId) entries.delete(accountId);
-  else entries.clear();
+  if (accountId) {
+    entries.delete(accountId);
+    scopedMailboxes.delete(accountId);
+  } else {
+    entries.clear();
+    scopedMailboxes.clear();
+  }
 }
 
 function isLiveAccount(accountId: string): boolean {
@@ -368,15 +379,18 @@ function targetKey(accountId: string, jmapAccountId: string): string {
   return `${accountId}|${jmapAccountId}`;
 }
 
-async function fetchTarget(
+type TargetFilter = (mailboxes: Mailbox[], jmapAccountId: string) => Record<string, unknown> | null;
+
+async function queryTarget(
   entry: AccountEntry,
   target: { jmapId: string; isShared: boolean; label?: string },
-  opts: UnifiedFetchOptions,
+  filterFor: TargetFilter,
   position: number,
   limit: number,
+  withFolder: boolean,
 ): Promise<{ emails: UnifiedEmail[]; hasMore: boolean }> {
   const mailboxes = await mailboxesFor(entry, target.jmapId);
-  const filter = buildFilter(mailboxes, opts);
+  const filter = filterFor(mailboxes, target.jmapId);
   if (!filter) return { emails: [], hasMore: false };
 
   const res = await entry.transport.post([
@@ -411,10 +425,108 @@ async function fetchTarget(
       jmapAccountId: target.jmapId,
       isShared: target.isShared,
       sharedLabel: target.isShared ? target.label : undefined,
-      sourceFolder: opts.view ? nameOf(e) : undefined,
+      sourceFolder: withFolder ? nameOf(e) : undefined,
     } as UnifiedEmail];
   });
   const hasMore = total !== undefined ? position + ids.length < total : ids.length === limit;
+  return { emails, hasMore };
+}
+
+function fetchTarget(
+  entry: AccountEntry,
+  target: { jmapId: string; isShared: boolean; label?: string },
+  opts: UnifiedFetchOptions,
+  position: number,
+  limit: number,
+): Promise<{ emails: UnifiedEmail[]; hasMore: boolean }> {
+  return queryTarget(entry, target, (mailboxes) => buildFilter(mailboxes, opts), position, limit, !!opts.view);
+}
+
+/** A transport on the live client that sends only on connection `gen` (see `OpScope`). */
+function liveTransport(gen: number): Transport {
+  return {
+    post: async (calls) => (await jmapClient.request(calls, undefined, { gen })).methodResponses as MethodResponses,
+  };
+}
+
+/**
+ * The entry a search of registry account `accountId` reads through. With
+ * `at` (the shown account, served by the live client) every request goes out
+ * on that scope's connection. Without it the account is read detached; if
+ * the live client happens to serve it (a switch away from it in progress),
+ * its requests are bound to the connection found at the start, so a later
+ * one never lands on the account switched to.
+ */
+async function searchEntryFor(accountId: string, at?: OpScope): Promise<AccountEntry> {
+  if (at) {
+    let mailboxes = entries.get(accountId)?.mailboxes ?? scopedMailboxes.get(accountId);
+    if (!mailboxes) {
+      mailboxes = new Map();
+      scopedMailboxes.set(accountId, mailboxes);
+    }
+    return {
+      accountId,
+      live: true,
+      transport: liveTransport(at.gen),
+      primaryJmapId: at.accountId,
+      shared: jmapClient.getSharedMailAccounts(),
+      discoveredAt: Date.now(),
+      // The folders of one registry account, whichever transport read them.
+      mailboxes,
+    };
+  }
+  const gen = jmapClient.connectionGen;
+  const entry = await entryFor(accountId);
+  return entry.live ? { ...entry, transport: liveTransport(gen) } : entry;
+}
+
+export interface AccountEmailSearch {
+  /**
+   * The Email/query filter for one JMAP account of the login, from its
+   * folders (stamped with that `accountId`); null skips the account.
+   */
+  filter: TargetFilter;
+  limit: number;
+  /** Paging cursor, the same for every JMAP account of the login. */
+  position?: number;
+  /** Also search the group/shared accounts the login reaches. */
+  includeGroup?: boolean;
+  /** The shown account's scope: read through the live client on it. Omit for a detached read. */
+  at?: OpScope;
+}
+
+/**
+ * One page of matches from a registry account's own mail and, with
+ * `includeGroup`, each group/shared account it reaches; every message is
+ * stamped with the registry account, its JMAP account and its folder name.
+ * A failing shared account is skipped, a failing own account (or a replaced
+ * connection) throws.
+ */
+export async function searchAccountEmails(
+  accountId: string,
+  search: AccountEmailSearch,
+): Promise<{ emails: UnifiedEmail[]; hasMore: boolean }> {
+  const entry = await searchEntryFor(accountId, search.at);
+  const targets: { jmapId: string; isShared: boolean; label?: string }[] = [
+    { jmapId: entry.primaryJmapId, isShared: false },
+  ];
+  if (search.includeGroup) {
+    for (const acc of entry.shared) targets.push({ jmapId: acc.id, isShared: true, label: acc.name });
+  }
+  let hasMore = false;
+  const pages = await Promise.all(targets.map(async (target) => {
+    try {
+      const page = await queryTarget(entry, target, search.filter, search.position ?? 0, search.limit, true);
+      if (page.hasMore) hasMore = true;
+      return page.emails;
+    } catch (err) {
+      if (!target.isShared || isStaleLoad(err)) throw err;
+      return [] as UnifiedEmail[];
+    }
+  }));
+  const emails = pages
+    .flat()
+    .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
   return { emails, hasMore };
 }
 

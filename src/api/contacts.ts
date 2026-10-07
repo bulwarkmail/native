@@ -3,6 +3,8 @@ import { CAPABILITIES } from './types';
 import type { ContactCard, AddressBook } from './types';
 import { generateUUID } from '../lib/uuid';
 import { contactFromWire, contactToWire } from '../lib/contact-wire';
+import { isStaleLoad } from '../lib/network-error';
+import { opScope, type AccountRef } from './op-scope';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -208,6 +210,38 @@ export async function getAllContacts(): Promise<ContactCard[]> {
     } catch (err) {
       if (isPrimary) throw err;
       console.warn(`[contacts] contacts for shared account ${accountId} failed`, err);
+    }
+  }
+  return all;
+}
+
+/**
+ * Up to `limit` cards matching `text` (server full-text, `ContactCard/query`)
+ * from each contacts-capable account, tagged like getAllContacts. One page
+ * per account, the query and the get in one request, every request on the
+ * connection `account` names (see `OpScope`). A failing shared account is
+ * skipped; a failing own account, or a replaced connection, throws.
+ */
+export async function searchContacts(text: string, limit: number, account?: AccountRef): Promise<ContactCard[]> {
+  const { gen } = opScope(account);
+  const primaryId = getContactsAccountId();
+  const all: ContactCard[] = [];
+  for (const accountId of getContactCapableAccountIds()) {
+    const isPrimary = accountId === primaryId;
+    try {
+      const res = await jmapClient.request([
+        ['ContactCard/query', { accountId, filter: { text }, limit }, '0'],
+        ['ContactCard/get', {
+          accountId,
+          '#ids': { resultOf: '0', name: 'ContactCard/query', path: '/ids' },
+        }, '1'],
+      ], USING, { gen });
+      methodResult(res, 0);
+      const list = methodResult<{ list?: ContactCard[] }>(res, 1).list ?? [];
+      all.push(...list.map((card) => tagContact(contactFromWire(card), accountId, isPrimary)));
+    } catch (err) {
+      if (isPrimary || isStaleLoad(err)) throw err;
+      console.warn(`[contacts] search in shared account ${accountId} failed`, err);
     }
   }
   return all;
