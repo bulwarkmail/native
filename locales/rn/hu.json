@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Összes levél"
+      },
+      "cross_starred": {
+        "label_mobile": "Összes csillagozott"
+      },
+      "cross_unread": {
+        "label_mobile": "Összes olvasatlan"
+      },
       "language": {
         "restart_for_direction": "Az új szövegirány alkalmazásához indítsd újra az alkalmazást.",
         "system_default": "Rendszer alapértelmezése"

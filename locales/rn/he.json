@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "הכל דוא״ל"
+      },
+      "cross_starred": {
+        "label_mobile": "הכל מסומנים"
+      },
+      "cross_unread": {
+        "label_mobile": "הכל שלא נקראו"
+      },
       "language": {
         "restart_for_direction": "הפעל מחדש את האפליקציה כדי להחיל את כיוון הטקסט החדש.",
         "system_default": "ברירת המחדל של המערכת"

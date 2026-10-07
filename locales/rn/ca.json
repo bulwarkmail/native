@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Tot el correu"
+      },
+      "cross_starred": {
+        "label_mobile": "Tots els destacats"
+      },
+      "cross_unread": {
+        "label_mobile": "Tots els no llegits"
+      },
       "language": {
         "restart_for_direction": "Reinicieu l'aplicació per aplicar la nova direcció del text.",
         "system_default": "Predeterminat del sistema"

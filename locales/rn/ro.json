@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Toată poșta"
+      },
+      "cross_starred": {
+        "label_mobile": "Toate cu stea"
+      },
+      "cross_unread": {
+        "label_mobile": "Toate necitite"
+      },
       "language": {
         "restart_for_direction": "Reporniți aplicația pentru a aplica noua direcție a textului.",
         "system_default": "Implicit de sistem"

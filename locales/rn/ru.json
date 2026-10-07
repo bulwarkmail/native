@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Вся почта"
+      },
+      "cross_starred": {
+        "label_mobile": "Все помеченные"
+      },
+      "cross_unread": {
+        "label_mobile": "Все непрочитанные"
+      },
       "language": {
         "restart_for_direction": "Перезапустите приложение, чтобы применить новое направление текста.",
         "system_default": "Как в системе"

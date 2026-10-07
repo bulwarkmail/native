@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "全部邮件"
+      },
+      "cross_starred": {
+        "label_mobile": "全部加星标"
+      },
+      "cross_unread": {
+        "label_mobile": "全部未读"
+      },
       "language": {
         "restart_for_direction": "请重启应用以应用新的文字方向。",
         "system_default": "系统默认"

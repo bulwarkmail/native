@@ -204,6 +204,13 @@ interface PersistedSettings {
   // Unified views span every logged-in account instead of just the active
   // one (own + its shared/group folders). Off by default like the webmail.
   unifiedCrossAccount: boolean;
+  // Cross-folder entries of the unified mailbox (All unread / All starred /
+  // All mail over the inbox and custom folders). They always come with the
+  // unified section; these opt them in without it, e.g. for a single account
+  // (parity with the webmail toggles of the same names, off by default).
+  enableCrossUnreadView: boolean;
+  enableCrossStarredView: boolean;
+  enableCrossAllView: boolean;
   mailAttachmentAction: MailAttachmentAction;
   attachmentPosition: AttachmentPosition;
   // Reader body: font for text/plain bodies (#830), gutter around the body,
@@ -375,6 +382,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   showFolderTotalCount: true,
   clearSearchOnFolderChange: false,
   unifiedCrossAccount: false,
+  enableCrossUnreadView: false,
+  enableCrossStarredView: false,
+  enableCrossAllView: false,
   mailAttachmentAction: 'preview',
   attachmentPosition: 'beside-sender',
   plainTextFont: 'sans',

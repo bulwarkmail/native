@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Tüm postalar"
+      },
+      "cross_starred": {
+        "label_mobile": "Tüm yıldızlılar"
+      },
+      "cross_unread": {
+        "label_mobile": "Tüm okunmamışlar"
+      },
       "language": {
         "restart_for_direction": "Yeni metin yönünü uygulamak için uygulamayı yeniden başlatın.",
         "system_default": "Sistem varsayılanı"

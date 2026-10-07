@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "همه ایمیل‌ها"
+      },
+      "cross_starred": {
+        "label_mobile": "همه ستاره‌دارها"
+      },
+      "cross_unread": {
+        "label_mobile": "همه خوانده‌نشده‌ها"
+      },
       "language": {
         "restart_for_direction": "برای اعمال جهت جدید متن، برنامه را دوباره راه‌اندازی کنید.",
         "system_default": "پیش‌فرض سیستم"

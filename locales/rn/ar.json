@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "كل البريد"
+      },
+      "cross_starred": {
+        "label_mobile": "كل المميز بنجمة"
+      },
+      "cross_unread": {
+        "label_mobile": "كل غير المقروء"
+      },
       "language": {
         "restart_for_direction": "أعد تشغيل التطبيق لتطبيق اتجاه النص الجديد.",
         "system_default": "افتراضي النظام"

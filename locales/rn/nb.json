@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "All e-post"
+      },
+      "cross_starred": {
+        "label_mobile": "Alle stjernemerkede"
+      },
+      "cross_unread": {
+        "label_mobile": "Alle uleste"
+      },
       "language": {
         "restart_for_direction": "Start appen på nytt for å bruke den nye tekstretningen.",
         "system_default": "Systemstandard"

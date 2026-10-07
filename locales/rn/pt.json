@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Todo o correio"
+      },
+      "cross_starred": {
+        "label_mobile": "Tudo com estrela"
+      },
+      "cross_unread": {
+        "label_mobile": "Tudo não lido"
+      },
       "language": {
         "restart_for_direction": "Reinicie o app para aplicar a nova direção do texto.",
         "system_default": "Padrão do sistema"

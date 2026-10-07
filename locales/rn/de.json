@@ -626,6 +626,15 @@
       }
     },
     "appearance": {
+      "cross_all": {
+        "label_mobile": "Alle Mails"
+      },
+      "cross_starred": {
+        "label_mobile": "Alle markierten"
+      },
+      "cross_unread": {
+        "label_mobile": "Alle ungelesenen"
+      },
       "language": {
         "restart_for_direction": "Starten Sie die App neu, um die neue Schreibrichtung anzuwenden.",
         "system_default": "Systemstandard"
