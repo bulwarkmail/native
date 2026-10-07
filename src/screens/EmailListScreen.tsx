@@ -44,7 +44,7 @@ import { withFailureToast } from '../lib/action-failure';
 import { isStaleLoad } from '../lib/network-error';
 import { sizeFilterBytes } from '../lib/search-utils';
 import {
-  selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection, type AccountSelection,
+  selectionAfterFailureIn, selectionIn, selectionWithout, selectionPrunedTo, settled, updateSelection, type AccountSelection,
 } from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
@@ -874,10 +874,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     });
   }, [visibleEmails]);
 
-  // An emptied folder (from the sidebar too) leaves nothing to stay selected.
+  // Rows that left the list (an emptied folder, from the sidebar too) must not
+  // stay selected: a stale key could reach a bulk move or archive.
   React.useEffect(() => {
-    if (visibleEmails.length === 0) setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()));
-  }, [visibleEmails.length, setSelectedIds]);
+    const keys = visibleEmails.map(rowKeyOf);
+    setSelectedIds((prev) => selectionPrunedTo(prev, keys) as Set<string>);
+  }, [visibleEmails, setSelectedIds]);
   // Clear selection when mailbox changes
   React.useEffect(() => {
     setSelectedIds(new Set());

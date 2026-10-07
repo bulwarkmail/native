@@ -76,6 +76,9 @@ describe('exact Trash and Junk names', () => {
     expect(findTrashMailbox([inbox, mb({ id: 'b', name: 'Bin' })])?.id).toBe('b');
     expect(findJunkMailbox([inbox, mb({ id: 'j', name: 'Junk Email' })])?.id).toBe('j');
   });
+  it.each(['Deleted Mail', 'Trash Can'])('%s resolves exactly', (name) => {
+    expect(findTrashMailbox([inbox, mb({ id: 'd', name })])?.id).toBe('d');
+  });
   it('Junk is not matched by a substring', () => {
     expect(findJunkMailbox([inbox, mb({ id: 'x', name: 'Spamalot' }), mb({ id: 'y', name: 'Junkyard' })])).toBeUndefined();
   });

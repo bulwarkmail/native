@@ -816,6 +816,35 @@ describe('moveMailboxContents', () => {
     expect(mockRequest).toHaveBeenCalledTimes(2);
   });
 
+  it('stops when the same ids keep coming back, reporting them as failed', async () => {
+    const q = () => res('Email/query', { ids: ['a', 'b'] });
+    const set = () => res('Email/set', { updated: { a: null, b: null } });
+    mockRequest.mockResolvedValueOnce(q()).mockResolvedValueOnce(set()).mockResolvedValueOnce(q());
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(2);
+    const out = await moveMailboxContents('f1', 'trash');
+    expect(out).toEqual({ moved: 2, failed: 2 });
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(500);
+  });
+
+  const stale = () => Object.assign(new Error('stale'), { name: 'StaleLoadError' });
+
+  it('reports interrupted when the account changed after a batch moved', async () => {
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(1);
+    mockRequest
+      .mockResolvedValueOnce(res('Email/query', { ids: ['a'] }))
+      .mockResolvedValueOnce(res('Email/set', { updated: { a: null } }))
+      .mockRejectedValueOnce(stale());
+    const out = await moveMailboxContents('f1', 'trash');
+    expect(out).toEqual({ moved: 1, failed: 0, interrupted: true });
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(500);
+  });
+
+  it('re-throws a stale load when nothing moved yet', async () => {
+    mockRequest.mockRejectedValueOnce(stale());
+    await expect(moveMailboxContents('f1', 'trash')).rejects.toMatchObject({ name: 'StaleLoadError' });
+  });
+
   it('refuses to move a folder into itself', async () => {
     await expect(moveMailboxContents('trash', 'trash')).rejects.toThrow();
     expect(mockRequest).not.toHaveBeenCalled();

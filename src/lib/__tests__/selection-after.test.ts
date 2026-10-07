@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../stores/toast-store', () => ({ toast: { error: vi.fn() } }));
 
 import {
-  selectionAfterFailure, selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection,
+  selectionAfterFailure, selectionAfterFailureIn, selectionIn, selectionWithout, selectionPrunedTo, settled, updateSelection,
   type AccountSelection,
 } from '../selection-after';
 
@@ -67,5 +67,18 @@ describe('a selection belongs to the account it was made in', () => {
     expect(selectionAfterFailureIn(afterSwitch, 'A', 'B', acted, present)).toBe(afterSwitch);
     const same = selectionAfterFailureIn({ accountId: 'A', ids: new Set() }, 'A', 'A', acted, present);
     expect([...same.ids].sort()).toEqual(['m1', 'm2']);
+  });
+});
+
+describe('selectionPrunedTo', () => {
+  it('drops rows no longer listed', () => {
+    expect([...selectionPrunedTo(new Set(['a', 'b']), ['b', 'c'])]).toEqual(['b']);
+  });
+  it('returns the same set when nothing was dropped', () => {
+    const s = new Set(['a']);
+    expect(selectionPrunedTo(s, ['a', 'b'])).toBe(s);
+  });
+  it('empties when nothing is listed', () => {
+    expect(selectionPrunedTo(new Set(['a']), []).size).toBe(0);
   });
 });

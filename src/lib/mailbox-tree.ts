@@ -325,7 +325,7 @@ export function flattenVisible(
 
 // Whole folder names only: a substring match took "Robin", "Cabinet" and
 // "Combined" for the Trash, and a bulk move or destroy then hit them.
-const TRASH_NAMES = ['trash', 'bin', 'deleted', 'deleted items', 'deleted messages', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
+const TRASH_NAMES = ['trash', 'bin', 'deleted', 'deleted items', 'deleted messages', 'deleted mail', 'trash can', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
 const JUNK_NAMES = ['junk', 'spam', 'junk email', 'junk e-mail', 'indésirables', 'indésirable', 'courrier indésirable'];
 
 function byExactName(mailboxes: Mailbox[], names: string[]): Mailbox | undefined {
