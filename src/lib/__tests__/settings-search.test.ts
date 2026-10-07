@@ -117,6 +117,7 @@ describe('settings search index (English catalog)', () => {
     expect(labelsFor('calendar')).toContain('Show week numbers');
     expect(labelsFor('reading')).toContain('Clear search when switching folders');
     expect(labelsFor('notifications')).toContain('Unread count on app icon');
+    expect(labelsFor('vacation')).toEqual(expect.arrayContaining(['Forward messages', 'Keep in inbox', 'Reply to']));
     // Webmail-only settings are not offered.
     expect(labelsFor('calendar')).not.toContain('Free scrolling');
     expect(labelsFor('notifications')).not.toContain('Notification sound');

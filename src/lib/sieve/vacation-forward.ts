@@ -6,8 +6,9 @@ import { isPeriodBoundary } from './period';
  * is. Forwarding counts as Bulwark's only when both clients read its address
  * the same way: the app's own check trims and takes IDN domains, so with it
  * the app could write a forward the webmail then treats as hand-edited.
+ * The vacation card checks the address it is given with it too.
  */
-function isValidEmail(email: string): boolean {
+export function isValidForwardAddress(email: string): boolean {
   if (!email || email.length > 254) return false;
   if (/[\r\n\0<>]/.test(email)) return false;
   const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -38,7 +39,7 @@ export function isValidVacationForward(value: unknown): value is VacationForward
   if (!value || typeof value !== 'object') return false;
   const f = value as Record<string, unknown>;
   if (typeof f.enabled !== 'boolean' || typeof f.keepCopy !== 'boolean') return false;
-  if (typeof f.to !== 'string' || !isValidEmail(f.to)) return false;
+  if (typeof f.to !== 'string' || !isValidForwardAddress(f.to)) return false;
   if (f.activeFrom !== undefined && !isPeriodBoundary(f.activeFrom)) return false;
   if (f.activeUntil !== undefined && !isPeriodBoundary(f.activeUntil)) return false;
   return true;

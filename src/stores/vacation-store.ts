@@ -18,6 +18,8 @@ import {
   type VacationFilters,
 } from './filter-store';
 import { isShownAccount, requireShownAccountScope, useEmailStore } from './email-store';
+import { t } from './locale-store';
+import { vacationErrorMessage } from '../lib/vacation-form';
 
 /** What the vacation card sets for forwarding; the period comes from the vacation. */
 export type VacationForwardSettings = Pick<VacationForward, 'enabled' | 'to' | 'keepCopy'>;
@@ -29,9 +31,12 @@ export type VacationForwardSettings = Pick<VacationForward, 'enabled' | 'to' | '
  * wrong senders.
  */
 export class VacationFiltersError extends Error {
+  /** What the filters part failed with. */
+  readonly reason: unknown;
   constructor(cause: unknown) {
     super(cause instanceof Error ? cause.message : 'filters_save_error');
     this.name = 'VacationFiltersError';
+    this.reason = cause;
   }
 }
 
@@ -67,6 +72,7 @@ export interface VacationState {
   includeAvailable: boolean;
   isLoading: boolean;
   isSaving: boolean;
+  /** Why the last load or save failed, translated (see vacationErrorMessage). */
   error: string | null;
   isSupported: boolean;
   hasLoaded: boolean;
@@ -162,7 +168,7 @@ export const useVacationStore = create<VacationState>((set, get) => ({
       // The connection serving the account shown, for every request of the load.
       at = requireShownAccountScope(appAccountId, accountId);
     } catch (err) {
-      set({ isLoading: false, error: err instanceof Error ? err.message : 'Failed to load vacation responder' });
+      set({ isLoading: false, error: vacationErrorMessage(err, t) });
       return;
     }
     // A reply for an account the user already switched away from is dropped.
@@ -196,7 +202,7 @@ export const useVacationStore = create<VacationState>((set, get) => ({
       set({
         isLoading: false,
         hasLoaded: true,
-        error: err instanceof Error ? err.message : 'Failed to load vacation responder',
+        error: vacationErrorMessage(err, t),
       });
     }
   },
@@ -240,7 +246,7 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     } catch (err) {
       set(superseded()
         ? { isSaving: false }
-        : { isSaving: false, error: err instanceof Error ? err.message : 'Failed to save vacation responder' });
+        : { isSaving: false, error: vacationErrorMessage(err, t) });
       throw err;
     }
 

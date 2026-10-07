@@ -742,7 +742,7 @@ function stripDisplayName(email: string): string {
 
 // Which signed-in account the identities belong to. Two servers can hand out
 // the same JMAP account ids, so the server and login are part of it.
-function identityScope(): string | null {
+export function identityScope(): string | null {
   try {
     return `${jmapClient.serverUrl ?? ''}|${jmapClient.username ?? ''}|${jmapClient.accountId}`;
   } catch {

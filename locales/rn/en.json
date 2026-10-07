@@ -627,7 +627,8 @@
   "notifications": {
     "delete_failed": "Failed to delete",
     "rule_apply_partial": "Could not finish applying the rule. Some messages may already have been changed.",
-    "rule_switch_back": "Switch back to {account} to finish this"
+    "rule_switch_back": "Switch back to {account} to finish this",
+    "vacation_filters_restart_failed": "Out of office settings saved, but your filters could not be restarted"
   },
   "offline": {
     "banner": "You are offline",
@@ -1236,12 +1237,20 @@
         "description": "Optionally limit the auto-reply to a specific period",
         "title": "Date Range"
       },
+      "errors": {
+        "account_changed": "The account changed before this finished. Try again.",
+        "capabilities_unknown": "The server has not said yet what your filters can do. Try again in a moment.",
+        "filters_opaque": "Your filters were edited by hand, so they cannot be kept running next to the auto-reply. Turn the auto-reply off, or change the filters in the Sieve editor.",
+        "generic": "Something went wrong. Please try again."
+      },
       "message": {
         "description": "The message that will be sent as a reply",
         "title": "Auto-Reply Message"
       },
       "warnings": {
-        "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\""
+        "date_format": "Dates must be \"YYYY-MM-DD\" or \"YYYY-MM-DD HH:MM\"",
+        "filters_stopped_paused": "Your filters are paused while the auto-reply is on: this server cannot run both.",
+        "filters_stopped_restart": "Your filters are not running while the auto-reply is on. Save to run them again."
       }
     }
   },
