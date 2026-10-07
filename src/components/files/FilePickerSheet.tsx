@@ -12,6 +12,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { getFileListing, isFolder, isOwnFileNode } from '../../api/files';
 import { jmapClient } from '../../api/jmap-client';
 import { opScope } from '../../api/op-scope';
+import { formatBytes } from '../../lib/format-bytes';
 import type { FileNode } from '../../api/types';
 import type { ComposerAccount } from '../../lib/composer-account';
 
@@ -35,12 +36,6 @@ interface Props {
 function byFolderThenName(a: FileNode, b: FileNode): number {
   if (isFolder(a) !== isFolder(b)) return isFolder(a) ? -1 : 1;
   return a.name.localeCompare(b.name);
-}
-
-function formatSize(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**
@@ -78,6 +73,9 @@ export default function FilePickerSheet({ visible, owner, ownerActiveNow, onClos
         Animated.timing(overlayOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
       ]).start();
     } else {
+      // A reopen reads the listing again; the old tree must not flash first.
+      setNodes(null);
+      setFailed(false);
       Animated.parallel([
         Animated.timing(slideY, { toValue: 600, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
@@ -211,7 +209,7 @@ export default function FilePickerSheet({ visible, owner, ownerActiveNow, onClos
           <Text style={[styles.rowLabel, !pickable && styles.rowLabelDisabled]} numberOfLines={1}>{node.name}</Text>
           {detail ? <Text style={styles.rowDetail} numberOfLines={1}>{detail}</Text> : null}
         </View>
-        <Text style={styles.size}>{formatSize(node.size ?? 0)}</Text>
+        <Text style={styles.size}>{formatBytes(node.size ?? 0)}</Text>
       </Pressable>
     );
   };
@@ -308,6 +306,7 @@ export default function FilePickerSheet({ visible, owner, ownerActiveNow, onClos
               value={query}
               onChangeText={setQuery}
               placeholder={t('files.search_placeholder', 'Search files...')}
+              accessibilityLabel={t('files.search_placeholder', 'Search files...')}
               placeholderTextColor={c.textMuted}
               autoCorrect={false}
               autoCapitalize="none"

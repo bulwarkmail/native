@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch, type AlertButton,
+  Keyboard, Dimensions, Platform, ActivityIndicator, Alert, Modal, Switch, InteractionManager, type AlertButton,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from '@react-navigation/native';
@@ -25,6 +25,7 @@ import { Button, IdentitySheet } from '../components';
 import { TemplateSheet } from '../components/TemplateSheet';
 import FilePickerSheet from '../components/files/FilePickerSheet';
 import { fileNodeAttachment, supportsFiles } from '../api/files';
+import { formatBytes } from '../lib/format-bytes';
 import RichTextEditor, {
   type RichTextEditorHandle,
   type RichTextSelectionState,
@@ -127,12 +128,6 @@ const TEXT_COLORS = [
   '#000000', '#5f6368', '#9aa0a6', '#c5221f', '#e8710a', '#f9ab00', '#188038', '#1967d2',
   '#7627bb', '#c2185b', '#795548', '#fa5252', '#fd7e14', '#40c057', '#4dabf7', '#e64980',
 ];
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function genCid(): string {
   return `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 10)}@bulwark.local`;
@@ -439,6 +434,11 @@ function ToolbarButton({
 interface SheetOption {
   label: string;
   destructive?: boolean;
+  /**
+   * Opens a Modal of the app's own, so it runs only once this sheet is gone:
+   * iOS does not present a Modal while another one is dismissing.
+   */
+  opensModal?: boolean;
   onPress: () => void;
 }
 
@@ -454,8 +454,32 @@ function OptionsSheet({
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  // An option that opens a Modal, held until this one has dismissed: on iOS
+  // the Modal's onDismiss, elsewhere (no onDismiss) after the close settles.
+  const afterDismissRef = React.useRef<(() => void) | null>(null);
+  const runAfterDismiss = () => {
+    const run = afterDismissRef.current;
+    afterDismissRef.current = null;
+    run?.();
+  };
+  const choose = (opt: SheetOption) => {
+    if (!opt.opensModal) {
+      onClose();
+      opt.onPress();
+      return;
+    }
+    afterDismissRef.current = opt.onPress;
+    onClose();
+    if (Platform.OS !== 'ios') InteractionManager.runAfterInteractions(runAfterDismiss);
+  };
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      onDismiss={Platform.OS === 'ios' ? runAfterDismiss : undefined}
+    >
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.scheduleCard} onPress={() => {}}>
           {!!title && <Text style={styles.modalTitle} numberOfLines={2}>{title}</Text>}
@@ -463,7 +487,7 @@ function OptionsSheet({
             <Pressable
               key={opt.label}
               style={styles.scheduleRow}
-              onPress={() => { onClose(); opt.onPress(); }}
+              onPress={() => choose(opt)}
             >
               <Text style={[styles.scheduleRowLabel, opt.destructive && { color: c.error }]}>{opt.label}</Text>
             </Pressable>
@@ -1110,7 +1134,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
         const att = seedAttachments.find((a) => a.cid && stripMessageIdBrackets(a.cid) === cid && a.blobId);
         if (!att?.blobId) continue;
         try {
-          const buf = await jmapClient.fetchBlobArrayBuffer(att.blobId, att.name, att.type, seedOwnerAccountId);
+          // Blob ids repeat across accounts: after a switch the same id
+          // would name another account's blob.
+          if (!ownerActiveNow()) throw new Error('account changed');
+          const buf = await jmapClient.fetchBlobArrayBuffer(
+            att.blobId, att.name, att.type, seedOwnerAccountId ?? (owner?.jmapAccountId || undefined),
+          );
           const bytes = new Uint8Array(buf);
           const mime = att.type?.toLowerCase().startsWith('image/') ? att.type : (sniffImageMime(bytes) ?? 'image/png');
           map.set(cid, `data:${mime};base64,${bytesToBase64(bytes)}`);
@@ -1838,7 +1867,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // the per-message attachment total under the mail capability's ceiling.
   // `alsoAdding` counts files of the same pick that were let in before this
   // one and are not in `attachments` yet.
-  const checkAttachmentSize = (name: string, size: number, inline: boolean, alsoAdding = 0): boolean => {
+  const exceedsAttachmentTotal = (size: number, alsoAdding = 0): boolean => {
+    const maxTotal = jmapClient.getMaxSizeAttachmentsPerEmail();
+    if (!maxTotal) return false;
+    return attachments.filter((a) => !a.inline && !a.error).reduce((n, a) => n + a.size, 0) + alsoAdding + size > maxTotal;
+  };
+
+  const attachmentsTotalMessage = (): string => t(
+    'email_composer.attachments_too_large_total',
+    'The attachments would exceed the {max} this server allows per message.',
+    { max: formatBytes(jmapClient.getMaxSizeAttachmentsPerEmail()) },
+  );
+
+  const checkAttachmentSize = (name: string, size: number, inline: boolean): boolean => {
     const maxUpload = jmapClient.getMaxSizeUpload();
     if (maxUpload && size > maxUpload) {
       Alert.alert(
@@ -1849,18 +1890,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
       );
       return false;
     }
-    const maxTotal = jmapClient.getMaxSizeAttachmentsPerEmail();
-    if (!inline && maxTotal) {
-      const total = attachments.filter((a) => !a.inline && !a.error).reduce((n, a) => n + a.size, 0) + alsoAdding + size;
-      if (total > maxTotal) {
-        Alert.alert(
-          t('email_composer.attach', 'Attach'),
-          t('email_composer.attachments_too_large_total', 'The attachments would exceed the {max} this server allows per message.', {
-            max: formatBytes(maxTotal),
-          }),
-        );
-        return false;
-      }
+    if (!inline && exceedsAttachmentTotal(size)) {
+      Alert.alert(t('email_composer.attach', 'Attach'), attachmentsTotalMessage());
+      return false;
     }
     return true;
   };
@@ -2046,21 +2078,40 @@ export default function ComposeScreen({ route, navigation }: Props) {
       return;
     }
     const maxUpload = jmapClient.getMaxSizeUpload();
+    // A file already on the message, or picked twice, is attached once.
+    const blobIds = new Set(attachments.filter((a) => !a.inline && a.blobId).map((a) => a.blobId));
     const picked: AttachmentEntry[] = [];
+    const tooLarge: string[] = [];
+    let overTotal = false;
     let adding = 0;
     for (const node of nodes) {
       const result = fileNodeAttachment(node, owner.jmapAccountId, maxUpload);
       if (!result.ok) {
-        // Says why, with the composer's own wording for a local file.
-        if (result.reason === 'too_large') checkAttachmentSize(node.name, node.size ?? 0, false);
+        if (result.reason === 'too_large') tooLarge.push(node.name);
         continue;
       }
       const { blobId, name, type, size } = result.attachment;
-      if (!checkAttachmentSize(name, size, false, adding)) continue;
+      if (blobIds.has(blobId)) continue;
+      if (exceedsAttachmentTotal(size, adding)) {
+        overTotal = true;
+        continue;
+      }
+      blobIds.add(blobId);
       adding += size;
       picked.push({ localId: genLocalId(), name, type, size, uri: '', inline: false, blobId, uploading: false });
     }
     if (picked.length > 0) setAttachments((prev) => [...prev, ...picked]);
+    // One alert for the whole pick, naming every file left out for its size.
+    const problems: string[] = [];
+    if (tooLarge.length > 0) {
+      problems.push(t(
+        'email_composer.files_too_large',
+        '{count, plural, one {This file is} other {These files are}} larger than the server allows ({max} per file): {names}',
+        { count: tooLarge.length, max: formatBytes(maxUpload), names: tooLarge.join(', ') },
+      ));
+    }
+    if (overTotal) problems.push(attachmentsTotalMessage());
+    if (problems.length > 0) Alert.alert(t('email_composer.attach', 'Attach'), problems.join('\n\n'));
   };
 
   const [attachMenuOpen, setAttachMenuOpen] = React.useState(false);
@@ -2069,7 +2120,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     { label: t('email_composer.attach_camera', 'Camera'), onPress: () => { void takePhotoAttachment(); } },
     { label: t('email_composer.attach_files', 'Files'), onPress: () => { void pickFileAttachments(); } },
     ...(owner && supportsFiles()
-      ? [{ label: t('email_composer.attach_from_files', 'Attach from Files'), onPress: openFilesPicker }]
+      ? [{ label: t('email_composer.attach_from_files', 'Attach from Files'), opensModal: true, onPress: openFilesPicker }]
       : []),
   ];
 
@@ -2124,12 +2175,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // Open a chip: local files straight from their URI, server blobs after a
-  // download into the cache.
+  // download into the cache. A blob id names a blob in the owner's account
+  // only; once another account is active the same id names one of its blobs.
   const previewAttachment = async (entry: AttachmentEntry) => {
     try {
       let uri = entry.uri;
       if (!uri && entry.blobId) {
-        const buf = await jmapClient.fetchBlobArrayBuffer(entry.blobId, entry.name, entry.type);
+        if (!ownerActiveNow()) {
+          alertAccountSwitched();
+          return;
+        }
+        const buf = await jmapClient.fetchBlobArrayBuffer(
+          entry.blobId, entry.name, entry.type, owner?.jmapAccountId || undefined,
+        );
         const dir = FileSystem.cacheDirectory ?? '';
         uri = `${dir}${entry.localId}-${entry.name.replace(/[^\w.-]+/g, '_')}`;
         await FileSystem.writeAsStringAsync(uri, bytesToBase64(new Uint8Array(buf)), {
