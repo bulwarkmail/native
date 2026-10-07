@@ -1626,6 +1626,61 @@ export interface OutgoingEmail {
    * the visible From keeps the alias (webmail #246).
    */
   envelopeMailFrom?: string;
+  /**
+   * Ask the next hops for delivery status notifications (RFC 3461 RET /
+   * NOTIFY). Only set when the sending account offers DSN; never on drafts.
+   */
+  requestDsn?: boolean;
+  /**
+   * Refuse relaying over an unencrypted hop (RFC 8689 REQUIRETLS). Only set
+   * when the sending account offers it; a queued send keeps it even if the
+   * server stops offering it, so the server refuses rather than weaken it.
+   */
+  requireTls?: boolean;
+}
+
+/** The MAIL FROM / RCPT TO parameters the send options and hold translate to (webmail parity). */
+export function submissionEnvelopeParameters(
+  opts: { requestDsn?: boolean; requireTls?: boolean },
+  holdForSeconds?: number,
+): { mailFrom: Record<string, string | null>; rcptTo: Record<string, string | null> } {
+  const mailFrom: Record<string, string | null> = {};
+  const rcptTo: Record<string, string | null> = {};
+  if (holdForSeconds && holdForSeconds > 0) mailFrom.HOLDFOR = String(holdForSeconds);
+  if (opts.requireTls) mailFrom.REQUIRETLS = null;
+  if (opts.requestDsn) {
+    // Return the headers only (not the full message) with the notification.
+    mailFrom.RET = 'HDRS';
+    rcptTo.NOTIFY = 'SUCCESS,FAILURE,DELAY';
+  }
+  return { mailFrom, rcptTo };
+}
+
+/**
+ * The submission envelope for `email`, or undefined when the server may
+ * derive it from the Identity. It must be explicit whenever MAIL FROM or
+ * RCPT TO carry a parameter (JMAP §7.5: an omitted envelope drops them) or
+ * MAIL FROM is set explicitly (`mailFrom`, else `email.envelopeMailFrom`;
+ * otherwise the header From). `holdForSeconds` is whole seconds.
+ */
+export function buildSubmissionEnvelope(
+  email: OutgoingEmail,
+  holdForSeconds: number,
+  mailFrom?: string,
+): { mailFrom: Record<string, unknown>; rcptTo: Array<Record<string, unknown>> } | undefined {
+  const params = submissionEnvelopeParameters(email, holdForSeconds);
+  const hasMailFromParams = Object.keys(params.mailFrom).length > 0;
+  const hasRcptToParams = Object.keys(params.rcptTo).length > 0;
+  if (!hasMailFromParams && !hasRcptToParams && !email.envelopeMailFrom && !mailFrom) return undefined;
+  const rcptTo = [...email.to, ...(email.cc ?? []), ...(email.bcc ?? [])]
+    .map((r) => r.email.trim())
+    .filter(Boolean)
+    .map((address) => (hasRcptToParams ? { email: address, parameters: params.rcptTo } : { email: address }));
+  const from: Record<string, unknown> = {
+    email: mailFrom || email.envelopeMailFrom || email.from[0]?.email,
+  };
+  if (hasMailFromParams) from.parameters = params.mailFrom;
+  return { mailFrom: from, rcptTo };
 }
 
 export interface SendEmailResult {
@@ -1783,19 +1838,12 @@ export async function sendEmail(
   // For a deferred send the envelope must be set explicitly so the HOLDFOR
   // mail-from parameter rides along (JMAP §7.3: an omitted envelope makes the
   // server derive mailFrom from the Identity, dropping our parameter). An
-  // explicit envelope sender (catch-all From override) needs it as well.
+  // explicit envelope sender (catch-all From override), DSN and REQUIRETLS
+  // need it as well. The options come from `email` alone (a queued row's own
+  // copy), never from the server's current capabilities.
   const holdFor = holdForSeconds && holdForSeconds > 0 ? Math.ceil(holdForSeconds) : 0;
-  if (holdFor > 0 || email.envelopeMailFrom) {
-    const rcptTo = [...email.to, ...(email.cc ?? []), ...(email.bcc ?? [])]
-      .map((r) => r.email.trim())
-      .filter(Boolean)
-      .map((address) => ({ email: address }));
-    const mailFrom: Record<string, unknown> = {
-      email: email.envelopeMailFrom || email.from[0]?.email,
-    };
-    if (holdFor > 0) mailFrom.parameters = { HOLDFOR: String(holdFor) };
-    submissionCreate.envelope = { mailFrom, rcptTo };
-  }
+  const envelope = buildSubmissionEnvelope(email, holdFor);
+  if (envelope) submissionCreate.envelope = envelope;
 
   const submissionArgs: Record<string, unknown> = {
     accountId,

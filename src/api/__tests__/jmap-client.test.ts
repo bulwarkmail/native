@@ -8,7 +8,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 
 import * as SecureStore from 'expo-secure-store';
-import { JMAPClient, AuthenticationError, RateLimitError, parseHoldLimit } from '../jmap-client';
+import { JMAPClient, AuthenticationError, RateLimitError, parseHoldLimit, hasSubmissionExtension } from '../jmap-client';
 import type { JMAPSession } from '../types';
 
 const MOCK_SESSION: JMAPSession = {
@@ -444,6 +444,72 @@ describe('JMAPClient', () => {
       await client.connect('https://mail.example.com', 'user', 'pass');
 
       expect(client.getSubmissionAccountIds()).toEqual(['acc-1', 'shared-no-hold']);
+    });
+
+    describe('submission extensions (DSN / REQUIRETLS)', () => {
+      it('matches the array form and the object form, in any letter case', () => {
+        expect(hasSubmissionExtension(['dsn', 'SIZE'], 'DSN')).toBe(true);
+        expect(hasSubmissionExtension(['SIZE'], 'DSN')).toBe(false);
+        expect(hasSubmissionExtension({ RequireTLS: [] }, 'REQUIRETLS')).toBe(true);
+        expect(hasSubmissionExtension({ DSN: ['x'] }, 'dsn')).toBe(true);
+        expect(hasSubmissionExtension({ SIZE: [] }, 'DSN')).toBe(false);
+      });
+
+      it('treats an object entry whose value is false or null as absent', () => {
+        expect(hasSubmissionExtension({ DSN: false }, 'DSN')).toBe(false);
+        expect(hasSubmissionExtension({ DSN: null }, 'DSN')).toBe(false);
+        expect(hasSubmissionExtension({ DSN: undefined }, 'DSN')).toBe(false);
+        expect(hasSubmissionExtension({ DSN: true }, 'DSN')).toBe(true);
+      });
+
+      it('ignores anything that is neither an array nor an object', () => {
+        expect(hasSubmissionExtension(undefined, 'DSN')).toBe(false);
+        expect(hasSubmissionExtension(null, 'DSN')).toBe(false);
+        expect(hasSubmissionExtension('DSN', 'DSN')).toBe(false);
+        expect(hasSubmissionExtension([1, null, { DSN: [] }], 'DSN')).toBe(false);
+      });
+
+      it('reads the extensions of the account that sends', async () => {
+        global.fetch = mockFetch([{ status: 200, json: STALWART_SESSION }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+
+        expect(client.supportsSubmissionExtension('DSN')).toBe(true);
+        expect(client.supportsSubmissionExtension('dsn', 'acc-1')).toBe(true);
+        expect(client.supportsSubmissionExtension('REQUIRETLS')).toBe(false);
+        // Its own submission capability lists none.
+        expect(client.supportsSubmissionExtension('DSN', 'shared-no-hold')).toBe(false);
+        // No submission capability of its own: the primary submission account's applies.
+        expect(client.supportsSubmissionExtension('DSN', 'shared-no-send')).toBe(true);
+      });
+
+      it('falls back to the session-level object when the account has none', async () => {
+        const session: JMAPSession = {
+          ...MOCK_SESSION,
+          capabilities: {
+            ...MOCK_SESSION.capabilities,
+            'urn:ietf:params:jmap:submission': { submissionExtensions: ['REQUIRETLS'] },
+          },
+        };
+        global.fetch = mockFetch([{ status: 200, json: session }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+
+        expect(client.supportsSubmissionExtension('REQUIRETLS')).toBe(true);
+        expect(client.supportsSubmissionExtension('DSN')).toBe(false);
+      });
+
+      it('finds FUTURERELEASE in the array form for scheduled send', async () => {
+        const session: JMAPSession = {
+          ...MOCK_SESSION,
+          capabilities: {
+            ...MOCK_SESSION.capabilities,
+            'urn:ietf:params:jmap:submission': { maxDelayedSend: 3600, submissionExtensions: ['FutureRelease'] },
+          },
+        };
+        global.fetch = mockFetch([{ status: 200, json: session }]) as any;
+        await client.connect('https://mail.example.com', 'user', 'pass');
+
+        expect(client.hasDelayedSend()).toBe(true);
+      });
     });
 
     describe('hold limit', () => {

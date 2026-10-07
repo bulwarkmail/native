@@ -7,6 +7,8 @@ vi.mock('../jmap-client', () => ({
     learnHoldLimit: vi.fn(),
     getSubmissionAccountIds: vi.fn(() => ['acc-1']),
     hasDelayedSend: vi.fn(() => true),
+    // The server no longer offers any extension: sendEmail must not care.
+    supportsSubmissionExtension: vi.fn(() => false),
     getMaxCallsInRequest: vi.fn(() => 16),
     getMaxObjectsInGet: vi.fn(() => 500),
     getMaxObjectsInSet: vi.fn(() => 500),
@@ -14,7 +16,10 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
-import { cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail } from '../email';
+import {
+  buildSubmissionEnvelope, cancelScheduledSend, listScheduledEmails, rescheduleScheduledSend, sendEmail,
+  submissionEnvelopeParameters,
+} from '../email';
 import { ScheduleTooLateError } from '../jmap-result';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -457,5 +462,106 @@ describe('scheduled sends in shared accounts (webmail #874)', () => {
       .mockResolvedValueOnce(set({ updated: { 's-grp': null } }));
     await rescheduleScheduledSend({ ...SCHEDULED, emailSubmissionId: 's-grp', accountId: 'grp-1' }, 0);
     expect(mockRequest.mock.calls.slice(1).map((c) => c[0][0][1].accountId)).toEqual(['grp-1', 'grp-1', 'grp-1']);
+  });
+});
+
+describe('sendEmail: delivery notifications and REQUIRETLS', () => {
+  const OUTGOING = {
+    from: [{ email: 'me@example.com', name: 'Me' }],
+    to: [{ email: ' you@example.com ', name: 'You' }],
+    cc: [{ email: 'cc@example.com' }],
+    bcc: [{ email: 'bcc@example.com' }],
+    subject: 'Hello',
+    textBody: 'Hi',
+    messageId: 'mid-1@example.com',
+  };
+  const RCPTS = ['you@example.com', 'cc@example.com', 'bcc@example.com'];
+  const send = async (over: Record<string, unknown> = {}, holdFor?: number) => {
+    mockRequest.mockResolvedValueOnce({ methodResponses: [] });
+    await sendEmail({ ...OUTGOING, ...over }, 'identity-1', 'sent-mb', holdFor, { draftsMailboxId: 'drafts-mb' })
+      .catch(() => undefined);
+    return mockRequest.mock.calls[0];
+  };
+  const submission = (call: unknown[]) =>
+    ((call[0] as Array<[string, { create: Record<string, Record<string, unknown>> }]>)
+      .find(([m]) => m === 'EmailSubmission/set')![1]).create['sub-1'];
+
+  // The request as sent before DSN / REQUIRETLS existed, captured verbatim.
+  const TODAY = '[[["Email/set",{"accountId":"acc-1","create":{"draft":{"from":[{"name":"Me","email":"me@example.com"}],"to":[{"name":"You","email":"you@example.com"}],"cc":[{"email":"cc@example.com"}],"bcc":[{"email":"bcc@example.com"}],"subject":"Hello","messageId":["mid-1@example.com"],"textBody":[{"partId":"text","type":"text/plain"}],"bodyValues":{"text":{"value":"Hi"}},"mailboxIds":{"drafts-mb":true},"keywords":{"$seen":true,"$draft":true}}}},"0"],["EmailSubmission/set",{"accountId":"acc-1","create":{"sub-1":{"emailId":"#draft","identityId":"identity-1"}},"onSuccessUpdateEmail":{"#sub-1":{"mailboxIds":{"sent-mb":true},"keywords/$draft":null}}},"1"],["EmailSubmission/get",{"accountId":"acc-1","ids":["#sub-1"],"properties":["deliveryStatus"]},"deliveryStatus"]],["urn:ietf:params:jmap:core","urn:ietf:params:jmap:mail","urn:ietf:params:jmap:submission"],{}]';
+
+  it('with both options off and no hold, the request is byte-identical to before', async () => {
+    expect(JSON.stringify(await send())).toBe(TODAY);
+    mockRequest.mockClear();
+    expect(JSON.stringify(await send({ requestDsn: false, requireTls: false }))).toBe(TODAY);
+  });
+
+  it('a hold alone, or an envelope sender alone, keeps the envelope it had', async () => {
+    expect(JSON.stringify(submission(await send({}, 30)))).toBe(
+      '{"emailId":"#draft","identityId":"identity-1","envelope":{"mailFrom":{"email":"me@example.com","parameters":{"HOLDFOR":"30"}},"rcptTo":[{"email":"you@example.com"},{"email":"cc@example.com"},{"email":"bcc@example.com"}]}}',
+    );
+    mockRequest.mockClear();
+    expect(JSON.stringify(submission(await send({ envelopeMailFrom: 'id@example.com' })))).toBe(
+      '{"emailId":"#draft","identityId":"identity-1","envelope":{"mailFrom":{"email":"id@example.com"},"rcptTo":[{"email":"you@example.com"},{"email":"cc@example.com"},{"email":"bcc@example.com"}]}}',
+    );
+  });
+
+  it('DSN asks for headers back and notifies on every bare-address recipient', async () => {
+    expect(submission(await send({ requestDsn: true })).envelope).toEqual({
+      mailFrom: { email: 'me@example.com', parameters: { RET: 'HDRS' } },
+      rcptTo: RCPTS.map((email) => ({ email, parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } })),
+    });
+  });
+
+  it('REQUIRETLS is a valueless MAIL FROM parameter, recipients plain', async () => {
+    expect(submission(await send({ requireTls: true })).envelope).toEqual({
+      mailFrom: { email: 'me@example.com', parameters: { REQUIRETLS: null } },
+      rcptTo: RCPTS.map((email) => ({ email })),
+    });
+  });
+
+  it('each combines with HOLDFOR and the envelope sender', async () => {
+    expect(submission(await send({ requestDsn: true }, 29.2)).envelope).toEqual({
+      mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '30', RET: 'HDRS' } },
+      rcptTo: RCPTS.map((email) => ({ email, parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } })),
+    });
+    mockRequest.mockClear();
+    expect(submission(await send({ requireTls: true, envelopeMailFrom: 'id@example.com' }, 60)).envelope).toEqual({
+      mailFrom: { email: 'id@example.com', parameters: { HOLDFOR: '60', REQUIRETLS: null } },
+      rcptTo: RCPTS.map((email) => ({ email })),
+    });
+    mockRequest.mockClear();
+    expect(submission(await send({ requireTls: true, requestDsn: true }, 60)).envelope).toEqual({
+      mailFrom: { email: 'me@example.com', parameters: { HOLDFOR: '60', REQUIRETLS: null, RET: 'HDRS' } },
+      rcptTo: RCPTS.map((email) => ({ email, parameters: { NOTIFY: 'SUCCESS,FAILURE,DELAY' } })),
+    });
+  });
+
+  it('keeps REQUIRETLS when the capability has vanished: the server refuses rather than send in clear', async () => {
+    const call = await send({ requireTls: true, requestDsn: true });
+    expect(submission(call).envelope).toMatchObject({ mailFrom: { parameters: { REQUIRETLS: null, RET: 'HDRS' } } });
+    expect(jmapClient.supportsSubmissionExtension).not.toHaveBeenCalled();
+  });
+});
+
+describe('submissionEnvelopeParameters', () => {
+  it('maps the options to webmail\'s parameters', () => {
+    expect(submissionEnvelopeParameters({})).toEqual({ mailFrom: {}, rcptTo: {} });
+    expect(submissionEnvelopeParameters({}, 0)).toEqual({ mailFrom: {}, rcptTo: {} });
+    expect(submissionEnvelopeParameters({ requestDsn: true, requireTls: true }, 90)).toEqual({
+      mailFrom: { HOLDFOR: '90', REQUIRETLS: null, RET: 'HDRS' },
+      rcptTo: { NOTIFY: 'SUCCESS,FAILURE,DELAY' },
+    });
+  });
+});
+
+describe('buildSubmissionEnvelope', () => {
+  const EMAIL = { from: [{ email: 'me@example.com' }], to: [{ email: 'a@x.test' }, { email: '  ' }], subject: '' };
+  it('is undefined when there is nothing to say beyond the identity', () => {
+    expect(buildSubmissionEnvelope(EMAIL, 0)).toBeUndefined();
+    expect(buildSubmissionEnvelope({ ...EMAIL, requestDsn: false, requireTls: false }, 0)).toBeUndefined();
+  });
+  it('drops blank recipients and uses the given MAIL FROM over the envelope sender', () => {
+    expect(buildSubmissionEnvelope({ ...EMAIL, envelopeMailFrom: 'id@example.com', requireTls: true }, 0, 'other@example.com'))
+      .toEqual({ mailFrom: { email: 'other@example.com', parameters: { REQUIRETLS: null } }, rcptTo: [{ email: 'a@x.test' }] });
   });
 });

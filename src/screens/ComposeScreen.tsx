@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Users, Search, Tag, Type, Highlighter,
+  Users, Search, Tag, Type, Highlighter, PackageCheck, LockKeyhole,
 } from 'lucide-react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -822,6 +822,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [activeField, setActiveField] = React.useState<Field | null>(null);
   const [attachments, setAttachments] = React.useState<AttachmentEntry[]>(initialAttachments);
   const [requestReadReceipt, setRequestReadReceipt] = React.useState(requestReadReceiptDefault);
+  // Per message, like webmail: not saved with drafts, offered only when the
+  // owner's sending account advertises the SMTP extension.
+  const [requestDsn, setRequestDsn] = React.useState(false);
+  const [requireTls, setRequireTls] = React.useState(false);
+  const canRequestDsn = jmapClient.supportsSubmissionExtension('DSN', owner?.jmapAccountId);
+  const canRequireTls = jmapClient.supportsSubmissionExtension('REQUIRETLS', owner?.jmapAccountId);
   const [subAddressTag, setSubAddressTag] = React.useState('');
   const [fromOverride, setFromOverride] = React.useState<{ name: string; email: string } | null>(null);
   const [selState, setSelState] = React.useState<RichTextSelectionState>({
@@ -1464,8 +1470,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
       messageId: messageIdRef.current,
       requestReadReceipt,
       envelopeMailFrom,
+      // Sends only: a draft never carries them (webmail does not persist
+      // them). Not re-checked against the capability: a server that stopped
+      // offering REQUIRETLS refuses the send instead of it going out weaker.
+      ...(!opts.forDraft && requestDsn ? { requestDsn: true } : {}),
+      ...(!opts.forDraft && requireTls ? { requireTls: true } : {}),
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt,
+    requestDsn, requireTls]);
 
   // Save one draft version (create, then destroy the previous one - #849).
   const saveDraftOnce = async (opts: { live: boolean }): Promise<string | null> => {
@@ -2219,14 +2231,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
       );
       return null;
     }
-    if (!jmapClient.hasDelayedSend()) {
+    if (!jmapClient.hasDelayedSend(owner?.jmapAccountId)) {
       Alert.alert(
         t('email_composer.schedule_unsupported_title', 'Scheduling unavailable'),
         t('email_composer.schedule_unsupported_body', 'This mail server does not support scheduled send.'),
       );
       return null;
     }
-    const max = jmapClient.getMaxDelayedSend();
+    const max = jmapClient.getMaxDelayedSend(owner?.jmapAccountId);
     if (max > 0 && seconds > max) {
       Alert.alert(
         t('email_composer.schedule_too_late_title', 'Too far ahead'),
@@ -2637,7 +2649,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <Paperclip size={20} color={c.text} />
           </Pressable>
           {/* Only offer scheduling when the server can hold the message (webmail parity). */}
-          {jmapClient.hasDelayedSend() && (
+          {jmapClient.hasDelayedSend(owner?.jmapAccountId) && (
             <Pressable
               onPress={() => setScheduleSheetOpen(true)}
               style={styles.headerBtn}
@@ -2766,6 +2778,20 @@ export default function ComposeScreen({ route, navigation }: Props) {
             icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
           <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
             icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
+          {canRequestDsn && (
+            <ToolbarButton active={requestDsn} onPress={() => setRequestDsn((v) => !v)}
+              label={requestDsn
+                ? t('email_composer.dsn_on', 'Delivery notification requested (click to disable)')
+                : t('email_composer.dsn_off', 'Request a delivery notification')}
+              icon={<PackageCheck size={18} color={requestDsn ? c.primary : c.textSecondary} />} />
+          )}
+          {canRequireTls && (
+            <ToolbarButton active={requireTls} onPress={() => setRequireTls((v) => !v)}
+              label={requireTls
+                ? t('email_composer.require_tls_on', 'Encrypted delivery required (click to disable)')
+                : t('email_composer.require_tls_off', 'Require encrypted delivery (TLS)')}
+              icon={<LockKeyhole size={18} color={requireTls ? c.primary : c.textSecondary} />} />
+          )}
           <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
             label={plainTextMode
               ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
