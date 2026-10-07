@@ -23,8 +23,11 @@ import { forwardsForRule, hasTooManyForwards, redirectLimitOf } from '../../lib/
 import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
+import { supportsPeriods } from '../../lib/sieve/period';
+import { periodLabel } from '../../lib/filters/rule-period';
 
 type Translate = (key: string, fallback?: string) => string;
+type PeriodLabel = ReturnType<typeof periodLabel>;
 
 function isReadonlyRule(r: FilterRule): boolean {
   return r.origin === 'external' || r.origin === 'opaque';
@@ -32,7 +35,7 @@ function isReadonlyRule(r: FilterRule): boolean {
 
 // Expanded "IF ... / THEN ..." view (webmail VisualRuleSummary, 1.4.6): every
 // condition and action as a chip, with the match-type hint after the IF row.
-function VisualRuleSummary({ rule, t, c }: { rule: FilterRule; t: Translate; c: ThemePalette }) {
+function VisualRuleSummary({ rule, period, t, c }: { rule: FilterRule; period: PeriodLabel; t: Translate; c: ThemePalette }) {
   const styles = useMemo(() => makeSummaryStyles(c), [c]);
   const joiner = rule.matchType === 'all' ? t('settings.filters.and', 'and') : t('settings.filters.or', 'or');
   const matchLabel = rule.matchType === 'all'
@@ -78,7 +81,26 @@ function VisualRuleSummary({ rule, t, c }: { rule: FilterRule; t: Translate; c: 
           );
         })}
       </View>
+      {period && (
+        <View style={styles.row}>
+          <Text style={[styles.keyword, { color: c.primary }]}>{t('settings.filters.period_title', 'Date Range')}</Text>
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>{period.range}</Text>
+          </View>
+          {period.status && <Text style={styles.joiner}>({period.status})</Text>}
+        </View>
+      )}
     </View>
+  );
+}
+
+/** The collapsed one-line summary, with the rule's period after it. */
+function RuleSummaryText({ rule, period, t, style }: { rule: FilterRule; period: PeriodLabel; t: Translate; style: object }) {
+  const summary = summarizeRule(rule, t);
+  return (
+    <Text style={style} numberOfLines={2}>
+      {period ? `${summary} · ${period.range}${period.status ? ` (${period.status})` : ''}` : summary}
+    </Text>
   );
 }
 
@@ -110,6 +132,8 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const expandedView = useSettingsStore((s) => s.filtersExpandedView);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const locale = useLocaleStore((s) => s.locale);
 
   // Scoped to a shared/group account when Settings is managing one.
   const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
@@ -389,6 +413,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                   ? rule.originLabel
                   : t('settings.filters.origin_external', 'External');
                 const hasStructured = rule.origin === 'external' && rule.conditions.length > 0 && rule.actions.length > 0;
+                const period = periodLabel(rule, { t, timeFormat, locale });
                 return (
                   <View key={rule.id} style={styles.ruleRow}>
                     <Lock size={16} color={c.mutedForeground} style={{ marginTop: 2 }} />
@@ -399,11 +424,9 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                       </View>
                       {hasStructured ? (
                         expandedView ? (
-                          <VisualRuleSummary rule={rule} t={t} c={c} />
+                          <VisualRuleSummary rule={rule} period={period} t={t} c={c} />
                         ) : (
-                          <Text style={styles.ruleSummary} numberOfLines={2}>
-                            {summarizeRule(rule, t)}
-                          </Text>
+                          <RuleSummaryText rule={rule} period={period} t={t} style={styles.ruleSummary} />
                         )
                       ) : rule.rawBlock ? (
                         <Text style={styles.rawBlock} numberOfLines={expandedView ? undefined : 4}>
@@ -415,6 +438,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                 );
               }
 
+              const period = periodLabel(rule, { t, timeFormat, locale });
               return (
                 <View key={rule.id} style={[styles.ruleRow, !rule.enabled && styles.ruleDisabled]}>
                   <View style={{ paddingTop: 2 }}>
@@ -427,11 +451,9 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                   >
                     <Text style={styles.ruleName} numberOfLines={1}>{rule.name}</Text>
                     {expandedView ? (
-                      <VisualRuleSummary rule={rule} t={t} c={c} />
+                      <VisualRuleSummary rule={rule} period={period} t={t} c={c} />
                     ) : (
-                      <Text style={styles.ruleSummary} numberOfLines={2}>
-                        {summarizeRule(rule, t)}
-                      </Text>
+                      <RuleSummaryText rule={rule} period={period} t={t} style={styles.ruleSummary} />
                     )}
                   </Pressable>
 
@@ -518,6 +540,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         maxRedirects={redirectLimit}
         forwardsBefore={forwardsOfEdited.before}
         forwardsAfter={forwardsOfEdited.after}
+        periodsSupported={supportsPeriods(sieveCapabilities?.sieveExtensions)}
         onSave={handleSaveRule}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />

@@ -17,6 +17,7 @@ import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { fetchListIds } from '../../api/list-ids';
 import { readAccountFilters } from '../../lib/filters/account-filters';
 import { forwardsForRule } from '../../lib/filters/forward-limit-view';
+import { supportsPeriods } from '../../lib/sieve/period';
 import {
   buildPrefillRule,
   buildSuggestions,
@@ -91,6 +92,7 @@ type MoveKind = 'move_sender' | 'move_domain' | 'move_list';
 interface ForwardInfo {
   sieveAccountId: string;
   maxRedirects: number | null;
+  periodsSupported: boolean;
   before: number;
   after: number;
 }
@@ -194,6 +196,7 @@ function RulesFlowBody({
         setForwardInfo({
           sieveAccountId,
           maxRedirects: filters.capabilities?.maxNumberRedirects ?? null,
+          periodsSupported: supportsPeriods(filters.capabilities?.sieveExtensions),
           ...forwardsForRule(filters.parsed.rules, filters.parsed.vacationForward, undefined, 0),
         });
       })
@@ -382,6 +385,7 @@ function RulesFlowBody({
           maxRedirects={forwards?.maxRedirects}
           forwardsBefore={forwards?.before}
           forwardsAfter={forwards?.after}
+          periodsSupported={forwards?.periodsSupported}
           onSave={(rule, options) => {
             const tg = live();
             if (!tg) return;
