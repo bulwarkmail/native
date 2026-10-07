@@ -54,7 +54,14 @@ export type FetchListAttachments = (emailIds: string[]) => Promise<Map<string, A
  * Loader handed to list rows: starts a lazy fetch of the row's parts from the
  * account it lives in, returns its cancel.
  */
-export type LoadListAttachments = (email: Email, onLoad: Listener) => () => void;
+export type LoadListAttachments = ((email: Email, onLoad: Listener) => () => void) & {
+  /**
+   * The cached parts for this email, if any, without asking. Lets a row that
+   * remounts (scrolled away and back) draw its chips in its first render
+   * instead of growing a frame later.
+   */
+  peek?: (email: Email) => Attachment[] | undefined;
+};
 
 interface Queue {
   /** Waiting for the next flush, by email id. */
@@ -105,7 +112,9 @@ function flush(scope: string, fetch: FetchListAttachments, queue: Queue) {
       }
     })
     .catch(() => {
-      // Not cached: the next render of the row tries again.
+      // Not cached: the next mount of the row tries again. The rows waiting
+      // now get an empty answer, which collapses the room held for chips.
+      for (const listeners of batch.values()) for (const listener of listeners) listener([]);
     })
     .finally(() => {
       for (const id of batch.keys()) queue.inFlight.delete(id);
@@ -151,6 +160,11 @@ export function requestListAttachments(
   return () => {
     joined.delete(onLoad);
   };
+}
+
+/** The cached parts of one email in one account, or undefined. */
+export function peekListAttachments(scope: string, emailId: string): Attachment[] | undefined {
+  return cache.get(cacheKey(scope, emailId));
 }
 
 /** Test hook: forget every cached answer and queued request. */

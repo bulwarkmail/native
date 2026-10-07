@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../api/email', () => ({
   getMailboxes: vi.fn(),
@@ -155,7 +155,7 @@ import { generateAccountId } from '../../lib/account-utils';
 const TEST_ACCOUNT_ID = generateAccountId('test@example.com', 'https://mail.example.com');
 
 import * as emailApi from '../../api/email';
-import { useEmailStore } from '../email-store';
+import { useEmailStore, snippetForRow } from '../email-store';
 import { registerServedAccount } from './helpers/served-account';
 
 /** The scope an action passes: JMAP account `accountId` on the connection it started on. */
@@ -524,6 +524,80 @@ describe('email-store', () => {
     });
   });
 
+  describe('search as typed, size filter, and stale results', () => {
+    const view = (over: Record<string, unknown> = {}) => useEmailStore.setState({
+      currentMailboxId: 'mb-1', emails: [], totalEmails: 0, searchQuery: '', filters: {}, mailboxSnapshots: {}, ...over,
+    });
+    const deferred = <T,>() => {
+      let resolve!: (v: T) => void;
+      const promise = new Promise<T>((r) => { resolve = r; });
+      return { promise, resolve };
+    };
+
+    it('sends the typed words with no wildcard', async () => {
+      view({ searchQuery: '  runn  fast ' });
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      await useEmailStore.getState().refreshEmails();
+      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({ text: 'runn  fast' });
+    });
+
+    it('maps the size filter to minSize / maxSize in bytes', async () => {
+      view({ filters: { minSizeKb: '10', maxSizeKb: '2.5' } });
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      await useEmailStore.getState().refreshEmails();
+      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({
+        operator: 'AND', conditions: [{ minSize: 10240 }, { maxSize: 2560 }],
+      });
+    });
+
+    it('ignores an empty, zero, negative or non-numeric size', async () => {
+      view({ filters: { minSizeKb: '0', maxSizeKb: 'abc' } });
+      mockQueryEmails.mockResolvedValue({ ids: [], total: 0, queryState: 'q' });
+      await useEmailStore.getState().refreshEmails();
+      expect(mockQueryEmails.mock.calls[0][1].filter).toBeUndefined();
+    });
+
+    it('drops a search result that lands after the account was switched', async () => {
+      view({ searchQuery: 'zephyr', emails: [{ id: 'keep' } as any] });
+      const d = deferred<any>();
+      mockQueryEmails.mockReturnValueOnce(d.promise);
+      mockGetEmailsWithState.mockResolvedValue({ list: [{ id: 'old' } as any], state: 's' });
+      const run = useEmailStore.getState().refreshEmails();
+      useEmailStore.setState({ activeAccountId: 'other-account', emails: [{ id: 'other' } as any] });
+      d.resolve({ ids: ['old'], total: 1, queryState: 'q' });
+      await run;
+      expect(useEmailStore.getState().emails).toEqual([{ id: 'other' }]);
+    });
+
+    it('drops an older search result that lands after a newer query', async () => {
+      view();
+      const first = deferred<any>();
+      mockQueryEmails.mockImplementation((_mb: unknown, opts: { filter?: { text?: string } }) =>
+        opts.filter?.text === 'one' ? first.promise : Promise.resolve({ ids: ['new'], total: 1, queryState: 'q2' }));
+      mockGetEmailsWithState.mockImplementation(async (ids: string[]) => ({
+        list: ids.map((id) => ({ id }) as any), state: 's',
+      }));
+      useEmailStore.getState().setSearchQuery('one');
+      await vi.waitFor(() => expect(mockQueryEmails).toHaveBeenCalled());
+      useEmailStore.getState().setSearchQuery('two');
+      first.resolve({ ids: ['old'], total: 1, queryState: 'q1' });
+      await vi.waitFor(() => expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['new']));
+      await new Promise((r) => setTimeout(r, 20));
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['new']);
+      expect(useEmailStore.getState().searchQuery).toBe('two');
+    });
+
+    it('searchEmails returns nothing when the account was switched mid-search', async () => {
+      const d = deferred<string[]>();
+      mockSearchEmails.mockReturnValueOnce(d.promise);
+      mockGetEmails.mockResolvedValue([{ id: 'e1' }]);
+      const run = useEmailStore.getState().searchEmails('x');
+      useEmailStore.setState({ activeAccountId: 'other-account' });
+      d.resolve(['e1']);
+      expect(await run).toEqual([]);
+    });
+  });
+
   // Issue #5: the sort-order toggle. Flipping it must drop every cached
   // snapshot / queryState (they belong to the old sort order) and re-query
   // with the new direction; the incremental queryChanges path must carry the
@@ -728,7 +802,7 @@ describe('email-store', () => {
 
       const [mailboxId, opts] = mockQueryEmails.mock.calls[0];
       expect(mailboxId).toBeUndefined();
-      expect(opts.filter).toEqual({ text: 'invoice*' });
+      expect(opts.filter).toEqual({ text: 'invoice' });
     });
 
     it('scopes a search to the open folder or a picked folder when asked', async () => {
@@ -778,7 +852,7 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().searchQuery).toBe('invoice');
       expect(mockQueryEmails.mock.calls[0][0]).toBe('mb-2');
-      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({ text: 'invoice*' });
+      expect(mockQueryEmails.mock.calls[0][1].filter).toEqual({ text: 'invoice' });
     });
   });
 
@@ -841,6 +915,56 @@ describe('email-store', () => {
 
       // Re-opening the view (new filters) forgets the retained rows.
       useEmailStore.getState().setFilters({ isUnread: true });
+      expect(useEmailStore.getState().retainedIds).toEqual([]);
+    });
+
+    describe('unread-first order', () => {
+      beforeEach(() => {
+        useSettingsStore.getState().updateSetting('messageListOrder', [{ criterion: 'unread', direction: 'desc' }]);
+        useSettingsStore.getState().updateSetting('messageListOrderScope', 'all');
+      });
+      afterEach(() => {
+        useSettingsStore.getState().updateSetting('messageListOrder', []);
+        useSettingsStore.getState().updateSetting('messageListOrderScope', 'inbox');
+      });
+
+      it('keeps an opened message where it was until the folder changes', async () => {
+        useEmailStore.setState({
+          currentMailboxId: 'mb-1',
+          filters: {},
+          emails: [{ id: 'e1', keywords: {} } as any, { id: 'e2', keywords: {} } as any, { id: 'e3', keywords: { $seen: true } } as any],
+          totalEmails: 3,
+        });
+        await useEmailStore.getState().markRead('e1');
+        expect(useEmailStore.getState().retainedIds).toEqual(['e1']);
+
+        // The server now puts the read e1 after the unread e2.
+        mockQueryEmails.mockResolvedValue({ ids: ['e2', 'e1', 'e3'], total: 3, queryState: 'q' });
+        mockGetEmailsWithState.mockResolvedValue({
+          list: [{ id: 'e2', keywords: {} }, { id: 'e1', keywords: { $seen: true } }, { id: 'e3', keywords: { $seen: true } }],
+          state: 's',
+        });
+        await useEmailStore.getState().refreshEmails();
+        expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['e1', 'e2', 'e3']);
+      });
+
+      it('does not count a message held in place against the next page', async () => {
+        useEmailStore.setState({
+          currentMailboxId: 'mb-1', filters: {}, retainedIds: ['e1'], loading: false, totalEmails: 5,
+          emails: [{ id: 'e1', keywords: { $seen: true } } as any, { id: 'e2', keywords: {} } as any],
+        });
+        mockQueryEmailPage.mockResolvedValue({ ids: [], total: 5, list: [], threads: [] });
+        await useEmailStore.getState().loadMoreEmails();
+        expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ position: 2 }));
+      });
+    });
+
+    it('does not hold a read message in place in the chronological order', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1', filters: {},
+        emails: [{ id: 'e1', keywords: {} } as any], totalEmails: 1,
+      });
+      await useEmailStore.getState().markRead('e1');
       expect(useEmailStore.getState().retainedIds).toEqual([]);
     });
 
@@ -1215,6 +1339,76 @@ describe('email-store', () => {
     });
   });
 
+  describe('search snippets', () => {
+    const mark = (text: string) => `<mark>${text}</mark>`;
+    const rowA = { id: 'e1', threadId: 't1', keywords: {} };
+    const sharedFolder = { id: 'grp-1:mb', name: 'Shared', isShared: true, accountId: 'grp-1' } as any;
+    const deferred = <T,>() => {
+      let resolve!: (v: T) => void;
+      const promise = new Promise<T>((r) => { resolve = r; });
+      return { promise, resolve };
+    };
+
+    it('keeps each account\'s highlights apart when ids repeat, and drops them with the search', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1', mailboxes: [sharedFolder] });
+      mockQueryAcross.mockImplementation(async (targets: Array<{ accountId?: string }>) =>
+        targets.map((t) => ({
+          accountId: t.accountId, ok: true, total: 1, threads: [],
+          list: [rowA],
+          snippets: [{ emailId: 'e1', subject: mark(t.accountId ?? 'own'), preview: null }],
+        })));
+
+      useEmailStore.getState().setSearchQuery('invoice');
+      await vi.waitFor(() => expect(Object.keys(useEmailStore.getState().searchSnippets)).toHaveLength(2));
+
+      const { searchSnippets, emails } = useEmailStore.getState();
+      expect(emails.map((e) => [e.jmapAccountId, e.id]).sort()).toEqual([['acc-1', 'e1'], ['grp-1', 'e1']]);
+      const own = emails.find((e) => e.jmapAccountId === 'acc-1')!;
+      const shared = emails.find((e) => e.jmapAccountId === 'grp-1')!;
+      expect(snippetForRow(searchSnippets, own)?.subject).toEqual([{ text: 'own', marked: true }]);
+      expect(snippetForRow(searchSnippets, shared)?.subject).toEqual([{ text: 'grp-1', marked: true }]);
+
+      mockQueryEmailPage.mockResolvedValue({ ids: [], total: 0, list: [], threads: [], snippets: [] });
+      useEmailStore.getState().setSearchQuery('');
+      expect(useEmailStore.getState().searchSnippets).toEqual({});
+    });
+
+    it('stores a single-account search\'s highlights under the account queried, and clears them on an account switch', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1' });
+      mockQueryEmailPage.mockResolvedValue({
+        ids: ['e1'], total: 1, queryState: 'q', state: 's', list: [rowA], threads: [],
+        snippets: [{ emailId: 'e1', subject: null, preview: `a ${mark('hit')}` }],
+      });
+
+      useEmailStore.getState().setFilters({ subject: 'hit' });
+      await vi.waitFor(() => expect(useEmailStore.getState().emails).toHaveLength(1));
+
+      expect(mockQueryEmailPage).toHaveBeenCalledWith('mb-1', expect.objectContaining({ snippets: true }));
+      const state = useEmailStore.getState();
+      expect(Object.keys(state.searchSnippets)).toEqual([JSON.stringify(['acc-1', 'e1'])]);
+      expect(snippetForRow(state.searchSnippets, state.emails[0])?.preview)
+        .toEqual([{ text: 'a ', marked: false }, { text: 'hit', marked: true }]);
+
+      useEmailStore.getState().setActiveAccount('another-account');
+      expect(useEmailStore.getState().searchSnippets).toEqual({});
+    });
+
+    it('drops highlights when a search lands for an account no longer shown', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1' });
+      const answer = deferred<any>();
+      mockQueryAcross.mockReturnValueOnce(answer.promise);
+      useEmailStore.getState().setSearchQuery('invoice');
+      await vi.waitFor(() => expect(mockQueryAcross).toHaveBeenCalled());
+      useEmailStore.getState().setActiveAccount('another-account');
+      answer.resolve([{
+        accountId: undefined, ok: true, total: 1, threads: [], list: [rowA],
+        snippets: [{ emailId: 'e1', subject: mark('late') }],
+      }]);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(useEmailStore.getState().searchSnippets).toEqual({});
+    });
+  });
+
   // PF7: a list page or search used to be Email/query, then Email/get, then a
   // Thread/get the list screen fired after rendering.
   describe('list page requests', () => {
@@ -1250,7 +1444,7 @@ describe('email-store', () => {
       await vi.waitFor(() => expect(useEmailStore.getState().threadCounts).toEqual({ 'acc-1:t1': 3, 'acc-1:t2': 1 }));
 
       expect(mockQueryAcross).toHaveBeenCalledTimes(1);
-      expect(mockQueryAcross.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice*' }, threads: true });
+      expect(mockQueryAcross.mock.calls[0][1]).toMatchObject({ filter: { text: 'invoice' }, threads: true });
       expect(mockQueryEmailPage).toHaveBeenCalledTimes(1);
       expect(mockGetThreads).not.toHaveBeenCalled();
     });

@@ -59,6 +59,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ScheduledScreen from './src/screens/ScheduledScreen';
 import OutboxScreen from './src/screens/OutboxScreen';
 import UnifiedInboxScreen from './src/screens/UnifiedInboxScreen';
+import GlobalSearchScreen from './src/screens/GlobalSearchScreen';
 import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
@@ -101,6 +102,10 @@ import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
+
+// Read the settings now, beside the stores that hydrate on import, so the start
+// folder is known by the time the session restores.
+void useSettingsStore.getState().hydrate();
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabsParamList>();
@@ -986,6 +991,7 @@ export default function App() {
         <Stack.Screen name="Scheduled" component={ScheduledScreen} />
         <Stack.Screen name="Outbox" component={OutboxScreen} />
         <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
+        <Stack.Screen name="GlobalSearch" component={GlobalSearchScreen} />
         <Stack.Screen
           name="AddAccount"
           options={{

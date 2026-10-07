@@ -49,6 +49,7 @@ import {
   getFileNameRules, renameFileNode, supportsSharing, uploadFileNode,
 } from '../api/files';
 import { jmapClient } from '../api/jmap-client';
+import { opScope } from '../api/op-scope';
 import { downloadAttachment, shareAttachment } from '../lib/email-export';
 import { secureFetch } from '../lib/client-cert';
 import { observeServerFetch } from '../lib/server-reachability';
@@ -67,6 +68,9 @@ import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
+import { isStaleLoad } from '../lib/network-error';
+import { resolveFilesOpen, usePendingFilesOpen } from '../navigation/pending-files-open';
+import { useToastStore } from '../stores/toast-store';
 
 // A file row carries the display name alongside the rest of the node.
 interface FileRow extends FileNode {
@@ -171,6 +175,9 @@ export default function FilesScreen() {
   // shared-with-me subtree) plus its name for the breadcrumb.
   const [path, setPath] = useState<{ id: string; name: string }[]>([]);
   const [allNodes, setAllNodes] = useState<FileNode[]>([]);
+  // The app account `allNodes` was listed for: node ids repeat across
+  // accounts, so a search hit is only looked up in its own account's listing.
+  const [nodesFor, setNodesFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,12 +230,23 @@ export default function FilesScreen() {
       if (mode === 'refresh') setRefreshing(true);
       else setLoading(true);
       setError(null);
+      const listedFor = useAuthStore.getState().activeAccountId;
+      // Bound to this connection: a listing an account switch overtook is
+      // refused (StaleLoadError) rather than shown as the new account's.
+      const at = opScope();
       try {
         // One fetch across all accessible accounts: own files plus nodes other
         // principals shared with us (tagged isShared, ids namespaced).
-        const nodes = await getAllFileNodesAcrossAccounts();
+        const nodes = await getAllFileNodesAcrossAccounts(at);
+        // A shared account's stale stop is skipped inside the listing, so
+        // check the connection once more before showing what came back.
+        if (!jmapClient.isCurrent(at.gen)) return;
         setAllNodes(nodes);
+        setNodesFor(listedFor);
       } catch (e) {
+        // A listing begun before an account switch belongs to the previous
+        // account; the switch starts its own load.
+        if (isStaleLoad(e)) return;
         setError(e instanceof Error ? e.message : t('files.download_error', 'Failed to load files'));
       } finally {
         setLoading(false);
@@ -246,6 +264,7 @@ export default function FilesScreen() {
     if (loadedForAccountRef.current !== undefined && loadedForAccountRef.current !== activeAccountId) {
       uploadAbortRef.current?.abort();
       setAllNodes([]);
+      setNodesFor(null);
       setPath([]);
       setSelection(new Set());
       setActionsTarget(null);
@@ -275,6 +294,40 @@ export default function FilesScreen() {
       return cut === prev.length ? prev : prev.slice(0, cut);
     });
   }, [allNodes]);
+
+  // A global search hit to show: once this account's listing is in, open its
+  // folder and preview the file. A node missing from a listing that may be a
+  // minute old is looked for once more after a refresh.
+  const pendingOpen = usePendingFilesOpen((s) => s.target);
+  const refreshedForOpen = useRef<object | null>(null);
+  useEffect(() => {
+    if (!pendingOpen) return;
+    if (pendingOpen.appAccountId !== activeAccountId) {
+      // Parked for an account no longer shown: never applied to this one's listing.
+      usePendingFilesOpen.getState().consume();
+      return;
+    }
+    if (loading || refreshing || nodesFor !== activeAccountId) return;
+    const resolved = resolveFilesOpen(allNodes, pendingOpen);
+    if (!resolved && refreshedForOpen.current !== pendingOpen) {
+      refreshedForOpen.current = pendingOpen;
+      void loadFiles('refresh');
+      return;
+    }
+    usePendingFilesOpen.getState().consume();
+    if (!resolved) {
+      useToastStore.getState().addToast({
+        type: 'error',
+        title: t('deep_link.file_not_found', 'This file is no longer available.'),
+      });
+      return;
+    }
+    setPath(resolved.path);
+    setSearchQuery('');
+    setSelection(new Set());
+    const file = resolved.file;
+    if (file && canPreviewInApp(file)) setPreviewTarget({ ...file, displayName: file.name });
+  }, [pendingOpen, activeAccountId, loading, refreshing, nodesFor, allNodes, loadFiles, t]);
 
   const folderNodes = useMemo(() => {
     if (currentParentId === null) {

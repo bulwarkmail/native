@@ -204,6 +204,8 @@ interface PersistedSettings {
   // Opening a folder drops an active search and filters and browses it,
   // instead of re-running the search there (#553, the default).
   clearSearchOnFolderChange: boolean;
+  // App only: reopen the folder last viewed on start instead of the Inbox.
+  restoreLastFolder: boolean;
   // Unified views span every logged-in account instead of just the active
   // one (own + its shared/group folders). Off by default like the webmail.
   unifiedCrossAccount: boolean;
@@ -391,6 +393,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   showAvatarsInJunk: false,
   showFolderTotalCount: true,
   clearSearchOnFolderChange: false,
+  restoreLastFolder: false,
   unifiedCrossAccount: false,
   mailAttachmentAction: 'preview',
   attachmentPosition: 'beside-sender',
@@ -678,6 +681,7 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'offlineCacheDays',
   'offlineCacheMaxMB',
   'mailSortAscending',
+  'restoreLastFolder',
   'filesFolderLayout',
   'filesDefaultViewMode',
   'filesDefaultSortKey',

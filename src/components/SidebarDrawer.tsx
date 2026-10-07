@@ -9,16 +9,17 @@ import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
-  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus,
+  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search,
   type LucideIcon,
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
-import { useEmailStore, spannedAccounts, requireShownAccountScope } from '../stores/email-store';
+import { useEmailStore, spannedAccounts, requireShownAccountScope, emptyFolder } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { planEmptyFolder } from '../lib/empty-folder';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
@@ -33,7 +34,7 @@ import { showUnifiedSection } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
 import {
-  markMailboxAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
+  markMailboxAsRead, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
 import { inAccount, type OpScope } from '../api/op-scope';
 import { isStaleLoad } from '../lib/network-error';
@@ -493,7 +494,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       if (affectsCurrent) await refreshEmails();
     } catch (err) {
       // Stopped before sending because the client moved to another account.
-      if (!isStaleLoad(err)) Alert.alert(label, err instanceof Error ? err.message : String(err));
+      if (!isStaleLoad(err)) {
+        Alert.alert(label, err instanceof Error ? err.message : String(err));
+        // A run that stopped part-way (a bulk move) has still changed counts.
+        Promise.all([fetchMailboxes(), affectsCurrent ? refreshEmails() : undefined]).catch((refreshErr: unknown) => {
+          console.warn('[SidebarDrawer] refresh after a failed folder action failed:', refreshErr);
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -544,7 +551,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         ),
       });
     }
-    if (mb.role === 'trash' || mb.role === 'junk' || mb.role === 'spam') {
+    // What the tap will do, decided once so the text and the run agree.
+    const plan = planEmptyFolder(mailboxes, mb, useSettingsStore.getState().deleteAction);
+    // No Trash to move into: offering the action would only fail.
+    if (mb.myRights?.mayRemoveItems !== false && plan.kind !== 'no-trash') {
       actions.push({
         key: 'empty',
         label: t('mailbox_context_menu.empty_folder', 'Empty folder'),
@@ -552,7 +562,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         destructive: true,
         onPress: () => Alert.alert(
           t('email_list.empty_folder.confirm_title', 'Empty folder'),
-          t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
+          plan.kind === 'destroy'
+            ? t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.')
+            : t('email_list.empty_folder.confirm_message_trash', 'All emails in this folder will be moved to the Trash.'),
           [
             { text: t('common.cancel', 'Cancel'), style: 'cancel' },
             {
@@ -561,7 +573,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               onPress: () => void runFolderAction(
                 t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
                 owner,
-                (at) => emptyMailbox(ref.id, inAccount(at, ref.accountId)),
+                (at) => emptyFolder(plan, mb, at),
                 currentMailboxId === mb.id,
               ),
             },
@@ -1012,6 +1024,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 <RowCounts unread={unifiedCounts.inbox.unread} total={unifiedCounts.inbox.total} showTotal={showFolderTotalCount} />
               </Pressable>
             )}
+            <Pressable
+              style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
+              onPress={() => { onClose(); navigation.navigate('GlobalSearch'); }}
+            >
+              <Search size={16} color={c.textSecondary} />
+              <Text style={styles.quickRowLabel}>{t('global_search.title', 'Search everything')}</Text>
+            </Pressable>
             <Pressable
               style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
               onPress={() => { onClose(); navigation.navigate('Scheduled'); }}

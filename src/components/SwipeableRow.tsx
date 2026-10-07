@@ -55,7 +55,7 @@ const ACTION_META: Record<Exclude<SwipeAction, 'none'>, { icon: LucideIcon; bg: 
 
 type Translate = (key: string, fallback?: string) => string;
 
-function actionLabel(action: SwipeAction, context: SwipeContext, t: Translate): string {
+export function actionLabel(action: SwipeAction, context: SwipeContext, t: Translate): string {
   switch (action) {
     case 'none': return '';
     case 'read': return context.unread ? t('context_menu.mark_read', 'Read') : t('context_menu.mark_unread', 'Unread');

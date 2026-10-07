@@ -1,8 +1,9 @@
 // A small in-memory JMAP server for store tests that assert the wire: it
 // answers Email/query (text / inMailbox / inMailboxOtherThan / hasKeyword /
-// notKeyword filters, newest first, position + limit), Email/get and
-// Thread/get (including result references), and applies Email/set updates
-// and destroys. Every request is recorded so a test can check which method
+// notKeyword filters, newest first, position + limit), Email/get, Thread/get
+// and SearchSnippet/get (including result references; a snippet marks the
+// whole subject), and applies Email/set updates and destroys (`#destroy` by
+// reference too). Every request is recorded so a test can check which method
 // calls went out, and in how many requests.
 
 import type { Email, JMAPMethodCall } from '../../api/types';
@@ -61,7 +62,8 @@ export function createFakeJmap(accounts: Record<string, FakeEmail[]>) {
       } else if (!store) {
         response = ['error', { type: 'accountNotFound' }, callId];
       } else {
-        const ref = args['#ids'] as { resultOf: string; path: string } | undefined;
+        const ref = (args['#ids'] ?? args['#emailIds'] ?? args['#destroy']) as
+          { resultOf: string; path: string } | undefined;
         let ids = args.ids as string[] | undefined;
         if (ref) {
           const source = byCallId.get(ref.resultOf);
@@ -97,6 +99,12 @@ export function createFakeJmap(accounts: Record<string, FakeEmail[]>) {
             emailIds: store.filter((e) => e.threadId === id).map((e) => e.id),
           }));
           response = ['Thread/get', { accountId, list, state: 't', notFound: [] }, callId];
+        } else if (name === 'SearchSnippet/get') {
+          const list = (ids ?? [])
+            .map((id) => store.find((e) => e.id === id))
+            .filter((e): e is FakeEmail => !!e)
+            .map((e) => ({ emailId: e.id, subject: `<mark>${e.subject ?? ''}</mark>`, preview: null }));
+          response = ['SearchSnippet/get', { accountId, list, notFound: [] }, callId];
         } else if (name === 'Email/set') {
           const updated: Record<string, null> = {};
           for (const [id, patch] of Object.entries((args.update ?? {}) as Record<string, Record<string, unknown>>)) {
@@ -114,7 +122,8 @@ export function createFakeJmap(accounts: Record<string, FakeEmail[]>) {
             }
             updated[id] = null;
           }
-          const destroyed = ((args.destroy ?? []) as string[]).filter((id) => store.some((e) => e.id === id));
+          const toDestroy = (args['#destroy'] ? ids : args.destroy ?? []) as string[];
+          const destroyed = toDestroy.filter((id) => store.some((e) => e.id === id));
           accounts[accountId] = store.filter((e) => !destroyed.includes(e.id));
           response = ['Email/set', { accountId, updated, destroyed, newState: 'n' }, callId];
         } else {

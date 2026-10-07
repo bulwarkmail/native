@@ -5,6 +5,8 @@ import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
 import { batched, requireMethodResult } from './jmap-result';
 import { decodeFileNodeName, numberedFileName } from '../lib/filenode-name';
 import { fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
+import { isStaleLoad } from '../lib/network-error';
+import { opScope, type AccountRef } from './op-scope';
 
 // A FileNode is a folder (container) only when it has no blob content — the
 // server stores it with `file == null`. Sending a blobId/type/size on create
@@ -168,11 +170,13 @@ const FILE_NODE_MAX_IDS = 200_000;
 // come from paging FileNode/query and are fetched in /get-sized batches, and
 // parents that are still unknown afterwards (folders, on older Stalwart) are
 // fetched by id.
-async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
+async function fetchAllFileNodes(accountId: string, gen?: number): Promise<FileNode[]> {
   const using = fileUsing();
+  const opts = gen === undefined ? undefined : { gen };
   const res = await jmapClient.request(
     [['FileNode/get', { accountId, ids: null, properties: FILE_NODE_PROPERTIES }, '0']],
     using,
+    opts,
   );
   const result = res.methodResponses[0];
   if (!result || result[0] === 'error') {
@@ -189,7 +193,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
     const calls = batched(ids, maxObjects).map((batch, i): JMAPMethodCall =>
       ['FileNode/get', { accountId, ids: batch, properties: FILE_NODE_PROPERTIES }, String(i)]);
     for (const group of batched(calls, jmapClient.getMaxCallsInRequest())) {
-      const batchRes = await jmapClient.request(group, using);
+      const batchRes = await jmapClient.request(group, using, opts);
       for (const r of batchRes.methodResponses ?? []) {
         if (r[0] !== 'FileNode/get') {
           throw new Error(r[1]?.description || 'FileNode/get failed');
@@ -207,6 +211,7 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
           accountId, filter: {}, position, limit: FILE_NODE_QUERY_PAGE, calculateTotal: true,
         }, '0']],
         using,
+        opts,
       );
       const queryResult = queryRes.methodResponses?.[0];
       if (!queryResult || queryResult[0] !== 'FileNode/query') {
@@ -238,6 +243,8 @@ async function fetchAllFileNodes(accountId: string): Promise<FileNode[]> {
       await fetchByIds([...parents]);
     }
   } catch (err) {
+    // A replaced connection is not a partial tree: nothing it read is kept.
+    if (isStaleLoad(err)) throw err;
     // A partial tree beats none: keep what was read, as before #1069.
     console.warn(`[files] listing for account ${accountId} is incomplete past ${maxObjects} nodes`, err);
   }
@@ -269,8 +276,10 @@ function filesCapableAccountIds(): string[] {
 // accounts. Nodes owned by another principal (shared with the user) are
 // tagged `isShared: true` with the owning accountId/accountName, and their
 // ids/parentIds are namespaced "accountId:nodeId". Mirrors the webmail's
-// listAllFileNodesAcrossAccounts.
-export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
+// listAllFileNodesAcrossAccounts. `gen` binds every request to the caller's
+// connection (see `OpScope`); `strict` throws when the user's own account
+// fails instead of listing only the shared ones.
+async function listAcrossAccounts(gen: number | undefined, strict: boolean): Promise<FileNode[]> {
   const primaryId = filesAccountId();
   const accounts = jmapClient.currentSession?.accounts ?? {};
   const all: FileNode[] = [];
@@ -278,7 +287,7 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   for (const accountId of filesCapableAccountIds()) {
     const isPrimary = accountId === primaryId;
     try {
-      const nodes = await fetchAllFileNodes(accountId);
+      const nodes = await fetchAllFileNodes(accountId, gen);
       for (const wire of nodes) {
         const node = fromWireFileNode(wire);
         all.push({
@@ -292,7 +301,8 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
           isShared: !isPrimary,
         });
       }
-    } catch {
+    } catch (err) {
+      if (isStaleLoad(err) || (strict && isPrimary)) throw err;
       // A single unreachable shared account shouldn't hide the user's own
       // files; skip it and keep aggregating.
     }
@@ -301,10 +311,87 @@ export async function getAllFileNodesAcrossAccounts(): Promise<FileNode[]> {
   return all;
 }
 
+export async function getAllFileNodesAcrossAccounts(at?: AccountRef): Promise<FileNode[]> {
+  return listAcrossAccounts(at === undefined ? undefined : opScope(at).gen, false);
+}
+
+// ── Listing cache for global search ───────────────────────
+
+/** How long global search reuses an account's listing (webmail FILE_LISTING_TTL_MS). */
+export const FILE_LISTING_TTL_MS = 60_000;
+
+interface CachedListing {
+  gen: number;
+  fetchedAt: number;
+  promise: Promise<FileNode[]>;
+  nodes: FileNode[] | null;
+}
+
+// Per app account (account-store id): FileNode ids repeat across accounts,
+// so a listing is only ever served to the account it was read for, and only
+// on the connection it was read on.
+const listings = new Map<string, CachedListing>();
+
+/** Forget the cached listing of `appAccountId`, or of every account. */
+export function invalidateFileListing(appAccountId?: string): void {
+  if (appAccountId) listings.delete(appAccountId);
+  else listings.clear();
+}
+
+/**
+ * Every node app account `appAccountId` can see (getAllFileNodesAcrossAccounts),
+ * read on `at`'s connection and reused for FILE_LISTING_TTL_MS. File search
+ * has no usable server query (FileNode/query matches `name` exactly), so
+ * global search filters this listing. A failed read is not cached.
+ */
+export function getFileListing(appAccountId: string, at: AccountRef): Promise<FileNode[]> {
+  const { gen } = opScope(at);
+  const cached = listings.get(appAccountId);
+  const now = Date.now();
+  if (cached && cached.gen === gen && now - cached.fetchedAt < FILE_LISTING_TTL_MS) return cached.promise;
+  const entry: CachedListing = {
+    gen,
+    fetchedAt: now,
+    nodes: null,
+    promise: listAcrossAccounts(gen, true).then((nodes) => {
+      entry.nodes = nodes;
+      return nodes;
+    }, (error) => {
+      if (listings.get(appAccountId) === entry) listings.delete(appAccountId);
+      throw error;
+    }),
+  };
+  listings.set(appAccountId, entry);
+  return entry.promise;
+}
+
+/** The cached listing of `appAccountId` when it is in memory, fresh and from the live connection. */
+export function peekFileListing(appAccountId: string): FileNode[] | null {
+  const cached = listings.get(appAccountId);
+  if (!cached || cached.gen !== jmapClient.connectionGen) return null;
+  if (Date.now() - cached.fetchedAt >= FILE_LISTING_TTL_MS) return null;
+  return cached.nodes;
+}
+
+/**
+ * `write`, after which the search listing is dropped whatever its outcome: a
+ * refused or failed write may still have changed some nodes.
+ */
+function afterWrite<T>(write: Promise<T>): Promise<T> {
+  return write.finally(() => invalidateFileListing());
+}
+
 // FileNode/set `create` of one node. `onExists: "rename"` (Stalwart 0.16.6+)
 // turns a name clash into "name (2)"; older servers ignore it and refuse the
 // clash, so retry with numbered names ourselves.
 async function createFileNode(
+  accountId: string,
+  props: Record<string, unknown>,
+): Promise<FileNode> {
+  return afterWrite(createFileNodeOnce(accountId, props));
+}
+
+async function createFileNodeOnce(
   accountId: string,
   props: Record<string, unknown>,
 ): Promise<FileNode> {
@@ -340,10 +427,10 @@ export async function updateFileNode(
   updates: Partial<Pick<FileNode, 'name' | 'parentId'>>,
 ): Promise<void> {
   const accountId = filesAccountId();
-  const res = await jmapClient.request(
+  const res = await afterWrite(jmapClient.request(
     [['FileNode/set', { accountId, update: { [id]: updates } }, '0']],
     fileUsing(),
-  );
+  ));
   // A method-level error (e.g. forbidden) has no notUpdated entry, so without
   // this check a refused rename or move reported success.
   const notUpdated = requireMethodResult(res, '0', 'FileNode/set').notUpdated?.[id];
@@ -368,7 +455,7 @@ export async function deleteFileNodes(ids: string[]): Promise<void> {
   // Every batch runs; refusals are reported once all of them are done.
   const refused: Array<{ description?: string }> = [];
   for (const slice of batched(ids, jmapClient.getMaxObjectsInSet())) {
-    const res = await jmapClient.request(
+    const res = await afterWrite(jmapClient.request(
       [['FileNode/set', {
         accountId,
         destroy: slice,
@@ -376,7 +463,7 @@ export async function deleteFileNodes(ids: string[]): Promise<void> {
         onDestroyRemoveChildren: true,
       }, '0']],
       fileUsing(),
-    );
+    ));
     const notDestroyed = requireMethodResult(res, '0', 'FileNode/set').notDestroyed as
       | Record<string, { type?: string; description?: string }>
       | undefined;
@@ -480,13 +567,13 @@ export async function setFileNodeShare(
 ): Promise<void> {
   const accountId = filesAccountId();
   const wireRights = rights && isLegacyFileNodeServer(accountId) ? toLegacyRights(rights) : rights;
-  const res = await jmapClient.request(
+  const res = await afterWrite(jmapClient.request(
     [['FileNode/set', {
       accountId,
       update: { [fileNodeId]: { [`shareWith/${principalId}`]: wireRights } },
     }, '0']],
     fileUsing(),
-  );
+  ));
   const result = requireMethodResult(res, '0', 'FileNode/set');
   if (result.notUpdated?.[fileNodeId]) {
     throw new Error(result.notUpdated[fileNodeId].description || 'Failed to update file share');

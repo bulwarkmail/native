@@ -913,6 +913,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         waitForHydration(useEmailStore),
         waitForHydration(useCalendarStore),
         waitForHydration(useContactsStore),
+        // Whether to reopen the last folder is read below.
+        useSettingsStore.getState().hydrate(),
       ]);
       const accountStore = useAccountStore.getState();
 
@@ -956,6 +958,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // hydrates, sees the right account's cached emails instead of stale
       // data from a previous session.
       useEmailStore.getState().setActiveAccount(target.id);
+      // A cold start opens the Inbox, or the last folder when the user asked.
+      // Called here, not left to setActiveAccount: that returns early when
+      // the persisted state already names this account (the usual cold
+      // start), so its own view reset would never run.
+      useEmailStore.getState().openStartFolder(useSettingsStore.getState().restoreLastFolder);
 
       try {
         const ok = await jmapClient.loadAccount(target.id);

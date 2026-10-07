@@ -14,12 +14,14 @@ import {
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
 import type { Attachment, Email, EmailAddress, JMAPMethodCall, Mailbox, Thread } from './types';
-import { toWildcardQuery } from '../lib/search-utils';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
 import { hasTruncatedDisplayedBody } from '../lib/email-body';
+import { filterHasSnippetTerms, type SearchSnippetResult } from '../lib/search-snippet';
 import { opScope, type AccountRef, type OpScope } from './op-scope';
+import { isStaleLoad } from '../lib/network-error';
+import { t } from '../stores/locale-store';
 
 export const EMAIL_LIST_PROPERTIES = [
   'id', 'threadId', 'mailboxIds', 'keywords', 'size',
@@ -336,6 +338,62 @@ export async function emptyMailbox(mailboxId: string, account?: AccountRef): Pro
   return totalDestroyed;
 }
 
+/**
+ * Move every message of a folder into another folder of the same account
+ * (Empty folder on an ordinary folder), in batches of at most `maxInSet`.
+ * The batch's rows leave the folder, so the next query returns the next page.
+ * A refused row would stay and come back forever, so the first batch with a
+ * refusal stops the run: the result says how many moved and how many were
+ * refused in that batch; the rest were left untouched.
+ */
+export async function moveMailboxContents(
+  fromMailboxId: string,
+  toMailboxId: string,
+  account?: AccountRef,
+  markAsRead = false,
+): Promise<{ moved: number; failed: number; interrupted?: boolean }> {
+  if (fromMailboxId === toMailboxId) throw new Error(t('mailbox_context_menu.error_move_into_itself', 'Cannot move a folder into itself'));
+  const at = opScope(account);
+  const { accountId } = at;
+  const batchSize = Math.min(500, maxInSet());
+  const patch: Record<string, unknown> = { mailboxIds: { [toMailboxId]: true } };
+  if (markAsRead) patch['keywords/$seen'] = true;
+  let moved = 0;
+  // Ids already sent: a server that reports success without moving them would
+  // return them again forever.
+  const seen = new Set<string>();
+  try {
+    for (;;) {
+      const q = requireMethodResult(
+        await requestOn(at, [['Email/query', { accountId, filter: { inMailbox: fromMailboxId }, limit: batchSize }, '0']]),
+        '0',
+        'Email/query',
+      );
+      const ids = (q.ids as string[] | undefined) ?? [];
+      if (ids.length === 0) break;
+      if (ids.some((id) => seen.has(id))) return { moved, failed: ids.filter((id) => seen.has(id)).length };
+      ids.forEach((id) => seen.add(id));
+      const set = requireMethodResult(
+        await requestOn(at, [
+          ['Email/set', { accountId, update: Object.fromEntries(ids.map((id) => [id, patch])) }, '0'],
+        ]),
+        '0',
+        'Email/set',
+      );
+      const updated = Object.keys((set.updated as Record<string, unknown> | undefined) ?? {}).length;
+      moved += updated;
+      const failed = ids.length - updated;
+      if (failed > 0) return { moved, failed };
+      if (ids.length < batchSize) break;
+    }
+  } catch (err) {
+    // The shown account changed after some batches moved: say so.
+    if (moved > 0 && isStaleLoad(err)) return { moved, failed: 0, interrupted: true };
+    throw err;
+  }
+  return { moved, failed: 0 };
+}
+
 /** Set `$seen` on every unread message in a folder. Returns the count. */
 export async function markMailboxAsRead(mailboxId: string, account?: AccountRef): Promise<number> {
   const at = opScope(account);
@@ -380,6 +438,8 @@ function buildMailboxQueryFilter(
 }
 
 interface EmailQueryOptions {
+  /** Also ask SearchSnippet/get for the words the filter matched. */
+  snippets?: boolean;
   position?: number;
   limit?: number;
   sort?: Array<{ property: string; isAscending: boolean; keyword?: string }>;
@@ -387,6 +447,32 @@ interface EmailQueryOptions {
   /** Owning JMAP account when the mailbox belongs to a shared account. */
   accountId?: string;
   collapseThreads?: boolean;
+}
+
+/** SearchSnippet/get for the ids of the query `queryCallId`; only when the filter has words to mark. */
+function snippetCall(
+  accountId: unknown,
+  filter: unknown,
+  queryCallId: string,
+  callId: string,
+): JMAPMethodCall | null {
+  if (!filterHasSnippetTerms(filter as Record<string, unknown> | undefined)) return null;
+  return ['SearchSnippet/get', {
+    accountId,
+    filter,
+    '#emailIds': { resultOf: queryCallId, name: 'Email/query', path: '/ids' },
+  }, callId];
+}
+
+/** The snippets a response carries; highlighting only decorates, so a failed call yields none. */
+function snippetsOf(res: { methodResponses?: Array<[string, unknown, string]> }, callId: string): SearchSnippetResult[] {
+  for (const [name, body, id] of res.methodResponses ?? []) {
+    if (id === callId && name === 'SearchSnippet/get') {
+      const list = (body as { list?: unknown } | null)?.list;
+      return Array.isArray(list) ? (list as SearchSnippetResult[]) : [];
+    }
+  }
+  return [];
 }
 
 function emailQueryArgs(mailboxId: string | undefined, options?: EmailQueryOptions): Record<string, unknown> {
@@ -438,6 +524,8 @@ export async function queryEmailPage(
   list: Email[];
   state?: string;
   threads: Thread[];
+  /** SearchSnippet/get results, with `snippets` and a filter that has search words. */
+  snippets: SearchSnippetResult[];
 }> {
   // The chained Email/get takes every id the query returns, so a page can't
   // be larger than the server lets one /get fetch.
@@ -460,6 +548,8 @@ export async function queryEmailPage(
       '#ids': { resultOf: '1', name: 'Email/get', path: '/list/*/threadId' },
     }, '2']);
   }
+  const snippet = options?.snippets ? snippetCall(accountId, args.filter, '0', 'snippets') : null;
+  if (snippet) calls.push(snippet);
   const res = await jmapClient.request(calls);
   const query = requireMethodResult(res, '0', 'Email/query');
   const got = requireMethodResult(res, '1', 'Email/get');
@@ -480,6 +570,7 @@ export async function queryEmailPage(
     list: ids.flatMap((id) => byId.get(id) ?? []),
     state: got.state as string | undefined,
     threads,
+    snippets: snippet ? snippetsOf(res, 'snippets') : [],
   };
 }
 
@@ -497,7 +588,7 @@ export interface AccountPageTarget {
 }
 
 export type AccountPage =
-  | { accountId?: string; ok: true; total: number; list: Email[]; threads: Thread[] }
+  | { accountId?: string; ok: true; total: number; list: Email[]; threads: Thread[]; snippets: SearchSnippetResult[] }
   | { accountId?: string; ok: false; error: Error };
 
 /**
@@ -510,15 +601,16 @@ export type AccountPage =
  */
 export async function queryEmailPagesAcrossAccounts(
   targets: AccountPageTarget[],
-  options: { limit: number; filter?: Record<string, unknown>; threads?: boolean },
+  options: { limit: number; filter?: Record<string, unknown>; threads?: boolean; snippets?: boolean },
 ): Promise<AccountPage[]> {
-  const callsPerTarget = options.threads ? 3 : 2;
+  const callsPerTarget = (options.threads ? 3 : 2) + (options.snippets ? 1 : 0);
   const perRequest = Math.max(1, Math.floor(jmapClient.getMaxCallsInRequest() / callsPerTarget));
   const limit = Math.min(options.limit, maxInGet());
   const out: AccountPage[] = new Array(targets.length);
   const indexed = targets.map((target, index) => ({ target, index }));
   await Promise.all(batched(indexed, perRequest).map(async (chunk) => {
     const calls: JMAPMethodCall[] = [];
+    const withSnippets = new Set<number>();
     for (const { target, index } of chunk) {
       const args = emailQueryArgs(undefined, {
         position: target.position,
@@ -538,6 +630,11 @@ export async function queryEmailPagesAcrossAccounts(
           accountId: args.accountId,
           '#ids': { resultOf: `${index}:g`, name: 'Email/get', path: '/list/*/threadId' },
         }, `${index}:t`]);
+      }
+      const snippet = options.snippets ? snippetCall(args.accountId, args.filter, `${index}:q`, `${index}:s`) : null;
+      if (snippet) {
+        calls.push(snippet);
+        withSnippets.add(index);
       }
     }
     let res: Awaited<ReturnType<typeof jmapClient.request>>;
@@ -565,6 +662,7 @@ export async function queryEmailPagesAcrossAccounts(
           total: (query.total as number) ?? 0,
           list: ((query.ids as string[]) ?? []).flatMap((id) => byId.get(id) ?? []),
           threads,
+          snippets: withSnippets.has(index) ? snippetsOf(res, `${index}:s`) : [],
         };
       } catch (err) {
         out[index] = {
@@ -1415,7 +1513,7 @@ export async function searchEmails(
   accountIdOverride?: string,
 ): Promise<string[]> {
   const accountId = accountIdOverride ?? jmapClient.accountId;
-  const filter: Record<string, unknown> = { text: toWildcardQuery(query) };
+  const filter: Record<string, unknown> = { text: query.trim() };
   if (mailboxId) filter.inMailbox = mailboxId;
 
   const res = await jmapClient.request([

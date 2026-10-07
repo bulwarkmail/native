@@ -12,7 +12,7 @@ vi.mock('expo-file-system', () => ({ File: class {} }));
 
 import { JMAPClient, StaleLoadError, jmapClient } from '../jmap-client';
 import {
-  archiveEmails, cancelScheduledSend, createMailbox, deleteMailbox, destroyEmails, emptyMailbox, getEmails,
+  archiveEmails, cancelScheduledSend, createMailbox, deleteMailbox, destroyEmails, emptyMailbox, getEmails, moveMailboxContents,
   markMailboxAsRead, moveEmails, queryEmails, rescheduleScheduledSend, restoreEmailToDraft, sendEmail, sendReadReceipt,
   updateMailbox,
 } from '../email';
@@ -501,6 +501,7 @@ describe('an operation stays on the connection it started on (R15)', () => {
   // Extra round (R16): screens that take a scope at the tap and pass it on.
   it.each([
     ['empty folder', (at: ReturnType<typeof opScope>) => emptyMailbox('trash', at)],
+    ['empty folder into Trash', (at: ReturnType<typeof opScope>) => moveMailboxContents('f1', 'trash', at)],
     ['delete folder with its messages', (at: ReturnType<typeof opScope>) => deleteMailbox('f1', at, { onDestroyRemoveEmails: true })],
     ['rename folder', (at: ReturnType<typeof opScope>) => updateMailbox('f1', { name: 'x' }, at)],
     ['create folder', (at: ReturnType<typeof opScope>) => createMailbox({ name: 'x', parentId: 'f1' }, at)],

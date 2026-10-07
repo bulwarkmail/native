@@ -121,6 +121,13 @@ export interface ContactsState {
   hydrated: boolean;
   /** When `contacts` last got every card from the server (0 = not this session). */
   contactsFetchedAt: number;
+  /**
+   * Connection (`jmapClient.connectionGen`) the last full card load was read
+   * on; null for cards from the persisted cache or after a reset. Card ids
+   * repeat across accounts, so a caller looking a card up for the account
+   * on connection `gen` checks this first.
+   */
+  contactsGen: number | null;
 
   // Trusted senders are stored as contacts in a dedicated JMAP address book so
   // the allow-list syncs across devices (matches the webmail behavior).
@@ -289,9 +296,38 @@ export function normalizeSuggestions(results: RecipientSuggestion[]): RecipientS
 // AddressBook/get or ContactCard/query requests at once (Stalwart mints its
 // default collections lazily on first touch, #907) and a "trust sender" tap
 // never races the passive trusted-senders load.
-let addressBooksPromise: Promise<void> | null = null;
-let contactsPromise: Promise<void> | null = null;
-let trustedSendersPromise: Promise<void> | null = null;
+//
+// Each one belongs to the connection and the store epoch it started on: a
+// load an account switch overtook (reset() bumps the epoch, the new session a
+// new connection) is never joined by a caller for the new account, and its
+// result is dropped instead of written over the new account's state. Card
+// ids repeat across accounts, so a late write would put the account left's
+// card "1" where the new account's card "1" is looked for.
+interface StoreLoad {
+  gen: number;
+  epoch: number;
+}
+interface InFlightLoad extends StoreLoad {
+  promise: Promise<void>;
+}
+let loadEpoch = 0;
+let addressBooksInFlight: InFlightLoad | null = null;
+let contactsInFlight: InFlightLoad | null = null;
+let trustedSendersInFlight: InFlightLoad | null = null;
+
+function startLoad(): StoreLoad {
+  return { gen: jmapClient.connectionGen, epoch: loadEpoch };
+}
+
+/** Whether `load` is still this store's: same connection, no reset since. */
+function isCurrentLoad(load: StoreLoad): boolean {
+  return load.gen === jmapClient.connectionGen && load.epoch === loadEpoch;
+}
+
+/** `inFlight` when it is a load of the current connection and epoch. */
+function joinable(inFlight: InFlightLoad | null): Promise<void> | null {
+  return inFlight && isCurrentLoad(inFlight) ? inFlight.promise : null;
+}
 
 // Startup fetches every card and live `ContactCard` state changes refetch
 // them, so opening Contacts only downloads the cards again once the last full
@@ -350,12 +386,12 @@ export const useContactsStore = create<ContactsState>()(
         };
       };
 
-      const loadAddressBooks = async (): Promise<void> => {
+      const loadAddressBooks = async (load: StoreLoad): Promise<void> => {
         try {
           const addressBooks = (await fetchAllAddressBooks()) ?? [];
-          set({ addressBooks });
+          if (isCurrentLoad(load)) set({ addressBooks });
         } catch (err) {
-          set({ error: err instanceof Error ? err.message : 'Failed to load address books' });
+          if (isCurrentLoad(load)) set({ error: err instanceof Error ? err.message : 'Failed to load address books' });
         }
       };
 
@@ -367,6 +403,7 @@ export const useContactsStore = create<ContactsState>()(
         error: null,
         hydrated: false,
         contactsFetchedAt: 0,
+        contactsGen: null,
 
         trustedSendersBookId: null,
         trustedSenderEmails: [],
@@ -400,20 +437,31 @@ export const useContactsStore = create<ContactsState>()(
           // mount-time useEffect, which on cold start runs before restoreSession
           // has set up the client.
           if (!jmapClient.isConnected) return;
-          if (addressBooksPromise) return addressBooksPromise;
-          addressBooksPromise = loadAddressBooks().finally(() => {
-            addressBooksPromise = null;
-          });
-          return addressBooksPromise;
+          const joined = joinable(addressBooksInFlight);
+          if (joined) return joined;
+          const load = startLoad();
+          const entry: InFlightLoad = {
+            ...load,
+            promise: loadAddressBooks(load).finally(() => {
+              if (addressBooksInFlight === entry) addressBooksInFlight = null;
+            }),
+          };
+          addressBooksInFlight = entry;
+          return entry.promise;
         },
 
         fetchContacts: async (filter) => {
           if (!jmapClient.isConnected) return;
-          if (contactsPromise) return contactsPromise;
-          contactsPromise = (async () => {
+          const joined = joinable(contactsInFlight);
+          if (joined) return joined;
+          const load = startLoad();
+          const entry: InFlightLoad = { ...load, promise: Promise.resolve() };
+          entry.promise = (async () => {
             // Books first: AddressBook/get is the call that makes Stalwart mint
             // the default book, so ContactCard/query must never run alongside it.
-            if (addressBooksPromise) await addressBooksPromise;
+            const books = joinable(addressBooksInFlight);
+            if (books) await books;
+            if (!isCurrentLoad(load)) return;
             set({ loading: true, error: null });
             try {
               let contacts: ContactCard[];
@@ -424,15 +472,28 @@ export const useContactsStore = create<ContactsState>()(
               } else {
                 contacts = (await fetchAllContacts()) ?? [];
               }
+              // Overtaken by a switch or a reset: the cards are another account's.
+              if (!isCurrentLoad(load)) return;
               // A filtered load leaves only some of the cards in state.
-              set({ contacts, loading: false, contactsFetchedAt: filtered ? 0 : Date.now() });
+              set({
+                contacts,
+                loading: false,
+                contactsFetchedAt: filtered ? 0 : Date.now(),
+                contactsGen: filtered ? null : load.gen,
+              });
             } catch (err) {
+              if (!isCurrentLoad(load)) return;
               set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load contacts' });
             }
           })().finally(() => {
-            contactsPromise = null;
+            if (contactsInFlight !== entry) return;
+            contactsInFlight = null;
+            // Dropped by a new connection of the same account (no reset), with
+            // no newer load running: the spinner it started stops here.
+            if (!isCurrentLoad(load) && load.epoch === loadEpoch) set({ loading: false });
           });
-          return contactsPromise;
+          contactsInFlight = entry;
+          return entry.promise;
         },
 
         fetchContactsIfStale: async () => {
@@ -889,16 +950,23 @@ export const useContactsStore = create<ContactsState>()(
           // Share the in-flight load so parallel callers (mail view, settings,
           // addToTrustedSendersBook) never create the book twice - and so a
           // caller that needs the book id can wait for it instead of failing.
-          if (trustedSendersPromise) await trustedSendersPromise;
+          const joined = joinable(trustedSendersInFlight);
+          if (joined) await joined;
           if (get().trustedSendersBookId) return;
           if (get().trustedSendersLoaded && !createIfMissing) return;
 
           set({ trustedSendersLoading: true });
-          trustedSendersPromise = (async () => {
+          const load = startLoad();
+          const entry: InFlightLoad = { ...load, promise: Promise.resolve() };
+          trustedSendersInFlight = entry;
+          entry.promise = (async () => {
             try {
               // Must throw rather than yield [] on failure: treating a failed
               // fetch as "no book yet" minted a duplicate on every hiccup (#730).
               const books = (await fetchPrimaryAddressBooks()) ?? [];
+              // Overtaken by a switch or a reset: neither create a book on
+              // the new account's connection nor write the old one's.
+              if (!isCurrentLoad(load)) return;
               // Sort so every client picks the same book when duplicates exist.
               const matches = books
                 .filter((b) => b.name === TRUSTED_SENDERS_BOOK_NAME)
@@ -910,9 +978,11 @@ export const useContactsStore = create<ContactsState>()(
                   return;
                 }
                 book = await apiCreateAddressBook(TRUSTED_SENDERS_BOOK_NAME);
+                if (!isCurrentLoad(load)) return;
               }
               const bookId = book.id;
               const cards = await getContactsInBook(bookId);
+              if (!isCurrentLoad(load)) return;
               set({
                 trustedSendersBookId: bookId,
                 trustedSenderEmails: collectContactEmails(cards),
@@ -921,12 +991,14 @@ export const useContactsStore = create<ContactsState>()(
               });
             } catch (err) {
               console.warn('[contacts-store] load trusted senders failed', err);
-              set({ trustedSendersLoaded: true, trustedSendersLoading: false });
+              if (isCurrentLoad(load)) set({ trustedSendersLoaded: true, trustedSendersLoading: false });
             }
           })().finally(() => {
-            trustedSendersPromise = null;
+            if (trustedSendersInFlight !== entry) return;
+            trustedSendersInFlight = null;
+            if (!isCurrentLoad(load) && load.epoch === loadEpoch) set({ trustedSendersLoading: false });
           });
-          return trustedSendersPromise;
+          return entry.promise;
         },
 
         addToTrustedSendersBook: async (input) => {
@@ -974,6 +1046,11 @@ export const useContactsStore = create<ContactsState>()(
         },
 
         reset: () => {
+          // Loads begun for the account being left: dropped, never joined.
+          loadEpoch++;
+          addressBooksInFlight = null;
+          contactsInFlight = null;
+          trustedSendersInFlight = null;
           directoryGeneration++;
           directoryOwner = null;
           directoryInFlight = null;
@@ -984,6 +1061,7 @@ export const useContactsStore = create<ContactsState>()(
             loading: false,
             error: null,
             contactsFetchedAt: 0,
+            contactsGen: null,
             trustedSendersBookId: null,
             trustedSenderEmails: [],
             trustedSendersLoaded: false,

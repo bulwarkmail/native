@@ -34,6 +34,7 @@ import {
   sendEmail,
   importEmailBlob,
   queryEmailFields,
+  moveMailboxContents,
 } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -255,7 +256,76 @@ describe('email operations', () => {
         list: [{ id: 'e2', threadId: 't1' }, { id: 'e1', threadId: 't1' }],
         state: 's-1',
         threads: [{ id: 't1', emailIds: ['e1', 'e2', 'e3'] }],
+        snippets: [],
       });
+    });
+
+    it('back-references SearchSnippet/get for a page whose filter has search words', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+          ['SearchSnippet/get', { list: [{ emailId: 'e1', subject: '<mark>Hi</mark>', preview: null }] }, 'snippets'],
+        ],
+      });
+
+      const result = await queryEmailPage('mb-1', { filter: { text: 'hi' }, snippets: true, accountId: 'grp-1' });
+
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls[2]).toEqual(['SearchSnippet/get', {
+        accountId: 'grp-1',
+        filter: { inMailbox: 'mb-1', text: 'hi' },
+        '#emailIds': { resultOf: '0', name: 'Email/query', path: '/ids' },
+      }, 'snippets']);
+      expect(result.snippets).toEqual([{ emailId: 'e1', subject: '<mark>Hi</mark>', preview: null }]);
+    });
+
+    it('skips SearchSnippet/get without search words, and survives it failing', async () => {
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+        ],
+      });
+      await queryEmailPage('mb-1', { filter: { hasKeyword: '$flagged' }, snippets: true });
+      expect(mockRequest.mock.calls[0][0].map((c: unknown[]) => c[0])).toEqual(['Email/query', 'Email/get']);
+
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }], state: 's-1' }, '1'],
+          ['error', { type: 'unknownMethod' }, 'snippets'],
+        ],
+      });
+      const result = await queryEmailPage('mb-1', { filter: { text: 'x' }, snippets: true });
+      expect(result.list).toHaveLength(1);
+      expect(result.snippets).toEqual([]);
+    });
+
+    it('asks each account of a folder-less page for its snippets', async () => {
+      (jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>).mockReturnValueOnce(16);
+      mockRequest.mockResolvedValue({
+        methodResponses: [
+          ['Email/query', { ids: ['e1'], total: 1 }, '0:q'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't1' }] }, '0:g'],
+          ['SearchSnippet/get', { list: [{ emailId: 'e1', subject: '<mark>a</mark>' }] }, '0:s'],
+          ['Email/query', { ids: ['e1'], total: 1 }, '1:q'],
+          ['Email/get', { list: [{ id: 'e1', threadId: 't9' }] }, '1:g'],
+          ['SearchSnippet/get', { list: [{ emailId: 'e1', subject: '<mark>b</mark>' }] }, '1:s'],
+        ],
+      });
+      const sort = [{ property: 'receivedAt', isAscending: false }];
+      const pages = await queryEmailPagesAcrossAccounts(
+        [{ position: 0, sort }, { accountId: 'grp-1', position: 0, sort }],
+        { limit: 25, filter: { text: 'a' }, snippets: true },
+      );
+      const calls = mockRequest.mock.calls[0][0];
+      expect(calls.map((c: unknown[]) => c[2])).toEqual(['0:q', '0:g', '0:s', '1:q', '1:g', '1:s']);
+      expect(calls[5][1]).toMatchObject({ accountId: 'grp-1', '#emailIds': { resultOf: '1:q', path: '/ids' } });
+      expect(pages.map((p) => (p.ok ? p.snippets : null))).toEqual([
+        [{ emailId: 'e1', subject: '<mark>a</mark>' }],
+        [{ emailId: 'e1', subject: '<mark>b</mark>' }],
+      ]);
     });
 
     it('asks several accounts for a folder-less page in one request (#1082)', async () => {
@@ -287,7 +357,7 @@ describe('email operations', () => {
       expect(calls[4][1]['#ids']).toEqual({ resultOf: '1:q', name: 'Email/query', path: '/ids' });
       expect(pages[0]).toEqual({
         accountId: undefined, ok: true, total: 3,
-        list: [{ id: 'e1', threadId: 't1' }], threads: [{ id: 't1', emailIds: ['e1'] }],
+        list: [{ id: 'e1', threadId: 't1' }], threads: [{ id: 't1', emailIds: ['e1'] }], snippets: [],
       });
       expect(pages[1]).toMatchObject({ accountId: 'grp-1', ok: false, error: { type: 'forbidden' } });
     });
@@ -522,7 +592,7 @@ describe('email operations', () => {
 
       expect(result).toEqual(['e1']);
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({ text: 'test* query*' });
+      expect(call[1].filter).toEqual({ text: 'test query' });
     });
 
     it('should include mailbox filter if specified', async () => {
@@ -533,7 +603,7 @@ describe('email operations', () => {
       await searchEmails('query', 'mb-1');
 
       const call = mockRequest.mock.calls[0][0][0];
-      expect(call[1].filter).toEqual({ text: 'query*', inMailbox: 'mb-1' });
+      expect(call[1].filter).toEqual({ text: 'query', inMailbox: 'mb-1' });
     });
   });
 
@@ -707,5 +777,76 @@ describe('queryEmailFields', () => {
     expect(await queryEmailFields({}, [], { accountId: 'acc-1' })).toEqual([{ id: 'a' }]);
     mockRequest.mockResolvedValueOnce({ methodResponses: [['error', { type: 'serverFail' }, '0']] });
     await expect(queryEmailFields({}, [], { accountId: 'acc-1' })).rejects.toThrow();
+  });
+});
+
+describe('moveMailboxContents', () => {
+  const ids = (n: number, from = 0) => Array.from({ length: n }, (_, i) => `m${from + i}`);
+  const res = (name: string, body: Record<string, unknown>) => ({ methodResponses: [[name, body, '0']] });
+
+  it('moves in batches until the folder is empty, replacing the mailboxIds', async () => {
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValueOnce(2).mockReturnValue(2);
+    const batches = [ids(2), ids(2, 2), ids(1, 4)];
+    mockRequest.mockImplementation(async (calls: unknown[][]) => {
+      if (calls[0][0] === 'Email/query') return res('Email/query', { ids: batches.shift() ?? [] });
+      const upd = (calls[0][1] as { update: Record<string, unknown> }).update;
+      return res('Email/set', { updated: Object.fromEntries(Object.keys(upd).map((k) => [k, null])) });
+    });
+    const out = await moveMailboxContents('f1', 'trash', undefined, false);
+    expect(out).toEqual({ moved: 5, failed: 0 });
+    const sets = mockRequest.mock.calls.map((c) => c[0][0]).filter((c: unknown[]) => c[0] === 'Email/set');
+    expect(sets).toHaveLength(3);
+    expect(sets[0][1].update.m0).toEqual({ mailboxIds: { trash: true } });
+  });
+
+  it('adds $seen when asked', async () => {
+    mockRequest
+      .mockResolvedValueOnce(res('Email/query', { ids: ['m0'] }))
+      .mockResolvedValueOnce(res('Email/set', { updated: { m0: null } }));
+    await moveMailboxContents('f1', 'trash', undefined, true);
+    expect(mockRequest.mock.calls[1][0][0][1].update.m0).toEqual({ mailboxIds: { trash: true }, 'keywords/$seen': true });
+  });
+
+  it('reports a partial failure and stops instead of looping on refused ids', async () => {
+    mockRequest
+      .mockResolvedValueOnce(res('Email/query', { ids: ['a', 'b', 'c'] }))
+      .mockResolvedValueOnce(res('Email/set', { updated: { a: null }, notUpdated: { b: { type: 'forbidden' }, c: { type: 'forbidden' } } }));
+    const out = await moveMailboxContents('f1', 'trash');
+    expect(out).toEqual({ moved: 1, failed: 2 });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops when the same ids keep coming back, reporting them as failed', async () => {
+    const q = () => res('Email/query', { ids: ['a', 'b'] });
+    const set = () => res('Email/set', { updated: { a: null, b: null } });
+    mockRequest.mockResolvedValueOnce(q()).mockResolvedValueOnce(set()).mockResolvedValueOnce(q());
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(2);
+    const out = await moveMailboxContents('f1', 'trash');
+    expect(out).toEqual({ moved: 2, failed: 2 });
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(500);
+  });
+
+  const stale = () => Object.assign(new Error('stale'), { name: 'StaleLoadError' });
+
+  it('reports interrupted when the account changed after a batch moved', async () => {
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(1);
+    mockRequest
+      .mockResolvedValueOnce(res('Email/query', { ids: ['a'] }))
+      .mockResolvedValueOnce(res('Email/set', { updated: { a: null } }))
+      .mockRejectedValueOnce(stale());
+    const out = await moveMailboxContents('f1', 'trash');
+    expect(out).toEqual({ moved: 1, failed: 0, interrupted: true });
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValue(500);
+  });
+
+  it('re-throws a stale load when nothing moved yet', async () => {
+    mockRequest.mockRejectedValueOnce(stale());
+    await expect(moveMailboxContents('f1', 'trash')).rejects.toMatchObject({ name: 'StaleLoadError' });
+  });
+
+  it('refuses to move a folder into itself', async () => {
+    await expect(moveMailboxContents('trash', 'trash')).rejects.toThrow();
+    expect(mockRequest).not.toHaveBeenCalled();
   });
 });

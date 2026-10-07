@@ -98,6 +98,8 @@ export type RootStackParamList = {
   AddAccount: undefined;
   Scheduled: undefined;
   Outbox: undefined;
+  /** "Search everything": mail, contacts, calendar and files; `query` fills the field. */
+  GlobalSearch: { query?: string } | undefined;
   UnifiedInbox:
     | {
         /** Per-role unified view ("All Sent", …); defaults to the inbox. */

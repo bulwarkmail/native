@@ -592,6 +592,78 @@ export async function getEvents(
 }
 
 /**
+ * A global-search query of events: server full text plus optional bounds,
+ * as LocalDateTime in the user's zone (the query's `timeZone`).
+ */
+export interface CalendarEventSearch {
+  text: string;
+  after?: string;
+  before?: string;
+}
+
+async function searchEventsIn(
+  filter: CalendarEventSearch,
+  limit: number,
+  at: { gen: number },
+  accountId: string,
+): Promise<CalendarEvent[]> {
+  const timeZone = getUserTimeZone();
+  const conditions: Record<string, string> = { text: filter.text };
+  if (filter.after) conditions.after = filter.after;
+  if (filter.before) conditions.before = filter.before;
+  const res = await jmapClient.request([
+    ['CalendarEvent/query', {
+      accountId,
+      filter: conditions,
+      sort: [{ property: 'start', isAscending: false }],
+      limit,
+      ...(timeZone ? { timeZone } : {}),
+    }, '0'],
+    ['CalendarEvent/get', {
+      accountId,
+      '#ids': { resultOf: '0', name: 'CalendarEvent/query', path: '/ids' },
+      properties: CALENDAR_EVENT_PROPERTIES,
+      ...(timeZone ? { timeZone } : {}),
+    }, '1'],
+  ], USING, { gen: at.gen });
+  methodResult(res, 0);
+  const list = methodResult<{ list?: CalendarEvent[] }>(res, 1).list ?? [];
+  return list.map((e) => normalizeTaskProgress(normalizeRecurrenceProperties(e)));
+}
+
+/**
+ * Up to `limit` events matching `filter` from the account `accountRef` names
+ * and from each account sharing calendars with it, newest first per account,
+ * every request on that connection. Events of a shared account keep their raw
+ * id and carry `accountId` and `isShared`; the user's own carry neither (the
+ * store's convention). A failing shared account is skipped; a failing own
+ * account, or a replaced connection, throws.
+ */
+export async function searchEventsAcrossAccounts(
+  filter: CalendarEventSearch,
+  limit: number,
+  accountRef?: AccountRef,
+): Promise<CalendarEvent[]> {
+  const at = opScope(accountRef || undefined);
+  const own = await searchEventsIn(filter, limit, at, at.accountId);
+  const shared = await Promise.all(
+    sharedCalendarAccountIds()
+      .filter((id) => id !== at.accountId && !calendarAccessDenied.has(id))
+      .map(async (accountId) => {
+        try {
+          const events = await searchEventsIn(filter, limit, at, accountId);
+          return events.map((e) => ({ ...e, accountId, isShared: true }));
+        } catch (err) {
+          if (isStaleLoad(err)) throw err;
+          noteCalendarAccessError(accountId, err);
+          return [];
+        }
+      }),
+  );
+  return [...own, ...shared.flat()];
+}
+
+/**
  * The calendar objects carrying an iCalendar UID, found on the server with a
  * `uid` filter — unlike the store, not limited to the loaded date window.
  * Mirrors webmail's `queryCalendarEvents({ uid })`.

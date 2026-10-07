@@ -4,6 +4,7 @@ import { createPersistStorage, memoizeSlice } from './persist-storage';
 import { boundEmailCache, type PersistedEmailCache } from './email-cache-persist';
 import type { Email, Mailbox, StateChange, Thread } from '../api/types';
 import { jmapClient } from '../api/jmap-client';
+import { invalidateUnifiedMailboxes } from '../api/unified-inbox';
 import {
   getMailboxes as fetchMailboxes,
   getMailboxesWithState,
@@ -39,13 +40,15 @@ import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } fro
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
 import { isStaleLoad } from '../lib/network-error';
+import { buildJmapFilter } from '../lib/search-utils';
+import { collectSnippets, snippetKey, type RowSnippet, type SnippetMap } from '../lib/search-snippet';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
   mailboxesForSiblingOf, mailboxesOfAccount, findJunkMailbox, findArchiveMailbox, findTrashMailbox, ownMailboxes,
 } from '../lib/mailbox-tree';
-import { toWildcardQuery } from '../lib/search-utils';
 import { defaultSearchScopeFor, exclusionFilter, trashAndJunkIds } from '../lib/search-scope';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
+import { runEmptyFolder, type EmptyFolderPlan } from '../lib/empty-folder';
 import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type SortLevel } from '../lib/message-list-order';
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { clientServesAccount } from '../lib/active-client-account';
@@ -58,6 +61,12 @@ import { useOfflineCacheStore } from './offline-cache-store';
 import { useOutboxStore, applyOrQueue, applyOrQueueBatch, type OutboxOp } from './outbox-store';
 import { useTagCountsStore } from './tag-counts-store';
 import { toast } from './toast-store';
+
+// Accounts whose start folder is settled this launch: their Inbox was opened
+// (or their last folder kept) on first show, or a folder was chosen, so a
+// deep link or notification tap keeps what it picked and a switch back keeps
+// the folder left.
+const startFolderSettled = new Set<string>();
 
 // ── Refresh coalescing ─────────────────────────────────────────────────
 // Push events, mount effects and post-action follow-ups all call
@@ -341,6 +350,9 @@ export interface EmailFilters {
   hasAttachment?: boolean; // undefined = unset, true = with, false = without
   isStarred?: boolean;
   isUnread?: boolean;
+  /** Message size bounds in KB (minSize inclusive, maxSize exclusive); unset or '' = no bound. */
+  minSizeKb?: string;
+  maxSizeKb?: string;
   /**
    * Folder scope. Unset means "all folders except Spam and Trash" while a
    * text query is active (#788), unless the open folder is Spam or Trash,
@@ -458,6 +470,12 @@ export interface EmailState {
   error: string | null;
   searchQuery: string;
   filters: EmailFilters;
+  /**
+   * The words the search on screen matched, per row (`snippetKey`: account
+   * and id, as ids repeat across accounts). Empty outside a search; cleared
+   * when the search ends and when the shown account changes.
+   */
+  searchSnippets: SnippetMap;
   pendingUndo: UndoEntry | null;
   /**
    * Rows (by `rowKeyOf`) the user just read/unstarred/untagged while an
@@ -490,6 +508,13 @@ export interface EmailState {
    */
   ensureMailboxes: () => Promise<void>;
   selectMailbox: (mailboxId: string) => Promise<void>;
+  /**
+   * Cold start: show the Inbox of the active account, or with `restoreLast`
+   * the folder remembered for it when that folder still exists. Once per
+   * launch, and not after a folder was chosen. With no folders cached the
+   * list screen picks the Inbox when they load.
+   */
+  openStartFolder: (restoreLast: boolean) => void;
   loadMoreEmails: () => Promise<void>;
   refreshEmails: () => Promise<void>;
   importEmails: (
@@ -548,47 +573,6 @@ export interface EmailState {
   invalidateListOrder: () => void;
   clearSearchAndFilters: () => void;
   reset: () => void;
-}
-
-function buildJmapFilter(
-  searchQuery: string,
-  filters: EmailFilters,
-): Record<string, unknown> | undefined {
-  const conditions: Record<string, unknown>[] = [];
-
-  const trimmed = searchQuery.trim();
-  if (trimmed) conditions.push({ text: toWildcardQuery(trimmed) });
-
-  if (filters.keyword) conditions.push({ hasKeyword: filters.keyword });
-  if (filters.from) conditions.push({ from: filters.from });
-  if (filters.to) conditions.push({ to: filters.to });
-  if (filters.subject) conditions.push({ subject: filters.subject });
-  if (filters.body) conditions.push({ body: filters.body });
-
-  if (filters.dateAfter) {
-    const d = new Date(filters.dateAfter);
-    if (!isNaN(d.getTime())) conditions.push({ after: d.toISOString() });
-  }
-  if (filters.dateBefore) {
-    const d = new Date(filters.dateBefore);
-    if (!isNaN(d.getTime())) {
-      d.setHours(23, 59, 59, 999);
-      conditions.push({ before: d.toISOString() });
-    }
-  }
-
-  if (filters.hasAttachment === true) conditions.push({ hasAttachment: true });
-  else if (filters.hasAttachment === false) conditions.push({ hasAttachment: false });
-
-  if (filters.isUnread === true) conditions.push({ notKeyword: '$seen' });
-  else if (filters.isUnread === false) conditions.push({ hasKeyword: '$seen' });
-
-  if (filters.isStarred === true) conditions.push({ hasKeyword: '$flagged' });
-  else if (filters.isStarred === false) conditions.push({ notKeyword: '$flagged' });
-
-  if (conditions.length === 0) return undefined;
-  if (conditions.length === 1) return conditions[0];
-  return { operator: 'AND', conditions };
 }
 
 // The raw mailbox id an Email/query is scoped to: the open folder, an
@@ -712,6 +696,28 @@ function rowAccountId(state: EmailState, email: Email | undefined): string | und
   return currentAccountId(state);
 }
 
+// The stamp the rows of a single-account page need: the picker offers every
+// account's folders, so a search can be scoped to a folder of another account
+// than the open folder's. Its rows live there, and ids repeat across accounts,
+// so they carry that account's stamp like the rows of a list spanning
+// accounts; otherwise `rowAccountId` would send them to the open folder's.
+// Undefined when the page is the open folder's account's.
+function foreignScopeStamp(state: EmailState, scope: QueryScope): string | undefined {
+  const own = jmapClient.accountId;
+  const scoped = scope.accountId ?? own;
+  return scoped === (currentAccountId(state) ?? own) ? undefined : scoped;
+}
+
+// A single-account page stamped with `stamp` (if any): its rows, and its
+// threads scoped by the stamp the way `threadKeyOf` names them.
+function stampPage(list: Email[], threads: Thread[], stamp: string | undefined): { list: Email[]; threads: Thread[] } {
+  if (!stamp) return { list, threads };
+  return {
+    list: list.map((e) => ({ ...e, jmapAccountId: stamp })),
+    threads: threads.map((th) => ({ ...th, id: `${stamp}:${th.id}` })),
+  };
+}
+
 // The folders of one JMAP account (undefined = the user's own).
 function accountMailboxes(mailboxes: Mailbox[], accountId: string | undefined): Mailbox[] {
   return accountId
@@ -772,6 +778,8 @@ interface SpanningPage {
   threads: Thread[];
   /** JMAP account id → error, for the accounts that did not answer. */
   errors: Record<string, string>;
+  /** The highlights of the rows, keyed by account and id. */
+  snippets: SnippetMap;
 }
 
 // One page from every account the list spans, each account starting at its
@@ -796,7 +804,7 @@ async function fetchSpanningPage(
       sort: await resolveSort(state, accountId),
       filter: excludeTrashAndJunk ? withoutTrashAndJunk(state, accountId ?? primary, filter) : filter,
     }))),
-    { limit, filter, threads },
+    { limit, filter, threads, snippets: true },
   );
   let pages = await run(spannedAccounts(state.mailboxes));
   const refused = pages.filter((p) => !p.ok && isUnsupportedSort(p.error));
@@ -806,7 +814,7 @@ async function fetchSpanningPage(
     pages = pages.map((p) => retried.find((r) => r.accountId === p.accountId) ?? p);
   }
 
-  const page: SpanningPage = { list: [], total: 0, threads: [], errors: {} };
+  const page: SpanningPage = { list: [], total: 0, threads: [], errors: {}, snippets: {} };
   let firstError: Error | undefined;
   for (const p of pages) {
     const stamp = p.accountId ?? primary;
@@ -817,6 +825,7 @@ async function fetchSpanningPage(
     }
     page.total += p.total;
     for (const e of p.list) page.list.push({ ...e, jmapAccountId: stamp });
+    collectSnippets(page.snippets, stamp, p.snippets);
     for (const th of p.threads) page.threads.push({ ...th, id: `${stamp}:${th.id}` });
   }
   if (firstError && Object.keys(page.errors).length === pages.length) throw firstError;
@@ -856,6 +865,15 @@ export function accountIdOfRow(email: Email): string | undefined {
 }
 
 /**
+ * The highlights of a row of the search on screen, if the server marked any.
+ * Looked up by the row's own account and id: ids repeat across accounts.
+ */
+export function snippetForRow(snippets: SnippetMap, email: Email): RowSnippet | undefined {
+  const account = rowAccountId(useEmailStore.getState(), email) ?? jmapClient.accountId;
+  return snippets[snippetKey(account, email.id)];
+}
+
+/**
  * The loaded rows that live in one JMAP account (undefined = the user's own):
  * the open folder's rows when it is that account's, that account's rows of a
  * list spanning accounts. Ids are unique among them.
@@ -880,18 +898,46 @@ export function viewerParamsForRow(email: Email): { jmapAccountId?: string; emai
   };
 }
 
+/**
+ * "Empty folder" on `mailbox` under scope `at` (taken at the tap), for both
+ * the folder banner and the sidebar. Rows held in place after they stopped
+ * matching (read in the Unread view) are no longer in the folder once it is
+ * emptied, so they are let go before the caller's refresh, which would
+ * otherwise splice them back in as ghosts. Also after a run that stopped
+ * part-way: what it moved is gone too.
+ */
+export async function emptyFolder(plan: EmptyFolderPlan, mailbox: Mailbox, at: OpScope): Promise<void> {
+  const { activeAccountId } = useEmailStore.getState();
+  try {
+    await runEmptyFolder(plan, mailbox, at);
+  } finally {
+    const now = useEmailStore.getState();
+    if (now.activeAccountId === activeAccountId && now.currentMailboxId === mailbox.id && now.retainedIds.length > 0) {
+      useEmailStore.setState({ retainedIds: [] });
+    }
+  }
+}
+
 // Splice rows the user just read/unstarred back into a freshly re-queried
 // Unread/Starred view at their previous position (webmail `mergeRetainedRows`).
 function mergeRetainedRows(previous: Email[], fresh: Email[], retainedIds: string[]): Email[] {
   if (retainedIds.length === 0) return fresh;
-  const freshKeys = new Set(fresh.map(rowKeyOf));
   const retained = new Set(retainedIds);
-  const out = [...fresh];
+  const freshByKey = new Map(fresh.map((e) => [rowKeyOf(e), e] as const));
+  // A retained row the query still returns (a read message in "unread first"
+  // order sorts lower now) goes back to where the user last saw it.
+  const out = fresh.filter((e) => !retained.has(rowKeyOf(e)) || !previous.some((p) => rowKeyOf(p) === rowKeyOf(e)));
   previous.forEach((e, index) => {
-    if (!retained.has(rowKeyOf(e)) || freshKeys.has(rowKeyOf(e))) return;
-    out.splice(Math.min(index, out.length), 0, e);
+    if (!retained.has(rowKeyOf(e))) return;
+    out.splice(Math.min(index, out.length), 0, freshByKey.get(rowKeyOf(e)) ?? e);
   });
   return out;
+}
+
+// Whether the list order puts unread messages first (or last): reading a row
+// would move it, so it is retained in place like in the Unread view.
+function ordersByUnread(state: EmailState): boolean {
+  return orderFor(state).some((l) => l.criterion === 'unread');
 }
 
 // Rows that left the list while a refresh's query was out were deleted, moved
@@ -919,8 +965,9 @@ function restoredBaseView(state: EmailState): Partial<EmailState> {
   const snap = state.currentMailboxId
     ? state.mailboxSnapshots[state.currentMailboxId]
     : undefined;
-  if (!snap) return {};
-  return { emails: snap.emails, totalEmails: snap.total, queryState: snap.queryState };
+  // The search is over, so are its highlights.
+  if (!snap) return { searchSnippets: {} };
+  return { emails: snap.emails, totalEmails: snap.total, queryState: snap.queryState, searchSnippets: {} };
 }
 
 function snapshotFromActive(state: EmailState): AccountSnapshot {
@@ -1032,6 +1079,7 @@ export const useEmailStore = create<EmailState>()(
   error: null,
   searchQuery: '',
   filters: {},
+  searchSnippets: {},
   pendingUndo: null,
   retainedIds: [],
   threadCounts: {},
@@ -1061,12 +1109,17 @@ export const useEmailStore = create<EmailState>()(
       // to the previous account's intent.
       searchQuery: '',
       filters: {},
+      searchSnippets: {},
       pendingUndo: null,
       retainedIds: [],
       threadCounts: {},
       error: null,
       loading: false,
     });
+
+    // First time this account is shown this session: open its Inbox (or its
+    // remembered folder when the user asked for that).
+    get().openStartFolder(useSettingsStore.getState().restoreLastFolder);
 
     // Point the offline body cache at the same account so the viewer's
     // cache-first open and selectMailbox's seed read from the right bucket. Fire-
@@ -1083,6 +1136,7 @@ export const useEmailStore = create<EmailState>()(
   removeAccount: (accountId) => {
     const state = get();
     const { [accountId]: _drop, ...rest } = state.accountSnapshots;
+    startFolderSettled.delete(accountId);
     if (state.activeAccountId === accountId) {
       set({
         accountSnapshots: rest,
@@ -1097,6 +1151,7 @@ export const useEmailStore = create<EmailState>()(
         queryState: undefined,
         searchQuery: '',
         filters: {},
+        searchSnippets: {},
         pendingUndo: null,
       });
       void useOfflineCacheStore.getState().setAccount(null);
@@ -1107,6 +1162,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   clearAllAccounts: () => {
+    startFolderSettled.clear();
     set({
       accountSnapshots: {},
       activeAccountId: null,
@@ -1120,6 +1176,7 @@ export const useEmailStore = create<EmailState>()(
       queryState: undefined,
       searchQuery: '',
       filters: {},
+      searchSnippets: {},
       pendingUndo: null,
       error: null,
       loading: false,
@@ -1149,7 +1206,48 @@ export const useEmailStore = create<EmailState>()(
     return running ?? get().fetchMailboxes();
   },
 
+  openStartFolder: (restoreLast) => {
+    const state = get();
+    if (!state.activeAccountId || startFolderSettled.has(state.activeAccountId)) return;
+    // Nothing cached yet: the list screen picks the Inbox when folders load,
+    // and the account is settled once one is chosen.
+    if (state.mailboxes.length === 0) return;
+    startFolderSettled.add(state.activeAccountId);
+    // `mailboxes` and `currentMailboxId` are the active account's own
+    // (ids repeat across accounts), so the lookup stays inside it.
+    const remembered = state.currentMailboxId
+      ? state.mailboxes.find((m) => m.id === state.currentMailboxId)
+      : undefined;
+    const target = restoreLast && remembered
+      ? remembered
+      : ownMailboxes(state.mailboxes).find((m) => m.role === 'inbox');
+    if (!target || target.id === state.currentMailboxId) return;
+    // Tuck the folder being left, as selectMailbox does, so it isn't blank
+    // on the next visit.
+    let mailboxSnapshots = state.mailboxSnapshots;
+    if (state.currentMailboxId && isBaseView(state.searchQuery, state.filters)) {
+      mailboxSnapshots = {
+        ...mailboxSnapshots,
+        [state.currentMailboxId]: { emails: state.emails, total: state.totalEmails, queryState: state.queryState },
+      };
+    }
+    const snap = mailboxSnapshots[target.id];
+    set({
+      mailboxSnapshots,
+      currentMailboxId: target.id,
+      emails: snap?.emails ?? [],
+      totalEmails: snap?.total ?? 0,
+      queryState: snap?.queryState,
+      searchQuery: '',
+      filters: {},
+      searchSnippets: {},
+      retainedIds: [],
+      threadCounts: {},
+    });
+  },
+
   selectMailbox: async (mailboxId) => {
+    if (get().activeAccountId) startFolderSettled.add(get().activeAccountId!);
     const state = get();
     // Tuck the previously-visible mailbox into its snapshot so a return-trip
     // can restore it without a network call. Only do this for the base view —
@@ -1207,7 +1305,7 @@ export const useEmailStore = create<EmailState>()(
     }
 
     set({
-      ...(clearSearch ? { searchQuery: '', filters: {} } : {}),
+      ...(clearSearch ? { searchQuery: '', filters: {}, searchSnippets: {} } : {}),
       currentMailboxId: mailboxId,
       emails: seededEmails,
       totalEmails: seededTotal,
@@ -1238,7 +1336,10 @@ export const useEmailStore = create<EmailState>()(
     // Rows kept on screen after they stopped matching the query (read in the
     // Unread view, unstarred in Starred, untagged in a tag view) are no longer
     // part of the server's result; counting them would skip as many messages.
-    const retained = new Set(state.retainedIds);
+    // Rows only held in place by the list order ("unread first") are still
+    // in the server's result, just further down, so they do count.
+    const leavesQuery = filters.isUnread !== undefined || filters.isStarred !== undefined || !!filters.keyword;
+    const retained = new Set(leavesQuery ? state.retainedIds : []);
     const position = emails.filter((e) => !retained.has(rowKeyOf(e))).length;
     if (!currentMailboxId || loading || position >= totalEmails) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
@@ -1268,24 +1369,36 @@ export const useEmailStore = create<EmailState>()(
           // so load-more doesn't keep asking for it.
           totalEmails: page.total + Object.keys(page.errors).reduce((n, id) => n + (loaded[id] ?? 0), 0),
           threadCounts: withThreadCounts(now.threadCounts, page.threads),
+          searchSnippets: { ...now.searchSnippets, ...page.snippets },
           accountErrors: page.errors,
           loading: false,
         });
         return;
       }
-      const { list, total, threads } = await queryEmailPage(scope.mailboxId, {
+      const pageRes = await queryEmailPage(scope.mailboxId, {
         position,
         limit,
         sort: await resolveSort(state, scope.accountId),
         filter,
         accountId: scope.accountId,
         threads: !useSettingsStore.getState().disableThreading,
+        snippets: true,
       });
-      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      const { total, snippets } = pageRes;
+      const { list, threads } = stampPage(pageRes.list, pageRes.threads, foreignScopeStamp(state, scope));
+      // A page for a search the user has since changed or cleared belongs
+      // to neither the rows nor the highlights now on screen.
+      const after = get();
+      if (
+        after.activeAccountId !== activeAccountId || after.currentMailboxId !== currentMailboxId ||
+        after.searchQuery !== searchQuery || after.filters !== filters
+      ) return;
+      const pageSnippets: SnippetMap = {};
+      collectSnippets(pageSnippets, scope.accountId ?? jmapClient.accountId, snippets);
       // A message that arrived between pages shifts positions and would come
-      // back a second time — drop ids we already show (duplicate keys).
-      const existingIds = new Set(get().emails.map((e) => e.id));
-      const newEmails = list.filter((e) => !existingIds.has(e.id));
+      // back a second time — drop rows we already show (duplicate keys).
+      const existingKeys = new Set(get().emails.map(rowKeyOf));
+      const newEmails = list.filter((e) => !existingKeys.has(rowKeyOf(e)));
       const merged = [...get().emails, ...newEmails];
       // The server's current count: a read in the Unread view has shrunk it
       // since the list was loaded, and a stale total keeps load-more asking
@@ -1294,6 +1407,7 @@ export const useEmailStore = create<EmailState>()(
         emails: merged,
         totalEmails: total,
         threadCounts: withThreadCounts(get().threadCounts, threads),
+        searchSnippets: { ...get().searchSnippets, ...pageSnippets },
         loading: false,
       };
       if (isBaseView(searchQuery, filters)) {
@@ -1401,6 +1515,8 @@ export const useEmailStore = create<EmailState>()(
     if (ownMailboxChanged || sharedMailboxChanged) {
       const activeAccountId = get().activeAccountId;
       if (activeAccountId) {
+        // A search from the global search screen reads its own folder lists.
+        invalidateUnifiedMailboxes(activeAccountId);
         await syncMailboxes(activeAccountId, { own: ownMailboxChanged, shared: sharedMailboxChanged });
       }
     }
@@ -1493,7 +1609,7 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.map((e) =>
         rowKeyOf(e) === key ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
-      ...(state.filters.isUnread === true ? { retainedIds: retain(get().retainedIds, [key]) } : {}),
+      ...(state.filters.isUnread === true || ordersByUnread(state) ? { retainedIds: retain(get().retainedIds, [key]) } : {}),
     });
     patchCache(id, { keywords: patch }, owner);
   },
@@ -1513,7 +1629,7 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.map((e) =>
         rowKeyOf(e) === emailId ? { ...e, keywords: applyKeywordPatch(e.keywords, patch) } : e,
       ),
-      ...(state.filters.isUnread === false ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
+      ...(state.filters.isUnread === false || ordersByUnread(state) ? { retainedIds: retain(get().retainedIds, [emailId]) } : {}),
     });
     patchCache(email.id, { keywords: patch }, rowAccountId(state, email));
   },
@@ -2119,7 +2235,7 @@ export const useEmailStore = create<EmailState>()(
       ),
       // Reading inside Unread, unstarring inside Starred or untagging inside
       // that tag's view keeps the rows until it's re-opened.
-      ...(listed && leavesView(state.filters, token, on)
+      ...(listed && (leavesView(state.filters, token, on) || (token === '$seen' && ordersByUnread(state)))
         ? { retainedIds: retain(get().retainedIds, [...touched]) }
         : {}),
     });
@@ -2243,29 +2359,37 @@ export const useEmailStore = create<EmailState>()(
   searchEmails: async (query) => {
     // Search the account whose folder is open, so a shared mailbox searches
     // its own messages rather than the user's.
+    const shown = get().activeAccountId;
     const owner = currentAccountId(get());
     const ids = await apiSearchEmails(query, undefined, 30, owner);
     if (ids.length === 0) return [];
-    return fetchEmails(ids, owner);
+    const found = await fetchEmails(ids, owner);
+    // Ids repeat across accounts: a result for the account left mid-search
+    // is not the new account's.
+    return get().activeAccountId === shown ? found : [];
   },
 
-  reset: () => set({
-    mailboxes: [],
-    mailboxState: undefined,
-    emailStates: {},
-    currentMailboxId: null,
-    mailboxSnapshots: {},
-    emails: [],
-    totalEmails: 0,
-    queryState: undefined,
-    loading: false,
-    error: null,
-    searchQuery: '',
-    filters: {},
-    retainedIds: [],
-    threadCounts: {},
-    accountErrors: {},
-  }),
+  reset: () => {
+    startFolderSettled.clear();
+    set({
+      mailboxes: [],
+      mailboxState: undefined,
+      emailStates: {},
+      currentMailboxId: null,
+      mailboxSnapshots: {},
+      emails: [],
+      totalEmails: 0,
+      queryState: undefined,
+      loading: false,
+      error: null,
+      searchQuery: '',
+      filters: {},
+      searchSnippets: {},
+      retainedIds: [],
+      threadCounts: {},
+      accountErrors: {},
+    });
+  },
     }),
     {
       // Persist the per-account caches and the active view so the UI can
@@ -3051,9 +3175,19 @@ async function refreshEmailsImpl(): Promise<void> {
           if (viewChanged()) return;
           const { list: trimmed, total: nextTotal } =
             withoutRemovedMeanwhile(visible, queryChanges.total, listedBeforeQuery);
+          // A held row the server reports gone from the folder (removed and
+          // not re-added, or destroyed) is let go rather than spliced back.
+          const readded = new Set(addedIds);
+          const gone = new Set([...destroyedExtra, ...queryChanges.removed.filter((id) => !readded.has(id))]);
+          const held = get().retainedIds.filter((key) => !gone.has(key));
 
           set({
-            emails: trimmed,
+            // The snapshot stays in the server's order for the next delta;
+            // the list keeps rows the user just read where they were.
+            emails: ordersByUnread(state)
+              ? mergeRetainedRows(get().emails, trimmed, held)
+              : trimmed,
+            ...(held.length !== get().retainedIds.length ? { retainedIds: held } : {}),
             totalEmails: nextTotal,
             queryState: nextQueryState,
             emailStates: withEmailState(
@@ -3093,6 +3227,7 @@ async function refreshEmailsImpl(): Promise<void> {
           emails: mergeRetainedRows(get().emails, landed.list, get().retainedIds),
           totalEmails: landed.total,
           threadCounts: withThreadCounts(get().threadCounts, page.threads),
+          searchSnippets: page.snippets,
           accountErrors: page.errors,
           loading: false,
         });
@@ -3101,25 +3236,29 @@ async function refreshEmailsImpl(): Promise<void> {
       const threads = !useSettingsStore.getState().disableThreading;
       let queryRes: Awaited<ReturnType<typeof queryEmailPage>>;
       try {
-        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads });
+        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads, snippets: true });
       } catch (err) {
         // The server refused a hasKeyword comparator (unsupportedSort): drop
         // the keyword levels for this account and re-run with the rest.
         if (!isUnsupportedSort(err)) throw err;
         markKeywordSortUnsupported(scope.accountId ?? jmapClient.accountId);
         sort = await resolveSort(state, scope.accountId);
-        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads });
+        queryRes = await queryEmailPage(scope.mailboxId, { limit, sort, filter, accountId: scope.accountId, threads, snippets: true });
       }
 
       if (viewChanged()) return;
-      const landed = withoutRemovedMeanwhile(queryRes.list, queryRes.total, listedBeforeQuery);
+      const stamped = stampPage(queryRes.list, queryRes.threads, foreignScopeStamp(state, scope));
+      const landed = withoutRemovedMeanwhile(stamped.list, queryRes.total, listedBeforeQuery);
+      const snippetMap: SnippetMap = {};
+      if (!baseView) collectSnippets(snippetMap, scope.accountId ?? jmapClient.accountId, queryRes.snippets);
 
       const updates: Partial<EmailState> = {
         // Rows the user just read/unstarred in this filtered view stay put
         // until the view is re-opened, instead of vanishing under them.
-        emails: baseView ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
+        emails: baseView && !ordersByUnread(state) ? landed.list : mergeRetainedRows(get().emails, landed.list, get().retainedIds),
         totalEmails: landed.total,
-        threadCounts: withThreadCounts(get().threadCounts, queryRes.threads),
+        threadCounts: withThreadCounts(get().threadCounts, stamped.threads),
+        searchSnippets: snippetMap,
         loading: false,
       };
       if (baseView) {

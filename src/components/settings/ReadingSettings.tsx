@@ -35,6 +35,7 @@ export function ReadingSettings() {
   const showPreview = useSettingsStore((s) => s.showPreview);
   const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const clearSearchOnFolderChange = useSettingsStore((s) => s.clearSearchOnFolderChange);
+  const restoreLastFolder = useSettingsStore((s) => s.restoreLastFolder);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
@@ -176,6 +177,10 @@ export function ReadingSettings() {
 
       <SettingItem label={t('settings.email_behavior.clear_search_on_folder_change.label', "Clear search when switching folders")} description={t('settings.email_behavior.clear_search_on_folder_change.description', "Clicking a folder (Inbox, Sent, …) clears the active search and browses that folder. When off, the search stays applied and re-runs in the folder you switch to.")}>
         <ToggleSwitch checked={clearSearchOnFolderChange} onChange={(v) => update('clearSearchOnFolderChange', v)} />
+      </SettingItem>
+
+      <SettingItem label={t('settings.email_behavior.restore_last_folder.label', "Reopen the last folder on start")} description={t('settings.email_behavior.restore_last_folder.description', "Open the folder you were last in when the app starts. When off, the app opens on the Inbox.")}>
+        <ToggleSwitch checked={restoreLastFolder} onChange={(v) => update('restoreLastFolder', v)} />
       </SettingItem>
 
       <SettingItem label={t('settings.email_behavior.show_preview.label', "Show Preview Text")} description={t('settings.email_behavior.show_preview.description', "Display email preview in the list")}>

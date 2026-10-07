@@ -323,15 +323,18 @@ export function flattenVisible(
   return out;
 }
 
-export function findTrashMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
-  const roleMatch = mailboxes.find((m) => m.role === 'trash');
-  if (roleMatch) return roleMatch;
+// Whole folder names only: a substring match took "Robin", "Cabinet" and
+// "Combined" for the Trash, and a bulk move or destroy then hit them.
+const TRASH_NAMES = ['trash', 'bin', 'deleted', 'deleted items', 'deleted messages', 'deleted mail', 'trash can', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
+const JUNK_NAMES = ['junk', 'spam', 'junk email', 'junk e-mail', 'indésirables', 'indésirable', 'courrier indésirable'];
 
-  const names = ['trash', 'bin', 'deleted', 'deleted items', 'corbeille', 'messages supprimés', 'éléments supprimés', 'supprimé', 'supprimés'];
-  return mailboxes.find((m) => {
-    const lower = m.name.toLowerCase();
-    return names.includes(lower) || names.some((n) => lower.includes(n));
-  });
+function byExactName(mailboxes: Mailbox[], names: string[]): Mailbox | undefined {
+  return mailboxes.find((m) => !m.role && names.includes(m.name.trim().toLowerCase()));
+}
+
+/** The Trash: the `trash` role, else a role-less folder with a Trash name, exactly. */
+export function findTrashMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
+  return mailboxes.find((m) => m.role === 'trash') ?? byExactName(mailboxes, TRASH_NAMES);
 }
 
 /**
@@ -347,12 +350,38 @@ export function findArchiveMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
 }
 
 export function findJunkMailbox(mailboxes: Mailbox[]): Mailbox | undefined {
-  const roleMatch = mailboxes.find((m) => m.role === 'junk' || m.role === 'spam');
-  if (roleMatch) return roleMatch;
+  return mailboxes.find((m) => m.role === 'junk' || m.role === 'spam') ?? byExactName(mailboxes, JUNK_NAMES);
+}
 
-  const names = ['junk', 'spam', 'indésirables', 'indésirable', 'courrier indésirable'];
-  return mailboxes.find((m) => {
-    const lower = m.name.toLowerCase();
-    return names.includes(lower) || names.some((n) => lower.includes(n));
-  });
+/** Every node of `tree` in order, nothing collapsed. */
+export function flattenAll(tree: MailboxNode[]): MailboxNode[] {
+  const expanded = new Set<string>();
+  const collect = (nodes: MailboxNode[]) => {
+    for (const n of nodes) {
+      if (n.children.length > 0) {
+        expanded.add(n.id);
+        collect(n.children);
+      }
+    }
+  };
+  collect(tree);
+  return flattenVisible(tree, expanded);
+}
+
+/**
+ * The rows of the search folder picker: all of the account's folders as a
+ * tree (roles first), then each shared account under its own header, so a
+ * group's "Inbox" is not mistaken for the user's own (webmail #1082).
+ */
+export function searchScopeRows(mailboxes: Mailbox[]): MailboxNode[] {
+  return flattenAll(buildMailboxTree(mailboxes));
+}
+
+/**
+ * A folder's name for a chip that stands alone: a shared account's folder
+ * carries the account's name, so a shared "Inbox" is not taken for the
+ * user's own.
+ */
+export function folderLabelWithAccount(name: string, mailbox: Pick<Mailbox, 'isShared' | 'accountName'> | undefined): string {
+  return mailbox?.isShared && mailbox.accountName ? `${name} (${mailbox.accountName})` : name;
 }

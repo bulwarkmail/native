@@ -14,6 +14,7 @@ import { getEventColor } from '../../lib/calendar-utils';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { hasCalendarCapability } from '../../lib/capabilities';
 import { singleLine } from '../../lib/single-line';
+import { previewLine } from '../../lib/preview-text';
 import { prefetchMessage } from '../../lib/email-detail-cache';
 import SenderAvatar from '../SenderAvatar';
 import { radius, spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
@@ -206,7 +207,7 @@ export function ContactActivity({ contact }: Props) {
             emails.map((email) => {
               const sender = email.from?.[0];
               const senderName = sender?.name || sender?.email || t('contacts.activity.unknown_sender', 'Unknown sender');
-              const preview = singleLine(email.preview);
+              const preview = previewLine(email.preview);
               return (
                 <Pressable
                   key={email.id}

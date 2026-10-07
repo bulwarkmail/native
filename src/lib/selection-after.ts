@@ -69,3 +69,11 @@ export async function settled(p: Promise<unknown>, failureTitle: string): Promis
   await withFailureToast(p.catch((err) => { ok = false; throw err; }), failureTitle);
   return ok;
 }
+
+/** The selection restricted to rows still listed; `selected` itself when none dropped. */
+export function selectionPrunedTo(selected: ReadonlySet<string>, visibleKeys: readonly string[]): ReadonlySet<string> {
+  if (selected.size === 0) return selected;
+  const visible = new Set(visibleKeys);
+  const kept = [...selected].filter((k) => visible.has(k));
+  return kept.length === selected.size ? selected : new Set(kept);
+}

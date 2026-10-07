@@ -312,56 +312,56 @@ device.
 - [x] **Tag views and tag counts include Trash and Spam (#1156)** — `P3` — `bugfix-parity` (a4e313f) — fixed in 954d28a, 11d65fc
   - What RN does: `src/stores/email-store.ts:444` (`buildJmapFilter`) and `src/api/tag-counts.ts:38-45` do not exclude them.
 
-- [ ] **"Empty folder" is offered only for Trash and Junk** — `P3` — `partial` (1.12.0)
+- [x] **"Empty folder" is offered only for Trash and Junk** — `P3` — `partial` (1.12.0) — fixed in 65b2e59, bb828c0, b0c69bb, 0a68cd9 — ordinary folders move to their own account's Trash; Trash and Junk are now found by role or exact name only
   - What WEB does: offers it on any folder; an ordinary folder is moved to Trash (`stores/email-store.ts:1520` `emptyFolderMovesToTrash`).
   - What RN does: `src/components/SidebarDrawer.tsx:510`, `src/api/email.ts:288`.
 
-- [ ] **Search still appends a wildcard to every term** — `P3` — `bugfix-parity` (1.11.0)
+- [x] **Search still appends a wildcard to every term** — `P3` — `bugfix-parity` (1.11.0) — fixed in 806283a
   - What WEB does: sends terms as typed (`lib/jmap/search-utils.ts:44-48`).
   - What RN does: `toWildcardQuery` (`src/lib/search-utils.ts:1-8`), used at `stores/email-store.ts:442`, `api/unified-inbox.ts:364`, `api/email.ts:1343`. The "Verified at parity" line below that calls the wildcard parity is out of date.
 
-- [ ] **Search hits are not highlighted (`SearchSnippet/get`)** — `P3` — `missing` (1.10.0, WEB `lib/search-snippet.ts`)
+- [x] **Search hits are not highlighted (`SearchSnippet/get`)** — `P3` — `missing` (1.10.0, WEB `lib/search-snippet.ts`) — fixed in 7d1e5a3, bd0e800
   - What RN does: no SearchSnippet use; the row preview is at `src/screens/EmailListScreen.tsx:88`.
 
-- [ ] **No message-size filter in advanced search** — `P3` — `missing` (1.10.0, WEB `lib/jmap/search-utils.ts`, `components/search/search-chips.tsx`)
+- [x] **No message-size filter in advanced search** — `P3` — `missing` (1.10.0, WEB `lib/jmap/search-utils.ts`, `components/search/search-chips.tsx`) — fixed in 806283a
   - What RN does: no minSize/maxSize in `EmailFilters` / `buildJmapFilter` (`src/stores/email-store.ts:253,435-465`).
 
-- [ ] **Search folder picker is flat** — `P3` — `partial` (1.12.0)
+- [x] **Search folder picker is flat** — `P3` — `partial` (1.12.0) — fixed in eb50397, 646d8a8, 0a68cd9
   - What RN does: the first 12 folders as chips, no hierarchy (`src/screens/EmailListScreen.tsx:1567-1577`).
 
-- [ ] **Tags with no local definition are always grey** — `P3` — `partial` (1.12.0, #1052)
+- [x] **Tags with no local definition are always grey** — `P3` — `partial` (1.12.0, #1052) — fixed in 646d8a8 — account-colour tint on unified rows not done
   - What WEB does: gives each unknown tag its own colour; unified rows can be tinted with their account colour.
   - What RN does: `FALLBACK_KEYWORD_COLOR` (`src/stores/keywords-store.ts:30`); `suggestKeywordColor` (`src/lib/keyword-discovery.ts:68`) could be reused.
 
 - [x] **The list's Move sheet is not scoped to the message's account (#1149)** — `P3` — `bugfix-parity` (c317cd9) — fixed in 56475d7, de6765c — orders the message's account first, as WEB does
   - What RN does: in a shared mailbox your own folders come first (`src/screens/EmailListScreen.tsx:1705-1727`); the viewer is already scoped (`EmailThreadScreen.tsx:381`).
 
-- [ ] **List and notification previews do not skip a leading style sheet** — `P3` — `bugfix-parity` (2d521d1, 6bce332, WEB `lib/utils.ts`)
+- [x] **List and notification previews do not skip a leading style sheet** — `P3` — `bugfix-parity` (2d521d1, 6bce332, WEB `lib/utils.ts`) — fixed in 646d8a8, 0328a9c — notifications show the subject, not the preview, so only the list rows and widgets needed it
   - What RN does: list row preview, `src/lib/push-background-task.ts` and the widgets show the CSS text.
 
 - [ ] **Mail folder sharing (`mail:share`) and share-notification toasts** — `P3` — `missing` (1.10.0)
   - What WEB does: `components/layout/mailbox-share-dialog.tsx`, `stores/share-notification-store.ts`.
   - What RN does: calendars and files can be shared, mailboxes cannot; `components/calendar/CalendarShareSheet.tsx` is the pattern.
 
-- [ ] **Mail list rows have no screen-reader label (#1008)** — `P3` — `missing` (1.10.0)
+- [x] **Mail list rows have no screen-reader label (#1008)** — `P3` — `missing` (1.10.0) — fixed in 646d8a8, 0328a9c — rows also expose the swipe, attachment and copy-code actions to screen readers
   - What RN does: the row `Pressable` (`src/screens/EmailListScreen.tsx:158`) has no `accessibilityLabel`, role, or unread/selected state.
 
-- [ ] **Rows jump while attachment chips load** — `P3` — `partial` (1.11.0, WEB `components/email/attachment-chips.tsx:98-160`)
+- [x] **Rows jump while attachment chips load** — `P3` — `partial` (1.11.0, WEB `components/email/attachment-chips.tsx:98-160`) — fixed in 646d8a8, 0328a9c
   - What RN does: renders nothing until the chips arrive and keeps no cache (`src/components/email/ListAttachmentChips.tsx:60-88`).
 
 - [x] **Mail deleted during a list refresh can reappear (#966)** — `P3` — `bugfix-parity` (1.11.0, unverified) — fixed in 8501746
   - What RN does: the full re-query overwrites the list without tracking rows removed while it was in flight (`src/stores/email-store.ts:2607+`).
 
-- [ ] **The list may not return to the top when another folder opens** — `P3` — `bugfix-parity` (17a42c4, unverified)
+- [x] **The list may not return to the top when another folder opens** — `P3` — `bugfix-parity` (17a42c4, unverified) — fixed in 271cd36, ef4f634
   - What RN does: the FlatList has no per-folder key and no `scrollToOffset` (`src/screens/EmailListScreen.tsx:1440`).
 
-- [ ] **An opened message may jump in the "unread first" order** — `P3` — `bugfix-parity` (1.12.0, unverified)
+- [x] **An opened message may jump in the "unread first" order** — `P3` — `bugfix-parity` (1.12.0, unverified) — fixed in 271cd36, ef4f634
   - What RN does: `retainedIds` only applies to the Unread filter view, not the `unread_first` order (`src/stores/email-store.ts:1323`).
 
-- [ ] **The app restores the last folder on start instead of the inbox** — `P3` — `partial` (64b39c5, decision)
+- [x] **The app restores the last folder on start instead of the inbox** — `P3` — `partial` (64b39c5, decision) — fixed in c893a48, ed30428, 2e8332f — opens the Inbox; the app-only "Reopen the last folder" setting keeps the old behaviour
   - What RN does: `currentMailboxId` is persisted (`src/stores/email-store.ts:783`). May be the intended mobile behaviour; decide and close.
 
-- [ ] **Global search across mail, contacts, calendar and files (#641, #847)** — `P3` — `missing` (1.10.0, product decision)
+- [x] **Global search across mail, contacts, calendar and files (#641, #847)** — `P3` — `missing` (1.10.0, product decision) — fixed in c7b92dd, b538850, 741f612, fd033bb, 80ea6bf — mail searches every signed-in account; contacts, calendar and files search the shown account
   - What WEB does: `lib/global-search/`, `stores/global-search-store.ts`. Earlier audits called it Pro/desktop-only; the changelog describes a cross-surface search.
 
 ## Verified at parity (do not redo)

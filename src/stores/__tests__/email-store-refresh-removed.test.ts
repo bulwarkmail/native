@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // A refresh re-queries the list and puts the page on screen. Deleting mails
 // in quick succession overlaps those refreshes: the query of one can reach
@@ -261,5 +261,61 @@ describe('refreshEmails with rows removed while the query was out (#966)', () =>
     expect(useEmailStore.getState().emails.map((e) => `${e.jmapAccountId}:${e.id}`).sort())
       .toEqual(['acc-1:a', 'grp-1:b']);
     expect(useEmailStore.getState().totalEmails).toBe(2);
+  });
+});
+
+// Rows held in place by an "unread first" order (just read) were spliced back
+// in after the server reported them gone from the folder: moved or deleted
+// elsewhere, they stayed on screen as ghosts (final review I2).
+describe('incremental refresh with held rows the server reports gone', () => {
+  beforeEach(async () => {
+    const { useSettingsStore } = await import('../settings-store');
+    useSettingsStore.getState().updateSetting('messageListOrder', [{ criterion: 'unread', direction: 'desc' }]);
+    useSettingsStore.getState().updateSetting('messageListOrderScope', 'all');
+    const base = [mail('a'), mail('b'), mail('c')];
+    useEmailStore.setState({
+      emails: base,
+      totalEmails: 3,
+      retainedIds: ['a'],
+      emailStates: { 'mb-1': 'em-1' },
+      mailboxSnapshots: { 'mb-1': { emails: base, total: 3, queryState: 'q-1' } },
+    });
+  });
+  afterEach(async () => {
+    const { useSettingsStore } = await import('../settings-store');
+    useSettingsStore.getState().updateSetting('messageListOrder', []);
+    useSettingsStore.getState().updateSetting('messageListOrderScope', 'inbox');
+  });
+
+  const delta = (removed: string[], destroyed: string[], added: Array<{ id: string; index: number }> = []) => ({
+    queryChanges: { oldQueryState: 'q-1', newQueryState: 'q-2', total: 3 - removed.length + added.length, removed, added },
+    changes: { oldState: 'em-1', newState: 'em-2', hasMoreChanges: false, created: [], updated: [], destroyed },
+    added: added.map((a) => mail(a.id)),
+    addedFetched: true,
+    threads: [],
+  });
+
+  it('drops a held row the query reports removed', async () => {
+    mockListDelta.mockResolvedValue(delta(['a'], []));
+    await useEmailStore.getState().refreshEmails();
+
+    expect(ids()).toEqual(['b', 'c']);
+    expect(useEmailStore.getState().retainedIds).toEqual([]);
+  });
+
+  it('drops a held row the server reports destroyed', async () => {
+    mockListDelta.mockResolvedValue(delta([], ['a']));
+    await useEmailStore.getState().refreshEmails();
+
+    expect(ids()).toEqual(['b', 'c']);
+    expect(useEmailStore.getState().retainedIds).toEqual([]);
+  });
+
+  it('keeps a held row the query re-adds lower down where it was', async () => {
+    mockListDelta.mockResolvedValue(delta(['a'], [], [{ id: 'a', index: 2 }]));
+    await useEmailStore.getState().refreshEmails();
+
+    expect(ids()).toEqual(['a', 'b', 'c']);
+    expect(useEmailStore.getState().retainedIds).toEqual(['a']);
   });
 });

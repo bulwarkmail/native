@@ -385,6 +385,12 @@
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
+    "empty_folder": {
+      "confirm_message_trash": "All emails in this folder will be moved to the Trash.",
+      "interrupted": "The account changed while the folder was being emptied. {moved, plural, one {# email was} other {# emails were}} moved to Trash; the folder may be only partly emptied.",
+      "no_trash": "Trash mailbox not found - cannot move emails to trash",
+      "partial": "{moved, plural, one {# email} other {# emails}} moved to Trash, {failed, plural, one {# email} other {# emails}} could not be moved. The rest were left in the folder."
+    },
     "error": "Error",
     "filter_chip": "{field}: {value}",
     "filter_title": "Filter emails",
@@ -410,12 +416,15 @@
     "no_tags_defined": "No tags defined. Add tags in Settings.",
     "no_trash_folder": "Could not find a Trash folder on the server. Please check your mailbox configuration.",
     "offline_nothing_cached": "No connection. Showing nothing because no mail has been cached yet.",
+    "open_attachment": "Open attachment: {name}",
     "open_draft_failed": "Could not open the draft.",
     "outbox_discard": "Discard",
     "outbox_failed": "{count} changes could not be saved to the server.",
     "recent_searches": "Recent searches",
     "remove_filter": "Remove filter {label}",
     "scope_all_folders": "All folders",
+    "scope_folder_hint": "Opens a folder picker",
+    "scope_folder_label": "Folder: {name}",
     "scope_this_folder": "This folder",
     "search_placeholder": "Search mail...",
     "showing_cached": "Showing cached mail",
@@ -522,6 +531,9 @@
     "sharing_access": "Sharing & access",
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
     "uploading_progress": "Uploading {current}/{total} · {name}"
+  },
+  "global_search": {
+    "search_everything_for": "Search everything for “{query}”"
   },
   "identities": {
     "badge": {
@@ -655,6 +667,9 @@
     "token_label": "Access token",
     "token_placeholder": "Paste your API token",
     "token_toggle": "Sign in with an access token"
+  },
+  "mailbox_context_menu": {
+    "error_move_into_itself": "Cannot move a folder into itself"
   },
   "notifications": {
     "copy_failed": "Copy failed",
@@ -947,6 +962,10 @@
         "domain": "Any address on my domains",
         "exact": "Exact address only",
         "label": "Received Address Matching"
+      },
+      "restore_last_folder": {
+        "description": "Open the folder you were last in when the app starts. When off, the app opens on the Inbox.",
+        "label": "Reopen the last folder on start"
       },
       "send_delay": {
         "description_mobile": "Hold outgoing mail for a few seconds so you can cancel it. Requires server support."

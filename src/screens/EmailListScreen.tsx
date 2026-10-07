@@ -7,7 +7,7 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, Copy as CopyIcon,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, Copy as CopyIcon, HardDrive,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,38 +16,45 @@ import { useColors } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
-import { SwipeableRow } from '../components/SwipeableRow';
+import { SwipeableRow, actionLabel as swipeActionLabel } from '../components/SwipeableRow';
 import { MoveSheet } from '../components/MoveSheet';
 import { RulesFlow, useRulesTarget } from '../components/filters/RulesFlow';
 import { TagSheet } from '../components/TagSheet';
 import { OfflineBanner } from '../components/OfflineBanner';
 import {
-  ListAttachmentChips, ListAttachmentOpener, useListRowAttachments,
+  ListAttachmentChips, MAX_CHIPS, ListAttachmentOpener, useListRowAttachments,
 } from '../components/email/ListAttachmentChips';
-import { VerificationCodeChip } from '../components/email/VerificationCodeChip';
+import { HighlightedText } from '../components/email/HighlightedText';
+import type { RowSnippet } from '../lib/search-snippet';
+import { VerificationCodeChip, copyVerificationCode } from '../components/email/VerificationCodeChip';
 import { chipCodeFor } from '../lib/verification-code';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
-  useEmailStore, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
+  useEmailStore, emptyFolder, snippetForRow, effectiveFolderScope, withFolderScope, spansAccounts, accountIdOfRow, deleteDestroysAcrossAccounts,
   requireShownAccountScope, type EmailFilters,
 } from '../stores/email-store';
 import { useSettingsStore, type SwipeAction, type SwipeMode } from '../stores/settings-store';
-import { useKeywordsStore, type KeywordDef } from '../stores/keywords-store';
+import { useKeywordsStore, unknownKeywordColor, type KeywordDef } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
 import { useContactsStore } from '../stores/contacts-store';
 import { useOutboxStore } from '../stores/outbox-store';
 import { withFailureToast } from '../lib/action-failure';
 import { isStaleLoad } from '../lib/network-error';
+import { sizeFilterBytes } from '../lib/search-utils';
 import {
-  selectionAfterFailureIn, selectionIn, selectionWithout, settled, updateSelection, type AccountSelection,
+  selectionAfterFailureIn, selectionIn, selectionWithout, selectionPrunedTo, settled, updateSelection, type AccountSelection,
 } from '../lib/selection-after';
 import { getContactDisplayName } from '../lib/contact-utils';
 import { formatListDate } from '../lib/date-format';
 import { singleLine } from '../lib/single-line';
+import { previewLine } from '../lib/preview-text';
+import { buildRowLabel } from '../lib/list-row-label';
+import { buildRowActions, parseRowAction } from '../lib/list-row-actions';
+import { realAttachments } from '../lib/list-attachments';
 import {
-  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveOwnerAccountId, ownMailboxes,
+  findTrashMailbox, findArchiveMailbox, findJunkMailbox, mailboxesForSiblingOf, moveOwnerAccountId, ownMailboxes, folderLabelWithAccount,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
 import {
@@ -55,7 +62,8 @@ import {
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
-import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
+import { getFullEmail } from '../api/email';
+import { planEmptyFolder } from '../lib/empty-folder';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
@@ -104,12 +112,17 @@ const EmailRow = React.memo(function EmailRow({
   disableAvatarImages,
   answered,
   forwarded,
+  snippet,
   onPress,
   onLongPress,
   selected,
   selectionMode,
   loadAttachments,
   onOpenAttachment,
+  swipeLeftAction,
+  swipeRightAction,
+  inJunk,
+  onSwipeAction,
 }: {
   item: Email;
   threadCount: number;
@@ -122,12 +135,19 @@ const EmailRow = React.memo(function EmailRow({
   disableAvatarImages: boolean;
   answered: boolean;
   forwarded: boolean;
+  /** What the open search matched in this row, if the server marked anything. */
+  snippet?: RowSnippet;
   onPress: (id: string) => void;
   onLongPress: (id: string) => void;
   selected: boolean;
   selectionMode: boolean;
   loadAttachments?: LoadListAttachments;
   onOpenAttachment?: (email: Email, attachment: Attachment) => void;
+  /** The configured swipe actions, offered to screen readers as row actions. */
+  swipeLeftAction?: SwipeAction;
+  swipeRightAction?: SwipeAction;
+  inJunk?: boolean;
+  onSwipeAction?: (action: SwipeAction) => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -152,9 +172,13 @@ const EmailRow = React.memo(function EmailRow({
       const def = keywordDefs.find((k) => k.id === id);
       return def
         ? { id, label: def.label, dot: c.tags[def.color]?.dot ?? c.textMuted, text: c.tags[def.color]?.text ?? c.textSecondary, bg: c.tags[def.color]?.bg ?? c.muted }
-        // A tag no local definition explains (set by another client): grey,
-        // with the raw id so it is at least visible and removable.
-        : { id, label: id, dot: c.tags.gray.dot, text: c.tags.gray.text, bg: c.tags.gray.bg };
+        // A tag no local definition explains (set by another client): a
+        // stable colour from its id, with the raw id so it is at least
+        // visible and removable.
+        : (() => {
+          const p = c.tags[unknownKeywordColor(id)] ?? c.tags.gray;
+          return { id, label: id, dot: p.dot, text: p.text, bg: p.bg };
+        })();
     });
   }, [tagIds, keywordDefs, c]);
 
@@ -169,9 +193,62 @@ const EmailRow = React.memo(function EmailRow({
   );
   const handlePress = React.useCallback(() => onPress(key), [onPress, key]);
   const handleLongPress = React.useCallback(() => onLongPress(key), [onLongPress, key]);
+  const dateText = formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t: tr });
+  const rowLabel = buildRowLabel({
+    sender: senderName,
+    subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
+    time: dateText,
+    unread: unread ? tr('email_list.unread', 'unread') : undefined,
+    pinned: pinned ? tr('email_list.pinned', 'Pinned') : undefined,
+    flagged: starred ? tr('email_list.starred', 'Starred') : undefined,
+    replied: answered ? tr('email_list.replied', 'Replied') : undefined,
+    forwarded: forwarded ? tr('email_list.forwarded', 'Forwarded') : undefined,
+    attachment: item.hasAttachment ? tr('email_list.has_attachment', 'Has attachment') : undefined,
+    threadCount: threadCount > 1
+      ? tr('threads.messages_tooltip', '{count, plural, one {# message in this conversation} other {# messages in this conversation}}', { count: threadCount })
+      : undefined,
+    tags: tags.map((tag) => tag.label),
+  });
+  // The chips the row shows (read at render: a cache that fills later shows
+  // on the row's next render).
+  const chipAttachments = React.useMemo(
+    () => realAttachments(item.attachments ?? loadAttachments?.peek?.(item)).slice(0, MAX_CHIPS),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item, loadAttachments],
+  );
+  const swipeContext = { unread, starred, pinned, inJunk };
+  const rowActions = React.useMemo(() => buildRowActions({
+    swipeLeft: swipeLeftAction ?? 'none',
+    swipeRight: swipeRightAction ?? 'none',
+    swipeLabel: (a) => swipeActionLabel(a, swipeContext, tr),
+    copyCodeLabel: verificationCode ? tr('email_viewer.verification_code.copy', 'Copy code {code}', { code: verificationCode }) : undefined,
+    attachmentNames: chipAttachments.map((a) => a.name ?? ''),
+    openAttachmentLabel: (name) => tr('email_list.open_attachment', 'Open attachment: {name}', { name }),
+    selectLabel: tr('email_list.batch_actions.select', 'Select emails'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [swipeLeftAction, swipeRightAction, unread, starred, pinned, inJunk, verificationCode, chipAttachments, tr]);
+  const handleAccessibilityAction = React.useCallback((e: { nativeEvent: { actionName: string } }) => {
+    const parsed = parseRowAction(e.nativeEvent.actionName);
+    if (!parsed) return;
+    switch (parsed.kind) {
+      case 'swipe': onSwipeAction?.(parsed.action); break;
+      case 'code': if (verificationCode) copyVerificationCode(verificationCode, tr); break;
+      case 'attachment': {
+        const a = chipAttachments[parsed.index];
+        if (a) onOpenAttachment?.(item, a);
+        break;
+      }
+      case 'select': onLongPress(key); break;
+    }
+  }, [onSwipeAction, verificationCode, tr, chipAttachments, onOpenAttachment, item, onLongPress, key]);
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={rowLabel}
+      accessibilityState={{ selected }}
+      accessibilityActions={rowActions}
+      onAccessibilityAction={handleAccessibilityAction}
       style={({ pressed }) => [
         styles.emailRow,
         { paddingVertical: density.rowPaddingVertical },
@@ -238,14 +315,16 @@ const EmailRow = React.memo(function EmailRow({
                 <Text style={styles.threadBadgeText}>{threadCount}</Text>
               </View>
             )}
-            <Text style={[styles.emailDate, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t: tr })}</Text>
+            <Text style={[styles.emailDate, dyn.caption]}>{dateText}</Text>
           </View>
         </View>
 
         {/* Row 2: Subject + tag pills */}
         <View style={styles.subjectRow}>
           <Text style={[styles.emailSubject, dyn.body, unread && styles.textBold]} numberOfLines={1}>
-            {singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
+            {snippet?.subject
+              ? <HighlightedText runs={snippet.subject} markStyle={styles.searchHit} />
+              : singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)')}
           </Text>
           {tags.slice(0, 3).map((tag) => (
             <View key={tag.id} style={[styles.tagPill, { backgroundColor: tag.bg }]}>
@@ -261,7 +340,9 @@ const EmailRow = React.memo(function EmailRow({
         {/* Row 3: Preview - hidden in compact density modes regardless of toggle */}
         {showPreview && density.showPreview && (
           <Text style={[styles.emailPreview, dyn.body]} numberOfLines={2}>
-            {singleLine(item.preview)}
+            {snippet?.preview
+              ? <HighlightedText runs={snippet.preview} markStyle={styles.searchHit} />
+              : previewLine(item.preview)}
           </Text>
         )}
         {verificationCode && <VerificationCodeChip code={verificationCode} disabled={selectionMode} />}
@@ -318,7 +399,13 @@ const EmailListItem = React.memo(function EmailListItem({
       context={context}
       onAction={onAction}
     >
-      <EmailRow {...rowProps} />
+      <EmailRow
+        {...rowProps}
+        swipeLeftAction={swipeLeftAction}
+        swipeRightAction={swipeRightAction}
+        inJunk={inJunk}
+        onSwipeAction={onAction}
+      />
     </SwipeableRow>
   );
 });
@@ -355,6 +442,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const storeSearchQuery = useEmailStore((s) => s.searchQuery);
   const filters = useEmailStore((s) => s.filters);
   const accountErrors = useEmailStore((s) => s.accountErrors);
+  const searchSnippets = useEmailStore((s) => s.searchSnippets);
   const fetchMailboxes = useEmailStore((s) => s.fetchMailboxes);
   const ensureMailboxes = useEmailStore((s) => s.ensureMailboxes);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
@@ -724,6 +812,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
           disableAvatarImages={inJunk && !showAvatarsInJunk}
           answered={flags?.answered ?? false}
           forwarded={flags?.forwarded ?? false}
+          snippet={snippetForRow(searchSnippets, item)}
           selected={selectedIds.has(rowKeyOf(item))}
           selectionMode={selectionMode}
           onPress={handleRowPress}
@@ -737,11 +826,16 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
       selectedIds, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showVerificationCodes, showRecipient, keywordDefs, inJunk, showAvatarsInJunk,
-      loadAttachments, openAttachment,
+      loadAttachments, openAttachment, searchSnippets,
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
-  const handleRefresh = React.useCallback(() => { void refreshEmails(); }, [refreshEmails]);
+  // A pull is the user asking for the list as the server orders it now, so
+  // rows held in place after being read take their sorted place again.
+  const handleRefresh = React.useCallback(() => {
+    useEmailStore.setState({ retainedIds: [] });
+    void refreshEmails();
+  }, [refreshEmails]);
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
@@ -780,6 +874,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     });
   }, [visibleEmails]);
 
+  // Rows that left the list (an emptied folder, from the sidebar too) must not
+  // stay selected: a stale key could reach a bulk move or archive.
+  React.useEffect(() => {
+    const keys = visibleEmails.map(rowKeyOf);
+    setSelectedIds((prev) => selectionPrunedTo(prev, keys) as Set<string>);
+  }, [visibleEmails, setSelectedIds]);
   // Clear selection when mailbox changes
   React.useEffect(() => {
     setSelectedIds(new Set());
@@ -895,6 +995,13 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // A search handed over by a deep link (the search widget): run it, or with
   // no query just put the cursor in the search field.
   const searchInputRef = React.useRef<TextInput>(null);
+  // A folder opens at its top, not where the previous one was scrolled to.
+  // The account is part of the key: Stalwart ids repeat, so two accounts'
+  // inboxes can share an id.
+  const listRef = React.useRef<FlatList<Email>>(null);
+  React.useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [currentMailboxId, activeAccountId]);
   const pendingSearch = usePendingMailSearch((s) => s.query);
   React.useEffect(() => {
     if (pendingSearch === null) return;
@@ -931,6 +1038,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     (filters.body ? 1 : 0) +
     (filters.dateAfter ? 1 : 0) +
     (filters.dateBefore ? 1 : 0) +
+    (sizeFilterBytes(filters.minSizeKb) !== null ? 1 : 0) +
+    (sizeFilterBytes(filters.maxSizeKb) !== null ? 1 : 0) +
     (filters.hasAttachment !== undefined ? 1 : 0) +
     (filters.isStarred !== undefined ? 1 : 0) +
     (filters.isUnread !== undefined ? 1 : 0) +
@@ -945,13 +1054,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   const scopeFolderName = React.useMemo(() => {
     if (folderScope === 'all' || folderScope === 'everywhere' || folderScope === 'current') return null;
     const m = mailboxes.find((mb) => mb.id === folderScope);
-    return m ? localizeMailboxName(m.role, m.name, t) : folderScope;
+    return m ? folderLabelWithAccount(localizeMailboxName(m.role, m.name, t), m) : folderScope;
   }, [folderScope, mailboxes, t]);
   const keywordFilterLabel = React.useMemo(() => {
     if (!filters.keyword) return null;
     const id = filters.keyword.replace(/^\$label:/, '').replace(/^\$color:/, '');
     return keywordDefs.find((k) => k.id === id)?.label ?? id;
   }, [filters.keyword, keywordDefs]);
+  const [scopePickerOpen, setScopePickerOpen] = React.useState(false);
   const setFolderScope = (scope: string) => setFilters(withFolderScope(filters, scope));
 
   const cycleTriStateTo = (key: 'hasAttachment' | 'isStarred' | 'isUnread', next: boolean | undefined) => {
@@ -989,7 +1099,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
   // in the api helper).
   const [emptying, setEmptying] = React.useState(false);
   const canEmptyFolder =
-    (currentRole === 'trash' || inJunk) && !!currentMailbox && (currentMailbox.totalEmails > 0 || emails.length > 0);
+    (currentRole === 'trash' || inJunk) && !!currentMailbox && currentMailbox.myRights?.mayRemoveItems !== false && (currentMailbox.totalEmails > 0 || emails.length > 0);
   const handleEmptyFolder = () => {
     if (!currentMailbox || emptying) return;
     // The account whose folder is on screen now. The emptying is bound to it
@@ -998,9 +1108,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     // whose Trash shares this folder's id (Stalwart numbers per account).
     const owner = activeAccountId;
     const folder = currentMailbox;
+    const plan = planEmptyFolder(mailboxes, folder, useSettingsStore.getState().deleteAction);
     Alert.alert(
       t('email_list.empty_folder.confirm_title', 'Empty folder'),
-      t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
+      plan.kind === 'destroy'
+        ? t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.')
+        : t('email_list.empty_folder.confirm_message_trash', 'All emails in this folder will be moved to the Trash.'),
       [
         { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
@@ -1015,7 +1128,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               return;
             }
             setEmptying(true);
-            void apiEmptyMailbox(folder.originalId ?? folder.id, at)
+            void emptyFolder(plan, folder, at)
               .then(async () => {
                 clearSelection();
                 await Promise.all([refreshEmails(), fetchMailboxes()]);
@@ -1023,6 +1136,10 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               .catch((err: unknown) => {
                 // Stopped before sending: the client moved to another account.
                 if (isStaleLoad(err)) return;
+                // A move that stopped part-way has still changed the folder.
+                Promise.all([refreshEmails(), fetchMailboxes()]).catch((refreshErr: unknown) => {
+                  console.warn('[EmailListScreen] refresh after a failed empty failed:', refreshErr);
+                });
                 Alert.alert(
                   t('email_list.error', 'Error'),
                   err instanceof Error ? err.message : t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
@@ -1294,8 +1411,25 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         </Pressable>
       </View>
 
-      {searchFocused && ((!searchInput.trim() && recentSearches.length > 0) || contactSuggestions.length > 0) && (
+      {searchFocused && (
         <View style={styles.recentSearches}>
+          {/* Hand the words typed so far to global search: every account's
+              mail plus the shown account's contacts, calendar and files. */}
+          <Pressable
+            style={[styles.recentSearchRow, styles.recentSearchMain]}
+            onPress={() => {
+              setSearchFocused(false);
+              navigation.navigate('GlobalSearch', { query: searchInput.trim() });
+            }}
+            accessibilityRole="button"
+          >
+            <Search size={12} color={c.primary} />
+            <Text style={[styles.recentSearchText, { color: c.primary }]} numberOfLines={1}>
+              {searchInput.trim()
+                ? t('global_search.search_everything_for', 'Search everything for “{query}”', { query: searchInput.trim() })
+                : t('global_search.title', 'Search everything')}
+            </Text>
+          </Pressable>
           {!searchInput.trim() && recentSearches.length > 0 && (
             <>
               <Text style={styles.recentSearchesTitle}>{t('advanced_search.suggestions_recent', 'Recent searches')}</Text>
@@ -1410,6 +1544,20 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               onRemove={() => setFilterField('dateBefore', undefined)}
             />
           ) : null}
+          {sizeFilterBytes(filters.minSizeKb) !== null && (
+            <FilterChip
+              icon={<HardDrive size={12} color={c.textSecondary} />}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_min', 'Larger than (KB)'), value: `${filters.minSizeKb} ${t('email_composer.file_size_kb', 'KB')}` })}
+              onRemove={() => setFilterField('minSizeKb', undefined)}
+            />
+          )}
+          {sizeFilterBytes(filters.maxSizeKb) !== null && (
+            <FilterChip
+              icon={<HardDrive size={12} color={c.textSecondary} />}
+              label={t('email_list.filter_chip', '{field}: {value}', { field: t('advanced_search.size_max', 'Smaller than (KB)'), value: `${filters.maxSizeKb} ${t('email_composer.file_size_kb', 'KB')}` })}
+              onRemove={() => setFilterField('maxSizeKb', undefined)}
+            />
+          )}
           {filters.isUnread !== undefined && (
             <FilterChip
               icon={filters.isUnread
@@ -1545,6 +1693,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={visibleEmails}
           keyExtractor={emailKeyExtractor}
           renderItem={renderEmailRow}
@@ -1673,17 +1822,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                         active={folderScope === 'current'}
                         onPress={() => setFolderScope('current')}
                       />
-                      {scopedMailboxes
-                        .filter((m) => m.id !== currentMailboxId)
-                        .slice(0, 12)
-                        .map((m) => (
-                          <ScopeChip
-                            key={m.id}
-                            label={localizeMailboxName(m.role, m.name, t)}
-                            active={folderScope === m.id}
-                            onPress={() => setFolderScope(m.id)}
-                          />
-                        ))}
+                      <ScopeChip
+                        label={scopeFolderName ?? `${t('advanced_search.folder', 'Folder')}…`}
+                        active={scopeFolderName !== null}
+                        onPress={() => setScopePickerOpen(true)}
+                        accessibilityLabel={scopeFolderName !== null
+                          ? t('email_list.scope_folder_label', 'Folder: {name}', { name: scopeFolderName })
+                          : t('advanced_search.folder', 'Folder')}
+                        accessibilityHint={t('email_list.scope_folder_hint', 'Opens a folder picker')}
+                      />
                     </View>
                   </View>
 
@@ -1734,6 +1881,33 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
                     </View>
                   </View>
 
+                  <View style={styles.filterFieldRow}>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.size_min', 'Larger than (KB)')}</Text>
+                      <TextInput
+                        value={filters.minSizeKb ?? ''}
+                        onChangeText={(v) => setFilterField('minSizeKb', v.replace(/[^0-9.]/g, ''))}
+                        placeholder="0"
+                        placeholderTextColor={c.textMuted}
+                        keyboardType="decimal-pad"
+                        autoCorrect={false}
+                        style={styles.filterFieldInput}
+                      />
+                    </View>
+                    <View style={styles.filterFieldHalf}>
+                      <Text style={styles.filterFieldLabel}>{t('advanced_search.size_max', 'Smaller than (KB)')}</Text>
+                      <TextInput
+                        value={filters.maxSizeKb ?? ''}
+                        onChangeText={(v) => setFilterField('maxSizeKb', v.replace(/[^0-9.]/g, ''))}
+                        placeholder="0"
+                        placeholderTextColor={c.textMuted}
+                        keyboardType="decimal-pad"
+                        autoCorrect={false}
+                        style={styles.filterFieldInput}
+                      />
+                    </View>
+                  </View>
+
                   <View style={styles.filterToggleGroup}>
                     <TriToggle
                       icon={<Paperclip size={14} color={c.textSecondary} />}
@@ -1765,6 +1939,15 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
+        <MoveSheet
+          visible={scopePickerOpen}
+          onClose={() => setScopePickerOpen(false)}
+          mailboxes={mailboxes}
+          mode="search"
+          title={t('advanced_search.folder', 'Folder')}
+          currentMailboxId={scopeFolderName !== null ? folderScope : null}
+          onPick={(id) => { setScopePickerOpen(false); setFolderScope(id); }}
+        />
       </Modal>
 
       {datePickerField !== null && (() => {
@@ -1905,7 +2088,13 @@ function FilterChip({
   );
 }
 
-function ScopeChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function ScopeChip({ label, active, onPress, accessibilityLabel, accessibilityHint }: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+}) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   return (
@@ -1913,6 +2102,8 @@ function ScopeChip({ label, active, onPress }: { label: string; active: boolean;
       onPress={onPress}
       style={[styles.triToggle, active && styles.triToggleOn]}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ selected: active }}
     >
       <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1}>{label}</Text>
@@ -2370,6 +2561,8 @@ function makeStyles(c: ThemePalette) {
   // Unread state: text foreground + font-bold
   textUnread: { fontWeight: '600', color: c.text },
   textBold: { fontWeight: '700' },
+  // A word the search matched, in the row's subject or preview.
+  searchHit: { fontWeight: '700', color: c.text, backgroundColor: c.tags.yellow.bg },
   // Tag pill: text-[10px], rounded-full, px-1.5 py-0.5, gap-1
   tagPill: {
     flexDirection: 'row',

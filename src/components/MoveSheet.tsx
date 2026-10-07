@@ -9,7 +9,7 @@ import {
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { buildMailboxTree, flattenVisible, orderMoveTree, type MailboxNode } from '../lib/mailbox-tree';
+import { buildMailboxTree, flattenAll, orderMoveTree, searchScopeRows } from '../lib/mailbox-tree';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useLocaleStore } from '../stores/locale-store';
 import { localizeMailboxName } from '../lib/mailbox-label';
@@ -41,10 +41,16 @@ interface MoveSheetProps {
   ownerAccountId?: string;
   /** Heading; defaults to "Move to folder". A copy picker passes its own. */
   title?: string;
+  /**
+   * 'search' makes it the search folder picker: every folder can be picked
+   * (Drafts and read-only ones included), and `currentMailboxId` is the
+   * folder already chosen, shown with a check but still pickable.
+   */
+  mode?: 'move' | 'search';
 }
 
 export function MoveSheet({
-  visible, onClose, mailboxes, currentMailboxId, onPick, ownerAccountId, title,
+  visible, onClose, mailboxes, currentMailboxId, onPick, ownerAccountId, title, mode = 'move',
 }: MoveSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -69,19 +75,9 @@ export function MoveSheet({
   }, [visible, slideY, overlayOpacity]);
 
   const visibleNodes = React.useMemo(() => {
-    const tree = orderMoveTree(buildMailboxTree(mailboxes), mailboxes, ownerAccountId);
-    const expanded = new Set<string>();
-    const collect = (nodes: MailboxNode[]) => {
-      for (const n of nodes) {
-        if (n.children.length > 0) {
-          expanded.add(n.id);
-          collect(n.children);
-        }
-      }
-    };
-    collect(tree);
-    return flattenVisible(tree, expanded);
-  }, [mailboxes, ownerAccountId]);
+    if (mode === 'search') return searchScopeRows(mailboxes);
+    return flattenAll(orderMoveTree(buildMailboxTree(mailboxes), mailboxes, ownerAccountId));
+  }, [mailboxes, ownerAccountId, mode]);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
@@ -112,16 +108,20 @@ export function MoveSheet({
           {visibleNodes.map((node) => {
             const Icon = moveTargetIcon(node.role, node.name);
             const isCurrent = node.id === currentMailboxId;
+            const searching = mode === 'search';
             // A shared account's header is a grouping row, not a folder, and
             // Drafts is never a move target (the webmail excludes it too).
-            const canTarget =
-              !node.isAccountNode && node.myRights?.mayAddItems !== false && !isCurrent
-              && node.role !== 'drafts';
+            const canTarget = searching
+              ? !node.isAccountNode
+              : !node.isAccountNode && node.myRights?.mayAddItems !== false && !isCurrent
+                && node.role !== 'drafts';
             return (
               <Pressable
                 key={node.id}
                 onPress={canTarget ? () => onPick(node.id) : undefined}
                 disabled={!canTarget}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isCurrent }}
                 style={({ pressed }) => [
                   styles.moveRow,
                   pressed && canTarget && styles.moveRowPressed,

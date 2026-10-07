@@ -12,7 +12,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { accountIdOfRow } from '../../stores/email-store';
 import { accountScopedId } from '../../lib/thread-utils';
 import {
-  attachmentKind, realAttachments, requestListAttachments, shortAttachmentName,
+  attachmentKind, peekListAttachments, realAttachments, requestListAttachments, shortAttachmentName,
   type AttachmentKind, type LoadListAttachments,
 } from '../../lib/list-attachments';
 import { getAttachmentDisplayName, previewKindFor } from '../../lib/attachment-display';
@@ -20,7 +20,7 @@ import { cacheBlobFile, downloadAttachment, fetchBlobBytes, shareAttachment, sha
 import { AttachmentPreviewModal, type PreviewItem } from './AttachmentPreviewModal';
 
 /** How many chips a row shows before collapsing the rest into a count. */
-const MAX_CHIPS = 2;
+export const MAX_CHIPS = 2;
 
 const ICONS: Record<AttachmentKind, typeof FileIcon> = {
   image: FileImage,
@@ -47,10 +47,15 @@ function iconColor(kind: AttachmentKind, c: ThemePalette): string {
  * opened before), else loaded lazily when it has a paperclip.
  */
 function useListAttachments(email: Email, load?: LoadListAttachments): Attachment[] | undefined {
-  const [loaded, setLoaded] = React.useState<{ key: string; attachments: Attachment[] } | null>(null);
   const needsLoad = !!load && !!email.hasAttachment && !email.attachments;
   // Rows of a list spanning accounts can share an id (#1082).
   const key = accountScopedId(email, email.id);
+  // A row that comes back after scrolling away finds its answer cached and
+  // takes it in its first render, so it mounts at its full height.
+  const [loaded, setLoaded] = React.useState<{ key: string; attachments: Attachment[] } | null>(() => {
+    const cached = needsLoad ? load?.peek?.(email) : undefined;
+    return cached ? { key, attachments: cached } : null;
+  });
 
   React.useEffect(() => {
     if (!needsLoad || !load) return undefined;
@@ -85,6 +90,18 @@ export const ListAttachmentChips = React.memo(function ListAttachmentChips({
   const dyn = useTypography();
   const attachments = useListAttachments(email, load);
   const real = React.useMemo(() => realAttachments(attachments), [attachments]);
+  if (attachments === undefined && load && email.hasAttachment) {
+    // Hold a chip's height until the parts arrive, so the row does not grow
+    // under the reader when they do.
+    return (
+      <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={[styles.chip, styles.chipPlaceholder]}>
+          <FileIcon size={12} color="transparent" />
+          <Text style={[styles.name, dyn.caption]}>{' '}</Text>
+        </View>
+      </View>
+    );
+  }
   if (real.length === 0) return null;
 
   const shown = real.slice(0, MAX_CHIPS);
@@ -230,20 +247,26 @@ export function useListRowAttachments(mailboxes: readonly Mailbox[], currentMail
   const jmapAccountId = current?.isShared ? current.accountId : undefined;
   const openerRef = React.useRef<ListAttachmentOpenerHandle>(null);
 
-  const loadAttachments = React.useCallback<LoadListAttachments>((email, onLoad) => {
+  const loadAttachments = React.useMemo<LoadListAttachments>(() => {
     // A row of an "All folders" list or a tag view lives in its own account,
     // whatever folder is open (#1082, #1038).
-    const accountId = email.jmapAccountId ? accountIdOfRow(email) : jmapAccountId;
-    const scope = `${localAccountId ?? ''}\u0000${accountId ?? ''}`;
-    return requestListAttachments(scope, async (ids) => {
-      // The request goes out through the active account's client: if the
-      // user switched accounts meanwhile, fail (and don't cache) instead of
-      // asking the other server.
-      if (useAuthStore.getState().activeAccountId !== localAccountId) {
-        throw new Error('Account switched');
-      }
-      return getEmailAttachments(ids, accountId);
-    }, email.id, onLoad);
+    const accountOf = (email: Email) => (email.jmapAccountId ? accountIdOfRow(email) : jmapAccountId);
+    const scopeOf = (accountId: string | undefined) => `${localAccountId ?? ''}\u0000${accountId ?? ''}`;
+    const load = ((email, onLoad) => {
+      const accountId = accountOf(email);
+      const scope = scopeOf(accountId);
+      return requestListAttachments(scope, async (ids) => {
+        // The request goes out through the active account's client: if the
+        // user switched accounts meanwhile, fail (and don't cache) instead of
+        // asking the other server.
+        if (useAuthStore.getState().activeAccountId !== localAccountId) {
+          throw new Error('Account switched');
+        }
+        return getEmailAttachments(ids, accountId);
+      }, email.id, onLoad);
+    }) as LoadListAttachments;
+    load.peek = (email) => peekListAttachments(scopeOf(accountOf(email)), email.id);
+    return load;
   }, [localAccountId, jmapAccountId]);
 
   const openAttachment = React.useCallback((email: Email, attachment: Attachment) => {
@@ -274,6 +297,7 @@ function makeStyles(c: ThemePalette) {
       borderRadius: radius.sm,
       backgroundColor: c.surface,
     },
+    chipPlaceholder: { opacity: 0 },
     chipPressed: { backgroundColor: c.surfaceHover },
     name: { ...typography.caption, color: c.textSecondary, flexShrink: 1 },
     more: {
