@@ -139,6 +139,9 @@ describe('editor page messages', () => {
     // the @-mention tests), serialized as the DOM would: text escaped.
     let html = '';
     let textNode: FakeNode | null = null;
+    const focusCalls = { value: 0 };
+    /** What went in at a saved range without execCommand (the editor was not focused). */
+    const insertedAtRange: Array<{ range: unknown; content: unknown }> = [];
     const editor = {
       get innerHTML() {
         return textNode ? textNode.data!.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : html;
@@ -148,7 +151,7 @@ describe('editor page messages', () => {
       scrollHeight: 100,
       querySelector: () => null,
       setAttribute: () => undefined,
-      focus: () => undefined,
+      focus: () => { focusCalls.value++; },
       contains: (node: unknown) => {
         for (let n = node as FakeNode | undefined; n; n = n.parentNode as FakeNode | undefined) {
           if (n === (editor as unknown)) return true;
@@ -171,7 +174,20 @@ describe('editor page messages', () => {
       anchorNode: null,
       getRangeAt: () => {
         const r = ranges[0] as FakeRange;
-        return { ...r, collapsed: collapsedRange(r), cloneRange: () => ({ ...r, id: 'saved' }) };
+        return {
+          ...r,
+          collapsed: collapsedRange(r),
+          cloneRange: () => {
+            const saved: Record<string, unknown> = {
+              ...r,
+              id: 'saved',
+              createContextualFragment: (markup: string) => ({ markup }),
+              deleteContents: () => undefined,
+              insertNode: (content: unknown) => { insertedAtRange.push({ range: saved, content }); },
+            };
+            return saved;
+          },
+        };
       },
       removeAllRanges: () => { ranges.length = 0; },
       addRange: (r: unknown) => { ranges.push(r); },
@@ -189,6 +205,12 @@ describe('editor page messages', () => {
       getElementById: () => editor,
       addEventListener: (name: string, fn: Listener) => { (docListeners[name] ??= []).push(fn); },
       queryCommandState: (name: string) => !!commandState[name],
+      createDocumentFragment: () => {
+        const children: unknown[] = [];
+        return { children, appendChild: (child: unknown) => { children.push(child); } };
+      },
+      createTextNode: (data: string) => ({ nodeType: 3, data }),
+      createElement: (tag: string) => ({ nodeType: 1, tagName: tag.toUpperCase() }),
       createRange: () => {
         const r: FakeRange & Record<string, unknown> = {
           setStart(node: unknown, offset: number) { r.startContainer = node; r.startOffset = offset; },
@@ -203,8 +225,9 @@ describe('editor page messages', () => {
         if (!execWorks.value) return false;
         // insertText over a selection in a text node, as the browser does it.
         const node = range?.startContainer as FakeNode | undefined;
-        if (command === 'insertText' && node?.nodeType === 3 && range!.endContainer === node) {
-          node.data = node.data!.slice(0, range!.startOffset) + String(value) + node.data!.slice(range!.endOffset);
+        if (command === 'insertText' && node?.nodeType === 3 && (range!.endContainer ?? node) === node) {
+          const end = range!.endContainer === undefined ? range!.startOffset : range!.endOffset;
+          node.data = node.data!.slice(0, range!.startOffset) + String(value) + node.data!.slice(end);
           caretAt(node, range!.startOffset! + String(value).length);
         }
         return true;
@@ -258,6 +281,7 @@ describe('editor page messages', () => {
     return {
       changes, selections, pastes, lastPasteId, type, fire, paste, moveCaret, commandState, posted, executed,
       mentions, typeText, caretAt, execWorks, document, caret: () => ranges[0] as FakeRange, rne: () => window.__rne,
+      focusCalls, insertedAtRange,
     };
   }
 
@@ -378,6 +402,44 @@ describe('editor page messages', () => {
       expect(page.executed).toHaveLength(2);
     });
 
+    // The user moved on to Subject or To while RN worked: focusing the
+    // editor to paste would pull them back.
+    it('pastes at the saved range without taking focus once the editor lost it', () => {
+      const page = boot();
+      page.paste({ 'text/plain': '- One' });
+      page.fire('blur');
+      page.rne().insertPasted('<ul><li>One</li></ul>', page.lastPasteId());
+      expect(page.executed).toEqual([]);
+      expect(page.focusCalls.value).toBe(0);
+      expect(page.insertedAtRange).toEqual([
+        { range: expect.objectContaining({ id: 'saved' }), content: { markup: '<ul><li>One</li></ul>' } },
+      ]);
+    });
+
+    it('pastes the text as text, line by line, without taking focus once the editor lost it', () => {
+      const page = boot();
+      page.paste({ 'text/plain': '- <b>One</b>\r\n- Two' });
+      page.fire('blur');
+      vi.advanceTimersByTime(PASTE_FALLBACK_MS);
+      expect(page.executed).toEqual([]);
+      expect(page.focusCalls.value).toBe(0);
+      expect(page.insertedAtRange.map((i) => (i.content as { children: unknown[] }).children)).toEqual([[
+        { nodeType: 3, data: '- <b>One</b>' },
+        { nodeType: 1, tagName: 'BR' },
+        { nodeType: 3, data: '- Two' },
+      ]]);
+    });
+
+    it('focuses the editor to paste while the user is still in it', () => {
+      const page = boot();
+      page.paste({ 'text/plain': '- One' });
+      page.fire('blur');
+      page.fire('focus');
+      page.rne().insertPasted(null, page.lastPasteId());
+      expect(page.executed.map((e) => e.command)).toEqual(['insertText']);
+      expect(page.insertedAtRange).toEqual([]);
+    });
+
     it('settles a paste still in flight as text before taking the next one', () => {
       const page = boot();
       page.paste({ 'text/plain': '- One' });
@@ -480,6 +542,9 @@ describe('editor page messages', () => {
         ['after another block', { previous: { nodeType: 1, tagName: 'P', lastChild: text('info') } }, [{ query: 'x' }]],
         // info<br>@x
         ['after a line break', { previous: { nodeType: 1, tagName: 'BR', previousSibling: text('info') } }, [{ query: 'x' }]],
+        ...['SECTION', 'ARTICLE', 'ASIDE', 'HEADER', 'FOOTER', 'NAV', 'FIGURE', 'FIGCAPTION', 'ADDRESS', 'DL', 'DT', 'DD',
+          'TFOOT', 'CAPTION'].map((tagName): [string, Parameters<ReturnType<typeof boot>['typeText']>[1], unknown[]] =>
+          [`after a ${tagName}`, { previous: { nodeType: 1, tagName, lastChild: text('info') } }, [{ query: 'x' }]]),
       ];
       for (const [name, opts, expected] of cases) {
         const page = boot();
@@ -511,6 +576,21 @@ describe('editor page messages', () => {
       gone.rne().insertMention('Max');
       expect(gone.executed).toEqual([]);
       expect(node.data).toBe('Hi ma');
+    });
+
+    it('puts a paste still waiting for RN in first, as text, then the mention after it', () => {
+      const page = boot();
+      const node = page.typeText('Hi ');
+      page.paste({ 'text/plain': '- One' });
+      page.typeText('Hi @ma');
+      const id = page.lastPasteId();
+      page.rne().insertMention('Max');
+      expect(page.executed.map((e) => [e.command, e.value])).toEqual([['insertText', '- One'], ['insertText', '@Max ']]);
+      expect(node.data).toBe('Hi - One@Max ');
+      // RN's late answer and the fallback timer find nothing to paste.
+      page.rne().insertPasted('<ul><li>One</li></ul>', id);
+      vi.advanceTimersByTime(PASTE_FALLBACK_MS);
+      expect(page.executed).toHaveLength(2);
     });
 
     it('does nothing without an open run', () => {

@@ -254,12 +254,19 @@ export function buildEditorHtml(opts: {
     reportHeight();
     updateMention();
   });
+  // Whether the user is in the editor. The page can't see RN's fields, so a
+  // tap on Subject or To shows up here only as the editor's blur.
+  var editorFocused = document.activeElement === editor;
   editor.addEventListener('blur', function () {
+    editorFocused = false;
     flushChange();
     endMention();
     post('blur', null);
   });
-  editor.addEventListener('focus', function () { post('focus', null); });
+  editor.addEventListener('focus', function () {
+    editorFocused = true;
+    post('focus', null);
+  });
   document.addEventListener('selectionchange', function () {
     if (document.activeElement !== editor) return;
     reportSelection();
@@ -320,18 +327,58 @@ export function buildEditorHtml(opts: {
     sel.addRange(range);
   }
 
+  // The lines of 'text', split at CR, LF or CRLF.
+  function splitLines(text) {
+    var lines = [];
+    var from = 0;
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      if (!isLineEnd(code)) continue;
+      lines.push(text.slice(from, i));
+      if (code === 13 && text.charCodeAt(i + 1) === 10) i++;
+      from = i + 1;
+    }
+    lines.push(text.slice(from));
+    return lines;
+  }
+
+  // Puts the paste at its saved range straight into the DOM, leaving focus
+  // and the selection alone. Not undoable, unlike execCommand, which edits
+  // only the focused editor. The text goes in as text nodes, never as HTML.
+  function insertAtRange(range, html, text) {
+    var content;
+    if (html) {
+      content = range.createContextualFragment(html);
+    } else {
+      content = document.createDocumentFragment();
+      var lines = splitLines(text);
+      for (var i = 0; i < lines.length; i++) {
+        if (i > 0) content.appendChild(document.createElement('br'));
+        if (lines[i]) content.appendChild(document.createTextNode(lines[i]));
+      }
+    }
+    range.deleteContents();
+    range.insertNode(content);
+  }
+
   function settlePaste(html) {
     var paste = pendingPaste;
     pendingPaste = null;
     clearTimeout(paste.timer);
-    // execCommand only edits the focused editor, and the answer (or the
-    // fallback timer) can arrive after the user left it.
-    editor.focus();
-    restoreRange(paste.range);
-    try {
-      if (html) document.execCommand('insertHTML', false, html);
-      else document.execCommand('insertText', false, paste.text);
-    } catch (e) {}
+    var range = paste.range;
+    if (!editorFocused && range && editor.contains(range.startContainer)) {
+      // The answer (or the fallback timer) came after the user left the
+      // editor: focusing it would pull them out of Subject or To.
+      try { insertAtRange(range, html, paste.text); } catch (e) {}
+    } else {
+      // execCommand only edits the focused editor.
+      editor.focus();
+      restoreRange(range);
+      try {
+        if (html) document.execCommand('insertHTML', false, html);
+        else document.execCommand('insertText', false, paste.text);
+      } catch (e) {}
+    }
     reportChange();
     reportHeight();
     reportSelection();
@@ -375,7 +422,8 @@ export function buildEditorHtml(opts: {
   }
 
   // Elements that end a word: blocks, line breaks and images.
-  var WORD_BREAK_TAGS = ' P DIV LI UL OL BLOCKQUOTE H1 H2 H3 H4 H5 H6 PRE TABLE TBODY THEAD TR TD TH BR HR IMG ';
+  var WORD_BREAK_TAGS = ' P DIV LI UL OL BLOCKQUOTE H1 H2 H3 H4 H5 H6 PRE TABLE TBODY THEAD TFOOT TR TD TH CAPTION'
+    + ' SECTION ARTICLE ASIDE HEADER FOOTER NAV FIGURE FIGCAPTION ADDRESS DL DT DD BR HR IMG ';
   function breaksWord(el) { return WORD_BREAK_TAGS.indexOf(' ' + el.tagName + ' ') !== -1; }
 
   // The last character of the text before 'node' in the same block (a space
@@ -438,6 +486,25 @@ export function buildEditorHtml(opts: {
     if (postedMention === null) return;
     postedMention = null;
     post('mention', null);
+  }
+
+  // A list paste still waiting for RN goes in first, as text, before the
+  // pick replaces 'run': its range was saved before the "@" was typed, so it
+  // belongs in front of the mention, and settling later it would land
+  // around the replaced run. Text it adds in front of the run, in the run's
+  // node, moves the run along. The run moved, or gone (the browser split
+  // the node), drops the pick: null.
+  function settlePasteBefore(run) {
+    var node = run.node;
+    var saved = pendingPaste.range;
+    var inFront = !!saved && saved.startContainer === node && saved.startOffset <= run.start;
+    var fromEnd = node.data.length - run.end;
+    settlePaste(null);
+    if (!editor.contains(node)) return null;
+    var end = inFront ? node.data.length - fromEnd : run.end;
+    var start = end - (run.end - run.start);
+    if (start < 0 || node.data.slice(start, end) !== '@' + run.query) return null;
+    return { node: node, start: start, end: end, query: run.query };
   }
 
   function placeCaret(sel, node, offset) {
@@ -563,10 +630,16 @@ export function buildEditorHtml(opts: {
         return;
       }
       if (typeof label !== 'string' || !label) return;
+      editor.focus();
+      if (pendingPaste) run = settlePasteBefore(run);
+      if (!run) {
+        mention = null;
+        updateMention();
+        return;
+      }
       var node = run.node;
       var spaceFollows = run.end < node.data.length && isSpace(node.data.charCodeAt(run.end));
       var text = '@' + label + (spaceFollows ? '' : ' ');
-      editor.focus();
       var sel = window.getSelection();
       var range = document.createRange();
       range.setStart(node, run.start);

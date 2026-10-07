@@ -423,7 +423,10 @@ function ToolbarButton({
       onPress={onPress}
       hitSlop={4}
       disabled={disabled}
+      accessibilityRole="button"
       accessibilityLabel={label}
+      // A toggle (one given `active`) says whether it is on.
+      accessibilityState={{ ...(active !== undefined ? { selected: active } : {}), disabled: !!disabled }}
       style={[styles.formatBtn, active && styles.formatBtnActive, disabled && styles.formatBtnDisabled]}
     >
       {icon}
@@ -914,6 +917,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // is held back (heldMentionEnd) and applied if the press ends without a pick.
   const pickingMention = React.useRef(false);
   const heldMentionEnd = React.useRef(false);
+  // The grace timer of the last press that ended without a pick.
+  const mentionPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
@@ -970,9 +975,20 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // The page posts nothing more when a blur already ended the run.
     setMentionQuery(null);
   };
+  const clearMentionPressTimer = () => {
+    if (mentionPressTimer.current) clearTimeout(mentionPressTimer.current);
+    mentionPressTimer.current = null;
+  };
+  const startMentionPress = () => {
+    // An earlier press's grace timer must not end this one.
+    clearMentionPressTimer();
+    pickingMention.current = true;
+  };
   const endMentionPress = () => {
     // onPress may come after onPressOut; give it the same grace as To/Cc.
-    setTimeout(() => {
+    clearMentionPressTimer();
+    mentionPressTimer.current = setTimeout(() => {
+      mentionPressTimer.current = null;
       if (!pickingMention.current) return;
       pickingMention.current = false;
       if (heldMentionEnd.current) {
@@ -981,6 +997,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
       }
     }, 200);
   };
+  // The list is gone (no matches, or it unmounted mid-press): no press of it
+  // is running, so the editor's next null must not be held back.
+  const mentionListShown = mentionMatches.length > 0;
+  React.useEffect(() => {
+    if (mentionListShown) return;
+    clearMentionPressTimer();
+    pickingMention.current = false;
+    heldMentionEnd.current = false;
+  }, [mentionListShown]);
+  React.useEffect(() => clearMentionPressTimer, []);
   const alreadySelected = React.useMemo(
     () => new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
@@ -2993,11 +3019,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
           )}
         </ScrollView>
 
-        {mentionMatches.length > 0 && (
+        {mentionListShown && (
           <MentionList
             candidates={mentionMatches}
             onPick={pickMention}
-            onPressIn={() => { pickingMention.current = true; }}
+            onPressIn={startMentionPress}
             onPressOut={endMentionPress}
           />
         )}
