@@ -1095,7 +1095,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
     let cancelled = false;
     void (async () => {
       const result = await loadComposerIdentities(owner?.appAccountId, async () => {
-        const list = await getIdentities(owner?.jmapAccountId || undefined);
+        // The live id while the client serves the owner: a stale recorded id
+        // would make every fresh fetch fail.
+        const fetchAccountId = owner ? queueJmapAccountId(owner, {
+          liveJmapAccountId: jmapClient.connectedAccountId,
+          clientServesOwner: clientServesAccount(owner.appAccountId),
+          recorded: recordedJmapAccountId,
+        }) : '';
+        const list = await getIdentities(fetchAccountId || undefined);
         if (owner && !ownerActiveNow()) throw new Error('Account switched');
         return list;
       });

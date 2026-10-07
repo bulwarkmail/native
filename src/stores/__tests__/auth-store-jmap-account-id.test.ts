@@ -64,12 +64,13 @@ describe('applyConnectedState records the JMAP account id', () => {
 
   it('records nothing while the client serves another account', async () => {
     client.username = 'other@example.com';
+    const before = useAccountStore.getState().getAccountById(ID)?.jmapAccountId;
     await useAuthStore.getState().login('https://mail.example.com', 'second@example.com', 'pass');
     const entry = useAccountStore.getState().getAccountById('second@example.com@mail.example.com');
     expect(entry).toBeDefined();
     expect(entry?.jmapAccountId).toBeUndefined();
-    // The account the client does serve is not written to either.
-    expect(useAccountStore.getState().getAccountById(ID)?.jmapAccountId).toBe('acc-2');
+    // No other entry is written to either.
+    expect(useAccountStore.getState().getAccountById(ID)?.jmapAccountId).toBe(before);
   });
 
   it('records nothing without a connected JMAP account', async () => {
