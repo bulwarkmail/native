@@ -1061,6 +1061,26 @@ function storeError(err: unknown, fallback: string): string | null {
   return err instanceof Error ? err.message : fallback;
 }
 
+/**
+ * Point the stores that follow the shown account at `accountId`, when they
+ * are not already on it. The offline body cache, so the viewer's cache-first
+ * open and selectMailbox's seed read the right bucket (fire-and-forget: it
+ * returns empty until hydrated, the right degraded behaviour). The outbox,
+ * whose account decides whether an action runs or is queued: on none, every
+ * action is dropped. Its queue is then drained (a no-op offline, or while the
+ * client serves another account).
+ */
+function pointDependentStores(accountId: string | null): void {
+  if (useOfflineCacheStore.getState().activeAccountId !== accountId) {
+    void useOfflineCacheStore.getState().setAccount(accountId);
+  }
+  if (useOutboxStore.getState().activeAccountId !== accountId) {
+    void useOutboxStore.getState().setAccount(accountId).then(() => {
+      void useOutboxStore.getState().flush();
+    });
+  }
+}
+
 export const useEmailStore = create<EmailState>()(
   persist(
     (set, get) => ({
@@ -1093,7 +1113,13 @@ export const useEmailStore = create<EmailState>()(
   // run the network refresh afterwards.
   setActiveAccount: (accountId) => {
     const state = get();
-    if (state.activeAccountId === accountId) return;
+    if (state.activeAccountId === accountId) {
+      // The usual cold start: the persisted state already names this account,
+      // so there is no view to swap. The outbox and the offline cache are not
+      // persisted that way and start on no account; point them at it anyway.
+      pointDependentStores(accountId);
+      return;
+    }
 
     const nextSnapshots = { ...state.accountSnapshots };
     if (state.activeAccountId) {
@@ -1122,16 +1148,7 @@ export const useEmailStore = create<EmailState>()(
     // remembered folder when the user asked for that).
     get().openStartFolder(useSettingsStore.getState().restoreLastFolder);
 
-    // Point the offline body cache at the same account so the viewer's
-    // cache-first open and selectMailbox's seed read from the right bucket. Fire-
-    // and-forget — the cache returns empty until hydration completes,
-    // which is the correct degraded behaviour.
-    void useOfflineCacheStore.getState().setAccount(accountId);
-    // Load the new account's outbox and try to drain it (no-op when offline or
-    // the JMAP client isn't serving this account yet).
-    void useOutboxStore.getState().setAccount(accountId).then(() => {
-      void useOutboxStore.getState().flush();
-    });
+    pointDependentStores(accountId);
   },
 
   removeAccount: (accountId) => {
