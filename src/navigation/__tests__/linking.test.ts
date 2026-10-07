@@ -25,6 +25,9 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('bulwarkmobile://calendar/week/2026-08-29')).toEqual({ kind: 'calendar', view: 'week', date: '2026-08-29' });
     expect(parseDeepLink('bulwarkmobile://contacts')).toEqual({ kind: 'contacts' });
     expect(parseDeepLink('bulwarkmobile://files')).toEqual({ kind: 'files' });
+    expect(parseDeepLink('bulwarkmobile://files/A/B%20C?preview=x%20y.pdf')).toEqual({ kind: 'files', path: ['A', 'B C'], preview: 'x y.pdf' });
+    expect(parseDeepLink('bulwarkmobile://files?preview=x.pdf')).toEqual({ kind: 'files', preview: 'x.pdf' });
+    expect(parseDeepLink('https://mail.example.com/de/files/A//B?account=acc1')).toEqual({ kind: 'files', path: ['A', 'B'], accountId: 'acc1' });
     expect(parseDeepLink('bulwarkmobile://settings/notifications')).toEqual({ kind: 'settings', tab: 'notifications' });
     expect(parseDeepLink('bulwarkmobile://settings')).toEqual({ kind: 'settings', tab: undefined });
   });

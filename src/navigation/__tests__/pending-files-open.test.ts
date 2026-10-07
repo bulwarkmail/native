@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FileNode } from '../../api/types';
-import { resolveFilesOpen, setPendingFilesOpen, usePendingFilesOpen } from '../pending-files-open';
+import { resolveFilesOpen, resolveFilesPath, setPendingFilesOpen, usePendingFilesOpen } from '../pending-files-open';
 
 function node(id: string, name: string, parentId: string | null, folder: boolean, extra: Partial<FileNode> = {}): FileNode {
   return { id, name, parentId, blobId: folder ? null : `blob-${id}`, type: folder ? 'folder' : 'text/plain', ...extra } as FileNode;
@@ -56,7 +56,42 @@ describe('pending files open', () => {
 
   it('is consumed once', () => {
     setPendingFilesOpen({ appAccountId: 'a', nodeId: 'f1', folderPath: '/', fileName: 'a.txt' });
-    expect(usePendingFilesOpen.getState().consume()?.nodeId).toBe('f1');
+    expect(usePendingFilesOpen.getState().consume()?.appAccountId).toBe('a');
     expect(usePendingFilesOpen.getState().consume()).toBeNull();
+  });
+});
+
+describe('resolveFilesPath', () => {
+  const tree: FileNode[] = [
+    ...nodes,
+    // A file named like the folder, and a shared folder named like ours.
+    node('x1', 'Docs', null, false),
+    node('own:s3', 'Work', 'own:s1', true, { isShared: true }),
+    node('own:s4', 'only-shared.txt', 'own:s1', false, { isShared: true }),
+  ];
+
+  it('walks nested folders and finds the file', () => {
+    expect(resolveFilesPath(tree, ['Docs', 'Work'], 'a.txt')).toEqual({
+      path: [{ id: 'd1', name: 'Docs' }, { id: 'd2', name: 'Work' }],
+      file: nodes[2],
+    });
+  });
+
+  it('opens the root for no segments', () => {
+    expect(resolveFilesPath(tree, [], 'top.txt')).toEqual({ path: [], file: nodes[3] });
+  });
+
+  it('ignores a file that has the folder name', () => {
+    expect(resolveFilesPath([node('x1', 'Docs', null, false)], ['Docs'], null)).toBe('folder_missing');
+  });
+
+  it('ignores shared nodes', () => {
+    expect(resolveFilesPath(tree, ['Shared'], null)).toBe('folder_missing');
+    expect(resolveFilesPath(tree, ['Docs'], 'only-shared.txt')).toEqual({ path: [{ id: 'd1', name: 'Docs' }], file: null });
+  });
+
+  it('reports a missing folder, and opens the folder when the file is missing', () => {
+    expect(resolveFilesPath(tree, ['Docs', 'Nope'], null)).toBe('folder_missing');
+    expect(resolveFilesPath(tree, ['Docs'], 'gone.pdf')).toEqual({ path: [{ id: 'd1', name: 'Docs' }], file: null });
   });
 });

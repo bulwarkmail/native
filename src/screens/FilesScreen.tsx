@@ -69,7 +69,7 @@ import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
 import { isStaleLoad } from '../lib/network-error';
-import { resolveFilesOpen, usePendingFilesOpen } from '../navigation/pending-files-open';
+import { resolveFilesOpen, resolveFilesPath, usePendingFilesOpen } from '../navigation/pending-files-open';
 import { useToastStore } from '../stores/toast-store';
 
 // A file row carries the display name alongside the rest of the node.
@@ -308,8 +308,14 @@ export default function FilesScreen() {
       return;
     }
     if (loading || refreshing || nodesFor !== activeAccountId) return;
-    const resolved = resolveFilesOpen(allNodes, pendingOpen);
-    if (!resolved && refreshedForOpen.current !== pendingOpen) {
+    const byPath = pendingOpen.by === 'path';
+    const found = byPath
+      ? resolveFilesPath(allNodes, pendingOpen.segments, pendingOpen.preview)
+      : resolveFilesOpen(allNodes, pendingOpen);
+    const resolved = found === 'folder_missing' ? null : found;
+    // A link's file missing from a found folder is looked for after a refresh too.
+    const missing = !resolved || (byPath && pendingOpen.preview != null && !resolved.file);
+    if (missing && refreshedForOpen.current !== pendingOpen) {
       refreshedForOpen.current = pendingOpen;
       void loadFiles('refresh');
       return;
@@ -318,9 +324,17 @@ export default function FilesScreen() {
     if (!resolved) {
       useToastStore.getState().addToast({
         type: 'error',
-        title: t('deep_link.file_not_found', 'This file is no longer available.'),
+        title: byPath
+          ? t('deep_link.folder_not_found', 'This folder is no longer available.')
+          : t('deep_link.file_not_found', 'This file is no longer available.'),
       });
       return;
+    }
+    if (byPath && pendingOpen.preview != null && !resolved.file) {
+      useToastStore.getState().addToast({
+        type: 'error',
+        title: t('deep_link.file_not_found', 'This file is no longer available.'),
+      });
     }
     setPath(resolved.path);
     setSearchQuery('');

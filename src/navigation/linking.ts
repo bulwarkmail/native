@@ -8,6 +8,7 @@ import { parseMailtoUrl } from '../lib/mailto';
 import type { RootStackParamList } from './types';
 import { setPendingSettingsTab } from './pending-settings-tab';
 import { setPendingCalendarOpen, setPendingCalendarView, type CalendarViewTarget } from './pending-calendar-open';
+import { setPendingFilesOpen } from './pending-files-open';
 import { setPendingMailSearch } from './pending-mail-search';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
@@ -46,7 +47,7 @@ export type DeepLink =
   // A new-contact form, prefilled from `?email=` / `?name=`.
   | { kind: 'contactNew'; email?: string; name?: string; accountId?: string }
   | { kind: 'contacts' }
-  | { kind: 'files' }
+  | { kind: 'files'; path?: string[]; preview?: string; accountId?: string }
   | { kind: 'settings'; tab?: string }
   | { kind: 'compose'; to: EmailAddress[]; cc: EmailAddress[]; bcc?: EmailAddress[]; subject?: string; body?: string };
 
@@ -199,8 +200,18 @@ export function parseDeepLink(url: string): DeepLink | null {
     }
     case 'contacts':
       return parseContactsPath(segments.slice(1), search, accountId) ?? { kind: 'contacts' };
-    case 'files':
-      return { kind: 'files' };
+    case 'files': {
+      // `/files/<folder>/…[?preview=<name>]`: empty segments are dropped, and
+      // a bare link stays a bare tab open.
+      const path = segments.slice(1).map(decodeSegment).filter(Boolean);
+      const preview = search.get('preview') || undefined;
+      return {
+        kind: 'files',
+        ...(path.length ? { path } : {}),
+        ...(preview ? { preview } : {}),
+        ...(accountId ? { accountId } : {}),
+      };
+    }
     case 'settings':
       return { kind: 'settings', tab: kind ? decodeSegment(kind) : undefined };
     case 'compose': {
@@ -318,6 +329,8 @@ export interface DeepLinkNavigator {
   // Switch to the account a permalink names (`?account=`); resolves false
   // when that account is not signed in on this device.
   switchAccount?: (accountId: string) => Promise<boolean>;
+  // The signed-in account now shown, for links that park a target for it.
+  activeAccountId?: () => string | null;
 }
 
 /**
@@ -410,6 +423,14 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       navigation.navigate('MainTabs', { screen: 'Contacts' } as never);
       return true;
     case 'files':
+      // Stamped after any account switch above, so the Files tab never applies
+      // it to another account's listing.
+      if ((link.path?.length || link.preview) && nav.activeAccountId) {
+        const appAccountId = nav.activeAccountId();
+        if (appAccountId) {
+          setPendingFilesOpen({ appAccountId, by: 'path', segments: link.path ?? [], preview: link.preview ?? null });
+        }
+      }
       navigation.navigate('MainTabs', { screen: 'Files' } as never);
       return true;
     case 'settings':
