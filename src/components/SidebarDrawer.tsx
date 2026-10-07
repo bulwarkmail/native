@@ -9,7 +9,7 @@ import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
-  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus,
+  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search,
   type LucideIcon,
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -1023,6 +1023,13 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                 <RowCounts unread={unifiedCounts.inbox.unread} total={unifiedCounts.inbox.total} showTotal={showFolderTotalCount} />
               </Pressable>
             )}
+            <Pressable
+              style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
+              onPress={() => { onClose(); navigation.navigate('GlobalSearch'); }}
+            >
+              <Search size={16} color={c.textSecondary} />
+              <Text style={styles.quickRowLabel}>{t('global_search.title', 'Search everything')}</Text>
+            </Pressable>
             <Pressable
               style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
               onPress={() => { onClose(); navigation.navigate('Scheduled'); }}

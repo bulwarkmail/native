@@ -59,6 +59,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ScheduledScreen from './src/screens/ScheduledScreen';
 import OutboxScreen from './src/screens/OutboxScreen';
 import UnifiedInboxScreen from './src/screens/UnifiedInboxScreen';
+import GlobalSearchScreen from './src/screens/GlobalSearchScreen';
 import { useAccountStore } from './src/stores/account-store';
 import { useAuthStore } from './src/stores/auth-store';
 import { useCalendarStore } from './src/stores/calendar-store';
@@ -990,6 +991,7 @@ export default function App() {
         <Stack.Screen name="Scheduled" component={ScheduledScreen} />
         <Stack.Screen name="Outbox" component={OutboxScreen} />
         <Stack.Screen name="UnifiedInbox" component={UnifiedInboxScreen} />
+        <Stack.Screen name="GlobalSearch" component={GlobalSearchScreen} />
         <Stack.Screen
           name="AddAccount"
           options={{

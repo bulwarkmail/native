@@ -1409,8 +1409,25 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         </Pressable>
       </View>
 
-      {searchFocused && ((!searchInput.trim() && recentSearches.length > 0) || contactSuggestions.length > 0) && (
+      {searchFocused && (
         <View style={styles.recentSearches}>
+          {/* Hand the words typed so far to global search: every account's
+              mail plus the shown account's contacts, calendar and files. */}
+          <Pressable
+            style={[styles.recentSearchRow, styles.recentSearchMain]}
+            onPress={() => {
+              setSearchFocused(false);
+              navigation.navigate('GlobalSearch', { query: searchInput.trim() });
+            }}
+            accessibilityRole="button"
+          >
+            <Search size={12} color={c.primary} />
+            <Text style={[styles.recentSearchText, { color: c.primary }]} numberOfLines={1}>
+              {searchInput.trim()
+                ? t('global_search.search_everything_for', 'Search everything for “{query}”', { query: searchInput.trim() })
+                : t('global_search.title', 'Search everything')}
+            </Text>
+          </Pressable>
           {!searchInput.trim() && recentSearches.length > 0 && (
             <>
               <Text style={styles.recentSearchesTitle}>{t('advanced_search.suggestions_recent', 'Recent searches')}</Text>

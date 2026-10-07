@@ -532,6 +532,9 @@
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
     "uploading_progress": "Uploading {current}/{total} · {name}"
   },
+  "global_search": {
+    "search_everything_for": "Search everything for “{query}”"
+  },
   "identities": {
     "badge": {
       "to": "to {identity}",
