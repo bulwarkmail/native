@@ -32,6 +32,13 @@ export const WEBMAIL_FIXTURES: WebmailFixture[] = [
   // vacation forwarding that is on and keeps a copy, and an auto-reply only
   // for senders from two own domains.
   { file: 'v2-period-forward-audience.sieve', extensions: STALWART_EXTENSIONS },
+  // Also from webmail 1.13.0: forwarding without a copy (it stops), the
+  // auto-reply only for senders from elsewhere, and a hand-written rule.
+  { file: 'v2-forward-stop-external.sieve', extensions: STALWART_EXTENSIONS },
+  // Forwarding on, with no period and no reply audience or include.
+  { file: 'v2-forward-no-audience.sieve', extensions: STALWART_EXTENSIONS },
+  // Forwarding switched off: version 1, the address still remembered.
+  { file: 'v1-forward-off.sieve', extensions: STALWART_EXTENSIONS },
 ];
 
 export function readWebmailFixture(file: string): string {
