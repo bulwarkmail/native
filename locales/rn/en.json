@@ -1244,6 +1244,10 @@
       }
     }
   },
+  "sharing": {
+    "own_books_only": "Only your own address books can be shared",
+    "share_unconfirmed": "The server did not confirm the share update"
+  },
   "sidebar": {
     "account_error": "Needs attention",
     "remove_account_hint": "Long-press to remove this account",

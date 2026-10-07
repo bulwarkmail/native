@@ -5,6 +5,7 @@ import { getDownloadUrl, uploadBlob, type UploadBlobOptions } from './blob';
 import { batched, requireMethodResult } from './jmap-result';
 import { decodeFileNodeName, numberedFileName } from '../lib/filenode-name';
 import { fileNameRulesFrom, type FileNameRules } from '../lib/file-name-rules';
+import { t } from '../stores/locale-store';
 import { isStaleLoad } from '../lib/network-error';
 import { opScope, type AccountRef } from './op-scope';
 
@@ -676,10 +677,10 @@ export async function setFileNodeShare(
   ));
   const result = requireMethodResult(res, '0', 'FileNode/set');
   if (result.notUpdated?.[fileNodeId]) {
-    throw new Error(result.notUpdated[fileNodeId].description || 'Failed to update file share');
+    throw new Error(result.notUpdated[fileNodeId].description || t('sharing.share_failed', 'Failed to update sharing'));
   }
   if (!result.updated || !(fileNodeId in result.updated)) {
-    throw new Error('Server did not confirm the share update');
+    throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
   }
 }
 

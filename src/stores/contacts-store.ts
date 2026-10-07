@@ -29,6 +29,7 @@ import { jmapClient } from '../api/jmap-client';
 import type { OpScope } from '../api/op-scope';
 import { activeAppAccountId, clientServesActiveAccount } from '../lib/active-client-account';
 import { isShownAccount, requireShownAccountScope } from './email-store';
+import { t } from './locale-store';
 import {
   getContactDisplayName,
   getContactKeywords,
@@ -818,7 +819,7 @@ export const useContactsStore = create<ContactsState>()(
           const at = requireShownAccountScope(owner.appAccountId);
           const { originalId, book } = bookTarget(id);
           // Only the owner shares a book (as in the webmail).
-          if (!book || book.isShared) throw new Error('Only your own address books can be shared');
+          if (!book || book.isShared) throw new Error(t('sharing.own_books_only', 'Only your own address books can be shared'));
           const epoch = loadEpoch;
           await apiSetAddressBookShare(originalId, principalId, rights, at);
           // An account switch meanwhile: book ids repeat across accounts.

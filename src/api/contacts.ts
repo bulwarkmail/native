@@ -5,6 +5,7 @@ import { generateUUID } from '../lib/uuid';
 import { contactFromWire, contactToWire } from '../lib/contact-wire';
 import { isStaleLoad } from '../lib/network-error';
 import { opScope, type AccountRef, type OpScope } from './op-scope';
+import { t } from '../stores/locale-store';
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CONTACTS];
 
@@ -431,9 +432,9 @@ export async function setAddressBookShare(
     notUpdated?: Record<string, SetError>;
   }>(res);
   const err = result.notUpdated?.[addressBookId];
-  if (err) throw new Error(setErrorMessage(err, 'Failed to update sharing'));
+  if (err) throw new Error(setErrorMessage(err, t('sharing.share_failed', 'Failed to update sharing')));
   if (!result.updated || !(addressBookId in result.updated)) {
-    throw new Error('Server did not confirm the share update');
+    throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
   }
 }
 

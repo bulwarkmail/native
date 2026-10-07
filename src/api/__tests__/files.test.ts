@@ -271,7 +271,7 @@ describe('setFileNodeShare', () => {
 
     mockRequest.mockResolvedValue({ methodResponses: [['FileNode/set', {}, '0']] });
     await expect(setFileNodeShare('node-1', 'p2', null)).rejects.toThrow(
-      'Server did not confirm the share update',
+      'The server did not confirm the share update',
     );
   });
 });
