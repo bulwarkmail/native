@@ -19,9 +19,6 @@
       "shared_with_me": "Velem megosztva",
       "subscribed": "Feliratkozott"
     },
-    "event_modal": {
-      "participant_placeholder": "Résztvevő hozzáadása e-mail-cím alapján"
-    },
     "events": {
       "copy_link_short": "Hivatkozás",
       "export_ics_short": ".ics",

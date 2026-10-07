@@ -19,9 +19,6 @@
       "shared_with_me": "Доступные мне",
       "subscribed": "Подписки"
     },
-    "event_modal": {
-      "participant_placeholder": "Добавить участника по email"
-    },
     "events": {
       "copy_link_short": "Ссылка",
       "export_ics_short": ".ics",

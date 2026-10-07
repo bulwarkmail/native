@@ -19,9 +19,6 @@
       "shared_with_me": "Partagés avec moi",
       "subscribed": "Abonnements"
     },
-    "event_modal": {
-      "participant_placeholder": "Ajouter un participant par e-mail"
-    },
     "events": {
       "copy_link_short": "Lien",
       "export_ics_short": ".ics",

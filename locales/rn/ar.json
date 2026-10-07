@@ -19,9 +19,6 @@
       "shared_with_me": "مشترك معي",
       "subscribed": "المشترَك فيها"
     },
-    "event_modal": {
-      "participant_placeholder": "إضافة مشارك عبر البريد الإلكتروني"
-    },
     "events": {
       "copy_link_short": "رابط",
       "export_ics_short": ".ics",

@@ -174,6 +174,10 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
   React.useEffect(() => {
     if (shown && sentId) void useContactsStore.getState().loadRecentRecipients(sentId);
   }, [shown, sentId]);
+  // Directory people are suggestions too, not only an availability source.
+  React.useEffect(() => {
+    if (shown) void useContactsStore.getState().loadDirectory();
+  }, [shown]);
 
   const filteredSuggestions = React.useMemo<RecipientSuggestion[]>(() => {
     const q = participantQuery(draft);
@@ -271,7 +275,7 @@ export function ParticipantInput({ attendees, onAdd, onRemove, availabilityAccou
       <TextInput
         value={draft}
         onChangeText={setDraft}
-        placeholder={t('calendar.participants.email_placeholder', 'Add participant by email')}
+        placeholder={t('calendar.participants.email_placeholder', 'Add email address or search contacts')}
         placeholderTextColor={c.textMuted}
         autoCapitalize="none"
         autoCorrect={false}

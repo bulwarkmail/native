@@ -19,9 +19,6 @@
       "shared_with_me": "Compartits amb mi",
       "subscribed": "Subscrits"
     },
-    "event_modal": {
-      "participant_placeholder": "Afegiu un participant per correu electrònic"
-    },
     "events": {
       "copy_link_short": "Enllaç",
       "export_ics_short": ".ics",

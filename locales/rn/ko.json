@@ -19,9 +19,6 @@
       "shared_with_me": "나와 공유됨",
       "subscribed": "구독 중"
     },
-    "event_modal": {
-      "participant_placeholder": "이메일로 참석자 추가"
-    },
     "events": {
       "copy_link_short": "링크",
       "export_ics_short": ".ics",

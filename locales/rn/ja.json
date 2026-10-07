@@ -19,9 +19,6 @@
       "shared_with_me": "自分と共有",
       "subscribed": "購読中"
     },
-    "event_modal": {
-      "participant_placeholder": "メールアドレスで参加者を追加"
-    },
     "events": {
       "copy_link_short": "リンク",
       "export_ics_short": ".ics",

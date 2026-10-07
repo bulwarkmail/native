@@ -19,9 +19,6 @@
       "shared_with_me": "Kopīgots ar mani",
       "subscribed": "Abonētie"
     },
-    "event_modal": {
-      "participant_placeholder": "Pievienot dalībnieku pēc e-pasta"
-    },
     "events": {
       "copy_link_short": "Saite",
       "export_ics_short": ".ics",

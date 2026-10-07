@@ -19,9 +19,6 @@
       "shared_with_me": "與我共用",
       "subscribed": "已訂閱"
     },
-    "event_modal": {
-      "participant_placeholder": "依電子郵件地址新增參與者"
-    },
     "events": {
       "copy_link_short": "連結",
       "export_ics_short": ".ics",

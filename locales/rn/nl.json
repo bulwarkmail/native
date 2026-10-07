@@ -19,9 +19,6 @@
       "shared_with_me": "Gedeeld met mij",
       "subscribed": "Geabonneerd"
     },
-    "event_modal": {
-      "participant_placeholder": "Deelnemer toevoegen via e-mail"
-    },
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",

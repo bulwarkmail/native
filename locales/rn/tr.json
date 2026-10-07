@@ -19,9 +19,6 @@
       "shared_with_me": "Benimle paylaşılanlar",
       "subscribed": "Abone olunanlar"
     },
-    "event_modal": {
-      "participant_placeholder": "E-posta ile katılımcı ekle"
-    },
     "events": {
       "copy_link_short": "Bağlantı",
       "export_ics_short": ".ics",

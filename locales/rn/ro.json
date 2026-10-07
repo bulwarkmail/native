@@ -19,9 +19,6 @@
       "shared_with_me": "Partajate cu mine",
       "subscribed": "Abonate"
     },
-    "event_modal": {
-      "participant_placeholder": "Adăugați un participant după e-mail"
-    },
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",

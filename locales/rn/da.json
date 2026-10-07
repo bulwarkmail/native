@@ -19,9 +19,6 @@
       "shared_with_me": "Delt med mig",
       "subscribed": "Abonnerede"
     },
-    "event_modal": {
-      "participant_placeholder": "Tilføj deltager via e-mail"
-    },
     "events": {
       "copy_link_short": "Link",
       "export_ics_short": ".ics",
