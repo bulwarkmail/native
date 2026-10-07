@@ -1103,6 +1103,14 @@
       "mobile_description": "カラーテーマを選択します。テーマは「外観」のライト／ダーク設定に従います。カスタムテーマパッケージはウェブメールで管理します。"
     },
     "vacation": {
+      "date_range": {
+        "description": "オプションで自動返信を特定の期間に限定します",
+        "title": "期間"
+      },
+      "message": {
+        "description": "返信として送信されるメッセージ",
+        "title": "自動返信メッセージ"
+      },
       "warnings": {
         "date_format": "日付は「YYYY-MM-DD」または「YYYY-MM-DD HH:MM」の形式で入力してください"
       }

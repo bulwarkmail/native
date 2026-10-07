@@ -1103,6 +1103,14 @@
       "mobile_description": "Vælg et farvetema. Temaer følger indstillingen for lys/mørk under Udseende; brugerdefinerede temapakker administreres i webmailen."
     },
     "vacation": {
+      "date_range": {
+        "description": "Begræns eventuelt auto-svaret til en bestemt periode",
+        "title": "Datoperiode"
+      },
+      "message": {
+        "description": "Beskeden der sendes som svar",
+        "title": "Auto-svar-besked"
+      },
       "warnings": {
         "date_format": "Datoer skal have formatet \"YYYY-MM-DD\" eller \"YYYY-MM-DD HH:MM\""
       }

@@ -1103,6 +1103,14 @@
       "mobile_description": "Válassz színtémát. A témák a Megjelenés világos/sötét beállítását követik; az egyéni témacsomagokat a webmailben kezelheted."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opcionálisan korlátozd az automatikus választ egy adott időszakra",
+        "title": "Dátumtartomány"
+      },
+      "message": {
+        "description": "Az üzenet, amely válaszként lesz elküldve",
+        "title": "Automatikus válasz üzenet"
+      },
       "warnings": {
         "date_format": "A dátumok formátuma „YYYY-MM-DD” vagy „YYYY-MM-DD HH:MM” legyen"
       }

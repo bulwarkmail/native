@@ -1103,6 +1103,14 @@
       "mobile_description": "Wählen Sie ein Farbdesign. Designs folgen der Hell/Dunkel-Einstellung unter Darstellung; eigene Designpakete werden im Webmail verwaltet."
     },
     "vacation": {
+      "date_range": {
+        "description": "Optional die automatische Antwort auf einen bestimmten Zeitraum beschränken",
+        "title": "Zeitraum"
+      },
+      "message": {
+        "description": "Die Nachricht, die als Antwort gesendet wird",
+        "title": "Automatische Antwortnachricht"
+      },
       "warnings": {
         "date_format": "Datumsangaben müssen das Format \"YYYY-MM-DD\" oder \"YYYY-MM-DD HH:MM\" haben"
       }

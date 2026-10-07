@@ -1103,6 +1103,14 @@
       "mobile_description": "Bir renk teması seçin. Temalar Görünüm'deki açık/koyu ayarını izler; özel tema paketleri webmail'de yönetilir."
     },
     "vacation": {
+      "date_range": {
+        "description": "Otomatik yanıtı isteğe bağlı olarak belirli bir dönemle sınırlayın",
+        "title": "Tarih Aralığı"
+      },
+      "message": {
+        "description": "Yanıt olarak gönderilecek ileti",
+        "title": "Otomatik Yanıt İletisi"
+      },
       "warnings": {
         "date_format": "Tarihler \"YYYY-MM-DD\" veya \"YYYY-MM-DD HH:MM\" biçiminde olmalıdır"
       }

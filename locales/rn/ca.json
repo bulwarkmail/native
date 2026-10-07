@@ -1103,6 +1103,14 @@
       "mobile_description": "Trieu un tema de color. Els temes segueixen el paràmetre clar/fosc d'Aparença; els paquets de temes personalitzats es gestionen al webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opcionalment, limiteu la resposta automàtica a un període específic",
+        "title": "Interval de dates"
+      },
+      "message": {
+        "description": "El missatge que s'enviarà com a resposta",
+        "title": "Missatge de resposta automàtica"
+      },
       "warnings": {
         "date_format": "Les dates han de tenir el format \"YYYY-MM-DD\" o \"YYYY-MM-DD HH:MM\""
       }

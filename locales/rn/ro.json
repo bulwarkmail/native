@@ -1103,6 +1103,14 @@
       "mobile_description": "Alegeți o temă de culori. Temele urmează setarea luminos/întunecat din Aspect; pachetele de teme personalizate se gestionează în webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Opțional, limitați răspunsul automat la o anumită perioadă",
+        "title": "Interval de date"
+      },
+      "message": {
+        "description": "Mesajul care va fi trimis ca răspuns",
+        "title": "Mesaj de răspuns automat"
+      },
       "warnings": {
         "date_format": "Datele trebuie să fie în formatul \"YYYY-MM-DD\" sau \"YYYY-MM-DD HH:MM\""
       }

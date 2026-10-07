@@ -1103,6 +1103,14 @@
       "mobile_description": "Choisissez un thème de couleurs. Les thèmes suivent le réglage clair/sombre de l'Apparence. Les packs de thèmes personnalisés se gèrent dans le webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Limiter optionnellement la réponse automatique à une période spécifique",
+        "title": "Période"
+      },
+      "message": {
+        "description": "Le message qui sera envoyé en réponse",
+        "title": "Message de réponse automatique"
+      },
       "warnings": {
         "date_format": "Les dates doivent être au format « YYYY-MM-DD » ou « YYYY-MM-DD HH:MM »"
       }

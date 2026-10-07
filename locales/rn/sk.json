@@ -1103,6 +1103,14 @@
       "mobile_description": "Vyberte farebnú tému. Témy sa riadia nastavením svetlý/tmavý vo Vzhľade; vlastné balíky tém sa spravujú vo webmaile."
     },
     "vacation": {
+      "date_range": {
+        "description": "Voliteľne obmedzte automatickú odpoveď na určité obdobie",
+        "title": "Časové obdobie"
+      },
+      "message": {
+        "description": "Správa, ktorá bude odoslaná ako odpoveď",
+        "title": "Správa automatickej odpovede"
+      },
       "warnings": {
         "date_format": "Dátumy musia byť vo formáte „YYYY-MM-DD“ alebo „YYYY-MM-DD HH:MM“"
       }

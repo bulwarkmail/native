@@ -1103,6 +1103,14 @@
       "mobile_description": "Kies een kleurthema. Thema's volgen de instelling licht/donker onder Uiterlijk; aangepaste themapakketten worden beheerd in de webmail."
     },
     "vacation": {
+      "date_range": {
+        "description": "Beperk optioneel het automatische antwoord tot een specifieke periode",
+        "title": "Periode"
+      },
+      "message": {
+        "description": "Het bericht dat als antwoord wordt verzonden",
+        "title": "Automatisch antwoordbericht"
+      },
       "warnings": {
         "date_format": "Datums moeten de vorm \"YYYY-MM-DD\" of \"YYYY-MM-DD HH:MM\" hebben"
       }

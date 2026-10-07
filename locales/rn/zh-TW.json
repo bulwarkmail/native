@@ -1103,6 +1103,14 @@
       "mobile_description": "選擇色彩主題。主題會依照「外觀」中的淺色／深色設定；自訂主題套件請在網頁郵件中管理。"
     },
     "vacation": {
+      "date_range": {
+        "description": "可選擇將自動回覆限制在特定期間",
+        "title": "日期範圍"
+      },
+      "message": {
+        "description": "作為回覆傳送的郵件內容",
+        "title": "自動回覆郵件"
+      },
       "warnings": {
         "date_format": "日期格式必須為「YYYY-MM-DD」或「YYYY-MM-DD HH:MM」"
       }

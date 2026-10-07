@@ -1103,6 +1103,14 @@
       "mobile_description": "选择颜色主题。主题会跟随“外观”中的浅色/深色设置；自定义主题包需在网页邮箱中管理。"
     },
     "vacation": {
+      "date_range": {
+        "description": "可选择仅在指定时间段内启用自动回复",
+        "title": "日期范围"
+      },
+      "message": {
+        "description": "作为回复发送的邮件内容",
+        "title": "自动回复正文"
+      },
       "warnings": {
         "date_format": "日期格式必须为“YYYY-MM-DD”或“YYYY-MM-DD HH:MM”"
       }

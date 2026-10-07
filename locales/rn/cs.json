@@ -1103,6 +1103,14 @@
       "mobile_description": "Vyberte barevný motiv. Motivy se řídí nastavením světlý/tmavý ve Vzhledu; vlastní balíčky motivů se spravují ve webmailu."
     },
     "vacation": {
+      "date_range": {
+        "description": "Volitelně omezte automatickou odpověď na určité období",
+        "title": "Časové období"
+      },
+      "message": {
+        "description": "Zpráva, která bude odeslána jako odpověď",
+        "title": "Zpráva automatické odpovědi"
+      },
       "warnings": {
         "date_format": "Data musí být ve formátu „YYYY-MM-DD“ nebo „YYYY-MM-DD HH:MM“"
       }

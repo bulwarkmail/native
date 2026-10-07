@@ -1103,6 +1103,14 @@
       "mobile_description": "Izvēlieties krāsu tēmu. Tēmas seko gaišā/tumšā režīma iestatījumam sadaļā Izskats; pielāgotas tēmu pakotnes tiek pārvaldītas tīmekļa pastā."
     },
     "vacation": {
+      "date_range": {
+        "description": "Ierobežojiet atbildi noteiktā periodā (pēc izvēles)",
+        "title": "Datumu diapazons"
+      },
+      "message": {
+        "description": "Ziņojums, kas tiks nosūtīts kā atbilde",
+        "title": "Atbildes ziņojums"
+      },
       "warnings": {
         "date_format": "Datumiem jābūt formātā \"YYYY-MM-DD\" vai \"YYYY-MM-DD HH:MM\""
       }
