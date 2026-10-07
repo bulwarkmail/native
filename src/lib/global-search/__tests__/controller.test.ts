@@ -3,7 +3,7 @@ import { createGlobalSearchController } from '../controller';
 import type { GlobalSearchHit, SearchAccount, SearchProvider, RemoteSearchResult } from '../types';
 
 function account(id: string): SearchAccount {
-  return { appAccountId: id, label: id.toUpperCase(), email: `${id}@example.org` };
+  return { appAccountId: id, label: id.toUpperCase(), email: `${id}@example.org`, serverUrl: `https://${id}.example` };
 }
 
 function hit(kind: GlobalSearchHit['kind'], appAccountId: string, id: string, source: 'local' | 'remote' = 'remote'): GlobalSearchHit {
@@ -180,5 +180,54 @@ describe('createGlobalSearchController', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(remote).toHaveBeenCalledTimes(2);
     expect(listener.mock.calls.length).toBe(seen);
+  });
+
+  it('turns a rejected and a hung provider into error rows without an unhandled rejection', async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const c = createGlobalSearchController({
+        providers: [
+          provider('contacts', { remote: async () => { throw new Error('boom'); } }),
+          provider('files', { remote: () => new Promise<RemoteSearchResult>(() => {}) }),
+        ],
+        accounts: () => [account('a')], localLimit: 5, remoteLimit: 5,
+      });
+      c.update({ query: 'bob', scope: 'all', accountId: null });
+      await vi.advanceTimersByTimeAsync(300);
+      expect(c.getState().outcome.status.contacts).toMatchObject({
+        status: 'done', errors: [{ appAccountId: 'a', message: 'boom' }],
+      });
+      expect(c.getState().outcome.status.files.status).toBe('loading');
+      // The per-request budget (8 s) ends the hung one.
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(c.getState().outcome.status.files).toMatchObject({
+        status: 'done', errors: [{ appAccountId: 'a', message: 'timeout' }],
+      });
+      expect(c.getState().isSearching).toBe(false);
+      // Let any stray rejection surface before checking.
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('a throwing subscriber does not stop the others', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const c = createGlobalSearchController({
+      providers: [provider('contacts', { remote: async () => ({ hits: [hit('contacts', 'a', 'c1')], hasMore: false }) })],
+      accounts: () => [account('a')], localLimit: 5, remoteLimit: 5,
+    });
+    c.subscribe(() => { throw new Error('bad subscriber'); });
+    const good = vi.fn();
+    c.subscribe(good);
+    c.update({ query: 'bob', scope: 'all', accountId: null });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(good).toHaveBeenCalled();
+    expect(c.getState().outcome.hits.contacts.map((h) => h.id)).toEqual(['c1']);
+    warn.mockRestore();
   });
 });

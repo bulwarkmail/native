@@ -10,7 +10,13 @@ import type { SearchAccount } from '../types';
 // ---------------------------------------------------------------------------
 
 const client = { connectionGen: 1, accountId: 'jmap-a', hasCapability: () => true };
-const emailState = { activeAccountId: 'login-a' as string | null, emails: [] as unknown[], mailboxes: [] as unknown[] };
+const emailState = {
+  activeAccountId: 'login-a' as string | null,
+  emails: [] as unknown[],
+  mailboxes: [] as unknown[],
+  /** JMAP account of the folder on screen (undefined = the user's own), as the store resolves rows. */
+  currentAccountId: undefined as string | undefined,
+};
 const contactsState = { contacts: [] as unknown[], addressBooks: [] as unknown[] };
 const calendarState = { events: [] as unknown[], calendars: [] as unknown[] };
 const settingsState = { includeGroupInUnified: true };
@@ -30,6 +36,11 @@ vi.mock('../../../lib/active-client-account', () => ({
 }));
 vi.mock('../../../stores/email-store', () => ({
   useEmailStore: storeHook(emailState),
+  // The store's rowAccountId: a row's stamp, else the folder on screen; the own account is undefined.
+  accountIdOfRow: (email: { jmapAccountId?: string }) => {
+    const id = email.jmapAccountId ?? emailState.currentAccountId;
+    return id === client.accountId ? undefined : id;
+  },
   isShownAccount: (id: string | null | undefined) => !!id && id === emailState.activeAccountId,
   requireShownAccountScope: (id: string | null | undefined, jmapAccountId?: string) => {
     if (!id || id !== emailState.activeAccountId || !served.has(id)) throw new Error('not served');
@@ -94,6 +105,7 @@ beforeEach(() => {
   emailState.activeAccountId = 'login-a';
   emailState.emails = [];
   emailState.mailboxes = [];
+  emailState.currentAccountId = undefined;
   contactsState.contacts = [];
   contactsState.addressBooks = [];
   calendarState.events = [];
@@ -195,6 +207,34 @@ describe('mail provider', () => {
     expect(mailProvider.local(parseSearchQuery('report'), [account('login-b')], 10)).toEqual([]);
   });
 
+  it('tags an unstamped row of an open shared folder with the group account, not the own one', () => {
+    // The group's raw Inbox id "in" collides with the user's own Trash "in".
+    emailState.mailboxes = [
+      box('in', 'trash', 'jmap-a'),
+      box('grp:in', 'inbox', 'grp', { originalId: 'in', isShared: true, name: 'Group inbox' }),
+      box('grp:tr', 'trash', 'grp', { originalId: 'tr', isShared: true }),
+    ];
+    emailState.currentAccountId = 'grp';
+    emailState.emails = [
+      { id: '1', subject: 'Report', receivedAt: '', keywords: {}, mailboxIds: { in: true } },
+      { id: '2', subject: 'Report trashed', receivedAt: '', keywords: {}, mailboxIds: { tr: true } },
+    ];
+    const hits = mailProvider.local(parseSearchQuery('report'), [account('login-a')], 10);
+    // Not dropped as the own Trash, and named after the group's folder; the group's Trash is left out.
+    expect(hits.map((h) => [h.id, h.jmapAccountId, h.subtitle])).toEqual([['1', 'grp', 'Group inbox']]);
+    expect(hits[0].kind === 'mail' && hits[0].email.jmapAccountId).toBe('grp');
+    // in:trash finds the group's trashed row, by the group's raw Trash id.
+    expect(mailProvider.local(parseSearchQuery('report in:trash'), [account('login-a')], 10).map((h) => h.id)).toEqual(['2']);
+  });
+
+  it('an own row in the own Trash is left out by its raw id', () => {
+    emailState.mailboxes = [box('in', 'trash', 'jmap-a'), box('grp:in', 'inbox', 'grp', { originalId: 'in', isShared: true })];
+    emailState.emails = [{ id: '1', subject: 'Report', receivedAt: '', keywords: {}, mailboxIds: { in: true } }];
+    expect(mailProvider.local(parseSearchQuery('report'), [account('login-a')], 10)).toEqual([]);
+    expect(mailProvider.local(parseSearchQuery('report is:anything'), [account('login-a')], 10)[0])
+      .toMatchObject({ jmapAccountId: 'jmap-a', subtitle: 'IN' });
+  });
+
   it('matches a 200 KB subject in linear time', () => {
     const huge = 'a'.repeat(200_000);
     emailState.emails = [{ id: '1', subject: huge, preview: huge, receivedAt: '', keywords: {}, mailboxIds: {} }];
@@ -292,6 +332,25 @@ describe('mail provider', () => {
     expect((searchAccountEmails.mock.calls[0][1] as { at?: unknown }).at).toBeUndefined();
   });
 
+  it('retries a detached read the live client dropped mid-switch, without an error row', async () => {
+    searchAccountEmails
+      .mockRejectedValueOnce(Object.assign(new Error('stale'), { name: 'StaleLoadError' }))
+      .mockResolvedValueOnce({
+        emails: [{ id: '1', subject: 'Zebra', receivedAt: '', mailboxIds: {}, keywords: {}, jmapAccountId: 'jmap-b', sourceAccountId: 'login-b' }],
+        hasMore: false,
+      });
+    const result = await mailProvider.remote(parseSearchQuery('zebra'), account('login-b'), { limit: 10, signal });
+    expect(searchAccountEmails).toHaveBeenCalledTimes(2);
+    expect(result.hits.map((h) => [h.appAccountId, h.id])).toEqual([['login-b', '1']]);
+  });
+
+  it('a detached read that fails otherwise is an error', async () => {
+    searchAccountEmails.mockRejectedValueOnce(new Error('Session expired'));
+    await expect(mailProvider.remote(parseSearchQuery('zebra'), account('login-b'), { limit: 10, signal }))
+      .rejects.toThrow('Session expired');
+    expect(searchAccountEmails).toHaveBeenCalledTimes(1);
+  });
+
   it('a superseded search throws AbortError', async () => {
     const controller = new AbortController();
     const pending = deferred<unknown>();
@@ -350,6 +409,18 @@ describe('contacts provider', () => {
     ]);
     const result = await contactsProvider.remote(parseSearchQuery('bob'), account('login-a'), { limit: 1, signal });
     expect(result.hits).toHaveLength(1);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('gives shared address books a fair share of the page', async () => {
+    searchContacts.mockResolvedValue([
+      { id: 'c1', name: { full: 'Bob 1' }, addressBookIds: {} },
+      { id: 'c2', name: { full: 'Bob 2' }, addressBookIds: {} },
+      { id: 'c3', name: { full: 'Bob 3' }, addressBookIds: {} },
+      { id: 'owner:s1', originalId: 's1', accountId: 'owner', isShared: true, name: { full: 'Bob S' }, addressBookIds: {} },
+    ]);
+    const result = await contactsProvider.remote(parseSearchQuery('bob'), account('login-a'), { limit: 2, signal });
+    expect(result.hits.map((h) => h.id)).toEqual(['c1', 's1']);
     expect(result.hasMore).toBe(true);
   });
 
@@ -435,11 +506,37 @@ describe('calendar provider', () => {
     ]);
     const result = await calendarProvider.remote(parseSearchQuery('sync after:2026-01-01'), account('login-a'), { limit: 10, signal });
     expect(searchEventsAcrossAccounts).toHaveBeenCalledWith(
-      { text: 'sync', after: '2026-01-01T00:00:00' }, 10, { gen: 1, accountId: 'jmap-a' },
+      // One more than the limit from each account, to tell whether there is more.
+      { text: 'sync', after: '2026-01-01T00:00:00' }, 11, { gen: 1, accountId: 'jmap-a' },
     );
     expect(result.hits.map((h) => [h.jmapAccountId, h.id, h.subtitle])).toEqual([['jmap-a', 'e9', 'Mine'], ['grp', 'e9', 'Team']]);
     expect(result.hits[0]).toMatchObject({ isRecurring: true, appAccountId: 'login-a', source: 'remote' });
     expect(mergeHits([], result.hits)).toHaveLength(2);
+  });
+
+  it('names own events by store calendars with or without an owner stamp', async () => {
+    // getCalendars leaves the own calendars unstamped; a stamped one is the own account too.
+    calendarState.calendars = [{ id: 'k', name: 'Mine' }, { id: 'k2', name: 'Stamped', accountId: 'jmap-a' }];
+    searchEventsAcrossAccounts.mockResolvedValue([
+      { id: 'e1', uid: 'u1', title: 'Sync', start: '', calendarIds: { k: true } },
+      { id: 'e2', uid: 'u2', title: 'Sync', start: '', calendarIds: { k2: true } },
+    ]);
+    const result = await calendarProvider.remote(parseSearchQuery('sync'), account('login-a'), { limit: 10, signal });
+    expect(result.hits.map((h) => h.subtitle)).toEqual(['Mine', 'Stamped']);
+  });
+
+  it('pages by the real overflow and gives shared calendars a fair share', async () => {
+    searchEventsAcrossAccounts.mockResolvedValue([
+      { id: '1', uid: 'u1', title: 'Sync 1', start: '', calendarIds: {} },
+      { id: '2', uid: 'u2', title: 'Sync 2', start: '', calendarIds: {} },
+      { id: '3', uid: 'u3', title: 'Sync 3', start: '', calendarIds: {}, accountId: 'grp', isShared: true },
+    ]);
+    const page = await calendarProvider.remote(parseSearchQuery('sync'), account('login-a'), { limit: 2, signal });
+    expect(page.hits.map((h) => [h.jmapAccountId, h.id])).toEqual([['jmap-a', '1'], ['grp', '3']]);
+    expect(page.hasMore).toBe(true);
+    const all = await calendarProvider.remote(parseSearchQuery('sync'), account('login-a'), { limit: 3, signal });
+    expect(all.hits).toHaveLength(3);
+    expect(all.hasMore).toBe(false);
   });
 
   it('drops results that land after a switch, and asks nothing for another account', async () => {

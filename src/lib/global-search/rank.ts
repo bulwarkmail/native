@@ -7,16 +7,26 @@ import type { GlobalSearchHit } from './types';
  * The same object reached through several logins to the SAME server is one
  * result, not one per login (multi-account setups against a single server
  * would otherwise repeat every hit once per login). Ids are only meaningful
- * per server + owning JMAP account, so that pair scopes the key; hits without
- * a serverUrl (injected in tests) fall back to the login, which never
- * over-merges (#847: ids from different servers stay apart either way).
+ * per server + owning JMAP account, so that pair scopes the key (the URL
+ * without trailing slashes, so one server never counts twice); hits without
+ * a serverUrl (injected in tests) fall back to the login and the owning
+ * account, which never over-merges: a login's own `1` and its group
+ * account's `1` stay two hits (#847: ids from different servers stay apart
+ * either way).
  *
  * Calendar hits additionally collapse per series: the local cache holds
  * expanded occurrences while server FTS returns the master, and a search
  * result should list a series once - so the uid, not the occurrence id.
  */
+function serverOf(url: string | undefined): string {
+  let end = (url ?? '').trim();
+  while (end.endsWith('/')) end = end.slice(0, -1);
+  return end;
+}
+
 function mergeKey(hit: GlobalSearchHit): string {
-  const scope = hit.serverUrl ? `s ${hit.serverUrl} ${hit.jmapAccountId}` : `l ${hit.appAccountId}`;
+  const server = serverOf(hit.serverUrl);
+  const scope = server ? `s ${server} ${hit.jmapAccountId}` : `l ${hit.appAccountId} ${hit.jmapAccountId}`;
   if (hit.kind === 'calendar' && hit.event.uid) {
     return `calendar ${scope} uid:${hit.event.uid}`;
   }

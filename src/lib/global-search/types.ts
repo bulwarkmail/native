@@ -89,8 +89,8 @@ export interface SearchAccount {
   appAccountId: string;
   label: string;
   email: string;
-  /** Server this login talks to (the account's serverUrl). */
-  serverUrl?: string;
+  /** Server this login talks to (the account's serverUrl). Scopes the hits' merge key. */
+  serverUrl: string;
 }
 
 export interface RemoteSearchOptions {
@@ -145,9 +145,4 @@ export function emptyOutcome(): SearchOutcome {
       files: { status: 'idle', errors: [], hasMore: false },
     },
   };
-}
-
-/** Stable identity of a hit across local/remote sources. */
-export function hitKey(hit: Pick<GlobalSearchHit, 'kind' | 'appAccountId' | 'id'>): string {
-  return `${hit.kind}\0${hit.appAccountId}\0${hit.id}`;
 }

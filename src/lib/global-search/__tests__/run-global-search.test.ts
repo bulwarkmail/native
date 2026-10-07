@@ -4,7 +4,7 @@ import { hasRemoteQuery, runGlobalSearch } from '../run-global-search';
 import type { GlobalSearchHit, SearchAccount, SearchOutcome, SearchProvider } from '../types';
 
 function account(id: string): SearchAccount {
-  return { appAccountId: id, label: id.toUpperCase(), email: `${id}@example.org` };
+  return { appAccountId: id, label: id.toUpperCase(), email: `${id}@example.org`, serverUrl: `https://${id}.example` };
 }
 
 function hit(kind: GlobalSearchHit['kind'], appAccountId: string, id: string, source: 'local' | 'remote' = 'remote'): GlobalSearchHit {

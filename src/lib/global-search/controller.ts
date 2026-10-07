@@ -90,7 +90,14 @@ export function createGlobalSearchController(options: GlobalSearchControllerOpti
   let state: GlobalSearchState = { parsed, outcome, isSearching: false, isEmpty: true, mailLimit };
   const publish = () => {
     state = { parsed, outcome, isSearching: isSearching(outcome), isEmpty: isEmptyQuery(), mailLimit };
-    for (const listener of [...listeners]) listener(state);
+    for (const listener of [...listeners]) {
+      // One failing subscriber must not stop the others, nor the search.
+      try {
+        listener(state);
+      } catch (err) {
+        console.warn('[global-search] listener failed', err);
+      }
+    }
   };
 
   const resolveAccounts = () => {
@@ -153,7 +160,10 @@ export function createGlobalSearchController(options: GlobalSearchControllerOpti
           outcome = next;
           publish();
         },
-      });
+      })
+        // runGlobalSearch turns provider failures into error rows; this only
+        // keeps a bug in it (or in onUpdate) from becoming an unhandled rejection.
+        .catch((err) => console.warn('[global-search] search failed', err));
     }, debounceMs);
   };
 
@@ -198,7 +208,10 @@ export function createGlobalSearchController(options: GlobalSearchControllerOpti
           };
           publish();
         },
-      });
+      })
+        // runGlobalSearch turns provider failures into error rows; this only
+        // keeps a bug in it (or in onUpdate) from becoming an unhandled rejection.
+        .catch((err) => console.warn('[global-search] search failed', err));
       publish();
     },
     dispose: () => {

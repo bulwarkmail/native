@@ -2,7 +2,9 @@ import { searchAccountEmails, type UnifiedEmail } from '../../../api/unified-inb
 import type { OpScope } from '../../../api/op-scope';
 import type { Email, Mailbox } from '../../../api/types';
 import { jmapClient } from '../../../api/jmap-client';
-import { useEmailStore } from '../../../stores/email-store';
+import { accountIdOfRow, useEmailStore } from '../../../stores/email-store';
+import { isStaleLoad } from '../../network-error';
+import { buildJmapFilter } from '../../search-utils';
 import { useSettingsStore } from '../../../stores/settings-store';
 import { exclusionFilter, trashAndJunkIds } from '../../search-scope';
 import { matchesTerms, type ParsedQuery } from '../query-parser';
@@ -52,36 +54,14 @@ export function emailMatchesFilters(email: Email, parsed: ParsedQuery): boolean 
 }
 
 /**
- * The text and operator conditions, built like the email store's search
- * filter (`buildJmapFilter`): the words as typed (JMAP's text filter has no
- * wildcard, and Stalwart drops a trailing `*`), dates as day bounds.
+ * The text and operator conditions: the email store's own search filter
+ * (`buildJmapFilter`), whose fields the operators map onto one to one, as
+ * a list so folder conditions can be ANDed in.
  */
 function queryConditions(parsed: ParsedQuery): JmapFilter[] {
-  const { mail } = parsed;
-  const conditions: JmapFilter[] = [];
-  const text = parsed.text.trim();
-  if (text) conditions.push({ text });
-  if (mail.from) conditions.push({ from: mail.from });
-  if (mail.to) conditions.push({ to: mail.to });
-  if (mail.subject) conditions.push({ subject: mail.subject });
-  if (mail.body) conditions.push({ body: mail.body });
-  if (mail.dateAfter) {
-    const d = new Date(mail.dateAfter);
-    if (!isNaN(d.getTime())) conditions.push({ after: d.toISOString() });
-  }
-  if (mail.dateBefore) {
-    const d = new Date(mail.dateBefore);
-    if (!isNaN(d.getTime())) {
-      d.setHours(23, 59, 59, 999);
-      conditions.push({ before: d.toISOString() });
-    }
-  }
-  if (mail.hasAttachment !== undefined) conditions.push({ hasAttachment: mail.hasAttachment });
-  if (mail.isUnread === true) conditions.push({ notKeyword: '$seen' });
-  else if (mail.isUnread === false) conditions.push({ hasKeyword: '$seen' });
-  if (mail.isStarred === true) conditions.push({ hasKeyword: '$flagged' });
-  else if (mail.isStarred === false) conditions.push({ notKeyword: '$flagged' });
-  return conditions;
+  const base = buildJmapFilter(parsed.text, parsed.mail);
+  if (!base) return [];
+  return base.operator === 'AND' && Array.isArray(base.conditions) ? [...(base.conditions as JmapFilter[])] : [base];
 }
 
 function allOf(conditions: JmapFilter[]): JmapFilter {
@@ -110,17 +90,22 @@ export function mailFilterFor(parsed: ParsedQuery, mailboxes: Mailbox[], jmapAcc
   return allOf(conditions);
 }
 
+/**
+ * The store folder of JMAP account `jmapAccountId` a cached row sits in. Row
+ * `mailboxIds` are raw server ids, while the store namespaces a shared
+ * account's folders (`${owner}:${raw}`, raw in `originalId`), and raw ids
+ * repeat across accounts: a folder is matched by its account and raw id.
+ */
+function rowFolders(email: Email, mailboxes: Mailbox[], jmapAccountId: string): Mailbox[] {
+  return mailboxes.filter((m) => m.accountId === jmapAccountId && email.mailboxIds?.[m.originalId ?? m.id]);
+}
+
 /** Whether a cached message is in the folder scope `mailFilterFor` sends. */
-function inSearchScope(email: Email, parsed: ParsedQuery, mailboxes: Mailbox[], jmapAccountId: string): boolean {
-  const inRole = (role: string) => mailboxes.some((m) =>
-    m.role === role && (m.accountId ?? jmapAccountId) === jmapAccountId && email.mailboxIds?.[m.id]);
+function inSearchScope(parsed: ParsedQuery, folders: Mailbox[]): boolean {
+  const inRole = (role: string) => folders.some((m) => m.role === role);
   if (parsed.mailboxRole) return inRole(parsed.mailboxRole);
   if (parsed.includeTrashAndJunk) return true;
   return !inRole('trash') && !inRole('junk');
-}
-
-function folderOf(email: Email, mailboxes: Mailbox[]): string {
-  return mailboxes.find((m) => email.mailboxIds?.[m.id])?.name ?? '';
 }
 
 function toHit(
@@ -182,10 +167,12 @@ export const mailProvider: SearchProvider = {
     for (const email of emails) {
       if (!matchesTerms(parsed.terms, emailFields(email))) continue;
       if (!emailMatchesFilters(email, parsed)) continue;
-      const folder = mailboxes.find((m) => email.mailboxIds?.[m.id]);
-      const jmapAccountId = email.jmapAccountId ?? folder?.accountId ?? ownJmapId;
-      if (!inSearchScope(email, parsed, mailboxes, jmapAccountId)) continue;
-      hits.push(toHit(email, account, jmapAccountId, folderOf(email, mailboxes), 'local'));
+      // The row's account the way the store resolves it: its stamp in a
+      // list spanning accounts, else the folder on screen.
+      const jmapAccountId = accountIdOfRow(email) ?? ownJmapId;
+      const folders = rowFolders(email, mailboxes, jmapAccountId);
+      if (!inSearchScope(parsed, folders)) continue;
+      hits.push(toHit(email, account, jmapAccountId, folders[0]?.name ?? '', 'local'));
       if (hits.length >= limit) break;
     }
     return hits;
@@ -198,7 +185,16 @@ export const mailProvider: SearchProvider = {
     if (isShownAndServed(account.appAccountId)) {
       return searchShown(account, signal, (at) => searchAccount(parsed, account, limit, position, at));
     }
-    const result = await searchAccount(parsed, account, limit, position);
+    let result: RemoteSearchResult;
+    try {
+      result = await searchAccount(parsed, account, limit, position);
+    } catch (err) {
+      if (signal.aborted) throw abortError();
+      // The live client served this account and moved on mid-read: the
+      // retry finds it no longer live and reads it detached.
+      if (!isStaleLoad(err)) throw err;
+      result = await searchAccount(parsed, account, limit, position);
+    }
     // A newer search superseded this one: its results are not shown.
     if (signal.aborted) throw abortError();
     return result;

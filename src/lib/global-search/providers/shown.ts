@@ -69,3 +69,24 @@ export async function searchShown(
   if (signal.aborted) throw abortError();
   return scopeStillShown(account.appAccountId, at) ? result : NO_HITS;
 }
+
+/**
+ * `items` taken in turn from each owner (first-seen order), so a page cut at
+ * the limit holds every account's best matches rather than the first
+ * account's alone. Order within an owner is kept.
+ */
+export function interleaveByOwner<T>(items: T[], ownerOf: (item: T) => string): T[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = ownerOf(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  const lists = [...groups.values()];
+  const out: T[] = [];
+  for (let i = 0; out.length < items.length; i++) {
+    for (const list of lists) if (i < list.length) out.push(list[i]);
+  }
+  return out;
+}

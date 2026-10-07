@@ -88,6 +88,21 @@ describe('mergeHits', () => {
     expect(mergeHits([viaA], [viaB])).toHaveLength(1);
   });
 
+  it('keeps a login\'s own hit and its group account\'s hit with the same id apart', () => {
+    const own = mail({ id: '1', appAccountId: 'login-a', jmapAccountId: 'a' });
+    const group = mail({ id: '1', appAccountId: 'login-a', jmapAccountId: 'grp' });
+    expect(mergeHits([own], [group])).toHaveLength(2);
+    const ownOnServer = mail({ id: '1', jmapAccountId: 'a', serverUrl: 'https://mail.example' });
+    const groupOnServer = mail({ id: '1', jmapAccountId: 'grp', serverUrl: 'https://mail.example' });
+    expect(mergeHits([ownOnServer], [groupOnServer])).toHaveLength(2);
+  });
+
+  it('reads a server URL with and without a trailing slash as one server', () => {
+    const viaA = mail({ id: 'm1', appAccountId: 'login-a', jmapAccountId: 'c', serverUrl: 'https://mail.example/' });
+    const viaB = mail({ id: 'm1', appAccountId: 'login-b', jmapAccountId: 'c', serverUrl: 'https://mail.example' });
+    expect(mergeHits([viaA], [viaB])).toHaveLength(1);
+  });
+
   it('keeps the same id on two different servers apart (#847)', () => {
     const serverOne = mail({ id: 'm1', appAccountId: 'login-a', jmapAccountId: 'c', serverUrl: 'https://one.example' });
     const serverTwo = mail({ id: 'm1', appAccountId: 'login-b', jmapAccountId: 'c', serverUrl: 'https://two.example' });

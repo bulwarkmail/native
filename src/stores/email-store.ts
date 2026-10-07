@@ -39,7 +39,7 @@ import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } fro
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
 import { isStaleLoad } from '../lib/network-error';
-import { sizeFilterBytes } from '../lib/search-utils';
+import { buildJmapFilter } from '../lib/search-utils';
 import { collectSnippets, snippetKey, type RowSnippet, type SnippetMap } from '../lib/search-snippet';
 import { JMAPMethodError } from '../api/jmap-result';
 import {
@@ -558,54 +558,6 @@ export interface EmailState {
   invalidateListOrder: () => void;
   clearSearchAndFilters: () => void;
   reset: () => void;
-}
-
-function buildJmapFilter(
-  searchQuery: string,
-  filters: EmailFilters,
-): Record<string, unknown> | undefined {
-  const conditions: Record<string, unknown>[] = [];
-
-  const trimmed = searchQuery.trim();
-  // Sent as typed: JMAP's text filter has no wildcard syntax, and Stalwart
-  // drops a trailing "*" (so "runn*" finds nothing).
-  if (trimmed) conditions.push({ text: trimmed });
-
-  if (filters.keyword) conditions.push({ hasKeyword: filters.keyword });
-  if (filters.from) conditions.push({ from: filters.from });
-  if (filters.to) conditions.push({ to: filters.to });
-  if (filters.subject) conditions.push({ subject: filters.subject });
-  if (filters.body) conditions.push({ body: filters.body });
-
-  if (filters.dateAfter) {
-    const d = new Date(filters.dateAfter);
-    if (!isNaN(d.getTime())) conditions.push({ after: d.toISOString() });
-  }
-  if (filters.dateBefore) {
-    const d = new Date(filters.dateBefore);
-    if (!isNaN(d.getTime())) {
-      d.setHours(23, 59, 59, 999);
-      conditions.push({ before: d.toISOString() });
-    }
-  }
-
-  if (filters.hasAttachment === true) conditions.push({ hasAttachment: true });
-  else if (filters.hasAttachment === false) conditions.push({ hasAttachment: false });
-
-  if (filters.isUnread === true) conditions.push({ notKeyword: '$seen' });
-  else if (filters.isUnread === false) conditions.push({ hasKeyword: '$seen' });
-
-  if (filters.isStarred === true) conditions.push({ hasKeyword: '$flagged' });
-  else if (filters.isStarred === false) conditions.push({ notKeyword: '$flagged' });
-
-  const minSize = sizeFilterBytes(filters.minSizeKb);
-  if (minSize !== null) conditions.push({ minSize });
-  const maxSize = sizeFilterBytes(filters.maxSizeKb);
-  if (maxSize !== null) conditions.push({ maxSize });
-
-  if (conditions.length === 0) return undefined;
-  if (conditions.length === 1) return conditions[0];
-  return { operator: 'AND', conditions };
 }
 
 // The raw mailbox id an Email/query is scoped to: the open folder, an

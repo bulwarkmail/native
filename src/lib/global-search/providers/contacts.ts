@@ -5,7 +5,7 @@ import { useContactsStore } from '../../../stores/contacts-store';
 import { getContactDisplayName, getContactPrimaryEmail } from '../../contact-utils';
 import { matchesTerms } from '../query-parser';
 import type { ContactHit, SearchAccount, SearchProvider } from '../types';
-import { isShownAndServed, searchShown, shownCacheAccount } from './shown';
+import { interleaveByOwner, isShownAndServed, searchShown, shownCacheAccount } from './shown';
 
 // Contacts of the shown account only: there is no detached read path for
 // them (plan, "Not in this phase"). The store holds that account's cards,
@@ -68,8 +68,8 @@ export const contactsProvider: SearchProvider = {
   },
 
   remote: (parsed, account, { limit, signal }) => searchShown(account, signal, async (at) => {
-    // One more than asked, to know whether there is more.
-    const found = await searchContacts(parsed.text, limit + 1, at);
+    // One more than asked from each account, to know whether there is more.
+    const found = interleaveByOwner(await searchContacts(parsed.text, limit + 1, at), (c) => c.accountId ?? '');
     const { addressBooks } = useContactsStore.getState();
     return {
       hits: found.slice(0, limit).map((contact) => toHit(contact, account, 'remote', addressBooks)),

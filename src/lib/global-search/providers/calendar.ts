@@ -4,7 +4,7 @@ import { CAPABILITIES, type Calendar, type CalendarEvent } from '../../../api/ty
 import { useCalendarStore } from '../../../stores/calendar-store';
 import { matchesTerms, type ParsedQuery } from '../query-parser';
 import type { CalendarHit, SearchAccount, SearchProvider } from '../types';
-import { isShownAndServed, searchShown, shownCacheAccount } from './shown';
+import { interleaveByOwner, isShownAndServed, searchShown, shownCacheAccount } from './shown';
 
 // Events of the shown account only (no detached read path for calendars).
 // Store events of shared calendars are namespaced `${owner}:${id}` with the
@@ -62,10 +62,15 @@ function storeCalendarName(event: CalendarEvent, calendars: Calendar[]): string 
   return '';
 }
 
-/** Name of a server event's calendar: raw calendar ids, so matched with their owner. */
-function serverCalendarName(event: CalendarEvent, calendars: Calendar[]): string {
+/**
+ * Name of a server event's calendar: raw calendar ids, so matched with their
+ * owner. The store's own calendars carry no `accountId` (getCalendars), but a
+ * stamped one names the own account just the same.
+ */
+function serverCalendarName(event: CalendarEvent, calendars: Calendar[], ownJmapId: string): string {
+  const owner = event.accountId ?? ownJmapId;
   for (const id of Object.keys(event.calendarIds ?? {})) {
-    const name = calendars.find((c) => (c.originalId ?? c.id) === id && c.accountId === event.accountId)?.name;
+    const name = calendars.find((c) => (c.originalId ?? c.id) === id && (c.accountId ?? ownJmapId) === owner)?.name;
     if (name) return name;
   }
   return '';
@@ -114,10 +119,14 @@ export const calendarProvider: SearchProvider = {
   },
 
   remote: (parsed, account, { limit, signal }) => searchShown(account, signal, async (at) => {
-    const events = await searchEventsAcrossAccounts(calendarFilterFor(parsed), limit, at);
+    // One more than asked from each account, to know whether there is more.
+    const events = interleaveByOwner(
+      await searchEventsAcrossAccounts(calendarFilterFor(parsed), limit + 1, at),
+      (e) => e.accountId ?? '',
+    );
     const { calendars } = useCalendarStore.getState();
     const hits = events.slice(0, limit).map((event) =>
-      toHit(event, account, at.accountId, serverCalendarName(event, calendars), 'remote'));
-    return { hits, hasMore: events.length >= limit };
+      toHit(event, account, at.accountId, serverCalendarName(event, calendars, at.accountId), 'remote'));
+    return { hits, hasMore: events.length > limit };
   }),
 };
