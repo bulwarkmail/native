@@ -2252,7 +2252,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // The Send button: applies the global undo-send delay when the server
   // supports it (capped at its hold limit), otherwise sends immediately.
   const onSend = () => {
-    const holdFor = jmapClient.undoSendHold(sendDelaySeconds);
+    const holdFor = jmapClient.undoSendHold(sendDelaySeconds, owner?.jmapAccountId);
     void performSend(holdFor);
   };
 
@@ -2272,7 +2272,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
     tomorrowMorning.setHours(8, 0, 0, 0);
     // Only offer times within the server's hold limit.
-    const maxMs = jmapClient.getMaxDelayedSend() * 1000;
+    const maxMs = jmapClient.getMaxDelayedSend(owner?.jmapAccountId) * 1000;
     return [
       { label: t('email_composer.schedule_in_1h', 'In 1 hour'), date: inHours(1) },
       { label: t('email_composer.schedule_in_3h', 'In 3 hours'), date: inHours(3) },
@@ -2283,7 +2283,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const startCustomPicker = () => {
     // An hour ahead, or the latest time the server can hold it if sooner.
-    const latest = jmapClient.latestHoldDate()?.getTime() ?? Infinity;
+    const latest = jmapClient.latestHoldDate(owner?.jmapAccountId)?.getTime() ?? Infinity;
     customDraftRef.current = new Date(Math.min(Date.now() + 3600 * 1000, latest));
     setScheduleSheetOpen(false);
     setCustomStage(Platform.OS === 'ios' ? 'datetime' : 'date');
@@ -2778,14 +2778,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
             icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
           <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
             icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
-          {canRequestDsn && (
+          {/* A toggle that is on stays visible if the server stops offering the
+              extension, so the user can turn it off rather than meet a refusal. */}
+          {(canRequestDsn || requestDsn) && (
             <ToolbarButton active={requestDsn} onPress={() => setRequestDsn((v) => !v)}
               label={requestDsn
                 ? t('email_composer.dsn_on', 'Delivery notification requested (click to disable)')
                 : t('email_composer.dsn_off', 'Request a delivery notification')}
               icon={<PackageCheck size={18} color={requestDsn ? c.primary : c.textSecondary} />} />
           )}
-          {canRequireTls && (
+          {(canRequireTls || requireTls) && (
             <ToolbarButton active={requireTls} onPress={() => setRequireTls((v) => !v)}
               label={requireTls
                 ? t('email_composer.require_tls_on', 'Encrypted delivery required (click to disable)')
@@ -3028,7 +3030,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 mode="datetime"
                 display="spinner"
                 minimumDate={new Date()}
-                maximumDate={jmapClient.latestHoldDate()}
+                maximumDate={jmapClient.latestHoldDate(owner?.jmapAccountId)}
                 onChange={onCustomPickerChange}
               />
               <View style={styles.modalActions}>
@@ -3055,7 +3057,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           mode={customStage === 'time' ? 'time' : 'date'}
           display="default"
           minimumDate={customStage === 'date' ? new Date() : undefined}
-          maximumDate={customStage === 'date' ? jmapClient.latestHoldDate() : undefined}
+          maximumDate={customStage === 'date' ? jmapClient.latestHoldDate(owner?.jmapAccountId) : undefined}
           onChange={onCustomPickerChange}
         />
       )}
