@@ -34,6 +34,7 @@ import {
   sendEmail,
   importEmailBlob,
   queryEmailFields,
+  moveMailboxContents,
 } from '../email';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
@@ -776,5 +777,47 @@ describe('queryEmailFields', () => {
     expect(await queryEmailFields({}, [], { accountId: 'acc-1' })).toEqual([{ id: 'a' }]);
     mockRequest.mockResolvedValueOnce({ methodResponses: [['error', { type: 'serverFail' }, '0']] });
     await expect(queryEmailFields({}, [], { accountId: 'acc-1' })).rejects.toThrow();
+  });
+});
+
+describe('moveMailboxContents', () => {
+  const ids = (n: number, from = 0) => Array.from({ length: n }, (_, i) => `m${from + i}`);
+  const res = (name: string, body: Record<string, unknown>) => ({ methodResponses: [[name, body, '0']] });
+
+  it('moves in batches until the folder is empty, replacing the mailboxIds', async () => {
+    (jmapClient.getMaxObjectsInSet as ReturnType<typeof vi.fn>).mockReturnValueOnce(2).mockReturnValue(2);
+    const batches = [ids(2), ids(2, 2), ids(1, 4)];
+    mockRequest.mockImplementation(async (calls: unknown[][]) => {
+      if (calls[0][0] === 'Email/query') return res('Email/query', { ids: batches.shift() ?? [] });
+      const upd = (calls[0][1] as { update: Record<string, unknown> }).update;
+      return res('Email/set', { updated: Object.fromEntries(Object.keys(upd).map((k) => [k, null])) });
+    });
+    const out = await moveMailboxContents('f1', 'trash', undefined, false);
+    expect(out).toEqual({ moved: 5, failed: 0 });
+    const sets = mockRequest.mock.calls.map((c) => c[0][0]).filter((c: unknown[]) => c[0] === 'Email/set');
+    expect(sets).toHaveLength(3);
+    expect(sets[0][1].update.m0).toEqual({ mailboxIds: { trash: true } });
+  });
+
+  it('adds $seen when asked', async () => {
+    mockRequest
+      .mockResolvedValueOnce(res('Email/query', { ids: ['m0'] }))
+      .mockResolvedValueOnce(res('Email/set', { updated: { m0: null } }));
+    await moveMailboxContents('f1', 'trash', undefined, true);
+    expect(mockRequest.mock.calls[1][0][0][1].update.m0).toEqual({ mailboxIds: { trash: true }, 'keywords/$seen': true });
+  });
+
+  it('reports a partial failure and stops instead of looping on refused ids', async () => {
+    mockRequest
+      .mockResolvedValueOnce(res('Email/query', { ids: ['a', 'b', 'c'] }))
+      .mockResolvedValueOnce(res('Email/set', { updated: { a: null }, notUpdated: { b: { type: 'forbidden' }, c: { type: 'forbidden' } } }));
+    const out = await moveMailboxContents('f1', 'trash');
+    expect(out).toEqual({ moved: 1, failed: 2 });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses to move a folder into itself', async () => {
+    await expect(moveMailboxContents('trash', 'trash')).rejects.toThrow();
+    expect(mockRequest).not.toHaveBeenCalled();
   });
 });

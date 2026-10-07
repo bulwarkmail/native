@@ -385,6 +385,9 @@
     "cross_account_move_offline": "Moving between accounts needs a connection",
     "emails_archived_count": "{count, plural, one {# email} other {# emails}} archived",
     "emails_moved_to": "{count, plural, one {# email} other {# emails}} moved to {mailbox}",
+    "empty_folder": {
+      "confirm_message_trash": "All emails in this folder will be moved to the Trash."
+    },
     "error": "Error",
     "filter_chip": "{field}: {value}",
     "filter_title": "Filter emails",

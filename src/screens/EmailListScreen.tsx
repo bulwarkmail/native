@@ -62,7 +62,8 @@ import {
 } from '../lib/thread-utils';
 import { isPermanentDelete, confirmPermanentDelete } from '../lib/delete-confirm';
 import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
-import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
+import { getFullEmail } from '../api/email';
+import { planEmptyFolder, runEmptyFolder } from '../lib/empty-folder';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
 import type { Attachment, Email } from '../api/types';
@@ -1101,9 +1102,12 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     // whose Trash shares this folder's id (Stalwart numbers per account).
     const owner = activeAccountId;
     const folder = currentMailbox;
+    const plan = planEmptyFolder(mailboxes, folder, useSettingsStore.getState().deleteAction);
     Alert.alert(
       t('email_list.empty_folder.confirm_title', 'Empty folder'),
-      t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
+      plan.kind === 'destroy'
+        ? t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.')
+        : t('email_list.empty_folder.confirm_message_trash', 'All emails in this folder will be moved to the Trash.'),
       [
         { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
@@ -1118,7 +1122,7 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               return;
             }
             setEmptying(true);
-            void apiEmptyMailbox(folder.originalId ?? folder.id, at)
+            void runEmptyFolder(plan, folder, at)
               .then(async () => {
                 clearSelection();
                 await Promise.all([refreshEmails(), fetchMailboxes()]);
@@ -1126,6 +1130,8 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
               .catch((err: unknown) => {
                 // Stopped before sending: the client moved to another account.
                 if (isStaleLoad(err)) return;
+                // A move that stopped part-way has still changed the folder.
+                void Promise.all([refreshEmails(), fetchMailboxes()]);
                 Alert.alert(
                   t('email_list.error', 'Error'),
                   err instanceof Error ? err.message : t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),

@@ -19,6 +19,7 @@ import { useEmailStore, spannedAccounts, requireShownAccountScope } from '../sto
 import { useAuthStore } from '../stores/auth-store';
 import { useAccountStore } from '../stores/account-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { planEmptyFolder, runEmptyFolder } from '../lib/empty-folder';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSendQueueStore } from '../stores/send-queue-store';
@@ -33,7 +34,7 @@ import { showUnifiedSection } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
 import {
-  markMailboxAsRead, emptyMailbox, createMailbox, updateMailbox, deleteMailbox,
+  markMailboxAsRead, createMailbox, updateMailbox, deleteMailbox,
 } from '../api/email';
 import { inAccount, type OpScope } from '../api/op-scope';
 import { isStaleLoad } from '../lib/network-error';
@@ -493,7 +494,12 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       if (affectsCurrent) await refreshEmails();
     } catch (err) {
       // Stopped before sending because the client moved to another account.
-      if (!isStaleLoad(err)) Alert.alert(label, err instanceof Error ? err.message : String(err));
+      if (!isStaleLoad(err)) {
+        Alert.alert(label, err instanceof Error ? err.message : String(err));
+        // A run that stopped part-way (a bulk move) has still changed counts.
+        void fetchMailboxes();
+        if (affectsCurrent) void refreshEmails();
+      }
     } finally {
       setBusy(false);
     }
@@ -544,7 +550,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         ),
       });
     }
-    if (mb.role === 'trash' || mb.role === 'junk' || mb.role === 'spam') {
+    if (mb.myRights?.mayRemoveItems !== false) {
+      // What the tap will do, decided once so the text and the run agree.
+      const plan = planEmptyFolder(mailboxes, mb, useSettingsStore.getState().deleteAction);
       actions.push({
         key: 'empty',
         label: t('mailbox_context_menu.empty_folder', 'Empty folder'),
@@ -552,7 +560,9 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
         destructive: true,
         onPress: () => Alert.alert(
           t('email_list.empty_folder.confirm_title', 'Empty folder'),
-          t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
+          plan.kind === 'destroy'
+            ? t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.')
+            : t('email_list.empty_folder.confirm_message_trash', 'All emails in this folder will be moved to the Trash.'),
           [
             { text: t('common.cancel', 'Cancel'), style: 'cancel' },
             {
@@ -561,7 +571,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
               onPress: () => void runFolderAction(
                 t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'),
                 owner,
-                (at) => emptyMailbox(ref.id, inAccount(at, ref.accountId)),
+                (at) => runEmptyFolder(plan, mb, at),
                 currentMailboxId === mb.id,
               ),
             },

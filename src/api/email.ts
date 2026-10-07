@@ -336,6 +336,50 @@ export async function emptyMailbox(mailboxId: string, account?: AccountRef): Pro
   return totalDestroyed;
 }
 
+/**
+ * Move every message of a folder into another folder of the same account
+ * (Empty folder on an ordinary folder), in batches of at most `maxInSet`.
+ * The batch's rows leave the folder, so the next query returns the next page.
+ * A refused row would stay and come back forever, so the first batch with a
+ * refusal stops the run: the result says how many moved and how many were
+ * refused in that batch; the rest were left untouched.
+ */
+export async function moveMailboxContents(
+  fromMailboxId: string,
+  toMailboxId: string,
+  account?: AccountRef,
+  markAsRead = false,
+): Promise<{ moved: number; failed: number }> {
+  if (fromMailboxId === toMailboxId) throw new Error('Cannot move a folder into itself');
+  const at = opScope(account);
+  const { accountId } = at;
+  const batchSize = Math.min(500, maxInSet());
+  const patch: Record<string, unknown> = { mailboxIds: { [toMailboxId]: true } };
+  if (markAsRead) patch['keywords/$seen'] = true;
+  let moved = 0;
+  for (;;) {
+    const q = requireMethodResult(
+      await requestOn(at, [['Email/query', { accountId, filter: { inMailbox: fromMailboxId }, limit: batchSize }, '0']]),
+      '0',
+      'Email/query',
+    );
+    const ids = (q.ids as string[] | undefined) ?? [];
+    if (ids.length === 0) break;
+    const set = requireMethodResult(
+      await requestOn(at, [
+        ['Email/set', { accountId, update: Object.fromEntries(ids.map((id) => [id, patch])) }, '0'],
+      ]),
+      '0',
+      'Email/set',
+    );
+    const failed = Object.keys((set.notUpdated as Record<string, unknown> | undefined) ?? {}).length;
+    moved += ids.length - failed;
+    if (failed > 0) return { moved, failed };
+    if (ids.length < batchSize) break;
+  }
+  return { moved, failed: 0 };
+}
+
 /** Set `$seen` on every unread message in a folder. Returns the count. */
 export async function markMailboxAsRead(mailboxId: string, account?: AccountRef): Promise<number> {
   const at = opScope(account);
