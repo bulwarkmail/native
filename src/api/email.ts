@@ -2287,15 +2287,15 @@ export async function rescheduleScheduledSend(
       rcptTo?: Array<{ email?: string; parameters?: SmtpParameters | null }> | null;
     } | null;
   }> | undefined)?.[0]?.envelope;
-  const rcpt = (envelope?.rcptTo ?? [])
-    .map((r) => {
-      const address = (r.email ?? '').trim();
-      return r.parameters && Object.keys(r.parameters).length > 0
-        ? { email: address, parameters: { ...r.parameters } }
-        : { email: address };
-    })
-    .filter((r) => r.email);
-  if (!envelope?.mailFrom || rcpt.length === 0) {
+  // Every recipient is kept or none: an entry without an address is refused,
+  // never dropped, so the replacement can't lose a recipient.
+  const rcpt = (envelope?.rcptTo ?? []).map((r) => {
+    const address = (r.email ?? '').trim();
+    return r.parameters && Object.keys(r.parameters).length > 0
+      ? { email: address, parameters: { ...r.parameters } }
+      : { email: address };
+  });
+  if (!envelope?.mailFrom || rcpt.length === 0 || rcpt.some((r) => !r.email)) {
     throw new Error('Failed to reschedule: the held envelope could not be read');
   }
   const mailFromParameters: SmtpParameters = { HOLDFOR: String(holdFor) };

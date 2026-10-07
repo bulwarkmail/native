@@ -101,6 +101,7 @@ describe('rescheduleScheduledSend', () => {
     ['is not listed', undefined],
     ['has an envelope without MAIL FROM', { id: 'sub-1', envelope: { rcptTo: [{ email: 'to@example.com' }] } }],
     ['has an envelope without recipients', { id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [] } }],
+    ['has a recipient with no address', { id: 'sub-1', envelope: { mailFrom: { email: 'me@example.com' }, rcptTo: [{ email: 'a@x.test' }, { email: ' ' }] } }],
   ])('refuses rather than build a weaker envelope when the held submission %s', async (_name, held) => {
     mockRequest.mockResolvedValueOnce({
       methodResponses: [['EmailSubmission/get', { list: held ? [held] : [] }, '0']],
