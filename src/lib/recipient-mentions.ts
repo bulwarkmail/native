@@ -71,13 +71,14 @@ function spelledAlike(a: string, b: string): boolean {
 }
 
 /**
- * A display name worth deriving a label from: not empty, not an address.
- * Capped because a reply-all takes it from the incoming message and the
- * trimming in nameWords() is quadratic on a crafted run of punctuation; no
- * real name comes near the cap.
+ * A display name worth deriving a label from: not empty, not an address,
+ * whitespace runs collapsed to one space (a full-name label goes into the
+ * body as it is). Capped because a reply-all takes it from the incoming
+ * message and the trimming in nameWords() is quadratic on a crafted run of
+ * punctuation; no real name comes near the cap.
  */
 function usableName(name: string | undefined): string | undefined {
-  const trimmed = name?.trim().slice(0, 200).replace(/^(['"])(.*)\1$/, '$2').trim();
+  const trimmed = name?.trim().slice(0, 200).replace(/\s+/g, ' ').replace(/^(['"])(.*)\1$/, '$2').trim();
   return trimmed && !trimmed.includes('@') ? trimmed : undefined;
 }
 

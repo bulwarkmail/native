@@ -319,10 +319,12 @@ function SuggestionList({
  * keyboards report them as keyCode 229 and a keydown pick would misfire.
  */
 function MentionList({
-  candidates, onPick,
+  candidates, onPick, onPressIn, onPressOut,
 }: {
   candidates: MentionCandidate[];
   onPick: (candidate: MentionCandidate) => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -336,6 +338,8 @@ function MentionList({
       {candidates.map((m) => (
         <Pressable
           key={m.email}
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
           onPress={() => onPick(m)}
           accessibilityRole="button"
           style={({ pressed }) => [styles.suggestionRow, pressed && styles.suggestionRowPressed]}
@@ -879,6 +883,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const editorRef = React.useRef<RichTextEditorHandle>(null);
   // What follows an "@" the caret is on in the rich body, or null.
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+  // Like isPickingSuggestion: a tap on the "@" list can blur the editor, whose
+  // null would unmount the list mid-press. While a row is pressed that null
+  // is held back (heldMentionEnd) and applied if the press ends without a pick.
+  const pickingMention = React.useRef(false);
+  const heldMentionEnd = React.useRef(false);
   const isPickingSuggestion = React.useRef(false);
   // Track inline-image placeholders that haven't yet been rewritten to cid:
   // until send time. Maps cid → blobId/type/name/size.
@@ -920,6 +929,32 @@ export default function ComposeScreen({ route, navigation }: Props) {
   );
   // A format switch replaces the editor; its open "@" goes with it.
   React.useEffect(() => { setMentionQuery(null); }, [plainTextMode]);
+  const onMention = React.useCallback((m: { query: string } | null) => {
+    if (!m && pickingMention.current) {
+      heldMentionEnd.current = true;
+      return;
+    }
+    heldMentionEnd.current = false;
+    setMentionQuery(m ? m.query : null);
+  }, []);
+  const pickMention = (m: MentionCandidate) => {
+    editorRef.current?.insertMention(m.label);
+    pickingMention.current = false;
+    heldMentionEnd.current = false;
+    // The page posts nothing more when a blur already ended the run.
+    setMentionQuery(null);
+  };
+  const endMentionPress = () => {
+    // onPress may come after onPressOut; give it the same grace as To/Cc.
+    setTimeout(() => {
+      if (!pickingMention.current) return;
+      pickingMention.current = false;
+      if (heldMentionEnd.current) {
+        heldMentionEnd.current = false;
+        setMentionQuery(null);
+      }
+    }, 200);
+  };
   const alreadySelected = React.useMemo(
     () => new Set(
       [...toRecipients, ...ccRecipients, ...bccRecipients]
@@ -2849,7 +2884,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
               placeholder={t('email_composer.body_placeholder', 'Write your message...')}
               onChange={setBodyHtml}
               onSelectionChange={setSelState}
-              onMention={(m) => setMentionQuery(m ? m.query : null)}
+              onMention={onMention}
             />
           )}
         </ScrollView>
@@ -2857,7 +2892,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
         {mentionMatches.length > 0 && (
           <MentionList
             candidates={mentionMatches}
-            onPick={(m) => editorRef.current?.insertMention(m.label)}
+            onPick={pickMention}
+            onPressIn={() => { pickingMention.current = true; }}
+            onPressOut={endMentionPress}
           />
         )}
 

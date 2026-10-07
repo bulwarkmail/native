@@ -358,9 +358,11 @@ export function buildEditorHtml(opts: {
   // While the caret ends an "@query" run the page posts 'mention' with the
   // query, and null once it ends; RN offers the matching recipients and
   // calls insertMention with the chosen label. The "@" counts only at the
-  // start of a word (the node's start, or after a space or NBSP), so
-  // info@example.com never triggers, and never in code or a link.
-  // The open run: { node, start, end, query }, start at the "@".
+  // start of a word (after a space or NBSP, or at the start of its block),
+  // so info@example.com never triggers, and never in code or a link.
+  // The open run: { node, start, end, query }, start at the "@". A blur
+  // posts null but keeps it, because a tap on RN's list can blur the editor
+  // before the pick arrives; insertMention re-checks it against the DOM.
   var mention = null;
   var postedMention = null;
 
@@ -372,6 +374,33 @@ export function buildEditorHtml(opts: {
     return false;
   }
 
+  // Elements that end a word: blocks, line breaks and images.
+  var WORD_BREAK_TAGS = ' P DIV LI UL OL BLOCKQUOTE H1 H2 H3 H4 H5 H6 PRE TABLE TBODY THEAD TR TD TH BR HR IMG ';
+  function breaksWord(el) { return WORD_BREAK_TAGS.indexOf(' ' + el.tagName + ' ') !== -1; }
+
+  // The last character of the text before 'node' in the same block (a space
+  // when there is none), so "info" + "<b>@x</b>" reads as one word.
+  function charBefore(node) {
+    var n = node;
+    for (;;) {
+      while (!n.previousSibling) {
+        n = n.parentNode;
+        if (!n || n === editor || (n.nodeType === 1 && breaksWord(n))) return 32;
+      }
+      n = n.previousSibling;
+      for (;;) {
+        if (n.nodeType === 3) {
+          if (n.data.length) return n.data.charCodeAt(n.data.length - 1);
+          break;
+        }
+        if (n.nodeType !== 1) break;
+        if (breaksWord(n)) return 32;
+        if (!n.lastChild) break;
+        n = n.lastChild;
+      }
+    }
+  }
+
   // The "@query" run in text node 'node' that ends at 'end', or null.
   function mentionRunAt(node, end) {
     if (!node || node.nodeType !== 3 || !mentionAllowedIn(node)) return null;
@@ -380,7 +409,7 @@ export function buildEditorHtml(opts: {
     for (var i = end - 1; i >= 0; i--) {
       var code = data.charCodeAt(i);
       if (code === 64) {
-        var prev = i > 0 ? data.charCodeAt(i - 1) : 32;
+        var prev = i > 0 ? data.charCodeAt(i - 1) : charBefore(node);
         if (prev !== 32 && prev !== 160) return null;
         return { node: node, start: i, end: end, query: data.slice(i + 1, end) };
       }
@@ -406,10 +435,17 @@ export function buildEditorHtml(opts: {
   }
 
   function endMention() {
-    mention = null;
     if (postedMention === null) return;
     postedMention = null;
     post('mention', null);
+  }
+
+  function placeCaret(sel, node, offset) {
+    var caret = document.createRange();
+    caret.setStart(node, offset);
+    caret.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(caret);
   }
 
   // ── Bridge: receive commands from RN ───────────────────────────────
@@ -522,7 +558,11 @@ export function buildEditorHtml(opts: {
     insertMention: function (label) {
       var m = mention;
       var run = m && editor.contains(m.node) ? mentionRunAt(m.node, m.end) : null;
-      if (!run || run.start !== m.start || typeof label !== 'string' || !label) return;
+      if (!run || run.start !== m.start) {
+        mention = null;
+        return;
+      }
+      if (typeof label !== 'string' || !label) return;
       var node = run.node;
       var spaceFollows = run.end < node.data.length && isSpace(node.data.charCodeAt(run.end));
       var text = '@' + label + (spaceFollows ? '' : ' ');
@@ -537,17 +577,19 @@ export function buildEditorHtml(opts: {
       // node directly.
       var inserted = false;
       try { inserted = document.execCommand('insertText', false, text); } catch (e) {}
-      if (inserted && spaceFollows && sel.modify) {
+      if (inserted && spaceFollows) {
         // Past the space that was already there, ready for the next word.
-        sel.modify('move', 'forward', 'character');
+        if (sel.modify) {
+          sel.modify('move', 'forward', 'character');
+        } else if (sel.rangeCount) {
+          var at = sel.getRangeAt(0);
+          var atNode = at.startContainer;
+          if (atNode.nodeType === 3 && at.startOffset < atNode.data.length) placeCaret(sel, atNode, at.startOffset + 1);
+        }
       } else if (!inserted) {
         var data = node.data;
         node.data = data.slice(0, run.start) + text + data.slice(run.end);
-        var caret = document.createRange();
-        caret.setStart(node, run.start + text.length + (spaceFollows ? 1 : 0));
-        caret.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(caret);
+        placeCaret(sel, node, run.start + text.length + (spaceFollows ? 1 : 0));
       }
       updateMention();
       reportChange();

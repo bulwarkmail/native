@@ -132,7 +132,9 @@ describe('editor page messages', () => {
     const listeners: Record<string, Listener[]> = {};
     const docListeners: Record<string, Listener[]> = {};
     const posted: Array<{ type: string; payload: unknown }> = [];
-    type FakeNode = { nodeType?: number; tagName?: string; data?: string; parentNode?: unknown };
+    type FakeNode = {
+      nodeType?: number; tagName?: string; data?: string; parentNode?: unknown; previousSibling?: FakeNode; lastChild?: FakeNode;
+    };
     // The editor holds either markup set as a whole or one text node (for
     // the @-mention tests), serialized as the DOM would: text escaped.
     let html = '';
@@ -220,15 +222,17 @@ describe('editor page messages', () => {
     const selections = () => posted.filter((m) => m.type === 'selection');
     const mentions = () => posted.filter((m) => m.type === 'mention').map((m) => m.payload);
     /**
-     * Makes the editor one text node (inside `parent`, if given) with the
-     * caret at `caret` (default: its end), as if the user typed it.
+     * Makes the editor one text node (inside `parent`, if given, and after
+     * `previous`) with the caret at `caret` (default: its end), as if the
+     * user typed it.
      */
-    const typeText = (data: string, opts: { parent?: FakeNode; caret?: number } = {}) => {
+    const typeText = (data: string, opts: { parent?: FakeNode; previous?: FakeNode; caret?: number } = {}) => {
       if (opts.parent) opts.parent.parentNode = editor;
       const node: FakeNode = textNode?.data !== undefined && !opts.parent && textNode.parentNode === editor
         ? textNode
         : { nodeType: 3, parentNode: opts.parent ?? editor };
       node.data = data;
+      if (opts.previous) node.previousSibling = opts.previous;
       textNode = node;
       caretAt(node, opts.caret ?? data.length);
       listeners.input.forEach((fn) => fn());
@@ -253,7 +257,7 @@ describe('editor page messages', () => {
     const moveCaret = () => { ranges.length = 0; ranges.push({ startContainer: editor, id: 'moved' }); };
     return {
       changes, selections, pastes, lastPasteId, type, fire, paste, moveCaret, commandState, posted, executed,
-      mentions, typeText, caretAt, execWorks, document, rne: () => window.__rne,
+      mentions, typeText, caretAt, execWorks, document, caret: () => ranges[0] as FakeRange, rne: () => window.__rne,
     };
   }
 
@@ -445,11 +449,43 @@ describe('editor page messages', () => {
       expect(page.mentions().at(-1)).toBeNull();
     });
 
-    it('adds no space when one follows', () => {
+    it('adds no space when one follows, and puts the caret past it', () => {
       const page = boot();
       const node = page.typeText('Hi @ma there', { caret: 6 });
       page.rne().insertMention('Max');
       expect(node.data).toBe('Hi @Max there');
+      expect(page.caret()).toEqual(expect.objectContaining({ startContainer: node, startOffset: 8 }));
+    });
+
+    // A tap on RN's list can blur the editor before the pick arrives.
+    it('still inserts after a blur closed the list', () => {
+      const page = boot();
+      const node = page.typeText('Hi @ma');
+      page.fire('blur');
+      expect(page.mentions().at(-1)).toBeNull();
+      page.rne().insertMention('Max');
+      expect(node.data).toBe('Hi @Max ');
+    });
+
+    it('reads an @ at the start of a text node against the text before it in the block', () => {
+      const text = (data: string) => ({ nodeType: 3, data });
+      const cases: Array<[string, Parameters<ReturnType<typeof boot>['typeText']>[1], unknown[]]> = [
+        // info<b>@x</b>
+        ['bold after a word', { parent: { nodeType: 1, tagName: 'B', previousSibling: text('info') } }, []],
+        // <span>info</span>@x
+        ['after an inline word', { previous: { nodeType: 1, tagName: 'SPAN', lastChild: text('info') } }, []],
+        // Hi <b>@x</b>
+        ['bold after a space', { parent: { nodeType: 1, tagName: 'B', previousSibling: text('Hi ') } }, [{ query: 'x' }]],
+        // <p>info</p>@x
+        ['after another block', { previous: { nodeType: 1, tagName: 'P', lastChild: text('info') } }, [{ query: 'x' }]],
+        // info<br>@x
+        ['after a line break', { previous: { nodeType: 1, tagName: 'BR', previousSibling: text('info') } }, [{ query: 'x' }]],
+      ];
+      for (const [name, opts, expected] of cases) {
+        const page = boot();
+        page.typeText('@x', opts);
+        expect(page.mentions(), name).toEqual(expected);
+      }
     });
 
     it('writes the text node itself where insertText does nothing', () => {

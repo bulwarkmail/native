@@ -95,6 +95,7 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.email_behavior.plain_text_mode',
     'settings.email_behavior.request_read_receipt',
     'settings.email_behavior.empty_subject_warning',
+    'settings.email_behavior.recipient_mentions',
     'settings.email_behavior.signature_separator',
     'settings.email_behavior.signature_position',
     'settings.email_behavior.send_delay',

@@ -126,6 +126,17 @@ describe('filterMentionCandidates', () => {
   });
 });
 
+describe('whitespace in names', () => {
+  it('collapses runs of whitespace to one space', () => {
+    const candidates = buildMentionCandidates(
+      [{ name: 'Max \t  Mustermann', email: 'a@dornig.de' }, { name: 'Max  Mueller', email: 'b@dornig.de' }],
+      [],
+    );
+    expect(candidates.map((c) => c.label)).toEqual(['Max Mustermann', 'Max Mueller']);
+    expect(candidates[0].name).toBe('Max Mustermann');
+  });
+});
+
 describe('Bcc', () => {
   it('takes no Bcc list at all', () => {
     // buildMentionCandidates(to, cc) has no Bcc parameter: naming a blind
