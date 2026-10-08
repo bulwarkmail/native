@@ -128,7 +128,9 @@ function RulesFlowBody({
   onClose: () => void;
 }) {
   const c = useColors();
-  const styles = React.useMemo(makeStyles, [c]);
+  // makeStyles reads the live typography, not `c`: keyed on `c` because the
+  // palette changes identity with the font size (useColors).
+  const styles = React.useMemo(() => makeStyles(), [c]);
   const t = useLocaleStore((s) => s.t);
   const navigation = useNavigation<any>();
   const [view, setView] = React.useState<View_>('root');

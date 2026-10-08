@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Copy } from 'lucide-react-native';
-import { radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, radius, spacing, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { toast } from '../../stores/toast-store';
@@ -44,7 +44,7 @@ export const VerificationCodeChip = React.memo(function VerificationCodeChip({ c
         accessibilityLabel={t('email_viewer.verification_code.copy', 'Copy code {code}', { code })}
       >
         <Copy size={12} color={c.textSecondary} />
-        <Text style={styles.code} numberOfLines={1}>{code}</Text>
+        <Text style={styles.code} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{code}</Text>
       </Pressable>
     </View>
   );

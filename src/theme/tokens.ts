@@ -323,6 +323,11 @@ const BASE_TYPOGRAPHY = {
 
 type TypographyKey = keyof typeof BASE_TYPOGRAPHY;
 
+// The most the OS font scale may enlarge fixed-size chrome (the tab bar, its
+// badge, chips, swipe labels): boxes that do not grow with their text. Passed
+// as `maxFontSizeMultiplier`; the font size setting still applies in full.
+export const CHROME_MAX_FONT_SCALE = 1.3;
+
 // The Appearance font size setting, as webmail's root font size (14px, 16px
 // or 18px over a 16px base).
 export const FONT_SCALE = { small: 0.875, medium: 1, large: 1.125 } as const;

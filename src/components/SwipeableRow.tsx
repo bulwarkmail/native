@@ -6,7 +6,7 @@ import {
   Archive, Trash2, ShieldAlert, ShieldCheck, MailOpen, Mail, Star, Pin, PinOff, FolderInput,
   type LucideIcon,
 } from 'lucide-react-native';
-import { typography, type ThemePalette } from '../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore } from '../stores/locale-store';
 import type { SwipeAction, SwipeMode } from '../stores/settings-store';
@@ -298,7 +298,7 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         >
           <View style={styles.bandInner}>
             <Icon size={20} color="#fff" />
-            <Text style={styles.bandLabel}>{label}</Text>
+            <Text style={styles.bandLabel} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
           </View>
         </Pressable>
       );
@@ -340,7 +340,7 @@ export const SwipeableRow = React.memo(function SwipeableRow({
       >
         <Animated.View style={[styles.bandInner, { transform: [{ scale: iconScale }] }]}>
           <Icon size={22} color="#fff" />
-          <Text style={styles.bandLabel}>{label}</Text>
+          <Text style={styles.bandLabel} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
         </Animated.View>
       </View>
     );

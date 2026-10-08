@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
@@ -2101,7 +2101,7 @@ function FilterChip({
       accessibilityRole={onPress ? 'button' : undefined}
     >
       {icon}
-      <Text style={styles.chipText} numberOfLines={1}>{label}</Text>
+      <Text style={styles.chipText} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
       {onRemove ? (
         <Pressable
           onPress={onRemove}
@@ -2135,7 +2135,7 @@ function ScopeChip({ label, active, onPress, accessibilityLabel, accessibilityHi
       accessibilityHint={accessibilityHint}
       accessibilityState={{ selected: active }}
     >
-      <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.triToggleText, active && styles.triToggleTextOn]} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
     </Pressable>
   );
 }
@@ -2173,6 +2173,7 @@ function TriToggle({
           state === 'on' && styles.triToggleTextOn,
           state === 'off' && styles.triToggleTextOff,
         ]}
+        maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
       >
         {label}
       </Text>

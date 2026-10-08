@@ -101,15 +101,16 @@ import { useSendQueueStore } from './src/stores/send-queue-store';
 import { flushSendQueue, hasNewEntry } from './src/lib/send-queue-replay';
 import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
-import { spacing, typography, type ThemePalette } from './src/theme/tokens';
+import { CHROME_MAX_FONT_SCALE, spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
 import { syncFontScale } from './src/theme/dynamic';
 
 // Webmail's use-identity-sync cadence.
 const IDENTITY_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
-// Follow the font size setting from the first render. Subscribed before the
-// hydrate below, so the stored size is applied inside its set().
+// Keep `typography` at the font size setting. Subscribed before the hydrate
+// below, so the stored size lands inside its set(): the screens that render
+// before then use the default size, and re-render with the stored one.
 syncFontScale();
 
 // Read the settings now, beside the stores that hydrate on import, so the start
@@ -272,6 +273,29 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
     settings: t('sidebar.settings', 'Settings'),
   };
   const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
+  // The tab bar's own text. The label follows the font size setting; both it
+  // and the badge sit in fixed boxes, so the OS font scale is capped for them.
+  // Rebuilt with the palette, which changes with the font size too.
+  const chrome = React.useMemo(() => StyleSheet.create({
+    tabLabel: { ...typography.tabLabel, textAlign: 'center' },
+    tabBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -6,
+      minWidth: 16,
+      height: 16,
+      paddingHorizontal: 4,
+      borderRadius: 8,
+      overflow: 'hidden',
+      backgroundColor: c.error,
+      color: c.primaryForeground,
+      fontSize: 10,
+      fontWeight: '700',
+      lineHeight: 16,
+      textAlign: 'center',
+    },
+  }), [c]);
+  const inboxBadge = inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : String(inboxUnreadCount)) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
@@ -294,30 +318,29 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           shadowOpacity: 0,
           shadowColor: 'transparent',
         },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-        },
+        tabBarLabel: ({ color, children }) => (
+          <Text style={[chrome.tabLabel, { color }]} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
+            {children}
+          </Text>
+        ),
       }}
     >
       <Tab.Screen
         name="Mail"
         options={{
           title: tabLabels.mail,
-          tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
-          tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: c.error,
-            color: c.primaryForeground,
-            fontSize: 10,
-            fontWeight: '700',
-            minWidth: 16,
-            height: 16,
-            lineHeight: 16,
-            borderRadius: 8,
-            top: -2,
-            right: -6,
-          },
+          // Drawn here rather than as tabBarBadge, whose Text takes no font
+          // scale cap.
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <Mail size={size} color={color} />
+              {inboxBadge ? (
+                <Text style={chrome.tabBadge} numberOfLines={1} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
+                  {inboxBadge}
+                </Text>
+              ) : null}
+            </View>
+          ),
         }}
       >
         {() => (
