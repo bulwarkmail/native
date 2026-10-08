@@ -103,6 +103,18 @@ describe('folder icons store', () => {
     expect(folderIconOf(s(), 'appA', 'new')).toBeUndefined();
   });
 
+  it('a remount pruning the same list again does not use up the spare', () => {
+    s().prune('appA', ['a'], 'appA|s1');
+    setIcon('appA', 'new', 'Heart');
+    // A sync that started before the create: its list lacks the folder.
+    s().prune('appA', ['a'], 'appA|s2');
+    // Settings opened again on that same list.
+    s().prune('appA', ['a'], 'appA|s2');
+    expect(folderIconOf(s(), 'appA', 'new')).toBe('Heart');
+    s().prune('appA', ['a', 'new'], 'appA|s3');
+    expect(folderIconOf(s(), 'appA', 'new')).toBe('Heart');
+  });
+
   it('a failed read writes nothing: the stored icons survive a change made meanwhile, which applies once a read succeeds', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {

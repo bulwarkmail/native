@@ -81,6 +81,22 @@ describe('forgetAccountData', () => {
     expect(useFolderIconsStore.getState().icons).toEqual({ [B]: { c: 'Bell' } });
   });
 
+  it('reads the stored icons again when the first read fails, so the account\'s icons leave the disk', async () => {
+    const KEY = 'folderIcons:v1';
+    await AsyncStorage.setItem(KEY, JSON.stringify({ [A]: { c: 'Heart' }, [B]: { c: 'Bell' } }));
+    useFolderIconsStore.setState({ icons: {}, hydrated: false });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const read = vi.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('disk'));
+    try {
+      await forgetAccountData({ appAccountId: A });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(JSON.parse((await AsyncStorage.getItem(KEY))!)).toEqual({ [B]: { c: 'Bell' } });
+    } finally {
+      read.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it('forgets the account\'s cached identities even when its outbox is kept', async () => {
     await AsyncStorage.setItem(`webmail:outbox:v1:${A}`, JSON.stringify([{ id: 'q1' }]));
     await AsyncStorage.setItem(`webmail:identities:v1:${A}`, '[]');

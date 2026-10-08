@@ -14,7 +14,7 @@ import {
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search, Globe,
   MoreHorizontal, Share2, type LucideIcon,
 } from 'lucide-react-native';
-import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useAnimDuration } from '../theme/dynamic';
 import { useEmailStore, spannedAccounts, requireShownAccountScope, emptyFolder } from '../stores/email-store';
@@ -44,7 +44,7 @@ import {
 } from '../api/email';
 import { inAccount, type OpScope } from '../api/op-scope';
 import { isStaleLoad } from '../lib/network-error';
-import { useTagCountsStore } from '../stores/tag-counts-store';
+import { useTagCountsStore, tagCountsFor } from '../stores/tag-counts-store';
 import { tagRows } from '../lib/tag-rows';
 import { trashAndJunkIds } from '../lib/search-scope';
 import { useNavigation } from '@react-navigation/native';
@@ -54,7 +54,6 @@ import type { Mailbox } from '../api/types';
 import { MailboxShareSheet, canOfferMailboxShare } from './MailboxShareSheet';
 
 const CHEVRON_SLOT = 20;
-const INDENT_STEP = 12;
 const ROW_PX_BASE = 8;
 
 const STORAGE_KEYS = {
@@ -162,7 +161,7 @@ function SidebarRow({
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const leftPad = ROW_PX_BASE + depth * INDENT_STEP;
+  const leftPad = ROW_PX_BASE + depth * componentSizes.treeIndent;
   return (
     <Pressable
       onPress={onPress}
@@ -348,7 +347,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const tagCounts = useTagCountsStore((s) => s.counts);
+  const tagCounts = useTagCountsStore((s) => tagCountsFor(s, activeAccountId));
   const tagCountsGeneration = useTagCountsStore((s) => s.generation);
   const ensureTagCounts = useTagCountsStore((s) => s.ensure);
 
@@ -1302,7 +1301,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
-    tagDot: { width: 10, height: 10, borderRadius: 5, margin: 3 },
+  tagDot: { width: 10, height: 10, borderRadius: 5, margin: 3 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',

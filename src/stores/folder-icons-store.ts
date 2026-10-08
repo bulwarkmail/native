@@ -22,8 +22,11 @@ interface FolderIconsState {
    * Drop the account's entries for folders no longer in `liveIds` (deleted
    * elsewhere). An icon set since the account's last prune is spared once:
    * a sync that started before its folder was created lists it next time.
+   * `listKey` names the folder list; the list pruned last for the account is
+   * not pruned again (Settings opened twice on it), which would use up the
+   * spare.
    */
-  prune: (appAccountId: string, liveIds: string[]) => void;
+  prune: (appAccountId: string, liveIds: string[], listKey?: string) => void;
   /** Drop every icon of a signed-out account. */
   forgetAccount: (appAccountId: string) => void;
 }
@@ -77,6 +80,9 @@ let hydrateInFlight: Promise<void> | null = null;
 let pending: ((icons: IconMap) => IconMap)[] = [];
 // Per account, the folders given an icon since that account's last prune.
 const setSincePrune = new Map<string, Set<string>>();
+// Per account, the folder list it was last pruned by. Kept here, not in the
+// screen, so a remount does not prune the same list twice.
+const lastPrunedList = new Map<string, string>();
 
 export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
   // A change made before the stored map is read (a sign-out right after
@@ -145,21 +151,28 @@ export const useFolderIconsStore = create<FolderIconsState>((set, get) => {
       return withAccount(icons, appAccountId, entries);
     }),
 
-    prune: (appAccountId, liveIds) => change((icons) => {
-      const fresh = setSincePrune.get(appAccountId);
-      setSincePrune.delete(appAccountId);
-      const entries = icons[appAccountId];
-      if (!entries) return icons;
-      const live = new Set(liveIds);
-      for (const id of fresh ?? []) live.add(id);
-      const kept: Record<string, FolderIconName> = {};
-      for (const [id, name] of Object.entries(entries)) if (live.has(id)) kept[id] = name;
-      if (Object.keys(kept).length === Object.keys(entries).length) return icons;
-      return withAccount(icons, appAccountId, kept);
-    }),
+    prune: (appAccountId, liveIds, listKey) => {
+      if (listKey !== undefined) {
+        if (lastPrunedList.get(appAccountId) === listKey) return;
+        lastPrunedList.set(appAccountId, listKey);
+      }
+      change((icons) => {
+        const fresh = setSincePrune.get(appAccountId);
+        setSincePrune.delete(appAccountId);
+        const entries = icons[appAccountId];
+        if (!entries) return icons;
+        const live = new Set(liveIds);
+        for (const id of fresh ?? []) live.add(id);
+        const kept: Record<string, FolderIconName> = {};
+        for (const [id, name] of Object.entries(entries)) if (live.has(id)) kept[id] = name;
+        if (Object.keys(kept).length === Object.keys(entries).length) return icons;
+        return withAccount(icons, appAccountId, kept);
+      });
+    },
 
     forgetAccount: (appAccountId) => change((icons) => {
       setSincePrune.delete(appAccountId);
+      lastPrunedList.delete(appAccountId);
       if (!Object.prototype.hasOwnProperty.call(icons, appAccountId)) return icons;
       const next = { ...icons };
       delete next[appAccountId];

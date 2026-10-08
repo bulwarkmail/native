@@ -76,7 +76,15 @@ export async function forgetAccountData(
 ): Promise<void> {
   await step(() => useOfflineCacheStore.getState().clearAccount(account.appAccountId));
   await step(() => removeIdentityCache(account.appAccountId));
-  await step(() => useFolderIconsStore.getState().forgetAccount(account.appAccountId));
+  await step(async () => {
+    useFolderIconsStore.getState().forgetAccount(account.appAccountId);
+    // The forget is written once the stored icons are read. A read that
+    // fails would leave them on disk until some later change, so read again
+    // (once) before moving on.
+    for (let attempt = 0; attempt < 2 && !useFolderIconsStore.getState().hydrated; attempt++) {
+      await useFolderIconsStore.getState().hydrate();
+    }
+  });
   await step(async () => {
     // Queued and failed ops are the user's unsent changes: keep them so they
     // replay when this account signs in again.

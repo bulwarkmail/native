@@ -19,7 +19,7 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import { jmapClient } from '../../api/jmap-client';
-import { useTagCountsStore } from '../tag-counts-store';
+import { useTagCountsStore, tagCountsFor } from '../tag-counts-store';
 
 const mockRequest = jmapClient.request as ReturnType<typeof vi.fn>;
 const TAGS = ['red', 'blue', 'green', 'work', 'home', 'todo', 'later'];
@@ -103,5 +103,16 @@ describe('tag counts cache (PF6)', () => {
 
     await ensure('me', TAGS, [undefined]);
     expect(mockRequest).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('tagCountsFor', () => {
+  it('gives the counts only to the login they were fetched for', async () => {
+    await useTagCountsStore.getState().ensure('me', ['red'], [undefined]);
+    const state = useTagCountsStore.getState();
+    expect(tagCountsFor(state, 'me').red).toMatchObject({ unread: 1 });
+    // Right after a switch, before the new account's fetch: none, not the old ones.
+    expect(tagCountsFor(state, 'other')).toEqual({});
+    expect(tagCountsFor(state, null)).toEqual({});
   });
 });

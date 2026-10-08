@@ -23,14 +23,14 @@ export interface TagRow {
 export interface TagRowsOptions {
   /** The nestedTags setting: off, every tag is a top-level row. */
   nested: boolean;
+  /** Unset for the tag sheet, which lists every tag; the rest is the drawer's. */
+  applyVisibility?: boolean;
   /** Unread counts by tag id; a tag missing here has no count yet. */
-  counts: Record<string, { unread: number } | undefined>;
+  counts?: Record<string, { unread: number } | undefined>;
   /** The tag whose view is open, shown whatever its visibility. */
-  selectedId: string | null;
+  selectedId?: string | null;
   /** The drawer's "Show all", which overrides every visibility. */
-  showAll: boolean;
-  /** False for the tag sheet, which lists every tag. */
-  applyVisibility: boolean;
+  showAll?: boolean;
 }
 
 export function tagRows(
@@ -54,7 +54,7 @@ export function tagRows(
     const visibility = keywordVisibility(node);
     if (visibility === 'hide') return false;
     if (visibility === 'unread') {
-      const count = opts.counts[node.id];
+      const count = opts.counts?.[node.id];
       return !count || count.unread > 0;
     }
     return true;

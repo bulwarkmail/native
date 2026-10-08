@@ -152,7 +152,7 @@ export function FolderSettings() {
     });
     if (!plan) return;
     lastPruneKey.current = plan.key;
-    pruneFolderIcons(plan.accountId, plan.liveIds);
+    pruneFolderIcons(plan.accountId, plan.liveIds, plan.key);
   }, [shownAccountId, mailboxState, listsSynced, mailboxes, pruneFolderIcons]);
 
   // Shared/group accounts the user may create folders in (webmail: "New

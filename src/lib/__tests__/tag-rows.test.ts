@@ -60,6 +60,8 @@ describe('tagRows', () => {
     expect(ids(r)).toEqual(['h', 'u']);
     expect(r.hiddenCount).toBe(0);
     expect(ids(tagRows(defs, { ...base, counts: { u: { unread: 0 } }, applyVisibility: false }))).toEqual(['h', 'u']);
+    // The tag sheet names only the nesting: every tag, no counts needed.
+    expect(ids(tagRows(defs, { nested: true }))).toEqual(['h', 'u']);
   });
 
   it('returns the stored definition, not a tree node', () => {

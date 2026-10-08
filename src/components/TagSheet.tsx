@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Check, Tag } from 'lucide-react-native';
-import { spacing, radius, typography, colors as tokenColors, type ThemePalette } from '../theme/tokens';
+import { spacing, radius, typography, componentSizes, colors as tokenColors, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { keywordToken, type KeywordDef } from '../stores/keywords-store';
@@ -13,9 +13,6 @@ import { useSettingsStore } from '../stores/settings-store';
 import { tagRows } from '../lib/tag-rows';
 import { getEmailTagIds } from '../lib/thread-utils';
 import type { Email } from '../api/types';
-
-/** Extra left padding per tree level, as the drawer indents its rows. */
-const INDENT_STEP = 12;
 
 interface TagSheetProps {
   visible: boolean;
@@ -39,7 +36,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
 
   // Every tag, in tree order: a tag hidden from the drawer can still be set.
   const rows = React.useMemo(
-    () => tagRows(keywords, { nested: nestedTags, counts: {}, selectedId: null, showAll: true, applyVisibility: false }).rows,
+    () => tagRows(keywords, { nested: nestedTags }).rows,
     [keywords, nestedTags],
   );
 
@@ -117,7 +114,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
                   onPress={() => onToggle(token, !applied)}
                   style={({ pressed }) => [
                     styles.row,
-                    depth > 0 && { paddingLeft: spacing.lg + depth * INDENT_STEP },
+                    depth > 0 && { paddingLeft: spacing.lg + depth * componentSizes.treeIndent },
                     pressed && styles.rowPressed,
                   ]}
                 >
