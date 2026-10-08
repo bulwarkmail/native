@@ -27,9 +27,9 @@ type FormatName =
 
 const FORMATS: Record<FormatName, Intl.DateTimeFormatOptions> = {
   time12: { hour: '2-digit', minute: '2-digit', hour12: true },
-  time24: { hour: '2-digit', minute: '2-digit', hour12: false },
+  time24: { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
   full12: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true },
-  full24: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false },
+  full24: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
   weekday: { weekday: 'short' },
   date: { year: 'numeric', month: '2-digit', day: '2-digit' },
   monthDay: { month: 'short', day: 'numeric' },
@@ -56,6 +56,16 @@ function syncFormatterZone(now: Date): void {
   formattersOffset = offset;
 }
 
+/**
+ * `hour12: false` lets some ICU builds (Node 20's among them) pick the h24
+ * cycle, so half past midnight reads "24:30". Ask for h23 instead.
+ */
+export function twentyFourHour(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions {
+  if (options.hour12 !== false) return options;
+  const { hour12: _hour12, ...rest } = options;
+  return { ...rest, hourCycle: 'h23' };
+}
+
 // Always the Gregorian calendar: fa (and a th or ar-SA device) would
 // otherwise date mail in the Solar Hijri, Buddhist or Islamic calendar,
 // which no other client here shows.
@@ -63,7 +73,7 @@ function cachedFormatter(key: string, locale: string, options: Intl.DateTimeForm
   const fullKey = `${key}|${locale}|${timeZone}`;
   let formatter = formatters.get(fullKey);
   if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, { ...options, calendar: 'gregory', timeZone });
+    formatter = new Intl.DateTimeFormat(locale, { ...twentyFourHour(options), calendar: 'gregory', timeZone });
     formatters.set(fullKey, formatter);
   }
   return formatter;
