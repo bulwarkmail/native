@@ -24,7 +24,9 @@ import {
   getInvitationActorSummary,
   getInvitationMethod,
   getInvitationTrustAssessment,
+  getOrganizerEmail,
   getOrganizerName,
+  invitationSentFrom,
   isOrganizerParticipant,
   buildReplyTo,
   type InvitationMethod,
@@ -260,8 +262,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         ? format(startDate, 'EEEE, MMM d, yyyy', { locale: dateLocale })
         : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale }))
     : null;
-  const organizer = plainDisplayText(getOrganizerName(event), 120);
-  const location = event.locations ? Object.values(event.locations)[0]?.name : undefined;
+  // The organizer's address shows beside its name, as the trust row checked it.
+  const organizer = formatInvitationActor({ name: getOrganizerName(event), email: getOrganizerEmail(event) });
+  const location = plainDisplayText(event.locations ? Object.values(event.locations)[0]?.name : undefined, 200);
   const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
   const me = findParticipantByEmail(existing ?? event, currentUserEmails);
   const canRsvp = method !== 'cancel' && method !== 'reply' && !!me;
@@ -283,7 +286,12 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
       t,
     )
     : null;
-  const sequence = typeof event.sequence === 'number' && event.sequence > 0 ? event.sequence : null;
+  // Someone else sent the message on the actor's behalf (or claims to be them).
+  const sentFrom = actor ? invitationSentFrom(actor.email, trust?.senderEmail) : null;
+  const sequence = typeof event.sequence === 'number' && event.sequence > 0
+    ? (event.sequence > 99 ? '99+' : event.sequence)
+    : null;
+  const toggleCollapsed = () => setCollapsed((v) => !v);
 
   // The day the event is on now (a counter proposes another), else the
   // invitation's own start; only while the message's account is shown.
@@ -362,7 +370,16 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
 
   return (
     <View style={[styles.banner, trust?.level === 'warning' && styles.bannerWarning]}>
-      <View style={styles.headerRow}>
+      {/* Collapsed, the whole title row expands it, as webmail's card does. */}
+      <Pressable
+        style={styles.headerRow}
+        onPress={collapsed ? toggleCollapsed : undefined}
+        disabled={!collapsed}
+        accessible={collapsed}
+        accessibilityRole={collapsed ? 'button' : undefined}
+        accessibilityState={collapsed ? { expanded: false } : undefined}
+        accessibilityLabel={collapsed ? t('email_viewer.calendar_invitation.expand', 'Show details') : undefined}
+      >
         <View style={styles.iconBadge}>
           <CalendarDays size={18} color={c.primary} />
         </View>
@@ -379,14 +396,14 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         </View>
         {sequence !== null && (
           <View style={styles.sequencePill}>
-            <Text style={styles.sequenceText}>
+            <Text style={styles.sequenceText} numberOfLines={1}>
               {t('email_viewer.calendar_invitation.event_updated', 'Update #{sequence}', { sequence })}
             </Text>
           </View>
         )}
         <Pressable
-          onPress={() => setCollapsed((v) => !v)}
-          hitSlop={8}
+          onPress={toggleCollapsed}
+          hitSlop={13}
           accessibilityRole="button"
           accessibilityState={{ expanded: !collapsed }}
           accessibilityLabel={collapsed
@@ -395,7 +412,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         >
           {collapsed ? <ChevronDown size={18} color={c.textMuted} /> : <ChevronUp size={18} color={c.textMuted} />}
         </Pressable>
-      </View>
+      </Pressable>
 
       {/* A warning stays in view while the rest is collapsed: the title above
           is the sender's to write and must not stand alone. */}
@@ -418,7 +435,13 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         <>
           {(actorLine || actor?.participationComment) && (
             <View style={styles.actorBlock}>
-              {actorLine && <Text style={styles.actorText}>{actorLine}</Text>}
+              {actorLine && (
+                <Text style={styles.actorText}>
+                  {sentFrom
+                    ? `${actorLine} ${t('calendar.invitation.actor_sent_from', '(sent from {address})', { address: plainDisplayText(sentFrom, 254) })}`
+                    : actorLine}
+                </Text>
+              )}
               {actor?.participationComment ? (
                 <Text style={[styles.actorText, styles.actorNote]} numberOfLines={4}>
                   {/* The sender's own words, quoted and flattened to one run so they
@@ -592,7 +615,7 @@ function makeStyles(c: ThemePalette) {
     },
     bannerWarning: { borderColor: c.errorBorder, backgroundColor: c.errorBg },
     loadingText: { ...typography.caption, color: c.textMuted },
-    headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
+    headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs, minHeight: 44 },
     iconBadge: {
       width: 32, height: 32, borderRadius: radius.sm,
       backgroundColor: c.primaryBg, alignItems: 'center', justifyContent: 'center',
@@ -601,6 +624,8 @@ function makeStyles(c: ThemePalette) {
     subtitle: { ...typography.caption, color: c.textMuted, marginTop: 2 },
     cancelled: { ...typography.caption, color: c.error, marginTop: 2 },
     sequencePill: {
+      flexShrink: 1,
+      maxWidth: '40%',
       paddingHorizontal: spacing.sm,
       paddingVertical: 2,
       borderRadius: radius.full,

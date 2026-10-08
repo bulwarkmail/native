@@ -30,31 +30,64 @@ export function isOrganizerParticipant(p: Participant): boolean {
   return Boolean(p.roles?.owner || p.roles?.chair);
 }
 
+// The address a participant is scheduled at (iCalendar ORGANIZER/ATTENDEE
+// value), not its EMAIL= parameter: that one is the sender's to write and
+// names no one the server delivers to.
+function participantCalendarAddress(p: Participant): string | null {
+  const addr = normalizeEmail(p.calendarAddress);
+  if (addr) return addr;
+  if (p.sendTo) {
+    for (const value of Object.values(p.sendTo)) {
+      const n = normalizeEmail(value);
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+// A participant's address for showing it: the calendar address, else the
+// email when it has nothing else.
+function participantAddress(p: Participant): string | null {
+  return participantCalendarAddress(p) ?? normalizeEmail(p.email);
+}
+
+/**
+ * The organizer's address, which the trust assessment compares with the
+ * sender and the banner shows: the event's `organizerCalendarAddress` (where
+ * Stalwart routes replies), else the owner/chair's calendar address.
+ */
 export function getOrganizerEmail(event: Partial<CalendarEvent>): string | null {
+  const stored = normalizeEmail(event.organizerCalendarAddress);
+  if (stored) return stored;
   if (event.participants) {
     for (const p of Object.values(event.participants)) {
       if (isOrganizerParticipant(p)) {
-        const e = getParticipantEmail(p);
+        const e = participantAddress(p);
         if (e) return e;
       }
     }
   }
-  if (event.organizerCalendarAddress) return normalizeEmail(event.organizerCalendarAddress);
   return null;
 }
 
-export function getOrganizerName(event: Partial<CalendarEvent>): string | null {
-  if (event.participants) {
-    for (const p of Object.values(event.participants)) {
-      if (isOrganizerParticipant(p)) return p.name || getParticipantEmail(p);
-    }
-    if (event.organizerCalendarAddress) {
-      for (const p of Object.values(event.participants)) {
-        if (p.calendarAddress === event.organizerCalendarAddress) return p.name || getParticipantEmail(p);
-      }
-    }
+/**
+ * The organizer's participant entry: the one at the organizer's address
+ * (Stalwart marks no owner/chair role), else an owner/chair when the event
+ * stores no address. An owner/chair at another address is not the organizer.
+ */
+function findOrganizerParticipant(event: Partial<CalendarEvent>): Participant | null {
+  if (!event.participants) return null;
+  const participants = Object.values(event.participants);
+  const stored = normalizeEmail(event.organizerCalendarAddress);
+  if (stored) {
+    const atAddress = participants.filter((p) => participantAddress(p) === stored);
+    return atAddress.find(isOrganizerParticipant) ?? atAddress[0] ?? null;
   }
-  return getOrganizerEmail(event);
+  return participants.find(isOrganizerParticipant) ?? null;
+}
+
+export function getOrganizerName(event: Partial<CalendarEvent>): string | null {
+  return findOrganizerParticipant(event)?.name || getOrganizerEmail(event);
 }
 
 // Find the participant entry that matches one of the given user emails.
@@ -129,42 +162,64 @@ export function getInvitationActorSummary(
 ): InvitationActorSummary | null {
   if (!event.participants) return null;
   const participants = Object.values(event.participants);
-  let organizer = participants.find(isOrganizerParticipant) ?? null;
-  if (!organizer && event.organizerCalendarAddress) {
-    organizer = participants.find((p) => p.calendarAddress === event.organizerCalendarAddress) ?? null;
-  }
-  const attendees = participants.filter((p) => p !== organizer && !isOrganizerParticipant(p));
+  const organizer = findOrganizerParticipant(event);
+  const organizerEmail = getOrganizerEmail(event);
+  const attendees = participants.filter((p) =>
+    p !== organizer
+    && !isOrganizerParticipant(p)
+    && (!organizerEmail || participantAddress(p) !== organizerEmail));
   const respondingAttendee = [...attendees].sort(
     (left, right) => getParticipantSignalScore(right) - getParticipantSignalScore(left),
   )[0] ?? null;
 
-  let source: Participant | null;
+  const asOrganizer = (): InvitationActorSummary => ({
+    name: organizer?.name || null,
+    // The address the trust row checked, never the entry's own EMAIL=.
+    email: organizerEmail,
+    role: 'organizer',
+    participationStatus: organizer?.participationStatus ?? null,
+    participationComment: organizer?.participationComment ?? null,
+  });
+  const asAttendee = (p: Participant): InvitationActorSummary => ({
+    name: p.name || null,
+    email: participantAddress(p),
+    role: 'attendee',
+    participationStatus: p.participationStatus ?? null,
+    participationComment: p.participationComment ?? null,
+  });
+  const hasOrganizer = !!organizer || !!organizerEmail;
+
   switch (method) {
     case 'reply':
     case 'counter':
     case 'refresh':
-      source = respondingAttendee;
-      break;
+      return respondingAttendee ? asAttendee(respondingAttendee) : null;
+    // What only an organizer sends: never credited to an attendee. With no
+    // organizer known it is "Someone", with no address.
     case 'declinecounter':
     case 'request':
     case 'publish':
     case 'add':
     case 'cancel':
-      source = organizer ?? respondingAttendee;
-      break;
+      return asOrganizer();
     default:
-      source = respondingAttendee ?? organizer;
+      if (respondingAttendee) return asAttendee(respondingAttendee);
+      return hasOrganizer ? asOrganizer() : null;
   }
-  if (!source) return null;
+}
 
-  return {
-    name: source.name || getParticipantEmail(source),
-    email: getParticipantEmail(source),
-    // The organizer found by address is the organizer too, though it has no role.
-    role: source === organizer || isOrganizerParticipant(source) ? 'organizer' : 'attendee',
-    participationStatus: source.participationStatus ?? null,
-    participationComment: source.participationComment ?? null,
-  };
+/**
+ * The message's From address when it isn't the actor's, so "Sent by Alice
+ * <alice@example.com>" can't hide that someone else sent it. Null when they
+ * match or the message has no From.
+ */
+export function invitationSentFrom(
+  actorEmail: string | null | undefined,
+  senderEmail: string | null | undefined,
+): string | null {
+  const sender = normalizeEmail(senderEmail);
+  if (!sender) return null;
+  return sender === normalizeEmail(actorEmail) ? null : sender;
 }
 
 // ─── Content-Type helpers ────────────────────────────────

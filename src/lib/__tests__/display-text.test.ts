@@ -18,4 +18,25 @@ describe('plainDisplayText', () => {
     expect(plainDisplayText(undefined)).toBe('');
     expect(plainDisplayText(null)).toBe('');
   });
+
+  it('strips zero-width and other format characters', () => {
+    expect(plainDisplayText('Ba\u200bnk\u2060 \ufeffSe\u00adcurity\u{e0041}')).toBe('Bank Security');
+  });
+
+  it('strips every format character Unicode lists', () => {
+    // Hermes may lack \p{...}, so the module lists the ranges itself; this
+    // keeps that list in step with the engine running the tests.
+    const missed: string[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      if (/\p{Cf}/u.test(ch) && plainDisplayText(`a${ch}b`) !== 'ab') missed.push(cp.toString(16));
+    }
+    expect(missed).toEqual([]);
+  });
+
+  it('never splits a surrogate pair when it caps the length', () => {
+    expect(plainDisplayText('\u{1f600}'.repeat(5), 3)).toBe('\u{1f600}\u{1f600}…');
+    expect(plainDisplayText('\u{1f600}'.repeat(3), 3)).toBe('\u{1f600}'.repeat(3));
+  });
 });

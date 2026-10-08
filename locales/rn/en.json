@@ -50,6 +50,7 @@
     },
     "invitation": {
       "accept": "Yes",
+      "actor_sent_from": "(sent from {address})",
       "add_error": "Could not add the event",
       "add_to_calendar": "Add to calendar",
       "added": "Added to calendar",

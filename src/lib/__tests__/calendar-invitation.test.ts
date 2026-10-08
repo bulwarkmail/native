@@ -10,6 +10,9 @@ import {
   getInvitationMethod,
   getInvitationTrustAssessment,
   formatInvitationActor,
+  getOrganizerEmail,
+  getOrganizerName,
+  invitationSentFrom,
 } from '../calendar-invitation';
 import { parseAuthenticationResults } from '../email-headers';
 
@@ -224,5 +227,88 @@ describe('formatInvitationActor', () => {
 
   it('gives null with neither', () => {
     expect(formatInvitationActor({ name: null, email: null })).toBeNull();
+  });
+});
+
+describe('the actor address is the one the trust row checked', () => {
+  const verifiedFrom = (from: string) => email({
+    from: [{ email: from }],
+    headers: [{ name: 'Authentication-Results', value: 'x; dkim=pass header.d=evil.example; dmarc=pass header.from=evil.example' }],
+  });
+
+  it('shows an organizer at its calendar address, not the EMAIL= it gives itself', () => {
+    const event = {
+      organizerCalendarAddress: 'mailto:mallory@evil.example',
+      participants: {
+        o: { name: 'Your Bank', email: 'security@bank.example', calendarAddress: 'mailto:mallory@evil.example', roles: { owner: true } },
+        b: { name: 'Bob', calendarAddress: 'mailto:bob@example.com', roles: { attendee: true } },
+      },
+    };
+    const trust = getInvitationTrustAssessment(event, verifiedFrom('mallory@evil.example'), 'request');
+    const actor = getInvitationActorSummary(event, 'request')!;
+    expect(actor.email).toBe('mallory@evil.example');
+    expect(actor.email).toBe(trust.organizerEmail);
+    expect(formatInvitationActor(actor)).toBe('Your Bank <mallory@evil.example>');
+    expect(invitationSentFrom(actor.email, trust.senderEmail)).toBeNull();
+    // Without organizerCalendarAddress, the owner's calendar address still wins.
+    const { organizerCalendarAddress: _drop, ...noStored } = event;
+    expect(getInvitationActorSummary(noStored, 'request')?.email).toBe('mallory@evil.example');
+    expect(getOrganizerEmail(noStored)).toBe('mallory@evil.example');
+  });
+
+  it('finds the organizer whatever the case of its address', () => {
+    const event = {
+      organizerCalendarAddress: 'MAILTO:Alice@Example.com',
+      participants: {
+        a: { name: 'Alice', calendarAddress: 'mailto:alice@example.com', roles: { attendee: true } },
+        b: { name: 'Bob', calendarAddress: 'mailto:bob@example.com', roles: { attendee: true }, participationStatus: 'accepted' as const },
+      },
+    };
+    expect(getInvitationActorSummary(event, 'request')).toMatchObject({ name: 'Alice', email: 'alice@example.com', role: 'organizer' });
+    expect(getOrganizerName(event)).toBe('Alice');
+    // Alice is the organizer, so a reply comes from Bob.
+    expect(getInvitationActorSummary(event, 'reply')?.name).toBe('Bob');
+  });
+
+  it('never credits an attendee with what only an organizer sends', () => {
+    const missing = {
+      organizerCalendarAddress: 'mailto:alice@example.com',
+      participants: {
+        b: { name: 'Bob', calendarAddress: 'mailto:bob@example.com', roles: { attendee: true }, participationStatus: 'accepted' as const },
+      },
+    };
+    for (const method of ['request', 'publish', 'add', 'cancel', 'declinecounter'] as const) {
+      expect(getInvitationActorSummary(missing, method)).toMatchObject({ name: null, email: 'alice@example.com', role: 'organizer' });
+    }
+    // An owner at another address than the stored organizer is not it.
+    const otherOwner = {
+      organizerCalendarAddress: 'mailto:alice@example.com',
+      participants: {
+        o: { name: 'Your Bank', calendarAddress: 'mailto:bank@evil.example', roles: { owner: true } },
+      },
+    };
+    expect(getInvitationActorSummary(otherOwner, 'request')).toMatchObject({ name: null, email: 'alice@example.com' });
+    expect(getOrganizerName(otherOwner)).toBe('alice@example.com');
+    // No organizer at all: "Someone", with no address.
+    const none = { participants: { b: missing.participants.b } };
+    expect(getInvitationActorSummary(none, 'request')).toMatchObject({ name: null, email: null });
+  });
+
+  it('names the From too when it is not the actor', () => {
+    const reply = {
+      organizerCalendarAddress: 'mailto:alice@example.com',
+      participants: {
+        a: { calendarAddress: 'mailto:alice@example.com', roles: { owner: true } },
+        b: { name: 'Bob', calendarAddress: 'mailto:bob@example.com', email: 'bob@other.example', roles: { attendee: true }, participationStatus: 'accepted' as const },
+      },
+    };
+    const actor = getInvitationActorSummary(reply, 'reply')!;
+    expect(actor.email).toBe('bob@example.com');
+    const fromBob = getInvitationTrustAssessment(reply, email({ from: [{ email: 'Bob@Example.com' }] }), 'reply');
+    expect(invitationSentFrom(actor.email, fromBob.senderEmail)).toBeNull();
+    const fromMallory = getInvitationTrustAssessment(reply, verifiedFrom('mallory@evil.example'), 'reply');
+    expect(invitationSentFrom(actor.email, fromMallory.senderEmail)).toBe('mallory@evil.example');
+    expect(invitationSentFrom(null, 'mallory@evil.example')).toBe('mallory@evil.example');
+    expect(invitationSentFrom('bob@example.com', null)).toBeNull();
   });
 });
