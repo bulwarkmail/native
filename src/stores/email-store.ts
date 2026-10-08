@@ -69,8 +69,21 @@ import { toast } from './toast-store';
 const startFolderSettled = new Set<string>();
 
 // Accounts whose own folder list was read from the server this launch
-// (`fetchMailboxesImpl` took it in), for `mailboxListsSynced`.
+// (`fetchMailboxesImpl` took it in), and whose shared accounts' lists were
+// asked for, for `mailboxListsSynced`.
 const ownListsRead = new Set<string>();
+const sharedListsRead = new Set<string>();
+
+// Mark the account's folder lists as read from the server once both parts
+// are in, so a folder link that still finds nothing can say so. Called by
+// each part's own run, whoever started it: a run queued behind another
+// fetch has no caller left to mark it. Only while the account is shown.
+function markMailboxListsSynced(accountId: string): void {
+  if (!ownListsRead.has(accountId) || !sharedListsRead.has(accountId)) return;
+  const state = useEmailStore.getState();
+  if (state.activeAccountId !== accountId || state.mailboxListsSynced[accountId]) return;
+  useEmailStore.setState({ mailboxListsSynced: { ...state.mailboxListsSynced, [accountId]: true } });
+}
 
 // ── Refresh coalescing ─────────────────────────────────────────────────
 // Push events, mount effects and post-action follow-ups all call
@@ -1168,6 +1181,7 @@ export const useEmailStore = create<EmailState>()(
     const { [accountId]: _synced, ...stillSynced } = state.mailboxListsSynced;
     startFolderSettled.delete(accountId);
     ownListsRead.delete(accountId);
+    sharedListsRead.delete(accountId);
     if (state.activeAccountId === accountId) {
       set({
         accountSnapshots: rest,
@@ -1196,6 +1210,7 @@ export const useEmailStore = create<EmailState>()(
   clearAllAccounts: () => {
     startFolderSettled.clear();
     ownListsRead.clear();
+    sharedListsRead.clear();
     set({
       mailboxListsSynced: {},
       accountSnapshots: {},
@@ -1230,15 +1245,9 @@ export const useEmailStore = create<EmailState>()(
     // into the new account's snapshot.
     const activeAccountId = get().activeAccountId;
     if (!jmapClientServesActiveAccount(activeAccountId)) return Promise.resolve();
-    return syncMailboxes(activeAccountId!, { own: true, shared: true }).then(() => {
-      // Read from the server for this account: a folder link that still
-      // finds nothing can say so. A failed or overtaken read leaves it for
-      // the next fetch (a reconnect runs one).
-      const state = get();
-      if (state.activeAccountId !== activeAccountId || !ownListsRead.has(activeAccountId!)) return;
-      if (state.mailboxListsSynced[activeAccountId!]) return;
-      set({ mailboxListsSynced: { ...state.mailboxListsSynced, [activeAccountId!]: true } });
-    });
+    // A failed or overtaken read leaves `mailboxListsSynced` for the next
+    // fetch (a reconnect runs one).
+    return syncMailboxes(activeAccountId!, { own: true, shared: true });
   },
 
   ensureMailboxes: () => {
@@ -2414,6 +2423,7 @@ export const useEmailStore = create<EmailState>()(
   reset: () => {
     startFolderSettled.clear();
     ownListsRead.clear();
+    sharedListsRead.clear();
     set({
       mailboxes: [],
       mailboxState: undefined,
@@ -2952,16 +2962,18 @@ async function fetchMailboxesImpl(activeAccountId: string): Promise<boolean> {
 
 // Shared/group accounts have their own Mailbox state tokens, and there are
 // only ever a handful of them, so they're re-read in full rather than diffed.
-// Failing to reach one must not lose the own folders.
-async function fetchSharedMailboxesImpl(activeAccountId: string): Promise<void> {
+// Failing to reach one must not lose the own folders. False when the
+// account was left before the answer came.
+async function fetchSharedMailboxesImpl(activeAccountId: string): Promise<boolean> {
   const get = useEmailStore.getState;
   try {
     const shared = await getSharedMailboxes();
-    if (get().activeAccountId !== activeAccountId) return;
+    if (get().activeAccountId !== activeAccountId) return false;
     useEmailStore.setState({ mailboxes: [...get().mailboxes.filter((m) => !m.isShared), ...shared] });
   } catch (err) {
     console.warn('[email-store] shared mailbox fetch failed:', err);
   }
+  return get().activeAccountId === activeAccountId;
 }
 
 // The folder list is synced in two parts, each coalesced on its own: a push
@@ -2972,11 +2984,19 @@ function syncMailboxes(activeAccountId: string, parts: { own: boolean; shared: b
   const runs: Promise<void>[] = [];
   if (parts.own) {
     runs.push(coalesceRefresh(`${activeAccountId}:mailboxes`, async () => {
-      if (await fetchMailboxesImpl(activeAccountId)) ownListsRead.add(activeAccountId);
+      if (!(await fetchMailboxesImpl(activeAccountId))) return;
+      ownListsRead.add(activeAccountId);
+      markMailboxListsSynced(activeAccountId);
     }));
   }
   if (parts.shared) {
-    runs.push(coalesceRefresh(`${activeAccountId}:shared-mailboxes`, () => fetchSharedMailboxesImpl(activeAccountId)));
+    runs.push(coalesceRefresh(`${activeAccountId}:shared-mailboxes`, async () => {
+      // Asked counts, even when an account could not be reached: the next
+      // fetch tries it again.
+      if (!(await fetchSharedMailboxesImpl(activeAccountId))) return;
+      sharedListsRead.add(activeAccountId);
+      markMailboxListsSynced(activeAccountId);
+    }));
   }
   return Promise.all(runs).then(() => undefined);
 }

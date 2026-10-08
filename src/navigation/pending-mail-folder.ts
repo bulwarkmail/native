@@ -73,9 +73,9 @@ export type MailFolderPlan =
 
 /**
  * What the mail list does with `target`: drop it when another account is
- * shown or the user opened another folder since, wait while the folders are not there yet (a cold start, a folder
- * the cached list may not have yet), open the folder it names, or say it is
- * gone once the server's list is in.
+ * shown or the user opened another folder since, wait while the folders are
+ * not there yet (a cold start, a folder the cached list may not have yet),
+ * open the folder it names, or say it is gone once the server's list is in.
  */
 export function planMailFolderOpen(target: MailFolderTarget, view: MailFolderView): MailFolderPlan {
   if (!view.shownAccountId) return { action: 'wait' };
