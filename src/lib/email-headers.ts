@@ -246,7 +246,12 @@ function splitResinfo(header: string): string[] {
 }
 
 const METHOD_RE = /^([a-z0-9][a-z0-9_-]*)(?:\/\d+)?\s*=\s*([a-z]+)(?=\s|$)/i;
-const PROP_RE = /\s*([^\s=]+)\s*=\s*("(?:[^"\\]|\\.)*"|\S*)/y;
+// A value runs to the next space outside quotes, so a quoted local part
+// stays joined to its domain ("x@bank.example"@evil.example is evil.example's
+// address, not bank.example's). Its pieces start on different characters, so
+// no input makes it backtrack.
+const PROP_RE = /\s*([^\s=]+)\s*=\s*((?:"(?:[^"\\]|\\.)*"|[^\s"])*)/y;
+const QUOTED_RE = /^"(?:[^"\\]|\\.)*"$/;
 
 /**
  * Read one resinfo: the method must open the part, so a `dmarc=pass` that
@@ -263,7 +268,7 @@ function parseResinfo(part: string): ResInfo | null {
   while ((prop = PROP_RE.exec(rest)) !== null && prop[0].length > 0) {
     const key = prop[1].toLowerCase();
     let value = prop[2];
-    if (value.startsWith('"')) value = value.slice(1, -1).replace(/\\(.)/g, '$1');
+    if (QUOTED_RE.test(value)) value = value.slice(1, -1).replace(/\\(.)/g, '$1');
     if (!(key in props)) props[key] = value;
   }
   return { method: match[1].toLowerCase(), result: match[2].toLowerCase(), props };

@@ -294,6 +294,21 @@ describe('getSenderVerification - sender-written input', () => {
     expect(info.senderVerification?.sentFrom).toBeUndefined();
   });
 
+  it('reads a quoted local part as part of the envelope address, not all of it', () => {
+    // SPF passed for evil.example; the quoted local part must not pass for the
+    // From domain's own envelope.
+    const info = derive('mx.example.org; spf=pass smtp.mailfrom="support@bank.example"@evil.example; dmarc=none header.from=bank.example');
+    expect(info.auth?.spf?.domain).toBe('"support@bank.example"@evil.example');
+    expect(info.senderVerification).toEqual({ status: 'unverified', domain: 'bank.example', sentFrom: 'evil.example' });
+  });
+
+  it('reads a value of many quoted pieces in linear time', () => {
+    const hostile = 'mx; spf=pass smtp.mailfrom=' + '"a"b'.repeat(50_000) + '"unterminated';
+    const started = performance.now();
+    derive(hostile);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   it('rejects an overlong domain', () => {
     const long = 'a'.repeat(250) + '.example';
     expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=none'), `x@${long}`)).toBeNull();
