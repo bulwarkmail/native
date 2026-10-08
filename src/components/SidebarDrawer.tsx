@@ -10,7 +10,7 @@ import {
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search, Globe,
-  MoreHorizontal, type LucideIcon,
+  MoreHorizontal, Share2, type LucideIcon,
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -49,6 +49,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import type { Mailbox } from '../api/types';
+import { sessionSupportsMailShare } from '../lib/capabilities';
+import { MailboxShareSheet } from './MailboxShareSheet';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -339,6 +341,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(() => new Set());
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
   const [sheet, setSheet] = React.useState<{ title: string; actions: SheetAction[] } | null>(null);
+  // The folder whose share sheet is open, and the app account it was listed under.
+  const [sharing, setSharing] = React.useState<{ mailbox: Mailbox; owner: string | null } | null>(null);
   const [prompt, setPrompt] = React.useState<{
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
@@ -614,6 +618,20 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
             false,
           ),
         }),
+      });
+    }
+    // Shared out on its own account (the owner's for a folder shared with the
+    // user, which only a grantee allowed to re-share may do).
+    const shareAccount = mb.accountId ?? jmapClient.connectedAccountId;
+    if (
+      sessionSupportsMailShare(useAuthStore.getState().session, shareAccount)
+      && (!mb.isShared || mb.myRights?.mayShare === true)
+    ) {
+      actions.push({
+        key: 'share',
+        label: t('mailbox_context_menu.share', 'Share...'),
+        icon: Share2,
+        onPress: () => setSharing({ mailbox: mb, owner }),
       });
     }
     if (!mb.role && mb.myRights?.mayDelete !== false) {
@@ -1265,6 +1283,11 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       </Animated.View>
 
       {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
+      <MailboxShareSheet
+        mailbox={sharing?.mailbox ?? null}
+        ownerAppAccountId={sharing?.owner ?? null}
+        onClose={() => setSharing(null)}
+      />
       {prompt && (
         <NamePrompt
           title={prompt.title}

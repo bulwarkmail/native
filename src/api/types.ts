@@ -111,6 +111,8 @@ export interface MailboxRights {
   mayRename: boolean;
   mayDelete: boolean;
   maySubmit: boolean;
+  /** May share the folder with others (mail:share); absent when the server has no sharing. */
+  mayShare?: boolean;
 }
 
 export interface Mailbox {
@@ -730,6 +732,7 @@ export const CAPABILITIES = {
   PRINCIPALS_OWNER: 'urn:ietf:params:jmap:principals:owner',
   PRINCIPALS_AVAILABILITY: 'urn:ietf:params:jmap:principals:availability',
   EMAIL_PUSH: 'urn:ietf:params:jmap:emailpush',
+  MAIL_SHARE: 'urn:ietf:params:jmap:mail:share',
 } as const;
 
 /** One busy period of a principal (Principal/getAvailability, RFC 9670 §4). */

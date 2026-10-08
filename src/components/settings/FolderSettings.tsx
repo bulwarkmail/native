@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import {
   Folder, Inbox, Send, FileText, Trash, ShieldAlert, Archive, Flag, Star, Mails,
-  StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X, ChevronUp, ChevronDown,
+  StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X, ChevronUp, ChevronDown, Share2,
 } from 'lucide-react-native';
 import { SettingsSection, Select } from './settings-section';
 import Button from '../Button';
@@ -32,6 +32,8 @@ import { useFolderIconsStore, folderIconOf } from '../../stores/folder-icons-sto
 import { FOLDER_ICON_NAMES, folderIconLabel, type FolderIconName } from '../../lib/folder-icons';
 import { folderIconComponent } from '../folder-icon';
 import { folderIconPrunePlan } from '../../lib/folder-icon-prune';
+import { useHasMailShare } from '../../lib/capabilities';
+import { MailboxShareSheet } from '../MailboxShareSheet';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -211,6 +213,14 @@ export function FolderSettings() {
   };
 
   const closeEditor = () => setEditor(null);
+
+  // Settings lists own folders only, so "Share…" needs the own account's
+  // mail:share capability and nothing more.
+  const editingAccount = editor?.kind === 'edit'
+    ? editor.mailbox.accountId ?? jmapClient.connectedAccountId
+    : null;
+  const canShare = useHasMailShare(editingAccount);
+  const [sharing, setSharing] = useState<{ mailbox: Mailbox; owner: string | null } | null>(null);
 
   // Settings lists only own folders, so the ids here are the raw JMAP ids the
   // shown account's scope writes to.
@@ -577,6 +587,20 @@ export function FolderSettings() {
                 </>
               )}
 
+              {editor?.kind === 'edit' && canShare && (
+                <Pressable
+                  onPress={() => {
+                    closeEditor();
+                    setSharing({ mailbox: editor.mailbox, owner: editor.owner });
+                  }}
+                  style={styles.deleteRow}
+                  accessibilityRole="button"
+                >
+                  <Share2 size={14} color={c.text} />
+                  <Text style={styles.shareRowText}>{t('mailbox_context_menu.share', 'Share...')}</Text>
+                </Pressable>
+              )}
+
               {editor?.kind === 'edit' && !editor.mailbox.role && (
                 <Pressable
                   onPress={() => {
@@ -604,6 +628,11 @@ export function FolderSettings() {
           </View>
         </View>
       </Modal>
+      <MailboxShareSheet
+        mailbox={sharing?.mailbox ?? null}
+        ownerAppAccountId={sharing?.owner ?? null}
+        onClose={() => setSharing(null)}
+      />
     </View>
   );
 }
@@ -677,6 +706,7 @@ function makeStyles(c: ThemePalette) {
       paddingVertical: spacing.md,
     },
     deleteRowText: { ...typography.body, color: c.error },
+    shareRowText: { ...typography.body, color: c.text },
     modalActions: {
       flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm,
       padding: spacing.lg, borderTopWidth: 1, borderTopColor: c.border,

@@ -1301,7 +1301,11 @@
     "more": "{count, plural, one {# more sharing change} other {# more sharing changes}}"
   },
   "sharing": {
+    "folder_not_found": "Folder not found",
     "own_books_only": "Only your own address books can be shared",
+    "preset": {
+      "manager_mailbox_hint": "Can also send as this folder's owner, delete it and share it again"
+    },
     "share_unconfirmed": "The server did not confirm the share update"
   },
   "sidebar": {

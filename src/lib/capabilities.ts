@@ -77,6 +77,28 @@ export function useHasVacation(): boolean {
     : true));
 }
 
+/**
+ * Whether folders of JMAP account `jmapAccountId` can be shared (mail:share):
+ * the account's own capabilities name it (where Stalwart advertises it), or
+ * the session's do. Unlike the helpers above it fails closed without a
+ * session or an account: a share entry that opens onto a refusal is worse
+ * than one that shows up once the session arrives.
+ */
+export function sessionSupportsMailShare(
+  session: JMAPSession | null,
+  jmapAccountId: string | null | undefined,
+): boolean {
+  if (!session || !jmapAccountId) return false;
+  const account = session.accounts?.[jmapAccountId];
+  if (!account) return false;
+  if (CAPABILITIES.MAIL_SHARE in (session.capabilities ?? {})) return true;
+  return !!account.accountCapabilities && CAPABILITIES.MAIL_SHARE in account.accountCapabilities;
+}
+
+export function useHasMailShare(jmapAccountId: string | null | undefined): boolean {
+  return useAuthStore((s) => sessionSupportsMailShare(s.session, jmapAccountId));
+}
+
 export type SharedAccountSettingsTab = 'filters' | 'vacation' | 'calendar' | 'contacts';
 
 // Whether JMAP account `accountId` of the live session has `capability`.

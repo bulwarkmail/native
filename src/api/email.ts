@@ -13,7 +13,7 @@ import {
 } from './jmap-result';
 import { keywordPointer, mailboxPointer } from './patch-pointer';
 import { CAPABILITIES } from './types';
-import type { Attachment, Email, EmailAddress, JMAPMethodCall, JMAPResponseBody, Mailbox, Thread } from './types';
+import type { Attachment, Email, EmailAddress, JMAPMethodCall, JMAPResponseBody, Mailbox, MailboxRights, Thread } from './types';
 import { sanitizeDisplayName } from '../lib/rfc5322-mailbox';
 import { generateMessageId, stripMessageIdBrackets } from '../lib/email-threading';
 import { buildMdnMessage, type MdnOptions } from '../lib/mdn';
@@ -307,6 +307,58 @@ export async function setMailboxSortOrders(
   const refused = Object.keys((body.notUpdated as Record<string, unknown> | undefined) ?? {});
   if (refused.length > 0) {
     throw new Error(`Mailbox/set refused sortOrder for ${refused.join(', ')}`);
+  }
+}
+
+const MAIL_SHARE_USING = [CAPABILITIES.CORE, CAPABILITIES.MAIL, CAPABILITIES.MAIL_SHARE];
+
+/**
+ * Who folder `mailboxId` is shared with (mail:share `shareWith`), null for
+ * nobody. Asked for on demand: Stalwart leaves `shareWith` out of Mailbox/get
+ * unless it is named, and only the share sheet needs it. Sent on the
+ * connection `at` names, in its account.
+ */
+export async function getMailboxShareWith(
+  mailboxId: string,
+  at: OpScope,
+): Promise<Record<string, MailboxRights> | null> {
+  const res = await requestOn(at, [['Mailbox/get', {
+    accountId: at.accountId,
+    ids: [mailboxId],
+    properties: ['id', 'shareWith'],
+  }, '0']], MAIL_SHARE_USING);
+  const body = requireMethodResult<{ list?: { id: string; shareWith?: Record<string, MailboxRights> | null }[] }>(
+    res, '0', 'Mailbox/get',
+  );
+  const mailbox = (body.list ?? []).find((mb) => mb.id === mailboxId);
+  if (!mailbox) throw new Error(t('sharing.folder_not_found', 'Folder not found'));
+  return mailbox.shareWith ?? null;
+}
+
+/**
+ * Grant `principalId` `rights` on folder `mailboxId`, or revoke its access
+ * with null (a `shareWith/<principalId>` patch). Sent on the connection `at`
+ * names, in its account. Throws when the server refuses the update or does
+ * not confirm it.
+ */
+export async function setMailboxShare(
+  mailboxId: string,
+  principalId: string,
+  rights: MailboxRights | null,
+  at: OpScope,
+): Promise<void> {
+  const res = await requestOn(at, [['Mailbox/set', {
+    accountId: at.accountId,
+    update: { [mailboxId]: { [`shareWith/${principalId}`]: rights } },
+  }, '0']], MAIL_SHARE_USING);
+  const body = requireMethodResult<{
+    updated?: Record<string, unknown> | null;
+    notUpdated?: Record<string, { type?: string; description?: string }> | null;
+  }>(res, '0', 'Mailbox/set');
+  const err = body.notUpdated?.[mailboxId];
+  if (err) throw new Error(err.description || err.type || t('sharing.share_failed', 'Failed to update sharing'));
+  if (!body.updated || !(mailboxId in body.updated)) {
+    throw new Error(t('sharing.share_unconfirmed', 'The server did not confirm the share update'));
   }
 }
 
