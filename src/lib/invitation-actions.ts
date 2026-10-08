@@ -2,7 +2,7 @@ import type { CalendarEvent } from '../api/types';
 import type { OpScope } from '../api/op-scope';
 import type { CalendarState, EventAccount, ImportResult } from '../stores/calendar-store';
 import { requireShownAccountScope } from '../stores/email-store';
-import { findParticipantByEmail, isSameInvitationEvent } from './calendar-invitation';
+import { findParticipantByEmail, isSameInvitationEvent, mayImportOver } from './calendar-invitation';
 
 // What the invitation banner writes. Each tap is one change: the scope is
 // taken once, when it starts, and every step (the import, the look-up of the
@@ -29,15 +29,18 @@ export class InvitationUidConflictError extends Error {
 }
 
 // The stored events with the invitation's UID, refused when one of them is
-// not this invitation's event.
+// not this invitation's event: for an answer the same organizer is needed;
+// an import may also meet an event without one (it dedupes).
 async function storedEventsFor(
   event: Partial<CalendarEvent>,
   findEventsByUid: InvitationActions['findEventsByUid'],
   at: OpScope,
+  purpose: 'answer' | 'import',
 ): Promise<CalendarEvent[]> {
   if (!event.uid) return [];
   const found = await findEventsByUid(event.uid, at);
-  if (found.some((e) => !isSameInvitationEvent(e, event))) throw new InvitationUidConflictError();
+  const fits = purpose === 'answer' ? isSameInvitationEvent : mayImportOver;
+  if (found.some((e) => !fits(e, event))) throw new InvitationUidConflictError();
   return found;
 }
 
@@ -57,7 +60,7 @@ export async function importInvitation(
   actions: Pick<InvitationActions, 'importEvents' | 'findEventsByUid'>,
 ): Promise<ImportResult> {
   const account = tapAccount(appAccountId);
-  await storedEventsFor(event, actions.findEventsByUid, account.scope);
+  await storedEventsFor(event, actions.findEventsByUid, account.scope, 'import');
   return actions.importEvents([event], calendarId, undefined, account);
 }
 
@@ -85,10 +88,10 @@ export async function importAndRespond(opts: {
   if (!target) {
     // The store never sees an event outside the loaded window: look it up,
     // and import it only when it isn't there.
-    target = (await storedEventsFor(event, actions.findEventsByUid, account.scope))[0] ?? null;
+    target = (await storedEventsFor(event, actions.findEventsByUid, account.scope, 'answer'))[0] ?? null;
     if (!target) {
       await actions.importEvents([event], opts.calendarId, undefined, account);
-      target = (await storedEventsFor(event, actions.findEventsByUid, account.scope))[0] ?? null;
+      target = (await storedEventsFor(event, actions.findEventsByUid, account.scope, 'answer'))[0] ?? null;
     }
     if (target) opts.onFound?.(target);
   }

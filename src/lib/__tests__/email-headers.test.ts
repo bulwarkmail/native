@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isFromDomainAuthenticated,
   parseAuthenticationResults, parseSpamScore, parseSpamLLM, extractListHeaders,
   isAuthenticationSpoofed, headersToRecord, deriveHeaderInfo, deliveryDeltaMs, formatDelta,
   findReceivingIdentity, getSenderVerification,
@@ -332,5 +333,21 @@ describe('getSenderVerification - sender-written input', () => {
   it('still names the own header\'s envelope host next to a foreign fail', () => {
     const info = derive('mx; spf=none smtp.mailfrom=www-data@web1.hoster.example; dmarc=none', 'forged; spf=fail smtp.mailfrom=x@other.example');
     expect(info.senderVerification?.sentFrom).toBe('web1.hoster.example');
+  });
+});
+
+describe('isFromDomainAuthenticated', () => {
+  const auth = (value: string) => parseAuthenticationResults(value);
+  it('takes a DMARC pass, or an SPF or DKIM pass aligned with the From domain', () => {
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=example.com'), 'a@example.com')).toBe(true);
+    expect(isFromDomainAuthenticated(auth('mx; dkim=pass header.d=mail.example.com'), 'a@example.com')).toBe(true);
+    expect(isFromDomainAuthenticated(auth('mx; spf=pass smtp.mailfrom=bounce@example.com'), 'a@example.com')).toBe(true);
+  });
+  it('never reads a missing result, an unparsable domain or another domain\'s pass as a yes', () => {
+    expect(isFromDomainAuthenticated(null, 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dkim=pass header.d=evil.example'), 'a@example.com')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; spf=none; dkim=none; dmarc=none'), 'ian@intranet')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=intranet'), 'ian@intranet')).toBe(false);
+    expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=evil.example'), 'a@example.com')).toBe(false);
   });
 });

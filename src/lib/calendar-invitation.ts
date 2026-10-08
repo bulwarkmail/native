@@ -1,6 +1,6 @@
 import type { CalendarEvent, Participant, Email, Attachment, BodyPart, EmailAddress } from '../api/types';
 import {
-  getSenderVerification, headerValues, parseAuthenticationResults, type AuthenticationResults,
+  headerValues, isFromDomainAuthenticated, parseAuthenticationResults, type AuthenticationResults,
 } from './email-headers';
 import { plainDisplayText, plainStoredText } from './display-text';
 import { localDateTimeToInstant } from './time-zone';
@@ -435,12 +435,6 @@ export function getEmailAuthenticationResults(
   return parseAuthenticationResults(values);
 }
 
-function hasVerifiedAuthentication(auth?: AuthenticationResults | null): boolean {
-  return Boolean(
-    auth?.dmarc?.result === 'pass' || auth?.dkim?.result === 'pass' || auth?.spf?.result === 'pass',
-  );
-}
-
 function hasAuthenticationFailure(auth?: AuthenticationResults | null): boolean {
   return Boolean(
     auth?.dmarc?.result === 'fail'
@@ -464,40 +458,77 @@ export interface InvitationTrustAssessment {
     | 'authentication_missing'
     | 'sender_mismatch'
     | 'sender_mismatch_unverified'
+    /** An attendee's answer about an event the user doesn't organize, or from someone not on it. */
+    | 'responder_not_on_event'
     | null;
   senderEmail: string | null;
   organizerEmail: string | null;
   /**
    * Whom the sender is compared with: the answering attendee for a REPLY,
-   * COUNTER or REFRESH (an attendee sends those), else the organizer.
+   * COUNTER or REFRESH about an event the user organizes, when that attendee
+   * is on the stored event; else the organizer.
    */
   expectedSender: 'organizer' | 'attendee';
   expectedSenderEmail: string | null;
 }
 
+/** The stored copy of the event an invitation is about, for judging an attendee's answer. */
+export interface InvitationTrustContext {
+  /** The user's stored event with the invitation's UID, if any. */
+  stored?: Partial<CalendarEvent> | null;
+  /** The user's addresses in the account the event lives in. */
+  userAddresses?: readonly string[];
+}
+
+// Whether `address` is an attendee (not the organizer) of the stored event.
+function isAttendeeOf(stored: Partial<CalendarEvent>, address: string): boolean {
+  if (address === getOrganizerEmail(stored)) return false;
+  return Object.values(stored.participants ?? {}).some((p) => participantCalendarAddress(p) === address);
+}
+
+/**
+ * The answering attendee's calendar address, when the answer is about an
+ * event the user organizes and that attendee is on the stored copy. The
+ * incoming message names its own responder and method: only the stored
+ * event says whom an answer may come from.
+ */
+function responderOnStoredEvent(event: Partial<CalendarEvent>, context?: InvitationTrustContext): string | null {
+  const stored = context?.stored;
+  if (!stored || !isSameInvitationEvent(stored, event)) return null;
+  if (!isUserOrganizer(stored, context?.userAddresses ?? [])) return null;
+  const responder = findRespondingAttendee(event);
+  const address = responder ? participantCalendarAddress(responder) : null;
+  return address && isAttendeeOf(stored, address) ? address : null;
+}
+
 /**
  * How much to trust an invitation: DMARC/DKIM/SPF results of the carrying
- * email plus whether the sender matches the event's organizer. A spoofed
+ * email plus whether the sender matches whom it should come from. A spoofed
  * invitation from an unauthenticated sender must not look like a real one.
- * Port of the webmail's getInvitationTrustAssessment.
+ * After the webmail's getInvitationTrustAssessment, but "verified" needs a
+ * pass for the From domain (not any pass), and an attendee's answer (REPLY,
+ * COUNTER, REFRESH) is compared with the attendee only when the stored
+ * event, organized by the user, has that attendee; otherwise it is never
+ * more than a caution.
  */
 export function getInvitationTrustAssessment(
   event: Partial<CalendarEvent>,
   email?: Pick<Email, 'from' | 'replyTo' | 'headers'> | null,
   method: InvitationMethod = inferInvitationMethod(event),
+  context?: InvitationTrustContext,
 ): InvitationTrustAssessment {
   const organizerEmail = getOrganizerEmail(event);
-  const senderEmail = getPrimaryAddressEmail(email?.from) || getPrimaryAddressEmail(email?.replyTo);
+  const fromEmail = getPrimaryAddressEmail(email?.from);
+  const senderEmail = fromEmail || getPrimaryAddressEmail(email?.replyTo);
   const auth = getEmailAuthenticationResults(email);
-  const verified = hasVerifiedAuthentication(auth);
+  const verified = isFromDomainAuthenticated(auth, fromEmail);
   const failed = hasAuthenticationFailure(auth);
-  // An attendee's answer comes from the attendee, at the address they are
-  // scheduled at (never the EMAIL= parameter), not from the organizer.
-  const responder = isResponseMethod(method) ? findRespondingAttendee(event) : null;
-  const expectedSender: InvitationTrustAssessment['expectedSender'] = isResponseMethod(method) ? 'attendee' : 'organizer';
-  const expectedSenderEmail = isResponseMethod(method)
-    ? (responder ? participantCalendarAddress(responder) : null)
-    : organizerEmail;
+  const responder = isResponseMethod(method) ? responderOnStoredEvent(event, context) : null;
+  // An answer from someone the stored event doesn't have (or about an event
+  // the user doesn't organize) is judged against the organizer, and capped.
+  const unknownResponder = isResponseMethod(method) && !responder;
+  const expectedSender: InvitationTrustAssessment['expectedSender'] = responder ? 'attendee' : 'organizer';
+  const expectedSenderEmail = responder ?? organizerEmail;
   const senderMismatch = Boolean(senderEmail && expectedSenderEmail && senderEmail !== expectedSenderEmail);
   const expectsAuthenticatedTransport = method !== 'unknown';
   const base = { senderEmail, organizerEmail, expectedSender, expectedSenderEmail };
@@ -507,6 +538,9 @@ export function getInvitationTrustAssessment(
   }
   if (failed) {
     return { level: 'warning', reason: 'authentication_failed', ...base };
+  }
+  if (unknownResponder) {
+    return { level: 'caution', reason: 'responder_not_on_event', ...base };
   }
   if (senderMismatch) {
     return { level: 'caution', reason: 'sender_mismatch', ...base };
@@ -523,23 +557,39 @@ export function getInvitationTrustAssessment(
  * aligned with that domain. Stricter than the trust row's "any pass".
  */
 function fromIsAuthenticated(auth: AuthenticationResults | null, fromEmail: string | null): boolean {
-  if (!auth || !fromEmail || (!auth.spf && !auth.dkim && !auth.dmarc)) return false;
-  if (hasAuthenticationFailure(auth)) return false;
-  return getSenderVerification(auth, fromEmail) === null;
+  if (!auth || !fromEmail || hasAuthenticationFailure(auth)) return false;
+  // Positively: an unparsable From domain or no result is never a pass.
+  return isFromDomainAuthenticated(auth, fromEmail);
 }
 
 /**
  * Whether a stored event is the one an invitation is about: same UID (the
  * caller's look-up) and the same organizer, at the address the trust check
  * uses. An invitation anyone can write may carry the UID of an unrelated
- * event of the user's; it must not answer, link or rewrite that one.
+ * event of the user's; it must not answer, rewrite or vouch for that one.
+ * Without an organizer on either side nothing says they are the same.
  */
 export function isSameInvitationEvent(
   stored: Partial<CalendarEvent> | null | undefined,
   invitation: Partial<CalendarEvent>,
 ): boolean {
   if (!stored || !invitation.uid || stored.uid !== invitation.uid) return false;
-  return getOrganizerEmail(stored) === getOrganizerEmail(invitation);
+  const organizer = getOrganizerEmail(invitation);
+  return !!organizer && getOrganizerEmail(stored) === organizer;
+}
+
+/**
+ * Whether importing the invitation may meet this stored event (Import dedupes
+ * or links by UID): the same event, or neither has an organizer (a plain
+ * published event, which nobody answers).
+ */
+export function mayImportOver(
+  stored: Partial<CalendarEvent> | null | undefined,
+  invitation: Partial<CalendarEvent>,
+): boolean {
+  if (isSameInvitationEvent(stored, invitation)) return true;
+  return !!stored && !!invitation.uid && stored.uid === invitation.uid
+    && !getOrganizerEmail(stored) && !getOrganizerEmail(invitation);
 }
 
 // ─── Counter proposals ───────────────────────────────────
@@ -883,17 +933,17 @@ function proposerHold(
   stored: Partial<CalendarEvent>,
   email: Pick<Email, 'from' | 'replyTo' | 'headers'> | null | undefined,
   proposerEmail: string | null,
+  userAddresses: readonly string[],
 ): ProposalHold | null {
   if (!proposerEmail) return 'proposer_unknown';
-  const storedOrganizer = getOrganizerEmail(stored);
-  const attendee = proposerEmail !== storedOrganizer && Object.values(stored.participants ?? {})
-    .some((p) => participantCalendarAddress(p) === proposerEmail);
-  if (!attendee) return 'proposer_not_attendee';
+  if (!isAttendeeOf(stored, proposerEmail)) return 'proposer_not_attendee';
   // The From itself: a Reply-To is anyone's to set.
   const from = getPrimaryAddressEmail(email?.from);
   if (from !== proposerEmail) return 'sender_not_proposer';
   if (!fromIsAuthenticated(getEmailAuthenticationResults(email), from)) return 'sender_unverified';
-  if (getInvitationTrustAssessment(proposed, email, 'counter').level === 'warning') return 'sender_unverified';
+  if (getInvitationTrustAssessment(proposed, email, 'counter', { stored, userAddresses }).level !== 'trusted') {
+    return 'sender_unverified';
+  }
   return null;
 }
 
@@ -931,7 +981,7 @@ export function reviewCounterProposal(args: {
   if (content.items.length === 0 && content.refused.length === 0) {
     return { changes: [], patch: null, canApply: false, hold: null, proposer };
   }
-  const hold = proposerHold(proposed, stored, email, proposerEmail)
+  const hold = proposerHold(proposed, stored, email, proposerEmail, userAddresses)
     ?? (content.refused.length > 0 ? 'unsupported' : null);
   const canApply = !hold && canApplyProposal({
     method, userIsOrganizer: true, existing: stored, patch, changes: content.items, proposed,

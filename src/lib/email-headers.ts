@@ -183,6 +183,32 @@ export function getSenderVerification(
   return { status: 'unverified', domain, sentFrom };
 }
 
+/**
+ * Whether the receiving server's checks positively tie the message to its
+ * From domain: the domain parses, nothing reads as spoofed, and there is a
+ * DMARC pass for that domain or an SPF (MAIL FROM) or DKIM pass aligned with
+ * it. Unlike getSenderVerification, no result, an unparsable domain or a
+ * pass for another domain is never a yes.
+ */
+export function isFromDomainAuthenticated(
+  auth: AuthenticationResults | null | undefined,
+  fromEmail: string | null | undefined,
+): boolean {
+  if (!auth || !fromEmail) return false;
+  const domain = domainOf(fromEmail);
+  if (!domain || isAuthenticationSpoofed(auth)) return false;
+  if (auth.dmarc?.result === 'pass') {
+    const dmarcDomain = auth.dmarc.domain ? domainOf(`@${auth.dmarc.domain}`) : undefined;
+    if (!auth.dmarc.domain || (dmarcDomain && domainsAlign(dmarcDomain, domain))) return true;
+  }
+  const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
+  const spfPass = auth.spf?.all ? mailFrom?.result === 'pass' : (auth.spf?.result === 'pass' && !auth.spf.foreign);
+  const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
+  const envelopeDomain = envelope ? domainOf(envelope) : undefined;
+  if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return true;
+  return hasAlignedDkimPass(auth, domain);
+}
+
 function domainsAlign(a: string, b: string): boolean {
   return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
 }

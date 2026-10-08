@@ -16,6 +16,8 @@ const aliasCache = new Map<string, string[]>();
 const aliasInFlight = new Map<string, Promise<string[]>>();
 const aliasListeners = new Set<() => void>();
 const NO_IDENTITIES: never[] = [];
+// One empty list, so a caller memoizing on the result isn't redone each render.
+const NO_ADDRESSES: string[] = [];
 
 function fetchAliases(scope: string): Promise<string[]> {
   const cached = aliasCache.get(scope);
@@ -99,6 +101,6 @@ export function addressesForAccount(
   accounts: { shown: string | null; signedIn: string | null },
   addresses: string[],
 ): string[] {
-  if (!appAccountId || appAccountId !== accounts.shown || appAccountId !== accounts.signedIn) return [];
+  if (!appAccountId || appAccountId !== accounts.shown || appAccountId !== accounts.signedIn) return NO_ADDRESSES;
   return addresses;
 }

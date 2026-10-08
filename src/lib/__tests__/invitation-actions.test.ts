@@ -15,12 +15,14 @@ import { importInvitation, importAndRespond, InvitationUidConflictError } from '
 const mockScope = requireShownAccountScope as unknown as ReturnType<typeof vi.fn>;
 const invite = {
   uid: 'u1',
+  organizerCalendarAddress: 'mailto:org@example.com',
   title: 'Review',
   participants: { me: { email: 'me@example.com', roles: { attendee: true } } },
 } as never;
 const stored = {
   id: '42',
   uid: 'u1',
+  organizerCalendarAddress: 'mailto:org@example.com',
   participants: { p9: { email: 'me@example.com', roles: { attendee: true } } },
 } as never;
 
@@ -127,5 +129,26 @@ describe('an invitation carrying the UID of an unrelated event', () => {
     a.findEventsByUid.mockResolvedValue([unrelated]);
     await expect(importInvitation(crafted, 'cal-1', 'app-1', a)).rejects.toBeInstanceOf(InvitationUidConflictError);
     expect(a.importEvents).not.toHaveBeenCalled();
+  });
+});
+
+describe('an event with no organizer on either side', () => {
+  const bare = { uid: 'u1', title: 'Talk', participants: { me: { email: 'me@example.com', roles: { attendee: true } } } } as never;
+  const storedBare = { id: '42', uid: 'u1', participants: { p9: { email: 'me@example.com', roles: { attendee: true } } } } as never;
+
+  it('may be imported over (the import dedupes)', async () => {
+    const a = actions();
+    a.findEventsByUid.mockResolvedValue([storedBare]);
+    await expect(importInvitation(bare, 'cal-1', 'app-1', a)).resolves.toEqual({ imported: 1, refused: [] });
+  });
+
+  it('is never answered: nothing says it is the same event', async () => {
+    const a = actions();
+    a.findEventsByUid.mockResolvedValue([storedBare]);
+    await expect(importAndRespond({
+      event: bare, existing: storedBare, calendarId: 'cal-1', status: 'accepted',
+      userEmails: ['me@example.com'], replyTo: null, appAccountId: 'app-1', actions: a,
+    })).rejects.toBeInstanceOf(InvitationUidConflictError);
+    expect(a.rsvpEvent).not.toHaveBeenCalled();
   });
 });

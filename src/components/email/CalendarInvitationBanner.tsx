@@ -30,6 +30,7 @@ import {
   isUserOrganizer,
   buildReplyTo,
   isSameInvitationEvent,
+  mayImportOver,
   reviewCounterProposal,
   proposalStillMatches,
   type CounterProposalReview,
@@ -94,6 +95,11 @@ function trustReasonText(
         : t('calendar.invitation.trust_sender_mismatch', 'The sender differs from the event organizer.');
     case 'authentication_missing':
       return t('calendar.invitation.trust_authentication_missing', 'The sender could not be verified.');
+    case 'responder_not_on_event':
+      return t(
+        'calendar.invitation.trust_responder_not_on_event',
+        'This answers an event you don\'t organize, or comes from someone who isn\'t on it.',
+      );
   }
 }
 
@@ -205,6 +211,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   // a mark-read or star hands a new `email` for the same one.
   const invitationKey = calendarInvitationKey(email, attachment, jmapAccountId);
   const latest = React.useRef({ email, attachment });
+  // The invitation shown now, for work that lands after a tap.
+  const currentInvitationKey = React.useRef(invitationKey);
+  currentInvitationKey.current = invitationKey;
   latest.current = { email, attachment };
 
   const [state, setState] = React.useState<BannerState>('loading');
@@ -300,17 +309,30 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   // Already imported? Look for the UID among the loaded events, then among
   // what the server lookup found. Only an event with the invitation's
   // organizer counts: anyone can write an invitation with the UID of an
-  // unrelated event of the user's, which it must not answer or link.
+  // unrelated event of the user's, which it must not answer or link. An
+  // event without an organizer on either side may still be imported over
+  // (deduped), but is never "existing" for an answer.
   const { existing, uidConflict } = React.useMemo(() => {
     if (!event?.uid) return { existing: null, uidConflict: false };
     const sameUid = [...storeEvents.filter((e) => e.uid === event.uid), ...(serverMatch ? [serverMatch] : [])];
     const match = sameUid.find((e) => isSameInvitationEvent(e, event)) ?? null;
-    return { existing: match, uidConflict: !match && sameUid.length > 0 };
+    return { existing: match, uidConflict: sameUid.some((e) => !mayImportOver(e, event)) };
   }, [storeEvents, event, serverMatch]);
 
+  // The user's addresses count only for the account the message is shown in.
+  const ownAddresses = addressesForAccount(
+    ownerAppAccountId,
+    { shown: shownAppAccountId, signedIn: signedInAppAccountId },
+    currentUserEmails,
+  );
+  // An attendee's answer is trusted only as far as the stored event (the
+  // user's, with that attendee) backs who sent it.
+  const trustStored = method === 'counter' ? (storedEvent ?? existing) : existing;
   const trust = React.useMemo(
-    () => (event ? getInvitationTrustAssessment(event, email, method) : null),
-    [event, email, method],
+    () => (event
+      ? getInvitationTrustAssessment(event, email, method, { stored: trustStored, userAddresses: ownAddresses })
+      : null),
+    [event, email, method, trustStored, ownAddresses],
   );
 
   if (!attachment || !enabled || state === 'error') return null;
@@ -325,17 +347,20 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   }
   if (!event) return null;
 
+  // Title and time of the event as the user's calendar holds it, once it is
+  // there: the message's are its sender's to write.
+  const shownEvent = existing ?? event;
   // In the app's time zone, as the calendar shows it.
-  const startDate = event.start || event.utcStart
+  const startDate = shownEvent.start || shownEvent.utcStart
     ? getEventStartDate({
-      start: event.start ?? '',
-      utcStart: event.utcStart,
-      showWithoutTime: event.showWithoutTime,
-      timeZone: event.timeZone,
+      start: shownEvent.start ?? '',
+      utcStart: shownEvent.utcStart,
+      showWithoutTime: shownEvent.showWithoutTime,
+      timeZone: shownEvent.timeZone,
     })
     : null;
   const dateLabel = startDate && !isNaN(startDate.getTime())
-    ? (event.showWithoutTime
+    ? (shownEvent.showWithoutTime
         ? format(startDate, 'EEEE, MMM d, yyyy', { locale: dateLocale })
         : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale }))
     : null;
@@ -344,20 +369,17 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const location = plainDisplayText(event.locations ? Object.values(event.locations)[0]?.name : undefined, 200);
   const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
   const me = findParticipantByEmail(existing ?? event, currentUserEmails);
-  const canRsvp = method !== 'cancel' && method !== 'reply' && !!me;
+  // A REPLY, COUNTER or REFRESH goes from an attendee to the organizer: the
+  // organizer doesn't answer or import it.
+  const attendeeMessage = method === 'reply' || method === 'counter' || method === 'refresh';
+  const canRsvp = method !== 'cancel' && !attendeeMessage && !!me;
   const myExistingStatus = existing && me ? existing.participants?.[me.id]?.participationStatus : undefined;
   const currentStatus: RsvpStatus | null =
     rsvpStatus
     ?? (myExistingStatus === 'accepted' || myExistingStatus === 'tentative' || myExistingStatus === 'declined'
       ? myExistingStatus
       : null);
-  // Only the organizer reviews a counter proposal or a refresh request. The
-  // user's addresses count only for the account the message is shown in.
-  const ownAddresses = addressesForAccount(
-    ownerAppAccountId,
-    { shown: shownAppAccountId, signedIn: signedInAppAccountId },
-    currentUserEmails,
-  );
+  // Only the organizer reviews a counter proposal or a refresh request.
   const userIsOrganizer = isUserOrganizer(existing ?? event, ownAddresses);
 
   // Change times: an instant shown in the calendar's zone, a floating time
@@ -450,9 +472,11 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
       await updateEvent(found.baseEventId ?? found.originalId ?? found.id, fresh.patch, true, at);
       setNotice(t('email_viewer.calendar_invitation.proposal_applied', 'Proposed changes applied.'));
       // Review what the server holds now: nothing left to apply.
+      // Only while this banner still shows the same invitation.
+      const appliedFor = invitationKey;
       setStoredEvent(null);
       findEventsByUid(event.uid, at, { extraProperties: REVIEW_PROPERTIES })
-        .then((now) => setStoredEvent(storedEventOf(now)))
+        .then((now) => { if (currentInvitationKey.current === appliedFor) setStoredEvent(storedEventOf(now)); })
         .catch(() => undefined);
       void useCalendarStore.getState().refresh().catch(() => undefined);
     } catch (err) {
@@ -562,7 +586,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} numberOfLines={2}>
-            {plainDisplayText(event.title, 200) || t('calendar.invitation.title', 'Calendar invitation')}
+            {plainDisplayText(shownEvent.title, 200) || t('calendar.invitation.title', 'Calendar invitation')}
           </Text>
           {method === 'cancel' && (
             <Text style={styles.cancelled}>{t('calendar.invitation.cancelled', 'This event was cancelled')}</Text>
@@ -711,7 +735,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
             />
           )}
 
-          {state !== 'done' && !existing && !uidConflict && targetCalendar && candidates.length > 1 && (
+          {state !== 'done' && !existing && !uidConflict && !attendeeMessage && targetCalendar && candidates.length > 1 && (
             <View>
               <Pressable style={styles.calendarPicker} onPress={() => setPickerOpen((v) => !v)}>
                 <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(targetCalendar) }]} />
@@ -751,7 +775,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
                     icon={<X size={15} color={currentStatus === 'declined' ? c.textInverse : c.error} />}
                     disabled={busy} onPress={() => ensureImportedAndRsvp('declined')} c={c} styles={styles} />
                 </>
-              ) : !existing && method !== 'reply' ? (
+              ) : !existing && !attendeeMessage ? (
                 <Pressable
                   style={[styles.importBtn, (busy || !targetCalendar) && { opacity: 0.5 }]}
                   onPress={() => { void handleImport(); }}

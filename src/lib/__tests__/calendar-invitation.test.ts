@@ -21,6 +21,7 @@ import {
   reviewCounterProposal,
   proposalStillMatches,
   isSameInvitationEvent,
+  mayImportOver,
 } from '../calendar-invitation';
 import type { CalendarEvent } from '../../api/types';
 import { parseAuthenticationResults } from '../email-headers';
@@ -605,6 +606,15 @@ describe('who may have a counter proposal applied', () => {
       .toMatchObject({ canApply: false, hold: 'sender_unverified' });
   });
 
+  it('withholds Apply when the From domain does not parse, whatever the results say', () => {
+    const intranet = typed({
+      ...stored,
+      participants: { ...(stored.participants as object), i: { calendarAddress: 'mailto:ian@intranet', roles: { attendee: true } } },
+    });
+    const fromIan = authed('ian@intranet', 'mx.example.com; spf=none smtp.mailfrom=intranet; dkim=none; dmarc=none');
+    expect(review(counter('ian@intranet'), fromIan, intranet)).toMatchObject({ canApply: false, hold: 'sender_unverified' });
+  });
+
   it('withholds Apply on a failed check (warning-level trust)', () => {
     expect(review(counter(), authed('bob@example.com', 'mx.example.com; dkim=pass header.d=example.com; spf=fail smtp.mailfrom=example.com')))
       .toMatchObject({ canApply: false, hold: 'sender_unverified' });
@@ -644,10 +654,40 @@ describe('who may have a counter proposal applied', () => {
   });
 
   it('compares an attendee\'s answer with the attendee, not the organizer', () => {
-    const t = getInvitationTrustAssessment(counter(), authed('bob@example.com'), 'counter');
+    const context = { stored, userAddresses: [me] };
+    const t = getInvitationTrustAssessment(counter(), authed('bob@example.com'), 'counter', context);
     expect(t).toMatchObject({ level: 'trusted', expectedSender: 'attendee', expectedSenderEmail: 'bob@example.com' });
-    const spoof = getInvitationTrustAssessment(counter(), email({ from: [{ email: 'mallory@evil.com' }] }), 'counter');
+    const spoof = getInvitationTrustAssessment(counter(), email({ from: [{ email: 'mallory@evil.com' }] }), 'counter', context);
     expect(spoof).toMatchObject({ level: 'warning', reason: 'sender_mismatch_unverified' });
+  });
+
+  it('never trusts an answer the stored event does not back', () => {
+    // A new UID, a made-up organizer, the attacker as the attendee, and a
+    // message that authenticates the attacker's own domain.
+    const forged = typed({
+      uid: 'new-uid', organizerCalendarAddress: 'mailto:ceo@corp.example',
+      participants: {
+        o: { calendarAddress: 'mailto:ceo@corp.example', roles: { owner: true } },
+        m: { calendarAddress: 'mailto:mallory@evil.example', roles: { attendee: true }, participationStatus: 'accepted' },
+      },
+    });
+    const fromMallory = authed('mallory@evil.example', 'mx.example.com; dkim=pass header.d=evil.example; dmarc=pass header.from=evil.example');
+    for (const method of ['counter', 'refresh', 'reply'] as const) {
+      expect(getInvitationTrustAssessment(forged, fromMallory, method)).toMatchObject({ level: 'caution', reason: 'responder_not_on_event' });
+      // A stored event the user doesn't organize backs nothing either.
+      expect(getInvitationTrustAssessment(forged, fromMallory, method, { stored: { ...forged, id: 'x' }, userAddresses: [me] }).level).not.toBe('trusted');
+    }
+    // A REFRESH with a spoofed From and a DKIM pass for another domain, no DMARC.
+    const spoofed = authed('ceo@corp.example', 'mx.example.com; dkim=pass header.d=evil.example');
+    expect(getInvitationTrustAssessment(forged, spoofed, 'refresh')).toMatchObject({ level: 'caution', reason: 'responder_not_on_event' });
+  });
+
+  it('counts only a pass for the From domain as verified', () => {
+    const e = email({
+      from: [{ email: 'alice@example.com' }],
+      headers: [{ name: 'Authentication-Results', value: 'x; dkim=pass header.d=other.example.net' }],
+    });
+    expect(getInvitationTrustAssessment(request, e, 'request')).toMatchObject({ level: 'caution', reason: 'authentication_missing' });
   });
 });
 
@@ -659,5 +699,13 @@ describe('isSameInvitationEvent', () => {
     expect(isSameInvitationEvent(stored, { uid: 'u1', organizerCalendarAddress: 'mailto:mallory@evil.com' })).toBe(false);
     expect(isSameInvitationEvent(stored, { uid: 'u2', organizerCalendarAddress: 'mailto:alice@example.com' })).toBe(false);
     expect(isSameInvitationEvent(null, { uid: 'u1' })).toBe(false);
+  });
+
+  it('never takes two events without an organizer for the same one', () => {
+    expect(isSameInvitationEvent({ uid: 'u1' }, { uid: 'u1' })).toBe(false);
+    // An import may still meet it: it dedupes.
+    expect(mayImportOver({ uid: 'u1' }, { uid: 'u1' })).toBe(true);
+    expect(mayImportOver(stored, { uid: 'u1' })).toBe(false);
+    expect(mayImportOver({ uid: 'u1' }, { uid: 'u1', organizerCalendarAddress: 'mailto:mallory@evil.com' })).toBe(false);
   });
 });
