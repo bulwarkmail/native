@@ -49,6 +49,7 @@ vi.mock('../offline-cache-store', async (importOriginal) => ({
 import { jmapClient } from '../../api/jmap-client';
 import { sweepOrphanedOfflineCache } from '../offline-cache-store';
 import { forgetAccountData, forgetSharedData } from '../account-data-cleanup';
+import { clearStoredRelayBaseUrl } from '../../lib/push-notifications';
 import { useAuthStore, HYDRATION_TIMEOUT_MS } from '../auth-store';
 import { useAccountStore } from '../account-store';
 import { useCalendarStore } from '../calendar-store';
@@ -225,6 +226,19 @@ describe('auth-store', () => {
       expect(forgetAccountData).toHaveBeenCalledWith({
         appAccountId: 'other@x.example.com', serverUrl: 'https://x.example.com', username: 'other',
       }, { lastAccount: false });
+    });
+
+    it('removeAccount clears the push relay of that account only', async () => {
+      useAccountStore.setState({ accounts: [
+        entry('other@x.example.com', 'https://x.example.com', 'other'),
+        entry('me@mail.example.com', 'https://mail.example.com', 'me'),
+      ] });
+      useAuthStore.setState({ activeAccountId: 'me@mail.example.com' });
+
+      await useAuthStore.getState().removeAccount('other@x.example.com');
+
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledTimes(1);
+      expect(clearStoredRelayBaseUrl).toHaveBeenCalledWith('other@x.example.com');
     });
 
     it('logoutAll forgets every account\'s data', async () => {

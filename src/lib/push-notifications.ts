@@ -621,39 +621,55 @@ function loadedAppAccountId(): string | null {
 
 // Signed-in app accounts, read straight from the persisted registry the way
 // the headless push task does (no store import, no hydration to wait for).
-async function readRegistryAccountIds(): Promise<string[]> {
+// Null when the registry is unreadable, so a caller can tell "none" from "unknown".
+async function readRegistryAccountIds(): Promise<string[] | null> {
   try {
-    const parsed = JSON.parse((await AsyncStorage.getItem('account-registry')) ?? 'null');
-    const accounts: unknown = parsed?.state?.accounts;
-    if (!Array.isArray(accounts)) return [];
+    const raw = await AsyncStorage.getItem('account-registry');
+    if (raw === null) return [];
+    const accounts: unknown = JSON.parse(raw)?.state?.accounts;
+    if (!Array.isArray(accounts)) return null;
     return accounts.flatMap((a) => (typeof a?.id === 'string' ? [a.id] : []));
   } catch {
-    return [];
+    return null;
   }
 }
 
 // Copy the device-wide v1 relay to every known account that has no v2 value,
-// then drop it. Never overwrites a v2 value, and a second run finds no v1.
-async function migrateLegacyRelayBaseUrl(extraAccountId: string | null): Promise<void> {
+// then drop it. Never overwrites a v2 value, and a second run finds no v1. An
+// unreadable registry leaves v1 in place so a later read retries.
+async function runRelayMigration(): Promise<void> {
   const legacy = await AsyncStorage.getItem(LEGACY_RELAY_BASE_URL_KEY);
   if (legacy === null) return;
+  const registry = await readRegistryAccountIds();
+  if (registry === null) return;
   const ids = new Set<string>(await readPushAccountIds());
-  for (const id of await readRegistryAccountIds()) ids.add(id);
-  if (extraAccountId) ids.add(extraAccountId);
-  for (const id of ids) {
-    if ((await AsyncStorage.getItem(relayBaseUrlKey(id))) === null) {
-      await AsyncStorage.setItem(relayBaseUrlKey(id), legacy);
-    }
-  }
+  for (const id of registry) ids.add(id);
+  const keys = [...ids].map(relayBaseUrlKey);
+  const existing = await AsyncStorage.multiGet(keys);
+  const missing = existing.filter(([, v]) => v === null).map(([k]) => [k, legacy] as [string, string]);
+  if (missing.length > 0) await AsyncStorage.multiSet(missing);
   await AsyncStorage.removeItem(LEGACY_RELAY_BASE_URL_KEY);
+}
+
+// Every getter and setter waits on one run, so a set can't be overwritten by a
+// migration that started before it.
+let relayMigration: Promise<void> | null = null;
+function migrateLegacyRelayBaseUrl(): Promise<void> {
+  relayMigration ??= runRelayMigration()
+    .catch(() => undefined)
+    .finally(() => {
+      relayMigration = null;
+    });
+  return relayMigration;
 }
 
 /** The relay stored for an app account (default: the loaded one), or null. */
 export async function getStoredRelayBaseUrl(appAccountId?: string): Promise<string | null> {
   const id = appAccountId ?? loadedAppAccountId();
   if (!id) return null;
-  await migrateLegacyRelayBaseUrl(id);
-  return AsyncStorage.getItem(relayBaseUrlKey(id));
+  await migrateLegacyRelayBaseUrl();
+  const stored = await AsyncStorage.getItem(relayBaseUrlKey(id));
+  return stored !== null && isValidRelayUrl(stored) ? stored : null;
 }
 
 export async function getEffectiveRelayBaseUrl(appAccountId?: string): Promise<string> {
@@ -664,7 +680,7 @@ export async function getEffectiveRelayBaseUrl(appAccountId?: string): Promise<s
 export async function setStoredRelayBaseUrl(url: string | null, appAccountId?: string): Promise<void> {
   const id = appAccountId ?? loadedAppAccountId();
   if (!id) return;
-  await migrateLegacyRelayBaseUrl(id);
+  await migrateLegacyRelayBaseUrl();
   if (!url) {
     await AsyncStorage.removeItem(relayBaseUrlKey(id));
   } else {
@@ -1028,7 +1044,10 @@ async function setupPushNotificationsInner(
     throw new PushSetupError('platform', t('settings.notifications.push.err_up_android_only', 'UnifiedPush is only available on Android.'));
   }
 
-  const relayBaseUrl = (params.relayBaseUrl ?? (await getEffectiveRelayBaseUrl())).replace(/\/+$/, '');
+  const loadedId = loadedAppAccountId();
+  const relayBaseUrl = (
+    params.relayBaseUrl ?? (loadedId ? await getEffectiveRelayBaseUrl(loadedId) : DEFAULT_RELAY_BASE_URL)
+  ).replace(/\/+$/, '');
   if (!relayBaseUrl) throw new PushSetupError('relay', 'relayBaseUrl is required');
   if (!isValidRelayUrl(relayBaseUrl)) {
     throw new PushSetupError('relay', t('settings.notifications.push.err_relay_https', 'The relay URL must use https://.'));
@@ -1550,6 +1569,11 @@ export async function teardownPushNotifications(): Promise<void> {
     }
     await clearAccountPushKeys(accountId);
     await clearStoredRelayBaseUrl(accountId);
+  }
+
+  // Accounts that never turned push on can still hold a relay of their own.
+  for (const id of (await readRegistryAccountIds()) ?? []) {
+    await clearStoredRelayBaseUrl(id);
   }
 
   await AsyncStorage.multiRemove([PUSH_ACCOUNT_IDS_KEY, PUSH_JMAP_ACCOUNT_IDS_KEY]);

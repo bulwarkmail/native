@@ -16,6 +16,7 @@ import { useColors } from '../../theme/colors';
 import { useAuthStore } from '../../stores/auth-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
+import { resetPushRelay } from '../../lib/push-relay-reset';
 import {
   DEFAULT_RELAY_BASE_URL,
   disablePushForAccount,
@@ -151,15 +152,19 @@ export function NotificationSettings() {
     return error instanceof Error ? error.message : t('settings.notifications.push.setup_failed', 'Setup failed');
   };
 
-  // Back to the hosted relay for the shown account. An enabled registration
-  // keeps its old relay until Re-register moves it.
+  // Back to the hosted relay for the shown account. With push on, the account
+  // is re-registered there at once: renewals skip an account with no stored
+  // relay, so a bare clear would leave it registered with the old one.
   const handleResetRelay = async () => {
-    if (activeAccountId) await setStoredRelayBaseUrl(null, activeAccountId);
     setRelayUrl(DEFAULT_RELAY_BASE_URL);
+    if (activeAccountId) {
+      await resetPushRelay(activeAccountId, pushEnabled, (relay) => handleEnable(true, relay));
+    }
   };
 
-  const handleEnable = async (forceRecreate = false) => {
-    if (!relayValid) {
+  const handleEnable = async (forceRecreate = false, relayOverride?: string) => {
+    const relay = relayOverride ?? trimmed;
+    if (!isValidRelayUrl(relay)) {
       setPushStatus({
         kind: 'error',
         message: t('settings.notifications.push.relay_invalid', 'Enter a valid https:// URL'),
@@ -171,9 +176,9 @@ export function NotificationSettings() {
       message: t('settings.notifications.push.status_busy', 'Working…'),
     });
     try {
-      if (activeAccountId) await setStoredRelayBaseUrl(trimmed, activeAccountId);
+      if (activeAccountId) await setStoredRelayBaseUrl(relay, activeAccountId);
       await setupPushNotifications({
-        relayBaseUrl: trimmed,
+        relayBaseUrl: relay,
         accountLabel: username ?? undefined,
         forceRecreate,
       });

@@ -1,4 +1,5 @@
 import { signOutWithGuard } from './src/lib/sign-out-guard';
+import { generateAccountId } from './src/lib/account-utils';
 import React from 'react';
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -785,7 +786,9 @@ export default function App() {
         }
         return;
       }
-      const relayBaseUrl = await getStoredRelayBaseUrl();
+      if (!activeAccountId || !client.username || !client.serverUrl) return;
+      if (generateAccountId(client.username, client.serverUrl) !== activeAccountId) return;
+      const relayBaseUrl = await getStoredRelayBaseUrl(activeAccountId);
       if (!relayBaseUrl) return;
       try {
         await resyncPushNotifications({

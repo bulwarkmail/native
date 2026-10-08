@@ -27,6 +27,7 @@ import {
   getStoredRelayBaseUrl,
   relayBaseUrlKey,
   setStoredRelayBaseUrl,
+  teardownPushNotifications,
 } from '../push-notifications';
 
 const A = 'a@one.example';
@@ -81,8 +82,51 @@ describe('push relay per account', () => {
     expect(await getStoredRelayBaseUrl(B)).toBe('https://mine.example');
   });
 
+  it('does not copy v1 to an asker that is not a known account', async () => {
+    await AsyncStorage.setItem(V1, 'https://old.example');
+    expect(await getStoredRelayBaseUrl(A)).toBeNull();
+    expect(await AsyncStorage.getItem(relayBaseUrlKey(A))).toBeNull();
+  });
+
+  it('keeps v1 when the registry is unreadable, and migrates on a later read', async () => {
+    await AsyncStorage.setItem(V1, 'https://old.example');
+    await AsyncStorage.setItem('account-registry', '{not json');
+    expect(await getStoredRelayBaseUrl(A)).toBeNull();
+    expect(await AsyncStorage.getItem(V1)).toBe('https://old.example');
+    await AsyncStorage.setItem('account-registry', JSON.stringify({ state: { accounts: [{ id: A }] } }));
+    expect(await getStoredRelayBaseUrl(A)).toBe('https://old.example');
+    expect(await AsyncStorage.getItem(V1)).toBeNull();
+  });
+
+  it('a set racing the migration is not overwritten', async () => {
+    await AsyncStorage.setItem('account-registry', JSON.stringify({ state: { accounts: [{ id: A }] } }));
+    await AsyncStorage.setItem(V1, 'https://old.example');
+    await Promise.all([
+      setStoredRelayBaseUrl('https://new.example', A),
+      getStoredRelayBaseUrl(A),
+      getStoredRelayBaseUrl(A),
+    ]);
+    expect(await getStoredRelayBaseUrl(A)).toBe('https://new.example');
+  });
+
+  it('ignores a stored value that is not an https relay', async () => {
+    await AsyncStorage.setItem(relayBaseUrlKey(A), 'http://evil.example');
+    expect(await getStoredRelayBaseUrl(A)).toBeNull();
+    expect(await getEffectiveRelayBaseUrl(A)).toBe(DEFAULT_RELAY_BASE_URL);
+  });
+
+  it('logout-all clears the relay of registry accounts that never had push', async () => {
+    await AsyncStorage.setItem('account-registry', JSON.stringify({ state: { accounts: [{ id: A }, { id: B }] } }));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([A]));
+    await setStoredRelayBaseUrl('https://relay-a.example', A);
+    await setStoredRelayBaseUrl('https://relay-b.example', B);
+    await teardownPushNotifications();
+    expect(await AsyncStorage.getItem(relayBaseUrlKey(A))).toBeNull();
+    expect(await AsyncStorage.getItem(relayBaseUrlKey(B))).toBeNull();
+  });
+
   it('migration also reaches an account only push knows about', async () => {
-    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([B]));
+    await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([A, B]));
     await AsyncStorage.setItem(V1, 'https://old.example');
     expect(await getStoredRelayBaseUrl(A)).toBe('https://old.example');
     expect(await AsyncStorage.getItem(relayBaseUrlKey(B))).toBe('https://old.example');
