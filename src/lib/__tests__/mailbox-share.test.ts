@@ -30,6 +30,11 @@ describe('mailboxShareScope', () => {
       .toEqual({ at: { gen: 3, accountId: 'c' }, id: '5' });
   });
 
+  it('refuses a shared folder that names no owner account', () => {
+    // Without one the grant would go to the user's own same-id folder.
+    expect(() => mailboxShareScope(mailbox({ id: '5', originalId: '5', isShared: true }), at)).toThrow();
+  });
+
   it('splits the namespaced id when the raw id was not kept', () => {
     expect(mailboxShareScope(mailbox({ id: 'c:5', accountId: 'c', isShared: true }), at))
       .toEqual({ at: { gen: 3, accountId: 'c' }, id: '5' });

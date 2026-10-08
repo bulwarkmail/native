@@ -95,10 +95,6 @@ export function sessionSupportsMailShare(
   return !!account.accountCapabilities && CAPABILITIES.MAIL_SHARE in account.accountCapabilities;
 }
 
-export function useHasMailShare(jmapAccountId: string | null | undefined): boolean {
-  return useAuthStore((s) => sessionSupportsMailShare(s.session, jmapAccountId));
-}
-
 export type SharedAccountSettingsTab = 'filters' | 'vacation' | 'calendar' | 'contacts';
 
 // Whether JMAP account `accountId` of the live session has `capability`.

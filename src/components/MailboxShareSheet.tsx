@@ -4,7 +4,7 @@ import type { Mailbox, MailboxRights } from '../api/types';
 import { getMailboxShareWith, setMailboxShare } from '../api/email';
 import type { OpScope } from '../api/op-scope';
 import { jmapClient } from '../api/jmap-client';
-import { AccountNotServedError, isShownAccount, requireShownAccountScope } from '../stores/email-store';
+import { isShownAccount, requireShownAccountScope } from '../stores/email-store';
 import { useAuthStore } from '../stores/auth-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { isStaleLoad } from '../lib/network-error';
@@ -117,8 +117,11 @@ export function MailboxShareSheet({ mailbox, ownerAppAccountId, onClose }: Mailb
           await setMailboxShare(opened.id, principalId, rights, opened.at);
         } catch (err) {
           // The connection the sheet opened on was replaced (an account
-          // switch): say so in words, not the client's internal reason.
-          throw isStaleLoad(err) ? new AccountNotServedError('switched') : err;
+          // switch or a reconnect): say so in words, not the client's
+          // internal reason.
+          throw isStaleLoad(err)
+            ? new Error(t('sharing.connection_changed', 'The connection changed. Try again.'))
+            : err;
         }
       }}
       reload={() => getMailboxShareWith(opened.id, opened.at)}

@@ -975,6 +975,7 @@
       "role": "Special use",
       "role_hint": "Assign a special-use role (Archive, Junk, …) to this folder. Each role can be held by one folder.",
       "save_failed": "Save failed",
+      "share_save_first": "Save your changes to share this folder.",
       "system_folder_delete": "System folders cannot be removed.",
       "system_folder_rename": "System folders cannot be renamed.",
       "top_level": "Top level"
@@ -1303,6 +1304,8 @@
   },
   "sharing": {
     "confirm_manager_title": "Make them a manager?",
+    "connection_changed": "The connection changed. Try again.",
+    "folder_owner_unknown": "Could not tell whose folder this is, so it can't be shared.",
     "folder_share_forbidden": "You don't have permission to share this folder",
     "own_books_only": "Only your own address books can be shared",
     "preset": {

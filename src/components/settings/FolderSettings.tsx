@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,8 +33,8 @@ import { useFolderIconsStore, folderIconOf } from '../../stores/folder-icons-sto
 import { FOLDER_ICON_NAMES, folderIconLabel, type FolderIconName } from '../../lib/folder-icons';
 import { folderIconComponent } from '../folder-icon';
 import { folderIconPrunePlan } from '../../lib/folder-icon-prune';
-import { useHasMailShare } from '../../lib/capabilities';
-import { MailboxShareSheet } from '../MailboxShareSheet';
+import { useAuthStore } from '../../stores/auth-store';
+import { MailboxShareSheet, canOfferMailboxShare } from '../MailboxShareSheet';
 
 const ROLE_ICON: Record<string, any> = {
   inbox: Inbox, drafts: FileText, sent: Send, trash: Trash,
@@ -214,13 +215,33 @@ export function FolderSettings() {
 
   const closeEditor = () => setEditor(null);
 
-  // Settings lists own folders only, so "Share…" needs the own account's
-  // mail:share capability and nothing more.
-  const editingAccount = editor?.kind === 'edit'
-    ? editor.mailbox.accountId ?? jmapClient.connectedAccountId
-    : null;
-  const canShare = useHasMailShare(editingAccount);
+  // "Share…" is offered by the account the editor was opened on, as the
+  // drawer does: never by whichever account the connection serves now. The
+  // session is read so a capability change redraws the editor.
+  useAuthStore((s) => s.session);
+  const canShare = editor?.kind === 'edit' && canOfferMailboxShare(editor.mailbox, editor.owner);
   const [sharing, setSharing] = useState<{ mailbox: Mailbox; owner: string | null } | null>(null);
+  // An edit not yet saved would be lost by leaving for the share sheet, so
+  // Share waits for Save.
+  const draftDirty = editor?.kind === 'edit' && (
+    (!editor.mailbox.role && draftName.trim() !== editor.mailbox.name)
+    || (draftParent === NO_PARENT ? null : draftParent) !== (editor.mailbox.parentId ?? null)
+    || (draftRole === NO_ROLE ? null : draftRole) !== (editor.mailbox.role ?? null)
+    || iconPicked
+  );
+  // iOS can't present the share sheet while the editor is still sliding
+  // away: it opens once the editor is gone (onDismiss is iOS only).
+  const shareAfterEditor = useRef<{ mailbox: Mailbox; owner: string | null } | null>(null);
+  const openShareFromEditor = (target: { mailbox: Mailbox; owner: string | null }) => {
+    closeEditor();
+    if (Platform.OS === 'ios') shareAfterEditor.current = target;
+    else setSharing(target);
+  };
+  const onEditorDismissed = () => {
+    const target = shareAfterEditor.current;
+    shareAfterEditor.current = null;
+    if (target) setSharing(target);
+  };
 
   // Settings lists only own folders, so the ids here are the raw JMAP ids the
   // shown account's scope writes to.
@@ -481,7 +502,7 @@ export function FolderSettings() {
         )}
       </SettingsSection>
 
-      <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
+      <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor} onDismiss={onEditorDismissed}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
@@ -588,17 +609,21 @@ export function FolderSettings() {
               )}
 
               {editor?.kind === 'edit' && canShare && (
-                <Pressable
-                  onPress={() => {
-                    closeEditor();
-                    setSharing({ mailbox: editor.mailbox, owner: editor.owner });
-                  }}
-                  style={styles.shareRow}
-                  accessibilityRole="button"
-                >
-                  <Share2 size={14} color={c.text} />
-                  <Text style={styles.shareRowText}>{t('mailbox_context_menu.share', 'Share...')}</Text>
-                </Pressable>
+                <>
+                  <Pressable
+                    onPress={() => openShareFromEditor({ mailbox: editor.mailbox, owner: editor.owner })}
+                    disabled={draftDirty || saving}
+                    style={[styles.shareRow, (draftDirty || saving) && { opacity: 0.5 }]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: draftDirty || saving }}
+                  >
+                    <Share2 size={14} color={c.text} />
+                    <Text style={styles.shareRowText}>{t('mailbox_context_menu.share', 'Share...')}</Text>
+                  </Pressable>
+                  {draftDirty ? (
+                    <Text style={styles.hint}>{t('settings.folders.share_save_first', 'Save your changes to share this folder.')}</Text>
+                  ) : null}
+                </>
               )}
 
               {editor?.kind === 'edit' && !editor.mailbox.role && (
