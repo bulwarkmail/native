@@ -16,10 +16,19 @@ const app = (over: Partial<SidebarApp> = {}): SidebarApp => ({
 describe('sanitizeSidebarAppUrl', () => {
   it('accepts https', () => {
     expect(sanitizeSidebarAppUrl('https://example.com/a?b=1')).toBe('https://example.com/a?b=1');
-    expect(sanitizeSidebarAppUrl('HTTPS://example.com/')).toBe('https://example.com/');
+    expect(sanitizeSidebarAppUrl('HTTPS://example.com')).toBe('https://example.com');
+    expect(sanitizeSidebarAppUrl('HtTpS://Example.com/x')).toBe('https://Example.com/x');
+    expect(sanitizeSidebarAppUrl('https://a.com/@x')).toBe('https://a.com/@x');
+    expect(sanitizeSidebarAppUrl('https://a.com/?u=b@c#@d')).toBe('https://a.com/?u=b@c#@d');
   });
 
   it.each([
+    String.raw`https:/\evil.com`,
+    String.raw`https://a.com\@b.com`,
+    String.raw`https:\\evil.com`,
+    String.raw`https://a.com/\x`,
+    'https://@a.com',
+    'https://a.com@b.com',
     'http://example.com',
     'javascript:alert(1)',
     'JavaScript:alert(1)',
@@ -93,7 +102,7 @@ describe('selectMobileSidebarApps', () => {
     ];
     const out = selectMobileSidebarApps(apps);
     expect(out.map((a) => a.id)).toEqual(['ok']);
-    expect(out[0].url).toBe('https://example.com/');
+    expect(out[0].url).toBe('https://example.com');
   });
 });
 
@@ -104,7 +113,7 @@ describe('openSidebarApp', () => {
     await openSidebarApp(app({ openMode: 'inline' }));
     await openSidebarApp(app({ openMode: 'tab', url: 'https://b.example.com' }));
     expect(openBrowserAsync.mock.calls.map((c) => c[0])).toEqual([
-      'https://wiki.example.com/', 'https://b.example.com/',
+      'https://wiki.example.com/', 'https://b.example.com',
     ]);
   });
 
