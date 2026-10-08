@@ -9,7 +9,7 @@ import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
-  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search,
+  CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search, Globe,
   type LucideIcon,
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -30,6 +30,7 @@ import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
+import { useMobileSidebarApps, openSidebarApp } from '../lib/sidebar-apps';
 import { showUnifiedSection } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
@@ -314,6 +315,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const sidebarApps = useMobileSidebarApps();
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const accountSnapshots = useEmailStore((s) => s.accountSnapshots);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
@@ -1205,6 +1207,26 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     />
                   );
                 })}
+              </>
+            )}
+            {/* Sidebar apps: web links only, opened in a Custom Tab */}
+            {sidebarApps.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>{t('sidebar.apps', 'Apps')}</Text>
+                </View>
+                {sidebarApps.map((app) => (
+                  <Pressable
+                    key={app.id}
+                    style={styles.quickRow}
+                    onPress={() => { onClose(); void openSidebarApp(app); }}
+                    accessibilityRole="link"
+                    accessibilityLabel={app.name}
+                  >
+                    <Globe size={16} color={c.textMuted} />
+                    <Text style={styles.quickRowLabel} numberOfLines={1}>{app.name}</Text>
+                  </Pressable>
+                ))}
               </>
             )}
           </ScrollView>

@@ -9,6 +9,7 @@ import { spacing, radius, typography, type ThemePalette } from '../../theme/toke
 import { useColors } from '../../theme/colors';
 import { useSettingsStore, type SidebarApp } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { sanitizeSidebarAppUrl } from '../../lib/sidebar-apps';
 
 export function SidebarAppsSettings() {
   const c = useColors();
@@ -134,7 +135,10 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
   const [openMode, setOpenMode] = useState<'tab' | 'inline'>(initial?.openMode ?? 'tab');
   const [showOnMobile, setShowOnMobile] = useState(initial?.showOnMobile ?? false);
 
-  const canSave = name.trim().length > 0 && url.trim().length > 0;
+  // The raw field, not a trimmed copy: whitespace or control characters in it
+  // are an error to fix, never silently dropped.
+  const safeUrl = sanitizeSidebarAppUrl(url);
+  const canSave = name.trim().length > 0 && safeUrl !== null;
 
   return (
     <View style={formStyles.form}>
@@ -160,6 +164,9 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
           autoCapitalize="none"
           keyboardType="url"
         />
+        {url.length > 0 && safeUrl === null && (
+          <Text style={formStyles.error}>{t('settings.sidebar_apps.form.url_invalid', "Enter a web address starting with https://")}</Text>
+        )}
       </View>
 
       <View>
@@ -200,7 +207,7 @@ function AppForm({ initial, onSave, onCancel }: AppFormProps) {
         <Button
           size="sm"
           disabled={!canSave}
-          onPress={() => onSave({ name: name.trim(), url: url.trim(), icon: 'Globe', openMode, showOnMobile })}
+          onPress={() => onSave({ name: name.trim(), url: safeUrl as string, icon: 'Globe', openMode, showOnMobile })}
         >
           {initial ? t('common.update', "Update") : t('common.add', "Add")}
         </Button>
@@ -277,6 +284,7 @@ function makeFormStyles(c: ThemePalette) {
       backgroundColor: c.muted,
     },
     label: { ...typography.captionMedium, color: c.text },
+    error: { ...typography.caption, color: c.error, marginTop: 4 },
     input: {
       marginTop: 4,
       paddingHorizontal: spacing.md,

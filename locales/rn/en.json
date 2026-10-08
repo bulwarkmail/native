@@ -1220,7 +1220,8 @@
         "name_placeholder": "App name",
         "open_mode": "Open mode",
         "show_on_mobile": "Show on mobile",
-        "url": "URL"
+        "url": "URL",
+        "url_invalid": "Enter a web address starting with https://"
       },
       "keep_loaded_description_mobile": "Keep inline apps running in the background when switching away.",
       "open_mode": {
@@ -1283,6 +1284,7 @@
   },
   "sidebar": {
     "account_error": "Needs attention",
+    "apps": "Apps",
     "remove_account_hint": "Long-press to remove this account",
     "remove_account_message": "Sign out of {account} on this device. Your mail stays on the server.",
     "remove_account_title": "Remove account?",
