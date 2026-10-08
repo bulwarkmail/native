@@ -27,17 +27,22 @@ export function idTokenKey(accountId: string): string {
   return ID_TOKEN_PREFIX + accountId.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+// An https URL with a host, and no backslash or credentials in front of the
+// path. Judged on the string alone, as `sanitizeSidebarAppUrl` is: React
+// Native's `URL` is a few regexes, and Node's WHATWG one reads a backslash as
+// a slash, so the two disagree on exactly the URLs that matter.
+const HTTPS_ENDPOINT_RE = /^https:\/\/[^\s\\/?#@]+(?:[/?#][^\s\\]*)?$/i;
+
+// The parameters this app sets, replaced if the endpoint already names one.
+const END_SESSION_PARAMS = new Set(['client_id', 'id_token_hint', 'post_logout_redirect_uri']);
+
 /**
  * The endpoint as advertised, when it is one the id token may travel to:
  * an https URL. Anything else means no provider logout.
  */
 export function usableEndSessionEndpoint(endpoint: unknown): string | undefined {
   if (typeof endpoint !== 'string') return undefined;
-  try {
-    return new URL(endpoint).protocol === 'https:' ? endpoint : undefined;
-  } catch {
-    return undefined;
-  }
+  return HTTPS_ENDPOINT_RE.test(endpoint) ? endpoint : undefined;
 }
 
 /**
@@ -45,6 +50,11 @@ export function usableEndSessionEndpoint(endpoint: unknown): string | undefined 
  * endpoint is unusable. `client_id` is always sent: providers use it to check
  * the redirect URI and to find the session without an id token.
  * `id_token_hint` lets providers such as Keycloak end it without asking.
+ *
+ * Built as a string, never through `URL`: on the device React Native's would
+ * add `/` to the path, which strict routers answer with a 404, and repeat the
+ * endpoint's own query. The path and any query the provider gave are kept as
+ * they are; a fragment is dropped.
  */
 export function buildEndSessionUrl(params: {
   endpoint: string;
@@ -52,12 +62,15 @@ export function buildEndSessionUrl(params: {
   idToken?: string | null;
   postLogoutRedirectUri?: string;
 }): string | null {
-  if (!usableEndSessionEndpoint(params.endpoint)) return null;
-  const url = new URL(params.endpoint);
-  url.searchParams.set('client_id', params.clientId);
-  if (params.idToken) url.searchParams.set('id_token_hint', params.idToken);
-  if (params.postLogoutRedirectUri) url.searchParams.set('post_logout_redirect_uri', params.postLogoutRedirectUri);
-  return url.toString();
+  const usable = usableEndSessionEndpoint(params.endpoint);
+  if (!usable) return null;
+  const [path, query = ''] = usable.split('#', 1)[0].split(/\?(.*)/s);
+  const kept = query.split('&').filter((pair) => pair && !END_SESSION_PARAMS.has(pair.split('=', 1)[0]));
+  const added: [string, string][] = [['client_id', params.clientId]];
+  if (params.idToken) added.push(['id_token_hint', params.idToken]);
+  if (params.postLogoutRedirectUri) added.push(['post_logout_redirect_uri', params.postLogoutRedirectUri]);
+  const pairs = [...kept, ...added.map(([k, v]) => `${k}=${encodeURIComponent(v)}`)];
+  return `${path}?${pairs.join('&')}`;
 }
 
 /** Keep the account's id token for sign-out, or forget a stale one. */
@@ -101,8 +114,13 @@ export async function replaceIdToken(
 export function providerOf(endpoint: string | undefined): string | null {
   const usable = usableEndSessionEndpoint(endpoint);
   if (!usable) return null;
-  const url = new URL(usable);
-  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+  // String operations, as in buildEndSessionUrl. The scheme and host are
+  // compared without case and the default port dropped, as an origin would be.
+  const rest = usable.slice('https://'.length).split(/[?#]/, 1)[0];
+  const slash = rest.indexOf('/');
+  const host = (slash < 0 ? rest : rest.slice(0, slash)).toLowerCase().replace(/:443$/, '');
+  const path = slash < 0 ? '' : rest.slice(slash).replace(/\/+$/, '');
+  return `https://${host}${path}`;
 }
 
 /** What ending one account's provider session needs, read before sign-out drops it. */

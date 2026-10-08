@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -11,6 +11,7 @@ import {
   storeIdToken,
 } from '../provider-session';
 import type { OAuthTokenSource } from '../oauth';
+import { reactNativeURL } from './helpers/rn-url';
 
 const mockGet = SecureStore.getItemAsync as ReturnType<typeof vi.fn>;
 const mockOpen = WebBrowser.openAuthSessionAsync as ReturnType<typeof vi.fn>;
@@ -176,5 +177,58 @@ describe('providerOf', () => {
     const other = 'https://sso.example.com/realms/other/protocol/openid-connect/logout';
     expect(providerOf(other)).not.toBe(providerOf(ENDPOINT));
     expect(providerOf('https://sso.example.com:8443/realms/mail/protocol/openid-connect/logout')).not.toBe(providerOf(ENDPOINT));
+  });
+});
+
+// On a device the global `URL` is React Native's, which appends `/` to a bare
+// path and repeats a query it already had (helpers/rn-url.ts). A strict
+// provider answers `/logout/` with a 404 and keeps its session, so the URL
+// must come out the same under both.
+describe.each([
+  ['WHATWG', () => URL],
+  ['React Native', reactNativeURL],
+])('under %s URL', (_name, impl) => {
+  beforeEach(() => {
+    vi.stubGlobal('URL', impl());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('builds the end-session URL on the endpoint exactly as advertised', () => {
+    expect(buildEndSessionUrl({ endpoint: ENDPOINT, clientId: 'bulwark', idToken: 'id.jwt.sig' }))
+      .toBe(`${ENDPOINT}?client_id=bulwark&id_token_hint=id.jwt.sig`);
+    expect(buildEndSessionUrl({ endpoint: 'https://idp.example/oidc/logout', clientId: 'bulwark' }))
+      .toBe('https://idp.example/oidc/logout?client_id=bulwark');
+  });
+
+  it('keeps an existing query once, and drops a fragment', () => {
+    expect(buildEndSessionUrl({ endpoint: 'https://b2c.example/logout?p=B2C_1_signin#x', clientId: 'bulwark' }))
+      .toBe('https://b2c.example/logout?p=B2C_1_signin&client_id=bulwark');
+  });
+
+  it('replaces a parameter the endpoint already names, and encodes values', () => {
+    expect(buildEndSessionUrl({
+      endpoint: `${ENDPOINT}?client_id=old&tenant=a`,
+      clientId: 'bulwark app',
+      idToken: 'a+b/c=',
+    })).toBe(`${ENDPOINT}?tenant=a&client_id=bulwark%20app&id_token_hint=a%2Bb%2Fc%3D`);
+  });
+
+  it('refuses an endpoint the id token must not travel to', () => {
+    for (const endpoint of [
+      'http://sso.example.com/logout', 'javascript:alert(1)', 'not a url', '',
+      String.raw`https:/\evil.com/logout`, 'https://a.com@evil.com/logout', 'https://',
+    ]) {
+      expect(buildEndSessionUrl({ endpoint, clientId: 'bulwark', idToken: 'id' })).toBeNull();
+    }
+  });
+
+  it('names the provider the same way', () => {
+    expect(providerOf(ENDPOINT)).toBe(ENDPOINT);
+    expect(providerOf(`${ENDPOINT}/?client_id=x#top`)).toBe(ENDPOINT);
+    expect(providerOf('HTTPS://SSO.example.com:443/realms/mail/protocol/openid-connect/logout')).toBe(ENDPOINT);
+    expect(providerOf('https://sso.example.com:8443/realms/mail/protocol/openid-connect/logout'))
+      .toBe('https://sso.example.com:8443/realms/mail/protocol/openid-connect/logout');
   });
 });
