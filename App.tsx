@@ -103,9 +103,14 @@ import { startOutboxToasts } from './src/lib/outbox-toasts';
 import { runOfflineSync } from './src/lib/offline-sync';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { useColors } from './src/theme/colors';
+import { syncFontScale } from './src/theme/dynamic';
 
 // Webmail's use-identity-sync cadence.
 const IDENTITY_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+
+// Follow the font size setting from the first render. Subscribed before the
+// hydrate below, so the stored size is applied inside its set().
+syncFontScale();
 
 // Read the settings now, beside the stores that hydrate on import, so the start
 // folder is known by the time the session restores.
@@ -240,7 +245,7 @@ function LoadingScreen({ message }: { message: string }) {
   return (
     <View style={[styles.loadingContainer, { backgroundColor: c.background }]}>
       <ActivityIndicator color={c.primary} />
-      <Text style={[styles.loadingText, { color: c.textSecondary }]}>{message}</Text>
+      <Text style={[typography.body, { color: c.textSecondary }]}>{message}</Text>
     </View>
   );
 }
@@ -1046,9 +1051,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-  },
-  loadingText: {
-    ...typography.body,
   },
 });
 

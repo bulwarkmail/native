@@ -6,16 +6,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { useSettingsStore } from '../stores/settings-store';
-import { typography as baseTypography, spacing as baseSpacing } from './tokens';
+import { applyFontScale, FONT_SCALE, typography, spacing as baseSpacing } from './tokens';
 
-export type FontScale = 'small' | 'medium' | 'large';
 export type DensityKind = 'extra-compact' | 'compact' | 'regular' | 'comfortable';
-
-const FONT_SCALE: Record<FontScale, number> = {
-  small: 0.92,
-  medium: 1,
-  large: 1.12,
-};
 
 // How tall an email-list-style row should be. Mirrors the webmail
 // `--density-item-py` token, halved for the per-side padding.
@@ -34,38 +27,23 @@ const ROW_GAP: Record<DensityKind, number> = {
   comfortable: 14,
 };
 
-function scaleStyle(
-  style: { fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' },
-  factor: number,
-) {
-  return {
-    fontSize: Math.round(style.fontSize * factor),
-    lineHeight: Math.round(style.lineHeight * factor),
-    fontWeight: style.fontWeight,
-  };
+// Keeps `typography` at the stored font size. It applies the current size
+// at once, then rescales inside the store's set(), so hydration and the
+// setting both land before React renders the change. Returns the
+// unsubscribe.
+export function syncFontScale(): () => void {
+  const apply = (size: keyof typeof FONT_SCALE) => applyFontScale(FONT_SCALE[size] ?? 1);
+  apply(useSettingsStore.getState().fontSize);
+  return useSettingsStore.subscribe((state, prev) => {
+    if (state.fontSize !== prev.fontSize) apply(state.fontSize);
+  });
 }
 
+// The live `typography`, with a new identity when the font size changes so
+// memos keyed on it recompute.
 export function useTypography() {
   const fontSize = useSettingsStore((s) => s.fontSize);
-  return useMemo(() => {
-    const f = FONT_SCALE[fontSize] ?? 1;
-    if (f === 1) return baseTypography;
-    return {
-      h1: scaleStyle(baseTypography.h1, f),
-      h2: scaleStyle(baseTypography.h2, f),
-      h3: scaleStyle(baseTypography.h3, f),
-      body: scaleStyle(baseTypography.body, f),
-      bodyMedium: scaleStyle(baseTypography.bodyMedium, f),
-      bodySemibold: scaleStyle(baseTypography.bodySemibold, f),
-      bodyBold: scaleStyle(baseTypography.bodyBold, f),
-      base: scaleStyle(baseTypography.base, f),
-      baseMedium: scaleStyle(baseTypography.baseMedium, f),
-      caption: scaleStyle(baseTypography.caption, f),
-      captionMedium: scaleStyle(baseTypography.captionMedium, f),
-      small: scaleStyle(baseTypography.small, f),
-      tabLabel: scaleStyle(baseTypography.tabLabel, f),
-    };
-  }, [fontSize]);
+  return useMemo(() => ({ ...typography }), [fontSize]);
 }
 
 export function useDensity() {
