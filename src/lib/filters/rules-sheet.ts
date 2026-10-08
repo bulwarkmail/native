@@ -66,3 +66,23 @@ export function rulesSheetItems(model: RulesSheetModel): RulesSheetItem[] {
     return { id, disabled: false };
   });
 }
+
+/** What the Rules sheet reads of a target's filters script, kept with the target it was read for. */
+export interface TargetFilters {
+  /** The target's `key`: the app account and the JMAP account, since ids repeat across logins. */
+  targetKey: string;
+  /** The script was edited by hand. */
+  opaque: boolean;
+  /** The forwards around a new rule, for the server's redirect limit; null when unknown. */
+  forwards: {
+    maxRedirects: number | null;
+    periodsSupported: boolean;
+    before: number;
+    after: number;
+  } | null;
+}
+
+/** `read` while `targetKey` is still the target it was read for, else null. */
+export function targetFiltersFor<T extends { targetKey: string }>(read: T | null, targetKey: string | undefined): T | null {
+  return read && targetKey !== undefined && read.targetKey === targetKey ? read : null;
+}

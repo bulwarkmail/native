@@ -35,17 +35,45 @@ export function isComposerOwnerActive(
 }
 
 /**
+ * The JMAP account id an app account had when the client last served it
+ * (`AccountEntry.jmapAccountId`), looked up by app account id. Only the
+ * owner's own id is ever asked for: JMAP ids repeat across servers, so
+ * another account's id could name a different mailbox.
+ */
+export type RecordedJmapAccountId = (appAccountId: string) => string | null | undefined;
+
+/**
  * The owner is whoever is active when the composer mounts — including for a
  * reopened draft: JMAP account ids are only unique per server, so a draft's
- * id can't safely name a registry account.
+ * id can't safely name a registry account. The live id (passed only while
+ * the client serves the active account) wins; on an offline cold start the
+ * id recorded for that same app account stands in.
  */
 export function composerOwnerAtMount(params: {
   activeAppAccountId: string | null;
   activeJmapAccountId: string | null;
+  recordedJmapAccountId?: RecordedJmapAccountId;
 }): ComposerAccount | null {
-  const { activeAppAccountId, activeJmapAccountId } = params;
+  const { activeAppAccountId, activeJmapAccountId, recordedJmapAccountId } = params;
   if (!activeAppAccountId) return null;
-  return { appAccountId: activeAppAccountId, jmapAccountId: activeJmapAccountId ?? '' };
+  const jmapAccountId = activeJmapAccountId || recordedJmapAccountId?.(activeAppAccountId) || '';
+  return { appAccountId: activeAppAccountId, jmapAccountId };
+}
+
+/**
+ * The JMAP account a send is queued against, read at send time; '' when
+ * none is known, and then the send is refused. The live id counts only while
+ * the client serves the owner, so a connection that came up after mount is
+ * picked up and one for another account never is. Otherwise the id recorded
+ * for the owner's own app account, then the one pinned at mount.
+ */
+export function queueJmapAccountId(
+  owner: ComposerAccount | null,
+  params: { liveJmapAccountId: string | null; clientServesOwner: boolean; recorded?: RecordedJmapAccountId },
+): string {
+  if (!owner) return '';
+  if (params.clientServesOwner && params.liveJmapAccountId) return params.liveJmapAccountId;
+  return params.recorded?.(owner.appAccountId) || owner.jmapAccountId || '';
 }
 
 /** How the "switch back" alert names the owner; never empty. */

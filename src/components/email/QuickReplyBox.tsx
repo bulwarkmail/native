@@ -25,6 +25,8 @@ import { generateUUID } from '../../lib/uuid';
 import { generateMessageId } from '../../lib/email-threading';
 import type { OutgoingEmail } from '../../api/email';
 import { jmapClient } from '../../api/jmap-client';
+import { queueJmapAccountId } from '../../lib/composer-account';
+import { clientServesAccount, recordedJmapAccountId } from '../../lib/active-client-account';
 import { buildReplyRecipients } from '../../lib/reply-recipients';
 import { buildReplySubject } from '../../lib/subject-prefix';
 import { computeReplyThreadingHeaders } from '../../lib/email-threading';
@@ -196,10 +198,18 @@ export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreO
       }
       // Offline at the moment of sending, before any request: queue it.
       const ownerAppAccountId = ownerRef.current;
-      const queueJmapAccountId = jmapAccountId ?? (jmapClient.isConnected ? jmapClient.accountId : '');
+      // The message's own account, or else the owner's login account, read
+      // now: the box may have mounted before the connection came up.
+      const queueAccountId = jmapAccountId || (ownerAppAccountId
+        ? queueJmapAccountId({ appAccountId: ownerAppAccountId, jmapAccountId: '' }, {
+            liveJmapAccountId: jmapClient.connectedAccountId,
+            clientServesOwner: clientServesAccount(ownerAppAccountId),
+            recorded: recordedJmapAccountId,
+          })
+        : '');
       if (!useNetworkStore.getState().online) {
         if (
-          !hasQueueAccounts(ownerAppAccountId, queueJmapAccountId)
+          !hasQueueAccounts(ownerAppAccountId, queueAccountId)
           || !shouldQueueSend({ online: false, uploadsDone: attachmentsUploaded(outgoing) })
         ) {
           const { title, message } = sendErrorAlert(new Error('offline'), t);
@@ -212,7 +222,7 @@ export function QuickReplyBox({ email, jmapAccountId, ownerAppAccountId, onMoreO
           await useSendQueueStore.getState().enqueue(buildQueuedSend({
             id: generateUUID(),
             appAccountId: ownerAppAccountId!,
-            jmapAccountId: queueJmapAccountId,
+            jmapAccountId: queueAccountId,
             identityId: identity.id,
             outgoing,
             replyTo: { emailIds: [email.id], keyword: '$answered', jmapAccountId },

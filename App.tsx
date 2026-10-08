@@ -193,6 +193,7 @@ async function openDeepLink(link: DeepLink): Promise<void> {
         return false;
       }
     },
+    activeAccountId: () => useAuthStore.getState().activeAccountId,
     switchAccount: async (accountId) => {
       const auth = useAuthStore.getState();
       if (auth.activeAccountId === accountId) return true;

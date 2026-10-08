@@ -8,9 +8,10 @@ import type { FileNode } from '../api/types';
  * another folder). Node ids repeat across accounts, so the target names its
  * account and is never applied to another one's listing.
  */
-export interface FilesOpenTarget {
+export interface FilesIdTarget {
   /** The signed-in account the node belongs to. */
   appAccountId: string;
+  by?: 'id';
   /** The node's id in the Files listing (namespaced `${owner}:${id}` in a shared subtree). */
   nodeId: string;
   /** Folder path the node lives in (`/` for the root), for display and diagnostics. */
@@ -18,6 +19,16 @@ export interface FilesOpenTarget {
   /** The file to preview; null when the target is a folder to open. */
   fileName: string | null;
 }
+
+/** A Files link: folder names from the root, and the file to preview in that folder. */
+export interface FilesPathTarget {
+  appAccountId: string;
+  by: 'path';
+  segments: string[];
+  preview: string | null;
+}
+
+export type FilesOpenTarget = FilesIdTarget | FilesPathTarget;
 
 interface PendingFilesOpenState {
   target: FilesOpenTarget | null;
@@ -52,7 +63,7 @@ export interface ResolvedFilesOpen {
  * to preview. A shared subtree starts at its visible root, like the Files
  * tab's own root. Null when the listing no longer has the node.
  */
-export function resolveFilesOpen(nodes: FileNode[], target: FilesOpenTarget): ResolvedFilesOpen | null {
+export function resolveFilesOpen(nodes: FileNode[], target: FilesIdTarget): ResolvedFilesOpen | null {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const found = byId.get(target.nodeId);
   if (!found) return null;
@@ -67,4 +78,51 @@ export function resolveFilesOpen(nodes: FileNode[], target: FilesOpenTarget): Re
     current = current.parentId != null ? byId.get(current.parentId) : undefined;
   }
   return { path, file: folder ? null : found };
+}
+
+/**
+ * Where a Files link points in `nodes` (one account's listing). Walks our own
+ * nodes only, from the root, matching folder names; a file with a folder's
+ * name is no folder. 'folder_missing' when a segment is not found; otherwise
+ * the folder stack and the file named `preview` in the last folder (null when
+ * there is none, so the folder still opens).
+ */
+export function resolveFilesPath(
+  nodes: FileNode[],
+  segments: string[],
+  preview: string | null,
+): ResolvedFilesOpen | 'folder_missing' {
+  const own = nodes.filter((n) => !n.isShared);
+  const childrenOf = (parentId: string | null) => own.filter((n) => (n.parentId ?? null) === parentId);
+  const path: { id: string; name: string }[] = [];
+  let parent: string | null = null;
+  for (const name of segments) {
+    const next: FileNode | undefined = childrenOf(parent).find((n) => n.blobId == null && n.name === name);
+    if (!next) return 'folder_missing';
+    path.push({ id: next.id, name: next.name });
+    parent = next.id;
+  }
+  const file = preview ? (childrenOf(parent).find((n) => n.blobId != null && n.name === preview) ?? null) : null;
+  return { path, file };
+}
+
+export interface FilesOpenPlan {
+  /** What to show: null when the folder or node is gone. */
+  resolved: ResolvedFilesOpen | null;
+  /** Something is missing, so a listing that may be stale deserves one refresh. */
+  missing: boolean;
+  /** The toast to show once settled, or null. A missing file still opens its folder. */
+  toast: 'deep_link.folder_not_found' | 'deep_link.file_not_found' | null;
+}
+
+/** What the Files tab does for `target` against one account's listing. */
+export function planFilesOpen(nodes: FileNode[], target: FilesOpenTarget): FilesOpenPlan {
+  if (target.by === 'path') {
+    const found = resolveFilesPath(nodes, target.segments, target.preview);
+    if (found === 'folder_missing') return { resolved: null, missing: true, toast: 'deep_link.folder_not_found' };
+    const fileMissing = target.preview != null && !found.file;
+    return { resolved: found, missing: fileMissing, toast: fileMissing ? 'deep_link.file_not_found' : null };
+  }
+  const resolved = resolveFilesOpen(nodes, target);
+  return { resolved, missing: !resolved, toast: resolved ? null : 'deep_link.file_not_found' };
 }

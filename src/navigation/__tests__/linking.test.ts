@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { acceptSignInLink, buildCalendarPath, handleDeepLink, parseDeepLink, parseSignInLink, shareToDeepLink } from '../linking';
 import { usePendingSignInLinkStore } from '../pending-sign-in-link';
 import { usePendingSettingsTab } from '../pending-settings-tab';
+import { usePendingFilesOpen } from '../pending-files-open';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
 import { usePendingMailSearch } from '../pending-mail-search';
 import { links } from '../../widgets/clicks';
@@ -25,6 +26,9 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('bulwarkmobile://calendar/week/2026-08-29')).toEqual({ kind: 'calendar', view: 'week', date: '2026-08-29' });
     expect(parseDeepLink('bulwarkmobile://contacts')).toEqual({ kind: 'contacts' });
     expect(parseDeepLink('bulwarkmobile://files')).toEqual({ kind: 'files' });
+    expect(parseDeepLink('bulwarkmobile://files/A/B%20C?preview=x%20y.pdf')).toEqual({ kind: 'files', path: ['A', 'B C'], preview: 'x y.pdf' });
+    expect(parseDeepLink('bulwarkmobile://files?preview=x.pdf')).toEqual({ kind: 'files', preview: 'x.pdf' });
+    expect(parseDeepLink('https://mail.example.com/de/files/A//B?account=acc1')).toEqual({ kind: 'files', path: ['A', 'B'], accountId: 'acc1' });
     expect(parseDeepLink('bulwarkmobile://settings/notifications')).toEqual({ kind: 'settings', tab: 'notifications' });
     expect(parseDeepLink('bulwarkmobile://settings')).toEqual({ kind: 'settings', tab: undefined });
   });
@@ -165,6 +169,40 @@ describe('handleDeepLink', () => {
     dispatch: vi.fn(),
   });
   const push = (params: object) => ({ type: 'PUSH', payload: { name: 'ContactForm', params } });
+
+  describe('files links', () => {
+    beforeEach(() => usePendingFilesOpen.setState({ target: null }));
+    const base = { resolveThreadId: async () => null };
+
+    it('parks the target for the account shown after the switch', async () => {
+      const navigation = nav();
+      let active = 'A';
+      const ok = await handleDeepLink(
+        { kind: 'files', path: ['Docs'], preview: 'a.pdf', accountId: 'B' },
+        {
+          navigation: navigation as never,
+          ...base,
+          switchAccount: async () => { active = 'B'; return true; },
+          activeAccountId: () => active,
+        },
+      );
+      expect(ok).toBe(true);
+      expect(usePendingFilesOpen.getState().target).toEqual({ appAccountId: 'B', by: 'path', segments: ['Docs'], preview: 'a.pdf' });
+      expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Files' });
+    });
+
+    it('parks nothing for a bare link', async () => {
+      await handleDeepLink({ kind: 'files' }, { navigation: nav() as never, ...base, activeAccountId: () => 'A' });
+      expect(usePendingFilesOpen.getState().target).toBeNull();
+    });
+
+    it('parks nothing without a known active account', async () => {
+      const link = { kind: 'files' as const, path: ['Docs'] };
+      await handleDeepLink(link, { navigation: nav() as never, ...base });
+      await handleDeepLink(link, { navigation: nav() as never, ...base, activeAccountId: () => null });
+      expect(usePendingFilesOpen.getState().target).toBeNull();
+    });
+  });
 
   it('resolves a message to its thread before opening the reader', async () => {
     const navigation = nav();

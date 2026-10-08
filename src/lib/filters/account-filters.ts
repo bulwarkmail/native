@@ -1,4 +1,4 @@
-import type { FilterRule, SieveCapabilities, SieveScript } from '../sieve/types';
+import type { FilterRule, SieveCapabilities, SieveScript, VacationForward } from '../sieve/types';
 import { parseScript, type ParseResult } from '../sieve/parser';
 import { generateScript, VACATION_SCRIPT_NAME } from '../sieve/generator';
 import {
@@ -9,8 +9,10 @@ import {
   getSieveCapabilities,
   getSieveScriptContent,
   getSieveScripts,
+  sieveScope,
   updateSieveScript,
 } from '../../api/sieve';
+import type { AccountRef } from '../../api/op-scope';
 
 /**
  * One account's filters script, read and written against an explicit
@@ -61,6 +63,35 @@ function recheck(stillValid: (() => boolean) | undefined): void {
   if (stillValid && !stillValid()) throw new SwitchedAwayError();
 }
 
+/**
+ * The server's Sieve capabilities are not known, so a script generated now
+ * would leave out what it has (the spam guard, folder ids, the vacation
+ * include). Nothing was written.
+ */
+export class SieveCapabilitiesUnknownError extends Error {
+  constructor() {
+    super('The server\'s Sieve capabilities are not known yet');
+    this.name = 'SieveCapabilitiesUnknownError';
+  }
+}
+
+/**
+ * Whether the script generated for these depends on the server's
+ * capabilities: the spam guard and folder ids of moves and copies, the
+ * forwarding block's spam guard, a redirect, the vacation include. Without
+ * any of them the script comes out the same with or without capabilities.
+ * External rules are written back verbatim.
+ */
+export function dependsOnCapabilities(
+  rules: FilterRule[],
+  forward: VacationForward | null | undefined,
+  includeVacation: boolean,
+): boolean {
+  return includeVacation || !!forward?.enabled || rules.some((rule) =>
+    rule.enabled && rule.origin !== 'external' && rule.origin !== 'opaque' &&
+    rule.actions.some((a) => a.type === 'move' || a.type === 'copy' || a.type === 'forward'));
+}
+
 /** The script changed after the write that is being undone. */
 export class FiltersChangedError extends Error {
   constructor() {
@@ -73,9 +104,15 @@ export function supportsInclude(capabilities: SieveCapabilities | null): boolean
   return capabilities?.sieveExtensions?.includes('include') ?? false;
 }
 
-export async function readAccountFilters(accountId: string): Promise<AccountFilters> {
-  const capabilities = getSieveCapabilities(accountId);
-  const allScripts = await getSieveScripts(accountId);
+/**
+ * `account`: a Sieve account id, or a scope that binds every read to its
+ * connection (undefined: the user's own Sieve account on the live one).
+ */
+export async function readAccountFilters(account: AccountRef): Promise<AccountFilters> {
+  const at = sieveScope(account);
+  const { accountId } = at;
+  const capabilities = getSieveCapabilities(at);
+  const allScripts = await getSieveScripts(at);
   // The server-managed 'vacation' script (RFC 9661 §4) can only be changed
   // through VacationResponse/set.
   const scripts = allScripts.filter((s) => s.name !== VACATION_SCRIPT_NAME);
@@ -98,7 +135,7 @@ export async function readAccountFilters(accountId: string): Promise<AccountFilt
     };
   }
 
-  const content = await getSieveScriptContent(script.blobId, accountId);
+  const content = await getSieveScriptContent(script.blobId, at);
   const parsed = parseScript(content);
   return {
     accountId,
@@ -111,7 +148,7 @@ export async function readAccountFilters(accountId: string): Promise<AccountFilt
   };
 }
 
-/** The script for `rules`, keeping the account's vacation and external requires. */
+/** The script for `rules`, keeping the account's vacation, its forwarding and external requires. */
 export function renderFiltersScript(
   rules: FilterRule[],
   filters: Pick<AccountFilters, 'parsed' | 'includeVacation' | 'capabilities'>,
@@ -119,6 +156,8 @@ export function renderFiltersScript(
   return generateScript(rules, filters.parsed.vacation, {
     externalRequires: filters.parsed.externalRequires,
     includeVacation: filters.includeVacation,
+    vacationForward: filters.parsed.vacationForward,
+    vacationAudience: filters.parsed.vacationAudience,
     extensions: filters.capabilities?.sieveExtensions,
   });
 }
@@ -158,18 +197,19 @@ async function refreshFilterStore(accountId: string): Promise<void> {
  * Upload `content` as the account's filters script and make it the active
  * one: the existing script is updated, or a "filters" script is created.
  * Shared by the Settings save and by rules made from a message. An undefined
- * accountId is the user's own Sieve account.
+ * account is the user's own Sieve account; a scope binds both calls to its
+ * connection.
  */
 export async function writeFiltersScript(
-  accountId: string | undefined,
+  account: AccountRef,
   content: string,
   scriptId: string | null,
 ): Promise<{ scriptId: string }> {
   if (scriptId) {
-    await updateSieveScript(scriptId, content, true, accountId);
+    await updateSieveScript(scriptId, content, true, account);
     return { scriptId };
   }
-  const script = await createSieveScript('filters', content, true, accountId);
+  const script = await createSieveScript('filters', content, true, account);
   return { scriptId: script.id };
 }
 
@@ -179,22 +219,32 @@ export async function writeFiltersScript(
  * before the write, so a stale copy (the store's, or one another device has
  * changed since) is never uploaded. `modify` returns null when there is
  * nothing to write. Hand-edited scripts are refused: they are never
- * rewritten from a rule. `stillValid` is checked right before the write;
- * when it says no, nothing is written (SwitchedAwayError).
+ * rewritten from a rule, and so is a script that needs the server's
+ * capabilities while they are unknown (SieveCapabilitiesUnknownError).
+ * `stillValid` is checked right before the write;
+ * when it says no, nothing is written (SwitchedAwayError). The read and the
+ * write run on one connection: the scope given, or the live one now.
  */
 export async function updateAccountFilters(
-  accountId: string,
+  account: AccountRef,
   modify: (rules: FilterRule[], filters: AccountFilters) => FilterRule[] | null,
   stillValid?: () => boolean,
 ): Promise<FiltersChange | null> {
-  const filters = await readAccountFilters(accountId);
+  const at = sieveScope(account);
+  const { accountId } = at;
+  const filters = await readAccountFilters(at);
   if (filters.parsed.isOpaque) throw new OpaqueFiltersError();
   const rules = modify(filters.parsed.rules, filters);
   if (!rules) return null;
+  // Without them the forwarding block would lose its spam guard, and moves
+  // their folder ids: refused, as the Settings save and the vacation sync do.
+  if (!filters.capabilities && dependsOnCapabilities(rules, filters.parsed.vacationForward, filters.includeVacation)) {
+    throw new SieveCapabilitiesUnknownError();
+  }
 
   const written = renderFiltersScript(rules, filters);
   recheck(stillValid);
-  const { scriptId } = await writeFiltersScript(accountId, written, filters.script?.id ?? null);
+  const { scriptId } = await writeFiltersScript(at, written, filters.script?.id ?? null);
   void refreshFilterStore(accountId);
   return {
     accountId,
@@ -218,29 +268,32 @@ export async function updateAccountFilters(
  * each write; when it says no, nothing more is written (SwitchedAwayError).
  */
 export async function restoreAccountFilters(change: FiltersChange, stillValid?: () => boolean): Promise<void> {
-  const { accountId, scriptId, previous } = change;
-  const scripts = await getSieveScripts(accountId);
+  const { scriptId, previous } = change;
+  // The read and every write of the undo on one connection.
+  const at = sieveScope(change.accountId);
+  const { accountId } = at;
+  const scripts = await getSieveScripts(at);
   const current = scripts.find((s) => s.id === scriptId);
   if (!current) throw new FiltersChangedError();
-  const content = await getSieveScriptContent(current.blobId, accountId);
+  const content = await getSieveScriptContent(current.blobId, at);
   if (content !== change.written) throw new FiltersChangedError();
 
   const restoreActive = async () => {
     if (previous.activeScriptId === scriptId) return;
     recheck(stillValid);
-    if (previous.activeScriptId) await activateSieveScript(previous.activeScriptId, accountId);
-    else await deactivateSieveScript(accountId);
+    if (previous.activeScriptId) await activateSieveScript(previous.activeScriptId, at);
+    else await deactivateSieveScript(at);
   };
 
   if (previous.scriptId) {
     recheck(stillValid);
-    await updateSieveScript(scriptId, previous.content, previous.activeScriptId === scriptId, accountId);
+    await updateSieveScript(scriptId, previous.content, previous.activeScriptId === scriptId, at);
     await restoreActive();
   } else {
     // An active script cannot be destroyed (RFC 9661), so switch back first.
     await restoreActive();
     recheck(stillValid);
-    await deleteSieveScript(scriptId, accountId);
+    await deleteSieveScript(scriptId, at);
   }
   void refreshFilterStore(accountId);
 }

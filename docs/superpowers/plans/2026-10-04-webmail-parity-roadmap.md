@@ -494,3 +494,45 @@ Run on the Android 17 x86_64 emulator and a Galaxy S24+ (SM-S926U, Android 16), 
 - **iOS:** everything.
 
 **Note:** the folder form needs two taps on Save while the keyboard is open; the first only dismisses the keyboard.
+
+## Phase 6d follow-ups (filters, vacation and Files, 2026-10-07)
+
+Phase 6d is done on `parity/phase-6d-filters-files`. It closes every area 07 item and fixes a live data risk.
+
+**The data risk:** native treated webmail 1.13.0's v2 filter scripts (rule periods, vacation forwarding, reply audience) as hand-edited. Turning the auto-reply on from native then let Stalwart's vacation script take over, which stopped every filter. Native now does these:
+- **Reads and writes v2:** native round-trips v2 byte for byte (checked against webmail's own generator on 4000 random scripts).
+- **Syncs the vacation script safely:**
+  - it syncs on one connection scope;
+  - it refuses to save before anything is written when it can't keep the filters running;
+  - it never refuses to turn the auto-reply off;
+  - it reports filters that the vacation script stopped.
+
+**What's new for users:**
+- Out of Office forwarding and "Reply to" (all, internal or external).
+- Warnings for the server's forward limit and for Stalwart's auto-reply size limit.
+- Rule active periods.
+- Files links that open a folder and preview a file.
+- A dismissible Files storage notice.
+- Sending after an offline cold start: the JMAP account id is recorded per app account.
+- All-mail search includes Sent.
+
+**Also fixed:** turning off "include spam" on a rule didn't stick. A save that left the field out was merged back over the old value.
+
+Left open:
+
+- **New parity item:** the unverified-sender warning (03, webmail 1.13.0). Its 7 keys aren't vendored yet.
+- **By decision:** legacy flat-name Files migration stays webmail-only.
+- **Webmail parity, worth raising upstream:**
+  - a hand-edited `# Vacation forwarding` block is regenerated from the metadata;
+  - "internal senders" can mark the form dirty when identity domains change.
+- **Small:**
+  - A queued send held with a stale recorded JMAP id has no automatic re-stamp. It shows in the Outbox; discard and resend.
+  - The vacation size check reads the saved HTML state, not the live editor, at the moment of Save.
+  - On a shared account, a stored forward is hidden, as in webmail, and left untouched.
+- **Tests:** no render-harness tests for VacationSettings, FilterRuleModal (period pickers), RulesFlow, or the Files notice and links.
+- **Device checks:**
+  - Out of Office forwarding and audience against Stalwart: the forward arrives, keep-copy works, and an internal-only reply skips an external sender;
+  - a filter rule period starting and ending on time;
+  - the date picker inside the rule editor on iOS;
+  - a Files link from another app;
+  - an offline cold start, then send, then reconnect: delivered once.

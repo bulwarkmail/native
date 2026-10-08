@@ -1,4 +1,5 @@
 import { jmapClient } from './jmap-client';
+import { opScope, type AccountRef } from './op-scope';
 import { CAPABILITIES, type JMAPAccountInfo } from './types';
 
 export interface VacationResponse {
@@ -23,15 +24,16 @@ const DEFAULT: VacationResponse = {
   htmlBody: null,
 };
 
-// The calls take an optional accountId so a shared/group account's responder
+// The calls take an optional account so a shared/group account's responder
 // can be managed too (webmail: "Shared with me" in Account settings). The
-// default is the user's own mail account.
-export async function getVacationResponse(
-  accountId: string = jmapClient.accountId,
-): Promise<VacationResponse> {
+// default is the user's own mail account. A scope binds the call to its
+// connection: once that is gone, nothing is sent (`StaleLoadError`).
+export async function getVacationResponse(account?: AccountRef): Promise<VacationResponse> {
+  const { gen, accountId } = opScope(account);
   const res = await jmapClient.request(
     [['VacationResponse/get', { accountId, ids: ['singleton'] }, '0']],
     VACATION_USING,
+    { gen },
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'VacationResponse/get') {
@@ -43,14 +45,16 @@ export async function getVacationResponse(
 
 export async function setVacationResponse(
   updates: Partial<Omit<VacationResponse, 'id'>>,
-  accountId: string = jmapClient.accountId,
+  account?: AccountRef,
 ): Promise<void> {
+  const { gen, accountId } = opScope(account);
   const res = await jmapClient.request(
     [['VacationResponse/set', {
       accountId,
       update: { singleton: updates },
     }, '0']],
     VACATION_USING,
+    { gen },
   );
   const resp = res.methodResponses?.[0];
   if (resp && resp[0] === 'VacationResponse/set') {

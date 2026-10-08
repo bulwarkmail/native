@@ -37,6 +37,7 @@ import { singleFlightByKey } from '../lib/session-retry';
 // jmapClient's `StaleLoadError`, matched by name (suites that mock the client
 // module need not export the class).
 import { isStaleLoad } from '../lib/network-error';
+import { clientServesAccount } from '../lib/active-client-account';
 
 // Persist middleware hydrates asynchronously on cold start. Without this
 // guard, restoreSession() can read the account-store before AsyncStorage has
@@ -347,6 +348,21 @@ function applyConnectedState(
     activeAccountId: accountId,
     client: jmapClient,
   });
+  recordJmapAccountId(accountId);
+}
+
+/**
+ * Keeps the login's JMAP account id on its account entry, so a composer
+ * opened after an offline cold start can still queue a send for it. Written
+ * only while the client serves that very account: a connect that lands
+ * mid-switch must never stamp one account's id onto another.
+ */
+function recordJmapAccountId(accountId: string): void {
+  const jmapAccountId = jmapClient.connectedAccountId;
+  if (!jmapAccountId || !clientServesAccount(accountId)) return;
+  const accounts = useAccountStore.getState();
+  if (accounts.getAccountById(accountId)?.jmapAccountId === jmapAccountId) return;
+  accounts.updateAccount(accountId, { jmapAccountId });
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({

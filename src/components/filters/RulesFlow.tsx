@@ -16,6 +16,8 @@ import { useAccountStore } from '../../stores/account-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { fetchListIds } from '../../api/list-ids';
 import { readAccountFilters } from '../../lib/filters/account-filters';
+import { forwardsForRule } from '../../lib/filters/forward-limit-view';
+import { supportsPeriods } from '../../lib/sieve/period';
 import {
   buildPrefillRule,
   buildSuggestions,
@@ -40,8 +42,10 @@ import { runPresetRule, saveEditorRule, targetStillActive } from '../../lib/filt
 import {
   NO_JUNK_HINT_KEY,
   rulesSheetItems,
+  targetFiltersFor,
   type RulesSheetItem,
   type RulesSheetItemId,
+  type TargetFilters,
 } from '../../lib/filters/rules-sheet';
 import { setPendingSettingsTab } from '../../navigation/pending-settings-tab';
 import { generateUUID } from '../../lib/uuid';
@@ -164,19 +168,39 @@ function RulesFlowBody({
     [senders, listId],
   );
 
-  // Whether the account's script can take a rule: asked of the server for
-  // this account, not read from the filter store. Unknown counts as open: a
-  // write on a hand-edited script reports it.
+  // Whether the account's script can take a rule, and the forwards around a
+  // new rule for the server's redirect limit ("Create rule…" puts it first,
+  // behind the out of office forwarding): asked of the server for this
+  // account, not read from the filter store. Kept with the target it was read
+  // for (its key names the login too: Sieve ids repeat across logins), and
+  // used only while that is still the target. Unknown counts as open: a write
+  // on a hand-edited script reports it.
   const sieveAccountId = target?.sieveAccountId;
-  const [opaque, setOpaque] = React.useState(false);
+  const targetKey = target?.key;
+  const [read, setRead] = React.useState<TargetFilters | null>(null);
   React.useEffect(() => {
-    if (!sieveAccountId) return;
+    setRead(null);
+    if (!sieveAccountId || !targetKey) return;
     let cancelled = false;
     readAccountFilters(sieveAccountId)
-      .then((filters) => { if (!cancelled) setOpaque(filters.parsed.isOpaque); })
+      .then((filters) => {
+        if (cancelled) return;
+        setRead({
+          targetKey,
+          opaque: filters.parsed.isOpaque,
+          forwards: filters.parsed.isOpaque ? null : {
+            maxRedirects: filters.capabilities?.maxNumberRedirects ?? null,
+            periodsSupported: supportsPeriods(filters.capabilities?.sieveExtensions),
+            ...forwardsForRule(filters.parsed.rules, filters.parsed.vacationForward, undefined, 0),
+          },
+        });
+      })
       .catch(() => { /* the write reports it */ });
     return () => { cancelled = true; };
-  }, [sieveAccountId]);
+  }, [sieveAccountId, targetKey]);
+  const shownRead = targetFiltersFor(read, targetKey);
+  const opaque = shownRead?.opaque ?? false;
+  const forwards = shownRead?.forwards ?? null;
 
   const mailboxes = target?.mailboxes;
   const junk = React.useMemo(() => (mailboxes ? findJunkMailbox(mailboxes) : undefined), [mailboxes]);
@@ -355,6 +379,10 @@ function RulesFlowBody({
           suggestions={editor.suggestions}
           offerApplyToExisting={!!target.sourceMailboxId}
           mailboxes={target.mailboxes}
+          maxRedirects={forwards?.maxRedirects}
+          forwardsBefore={forwards?.before}
+          forwardsAfter={forwards?.after}
+          periodsSupported={forwards?.periodsSupported}
           onSave={(rule, options) => {
             const tg = live();
             if (!tg) return;

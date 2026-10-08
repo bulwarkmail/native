@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rulesSheetItems, type RulesSheetModel } from '../rules-sheet';
+import { rulesSheetItems, targetFiltersFor, type RulesSheetModel } from '../rules-sheet';
 import { collectSenders, rulesMenuAvailability, sharedDomain } from '../quick-rules';
 
 const own = new Set(['me@example.org']);
@@ -94,5 +94,22 @@ describe('rulesSheetItems', () => {
   it('keeps the list item for a list message even when every sender is the user', () => {
     const items = rulesSheetItems(model({ senders: [], domain: null, listId: 'news.acme.com' }));
     expect(items.map((i) => i.id)).toEqual(['move_list', 'create', 'manage']);
+  });
+});
+
+describe('targetFiltersFor', () => {
+  const read = { targetKey: 'login-a|b', opaque: false, forwards: null };
+
+  it('gives what was read while the target is the one it was read for', () => {
+    expect(targetFiltersFor(read, 'login-a|b')).toBe(read);
+  });
+
+  it('drops it for another login, although the Sieve and JMAP ids are the same', () => {
+    expect(targetFiltersFor(read, 'login-b|b')).toBeNull();
+  });
+
+  it('drops it when there is no target or nothing was read', () => {
+    expect(targetFiltersFor(read, undefined)).toBeNull();
+    expect(targetFiltersFor(null, 'login-a|b')).toBeNull();
   });
 });

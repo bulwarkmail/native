@@ -4,7 +4,7 @@ import { WebView } from 'react-native-webview';
 import {
   AlertTriangle, Eye, EyeOff, Bold, Italic, Underline, List as ListIcon,
 } from 'lucide-react-native';
-import { SettingsSection, SettingItem, ToggleSwitch } from './settings-section';
+import { SettingsSection, SettingItem, ToggleSwitch, Select } from './settings-section';
 import Button from '../Button';
 import RichTextEditor, { type RichTextEditorHandle } from '../RichTextEditor';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
@@ -13,6 +13,18 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useVacationStore } from '../../stores/vacation-store';
 import { useManagedAccountStore } from '../../stores/managed-account-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { identityScope, useSettingsStore } from '../../stores/settings-store';
+import { jmapClient } from '../../api/jmap-client';
+import { getSieveCapabilities } from '../../api/sieve';
+import { clientServesAccount } from '../../lib/active-client-account';
+import {
+  audienceDomains,
+  vacationFiltersForm,
+  vacationFiltersWarnings,
+  vacationSaveFailure,
+  type AudienceChoice,
+} from '../../lib/vacation-form';
+import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-limits';
 import { htmlToPlainText } from '../../lib/compose-html';
 import { stripDangerousTags, escapeHtml } from '../../lib/email-html';
 import {
@@ -27,6 +39,8 @@ import {
 // are typed as local wall-clock time and sent as RFC 8621 UTCDate strings;
 // the optional HTML body is edited in the composer's rich-text editor and
 // sanitised on save, with the plain-text part derived from it when left blank.
+// Forwarding and who gets the auto-reply live in the filters script (see
+// lib/vacation-form); a save sends them only when they were changed here.
 
 export function VacationSettings() {
   const c = useColors();
@@ -48,6 +62,24 @@ export function VacationSettings() {
   const editorRef = useRef<RichTextEditorHandle>(null);
   // Seed the editor once per load; RichTextEditor only reads initialHtml on mount.
   const [editorSeed, setEditorSeed] = useState(store.htmlBody || '');
+  const [forwardEnabled, setForwardEnabled] = useState(store.forward?.enabled ?? false);
+  const [forwardTo, setForwardTo] = useState(store.forward?.to ?? '');
+  const [forwardKeep, setForwardKeep] = useState(store.forward?.keepCopy ?? false);
+  const [audienceOnly, setAudienceOnly] = useState<AudienceChoice>(store.audience?.only ?? 'all');
+
+  // "Internal" senders are the shown account's own domains, as its
+  // identities give them; a shared account offers no narrowing.
+  const identities = useSettingsStore((s) => s.identities);
+  const identitiesFor = useSettingsStore((s) => s.identitiesFor);
+  const ensureIdentities = useSettingsStore((s) => s.ensureIdentities);
+  useEffect(() => {
+    if (!managedAccountId) void ensureIdentities();
+  }, [managedAccountId, activeAccountId, ensureIdentities]);
+  const shownScope = clientServesAccount(store.appAccountId) ? identityScope() : null;
+  const domains = useMemo(
+    () => audienceDomains(identities, identitiesFor, shownScope),
+    [identities, identitiesFor, shownScope],
+  );
 
   // The store reuses `error` for save failures too, so remember whether the
   // initial fetch itself failed (that's the only case that blanks the form).
@@ -74,9 +106,48 @@ export function VacationSettings() {
     store.subject, store.textBody, store.htmlBody,
   ]);
 
+  useEffect(() => {
+    setForwardEnabled(store.forward?.enabled ?? false);
+    setForwardTo(store.forward?.to ?? '');
+    setForwardKeep(store.forward?.keepCopy ?? false);
+  }, [store.hasLoaded, store.appAccountId, store.accountId, store.forward]);
+
+  useEffect(() => {
+    setAudienceOnly(store.audience?.only ?? 'all');
+  }, [store.hasLoaded, store.appAccountId, store.accountId, store.audience]);
+
+
   const fromParsed = parseLocalInput(fromDate);
   const toParsed = parseLocalInput(toDate);
   const formatError = !isValidLocalInput(fromDate) || !isValidLocalInput(toDate);
+  const fromChanged = formatError || localInputToUtcIso(fromDate) !== normalizeUtcIso(store.fromDate);
+  const toChanged = formatError || localInputToUtcIso(toDate) !== normalizeUtcIso(store.toDate);
+  const periodChanged = !formatError && (fromChanged || toChanged);
+
+  // Shared or group, as Settings or the loaded form has it (they differ
+  // only for a moment, while a switch loads).
+  const managed = !!managedAccountId || store.accountId !== null;
+  const filtersInput = {
+    managed,
+    forwardAvailable: store.forwardAvailable,
+    audienceAvailable: store.audienceAvailable,
+    domains,
+    storedForward: store.forward,
+    storedAudience: store.audience,
+    forwardEnabled,
+    forwardTo,
+    forwardKeep,
+    audienceOnly,
+    otherForwards: store.otherForwards,
+    // Forwarding is offered on the own account only, so its limit applies.
+    forwardLimit: managed ? null : getSieveCapabilities(managedAccountId ?? undefined)?.maxNumberRedirects,
+    notRunning: store.notRunning,
+    periodChanged,
+    filtersStopped: store.filtersStopped,
+    filtersOpaque: store.filtersOpaque,
+    includeAvailable: store.includeAvailable,
+  };
+  const filters = vacationFiltersForm(filtersInput);
   const endBeforeStart = !!(fromParsed && toParsed && toParsed <= fromParsed);
   const htmlText = htmlEnabled ? htmlToPlainText(htmlBody).trim() : '';
   const hasHtmlContent = htmlText.length > 0;
@@ -88,23 +159,44 @@ export function VacationSettings() {
     return fromParsed < todayStart;
   }, [fromParsed]);
 
+  // What a save would send, derived the way handleSave does from the HTML
+  // state (handleSave re-reads the live editor first).
+  const sizeLimits = jmapClient.hasAccountCapability('urn:stalwart:jmap', managedAccountId ?? undefined)
+    ? STALWART_VACATION_LIMITS
+    : null;
+  const oversize = useMemo(() => {
+    const html = hasHtmlContent ? stripDangerousTags(htmlBody) : null;
+    const textBody = body.trim() || !html ? body : htmlToPlainText(html);
+    return vacationOversize({ subject: subject.trim(), textBody, html }, sizeLimits);
+  }, [hasHtmlContent, htmlBody, body, subject, sizeLimits]);
+
   const warnings: string[] = [];
   if (endBeforeStart) warnings.push(t('settings.vacation.warnings.end_before_start', 'End date must be after start date'));
   if (startInPast) warnings.push(t('settings.vacation.warnings.start_in_past', 'Start date is in the past'));
   if (formatError) warnings.push(t('settings.vacation.warnings.date_format', 'Dates must be "YYYY-MM-DD" or "YYYY-MM-DD HH:MM"'));
   if (emptyBody) warnings.push(t('settings.vacation.warnings.empty_body', 'Message body is empty - recipients will receive a blank reply'));
+  if (oversize.subject) warnings.push(t('settings.vacation.warnings.subject_too_long', 'Subject is too long - the server accepts at most {max} bytes', { max: STALWART_VACATION_LIMITS.subject }));
+  if (oversize.body) warnings.push(t('settings.vacation.warnings.body_too_long', 'Message is too long - the server accepts at most {max} bytes', { max: STALWART_VACATION_LIMITS.body }));
+  warnings.push(...vacationFiltersWarnings(filters, filtersInput, t));
 
   // Mirrors the webmail's hasChanges: Save stays disabled until something
   // actually differs from what the server holds.
   const hasChanges =
     enabled !== store.isEnabled ||
-    (formatError ? true : localInputToUtcIso(fromDate) !== normalizeUtcIso(store.fromDate)) ||
-    (formatError ? true : localInputToUtcIso(toDate) !== normalizeUtcIso(store.toDate)) ||
+    fromChanged ||
+    toChanged ||
     subject !== store.subject ||
     body !== store.textBody ||
-    (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '');
+    (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '') ||
+    filters.forward !== undefined ||
+    filters.audience !== undefined ||
+    filters.restartable;
 
-  const canSave = hasChanges && !endBeforeStart && !formatError && !store.isSaving;
+  // Never while a load is in flight: the form may still be blank, or hold
+  // what is about to be replaced, and saving it would write that over the
+  // account's responder.
+  const canSave = store.hasLoaded && !store.isLoading && hasChanges && !endBeforeStart && !formatError &&
+    !oversize.subject && !oversize.body && !filters.blocking && !store.isSaving;
 
   const handleSave = useCallback(async () => {
     // Read the live editor DOM rather than trusting onChange state (issue #9).
@@ -132,6 +224,8 @@ export function VacationSettings() {
         subject: subject.trim(),
         textBody,
         htmlBody: sanitizedHtml,
+        forward: filters.forward,
+        audience: filters.audience,
       });
       if (!sanitizedHtml) {
         setHtmlEnabled(false);
@@ -139,12 +233,10 @@ export function VacationSettings() {
       }
       Alert.alert(t('notifications.vacation_saved', 'Vacation responder settings saved'));
     } catch (err) {
-      Alert.alert(
-        t('notifications.vacation_save_failed', 'Failed to save vacation responder settings'),
-        err instanceof Error ? err.message : undefined,
-      );
+      const failure = vacationSaveFailure(err, filters.filtersInvolved, t);
+      Alert.alert(failure.title, failure.message);
     }
-  }, [htmlBody, htmlEnabled, body, enabled, fromDate, toDate, subject, store, t]);
+  }, [htmlBody, htmlEnabled, body, enabled, fromDate, toDate, subject, store, t, filters.forward, filters.audience, filters.filtersInvolved]);
 
   const title = t('settings.vacation.title', 'Vacation Responder');
   const description = t('settings.vacation.description', "Automatically reply to incoming emails while you're away");
@@ -205,6 +297,23 @@ export function VacationSettings() {
             <ToggleSwitch checked={enabled} onChange={setEnabled} />
           </View>
         </SettingItem>
+        {filters.canNarrow && (
+          <SettingItem
+            label={t('settings.vacation.audience.label', 'Reply to')}
+            description={t('settings.vacation.audience.description', 'Internal senders: {domains}', { domains: domains.join(', ') })}
+          >
+            <Select
+              value={audienceOnly}
+              onChange={(value) => setAudienceOnly(value as AudienceChoice)}
+              accessibilityLabel={t('settings.vacation.audience.label', 'Reply to')}
+              options={[
+                { value: 'all', label: t('settings.vacation.audience.all', 'All senders') },
+                { value: 'internal', label: t('settings.vacation.audience.internal', 'Internal senders only') },
+                { value: 'external', label: t('settings.vacation.audience.external', 'External senders only') },
+              ]}
+            />
+          </SettingItem>
+        )}
       </SettingsSection>
 
       <SettingsSection
@@ -330,6 +439,54 @@ export function VacationSettings() {
                 <Text style={styles.previewBody}>{body}</Text>
               )}
             </View>
+          )}
+        </SettingsSection>
+      )}
+
+      {filters.showForward && (
+        <SettingsSection
+          title={t('settings.vacation.forward.title', 'Forwarding')}
+          description={t('settings.vacation.forward.description', 'Passes incoming messages on to another address, with or without the auto-reply, within the period above (without an end date, until switched off). Spam is not forwarded.')}
+        >
+          <SettingItem
+            label={t('settings.vacation.forward.enabled_label', 'Forward messages')}
+            noBorder={!forwardEnabled}
+          >
+            <View style={styles.statusRow}>
+              <View style={[styles.pill, forwardEnabled ? styles.pillActive : styles.pillInactive]}>
+                <Text style={[styles.pillText, forwardEnabled ? styles.pillTextActive : styles.pillTextInactive]}>
+                  {forwardEnabled
+                    ? t('settings.vacation.status.active', 'Active')
+                    : t('settings.vacation.status.inactive', 'Inactive')}
+                </Text>
+              </View>
+              <ToggleSwitch checked={forwardEnabled} onChange={setForwardEnabled} />
+            </View>
+          </SettingItem>
+          {forwardEnabled && (
+            <>
+              <SettingItem label={t('settings.vacation.forward.to_label', 'Forward to')}>
+                <TextInput
+                  value={forwardTo}
+                  onChangeText={setForwardTo}
+                  placeholder={t('settings.vacation.forward.to_placeholder', 'email@example.com')}
+                  placeholderTextColor={c.mutedForeground}
+                  accessibilityLabel={t('settings.vacation.forward.to_label', 'Forward to')}
+                  style={[styles.subjectInput, filters.forwardInvalid && styles.inputInvalid]}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                />
+              </SettingItem>
+              <SettingItem
+                label={t('settings.vacation.forward.keep_label', 'Keep in inbox')}
+                description={t('settings.vacation.forward.keep_description', 'Otherwise the message is only forwarded: it is not kept in this mailbox, and no filter rule runs on it.')}
+                noBorder
+              >
+                <ToggleSwitch checked={forwardKeep} onChange={setForwardKeep} />
+              </SettingItem>
+            </>
           )}
         </SettingsSection>
       )}

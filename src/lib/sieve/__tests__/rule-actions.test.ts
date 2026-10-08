@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Mailbox } from '../../../api/types';
 import {
   buildMailboxTargets,
+  includeSpamToSave,
   mailboxIdFor,
   selectMailboxTarget,
   updateFilterAction,
@@ -104,5 +105,21 @@ describe('updateFilterAction', () => {
     const on = updateFilterAction({ type: 'forward', value: 'a@b.c' }, { keepCopy: true }, targets);
     expect(on).toEqual({ type: 'forward', value: 'a@b.c', keepCopy: true });
     expect(updateFilterAction(on, { keepCopy: undefined }, targets)).toEqual({ type: 'forward', value: 'a@b.c' });
+  });
+});
+
+describe('includeSpamToSave', () => {
+  const move = [{ type: 'move' as const, value: 'News', mailboxId: 'news' }];
+
+  it('stores the opt-in only while the rule moves or copies to a folder', () => {
+    expect(includeSpamToSave(true, move)).toBe(true);
+    expect(includeSpamToSave(true, [{ type: 'mark_read' as const }])).toBeUndefined();
+  });
+
+  it('turning it off on an existing rule sticks through the settings merge', () => {
+    const before = { id: 'r', includeSpam: true as boolean | undefined };
+    const saved = { id: 'r', includeSpam: includeSpamToSave(false, move) };
+    expect('includeSpam' in saved).toBe(true);
+    expect({ ...before, ...saved }.includeSpam).toBeUndefined();
   });
 });

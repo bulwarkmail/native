@@ -20,6 +20,7 @@ import {
   FileAudio, FileArchive, FileSpreadsheet, FileCode2, LayoutGrid, List as ListIcon,
   MoreVertical, Pencil, Share2, Trash2, Upload, Users, X, Download, Search,
   ArrowUpDown, ArrowUp, ArrowDown, FolderInput, Copy, Check, Eye, ExternalLink,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -46,7 +47,7 @@ function loadDocumentPicker(): DocumentPickerModule | null {
 import {
   copyFileNode, createFolder, deleteFileNodes, getAllFileNodesAcrossAccounts,
   getFileNodeDownloadUrl, getMaxSizeUpload, isCrossAccountId, isFolder, moveFileNode,
-  getFileNameRules, renameFileNode, supportsSharing, uploadFileNode,
+  getFileNameRules, renameFileNode, supportsFiles, supportsSharing, uploadFileNode,
 } from '../api/files';
 import { jmapClient } from '../api/jmap-client';
 import { opScope } from '../api/op-scope';
@@ -69,7 +70,7 @@ import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
 import { isStaleLoad } from '../lib/network-error';
-import { resolveFilesOpen, usePendingFilesOpen } from '../navigation/pending-files-open';
+import { planFilesOpen, usePendingFilesOpen } from '../navigation/pending-files-open';
 import { useToastStore } from '../stores/toast-store';
 
 // A file row carries the display name alongside the rest of the node.
@@ -209,6 +210,7 @@ export default function FilesScreen() {
   const sortDir = useSettingsStore((s) => s.filesDefaultSortDir);
   const defaultViewMode = useSettingsStore((s) => s.filesDefaultViewMode);
   const setSetting = useSettingsStore((s) => s.updateSetting);
+  const noticeDismissed = useSettingsStore((s) => s.filesStabilityNoticeDismissed);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
 
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
@@ -308,20 +310,23 @@ export default function FilesScreen() {
       return;
     }
     if (loading || refreshing || nodesFor !== activeAccountId) return;
-    const resolved = resolveFilesOpen(allNodes, pendingOpen);
-    if (!resolved && refreshedForOpen.current !== pendingOpen) {
+    const plan = planFilesOpen(allNodes, pendingOpen);
+    const resolved = plan.resolved;
+    if (plan.missing && refreshedForOpen.current !== pendingOpen) {
       refreshedForOpen.current = pendingOpen;
       void loadFiles('refresh');
       return;
     }
     usePendingFilesOpen.getState().consume();
-    if (!resolved) {
+    if (plan.toast) {
       useToastStore.getState().addToast({
         type: 'error',
-        title: t('deep_link.file_not_found', 'This file is no longer available.'),
+        title: plan.toast === 'deep_link.folder_not_found'
+          ? t('deep_link.folder_not_found', 'This folder is no longer available.')
+          : t('deep_link.file_not_found', 'This file is no longer available.'),
       });
-      return;
     }
+    if (!resolved) return;
     setPath(resolved.path);
     setSearchQuery('');
     setSelection(new Set());
@@ -1090,6 +1095,25 @@ export default function FilesScreen() {
   return (
     <View style={styles.container}>
       {renderHeader()}
+      {path.length === 0 && !noticeDismissed && supportsFiles() ? (
+        <View style={styles.notice}>
+          <AlertTriangle size={16} color={c.textMuted} />
+          <Text style={styles.noticeText}>
+            {t(
+              'files.stability_warning',
+              'Large file uploads can cause server instability. Deleted files may not be immediately purged from storage. Use with caution.',
+            )}
+          </Text>
+          <Pressable
+            onPress={() => setSetting('filesStabilityNoticeDismissed', true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close', 'Close')}
+          >
+            <X size={16} color={c.textMuted} />
+          </Pressable>
+        </View>
+      ) : null}
       {body}
 
       <PromptModal
@@ -1508,6 +1532,21 @@ function makeStyles(c: ThemePalette) {
     container: {
       flex: 1,
       backgroundColor: c.background,
+    },
+    notice: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      backgroundColor: c.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    noticeText: {
+      flex: 1,
+      fontSize: 12,
+      color: c.textSecondary,
     },
     header: {
       paddingTop: 60,

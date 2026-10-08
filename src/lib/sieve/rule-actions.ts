@@ -9,6 +9,16 @@ import type { FilterAction, FilterActionType } from './types';
 export const ACTIONS_WITH_VALUE = new Set<FilterActionType>(['move', 'copy', 'forward', 'reject', 'add_label']);
 export const ACTIONS_WITH_MAILBOX = new Set<FilterActionType>(['move', 'copy']);
 
+/**
+ * The rule's "also move spam" opt-in as saved. Only folder moves are kept out
+ * of Junk, so it is only stored while the rule has one. Off is undefined, not
+ * left out: the settings page merges the saved rule into the stored one,
+ * where a field left out would keep its old value.
+ */
+export function includeSpamToSave(includeSpam: boolean, actions: readonly { type: FilterActionType }[]): true | undefined {
+  return includeSpam && actions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) ? true : undefined;
+}
+
 export interface MailboxTarget {
   /** JMAP id of the folder, what `fileinto :mailboxid` targets. */
   id: string;

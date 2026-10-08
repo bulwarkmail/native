@@ -366,6 +366,17 @@ export function buildFilter(
   opts: UnifiedFetchOptions,
 ): Record<string, unknown> | null {
   const conditions: Record<string, unknown>[] = [];
+  const q = opts.query?.trim();
+  if (opts.view === 'all' && q) {
+    // Searching All mail covers every folder but Trash and Junk (Sent included).
+    // Unread and Starred still narrow to their list.
+    const excluded = mailboxes
+      .filter((m) => m.role === 'trash' || m.role === 'junk' || m.role === 'spam')
+      .map((m) => m.id);
+    conditions.push({ text: q });
+    if (excluded.length > 0) conditions.push({ inMailboxOtherThan: excluded });
+    return conditions.length === 1 ? conditions[0] : { operator: 'AND', conditions };
+  }
   if (opts.view) {
     const included = crossIncludedMailboxes(mailboxes);
     if (included.length === 0) return null;
@@ -381,7 +392,6 @@ export function buildFilter(
     if (!target) return null;
     conditions.push({ inMailbox: target.id });
   }
-  const q = opts.query?.trim();
   if (q) conditions.push({ text: q });
   return conditions.length === 1 ? conditions[0] : { operator: 'AND', conditions };
 }

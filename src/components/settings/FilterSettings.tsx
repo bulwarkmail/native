@@ -9,7 +9,7 @@ import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useFilterStore } from '../../stores/filter-store';
+import { FiltersReloadedError, useFilterStore } from '../../stores/filter-store';
 import { useVacationStore } from '../../stores/vacation-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useEmailStore } from '../../stores/email-store';
@@ -19,11 +19,16 @@ import type { Mailbox } from '../../api/types';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
 import { FilterRuleModal } from '../filters/FilterRuleModal';
+import { forwardsForRule, hasTooManyForwards, redirectLimitOf } from '../../lib/filters/forward-limit-view';
 import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
+import { supportsPeriods } from '../../lib/sieve/period';
+import { periodLabel } from '../../lib/filters/rule-period';
+import { clientServesAccount } from '../../lib/active-client-account';
 
 type Translate = (key: string, fallback?: string) => string;
+type PeriodLabel = ReturnType<typeof periodLabel>;
 
 function isReadonlyRule(r: FilterRule): boolean {
   return r.origin === 'external' || r.origin === 'opaque';
@@ -31,7 +36,7 @@ function isReadonlyRule(r: FilterRule): boolean {
 
 // Expanded "IF ... / THEN ..." view (webmail VisualRuleSummary, 1.4.6): every
 // condition and action as a chip, with the match-type hint after the IF row.
-function VisualRuleSummary({ rule, t, c }: { rule: FilterRule; t: Translate; c: ThemePalette }) {
+function VisualRuleSummary({ rule, period, t, c }: { rule: FilterRule; period: PeriodLabel; t: Translate; c: ThemePalette }) {
   const styles = useMemo(() => makeSummaryStyles(c), [c]);
   const joiner = rule.matchType === 'all' ? t('settings.filters.and', 'and') : t('settings.filters.or', 'or');
   const matchLabel = rule.matchType === 'all'
@@ -77,7 +82,26 @@ function VisualRuleSummary({ rule, t, c }: { rule: FilterRule; t: Translate; c: 
           );
         })}
       </View>
+      {period && (
+        <View style={styles.row}>
+          <Text style={[styles.keyword, { color: c.primary }]}>{t('settings.filters.period_title', 'Date Range')}</Text>
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>{period.range}</Text>
+          </View>
+          {period.status && <Text style={styles.joiner}>({period.status})</Text>}
+        </View>
+      )}
     </View>
+  );
+}
+
+/** The collapsed one-line summary, with the rule's period after it. */
+function RuleSummaryText({ rule, period, t, style }: { rule: FilterRule; period: PeriodLabel; t: Translate; style: object }) {
+  const summary = summarizeRule(rule, t);
+  return (
+    <Text style={style} numberOfLines={2}>
+      {period ? `${summary} · ${period.range}${period.status ? ` (${period.status})` : ''}` : summary}
+    </Text>
   );
 }
 
@@ -109,6 +133,8 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const expandedView = useSettingsStore((s) => s.filtersExpandedView);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const locale = useLocaleStore((s) => s.locale);
 
   // Scoped to a shared/group account when Settings is managing one.
   const managedAccountId = useManagedAccountStore((s) => s.managedAccountId);
@@ -145,6 +171,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
 
   const {
     rules, isLoading, isSaving, error, isSupported, isOpaque, rawScript, vacationSettings, includeVacation,
+    vacationForward, sieveCapabilities,
     selectAccount, saveFilters, addRule, updateRule, deleteRule, reorderRules, toggleRule,
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
@@ -154,6 +181,16 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const [showSieveEditor, setShowSieveEditor] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
+  // A message can collect only so many forwards on this server (the selected
+  // Sieve account's limit). The rules run in the order listed, behind the out
+  // of office forwarding, so the order counts. The edited rule stays where it
+  // is; a new one goes below Bulwark's own rules.
+  const redirectLimit = redirectLimitOf(sieveCapabilities?.maxNumberRedirects);
+  const tooManyForwards = hasTooManyForwards(rules, vacationForward, redirectLimit);
+  const forwardsOfEdited = forwardsForRule(
+    rules, vacationForward, editingRule?.id, rules.filter((r) => !isReadonlyRule(r)).length,
+  );
+
   useEffect(() => {
     if (!hydrated) void hydrate();
   }, [hydrated, hydrate]);
@@ -162,7 +199,10 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   // keeps showing, or saving into, its script. The app account is a
   // dependency too: managedAccountId stays null across a switch.
   useEffect(() => {
-    void selectAccount(managedAccountId);
+    void selectAccount(managedAccountId, () =>
+      useAuthStore.getState().activeAccountId === activeAccountId &&
+      clientServesAccount(activeAccountId) &&
+      useManagedAccountStore.getState().managedAccountId === managedAccountId);
   }, [managedAccountId, selectAccount, activeAccountId]);
 
   // An edit in progress belongs to the account it was started in; drop it
@@ -185,7 +225,16 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
   const persist = useCallback(async (rollback: () => void) => {
     try {
       await saveFilters();
-    } catch {
+    } catch (err) {
+      // After a reconnect the store holds the rules as the server has them
+      // now, which the rollback must not change.
+      if (err instanceof FiltersReloadedError) {
+        Alert.alert(
+          t('settings.filters.save_failed', 'Failed to save filters'),
+          t('settings.filters.reloaded_try_again', 'Your filters were reloaded. Please make the change again.'),
+        );
+        return;
+      }
       rollback();
       Alert.alert(t('settings.filters.save_failed', 'Failed to save filters'));
     }
@@ -351,6 +400,12 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
           </Pressable>
         )}
 
+        {!isOpaque && tooManyForwards && redirectLimit !== null && (
+          <Text style={styles.forwardLimit}>
+            {t('settings.filters.forward_limit', 'Forward limit per message on this server: {count}. Extra forwards are skipped.', { count: redirectLimit })}
+          </Text>
+        )}
+
         {!isOpaque && rules.length === 0 && !showVacationBanner && (
           <View style={styles.emptyState}>
             <Filter size={40} color={c.mutedForeground} style={{ opacity: 0.4 }} />
@@ -371,6 +426,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                   ? rule.originLabel
                   : t('settings.filters.origin_external', 'External');
                 const hasStructured = rule.origin === 'external' && rule.conditions.length > 0 && rule.actions.length > 0;
+                const period = periodLabel(rule, { t, timeFormat, locale });
                 return (
                   <View key={rule.id} style={styles.ruleRow}>
                     <Lock size={16} color={c.mutedForeground} style={{ marginTop: 2 }} />
@@ -381,11 +437,9 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                       </View>
                       {hasStructured ? (
                         expandedView ? (
-                          <VisualRuleSummary rule={rule} t={t} c={c} />
+                          <VisualRuleSummary rule={rule} period={period} t={t} c={c} />
                         ) : (
-                          <Text style={styles.ruleSummary} numberOfLines={2}>
-                            {summarizeRule(rule, t)}
-                          </Text>
+                          <RuleSummaryText rule={rule} period={period} t={t} style={styles.ruleSummary} />
                         )
                       ) : rule.rawBlock ? (
                         <Text style={styles.rawBlock} numberOfLines={expandedView ? undefined : 4}>
@@ -397,6 +451,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                 );
               }
 
+              const period = periodLabel(rule, { t, timeFormat, locale });
               return (
                 <View key={rule.id} style={[styles.ruleRow, !rule.enabled && styles.ruleDisabled]}>
                   <View style={{ paddingTop: 2 }}>
@@ -409,11 +464,9 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
                   >
                     <Text style={styles.ruleName} numberOfLines={1}>{rule.name}</Text>
                     {expandedView ? (
-                      <VisualRuleSummary rule={rule} t={t} c={c} />
+                      <VisualRuleSummary rule={rule} period={period} t={t} c={c} />
                     ) : (
-                      <Text style={styles.ruleSummary} numberOfLines={2}>
-                        {summarizeRule(rule, t)}
-                      </Text>
+                      <RuleSummaryText rule={rule} period={period} t={t} style={styles.ruleSummary} />
                     )}
                   </Pressable>
 
@@ -497,6 +550,10 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         visible={showRuleModal}
         rule={editingRule}
         mailboxes={mailboxes}
+        maxRedirects={redirectLimit}
+        forwardsBefore={forwardsOfEdited.before}
+        forwardsAfter={forwardsOfEdited.after}
+        periodsSupported={supportsPeriods(sieveCapabilities?.sieveExtensions)}
         onSave={handleSaveRule}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />
@@ -517,6 +574,7 @@ function makeStyles(c: ThemePalette) {
     statusText: { ...typography.body, color: c.mutedForeground, paddingVertical: spacing.md },
     loadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
 
+    forwardLimit: { ...typography.caption, color: c.warning },
     opaqueBanner: {
       flexDirection: 'row',
       gap: spacing.sm,

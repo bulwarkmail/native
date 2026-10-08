@@ -17,7 +17,8 @@ export interface AccountEntry {
   errorMessage?: string;
   isDefault: boolean;
   // JMAP primary account id (from the session's primaryAccounts). Recorded
-  // when push is set up so a relay payload can be routed to this entry.
+  // by the auth store while the client serves this entry, so a composer
+  // opened offline can queue a send for it.
   jmapAccountId?: string;
 }
 

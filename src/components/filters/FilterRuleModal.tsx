@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Modal, Alert,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { X, Plus, Trash2 } from 'lucide-react-native';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -11,6 +12,7 @@ import { Select, ToggleSwitch } from '../settings/settings-section';
 import Input from '../Input';
 import Button from '../Button';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useSettingsStore } from '../../stores/settings-store';
 import { useKeywordsStore } from '../../stores/keywords-store';
 import { generateUUID } from '../../lib/uuid';
 import { isValueLessCondition, valueToInputString } from '../../lib/sieve/condition-value';
@@ -25,13 +27,26 @@ import {
   ACTIONS_WITH_MAILBOX,
   ACTIONS_WITH_VALUE,
   buildMailboxTargets,
+  includeSpamToSave,
   mailboxIdFor,
   selectMailboxTarget,
   updateFilterAction,
   withMailboxTarget,
 } from '../../lib/sieve/rule-actions';
 import { applySuggestion } from '../../lib/filters/rule-suggestions';
-import { retroactiveSupport } from '../../lib/filters/retroactive';
+import {
+  editorRetroSupport,
+  formatPeriodBoundary,
+  periodDraftOf,
+  pickedBoundary,
+  pickerDate,
+  resolvePeriod,
+  withPeriod,
+  withPickedDate,
+  withPickedTime,
+  type PeriodDraft,
+} from '../../lib/filters/rule-period';
+import { modalForwardState } from '../../lib/filters/forward-limit-view';
 import type { RuleSuggestion } from '../../lib/filters/quick-rules';
 import type { Mailbox } from '../../api/types';
 import type {
@@ -49,6 +64,12 @@ function seedConditions(rule?: FilterRule): FilterCondition[] {
 function seedActions(rule?: FilterRule): FilterAction[] {
   return rule?.actions.length ? rule.actions.map((a) => ({ ...a })) : [makeEmptyAction()];
 }
+// The latest moment the period pickers offer: a later year has no room in the
+// four digits a stored boundary has.
+const PERIOD_PICKER_MAX = new Date(Date.UTC(9999, 11, 31, 23, 59));
+
+type PeriodEnd = 'from' | 'until';
+
 const ALL_ACTION_TYPES: FilterActionType[] = ['move', 'copy', 'forward', 'mark_read', 'star', 'add_label', 'discard', 'reject', 'keep', 'stop'];
 
 function makeEmptyCondition(): FilterCondition {
@@ -69,16 +90,27 @@ interface FilterRuleModalProps {
   /** Offer "also apply to existing messages". */
   offerApplyToExisting?: boolean;
   mailboxes: Mailbox[];
+  /** The server's redirect limit for this rule's account (maxNumberRedirects). */
+  maxRedirects?: number | null;
+  /** Forwards a message can have collected when it reaches this rule. */
+  forwardsBefore?: number;
+  /** The most forwards it can still collect below this rule. */
+  forwardsAfter?: number;
+  /** The server can confine a rule to a period (Sieve "date" and "relational"). */
+  periodsSupported?: boolean;
   onSave: (rule: FilterRule, options?: { applyToExisting: boolean }) => void;
   onClose: () => void;
 }
 
 export function FilterRuleModal({
-  visible, rule, initialRule, suggestions, offerApplyToExisting, mailboxes, onSave, onClose,
+  visible, rule, initialRule, suggestions, offerApplyToExisting, mailboxes, maxRedirects, forwardsBefore, forwardsAfter,
+  periodsSupported = false, onSave, onClose,
 }: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  const locale = useLocaleStore((s) => s.locale);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const keywords = useKeywordsStore((s) => s.keywords);
   const isEdit = !!rule;
   // An edit starts from `rule`; a prefill starts from `initialRule` and saves as a new rule.
@@ -92,6 +124,12 @@ export function FilterRuleModal({
   const [includeSpam, setIncludeSpam] = useState(start?.includeSpam ?? false);
   const [usedSuggestions, setUsedSuggestions] = useState<ReadonlySet<string>>(new Set());
   const [applyToExisting, setApplyToExisting] = useState(false);
+  const hadPeriod = periodDraftOf(start).on;
+  const [period, setPeriod] = useState<PeriodDraft>(() => periodDraftOf(start));
+  // The picker open for one end of the period: one date-and-time spinner on
+  // iOS, a date step and then a time step on Android (as in the composer).
+  const [picking, setPicking] = useState<{ end: PeriodEnd; stage: 'datetime' | 'date' | 'time' } | null>(null);
+  const pickDraftRef = useRef(new Date());
 
   // The Modal stays mounted between opens, so re-seed every field whenever it
   // is (re)opened for a different rule - otherwise "Add Rule" after editing
@@ -107,6 +145,8 @@ export function FilterRuleModal({
     setIncludeSpam(start?.includeSpam ?? false);
     setUsedSuggestions(new Set());
     setApplyToExisting(false);
+    setPeriod(periodDraftOf(start));
+    setPicking(null);
   }, [visible, start]);
 
   const mailboxTargets = useMemo(() => buildMailboxTargets(mailboxes), [mailboxes]);
@@ -119,6 +159,10 @@ export function FilterRuleModal({
     () => ALL_ACTION_TYPES.map((a) => ({ value: a, label: t(`settings.filters.action_types.${a}`, a) })),
     [t],
   );
+  // What counts is the most forwards one message can collect: those of the
+  // rules above that let it go on, this rule's, and those below unless this
+  // rule stops.
+  const forwardState = modalForwardState(actions, stopProcessing, maxRedirects, forwardsBefore, forwardsAfter);
   const keywordOptions = useMemo(
     () => keywords.map((kw) => ({ value: kw.id, label: kw.label })),
     [keywords],
@@ -182,14 +226,48 @@ export function FilterRuleModal({
 
   // Old mail can only be sorted by what the client can check the way Sieve
   // does. Until an action is complete, only the conditions decide.
-  const canApplyToExisting = useMemo(() => {
-    if (!offerApplyToExisting) return false;
+  const retroSupport = useMemo(() => {
     const done = actions
       .map((a) => withMailboxTarget(a, mailboxTargets))
       .filter((a) => !ACTIONS_WITH_VALUE.has(a.type) || a.value?.trim());
     const checkActions: FilterAction[] = done.length > 0 ? done : [{ type: 'mark_read' }];
-    return retroactiveSupport({ conditions: conditionsToSave(conditions), actions: checkActions }).ok;
-  }, [offerApplyToExisting, conditions, actions, mailboxTargets]);
+    return editorRetroSupport({ conditions: conditionsToSave(conditions), actions: checkActions }, period);
+  }, [conditions, actions, mailboxTargets, period]);
+  const canApplyToExisting = !!offerApplyToExisting && retroSupport.ok;
+
+  const openPicker = (end: PeriodEnd) => {
+    pickDraftRef.current = pickerDate(end === 'from' ? period.from : period.until);
+    setPicking({ end, stage: Platform.OS === 'ios' ? 'datetime' : 'date' });
+  };
+
+  const setBoundary = (end: PeriodEnd, value: string | undefined) => {
+    setPeriod((prev) => (end === 'from' ? { ...prev, from: value } : { ...prev, until: value }));
+  };
+
+  const commitPick = (end: PeriodEnd, picked: Date) => {
+    const boundary = pickedBoundary(picked, end === 'from' ? start?.activeFrom : start?.activeUntil);
+    if (boundary !== null) setBoundary(end, boundary);
+  };
+
+  const onPickerChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (!picking) return;
+    if (event.type === 'dismissed' || !selected) {
+      setPicking(null);
+      return;
+    }
+    if (picking.stage === 'datetime') {
+      // iOS spinner: keep it open, remember the latest value for Done.
+      pickDraftRef.current = selected;
+      return;
+    }
+    if (picking.stage === 'date') {
+      pickDraftRef.current = withPickedDate(pickDraftRef.current, selected);
+      setPicking({ end: picking.end, stage: 'time' });
+      return;
+    }
+    setPicking(null);
+    commitPick(picking.end, withPickedTime(pickDraftRef.current, selected));
+  };
 
   const visibleSuggestions = (suggestions ?? []).filter((s) => !usedSuggestions.has(s.id));
 
@@ -220,7 +298,18 @@ export function FilterRuleModal({
       Alert.alert(t('settings.filters.validation_empty_actions', 'At least one action is required'));
       return;
     }
-    onSave({
+    const resolved = resolvePeriod(period);
+    if (!resolved.ok) {
+      Alert.alert(
+        resolved.error === 'invalid'
+          ? t('settings.filters.validation_period_invalid', 'Enter a valid date with a time for the period, or leave the field empty')
+          : resolved.error === 'empty'
+            ? t('settings.filters.validation_period_empty', 'Enter a start or end date for the period')
+            : t('settings.filters.validation_period_order', 'End date must be after start date'),
+      );
+      return;
+    }
+    onSave(withPeriod({
       id: rule?.id || initialRule?.id || generateUUID(),
       name: trimmedName,
       enabled: start?.enabled ?? true,
@@ -228,11 +317,9 @@ export function FilterRuleModal({
       conditions: validConditions,
       actions: validActions,
       stopProcessing,
-      // Only folder moves are kept out of Junk, so the opt-in only means
-      // something (and is only stored) while the rule has one.
-      ...(includeSpam && validActions.some((a) => ACTIONS_WITH_MAILBOX.has(a.type)) ? { includeSpam: true } : {}),
-    }, { applyToExisting: applyToExisting && canApplyToExisting });
-  }, [name, conditions, actions, matchType, stopProcessing, includeSpam, rule, initialRule, start, onSave, t, mailboxTargets, applyToExisting, canApplyToExisting]);
+      includeSpam: includeSpamToSave(includeSpam, validActions),
+    }, resolved), { applyToExisting: applyToExisting && canApplyToExisting });
+  }, [name, conditions, actions, matchType, stopProcessing, includeSpam, period, rule, initialRule, start, onSave, t, mailboxTargets, applyToExisting, canApplyToExisting]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -392,7 +479,10 @@ export function FilterRuleModal({
                       <Select
                         value={action.type}
                         onChange={(v) => updateAction(index, { type: v as FilterActionType })}
-                        options={actionTypeOptions}
+                        options={actionTypeOptions.map((o) => (
+                          o.value === 'forward' && action.type !== 'forward' && forwardState.forwardDisabled
+                            ? { ...o, disabled: true }
+                            : o))}
                         style={{ flex: 1 }}
                       />
                       <Pressable
@@ -474,6 +564,11 @@ export function FilterRuleModal({
                   </View>
                 ))}
               </View>
+              {forwardState.overLimit && (
+                <Text style={styles.forwardLimit}>
+                  {t('settings.filters.forward_limit', 'Forward limit per message on this server: {count}. Extra forwards are skipped.', { count: forwardState.limit ?? 0 })}
+                </Text>
+              )}
               <Pressable
                 onPress={() => setActions((prev) => [...prev, makeEmptyAction()])}
                 style={styles.addRow}
@@ -509,6 +604,64 @@ export function FilterRuleModal({
               </View>
             )}
 
+            {/* Offered where the server supports it; a rule that already has a
+                period always shows it, so it can be removed. */}
+            {(periodsSupported || hadPeriod) && (
+              <View>
+                <View style={styles.stopRow}>
+                  <Text style={styles.stopLabel}>
+                    {t('settings.filters.period_toggle', 'Only active during a period')}
+                  </Text>
+                  <ToggleSwitch
+                    checked={period.on}
+                    onChange={(on) => setPeriod((prev) => ({ ...prev, on }))}
+                    accessibilityLabel={t('settings.filters.period_toggle', 'Only active during a period')}
+                  />
+                </View>
+                {period.on && (
+                  <View style={styles.periodFields}>
+                    {(['from', 'until'] as const).map((end) => {
+                      const label = end === 'from'
+                        ? t('settings.filters.period_start', 'Start Date')
+                        : t('settings.filters.period_end', 'End Date');
+                      const value = end === 'from' ? period.from : period.until;
+                      return (
+                        <View key={end} style={styles.periodRow}>
+                          <Text style={styles.periodLabel}>{label}</Text>
+                          <Pressable
+                            onPress={() => openPicker(end)}
+                            style={styles.periodValue}
+                            accessibilityRole="button"
+                            accessibilityLabel={label}
+                          >
+                            <Text style={value === undefined ? styles.periodValueEmpty : styles.periodValueText} numberOfLines={1}>
+                              {value === undefined
+                                ? t('settings.filters.period_not_set', 'Not set')
+                                : formatPeriodBoundary(value, timeFormat, locale)}
+                            </Text>
+                          </Pressable>
+                          {value !== undefined && (
+                            <Pressable
+                              onPress={() => setBoundary(end, undefined)}
+                              hitSlop={8}
+                              style={styles.removeBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${t('settings.filters.period_clear', 'Clear')}: ${label}`}
+                            >
+                              <X size={16} color={c.mutedForeground} />
+                            </Pressable>
+                          )}
+                        </View>
+                      );
+                    })}
+                    <Text style={styles.hint}>
+                      {t('settings.filters.period_hint', 'Applies to messages that arrive during this period. Leave a field empty to keep that end open.')}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             {offerApplyToExisting && (
               <View>
                 <View style={styles.stopRow}>
@@ -524,10 +677,15 @@ export function FilterRuleModal({
                 </View>
                 {!canApplyToExisting && (
                   <Text style={styles.hint}>
-                    {t(
-                      'settings.filters.apply_existing_unsupported',
-                      'Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.',
-                    )}
+                    {!retroSupport.ok && retroSupport.reason === 'period'
+                      ? t(
+                        'settings.filters.apply_existing_period',
+                        'A rule with a period acts only on messages that arrive within it, so it cannot run on existing messages.',
+                      )
+                      : t(
+                        'settings.filters.apply_existing_unsupported',
+                        'Only rules that check the sender, recipients, subject or headers, and that move, copy, mark as read, star or tag, can run on existing messages.',
+                      )}
                   </Text>
                 )}
               </View>
@@ -543,6 +701,46 @@ export function FilterRuleModal({
             {t('settings.filters.save', 'Save')}
           </Button>
         </View>
+
+        {picking?.stage === 'datetime' && (
+          <Modal transparent animationType="fade" onRequestClose={() => setPicking(null)}>
+            <Pressable style={styles.pickerBackdrop} onPress={() => setPicking(null)}>
+              <Pressable style={styles.pickerCard} onPress={() => {}}>
+                <DateTimePicker
+                  value={pickDraftRef.current}
+                  mode="datetime"
+                  display="spinner"
+                  maximumDate={PERIOD_PICKER_MAX}
+                  onChange={onPickerChange}
+                />
+                <View style={styles.pickerActions}>
+                  <Button variant="outline" onPress={() => setPicking(null)}>
+                    {t('common.cancel', 'Cancel')}
+                  </Button>
+                  <Button
+                    onPress={() => {
+                      const end = picking.end;
+                      setPicking(null);
+                      commitPick(end, pickDraftRef.current);
+                    }}
+                  >
+                    {t('common.done', 'Done')}
+                  </Button>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        )}
+
+        {picking && picking.stage !== 'datetime' && (
+          <DateTimePicker
+            value={pickDraftRef.current}
+            mode={picking.stage}
+            display="default"
+            maximumDate={picking.stage === 'date' ? PERIOD_PICKER_MAX : undefined}
+            onChange={onPickerChange}
+          />
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -602,6 +800,7 @@ function makeStyles(c: ThemePalette) {
       justifyContent: 'space-between',
       gap: spacing.md,
     },
+    forwardLimit: { ...typography.caption, color: c.warning, marginTop: spacing.sm },
     stopLabel: { ...typography.body, color: c.text, flex: 1 },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
@@ -612,6 +811,20 @@ function makeStyles(c: ThemePalette) {
     },
     chipText: { ...typography.caption, color: c.text, flexShrink: 1 },
     hint: { ...typography.caption, color: c.mutedForeground, marginTop: spacing.xs },
+
+    periodFields: { gap: spacing.sm, marginTop: spacing.sm },
+    periodRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    periodLabel: { ...typography.body, color: c.mutedForeground, minWidth: 90 },
+    periodValue: {
+      flex: 1,
+      paddingHorizontal: spacing.md, paddingVertical: 8,
+      borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.muted,
+    },
+    periodValueText: { ...typography.body, color: c.text },
+    periodValueEmpty: { ...typography.body, color: c.mutedForeground },
+    pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: spacing.lg },
+    pickerCard: { backgroundColor: c.background, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
+    pickerActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
 
     optionRow: {
       flexDirection: 'row',

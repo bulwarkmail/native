@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { hasQueueAccounts } from '../queue-send';
 import {
   composerAccountLabel, composerOwnerAtMount, composerSwitchBackActions, isComposerAccountActive, isComposerOwnerActive,
+  queueJmapAccountId,
 } from '../composer-account';
 
 describe('composerOwnerAtMount', () => {
@@ -17,6 +19,71 @@ describe('composerOwnerAtMount', () => {
 
   it('has no owner without an active account', () => {
     expect(composerOwnerAtMount({ activeAppAccountId: null, activeJmapAccountId: null })).toBeNull();
+  });
+});
+
+describe('composerOwnerAtMount with a recorded JMAP id', () => {
+  const recorded = (ids: Record<string, string>) => (appId: string) => ids[appId];
+
+  it('the live id wins over the recorded one', () => {
+    expect(composerOwnerAtMount({
+      activeAppAccountId: 'app-a', activeJmapAccountId: 'jmap-live', recordedJmapAccountId: recorded({ 'app-a': 'jmap-old' }),
+    })).toEqual({ appAccountId: 'app-a', jmapAccountId: 'jmap-live' });
+  });
+
+  it('offline, the id recorded for the active account stands in', () => {
+    expect(composerOwnerAtMount({
+      activeAppAccountId: 'app-a', activeJmapAccountId: null, recordedJmapAccountId: recorded({ 'app-a': 'jmap-a' }),
+    })).toEqual({ appAccountId: 'app-a', jmapAccountId: 'jmap-a' });
+  });
+
+  it("never uses another account's recorded id", () => {
+    const lookup = vi.fn(recorded({ 'app-b': 'jmap-b' }));
+    expect(composerOwnerAtMount({ activeAppAccountId: 'app-a', activeJmapAccountId: null, recordedJmapAccountId: lookup }))
+      .toEqual({ appAccountId: 'app-a', jmapAccountId: '' });
+    expect(lookup.mock.calls).toEqual([['app-a']]);
+  });
+});
+
+describe('queueJmapAccountId', () => {
+  const owner = { appAccountId: 'app-a', jmapAccountId: '' };
+  const recorded = (ids: Record<string, string>) => vi.fn((appId: string) => ids[appId]);
+
+  it('the live id wins while the client serves the owner', () => {
+    expect(queueJmapAccountId(owner, {
+      liveJmapAccountId: 'jmap-live', clientServesOwner: true, recorded: recorded({ 'app-a': 'jmap-old' }),
+    })).toBe('jmap-live');
+  });
+
+  it('a live id the client holds for another account is never used', () => {
+    expect(queueJmapAccountId(owner, { liveJmapAccountId: 'jmap-b', clientServesOwner: false })).toBe('');
+    expect(queueJmapAccountId(owner, {
+      liveJmapAccountId: 'jmap-b', clientServesOwner: false, recorded: recorded({ 'app-a': 'jmap-a' }),
+    })).toBe('jmap-a');
+  });
+
+  it('offline, the id recorded for the owner is used', () => {
+    expect(queueJmapAccountId(owner, {
+      liveJmapAccountId: null, clientServesOwner: false, recorded: recorded({ 'app-a': 'jmap-a' }),
+    })).toBe('jmap-a');
+  });
+
+  it("never uses another account's recorded id", () => {
+    const lookup = recorded({ 'app-b': 'jmap-b' });
+    expect(queueJmapAccountId(owner, { liveJmapAccountId: null, clientServesOwner: false, recorded: lookup })).toBe('');
+    expect(lookup.mock.calls).toEqual([['app-a']]);
+  });
+
+  it('falls back to the id pinned at mount', () => {
+    expect(queueJmapAccountId({ appAccountId: 'app-a', jmapAccountId: 'jmap-mount' }, {
+      liveJmapAccountId: null, clientServesOwner: false, recorded: recorded({}),
+    })).toBe('jmap-mount');
+  });
+
+  it('with nothing recorded, or no owner, gives "" and the send is refused', () => {
+    expect(queueJmapAccountId(owner, { liveJmapAccountId: null, clientServesOwner: false, recorded: recorded({}) })).toBe('');
+    expect(queueJmapAccountId(null, { liveJmapAccountId: 'jmap-a', clientServesOwner: true })).toBe('');
+    expect(hasQueueAccounts('app-a', queueJmapAccountId(owner, { liveJmapAccountId: null, clientServesOwner: false }))).toBe(false);
   });
 });
 
