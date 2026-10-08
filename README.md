@@ -16,7 +16,7 @@ React Native (Expo SDK 54) client for [Bulwark Webmail](https://github.com/bulwa
 
 ## What works today
 
-The app covers 477 of the 494 webmail features and fixes tracked in [PARITY_CHECKLIST.md](PARITY_CHECKLIST.md). What changed recently is in [CHANGES.md](CHANGES.md).
+The app covers 486 of the 494 webmail features and fixes tracked in [PARITY_CHECKLIST.md](PARITY_CHECKLIST.md). What changed recently is in [CHANGES.md](CHANGES.md).
 
 **Accounts and sign-in**
 - Sign in to any JMAP server (e.g. Stalwart) with a password, with two-factor (TOTP) codes, over OAuth/OIDC, with an access token, or with a sign-in code shown by the webmail
@@ -27,7 +27,7 @@ The app covers 477 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 - Account security on Stalwart: change the password, turn two-factor sign-in on or off, app passwords, public keys and encryption at rest
 
 **Mail**
-- Folders with create, rename, move, delete, mark as read and empty; roles and role icons
+- Folders with create, rename, move, delete, mark as read and empty; roles and role icons; reorder, per-folder icons and sharing with other users; tags with visibility, nesting and reorder
 - Unified inbox and per-role views (All Sent, Drafts, Junk, Archive, Trash) across accounts, plus All mail, Unread and Starred
 - Conversations: open any message of a thread
 - Tags with colours, tag views and counts; pin; answered and forwarded marks
@@ -116,11 +116,7 @@ The app covers 477 of the 494 webmail features and fixes tracked in [PARITY_CHEC
 
 **Open parity items**
 - Settings, templates and tag definitions don't sync between devices or with the webmail (native #1). It needs a server-side settings store.
-- Folders: no reordering, custom folder icons, or folder sharing
-- Tags: no visibility, nesting, reorder or rename
-- Calendar: no Jalali calendar grid; new calendars don't pin which components they hold (needs a CalDAV client); reminders are not refreshed in the background by push
-- Invitation banner: no "View in calendar", collapse, sequence badge or counter-proposal review
-- Right-to-left: swipe directions are not mirrored, and the drawer side is unchecked on a device
+- Calendar: new calendars don't pin which components they hold (needs a CalDAV client); reminders refresh on launch, resume and device sync, not in the background; the Jalali grid covers the month view only
 - Fixed-width tables in mail may shrink instead of wrapping on iOS (unchecked on a device)
 
 **Waiting on other projects**

@@ -218,7 +218,7 @@ RN toggles that are stored but never read (fix: either wire them or remove the c
   - What RN does: plain nested lookup returning the raw string (`RN: src/i18n/index.ts:54-71`); any WEB string with `{placeholder}` renders literally, and plurals are hand-rolled English (`OfflineBanner.tsx:22`, `AboutDataSettings.tsx:96,176,190`, `LayoutSettings.tsx:148-149`).
   - Fix hint: add `t(key, fallback, params)` with `{name}` substitution and a minimal ICU plural (`intl-messageformat` is small and works on Hermes), then replace the hand-rolled plurals.
 
-- [ ] **No RTL support (ar/he/fa)** — `P2` — `missing` — done in 990cd84: forceRTL/allowRTL on override + restart hint, isLayoutRTL() helper in src/i18n; deferred: SwipeableRow side swap (mail-list agent's file - call isLayoutRTL() there)
+- [x] **No RTL support (ar/he/fa)** — `P2` — `missing` — done in 990cd84: forceRTL/allowRTL on override + restart hint, isLayoutRTL() helper in src/i18n; deferred: SwipeableRow side swap (mail-list agent's file - call isLayoutRTL() there) — fixed in cd9c772: swipe actions, drawers and switches sit on the right side in right-to-left languages; swipes stay physical, as in webmail
   - What WEB does: `getLocaleDirection` sets `dir=rtl`, logical CSS, JS popovers flip, RTL-aware swipe (`i18n/direction.ts`; changelog 1.7.0-1.7.3 RTL entries).
   - What RN does: ar, he and fa ship since 990cd84, which also calls `I18nManager.forceRTL`/`allowRTL` when the language override changes (after a restart); mail bodies get `dir="auto"` since 910c503 (audit U4). `SwipeableRow` still maps left/right physically.
   - Fix hint: when adding ar/he/fa, call `I18nManager.forceRTL(dir==='rtl')` + `allowRTL` on override change (requires reload), audit `paddingLeft/Right` → `paddingStart/End`, and swap swipe actions when `I18nManager.isRTL`.
@@ -360,7 +360,7 @@ device.
 - [x] **About card links the repo, not the running build's commit** — `P3` — `missing` (0e39b19) — fixed in 28ffebf — links the build's commit
   - What RN does: `src/components/settings/AboutDataSettings.tsx:211`.
 
-- [ ] **RTL: the drawer may slide in from the wrong side (#944)** — `P3` — `bugfix-parity` (1.10.0, unverified on device)
+- [x] **RTL: the drawer may slide in from the wrong side (#944)** — `P3` — `bugfix-parity` (1.10.0, unverified on device) — fixed in cd9c772: the drawer slides in from the right side in right-to-left languages (checked on an emulator in Arabic, not yet on a phone)
   - What RN does: fixed negative `translateX` with no RTL check (`src/components/SidebarDrawer.tsx:683,705`).
 
 ## Verified at parity (do not redo)

@@ -27,12 +27,12 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
   - What RN does: `FolderSettings.saveDraft` always calls `createMailbox({ name })` (`src/components/settings/FolderSettings.tsx:96`) although `createMailbox` in `src/api/email.ts:156` already accepts `parentId` and `accountIdOverride`.
   - Fix hint: add a "Parent folder" select (own folders, or the shared account when creating there) to the editor modal and pass `parentId`.
 
-- [ ] **Move folder to another parent (#855) and reorder folders (sortOrder)** — `P3` — `missing` — partial in 6ae21d5: "Move under" picker + parent re-fetch done; deferred: sortOrder reorder UI (no drag-and-drop on mobile yet)
+- [x] **Move folder to another parent (#855) and reorder folders (sortOrder)** — `P3` — `missing` — partial in 6ae21d5: "Move under" picker + parent re-fetch done; deferred: sortOrder reorder UI (no drag-and-drop on mobile yet) — fixed in 67bb45a, f20f799, 41ab162, 1b3a649, ab91cc9: folders sort by their saved order first, as webmail does, and Settings has move up / down for your own folders (decision 2026-10-09: own folders only, shared ones are not reordered)
   - What WEB does: drag & drop in folder settings and sidebar reparents (`moveMailbox` `stores/email-store.ts:3898-3956`, refetches after reparent per #855) and reorders via `sortOrder` (`reorderMailboxes` `:3859`); folder-settings DnD plan `components/settings/folder-settings.tsx:241-262`.
   - What RN does: no UI; `updateMailbox` in `src/api/email.ts:185` accepts `parentId` but not `sortOrder`. Tree sorts by `sortOrder` already (`src/lib/mailbox-tree.ts:70-81`).
   - Fix hint: in the rename editor add a "Move under…" picker (own-account folders, excluding descendants) → `updateMailbox(id, { parentId })` then `fetchMailboxes()`; optionally up/down buttons writing `sortOrder`.
 
-- [ ] **Assign/clear a folder role, custom folder icons, colorful-icon toggle** — `P3` — `missing` — partial in 6ae21d5: role picker + #288 role icons done; deferred: per-folder custom icons and the colorful-icon toggle (cosmetic)
+- [x] **Assign/clear a folder role, custom folder icons, colorful-icon toggle** — `P3` — `missing` — partial in 6ae21d5: role picker + #288 role icons done; deferred: per-folder custom icons and the colorful-icon toggle (cosmetic) — fixed in f0e4ceb, 67fc430, 5d3238c: an icon per folder and the colourful-icon toggle, in Settings and the drawer; icons are device-local and keyed by app account (decision 2026-10-09)
   - What WEB does: role dropdown per folder (`components/settings/folder-settings.tsx:366-380`, store `setMailboxRole` `stores/email-store.ts:3830`), per-folder icon picker (`folder-settings.tsx:77`, `folderIcons` setting), `colorfulSidebarIcons` toggle (`layout-settings.tsx:222`). Distinct icons for shared/important/memos/scheduled/snoozed roles (#288, `components/layout/sidebar.tsx:131-160`).
   - What RN does: fixed role colours always on, `iconFor` knows only inbox/sent/drafts/trash/junk/archive/star (`src/components/SidebarDrawer.tsx:36-66`); no role assignment.
   - Fix hint: low priority; at least extend `iconFor` with the #288 roles (important/memos/scheduled/snoozed/shared) and ideally a role picker in FolderSettings using `updateMailbox(id, { role })` (needs `role` added to the `changes` type).
@@ -258,7 +258,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 
 ### Tags / keywords
 
-- [ ] **Tag definition features: visibility, nesting/parent, reorder, rename with migration, unknown tags** — `P3` — `partial` — partial in 3194b5e: unknown `$label:` ids listed/removable in TagSheet; deferred: visibility, nesting, reorder, rename migration (device-local tag model, see native issue #1)
+- [x] **Tag definition features: visibility, nesting/parent, reorder, rename with migration, unknown tags** — `P3` — `partial` — partial in 3194b5e: unknown `$label:` ids listed/removable in TagSheet; deferred: visibility, nesting, reorder, rename migration (device-local tag model, see native issue #1) — fixed in 13bf1ca, 65f7700, ca7522d: tag visibility, nesting and reorder, shown as a tree in the sidebar and the tag sheet; rename keeps the id, so no migration is needed (decision 2026-10-09); definitions stay device-local
   - What WEB does: `visibility: show|unread|hide` (`stores/settings-store.ts:180-190`, `components/settings/keyword-settings.tsx:98-132`), nested ids `parent/child` (`lib/keyword-nesting.ts`, `keyword-settings.tsx:213-243`), drag reorder (atomic, changelog 1.9.0), rename keyword migrates messages (`renameKeyword`/`client.migrateKeyword` `lib/jmap/client.ts:1963`), tag picker lists unknown ids present on a message so they can be removed (`components/email/tag-picker.tsx:484-491`).
   - What RN does: `{ id, label, color }` only (`src/stores/keywords-store.ts:9-13`); `TagSheet` lists defined tags only (`src/components/TagSheet.tsx:76-95`), so a `$label:work/clients` set by WEB can neither be seen nor removed on RN. Tag definitions are device-local (see native issue #1).
   - Fix hint: show unknown `$label:*` ids found on the selected emails at the bottom of `TagSheet`; add `visibility` when the drawer tag section lands; nesting/reorder are lower priority.
@@ -339,7 +339,7 @@ device.
 - [x] **List and notification previews do not skip a leading style sheet** — `P3` — `bugfix-parity` (2d521d1, 6bce332, WEB `lib/utils.ts`) — fixed in 646d8a8, 0328a9c — notifications show the subject, not the preview, so only the list rows and widgets needed it
   - What RN does: list row preview, `src/lib/push-background-task.ts` and the widgets show the CSS text.
 
-- [ ] **Mail folder sharing (`mail:share`) and share-notification toasts** — `P3` — `missing` (1.10.0)
+- [x] **Mail folder sharing (`mail:share`) and share-notification toasts** — `P3` — `missing` (1.10.0) — fixed in 820e817, b3bb437, 945c8b6, 6f59f0f, d7425fa: share a folder from Settings and the drawer, and toasts when something is shared with you; the share option is gated per account on `urn:ietf:params:jmap:mail:share`, which Stalwart 0.16.25 advertises on each account and not on the session (checked on a local server)
   - What WEB does: `components/layout/mailbox-share-dialog.tsx`, `stores/share-notification-store.ts`.
   - What RN does: calendars and files can be shared, mailboxes cannot; `components/calendar/CalendarShareSheet.tsx` is the pattern.
 
