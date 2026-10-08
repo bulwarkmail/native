@@ -5,6 +5,7 @@ import { usePendingSettingsTab } from '../pending-settings-tab';
 import { usePendingFilesOpen } from '../pending-files-open';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
 import { usePendingMailSearch } from '../pending-mail-search';
+import { usePendingMailFolder } from '../pending-mail-folder';
 import { links } from '../../widgets/clicks';
 
 describe('parseDeepLink', () => {
@@ -169,6 +170,60 @@ describe('handleDeepLink', () => {
     dispatch: vi.fn(),
   });
   const push = (params: object) => ({ type: 'PUSH', payload: { name: 'ContactForm', params } });
+
+  describe('folder links', () => {
+    beforeEach(() => usePendingMailFolder.setState({ target: null }));
+    const base = { resolveThreadId: async () => null };
+
+    it('parses the ref and the account', () => {
+      expect(parseDeepLink('https://mail.example.com/mail/folder/team%3Ax?account=B'))
+        .toEqual({ kind: 'folder', ref: 'team:x', accountId: 'B' });
+      expect(parseDeepLink('bulwarkmobile://mail/folder/Projects%2F2026'))
+        .toEqual({ kind: 'folder', ref: 'Projects/2026', accountId: undefined });
+    });
+
+    it('parks the folder for the account shown after the switch', async () => {
+      const navigation = nav();
+      let active = 'A';
+      const ok = await handleDeepLink(
+        { kind: 'folder', ref: 'c', accountId: 'B' },
+        {
+          navigation: navigation as never,
+          ...base,
+          switchAccount: async () => { active = 'B'; return true; },
+          activeAccountId: () => active,
+        },
+      );
+      expect(ok).toBe(true);
+      expect(usePendingMailFolder.getState().target).toEqual({ ref: 'c', appAccountId: 'B' });
+      expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Mail' });
+    });
+
+    it('parks nothing when the switch fails', async () => {
+      const ok = await handleDeepLink(
+        { kind: 'folder', ref: 'c', accountId: 'B' },
+        { navigation: nav() as never, ...base, switchAccount: async () => false, activeAccountId: () => 'A' },
+      );
+      expect(ok).toBe(false);
+      expect(usePendingMailFolder.getState().target).toBeNull();
+    });
+
+    it('parks nothing without a known active account', async () => {
+      await handleDeepLink({ kind: 'folder', ref: 'c' }, { navigation: nav() as never, ...base, activeAccountId: () => null });
+      expect(usePendingMailFolder.getState().target).toBeNull();
+    });
+
+    it('opens a virtual folder alias directly', async () => {
+      const navigation = nav();
+      await handleDeepLink({ kind: 'folder', ref: 'unified-sent' }, { navigation: navigation as never, ...base, activeAccountId: () => 'A' });
+      await handleDeepLink({ kind: 'folder', ref: 'cross-starred' }, { navigation: navigation as never, ...base, activeAccountId: () => 'A' });
+      await handleDeepLink({ kind: 'folder', ref: 'scheduled' }, { navigation: navigation as never, ...base, activeAccountId: () => 'A' });
+      expect(navigation.navigate).toHaveBeenNthCalledWith(1, 'UnifiedInbox', { role: 'sent' });
+      expect(navigation.navigate).toHaveBeenNthCalledWith(2, 'UnifiedInbox', { view: 'starred' });
+      expect(navigation.navigate).toHaveBeenNthCalledWith(3, 'Scheduled');
+      expect(usePendingMailFolder.getState().target).toBeNull();
+    });
+  });
 
   describe('files links', () => {
     beforeEach(() => usePendingFilesOpen.setState({ target: null }));

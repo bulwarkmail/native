@@ -252,6 +252,23 @@ describe('email-store', () => {
 
       expect(useEmailStore.getState().error).toBeNull();
     });
+
+    it('marks the account synced once its own and shared folders were read', async () => {
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBeUndefined();
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true);
+      useEmailStore.getState().reset();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+    });
+
+    it('marks nothing for an account left while its folders were read', async () => {
+      mockGetSharedMailboxes.mockImplementationOnce(async () => {
+        useEmailStore.setState({ activeAccountId: 'other-account' });
+        return [];
+      });
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+    });
   });
 
   describe('selectMailbox', () => {

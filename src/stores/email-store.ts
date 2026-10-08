@@ -495,6 +495,12 @@ export interface EmailState {
    * account id → the error. The other accounts' messages still show.
    */
   accountErrors: Record<string, string>;
+  /**
+   * Accounts whose own and shared folder lists were read from the server
+   * this launch, not only the cache. A folder link waits for this before
+   * calling a folder it can't find missing.
+   */
+  mailboxListsSynced: Record<string, true>;
 
   // ── Actions ────────────────────────────────────────────────────
   setActiveAccount: (accountId: string | null) => void;
@@ -1105,6 +1111,7 @@ export const useEmailStore = create<EmailState>()(
   retainedIds: [],
   threadCounts: {},
   accountErrors: {},
+  mailboxListsSynced: {},
 
   // Swap which account's data is currently visible. The previous account's
   // view is tucked into accountSnapshots so a return-trip can restore it
@@ -1154,6 +1161,7 @@ export const useEmailStore = create<EmailState>()(
   removeAccount: (accountId) => {
     const state = get();
     const { [accountId]: _drop, ...rest } = state.accountSnapshots;
+    const { [accountId]: _synced, ...stillSynced } = state.mailboxListsSynced;
     startFolderSettled.delete(accountId);
     if (state.activeAccountId === accountId) {
       set({
@@ -1171,17 +1179,19 @@ export const useEmailStore = create<EmailState>()(
         filters: {},
         searchSnippets: {},
         pendingUndo: null,
+        mailboxListsSynced: stillSynced,
       });
       void useOfflineCacheStore.getState().setAccount(null);
       void useOutboxStore.getState().setAccount(null);
     } else {
-      set({ accountSnapshots: rest });
+      set({ accountSnapshots: rest, mailboxListsSynced: stillSynced });
     }
   },
 
   clearAllAccounts: () => {
     startFolderSettled.clear();
     set({
+      mailboxListsSynced: {},
       accountSnapshots: {},
       activeAccountId: null,
       mailboxes: [],
@@ -1214,7 +1224,13 @@ export const useEmailStore = create<EmailState>()(
     // into the new account's snapshot.
     const activeAccountId = get().activeAccountId;
     if (!jmapClientServesActiveAccount(activeAccountId)) return Promise.resolve();
-    return syncMailboxes(activeAccountId!, { own: true, shared: true });
+    return syncMailboxes(activeAccountId!, { own: true, shared: true }).then(() => {
+      // Read (or tried) from the server for this account: a folder link that
+      // still finds nothing can say so.
+      const state = get();
+      if (state.activeAccountId !== activeAccountId || state.mailboxListsSynced[activeAccountId!]) return;
+      set({ mailboxListsSynced: { ...state.mailboxListsSynced, [activeAccountId!]: true } });
+    });
   },
 
   ensureMailboxes: () => {
@@ -2406,6 +2422,7 @@ export const useEmailStore = create<EmailState>()(
       retainedIds: [],
       threadCounts: {},
       accountErrors: {},
+      mailboxListsSynced: {},
     });
   },
     }),

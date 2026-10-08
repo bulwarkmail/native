@@ -67,6 +67,8 @@ import { getFullEmail } from '../api/email';
 import { planEmptyFolder } from '../lib/empty-folder';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
+import { planMailFolderOpen, usePendingMailFolder } from '../navigation/pending-mail-folder';
+import { useToastStore } from '../stores/toast-store';
 import type { Attachment, Email } from '../api/types';
 
 function getSenderName(email: Email, unknownLabel: string): string {
@@ -1162,14 +1164,37 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
     }
   }, [ensureMailboxes, mailboxes.length]);
 
+  // A folder link opens its folder once the account it was opened for is
+  // shown and its folders are in. One effect with the Inbox pick below, so
+  // a link that resolves never races it.
+  const pendingFolder = usePendingMailFolder((s) => s.target);
+  const mailboxListsSynced = useEmailStore((s) => s.mailboxListsSynced);
   React.useEffect(() => {
+    if (pendingFolder) {
+      const plan = planMailFolderOpen(pendingFolder, {
+        shownAccountId: activeAccountId,
+        mailboxes,
+        synced: !!activeAccountId && !!mailboxListsSynced[activeAccountId],
+      });
+      if (plan.action !== 'wait') usePendingMailFolder.getState().consume();
+      if (plan.action === 'open') {
+        void selectMailbox(plan.mailboxId);
+        return;
+      }
+      if (plan.action === 'not_found') {
+        useToastStore.getState().addToast({
+          type: 'error',
+          title: t('deep_link.folder_not_found', 'This folder is no longer available.'),
+        });
+      }
+    }
     if (mailboxes.length > 0 && !currentMailboxId) {
       const own = ownMailboxes(mailboxes);
       const inbox = own.find((m) => m.role === 'inbox') || own[0];
       if (!inbox) return;
       void selectMailbox(inbox.id);
     }
-  }, [mailboxes, currentMailboxId, selectMailbox]);
+  }, [pendingFolder, activeAccountId, mailboxListsSynced, mailboxes, currentMailboxId, selectMailbox, t]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

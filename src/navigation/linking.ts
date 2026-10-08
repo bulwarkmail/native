@@ -10,6 +10,8 @@ import { setPendingSettingsTab } from './pending-settings-tab';
 import { setPendingCalendarOpen, setPendingCalendarView, type CalendarViewTarget } from './pending-calendar-open';
 import { setPendingFilesOpen } from './pending-files-open';
 import { setPendingMailSearch } from './pending-mail-search';
+import { setPendingMailFolder } from './pending-mail-folder';
+import { virtualFolderTarget } from '../lib/folder-ref';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
 import { MAX_ACCOUNTS } from '../lib/account-utils';
@@ -384,9 +386,27 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
       // The reader keys on the message; without one, open the list.
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
-    case 'folder':
+    case 'folder': {
+      // A unified or Scheduled view has no folder of its own to wait for.
+      const virtual = virtualFolderTarget(link.ref);
+      if (virtual?.kind === 'scheduled') {
+        navigation.navigate('Scheduled');
+        return true;
+      }
+      if (virtual) {
+        navigation.navigate('UnifiedInbox', {
+          ...(virtual.role ? { role: virtual.role } : {}),
+          ...(virtual.view ? { view: virtual.view } : {}),
+        });
+        return true;
+      }
+      // Stamped after any account switch above: the mail list resolves it
+      // against this account's folders only.
+      const appAccountId = nav.activeAccountId?.();
+      if (appAccountId) setPendingMailFolder({ ref: link.ref, appAccountId });
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
+    }
     case 'calendar':
       // An event link opens the event like a tapped reminder does: the
       // Calendar tab looks it up by its server id.
