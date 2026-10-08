@@ -91,10 +91,18 @@ export async function replaceIdToken(
   if (!(await stillSignedIn())) await SecureStore.deleteItemAsync(key);
 }
 
-/** The provider an end-session endpoint belongs to: its origin. */
+/**
+ * The provider an end-session endpoint belongs to: the whole endpoint, with
+ * the query, fragment and any trailing slash dropped. Not just the origin:
+ * Keycloak serves every realm from one host, the realm in the path
+ * (`/realms/<realm>/protocol/openid-connect/logout`), and each realm keeps a
+ * session of its own.
+ */
 export function providerOf(endpoint: string | undefined): string | null {
   const usable = usableEndSessionEndpoint(endpoint);
-  return usable ? new URL(usable).origin : null;
+  if (!usable) return null;
+  const url = new URL(usable);
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
 /** What ending one account's provider session needs, read before sign-out drops it. */

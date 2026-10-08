@@ -97,8 +97,10 @@ function bundle(source: OAuthTokenSource, clientId = 'bulwark'): OAuthTokens {
 
 const ADA = entry('ada@example.com', SSO_LOGOUT);
 const BOB = entry('bob@example.com', OTHER_LOGOUT);
-// Another account at Ada's provider (another realm path, same origin).
-const CY = entry('cy@example.com', 'https://sso.example.com/realms/other/protocol/openid-connect/logout');
+// Another account in Ada's realm (the endpoint as advertised, with a
+// trailing slash), and one in another realm on the same host.
+const CY = entry('cy@example.com', `${SSO_LOGOUT}/`);
+const DEE = entry('dee@example.com', 'https://sso.example.com/realms/other/protocol/openid-connect/logout');
 
 // Per account: its token bundle and its kept id token.
 function accounts(list: Array<[AccountEntry, OAuthTokens | null, string | null]>, activeId: string): void {
@@ -177,6 +179,18 @@ describe('signing out of a direct PKCE account', () => {
     await useAuthStore.getState().logout();
     await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
     expect(openedUrls()[0].searchParams.get('id_token_hint')).toBe('ada-id-token');
+  });
+
+  it('ends a realm\'s session while an account in another realm on the same host stays', async () => {
+    accounts([[ADA, bundle('native'), 'ada-id-token'], [DEE, bundle('native'), 'dee-id-token']], ADA.id);
+
+    await useAuthStore.getState().removeAccount(DEE.id);
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
+
+    const [url] = openedUrls();
+    expect(`${url.origin}${url.pathname}`).toBe(DEE.endSessionEndpoint);
+    expect(url.searchParams.get('id_token_hint')).toBe('dee-id-token');
+    expect(useAccountStore.getState().getAccountById(ADA.id)).toBeDefined();
   });
 
   it('signing out of everything ends each provider once, one after the other', async () => {

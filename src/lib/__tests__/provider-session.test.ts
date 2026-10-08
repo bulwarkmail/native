@@ -164,10 +164,17 @@ describe('replaceIdToken', () => {
 });
 
 describe('providerOf', () => {
-  it('is the endpoint\'s origin, and nothing for an unusable one', () => {
-    expect(providerOf(ENDPOINT)).toBe('https://sso.example.com');
-    expect(providerOf('https://sso.example.com/other/logout')).toBe('https://sso.example.com');
+  it('is the whole endpoint without query, fragment or trailing slash', () => {
+    expect(providerOf(ENDPOINT)).toBe(ENDPOINT);
+    expect(providerOf(`${ENDPOINT}/?client_id=x#top`)).toBe(ENDPOINT);
+    expect(providerOf('https://SSO.example.com:443/realms/mail/protocol/openid-connect/logout')).toBe(ENDPOINT);
     expect(providerOf('http://sso.example.com/logout')).toBeNull();
     expect(providerOf(undefined)).toBeNull();
+  });
+
+  it('tells two realms on one host apart, and a port apart', () => {
+    const other = 'https://sso.example.com/realms/other/protocol/openid-connect/logout';
+    expect(providerOf(other)).not.toBe(providerOf(ENDPOINT));
+    expect(providerOf('https://sso.example.com:8443/realms/mail/protocol/openid-connect/logout')).not.toBe(providerOf(ENDPOINT));
   });
 });
