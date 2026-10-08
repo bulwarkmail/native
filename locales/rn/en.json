@@ -941,6 +941,7 @@
     "folders": {
       "account": "Account",
       "cannot_delete": "Cannot delete",
+      "description_mobile": "Create, rename, move and delete folders. Long-press a folder in the drawer for quick actions.",
       "description_mobile_reorder": "Create, rename, move and delete folders, or tap Reorder to change their order. Long-press a folder in the drawer for quick actions.",
       "edit_folder": "Edit \"{name}\"",
       "folder_name": "Folder name",
