@@ -134,8 +134,8 @@ function domainOf(address: string): string | undefined {
 export interface SenderVerification {
   /**
    * `failed`: the message fails the From domain's checks (see
-   * isAuthenticationSpoofed). `unverified`: neither SPF nor DKIM passes, so
-   * nothing ties the message to any domain, let alone the one in From.
+   * isAuthenticationSpoofed). `unverified`: no DMARC pass, and no SPF or
+   * DKIM pass for the From domain, so nothing ties the message to it.
    */
   status: 'failed' | 'unverified';
   /** Domain of the visible From address. */
@@ -172,8 +172,28 @@ export function getSenderVerification(
   const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
 
   if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
-  if (auth.dmarc?.result === 'pass' || spfPass || hasDkimPass(auth)) return null;
+  if (auth.dmarc?.result === 'pass') return null;
+  // A pass vouches for the From domain only when it is for that domain (or a
+  // parent or subdomain of it): anyone can pass SPF and DKIM for a domain of
+  // their own, and with no DMARC record at the forged one nothing else would
+  // flag it. Stricter than webmail, which takes any pass (decision
+  // 2026-10-08).
+  if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return null;
+  if (hasAlignedDkimPass(auth, domain)) return null;
   return { status: 'unverified', domain, sentFrom };
+}
+
+function domainsAlign(a: string, b: string): boolean {
+  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
+}
+
+function hasAlignedDkimPass(auth: AuthenticationResults, fromDomain: string): boolean {
+  const entries = auth.dkim?.all ?? (auth.dkim ? [auth.dkim] : []);
+  return entries.some((entry) => {
+    if (entry.result !== 'pass' || !entry.domain) return false;
+    const signer = domainOf(entry.domain);
+    return !!signer && domainsAlign(signer, fromDomain);
+  });
 }
 
 interface ResInfo {

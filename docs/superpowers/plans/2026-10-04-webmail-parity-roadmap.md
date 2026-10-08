@@ -567,7 +567,8 @@ Left open:
   - folder links on a cold start.
 - **Follow-ups parked in the ledger:**
   - Trust-on-reply and calendar trust-on-RSVP still file a flagged sender as trusted, and an already-trusted forged address still auto-loads remote content. Webmail behaves the same.
-  - Pin the `authserv-id` when judging the sender check.
+  - Pin the `authserv-id` when judging the sender check. Until then, a message the receiving server stamped no Authentication-Results header on is judged by the sender's own topmost header.
+  - The sender check counts an SPF or DKIM pass only for the From domain, a parent or a subdomain of it (decision 2026-10-08, after the push security review). Webmail takes a pass for any domain, so a spoofer's own domain silences its warning when the forged domain has no DMARC record; worth raising upstream. Native's match is by suffix, not the organisational domain, so two sibling subdomains don't match.
   - The shared-calendar colour override key (`accountId|originalId`) isn't scoped by app account. It's local only.
   - A queued send held with a stale recorded JMAP id is not re-stamped automatically.
   - The full list format's AM/PM is not in the region locale.

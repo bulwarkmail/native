@@ -233,15 +233,33 @@ describe('getSenderVerification', () => {
     });
   });
 
-  it('accepts any passing SPF, DKIM or DMARC result', () => {
+  it('accepts a passing SPF, DKIM or DMARC result for the From domain', () => {
     const from = 'news@shop.example';
-    expect(getSenderVerification(parseAuthenticationResults('mx; spf=pass smtp.mailfrom=bounces.esp.example'), from)).toBeNull();
-    expect(getSenderVerification(parseAuthenticationResults('mx; spf=none smtp.mailfrom=x.example; dkim=pass header.d=esp.example'), from)).toBeNull();
+    expect(getSenderVerification(parseAuthenticationResults('mx; spf=pass smtp.mailfrom=bounce@shop.example'), from)).toBeNull();
+    expect(getSenderVerification(parseAuthenticationResults('mx; spf=none smtp.mailfrom=x.example; dkim=pass header.d=shop.example'), from)).toBeNull();
     expect(getSenderVerification(parseAuthenticationResults('mx; dmarc=pass header.from=shop.example'), from)).toBeNull();
   });
 
+  it('accepts a pass for a parent domain or a subdomain of the From domain', () => {
+    expect(getSenderVerification(parseAuthenticationResults('mx; spf=pass smtp.mailfrom=bounce@mail.shop.example'), 'news@shop.example')).toBeNull();
+    expect(getSenderVerification(parseAuthenticationResults('mx; dkim=pass header.d=Shop.Example.'), 'news@em.shop.example')).toBeNull();
+  });
+
+  it('does not let a pass for another domain vouch for the From domain', () => {
+    // A spoofer passes SPF and DKIM for their own domain; with no DMARC
+    // record at the forged domain, nothing else would flag it.
+    const auth = parseAuthenticationResults('mx; spf=pass smtp.mailfrom=bounce@evil.example; dkim=pass header.d=evil.example; dmarc=none header.from=bank.example');
+    expect(getSenderVerification(auth, 'support@bank.example')).toEqual({
+      status: 'unverified',
+      domain: 'bank.example',
+      sentFrom: 'evil.example',
+    });
+    // Nor a domain that merely ends in the same letters.
+    expect(getSenderVerification(parseAuthenticationResults('mx; dkim=pass header.d=notbank.example'), 'support@bank.example')?.status).toBe('unverified');
+  });
+
   it('counts a passing signature that is not the first one', () => {
-    const auth = parseAuthenticationResults('mx; dkim=fail header.d=shop.example; dkim=pass header.d=esp.example; spf=none smtp.mailfrom=x.example');
+    const auth = parseAuthenticationResults('mx; dkim=fail header.d=esp.example; dkim=pass header.d=shop.example; spf=none smtp.mailfrom=x.example');
     expect(auth.dkim?.result).toBe('fail');
     expect(auth.dkim?.all).toHaveLength(2);
     expect(getSenderVerification(auth, 'news@shop.example')).toBeNull();
