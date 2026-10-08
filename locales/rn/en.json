@@ -1172,6 +1172,18 @@
         "remove_title": "Remove public key?",
         "title": "Public Keys"
       },
+      "screen_protection": {
+        "block_screenshots": {
+          "description": "Blocks screenshots, screen recording and casting, and blanks the app in recent apps.",
+          "label": "Block screenshots"
+        },
+        "description": "Keeps mail out of screenshots and the recent apps view on this device. Home-screen widgets and notification previews still show mail.",
+        "hide_in_recents": {
+          "description": "Blanks the app in recent apps but still allows screenshots.",
+          "label": "Hide in recent apps only"
+        },
+        "title": "Screen protection"
+      },
       "two_factor": {
         "active": "Active",
         "code": "Verification code",

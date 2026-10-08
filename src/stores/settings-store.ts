@@ -298,6 +298,13 @@ interface PersistedSettings {
   // Files: the storage notice at the Files root, once dismissed, stays dismissed.
   filesStabilityNoticeDismissed: boolean;
 
+  // Screen protection (Android). Block screenshots sets FLAG_SECURE, which
+  // also blanks the recent-apps preview; hide in recents blanks only the
+  // preview (API 33+). The native side keeps a copy so a cold start is
+  // covered before these hydrate.
+  blockScreenshots: boolean;
+  hideInRecents: boolean;
+
   // Debug logging (see lib/debug.ts). Persisted like the webmail so a support
   // session survives restarts.
   debugMode: boolean;
@@ -476,6 +483,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   exportSpaceReplacement: 'keep',
   exportLowercase: false,
   exportStripDiacritics: false,
+
+  blockScreenshots: false,
+  hideInRecents: false,
 
   offlineCacheEnabled: false,
   offlineCacheDays: 7,
@@ -708,6 +718,8 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'filesShowHiddenFiles',
   'filesStabilityNoticeDismissed',
   'calendarDefaultView',
+  'blockScreenshots',
+  'hideInRecents',
 ]);
 
 export function toExportShape(state: PersistedSettings): Record<string, unknown> {

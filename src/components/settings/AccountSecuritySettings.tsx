@@ -19,6 +19,8 @@ import {
 } from '../../lib/client-cert';
 import { useAuthStore } from '../../stores/auth-store';
 import { useLocaleStore } from '../../stores/locale-store';
+import { useSettingsStore } from '../../stores/settings-store';
+import { supportsRecentsHiding, supportsScreenPrivacy } from '../../lib/screen-privacy';
 import {
   isStalwartSupported,
   fetchAuthInfo,
@@ -850,6 +852,37 @@ function EncryptionSection({
   );
 }
 
+// Screen protection: device-wide, kept with the app settings rather than the
+// account. Widgets and notification previews still show mail.
+function ScreenProtectionSection() {
+  const t = useLocaleStore((s) => s.t);
+  const blockScreenshots = useSettingsStore((s) => s.blockScreenshots);
+  const hideInRecents = useSettingsStore((s) => s.hideInRecents);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  return (
+    <SettingsSection
+      title={t('settings.security.screen_protection.title', 'Screen protection')}
+      description={t('settings.security.screen_protection.description', 'Keeps mail out of screenshots and the recent apps view on this device. Home-screen widgets and notification previews still show mail.')}
+    >
+      <SettingItem
+        label={t('settings.security.screen_protection.block_screenshots.label', 'Block screenshots')}
+        description={t('settings.security.screen_protection.block_screenshots.description', 'Blocks screenshots, screen recording and casting, and blanks the app in recent apps.')}
+      >
+        <ToggleSwitch checked={blockScreenshots} onChange={(v) => updateSetting('blockScreenshots', v)} />
+      </SettingItem>
+      {supportsRecentsHiding() && (
+        <SettingItem
+          label={t('settings.security.screen_protection.hide_in_recents.label', 'Hide in recent apps only')}
+          description={t('settings.security.screen_protection.hide_in_recents.description', 'Blanks the app in recent apps but still allows screenshots.')}
+          noBorder
+        >
+          <ToggleSwitch checked={hideInRecents} onChange={(v) => updateSetting('hideInRecents', v)} />
+        </SettingItem>
+      )}
+    </SettingsSection>
+  );
+}
+
 // ── Screen ────────────────────────────────────────────────
 export function AccountSecuritySettings() {
   const c = useColors();
@@ -931,6 +964,7 @@ export function AccountSecuritySettings() {
 
   return (
     <View style={styles.container}>
+      {supportsScreenPrivacy() && <ScreenProtectionSection />}
       {certSupported && <ClientCertSection />}
 
       {supported === null && (

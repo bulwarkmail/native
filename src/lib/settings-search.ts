@@ -12,6 +12,7 @@
 // Kept free of React so it can be unit-tested.
 
 import { supportsDeviceSync } from './platform-capabilities';
+import { supportsRecentsHiding, supportsScreenPrivacy } from './screen-privacy';
 
 export type SettingsTabId =
   | 'account' | 'language' | 'notifications'
@@ -147,6 +148,9 @@ export const SETTINGS_SEARCH_PATHS: Record<SettingsTabId, string[]> = {
     'settings.downloads.after_export',
   ],
   security: [
+    // Android only, and hiding from recent apps alone needs API 33+.
+    ...(supportsScreenPrivacy() ? ['settings.security.screen_protection.block_screenshots'] : []),
+    ...(supportsRecentsHiding() ? ['settings.security.screen_protection.hide_in_recents'] : []),
     'settings.security.client_cert',
     'settings.security.password',
     'settings.security.display_name',
@@ -251,7 +255,7 @@ export const SETTINGS_SEARCH_KEYWORDS: Record<SettingsTabId, string> = {
   folders: 'mailbox rename role',
   keywords: 'tags labels colors',
   downloads: 'download filename template eml attachment save export',
-  security: 'password 2fa two-factor totp app password mfa api key certificate encryption',
+  security: `password 2fa two-factor totp app password mfa api key certificate encryption${supportsScreenPrivacy() ? ' screenshot screen recording recent apps privacy' : ''}`,
   encryption: 's/mime smime certificate sign encrypt',
   content_senders: 'block sender remote images privacy tracking',
   calendar: `event schedule appointment meeting timezone${supportsDeviceSync ? ' android phone device sync' : ''}`,

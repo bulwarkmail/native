@@ -17,6 +17,9 @@ class MainActivity : ReactActivity() {
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
+    // Screen protection the user turned on, before the first frame: JS has
+    // not hydrated the settings yet.
+    BulwarkWindowModule.applyPersisted(this)
     ShareIntentStore.rewriteSendToAsView(intent)
     super.onCreate(null)
     NotificationTapStore.captureFromIntent(intent)

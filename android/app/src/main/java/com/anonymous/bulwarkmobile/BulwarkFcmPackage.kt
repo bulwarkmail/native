@@ -15,6 +15,7 @@ class BulwarkFcmPackage : ReactPackage {
             add(BulwarkClientCertModule(reactContext))
             add(BulwarkDeviceSyncModule(reactContext))
             add(BulwarkWidgetsModule(reactContext))
+            add(BulwarkWindowModule(reactContext))
             // The bridge registers React Native's own module under this name.
             if (ReactNativeNewArchitectureFeatureFlags.enableBridgelessArchitecture()) {
                 add(BulwarkHeadlessJsTaskSupportModule(reactContext))

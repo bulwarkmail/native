@@ -69,6 +69,7 @@ import { mailboxAccountId } from './src/lib/mailbox-tree';
 import { loadDetail, prefetchMessage } from './src/lib/email-detail-cache';
 import { useHasCalendar, useHasContacts, useHasFiles } from './src/lib/capabilities';
 import { useSettingsStore } from './src/stores/settings-store';
+import { setHiddenInRecents, setScreenshotsBlocked, setSystemBarsLight } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
@@ -412,6 +413,21 @@ export default function App() {
   const resolvedScheme: 'light' | 'dark' =
     themePref === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : themePref;
   const statusBarStyle: 'light' | 'dark' = resolvedScheme === 'light' ? 'dark' : 'light';
+  // The 3-button navigation bar keeps the system night mode's icons unless told.
+  React.useEffect(() => {
+    setSystemBarsLight(resolvedScheme === 'light');
+  }, [resolvedScheme]);
+  // Screen protection. MainActivity applied the native copy before the first
+  // frame; once hydrated the settings win, so a disagreement is corrected here.
+  const settingsHydrated = useSettingsStore((state) => state.hydrated);
+  const blockScreenshots = useSettingsStore((state) => state.blockScreenshots);
+  const hideInRecents = useSettingsStore((state) => state.hideInRecents);
+  React.useEffect(() => {
+    if (settingsHydrated) setScreenshotsBlocked(blockScreenshots);
+  }, [settingsHydrated, blockScreenshots]);
+  React.useEffect(() => {
+    if (settingsHydrated) setHiddenInRecents(hideInRecents);
+  }, [settingsHydrated, hideInRecents]);
   // React Navigation's default theme is light: without this its containers
   // paint white behind and between screens, even in dark mode.
   const background = useColors().background;
