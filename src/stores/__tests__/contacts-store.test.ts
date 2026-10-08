@@ -474,6 +474,54 @@ describe('contacts-store', () => {
     });
   });
 
+  describe('renameAddressBook for a managed shared account', () => {
+    const mockUpdateAddressBook = contactsApi.updateAddressBook as ReturnType<typeof vi.fn>;
+    const owner = { appAccountId: 'app-1', jmapAccountId: 'acc-team' };
+    // The user's own book and the team's book share the raw id "ab".
+    const books = (): AddressBook[] => [
+      { id: 'ab', name: 'Mine' },
+      { id: 'acc-team:ab', originalId: 'ab', accountId: 'acc-team', name: 'Team', isShared: true },
+    ];
+
+    it('renames the book in the account that owns it, on the owner\'s connection', async () => {
+      useContactsStore.setState({ addressBooks: books() });
+      mockUpdateAddressBook.mockResolvedValue(undefined);
+
+      await useContactsStore.getState().renameAddressBook('acc-team:ab', 'Crew', owner);
+
+      expect(mockUpdateAddressBook).toHaveBeenCalledWith('ab', { name: 'Crew' }, 'acc-team', { gen: 5 });
+      expect(useContactsStore.getState().addressBooks.map((b) => b.name)).toEqual(['Mine', 'Crew']);
+    });
+
+    it('is refused, nothing sent, once another account is shown', async () => {
+      useContactsStore.setState({ addressBooks: books() });
+      shown.app = 'app-2';
+
+      await expect(useContactsStore.getState().renameAddressBook('acc-team:ab', 'Crew', owner)).rejects.toThrow();
+      expect(mockUpdateAddressBook).not.toHaveBeenCalled();
+    });
+
+    it('refuses a book of another account than the one being managed', async () => {
+      useContactsStore.setState({ addressBooks: books() });
+
+      await expect(useContactsStore.getState().renameAddressBook('ab', 'Crew', owner)).rejects.toThrow();
+      expect(mockUpdateAddressBook).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing locally when the account switched while the rename was out', async () => {
+      useContactsStore.setState({ addressBooks: books() });
+      mockUpdateAddressBook.mockImplementationOnce(async () => {
+        shown.app = 'app-2';
+        useContactsStore.getState().reset();
+        useContactsStore.setState({ addressBooks: [{ id: 'acc-team:ab', name: 'Other' }] });
+      });
+
+      await useContactsStore.getState().renameAddressBook('acc-team:ab', 'Crew', owner);
+
+      expect(useContactsStore.getState().addressBooks).toEqual([{ id: 'acc-team:ab', name: 'Other' }]);
+    });
+  });
+
   describe('groups', () => {
     it('addContactsToGroup references members by uid', async () => {
       useContactsStore.setState({

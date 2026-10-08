@@ -185,7 +185,17 @@ export interface ContactsState {
 
   // Address book management
   createAddressBook: (name: string) => Promise<AddressBook>;
-  renameAddressBook: (id: string, name: string) => Promise<void>;
+  /**
+   * Rename a book. With `owner` (Settings managing a shared account), the
+   * rename is for app account `owner.appAccountId` and a book of JMAP
+   * account `owner.jmapAccountId`: refused, nothing sent, once another
+   * account is shown or the book is not that account's.
+   */
+  renameAddressBook: (
+    id: string,
+    name: string,
+    owner?: { appAccountId: string | null; jmapAccountId: string },
+  ) => Promise<void>;
   deleteAddressBook: (id: string) => Promise<void>;
   setDefaultAddressBook: (id: string) => Promise<void>;
   /**
@@ -773,11 +783,22 @@ export const useContactsStore = create<ContactsState>()(
           return book;
         },
 
-        renameAddressBook: async (id, name) => {
+        renameAddressBook: async (id, name, owner) => {
           const trimmed = name.trim();
           if (!trimmed) return;
           const { originalId, accountId } = bookTarget(id);
-          await apiUpdateAddressBook(originalId, { name: trimmed }, accountId);
+          if (owner) {
+            const at = requireShownAccountScope(owner.appAccountId, owner.jmapAccountId);
+            // Book ids repeat across accounts: only the managed account's own book.
+            if (accountId !== owner.jmapAccountId) {
+              throw new Error(t('contacts.address_books.rename_failed', 'Failed to rename address book'));
+            }
+            const epoch = loadEpoch;
+            await apiUpdateAddressBook(originalId, { name: trimmed }, at.accountId, ...requestGen(at));
+            if (epoch !== loadEpoch || !isShownAccount(owner.appAccountId)) return;
+          } else {
+            await apiUpdateAddressBook(originalId, { name: trimmed }, accountId);
+          }
           set({
             addressBooks: get().addressBooks.map((b) => (b.id === id ? { ...b, name: trimmed } : b)),
           });

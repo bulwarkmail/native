@@ -1,0 +1,148 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { AddressBook, Calendar } from '../../api/types';
+
+// Settings scoped to a shared/group account manage that account's calendars
+// and address books. Stalwart numbers ids per account, so the user's own
+// collection and the shared one can carry the same raw id: every write names
+// the owning account, and nothing is sent once the app shows another account.
+
+const shown = vi.hoisted(() => ({ app: 'app-1' as string | null }));
+vi.mock('../../stores/email-store', () => ({
+  requireShownAccountScope: (appAccountId: string | null, jmapAccountId?: string) => {
+    if (!appAccountId || appAccountId !== shown.app) throw new Error('This belongs to another account.');
+    return { gen: 9, accountId: jmapAccountId ?? 'own' };
+  },
+}));
+
+const calendarStore = vi.hoisted(() => ({
+  calendars: [] as Calendar[],
+  updateCalendar: vi.fn(),
+}));
+vi.mock('../../stores/calendar-store', () => ({
+  useCalendarStore: { getState: () => calendarStore },
+}));
+
+const contactsStore = vi.hoisted(() => ({
+  addressBooks: [] as AddressBook[],
+  renameAddressBook: vi.fn(),
+}));
+vi.mock('../../stores/contacts-store', () => ({
+  useContactsStore: { getState: () => contactsStore },
+}));
+
+vi.mock('../../stores/locale-store', () => ({
+  t: (_key: string, fallback?: string) => fallback ?? _key,
+}));
+
+import {
+  scopedCalendars,
+  scopedBooks,
+  scopedCalendarActions,
+  scopedBookActions,
+  updateScopedCalendar,
+  renameScopedBook,
+} from '../managed-scope';
+
+const ownCal: Calendar = { id: 'c1', name: 'Mine' };
+const teamCal: Calendar = { id: 'team:c1', originalId: 'c1', accountId: 'team', isShared: true, name: 'Team' };
+const otherCal: Calendar = { id: 'ops:c1', originalId: 'c1', accountId: 'ops', isShared: true, name: 'Ops' };
+// Own calendars carry no accountId; one tagged with the managed id but not shared is still not the team's.
+const untaggedShared: Calendar = { id: 'team-own', accountId: 'team', name: 'Odd' };
+
+const ownBook: AddressBook = { id: 'ab', name: 'Mine' };
+const teamBook: AddressBook = { id: 'team:ab', originalId: 'ab', accountId: 'team', isShared: true, name: 'Team' };
+const otherBook: AddressBook = { id: 'ops:ab', originalId: 'ab', accountId: 'ops', isShared: true, name: 'Ops' };
+
+const scope = { appAccountId: 'app-1', managedAccountId: 'team' };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  shown.app = 'app-1';
+  calendarStore.calendars = [ownCal, teamCal, otherCal, untaggedShared];
+  contactsStore.addressBooks = [ownBook, teamBook, otherBook];
+});
+
+describe('scopedCalendars / scopedBooks', () => {
+  it('keep only the managed account\'s shared calendars, not an own one with the same raw id', () => {
+    expect(scopedCalendars(calendarStore.calendars, 'team')).toEqual([teamCal]);
+  });
+
+  it('keep only the managed account\'s shared address books, not an own one with the same raw id', () => {
+    expect(scopedBooks(contactsStore.addressBooks, 'team')).toEqual([teamBook]);
+  });
+});
+
+describe('actions offered on a shared collection', () => {
+  it('never offers delete for a calendar, whatever the rights', () => {
+    const full = { ...teamCal, myRights: { mayDelete: true, mayShare: true, mayWriteAll: true } };
+    expect(scopedCalendarActions(full)).toEqual({ edit: true, delete: false });
+  });
+
+  it('offers rename and recolour only where the rights allow it', () => {
+    expect(scopedCalendarActions(teamCal).edit).toBe(true); // no rights sent: the server decides
+    expect(scopedCalendarActions({ ...teamCal, myRights: { mayShare: true } }).edit).toBe(true);
+    expect(scopedCalendarActions({ ...teamCal, myRights: { mayWriteAll: true } }).edit).toBe(true);
+    expect(scopedCalendarActions({ ...teamCal, myRights: { mayReadItems: true, mayWriteOwn: true } }).edit).toBe(false);
+  });
+
+  it('never offers delete for an address book, and rename only with write rights', () => {
+    expect(scopedBookActions({ ...teamBook, myRights: { mayWrite: true, mayDelete: true } }))
+      .toEqual({ rename: true, delete: false });
+    expect(scopedBookActions({ ...teamBook, myRights: { mayRead: true, mayWrite: false } }).rename).toBe(false);
+  });
+});
+
+describe('updateScopedCalendar', () => {
+  const values = { name: 'Crew', color: '#ff0000', description: '' };
+
+  it('writes to the owning account, on the connection taken when the save started', async () => {
+    await updateScopedCalendar(scope, 'team:c1', values);
+    expect(calendarStore.updateCalendar).toHaveBeenCalledWith(
+      'team:c1',
+      { name: 'Crew', color: '#ff0000', description: null },
+      { appAccountId: 'app-1', jmapAccountId: 'team', scope: { gen: 9, accountId: 'team' } },
+    );
+  });
+
+  it('writes nothing once another account is shown (a switch mid-edit)', async () => {
+    shown.app = 'app-2';
+    await expect(updateScopedCalendar(scope, 'team:c1', values)).rejects.toThrow();
+    expect(calendarStore.updateCalendar).not.toHaveBeenCalled();
+  });
+
+  it('refuses a calendar that is not the managed account\'s', async () => {
+    await expect(updateScopedCalendar(scope, 'c1', values)).rejects.toThrow();
+    await expect(updateScopedCalendar(scope, 'ops:c1', values)).rejects.toThrow();
+    expect(calendarStore.updateCalendar).not.toHaveBeenCalled();
+  });
+
+  it('refuses a calendar the rights do not let the user edit', async () => {
+    calendarStore.calendars = [{ ...teamCal, myRights: { mayReadItems: true } }];
+    await expect(updateScopedCalendar(scope, 'team:c1', values)).rejects.toThrow();
+    expect(calendarStore.updateCalendar).not.toHaveBeenCalled();
+  });
+});
+
+describe('renameScopedBook', () => {
+  it('renames in the owning account, for the app account the pane opened in', async () => {
+    await renameScopedBook(scope, 'team:ab', 'Crew');
+    expect(contactsStore.renameAddressBook).toHaveBeenCalledWith(
+      'team:ab',
+      'Crew',
+      { appAccountId: 'app-1', jmapAccountId: 'team' },
+    );
+  });
+
+  it('writes nothing once another account is shown (a switch mid-edit)', async () => {
+    shown.app = 'app-2';
+    await expect(renameScopedBook(scope, 'team:ab', 'Crew')).rejects.toThrow();
+    expect(contactsStore.renameAddressBook).not.toHaveBeenCalled();
+  });
+
+  it('refuses a book that is not the managed account\'s, or that the user may not write', async () => {
+    await expect(renameScopedBook(scope, 'ab', 'Crew')).rejects.toThrow();
+    contactsStore.addressBooks = [{ ...teamBook, myRights: { mayWrite: false } }];
+    await expect(renameScopedBook(scope, 'team:ab', 'Crew')).rejects.toThrow();
+    expect(contactsStore.renameAddressBook).not.toHaveBeenCalled();
+  });
+});

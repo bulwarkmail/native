@@ -1116,6 +1116,11 @@
       "mobile_description": "Plugins run inside the webmail and extend it in the browser.",
       "mobile_explainer": "The mobile app has no plugin runtime. Install and manage plugins from the webmail under Settings → Plugins; themes and filters they provide are not applied here."
     },
+    "scoped": {
+      "address_books_description": "Rename the address books of this account.",
+      "calendars_description": "Rename and recolor the calendars of this account.",
+      "no_calendars": "This account has no calendars you can see."
+    },
     "security": {
       "client_cert": {
         "active": "Active: {alias}",
