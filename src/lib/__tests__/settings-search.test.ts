@@ -119,7 +119,6 @@ describe('settings search index (English catalog)', () => {
     expect(labelsFor('notifications')).toContain('Unread count on app icon');
     expect(labelsFor('vacation')).toEqual(expect.arrayContaining(['Forward messages', 'Keep in inbox', 'Reply to']));
     // Webmail-only settings are not offered.
-    expect(labelsFor('calendar')).not.toContain('Free scrolling');
     expect(labelsFor('notifications')).not.toContain('Notification sound');
   });
 
@@ -231,5 +230,27 @@ describe('screen protection search paths', () => {
     const paths = await securityPaths('ios', { getConstants: () => ({ supportsRecentsHiding: true }) });
     expect(paths).not.toContain(BLOCK);
     expect(paths).not.toContain(RECENTS);
+  });
+});
+
+describe('free scrolling and automatic time zone entries', () => {
+  const index = buildSettingsSearchIndex(en, tEn);
+
+  it('finds free scrolling in the calendar pane', () => {
+    expect(tabMatchesQuery(index, 'calendar', 'Calendar', 'free scroll')).toBe(true);
+    expect(labelsFor('calendar')).toContain('Free scrolling');
+  });
+
+  it('finds the automatic time zone in the calendar and language panes', () => {
+    expect(tabMatchesQuery(index, 'calendar', 'Calendar', 'automatic')).toBe(true);
+    expect(tabMatchesQuery(index, 'language', 'Language & Region', 'automatic')).toBe(true);
+    expect(labelsFor('calendar')).toContain('Time zone');
+    expect(labelsFor('language')).toContain('Time zone');
+  });
+
+  it('shows no unresolved placeholder in any label', () => {
+    for (const tab of ['calendar', 'language'] as const) {
+      for (const label of labelsFor(tab)) expect(label).not.toContain('{');
+    }
   });
 });

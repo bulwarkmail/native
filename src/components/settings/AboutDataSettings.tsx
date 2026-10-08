@@ -23,9 +23,15 @@ import { useUpdatesStore } from '../../stores/updates-store';
 import { runOfflineSync, formatBytes } from '../../lib/offline-sync';
 import { clearCachedData } from '../../lib/clear-cached-data';
 import { supportsSideloadUpdates } from '../../lib/platform-capabilities';
+import { buildSourceLink } from '../../lib/source-link';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
-const GIT_COMMIT = (Constants.expoConfig?.extra as { commit?: string } | undefined)?.commit ?? 'dev';
+const BUILD_EXTRA = Constants.expoConfig?.extra as
+  | { commit?: string; gitCommit?: string; sourceUrl?: string }
+  | undefined;
+const GIT_COMMIT = BUILD_EXTRA?.commit ?? 'dev';
+// The commit this build came from when known, else the repository (https only).
+const SOURCE_LINK = buildSourceLink(BUILD_EXTRA?.sourceUrl, BUILD_EXTRA?.gitCommit);
 const APP_STORE_URL = 'https://github.com/bulwarkmail/native/releases';
 
 export function AboutDataSettings() {
@@ -215,7 +221,7 @@ export function AboutDataSettings() {
           <Pressable
             style={styles.ghLink}
             accessibilityRole="link"
-            onPress={() => Linking.openURL('https://github.com/bulwarkmail/native')}
+            onPress={() => void Linking.openURL(SOURCE_LINK)}
           >
             <Text style={styles.ghText}>GitHub</Text>
             <ExternalLink size={12} color={c.mutedForeground} />
