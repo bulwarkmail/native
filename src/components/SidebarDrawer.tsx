@@ -10,7 +10,7 @@ import {
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
   Clock, Layers, Users, Tag, Mails, MailOpen, StickyNote, AlarmClock, Flag,
   CheckCheck, Eraser, FolderPlus, Pencil, AlertTriangle, UserMinus, Search, Globe,
-  type LucideIcon,
+  MoreHorizontal, type LucideIcon,
 } from 'lucide-react-native';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
@@ -40,6 +40,7 @@ import {
 import { inAccount, type OpScope } from '../api/op-scope';
 import { isStaleLoad } from '../lib/network-error';
 import { useTagCountsStore } from '../stores/tag-counts-store';
+import { tagRows } from '../lib/tag-rows';
 import { trashAndJunkIds } from '../lib/search-scope';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -345,6 +346,8 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const [foldersExpanded, setFoldersExpanded] = React.useState(true);
   const [tagsExpanded, setTagsExpanded] = React.useState(true);
+  // The tags section's "Show all", which lists the tags set to hide too.
+  const [showAllTags, setShowAllTags] = React.useState(false);
   const [unifiedExpanded, setUnifiedExpanded] = React.useState(false);
   const [expandedFolders, setExpandedFolders] = React.useState<Set<string>>(() => new Set());
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
@@ -794,6 +797,16 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   };
 
   const tagViewActive = !!filters.keyword;
+  const nestedTags = useSettingsStore((s) => s.nestedTags);
+  const selectedTagId = filters.keyword
+    ? keywordDefs.find((kw) => keywordToken(kw.id) === filters.keyword)?.id ?? null
+    : null;
+  const tagList = React.useMemo(
+    () => tagRows(keywordDefs, {
+      nested: nestedTags, counts: tagCounts, selectedId: selectedTagId, showAll: showAllTags, applyVisibility: true,
+    }),
+    [keywordDefs, nestedTags, tagCounts, selectedTagId, showAllTags],
+  );
 
   return (
     <Modal
@@ -1186,16 +1199,16 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                   )}
                   <Text style={styles.sectionHeaderText}>{t('sidebar.tags', 'Tags')}</Text>
                 </Pressable>
-                {tagsExpanded && keywordDefs.map((kw) => {
+                {tagsExpanded && tagList.rows.map(({ def: kw, depth }) => {
                   const counts = tagCounts[kw.id];
-                  const isSelected = filters.keyword === keywordToken(kw.id);
+                  const isSelected = kw.id === selectedTagId;
                   const dot = c.tags[kw.color]?.dot ?? c.textMuted;
                   return (
                     <SidebarRow
                       key={kw.id}
                       icon={<Tag size={16} color={dot} fill={dot} />}
                       label={kw.label}
-                      depth={0}
+                      depth={depth}
                       isSelected={isSelected}
                       unread={counts?.unread ?? 0}
                       total={counts?.total ?? 0}
@@ -1207,6 +1220,23 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     />
                   );
                 })}
+                {tagsExpanded && (tagList.hiddenCount > 0 || showAllTags) && (
+                  <SidebarRow
+                    icon={<MoreHorizontal size={16} color={c.textMuted} />}
+                    label={showAllTags
+                      ? t('sidebar.show_fewer_tags', 'Show less')
+                      : t('sidebar.show_all_tags', `Show all (${tagList.hiddenCount})`, { count: tagList.hiddenCount })}
+                    depth={0}
+                    isSelected={false}
+                    unread={0}
+                    total={0}
+                    showTotal={false}
+                    hasChildren={false}
+                    isExpanded={false}
+                    onPress={() => setShowAllTags((prev) => !prev)}
+                    onToggleExpand={() => {}}
+                  />
+                )}
               </>
             )}
             {/* Sidebar apps: web links only, opened in a Custom Tab */}

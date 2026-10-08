@@ -9,8 +9,13 @@ import { useColors } from '../theme/colors';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
+import { useSettingsStore } from '../stores/settings-store';
+import { tagRows } from '../lib/tag-rows';
 import { getEmailTagIds } from '../lib/thread-utils';
 import type { Email } from '../api/types';
+
+/** Extra left padding per tree level, as the drawer indents its rows. */
+const INDENT_STEP = 12;
 
 interface TagSheetProps {
   visible: boolean;
@@ -30,6 +35,13 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
   const slideY = React.useRef(new Animated.Value(500)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const dragHandlers = useSheetDrag({ slideY, closedY: 500, onClose });
+  const nestedTags = useSettingsStore((s) => s.nestedTags);
+
+  // Every tag, in tree order: a tag hidden from the drawer can still be set.
+  const rows = React.useMemo(
+    () => tagRows(keywords, { nested: nestedTags, counts: {}, selectedId: null, showAll: true, applyVisibility: false }).rows,
+    [keywords, nestedTags],
+  );
 
   React.useEffect(() => {
     if (visible) {
@@ -95,7 +107,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
           {keywords.length === 0 && unknownIds.length === 0 ? (
             <Text style={styles.empty}>{t('email_list.no_tags_defined', 'No tags defined. Add tags in Settings.')}</Text>
           ) : (
-            keywords.map((kw) => {
+            rows.map(({ def: kw, depth }) => {
               const token = keywordToken(kw.id);
               const applied = allHaveToken(token);
               const dot = tokenColors.tags[kw.color]?.dot ?? c.primary;
@@ -103,7 +115,11 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
                 <Pressable
                   key={kw.id}
                   onPress={() => onToggle(token, !applied)}
-                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                  style={({ pressed }) => [
+                    styles.row,
+                    depth > 0 && { paddingLeft: spacing.lg + depth * INDENT_STEP },
+                    pressed && styles.rowPressed,
+                  ]}
                 >
                   <Tag size={16} color={dot} fill={dot} />
                   <Text style={styles.rowLabel} numberOfLines={1}>{kw.label}</Text>
