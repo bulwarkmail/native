@@ -15,9 +15,10 @@ import { getWallClock, resolveTimeZone } from './time-zone';
  *
  * `locale` is the language subtag from the locale store (e.g. "en", "de").
  * `dateLocale` (the date format region) orders only the all-digit dates
- * (`full` and an older row); worded dates and times stay in the language. Everything, including which day
- * counts as today, is in `timeZone`: the app-wide zone setting, where
- * `auto` (or a zone this runtime does not know) is the device zone.
+ * (`full` and an older row); worded dates and times stay in the language.
+ * Everything, including which day counts as today, is in `timeZone`: the
+ * app-wide zone setting, where `auto` (or a zone this runtime does not
+ * know) is the device zone.
  */
 type Translate = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
 

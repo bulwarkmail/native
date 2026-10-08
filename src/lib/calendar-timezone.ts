@@ -12,9 +12,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import {
   fromZonedDisplayDate,
   getDeviceTimeZone,
-  getTimeZoneOffsetMs,
   getWallClock,
-  isValidTimeZone,
   resolveTimeZone,
   toZonedDisplayDate,
 } from './time-zone';
@@ -26,6 +24,7 @@ export {
   getTimeZoneOffsetMs,
   getWallClock,
   isValidTimeZone,
+  localDateTimeToInstant,
   resolveTimeZone,
   toZonedDisplayDate,
   type WallClock,
@@ -59,23 +58,6 @@ export function formatWallClock(date: Date, timeZone: string): string {
   const w = getWallClock(date, timeZone);
   const pad = (n: number, len = 2) => String(n).padStart(len, '0');
   return `${pad(w.year, 4)}-${pad(w.month)}-${pad(w.day)}T${pad(w.hour)}:${pad(w.minute)}:${pad(w.second)}`;
-}
-
-/**
- * The instant of a JSCalendar LocalDateTime ("yyyy-MM-ddTHH:mm:ss") read as
- * a wall clock in `timeZone`. Parsed from the digits, so a wall clock that
- * does not exist on the device (its own DST gap) still converts right.
- * `null` for an unparsable value or zone.
- */
-export function localDateTimeToInstant(value: string, timeZone: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(value);
-  if (!m || !isValidTimeZone(timeZone)) return null;
-  const asUtc = Date.UTC(
-    Number(m[1]), Number(m[2]) - 1, Number(m[3]),
-    Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0),
-  );
-  const guess = asUtc - getTimeZoneOffsetMs(new Date(asUtc), timeZone);
-  return new Date(asUtc - getTimeZoneOffsetMs(new Date(guess), timeZone));
 }
 
 /** Instant -> display date. The identity unless the calendar zone differs from the device's. */

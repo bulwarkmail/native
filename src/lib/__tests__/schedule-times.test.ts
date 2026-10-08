@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { schedulePresetTimes, tomorrowMorning, withPickedDayIn, withPickedTimeIn } from '../schedule-times';
 
 describe('schedule times in the app zone', () => {
@@ -33,5 +33,27 @@ describe('schedule times in the app zone', () => {
     // Then 14:05 in Tokyo.
     const time = withPickedTimeIn(day, new Date('2026-06-03T05:05:42Z'), 'Asia/Tokyo');
     expect(time.toISOString()).toBe('2026-06-03T05:05:00.000Z');
+  });
+});
+
+describe('a picked time the device\'s own clock skips', () => {
+  // New York springs forward at 02:00 on 8 March 2026, so 02:30 that day
+  // never shows on a phone there. In Tokyo it is an ordinary time.
+  const deviceZone = process.env.TZ;
+  afterEach(() => {
+    if (deviceZone === undefined) delete process.env.TZ;
+    else process.env.TZ = deviceZone;
+  });
+
+  it('still lands on that wall clock in the app zone', () => {
+    process.env.TZ = 'America/New_York';
+    const tokyo0230 = '2026-03-07T17:30:00.000Z'; // 02:30 on 8 March in Tokyo
+
+    // 10:00 on 8 March in Tokyo, then 02:30 picked.
+    expect(withPickedTimeIn(new Date('2026-03-08T01:00:00Z'), new Date(tokyo0230), 'Asia/Tokyo').toISOString())
+      .toBe(tokyo0230);
+    // 02:30 on 1 March in Tokyo, then 8 March picked.
+    expect(withPickedDayIn(new Date('2026-02-28T17:30:00Z'), new Date('2026-03-08T03:00:00Z'), 'Asia/Tokyo').toISOString())
+      .toBe(tokyo0230);
   });
 });
