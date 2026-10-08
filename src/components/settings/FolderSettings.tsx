@@ -12,17 +12,18 @@ import {
 } from 'react-native';
 import {
   Folder, Inbox, Send, FileText, Trash, ShieldAlert, Archive, Flag, Star, Mails,
-  StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X,
+  StickyNote, Clock, AlarmClock, Users, Plus, Pencil, Trash2, X, ChevronUp, ChevronDown,
 } from 'lucide-react-native';
 import { SettingsSection, Select } from './settings-section';
 import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
-import { ownMailboxes, mailboxSubtreeIds } from '../../lib/mailbox-tree';
+import { ownMailboxes, mailboxSubtreeIds, buildMailboxTree, flattenAll, type MailboxNode } from '../../lib/mailbox-tree';
+import { planFolderMove, siblingsOf, withSortOrders, type SortOrderUpdate } from '../../lib/folder-reorder';
 import { localizeMailboxName } from '../../lib/mailbox-label';
 import { useEmailStore, requireShownAccountScope } from '../../stores/email-store';
 import { useLocaleStore } from '../../stores/locale-store';
-import { createMailbox, updateMailbox, deleteMailbox } from '../../api/email';
+import { createMailbox, updateMailbox, deleteMailbox, setMailboxSortOrders } from '../../api/email';
 import { inAccount } from '../../api/op-scope';
 import { jmapClient } from '../../api/jmap-client';
 import type { Mailbox } from '../../api/types';
@@ -45,6 +46,24 @@ function getIcon(mb: Mailbox) {
 const NO_PARENT = '__root__';
 const OWN_ACCOUNT = '__own__';
 const NO_ROLE = '__none__';
+
+// The drawer hides the server's Scheduled folder while its virtual row stands
+// in for it (#495); Settings lists the same tree so the two orders agree.
+const HIDDEN_WITH_VIRTUAL_ROW = new Set(['scheduled']);
+
+const NO_EDGES = new Map<string, { first: boolean; last: boolean }>();
+
+/** Whether each folder is first or last of its sibling group, to disable the edge buttons. */
+function siblingEdges(tree: MailboxNode[]): Map<string, { first: boolean; last: boolean }> {
+  const out = new Map<string, { first: boolean; last: boolean }>();
+  const walk = (nodes: MailboxNode[]) => {
+    const group = nodes.filter((n) => !n.isAccountNode);
+    group.forEach((n, i) => out.set(n.id, { first: i === 0, last: i === group.length - 1 }));
+    for (const n of nodes) walk(n.children);
+  };
+  walk(tree);
+  return out;
+}
 
 // `owner`: the app account whose folders the editor was opened on. During an
 // account switch the list shows one account while the client serves another,
@@ -82,6 +101,11 @@ export function FolderSettings() {
   const [draftRole, setDraftRole] = useState<string>(NO_ROLE);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
+  // The planned positions, laid over the store's folders until the refetch
+  // after the write brings the server's own numbers.
+  const [overlay, setOverlay] = useState<SortOrderUpdate[]>([]);
+  const [reordering, setReordering] = useState(false);
 
   useEffect(() => {
     if (mailboxes.length === 0) void fetchMailboxes();
@@ -114,12 +138,18 @@ export function FolderSettings() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [draftAccount, mailboxes, allMailboxes, editor, t]);
 
-  const sorted = [...mailboxes].sort((a, b) => {
-    const ar = a.role ? 0 : 1;
-    const br = b.role ? 0 : 1;
-    if (ar !== br) return ar - br;
-    return pathOf(mailboxes, a, t).localeCompare(pathOf(mailboxes, b, t));
-  });
+  const hideOwnRoles = React.useMemo(
+    () => (jmapClient.hasDelayedSend() ? HIDDEN_WITH_VIRTUAL_ROW : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mailboxes],
+  );
+  // The drawer's order, so a move here shows the same way there.
+  const tree = React.useMemo(
+    () => buildMailboxTree(withSortOrders(mailboxes, overlay), { hideOwnRoles }),
+    [mailboxes, overlay, hideOwnRoles],
+  );
+  const rows = React.useMemo(() => flattenAll(tree), [tree]);
+  const edges = React.useMemo(() => (reorderMode ? siblingEdges(tree) : NO_EDGES), [reorderMode, tree]);
 
   const totalUnread = mailboxes.reduce((sum, m) => sum + (m.unreadEmails ?? 0), 0);
 
@@ -140,6 +170,39 @@ export function FolderSettings() {
   };
 
   const closeEditor = () => setEditor(null);
+
+  // Settings lists only own folders, so the ids here are the raw JMAP ids the
+  // shown account's scope writes to.
+  const moveFolder = async (id: string, direction: 'up' | 'down') => {
+    if (reordering) return;
+    let at;
+    try {
+      at = requireShownAccountScope(shownAccountId);
+    } catch (err) {
+      Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'), err instanceof Error ? err.message : String(err));
+      return;
+    }
+    const plan = planFolderMove(siblingsOf(tree, id) ?? [], id, direction);
+    if (plan.length === 0) return;
+    setOverlay(plan);
+    setReordering(true);
+    let saved = false;
+    try {
+      await setMailboxSortOrders(plan, at);
+      saved = true;
+      await fetchMailboxes();
+    } catch (err) {
+      // A refetch that fails after the write landed is not a failed reorder;
+      // the next sync brings the new order.
+      if (!saved) {
+        void fetchMailboxes();
+        Alert.alert(t('settings.folders.reorder_error', 'Failed to reorder folders'), err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      setOverlay([]);
+      setReordering(false);
+    }
+  };
 
   const saveDraft = async () => {
     const name = draftName.trim();
@@ -261,6 +324,14 @@ export function FolderSettings() {
       >
         <View style={styles.headerRow}>
           <Button
+            variant="outline"
+            size="sm"
+            onPress={() => setReorderMode((on) => !on)}
+            disabled={mailboxes.length === 0}
+          >
+            {reorderMode ? t('common.done', 'Done') : t('settings.folders.reorder_mode', 'Reorder')}
+          </Button>
+          <Button
             variant="default"
             size="sm"
             onPress={openCreate}
@@ -275,18 +346,20 @@ export function FolderSettings() {
           </View>
         ) : (
           <View>
-            {sorted.map((mb) => {
+            {rows.map((mb) => {
               const Icon = getIcon(mb);
-              const depth = pathOf(mailboxes, mb, t).split(' / ').length - 1;
+              const edge = edges.get(mb.id);
+              const canMoveUp = !reordering && edge !== undefined && !edge.first;
+              const canMoveDown = !reordering && edge !== undefined && !edge.last;
               return (
                 <Pressable
                   key={mb.id}
-                  onPress={() => openEdit(mb)}
-                  onLongPress={() => !mb.role && confirmDelete(mb)}
+                  onPress={reorderMode ? undefined : () => openEdit(mb)}
+                  onLongPress={reorderMode ? undefined : () => !mb.role && confirmDelete(mb)}
                   style={({ pressed }) => [
                     styles.folderRow,
-                    pressed && styles.folderRowPressed,
-                    { paddingLeft: spacing.md + depth * 12 },
+                    pressed && !reorderMode && styles.folderRowPressed,
+                    { paddingLeft: spacing.md + mb.depth * 12 },
                   ]}
                 >
                   <View style={styles.folderLeft}>
@@ -305,7 +378,32 @@ export function FolderSettings() {
                       </View>
                     )}
                     <Text style={styles.total}>{mb.totalEmails}</Text>
-                    {busyId === mb.id ? (
+                    {reorderMode ? (
+                      <View style={styles.moveButtons}>
+                        <Pressable
+                          style={[styles.moveBtn, !canMoveUp && styles.moveBtnDisabled]}
+                          onPress={() => { void moveFolder(mb.id, 'up'); }}
+                          disabled={!canMoveUp}
+                          hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityState={{ disabled: !canMoveUp }}
+                          accessibilityLabel={t('settings.appearance.message_list_order.move_up', 'Move up')}
+                        >
+                          <ChevronUp size={16} color={c.mutedForeground} />
+                        </Pressable>
+                        <Pressable
+                          style={[styles.moveBtn, !canMoveDown && styles.moveBtnDisabled]}
+                          onPress={() => { void moveFolder(mb.id, 'down'); }}
+                          disabled={!canMoveDown}
+                          hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityState={{ disabled: !canMoveDown }}
+                          accessibilityLabel={t('settings.appearance.message_list_order.move_down', 'Move down')}
+                        >
+                          <ChevronDown size={16} color={c.mutedForeground} />
+                        </Pressable>
+                      </View>
+                    ) : busyId === mb.id ? (
                       <ActivityIndicator size="small" color={c.primary} />
                     ) : (
                       <Pencil size={14} color={c.textMuted} />
@@ -423,7 +521,7 @@ export function FolderSettings() {
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { gap: spacing.xxxl },
-    headerRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: spacing.sm },
+    headerRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, paddingVertical: spacing.sm },
     loading: { paddingVertical: 40, alignItems: 'center' },
     folderRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -445,6 +543,9 @@ function makeStyles(c: ThemePalette) {
     },
     unreadText: { fontSize: 10, fontWeight: '500', color: c.primaryForeground },
     total: { ...typography.caption, color: c.mutedForeground, minWidth: 32, textAlign: 'right' },
+    moveButtons: { flexDirection: 'row', gap: 2 },
+    moveBtn: { padding: spacing.xs, borderRadius: radius.sm },
+    moveBtnDisabled: { opacity: 0.3 },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalSheet: {

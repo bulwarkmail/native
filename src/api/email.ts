@@ -288,6 +288,28 @@ export async function updateMailbox(
   }
 }
 
+/**
+ * Save new folder positions in one `Mailbox/set`, so a reorder lands whole or
+ * the caller learns which folders the server refused. Ids are raw JMAP ids of
+ * the account `account` names.
+ */
+export async function setMailboxSortOrders(
+  updates: { id: string; sortOrder: number }[],
+  account: AccountRef,
+): Promise<void> {
+  if (updates.length === 0) return;
+  const at = opScope(account);
+  const { accountId } = at;
+  const update: Record<string, { sortOrder: number }> = {};
+  for (const u of updates) update[u.id] = { sortOrder: u.sortOrder };
+  const res = await requestOn(at, [['Mailbox/set', { accountId, update }, '0']]);
+  const body = requireMethodResult(res, '0', 'Mailbox/set');
+  const refused = Object.keys((body.notUpdated as Record<string, unknown> | undefined) ?? {});
+  if (refused.length > 0) {
+    throw new Error(`Mailbox/set refused sortOrder for ${refused.join(', ')}`);
+  }
+}
+
 export async function deleteMailbox(
   id: string,
   account?: AccountRef,
