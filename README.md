@@ -10,6 +10,8 @@
 
 # BryteWark Mobile
 
+[![CI](https://github.com/wkennedy/BryteWark/actions/workflows/ci.yml/badge.svg)](https://github.com/wkennedy/BryteWark/actions/workflows/ci.yml)
+
 React Native (Expo SDK 54) client for [Bulwark Webmail](https://github.com/bulwarkmail/webmail) - a JMAP-based mail, calendar, and contacts app.
 
 ## What works today
