@@ -560,7 +560,7 @@ Left open:
 - **Device checks still to run:**
   - SSO sign-out against Keycloak on a phone;
   - `FLAG_SECURE` and hiding in recents on Android 13+;
-  - font size Large with a large OS font (tab labels and the Mail badge, which is now drawn inside `tabBarIcon`);
+  - font size Large with a large OS font (tab labels and the Mail badge, which is now drawn inside `tabBarIcon`; the bar stays 49 high, so the label may run about 5 px into the bottom inset), and the Mail unread count read once by TalkBack;
   - Hermes support for Intl `calendar: 'gregory'` and `\p{Nd}`;
   - the Android DateTimePicker with `timeZoneName`;
   - sidebar apps in a Custom Tab;
@@ -574,15 +574,13 @@ Left open:
   - The time zone list is hand-picked.
   - The `selectMailbox` seed race (pre-existing).
   - Two calendar-alert-scheduler tests fail under `TZ=Asia/Tokyo` (pre-existing).
-  - Hand-off accounts whose host differs from the sign-in address are not counted by the provider-in-use check.
+  - Hand-off accounts whose host differs from the sign-in address are not counted by the provider-in-use check. Matching their stored `tokenEndpoint` origin as well would cover it.
   - About 60 inline `fontSize` literals across 29 files still ignore the font size setting, and the OS font scale still stacks with it (open product decision).
   - Sidebar apps: no inline mode, and settings import doesn't filter invalid stored URLs (they're filtered at list and open time).
-  - A bare `/mail` link switches the list to Inbox, where webmail changes nothing.
-  - A folder link opened offline toasts "not found" if the cache lacks the folder.
   - A folder the user picks by hand while a cold-start link still waits is overridden when the link resolves.
   - The shared-account calendar rename gate (`mayShare` or `mayWriteAll`) is unverified against Stalwart.
   - The orphaned RN key `settings.account.shared_accounts.description_manage` is left in the locale files.
   - `sync-locales.mjs --check` reports every locale stale because of line endings.
-  - The end-session test helper imports `@babel/core` and two plugins that aren't direct devDependencies.
+  - The end-session test helper imports `@babel/core` and two plugins that aren't direct devDependencies. The lockfile hoists them today; pinning them as devDependencies would keep it that way.
   - Local builds link the fork's origin from About, and an unpushed commit links to a 404.
   - The area 08 items for RTL drawer side, cross-device settings sync and iOS push stay open.
