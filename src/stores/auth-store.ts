@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { jmapClient, AuthenticationError, NetworkError, type ClientSnapshot } from '../api/jmap-client';
 import type { JMAPSession } from '../api/types';
 import { fetchAccountDisplayName, isStalwartSupported } from '../api/account-security';
-import { useAccountStore } from './account-store';
+import { useAccountStore, type AccountEntry } from './account-store';
 import { useEmailStore } from './email-store';
 import { useContactsStore } from './contacts-store';
 import { useCalendarEventNotificationStore } from './calendar-event-notification-store';
@@ -12,6 +12,7 @@ import { useFilterStore } from './filter-store';
 import { useVacationStore } from './vacation-store';
 import { sweepOrphanedOfflineCache } from './offline-cache-store';
 import { forgetAccountData, forgetSharedData, type SignOutOptions } from './account-data-cleanup';
+import { dropPendingMailFolder } from '../navigation/pending-mail-folder';
 import { flushPersistedWrites } from './persist-storage';
 import { clearEmailDetailCache } from '../lib/email-detail-cache';
 import { clearBodyDocuments } from '../lib/email-body-document';
@@ -142,6 +143,7 @@ function clearAllFeatureStores(): void {
   useCalendarStore.getState().reset();
   useCalendarEventNotificationStore.getState().reset();
   useFilterStore.getState().clearState();
+  dropPendingMailFolder(null);
   // Cache writes are held back briefly; get the signed-out data off disk now.
   void flushPersistedWrites();
 }
@@ -164,6 +166,7 @@ function clearAccountFeatureStores(accountId: string | null): void {
   useCalendarStore.getState().reset();
   useCalendarEventNotificationStore.getState().reset();
   useFilterStore.getState().clearState();
+  dropPendingMailFolder(accountId);
   void flushPersistedWrites();
 }
 
@@ -231,13 +234,24 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
   if (!wasRegistered) await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
 }
 
+// An account dropped because its credentials are gone: what sign-out would
+// have cleared beside them goes too, so signing the account in again later
+// starts afresh instead of reusing an old relay. Fire-and-forget.
+function forgetEvictedAccount(accountId: string): void {
+  void deleteIdToken(accountId).catch(() => undefined);
+  void clearStoredRelayBaseUrl(accountId).catch(() => undefined);
+}
+
 // Best-effort RFC 7009 revocation of an account's refresh token on sign-out.
 // QR-paired bundles are left alone: webmail up to 1.11 handed the phone the
 // desktop's own refresh token, and newer ones hand out a separate grant whose
 // refresh token only the webmail's token proxy understands.
 // Resolves what ending the account's provider session needs (#905), read
-// here while its credentials and registry entry are still in place.
-async function revokeStoredRefreshToken(accountId: string): Promise<ProviderLogout | null> {
+// here while its credentials and registry entry are still in place, with the
+// server it signed in to for providerStillInUse.
+type AccountProviderLogout = ProviderLogout & { serverUrl: string };
+
+async function revokeStoredRefreshToken(accountId: string): Promise<AccountProviderLogout | null> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
     if (!entry) return null;
@@ -248,30 +262,48 @@ async function revokeStoredRefreshToken(accountId: string): Promise<ProviderLogo
     ).catch(() => null);
     const tokens = await jmapClient.getStoredOAuthTokens(accountId);
     if (tokens && tokens.source !== 'pairing') await revokeRefreshToken(entry.serverUrl, tokens);
-    return providerLogout;
+    return providerLogout ? { ...providerLogout, serverUrl: entry.serverUrl } : null;
   } catch {
     // never block sign-out
     return null;
   }
 }
 
+// Scheme and host, compared without case.
+function originOfUrl(url: string): string {
+  return url.toLowerCase().match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/)?.[0] ?? url.toLowerCase();
+}
+
 // Ending the provider's session (Keycloak's SSO session) also ends the
 // refresh tokens of every other account signed in through it. So it waits
 // for the last of them: none of the accounts still registered may sign in
-// at the same provider.
-function providerStillInUse(providerLogout: ProviderLogout): boolean {
+// at the same provider. A hand-off account records no endpoint (the
+// webmail's client holds its provider session), but it signed in through
+// the same browser, so one on the same server counts as well. A password or
+// pairing account never used this browser's provider session and does not.
+async function providerStillInUse(providerLogout: AccountProviderLogout, remaining: AccountEntry[]): Promise<boolean> {
   const provider = providerOf(providerLogout.endpoint);
-  return useAccountStore.getState().accounts.some((a) => providerOf(a.endSessionEndpoint) === provider);
+  if (remaining.some((a) => providerOf(a.endSessionEndpoint) === provider)) return true;
+  const origin = originOfUrl(providerLogout.serverUrl);
+  for (const a of remaining) {
+    if (originOfUrl(a.serverUrl) !== origin) continue;
+    const credentials = await jmapClient.getStoredCredentials(a.id).catch(() => null);
+    if (credentials?.tokenSource === 'handoff') return true;
+  }
+  return false;
 }
 
 // Fire-and-forget, once the local sign-out is done: the browser may stay open
 // as long as the user likes and must not hold anything up. One at a time, as
-// the browser holds a single auth session.
-function endProviderSessionsLater(providerLogouts: ProviderLogout[]): void {
-  const due = providerLogouts.filter((l) => !providerStillInUse(l));
-  if (due.length === 0) return;
+// the browser holds a single auth session. The accounts still signed in are
+// read now, before anything else can change them.
+function endProviderSessionsLater(providerLogouts: AccountProviderLogout[]): void {
+  if (providerLogouts.length === 0) return;
+  const remaining = useAccountStore.getState().accounts;
   void (async () => {
-    for (const l of due) await endProviderSession(l);
+    for (const l of providerLogouts) {
+      if (!(await providerStillInUse(l, remaining).catch(() => true))) await endProviderSession(l);
+    }
   })();
 }
 
@@ -778,7 +810,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const username = entry?.username ?? get().username;
 
     // Clear credentials for this account first
-    let providerLogout: ProviderLogout | null = null;
+    let providerLogout: AccountProviderLogout | null = null;
     if (currentId) {
       providerLogout = await revokeStoredRefreshToken(currentId);
       await jmapClient.clearAccountCredentials(currentId);
@@ -839,10 +871,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device sync (#34): as in logout, for every account.
     if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
     await teardownPushNotifications().catch(() => undefined);
+    // The teardown clears every relay too, but stops at its first failure:
+    // a relay left behind would be reused if the account signed in again.
+    for (const id of ids) await clearStoredRelayBaseUrl(id).catch(() => undefined);
     // Each provider's session is ended once, with the active account's id
     // token when it signed in there, else the first account's that did.
     const activeId = get().activeAccountId;
-    const byProvider = new Map<string, ProviderLogout>();
+    const byProvider = new Map<string, AccountProviderLogout>();
     for (const id of [...ids].sort((a, b) => Number(b === activeId) - Number(a === activeId))) {
       const providerLogout = await revokeStoredRefreshToken(id);
       const provider = providerLogout ? providerOf(providerLogout.endpoint) : null;
@@ -913,7 +948,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const ok = await jmapClient.loadAccount(accountId);
       if (!ok) {
         // Credentials missing - evict stale entry and surface error
-        void deleteIdToken(accountId).catch(() => undefined);
+        forgetEvictedAccount(accountId);
         accountStore.removeAccount(accountId);
         useEmailStore.getState().removeAccount(accountId);
         restorePrevious();
@@ -990,6 +1025,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
+    dropPendingMailFolder(accountId);
     accountStore.removeAccount(accountId);
     await forgetAccountData(
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
@@ -1066,7 +1102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const ok = await jmapClient.loadAccount(target.id);
         if (!ok) {
           // No stored credentials (or corrupt) — genuine logout.
-          void deleteIdToken(target.id).catch(() => undefined);
+          forgetEvictedAccount(target.id);
           accountStore.removeAccount(target.id);
           useEmailStore.getState().removeAccount(target.id);
           set({ isLoading: false, hasRestoredSession: true });

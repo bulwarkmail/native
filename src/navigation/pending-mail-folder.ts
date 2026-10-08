@@ -43,6 +43,16 @@ export function setPendingMailFolder(target: MailFolderTarget | null): void {
   usePendingMailFolder.getState().set(target);
 }
 
+/**
+ * Sign-out: forget a link parked for `appAccountId`, or any link when null.
+ * Left parked, it would open its folder when the same account signs in again
+ * later in this process.
+ */
+export function dropPendingMailFolder(appAccountId: string | null): void {
+  const { target } = usePendingMailFolder.getState();
+  if (target && (appAccountId === null || target.appAccountId === appAccountId)) setPendingMailFolder(null);
+}
+
 export interface MailFolderView {
   /** The account the mail list shows (email-store `activeAccountId`). */
   shownAccountId: string | null;

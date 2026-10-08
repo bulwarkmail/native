@@ -155,7 +155,7 @@ describe('signing out of a direct PKCE account', () => {
 
     await useAuthStore.getState().logout();
 
-    expect(mockOpen).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAccountStore.getState().accounts).toEqual([]);
   });
@@ -179,6 +179,32 @@ describe('signing out of a direct PKCE account', () => {
     await useAuthStore.getState().logout();
     await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
     expect(openedUrls()[0].searchParams.get('id_token_hint')).toBe('ada-id-token');
+  });
+
+  it('keeps the provider session while a hand-off account on the same server is still signed in', async () => {
+    // A hand-off sign-in ran in the same browser, so its webmail grant may
+    // hang on the very session ending Ada's would end; it records no
+    // endpoint, so its server says which provider it went through.
+    const eve = entry('eve@example.com');
+    const farOff = { ...entry('fay@example.com'), id: generateAccountId('fay@example.com', 'https://mail.other.example'), serverUrl: 'https://mail.other.example' };
+    accounts([[ADA, bundle('native'), 'ada-id-token'], [eve, bundle('handoff'), null], [farOff, bundle('handoff'), null]], ADA.id);
+
+    (jmapClient.loadAccount as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+
+    await useAuthStore.getState().removeAccount(farOff.id);
+    await useAuthStore.getState().logout();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().activeAccountId).toBe(eve.id);
+  });
+
+  it('a password or pairing account on the same server does not hold the provider session', async () => {
+    const pat = entry('pat@example.com');
+    const pia = entry('pia@example.com');
+    accounts([[ADA, bundle('native'), 'ada-id-token'], [pat, null, null], [pia, bundle('pairing'), null]], ADA.id);
+
+    await useAuthStore.getState().logout();
+    await vi.waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(1));
   });
 
   it('ends a realm\'s session while an account in another realm on the same host stays', async () => {
