@@ -12,6 +12,15 @@ import { resolveFolderRef } from '../lib/folder-ref';
 export interface MailFolderTarget {
   ref: string;
   appAccountId: string;
+  /**
+   * The folder the list showed when the link came in (after the switch).
+   * Another one open by the time the target resolves means the user moved
+   * on, and the link is dropped (webmail mail-app.tsx does the same). Null
+   * when nothing was open, as on a cold start: then the Inbox the list
+   * picks by itself while the folders load is no choice of the user's, so
+   * no check is made.
+   */
+  fromMailboxId: string | null;
 }
 
 interface PendingMailFolderState {
@@ -41,25 +50,30 @@ export interface MailFolderView {
   mailboxes: Mailbox[];
   /** Whether those folders were read from the server this launch, not only the cache. */
   synced: boolean;
+  /** The folder the list shows. */
+  currentMailboxId: string | null;
 }
 
 export type MailFolderPlan =
   | { action: 'open'; mailboxId: string }
+  | { action: 'already_open' }
   | { action: 'wait' }
   | { action: 'drop' }
   | { action: 'not_found'; toast: 'deep_link.folder_not_found' };
 
 /**
  * What the mail list does with `target`: drop it when another account is
- * shown, wait while the folders are not there yet (a cold start, a folder
+ * shown or the user opened another folder since, wait while the folders are not there yet (a cold start, a folder
  * the cached list may not have yet), open the folder it names, or say it is
  * gone once the server's list is in.
  */
 export function planMailFolderOpen(target: MailFolderTarget, view: MailFolderView): MailFolderPlan {
   if (!view.shownAccountId) return { action: 'wait' };
   if (view.shownAccountId !== target.appAccountId) return { action: 'drop' };
+  if (target.fromMailboxId !== null && view.currentMailboxId !== target.fromMailboxId) return { action: 'drop' };
   if (view.mailboxes.length === 0) return { action: 'wait' };
   const mailboxId = resolveFolderRef(target.ref, view.mailboxes);
+  if (mailboxId === view.currentMailboxId && mailboxId) return { action: 'already_open' };
   if (mailboxId) return { action: 'open', mailboxId };
   return view.synced ? { action: 'not_found', toast: 'deep_link.folder_not_found' } : { action: 'wait' };
 }

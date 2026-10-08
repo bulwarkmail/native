@@ -19,42 +19,59 @@ describe('pending mail folder', () => {
   beforeEach(() => usePendingMailFolder.setState({ target: null }));
 
   it('is consumed once', () => {
-    setPendingMailFolder({ ref: 'inbox', appAccountId: 'A' });
-    expect(usePendingMailFolder.getState().consume()).toEqual({ ref: 'inbox', appAccountId: 'A' });
+    setPendingMailFolder({ ref: 'inbox', appAccountId: 'A', fromMailboxId: null });
+    expect(usePendingMailFolder.getState().consume()).toEqual({ ref: 'inbox', appAccountId: 'A', fromMailboxId: null });
     expect(usePendingMailFolder.getState().consume()).toBeNull();
   });
 });
 
 describe('planMailFolderOpen', () => {
-  const view = { shownAccountId: 'A', mailboxes, synced: true };
+  const view = { shownAccountId: 'A', mailboxes, synced: true, currentMailboxId: null as string | null };
 
   it('opens a folder by role, path or id in its own account', () => {
-    expect(planMailFolderOpen({ ref: 'inbox', appAccountId: 'A' }, view)).toEqual({ action: 'open', mailboxId: 'a' });
-    expect(planMailFolderOpen({ ref: 'Projects', appAccountId: 'A' }, view)).toEqual({ action: 'open', mailboxId: 'c' });
-    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A' }, view)).toEqual({ action: 'open', mailboxId: 'c' });
-    expect(planMailFolderOpen({ ref: 'team:x', appAccountId: 'A' }, view)).toEqual({ action: 'open', mailboxId: 'team:x' });
+    expect(planMailFolderOpen({ ref: 'inbox', appAccountId: 'A', fromMailboxId: null }, view)).toEqual({ action: 'open', mailboxId: 'a' });
+    expect(planMailFolderOpen({ ref: 'Projects', appAccountId: 'A', fromMailboxId: null }, view)).toEqual({ action: 'open', mailboxId: 'c' });
+    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A', fromMailboxId: null }, view)).toEqual({ action: 'open', mailboxId: 'c' });
+    expect(planMailFolderOpen({ ref: 'team:x', appAccountId: 'A', fromMailboxId: null }, view)).toEqual({ action: 'open', mailboxId: 'team:x' });
+  });
+
+  it('drops a target once the user opened another folder since the link', () => {
+    const target = { ref: 'c', appAccountId: 'A', fromMailboxId: 'a' };
+    expect(planMailFolderOpen(target, { ...view, currentMailboxId: 'team:x' })).toEqual({ action: 'drop' });
+    expect(planMailFolderOpen(target, { ...view, currentMailboxId: 'a' })).toEqual({ action: 'open', mailboxId: 'c' });
+  });
+
+  it('lets the Inbox picked on a cold start stand in for no folder', () => {
+    // Parked with nothing open: whatever the list opened meanwhile is not a choice.
+    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A', fromMailboxId: null }, { ...view, currentMailboxId: 'a' }))
+      .toEqual({ action: 'open', mailboxId: 'c' });
+  });
+
+  it('does nothing for a folder already open', () => {
+    expect(planMailFolderOpen({ ref: 'Projects', appAccountId: 'A', fromMailboxId: 'c' }, { ...view, currentMailboxId: 'c' }))
+      .toEqual({ action: 'already_open' });
   });
 
   it('drops a target parked for another account, even when its id exists here', () => {
-    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'B' }, view)).toEqual({ action: 'drop' });
+    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'B', fromMailboxId: null }, view)).toEqual({ action: 'drop' });
   });
 
   it('waits while the account or its folders are not shown yet', () => {
-    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A' }, { ...view, shownAccountId: null })).toEqual({ action: 'wait' });
-    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A' }, { ...view, mailboxes: [] })).toEqual({ action: 'wait' });
+    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A', fromMailboxId: null }, { ...view, shownAccountId: null })).toEqual({ action: 'wait' });
+    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A', fromMailboxId: null }, { ...view, mailboxes: [] })).toEqual({ action: 'wait' });
   });
 
   it('waits for the server folder list before calling a folder missing', () => {
     const cached = { ...view, synced: false };
-    expect(planMailFolderOpen({ ref: 'zzz', appAccountId: 'A' }, cached)).toEqual({ action: 'wait' });
+    expect(planMailFolderOpen({ ref: 'zzz', appAccountId: 'A', fromMailboxId: null }, cached)).toEqual({ action: 'wait' });
     // A folder the cached list already has opens without waiting.
-    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A' }, cached)).toEqual({ action: 'open', mailboxId: 'c' });
+    expect(planMailFolderOpen({ ref: 'c', appAccountId: 'A', fromMailboxId: null }, cached)).toEqual({ action: 'open', mailboxId: 'c' });
   });
 
   it('says the folder is gone once the list is synced', () => {
-    expect(planMailFolderOpen({ ref: 'zzz', appAccountId: 'A' }, view))
+    expect(planMailFolderOpen({ ref: 'zzz', appAccountId: 'A', fromMailboxId: null }, view))
       .toEqual({ action: 'not_found', toast: 'deep_link.folder_not_found' });
-    expect(planMailFolderOpen({ ref: 'x', appAccountId: 'A' }, view))
+    expect(planMailFolderOpen({ ref: 'x', appAccountId: 'A', fromMailboxId: null }, view))
       .toEqual({ action: 'not_found', toast: 'deep_link.folder_not_found' });
   });
 });

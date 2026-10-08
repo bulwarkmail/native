@@ -13,7 +13,13 @@ describe('parseDeepLink', () => {
     expect(parseDeepLink('bulwarkmobile://mail/message/M1')).toEqual({ kind: 'message', emailId: 'M1', accountId: undefined });
     expect(parseDeepLink('bulwarkmobile://mail/thread/T1?account=acc')).toEqual({ kind: 'thread', threadId: 'T1', accountId: 'acc' });
     expect(parseDeepLink('bulwarkmobile://mail/folder/inbox')).toEqual({ kind: 'folder', ref: 'inbox', accountId: undefined });
-    expect(parseDeepLink('bulwarkmobile://mail')).toEqual({ kind: 'folder', ref: 'inbox', accountId: undefined });
+    expect(parseDeepLink('bulwarkmobile://mail')).toEqual({ kind: 'folder', accountId: undefined });
+  });
+
+  it('names no folder for a bare, refless or unknown mail link', () => {
+    expect(parseDeepLink('https://mail.example.com/mail?account=B')).toEqual({ kind: 'folder', accountId: 'B' });
+    expect(parseDeepLink('bulwarkmobile://mail/folder')).toEqual({ kind: 'folder', accountId: undefined });
+    expect(parseDeepLink('bulwarkmobile://mail/whatever/x')).toEqual({ kind: 'folder', accountId: undefined });
   });
 
   it('parses webmail https permalinks, ignoring host and locale prefix', () => {
@@ -192,11 +198,25 @@ describe('handleDeepLink', () => {
           ...base,
           switchAccount: async () => { active = 'B'; return true; },
           activeAccountId: () => active,
+          currentMailboxId: () => `${active}-inbox`,
         },
       );
       expect(ok).toBe(true);
-      expect(usePendingMailFolder.getState().target).toEqual({ ref: 'c', appAccountId: 'B' });
+      expect(usePendingMailFolder.getState().target).toEqual({ ref: 'c', appAccountId: 'B', fromMailboxId: 'B-inbox' });
       expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Mail' });
+    });
+
+    it('opens the mail tab without parking for a link that names no folder', async () => {
+      const navigation = nav();
+      const ok = await handleDeepLink({ kind: 'folder' }, { navigation: navigation as never, ...base, activeAccountId: () => 'A' });
+      expect(ok).toBe(true);
+      expect(usePendingMailFolder.getState().target).toBeNull();
+      expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Mail' });
+    });
+
+    it('records no open folder when the list has none', async () => {
+      await handleDeepLink({ kind: 'folder', ref: 'c' }, { navigation: nav() as never, ...base, activeAccountId: () => 'A' });
+      expect(usePendingMailFolder.getState().target).toEqual({ ref: 'c', appAccountId: 'A', fromMailboxId: null });
     });
 
     it('parks nothing when the switch fails', async () => {

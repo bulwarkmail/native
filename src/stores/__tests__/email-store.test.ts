@@ -254,6 +254,7 @@ describe('email-store', () => {
     });
 
     it('marks the account synced once its own and shared folders were read', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
       expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBeUndefined();
       await useEmailStore.getState().fetchMailboxes();
       expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true);
@@ -267,6 +268,33 @@ describe('email-store', () => {
         return [];
       });
       await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+    });
+
+    it('marks nothing when the folder list could not be read', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      mockGetMailboxesWithState.mockRejectedValueOnce(new Error('Network error'));
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
+      // The next fetch (a reconnect) settles it.
+      await useEmailStore.getState().fetchMailboxes();
+      expect(useEmailStore.getState().mailboxListsSynced[TEST_ACCOUNT_ID]).toBe(true);
+    });
+
+    it('marks nothing when the own list load was overtaken by a switch', async () => {
+      mockGetMailboxesWithState.mockResolvedValue({ list: [], state: 'mb-state-1' });
+      mockGetMailboxesWithState.mockImplementationOnce(async () => {
+        useEmailStore.setState({ activeAccountId: 'other-account' });
+        return { list: [], state: 's' };
+      });
+      // Back on the account once the own list's load has given up on it.
+      const shared = mockGetSharedMailboxes.mockImplementationOnce(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        useEmailStore.setState({ activeAccountId: TEST_ACCOUNT_ID });
+        return [];
+      });
+      await useEmailStore.getState().fetchMailboxes();
+      expect(shared).toHaveBeenCalled();
       expect(useEmailStore.getState().mailboxListsSynced).toEqual({});
     });
   });

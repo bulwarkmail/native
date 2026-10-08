@@ -1175,12 +1175,14 @@ export default function EmailListScreen({ onEmailPress, onComposePress }: EmailL
         shownAccountId: activeAccountId,
         mailboxes,
         synced: !!activeAccountId && !!mailboxListsSynced[activeAccountId],
+        currentMailboxId,
       });
       if (plan.action !== 'wait') usePendingMailFolder.getState().consume();
       if (plan.action === 'open') {
         void selectMailbox(plan.mailboxId);
         return;
       }
+      if (plan.action === 'already_open') return;
       if (plan.action === 'not_found') {
         useToastStore.getState().addToast({
           type: 'error',
