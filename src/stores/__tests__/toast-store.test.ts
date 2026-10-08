@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { toast, useToastStore } from '../toast-store';
+import { freeToastSlots, toast, useToastStore } from '../toast-store';
 
 describe('toast store actions', () => {
   beforeEach(() => useToastStore.getState().clearToasts());
@@ -29,5 +29,24 @@ describe('toast store actions', () => {
     expect(error.secondaryAction).toBeUndefined();
     expect(info.action?.label).toBe('Go');
     expect(info.secondaryAction).toBeUndefined();
+  });
+});
+
+describe('freeToastSlots', () => {
+  const entry = (type: string, action = false) => ({
+    id: Math.random().toString(36), type, title: 'x', duration: 5000, createdAt: 0,
+    ...(action ? { action: { label: 'Undo', onPress: () => undefined } } : {}),
+  }) as never;
+
+  it('leaves the newest three free when nothing must stay', () => {
+    expect(freeToastSlots([])).toBe(3);
+    expect(freeToastSlots([entry('info'), entry('success')])).toBe(3);
+  });
+
+  it('keeps everything from the oldest Undo or error inside the three slots', () => {
+    expect(freeToastSlots([entry('info', true)])).toBe(2);
+    expect(freeToastSlots([entry('info', true), entry('info')])).toBe(1);
+    expect(freeToastSlots([entry('info'), entry('error')])).toBe(2);
+    expect(freeToastSlots([entry('error'), entry('info', true), entry('info')])).toBe(0);
   });
 });

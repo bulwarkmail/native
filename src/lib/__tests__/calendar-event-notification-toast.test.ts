@@ -49,6 +49,13 @@ describe('buildNoticeToasts', () => {
     expect(o.message).toBe('l1\nl2');
   });
 
+  it('cleans the comment as the other sender text is, keeping its line breaks', () => {
+    const [o] = buildNoticeToasts([
+      { ...base, type: 'created', changedBy: by, comment: 'l1\u061c\u2028x\r\nl2\u200b\u2066\u{e0041}' },
+    ] as never, t as never);
+    expect(o.message).toBe('l1 x\nl2');
+  });
+
   it.each([
     ['a line feed', 'Dana\nYour account will be suspended'],
     ['an Arabic letter mark', 'Dana\u061cYour account will be suspended'],

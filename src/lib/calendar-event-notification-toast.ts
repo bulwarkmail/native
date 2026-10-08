@@ -1,5 +1,6 @@
 import type { CalendarEventNotification } from '../api/types';
 import type { TranslateFn } from '../stores/locale-store';
+import { TOAST_HOST_SLOTS } from '../stores/toast-store';
 import { plainDisplayText } from './display-text';
 
 // The sender controls the name, the event title and the comment. They are
@@ -11,11 +12,16 @@ const MAX_NAME = 100;
 const MAX_TITLE = 100;
 const MAX_COMMENT = 200;
 
-// eslint-disable-next-line no-control-regex
-const UNSAFE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F​-‏‪-‮⁦-⁩]/g;
-
-function plain(value: string | null | undefined, max: number): string {
-  const clean = (value ?? '').replace(UNSAFE, '').trim();
+// The comment, cleaned line by line as the one-line labels are, so it drops
+// the same format and control characters but keeps its line breaks.
+function plainComment(value: string | null | undefined, max: number): string {
+  if (!value) return '';
+  const clean = value
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => plainDisplayText(line, max))
+    .join('\n')
+    .trim();
   const chars = Array.from(clean);
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : clean;
 }
@@ -60,7 +66,7 @@ export function buildNoticeToasts(
     } else {
       text = t('calendar_event_notifications.updated', '{name} updated "{title}"', params);
     }
-    const message = plain(n.comment, MAX_COMMENT) || undefined;
+    const message = plainComment(n.comment, MAX_COMMENT) || undefined;
     const loadable = n.type !== 'destroyed'
       && !!n.calendarEventId
       && !!activeAccountId
@@ -77,9 +83,8 @@ export function buildNoticeToasts(
   return out;
 }
 
-// The toast host keeps three toasts; a backlog toasted one by one would evict
-// unrelated ones.
-export const TOAST_HOST_SLOTS = 3;
+// The toast host keeps TOAST_HOST_SLOTS toasts; a backlog toasted one by one
+// would evict unrelated ones.
 
 /**
  * Splits toasts (oldest first) into those shown one by one and a count of

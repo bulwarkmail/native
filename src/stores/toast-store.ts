@@ -32,6 +32,25 @@ interface ToastState {
   clearToasts: () => void;
 }
 
+/** How many toasts the host keeps: a new one evicts the oldest past this. */
+export const TOAST_HOST_SLOTS = 3;
+
+/** A toast the user may still need: an error, or one with a button (Undo). */
+function mustKeep(toast: Toast): boolean {
+  return toast.type === 'error' || !!toast.action || !!toast.secondaryAction;
+}
+
+/**
+ * How many toasts can be added without evicting one the user may still need.
+ * The host keeps the newest TOAST_HOST_SLOTS, so everything from the oldest
+ * such toast onwards has to stay inside them.
+ */
+export function freeToastSlots(toasts: Toast[]): number {
+  const first = toasts.findIndex(mustKeep);
+  if (first < 0) return TOAST_HOST_SLOTS;
+  return Math.max(0, TOAST_HOST_SLOTS - (toasts.length - first));
+}
+
 let counter = 0;
 
 export const useToastStore = create<ToastState>((set) => ({
@@ -46,7 +65,7 @@ export const useToastStore = create<ToastState>((set) => ({
       duration: toast.duration ?? (toast.type === 'error' ? 10_000 : 5_000),
     };
     // Keep the queue short: a burst of errors should not stack up forever.
-    set((state) => ({ toasts: [...state.toasts.slice(-2), entry] }));
+    set((state) => ({ toasts: [...state.toasts.slice(-(TOAST_HOST_SLOTS - 1)), entry] }));
     return id;
   },
 
