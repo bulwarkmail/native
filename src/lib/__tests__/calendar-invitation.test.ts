@@ -22,6 +22,7 @@ import {
   proposalStillMatches,
   isSameInvitationEvent,
   mayImportOver,
+  withFetchedDescriptionType,
 } from '../calendar-invitation';
 import type { CalendarEvent } from '../../api/types';
 import { parseAuthenticationResults } from '../email-headers';
@@ -628,7 +629,29 @@ describe('who may have a counter proposal applied', () => {
   it('leaves a description alone while the stored event\'s type is unknown', () => {
     const { descriptionContentType: _omit, ...unknownType } = stored as Record<string, unknown>;
     const r = review(counter('bob@example.com', { description: 'New agenda' }), authed('bob@example.com'), typed(unknownType));
-    expect(r).toMatchObject({ canApply: false, hold: 'unsupported' });
+    // Listed as not applied; the moved time is still applied, and only it.
+    expect(r).toMatchObject({ canApply: true, hold: null, patch: { start: '2026-10-09T11:00:00' } });
+    expect(r?.changes.find((c) => c.label === 'description')).toMatchObject({ after: 'New agenda', notApplied: true });
+    expect(patchIsShown({ description: 'x' }, r!.changes)).toBe(false);
+  });
+
+  it('reads an omitted description type as plain text on the review fetch, as Stalwart sends it', () => {
+    // Stalwart 0.16.25 leaves descriptionContentType out for a plain-text event.
+    const { descriptionContentType: _omit, ...asSent } = stored as Record<string, unknown>;
+    const fetched = withFetchedDescriptionType(typed({ ...asSent, description: 'Agenda' }));
+    const r = review(counter('bob@example.com', { description: 'New agenda' }), authed('bob@example.com'), fetched);
+    expect(r).toMatchObject({ canApply: true, patch: { start: '2026-10-09T11:00:00', description: 'New agenda' } });
+    // An HTML event says so, and keeps its description.
+    const html = withFetchedDescriptionType(typed({ ...asSent, description: '<p>Agenda</p>', descriptionContentType: 'text/html' }));
+    const h = review(counter('bob@example.com', { description: 'New agenda' }), authed('bob@example.com'), html);
+    expect(h?.patch).toEqual({ start: '2026-10-09T11:00:00' });
+    expect(h?.changes.find((c) => c.label === 'description')?.notApplied).toBe(true);
+  });
+
+  it('applies nothing for a proposal that only changes a description it cannot write', () => {
+    const { descriptionContentType: _omit, ...unknownType } = stored as Record<string, unknown>;
+    const same = counter('bob@example.com', { start: '2026-10-09T10:00:00', description: 'New agenda' });
+    expect(review(same, authed('bob@example.com'), typed(unknownType))).toMatchObject({ canApply: false, patch: null });
   });
 
   it('sends a recurring event to the calendar instead', () => {

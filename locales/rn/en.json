@@ -57,6 +57,7 @@
       "already_in_calendar": "Already in your calendar",
       "apply_confirm_proposer": "Proposed by {name}.",
       "cancelled": "This event was cancelled",
+      "change_not_applied": "(not applied: it can't be changed safely here)",
       "decline": "No",
       "join_video": "Join video call",
       "no_writable_calendar": "No writable calendar available",

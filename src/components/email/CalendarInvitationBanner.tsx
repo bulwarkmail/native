@@ -33,6 +33,7 @@ import {
   mayImportOver,
   reviewCounterProposal,
   proposalStillMatches,
+  withFetchedDescriptionType,
   type CounterProposalReview,
   type InvitationChangeItem,
   type ProposalHold,
@@ -151,8 +152,11 @@ const REVIEW_PROPERTIES = ['descriptionContentType'] as const;
 // The stored event a counter proposal is reviewed against, as the server
 // holds it: an expanded occurrence (what the calendar loads) carries a
 // synthetic id and drops the all-day flag and recurrence.
+// Every caller fetched with REVIEW_PROPERTIES, so an absent
+// descriptionContentType there means plain text (withFetchedDescriptionType).
 function storedEventOf(found: CalendarEvent[]): CalendarEvent | null {
-  return found.find((e) => !isServerRecurrenceInstance(e)) ?? null;
+  const stored = found.find((e) => !isServerRecurrenceInstance(e));
+  return stored ? withFetchedDescriptionType(stored) : null;
 }
 
 // Who the message comes from and what they did, by iTIP method.
@@ -372,7 +376,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   // A REPLY, COUNTER or REFRESH goes from an attendee to the organizer: the
   // organizer doesn't answer or import it.
   const attendeeMessage = method === 'reply' || method === 'counter' || method === 'refresh';
-  const canRsvp = method !== 'cancel' && !attendeeMessage && !!me;
+  // Without an organizer and not in the calendar there is no one to answer
+  // and nothing it could be answered on.
+  const canRsvp = method !== 'cancel' && !attendeeMessage && !!me && (!!existing || !!getOrganizerEmail(event));
   const myExistingStatus = existing && me ? existing.participants?.[me.id]?.participationStatus : undefined;
   const currentStatus: RsvpStatus | null =
     rsvpStatus
@@ -694,6 +700,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
                     before: change.before ?? t('email_viewer.calendar_invitation.change_empty', 'None'),
                     after: change.after,
                   })}
+                  {change.notApplied
+                    ? ` ${t('calendar.invitation.change_not_applied', '(not applied: it can\'t be changed safely here)')}`
+                    : null}
                 </Text>
               ))}
             </View>

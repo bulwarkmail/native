@@ -11,7 +11,7 @@ describe('parseAuthenticationResults', () => {
     const r = parseAuthenticationResults(
       'mx.example; spf=pass smtp.mailfrom=news.example; dkim=pass header.d=news.example header.s=s1; dmarc=pass header.from=news.example policy.dmarc=none; iprev=pass policy.iprev=1.2.3.4',
     );
-    expect(r.spf).toEqual({ result: 'pass', domain: 'news.example' });
+    expect(r.spf).toEqual({ result: 'pass', domain: 'news.example', identity: 'mailfrom' });
     expect(r.dkim).toEqual({ result: 'pass', domain: 'news.example', selector: 's1' });
     expect(r.dmarc).toEqual({ result: 'pass', domain: 'news.example', policy: 'none' });
     expect(r.iprev).toEqual({ result: 'pass', ip: '1.2.3.4' });
@@ -349,5 +349,7 @@ describe('isFromDomainAuthenticated', () => {
     expect(isFromDomainAuthenticated(auth('mx; spf=none; dkim=none; dmarc=none'), 'ian@intranet')).toBe(false);
     expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=intranet'), 'ian@intranet')).toBe(false);
     expect(isFromDomainAuthenticated(auth('mx; dmarc=pass header.from=evil.example'), 'a@example.com')).toBe(false);
+    // A HELO pass says nothing about the author.
+    expect(isFromDomainAuthenticated(auth('mx; spf=pass smtp.helo=partner.example'), 'bob@partner.example')).toBe(false);
   });
 });

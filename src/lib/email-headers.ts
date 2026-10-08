@@ -47,7 +47,14 @@ export interface DkimEntry {
 }
 
 export interface AuthenticationResults {
-  spf?: { result: SpfResult; domain?: string; foreign?: true; all?: SpfEntry[] };
+  spf?: {
+    result: SpfResult;
+    domain?: string;
+    /** Which identity the headline result is for, when the header says. */
+    identity?: SpfEntry['identity'];
+    foreign?: true;
+    all?: SpfEntry[];
+  };
   dkim?: {
     result: DkimResult;
     domain?: string;
@@ -202,7 +209,10 @@ export function isFromDomainAuthenticated(
     if (!auth.dmarc.domain || (dmarcDomain && domainsAlign(dmarcDomain, domain))) return true;
   }
   const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom' && !entry.foreign);
-  const spfPass = auth.spf?.all ? mailFrom?.result === 'pass' : (auth.spf?.result === 'pass' && !auth.spf.foreign);
+  // Only a MAIL FROM pass: a HELO pass proves nothing about who wrote it.
+  const spfPass = auth.spf?.all
+    ? mailFrom?.result === 'pass'
+    : (auth.spf?.result === 'pass' && auth.spf.identity === 'mailfrom' && !auth.spf.foreign);
   const envelope = mailFrom?.domain ?? (auth.spf?.foreign ? undefined : auth.spf?.domain);
   const envelopeDomain = envelope ? domainOf(envelope) : undefined;
   if (spfPass && envelopeDomain && domainsAlign(envelopeDomain, domain)) return true;
@@ -367,6 +377,7 @@ export function parseAuthenticationResults(headers: string | readonly string[]):
     results.spf = {
       result: primary.result,
       domain: primary.domain,
+      ...(primary.identity ? { identity: primary.identity } : {}),
       ...(primary.foreign ? { foreign: true as const } : {}),
       ...(spfResults.length > 1 ? { all: spfResults } : {}),
     };

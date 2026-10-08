@@ -612,6 +612,8 @@ export interface InvitationChangeItem {
   /** Null when the event had none. */
   before: string | null;
   after: string;
+  /** Shown but not part of Apply: it can't be written safely (see compareProposal). */
+  notApplied?: true;
 }
 
 // Fixed shape, one group per unit, so the match is linear; capped anyway.
@@ -674,6 +676,18 @@ function eventSpan(event: Pick<Partial<CalendarEvent>, 'start' | 'duration' | 't
 function flatText(value: string | null | undefined, max: number): string | null {
   const text = plainDisplayText(value, UNCAPPED);
   return Array.from(text).length > max ? null : text;
+}
+
+/**
+ * A stored event from a CalendarEvent/get that asked for
+ * descriptionContentType. Stalwart leaves the property out for a plain-text
+ * description (RFC 8984's default) and sends "text/html" otherwise, so an
+ * absent key there means text/plain. Only for such a fetch: elsewhere an
+ * absent key stays unknown.
+ */
+export function withFetchedDescriptionType<T extends Partial<CalendarEvent>>(event: T): T {
+  if ('descriptionContentType' in (event as object)) return event;
+  return { ...event, descriptionContentType: null } as T;
 }
 
 // JSCalendar's descriptionContentType: the app's type leaves it out, but the
@@ -795,7 +809,9 @@ function compareProposal(
   // Description: plain text on both sides only, and the stored event's type
   // must be known. An HTML proposal is not ours to flatten, and plain text
   // written into an HTML description would be read as markup. Line breaks
-  // are kept in what is written; the list shows it on one line.
+  // are kept in what is written; the list shows it on one line. One that
+  // can't be written (or is too long) is listed as not applied, and the rest
+  // of the proposal may still be.
   if (typeof proposed.description === 'string' && proposed.description.trim()
     && proposed.description !== (current.description ?? '')) {
     const stored = descriptionType(current);
@@ -803,8 +819,14 @@ function compareProposal(
       ? plainStoredText(proposed.description, DESCRIPTION_MAX)
       : null;
     const beforeWritten = plainStoredText(current.description, UNCAPPED);
-    if (!written) refused.push('description');
-    else if (written !== beforeWritten) {
+    if (!written) {
+      items.push({
+        label: 'description',
+        before: plainDisplayText(current.description, DESCRIPTION_MAX) || null,
+        after: plainDisplayText(proposed.description, DESCRIPTION_MAX),
+        notApplied: true,
+      });
+    } else if (written !== beforeWritten) {
       items.push({
         label: 'description',
         before: plainDisplayText(current.description, UNCAPPED) || null,
@@ -863,7 +885,7 @@ const PATCH_KEY_ITEM: Record<string, InvitationChangeItem['label']> = {
 
 /** Whether every key of `patch` is shown by one of `changes`. */
 export function patchIsShown(patch: Partial<CalendarEvent>, changes: readonly InvitationChangeItem[]): boolean {
-  const shown = new Set(changes.map((c) => c.label));
+  const shown = new Set(changes.filter((c) => !c.notApplied).map((c) => c.label));
   return Object.keys(patch).every((key) => {
     const item = PATCH_KEY_ITEM[key];
     return !!item && shown.has(item);
