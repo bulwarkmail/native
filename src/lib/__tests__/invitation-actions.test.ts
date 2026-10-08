@@ -10,7 +10,7 @@ vi.mock('../../stores/email-store', () => ({
 }));
 
 import { requireShownAccountScope } from '../../stores/email-store';
-import { importInvitation, importAndRespond } from '../invitation-actions';
+import { importInvitation, importAndRespond, InvitationUidConflictError } from '../invitation-actions';
 
 const mockScope = requireShownAccountScope as unknown as ReturnType<typeof vi.fn>;
 const invite = {
@@ -40,6 +40,7 @@ beforeEach(() => {
 describe('importAndRespond', () => {
   it('imports, looks up and answers on the one scope taken at the start', async () => {
     const a = actions();
+    a.findEventsByUid.mockResolvedValueOnce([]);
     const found = vi.fn();
     await importAndRespond({
       event: invite, existing: null, calendarId: 'cal-1', status: 'accepted',
@@ -81,7 +82,7 @@ describe('importAndRespond', () => {
 
   it('never claims an answer when no event to answer was found', async () => {
     const a = actions();
-    a.findEventsByUid.mockResolvedValueOnce([]);
+    a.findEventsByUid.mockResolvedValue([]);
     await expect(importAndRespond({
       event: invite, existing: null, calendarId: 'cal-1', status: 'accepted',
       userEmails: ['me@example.com'], replyTo: null, appAccountId: 'app-1', actions: a,
@@ -93,9 +94,38 @@ describe('importAndRespond', () => {
 describe('importInvitation', () => {
   it('imports on a scope taken at the start', async () => {
     const a = actions();
-    expect(await importInvitation(invite, 'cal-1', 'app-1', a.importEvents)).toEqual({ imported: 1, refused: [] });
+    expect(await importInvitation(invite, 'cal-1', 'app-1', a)).toEqual({ imported: 1, refused: [] });
+    expect(a.findEventsByUid).toHaveBeenCalledWith('u1', { gen: 7, accountId: 'acc-1' });
     expect(a.importEvents).toHaveBeenCalledWith([invite], 'cal-1', undefined, {
       appAccountId: 'app-1', scope: { gen: 7, accountId: 'acc-1' },
     });
+  });
+});
+
+describe('an invitation carrying the UID of an unrelated event', () => {
+  // Same UID, another organizer: the user's own event, not the invitation's.
+  const unrelated = { ...(stored as object), organizerCalendarAddress: 'mailto:boss@example.com' } as never;
+  const crafted = { ...(invite as object), organizerCalendarAddress: 'mailto:mallory@evil.com' } as never;
+
+  it('does not answer the unrelated event', async () => {
+    const a = actions();
+    a.findEventsByUid.mockResolvedValue([unrelated]);
+    await expect(importAndRespond({
+      event: crafted, existing: null, calendarId: 'cal-1', status: 'accepted',
+      userEmails: ['me@example.com'], replyTo: null, appAccountId: 'app-1', actions: a,
+    })).rejects.toBeInstanceOf(InvitationUidConflictError);
+    await expect(importAndRespond({
+      event: crafted, existing: unrelated, calendarId: 'cal-1', status: 'accepted',
+      userEmails: ['me@example.com'], replyTo: null, appAccountId: 'app-1', actions: a,
+    })).rejects.toBeInstanceOf(InvitationUidConflictError);
+    expect(a.importEvents).not.toHaveBeenCalled();
+    expect(a.rsvpEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not import it (which would link the unrelated event)', async () => {
+    const a = actions();
+    a.findEventsByUid.mockResolvedValue([unrelated]);
+    await expect(importInvitation(crafted, 'cal-1', 'app-1', a)).rejects.toBeInstanceOf(InvitationUidConflictError);
+    expect(a.importEvents).not.toHaveBeenCalled();
   });
 });

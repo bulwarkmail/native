@@ -29,10 +29,12 @@ import {
   invitationSentFrom,
   isUserOrganizer,
   buildReplyTo,
-  buildProposalPatch,
-  buildInvitationChangeItems,
-  canApplyProposal,
+  isSameInvitationEvent,
+  reviewCounterProposal,
+  proposalStillMatches,
+  type CounterProposalReview,
   type InvitationChangeItem,
+  type ProposalHold,
   type InvitationMethod,
   type InvitationTrustAssessment,
 } from '../../lib/calendar-invitation';
@@ -47,7 +49,7 @@ import { isServerRecurrenceInstance } from '../../lib/recurrence-instances';
 import { invitationViewTarget } from '../../lib/invitation-view-target';
 import { setPendingCalendarView } from '../../navigation/pending-calendar-open';
 import { plainDisplayText } from '../../lib/display-text';
-import { importAndRespond, importInvitation } from '../../lib/invitation-actions';
+import { importAndRespond, importInvitation, InvitationUidConflictError } from '../../lib/invitation-actions';
 import type { OpScope } from '../../api/op-scope';
 import { useAccountSubscriptions } from '../../stores/calendar-subscriptions-store';
 
@@ -66,19 +68,30 @@ interface Props {
 
 // Literal t() calls so the keys are harvested into the catalog.
 function trustReasonText(
-  reason: NonNullable<InvitationTrustAssessment['reason']>,
+  trust: InvitationTrustAssessment,
   t: (key: string, fallback?: string) => string,
-): string {
-  switch (reason) {
+): string | null {
+  // An attendee's answer is checked against the attendee, not the organizer.
+  const attendee = trust.expectedSender === 'attendee';
+  switch (trust.reason) {
+    case null:
+      return null;
     case 'sender_mismatch_unverified':
-      return t(
-        'calendar.invitation.trust_sender_mismatch_unverified',
-        'The sender does not match the organizer and the message is not authenticated.',
-      );
+      return attendee
+        ? t(
+          'calendar.invitation.trust_attendee_mismatch_unverified',
+          'The sender does not match the attendee who answered and the message is not authenticated.',
+        )
+        : t(
+          'calendar.invitation.trust_sender_mismatch_unverified',
+          'The sender does not match the organizer and the message is not authenticated.',
+        );
     case 'authentication_failed':
       return t('calendar.invitation.trust_authentication_failed', 'This message failed sender authentication (SPF/DKIM/DMARC).');
     case 'sender_mismatch':
-      return t('calendar.invitation.trust_sender_mismatch', 'The sender differs from the event organizer.');
+      return attendee
+        ? t('calendar.invitation.trust_attendee_mismatch', 'The sender differs from the attendee who answered.')
+        : t('calendar.invitation.trust_sender_mismatch', 'The sender differs from the event organizer.');
     case 'authentication_missing':
       return t('calendar.invitation.trust_authentication_missing', 'The sender could not be verified.');
   }
@@ -107,6 +120,27 @@ function changeLabel(label: InvitationChangeItem['label'], t: TranslateFn): stri
     case 'description': return t('email_viewer.calendar_invitation.change_description', 'Description');
   }
 }
+
+// Why Apply is withheld, said rather than leaving the button out.
+function proposalHoldText(hold: ProposalHold, t: TranslateFn): string {
+  switch (hold) {
+    case 'recurring':
+      return t('calendar.invitation.proposal_recurring', 'This proposal is for a repeating event. Change it in the calendar.');
+    case 'proposer_unknown':
+    case 'proposer_not_attendee':
+      return t('calendar.invitation.proposal_not_attendee', 'This proposal does not come from an attendee of your event, so it can\'t be applied here.');
+    case 'sender_not_proposer':
+      return t('calendar.invitation.proposal_sender_mismatch', 'This message was not sent by the attendee who proposed the changes, so they can\'t be applied here.');
+    case 'sender_unverified':
+      return t('calendar.invitation.proposal_unverified', 'The sender of this proposal could not be verified, so it can\'t be applied here.');
+    case 'unsupported':
+      return t('calendar.invitation.proposal_unsupported', 'Part of this proposal can\'t be applied as written. Change the event in the calendar.');
+  }
+}
+
+// Asked for besides the usual properties: whether the stored description is
+// plain text decides whether a proposed one may be written into it.
+const REVIEW_PROPERTIES = ['descriptionContentType'] as const;
 
 // The stored event a counter proposal is reviewed against, as the server
 // holds it: an expanded occurrence (what the calendar loads) carries a
@@ -190,6 +224,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   const [storedEvent, setStoredEvent] = React.useState<CalendarEvent | null>(null);
   // Set synchronously, so a second tap can't send the proposal twice.
   const applying = React.useRef(false);
+  // The review the organizer confirmed: only that is sent.
+  const confirmedReview = React.useRef<Pick<CounterProposalReview, 'changes' | 'patch'> | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -238,7 +274,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         // A counter is reviewed against the event as stored, on the message's
         // account; never against another account's event with that UID.
         if (detected === 'counter' && lookupScope && parsed.uid) {
-          findEventsByUid(parsed.uid, lookupScope)
+          findEventsByUid(parsed.uid, lookupScope, { extraProperties: REVIEW_PROPERTIES })
             .then((found) => { if (!cancelled) setStoredEvent(storedEventOf(found)); })
             .catch(() => undefined);
         }
@@ -262,11 +298,15 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     ?? candidates[0];
 
   // Already imported? Look for the UID among the loaded events, then among
-  // what the server lookup found.
-  const existing = React.useMemo(() => {
-    if (!event?.uid) return null;
-    return storeEvents.find((e) => e.uid === event.uid) ?? serverMatch;
-  }, [storeEvents, event?.uid, serverMatch]);
+  // what the server lookup found. Only an event with the invitation's
+  // organizer counts: anyone can write an invitation with the UID of an
+  // unrelated event of the user's, which it must not answer or link.
+  const { existing, uidConflict } = React.useMemo(() => {
+    if (!event?.uid) return { existing: null, uidConflict: false };
+    const sameUid = [...storeEvents.filter((e) => e.uid === event.uid), ...(serverMatch ? [serverMatch] : [])];
+    const match = sameUid.find((e) => isSameInvitationEvent(e, event)) ?? null;
+    return { existing: match, uidConflict: !match && sameUid.length > 0 };
+  }, [storeEvents, event, serverMatch]);
 
   const trust = React.useMemo(
     () => (event ? getInvitationTrustAssessment(event, email, method) : null),
@@ -329,12 +369,12 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     if (isNaN(date.getTime())) return '';
     return format(date, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale });
   };
-  const reviewing = method === 'counter' && userIsOrganizer && !!storedEvent && isUserOrganizer(storedEvent, ownAddresses);
-  const proposedChanges = reviewing ? buildInvitationChangeItems(storedEvent, event, formatChangeTime) : [];
-  const proposalPatch = reviewing ? buildProposalPatch(storedEvent, event) : null;
-  const showApply = reviewing && canApplyProposal({
-    method, userIsOrganizer: true, existing: storedEvent, patch: proposalPatch, changes: proposedChanges, proposed: event,
+  const review = reviewCounterProposal({
+    method, proposed: event, stored: storedEvent, userAddresses: ownAddresses, email, formatDateTime: formatChangeTime,
   });
+  const proposedChanges = review?.changes ?? [];
+  const showApply = !!review?.canApply;
+  const proposalHold = review?.hold ?? null;
 
   const actor = getInvitationActorSummary(event, method);
   const actorLine = actor
@@ -379,7 +419,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   };
 
   const applyProposal = async () => {
-    if (applying.current || !storedEvent || !event.uid) return;
+    const confirmed = confirmedReview.current;
+    confirmedReview.current = null;
+    if (applying.current || !confirmed || !storedEvent || !event.uid) return;
     applying.current = true;
     setBusy(true);
     setNotice(null);
@@ -387,25 +429,31 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
       // The banner's account, on the connection serving it, taken now:
       // refused after a switch.
       const at = requireShownAccountScope(ownerAppAccountId);
-      // Read the event again on that scope and apply to it as stored now,
-      // and only to the one reviewed.
-      const found = storedEventOf(await findEventsByUid(event.uid, at));
+      // Read the event again on that scope and review it again, with this
+      // account's addresses: sent only when it is the event reviewed, every
+      // check still passes, and the changes are the ones confirmed.
+      const found = storedEventOf(await findEventsByUid(event.uid, at, { extraProperties: REVIEW_PROPERTIES }));
       const addresses = addressesForAccount(
         ownerAppAccountId,
         { shown: useEmailStore.getState().activeAccountId, signedIn: useAccountStore.getState().activeAccountId },
         currentUserEmails,
       );
-      const patch = found && found.id === storedEvent.id ? buildProposalPatch(found, event) : null;
-      const changes = found ? buildInvitationChangeItems(found, event, formatChangeTime) : [];
-      if (!found || !patch || !canApplyProposal({
-        method, userIsOrganizer: isUserOrganizer(found, addresses), existing: found, patch, changes, proposed: event,
-      })) {
+      const fresh = found && found.id === storedEvent.id
+        ? reviewCounterProposal({
+          method, proposed: event, stored: found, userAddresses: addresses, email, formatDateTime: formatChangeTime,
+        })
+        : null;
+      if (!found || !fresh?.patch || !proposalStillMatches(confirmed, fresh)) {
         throw new Error('proposal no longer applies');
       }
       // Sends the updated event to every attendee.
-      await updateEvent(found.baseEventId ?? found.originalId ?? found.id, patch, true, at);
-      setStoredEvent({ ...found, ...patch });
+      await updateEvent(found.baseEventId ?? found.originalId ?? found.id, fresh.patch, true, at);
       setNotice(t('email_viewer.calendar_invitation.proposal_applied', 'Proposed changes applied.'));
+      // Review what the server holds now: nothing left to apply.
+      setStoredEvent(null);
+      findEventsByUid(event.uid, at, { extraProperties: REVIEW_PROPERTIES })
+        .then((now) => setStoredEvent(storedEventOf(now)))
+        .catch(() => undefined);
       void useCalendarStore.getState().refresh().catch(() => undefined);
     } catch (err) {
       setNotice(err instanceof AccountNotServedError
@@ -418,20 +466,31 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   };
 
   const confirmApplyProposal = () => {
-    if (applying.current || busy) return;
+    if (applying.current || busy || !review?.canApply) return;
+    // What is on screen now is what the organizer confirms.
+    const shown = { changes: review.changes, patch: review.patch };
+    const proposer = review.proposer ? formatInvitationActor(review.proposer) : null;
+    const message = t('email_viewer.calendar_invitation.apply_confirm_message', "Every attendee will be sent the updated event. This can't be undone.");
     Alert.alert(
       t('email_viewer.calendar_invitation.apply_confirm_title', 'Apply the proposed changes?'),
-      t('email_viewer.calendar_invitation.apply_confirm_message', "Every attendee will be sent the updated event. This can't be undone."),
+      proposer
+        ? `${t('calendar.invitation.apply_confirm_proposer', 'Proposed by {name}.', { name: proposer })}\n\n${message}`
+        : message,
       [
-        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => { confirmedReview.current = null; } },
         {
           text: t('email_viewer.calendar_invitation.apply_proposal', 'Apply proposed changes'),
           style: 'destructive',
-          onPress: () => { void applyProposal(); },
+          onPress: () => { confirmedReview.current = shown; void applyProposal(); },
         },
       ],
     );
   };
+
+  const uidConflictText = t(
+    'calendar.invitation.uid_conflict',
+    'Another event in your calendar has this invitation\'s ID but a different organizer, so this invitation can\'t be answered or added.',
+  );
 
   const ensureImportedAndRsvp = async (status: RsvpStatus) => {
     if (busy || !targetCalendar) return;
@@ -454,8 +513,10 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
       setRsvpStatus(status);
       setNotice(t('calendar.invitation.response_sent', 'Response sent'));
       setState('done');
-    } catch {
-      setNotice(t('calendar.invitation.response_error', 'Could not send your response'));
+    } catch (err) {
+      setNotice(err instanceof InvitationUidConflictError
+        ? uidConflictText
+        : t('calendar.invitation.response_error', 'Could not send your response'));
     } finally {
       setBusy(false);
     }
@@ -466,15 +527,17 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
     setBusy(true);
     setNotice(null);
     try {
-      const { imported } = await importInvitation(event, targetCalendar.id, ownerAppAccountId, importEvents);
+      const { imported } = await importInvitation(event, targetCalendar.id, ownerAppAccountId, { importEvents, findEventsByUid });
       setNotice(
         imported > 0
           ? t('calendar.invitation.added', 'Added to calendar')
           : t('calendar.invitation.already_in_calendar', 'Already in your calendar'),
       );
       setState('done');
-    } catch {
-      setNotice(t('calendar.invitation.add_error', 'Could not add the event'));
+    } catch (err) {
+      setNotice(err instanceof InvitationUidConflictError
+        ? uidConflictText
+        : t('calendar.invitation.add_error', 'Could not add the event'));
     } finally {
       setBusy(false);
     }
@@ -538,9 +601,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
             <ShieldAlert size={14} color={trustColor} />
           )}
           <Text style={[styles.trustText, { color: trustColor }]} numberOfLines={3}>
-            {trust.reason
-              ? trustReasonText(trust.reason, t)
-              : t('calendar.invitation.trust_verified', 'Sender verified')}
+            {trustReasonText(trust, t) ?? t('calendar.invitation.trust_verified', 'Sender verified')}
           </Text>
         </View>
       )}
@@ -613,6 +674,12 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
               ))}
             </View>
           )}
+          {proposalHold && (
+            <View style={styles.warnRow}>
+              <AlertTriangle size={14} color={c.warning} />
+              <Text style={styles.warnText}>{proposalHoldText(proposalHold, t)}</Text>
+            </View>
+          )}
           {showApply && (
             <Pressable
               style={[styles.applyBtn, busy && { opacity: 0.5 }]}
@@ -630,6 +697,12 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
               </Text>
             </Pressable>
           )}
+          {uidConflict && state !== 'done' && (
+            <View style={styles.warnRow}>
+              <AlertTriangle size={14} color={c.warning} />
+              <Text style={styles.warnText}>{uidConflictText}</Text>
+            </View>
+          )}
           {existing && state !== 'done' && (
             <Row
               icon={<Check size={15} color={c.success} />}
@@ -638,7 +711,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
             />
           )}
 
-          {state !== 'done' && !existing && targetCalendar && candidates.length > 1 && (
+          {state !== 'done' && !existing && !uidConflict && targetCalendar && candidates.length > 1 && (
             <View>
               <Pressable style={styles.calendarPicker} onPress={() => setPickerOpen((v) => !v)}>
                 <View style={[styles.calendarSwatch, { backgroundColor: getCalendarColor(targetCalendar) }]} />
@@ -664,7 +737,7 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
 
           {notice && <Text style={styles.notice}>{notice}</Text>}
 
-          {state !== 'done' && (
+          {state !== 'done' && !uidConflict && (
             <View style={styles.actions}>
               {canRsvp ? (
                 <>

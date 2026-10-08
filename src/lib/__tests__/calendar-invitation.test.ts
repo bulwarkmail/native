@@ -18,6 +18,9 @@ import {
   canApplyProposal,
   isUserOrganizer,
   patchIsShown,
+  reviewCounterProposal,
+  proposalStillMatches,
+  isSameInvitationEvent,
 } from '../calendar-invitation';
 import type { CalendarEvent } from '../../api/types';
 import { parseAuthenticationResults } from '../email-headers';
@@ -319,6 +322,9 @@ describe('the actor address is the one the trust row checked', () => {
   });
 });
 
+// The app's CalendarEvent type leaves descriptionContentType out; the server sends it.
+const typed = (e: Record<string, unknown>) => e as Partial<CalendarEvent>;
+
 describe('counter-proposal review', () => {
   it('patches only what the proposal changes', () => {
     expect(buildProposalPatch(
@@ -327,11 +333,11 @@ describe('counter-proposal review', () => {
     )).toEqual({ start: '2026-10-09T11:00:00' });
   });
 
-  it('patches a changed zone, all-day flag and location set', () => {
+  it('patches a changed zone, all-day flag and location, keeping the location\'s stored detail', () => {
     expect(buildProposalPatch(
-      { start: '2026-10-09T10:00:00', timeZone: 'Europe/Berlin', locations: { l: { name: 'Room 1' } } as CalendarEvent['locations'] },
-      { start: '2026-10-09T10:00:00', timeZone: 'Europe/Paris', showWithoutTime: true, locations: { l: { name: 'Room 2' } } as CalendarEvent['locations'] },
-    )).toEqual({ timeZone: 'Europe/Paris', showWithoutTime: true, locations: { l: { '@type': 'Location', name: 'Room 2' } } });
+      { start: '2026-10-09T10:00:00', timeZone: 'Europe/Berlin', locations: { l: { name: 'Room 1', description: 'Floor 2' } } as CalendarEvent['locations'] },
+      { start: '2026-10-09T10:00:00', timeZone: 'Europe/Paris', showWithoutTime: true, locations: { l: { name: 'Room 2', description: 'Sender text' } } as CalendarEvent['locations'] },
+    )).toEqual({ timeZone: 'Europe/Paris', showWithoutTime: true, locations: { l: { name: 'Room 2', description: 'Floor 2' } } });
   });
 
   it('returns null when nothing differs', () => {
@@ -375,15 +381,43 @@ describe('counter-proposal review', () => {
   });
 
   it('shows the sender\'s title and description flattened, not raw', () => {
-    const items = buildInvitationChangeItems(
-      { title: 'Old', description: '' },
-      { title: 'New\u202e title\nline two', description: 'Line one\r\nLine two' },
-      iso,
-    );
-    expect(items).toEqual([
+    const current = typed({ title: 'Old', description: '', descriptionContentType: null });
+    const proposed = { title: 'New\u202e title\nline two', description: 'Line one\r\nLine\u200b two' };
+    expect(buildInvitationChangeItems(current, proposed, iso)).toEqual([
       { label: 'title', before: 'Old', after: 'New title line two' },
       { label: 'description', before: null, after: 'Line one Line two' },
     ]);
+    // Written with its line break kept, the hidden character gone.
+    expect(buildProposalPatch(current, proposed)).toEqual({ title: 'New title line two', description: 'Line one\nLine two' });
+  });
+
+  it('refuses an over-long title or description instead of writing it cut', () => {
+    const current = typed({ title: 'Old', description: 'd', descriptionContentType: 'text/plain' });
+    expect(buildProposalPatch(current, { title: 'x'.repeat(201) })).toBeNull();
+    expect(buildProposalPatch(current, { description: 'x'.repeat(2001) })).toBeNull();
+    expect(buildProposalPatch(current, { title: 'x'.repeat(200) })).toEqual({ title: 'x'.repeat(200) });
+  });
+
+  it('reads the proposed time only from the start, zone and duration it writes', () => {
+    // A sender-written utcStart is not what gets written: it must not shape the list.
+    const items = buildInvitationChangeItems(
+      { start: '2026-10-09T10:00:00', timeZone: 'Europe/Berlin', duration: 'PT1H' },
+      { start: '2026-10-09T11:00:00', timeZone: 'Europe/Berlin', utcStart: '2026-10-09T08:00:00Z' },
+      iso,
+    );
+    // No proposed duration: the event's hour stays, and the end shows it.
+    expect(items).toEqual([{
+      label: 'time',
+      before: '2026-10-09T08:00:00.000Z - 2026-10-09T09:00:00.000Z',
+      after: '2026-10-09T09:00:00.000Z - 2026-10-09T10:00:00.000Z',
+    }]);
+  });
+
+  it('refuses a time that drops the event\'s zone or names an unknown one', () => {
+    const zoned = { start: '2026-10-09T10:00:00', timeZone: 'Europe/Berlin', duration: 'PT1H' };
+    expect(buildProposalPatch(zoned, { start: '2026-10-09T11:00:00', timeZone: null })).toBeNull();
+    expect(buildProposalPatch(zoned, { start: '2026-10-09T11:00:00', timeZone: 'Mars/Olympus' })).toBeNull();
+    expect(buildProposalPatch(zoned, { start: 'tomorrow', timeZone: 'Europe/Berlin' })).toBeNull();
   });
 
   it('lists nothing without both events', () => {
@@ -423,7 +457,7 @@ describe('a counter proposal writes only what the organizer was shown', () => {
 
   it('shows a swapped meeting link, before and after, and writes only the link', () => {
     const current = { virtualLocations: vl('https://meet.example.com/a') };
-    const proposed = { virtualLocations: vl('https://evil.example.net/\u202ea', { name: 'Hidden name', description: 'x' }) };
+    const proposed = { virtualLocations: vl('https://evil.example.net/a', { name: 'Hidden name', description: 'x' }) };
     expect(buildInvitationChangeItems(current, proposed, iso)).toEqual([
       { label: 'virtual_location', before: 'https://meet.example.com/a', after: 'https://evil.example.net/a' },
     ]);
@@ -432,14 +466,16 @@ describe('a counter proposal writes only what the organizer was shown', () => {
     });
   });
 
+  it('takes no meeting link with something hidden in it', () => {
+    expect(buildProposalPatch({}, { virtualLocations: vl('https://evil.example.net/\u202ea') })).toBeNull();
+    expect(buildProposalPatch({}, { virtualLocations: vl('https://a.example.com/ b') })).toBeNull();
+  });
+
   it('takes no meeting link that is not a web link', () => {
     const proposed = { virtualLocations: vl('javascript:alert(1)') };
     expect(buildProposalPatch({}, proposed)).toBeNull();
     expect(buildInvitationChangeItems({}, proposed, iso)).toEqual([]);
   });
-
-  // The app's CalendarEvent type leaves descriptionContentType out; the server sends it.
-  const typed = (e: Record<string, unknown>) => e as Partial<CalendarEvent>;
 
   it('never takes the proposal\'s description type, and leaves an HTML description alone', () => {
     // The proposal tries to turn a plain description into HTML.
@@ -464,11 +500,11 @@ describe('a counter proposal writes only what the organizer was shown', () => {
   });
 
   it('shows every key it would patch', () => {
-    const current = {
-      title: 'A', description: 'd', start: '2026-10-09T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin',
+    const current = typed({
+      title: 'A', description: 'd', descriptionContentType: 'text/plain', start: '2026-10-09T10:00:00', duration: 'PT1H', timeZone: 'Europe/Berlin',
       locations: { l: { name: 'Room 1', description: 'x' } } as CalendarEvent['locations'],
       virtualLocations: vl('https://meet.example.com/a'),
-    };
+    });
     const proposed: Partial<CalendarEvent> = typed({
       title: 'B', description: 'e', descriptionContentType: 'text/plain', start: '2026-10-10T09:00:00',
       duration: 'PT2H', timeZone: 'Europe/Paris', showWithoutTime: false,
@@ -479,7 +515,7 @@ describe('a counter proposal writes only what the organizer was shown', () => {
     const items = buildInvitationChangeItems(current, proposed, iso);
     expect(Object.keys(patch).sort()).toEqual(['description', 'duration', 'locations', 'start', 'timeZone', 'title', 'virtualLocations']);
     expect(patchIsShown(patch, items)).toBe(true);
-    expect(patch.locations).toEqual({ l: { '@type': 'Location', name: 'Room 2' } });
+    expect(patch.locations).toEqual({ l: { name: 'Room 2', description: 'x' } });
   });
 
   it('refuses a patch with a key the change list does not show', () => {
@@ -514,5 +550,114 @@ describe('isUserOrganizer', () => {
     expect(isUserOrganizer(stalwart, ['bob@example.com'])).toBe(false);
     expect(isUserOrganizer(stalwart, [])).toBe(false);
     expect(isUserOrganizer({ participants: stalwart.participants }, ['me@example.com'])).toBe(false);
+  });
+});
+
+describe('who may have a counter proposal applied', () => {
+  const iso = (value: string | null) => value ?? '';
+  const me = 'me@example.com';
+  const stored = typed({
+    id: 'ev1', baseEventId: 'ev1', uid: 'u1', title: 'Planning',
+    start: '2026-10-09T10:00:00', timeZone: 'Europe/Berlin', duration: 'PT1H',
+    descriptionContentType: null,
+    organizerCalendarAddress: `mailto:${me}`,
+    participants: {
+      o: { calendarAddress: `mailto:${me}`, roles: { owner: true, attendee: true } },
+      b: { calendarAddress: 'mailto:bob@example.com', roles: { attendee: true } },
+    },
+  });
+  const counter = (attendee = 'bob@example.com', extra: Record<string, unknown> = {}) => typed({
+    uid: 'u1', title: 'Planning', start: '2026-10-09T11:00:00', timeZone: 'Europe/Berlin', duration: 'PT1H',
+    organizerCalendarAddress: `mailto:${me}`,
+    participants: {
+      o: { calendarAddress: `mailto:${me}`, roles: { owner: true } },
+      // EMAIL= is the sender's to write, and names no one: never the proposer.
+      b: { calendarAddress: `mailto:${attendee}`, email: 'ceo@example.com', roles: { attendee: true }, participationStatus: 'tentative' },
+    },
+    ...extra,
+  });
+  const authed = (from: string, results = 'mx.example.com; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com') =>
+    email({ from: [{ email: from }], headers: [{ name: 'Authentication-Results', value: results }] });
+  const review = (proposed: Partial<CalendarEvent>, mail: ReturnType<typeof email>, storedEvent: Partial<CalendarEvent> = stored) =>
+    reviewCounterProposal({ method: 'counter', proposed, stored: storedEvent, userAddresses: [me], email: mail, formatDateTime: iso });
+
+  it('offers Apply for a genuine counter from an attendee, authenticated', () => {
+    const r = review(counter(), authed('bob@example.com'));
+    expect(r).toMatchObject({ canApply: true, hold: null, proposer: { email: 'bob@example.com' } });
+    expect(r?.patch).toEqual({ start: '2026-10-09T11:00:00' });
+  });
+
+  it('withholds Apply when the From is not the proposer', () => {
+    expect(review(counter(), authed('mallory@example.com'))).toMatchObject({ canApply: false, hold: 'sender_not_proposer' });
+  });
+
+  it('withholds Apply for an attendee the event does not have', () => {
+    expect(review(counter('eve@example.com'), authed('eve@example.com'))).toMatchObject({ canApply: false, hold: 'proposer_not_attendee' });
+    // The organizer's own address does not count as an attendee proposing.
+    const self = typed({ ...counter(), participants: { o: { calendarAddress: `mailto:${me}`, roles: { attendee: true } } } });
+    expect(review(self, authed(me))?.canApply).toBe(false);
+  });
+
+  it('withholds Apply when nothing authenticates the From', () => {
+    expect(review(counter(), email({ from: [{ email: 'bob@example.com' }] }))).toMatchObject({ canApply: false, hold: 'sender_unverified' });
+    // A pass for another domain proves nothing about example.com.
+    expect(review(counter(), authed('bob@example.com', 'mx.example.com; dkim=pass header.d=evil.example.net')))
+      .toMatchObject({ canApply: false, hold: 'sender_unverified' });
+  });
+
+  it('withholds Apply on a failed check (warning-level trust)', () => {
+    expect(review(counter(), authed('bob@example.com', 'mx.example.com; dkim=pass header.d=example.com; spf=fail smtp.mailfrom=example.com')))
+      .toMatchObject({ canApply: false, hold: 'sender_unverified' });
+  });
+
+  it('withholds Apply when part of the proposal cannot be written as shown', () => {
+    const r = review(counter('bob@example.com', { title: 'x'.repeat(300) }), authed('bob@example.com'));
+    expect(r).toMatchObject({ canApply: false, hold: 'unsupported' });
+  });
+
+  it('leaves a description alone while the stored event\'s type is unknown', () => {
+    const { descriptionContentType: _omit, ...unknownType } = stored as Record<string, unknown>;
+    const r = review(counter('bob@example.com', { description: 'New agenda' }), authed('bob@example.com'), typed(unknownType));
+    expect(r).toMatchObject({ canApply: false, hold: 'unsupported' });
+  });
+
+  it('sends a recurring event to the calendar instead', () => {
+    const series = typed({ ...stored, recurrenceOverrides: { '2026-10-16T10:00:00': { title: 'x' } } });
+    expect(review(counter(), authed('bob@example.com'), series)).toMatchObject({ canApply: false, hold: 'recurring', changes: [] });
+    expect(review(counter('bob@example.com', { recurrenceId: '2026-10-09T10:00:00' }), authed('bob@example.com')))
+      .toMatchObject({ canApply: false, hold: 'recurring' });
+  });
+
+  it('reviews nothing for a user who does not organize it, or another event with the UID', () => {
+    expect(reviewCounterProposal({ method: 'counter', proposed: counter(), stored, userAddresses: ['other@example.com'], email: authed('bob@example.com'), formatDateTime: iso })).toBeNull();
+    const elsewhere = typed({ ...counter(), organizerCalendarAddress: 'mailto:someone@example.org' });
+    expect(review(elsewhere, authed('bob@example.com'))).toBeNull();
+  });
+
+  it('applies only what was confirmed', () => {
+    const confirmed = review(counter(), authed('bob@example.com'))!;
+    expect(proposalStillMatches(confirmed, review(counter(), authed('bob@example.com')))).toBe(true);
+    // The stored event moved meanwhile: the list would read differently.
+    const moved = typed({ ...stored, start: '2026-10-09T09:00:00' });
+    expect(proposalStillMatches(confirmed, review(counter(), authed('bob@example.com'), moved))).toBe(false);
+    expect(proposalStillMatches(confirmed, null)).toBe(false);
+  });
+
+  it('compares an attendee\'s answer with the attendee, not the organizer', () => {
+    const t = getInvitationTrustAssessment(counter(), authed('bob@example.com'), 'counter');
+    expect(t).toMatchObject({ level: 'trusted', expectedSender: 'attendee', expectedSenderEmail: 'bob@example.com' });
+    const spoof = getInvitationTrustAssessment(counter(), email({ from: [{ email: 'mallory@evil.com' }] }), 'counter');
+    expect(spoof).toMatchObject({ level: 'warning', reason: 'sender_mismatch_unverified' });
+  });
+});
+
+describe('isSameInvitationEvent', () => {
+  const stored = { uid: 'u1', organizerCalendarAddress: 'mailto:alice@example.com' };
+  it('takes a stored event for the invitation only with the same organizer', () => {
+    expect(isSameInvitationEvent(stored, { uid: 'u1', organizerCalendarAddress: 'mailto:ALICE@example.com' })).toBe(true);
+    // A crafted invitation carrying the UID of an unrelated event of the user's.
+    expect(isSameInvitationEvent(stored, { uid: 'u1', organizerCalendarAddress: 'mailto:mallory@evil.com' })).toBe(false);
+    expect(isSameInvitationEvent(stored, { uid: 'u2', organizerCalendarAddress: 'mailto:alice@example.com' })).toBe(false);
+    expect(isSameInvitationEvent(null, { uid: 'u1' })).toBe(false);
   });
 });

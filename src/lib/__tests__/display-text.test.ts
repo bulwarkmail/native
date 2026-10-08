@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { plainDisplayText } from '../display-text';
+import { plainDisplayText, plainStoredText } from '../display-text';
 
 describe('plainDisplayText', () => {
   it('strips direction controls a sender could use to reorder what is shown', () => {
@@ -38,5 +38,16 @@ describe('plainDisplayText', () => {
   it('never splits a surrogate pair when it caps the length', () => {
     expect(plainDisplayText('\u{1f600}'.repeat(5), 3)).toBe('\u{1f600}\u{1f600}…');
     expect(plainDisplayText('\u{1f600}'.repeat(3), 3)).toBe('\u{1f600}'.repeat(3));
+  });
+});
+
+describe('plainStoredText', () => {
+  it('keeps line breaks and drops hidden characters', () => {
+    expect(plainStoredText('One\r\nTwo‮\u0007 three\rFour', 100)).toBe('One\nTwo  three\nFour');
+  });
+  it('refuses text over the limit instead of cutting it', () => {
+    expect(plainStoredText('abcd', 3)).toBeNull();
+    expect(plainStoredText('abc', 3)).toBe('abc');
+    expect(plainStoredText(null, 3)).toBe('');
   });
 });

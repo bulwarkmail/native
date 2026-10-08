@@ -34,3 +34,21 @@ export function plainDisplayText(value: string | null | undefined, max = 200): s
   const chars = Array.from(text);
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : text;
 }
+
+// Every control but the line feed, and the Unicode line/paragraph separators.
+const CONTROLS_BUT_LINE_FEED = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029]+/g;
+
+/**
+ * Sender-written text made safe to store as plain text: no format or control
+ * characters, line breaks kept (as \n). Null when it is longer than `max`
+ * code points: text to be written is refused, never cut.
+ */
+export function plainStoredText(value: string | null | undefined, max: number): string | null {
+  if (!value) return '';
+  const text = value
+    .replace(/\r\n?/g, '\n')
+    .replace(FORMAT_CHARACTERS, '')
+    .replace(CONTROLS_BUT_LINE_FEED, ' ')
+    .trim();
+  return Array.from(text).length > max ? null : text;
+}
