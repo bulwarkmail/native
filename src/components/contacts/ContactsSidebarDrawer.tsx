@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, Pressable, ScrollView, Modal, Animated, Dimensions, Easing, TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isLayoutRTL } from '../../i18n';
+import { drawerClosedX, drawerSafeEdges } from '../../lib/rtl-layout';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -103,7 +105,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   const [renameValue, setRenameValue] = React.useState('');
   const [renameBusy, setRenameBusy] = React.useState(false);
 
-  const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const slideX = React.useRef(new Animated.Value(drawerClosedX(Dimensions.get('window').width, isLayoutRTL()))).current;
   const overlay = React.useRef(new Animated.Value(0)).current;
 
   // Also kicked from the Modal's onShow — the first open fires this effect
@@ -121,7 +123,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       runOpen();
     } else {
       Animated.parallel([
-        Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(slideX, { toValue: drawerClosedX(Dimensions.get('window').width, isLayoutRTL()), duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlay, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start();
     }
@@ -172,7 +174,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       </Animated.View>
 
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <SafeAreaView style={styles.drawerSafe} edges={drawerSafeEdges(isLayoutRTL())}>
           <View style={styles.header}>
             <Pressable
               onPress={onClose}

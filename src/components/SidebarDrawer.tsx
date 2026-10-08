@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { isLayoutRTL } from '../i18n';
+import { drawerClosedX, drawerSafeEdges } from '../lib/rtl-layout';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
@@ -744,7 +746,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
 
   const unifiedIcon = (role: UnifiedRole): LucideIcon => iconFor(role, undefined, false, false);
 
-  const slideX = React.useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const slideX = React.useRef(new Animated.Value(drawerClosedX(Dimensions.get('window').width, isLayoutRTL()))).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const openDuration = useAnimDuration(240);
   const closeDuration = useAnimDuration(200);
@@ -766,7 +768,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       runOpen();
     } else {
       Animated.parallel([
-        Animated.timing(slideX, { toValue: -Dimensions.get('window').width, duration: closeDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(slideX, { toValue: drawerClosedX(Dimensions.get('window').width, isLayoutRTL()), duration: closeDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
         Animated.timing(overlayOpacity, { toValue: 0, duration: closeDuration, useNativeDriver: true }),
       ]).start();
     }
@@ -826,7 +828,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
       </Animated.View>
 
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <SafeAreaView style={styles.drawerSafe} edges={drawerSafeEdges(isLayoutRTL())}>
           {/* Header: close + account switcher */}
           <View style={styles.header}>
             <Pressable
