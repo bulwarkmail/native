@@ -140,6 +140,8 @@ const ROLE_PRIORITY: Record<string, number> = {
   trash: 5,
 };
 
+const YEAR_NAME = /^\d{4}$/;
+
 // Drop root-level folders whose name collides with an existing role mailbox
 // (e.g. a plain "Sent" folder when a role=sent mailbox already exists).
 // Mirrors the webmail's `deduplicateMailboxes`; kept minimal (single account
@@ -167,14 +169,22 @@ function deduplicate(mailboxes: Mailbox[]): Mailbox[] {
   return result;
 }
 
+// Same order as the webmail's `sortNodes` (lib/utils.ts), so both clients show
+// one folder list: a saved sortOrder first, then role, then year folders
+// newest first, then name. A server that sends non-zero sortOrder values now
+// moves folders, as it does in the webmail. Own and shared folders never meet
+// here; the tree builds them as separate groups.
 function sortNodes(nodes: MailboxNode[]): void {
   nodes.sort((a, b) => {
-    const ap = a.role ? (ROLE_PRIORITY[a.role] ?? 999) : 999;
-    const bp = b.role ? (ROLE_PRIORITY[b.role] ?? 999) : 999;
-    if (ap !== bp) return ap - bp;
     const ao = a.sortOrder ?? 0;
     const bo = b.sortOrder ?? 0;
     if (ao !== bo) return ao - bo;
+    const ap = a.role ? (ROLE_PRIORITY[a.role] ?? 999) : 999;
+    const bp = b.role ? (ROLE_PRIORITY[b.role] ?? 999) : 999;
+    if (ap !== bp) return ap - bp;
+    if (YEAR_NAME.test(a.name) && YEAR_NAME.test(b.name)) {
+      return parseInt(b.name, 10) - parseInt(a.name, 10);
+    }
     return a.name.localeCompare(b.name);
   });
   for (const node of nodes) sortNodes(node.children);

@@ -299,3 +299,53 @@ describe('folderLabelWithAccount', () => {
     expect(folderLabelWithAccount('Inbox', { isShared: true })).toBe('Inbox');
   });
 });
+
+describe('sort order (webmail parity)', () => {
+  const names = (nodes: { name: string }[]) => nodes.map((n) => n.name);
+
+  it('puts a user sortOrder before the role order', () => {
+    const tree = buildMailboxTree([
+      own('inbox', 'Inbox', { role: 'inbox', sortOrder: 2 }),
+      own('work', 'Work', { sortOrder: 1 }),
+      own('sent', 'Sent', { role: 'sent', sortOrder: 3 }),
+    ]);
+    expect(names(tree)).toEqual(['Work', 'Inbox', 'Sent']);
+  });
+
+  it('keeps the role order when every sortOrder is 0 or missing', () => {
+    const tree = buildMailboxTree([
+      own('alpha', 'Alpha'),
+      own('trash', 'Trash', { role: 'trash', sortOrder: 0 }),
+      own('junk', 'Junk', { role: 'junk' }),
+      own('archive', 'Archive', { role: 'archive' }),
+      own('sent', 'Sent', { role: 'sent' }),
+      own('drafts', 'Drafts', { role: 'drafts' }),
+      own('inbox', 'Inbox', { role: 'inbox' }),
+    ]);
+    expect(names(tree)).toEqual(['Inbox', 'Drafts', 'Sent', 'Archive', 'Junk', 'Trash', 'Alpha']);
+  });
+
+  it('sorts year folders newest first, before other names', () => {
+    const tree = buildMailboxTree([own('a', '2023'), own('b', 'Alpha'), own('c', '2025')]);
+    expect(names(tree)).toEqual(['2025', '2023', 'Alpha']);
+  });
+
+  it('applies the same order to subfolders', () => {
+    const tree = buildMailboxTree([
+      own('p', 'Parent'),
+      own('c1', 'Alpha', { parentId: 'p', sortOrder: 2 }),
+      own('c2', 'Zulu', { parentId: 'p', sortOrder: 1 }),
+    ]);
+    expect(names(tree[0].children)).toEqual(['Zulu', 'Alpha']);
+  });
+
+  it('orders shared-account folders the same way under their header', () => {
+    const tree = buildMailboxTree([
+      own('inbox', 'Inbox', { role: 'inbox' }),
+      shared('grp-1', 'Support', 'inbox', 'Inbox', { role: 'inbox', sortOrder: 2 }),
+      shared('grp-1', 'Support', 'work', 'Work', { sortOrder: 1 }),
+    ]);
+    expect(names(tree)).toEqual(['Inbox', 'Support']);
+    expect(names(tree[1].children)).toEqual(['Work', 'Inbox']);
+  });
+});
