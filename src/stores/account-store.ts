@@ -20,6 +20,10 @@ export interface AccountEntry {
   // by the auth store while the client serves this entry, so a composer
   // opened offline can queue a send for it.
   jmapAccountId?: string;
+  // The identity provider's end_session_endpoint, from this account's own
+  // discovery document at a direct PKCE sign-in; sign-out ends the provider
+  // session there (#905). Absent for every other sign-in.
+  endSessionEndpoint?: string;
 }
 
 interface AccountState {

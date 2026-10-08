@@ -29,6 +29,13 @@ import {
 } from '../lib/oauth';
 import { discoverOAuthMetadata, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
 import {
+  captureProviderLogout,
+  endProviderSession,
+  storeIdToken,
+  usableEndSessionEndpoint,
+  type ProviderLogout,
+} from '../lib/provider-session';
+import {
   teardownPushNotifications,
   teardownPushNotificationsForAccount,
 } from '../lib/push-notifications';
@@ -225,15 +232,43 @@ async function undoConnect(previous: ClientSnapshot | null, accountId: string, w
 // QR-paired bundles are left alone: webmail up to 1.11 handed the phone the
 // desktop's own refresh token, and newer ones hand out a separate grant whose
 // refresh token only the webmail's token proxy understands.
-async function revokeStoredRefreshToken(accountId: string): Promise<void> {
+// Resolves what ending the account's provider session needs (#905), read
+// here while its credentials and registry entry are still in place.
+async function revokeStoredRefreshToken(accountId: string): Promise<ProviderLogout | null> {
   try {
     const entry = useAccountStore.getState().getAccountById(accountId);
     const tokens = await jmapClient.getStoredOAuthTokens(accountId);
-    if (!entry || !tokens || tokens.source === 'pairing') return;
-    await revokeRefreshToken(entry.serverUrl, tokens);
+    if (!entry || !tokens) return null;
+    const providerLogout = await captureProviderLogout(accountId, entry.endSessionEndpoint, tokens);
+    if (tokens.source !== 'pairing') await revokeRefreshToken(entry.serverUrl, tokens);
+    return providerLogout;
   } catch {
     // never block sign-out
+    return null;
   }
+}
+
+// Fire-and-forget, once the local sign-out is done: the browser may stay open
+// as long as the user likes and must not hold anything up.
+function endProviderSessionLater(providerLogout: ProviderLogout | null): void {
+  if (providerLogout) void endProviderSession(providerLogout);
+}
+
+// What a direct PKCE sign-in keeps for ending the provider session on
+// sign-out: the id token under the account in SecureStore, the endpoint from
+// its own discovery document on its registry entry. Any other sign-in of the
+// account forgets both. Best-effort: without them sign-out only skips the
+// provider step.
+async function recordProviderSession(
+  accountId: string,
+  provider: { idToken?: string; endSessionEndpoint?: string } | undefined,
+): Promise<void> {
+  const endSessionEndpoint = usableEndSessionEndpoint(provider?.endSessionEndpoint);
+  const accounts = useAccountStore.getState();
+  if (accounts.getAccountById(accountId)?.endSessionEndpoint !== endSessionEndpoint) {
+    accounts.updateAccount(accountId, { endSessionEndpoint });
+  }
+  await storeIdToken(accountId, endSessionEndpoint ? provider?.idToken : undefined).catch(() => undefined);
 }
 
 // Refresh the registry's display name / address from the server (#900): the
@@ -278,6 +313,7 @@ async function completeOAuthHandoff(
   get: () => AuthState,
   result: Extract<HandoffResult, { flow: 'oauth' }>,
   opts?: { addAccount?: boolean },
+  provider?: { idToken?: string; endSessionEndpoint?: string },
 ): Promise<void> {
   // Adding an account must not destroy the live one: the singleton keeps the
   // previous connection until the new sign-in has actually succeeded, and a
@@ -310,6 +346,7 @@ async function completeOAuthHandoff(
     await undoConnect(previous, accountId, wasRegistered);
     throw err;
   }
+  await recordProviderSession(accountId, result.tokens.source === 'native' ? provider : undefined);
   // Contacts/calendar are still single-bucket, so wipe those now that the
   // new account is registered and the one the client serves.
   if (previous) {
@@ -590,10 +627,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     refuseAddWhenFull(set, opts);
     const base = serverUrl.replace(/\/+$/, '');
     let tokens;
+    let provider;
     try {
       const metadata = await discoverOAuthMetadata(base);
       if (!metadata) throw new HandoffError('This server does not offer OAuth sign-in');
-      tokens = await loginWithPkce(base, metadata, { addAccount: opts?.addAccount });
+      // The id token stays out of the stored bundle.
+      const { idToken, ...bundle } = await loginWithPkce(base, metadata, { addAccount: opts?.addAccount });
+      tokens = bundle;
+      provider = { idToken, endSessionEndpoint: metadata.end_session_endpoint };
     } catch (err) {
       if (err instanceof HandoffCancelledError) {
         set({ isLoading: false, error: null });
@@ -604,7 +645,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw err;
     }
     try {
-      await completeOAuthHandoff(set, get, { flow: 'oauth', serverUrl: base, tokens }, opts);
+      await completeOAuthHandoff(set, get, { flow: 'oauth', serverUrl: base, tokens }, opts, provider);
     } catch (err) {
       const message =
         err instanceof AuthenticationError
@@ -713,8 +754,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const username = entry?.username ?? get().username;
 
     // Clear credentials for this account first
+    let providerLogout: ProviderLogout | null = null;
     if (currentId) {
-      await revokeStoredRefreshToken(currentId);
+      providerLogout = await revokeStoredRefreshToken(currentId);
       await jmapClient.clearAccountCredentials(currentId);
       accountStore.removeAccount(currentId);
     } else {
@@ -742,7 +784,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         await get().switchAccount(next.id);
         // switchAccount can return without switching (failed load, no session).
-        if (get().activeAccountId === next.id) return;
+        if (get().activeAccountId === next.id) {
+          endProviderSessionLater(providerLogout);
+          return;
+        }
       } catch {
         // fall through to full logout below
       }
@@ -760,6 +805,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeAccountId: null,
       client: null,
     });
+    endProviderSessionLater(providerLogout);
   },
 
   logoutAll: async (opts) => {
@@ -769,7 +815,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device sync (#34): as in logout, for every account.
     if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
     await teardownPushNotifications().catch(() => undefined);
-    for (const id of ids) await revokeStoredRefreshToken(id);
+    // One provider session is ended, as in webmail: the active account's
+    // when it has one, else the first account's that does.
+    const activeId = get().activeAccountId;
+    const providerLogouts = new Map<string, ProviderLogout>();
+    for (const id of ids) {
+      const providerLogout = await revokeStoredRefreshToken(id);
+      if (providerLogout) providerLogouts.set(id, providerLogout);
+    }
+    const providerLogout = (activeId ? providerLogouts.get(activeId) : undefined)
+      ?? providerLogouts.values().next().value
+      ?? null;
     await jmapClient.clearAllCredentials(ids);
     jmapClient.reset();
     clearAllFeatureStores();
@@ -793,6 +849,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeAccountId: null,
       client: null,
     });
+    endProviderSessionLater(providerLogout);
   },
 
   switchAccount: async (accountId) => {
@@ -905,7 +962,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Device sync (#34): as in logout.
     if (!(await releaseDeviceSyncBeforeSignOut([accountId]))) return;
     await teardownPushNotificationsForAccount(accountId).catch(() => undefined);
-    await revokeStoredRefreshToken(accountId);
+    const providerLogout = await revokeStoredRefreshToken(accountId);
     await jmapClient.clearAccountCredentials(accountId).catch(() => undefined);
     useEmailStore.getState().removeAccount(accountId);
     clearViewerCaches();
@@ -914,6 +971,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       { appAccountId: accountId, serverUrl: account.serverUrl, username: account.username },
       { lastAccount: useAccountStore.getState().accounts.length === 0, discardQueuedSends: opts?.discardQueuedSends },
     ).catch((e) => console.warn('[sign-out] cleanup failed', e));
+    endProviderSessionLater(providerLogout);
   },
 
   restoreSession: async () => {

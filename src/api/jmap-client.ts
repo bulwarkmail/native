@@ -14,6 +14,7 @@ import {
   type OAuthTokens,
   type OAuthTokenSource,
 } from '../lib/oauth';
+import { deleteIdToken } from '../lib/provider-session';
 import { FirstTouchGate } from './first-touch-gate';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
 import { isTransportFailure, reportServerResponse, reportServerUnreachable } from '../lib/server-reachability';
@@ -906,9 +907,13 @@ export class JMAPClient {
     });
   }
 
+  // The id token kept for ending the provider session goes with them.
   async clearAccountCredentials(accountId: string): Promise<void> {
     this.rotatedTokens.delete(accountId);
-    await SecureStore.deleteItemAsync(credentialsKey(accountId));
+    await Promise.all([
+      SecureStore.deleteItemAsync(credentialsKey(accountId)),
+      deleteIdToken(accountId),
+    ]);
   }
 
   async clearAllCredentials(accountIds: string[]): Promise<void> {
@@ -916,6 +921,7 @@ export class JMAPClient {
     await Promise.all([
       SecureStore.deleteItemAsync(LEGACY_CREDENTIALS_KEY),
       ...accountIds.map((id) => SecureStore.deleteItemAsync(credentialsKey(id))),
+      ...accountIds.map((id) => deleteIdToken(id)),
     ]);
   }
 

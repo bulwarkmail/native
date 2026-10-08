@@ -333,6 +333,22 @@ describe('JMAPClient', () => {
     });
   });
 
+  describe('dropping an account\'s credentials', () => {
+    it('also drops the id token kept for ending its provider session, and no other', async () => {
+      vi.mocked(SecureStore.deleteItemAsync).mockClear();
+      await client.clearAccountCredentials('a@x.com@https://mail.x.com');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('oidc_id_token__a_x.com_https___mail.x.com');
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(expect.stringContaining('b_x.com'));
+    });
+
+    it('drops every signed-out account\'s id token on sign-out-all', async () => {
+      vi.mocked(SecureStore.deleteItemAsync).mockClear();
+      await client.clearAllCredentials(['a@x.com@https://mail.x.com', 'b@x.com@https://mail.x.com']);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('oidc_id_token__a_x.com_https___mail.x.com');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('oidc_id_token__b_x.com_https___mail.x.com');
+    });
+  });
+
   describe('hasCapability', () => {
     it('should detect capabilities from session', async () => {
       global.fetch = mockFetch([{ status: 200, json: MOCK_SESSION }]) as any;
