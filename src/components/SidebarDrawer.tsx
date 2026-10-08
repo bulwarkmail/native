@@ -1241,7 +1241,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     icon={<MoreHorizontal size={16} color={c.textMuted} />}
                     label={showAllTags
                       ? t('sidebar.show_fewer_tags', 'Show less')
-                      : t('sidebar.show_all_tags', `Show all (${tagList.hiddenCount})`, { count: tagList.hiddenCount })}
+                      : t('sidebar.show_all_tags', 'Show all ({count})', { count: tagList.hiddenCount })}
                     depth={0}
                     isSelected={false}
                     unread={0}

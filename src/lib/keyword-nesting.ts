@@ -105,6 +105,22 @@ function resolveParents(defs: KeywordDef[]): Map<string, string | null> {
 }
 
 /**
+ * Whether a tag other than `exceptId` already has this name (ignoring case
+ * and outer spaces). Two tags may share one, under different ids; the form
+ * only warns, since the drawer would show two alike.
+ */
+export function labelInUse(defs: KeywordDef[], label: string, exceptId: string | null): boolean {
+  const wanted = label.trim().toLowerCase();
+  if (!wanted) return false;
+  return defs.some((d) => d.id !== exceptId && d.label.trim().toLowerCase() === wanted);
+}
+
+/** The parent tag `id` sits under in the tree, after loops are cut. */
+export function resolvedParentId(defs: KeywordDef[], id: string): string | null {
+  return resolveParents(defs).get(id) ?? null;
+}
+
+/**
  * Arranges tag definitions into a tree, keeping the user's order within each
  * level. Every defined tag appears exactly once.
  */

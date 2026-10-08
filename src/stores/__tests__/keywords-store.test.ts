@@ -8,7 +8,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import { useKeywordsStore, DEFAULT_KEYWORDS } from '../keywords-store';
+import { useKeywordsStore, DEFAULT_KEYWORDS, unknownKeywordColor } from '../keywords-store';
 import { useSettingsStore, mergeWithDefaults, toExportShape } from '../settings-store';
 
 const ids = () => useKeywordsStore.getState().keywords.map((k) => k.id);
@@ -32,6 +32,23 @@ describe('keywords store', () => {
       { id: 'a', label: 'A', color: 'red' },
       { id: 'b', label: 'B', color: 'blue', visibility: 'unread', parentId: 'a' },
       { id: 'c', label: 'C', color: 'green', visibility: 'hide', parentId: null },
+    ]);
+  });
+
+  it('hydrate keeps the first of two entries with one id, and repairs a bad colour or label', async () => {
+    storage.set('webmail:keywords:v1', JSON.stringify([
+      { id: 'a', label: 'A', color: 'red' },
+      { id: 'a', label: 'Again', color: 'blue' },
+      { id: 'b', label: 'B', color: 'chartreuse' },
+      { id: 'c', label: 42, color: 'green' },
+      { id: 'd', label: '', color: 'green' },
+    ]));
+    await useKeywordsStore.getState().hydrate();
+    expect(useKeywordsStore.getState().keywords).toEqual([
+      { id: 'a', label: 'A', color: 'red' },
+      { id: 'b', label: 'B', color: unknownKeywordColor('b') },
+      { id: 'c', label: 'c', color: 'green' },
+      { id: 'd', label: 'd', color: 'green' },
     ]);
   });
 

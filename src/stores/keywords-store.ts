@@ -18,6 +18,8 @@ export interface KeywordDef {
   /**
    * The tag this one sits under. Absent: the webmail's id-derived parent
    * (`work/clients` → `work`). null: the top level, whatever the id says.
+   * RN only: the webmail derives the parent from the id and has no such
+   * field, so a tag moved here keeps its old place there.
    */
   parentId?: string | null;
 }
@@ -76,13 +78,22 @@ function persist(keywords: KeywordDef[]): void {
 
 // A stored list is hand-editable and written by older builds, so only the
 // fields the UI relies on are kept: an entry without a string id is dropped,
+// as is a second entry with the same id (the tree keeps the first too). An
+// unknown colour takes the one an unknown tag gets, a missing label the id,
 // and an unknown visibility or a parentId that is neither a string nor null
 // is removed so the tag falls back to the default.
 function sanitizeKeywords(list: unknown[]): KeywordDef[] {
   const out: KeywordDef[] = [];
+  const seen = new Set<string>();
   for (const entry of list) {
     if (!entry || typeof entry !== 'object' || typeof (entry as KeywordDef).id !== 'string') continue;
     const def = { ...(entry as KeywordDef) };
+    if (seen.has(def.id)) continue;
+    seen.add(def.id);
+    if (typeof def.color !== 'string' || !Object.prototype.hasOwnProperty.call(colors.tags, def.color)) {
+      def.color = unknownKeywordColor(def.id);
+    }
+    if (typeof def.label !== 'string' || !def.label.trim()) def.label = def.id;
     if (def.visibility !== undefined && !KEYWORD_VISIBILITIES.includes(def.visibility)) delete def.visibility;
     if (def.parentId !== undefined && def.parentId !== null && typeof def.parentId !== 'string') delete def.parentId;
     out.push(def);

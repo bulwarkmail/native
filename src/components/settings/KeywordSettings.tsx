@@ -13,7 +13,8 @@ import {
   buildKeywordTree,
   composeKeywordId,
   descendantIds,
-  effectiveParentId,
+  resolvedParentId,
+  labelInUse,
   keywordVisibility,
   moveKeyword,
   type KeywordNode,
@@ -278,8 +279,9 @@ function KeywordForm({ initial, keywords, nestedTags, onSave, onCancel }: Keywor
   const [label, setLabel] = useState(initial?.label ?? '');
   const [color, setColor] = useState<keyof typeof DARK_COLORS.tags>(initial?.color ?? 'blue');
   const [visibility, setVisibility] = useState<KeywordVisibility>(initial ? keywordVisibility(initial) : 'show');
-  // The parent the tag had when the form opened, to tell whether it changed.
-  const [initialParent] = useState(() => (initial ? effectiveParentId(initial, new Set(keywords.map((k) => k.id))) : null));
+  // The parent the tag had when the form opened, as the tree shows it (a
+  // loop cut to the top level), to tell whether it changed.
+  const [initialParent] = useState(() => (initial ? resolvedParentId(keywords, initial.id) : null));
   // '' stands for "No parent" in the picker.
   const [parent, setParent] = useState<string>(initialParent ?? '');
 
@@ -288,6 +290,8 @@ function KeywordForm({ initial, keywords, nestedTags, onSave, onCancel }: Keywor
   const isDuplicate = !initial && id.length > 0 && keywords.some((k) => k.id === id);
   const isTooLong = !initial && id.length > MAX_KEYWORD_ID_LENGTH;
   const isValid = id.length > 0 && label.trim().length > 0 && !isDuplicate && !isTooLong;
+  // Allowed, but two tags alike in the drawer are easy to mix up.
+  const sameLabel = !isDuplicate && labelInUse(keywords, label, initial?.id ?? null);
 
   // Any tag can be the parent except this one and the tags below it, which
   // would cut the branch off the tree.
@@ -334,8 +338,11 @@ function KeywordForm({ initial, keywords, nestedTags, onSave, onCancel }: Keywor
         {isDuplicate && <Text style={styles.errorText}>{t('settings.keywords.id_exists', "This tag ID already exists")}</Text>}
         {isTooLong && (
           <Text style={styles.errorText}>
-            {t('settings.keywords.too_long', `This tag path is too long (at most ${MAX_KEYWORD_ID_LENGTH} characters)`, { max: MAX_KEYWORD_ID_LENGTH })}
+            {t('settings.keywords.too_long', 'This tag path is too long (at most {max} characters)', { max: MAX_KEYWORD_ID_LENGTH })}
           </Text>
+        )}
+        {sameLabel && (
+          <Text style={styles.warnText}>{t('settings.keywords.label_in_use', 'Another tag already has this name.')}</Text>
         )}
       </View>
 
@@ -467,6 +474,7 @@ function makeStyles(c: ThemePalette) {
     ...typography.body,
   },
   errorText: { ...typography.caption, color: c.error, marginTop: 4 },
+  warnText: { ...typography.caption, color: c.warning, marginTop: 4 },
   palette: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   colorSwatch: { width: 24, height: 24, borderRadius: 12 },
   colorSwatchSelected: {

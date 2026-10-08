@@ -10,6 +10,8 @@ import {
   keywordVisibility,
   moveKeyword,
   normalizeKeywordLevel,
+  resolvedParentId,
+  labelInUse,
   type KeywordNode,
 } from '../keyword-nesting';
 import type { KeywordDef } from '../../stores/keywords-store';
@@ -77,6 +79,16 @@ describe('effectiveParentId', () => {
   });
 });
 
+describe('resolvedParentId', () => {
+  it('gives the parent the tree shows, a loop cut to the top level', () => {
+    const defs = [kw('a', { parentId: 'b' }), kw('b', { parentId: 'a' }), kw('c', { parentId: 'a' })];
+    expect(resolvedParentId(defs, 'a')).toBeNull();
+    expect(resolvedParentId(defs, 'b')).toBeNull();
+    expect(resolvedParentId(defs, 'c')).toBe('a');
+    expect(resolvedParentId(defs, 'gone')).toBeNull();
+  });
+});
+
 describe('filterKeywordTree', () => {
   it('keeps a hidden parent when a child is shown', () => {
     const tree = buildKeywordTree([kw('work', { visibility: 'hide' }), kw('acme', { parentId: 'work' }), kw('old', { visibility: 'hide' })]);
@@ -136,5 +148,18 @@ describe('descendantIds', () => {
     expect([...below].sort()).toEqual(['acme', 'work/clients']);
     const choices = defs.filter((d) => d.id !== 'work' && !below.has(d.id)).map((d) => d.id);
     expect(choices).toEqual(['home']);
+  });
+});
+
+describe('labelInUse', () => {
+  const defs = [kw('work', { label: 'Work' }), kw('home', { label: 'Home' })];
+  it('finds another tag with the same name, ignoring case and outer spaces', () => {
+    expect(labelInUse(defs, ' work ', null)).toBe(true);
+    expect(labelInUse(defs, 'Play', null)).toBe(false);
+    expect(labelInUse(defs, '', null)).toBe(false);
+  });
+  it('does not count the tag being edited', () => {
+    expect(labelInUse(defs, 'Work', 'work')).toBe(false);
+    expect(labelInUse(defs, 'Home', 'work')).toBe(true);
   });
 });

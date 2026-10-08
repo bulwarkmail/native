@@ -1012,6 +1012,7 @@
         "progress": "Scanned {scanned} of {total} messages…",
         "scan": "Find tags in mailbox"
       },
+      "label_in_use": "Another tag already has this name.",
       "reset_confirm": "Replace your tag list with the default tags? Tags already set on messages stay on the server.",
       "reset_defaults": "Reset to Defaults"
     },
