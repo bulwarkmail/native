@@ -35,6 +35,19 @@ describe('plainDisplayText', () => {
     expect(missed).toEqual([]);
   });
 
+  it('keeps every character that is not a format, control or separator character', () => {
+    // The other half of the list check: nothing outside Cf is stripped, so a
+    // name in any script shows as written.
+    const lost: string[] = [];
+    for (let cp = 0x21; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      if (/[\p{Cf}\p{Cc}\p{Zl}\p{Zp}]/u.test(ch)) continue;
+      if (plainDisplayText(`a${ch}b`) !== `a${ch}b`) lost.push(cp.toString(16));
+    }
+    expect(lost).toEqual([]);
+  });
+
   it('never splits a surrogate pair when it caps the length', () => {
     expect(plainDisplayText('\u{1f600}'.repeat(5), 3)).toBe('\u{1f600}\u{1f600}…');
     expect(plainDisplayText('\u{1f600}'.repeat(3), 3)).toBe('\u{1f600}'.repeat(3));
@@ -43,7 +56,7 @@ describe('plainDisplayText', () => {
 
 describe('plainStoredText', () => {
   it('keeps line breaks and drops hidden characters', () => {
-    expect(plainStoredText('One\r\nTwo‮\u0007 three\rFour', 100)).toBe('One\nTwo  three\nFour');
+    expect(plainStoredText('One\r\nTwo\u202e\u0007 three\rFour', 100)).toBe('One\nTwo  three\nFour');
   });
   it('refuses text over the limit instead of cutting it', () => {
     expect(plainStoredText('abcd', 3)).toBeNull();

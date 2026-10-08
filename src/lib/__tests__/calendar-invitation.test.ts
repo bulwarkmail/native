@@ -23,6 +23,7 @@ import {
   isSameInvitationEvent,
   mayImportOver,
   withFetchedDescriptionType,
+  invitationBannerDetails,
 } from '../calendar-invitation';
 import type { CalendarEvent } from '../../api/types';
 import { parseAuthenticationResults } from '../email-headers';
@@ -155,7 +156,20 @@ describe('getInvitationTrustAssessment', () => {
   it('cautions when a scheduling message carries no authentication at all', () => {
     const e = email({ from: [{ email: 'alice@example.com' }] });
     expect(getInvitationTrustAssessment(request, e, 'request').reason).toBe('authentication_missing');
-    expect(getInvitationTrustAssessment(request, e, 'unknown').level).toBe('trusted');
+    expect(getInvitationTrustAssessment(request, e, 'unknown').reason).toBe('authentication_missing');
+  });
+
+  it('never calls an invitation with no METHOD and no organizer verified without a pass', () => {
+    // Nobody to compare the sender with must not read as "Sender verified".
+    const bare = { uid: 'u1', title: 'Payment overdue' };
+    const e = email({ from: [{ email: 'billing@yourbank.example' }] });
+    expect(getInvitationTrustAssessment(bare, e)).toMatchObject({ level: 'caution', reason: 'authentication_missing' });
+    expect(getInvitationTrustAssessment(bare, email({}), 'unknown').level).not.toBe('trusted');
+    const passed = email({
+      from: [{ email: 'billing@yourbank.example' }],
+      headers: [{ name: 'Authentication-Results', value: 'x; dmarc=pass header.from=yourbank.example' }],
+    });
+    expect(getInvitationTrustAssessment(bare, passed, 'unknown').level).toBe('trusted');
   });
 });
 
@@ -212,6 +226,20 @@ describe('invitation actor', () => {
   it('names the attendee who proposed a change, never the organizer', () => {
     expect(getInvitationActorSummary(replyEvent, 'counter')?.name).toBe('Bob');
     expect(getInvitationActorSummary(request, 'refresh')).toMatchObject({ email: 'bob@example.com', role: 'attendee' });
+  });
+
+  it('names a chair attendee who answers, keeping the organizer out', () => {
+    const chaired = {
+      organizerCalendarAddress: 'mailto:alice@example.com',
+      participants: {
+        a: { name: 'Alice', calendarAddress: 'mailto:alice@example.com', roles: { owner: true } },
+        b: {
+          name: 'Bob', calendarAddress: 'mailto:bob@example.com', roles: { attendee: true, chair: true },
+          participationStatus: 'accepted' as const,
+        },
+      },
+    };
+    expect(getInvitationActorSummary(chaired, 'reply')).toMatchObject({ email: 'bob@example.com', role: 'attendee' });
   });
 
   it('returns null without participants', () => {
@@ -730,5 +758,43 @@ describe('isSameInvitationEvent', () => {
     expect(mayImportOver({ uid: 'u1' }, { uid: 'u1' })).toBe(true);
     expect(mayImportOver(stored, { uid: 'u1' })).toBe(false);
     expect(mayImportOver({ uid: 'u1' }, { uid: 'u1', organizerCalendarAddress: 'mailto:mallory@evil.com' })).toBe(false);
+  });
+});
+
+describe('invitationBannerDetails', () => {
+  const stored = {
+    uid: 'u1', title: 'Board meeting', start: '2026-10-08T10:00:00',
+    organizerCalendarAddress: 'mailto:alice@example.com',
+    locations: { l: { name: 'Room 4' } },
+    virtualLocations: { v: { uri: 'https://meet.example/board' } },
+  };
+  const incoming = {
+    uid: 'u1', title: 'Board meeting (moved)', start: '2026-10-09T10:00:00',
+    organizerCalendarAddress: 'mailto:alice@example.com',
+    locations: { l: { name: 'Lobby\u202e' } },
+    virtualLocations: { v: { uri: 'https://meet-board.example' } },
+  };
+
+  it('takes every shown field from the stored event once it is in the calendar', () => {
+    for (const method of ['request', 'counter', 'reply', 'refresh'] as const) {
+      const d = invitationBannerDetails(stored, incoming, method);
+      expect(d.source).toBe(stored);
+      expect(d.location).toBe('Room 4');
+      expect(d.videoUri).toBe('https://meet.example/board');
+    }
+  });
+
+  it('never offers an attendee message\'s own link, and cleans its location', () => {
+    for (const method of ['counter', 'reply', 'refresh'] as const) {
+      const d = invitationBannerDetails(null, incoming, method);
+      expect(d.source).toBe(incoming);
+      expect(d.videoUri).toBeNull();
+      expect(d.location).toBe('Lobby');
+    }
+  });
+
+  it('shows an organizer message\'s own details when nothing is stored', () => {
+    const d = invitationBannerDetails(null, incoming, 'request');
+    expect(d.videoUri).toBe('https://meet-board.example');
   });
 });

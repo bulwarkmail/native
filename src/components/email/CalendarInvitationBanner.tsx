@@ -27,6 +27,7 @@ import {
   getOrganizerEmail,
   getOrganizerName,
   invitationSentFrom,
+  invitationBannerDetails,
   isUserOrganizer,
   buildReplyTo,
   isSameInvitationEvent,
@@ -351,9 +352,9 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
   }
   if (!event) return null;
 
-  // Title and time of the event as the user's calendar holds it, once it is
-  // there: the message's are its sender's to write.
-  const shownEvent = existing ?? event;
+  // Title, time, place and organizer of the event as the user's calendar
+  // holds it, once it is there: the message's are its sender's to write.
+  const { source: shownEvent, location, videoUri } = invitationBannerDetails(existing, event, method);
   // In the app's time zone, as the calendar shows it.
   const startDate = shownEvent.start || shownEvent.utcStart
     ? getEventStartDate({
@@ -369,9 +370,8 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         : format(startDate, `EEE, MMM d · ${timePattern(timeFormat)}`, { locale: dateLocale }))
     : null;
   // The organizer's address shows beside its name, as the trust row checked it.
-  const organizer = formatInvitationActor({ name: getOrganizerName(event), email: getOrganizerEmail(event) });
-  const location = plainDisplayText(event.locations ? Object.values(event.locations)[0]?.name : undefined, 200);
-  const videoUri = event.virtualLocations ? Object.values(event.virtualLocations)[0]?.uri : undefined;
+  const shownTitle = plainDisplayText(shownEvent.title, 200) || t('calendar.invitation.title', 'Calendar invitation');
+  const organizer = formatInvitationActor({ name: getOrganizerName(shownEvent), email: getOrganizerEmail(shownEvent) });
   const me = findParticipantByEmail(existing ?? event, currentUserEmails);
   // A REPLY, COUNTER or REFRESH goes from an attendee to the organizer: the
   // organizer doesn't answer or import it.
@@ -585,14 +585,16 @@ export function CalendarInvitationBanner({ email, jmapAccountId, appAccountId }:
         accessible={collapsed}
         accessibilityRole={collapsed ? 'button' : undefined}
         accessibilityState={collapsed ? { expanded: false } : undefined}
-        accessibilityLabel={collapsed ? t('email_viewer.calendar_invitation.expand', 'Show details') : undefined}
+        // The row hides its children from a screen reader while it is one
+        // button, so the label names the event too.
+        accessibilityLabel={collapsed ? `${shownTitle}, ${t('email_viewer.calendar_invitation.expand', 'Show details')}` : undefined}
       >
         <View style={styles.iconBadge}>
           <CalendarDays size={18} color={c.primary} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} numberOfLines={2}>
-            {plainDisplayText(shownEvent.title, 200) || t('calendar.invitation.title', 'Calendar invitation')}
+            {shownTitle}
           </Text>
           {method === 'cancel' && (
             <Text style={styles.cancelled}>{t('calendar.invitation.cancelled', 'This event was cancelled')}</Text>

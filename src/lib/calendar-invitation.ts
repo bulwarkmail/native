@@ -155,7 +155,8 @@ function getParticipantSignalScore(p: Participant): number {
 
 /**
  * The attendee a REPLY, COUNTER or REFRESH most likely comes from: not the
- * organizer (by role or address), the one with the strongest answer signals.
+ * organizer (that entry, or its address), the one with the strongest answer
+ * signals. A chair attendee may answer too, so the role alone excludes no one.
  */
 function findRespondingAttendee(event: Partial<CalendarEvent>): Participant | null {
   if (!event.participants) return null;
@@ -163,7 +164,6 @@ function findRespondingAttendee(event: Partial<CalendarEvent>): Participant | nu
   const organizerEmail = getOrganizerEmail(event);
   const attendees = Object.values(event.participants).filter((p) =>
     p !== organizer
-    && !isOrganizerParticipant(p)
     && (!organizerEmail || participantAddress(p) !== organizerEmail));
   return [...attendees].sort(
     (left, right) => getParticipantSignalScore(right) - getParticipantSignalScore(left),
@@ -236,6 +236,35 @@ export function invitationSentFrom(
   const sender = normalizeEmail(senderEmail);
   if (!sender) return null;
   return sender === normalizeEmail(actorEmail) ? null : sender;
+}
+
+export interface InvitationBannerDetails {
+  /** The event the banner's title, time, place and organizer come from. */
+  source: Partial<CalendarEvent>;
+  location: string | null;
+  /** A meeting link the banner may offer to open, or null. */
+  videoUri: string | null;
+}
+
+/**
+ * What the banner shows about the event, all from one source: the user's
+ * stored copy once it is in the calendar, so the real meeting's title and
+ * time never stand beside a link the message's sender wrote. An attendee's
+ * REPLY, COUNTER or REFRESH never offers its own link: a proposed one shows
+ * only in the change list, as text.
+ */
+export function invitationBannerDetails(
+  existing: Partial<CalendarEvent> | null | undefined,
+  event: Partial<CalendarEvent>,
+  method: InvitationMethod,
+): InvitationBannerDetails {
+  const source = existing ?? event;
+  const location = plainDisplayText(
+    source.locations ? Object.values(source.locations)[0]?.name : undefined, 200,
+  ) || null;
+  const uri = source.virtualLocations ? Object.values(source.virtualLocations)[0]?.uri : undefined;
+  const videoUri = uri && (existing || !isResponseMethod(method)) ? uri : null;
+  return { source, location, videoUri };
 }
 
 // ─── Content-Type helpers ────────────────────────────────
@@ -509,7 +538,8 @@ function responderOnStoredEvent(event: Partial<CalendarEvent>, context?: Invitat
  * pass for the From domain (not any pass), and an attendee's answer (REPLY,
  * COUNTER, REFRESH) is compared with the attendee only when the stored
  * event, organized by the user, has that attendee; otherwise it is never
- * more than a caution.
+ * more than a caution. Unlike the webmail, an unknown METHOD needs the same
+ * pass: it is never "verified" on no authentication at all.
  */
 export function getInvitationTrustAssessment(
   event: Partial<CalendarEvent>,
@@ -530,7 +560,6 @@ export function getInvitationTrustAssessment(
   const expectedSender: InvitationTrustAssessment['expectedSender'] = responder ? 'attendee' : 'organizer';
   const expectedSenderEmail = responder ?? organizerEmail;
   const senderMismatch = Boolean(senderEmail && expectedSenderEmail && senderEmail !== expectedSenderEmail);
-  const expectsAuthenticatedTransport = method !== 'unknown';
   const base = { senderEmail, organizerEmail, expectedSender, expectedSenderEmail };
 
   if (senderMismatch && (failed || !verified)) {
@@ -545,7 +574,9 @@ export function getInvitationTrustAssessment(
   if (senderMismatch) {
     return { level: 'caution', reason: 'sender_mismatch', ...base };
   }
-  if (expectsAuthenticatedTransport && !verified) {
+  // Every method, unknown included: with no organizer there is nobody to
+  // compare the sender with, so only a pass for the From domain vouches.
+  if (!verified) {
     return { level: 'caution', reason: 'authentication_missing', ...base };
   }
   return { level: 'trusted', reason: null, ...base };
